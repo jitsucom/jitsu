@@ -330,24 +330,30 @@ const ControlsComponent: React.FC<ControlsProps> = ({
       <Button size="middle" className="flex-grow-0" onClick={handleExit}>
         {'Esc'}
       </Button>
-      <div className="flex justify-center flex-auto min-w-0">
+      <div className="flex justify-center flex-auto min-w-0 ant-btn-group">
         <Button
           size="middle"
-          className={`mr-1 ${styles.selectableButton} ${
+          className={`${styles.selectableButton} ${
             inputChecked && styles.buttonSelected
           }`}
           onClick={toggleInput}
         >
-          {'{  }'}
+          <span className={styles.adaptiveIcon}>{'{ }'}</span>
+          <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
+            {'Input'}
+          </span>
         </Button>
         <Button
           size="middle"
-          className={`mr-1 ${styles.selectableButton} ${
+          className={`${styles.selectableButton} ${
             codeChecked && styles.buttonSelected
           }`}
           onClick={toggleCode}
         >
-          {'</>'}
+          <span className={styles.adaptiveIcon}>{'</>'}</span>
+          <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
+            {'Expression'}
+          </span>
         </Button>
         <Button
           size="middle"
@@ -356,19 +362,26 @@ const ControlsComponent: React.FC<ControlsProps> = ({
           }`}
           onClick={toggleOutput}
         >
-          <CodeOutlined />
+          <CodeOutlined className={styles.adaptiveIcon} />
+          <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
+            {'Result'}
+          </span>
         </Button>
       </div>
-      <div className="flex-grow-0">
+      <div className="flex-grow-0 ant-btn-group">
         <Button
           size="middle"
           type="primary"
           icon={<CaretRightOutlined />}
-          className={`mr-1 ${styles.buttonGreen}`}
+          className={`${styles.buttonGreen}`}
           htmlType="submit"
           form={formId}
-        />
-        <Button size="middle" type="primary" icon={<SaveOutlined />} />
+        >
+          <span className={`${styles.adaptiveLabel}`}>{'Run'}</span>
+        </Button>
+        <Button size="middle" type="primary" icon={<SaveOutlined />}>
+          <span className={`${styles.adaptiveLabel}`}>{'Save'}</span>
+        </Button>
       </div>
     </div>
   );
