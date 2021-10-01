@@ -72,8 +72,9 @@ func (rc *RedisConfiguration) CheckAndSetDefaultPort() (int, bool) {
 		}
 		if rc.IsSentinelMode() {
 			rc.port = 26379
+		} else {
+			rc.port = 6379
 		}
-		rc.port = 6379
 		return rc.port, true
 	}
 
@@ -168,7 +169,7 @@ func NewRedisPool(config *RedisConfiguration) (*redis.Pool, error) {
 	options := []redis.DialOption{defaultDialConnectTimeout, defaultDialReadTimeout}
 
 	if config.IsSentinelMode() {
-		if  config.password != ""{
+		if config.password != "" {
 			options = append(options, redis.DialPassword(config.password))
 		}
 		dialFunc = newSentinelDialFunc(config.sentinelMasterName, []string{config.String()}, options)
@@ -225,7 +226,6 @@ func newDialUrlFunc(config *RedisConfiguration, options []redis.DialOption) func
 		return c, err
 	}
 }
-
 
 //GetSignature returns sync interval signature from Redis
 func (r *Redis) GetSignature(sourceID, collection, interval string) (string, error) {
