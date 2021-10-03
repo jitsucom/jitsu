@@ -23,6 +23,7 @@ export const CodeDebuggerModal: React.FC<Props> = ({
   handleCloseDebugger,
   handleCodeChangeDebugger,
   runDebugger = () => {},
+  handleSaveCodeDebugger,
   className: modalClassName,
   centered: modalCentered,
   width: modalWidth,
@@ -45,6 +46,7 @@ export const CodeDebuggerModal: React.FC<Props> = ({
         defaultCodeValue={defaultCodeValueDebugger}
         handleClose={handleCloseDebugger}
         handleCodeChange={handleCodeChangeDebugger}
+        handleSaveCode={handleSaveCodeDebugger}
         run={runDebugger}
       />
     </Modal>
