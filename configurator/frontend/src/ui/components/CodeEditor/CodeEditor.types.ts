@@ -6,4 +6,9 @@ export interface Props {
   enableLineNumbers?: boolean;
   dynamicHeight?: () => number;
   handleChange: (value: string) => void;
+  hotkeysOverrides?: {
+    onCmdCtrlEnter?: () => void;
+    onCmdCtrlI?: () => void;
+    onCmdCtrlU?: () => void;
+  };
 }

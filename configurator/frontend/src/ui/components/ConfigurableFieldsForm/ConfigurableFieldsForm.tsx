@@ -296,7 +296,6 @@ const ConfigurableFieldsForm = ({
     if (debugModalsValues[id].current) {
       form.setFieldsValue({ [id]: debugModalsValues[id].current });
     }
-    handleCloseDebugger(id);
   };
 
   useEffect(() => {
@@ -435,6 +434,7 @@ const ConfigurableFieldsForm = ({
                       handleCodeChange(id, value.toString())
                     }
                     runDebugger={(values) => handleDebuggerRun(id, values)}
+                    handleSaveCodeDebugger={() => handleSaveDebugger(id)}
                   />
                 ) : null}
                 <Form.Item

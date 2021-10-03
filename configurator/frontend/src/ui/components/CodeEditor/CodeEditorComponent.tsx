@@ -30,7 +30,8 @@ const CodeEditorComponent = ({
   className,
   language = 'json',
   enableLineNumbers,
-  handleChange: handleChangeProp
+  handleChange: handleChangeProp,
+  hotkeysOverrides
 }: Props) => {
   const defaultValue = !initialValue
     ? ''
@@ -58,6 +59,31 @@ const CodeEditorComponent = ({
       ref.current.editor.onKeyUp(handleChange);
     }
   }, [initialValue]);
+
+  useEffect(() => {
+    const { onCmdCtrlEnter, onCmdCtrlU, onCmdCtrlI } = hotkeysOverrides ?? {};
+    onCmdCtrlEnter &&
+      ref.current?.editor.addAction({
+        id: 'cmd-enter-shortcut',
+        label: 'cmd/ctrl + enter',
+        keybindings: [monacoEditor.KeyMod.CtrlCmd | monacoEditor.KeyCode.Enter],
+        run: onCmdCtrlEnter
+      });
+    onCmdCtrlI &&
+      ref.current?.editor.addAction({
+        id: 'cmd-i-shortcut',
+        label: 'cmd/ctrl + I',
+        keybindings: [monacoEditor.KeyMod.CtrlCmd | monacoEditor.KeyCode.KEY_I],
+        run: onCmdCtrlI
+      });
+    onCmdCtrlU &&
+      ref.current?.editor.addAction({
+        id: 'cmd-u-shortcut',
+        label: 'cmd/ctrl + U',
+        keybindings: [monacoEditor.KeyMod.CtrlCmd | monacoEditor.KeyCode.KEY_U],
+        run: onCmdCtrlU
+      });
+  }, []);
 
   return (
     <MonacoEditor

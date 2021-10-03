@@ -1,6 +1,7 @@
 // @Libs
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Checkbox, Dropdown, Form, Spin } from 'antd';
+import { Button, Dropdown, Form, Spin, Tooltip } from 'antd';
+import hotkeys from 'hotkeys-js';
 import cn from 'classnames';
 // @Components
 import { DebugEvents } from 'ui/components/CodeDebugger/DebugEvents';
@@ -46,6 +47,10 @@ export interface CodeDebuggerProps {
    * Close modal for cases with custom close button
    * */
   handleClose?: () => void;
+  /**
+   * Callback for the `save` button
+   */
+  handleSaveCode?: () => void;
 }
 
 export interface FormValues {
@@ -65,9 +70,12 @@ const CodeDebugger = ({
   defaultCodeValue,
   handleCodeChange,
   handleClose,
+  handleSaveCode: _handleSaveCode,
   run
 }: CodeDebuggerProps) => {
   const rowWrapRef = useRef<HTMLDivElement>();
+
+  const [isCodeSaved, setIsCodeSaved] = useState<boolean>(true);
 
   const [objectInitialValue, setObjectInitialValue] = useState<string>();
   const [isEventsVisible, setEventsVisible] = useState<boolean>(false);
@@ -96,9 +104,15 @@ const CodeDebugger = ({
     (name: 'object' | 'code') => (value: string | object) => {
       form.setFieldsValue({ [name]: value ? value : '' });
       if (name === 'code' && handleCodeChange) {
+        isCodeSaved && setIsCodeSaved(false);
         handleCodeChange(value);
       }
     };
+
+  const handleSaveCode = () => {
+    _handleSaveCode();
+    setIsCodeSaved(() => true);
+  };
 
   const handleFinish = async (values: FormValues) => {
     setShowResultCol(true);
@@ -164,7 +178,6 @@ const CodeDebugger = ({
     >
       <div className="w-full mb-2">
         <Controls
-          formId="inputs"
           inputChecked={showInputEditor}
           codeChecked={showCodeEditor}
           outputChecked={showResultCol}
@@ -172,6 +185,8 @@ const CodeDebugger = ({
           toggleCode={toggleCodeEditor}
           toggleOutput={toggleResultCol}
           handleExit={handleClose}
+          handleSave={handleSaveCode}
+          handleRun={form.submit}
         />
       </div>
       <Form
@@ -196,6 +211,11 @@ const CodeDebugger = ({
                   initialValue={objectInitialValue}
                   language={'json'}
                   handleChange={handleChange('object')}
+                  hotkeysOverrides={{
+                    onCmdCtrlEnter: form.submit,
+                    onCmdCtrlI: toggleInputEditor,
+                    onCmdCtrlU: toggleCodeEditor
+                  }}
                 />
               </Form.Item>
             </SectionWithLabel>
@@ -224,7 +244,10 @@ const CodeDebugger = ({
               !showCodeEditor && 'hidden'
             }`}
           >
-            <SectionWithLabel label={codeFieldLabel} htmlFor="code">
+            <SectionWithLabel
+              label={`${codeFieldLabel}${isCodeSaved ? '' : ' ●'}`}
+              htmlFor="code"
+            >
               <Form.Item
                 className={`${styles.field} pl-2`}
                 colon={false}
@@ -235,6 +258,11 @@ const CodeDebugger = ({
                   language="javascript"
                   enableLineNumbers
                   handleChange={handleChange('code')}
+                  hotkeysOverrides={{
+                    onCmdCtrlEnter: form.submit,
+                    onCmdCtrlI: toggleInputEditor,
+                    onCmdCtrlU: toggleCodeEditor
+                  }}
                 />
               </Form.Item>
             </SectionWithLabel>
@@ -304,8 +332,13 @@ CodeDebugger.displayName = 'CodeDebugger';
 
 export { CodeDebugger };
 
+/**
+ * Controls
+ */
+
+const OS_CMD_BUTTON = navigator.userAgent.includes('Mac') ? '⌘' : 'Ctrl';
+
 type ControlsProps = {
-  formId: string;
   inputChecked: boolean;
   codeChecked: boolean;
   outputChecked: boolean;
@@ -313,75 +346,133 @@ type ControlsProps = {
   toggleCode: () => void;
   toggleOutput: () => void;
   handleExit: () => void;
+  handleSave: () => void;
+  handleRun: () => void;
 };
 
 const ControlsComponent: React.FC<ControlsProps> = ({
-  formId,
   inputChecked,
   codeChecked,
   outputChecked,
   toggleInput,
   toggleCode,
   toggleOutput,
-  handleExit
+  handleExit,
+  handleSave,
+  handleRun
 }) => {
+  useEffect(() => {
+    const handleToggleInput = () => {
+      toggleInput();
+      return false; // to prevent browsers' default behaviour
+    };
+    const handleToggleCode = () => {
+      toggleCode();
+      return false;
+    };
+    const handleToggleOutput = () => {
+      toggleOutput();
+      return false;
+    };
+    const _handleExit = () => {
+      handleExit();
+    };
+    const _handleSave = (e: KeyboardEvent) => {
+      e.preventDefault();
+      handleSave();
+      return false;
+    };
+    const _handleRun = (e: KeyboardEvent) => {
+      e.stopPropagation();
+      handleRun();
+      return false;
+    };
+
+    hotkeys.filter = () => true; // to enable hotkeys everywhere, even in input fields
+
+    hotkeys('cmd+i,ctrl+i', handleToggleInput);
+    hotkeys('cmd+u,ctrl+u', handleToggleCode);
+    hotkeys('cmd+o,ctrl+o', handleToggleOutput);
+    hotkeys('escape', _handleExit);
+    hotkeys('cmd+s,ctrl+s', _handleSave);
+    hotkeys('cmd+enter,ctrl+enter', _handleRun);
+
+    return () => {
+      hotkeys.unbind('cmd+i,ctrl+i', handleToggleInput);
+      hotkeys.unbind('cmd+u,ctrl+u', handleToggleCode);
+      hotkeys.unbind('cmd+o,ctrl+o', handleToggleOutput);
+      hotkeys.unbind('escape', _handleExit);
+      hotkeys.unbind('cmd+s,ctrl+s', _handleSave);
+      hotkeys.unbind('cmd+enter,ctrl+enter', _handleRun);
+    };
+  }, []);
+
   return (
     <div className="flex w-full h-full">
       <Button size="middle" className="flex-grow-0" onClick={handleExit}>
         {'Esc'}
       </Button>
       <div className="flex justify-center flex-auto min-w-0 ant-btn-group">
-        <Button
-          size="middle"
-          className={`${styles.selectableButton} ${
-            inputChecked && styles.buttonSelected
-          }`}
-          onClick={toggleInput}
-        >
-          <span className={styles.adaptiveIcon}>{'{ }'}</span>
-          <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
-            {'Input'}
-          </span>
-        </Button>
-        <Button
-          size="middle"
-          className={`${styles.selectableButton} ${
-            codeChecked && styles.buttonSelected
-          }`}
-          onClick={toggleCode}
-        >
-          <span className={styles.adaptiveIcon}>{'</>'}</span>
-          <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
-            {'Expression'}
-          </span>
-        </Button>
-        <Button
-          size="middle"
-          className={`${styles.selectableButton} ${
-            outputChecked && styles.buttonSelected
-          }`}
-          onClick={toggleOutput}
-        >
-          <CodeOutlined className={styles.adaptiveIcon} />
-          <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
-            {'Result'}
-          </span>
-        </Button>
+        <Tooltip title={`${OS_CMD_BUTTON}+I`} mouseEnterDelay={0.5}>
+          <Button
+            size="middle"
+            className={`${styles.selectableButton} ${
+              inputChecked && styles.buttonSelected
+            }`}
+            onClick={toggleInput}
+          >
+            <span className={styles.adaptiveIcon}>{'{ }'}</span>
+            <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
+              {'Input'}
+            </span>
+          </Button>
+        </Tooltip>
+        <Tooltip title={`${OS_CMD_BUTTON}+U`} mouseEnterDelay={0.5}>
+          <Button
+            size="middle"
+            className={`${styles.selectableButton} ${
+              codeChecked && styles.buttonSelected
+            }`}
+            onClick={toggleCode}
+          >
+            <span className={styles.adaptiveIcon}>{'</>'}</span>
+            <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
+              {'Expression'}
+            </span>
+          </Button>
+        </Tooltip>
+        <Tooltip title={`${OS_CMD_BUTTON}+O`} mouseEnterDelay={0.5}>
+          <Button
+            size="middle"
+            className={`${styles.selectableButton} ${
+              outputChecked && styles.buttonSelected
+            }`}
+            onClick={toggleOutput}
+          >
+            <CodeOutlined className={styles.adaptiveIcon} />
+            <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
+              {'Result'}
+            </span>
+          </Button>
+        </Tooltip>
       </div>
       <div className="flex-grow-0 ant-btn-group">
-        <Button
-          size="middle"
-          type="primary"
-          icon={<CaretRightOutlined />}
-          className={`${styles.buttonGreen}`}
-          htmlType="submit"
-          form={formId}
-        >
-          <span className={`${styles.adaptiveLabel}`}>{'Run'}</span>
-        </Button>
-        <Button size="middle" type="primary" icon={<SaveOutlined />}>
-          <span className={`${styles.adaptiveLabel}`}>{'Save'}</span>
-        </Button>
+        <Tooltip title={`${OS_CMD_BUTTON}+↵`} mouseEnterDelay={0.5}>
+          <Button
+            size="middle"
+            type="primary"
+            icon={<CaretRightOutlined />}
+            className={`${styles.buttonGreen}`}
+            onClick={handleRun}
+          >
+            <span className={`${styles.adaptiveLabel}`}>{'Run'}</span>
+          </Button>
+        </Tooltip>
+        <Tooltip title={`${OS_CMD_BUTTON}+S`} mouseEnterDelay={0.5}>
+          <Button size="middle" type="primary" icon={<SaveOutlined />}>
+            <span className={`${styles.adaptiveLabel}`}>{'Save'}</span>
+          </Button>
+        </Tooltip>
       </div>
     </div>
   );
