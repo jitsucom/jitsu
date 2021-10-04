@@ -11,6 +11,10 @@
       "description": "(Optional) If you want Jitsu to resolve location-based data (Coutry, City, etc) based on IP address, provide 'maxmind://<YOUR_MAXMIND_LICENSE_KEY>' or custom HTTP URL to hosted Maxmind DB file. You can leave it blank, it this case location-resolution won't work. See https://jitsu.com/docs/other-features/geo-data-resolution for details",
       "required": false
     },
+    "SLACK_NOTIFICATIONS_WEBHOOK": {
+      "description": "(Optional) Slack webhook URL. Server starts, system errors, and panics information will be sent there.",
+      "required": false
+    },
     "SMTP_HOST": {
       "description": "(Optional) For using reset/forgot password feature - configure SMTP Host for sending emails.",
       "required": false

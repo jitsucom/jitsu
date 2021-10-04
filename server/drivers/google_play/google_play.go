@@ -118,6 +118,10 @@ func (gp *GooglePlay) GetCollectionMetaKey() string {
 	return gp.collection.Name + "_" + gp.GetCollectionTable()
 }
 
+func (gp *GooglePlay) GetRefreshWindow() (time.Duration, error) {
+	return time.Hour * 24 * 31, nil
+}
+
 func (gp *GooglePlay) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	bucketName := bucketPrefix + gp.config.AccountID
 	bucket := gp.client.Bucket(bucketName)

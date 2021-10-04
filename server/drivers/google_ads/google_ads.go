@@ -117,6 +117,14 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	return &GoogleAds{collection: collection, config: config, fields: fields, httpClient: httpClient, granularity: granularity}, nil
 }
 
+func (g *GoogleAds) GetRefreshWindow() (time.Duration, error) {
+	if g.granularity == base.ALL {
+		return time.Hour * 24, nil
+	} else {
+		return time.Hour * 24 * 31, nil
+	}
+}
+
 func (g *GoogleAds) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	if g.granularity == base.ALL {
 		return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil

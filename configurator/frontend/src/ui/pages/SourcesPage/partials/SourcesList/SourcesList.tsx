@@ -102,8 +102,19 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
 
   const handleAddClick = useCallback(
     () => {
-      if (sourcesStore.sources.length >= services.currentSubscription.currentPlan.quota.sources) {
-        showQuotaLimitModal(services.currentSubscription, <>You current plan allows to have only {services.currentSubscription.currentPlan.quota.sources} sources</>)
+      services.features.billingEnabled;
+      if (
+        sourcesStore.sources.length >=
+          services.currentSubscription?.currentPlan.quota.sources ??
+        999
+      ) {
+        showQuotaLimitModal(
+          services.currentSubscription,
+          <>
+            You current plan allows to have only{' '}
+            {services.currentSubscription.currentPlan.quota.sources} sources
+          </>
+        );
         return;
       }
       history.push(sourcesPageRoutes.add)
