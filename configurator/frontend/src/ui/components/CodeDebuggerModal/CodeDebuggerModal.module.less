@@ -1,0 +1,25 @@
+.modal {
+  @apply flex;
+  @apply h-screen w-screen p-0 m-0 rounded-none !important;
+
+  :global {
+    .ant-modal-content {
+      @apply flex flex-auto flex-col;
+      @apply rounded-none !important;
+      height: 100%;
+    }
+
+    .ant-modal-body {
+      @apply flex-auto h-full p-2 pt-4 !important;
+      overflow-y: auto;
+    }
+
+    .ant-modal-footer {
+      border-top: none !important;
+    }
+  }
+}
+
+.modal__mask {
+  cursor: pointer;
+}
