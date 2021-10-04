@@ -1,23 +1,21 @@
 // @Libs
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { ReflexContainer, ReflexSplitter, ReflexElement } from 'react-reflex';
 import { Button, Dropdown, Form, Spin, Tooltip } from 'antd';
 import hotkeys from 'hotkeys-js';
 import cn from 'classnames';
 // @Components
 import { DebugEvents } from 'ui/components/CodeDebugger/DebugEvents';
 import { CodeEditor } from 'ui/components/CodeEditor/CodeEditor';
-// @Types
 // @Icons
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 import UnorderedListOutlined from '@ant-design/icons/lib/icons/UnorderedListOutlined';
 // @Styles
+import 'react-reflex/styles.css';
 import styles from './CodeDebugger.module.less';
 import { Event as RecentEvent } from '../../../lib/services/events';
 import { SyntaxHighlighterAsync } from 'lib/components/SyntaxHighlighter/SyntaxHighlighter';
 import { CodeOutlined, LoadingOutlined, SaveOutlined } from '@ant-design/icons';
-
-import { ReflexContainer, ReflexSplitter, ReflexElement } from 'react-reflex';
-import 'react-reflex/styles.css';
 
 export interface CodeDebuggerProps {
   /**
@@ -91,27 +89,10 @@ const CodeDebugger = ({
   const [showCodeEditor, setShowCodeEditor] = useState<boolean>(true);
   const [showOutput, setShowOutput] = useState<boolean>(false);
 
-  const [inputEditorSize, setInputEditorSize] = useState<undefined | number>(
-    undefined
-  );
-  const [codeEditorSize, setCodeEditorSize] = useState<undefined | number>(
-    undefined
-  );
-  const [outputSize, setOutputSize] = useState<undefined | number>(0);
-
   const [form] = Form.useForm();
 
   const toggleInputEditor = useCallback(() => {
-    setShowInputEditor((isShown) => {
-      const show = !isShown;
-      if (show) {
-        setInputEditorSize(SIZE);
-        setInputEditorSize(undefined);
-      } else {
-        setInputEditorSize(0);
-      }
-      return show;
-    });
+    setShowInputEditor((val) => !val);
   }, []);
 
   const toggleCodeEditor = useCallback(() => {
@@ -218,111 +199,120 @@ const CodeDebugger = ({
         onFinish={handleRun}
       >
         <ReflexContainer orientation="vertical">
-          <ReflexElement>
-            <SectionWithLabel label="Event JSON" htmlFor="object">
-              <Form.Item className={`${styles.field} w-full`} name="object">
-                <CodeEditor
-                  initialValue={objectInitialValue}
-                  language={'json'}
-                  handleChange={handleChange('object')}
-                  hotkeysOverrides={{
-                    onCmdCtrlEnter: form.submit,
-                    onCmdCtrlI: toggleInputEditor,
-                    onCmdCtrlU: toggleCodeEditor
-                  }}
-                />
-              </Form.Item>
-            </SectionWithLabel>
-            <Dropdown
-              forceRender
-              className="absolute right-4 bottom-3"
-              placement="topRight"
-              overlay={<DebugEvents handleClick={handleEventClick} />}
-              trigger={['click']}
-              visible={isEventsVisible}
-            >
-              <Button
-                size="small"
-                type="link"
-                icon={<UnorderedListOutlined />}
-                id="events-button"
-                onClick={handleSwitchEventsVisible}
+          {showInputEditor && (
+            <ReflexElement>
+              <SectionWithLabel label="Event JSON" htmlFor="object">
+                <Form.Item className={`${styles.field} w-full`} name="object">
+                  <CodeEditor
+                    initialValue={
+                      form.getFieldValue('object') ?? objectInitialValue
+                    }
+                    language={'json'}
+                    handleChange={handleChange('object')}
+                    hotkeysOverrides={{
+                      onCmdCtrlEnter: form.submit,
+                      onCmdCtrlI: toggleInputEditor,
+                      onCmdCtrlU: toggleCodeEditor
+                    }}
+                  />
+                </Form.Item>
+              </SectionWithLabel>
+              <Dropdown
+                forceRender
+                className="absolute right-4 bottom-3"
+                placement="topRight"
+                overlay={<DebugEvents handleClick={handleEventClick} />}
+                trigger={['click']}
+                visible={isEventsVisible}
               >
-                Copy Recent Event
-              </Button>
-            </Dropdown>
-          </ReflexElement>
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<UnorderedListOutlined />}
+                  id="events-button"
+                  onClick={handleSwitchEventsVisible}
+                >
+                  Copy Recent Event
+                </Button>
+              </Dropdown>
+            </ReflexElement>
+          )}
 
           {showInputEditor && (
             <ReflexSplitter propagate className={`${styles.splitter}`} />
           )}
 
-          <ReflexElement>
-            <SectionWithLabel
-              label={`${codeFieldLabel}${isCodeSaved ? '' : ' ●'}`}
-              htmlFor="code"
-            >
-              <Form.Item
-                className={`${styles.field} pl-2`}
-                colon={false}
-                name="code"
+          {showCodeEditor && (
+            <ReflexElement>
+              <SectionWithLabel
+                label={`${codeFieldLabel}${isCodeSaved ? '' : ' ●'}`}
+                htmlFor="code"
               >
-                <CodeEditor
-                  initialValue={defaultCodeValue}
-                  language="javascript"
-                  enableLineNumbers
-                  handleChange={handleChange('code')}
-                  hotkeysOverrides={{
-                    onCmdCtrlEnter: form.submit,
-                    onCmdCtrlI: toggleInputEditor,
-                    onCmdCtrlU: toggleCodeEditor
-                  }}
-                />
-              </Form.Item>
-            </SectionWithLabel>
-          </ReflexElement>
+                <Form.Item
+                  className={`${styles.field} pl-2`}
+                  colon={false}
+                  name="code"
+                >
+                  <CodeEditor
+                    initialValue={
+                      form.getFieldValue('code') ?? defaultCodeValue
+                    }
+                    language="javascript"
+                    enableLineNumbers
+                    handleChange={handleChange('code')}
+                    hotkeysOverrides={{
+                      onCmdCtrlEnter: form.submit,
+                      onCmdCtrlI: toggleInputEditor,
+                      onCmdCtrlU: toggleCodeEditor
+                    }}
+                  />
+                </Form.Item>
+              </SectionWithLabel>
+            </ReflexElement>
+          )}
 
           {showCodeEditor && showOutput && (
             <ReflexSplitter propagate className={`${styles.splitter}`} />
           )}
 
-          <ReflexElement>
-            <SectionWithLabel label="Result">
-              <div
-                className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}
-              >
-                <p
-                  className={cn('flex flex-col w-full h-full m-0', {
-                    [styles.itemError]: calcResult?.code === 'error',
-                    [styles.itemSuccess]: calcResult?.code === 'success'
-                  })}
+          {showOutput && (
+            <ReflexElement>
+              <SectionWithLabel label="Result">
+                <div
+                  className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}
                 >
-                  <strong
-                    className={cn(
-                      `absolute top-1 right-2 flex-shrink-0 text-xs`
-                    )}
+                  <p
+                    className={cn('flex flex-col w-full h-full m-0', {
+                      [styles.itemError]: calcResult?.code === 'error',
+                      [styles.itemSuccess]: calcResult?.code === 'success'
+                    })}
                   >
-                    {runIsLoading ? (
-                      <Spin
-                        indicator={
-                          <LoadingOutlined style={{ fontSize: 15 }} spin />
-                        }
-                      />
-                    ) : (
-                      `${calcResult?.code ?? ''}`
-                    )}
-                  </strong>
-                  {calcResult && (
-                    <span className={`flex-auto min-w-0 text-xs`}>
-                      {calcResult.code === 'error' ? (
-                        calcResult.message
+                    <strong
+                      className={cn(
+                        `absolute top-1 right-2 flex-shrink-0 text-xs`
+                      )}
+                    >
+                      {runIsLoading ? (
+                        <Spin
+                          indicator={
+                            <LoadingOutlined style={{ fontSize: 15 }} spin />
+                          }
+                        />
                       ) : (
-                        <SyntaxHighlighterAsync
-                          language="json"
-                          className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
-                        >
-                          {calcResult.message}
-                          {/* {
+                        `${calcResult?.code ?? ''}`
+                      )}
+                    </strong>
+                    {calcResult && (
+                      <span className={`flex-auto min-w-0 text-xs`}>
+                        {calcResult.code === 'error' ? (
+                          calcResult.message
+                        ) : (
+                          <SyntaxHighlighterAsync
+                            language="json"
+                            className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
+                          >
+                            {calcResult.message}
+                            {/* {
                             // 'safdasfs afdasfasdgasgdfags gasgafasdf asfafasdfasf afdasfdafdda sfasfadsfas fasfafsdasfafas'
                             JSON.stringify(
                               JSON.parse(calcResult.message),
@@ -330,15 +320,51 @@ const CodeDebugger = ({
                               2
                             )
                           } */}
-                        </SyntaxHighlighterAsync>
-                      )}
-                    </span>
-                  )}
-                </p>
-              </div>
-            </SectionWithLabel>
-          </ReflexElement>
+                          </SyntaxHighlighterAsync>
+                        )}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </SectionWithLabel>
+            </ReflexElement>
+          )}
         </ReflexContainer>
+
+        {/**
+         * Elements below keep the form values when the inputs are unmounted.
+         * Keep these elements out of the ReflexContainer, otherwise they will break the layout.
+         * */}
+
+        {!showInputEditor && (
+          <Form.Item className={`hidden`} name="object">
+            <CodeEditor
+              initialValue={form.getFieldValue('object') ?? objectInitialValue}
+              language={'json'}
+              handleChange={handleChange('object')}
+              hotkeysOverrides={{
+                onCmdCtrlEnter: form.submit,
+                onCmdCtrlI: toggleInputEditor,
+                onCmdCtrlU: toggleCodeEditor
+              }}
+            />
+          </Form.Item>
+        )}
+
+        {!showCodeEditor && (
+          <Form.Item className={`hidden`} name="code">
+            <CodeEditor
+              initialValue={form.getFieldValue('code') ?? defaultCodeValue}
+              language={'json'}
+              handleChange={handleChange('code')}
+              hotkeysOverrides={{
+                onCmdCtrlEnter: form.submit,
+                onCmdCtrlI: toggleInputEditor,
+                onCmdCtrlU: toggleCodeEditor
+              }}
+            />
+          </Form.Item>
+        )}
       </Form>
     </div>
   );
