@@ -1,5 +1,5 @@
 // @Libs
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Dropdown, Form, Spin, Tooltip } from 'antd';
 import hotkeys from 'hotkeys-js';
 import cn from 'classnames';
@@ -15,6 +15,9 @@ import styles from './CodeDebugger.module.less';
 import { Event as RecentEvent } from '../../../lib/services/events';
 import { SyntaxHighlighterAsync } from 'lib/components/SyntaxHighlighter/SyntaxHighlighter';
 import { CodeOutlined, LoadingOutlined, SaveOutlined } from '@ant-design/icons';
+
+import { ReflexContainer, ReflexSplitter, ReflexElement } from 'react-reflex';
+import 'react-reflex/styles.css';
 
 export interface CodeDebuggerProps {
   /**
@@ -64,6 +67,8 @@ interface CalculationResult {
   message: string;
 }
 
+const SIZE = 300;
+
 const CodeDebugger = ({
   className,
   codeFieldLabel = 'Table Name expression',
@@ -84,20 +89,37 @@ const CodeDebugger = ({
 
   const [showInputEditor, setShowInputEditor] = useState<boolean>(true);
   const [showCodeEditor, setShowCodeEditor] = useState<boolean>(true);
-  const [showResultCol, setShowResultCol] = useState<boolean>(false);
+  const [showOutput, setShowOutput] = useState<boolean>(false);
+
+  const [inputEditorSize, setInputEditorSize] = useState<undefined | number>(
+    undefined
+  );
+  const [codeEditorSize, setCodeEditorSize] = useState<undefined | number>(
+    undefined
+  );
+  const [outputSize, setOutputSize] = useState<undefined | number>(0);
 
   const [form] = Form.useForm();
 
   const toggleInputEditor = useCallback(() => {
-    setShowInputEditor((val) => !val);
+    setShowInputEditor((isShown) => {
+      const show = !isShown;
+      if (show) {
+        setInputEditorSize(SIZE);
+        setInputEditorSize(undefined);
+      } else {
+        setInputEditorSize(0);
+      }
+      return show;
+    });
   }, []);
 
   const toggleCodeEditor = useCallback(() => {
     setShowCodeEditor((val) => !val);
   }, []);
 
-  const toggleResultCol = useCallback(() => {
-    setShowResultCol((val) => !val);
+  const toggleOutput = useCallback(() => {
+    setShowOutput((val) => !val);
   }, []);
 
   const handleChange =
@@ -114,8 +136,8 @@ const CodeDebugger = ({
     setIsCodeSaved(() => true);
   };
 
-  const handleFinish = async (values: FormValues) => {
-    setShowResultCol(true);
+  const handleRun = async (values: FormValues) => {
+    setShowOutput(true);
     setRunIsLoading(true);
 
     try {
@@ -180,10 +202,10 @@ const CodeDebugger = ({
         <Controls
           inputChecked={showInputEditor}
           codeChecked={showCodeEditor}
-          outputChecked={showResultCol}
+          outputChecked={showOutput}
           toggleInput={toggleInputEditor}
           toggleCode={toggleCodeEditor}
-          toggleOutput={toggleResultCol}
+          toggleOutput={toggleOutput}
           handleExit={handleClose}
           handleSave={handleSaveCode}
           handleRun={form.submit}
@@ -191,22 +213,14 @@ const CodeDebugger = ({
       </div>
       <Form
         form={form}
-        className="flex-auto"
+        className="flex-auto relative"
         id="inputs"
-        onFinish={handleFinish}
+        onFinish={handleRun}
       >
-        <div ref={rowWrapRef} className={`flex items-stretch h-full`}>
-          <div
-            className={`flex flex-col relative h-full pr-1 ${styles.column} ${
-              !showInputEditor && 'hidden'
-            }`}
-          >
+        <ReflexContainer orientation="vertical">
+          <ReflexElement>
             <SectionWithLabel label="Event JSON" htmlFor="object">
-              <Form.Item
-                className={`${styles.field} w-full`}
-                colon={false}
-                name="object"
-              >
+              <Form.Item className={`${styles.field} w-full`} name="object">
                 <CodeEditor
                   initialValue={objectInitialValue}
                   language={'json'}
@@ -237,13 +251,13 @@ const CodeDebugger = ({
                 Copy Recent Event
               </Button>
             </Dropdown>
-          </div>
+          </ReflexElement>
 
-          <div
-            className={`px-1 ${styles.columnWide} ${
-              !showCodeEditor && 'hidden'
-            }`}
-          >
+          {showInputEditor && (
+            <ReflexSplitter propagate className={`${styles.splitter}`} />
+          )}
+
+          <ReflexElement>
             <SectionWithLabel
               label={`${codeFieldLabel}${isCodeSaved ? '' : ' ●'}`}
               htmlFor="code"
@@ -266,11 +280,13 @@ const CodeDebugger = ({
                 />
               </Form.Item>
             </SectionWithLabel>
-          </div>
+          </ReflexElement>
 
-          <div
-            className={`pl-1 ${styles.column} ${!showResultCol && 'hidden'}`}
-          >
+          {showCodeEditor && showOutput && (
+            <ReflexSplitter propagate className={`${styles.splitter}`} />
+          )}
+
+          <ReflexElement>
             <SectionWithLabel label="Result">
               <div
                 className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}
@@ -321,8 +337,8 @@ const CodeDebugger = ({
                 </p>
               </div>
             </SectionWithLabel>
-          </div>
-        </div>
+          </ReflexElement>
+        </ReflexContainer>
       </Form>
     </div>
   );
