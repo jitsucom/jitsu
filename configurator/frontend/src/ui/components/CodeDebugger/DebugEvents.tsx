@@ -1,51 +1,92 @@
 // @Libs
+import { useMemo } from 'react';
+import { Card, List, Skeleton } from 'antd';
+import { range } from 'lodash';
 import moment from 'moment';
-import { Card, Collapse, Input } from 'antd';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
+import { Event } from '../../../lib/services/events';
 // @Hooks
-import useLoader from 'hooks/useLoader';
-// @Types
+import { useLoaderAsObject } from 'hooks/useLoader';
 // @Styles
 import styles from './CodeDebugger.module.less';
-import { useMemo, useState } from 'react';
-import debounce from 'lodash/debounce';
-import { Event } from '../../../lib/services/events';
+import { destinationsStore } from 'stores/destinations';
 
 interface Props {
   handleClick: (ev: Event) => () => void;
 }
 
+const destinationIds = destinationsStore.destinations.map((dest) => dest._uid);
+destinationIds.length = 5;
+
 const DebugEvents = ({ handleClick }: Props) => {
   const services = ApplicationServices.get();
 
-  const [, eventsData] = useLoader(async() => await services.backendApiClient.get(`/events/cache?project_id=${services.activeProject.id}&limit=100000`, { proxy: true }));
+  const { data: eventsData, isLoading } = useLoaderAsObject(
+    async () =>
+      await services.backendApiClient.get(
+        `/events/cache?project_id=${services.activeProject.id}&limit=100`,
+        { proxy: true }
+      )
+  );
 
-  const allEvents = useMemo(() => (eventsData?.events ?? []).map(event => ({
-    data: event,
-    time: moment(event.original._timestamp)
-  })).sort((e1: Event, e2: Event) => {
-    if (e1.time.isAfter(e2.time)) {
-      return -1;
-    } else if (e2.time.isAfter(e1.time)) {
-      return 1;
-    }
-    return 0;
-  }), [eventsData?.events]);
+  const allEvents = useMemo(() => {
+    const events = eventsData?.events ?? [];
+    if (events.length > 100) events.length = 100;
+    return events
+      .map((event) => ({
+        data: event,
+        time: moment(event.original._timestamp)
+      }))
+      .sort((e1: Event, e2: Event) => {
+        if (e1.time.isAfter(e2.time)) {
+          return -1;
+        } else if (e2.time.isAfter(e1.time)) {
+          return 1;
+        }
+        return 0;
+      });
+  }, [eventsData?.events]);
 
   return (
-    <Card className={styles.events}>
-      {
-        allEvents.slice(0, 100).map(ev => (
-          <p
-            className="cursor-pointer"
-            onClick={handleClick(ev.data.original)}
-            key={Math.random()}
-          >
-            {ev.time.utc().format()}, {ev.data.original.event_type}
-          </p>
-        ))
-      }
+    <Card bordered={false} className={`${styles.events}`}>
+      {isLoading ? (
+        <List
+          dataSource={range(0, 25)}
+          renderItem={() => (
+            <Skeleton
+              active
+              title={false}
+              paragraph={{ rows: 2, width: ['100%', '70%'] }}
+              className="mb-2"
+            />
+          )}
+        />
+      ) : (
+        <List
+          className={`h-full w-full overflow-y-auto overflow-x-hidden ${styles.withSmallScrollbar}`}
+          dataSource={allEvents}
+          renderItem={(item: any) => {
+            return (
+              <div
+                className={`flex flex-col items-stretch ${styles.eventItem}`}
+                onClick={handleClick(item?.data.original)}
+              >
+                <p className="truncate mb-0">
+                  {item?.time?.utc?.()?.format?.()}
+                </p>
+                {item?.data?.original?.event_type ? (
+                  <p className="truncate mb-0">
+                    {item?.data?.original?.event_type}
+                  </p>
+                ) : (
+                  ''
+                )}
+              </div>
+            );
+          }}
+        />
+      )}
     </Card>
   );
 };

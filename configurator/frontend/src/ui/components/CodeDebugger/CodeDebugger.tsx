@@ -76,8 +76,6 @@ const CodeDebugger = ({
   handleSaveCode: _handleSaveCode,
   run
 }: CodeDebuggerProps) => {
-  const rowWrapRef = useRef<HTMLDivElement>();
-
   const [isCodeSaved, setIsCodeSaved] = useState<boolean>(true);
 
   const [objectInitialValue, setObjectInitialValue] = useState<string>();
@@ -114,7 +112,7 @@ const CodeDebugger = ({
 
   const handleSaveCode = () => {
     _handleSaveCode();
-    setIsCodeSaved(() => true);
+    setIsCodeSaved(true);
   };
 
   const handleRun = async (values: FormValues) => {
