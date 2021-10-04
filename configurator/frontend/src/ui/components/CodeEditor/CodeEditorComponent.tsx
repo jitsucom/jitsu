@@ -26,9 +26,12 @@ monacoEditor.editor.defineTheme('own-theme', {
 });
 
 const CodeEditorComponent = ({
-  handleChange: handleChangeProp,
   initialValue,
-  language = 'json'
+  className,
+  language = 'json',
+  enableLineNumbers,
+  handleChange: handleChangeProp,
+  hotkeysOverrides
 }: Props) => {
   const defaultValue = !initialValue
     ? ''
@@ -57,24 +60,51 @@ const CodeEditorComponent = ({
     }
   }, [initialValue]);
 
+  useEffect(() => {
+    const { onCmdCtrlEnter, onCmdCtrlU, onCmdCtrlI } = hotkeysOverrides ?? {};
+    onCmdCtrlEnter &&
+      ref.current?.editor.addAction({
+        id: 'cmd-enter-shortcut',
+        label: 'cmd/ctrl + enter',
+        keybindings: [monacoEditor.KeyMod.CtrlCmd | monacoEditor.KeyCode.Enter],
+        run: onCmdCtrlEnter
+      });
+    onCmdCtrlI &&
+      ref.current?.editor.addAction({
+        id: 'cmd-i-shortcut',
+        label: 'cmd/ctrl + I',
+        keybindings: [monacoEditor.KeyMod.CtrlCmd | monacoEditor.KeyCode.KEY_I],
+        run: onCmdCtrlI
+      });
+    onCmdCtrlU &&
+      ref.current?.editor.addAction({
+        id: 'cmd-u-shortcut',
+        label: 'cmd/ctrl + U',
+        keybindings: [monacoEditor.KeyMod.CtrlCmd | monacoEditor.KeyCode.KEY_U],
+        run: onCmdCtrlU
+      });
+  }, []);
+
   return (
     <MonacoEditor
       ref={ref}
+      className={className}
       language={language}
       theme="own-theme"
       defaultValue={defaultValue}
       options={{
+        automaticLayout: true,
         glyphMargin: false,
         folding: false,
-        lineNumbers: 'off',
+        lineNumbers: enableLineNumbers ? 'on' : 'off',
         lineDecorationsWidth: 11,
         lineNumbersMinChars: 0,
         minimap: {
           enabled: false
         },
         scrollbar: {
-          verticalScrollbarSize: 8,
-          horizontalScrollbarSize: 8
+          verticalScrollbarSize: 5,
+          horizontalScrollbarSize: 5
         },
         padding: {
           top: 4,
