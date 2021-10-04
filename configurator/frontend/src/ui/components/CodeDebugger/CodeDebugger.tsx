@@ -1,5 +1,5 @@
 // @Libs
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 import { ReflexContainer, ReflexSplitter, ReflexElement } from 'react-reflex';
 import { Button, Dropdown, Form, Spin, Tooltip } from 'antd';
 import hotkeys from 'hotkeys-js';
@@ -15,7 +15,12 @@ import 'react-reflex/styles.css';
 import styles from './CodeDebugger.module.less';
 import { Event as RecentEvent } from '../../../lib/services/events';
 import { SyntaxHighlighterAsync } from 'lib/components/SyntaxHighlighter/SyntaxHighlighter';
-import { CodeOutlined, LoadingOutlined, SaveOutlined } from '@ant-design/icons';
+import {
+  CloseOutlined,
+  CodeOutlined,
+  LoadingOutlined,
+  DownloadOutlined
+} from '@ant-design/icons';
 
 export interface CodeDebuggerProps {
   /**
@@ -139,9 +144,7 @@ const CodeDebugger = ({
   };
 
   const handleEventClick = (event: RecentEvent) => () => {
-    setObjectInitialValue(JSON.stringify(event, null, 2));
-
-    handleChange('object')(JSON.stringify(event));
+    handleChange('object')(JSON.stringify(event, null, 2));
 
     setEventsVisible(false);
   };
@@ -448,53 +451,63 @@ const ControlsComponent: React.FC<ControlsProps> = ({
   }, []);
 
   return (
-    <div className="flex w-full h-full">
+    <div className="flex items-stretch w-full h-full">
       <Button size="middle" className="flex-grow-0" onClick={handleExit}>
-        {'Esc'}
+        <CloseOutlined className={styles.adaptiveIcon} />
+        <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
+          {'Close'}
+        </span>
       </Button>
-      <div className="flex justify-center flex-auto min-w-0 ant-btn-group">
-        <Tooltip title={`${OS_CMD_BUTTON}+I`} mouseEnterDelay={0.5}>
-          <Button
-            size="middle"
-            className={`${styles.selectableButton} ${
-              inputChecked && styles.buttonSelected
-            }`}
-            onClick={toggleInput}
-          >
-            <span className={styles.adaptiveIcon}>{'{ }'}</span>
-            <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
-              {'Input'}
-            </span>
-          </Button>
-        </Tooltip>
-        <Tooltip title={`${OS_CMD_BUTTON}+U`} mouseEnterDelay={0.5}>
-          <Button
-            size="middle"
-            className={`${styles.selectableButton} ${
-              codeChecked && styles.buttonSelected
-            }`}
-            onClick={toggleCode}
-          >
-            <span className={styles.adaptiveIcon}>{'</>'}</span>
-            <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
-              {'Expression'}
-            </span>
-          </Button>
-        </Tooltip>
-        <Tooltip title={`${OS_CMD_BUTTON}+O`} mouseEnterDelay={0.5}>
-          <Button
-            size="middle"
-            className={`${styles.selectableButton} ${
-              outputChecked && styles.buttonSelected
-            }`}
-            onClick={toggleOutput}
-          >
-            <CodeOutlined className={styles.adaptiveIcon} />
-            <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
-              {'Result'}
-            </span>
-          </Button>
-        </Tooltip>
+      <div className="relative flex-auto min-w-0">
+        <span
+          className={`absolute -top-1 w-full text-center ${styles.buttonsSuperlabel}`}
+        >
+          {'Toggle Visibility'}
+        </span>
+        <div className="relative flex justify-center items-end w-full h-full ant-btn-group">
+          <Tooltip title={`${OS_CMD_BUTTON}+I`} mouseEnterDelay={0.5}>
+            <Button
+              size="small"
+              className={`${styles.selectableButton} ${
+                inputChecked && styles.buttonSelected
+              }`}
+              onClick={toggleInput}
+            >
+              <span className={styles.adaptiveIcon}>{'{ }'}</span>
+              <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
+                {'Input'}
+              </span>
+            </Button>
+          </Tooltip>
+          <Tooltip title={`${OS_CMD_BUTTON}+U`} mouseEnterDelay={0.5}>
+            <Button
+              size="small"
+              className={`${styles.selectableButton} ${
+                codeChecked && styles.buttonSelected
+              }`}
+              onClick={toggleCode}
+            >
+              <span className={styles.adaptiveIcon}>{'</>'}</span>
+              <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
+                {'Expression'}
+              </span>
+            </Button>
+          </Tooltip>
+          <Tooltip title={`${OS_CMD_BUTTON}+O`} mouseEnterDelay={0.5}>
+            <Button
+              size="small"
+              className={`${styles.selectableButton} ${
+                outputChecked && styles.buttonSelected
+              }`}
+              onClick={toggleOutput}
+            >
+              <CodeOutlined className={styles.adaptiveIcon} />
+              <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
+                {'Result'}
+              </span>
+            </Button>
+          </Tooltip>
+        </div>
       </div>
       <div className="flex-grow-0 ant-btn-group">
         <Tooltip title={`${OS_CMD_BUTTON}+↵`} mouseEnterDelay={0.5}>
@@ -509,7 +522,7 @@ const ControlsComponent: React.FC<ControlsProps> = ({
           </Button>
         </Tooltip>
         <Tooltip title={`${OS_CMD_BUTTON}+S`} mouseEnterDelay={0.5}>
-          <Button size="middle" type="primary" icon={<SaveOutlined />}>
+          <Button size="middle" type="primary" icon={<DownloadOutlined />}>
             <span className={`${styles.adaptiveLabel}`}>{'Save'}</span>
           </Button>
         </Tooltip>
