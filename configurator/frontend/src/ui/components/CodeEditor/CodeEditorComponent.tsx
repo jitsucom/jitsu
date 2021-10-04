@@ -93,6 +93,7 @@ const CodeEditorComponent = ({
       theme="own-theme"
       defaultValue={defaultValue}
       options={{
+        automaticLayout: true,
         glyphMargin: false,
         folding: false,
         lineNumbers: enableLineNumbers ? 'on' : 'off',
