@@ -37,7 +37,7 @@ const SourceEditorConfigComponent = ({
   enableFormControls
 }: Props) => {
   const services = useServices();
-  const subscription = services.currentSubscription.currentPlan;
+  const subscription = services.currentSubscription?.currentPlan;
   const validateUniqueSourceId = useCallback(
     (rule: RuleObject, value: string) =>
       sources?.find((source: SourceData) => source.sourceId === value)
@@ -102,19 +102,21 @@ const SourceEditorConfigComponent = ({
             label="Schedule:"
             labelCol={{ span: 4 }}
             wrapperCol={{ span: 20 }}
-            rules={[
-              { required: true, message: 'You have to choose schedule' }
-            ]}
+            rules={[{ required: true, message: 'You have to choose schedule' }]}
           >
             <Select>
               {COLLECTIONS_SCHEDULES.map((option) => {
-                const available = subscription.quota.allowedSchedules.includes(option.id);
+                const available = subscription
+                  ? subscription.quota.allowedSchedules.includes(option.id)
+                  : true;
                 return (
                   <Select.Option
-                    value={option.value} key={option.value}
+                    value={option.value}
+                    key={option.value}
                     disabled={!available}
                   >
-                    {option.label}{!available && ' - n/a, upgrade plan'}
+                    {option.label}
+                    {!available && ' - n/a, upgrade plan'}
                   </Select.Option>
                 );
               })}
