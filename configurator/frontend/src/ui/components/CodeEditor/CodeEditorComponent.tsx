@@ -31,6 +31,7 @@ const CodeEditorComponent = ({
   className,
   language = 'json',
   enableLineNumbers,
+  reRenderEditorOnInitialValueChange = true,
   handleChange: handleChangeProp,
   hotkeysOverrides
 }: Props) => {
@@ -53,12 +54,12 @@ const CodeEditorComponent = ({
 
   useEffect(() => {
     if (ref.current?.editor) {
-      if (initialValue) {
+      if (initialValue && reRenderEditorOnInitialValueChange) {
         const model = ref.current.editor.getModel();
         model.setValue(defaultValue);
       }
     }
-  }, []);
+  }, [initialValue, reRenderEditorOnInitialValueChange]);
 
   useEffect(() => {
     ref.current?.editor?.onKeyUp(handleChange);
