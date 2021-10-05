@@ -70,11 +70,9 @@ interface CalculationResult {
   message: string;
 }
 
-const SIZE = 300;
-
 const CodeDebugger = ({
   className,
-  codeFieldLabel = 'Table Name expression',
+  codeFieldLabel = 'Table Name Expression',
   defaultCodeValue,
   handleCodeChange,
   handleClose,
@@ -83,7 +81,7 @@ const CodeDebugger = ({
 }: CodeDebuggerProps) => {
   const [isCodeSaved, setIsCodeSaved] = useState<boolean>(true);
 
-  const [objectInitialValue, setObjectInitialValue] = useState<string>();
+  const [objectInitialValue, setObjectInitialValue] = useState<string>('');
   const [isEventsVisible, setEventsVisible] = useState<boolean>(false);
   const [calcResult, setCalcResult] = useState<CalculationResult>();
   const [runIsLoading, setRunIsLoading] = useState<boolean>(false);
@@ -110,8 +108,8 @@ const CodeDebugger = ({
     (name: 'object' | 'code') => (value: string | object) => {
       form.setFieldsValue({ [name]: value ? value : '' });
       if (name === 'code' && handleCodeChange) {
-        isCodeSaved && setIsCodeSaved(false);
         handleCodeChange(value);
+        isCodeSaved && setIsCodeSaved(false);
       }
     };
 
@@ -246,7 +244,8 @@ const CodeDebugger = ({
           {showCodeEditor && (
             <ReflexElement>
               <SectionWithLabel
-                label={`${codeFieldLabel}${isCodeSaved ? '' : ' ●'}`}
+                label={`${codeFieldLabel}`}
+                labelClassName={isCodeSaved ? '' : styles.saveIndicator}
                 htmlFor="code"
               >
                 <Form.Item
@@ -535,20 +534,24 @@ const Controls = memo(ControlsComponent);
 
 type SectionProps = {
   label: string;
+  labelClassName?: string;
   htmlFor?: string;
 };
 
 const SectionWithLabel: React.FC<SectionProps> = ({
   label,
+  labelClassName,
   htmlFor,
   children
 }) => {
   return (
     <div
-      className={`relative w-full h-full overflow-hidden pt-6 rounded-md ${styles.darkenBackground}`}
+      className={`relative w-full h-full overflow-hidden pt-7 rounded-md ${styles.darkenBackground}`}
     >
       <label
-        className={`absolute top-1 left-2 z-10 ${styles.label}`}
+        className={`absolute top-1 left-2 z-10 ${styles.label} ${
+          labelClassName ?? ''
+        }`}
         htmlFor={htmlFor}
       >
         {label}
