@@ -261,6 +261,7 @@ const CodeDebugger = ({
                     }
                     language="javascript"
                     enableLineNumbers
+                    reRenderEditorOnInitialValueChange={false}
                     handleChange={handleChange('code')}
                     hotkeysOverrides={{
                       onCmdCtrlEnter: form.submit,
