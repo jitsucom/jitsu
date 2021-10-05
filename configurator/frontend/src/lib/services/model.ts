@@ -7,23 +7,6 @@ export interface IProject {
   planId: string;
 }
 
-/**
- * Structure of /database API response
- */
-export type PgDatabaseCredentials = {
-  User: string;
-  Password: string;
-  Host: string;
-  Port: string;
-  Database: string;
-};
-export interface Transformer<T> {
-  (data: any, headers?: any): T;
-}
-export const JSON_FORMAT: Transformer<any> = undefined;
-export const AS_IS_FORMAT: Transformer<string> = (response) =>
-  response ? response.toString() : null;
-
 export class Project implements IProject {
   private readonly _id: string;
   private _name: string;
@@ -196,22 +179,16 @@ export type Domain = {
 export class ApiAccess {
   private _accessToken: string;
   private _refreshToken: string;
-  private _localStorageTokensUpdateCallback: (
-    accessToken: string,
-    refreshToken: string
-  ) => void;
+  private _localStorageUpdateCallback: (accessToken: string, refreshToken: string) => void;
 
   constructor(
     accessToken: string,
     refreshToken: string,
-    localStorageTokensUpdateCallback: (
-      accessToken: string,
-      refreshToken: string
-    ) => void
+    localStorageUpdateCallback: (accessToken: string, refreshToken: string) => void
   ) {
     this._accessToken = accessToken;
     this._refreshToken = refreshToken;
-    this._localStorageTokensUpdateCallback = localStorageTokensUpdateCallback;
+    this._localStorageUpdateCallback = localStorageUpdateCallback;
   }
 
   get accessToken(): string {
@@ -229,6 +206,6 @@ export class ApiAccess {
   updateTokens(accessToken: string, refreshToken: string) {
     this._accessToken = accessToken;
     this._refreshToken = refreshToken;
-    this._localStorageTokensUpdateCallback(accessToken, refreshToken);
+    this._localStorageUpdateCallback(accessToken, refreshToken);
   }
 }

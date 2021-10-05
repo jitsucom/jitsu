@@ -1,28 +1,15 @@
-export const mockConfiguration = process.env.FIREBASE_CONFIG
-  ? ({
-      authorization: 'firebase',
-      users: true,
-      smtp: false,
-      selfhosted: false,
-      support_widget: true,
-      default_s3_bucket: true,
-      support_tracking_domains: true,
-      telemetry_usage_disabled: false,
-      show_become_user: true,
-      docker_hub_id: 'jitsucom'
-    } as const)
-  : ({
-      authorization: 'redis',
-      users: true,
-      smtp: false,
-      selfhosted: true,
-      support_widget: false,
-      default_s3_bucket: false,
-      support_tracking_domains: false,
-      telemetry_usage_disabled: false,
-      show_become_user: false,
-      docker_hub_id: 'jitsu'
-    } as const);
+export const mockConfiguration = {
+  authorization: 'firebase',
+  users: true,
+  smtp: false,
+  selfhosted: false,
+  support_widget: true,
+  default_s3_bucket: true,
+  support_tracking_domains: true,
+  telemetry_usage_disabled: false,
+  show_become_user: true,
+  docker_hub_id: 'jitsucom'
+} as const;
 
 export const mockUserInfo = {
   $type: 'User',

@@ -25,31 +25,26 @@ func NewTaskLogger(taskID string, metaStorage meta.Storage) *TaskLogger {
 
 //Write writes Singer bytes as a record into meta.Storage
 func (tl *TaskLogger) Write(p []byte) (n int, err error) {
-	tl.LOG(string(p), singerSystem, logging.DEBUG)
+	tl.log(string(p), singerSystem, logging.DEBUG.String())
 	return len(p), nil
 }
 
 //INFO writes record into meta.storage with log level INFO
 func (tl *TaskLogger) INFO(format string, v ...interface{}) {
-	tl.LOG(format, jitsuSystem, logging.INFO, v...)
+	tl.log(format, jitsuSystem, logging.INFO.String(), v...)
 }
 
 //ERROR writes record into meta.storage with log level ERROR
 func (tl *TaskLogger) ERROR(format string, v ...interface{}) {
-	tl.LOG(format, jitsuSystem, logging.ERROR, v...)
+	tl.log(format, jitsuSystem, logging.ERROR.String(), v...)
 }
 
-//WARN writes record into meta.storage with log level WARN
-func (tl *TaskLogger) WARN(format string, v ...interface{}) {
-	tl.LOG(format, jitsuSystem, logging.WARN, v...)
-}
-
-func (tl *TaskLogger) LOG(format, system string, level logging.Level, v ...interface{}) {
+func (tl *TaskLogger) log(format, system, level string, v ...interface{}) {
 	msg := "[" + tl.taskID + "] " + fmt.Sprintf(format, v...)
 	logging.Debug(msg)
 
-	err := tl.metaStorage.AppendTaskLog(tl.taskID, time.Now().UTC(), system, msg, level.String())
+	err := tl.metaStorage.AppendTaskLog(tl.taskID, time.Now().UTC(), system, msg, level)
 	if err != nil {
-		logging.SystemErrorf("Error appending logs [%s] system [%s] level [%s]: %v", msg, system, level.String(), err)
+		logging.SystemErrorf("Error appending logs [%s] system [%s] level [%s]: %v", msg, system, level, err)
 	}
 }

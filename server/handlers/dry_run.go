@@ -49,7 +49,7 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	reqContext := getRequestContext(c, payload)
+	reqContext := getRequestContext(c)
 
 	//** Context enrichment **
 	enrichment.ContextEnrichmentStep(payload, c.GetString(middleware.TokenName), reqContext, drh.preprocessor, storage.GetUniqueIDField())

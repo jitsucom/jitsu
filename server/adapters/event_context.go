@@ -13,7 +13,4 @@ type EventContext struct {
 	RawEvent       events.Event
 	ProcessedEvent events.Event
 	Table          *Table
-
-	//HTTPRequest applicable only for HTTP events
-	HTTPRequest *Request
 }

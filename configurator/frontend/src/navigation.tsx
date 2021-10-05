@@ -19,9 +19,6 @@ import {
 } from 'ui/pages/TaskLogs/TaskLogViewer';
 import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 import { LoginLink } from 'lib/components/LoginLink/LoginLink';
-import SignupPage from './ui/pages/GetStartedPage/SignupPage';
-import LoginPage from './ui/pages/GetStartedPage/LoginPage';
-import { StatusPage } from './lib/components/StatusPage/StatusPage';
 // @Components
 const ApiKeys = React.lazy(() => import('./lib/components/ApiKeys/ApiKeys'));
 const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/CustomDomains'));
@@ -29,14 +26,17 @@ const DestinationsPage = React.lazy(
   () => import('ui/pages/DestinationsPage/DestinationsPage')
 );
 const DbtCloudPage = React.lazy(
-  () => import('ui/pages/DbtCloud/DbtCloudPage')
+    () => import('ui/pages/DbtCloud/DbtCloudPage')
 );
 
 const EventsStream = React.lazy(() => import('./lib/components/EventsStream/EventsStream'));
+const LoginForm = React.lazy(() => import('./lib/components/LoginForm/LoginForm'));
 const SetupForm = React.lazy(() => import('ui/pages/SetupPage/SetupForm'));
+const SignupForm = React.lazy(() => import('./lib/components/SignupForm/SignupForm'));
 const SourcesPage = React.lazy(
   () => import('ui/pages/SourcesPage/SourcesPage')
 );
+const StatusPage = React.lazy(() => import('./lib/components/StatusPage/StatusPage'));
 const ConnectionsPage = React.lazy(
   () => import('ui/pages/ConnectionsPage/ConnectionsPage')
 );
@@ -117,9 +117,9 @@ export const PUBLIC_PAGES: Page[] = [
     ['/login-link/:emailEncoded?'],
     LoginLink
   ),
-  new Page('Jitsu : Sign in', ['/', '/dashboard', '/login', '/signin'], LoginPage),
-  new Page('Jitsu : Sign up', ['/register', '/signup'], SignupPage),
-  new Page('Jitsu : reset password', ['/reset_password/:resetId'], PasswordForm)
+  new Page('Jitsu | login', ['/', '/dashboard', '/login'], LoginForm),
+  new Page('Jitsu | register', ['/register'], SignupForm),
+  new Page('Jitsu | reset password', ['/reset_password/:resetId'], PasswordForm)
 ];
 
 export const PRIVATE_PAGES: Page[] = [
@@ -145,10 +145,10 @@ export const PRIVATE_PAGES: Page[] = [
     'Edit destinations'
   ),
   new Page(
-    'dbt Cloud integration',
-    '/dbtcloud',
-    DbtCloudPage,
-    'dbt Cloud'
+      'dbt Cloud integration',
+      '/dbtcloud',
+      DbtCloudPage,
+      'dbt Cloud'
   ),
   new Page(
     'Jitsu | download config',

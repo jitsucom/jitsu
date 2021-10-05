@@ -46,17 +46,17 @@ var (
 
 //DestinationConfig is a destination configuration for serialization
 type DestinationConfig struct {
-	OnlyTokens             []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
-	Type                   string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	Mode                   string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
-	DataLayout             *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
-	UsersRecognition       *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
-	Enrichment             []*enrichment.RuleConfig `mapstructure:"enrichment" json:"enrichment,omitempty" yaml:"enrichment,omitempty"`
-	Log                    *logging.SQLDebugConfig  `mapstructure:"log" json:"log,omitempty" yaml:"log,omitempty"`
-	BreakOnError           bool                     `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
-	Staged                 bool                     `mapstructure:"staged" json:"staged,omitempty" yaml:"staged,omitempty"`
-	CachingConfiguration   *CachingConfiguration    `mapstructure:"caching" json:"caching,omitempty" yaml:"caching,omitempty"`
-	PostHandleDestinations []string                 `mapstructure:"post_handle_destinations" json:"post_handle_destinations,omitempty" yaml:"post_handle_destinations,omitempty"`
+	OnlyTokens           []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
+	Type                 string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
+	Mode                 string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
+	DataLayout           *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
+	UsersRecognition     *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
+	Enrichment           []*enrichment.RuleConfig `mapstructure:"enrichment" json:"enrichment,omitempty" yaml:"enrichment,omitempty"`
+	Log                  *logging.SQLDebugConfig  `mapstructure:"log" json:"log,omitempty" yaml:"log,omitempty"`
+	BreakOnError         bool                     `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
+	Staged               bool                     `mapstructure:"staged" json:"staged,omitempty" yaml:"staged,omitempty"`
+	CachingConfiguration *CachingConfiguration    `mapstructure:"caching" json:"caching,omitempty" yaml:"caching,omitempty"`
+	PostHandleDestinations []string      		  `mapstructure:"post_handle_destinations" json:"post_handle_destinations,omitempty" yaml:"post_handle_destinations,omitempty"`
 
 	DataSource      *adapters.DataSourceConfig            `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
 	S3              *adapters.S3Config                    `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
@@ -123,22 +123,22 @@ func (ur *UsersRecognition) Validate() error {
 
 //Config is a model for passing to destinations creator funcs
 type Config struct {
-	ctx                    context.Context
-	destinationID          string
-	destination            *DestinationConfig
-	usersRecognition       *UserRecognitionConfiguration
-	processor              *schema.Processor
-	streamMode             bool
-	maxColumns             int
-	monitorKeeper          MonitorKeeper
-	eventQueue             *events.PersistentQueue
-	eventsCache            *caching.EventsCache
-	loggerFactory          *logging.Factory
-	pkFields               map[string]bool
-	sqlTypes               typing.SQLTypes
-	uniqueIDField          *identifiers.UniqueID
-	mappingsStyle          string
-	logEventPath           string
+	ctx              context.Context
+	destinationID    string
+	destination      *DestinationConfig
+	usersRecognition *UserRecognitionConfiguration
+	processor        *schema.Processor
+	streamMode       bool
+	maxColumns       int
+	monitorKeeper    MonitorKeeper
+	eventQueue       *events.PersistentQueue
+	eventsCache      *caching.EventsCache
+	loggerFactory    *logging.Factory
+	pkFields         map[string]bool
+	sqlTypes         typing.SQLTypes
+	uniqueIDField    *identifiers.UniqueID
+	mappingsStyle    string
+	logEventPath     string
 	PostHandleDestinations []string
 }
 
@@ -282,8 +282,8 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		return nil, nil, err
 	}
 
-	//** Retroactive users recognition **
-	usersRecognition, err := f.initializeRetroactiveUsersRecognition(destinationID, &destination, pkFields)
+	//** Retrospective users recognition **
+	usersRecognition, err := f.initializeRetrospectiveUsersRecognition(destinationID, &destination, pkFields)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -291,7 +291,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
 	var flattener schema.Flattener
 	var typeResolver schema.TypeResolver
-	if needDummy(&destination) {
+	if destination.Type == FacebookType || destination.Type == DbtCloudType || destination.Type == WebHookType || destination.Type == AmplitudeType || destination.Type == HubSpotType {
 		flattener = schema.NewDummyFlattener()
 		typeResolver = schema.NewDummyTypeResolver()
 		if destination.Type == DbtCloudType {
@@ -349,22 +349,22 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	}
 
 	storageConfig := &Config{
-		ctx:                    f.ctx,
-		destinationID:          destinationID,
-		destination:            &destination,
-		usersRecognition:       usersRecognition,
-		processor:              processor,
-		streamMode:             destination.Mode == StreamMode,
-		maxColumns:             maxColumns,
-		monitorKeeper:          f.monitorKeeper,
-		eventQueue:             eventQueue,
-		eventsCache:            f.eventsCache,
-		loggerFactory:          destinationLoggerFactory,
-		pkFields:               pkFields,
-		sqlTypes:               sqlTypes,
-		uniqueIDField:          uniqueIDField,
-		mappingsStyle:          mappingsStyle,
-		logEventPath:           f.logEventPath,
+		ctx:              f.ctx,
+		destinationID:    destinationID,
+		destination:      &destination,
+		usersRecognition: usersRecognition,
+		processor:        processor,
+		streamMode:       destination.Mode == StreamMode,
+		maxColumns:       maxColumns,
+		monitorKeeper:    f.monitorKeeper,
+		eventQueue:       eventQueue,
+		eventsCache:      f.eventsCache,
+		loggerFactory:    destinationLoggerFactory,
+		pkFields:         pkFields,
+		sqlTypes:         sqlTypes,
+		uniqueIDField:    uniqueIDField,
+		mappingsStyle:    mappingsStyle,
+		logEventPath:     f.logEventPath,
 		PostHandleDestinations: destination.PostHandleDestinations,
 	}
 
@@ -373,18 +373,10 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	return storageProxy, eventQueue, nil
 }
 
-func needDummy(destCfg *DestinationConfig) bool {
-	if destCfg.Type == S3Type {
-		return destCfg.S3.Format == adapters.S3FormatJSON
-	}
-	return destCfg.Type == FacebookType || destCfg.Type == DbtCloudType || destCfg.Type == WebHookType ||
-		destCfg.Type == AmplitudeType || destCfg.Type == HubSpotType
-}
-
-//initializeRetroactiveUsersRecognition initializes recognition configuration (overrides global one with destination layer)
+//initializeRetrospectiveUsersRecognition initializes recognition configuration (overrides global one with destination layer)
 //skip initialization if dummy meta storage
 //disable destination configuration if Postgres or Redshift without primary keys
-func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string, destination *DestinationConfig, pkFields map[string]bool) (*UserRecognitionConfiguration, error) {
+func (f *FactoryImpl) initializeRetrospectiveUsersRecognition(destinationID string, destination *DestinationConfig, pkFields map[string]bool) (*UserRecognitionConfiguration, error) {
 	if f.metaStorage.Type() == meta.DummyType {
 		if destination.UsersRecognition != nil {
 			logging.Errorf("[%s] Users recognition requires 'meta.storage' configuration", destinationID)
@@ -419,15 +411,15 @@ func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string
 
 	//check primary fields
 	if (destination.Type == PostgresType || destination.Type == RedshiftType || destination.Type == SnowflakeType) && len(pkFields) == 0 {
-		logging.Errorf("[%s] retroactive users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", destinationID)
+		logging.Errorf("[%s] retrospective users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", destinationID)
 		return &UserRecognitionConfiguration{enabled: false}, nil
 	}
 
-	logging.Infof("[%s] configured retroactive users recognition", destinationID)
+	logging.Infof("[%s] configured retrospective users recognition", destinationID)
 
 	//check deprecated node
 	if destination.UsersRecognition.UserIDNode != "" {
-		logging.Warnf("[%s] users_recognition.user_id_node is deprecated. Please use users_recognition.identification_nodes instead. Read more about configuration: https://jitsu.com/docs/other-features/retroactive-user-recognition", destinationID)
+		logging.Warnf("[%s] users_recognition.user_id_node is deprecated. Please use users_recognition.identification_nodes instead. Read more about configuration: https://jitsu.com/docs/other-features/retrospective-user-recognition", destinationID)
 		destination.UsersRecognition.IdentificationNodes = []string{destination.UsersRecognition.UserIDNode}
 	}
 

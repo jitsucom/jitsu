@@ -1,34 +1,13 @@
 /* eslint-disable */
-import moment, { Duration, Moment } from 'moment';
-import { LS_ACCESS_KEY, LS_REFRESH_KEY } from 'lib/services/UserServiceBackend';
-import {
-  assertHasOwnProperty,
-  assertIsArray,
-  assertIsObject
-} from 'utils/typeCheck';
+import moment, { Moment, Duration } from 'moment';
+import {LS_ACCESS_KEY, LS_REFRESH_KEY} from "lib/services/backend";
+import { assertHasOwnProperty, assertIsArray, assertIsObject } from 'utils/typeCheck';
 
 export function concatenateURLs(baseUrl: string, url: string) {
-  let base = baseUrl.endsWith('/')
-    ? baseUrl.substr(0, baseUrl.length - 1)
-    : baseUrl;
+  let base = baseUrl.endsWith('/') ? baseUrl.substr(0, baseUrl.length - 1) : baseUrl;
   return base + (url.startsWith('/') ? url : '/' + url);
 }
 
-/**
- * Sets debug info that is available as __enUIDebug in dev console. So far
- * sets the field in any case, later it will be possible to do in only in dev mode
- * @param field
- * @param obj
- */
-export function setDebugInfo(field: string, obj: any, purify = true) {
-  if (window) {
-    if (!window['__enUIDebug']) {
-      window['__enUIDebug'] = {};
-    }
-    window['__enUIDebug'][field] =
-      typeof obj === 'object' && purify ? Object.assign({}, obj) : obj;
-  }
-}
 
 function circularReferencesReplacer() {
   let cache = [];
@@ -145,11 +124,11 @@ export type TimeFormattedUserEvent = {
 };
 
 /**
- * Formats timestamps from raw user events to Moment.js format
+ * Formats timestamps from raw user events to Moment.js format 
  * and brings them to the top level of the object
- *
+ * 
  * Assumes the following structure of raw events:
- *
+ * 
  * @example
  * const rawEvents ={
  *  events: [
@@ -157,13 +136,13 @@ export type TimeFormattedUserEvent = {
  *      original: {
  *        _timestamp: <timestamp>
  *      }
- *    }
+ *    }       
  *  ]
  * }
- *
+ * 
  * @param {unknown} rawEvents object with raw user events
  * @returns array of objects with Moment time and rawEvent data
- *
+ * 
  * @throws assertion error (if raw event data model is not supported)
  */
 export function formatTimeOfRawUserEvents(rawEvents: unknown): TimeFormattedUserEvent[] {
@@ -205,21 +184,21 @@ export function sortTimeFormattedUserEventsDescending(
 }
 
 /**
- *
- * @param event user event with Momet.js time at the top level
+ * 
+ * @param event user event with Momet.js time at the top level 
  * @param timeAgo Moment.Duration period of time from the current date after which the latest event is considered to be 'a long ago'
  * @returns {boolean} Whether the event was before the (currentDate - timeAgo)
  */
 export function userEventWasTimeAgo(
-  event: TimeFormattedUserEvent,
+  event: TimeFormattedUserEvent, 
   timeAgo: Duration
 ): boolean {
   return event.time.isBefore(moment().subtract(timeAgo));
 }
 
 /**
- *
- * @param events Array of user events with Momet.js time at the top level
+ * 
+ * @param events Array of user events with Momet.js time at the top level 
  * @returns the latest user event or null if input is empty array
  */
 export function getLatestUserEvent(
@@ -229,32 +208,5 @@ export function getLatestUserEvent(
   return sortTimeFormattedUserEventsDescending(events)[0];
 }
 
-/**
- * Turns any object to string
- */
-function safeToString(obj: any) {
-  if (typeof obj === 'string') {
-    return obj;
-  } else if (obj?.toString && typeof obj?.toString === 'function') {
-    return obj.toString();
-  } else {
-    return obj + ''
-  }
-}
 
-/**
- * Tries to the best to convert children from any type to string
- * @param children
- */
-export function reactElementToString(children: React.ReactElement<any, string | React.JSXElementConstructor<any>> | string | number | {} | React.ReactNodeArray | React.ReactPortal | boolean): string {
 
-  if (!children) {
-    return '';
-  } else if (typeof children === 'string') {
-    return children;
-  } else if (Array.isArray(children)) {
-    return children.map(reactElementToString).join('\n');
-  } else {
-    console.warn('Can\'t convert react element to highlightable <Code />. Using to string', safeToString(children))
-  }
-}

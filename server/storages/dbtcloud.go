@@ -8,11 +8,12 @@ import (
 )
 
 const (
-	SourceSuccessEventType    = "SOURCE_SUCCESSFUL_RUN"
-	DestinationBatchEventType = "DESTINATION_BATCH_RUN"
+	SourceSuccessEventType  = "SOURCE_SUCCESSFUL_RUN"
+	DestinationBatchEventType  = "DESTINATION_BATCH_RUN"
 
 	dbtCloudTableNameFilter = "return ($.event_type == '" + SourceSuccessEventType + "' || $.event_type == '" + DestinationBatchEventType + "') ? true : false"
 )
+
 
 //DbtCloud is a destination that can send API request to cloud.getdbt.com
 //It is not general purpose destination. It is designed for special kind of events like
@@ -80,8 +81,8 @@ func (dbt *DbtCloud) SyncStore(overriddenDataSchema *schema.BatchHeader, objects
 }
 
 //Store isn't supported silently
-func (dbt *DbtCloud) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
-	return nil, nil, nil, nil
+func (dbt *DbtCloud) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+	return nil, nil, nil
 }
 
 //Enabled returns whether we should use this storage

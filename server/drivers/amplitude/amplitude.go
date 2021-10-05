@@ -121,10 +121,6 @@ func (a *Amplitude) Close() error {
 	return a.adapter.Close()
 }
 
-func (a *Amplitude) GetRefreshWindow() (time.Duration, error) {
-	return time.Hour * 24, nil
-}
-
 func (a *Amplitude) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	var intervals []*base.TimeInterval
 

@@ -1,13 +1,5 @@
-import {
-  Parameter,
-  passwordType,
-  selectionType,
-  stringType,
-  Function,
-  hiddenValue
-} from '../../sources/types';
+import { Parameter, passwordType, selectionType, stringType, Function, ConstantOrFunction } from '../../sources/types';
 import { ReactNode } from 'react';
-
 const S3_REGIONS = [
   'us-east-2',
   'us-east-1',
@@ -33,33 +25,27 @@ const S3_REGIONS = [
   'us-gov-east-1',
   'us-gov-west-1'
 ];
-
 export const modeParameter = (constValue?: string): Parameter => {
   return {
     id: '_formData.mode',
     displayName: 'Mode',
-    documentation: (
-      <>In steam mode the data will be send to destination instantly.</>
-    ),
+    documentation: <>
+      In steam mode the data will be send to destination instantly.
+    </>,
     required: true,
     defaultValue: constValue ?? 'stream',
     constant: constValue ?? undefined,
-    type: constValue ? stringType : selectionType(['stream', 'batch'], 1)
-  };
-};
+    type: constValue ?
+      stringType :
+      selectionType(['stream', 'batch'], 1)
+  }
+}
 
-export const filteringExpressionDocumentation = (
-  <>
-    Table name (or table name template). The value is treated as{' '}
-    <a href={'https://jitsu.com/docs/configuration/javascript-functions'}>
-      JavaScript functions
-    </a>
-    , if the expression returns <b>null</b>, empty string <b>''</b> or{' '}
-    <b>false</b>, the event will not be sent to API. Otherwise the event will go
-    through. Any non-empty will be treated the same way. If you do not intend to
-    make any filtering, leave the value as is.
-  </>
-);
+export const filteringExpressionDocumentation = <>
+  Table name (or table name template). The value is treated as <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a>, if the expression
+  returns <b>null</b>, empty string <b>''</b> or <b>false</b>, the event will not be sent to API. Otherwise the event will go through.
+  Any non-empty will be treated the same way. If you do not intend to make any filtering, leave the value as is.
+</>;
 
 /**
  * Destination table name for DBS
@@ -68,25 +54,30 @@ export const tableName = (customDocs?: ReactNode): Parameter => {
   return {
     id: `_formData.tableName`,
     displayName: 'Table Name',
-    documentation: customDocs ?? (
-      <>
-        Table name (or table name template). You can test expression by clicking
-        on the 'play' icon
-      </>
-    ),
+    documentation: customDocs ?? <>
+      Table name (or table name template). You can test expression by clicking on the 'play' icon
+    </>,
     required: true,
     defaultValue: 'events',
     type: stringType
-  };
+  }
 };
 
-export function s3Credentials(
-  regionField,
-  bucketField,
-  s3AccessKey,
-  s3SecretKey,
-  hide?: Function<any, boolean>
-): Parameter[] {
+export const hiddenValue: ConstantOrFunction<any, any> = (value, hide) => {
+  if (!hide) {
+    return undefined;
+  } else {
+    return (cfg) => {
+      if (hide(cfg)) {
+        return value;
+      } else {
+        return undefined;
+      }
+    }
+  }
+};
+
+export function s3Credentials(regionField, bucketField, s3AccessKey, s3SecretKey, hide?: Function<any, boolean>): Parameter[] {
   return [
     {
       id: regionField,

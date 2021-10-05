@@ -120,20 +120,16 @@ func (m *MySQL) DryRun(payload events.Event) ([]adapters.TableField, error) {
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (m *MySQL) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+func (m *MySQL) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
 	_, tableHelper := m.getAdapters()
-	flatData, failedEvents, skippedEvents, err := m.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	flatData, failedEvents, err := m.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
 		m.eventsCache.Error(m.IsCachingDisabled(), m.ID(), failedEvent.EventID, failedEvent.Error)
-	}
-	//update cache and counter with skipped events
-	for _, skipEvent := range skippedEvents.Events {
-		m.eventsCache.Skip(m.IsCachingDisabled(), m.ID(), skipEvent.EventID, skipEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -151,23 +147,17 @@ func (m *MySQL) Store(fileName string, objects []map[string]interface{}, already
 			if err != nil {
 				m.eventsCache.Error(m.IsCachingDisabled(), m.ID(), m.uniqueIDField.Extract(object), err.Error())
 			} else {
-				m.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  m.IsCachingDisabled(),
-					DestinationID:  m.ID(),
-					EventID:        m.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          table,
-				})
+				m.eventsCache.Succeed(m.IsCachingDisabled(), m.ID(), m.uniqueIDField.Extract(object), object, table)
 			}
 		}
 	}
 
 	//store failed events to fallback only if other events have been inserted ok
 	if storeFailedEvents {
-		return tableResults, failedEvents, skippedEvents, nil
+		return tableResults, failedEvents, nil
 	}
 
-	return tableResults, nil, skippedEvents, nil
+	return tableResults, nil, nil
 }
 
 //check table schema
@@ -191,10 +181,6 @@ func (m *MySQL) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) e
 //SyncStore is used in storing chunk of pulled data to Postgres with processing
 func (m *MySQL) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return syncStoreImpl(m, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
-}
-
-func (m *MySQL) Clean(tableName string) error {
-	return cleanImpl(m, tableName)
 }
 
 //Update uses SyncStore under the hood

@@ -1,9 +1,6 @@
 package entities
 
-import (
-	"encoding/json"
-	"github.com/jitsucom/jitsu/server/adapters"
-)
+import "encoding/json"
 
 //MySQLFormData entity is stored in main storage (Firebase/Redis)
 type MySQLFormData struct {
@@ -11,11 +8,11 @@ type MySQLFormData struct {
 	TableName string   `firestore:"tableName" json:"tableName"`
 	PKFields  []string `firestore:"pkFields" json:"pkFields"`
 
-	Db         string      `firestore:"mysqlDatabase" json:"mysqlDatabase"`
-	Host       string      `firestore:"mysqlHost" json:"mysqlHost"`
-	Password   string      `firestore:"mysqlPassword" json:"mysqlPassword"`
-	Port       json.Number `firestore:"mysqlPort" json:"mysqlPort"`
-	Username   string      `firestore:"mysqlUser" json:"mysqlUser"`
+	Db       string      `firestore:"mysqlDatabase" json:"mysqlDatabase"`
+	Host     string      `firestore:"mysqlHost" json:"mysqlHost"`
+	Password string      `firestore:"mysqlPassword" json:"mysqlPassword"`
+	Port     json.Number `firestore:"mysqlPort" json:"mysqlPort"`
+	Username string      `firestore:"mysqlUser" json:"mysqlUser"`
 	DisableTLS bool        `firestore:"mysqlDisableTLS" json:"mysqlDisableTLS"`
 }
 
@@ -144,21 +141,8 @@ type HubSpotFormData struct {
 //DbtCloudFormData entity is stored in main storage (Firebase/Redis)
 type DbtCloudFormData struct {
 	AccountId json.Number `firestore:"dbtAccountId" json:"dbtAccountId"`
-	JobId     json.Number `firestore:"dbtJobId" json:"dbtJobId"`
-	Cause     string      `firestore:"dbtCause" json:"dbtCause"`
-	Token     string      `firestore:"dbtToken" json:"dbtToken"`
-	Enabled   bool        `firestore:"dbtEnabled" json:"dbtEnabled"`
-}
-
-//S3FormData entity is stored in main storage (Firebase/Redis)
-type S3FormData struct {
-	TableName          string                    `firestore:"tableName" json:"tableName"`
-	AccessKeyID        string                    `firestore:"s3AccessKeyID" json:"s3AccessKeyID"`
-	SecretKey          string                    `firestore:"s3SecretKey" json:"s3SecretKey"`
-	Bucket             string                    `firestore:"s3Bucket" json:"s3Bucket"`
-	Region             string                    `firestore:"s3Region" json:"s3Region"`
-	Endpoint           string                    `firestore:"s3Endpoint" json:"s3Endpoint"`
-	Folder             string                    `firestore:"s3Folder" json:"s3Folder"`
-	Format             adapters.S3EncodingFormat `firestore:"s3Format" json:"s3Format"`
-	CompressionEnabled bool                      `firestore:"s3CompressionEnabled" json:"s3CompressionEnabled"`
+	JobId  json.Number `firestore:"dbtJobId" json:"dbtJobId"`
+	Cause  string `firestore:"dbtCause" json:"dbtCause"`
+	Token  string `firestore:"dbtToken" json:"dbtToken"`
+	Enabled bool `firestore:"dbtEnabled" json:"dbtEnabled"`
 }
