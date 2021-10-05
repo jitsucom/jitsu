@@ -100,6 +100,12 @@
   border-color: @component-background !important;
 }
 
+.saveIndicator::after {
+  @apply inline-block w-2 h-2 ml-1 rounded-md;
+  content: '';
+  background-color: @text-color-secondary;
+}
+
 // Events List
 
 .events {
