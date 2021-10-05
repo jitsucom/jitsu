@@ -1,7 +1,7 @@
 // @Libs
 import React, { memo, useCallback, useEffect, useState } from 'react';
 import { ReflexContainer, ReflexSplitter, ReflexElement } from 'react-reflex';
-import { Button, Dropdown, Form, Spin, Tooltip } from 'antd';
+import { Button, Checkbox, Dropdown, Form, Spin, Tooltip } from 'antd';
 import hotkeys from 'hotkeys-js';
 import cn from 'classnames';
 // @Components
@@ -19,7 +19,9 @@ import {
   CloseOutlined,
   CodeOutlined,
   LoadingOutlined,
-  DownloadOutlined
+  DownloadOutlined,
+  EyeFilled,
+  EyeInvisibleFilled
 } from '@ant-design/icons';
 
 export interface CodeDebuggerProps {
@@ -457,59 +459,79 @@ const ControlsComponent: React.FC<ControlsProps> = ({
           {'Close'}
         </span>
       </Button>
-      <div className="relative flex-auto min-w-0">
-        <span
-          className={`absolute -top-1 w-full text-center ${styles.buttonsSuperlabel}`}
-        >
-          {'Toggle Visibility'}
-        </span>
-        <div className="relative flex justify-center items-end w-full h-full ant-btn-group">
-          <Tooltip title={`${OS_CMD_BUTTON}+I`} mouseEnterDelay={0.5}>
-            <Button
-              size="small"
-              className={`${styles.selectableButton} ${
-                inputChecked && styles.buttonSelected
-              }`}
-              onClick={toggleInput}
-            >
-              <span className={styles.adaptiveIcon}>{'{ }'}</span>
-              <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
-                {'Input'}
-              </span>
-            </Button>
-          </Tooltip>
-          <Tooltip title={`${OS_CMD_BUTTON}+U`} mouseEnterDelay={0.5}>
-            <Button
-              size="small"
-              className={`${styles.selectableButton} ${
-                codeChecked && styles.buttonSelected
-              }`}
-              onClick={toggleCode}
-            >
-              <span className={styles.adaptiveIcon}>{'</>'}</span>
-              <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
-                {'Expression'}
-              </span>
-            </Button>
-          </Tooltip>
-          <Tooltip title={`${OS_CMD_BUTTON}+O`} mouseEnterDelay={0.5}>
-            <Button
-              size="small"
-              className={`${styles.selectableButton} ${
-                outputChecked && styles.buttonSelected
-              }`}
-              onClick={toggleOutput}
-            >
-              <CodeOutlined className={styles.adaptiveIcon} />
-              <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
-                {'Result'}
-              </span>
-            </Button>
-          </Tooltip>
-        </div>
+      <div className="flex justify-center items-center flex-auto min-w-0">
+        <Tooltip title={`${OS_CMD_BUTTON}+I`} mouseEnterDelay={1}>
+          <Checkbox
+            checked={inputChecked}
+            className={cn(
+              'relative',
+              styles.checkbox,
+              styles.hideAntdCheckbox,
+              styles.checkboxLabel,
+              {
+                [styles.checkboxChecked]: inputChecked
+              }
+            )}
+            onClick={toggleInput}
+          >
+            <i className="block absolute left-0.5">
+              {inputChecked ? <EyeFilled /> : <EyeInvisibleFilled />}
+            </i>
+            <span className={styles.adaptiveIcon}>{'{ }'}</span>
+            <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
+              {'Input'}
+            </span>
+          </Checkbox>
+        </Tooltip>
+        <Tooltip title={`${OS_CMD_BUTTON}+U`} mouseEnterDelay={1}>
+          <Checkbox
+            checked={codeChecked}
+            className={cn(
+              'relative',
+              styles.checkbox,
+              styles.hideAntdCheckbox,
+              styles.checkboxLabel,
+              {
+                [styles.checkboxChecked]: codeChecked
+              }
+            )}
+            onClick={toggleCode}
+          >
+            <i className="block absolute left-0.5">
+              {codeChecked ? <EyeFilled /> : <EyeInvisibleFilled />}
+            </i>
+            <span className={styles.adaptiveIcon}>{'</>'}</span>
+            <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
+              {'Expression'}
+            </span>
+          </Checkbox>
+        </Tooltip>
+        <Tooltip title={`${OS_CMD_BUTTON}+O`} mouseEnterDelay={1}>
+          <Checkbox
+            checked={outputChecked}
+            className={cn(
+              'relative',
+              styles.checkbox,
+              styles.hideAntdCheckbox,
+              styles.checkboxLabel,
+              {
+                [styles.checkboxChecked]: outputChecked
+              }
+            )}
+            onClick={toggleOutput}
+          >
+            <i className="block absolute left-0.5">
+              {outputChecked ? <EyeFilled /> : <EyeInvisibleFilled />}
+            </i>
+            <CodeOutlined className={styles.adaptiveIcon} />
+            <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>
+              {'Result'}
+            </span>
+          </Checkbox>
+        </Tooltip>
       </div>
       <div className="flex-grow-0 ant-btn-group">
-        <Tooltip title={`${OS_CMD_BUTTON}+↵`} mouseEnterDelay={0.5}>
+        <Tooltip title={`${OS_CMD_BUTTON}+↵`} mouseEnterDelay={1}>
           <Button
             size="middle"
             type="primary"
@@ -520,7 +542,7 @@ const ControlsComponent: React.FC<ControlsProps> = ({
             <span className={`${styles.adaptiveLabel}`}>{'Run'}</span>
           </Button>
         </Tooltip>
-        <Tooltip title={`${OS_CMD_BUTTON}+S`} mouseEnterDelay={0.5}>
+        <Tooltip title={`${OS_CMD_BUTTON}+S`} mouseEnterDelay={1}>
           <Button size="middle" type="primary" icon={<DownloadOutlined />}>
             <span className={`${styles.adaptiveLabel}`}>{'Save'}</span>
           </Button>
