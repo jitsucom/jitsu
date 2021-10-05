@@ -7,7 +7,7 @@ server:
   #port: 8001 #Optional
 
   ### API Keys reloading. If 'api_keys' is http or file:/// source than it will be reloaded every api_keys_reload_sec
-  #api_keys_reload_sec: 1 #Optional. Default value is 1.
+  #api_keys_reload_sec: 3 #Optional. Default value is 3.
 
   ### Admin endpoint authorization
   admin_token: admin_token #Optional. Token for using Admin endpoints https://jitsu.com/docs/other-features/admin-endpoints
@@ -30,7 +30,7 @@ server:
   #destinations_reload_sec: 5 #Optional. Default value is 5.
 
   ### Sources reloading. If 'sources' key is http or file:/// URL than it will be reloaded every sources_reload_sec
-  #sources_reload_sec: 1 #Optional. Default value is 1.
+  #sources_reload_sec: 7 #Optional. Default value is 7.
 
   ### Application metrics
   ### At present only Prometheus is supported. Read more about application metrics https://jitsu.com/docs/other-features/application-metrics
@@ -410,7 +410,7 @@ destinations:
 
 
 
-### Retroactive users recognition global configuration https://jitsu.com/docs/other-features/retroactive-user-recognition
+### Retrospective users recognition global configuration https://jitsu.com/docs/other-features/retrospective-user-recognition
 ### It is applied to all destinations, but you could override this configuration on the destination level
 ### Note: only Postgres, Clickhouse and Redshift support this feature
 #users_recognition:
@@ -429,7 +429,7 @@ destinations:
 ### Meta storage. It is required for using sources (see below).
 ### It is required for using events caching and counting https://jitsu.com/docs/other-features/events-cache
 ### Also it is required if sources are used https://jitsu.com/docs/sources-configuration
-### or Retroactive users recognition https://jitsu.com/docs/other-features/retroactive-user-recognition
+### or Retrospective users recognition https://jitsu.com/docs/other-features/retrospective-user-recognition
 ### or Coordination in cluster setup https://jitsu.com/docs/other-features/scaling-eventnative
 #meta:
 #  storage:

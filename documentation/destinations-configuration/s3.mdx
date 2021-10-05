@@ -17,8 +17,6 @@ destinations:
       region: us-west-1
       folder: my_s3_events
       endpoint: s3_provider_endpoint
-      format: json
-      compression: gzip
 ```
 
 ### 's3' fields
@@ -31,6 +29,4 @@ destinations:
 | **region\*** | string | S3 region \(e.g. `us-west-1`\) | - |
 | **folder** | string | S3 bucket folder. It is used if several destinations use one S3 bucket. | empty string |
 | **endpoint** | string | S3 provider URL. By default is used AWS S3. | AWS S3 URL |
-| **format** | enum | \(`json`, `flat_json`, `csv`\)  S3 file with events format. | json |
-| **compression** | enum | If set `gzip` - S3 file will be compressed and will have `.gz` sufix. | without compression |
 

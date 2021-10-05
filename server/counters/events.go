@@ -18,25 +18,7 @@ func InitEvents(storage meta.Storage) {
 	eventsInstance = &Events{storage: storage}
 }
 
-//SuccessPushSourceEvents increments source events and push source events
-func SuccessPushSourceEvents(sourceID string, value int) {
-	if eventsInstance == nil {
-		return
-	}
-
-	successSourceEvents(sourceID, value)
-
-	err := eventsInstance.storage.SuccessEvents(sourceID, meta.PushSourceNamespace, time.Now().UTC(), value)
-	if err != nil {
-		logging.SystemErrorf("Error updating success events counter push source [%s] value [%d]: %v", sourceID, value, err)
-	}
-}
-
-func SuccessPullSourceEvents(sourceID string, value int) {
-	successSourceEvents(sourceID, value)
-}
-
-func successSourceEvents(sourceID string, value int) {
+func SuccessSourceEvents(sourceID string, value int) {
 	if eventsInstance == nil {
 		return
 	}

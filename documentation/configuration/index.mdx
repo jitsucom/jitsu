@@ -14,10 +14,10 @@ Our config file consists of the following sections:
 * `api_keys` — A set of API Keys objects that identify incoming events JSONs and mapping between destinations is done based on them. see [Authorization](/docs/configuration/authorization) page
 * `destinations` — A set of targets where the final version of events will be stored. see [Destinations Configuration](/docs/destinations-configuration)
 * `sources` — A set of data sources to synchronize from. see [Sources Configuration](/docs/sources-configuration)
-* `users_recognition` — Jitsu can update past events with user identifiers on user's identification event! see [Retroactive Users Recognition](/docs/other-features/retroactive-user-recognition)
+* `users_recognition` — Jitsu can update past events with user identifiers on user's identification event! see [Retrospective Users Recognition](/docs/other-features/retrospective-user-recognition)
 * `coordination` — coordination service configuration. It is used in cluster Jitsu deployments. see [Scaling Jitsu](/docs/other-features/scaling-eventnative)
 * `notifications` — notifier configuration. Server starts, system errors, and panics information will be sent to it. Currently, only Slack notifications are supported.
-* `meta.storage` - meta storage configuration. At present Jitsu supports only [Redis](https://redis.io/). It is used for last events caching (see [Events Cache](/docs/other-features/events-cache)), sources synchronization (see [Sources Configuration](/docs/sources-configuration/)), and [Retroactive Users Recognition](/docs/other-features/retroactive-user-recognition) and can be used in [coordination](/docs/other-features/scaling-eventnative).
+* `meta.storage` - meta storage configuration. At present Jitsu supports only [Redis](https://redis.io/). It is used for last events caching (see [Events Cache](/docs/other-features/events-cache)), sources synchronization (see [Sources Configuration](/docs/sources-configuration/)), and [Retrospective Users Recognition](/docs/other-features/retrospective-user-recognition) and can be used in [coordination](/docs/other-features/scaling-eventnative).
 
 **Example**:
 
@@ -25,11 +25,11 @@ Our config file consists of the following sections:
 server:
   name: instance1.domain.com
   port: 8081
-  public_url: https://instances.domain.com
+  public_url: https://instances.domain.com 
   log:
     path: /home/eventnative/data/logs/
-  metrics.prometheus.enabled: true
-
+  metrics.prometheus.enabled: true    
+    
 geo.maxmind_path: /home/eventnative/data/config
 
 log:
@@ -44,7 +44,7 @@ api_keys:
   - id: my_website_key
     client_secret: '193b6281-f211-47a9-b384-102cf4cd2d55'
     server_secret: 'a6880b16-73d0-476e-840a-804b74f7684d'
-
+  
 destinations:
   redshift:
   bigquery:
@@ -55,21 +55,21 @@ sources:
 
 users_recognition:
   enabled: true
-
+  
 coordination:
   type: redis
 
 notifications:
   slack:
     url: https://slack_web_hook_url
-
+    
 meta:
   storage:
     redis:
       host: redis_host
       port: 6379
-      password: secret_password
-
+      password: secret_password    
+  
 ```
 
 ### Server
@@ -83,15 +83,13 @@ All fields from the **server** section are optional:
 | **public\_url** | string | Service public URL. It is used on the [welcome HTML page](/docs/sending-data/javascript-reference/#quickstart). Required in [Heroku deployment](/docs/deployment/deploy-on-heroku). | Will be got from `Host` request header |
 | **log.path** | string | Path to application logs. If not set,  app logs will be in stdout. | - |
 | **log.rotation\_min** | int | Log files rotation minutes. If **log.path** is configured. | - |
-| **api\_keys\_reload\_sec** | int | If an URL is set in **api_keys** section, authorization will be reloaded every **api\_keys\_reload\_sec** seconds. see [Authorization](/docs/configuration/authorization#http-url) page. | `1` |
-| **destinations\_reload\_sec** | int | If an URL is set in **destinations** section, destinations will be reloaded every **destinations\_reload\_sec** seconds. see [Destinations](/docs/configuration/destinations-configuration). | `1` |
-| **sources\_reload\_sec** | int | If an URL is set in **sources** section, sources will be reloaded every **sources\_reload\_sec** seconds. see [Sources](/docs/sources-configuration). | `1` |
+| **auth\_reload\_sec** | int | If an URL is set in **auth** section, authorization will be reloaded every **auth\_reload\_sec** seconds. see [Authorization](/docs/configuration/authorization#http-url) page. | `30` |
+| **destinations\_reload\_sec** | int | If an URL is set in **destinations** section, destinations will be reloaded every **destinations\_reload\_sec** seconds. see [Destinations](./#destinations). | `40` |
 | **admin\_token** | string | see [Admin Endpoints](/docs/other-features/admin-endpoints) page. | - |
 | **metrics.prometheus.enabled** | boolean | see [Application Metrics](/docs/other-features/application-metrics) page. | `false` |
 | **telemetry.disabled.usage** | boolean | Flag for disabling telemetry. **Jitsu** collects usage metrics about how you use it and how it is working. **We don't collect any customer data**. | `false` |
 | **disable\_version\_reminder** | boolean | Flag for disabling log reminder banner about new **Jitsu** versions availability. | `false` |
 | **sync_tasks.store_logs.last_runs** | int | Logs for how many task runs must be kept in meta storage. Controlled on Source's collection level. When number of task runs for Source collection exceed provided value – old records get removed from meta storage. | `-1` unlimited number of logs |
-
 ### Log
 
 **Jitsu Server** supports destinations in streaming and batch modes. In the case of batch mode, all events are stored in JSON log files locally to **path** directory, and every **rotation\_min** minutes they are processed and pushed to destinations.

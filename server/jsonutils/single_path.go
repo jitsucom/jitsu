@@ -3,9 +3,8 @@ package jsonutils
 import (
 	"errors"
 	"fmt"
-	"strings"
-
 	"github.com/jitsucom/jitsu/server/maputils"
+	"strings"
 )
 
 var ErrNodeNotExist = errors.New("Inner node doesn't exist")
@@ -62,31 +61,6 @@ func (jp *SingleJSONPath) SetIfNotExist(obj map[string]interface{}, value interf
 	}
 
 	return jp.Set(obj, value)
-}
-
-// SetOrMergeIfExist puts value into the object if JSON path doesn't exist
-// if JSON path exist and is a map than all values will be merged separately
-// {key1:"abc", key2:"qwe"}        /key1/key3 -> set
-// {key1:"abc", key2:{key3:"qwe"}} /key1/key2 -> merge
-func (jp *SingleJSONPath) SetOrMergeIfExist(obj map[string]interface{}, values map[string]interface{}) error {
-	if obj == nil {
-		return nil
-	}
-
-	existedValue, ok := jp.Get(obj)
-	if !ok {
-		return jp.Set(obj, values)
-	}
-
-	if existedMap, ok := existedValue.(map[string]interface{}); ok {
-		for key, value := range values {
-			if _, exist := existedMap[key]; !exist {
-				existedMap[key] = value
-			}
-		}
-	}
-
-	return nil
 }
 
 //getAndRemove returns source JSON path from object and can remove the key

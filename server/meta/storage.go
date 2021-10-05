@@ -9,6 +9,9 @@ import (
 const (
 	DummyType = "Dummy"
 	RedisType = "Redis"
+
+	DayGranularity  = "day"
+	HourGranularity = "hour"
 )
 
 type Storage interface {
@@ -26,7 +29,6 @@ type Storage interface {
 	ErrorEvents(id, namespace string, now time.Time, value int) error
 	SkipEvents(id, namespace string, now time.Time, value int) error
 	GetProjectSourceIDs(projectID string) ([]string, error)
-	GetProjectPushSourceIDs(projectID string) ([]string, error)
 	GetProjectDestinationIDs(projectID string) ([]string, error)
 	GetEventsWithGranularity(namespace, status string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error)
 
@@ -35,7 +37,6 @@ type Storage interface {
 	AddEvent(destinationID, eventID, payload string, now time.Time) (int, error)
 	UpdateSucceedEvent(destinationID, eventID, success string) error
 	UpdateErrorEvent(destinationID, eventID, error string) error
-	UpdateSkipEvent(destinationID, eventID, error string) error
 	RemoveLastEvent(destinationID string) error
 
 	GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error)

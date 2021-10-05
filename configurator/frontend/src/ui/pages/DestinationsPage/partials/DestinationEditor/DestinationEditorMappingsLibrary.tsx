@@ -29,9 +29,8 @@ const DestinationEditorMappingsLibrary = ({ handleDataUpdate }: Props) => {
     .keys(MAPPING_ROW_PROPS_MAP)
     .reduce((accumulator: DestinationMappingRow, key: string) => {
       const catalogKey = MAPPING_ROW_PROPS_MAP[key];
-      const rowValue = row[catalogKey];
-      
-      if (rowValue !== undefined && rowValue !== null) {
+
+      if (row[catalogKey]) {
         accumulator = {
           ...accumulator,
           [key]: row[catalogKey]
@@ -71,15 +70,19 @@ const DestinationEditorMappingsLibrary = ({ handleDataUpdate }: Props) => {
 
       <div className={styles.library}>
         {
-          Object.entries(mappings).map(([key, library]) => (
-            <div key={key} className={styles.item}>
-              <div>
-                <p className="font-bold capitalize">{library.displayName || key}</p>
-                {library.comment && <p className={styles.comment}>{library.comment}</p>}
+          Object.keys(mappings).map((key: string) => {
+            const library: DestinationConfigurationTemplate = mappings[key];
+
+            return (
+              <div key={key} className={styles.item}>
+                <div>
+                  <p className="font-bold capitalize">{library.displayName || key}</p>
+                  {library.comment && <p className={styles.comment}>{library.comment}</p>}
+                </div>
+                <Button type="primary" onClick={handleClick(library, key)}>Apply</Button>
               </div>
-              <Button type="primary" onClick={handleClick(library, key)}>Apply</Button>
-            </div>
-          ))
+            );
+          })
         }
       </div>
     </>

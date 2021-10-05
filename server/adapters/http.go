@@ -21,6 +21,7 @@ type HTTPAdapterConfiguration struct {
 	HTTPReqFactory HTTPRequestFactory
 	PoolWorkers    int
 	DebugLogger    *logging.QueryLogger
+
 	ErrorHandler   func(fallback bool, eventContext *EventContext, err error)
 	SuccessHandler func(eventContext *EventContext)
 }
@@ -88,6 +89,7 @@ func NewHTTPAdapter(config *HTTPAdapterConfiguration) (*HTTPAdapter, error) {
 
 	httpAdapter.workersPool = pool
 	httpAdapter.queue = reqQueue
+
 	httpAdapter.startObserver()
 
 	return httpAdapter, nil
@@ -111,6 +113,7 @@ func (h *HTTPAdapter) startObserver() {
 					logging.SystemErrorf("[%s] Error reading HTTP request from the queue: %v", h.destinationID, err)
 					continue
 				}
+
 				//dequeued request was from retry call and retry timeout hasn't come
 				if time.Now().UTC().Before(retryableRequest.DequeuedTime) {
 					if err := h.queue.AddRequest(retryableRequest); err != nil {
@@ -120,6 +123,7 @@ func (h *HTTPAdapter) startObserver() {
 
 					continue
 				}
+
 				if err := h.workersPool.Invoke(retryableRequest); err != nil {
 					if err != ants.ErrPoolClosed {
 						logging.SystemErrorf("[%s] Error invoking HTTP request task: %v", h.destinationID, err)
@@ -130,8 +134,6 @@ func (h *HTTPAdapter) startObserver() {
 						h.errorHandler(true, retryableRequest.EventContext, err)
 					}
 				}
-			} else {
-				time.Sleep(time.Millisecond * 50)
 			}
 		}
 	})
@@ -168,7 +170,6 @@ func (h *HTTPAdapter) sendRequestWithRetry(i interface{}) {
 	if err != nil {
 		h.doRetry(retryableRequest, err)
 	} else {
-		retryableRequest.EventContext.HTTPRequest = retryableRequest.Request
 		h.successHandler(retryableRequest.EventContext)
 	}
 }

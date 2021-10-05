@@ -41,8 +41,6 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		config, err = mapDbtCloud(destination)
 	case enstorages.MySQLType:
 		config, err = mapMySQL(destination)
-	case enstorages.S3Type:
-		config, err = mapS3(destination)
 	default:
 		return nil, fmt.Errorf("Unknown destination type: %s", destination.Type)
 	}
@@ -92,40 +90,6 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 	config.PostHandleDestinations = postHandleDestinations
 
 	return config, nil
-}
-
-func mapS3(dest *entities.Destination) (*enstorages.DestinationConfig, error) {
-	b, err := json.Marshal(dest.Data)
-	if err != nil {
-		return nil, fmt.Errorf("Error marshaling s3 config destination: %v", err)
-	}
-
-	s3FormData := &entities.S3FormData{}
-	err = json.Unmarshal(b, s3FormData)
-	if err != nil {
-		return nil, fmt.Errorf("Error unmarshaling s3 form data: %v", err)
-	}
-	var compression enadapters.S3Compression
-	if s3FormData.CompressionEnabled {
-		compression = enadapters.S3CompressionGZIP
-	}
-	return &enstorages.DestinationConfig{
-		Type: enstorages.S3Type,
-		Mode: "batch",
-		DataLayout: &enstorages.DataLayout{
-			TableNameTemplate: s3FormData.TableName,
-		},
-		S3: &enadapters.S3Config{
-			AccessKeyID: s3FormData.AccessKeyID,
-			SecretKey:   s3FormData.SecretKey,
-			Bucket:      s3FormData.Bucket,
-			Region:      s3FormData.Region,
-			Endpoint:    s3FormData.Endpoint,
-			Folder:      s3FormData.Folder,
-			Format:      s3FormData.Format,
-			Compression: compression,
-		},
-	}, nil
 }
 
 func mapBigQuery(bqDestination *entities.Destination) (*enstorages.DestinationConfig, error) {

@@ -60,20 +60,22 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 
 		accessSecret := vp.GetString("auth.redis.access_secret")
 		if accessSecret == "" {
-			return nil, errors.New("auth.redis.access_secret is required. Please provide any random string or uuid value in configurator.yaml or via UI_AUTH_ACCESS_SECRET env variable.")
+			return nil, errors.New("auth.redis.access_secret is required")
 		}
+
 		if accessSecret == "generate" {
 			accessSecret = uuid.NewV4().String()
-			logging.Infof("'auth.redis.access_secret' has been generated: %q. For keeping UI authorization sessions between application restarts - provide any random string or uuid value in configurator.yaml or via UI_AUTH_ACCESS_SECRET env variable.", accessSecret)
+			logging.Infof("'auth.redis.access_secret' has been generated: %q. For keeping UI authorization sessions between application restarts - replace 'auth.redis.access_secret' in configurator.yaml with any random string or uuid.", accessSecret)
 		}
 
 		refreshSecret := vp.GetString("auth.redis.refresh_secret")
 		if refreshSecret == "" {
-			return nil, errors.New("auth.redis.refresh_secret is required. Please provide any random string or uuid value in configurator.yaml or via UI_AUTH_REFRESH_SECRET env variable.")
+			return nil, errors.New("auth.redis.refresh_secret is required")
 		}
+
 		if refreshSecret == "generate" {
 			refreshSecret = uuid.NewV4().String()
-			logging.Infof("'auth.redis.refresh_secret' has been generated: %q. For keeping UI authorization sessions between application restarts - provide any random string or uuid value in configurator.yaml or via UI_AUTH_REFRESH_SECRET env variable.", refreshSecret)
+			logging.Infof("'auth.redis.refresh_secret' has been generated: %q. For keeping UI authorization sessions between application restarts - replace 'auth.redis.refresh_secret' in configurator.yaml with any random string or uuid.", refreshSecret)
 		}
 
 		authProvider, err = NewRedisProvider(accessSecret, refreshSecret, redisConfig)

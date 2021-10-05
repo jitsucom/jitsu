@@ -23,7 +23,6 @@ require (
 	github.com/gookit/color v1.3.1
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/huandu/facebook/v2 v2.5.3
-	github.com/iancoleman/strcase v0.2.0
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
 	github.com/lib/pq v1.10.2
 	github.com/logrusorgru/aurora v2.0.3+incompatible
@@ -32,7 +31,7 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/oschwald/geoip2-golang v1.4.0
-	github.com/panjf2000/ants/v2 v2.4.6
+	github.com/panjf2000/ants/v2 v2.4.3
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/robfig/cron/v3 v3.0.1
@@ -50,7 +49,6 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.0-alpha.0
 	go.uber.org/atomic v1.7.0
 	golang.org/x/net v0.0.0-20210503060351-7fd8e65b6420
-	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
 	google.golang.org/api v0.56.0
 	google.golang.org/genproto v0.0.0-20210828152312-66f60bf46e71

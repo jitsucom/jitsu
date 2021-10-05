@@ -15,17 +15,12 @@ type AsyncLogger struct {
 	logCh              chan interface{}
 	showInGlobalLogger bool
 
-	closed *atomic.Bool
+	closed atomic.Bool
 }
 
 //NewAsyncLogger creates AsyncLogger and run goroutine that's read from channel and write to file
 func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) *AsyncLogger {
-	logger := &AsyncLogger{
-		writer:             writer,
-		logCh:              make(chan interface{}, 20000),
-		showInGlobalLogger: showInGlobalLogger,
-		closed:             atomic.NewBool(false),
-	}
+	logger := &AsyncLogger{writer: writer, logCh: make(chan interface{}, 20000), showInGlobalLogger: showInGlobalLogger}
 
 	safego.RunWithRestart(func() {
 		for {

@@ -112,10 +112,6 @@ func TestRedis(sourceConfig *base.SourceConfig) error {
 	return nil
 }
 
-func (r *Redis) GetRefreshWindow() (time.Duration, error) {
-	return time.Hour * 24, nil
-}
-
 //GetAllAvailableIntervals returns ALL constant
 func (r *Redis) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil

@@ -75,13 +75,39 @@ func (sh *StatisticsHandler) GetHandler(c *gin.Context) {
 	}
 
 	projectID := c.Query("project_id")
-	ids, err := sh.extractIDs(projectID, namespaceFilter, c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to get statistics identifiers", err))
+
+	var eventsPerTime []meta.EventsPerTime
+
+	switch namespaceFilter {
+	case meta.DestinationNamespace:
+		destinationID := c.Query("destination_id")
+		destinationIDs := []string{destinationID}
+		if destinationID == "" {
+			destinationIDs, err = sh.metaStorage.GetProjectDestinationIDs(projectID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to get destinations statistics", err))
+				return
+			}
+		}
+
+		eventsPerTime, err = sh.metaStorage.GetEventsWithGranularity(meta.DestinationNamespace, statusFilter, destinationIDs, start, end, granularity)
+	case meta.SourceNamespace:
+		sourceID := c.Query("source_id")
+		sourceIDs := []string{sourceID}
+		if sourceID == "" {
+			sourceIDs, err = sh.metaStorage.GetProjectSourceIDs(projectID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to get sources statistics", err))
+				return
+			}
+		}
+
+		eventsPerTime, err = sh.metaStorage.GetEventsWithGranularity(meta.SourceNamespace, statusFilter, sourceIDs, start, end, granularity)
+	default:
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(fmt.Sprintf("Unknown [namespace] value: %s. Only ['%s', '%s'] are supported", namespaceFilter, meta.SourceNamespace, meta.DestinationNamespace), nil))
 		return
 	}
 
-	eventsPerTime, err := sh.metaStorage.GetEventsWithGranularity(namespaceFilter, statusFilter, ids, start, end, granularity)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to provide statistics", err))
 		return
@@ -89,33 +115,4 @@ func (sh *StatisticsHandler) GetHandler(c *gin.Context) {
 
 	response := StatisticsResponse{Data: eventsPerTime, Status: "ok"}
 	c.JSON(http.StatusOK, response)
-}
-
-func (sh *StatisticsHandler) extractIDs(projectID, namespace string, c *gin.Context) ([]string, error) {
-	switch namespace {
-	case meta.DestinationNamespace:
-		destinationID := c.Query("destination_id")
-		if destinationID != "" {
-			return []string{destinationID}, nil
-		}
-
-		return sh.metaStorage.GetProjectDestinationIDs(projectID)
-
-	case meta.SourceNamespace:
-		sourceID := c.Query("source_id")
-		if sourceID != "" {
-			return []string{sourceID}, nil
-		}
-
-		return sh.metaStorage.GetProjectSourceIDs(projectID)
-	case meta.PushSourceNamespace:
-		sourceID := c.Query("source_id")
-		if sourceID != "" {
-			return []string{sourceID}, nil
-		}
-
-		return sh.metaStorage.GetProjectPushSourceIDs(projectID)
-	default:
-		return nil, fmt.Errorf("Unknown [namespace] value: %s. Only ['%s', '%s', '%s'] are supported", namespace, meta.SourceNamespace, meta.PushSourceNamespace, meta.DestinationNamespace)
-	}
 }
