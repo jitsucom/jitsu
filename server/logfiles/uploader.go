@@ -121,12 +121,7 @@ func (u *PeriodicUploader) Start() {
 						}
 					}
 
-					resultPerTable, failedEvents, skippedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables)
-
-					if !skippedEvents.IsEmpty() {
-						metrics.SkipTokenEvents(tokenID, storage.ID(), len(skippedEvents.Events))
-						counters.SkipEvents(storage.ID(), len(skippedEvents.Events))
-					}
+					resultPerTable, failedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables)
 
 					if err != nil {
 						archiveFile = false
@@ -162,7 +157,7 @@ func (u *PeriodicUploader) Start() {
 							counters.ErrorEvents(storage.ID(), result.RowsCount)
 
 							telemetry.ErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
-						} else {
+						} else  {
 							pHandles := storageProxy.GetPostHandleDestinations()
 							if pHandles != nil && result.RowsCount > 0 {
 								for _, pHandle := range pHandles {
@@ -208,7 +203,7 @@ func (u *PeriodicUploader) postHandle(start, end time.Time, postHandlesMap map[s
 		}
 		event := events.Event{
 			"event_type":  storages.DestinationBatchEventType,
-			"source":      dests,
+			"source":	dests,
 			timestamp.Key: end,
 			"finished_at": end,
 			"started_at":  start,

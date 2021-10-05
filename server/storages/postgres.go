@@ -87,20 +87,16 @@ func NewPostgres(config *Config) (Storage, error) {
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
 	_, tableHelper := p.getAdapters()
-	flatData, failedEvents, skippedEvents, err := p.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	flatData, failedEvents, err := p.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
 		p.eventsCache.Error(p.IsCachingDisabled(), p.ID(), failedEvent.EventID, failedEvent.Error)
-	}
-	//update cache and counter with skipped events
-	for _, skipEvent := range skippedEvents.Events {
-		p.eventsCache.Skip(p.IsCachingDisabled(), p.ID(), skipEvent.EventID, skipEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -118,23 +114,17 @@ func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alre
 			if err != nil {
 				p.eventsCache.Error(p.IsCachingDisabled(), p.ID(), p.uniqueIDField.Extract(object), err.Error())
 			} else {
-				p.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  p.IsCachingDisabled(),
-					DestinationID:  p.ID(),
-					EventID:        p.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          table,
-				})
+				p.eventsCache.Succeed(p.IsCachingDisabled(), p.ID(), p.uniqueIDField.Extract(object), object, table)
 			}
 		}
 	}
 
 	//store failed events to fallback only if other events have been inserted ok
 	if storeFailedEvents {
-		return tableResults, failedEvents, skippedEvents, nil
+		return tableResults, failedEvents, nil
 	}
 
-	return tableResults, nil, skippedEvents, nil
+	return tableResults, nil, nil
 }
 
 //check table schema
@@ -158,10 +148,6 @@ func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table
 //SyncStore is used in storing chunk of pulled data to Postgres with processing
 func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return syncStoreImpl(p, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
-}
-
-func (p *Postgres) Clean(tableName string) error {
-	return cleanImpl(p, tableName)
 }
 
 //Update uses SyncStore under the hood

@@ -764,19 +764,6 @@ func TestIPCookiePolicyComply(t *testing.T) {
 			"test_data/fact_output_ip_cookie_comply_true.json",
 			false,
 		},
-		{
-			"Cookie policy not comply because of source_ip",
-			"/api/v1/event?token=c2stoken&cookie_policy=comply&ip_policy=comply",
-			"test_data/event_with_ip_2.0.json",
-			&geo.Data{
-				Country: "RU",
-				City:    "Moscow",
-				Lat:     55.752220,
-				Lon:     37.615560,
-			},
-			"test_data/fact_output_with_ip.json",
-			true,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {

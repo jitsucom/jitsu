@@ -79,7 +79,7 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 		counters.SuccessEvents(storageProxy.ID(), rowsCount)
 	}
 
-	counters.SuccessPushSourceEvents(tokenID, rowsCount)
+	counters.SuccessSourceEvents(tokenID, rowsCount)
 
 	c.JSON(http.StatusOK, middleware.OKResponse())
 }

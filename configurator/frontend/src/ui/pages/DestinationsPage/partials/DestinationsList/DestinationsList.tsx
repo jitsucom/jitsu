@@ -33,14 +33,11 @@ import { destinationPageRoutes } from 'ui/pages/DestinationsPage/DestinationsPag
 // @Types
 import { CommonDestinationPageProps } from 'ui/pages/DestinationsPage/DestinationsPage';
 import { Destination } from 'catalog/destinations/types';
-import { useServices } from '../../../../../hooks/useServices';
-import { showQuotaLimitModal } from '../../../../../lib/services/billing';
 
 const DestinationsListComponent = ({
   setBreadcrumbs
 }: CommonDestinationPageProps) => {
   const history = useHistory();
-  const subscription = useServices().currentSubscription;
 
   const [hideSensitiveInfo] = useState(false);
 
@@ -70,26 +67,9 @@ const DestinationsListComponent = ({
             title: dst.displayName,
             id: dst.id,
             icon: dst.ui.icon,
-            handleClick: () => {
-              if (
-                destinationsStore.allDestinations.length >=
-                  subscription?.currentPlan.quota.destinations ??
-                999
-              ) {
-                showQuotaLimitModal(
-                  subscription,
-                  <>
-                    You current plan allows to have only{' '}
-                    {subscription.currentPlan.quota.destinations} destinations
-                  </>
-                );
-                return;
-              }
-              const link = generatePath(destinationPageRoutes.newExact, {
-                type: dst.id
-              });
-              history.push(link);
-            }
+            link: generatePath(destinationPageRoutes.newExact, {
+              type: dst.id
+            })
           }))}
       />
     ),

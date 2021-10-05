@@ -6,10 +6,7 @@ interface Options {
   errorCb?: (...args: any) => void;
 }
 
-const validateTabForm = async (
-  tab: Tab,
-  { forceUpdate, beforeValidate, errorCb }: Options
-) => {
+const validateTabForm = async(tab: Tab, { forceUpdate, beforeValidate, errorCb }: Options) => {
   const form = tab.form;
 
   try {
@@ -17,8 +14,7 @@ const validateTabForm = async (
       beforeValidate();
     }
 
-    const result = await form.validateFields();
-    return result;
+    return await form.validateFields();
   } catch (errors) {
     if (errorCb) {
       errorCb(errors);
@@ -28,6 +24,6 @@ const validateTabForm = async (
   } finally {
     forceUpdate();
   }
-};
+}
 
 export { validateTabForm }

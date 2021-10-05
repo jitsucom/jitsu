@@ -1,5 +1,4 @@
 // @Libs
-import { HttpServerStorage } from 'lib/services/ServerStorage';
 import { rest } from 'msw';
 import { setupServer, SetupServerApi } from 'msw/node';
 // @Mock Responses
@@ -14,10 +13,10 @@ import {
 } from './tests-utils.mock-responses';
 
 type MockEndpointConfig = {
-  responseData: { [key: string]: unknown };
-  requestFactory: (responseData: {
-    [key: string]: unknown;
-  }) => ReturnType<typeof rest[keyof typeof rest]>;
+  responseData: unknown;
+  requestFactory: (
+    responseData: unknown
+  ) => ReturnType<typeof rest[keyof typeof rest]>;
 };
 
 type MockServerConfig = {
@@ -38,7 +37,7 @@ const mockObligatoryEndpoints = {
   userInfo: {
     responseData: mockUserInfo,
     requestFactory: (mockData: unknown) =>
-      rest.get(`*${HttpServerStorage.USERS_INFO_PATH}*`, (req, res, ctx) => {
+      rest.get('*/users/info', (req, res, ctx) => {
         return res(ctx.json(mockData));
       })
   },

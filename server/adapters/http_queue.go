@@ -51,6 +51,7 @@ func NewPersistentQueue(queueName, fallbackDir string) (*PersistentQueue, error)
 	if err != nil {
 		return nil, fmt.Errorf("Error opening/creating HTTP requests queue [%s] in Dir [%s]: %v", queueName, fallbackDir, err)
 	}
+
 	return &PersistentQueue{queue: queue}, nil
 }
 

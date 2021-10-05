@@ -12,9 +12,7 @@ export type GoogleParametersNodes = {
   type?: string
   disableOauth?: boolean
   disableServiceAccount?: boolean,
-  serviceAccountKey?: string,
-  requireSubject?: boolean,
-  subjectKey?: string
+  serviceAccountKey?: string
 }
 
 /**
@@ -29,17 +27,15 @@ function removeNulls(arr: any[]) {
   return arr.filter(el => !!el);
 }
 
-export const googleAuthConfigParameters = ({
+export const googleAuthConfigParameters: (param?: GoogleParametersNodes) => Parameter[] = ({
   clientId = 'config.auth.client_id',
   clientSecret = 'config.auth.client_secret',
   refreshToken = 'config.auth.refresh_token',
   type = 'config.auth.type',
   disableOauth = false,
   disableServiceAccount = false,
-  serviceAccountKey = 'config.auth.service_account_key',
-  requireSubject = false,
-  subjectKey = 'config.auth.subject'
-}: GoogleParametersNodes): Parameter[] => removeNulls([
+  serviceAccountKey = 'config.auth.service_account_key'
+}: GoogleParametersNodes = {}) => removeNulls([
   {
     displayName: 'Authorization Type',
     id: type,
@@ -62,10 +58,10 @@ export const googleAuthConfigParameters = ({
     displayName: 'OAuth Client ID',
     id: clientId,
     type: stringType,
-    omitFieldRule: (config) => {
+    constant: (config) => {
       //hack to make it work for singer based sources (which prefixes all fields with config. later on)
       let typeResolved = resolve(config, type) || resolve(config, 'config.config.' + type);
-      return typeResolved  !== 'OAuth'
+      return typeResolved  !== 'OAuth' ? '' : undefined
     },
     required: true,
     documentation: oauthParamDocumentation
@@ -74,10 +70,10 @@ export const googleAuthConfigParameters = ({
     displayName: 'OAuth Client Secret',
     id: clientSecret,
     type: stringType,
-    omitFieldRule: (config) => {
+    constant: (config) => {
       //hack to make it work for singer based sources (which prefixes all fields with config. later on)
       let typeResolved = resolve(config, type) || resolve(config, 'config.config.' + type);
-      return typeResolved !== 'OAuth';
+      return typeResolved !== 'OAuth' ? '' : undefined;
     },
     required: true,
     documentation: oauthParamDocumentation
@@ -86,10 +82,10 @@ export const googleAuthConfigParameters = ({
     displayName: 'Refresh Token',
     id: refreshToken,
     type: stringType,
-    omitFieldRule: (config) => {
+    constant: (config) => {
       //hack to make it work for singer based sources (which prefixes all fields with config. later on)
       let typeResolved = resolve(config, type) || resolve(config, 'config.config.' + type);
-      return typeResolved !== 'OAuth';
+      return typeResolved !== 'OAuth' ? '' : undefined;
     },
     required: true,
     documentation: oauthParamDocumentation
@@ -98,30 +94,15 @@ export const googleAuthConfigParameters = ({
     displayName: 'Auth (Service account key JSON)',
     id: serviceAccountKey,
     type: jsonType,
-    omitFieldRule: (config) => {
+    constant: (config) => {
       //hack to make it work for singer based sources (which prefixes all fields with config. later on)
       let typeResolved = resolve(config, type) || resolve(config, 'config.config.' + type);
-      return typeResolved !== 'Service Account';
+      return typeResolved !== 'Service Account' ? null : undefined;
     },
     required: true,
     documentation:
       <>
         <a href="https://cloud.google.com/iam/docs/creating-managing-service-account-keys">Use Google Cloud Console to create Service Account get Service Key JSON</a>
       </>
-  },
-  !disableServiceAccount && requireSubject && {
-    displayName: 'Subject',
-    id: subjectKey,
-    type: stringType,
-    omitFieldRule: (config) => {
-      //hack to make it work for singer based sources (which prefixes all fields with config. later on)
-      let typeResolved = resolve(config, type) || resolve(config, 'config.config.' + type);
-      return typeResolved !== 'Service Account';
-    },
-    required: true,
-    documentation:
-        <>
-        A Google Ads user with permissions on the Google Ads account you want to access. Google Ads does not support using service accounts without impersonation.
-        </>
   }
 ]);

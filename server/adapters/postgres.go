@@ -56,10 +56,10 @@ const (
 
 	dropTableTemplate = `DROP TABLE "%s"."%s"`
 
-	copyColumnTemplate                 = `UPDATE "%s"."%s" SET %s = %s`
-	dropColumnTemplate                 = `ALTER TABLE "%s"."%s" DROP COLUMN %s`
-	renameColumnTemplate               = `ALTER TABLE "%s"."%s" RENAME COLUMN %s TO %s`
-	postgresTruncateTableTemplate      = `TRUNCATE "%s"."%s"`
+	copyColumnTemplate   = `UPDATE "%s"."%s" SET %s = %s`
+	dropColumnTemplate   = `ALTER TABLE "%s"."%s" DROP COLUMN %s`
+	renameColumnTemplate = `ALTER TABLE "%s"."%s" RENAME COLUMN %s TO %s`
+
 	placeholdersStringBuildErrTemplate = `Error building placeholders string: %v`
 	postgresValuesLimit                = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
@@ -258,17 +258,6 @@ func (p *Postgres) Insert(eventContext *EventContext) error {
 	}
 
 	return nil
-}
-
-//Truncate deletes all records in tableName table
-func (p *Postgres) Truncate(tableName string) error {
-	sqlParams := SqlParams{
-		dataSource:  p.dataSource,
-		queryLogger: p.queryLogger,
-		ctx:         p.ctx,
-	}
-	statement := fmt.Sprintf(postgresTruncateTableTemplate, p.config.Schema, tableName)
-	return sqlParams.commonTruncate(tableName, statement)
 }
 
 func (p *Postgres) getTable(tableName string) (*Table, error) {
@@ -541,7 +530,7 @@ func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table,
 //inserts all data into tmp table and using bulkMergeTemplate merges all data to main table
 func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	tmpTable := &Table{
-		Name:           fmt.Sprintf("jitsu_tmp_%s", uuid.NewLettersNumbers()[:5]),
+		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers()[:5],
 		Columns:        table.Columns,
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,

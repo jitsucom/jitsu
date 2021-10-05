@@ -16,7 +16,6 @@
     {
       "name": "Sending data",
       "pages": [
-        "sending-data/mobile-apps",
         "sending-data/js-sdk",
         "sending-data/api",
         "sending-data/bulk-api",
@@ -32,8 +31,7 @@
       "pages": [
         "configuration",
         "destinations-configuration",
-        "sources-configuration",
-        "sources"
+        "sources-configuration"
       ]
     },
     {
@@ -42,7 +40,7 @@
         "other-features/segment-compatibility",
         "other-features/dbt-cloud-integration",
         "other-features/dry-run-events",
-        "other-features/retroactive-user-recognition",
+        "other-features/retrospective-user-recognition",
         "other-features/events-cache",
         "other-features/geo-data-resolution",
         "other-features/typecast",

@@ -33,7 +33,6 @@ const (
 	mySQLAddColumnTemplate           = "ALTER TABLE `%s`.`%s` ADD COLUMN %s"
 	mySQLDropPrimaryKeyTemplate      = "ALTER TABLE `%s`.`%s` DROP PRIMARY KEY"
 	mySQLDropTableTemplate           = "DROP TABLE `%s`.`%s`"
-	mySQLTruncateTableTemplate       = "TRUNCATE TABLE `%s`.`%s`"
 	mySQLPrimaryKeyMaxLength         = 32
 	mySQLValuesLimit                 = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
@@ -256,17 +255,6 @@ func (m *MySQL) toDeleteQuery(conditions *DeleteConditions) (string, []interface
 	return strings.Join(queryConditions, conditions.JoinCondition), values
 }
 
-//Truncate deletes all records in tableName table
-func (m *MySQL) Truncate(tableName string) error {
-	sqlParams := SqlParams{
-		dataSource:  m.dataSource,
-		queryLogger: m.queryLogger,
-		ctx:         m.ctx,
-	}
-	statement := fmt.Sprintf(mySQLTruncateTableTemplate, m.config.Db, tableName)
-	return sqlParams.commonTruncate(tableName, statement)
-}
-
 //Close underlying sql.DB
 func (m *MySQL) Close() error {
 	return m.dataSource.Close()
@@ -446,7 +434,7 @@ func (m *MySQL) executeInsert(wrappedTx *Transaction, table *Table, headerWithou
 //inserts all data into tmp table and using bulkMergeTemplate merges all data to main table
 func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	tmpTable := &Table{
-		Name:           fmt.Sprintf("jitsu_tmp_%s", uuid.NewLettersNumbers()[:5]),
+		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers()[:5],
 		Columns:        table.Columns,
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,

@@ -1,13 +1,10 @@
 # BASE STAGE
 FROM alpine:3.13 as main
 
-RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata bash sudo
-
 ARG dhid
 ENV DOCKER_HUB_ID=$dhid
 
 ENV CONFIGURATOR_USER=configurator
-ENV TZ=UTC
 
 RUN addgroup -S $CONFIGURATOR_USER \
     && adduser -S -G $CONFIGURATOR_USER $CONFIGURATOR_USER \
@@ -77,6 +74,7 @@ RUN make docker_assemble
 # FINAL STAGE
 FROM main as final
 
+ENV TZ=UTC
 
 # copy static files from build-image
 COPY --from=builder /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend/build/dist /home/$CONFIGURATOR_USER/app
@@ -88,9 +86,7 @@ RUN chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/app
 USER $CONFIGURATOR_USER
 WORKDIR /home/$CONFIGURATOR_USER/app
 
-COPY docker/configurator.yaml /home/$CONFIGURATOR_USER/data/config/
-
 VOLUME ["/home/$CONFIGURATOR_USER/data"]
 EXPOSE 7000
 
-ENTRYPOINT ./configurator -cfg=/home/$CONFIGURATOR_USER/data/config/configurator.yaml -cr=true -dhid="$DOCKER_HUB_ID"
+ENTRYPOINT ./configurator -cfg=../data/config/configurator.yaml -cr=true -dhid="$DOCKER_HUB_ID"

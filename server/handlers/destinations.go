@@ -144,13 +144,6 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			timestamp.Key: adapters.Column{SQLType: "DATETIME"},
 		}
 		return testMySQL(config, eventContext)
-	case storages.S3Type:
-		s3Adapter, err := adapters.NewS3(config.S3)
-		if err != nil {
-			return err
-		}
-		defer s3Adapter.Close()
-		return s3Adapter.ValidateWritePermission()
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}

@@ -16,7 +16,6 @@ type EventsCache struct {
 	originalCh             chan *originalEvent
 	succeedCh              chan *succeedEvent
 	failedCh               chan *failedEvent
-	skippedCh              chan *failedEvent
 	capacityPerDestination int
 
 	done chan struct{}
@@ -26,10 +25,9 @@ type EventsCache struct {
 func NewEventsCache(storage meta.Storage, capacityPerDestination int) *EventsCache {
 	c := &EventsCache{
 		storage:                storage,
-		originalCh:             make(chan *originalEvent),
-		succeedCh:              make(chan *succeedEvent),
-		failedCh:               make(chan *failedEvent),
-		skippedCh:              make(chan *failedEvent),
+		originalCh:             make(chan *originalEvent, 1000000),
+		succeedCh:              make(chan *succeedEvent, 1000000),
+		failedCh:               make(chan *failedEvent, 1000000),
 		capacityPerDestination: capacityPerDestination,
 
 		done: make(chan struct{}),
@@ -48,7 +46,7 @@ func (ec *EventsCache) start() {
 
 	safego.RunWithRestart(func() {
 		for cf := range ec.succeedCh {
-			ec.succeed(cf.eventContext)
+			ec.succeed(cf.destinationID, cf.eventID, cf.processed, cf.table)
 		}
 	})
 
@@ -57,39 +55,35 @@ func (ec *EventsCache) start() {
 			ec.error(cf.destinationID, cf.eventID, cf.error)
 		}
 	})
-
-	safego.RunWithRestart(func() {
-		for cf := range ec.skippedCh {
-			ec.skip(cf.destinationID, cf.eventID, cf.error)
-		}
-	})
 }
 
 //Put puts value into channel which will be read and written to storage
 func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, value events.Event) {
 	if !disabled && ec.isActive() {
-		ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: value}
+		select {
+		case ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: value}:
+		default:
+		}
 	}
 }
 
 //Succeed puts value into channel which will be read and updated in storage
-func (ec *EventsCache) Succeed(eventContext *adapters.EventContext) {
-	if !eventContext.CacheDisabled && ec.isActive() {
-		ec.succeedCh <- &succeedEvent{eventContext: eventContext}
+func (ec *EventsCache) Succeed(disabled bool, destinationID, eventID string, processed events.Event, table *adapters.Table) {
+	if !disabled && ec.isActive() {
+		select {
+		case ec.succeedCh <- &succeedEvent{destinationID: destinationID, eventID: eventID, processed: processed, table: table}:
+		default:
+		}
 	}
 }
 
 //Error puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Error(disabled bool, destinationID, eventID string, errMsg string) {
 	if !disabled && ec.isActive() {
-		ec.failedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}
-	}
-}
-
-//Skip puts value into channel which will be read and updated in storage
-func (ec *EventsCache) Skip(disabled bool, destinationID, eventID string, errMsg string) {
-	if !disabled && ec.isActive() {
-		ec.skippedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}
+		select {
+		case ec.failedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
+		default:
+		}
 	}
 }
 
@@ -129,70 +123,45 @@ func (ec *EventsCache) put(destinationID, eventID string, value events.Event) {
 }
 
 //succeed serializes and update processed event in storage
-func (ec *EventsCache) succeed(eventContext *adapters.EventContext) {
-	if eventContext.EventID == "" {
-		logging.SystemErrorf("[EventsCache] Succeed(): Event id can't be empty. Destination [%s] event %s", eventContext.DestinationID, eventContext.ProcessedEvent.Serialize())
+func (ec *EventsCache) succeed(destinationID, eventID string, processed events.Event, table *adapters.Table) {
+	if eventID == "" {
+		logging.SystemErrorf("[EventsCache] Succeed(): Event id can't be empty. Destination [%s] event %s", destinationID, processed.Serialize())
 		return
 	}
 
-	var eventEntity interface{}
+	fields := []*adapters.TableField{}
 
-	//proceed HTTP success event
-	if eventContext.HTTPRequest != nil {
-		var body map[string]interface{}
-		if len(eventContext.HTTPRequest.Body) > 0 {
-			body = map[string]interface{}{}
-			if err := json.Unmarshal(eventContext.HTTPRequest.Body, &body); err != nil {
-				logging.SystemErrorf("[%s] Error unmarshalling succeed HTTP event body: %s: %v", eventContext.DestinationID, string(eventContext.HTTPRequest.Body), err)
-			}
-		}
-		eventEntity = SucceedHTTPEvent{
-			DestinationID: eventContext.DestinationID,
-			URL:           eventContext.HTTPRequest.URL,
-			Method:        eventContext.HTTPRequest.Method,
-			Headers:       eventContext.HTTPRequest.Headers,
-			Body:          body,
-		}
-	} else {
-		//database success event
-		fields := []*adapters.TableField{}
-		for name, value := range eventContext.ProcessedEvent {
-			sqlType := "unknown"
-			//some destinations might not have table (e.g. s3)
-			if eventContext.Table != nil {
-				if column, ok := eventContext.Table.Columns[name]; ok {
-					sqlType = column.SQLType
-				}
-			}
-
-			fields = append(fields, &adapters.TableField{
-				Field: name,
-				Type:  sqlType,
-				Value: value,
-			})
+	for name, value := range processed {
+		var sqlType string
+		column, ok := table.Columns[name]
+		if !ok {
+			sqlType = "unknown"
+		} else {
+			sqlType = column.SQLType
 		}
 
-		var tableName string
-		if eventContext.Table != nil {
-			tableName = eventContext.Table.Name
-		}
-
-		eventEntity = SucceedDBEvent{
-			DestinationID: eventContext.DestinationID,
-			Table:         tableName,
-			Record:        fields,
-		}
+		fields = append(fields, &adapters.TableField{
+			Field: name,
+			Type:  sqlType,
+			Value: value,
+		})
 	}
 
-	b, err := json.Marshal(eventEntity)
+	sf := SucceedEvent{
+		DestinationID: destinationID,
+		Table:         table.Name,
+		Record:        fields,
+	}
+
+	b, err := json.Marshal(sf)
 	if err != nil {
-		logging.SystemErrorf("[%s] Error marshalling succeed event [%v] before update: %v", eventContext.DestinationID, eventEntity, err)
+		logging.SystemErrorf("[%s] Error marshalling succeed event [%v] before update: %v", destinationID, sf, err)
 		return
 	}
 
-	err = ec.storage.UpdateSucceedEvent(eventContext.DestinationID, eventContext.EventID, string(b))
+	err = ec.storage.UpdateSucceedEvent(destinationID, eventID, string(b))
 	if err != nil {
-		logging.SystemErrorf("[%s] Error updating success event %s in cache: %v", eventContext.DestinationID, eventContext.ProcessedEvent.Serialize(), err)
+		logging.SystemErrorf("[%s] Error updating success event %s in cache: %v", destinationID, processed.Serialize(), err)
 		return
 	}
 }
@@ -207,20 +176,6 @@ func (ec *EventsCache) error(destinationID, eventID string, errMsg string) {
 	err := ec.storage.UpdateErrorEvent(destinationID, eventID, errMsg)
 	if err != nil {
 		logging.SystemErrorf("[%s] Error updating error event [%s] in cache: %v", destinationID, eventID, err)
-		return
-	}
-}
-
-//skip writes skipped error into event skip field in storage
-func (ec *EventsCache) skip(destinationID, eventID string, errMsg string) {
-	if eventID == "" {
-		logging.SystemErrorf("[EventsCache] Skip(): Event id can't be empty. Destination [%s]", destinationID)
-		return
-	}
-
-	err := ec.storage.UpdateSkipEvent(destinationID, eventID, errMsg)
-	if err != nil {
-		logging.SystemErrorf("[%s] Error updating skipped event [%s] in cache: %v", destinationID, eventID, err)
 		return
 	}
 }
@@ -249,10 +204,10 @@ func (ec *EventsCache) GetTotal(destinationID string) int {
 
 //Close stops all underlying goroutines
 func (ec *EventsCache) Close() error {
-	close(ec.done)
 	close(ec.originalCh)
 	close(ec.succeedCh)
 	close(ec.failedCh)
+	close(ec.done)
 	return nil
 }
 

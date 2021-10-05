@@ -1,10 +1,9 @@
 package jsonutils
 
 import (
-	"testing"
-
 	"github.com/jitsucom/jitsu/server/test"
 	"github.com/stretchr/testify/require"
+	"testing"
 )
 
 func TestGet(t *testing.T) {
@@ -506,130 +505,6 @@ func TestSetIfNotExist(t *testing.T) {
 			require.True(t, ok)
 
 			err := sjp.SetIfNotExist(tt.inputObject, tt.inputValue)
-			require.NoError(t, err)
-			test.ObjectsEqual(t, tt.expectedObject, tt.inputObject, "Values aren't equal")
-		})
-	}
-}
-
-func TestSetOrMergeIfExist(t *testing.T) {
-	tests := []struct {
-		name           string
-		path           string
-		inputObject    map[string]interface{}
-		inputValue     map[string]interface{}
-		expectedObject map[string]interface{}
-	}{
-		{
-			"nil",
-			"abc",
-			nil,
-			nil,
-			nil,
-		},
-		{
-			"Empty",
-			"",
-			map[string]interface{}{},
-			map[string]interface{}{"key": "value"},
-			map[string]interface{}{},
-		},
-		{
-			"set object",
-			"/key0",
-			map[string]interface{}{
-				"key1": map[string]interface{}{
-					"subkey1": 123,
-				},
-			},
-			map[string]interface{}{
-				"key2": map[string]interface{}{
-					"subkey1": 123,
-				},
-			},
-			map[string]interface{}{
-				"key1": map[string]interface{}{
-					"subkey1": 123,
-				},
-				"key0": map[string]interface{}{
-					"key2": map[string]interface{}{
-						"subkey1": 123,
-					},
-				},
-			},
-		},
-		{
-			"set or merge do merge values",
-			"/key1/subkey1",
-			map[string]interface{}{
-				"key1": map[string]interface{}{
-					"subkey1": map[string]interface{}{
-						"subsubkey1": 123,
-						"subsubkey2": 123,
-					},
-				},
-			},
-			map[string]interface{}{
-				"subkey1": "subvalue1",
-				"subkey2": "subvalue2",
-			},
-			map[string]interface{}{
-				"key1": map[string]interface{}{
-					"subkey1": map[string]interface{}{
-						"subkey1":    "subvalue1",
-						"subkey2":    "subvalue2",
-						"subsubkey1": 123,
-						"subsubkey2": 123,
-					},
-				},
-			},
-		},
-		{
-			"set or merge do merge values but does not override",
-			"/key1/subkey1",
-			map[string]interface{}{
-				"key1": map[string]interface{}{
-					"subkey1": map[string]interface{}{
-						"subsubkey1": 123,
-						"subsubkey2": 123,
-					},
-				},
-			},
-			map[string]interface{}{
-				"subsubkey1": "subsubvalue1",
-				"subsubkey2": "subsubvalue2",
-			},
-			map[string]interface{}{
-				"key1": map[string]interface{}{
-					"subkey1": map[string]interface{}{
-						"subsubkey1": 123,
-						"subsubkey2": 123,
-					},
-				},
-			},
-		},
-		{
-			"set ok",
-			"/key1/subkey1",
-			map[string]interface{}{
-				"key1": map[string]interface{}{},
-			},
-			map[string]interface{}{"key": "value"},
-			map[string]interface{}{
-				"key1": map[string]interface{}{
-					"subkey1": map[string]interface{}{"key": "value"},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			jp := NewJSONPath(tt.path)
-
-			sjp, ok := jp.(*SingleJSONPath)
-			require.True(t, ok)
-
-			err := sjp.SetOrMergeIfExist(tt.inputObject, tt.inputValue)
 			require.NoError(t, err)
 			test.ObjectsEqual(t, tt.expectedObject, tt.inputObject, "Values aren't equal")
 		})

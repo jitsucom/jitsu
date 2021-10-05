@@ -1,15 +1,7 @@
 package adapters
 
 import (
-	"context"
-	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/test"
-	"github.com/jitsucom/jitsu/server/typing"
-	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/require"
-	"gotest.tools/assert"
-	"math/rand"
 	"strings"
 	"testing"
 )
@@ -169,78 +161,4 @@ func TestTableStatementFactory(t *testing.T) {
 			require.Equal(t, tt.expectedTableStatement, strings.TrimSpace(actual), "Statements aren't equal")
 		})
 	}
-}
-
-func TestClickhouseTruncateExistingTable(t *testing.T) {
-	recordsCount := len(timestamps)
-	table := &Table{
-		Name: "test_truncate_existing_table",
-		Columns: Columns{
-			"eventn_ctx_event_id": Column{SchemaToClickhouse[typing.STRING]},
-			"field2":              Column{SchemaToClickhouse[typing.STRING]},
-			"field3":              Column{SchemaToClickhouse[typing.INT64]},
-			"user":                Column{SchemaToClickhouse[typing.STRING]},
-			"_timestamp":          Column{SchemaToClickhouse[typing.TIMESTAMP]},
-		},
-	}
-	container, clickHouse := setupClickHouseDatabase(t, table)
-	defer container.Close()
-	err := clickHouse.BulkInsert(table, createObjectsForClickHouse(recordsCount))
-	require.NoError(t, err, fmt.Sprintf("Failed to bulk insert %d objects", recordsCount))
-	rows, err := container.CountRows(table.Name)
-	require.NoError(t, err, "Failed to count objects at "+table.Name)
-	assert.Equal(t, rows, recordsCount)
-	err = clickHouse.Truncate(table.Name)
-	require.NoError(t, err, "Failed to truncate table")
-	rows, err = container.CountRows(table.Name)
-	require.NoError(t, err, "Failed to count objects at "+table.Name)
-	assert.Equal(t, rows, 0)
-}
-
-func TestClickhouseTruncateNonexistentTable(t *testing.T) {
-	tableName := uuid.NewV4().String()
-	container, clickHouse := setupClickHouseDatabase(t, nil)
-	defer container.Close()
-	err := clickHouse.Truncate(tableName)
-	require.NoError(t, err, "Failed to truncate nonexistent table "+tableName)
-}
-
-func setupClickHouseDatabase(t *testing.T, table *Table) (*test.ClickHouseContainer, *ClickHouse) {
-	ctx := context.Background()
-	container, err := test.NewClickhouseContainer(ctx)
-	if err != nil {
-		t.Fatalf("failed to initialize container: %v", err)
-	}
-	tsf, err := NewTableStatementFactory(&ClickHouseConfig{
-		Dsns:     container.Dsns,
-		Database: container.Database,
-		Cluster:  "",
-	})
-	if err != nil {
-		t.Fatalf("failed to initialize table statement factory: %v", err)
-	}
-	adapter, err := NewClickHouse(ctx, container.Dsns[0], container.Database, "", nil, tsf, map[string]bool{},
-		&logging.QueryLogger{}, typing.SQLTypes{})
-	if err != nil {
-		t.Fatalf("Failed to create ClickHouse adapter: %v", err)
-	}
-	if table != nil {
-		err = adapter.CreateTable(table)
-		require.NoError(t, err, "Failed to create table")
-	}
-	return container, adapter
-}
-
-func createObjectsForClickHouse(num int) []map[string]interface{} {
-	var objects []map[string]interface{}
-	for i := 0; i < num; i++ {
-		object := make(map[string]interface{})
-		object["field1"] = fmt.Sprintf("100000-%d", i)
-		object["field2"] = fmt.Sprint(rand.Int())
-		object["field3"] = rand.Int()
-		object["user"] = fmt.Sprint(rand.Int())
-		object["_interval_start"] = timestamps[i%len(timestamps)]
-		objects = append(objects, object)
-	}
-	return objects
 }

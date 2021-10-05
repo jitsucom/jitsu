@@ -6,10 +6,6 @@
   position: relative;
 }
 
-.closable-message_content {
-  @apply max-h-52 max-w-full md:max-w-md overflow-y-auto overflow-x-hidden;
-}
-
 .close-message-icon {
   display: inline-block;
   color: @text-color-secondary !important;
@@ -124,16 +120,13 @@
 }
 
 .code-snippet-wrapper {
-  overflow: auto;
   border-radius: @small-border-radius;
   pre {
-    overflow: auto;
     border-bottom-left-radius: @small-border-radius;
     border-bottom-right-radius: @small-border-radius;
-    font-family: @font-monospace;
     code {
       border-radius: @small-border-radius;
-      overflow: auto;
+      font-family: @font-monospace;
     }
     margin-bottom: 0;
   }

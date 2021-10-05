@@ -5,15 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"strings"
-	"testing"
-	"time"
-
 	"github.com/jitsucom/jitsu/server/test"
 	"github.com/jitsucom/jitsu/server/testsuit"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
+	"net/http"
+	"strings"
+	"testing"
+	"time"
 )
 
 //TestMySQLStreamInsert stores two events into MySQL (without/with parsed ua and geo)
@@ -131,10 +130,9 @@ func TestMySQLStreamInsert(t *testing.T) {
 {
 "_timestamp":"2020-06-16 23:00:00","api_key":"c2stoken","doc_encoding":"UTF-8","doc_host":"jitsu.com","doc_path":"/",
 "event_type":"identify","eventn_ctx_event_id":"2","local_tz_offset":"-180","location_city":"Oldtown","location_country":"Westeros",
-"location_latitude":"79.010000000000000000","location_longitude":"22.020000000000000000","location_zip":"14101",
-"page_title":"Jitsu: Open-source data integration and event collection","parsed_ua_ua_family":"Laptop",
-"parsed_ua_ua_version":null,"referer":"","screen_resolution":"1680x1050","source_ip":"10.10.10.10","url":"https://jitsu.com/",
-"user":"id1kk","user_agent":"Go-http-client/1.1","user_language":"ru-RU","utc_time":"2020-12-24 17:55:55","vp_size":"1680x235"
+"location_latitude":null,"location_longitude":null,"location_zip":null,"page_title":"Jitsu: Open-source data integration and event collection",
+"parsed_ua_ua_family":"Laptop","parsed_ua_ua_version":null,"referer":"","screen_resolution":"1680x1050","source_ip":"10.10.10.10",
+"url":"https://jitsu.com/","user":"id1kk","user_agent":"Go-http-client/1.1","user_language":"ru-RU","utc_time":"2020-12-24 17:55:55","vp_size":"1680x235"
 }
 ]`,
 		"\n", "")

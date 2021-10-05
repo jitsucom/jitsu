@@ -1,9 +1,8 @@
-import { memo, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import * as monacoEditor from 'monaco-editor';
 import MonacoEditor from 'react-monaco-editor';
 import { Props } from './CodeEditor.types';
 import { IKeyboardEvent } from 'monaco-editor';
-import isEqual from 'lodash/isEqual';
 
 monacoEditor.editor.defineTheme('own-theme', {
   base: 'vs-dark',
@@ -27,13 +26,9 @@ monacoEditor.editor.defineTheme('own-theme', {
 });
 
 const CodeEditorComponent = ({
-  initialValue,
-  className,
-  language = 'json',
-  enableLineNumbers,
-  reRenderEditorOnInitialValueChange = true,
   handleChange: handleChangeProp,
-  hotkeysOverrides
+  initialValue,
+  language = 'json'
 }: Props) => {
   const defaultValue = !initialValue
     ? ''
@@ -45,8 +40,6 @@ const CodeEditorComponent = ({
     const model = ref.current.editor.getModel();
     const value = model.getValue();
 
-    if (e.metaKey || e.altKey) return; // excludes the hotkeys
-
     handleChangeProp(value);
   };
 
@@ -54,62 +47,34 @@ const CodeEditorComponent = ({
 
   useEffect(() => {
     if (ref.current?.editor) {
-      if (initialValue && reRenderEditorOnInitialValueChange) {
+      if (initialValue) {
         const model = ref.current.editor.getModel();
+
         model.setValue(defaultValue);
       }
+
+      ref.current.editor.onKeyUp(handleChange);
     }
-  }, [initialValue, reRenderEditorOnInitialValueChange]);
-
-  useEffect(() => {
-    ref.current?.editor?.onKeyUp(handleChange);
-  }, []);
-
-  useEffect(() => {
-    const { onCmdCtrlEnter, onCmdCtrlU, onCmdCtrlI } = hotkeysOverrides ?? {};
-    onCmdCtrlEnter &&
-      ref.current?.editor.addAction({
-        id: 'cmd-enter-shortcut',
-        label: 'cmd/ctrl + enter',
-        keybindings: [monacoEditor.KeyMod.CtrlCmd | monacoEditor.KeyCode.Enter],
-        run: onCmdCtrlEnter
-      });
-    onCmdCtrlI &&
-      ref.current?.editor.addAction({
-        id: 'cmd-i-shortcut',
-        label: 'cmd/ctrl + I',
-        keybindings: [monacoEditor.KeyMod.CtrlCmd | monacoEditor.KeyCode.KEY_I],
-        run: onCmdCtrlI
-      });
-    onCmdCtrlU &&
-      ref.current?.editor.addAction({
-        id: 'cmd-u-shortcut',
-        label: 'cmd/ctrl + U',
-        keybindings: [monacoEditor.KeyMod.CtrlCmd | monacoEditor.KeyCode.KEY_U],
-        run: onCmdCtrlU
-      });
-  }, []);
+  }, [initialValue]);
 
   return (
     <MonacoEditor
       ref={ref}
-      className={className}
       language={language}
       theme="own-theme"
       defaultValue={defaultValue}
       options={{
-        automaticLayout: true,
         glyphMargin: false,
         folding: false,
-        lineNumbers: enableLineNumbers ? 'on' : 'off',
+        lineNumbers: 'off',
         lineDecorationsWidth: 11,
         lineNumbersMinChars: 0,
         minimap: {
           enabled: false
         },
         scrollbar: {
-          verticalScrollbarSize: 5,
-          horizontalScrollbarSize: 5
+          verticalScrollbarSize: 8,
+          horizontalScrollbarSize: 8
         },
         padding: {
           top: 4,
@@ -124,4 +89,4 @@ const CodeEditorComponent = ({
 
 CodeEditorComponent.displayName = 'CodeEditor';
 
-export default memo(CodeEditorComponent, isEqual);
+export default CodeEditorComponent;

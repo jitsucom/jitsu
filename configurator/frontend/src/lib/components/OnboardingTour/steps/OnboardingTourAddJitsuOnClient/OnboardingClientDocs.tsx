@@ -11,12 +11,9 @@ import {
   CodeInline,
   CodeSnippet
 } from 'lib/components/components';
-// @Services
-import { useServices } from 'hooks/useServices';
-// @ApiKeysDocsHelper
-import { getDomainsSelectionByEnv } from 'lib/components/ApiKeys/ApiKeys';
-// @Styles
+
 import styles from './OnboardingClientDocs.module.less';
+import { useServices } from 'hooks/useServices';
 
 export type UserAPIToken = {
   uid: string;
@@ -38,12 +35,7 @@ export const OnboardingClientDocs: React.FC<Props> = ({
 
   const domain = useMemo<string>(() => {
     const customDomain = services.features.enableCustomDomains ? 'https://t.jitsu.com' : null;
-    return (
-      customDomain 
-      || getDomainsSelectionByEnv(services.features.environment)[0]
-      || services.features.jitsuBaseUrl 
-      || 'REPLACE_WITH_JITSU_DOMAIN'
-    );
+    return customDomain || services.features.jitsuBaseUrl || 'REPLACE_WITH_JITSU_DOMAIN';
   },[
     services.features.enableCustomDomains,
     services.features.jitsuBaseUrl
