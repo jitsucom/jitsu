@@ -38,19 +38,40 @@
   background-color: @successActive !important;
 }
 
-.selectableButton:active {
-  color: @text-color !important;
-  border-color: @text-color-secondary !important;
+.checkbox {
+  color: @disabled;
+
+  &:hover {
+    color: @link;
+  }
 }
 
-.buttonSelected, .buttonSelected:active {
-  color: @secondaryBorderFocus !important;
-  border-color: @secondaryBorderFocus !important;
+.checkboxChecked {
+  color: @text-color-secondary;
+
+  &:hover {
+    color: @link;
+  }
 }
 
-.buttonSelected:hover {
-  color: @secondaryBorderHover;
-  border-color: @secondaryBorderHover;
+.hideAntdCheckbox {
+  :global {
+    .ant-checkbox {
+      @apply invisible;
+    }
+
+    .ant-checkbox::after {
+      border: none;
+    }
+  }
+}
+
+.checkboxLabel {
+  :global {
+    .ant-checkbox + span {
+      @apply px-1 text-xs;
+    }
+  }
 }
 
 .itemError {
@@ -98,6 +119,12 @@
   @apply w-2 !important;
   background-color: @component-background !important;
   border-color: @component-background !important;
+}
+
+.saveIndicator::after {
+  @apply inline-block w-2 h-2 ml-1 rounded-md;
+  content: '';
+  background-color: @text-color-secondary;
 }
 
 // Events List
