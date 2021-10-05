@@ -14,6 +14,9 @@ import DestinationsPage from './DestinationsPage';
 import { initializeApplication } from 'App';
 import { destinationPageRoutes } from './DestinationsPage.routes';
 
+jest.mock('firebase/app');
+jest.mock('antd/lib/message');
+
 const mockServer = setupMockServer();
 
 const mockDestinationsList =
@@ -41,6 +44,7 @@ const checkDestinationsRenderedCorrectly = () => {
 };
 
 describe('loads destinations, allows user to manipulate them', () => {
+  // Arrange
   beforeEach(async () => {
     window.history.replaceState({}, 'Root', destinationPageRoutes.root);
     render(<DestinationsPage setBreadcrumbs={() => {}} />);
@@ -56,6 +60,8 @@ describe('loads destinations, allows user to manipulate them', () => {
       const editButtons = screen.getAllByText('Edit');
       // Click "Edit" button
       fireEvent.click(editButtons[idx]);
+      // Wait for editor to open
+      await waitFor(() => screen.getAllByRole('tab'));
       // Get all tabs, click through them
       const tabs = screen.getAllByRole('tab');
       tabs.forEach(fireEvent.click);

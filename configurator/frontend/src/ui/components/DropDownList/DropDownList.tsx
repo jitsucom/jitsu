@@ -11,6 +11,7 @@ type DropdownListItemCommonFields = {
   id: string;
   title: string;
   icon?: React.ReactNode;
+  isSingerType?: boolean;
 };
 
 type DropdownListItemActionsFields =

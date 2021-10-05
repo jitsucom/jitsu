@@ -5,12 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/schema"
 	"io"
 	"io/ioutil"
 	"strings"
-	"time"
 )
 
 const (
@@ -19,11 +16,9 @@ const (
 	FirebaseType        = "firebase"
 	GoogleAnalyticsType = "google_analytics"
 	GooglePlayType      = "google_play"
-	GoogleAdsType       = "google_ads"
 	RedisType           = "redis"
 
-	SingerType  = "singer"
-	AirbyteType = "airbyte"
+	SingerType = "singer"
 
 	GoogleOAuthAuthorizationType = "OAuth"
 
@@ -31,9 +26,8 @@ const (
 )
 
 var (
-	DriverConstructors        = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
-	DriverTestConnectionFuncs = make(map[string]func(config *SourceConfig) error)
-
+	DriverConstructors         = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
+	DriverTestConnectionFuncs  = make(map[string]func(config *SourceConfig) error)
 	errAccountKeyConfiguration = errors.New("service_account_key must be an object, JSON file path or JSON content string")
 )
 
@@ -43,7 +37,6 @@ type GoogleAuthConfig struct {
 	ClientSecret      string      `mapstructure:"client_secret" json:"client_secret,omitempty" yaml:"client_secret,omitempty"`
 	RefreshToken      string      `mapstructure:"refresh_token" json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
 	ServiceAccountKey interface{} `mapstructure:"service_account_key" json:"service_account_key,omitempty" yaml:"service_account_key,omitempty"`
-	Subject           string      `mapstructure:"subject" json:"subject,omitempty" yaml:"subject,omitempty"`
 }
 
 func (gac *GoogleAuthConfig) Marshal() ([]byte, error) {
@@ -118,11 +111,6 @@ type Driver interface {
 	//your driver to load for the last year by month chunks, you need to return 12 time intervals, each covering one
 	//month. There is drivers/granularity.ALL for data sources that store data which may not be split by date.
 	GetAllAvailableIntervals() ([]*TimeInterval, error)
-
-	//GetRefreshWindow return times duration during which Jitsu will keep reloading stream data.
-	//Necessary for Sources where data may change retroactively (analytics, ads)
-	GetRefreshWindow() (time.Duration, error)
-
 	//GetObjectsFor returns slice of objects per time interval. Each slice element is one object from the data source.
 	GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error)
 	//Type returns string type of driver. Should be unique among drivers
@@ -131,52 +119,6 @@ type Driver interface {
 	GetCollectionTable() string
 	//GetCollectionMetaKey returns key for storing signature in meta.Storage
 	GetCollectionMetaKey() string
-}
-
-//CLIDriver interface must be implemented by every CLI source type (Singer or Airbyte)
-type CLIDriver interface {
-	Driver
-
-	//IsClosed returns true if the driver is already closed
-	IsClosed() bool
-	//Load runs CLI command and consumes output
-	Load(state string, taskLogger logging.TaskLogger, dataConsumer CLIDataConsumer, taskCloser CLITaskCloser) error
-	//Ready returns true if the driver is ready otherwise returns ErrNotReady
-	Ready() (bool, error)
-	//GetTap returns Singer tap or airbyte docker image (without prefix 'airbyte/': source-mixpanel)
-	GetTap() string
-	//GetTableNamePrefix returns stream table name prefix or sourceID_
-	GetTableNamePrefix() string
-	//GetStreamTableNameMapping returns stream - table name mappings from configuration
-	GetStreamTableNameMapping() map[string]string
-}
-
-//CLIDataConsumer is used for consuming CLI drivers output
-type CLIDataConsumer interface {
-	Consume(representation *CLIOutputRepresentation) error
-}
-
-//CLITaskCloser is used for closing tasks
-type CLITaskCloser interface {
-	TaskID() string
-	CloseWithError(msg string, systemErr bool)
-}
-
-//CLIOutputRepresentation is a singer/airbyte output representation
-type CLIOutputRepresentation struct {
-	State interface{}
-	//[streamName] - {}
-	Streams map[string]*StreamRepresentation
-}
-
-//StreamRepresentation is a singer/airbyte stream representation
-type StreamRepresentation struct {
-	Namespace   string
-	StreamName  string
-	BatchHeader *schema.BatchHeader
-	KeyFields   []string
-	Objects     []map[string]interface{}
-	NeedClean   bool
 }
 
 //RegisterDriver registers function to create new driver instance
@@ -203,31 +145,4 @@ func UnmarshalConfig(config interface{}, object interface{}) error {
 	}
 
 	return nil
-}
-
-//WaitReadiness waits 90 sec until driver is ready or returns false and notReadyError
-func WaitReadiness(driver CLIDriver, taskLogger logging.TaskLogger) (bool, error) {
-	ready, _ := driver.Ready()
-
-	if ready {
-		return true, nil
-	}
-
-	seconds := 0
-	for seconds < 90 {
-		if driver.IsClosed() {
-			return false, fmt.Errorf("%s already has been closed", driver.Type())
-		}
-
-		ready, _ := driver.Ready()
-		if ready {
-			return true, nil
-		}
-
-		taskLogger.WARN("waiting for source driver being ready..")
-		time.Sleep(10 * time.Second)
-		seconds += 10
-	}
-
-	return driver.Ready()
 }

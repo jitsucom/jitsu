@@ -13,7 +13,6 @@ func (d *Dummy) SuccessEvents(id, namespace string, now time.Time, value int) er
 func (d *Dummy) ErrorEvents(id, namespace string, now time.Time, value int) error   { return nil }
 func (d *Dummy) SkipEvents(id, namespace string, now time.Time, value int) error    { return nil }
 func (d *Dummy) GetProjectSourceIDs(projectID string) ([]string, error)             { return []string{}, nil }
-func (d *Dummy) GetProjectPushSourceIDs(projectID string) ([]string, error)         { return []string{}, nil }
 func (d *Dummy) GetProjectDestinationIDs(projectID string) ([]string, error)        { return []string{}, nil }
 func (d *Dummy) GetEventsWithGranularity(namespace, status string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error) {
 	return nil, nil
@@ -24,7 +23,6 @@ func (d *Dummy) AddEvent(destinationID, eventID, payload string, now time.Time) 
 }
 func (d *Dummy) UpdateSucceedEvent(destinationID, eventID, success string) error { return nil }
 func (d *Dummy) UpdateErrorEvent(destinationID, eventID, error string) error     { return nil }
-func (d *Dummy) UpdateSkipEvent(destinationID, eventID, error string) error      { return nil }
 func (d *Dummy) RemoveLastEvent(destinationID string) error                      { return nil }
 
 func (d *Dummy) GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error) {

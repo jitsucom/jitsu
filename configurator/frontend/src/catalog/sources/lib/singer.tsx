@@ -6,14 +6,8 @@ import {
   isoUtcDateType, passwordType,
   stringType
 } from '../types';
-import { customParameters } from './helper';
-import { SingerTap } from '../types';
-import {
-  githubDocumentation,
-  googleServiceAuthDocumentation, googleSheetsDocumentation,
-  intercomDocumentation,
-  mixpanelDocumentation, mySqlDocumentation, shopifyDocumentation, slackDocumentation, stripeDocumentation
-} from '../lib/documentation';
+import { customParameters, SingerTap } from './helper';
+import { googleServiceAuthDocumentation } from '../lib/documentation';
 import { googleAuthConfigParameters } from '../lib/commonParams';
 
 export const allSingerTaps: SingerTap[] = [
@@ -32,7 +26,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_s3_csv,
     displayName: 'Amazon S3 CSV',
     tap: 'tap-s3-csv',
@@ -61,7 +54,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_bigcommerce,
     displayName: 'BigCommerce',
     tap: 'tap-bigcommerce',
@@ -69,7 +61,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_bing_ads,
     displayName: 'Bing Ads',
     tap: 'tap-bing-ads',
@@ -77,7 +68,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_braintree,
     displayName: 'Braintree',
     tap: 'tap-braintree',
@@ -113,7 +103,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_chargebee,
     displayName: 'Chargebee',
     tap: 'tap-chargebee',
@@ -132,7 +121,7 @@ export const allSingerTaps: SingerTap[] = [
     displayName: 'Close',
     tap: 'tap-closeio',
     stable: true,
-    hasNativeEquivalent: false,
+    hasNativeEquivalent: false
   },
   {
     pic: logos.tap_clubspeed,
@@ -146,7 +135,7 @@ export const allSingerTaps: SingerTap[] = [
     displayName: 'Codat',
     tap: 'tap-codat',
     stable: true,
-    hasNativeEquivalent: false,
+    hasNativeEquivalent: false
   },
   {
     pic: logos.tap_darksky,
@@ -184,7 +173,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_exchange_rates_api,
     displayName: 'Exchange Rates API',
     tap: 'tap-exchangeratesapi',
@@ -220,7 +208,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_github,
     displayName: 'GitHub',
     tap: 'tap-github',
@@ -257,10 +244,66 @@ export const allSingerTaps: SingerTap[] = [
 
     stable: true,
     hasNativeEquivalent: false,
-    documentation: githubDocumentation
+    documentation: {
+      overview: (
+        <>
+          The GitHub Connector pulls the following data from the repository
+          {': '}
+          <a href="https://developer.github.com/v3/issues/assignees/#list-assignees">
+            assignees
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/repos/collaborators/#list-collaborators">
+            collaborators
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/repos/commits/#list-commits-on-a-repository">
+            commits
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/issues/#list-issues-for-a-repository">
+            issues
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/pulls/#list-pull-requests">
+            pull requests
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/issues/comments/#list-comments-in-a-repository">
+            comments
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/pulls/reviews/#list-reviews-on-a-pull-request">
+            reviews
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/pulls/comments/">
+            review comments
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/activity/starring/#list-stargazers">
+            stargazers
+          </a>
+        </>
+      ),
+      connection: (
+        <>
+          <ul>
+            <li>
+              Go to the{' '}
+              <a href="https://github.com/settings/tokens">GitHub tokens</a>{' '}
+              page
+            </li>
+            <li>
+              Create a new token with at <code>repo</code> scope.
+            </li>
+            <li>Save created token. It is used as Access Token in Jitsu UI</li>
+          </ul>
+        </>
+      )
+    }
   },
   {
-    deprecated: true,
     pic: logos.tap_gitlab,
     displayName: 'GitLab',
     tap: 'tap-gitlab',
@@ -320,7 +363,6 @@ export const allSingerTaps: SingerTap[] = [
     })
   },
   {
-    deprecated: true,
     pic: logos.tap_google_search_console,
     displayName: 'Google Search Console',
     tap: 'tap-google-search-console',
@@ -328,7 +370,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_google_sheets,
     displayName: 'Google Sheets',
     tap: 'tap-google-sheets',
@@ -364,10 +405,26 @@ export const allSingerTaps: SingerTap[] = [
         }
       ]
     }),
-    documentation: googleSheetsDocumentation
+    documentation: {
+      overview: (
+        <>
+          The Google Sheets connector pulls data from Google Sheets. Each sheet
+          is treated as separate collection and being synced to separate table
+        </>
+      ),
+      connection: googleServiceAuthDocumentation({
+        serviceName: 'Google Sheets',
+        scopes: [
+          'https://www.googleapis.com/auth/drive.metadata.readonly',
+          'https://www.googleapis.com/auth/spreadsheets.readonly'
+        ],
+        apis: ['Google Sheets API', 'Google Drive API'],
+        oauthEnabled: true,
+        serviceAccountEnabled: false
+      })
+    }
   },
   {
-    deprecated: true,
     pic: logos.tap_harvest,
     displayName: 'Harvest',
     tap: 'tap-harvest',
@@ -389,15 +446,13 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_hubspot,
     displayName: 'HubSpot',
     tap: 'tap-hubspot',
     stable: true,
-    hasNativeEquivalent: false,
+    hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_ibm_db2,
     displayName: 'IBM Db2',
     tap: 'tap-db2',
@@ -412,7 +467,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_intercom,
     displayName: 'Intercom',
     tap: 'tap-intercom',
@@ -449,7 +503,88 @@ export const allSingerTaps: SingerTap[] = [
         }
       ]
     }),
-    documentation: intercomDocumentation
+    documentation: {
+      overview: (
+        <>
+          The Intercom Connector pulls the following entities:{' '}
+          <a href="https://developers.intercom.com/intercom-api-reference/v2.0/reference">
+            Intercom v2.0 API
+          </a>
+          {': '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-admins">
+            Admins
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-companies">
+            Companies
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-conversations">
+            Conversations
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#get-a-single-conversation">
+            Conversation Parts
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#data-attributes">
+            Data Attributes
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-customer-data-attributes">
+            Customer Attributes
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-company-data-attributes">
+            Company Attributes
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-leads">
+            Leads
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-segments">
+            Segments
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-segments">
+            Company Segments
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-tags-for-an-app">
+            Tags
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-teams">
+            Teams
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-users">
+            Users
+          </a>
+          {', '}
+        </>
+      ),
+      connection: (
+        <ul>
+          <li>
+            Go to the{' '}
+            <a href="https://app.intercom.com/a/developer-signup">
+              Intercom Apps
+            </a>{' '}
+            page
+          </li>
+          <li>Click "New app"</li>
+          <li>Select a clear name e.g. "Jitsu Connector"</li>
+          <li>Select "Internal integration"</li>
+          <li>Click "Create app"</li>
+          <li>
+            Go to the "Configure" tab and save Access Token value from
+            "Authentication" section. It is used as API Access Token in Jitsu UI
+          </li>
+        </ul>
+      )
+    }
   },
   {
     pic: logos.tap_invoiced,
@@ -459,7 +594,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_jira,
     displayName: 'Jira',
     tap: 'tap-jira',
@@ -467,7 +601,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_klaviyo,
     displayName: 'Klaviyo',
     tap: 'tap-klaviyo',
@@ -475,7 +608,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_kustomer,
     displayName: 'Kustomer',
     tap: 'tap-kustomer',
@@ -518,7 +650,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_looker,
     displayName: 'Looker',
     tap: 'tap-looker',
@@ -540,7 +671,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_marketo,
     displayName: 'Marketo',
     tap: 'tap-marketo',
@@ -548,7 +678,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_mixpanel,
     displayName: 'Mixpanel',
     tap: 'tap-mixpanel',
@@ -640,7 +769,59 @@ export const allSingerTaps: SingerTap[] = [
         }
       ]
     }),
-    documentation: mixpanelDocumentation
+    documentation: {
+      overview: (
+        <>
+          The MixPanel Connector pulls the following data entities from{' '}
+          <a href="https://mixpanel.com">MixPanel</a>
+          {': '}
+          <a href="https://developer.mixpanel.com/docs/exporting-raw-data#section-export-api-reference">
+            Export (Events)
+          </a>
+          {', '}
+          <a href="https://developer.mixpanel.com/docs/data-export-api#section-engage">
+            Engage (People/Users)
+          </a>
+          {', '}
+          <a href="https://developer.mixpanel.com/docs/data-export-api#section-funnels">
+            Funnels
+          </a>
+          {', '}
+          <a href="https://developer.mixpanel.com/docs/data-export-api#section-annotations">
+            Annotations
+          </a>
+          {', '}
+          <a href="https://developer.mixpanel.com/docs/cohorts#section-list-cohorts">
+            Cohorts
+          </a>
+          {', '}
+          <a href="https://developer.mixpanel.com/docs/data-export-api#section-engage">
+            Cohort Members
+          </a>
+          {', '}
+          <a href="https://developer.mixpanel.com/docs/data-export-api#section-hr-span-style-font-family-courier-revenue-span">
+            Revenue
+          </a>
+        </>
+      ),
+      connection: (
+        <>
+          <ul>
+            <li>
+              Go to the{' '}
+              <a href="https://mixpanel.com/report">
+                MixPanel Project settings
+              </a>{' '}
+              page
+            </li>
+            <li>
+              Save API Secret value from "Access Keys" section of Overview tab.
+              It is used as API Secret in Jitsu UI
+            </li>
+          </ul>
+        </>
+      )
+    }
   },
   {
     pic: logos.tap_onfleet,
@@ -650,7 +831,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_oracle,
     displayName: 'Oracle',
     tap: 'tap-oracle',
@@ -693,7 +873,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_pipedrive,
     displayName: 'Pipedrive',
     tap: 'tap-pipedrive',
@@ -708,7 +887,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_postgresql,
     displayName: 'PostgreSQL',
     tap: 'tap-postgres',
@@ -716,7 +894,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_mysql,
     displayName: 'MySQL',
     tap: 'tap-mysql',
@@ -751,7 +928,10 @@ export const allSingerTaps: SingerTap[] = [
         }
       ]
     }),
-    documentation: mySqlDocumentation
+    documentation: {
+      overview: <>MySQL connector pulls data from the remote database</>,
+      connection: <>For connecting to MySQL you'll need host, port, username, password</>
+    }
   },
   {
     pic: logos.tap_quick_base,
@@ -768,7 +948,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_recurly,
     displayName: 'Recurly',
     tap: 'tap-recurly',
@@ -811,7 +990,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_salesforce,
     displayName: 'Salesforce',
     tap: 'tap-salesforce',
@@ -833,7 +1011,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_sendgrid_core,
     displayName: 'SendGrid Core',
     tap: 'tap-sendgrid',
@@ -855,7 +1032,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_shopify,
     displayName: 'Shopify',
     tap: 'tap-shopify',
@@ -898,10 +1074,54 @@ export const allSingerTaps: SingerTap[] = [
         }
       ]
     }),
-    documentation: shopifyDocumentation
+    documentation: {
+      overview: (
+        <>
+          The Shopify Connector pulls the following entities from{' '}
+          <a href="https://help.shopify.com/en/api/reference">Shopify API</a>{' '}
+          {': '}
+          <a href="https://help.shopify.com/en/api/reference/orders/abandoned_checkouts">
+            Abandoned Checkouts
+          </a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/products/collect">
+            Collects
+          </a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/products/customcollection">
+            Custom Collections
+          </a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/customers">
+            Customers
+          </a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/metafield">
+            Metafields
+          </a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/orders">Orders</a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/products">
+            Products
+          </a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/orders/transaction">
+            Transactions
+          </a>
+        </>
+      ),
+      connection: (
+        <>
+          Follow this instruction to obtain an API key{' '}
+          <a href="https://shopify.dev/tutorials/generate-api-credentials">
+            How to obtain API Key
+          </a>
+        </>
+      )
+    }
   },
   {
-    deprecated: true,
     pic: logos.tap_slack,
     displayName: 'Slack',
     tap: 'tap-slack',
@@ -954,7 +1174,67 @@ export const allSingerTaps: SingerTap[] = [
         }
       ]
     }),
-    documentation: slackDocumentation
+    documentation: {
+      overview: (
+        <>
+          The Slack Connector pulls the following data via Slack App (Slack bot)
+          from <a href="https://api.slack.com/">Slack API</a> {': '}
+          <a href="https://api.slack.com/methods/conversations.list">
+            Channels
+          </a>
+          {', '}
+          <a href="https://api.slack.com/methods/conversations.members">
+            Channel Members
+          </a>
+          {', '}
+          <a href="https://api.slack.com/methods/users.list">Users</a>
+          {', '}
+          <a href="https://api.slack.com/methods/conversations.replies">
+            Threads (Channel replies)
+          </a>
+          {', '}
+          <a href="https://api.slack.com/methods/usergroups.list">
+            User Groups
+          </a>
+          {', '}
+          <a href="https://api.slack.com/methods/files.list">Files</a>
+          {', '}
+          <a href="https://api.slack.com/methods/files.remote.list">
+            Remote Files
+          </a>
+        </>
+      ),
+      connection: (
+        <ul>
+          <li>
+            Go to the{' '}
+            <a href="https://api.slack.com/apps?new_app=1">
+              creating Slack Apps
+            </a>{' '}
+            page
+          </li>
+          <li>
+            Choose clear app name (e.g. "Jitsu Sync") and select Slack workspace
+            to download data from
+          </li>
+          <li>Go to the "OAuth & Permissions" page of created Slack app</li>
+          <li>
+            Add the following Bot Token{' '}
+            <a href="https://api.slack.com/docs/oauth-scopes">Scopes</a>:
+            channels:history, channels:join, channels:read, files:read,
+            groups:read, reactions:read, remote_files:read, team:read,
+            usergroups:read, users.profile:read, users:read, users:read.email
+          </li>
+          <li>
+            Click "Install to Workspace" in the top of of the OAuth &
+            Permissions page and click "Confirm"
+          </li>
+          <li>
+            Save Bot User OAuth Token. It is used as Access Token in Jitsu UI
+          </li>
+        </ul>
+      )
+    }
   },
   // {
   //     pic: logos.tap_square,
@@ -964,7 +1244,6 @@ export const allSingerTaps: SingerTap[] = [
   //     hasNativeEquivalent: false
   // },
   {
-    deprecated: true,
     pic: logos.tap_stripe,
     displayName: 'Stripe',
     tap: 'tap-stripe',
@@ -996,10 +1275,93 @@ export const allSingerTaps: SingerTap[] = [
         }
       ]
     }),
-    documentation: stripeDocumentation
+    documentation: {
+      overview: (
+        <>
+          The Stripe Connector pulls the following entities from{' '}
+          <a href="https://stripe.com/docs/api">Stripe API</a>{' '}
+          {': '}
+          <a href="https://stripe.com/docs/api/balance_transactions/list">
+            Balance Transactions
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/charges/list">
+            Charges
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/coupons/list">
+            Coupons
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/customers/list">
+            Customers
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/disputes/list">
+            Disputes
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/events/list">
+            Events
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/invoices/list">
+            Invoices
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/invoiceitems/list">
+            Invoice Items
+          </a>
+          <a href="https://stripe.com/docs/api/invoices/invoice_lines">
+            Invoice Line Items
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/payouts/list">
+            Payouts
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/plans/list">
+            Plans
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/products/list">
+            Products
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/subscriptions/list">
+            Subscriptions
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/subscription_items/list">
+            Subscription Items
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/transfers/list">
+            Transfers
+          </a>
+          {', '}
+          <a href="https://api.slack.com/methods/usergroups.list">
+            User Groups
+          </a>
+        </>
+      ),
+      connection: (
+        <ul>
+          <li>
+            Go to the{' '}
+            <a href="https://dashboard.stripe.com/apikeys">
+              Stripe Dashboard
+            </a>{' '}
+            page
+          </li>
+          <li>
+            Save your Account ID (in format: acct_....) and Secret Key (in format: sk_live_....)
+          </li>
+        </ul>
+      )
+    }
   },
   {
-    deprecated: true,
     pic: logos.tap_surveymonkey,
     displayName: 'SurveyMonkey',
     tap: 'tap-surveymonkey',
@@ -1021,7 +1383,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_trello,
     displayName: 'Trello',
     tap: 'tap-trello',
@@ -1029,7 +1390,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_typeform,
     displayName: 'Typeform',
     tap: 'tap-typeform',
@@ -1079,7 +1439,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_zendesk_chat,
     displayName: 'Zendesk Chat',
     tap: 'tap-zendesk-chat',
@@ -1087,7 +1446,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_zendesk_support,
     displayName: 'Zendesk Support',
     tap: 'tap-zendesk',
@@ -1095,7 +1453,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_zoom,
     displayName: 'Zoom',
     tap: 'tap-zoom',
@@ -1103,7 +1460,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    deprecated: true,
     pic: logos.tap_zuora,
     displayName: 'Zuora',
     tap: 'tap-zuora',

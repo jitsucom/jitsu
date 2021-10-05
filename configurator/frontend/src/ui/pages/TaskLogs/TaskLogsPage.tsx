@@ -36,7 +36,7 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   const [filterStart, setFilterStart] = useState(
     query.get('start')
       ? moment.utc(query.get('start'))
-      : moment.utc().subtract(1, 'days').startOf('day')
+      : moment.utc().subtract(1, 'days')
   );
   const [filterEnd, setFilterEnd] = useState(
     query.get('end') ? moment.utc(query.get('end')) : moment.utc().endOf('day')
@@ -158,7 +158,6 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
           <span className={styles.filterEdit}>
             <DatePicker
               className="w-full"
-              allowClear={false}
               onChange={(val) => {
                 setFilter('start', val.startOf('day'), setFilterStart, (d) =>
                   d.toISOString()
@@ -173,7 +172,6 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
           <span className={styles.filterEdit}>
             <DatePicker
               className="w-full"
-              allowClear={false}
               onChange={(val) => {
                 setFilter('end', val.endOf('day'), setFilterEnd, (d) =>
                   d.toISOString()

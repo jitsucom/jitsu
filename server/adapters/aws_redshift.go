@@ -355,11 +355,6 @@ func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}
 	return wrappedTx.DirectCommit()
 }
 
-//Truncate deletes all records in tableName table
-func (ar *AwsRedshift) Truncate(tableName string) error {
-	return ar.dataSourceProxy.Truncate(tableName)
-}
-
 //DropTable drops table in transaction uses underlying postgres datasource
 func (ar *AwsRedshift) DropTable(table *Table) error {
 	return ar.dataSourceProxy.DropTable(table)
@@ -389,7 +384,7 @@ func (ar *AwsRedshift) bulkStoreInTransaction(wrappedTx *Transaction, table *Tab
 //bulkMergeInTransaction uses temporary table and insert from select statement
 func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	tmpTable := &Table{
-		Name:           fmt.Sprintf("jitsu_tmp_%s", uuid.NewLettersNumbers()[:5]),
+		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers(),
 		Columns:        table.Columns,
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,

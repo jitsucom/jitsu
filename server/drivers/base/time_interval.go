@@ -29,8 +29,8 @@ func (ti *TimeInterval) UpperEndpoint() time.Time {
 	return ti.granularity.Upper(ti.time)
 }
 
-func (ti *TimeInterval) CalculateSignatureFrom(t time.Time, window time.Duration) string {
-	timeWithLag := t.Add(-window)
+func (ti *TimeInterval) CalculateSignatureFrom(t time.Time) string {
+	timeWithLag := t.AddDate(0, 0, -1)
 	if timeWithLag.Before(ti.UpperEndpoint()) {
 		return timeWithLag.Format(SignatureLayout)
 	} else {

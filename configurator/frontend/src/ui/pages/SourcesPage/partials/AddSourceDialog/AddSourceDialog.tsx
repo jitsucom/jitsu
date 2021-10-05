@@ -18,17 +18,9 @@ import { useServices } from 'hooks/useServices';
 
 /**
  * All sources which are available for adding. Some filtering & sorting is applied
- * Sort:
- * 1. native connectors (protoType === undefined)
- * 2. not expert mode
- * 3. expert mode
  */
 const allAvailableSources = allSources.sort((a, b) => {
-  if (a.protoType === undefined && b.protoType !== undefined){
-    return -1;
-  }else if (a.protoType !== undefined && b.protoType === undefined){
-    return 1
-  }else if (a.expertMode && !b.expertMode) {
+  if (a.expertMode && !b.expertMode) {
     return 1;
   } else if (!a.expertMode && b.expertMode) {
     return -1;
@@ -101,33 +93,26 @@ const AddSourceDialogComponent = () => {
 
       <div className={styles.list}>
         {
-          filteredSourcesList.map((src: SourceConnector) => src.deprecated
-            ? null
-            : (
-              <Link
-                to={generatePath(sourcesPageRoutes.addExact, { source: src.id })}
-                key={src.id}
-                className={styles.item}
-                onClick={handleClick(src)}
-              >
-                <span className={styles.pic}>{src.pic}</span>
-                <span className={styles.title}>{src.displayName}</span>
-                {src.protoType === 'airbyte' &&
-                  <span className={styles.airbyteLabel}>{'powered by Airbyte'}</span>
-                }
+          filteredSourcesList.map((src: SourceConnector) => (
+            <Link
+              to={generatePath(sourcesPageRoutes.addExact, { source: src.id })}
+              key={src.id}
+              className={styles.item}
+              onClick={handleClick(src)}
+            >
+              <span className={styles.pic}>{src.pic}</span>
+              <span className={styles.title}>{src.displayName}</span>
 
-                {
-                  src.expertMode
-                    ? <Badge.Ribbon text="Expert mode" className={styles.expertLabel} />
-                    : src.protoType !== 'airbyte'
-                      ? <span className={styles.star}>
-                        <StarOutlined className={cn(styles.starIcon, styles.strokeStar)} />
-                        <StarFilled className={cn(styles.starIcon, styles.fillStar)} />
+              {
+                src.expertMode
+                  ? <Badge.Ribbon text="Expert mode" className={styles.expertLabel} />
+                  : <span className={styles.star}>
+                    <StarOutlined className={cn(styles.starIcon, styles.strokeStar)} />
+                    <StarFilled className={cn(styles.starIcon, styles.fillStar)} />
                   </span>
-                      : <></>
-                }
-              </Link>
-            ))
+              }
+            </Link>
+          ))
         }
       </div>
     </div>

@@ -16,7 +16,6 @@ interface ButtonProps {
   handlePopoverClose: () => void;
   titleText: string;
   tabsList: Tab[];
-  disabled?: boolean;
 }
 
 export interface Props {
@@ -46,7 +45,6 @@ const EditorButtons = ({ test, save, handleCancel }: Props) => {
           htmlType="button"
           loading={save.isRequestPending}
           onClick={save.handlePress}
-          disabled={save.disabled}
         >
           Save
         </Button>
@@ -70,9 +68,8 @@ const EditorButtons = ({ test, save, handleCancel }: Props) => {
           loading={test.isRequestPending}
           onClick={test.handlePress}
           icon={<ApiOutlined />}
-          disabled={test.disabled}
         >
-          Test connection
+          Test onnection
         </Button>
       </Popover>
 

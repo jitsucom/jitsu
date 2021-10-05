@@ -10,22 +10,6 @@ import (
 //Event is a dto for deserialization input events
 type Event map[string]interface{}
 
-//SkippedEvent is a dto for serialization in events cache
-type SkippedEvent struct {
-	Error   string `json:"error,omitempty"`
-	EventID string `json:"event_id,omitempty"`
-}
-
-//SkippedEvents is a dto for keeping skipped events per src
-type SkippedEvents struct {
-	Events []*SkippedEvent
-}
-
-//IsEmpty return true if nil or events are empty
-func (se *SkippedEvents) IsEmpty() bool {
-	return se == nil || len(se.Events) == 0
-}
-
 //FailedEvent is a dto for serialization fallback events
 type FailedEvent struct {
 	Event   json.RawMessage `json:"event,omitempty"`

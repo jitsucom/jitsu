@@ -2,10 +2,7 @@ package base
 
 import (
 	"errors"
-	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/timestamp"
-	"time"
 )
 
 //SourceConfig is a dto for api connector source config serialization
@@ -35,20 +32,6 @@ type Collection struct {
 	Parameters   map[string]interface{} `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
 }
 
-func (c *Collection) Init() error  {
-	if c.StartDateStr != "" {
-		startDate, err := time.Parse(timestamp.DashDayLayout, c.StartDateStr)
-		if err != nil {
-			return fmt.Errorf("Malformed start_date in [%s_%s] collection: please use YYYY-MM-DD format: %v", c.SourceID, c.Name, err)
-		}
-
-		date := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
-		c.DaysBackToLoad = getDaysBackToLoad(&date)
-		logging.Infof("[%s_%s] Using start date: %s", c.SourceID, c.Name, date)
-	}
-	return nil
-}
-
 //Validate returns err if collection invalid
 func (c *Collection) Validate() error {
 	if c.Name == "" {
@@ -69,12 +52,4 @@ func (c *Collection) GetTableName() string {
 		return c.TableName
 	}
 	return c.SourceID + "_" + c.Name
-}
-
-//return difference between now and t in DAYS + 1 (current day)
-//e.g. 2021-03-01 - 2021-03-01 = 0, but we should load current date as well
-func getDaysBackToLoad(t *time.Time) int {
-	now := time.Now().UTC()
-	currentDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	return int(currentDay.Sub(*t).Hours()/24) + 1
 }

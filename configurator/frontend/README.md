@@ -50,11 +50,6 @@ before building the app (or running it with `yarn start`)
         <td><code>9876</code></td>
         <td>Specify a port to use</td>
     </tr>
-    <tr>
-        <td><code>BILLING_API_BASE_URL</code> *</td>
-        <td>-</td>
-        <td>Billing server address (if billing is enable)</td>
-    </tr>
 </table>
 
 
