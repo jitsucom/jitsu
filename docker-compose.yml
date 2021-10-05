@@ -5,9 +5,11 @@ networks:
 services:
   jitsu:
     container_name: jitsu
-    image: jitsucom/jitsu:latest
+    image: jitsucom/jitsu:beta
     environment:
       - REDIS_URL=redis://redis:6379
+      - UI_AUTH_ACCESS_SECRET=generate
+      - UI_AUTH_REFRESH_SECRET=generate
     depends_on:
       - redis
     volumes:
