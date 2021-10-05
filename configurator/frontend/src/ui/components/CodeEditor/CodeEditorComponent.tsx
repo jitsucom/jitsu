@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import * as monacoEditor from 'monaco-editor';
 import MonacoEditor from 'react-monaco-editor';
 import { Props } from './CodeEditor.types';
 import { IKeyboardEvent } from 'monaco-editor';
+import isEqual from 'lodash/isEqual';
 
 monacoEditor.editor.defineTheme('own-theme', {
   base: 'vs-dark',
@@ -30,6 +31,7 @@ const CodeEditorComponent = ({
   className,
   language = 'json',
   enableLineNumbers,
+  reRenderEditorOnInitialValueChange = true,
   handleChange: handleChangeProp,
   hotkeysOverrides
 }: Props) => {
@@ -43,6 +45,8 @@ const CodeEditorComponent = ({
     const model = ref.current.editor.getModel();
     const value = model.getValue();
 
+    if (e.metaKey || e.altKey) return; // excludes the hotkeys
+
     handleChangeProp(value);
   };
 
@@ -50,15 +54,16 @@ const CodeEditorComponent = ({
 
   useEffect(() => {
     if (ref.current?.editor) {
-      if (initialValue) {
+      if (initialValue && reRenderEditorOnInitialValueChange) {
         const model = ref.current.editor.getModel();
-
         model.setValue(defaultValue);
       }
-
-      ref.current.editor.onKeyUp(handleChange);
     }
-  }, [initialValue]);
+  }, [initialValue, reRenderEditorOnInitialValueChange]);
+
+  useEffect(() => {
+    ref.current?.editor?.onKeyUp(handleChange);
+  }, []);
 
   useEffect(() => {
     const { onCmdCtrlEnter, onCmdCtrlU, onCmdCtrlI } = hotkeysOverrides ?? {};
@@ -119,4 +124,4 @@ const CodeEditorComponent = ({
 
 CodeEditorComponent.displayName = 'CodeEditor';
 
-export default CodeEditorComponent;
+export default memo(CodeEditorComponent, isEqual);
