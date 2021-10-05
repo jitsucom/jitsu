@@ -3,7 +3,7 @@ server:
     - '{{APP_TLD}}'
     - 'localhost'
   name: jitsu
-  auth: '${env.CONFIGURATOR_ADMIN_TOKEN}'
+  auth: '${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
 
 storage:
   redis:
@@ -11,8 +11,8 @@ storage:
     tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
 
 jitsu:
-  base_url: 'http://localhost:8001'
-  admin_token: '${env.SERVER_ADMIN_TOKEN}'
+  base_url: '${env.JITSU_SERVER_URL|}'
+  admin_token: '${env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
 
 auth:
   redis:

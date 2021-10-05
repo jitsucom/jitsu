@@ -4,7 +4,13 @@ export PATH := $(shell go env GOPATH)/bin:$(PATH)
 
 commit=`git rev-parse --short HEAD`
 built_at=`date -u +%FT%T.000000Z`
-tag=`git describe --tags`
+branch=$(shell git branch --show-current)
+
+tag = $$( \
+    case $(branch) in \
+        ( master ) git describe --tags ;; \
+        ( * ) echo $(branch) ;; \
+    esac )
 
 all: clean assemble
 

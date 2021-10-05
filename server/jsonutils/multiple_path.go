@@ -75,6 +75,31 @@ func (mjp *MultipleJSONPath) SetIfNotExist(obj map[string]interface{}, value int
 	return mjp.Set(obj, value)
 }
 
+// SetOrMergeIfExist puts value into the object if JSON path doesn't exist
+// if JSON path exist and is a map than all values will be merged separately
+// {key1:"abc", key2:"qwe"}        /key1/key3 -> set
+// {key1:"abc", key2:{key3:"qwe"}} /key1/key2 -> merge
+func (mjp *MultipleJSONPath) SetOrMergeIfExist(obj map[string]interface{}, values map[string]interface{}) error {
+	if obj == nil {
+		return nil
+	}
+
+	existedValue, ok := mjp.Get(obj)
+	if !ok {
+		return mjp.Set(obj, values)
+	}
+
+	if existedMap, ok := existedValue.(map[string]interface{}); ok {
+		for key, value := range values {
+			if _, exist := existedMap[key]; !exist {
+				existedMap[key] = value
+			}
+		}
+	}
+
+	return nil
+}
+
 //Set puts value to first json path that exists:
 //  {key1:"abc", key2:"qwe"} /key1/key3 -> not set
 //  {key1:{key2: {key3: "qwe"}}} /key1/key3 -> not set

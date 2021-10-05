@@ -70,10 +70,10 @@ func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.R
 			consumer.Consume(payload, tokenID)
 		}
 
-		//Retrospective users recognition
+		//Retroactive users recognition
 		processor.Postprocess(payload, eventID, destinationIDs)
 
-		counters.SuccessSourceEvents(tokenID, 1)
+		counters.SuccessPushSourceEvents(tokenID, 1)
 	}
 
 	return nil

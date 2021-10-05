@@ -4,6 +4,10 @@ export type Loader<T> = () => Promise<T>;
 export type Reloader = () => Promise<void>
 type IsLoading = boolean;
 
+type LoaderResult<T> = [Error, T, Dispatch<SetStateAction<T>>, Reloader, IsLoading];
+
+type LoaderResultObject<T> = {error: Error, data: T, setData: Dispatch<SetStateAction<T>>, reloader: Reloader, isLoading: IsLoading};
+
 /**
  * React hook for loading the data from remote component. Use it like this:
  * ```tsx
@@ -30,7 +34,7 @@ type IsLoading = boolean;
  *
  *
  */
-function useLoader<T>(loader: Loader<T>, deps?: DependencyList): [Error, T, Dispatch<SetStateAction<T>>, Reloader, IsLoading] {
+function useLoader<T>(loader: Loader<T>, deps?: DependencyList): LoaderResult<T> {
   const [data, setData] = useState(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState(undefined);
@@ -38,18 +42,26 @@ function useLoader<T>(loader: Loader<T>, deps?: DependencyList): [Error, T, Disp
     setIsLoading(true);
     setData(null);
     try {
-      setData(await loader())
+      setData(await loader());
     } catch (e) {
-      setError(e)
+      setError(e);
     } finally {
       setIsLoading(false);
     }
-  }
+  };
   useEffect(() => {
     loaderWrapper();
   }, deps ?? [])
   return [error, data, setData, () => loaderWrapper(), isLoading];
 }
 
+/**
+ * Same as asLoader, but returns an object instead of array
+ */
+function useLoaderAsObject<T>(loader: Loader<T>, deps?: DependencyList) {
+  const [error, data, setData, reloader, isLoading] = useLoader(loader, deps);
+  return { error, data, setData, reloader, isLoading }
+}
+
 export default useLoader;
-export { useLoader };
+export { useLoader, useLoaderAsObject };

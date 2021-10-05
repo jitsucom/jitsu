@@ -1,6 +1,6 @@
 # dbt Cloud integration
 
-You can configure Jitsu to trigger [dbt Cloud job run](https://docs.getdbt.com/dbt-cloud/api#operation/triggerRun) on certain events:
+You can configure Jitsu to trigger [dbt Cloud job run](https://docs.getdbt.com/dbt-cloud/api-v2#operation/triggerRun) on certain events:
  - Successful run of Source sync task
  - Sync of Destination in batch mode 
 
@@ -30,6 +30,7 @@ sources:
     config:
     ...
 ```
+ 
 ```yaml
 destinations:
  my_snowflake:
@@ -50,7 +51,7 @@ destinations:
 | `token`  (required) | dbt Cloud API key |
 | `enabled` (required) | Set to true to enable the integration |
 
-See [dbt Cloud API docs](https://docs.getdbt.com/dbt-cloud/api#operation/triggerRun)
+See [dbt Cloud API docs](https://docs.getdbt.com/dbt-cloud/api-v2#operation/triggerRun)
 
 #### Destination Batch Runs frequency
 

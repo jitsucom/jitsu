@@ -89,7 +89,7 @@ func (a *Abstract) SuccessEvent(eventCtx *adapters.EventContext) {
 	metrics.SuccessTokenEvent(eventCtx.TokenID, a.destinationID)
 
 	//cache
-	a.eventsCache.Succeed(eventCtx.CacheDisabled, a.destinationID, eventCtx.EventID, eventCtx.ProcessedEvent, eventCtx.Table)
+	a.eventsCache.Succeed(eventCtx)
 }
 
 //SkipEvent writes skip to metrics/counters/telemetry and error to events cache
@@ -98,7 +98,7 @@ func (a *Abstract) SkipEvent(eventCtx *adapters.EventContext, err error) {
 	metrics.SkipTokenEvent(eventCtx.TokenID, a.destinationID)
 
 	//cache
-	a.eventsCache.Error(eventCtx.CacheDisabled, a.destinationID, eventCtx.EventID, err.Error())
+	a.eventsCache.Skip(eventCtx.CacheDisabled, a.destinationID, eventCtx.EventID, err.Error())
 }
 
 //Fallback logs event with error to fallback logger
@@ -171,15 +171,25 @@ func (a *Abstract) AccountResult(eventContext *adapters.EventContext, err error)
 	}
 }
 
-func (a *Abstract) close() (multiErr error) {
-	if err := a.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", a.ID(), err))
-	}
+//Clean removes all records from storage
+func (a *Abstract) Clean(tableName string) error {
+	return nil
+}
 
-	if err := a.archiveLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing archive logger: %v", a.ID(), err))
+func (a *Abstract) close() (multiErr error) {
+	if a.fallbackLogger != nil {
+		if err := a.fallbackLogger.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", a.ID(), err))
+		}
 	}
-	a.processor.Close()
+	if a.archiveLogger != nil {
+		if err := a.archiveLogger.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing archive logger: %v", a.ID(), err))
+		}
+	}
+	if a.processor != nil {
+		a.processor.Close()
+	}
 
 	return nil
 }

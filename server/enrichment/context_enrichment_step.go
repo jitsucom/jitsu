@@ -11,16 +11,16 @@ import (
 
 const (
 	ApiTokenKey = "api_key"
-	ipKey       = "source_ip"
+	IPKey       = "source_ip"
 )
 
 //ContextEnrichmentStep enriches payload with ip, user-agent, token, unique ID field (event_id) and _timestamp
 func ContextEnrichmentStep(payload events.Event, token string, reqContext *events.RequestContext, preprocessor events.Processor,
 	uniqueIDField *identifiers.UniqueID) {
 	//1. source IP (don't override income value)
-	if _, ok := payload[ipKey]; !ok {
+	if _, ok := payload[IPKey]; !ok {
 		if reqContext.ClientIP != "" {
-			payload[ipKey] = reqContext.ClientIP
+			payload[IPKey] = reqContext.ClientIP
 		}
 	}
 

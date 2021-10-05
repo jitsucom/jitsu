@@ -15,12 +15,21 @@ module.exports = {
   devServer: {
     host: DEV_HOST,
     port: DEV_PORT,
+    // proxy: process.env.PROXY_BACKEND ? ({
+    //   '/api': {
+    //     target: `${process.env.PROXY_BACKEND}/api`,
+    //     secure: false,
+    //     changeOrigin: true
+    //
+    //   }
+    // }) : [] ,
     hot: true,
     historyApiFallback: true,
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-      'Access-Control-Allow-Headers': 'X-Requested-With, content-type, Authorization'
+      'Access-Control-Allow-Headers':
+        'X-Requested-With, content-type, Authorization'
     },
     compress: true,
     overlay: {
@@ -42,7 +51,10 @@ module.exports = {
           NODE_ENV: JSON.stringify(process.env.NODE_ENV || 'production'),
           ANALYTICS_KEYS: JSON.stringify(process.env.ANALYTICS_KEYS || null),
           APP_PATH: JSON.stringify(process.env.APP_PATH || ''),
-          FIREBASE_CONFIG: JSON.stringify(process.env.FIREBASE_CONFIG || null)
+          FIREBASE_CONFIG: JSON.stringify(process.env.FIREBASE_CONFIG || null),
+          BILLING_API_BASE_URL: JSON.stringify(
+            process.env.BILLING_API_BASE_URL || null
+          )
         }
       }),
       new BundleAnalyzerPlugin({
@@ -56,7 +68,7 @@ module.exports = {
     ],
     configure: (webpackConfig, { env, paths }) => {
       const miniCssExtractPlugin = webpackConfig.plugins.find(
-        plugin => plugin.constructor.name === 'MiniCssExtractPlugin'
+        (plugin) => plugin.constructor.name === 'MiniCssExtractPlugin'
       );
 
       if (miniCssExtractPlugin) {
@@ -101,7 +113,7 @@ module.exports = {
         cssLoaderOptions: {
           modules: { localIdentName: '[local]_[hash:base64:5]' }
         },
-        modifyLessRule: function(lessRule, _context) {
+        modifyLessRule: function (lessRule, _context) {
           lessRule.test = /\.(module)\.(less)$/;
           lessRule.exclude = path.join(__dirname, 'node_modules');
           return lessRule;

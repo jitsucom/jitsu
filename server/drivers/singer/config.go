@@ -2,25 +2,36 @@ package singer
 
 import "errors"
 
-//SingerRawCatalog is a dto for Singer catalog serialization
-type SingerRawCatalog struct {
+//RawCatalog is a dto for Singer catalog serialization
+type RawCatalog struct {
 	Streams []map[string]interface{} `json:"streams,omitempty"`
 }
 
-//SingerCatalog is a dto for Singer catalog partly serialization (only for extracting destination_table_name)
-type SingerCatalog struct {
-	Streams []SingerStreamCatalog `json:"streams,omitempty"`
+//Catalog is a dto for Singer catalog partly serialization (only for extracting destination_table_name)
+type Catalog struct {
+	Streams []StreamCatalog `json:"streams,omitempty"`
 }
 
-//SingerStreamCatalog is a dto for Singer catalog Stream object serialization
-type SingerStreamCatalog struct {
-	Stream               string `json:"stream,omitempty"`
-	TapStreamID          string `json:"tap_stream_id,omitempty"`
-	DestinationTableName string `json:"destination_table_name,omitempty"`
+//StreamCatalog is a dto for Singer catalog Stream object serialization
+type StreamCatalog struct {
+	Stream               string            `json:"stream,omitempty"`
+	TapStreamID          string            `json:"tap_stream_id,omitempty"`
+	DestinationTableName string            `json:"destination_table_name,omitempty"`
+	Metadata             []MetadataWrapper `json:"metadata,omitempty"`
 }
 
-//SingerConfig is a dto for Singer configuration serialization
-type SingerConfig struct {
+type MetadataWrapper struct {
+	Breadcrumb []string `json:"breadcrumb,omitempty"`
+	Metadata   Metadata `json:"metadata,omitempty"`
+}
+
+type Metadata struct {
+	ReplicationMethod       string `json:"replication-method,omitempty"`
+	ForcedReplicationMethod string `json:"forced-replication-method,omitempty"`
+}
+
+//Config is a dto for Singer configuration serialization
+type Config struct {
 	Tap                    string            `mapstructure:"tap" json:"tap,omitempty" yaml:"tap,omitempty"`
 	Config                 interface{}       `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
 	Catalog                interface{}       `mapstructure:"catalog" json:"catalog,omitempty" yaml:"catalog,omitempty"`
@@ -31,7 +42,7 @@ type SingerConfig struct {
 }
 
 //Validate returns err if configuration is invalid
-func (sc *SingerConfig) Validate() error {
+func (sc *Config) Validate() error {
 	if sc == nil {
 		return errors.New("Singer config is required")
 	}

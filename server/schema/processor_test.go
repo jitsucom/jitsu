@@ -31,11 +31,12 @@ func TestProcessFilePayload(t *testing.T) {
 	testTime4, _ := time.Parse(time.RFC3339Nano, "2020-08-02T18:23:58.057807Z")
 
 	tests := []struct {
-		name           string
-		parseFunc      func([]byte) (map[string]interface{}, error)
-		inputFilePath  string
-		expected       map[string]*ProcessedFile
-		expectedFailed []events.FailedEvent
+		name            string
+		parseFunc       func([]byte) (map[string]interface{}, error)
+		inputFilePath   string
+		expected        map[string]*ProcessedFile
+		expectedFailed  []events.FailedEvent
+		expectedSkipped []events.SkippedEvent
 	}{
 		{
 			"Empty input file",
@@ -43,6 +44,7 @@ func TestProcessFilePayload(t *testing.T) {
 			"../test_data/fact_input_empty_1.0.log",
 			map[string]*ProcessedFile{},
 			[]events.FailedEvent{},
+			[]events.SkippedEvent{},
 		},
 		{
 			"Input file with some errors and one skipped line",
@@ -105,6 +107,7 @@ func TestProcessFilePayload(t *testing.T) {
 				},
 			},
 			[]events.FailedEvent{{Event: []byte(`{"_geo_data":{},"event_type":"views","key1000":"super value"}`), Error: "error extracting table name: _timestamp field doesn't exist"}},
+			[]events.SkippedEvent{{EventID: "qoow1", Error: "Table name template return empty string. This object will be skipped."}},
 		},
 		{
 			"Input fallback file",
@@ -136,6 +139,7 @@ func TestProcessFilePayload(t *testing.T) {
 				},
 			},
 			[]events.FailedEvent{},
+			[]events.SkippedEvent{},
 		},
 	}
 	p, err := NewProcessor("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 0)
@@ -148,8 +152,17 @@ func TestProcessFilePayload(t *testing.T) {
 			objects, err := parsers.ParseJSONFileWithFunc(fBytes, tt.parseFunc)
 			require.NoError(t, err)
 
-			actual, failed, err := p.ProcessEvents("testfile", objects, map[string]bool{})
+			actual, failed, skipped, err := p.ProcessEvents("testfile", objects, map[string]bool{})
 			require.NoError(t, err)
+
+			if len(tt.expectedSkipped) > 0 {
+				require.Equal(t, len(tt.expectedSkipped), len(skipped.Events), "Skipped objects quantity isn't equal")
+				for i, skippedObj := range skipped.Events {
+					test.ObjectsEqual(t, tt.expectedSkipped[i], *skippedObj)
+				}
+			} else {
+				require.Empty(t, skipped.Events)
+			}
 
 			if len(tt.expectedFailed) > 0 {
 				require.Equal(t, len(tt.expectedFailed), len(failed.Events), "Failed objects quantity isn't equal")
