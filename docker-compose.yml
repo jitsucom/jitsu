@@ -5,15 +5,19 @@ networks:
 services:
   jitsu:
     container_name: jitsu
-    image: jitsucom/jitsu:latest
+    image: jitsucom/jitsu:beta
     environment:
       - REDIS_URL=redis://redis:6379
+      - UI_AUTH_ACCESS_SECRET=generate
+      - UI_AUTH_REFRESH_SECRET=generate
     depends_on:
       - redis
     volumes:
       - ./compose-data/configurator/data/logs:/home/configurator/data/logs
       - ./compose-data/server/data/logs:/home/eventnative/data/logs
       - ./compose-data/server/data/logs/events:/home/eventnative/data/logs/events
+      - /var/run/docker.sock:/var/run/docker.sock
+      - workspace:/home/eventnative/data/airbyte
     restart: always
     ports:
       - "8000:8000"
@@ -27,3 +31,7 @@ services:
     restart: always
     networks:
       - main
+
+volumes:
+  workspace:
+    name: jitsu_workspace

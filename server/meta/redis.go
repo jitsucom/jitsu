@@ -17,9 +17,12 @@ const (
 	syncTasksPriorityQueueKey = "sync_tasks_priority_queue"
 	DestinationNamespace      = "destination"
 	SourceNamespace           = "source"
+	PushSourceNamespace       = "push_source"
 
 	destinationIndex = "destinations_index"
 	sourceIndex      = "sources_index"
+	//all api keys - push events
+	pushSourceIndex = "push_sources_index"
 
 	responseTimestampLayout = "2006-01-02T15:04:05+0000"
 
@@ -115,15 +118,19 @@ type Redis struct {
 //daily_events:destination#destinationID:month#yyyymm:skip     [day] - hashtable with skipped events counter by day
 //
 // * per source *
-//sources_index:project#projectID [sourceID1, sourceID2] - set of source ids
+//sources_index:project#projectID                    [sourceID1, sourceID2] - set of source ids
 //daily_events:source#sourceID:month#yyyymm:success            [day] - hashtable with success events counter by day
 //hourly_events:source#sourceID:day#yyyymmdd:success           [hour] - hashtable with success events counter by hour
+// * per push source *
+//push_sources_index:project#projectID                         [sourceID1, sourceID2] - set of only pushed source ids (api keys) for billing
+//daily_events:push_source#sourceID:month#yyyymm:success            [day] - hashtable with success events counter by day
+//hourly_events:push_source#sourceID:day#yyyymmdd:success           [hour] - hashtable with success events counter by hour
 //
 //** Last events cache**
 //last_events:destination#destinationID:id#unique_id_field [original, success, error] - hashtable with original event json, processed with schema json, error json
 //last_events_index:destination#destinationID [timestamp_long unique_id_field] - sorted set of eventIDs and timestamps
 //
-//** Retrospective user recognition **
+//** Retroactive user recognition **
 //anonymous_events:destination_id#${destination_id}:anonymous_id#${cookies_anonymous_id} [event_id] {event JSON} - hashtable with all anonymous events
 //
 //** Sources Synchronization **
@@ -320,7 +327,7 @@ func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "success", success, "error", "")
+	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "success", success, "error", "", "destination_id", destinationID)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err
@@ -336,7 +343,23 @@ func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateOneFieldCachedEvent.Do(conn, lastEventsKey, "error", error)
+	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "error", error, "destination_id", destinationID)
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
+//UpdateSkipEvent updates event record in Redis with skip field = error string
+func (r *Redis) UpdateSkipEvent(destinationID, eventID, error string) error {
+	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
+
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "skip", error, "error", "", "destination_id", destinationID)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err
@@ -787,6 +810,11 @@ func (r *Redis) GetProjectSourceIDs(projectID string) ([]string, error) {
 	return r.getProjectIDs(projectID, sourceIndex)
 }
 
+//GetProjectPushSourceIDs returns project's pushed sources ids (api keys)
+func (r *Redis) GetProjectPushSourceIDs(projectID string) ([]string, error) {
+	return r.getProjectIDs(projectID, pushSourceIndex)
+}
+
 //GetProjectDestinationIDs returns project's destination ids
 func (r *Redis) GetProjectDestinationIDs(projectID string) ([]string, error) {
 	return r.getProjectIDs(projectID, destinationIndex)
@@ -951,11 +979,14 @@ func (r *Redis) ensureIDInIndex(id, namespace string) error {
 	defer conn.Close()
 
 	var indexName string
-	if namespace == DestinationNamespace {
+	switch namespace {
+	case DestinationNamespace:
 		indexName = destinationIndex
-	} else if namespace == SourceNamespace {
+	case SourceNamespace:
 		indexName = sourceIndex
-	} else {
+	case PushSourceNamespace:
+		indexName = pushSourceIndex
+	default:
 		return fmt.Errorf("Unknown namespace: %v", namespace)
 	}
 

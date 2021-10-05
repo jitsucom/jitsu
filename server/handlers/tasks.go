@@ -225,8 +225,8 @@ func (sh *TaskHandler) SyncHandler(c *gin.Context) {
 }
 
 func extractCollectionID(sourceType string, c *gin.Context) string {
-	if sourceType == driversbase.SingerType {
-		return drivers.DefaultSingerCollection
+	if sourceType == driversbase.SingerType || sourceType == driversbase.AirbyteType {
+		return drivers.DefaultCollection
 	}
 	return c.Query("collection")
 }

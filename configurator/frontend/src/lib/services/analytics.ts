@@ -1,12 +1,13 @@
 /* eslint-disable */
-import { ApplicationConfiguration, FeatureSettings, setDebugInfo } from './ApplicationServices';
+import { FeatureSettings } from './ApplicationServices';
 import { User } from './model';
 // @ts-ignore
 import LogRocket from 'logrocket';
 import murmurhash from 'murmurhash';
-import { isNullOrUndef } from '../commons/utils';
+import { isNullOrUndef, setDebugInfo } from '../commons/utils';
 import { jitsuClient, JitsuClient } from '@jitsu/sdk-js';
 import { getIntercom, initIntercom } from 'lib/services/intercom-wrapper';
+import { ApplicationConfiguration } from './ApplicationConfiguration';
 
 type ConsoleMessageListener = (level: string, ...args) => void;
 
@@ -292,7 +293,7 @@ export default class AnalyticsService {
     if (!this.globalErrorListenerPresent) {
       window.addEventListener('error', (event) => this.onGlobalErrorEvent(event));
       window.addEventListener('unhandledrejection', (event) => {
-        this.onGlobalError(new Error('Unhandled rejection: ' + event.reason));
+        this.onGlobalError(new Error('Unhandled rejection: ' + JSON.stringify(event.reason)));
       });
       this.globalErrorListenerPresent = true;
     }

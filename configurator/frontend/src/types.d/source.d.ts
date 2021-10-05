@@ -7,7 +7,12 @@ declare interface CollectionSource {
   schedule: string;
 }
 
-declare interface SourceData {
+declare type StreamWithRawData = CollectionSource & {
+  rawStreamData: UnknownObject;
+};
+
+declare type SourceData = NativeSourceData & AirbyteSourceData;
+declare interface NativeSourceData {
   collections: CollectionSource[];
   config: {
     [key: string]: string;
@@ -15,8 +20,28 @@ declare interface SourceData {
   schedule?: string;
   destinations: string[];
   sourceId: string;
-  sourceType: string;
   sourceProtoType: string;
   connected: boolean;
   connectedErrorMessage?: string;
+  sourceType: string;
 }
+
+declare interface AirbyteSourceData {
+  sourceType: 'airbyte';
+  catalog?: {
+    streams: Array<AirbyteStreamData>;
+  };
+}
+
+declare type AirbyteStreamData = {
+  sync_mode: string;
+  destination_sync_mode: string;
+  stream: {
+    name: string;
+    namespace: string;
+    json_schema: UnknownObject;
+    supported_sync_modes: string[];
+    [key: string]: unknown;
+  };
+};
+

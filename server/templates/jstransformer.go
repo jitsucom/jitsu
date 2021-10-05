@@ -18,11 +18,9 @@ func Transform(src string) (string, error) {
 	mutex.Lock()
 	defer mutex.Unlock()
 	res, err := TransformString(src, map[string]interface{}{
+		"presets": []interface{}{[]interface{}{"env", map[string]interface{}{"targets": "defaults"}}},
 		"plugins": []interface{}{
 			[]interface{}{"transform-last-statement", map[string]interface{}{"topLevel": true}},
-			"proposal-optional-chaining",
-			"transform-arrow-functions",
-			"transform-template-literals",
 			"loop-protect",
 		},
 		"parserOpts": map[string]interface{}{

@@ -143,6 +143,10 @@ func (f *Firebase) GetCollectionMetaKey() string {
 	return f.collection.Name + "_" + f.GetCollectionTable()
 }
 
+func (f *Firebase) GetRefreshWindow() (time.Duration, error) {
+	return time.Hour * 24, nil
+}
+
 func (f *Firebase) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil
 }

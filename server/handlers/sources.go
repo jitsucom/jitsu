@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/drivers"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/runner"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/sources"
 	"net/http"
 )
@@ -21,17 +25,19 @@ type ClearCacheRequest struct {
 
 //SourcesHandler is used for testing sources connection and clean sync cache
 type SourcesHandler struct {
-	sourcesService *sources.Service
-	metaStorage    meta.Storage
+	sourcesService      *sources.Service
+	metaStorage         meta.Storage
+	destinationsService *destinations.Service
 }
 
 //NewSourcesHandler returns configured SourcesHandler instance
-func NewSourcesHandler(sourcesService *sources.Service, metaStorage meta.Storage) *SourcesHandler {
-	return &SourcesHandler{sourcesService: sourcesService, metaStorage: metaStorage}
+func NewSourcesHandler(sourcesService *sources.Service, metaStorage meta.Storage, destinations *destinations.Service) *SourcesHandler {
+	return &SourcesHandler{sourcesService: sourcesService, metaStorage: metaStorage, destinationsService: destinations}
 }
 
 //ClearCacheHandler deletes source state (signature) from meta.Storage
 func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
+	shouldCleanWarehouse := c.DefaultQuery("delete_warehouse_data", "false") == "true"
 	req := &ClearCacheRequest{}
 	if err := c.BindJSON(req); err != nil {
 		logging.Errorf("Error parsing clear cache request: %v", err)
@@ -69,6 +75,9 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 			logging.Error(msg)
 			multiErr = multierror.Append(multiErr, err)
 		}
+		if shouldCleanWarehouse {
+			multiErr = sh.cleanWarehouse(driver, source.DestinationIDs, req.Source, collection, multiErr)
+		}
 	}
 
 	if multiErr != nil {
@@ -79,7 +88,61 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, middleware.OKResponse())
 }
 
+func (sh *SourcesHandler) cleanWarehouse(driver driversbase.Driver, destinationIds []string, sourceID string, collection string, multiErr error) error {
+	for _, destId := range destinationIds {
+		if destProxy, okDestProxy := sh.destinationsService.GetDestinationByID(destId); okDestProxy {
+			if dest, okDest := destProxy.Get(); okDest {
+				tableNames, err := sh.getTableNames(driver)
+				if err != nil {
+					multiErr = multierror.Append(multiErr, err)
+					continue
+				}
+
+				for _, destTableName := range tableNames {
+					if err := dest.Clean(destTableName); err != nil {
+						if err == adapters.ErrTableNotExist {
+							logging.Warnf("Table [%s] doesn't exist for: source: [%s], collection: [%s], destination: [%s]", destTableName, sourceID, collection, destId)
+							continue
+						}
+
+						msg := fmt.Sprintf("Error cleaning warehouse for: source: [%s], collection: [%s], tableName: [%s], destination: [%s]: %v", sourceID, collection, destTableName, destId, err)
+						logging.Error(msg)
+						multiErr = multierror.Append(multiErr, err)
+					}
+				}
+			}
+		}
+	}
+
+	return multiErr
+}
+
+//getTableNames returns CLI tables if ready or just one table if not CLI
+//reformat table names
+func (sh *SourcesHandler) getTableNames(driver driversbase.Driver) ([]string, error) {
+	if cliDriver, ok := driver.(driversbase.CLIDriver); ok {
+		ready, err := cliDriver.Ready()
+		if !ready {
+			return nil, err
+		}
+
+		var tableNames []string
+		for _, destTableName := range cliDriver.GetStreamTableNameMapping() {
+			tableNames = append(tableNames, schema.Reformat(destTableName))
+		}
+
+		return tableNames, nil
+	}
+
+	return []string{schema.Reformat(driver.GetCollectionTable())}, nil
+}
+
 //TestSourcesHandler tests source connection
+//returns:
+//  200 with status ok if a connection is ok
+//  200 with status pending if source isn't ready
+//  200 with status pending and error in body if source isn't ready and has previous error
+//  400 with error if a connection failed
 func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 	sourceConfig := &driversbase.SourceConfig{}
 	if err := c.BindJSON(sourceConfig); err != nil {
@@ -89,10 +152,22 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 	}
 	err := testSourceConnection(sourceConfig)
 	if err != nil {
+		notReadyErr, ok := err.(*runner.NotReadyError)
+		if ok {
+			if notReadyErr.PreviousError() == "" {
+				c.JSON(http.StatusOK, middleware.PendingResponse())
+				return
+			}
+
+			c.JSON(http.StatusOK, middleware.PendingResponseWithMessage(notReadyErr.PreviousError()))
+			return
+		}
+
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
 		return
 	}
-	c.Status(http.StatusOK)
+
+	c.JSON(http.StatusOK, middleware.OKResponse())
 }
 
 func testSourceConnection(config *driversbase.SourceConfig) error {

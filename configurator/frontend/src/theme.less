@@ -4,17 +4,20 @@
  */
 @bgPrimary: rgb(17, 24, 39); //#22313a;
 @bgSecondary: rgb(31, 41, 55); //#1e2a31;
-@bgComponent: rgb(26,35,50);
+@bgComponent: rgb(26,35,50); //#1A2332FF;
 
 @bgTableHeader: @bgComponent;
 @splitBorder: #394e5a;
 @primary: rgb(91, 20, 250);
 @link: rgb(135, 138, 252); //add to tailwind
-@success: #2cc56f;
+@success: rgb(11, 173, 81);
+@successHover: #0aa14b;
+@successActive: #2cc56f;
 @warning: #ffc021;
 @error: #e53935;
 @heading: #c1c9d2;
 @text: #e5e7eb;
+@textPale: #ffffff;
 @secondaryText: #7996a9;
 @disabled: #415969;
 @secondaryBorder: #415969;
@@ -61,15 +64,23 @@
 @large-border-radius: 12px;
 @small-border-radius: 6px;
 
-@font-main: 'Nunito', sans-serif;
-
+@font-main: 'system-ui', sans-serif;
 @font-monospace: 'Source Code Pro', monospace;
+@font-heading: 'Nunito Sans', sans-serif;
 
 // Animated transitions
 @default-transition-duration: 200ms;
 @default-transition-delay: 0ms;
 @default-transition-animation: linear;
 @default-transiton: @default-transition-duration @default-transition-animation @default-transition-delay;
+
+.font-heading {
+  font-family: @font-heading;
+}
+
+.font-monospace {
+  font-family: @font-monospace;
+}
 
 
 .ant-select-disabled.ant-select:not(.ant-select-customize-input) .ant-select-selector {
@@ -86,6 +97,10 @@
 
 .ant-select-item-option-active {
   background-color: @bgSecondary !important;
+}
+
+.ant-collapse-content-box {
+  background-color: @primary-background !important;
 }
 
 //body {
@@ -191,4 +206,35 @@
   @apply rounded-lg;
   background-color: @popover-background !important;
   border: 1px solid @splitBorder !important;
+}
+
+.ant-popover-inner {
+  //@apply border-2;
+  border: 1px solid @border-color-base;
+}
+
+.ant-popover-arrow {
+  width: 12px !important;
+  height: 12px !important;
+  border-left: 1px solid @border-color-base !important;
+  border-top: 1px solid @border-color-base !important;
+  z-index: 10000 !important;
+  background: @popover-background !important;
+}
+
+.ant-popover-placement-rightTop > .ant-popover-content > .ant-popover-arrow {
+  transform: rotate(-45deg)  !important;
+}
+
+.icon-size-base svg {
+@apply w-4 h-4;
+}
+
+.icon-size-lg svg {
+@apply w-5 h-5;
+}
+
+.ant-tabs-tab-active {
+  border-bottom-color: @bgPrimary !important;
+  background: linear-gradient(to bottom, @splitBorder 10%,@splitBorder 10%,@bgPrimary 10%,@bgPrimary 100%) !important;
 }
