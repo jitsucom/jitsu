@@ -16,6 +16,7 @@ type ErrorCardProps = {
   descriptionWithContacts?: string | null;
   stackTrace?: string;
   className?: string;
+  onReload?: VoidFunction;
 };
 
 export const ErrorCard: FC<ErrorCardProps> = ({
