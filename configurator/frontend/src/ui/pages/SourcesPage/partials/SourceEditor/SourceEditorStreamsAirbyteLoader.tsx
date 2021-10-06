@@ -119,7 +119,11 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
       <Col span={24}>
         <ErrorCard
           title={`Source configuration validation failed`}
-          description={`Invalid configuration. See more details in the error stack.`}
+          description={`Connection is not configured.${
+            airbyteStreamsLoadError.stack
+              ? ' See more details in the error stack.'
+              : ''
+          }`}
           stackTrace={airbyteStreamsLoadError.stack}
           className={'form-fields-card'}
         />
