@@ -14,6 +14,7 @@ import { mapAirbyteSpecToSourceConnectorConfig } from 'catalog/sources/lib/airby
 import { Poll } from 'utils/polling';
 import { useSourceEditorSyncContext } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditorSyncContext';
 import { LoadableFieldsLoadingMessageCard } from 'lib/components/LoadingFormCard/LoadingFormCard';
+import { toTitleCase } from 'utils/strings';
 
 type Props = {
   sourceReference: SourceConnector;
@@ -83,11 +84,17 @@ export const LoadableFieldsForm = ({
       if (response?.['status'] && response?.['status'] !== 'pending') {
         const parsedData = mapAirbyteSpecToSourceConnectorConfig(
           response?.['spec']?.['spec']?.['connectionSpecification']
-        );
+        ).map<Parameter>((parameter) => ({
+          ...parameter,
+          displayName: toTitleCase(parameter.displayName, { separator: '_' })
+        }));
+
         setFieldsParameters(parsedData);
         setIsLoadingParameters(false);
-        if (resolve) resolve(parsedData);
-        if (enableFormControls) enableFormControls();
+
+        resolve?.(parsedData);
+        enableFormControls?.();
+
         return;
       }
 
