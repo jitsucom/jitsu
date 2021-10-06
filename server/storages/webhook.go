@@ -13,10 +13,11 @@ const defaultWorkersPoolSize = 10
 //DefaultHTTPConfiguration contains default HTTP timeouts/retry/delays,etc for HTTPAdapters
 var DefaultHTTPConfiguration = &adapters.HTTPConfiguration{
 	GlobalClientTimeout:       10 * time.Second,
-	RetryDelay:                3 * time.Second,
-	RetryCount:                3,
+	RetryDelay:                10 * time.Second,
+	RetryCount:                9,
 	ClientMaxIdleConns:        1000,
 	ClientMaxIdleConnsPerHost: 1000,
+	QueueFullnessThreshold:    10_000,
 }
 
 //WebHook is a destination that can send configurable HTTP requests
