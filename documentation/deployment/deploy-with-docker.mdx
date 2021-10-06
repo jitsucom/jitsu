@@ -59,7 +59,7 @@ It includes both Jitsu Server and Configurator UI
 </Hint>
 
 <Hint>
-  Since Jitsu uses Docker out of Docker approach for running Airbyte connectors, please add mounting docker socket: <code inline={true}>/var/run/docker.sock:/var/run/docker.sock</code>.
+  Since Jitsu uses Docker out of Docker approach for running Airbyte connectors, please add mounting docker socket: <code inline={true}>-v /var/run/docker.sock:/var/run/docker.sock</code>.
   If you don't use Airbyte sources, it isn't required.
 </Hint>
 
@@ -92,8 +92,6 @@ docker run -p <local_port>:8000 \
   -e REDIS_URL=<redis_url> \
   -e UI_AUTH_ACCESS_SECRET=<your_generated_access_secret> \
   -e UI_AUTH_REFRESH_SECRET=<your_generated_refresh_secret> \
-  -v /<server_log_dir>/:/home/eventnative/data/logs/ \
-  -v /<configurator_log_dir>/:/home/configurator/data/logs/ \
   -v /var/run/docker.sock:/var/run/docker.sock \
   jitsucom/jitsu:latest
 ```
