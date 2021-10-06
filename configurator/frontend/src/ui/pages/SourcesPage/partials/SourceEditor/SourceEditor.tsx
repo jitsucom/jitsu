@@ -181,7 +181,10 @@ const SourceEditorComponent = ({
     return sourcePageUtils.bringSourceData({
       sourcesTabs: sourcesTabs.current,
       sourceData: sourceData.current,
-      forceUpdate
+      forceUpdate,
+      options: {
+        omitEmptyValues: connectorSource.protoType === 'airbyte'
+      }
     });
   };
 
