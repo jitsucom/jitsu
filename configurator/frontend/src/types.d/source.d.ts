@@ -38,7 +38,7 @@ declare type AirbyteStreamData = {
   destination_sync_mode: string;
   stream: {
     name: string;
-    namespace: string;
+    namespace?: string;
     json_schema: UnknownObject;
     supported_sync_modes: string[];
     [key: string]: unknown;
