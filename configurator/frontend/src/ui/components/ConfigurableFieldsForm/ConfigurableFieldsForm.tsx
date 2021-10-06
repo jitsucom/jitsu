@@ -15,7 +15,8 @@ import {
   Switch,
   Tooltip,
   Spin,
-  FormItemProps
+  FormItemProps,
+  InputNumber
 } from 'antd';
 import debounce from 'lodash/debounce';
 import get from 'lodash/get';
@@ -109,7 +110,7 @@ const ConfigurableFieldsForm = ({
 
   const handleChangeIntInput = useCallback(
     (id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value.replace(/\D/g, '');
+      const value = +e.target.value.replace(/\D/g, '');
       form.setFieldsValue({ [id]: value });
     },
     [form]
@@ -192,6 +193,7 @@ const ConfigurableFieldsForm = ({
           <Input
             defaultValue={defaultValueToDisplay}
             autoComplete="off"
+            inputMode="numeric"
             onChange={handleChangeIntInput(id)}
           />
         );
