@@ -55,7 +55,12 @@ It includes both Jitsu Server and Configurator UI
 </Hint>
 
 <Hint>
-    Jitsu Server will also keep events logs in `&lt;server_log_dir&gt;`.
+  Jitsu Server will also keep events logs in <code inline={true}>&lt;server_log_dir&gt;</code>.
+</Hint>
+
+<Hint>
+  Since Jitsu uses Docker out of Docker approach for running Airbyte connectors, please add mounting docker socket: <code inline={true}>-v /var/run/docker.sock:/var/run/docker.sock</code>.
+  If you don't use Airbyte sources, it isn't required.
 </Hint>
 
 * Run the Docker image and mount your log dirs with the following command:
@@ -64,7 +69,7 @@ It includes both Jitsu Server and Configurator UI
 docker run -p <local_port>:8000 \
   -e REDIS_URL=<redis_url> \
   -e UI_AUTH_ACCESS_SECRET=<your_generated_access_secret> \
-  -e UI_AUTH_REFRESH_SECRET=<your_generated_refresh_secret> \ 
+  -e UI_AUTH_REFRESH_SECRET=<your_generated_refresh_secret> \
   -v /<server_log_dir>/:/home/eventnative/data/logs/ \
   -v /<configurator_log_dir>/:/home/configurator/data/logs/ \
   jitsucom/jitsu:latest
@@ -75,8 +80,19 @@ docker run -p <local_port>:8000 \
 ```javascript
 docker run -p <local_port>:8000 \
   -e REDIS_URL=<redis_url> \
-  -e UI_AUTH_ACCESS_SECRET=<your_generated_access_secret> \ 
+  -e UI_AUTH_ACCESS_SECRET=<your_generated_access_secret> \
   -e UI_AUTH_REFRESH_SECRET=<your_generated_refresh_secret> \
+  jitsucom/jitsu:latest
+```
+
+* Or for using Airbyte sources:
+
+```javascript
+docker run -p <local_port>:8000 \
+  -e REDIS_URL=<redis_url> \
+  -e UI_AUTH_ACCESS_SECRET=<your_generated_access_secret> \
+  -e UI_AUTH_REFRESH_SECRET=<your_generated_refresh_secret> \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   jitsucom/jitsu:latest
 ```
 
@@ -146,6 +162,15 @@ Jitsu Server can be deployed without Jitsu Configurator (and UI). It can be conf
 ```javascript
 docker run -p <local_port>:8001 \
   -v /<data_dir>/:/home/eventnative/data/ \
+  jitsucom/server:latest
+```
+
+* Or for using Airbyte sources:
+
+```javascript
+docker run -p <local_port>:8001 \
+  -v /<data_dir>/:/home/eventnative/data/ \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   jitsucom/server:latest
 ```
 
