@@ -138,7 +138,6 @@ const SourceEditorStreamsAirbyteForm = ({
             collapsible="header"
             expandIconPosition="left"
             destroyInactivePanel
-            className="mr-2"
             expandIcon={({ isActive }) => (
               <CaretRightOutlined rotate={isActive ? 90 : 0} />
             )}
@@ -161,16 +160,18 @@ const SourceEditorStreamsAirbyteForm = ({
                           {streamData.stream.name}
                         </b>
                       </div>
-                      <div
-                        className={
-                          'whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
-                        }
-                      >
-                        Namespace:&nbsp;&nbsp;
-                        <b title={streamData.stream.namespace}>
-                          {streamData.stream.namespace}
-                        </b>
-                      </div>
+                      {streamData.stream.namespace && (
+                        <div
+                          className={
+                            'whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
+                          }
+                        >
+                          Namespace:&nbsp;&nbsp;
+                          <b title={streamData.stream.namespace}>
+                            {streamData.stream.namespace}
+                          </b>
+                        </div>
+                      )}
                       <div
                         className={`whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden ${
                           !showSyncModeSelection && 'overflow-ellipsis'

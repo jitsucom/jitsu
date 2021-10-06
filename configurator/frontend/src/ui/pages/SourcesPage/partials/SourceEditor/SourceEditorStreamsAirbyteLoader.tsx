@@ -77,9 +77,8 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
       const rawAirbyteStreams: UnknownObject[] = response.catalog.streams;
 
       const streams: AirbyteStreamData[] = rawAirbyteStreams.map((stream) => {
-
         assertIsString(stream.name);
-        assertIsString(stream.namespace);
+        assertIsString(stream.namespace, { allowUndefined: true });
         assertIsObject(stream.json_schema);
         assertIsArrayOfTypes(stream.supported_sync_modes, '');
 
