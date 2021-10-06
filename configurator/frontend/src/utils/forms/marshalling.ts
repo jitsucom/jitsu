@@ -1,27 +1,32 @@
+import { isNullOrUndef } from 'lib/commons/utils';
 import isArray from 'lodash/isArray';
 import set from 'lodash/set';
 
-const makeObjectFromFieldsValues = <F = any>(fields: any): F => Object.keys(fields).reduce((accumulator: any, current: string) => {
-  const value = fields[current];
-  if (['string', 'number', 'boolean'].includes(typeof value)) {
-    set(accumulator, current, value === 'null' ? null : value);
-  } else if (typeof value === 'object') {
-    if (isArray(value)) {
-      set(
-        accumulator,
-        current,
-        value.map(f => typeof f === 'object' ? makeObjectFromFieldsValues(f) : f)
-      );
-    } else if (value != null) {
-      set(
+const makeObjectFromFieldsValues = <F = any>(
+  fields: any,
+  options?: { omitEmptyValues: boolean }
+): F =>
+  Object.keys(fields).reduce((accumulator: any, current: string) => {
+    const value = fields[current];
+    if (['string', 'number', 'boolean'].includes(typeof value)) {
+      if (options?.omitEmptyValues && (value === '' || isNullOrUndef(value)))
+        return accumulator;
+      set(accumulator, current, value === 'null' ? null : value);
+    } else if (typeof value === 'object') {
+      if (isArray(value)) {
+        set(
           accumulator,
           current,
-          makeObjectFromFieldsValues(value)
-      );
+          value.map((f) =>
+            typeof f === 'object' ? makeObjectFromFieldsValues(f) : f
+          )
+        );
+      } else if (value != null) {
+        set(accumulator, current, makeObjectFromFieldsValues(value));
+      }
     }
-  }
 
-  return accumulator;
-}, {} as F);
+    return accumulator;
+  }, {} as F);
 
-export { makeObjectFromFieldsValues }
+export { makeObjectFromFieldsValues };

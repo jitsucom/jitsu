@@ -57,11 +57,15 @@ const sourcePageUtils = {
   bringSourceData: ({
     sourcesTabs,
     sourceData,
-    forceUpdate
+    forceUpdate,
+    options
   }: {
     sourcesTabs: Tab<SourceTabKey>[];
     sourceData: any;
     forceUpdate: any;
+    options?: {
+      omitEmptyValues?: boolean;
+    };
   }) => {
     return Promise.all(
       sourcesTabs.map((tab: Tab) =>
@@ -75,12 +79,15 @@ const sourcePageUtils = {
       (
         allValues: [{ [key: string]: string }, CollectionSource[], string[]]
       ) => {
+        debugger;
         const enrichedData = {
           ...sourceData,
           ...allValues.reduce((result: any, current: any) => {
             return {
               ...result,
-              ...makeObjectFromFieldsValues(current)
+              ...makeObjectFromFieldsValues(current, {
+                omitEmptyValues: options?.omitEmptyValues
+              })
             };
           }, {})
         };
@@ -98,6 +105,8 @@ const sourcePageUtils = {
             }
           );
         }
+
+        debugger;
 
         return enrichedData;
       }
