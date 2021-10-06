@@ -110,7 +110,7 @@ const ConfigurableFieldsForm = ({
 
   const handleChangeIntInput = useCallback(
     (id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = +e.target.value.replace(/\D/g, '');
+      const value = +e.target.value.replace(/\D/g, '') || '';
       form.setFieldsValue({ [id]: value });
     },
     [form]
