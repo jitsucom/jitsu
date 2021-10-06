@@ -3,6 +3,11 @@ import nodejs_assert from 'assert';
 // @Utils
 import { toArrayIfNot } from './arrays';
 
+type AssertionOptions = {
+  errMsg?: string;
+  allowUndefined?: boolean;
+};
+
 /**
  * Checks if value is an object.
  *
@@ -66,13 +71,17 @@ export function assert(condition: boolean, errMsg?: string): asserts condition {
  * @returns void or never
  *
  */
- export function assertIsString(
+export function assertIsString(
   value: unknown,
-  errMsg?: string
+  options?: AssertionOptions
 ): asserts value is string {
+  let condition = typeof value === 'string';
+  if (options?.allowUndefined)
+    condition = condition || typeof value === 'undefined';
+
   assert(
-    typeof value === 'string',
-    errMsg || `array assertion failed - ${value} is not an array`
+    condition,
+    options?.errMsg || `array assertion failed - ${value} is not an array`
   );
 }
 
