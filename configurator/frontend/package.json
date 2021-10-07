@@ -39,6 +39,7 @@
     "clean": "rm -rf ./node_modules/ build dist",
     "start": "NODE_ENV=development craco start",
     "build": "NODE_ENV=production craco build",
+    "test": "craco test",
     "test:debug": "craco --inspect-brk test --runInBand --no-cache",
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/",
     "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/ --fix"

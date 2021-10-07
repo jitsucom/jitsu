@@ -13,7 +13,7 @@ import {
 export const hubspot: Parameter[] = [
   {
     id: 'config.config.start_date',
-    displayName: 'Start Date',
+    displayName: 'start_date',
     type: makeStringType({
       pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
     }),
@@ -29,7 +29,7 @@ export const hubspot: Parameter[] = [
   },
   {
     id: 'config.config.credentials.api_key',
-    displayName: 'API Key',
+    displayName: 'api_key',
     type: passwordType,
     required: true,
     documentation: (
@@ -46,7 +46,7 @@ export const hubspot: Parameter[] = [
 export const mysql: Parameter[] = [
   {
     id: 'config.config.host',
-    displayName: 'Host',
+    displayName: 'host',
     type: stringType,
     required: true,
     documentation: (
@@ -55,7 +55,7 @@ export const mysql: Parameter[] = [
   },
   {
     id: 'config.config.port',
-    displayName: 'Port',
+    displayName: 'port',
     type: makeIntType({ minimum: 0, maximum: 65536 }),
     defaultValue: 3306,
     required: true,
@@ -65,7 +65,7 @@ export const mysql: Parameter[] = [
   },
   {
     id: 'config.config.database',
-    displayName: 'Database',
+    displayName: 'database',
     type: stringType,
     required: true,
     documentation: (
@@ -74,7 +74,7 @@ export const mysql: Parameter[] = [
   },
   {
     id: 'config.config.username',
-    displayName: 'Username',
+    displayName: 'username',
     type: stringType,
     required: true,
     documentation: (
@@ -87,7 +87,7 @@ export const mysql: Parameter[] = [
   },
   {
     id: 'config.config.password',
-    displayName: 'Password',
+    displayName: 'password',
     type: passwordType,
     required: false,
     documentation: (
@@ -100,7 +100,7 @@ export const mysql: Parameter[] = [
   },
   {
     id: 'config.config.jdbc_url_params',
-    displayName: 'JDBC URL Params',
+    displayName: 'jdbc_url_params',
     type: stringType,
     required: false,
     documentation: (
@@ -159,7 +159,7 @@ export const mongodb: Parameter[] = [
   },
   {
     id: 'config.config.database',
-    displayName: 'Database Name',
+    displayName: 'Database name',
     type: stringType,
     required: true,
     documentation: (
@@ -184,7 +184,7 @@ export const mongodb: Parameter[] = [
   },
   {
     id: 'config.config.auth_source',
-    displayName: 'Authentication Source',
+    displayName: 'Authentication source',
     type: stringType,
     defaultValue: 'admin',
     required: true,
@@ -214,7 +214,7 @@ export const mongodb: Parameter[] = [
   },
   {
     id: 'config.config.ssl',
-    displayName: 'TLS Connection',
+    displayName: 'TLS connection',
     type: booleanType,
     defaultValue: false,
     required: false,
@@ -246,7 +246,7 @@ export const googleAds: Parameter[] = [
   },
   {
     id: 'config.config.credentials.client_id',
-    displayName: 'Client ID',
+    displayName: 'Client Id',
     type: stringType,
     required: true,
     documentation: (
@@ -288,7 +288,7 @@ export const googleAds: Parameter[] = [
   },
   {
     id: 'config.config.customer_id',
-    displayName: 'Customer ID',
+    displayName: 'Customer Id',
     type: stringType,
     required: true,
     documentation: (
@@ -401,7 +401,7 @@ export const postgres: Parameter[] = [
   },
   {
     id: 'config.config.ssl',
-    displayName: 'Connect Using SSL',
+    displayName: 'Connect using SSL',
     type: booleanType,
     defaultValue: false,
     required: false,
@@ -430,7 +430,7 @@ export const postgres: Parameter[] = [
   },
   {
     id: 'config.config.replication_method.plugin',
-    displayName: 'Plugin',
+    displayName: 'plugin',
     defaultValue: 'pgoutput',
     type: singleSelectionType(['pgoutput', 'wal2json']),
     required: false,
@@ -448,7 +448,7 @@ export const postgres: Parameter[] = [
   },
   {
     id: 'config.config.replication_method.replication_slot',
-    displayName: 'Replication Slot',
+    displayName: 'replication_slot',
     type: stringType,
     required: true,
     documentation: (
@@ -464,7 +464,7 @@ export const postgres: Parameter[] = [
   },
   {
     id: 'config.config.replication_method.publication',
-    displayName: 'Publication',
+    displayName: 'publication',
     type: stringType,
     required: true,
     documentation: (
@@ -482,11 +482,6 @@ export const postgres: Parameter[] = [
     id: 'config.config.tunnel_method.tunnel_method',
     displayName: 'SSH Tunnel Method',
     defaultValue: 'NO_TUNNEL',
-    // type: singleSelectionType([
-    //   'No Tunnel',
-    //   'SSH Key Authentication',
-    //   'Password Authentication'
-    // ]),
     type: singleSelectionType([
       'NO_TUNNEL',
       'SSH_KEY_AUTH',
@@ -655,7 +650,7 @@ export const braintree: Parameter[] = [
   },
   {
     id: 'config.config.merchant_id',
-    displayName: 'Merchant ID',
+    displayName: 'Merchant Id',
     type: stringType,
     required: true,
     documentation: (
@@ -706,5 +701,99 @@ export const braintree: Parameter[] = [
         }}
       />
     )
+  }
+];
+
+export const github: Parameter[] = [
+  {
+    id: 'config.config.branch',
+    displayName: 'Branch',
+    type: stringType,
+    required: false,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html:
+            'Space-delimited list of GitHub repository branches to pull commits for, e.g. `airbytehq/airbyte/master`. If no branches are specified for a repository, the default branch will be pulled.'
+        }}
+      />
+    )
+  },
+  {
+    id: 'config.config.credentials.option_title',
+    displayName: 'Authentication mechanism',
+    defaultValue: 'OAuth Credentials',
+    required: false,
+    type: singleSelectionType(['OAuth Credentials', 'PAT Credentials']),
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html: 'Choose how to authenticate to Github'
+        }}
+      />
+    )
+  },
+  {
+    id: 'config.config.credentials.access_token',
+    displayName: 'Access Token',
+    type: passwordType,
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html: 'Oauth access token'
+        }}
+      />
+    ),
+    omitFieldRule: (config) => {
+      return config?.['_formData']?.['credentials'] !== 'OAuth Credentials';
+    }
+  },
+  {
+    id: 'config.config.credentials.personal_access_token',
+    displayName: 'Personal Access Tokens',
+    type: passwordType,
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html:
+            'Log into Github and then generate a <a href="https://github.com/settings/tokens"> personal access token</a>. To load balance your API quota consumption across multiple API tokens, input multiple tokens separated with ","'
+        }}
+      />
+    ),
+    omitFieldRule: (config) => {
+      return config?.['_formData']?.['credentials'] !== 'PAT Credentials';
+    }
+  },
+  {
+    id: 'config.config.repository',
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html:
+            'Space-delimited list of GitHub repositories/organizations, e.g. `airbytehq/airbyte` for single repository and `airbytehq/*` for get all repositories from organization'
+        }}
+      />
+    ),
+    displayName: 'Github repositories',
+    type: stringType
+  },
+  {
+    id: 'config.config.start_date',
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html:
+            "The date from which you'd like to replicate data for GitHub in the format YYYY-MM-DDT00:00:00Z. All data generated after this date will be replicated. Note that it will be used only in the following incremental streams: comments, commits and issues."
+        }}
+      />
+    ),
+    displayName: 'Start date',
+    type: makeStringType({
+      pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+    })
   }
 ];
