@@ -15,20 +15,17 @@ import {
   Switch,
   Tooltip,
   Spin,
-  FormItemProps,
-  InputNumber
+  FormItemProps
 } from 'antd';
 import debounce from 'lodash/debounce';
+import isEqual from 'lodash/isEqual';
 import get from 'lodash/get';
 import cn from 'classnames';
 // @Components
 import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
 import { EditableList } from 'lib/components/EditableList/EditableList';
 import { CodeEditor } from 'ui/components/CodeEditor/CodeEditor';
-import {
-  CodeDebugger,
-  FormValues as DebuggerFormValues
-} from 'ui/components/CodeDebugger/CodeDebugger';
+import { FormValues as DebuggerFormValues } from 'ui/components/CodeDebugger/CodeDebugger';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
 // @Types
@@ -40,9 +37,8 @@ import { isoDateValidator } from 'utils/validation/validators';
 // @Hooks
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
-import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
-import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
 import BugIcon from 'icons/bug';
+import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
 import { CodeDebuggerModal } from '../CodeDebuggerModal/CodeDebuggerModal';
@@ -78,7 +74,7 @@ const isDebugSupported = function (id) {
 
 const services = ApplicationServices.get();
 
-const ConfigurableFieldsForm = ({
+const ConfigurableFieldsFormComponent = ({
   fieldsParamsList,
   form,
   initialValues,
@@ -104,9 +100,9 @@ const ConfigurableFieldsForm = ({
     '_formData.dbtCause': false
   };
 
-  const handleTouchField = debounce(handleTouchAnyField, 1000);
-
   const forceUpdate = useForceUpdate();
+
+  const handleTouchField = debounce(handleTouchAnyField, 1000);
 
   const handleChangeIntInput = useCallback(
     (id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,7 +165,7 @@ const ConfigurableFieldsForm = ({
   ) => {
     const fieldsValue = form.getFieldsValue();
     const defaultValueToDisplay =
-      form.getFieldValue(id) ||
+      form.getFieldValue(id) ??
       getInitialValue(id, defaultValue, constantValue, type?.typeName);
 
     form.setFieldsValue({ id: defaultValueToDisplay });
@@ -183,7 +179,7 @@ const ConfigurableFieldsForm = ({
             defaultValue={defaultValueToDisplay}
             autoComplete="off"
             iconRender={(visible) =>
-              visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
+              visible ? <EyeOutlined /> : <EyeInvisibleOutlined />
             }
           />
         );
@@ -309,6 +305,7 @@ const ConfigurableFieldsForm = ({
      *
      */
     let formValues = {};
+    const formFields: Parameters<typeof form.setFields>[0] = [];
     fieldsParamsList.forEach((param: Parameter) => {
       let constantValue: any;
       if (typeof param.constant === 'function') {
@@ -323,9 +320,17 @@ const ConfigurableFieldsForm = ({
         constantValue,
         param.type?.typeName
       );
+
       formValues[param.id] = initialValue;
+
+      formFields.push({
+        name: param.id,
+        value: initialValue,
+        touched: false
+      });
     });
-    form.setFieldsValue(formValues);
+    // form.setFieldsValue(formValues);
+    form.setFields(formFields);
 
     /**
      *
@@ -480,7 +485,13 @@ const ConfigurableFieldsForm = ({
   );
 };
 
+const ConfigurableFieldsForm = ConfigurableFieldsFormComponent;
 
-ConfigurableFieldsForm.displayName = 'ConfigurableFieldsForm';
+// const ConfigurableFieldsForm = React.memo(
+//   ConfigurableFieldsFormComponent,
+//   isEqual
+// );
+
+// ConfigurableFieldsForm.displayName = 'ConfigurableFieldsForm';
 
 export { ConfigurableFieldsForm };

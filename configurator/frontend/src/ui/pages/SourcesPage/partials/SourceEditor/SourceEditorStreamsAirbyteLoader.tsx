@@ -20,7 +20,9 @@ type Props = {
   form: FormInstance;
   initialValues: SourceData;
   connectorSource: SourceConnector;
-  handleBringSourceData: () => Promise<SourceData>;
+  handleBringSourceData: (options?: {
+    skipValidation?: boolean;
+  }) => Promise<SourceData>;
 };
 
 const services = ApplicationServices.get();
@@ -48,7 +50,8 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
         'Used SourceEditorStreamsAirbyteLoader component but endpoint for loading streams config not specified in Source Connector'
       );
     if (!isLoadingConfigParameters) {
-      const data = (await handleBringSourceData()).config.config;
+      const data = (await handleBringSourceData({ skipValidation: true }))
+        .config.config;
       const baseUrl = connectorSource.staticStreamsConfigEndpoint;
       const project_id = services.userService.getUser().projects[0].id;
 
