@@ -28,7 +28,7 @@
       ]
     },
     {
-      "name": "Configuration",
+      "name": "Server Configuration",
       "pages": [
         "configuration",
         "destinations-configuration",
