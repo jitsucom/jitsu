@@ -148,33 +148,3 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
     />
   );
 };
-
-/**
- * Deletes previously saved streams (aka collections) if they are not in the new list
- * of static streams.
- *
- * Note: The list of static streams depends on the Connection Parameters config; The
- * list is updated every time user changes the config.
- *
- * @param initialData
- * @returns
- */
-const applyNewAirbyteStreamsToInitialValues = (
-  initialValues: SourceData,
-  newStaticStreams: StreamWithRawData[]
-): SourceData => {
-  if (initialValues.collections) {
-    const allowedNames = new Set(newStaticStreams.map((stream) => stream.name));
-    const collections = initialValues.collections.filter((stream) =>
-      allowedNames.has(stream.name)
-    );
-
-    const updatedInitialValues = cloneDeep(initialValues);
-    updatedInitialValues.collections = newStaticStreams;
-    // updatedInitialValues.collections = collections;
-
-    return updatedInitialValues;
-  }
-
-  return initialValues;
-};

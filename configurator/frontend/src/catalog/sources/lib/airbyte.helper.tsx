@@ -324,39 +324,6 @@ const getEntriesFromOneOfField = (
   });
 };
 
-/**
- * Takes airbyte spec node that has `oneOf` field and returns the
- * list of entries of the form `[selectOptionString, subNode][]`.
- * Fields entries are `[fieldName, fieldNode][]`
- * @param node
- */
-const getOptionNamesAndFieldsEntriesFromOneOfField = (node: unknown) => {
-  const subNodes = node['oneOf'] as any;
-
-  return Object.values(subNodes).map((subNode: any) => {
-    /**
-     * Set subNode type to undefined so that the algorithm further
-     * recognise the node as the `oneOf` node. Refer to `isSubNodeOf_oneOf` for implementation.
-     */
-    subNode['type'] = undefined;
-
-    /**
-     * Get the entries of a subNode.
-     * One of the entries represents the select option.
-     * The rest of the nodes are just regular fields which should conditionally
-     * render only if corresponding select option is chosen by user.
-     */
-    const propertiesEntries = Object.entries(subNode['properties']);
-
-    /**
-     * Find the node that has a non-empty `const` field. The value of this field is the name for the select option.
-     */
-    const [selectOptionNodeName, selectOptionNode] = propertiesEntries.find(
-      ([_, node]: [any, any]) => !!node.const
-    );
-  });
-};
-
 const isSubNodeOf_oneOf = (node: any): boolean => node.type === undefined;
 
 
