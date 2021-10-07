@@ -1,6 +1,7 @@
 // @Libs
-import { useEffect, useState, FC } from 'react';
-import { Card, Col, Row, Spin } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Col, Row } from 'antd';
+import isEqual from 'lodash/isEqual';
 // @Types
 import { Parameter, SourceConnector } from 'catalog/sources/types';
 // @Services
@@ -25,7 +26,7 @@ type Props = {
   enableFormControls?: VoidFunction;
 };
 
-export const LoadableFieldsForm = ({
+const LoadableFieldsFormComponent = ({
   sourceReference,
   form,
   initialValues,
@@ -159,3 +160,11 @@ export const LoadableFieldsForm = ({
     />
   );
 };
+
+const LoadableFieldsForm = LoadableFieldsFormComponent;
+
+// const LoadableFieldsForm = React.memo(LoadableFieldsFormComponent, isEqual);
+
+// LoadableFieldsForm.displayName = 'LoadableFieldsForm';
+
+export { LoadableFieldsForm };
