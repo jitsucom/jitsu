@@ -105,7 +105,7 @@ const SourceEditorComponent = ({
           isCreateForm={editorMode === 'add'}
           initialValues={sourceData.current}
           sources={sourcesStore.sources}
-          handleTouchAnyField={createTouchField(0)}
+          handleTouchAnyField={handleTouchAnyFieldEditor}
           disableFormControls={handleDisableFormControls}
           enableFormControls={handleEnableFormControls}
         />
@@ -129,7 +129,7 @@ const SourceEditorComponent = ({
             form={form}
             initialValues={sourceData.current}
             connectorSource={connectorSource}
-            handleTouchAnyField={createTouchField(1)}
+            handleTouchAnyField={handleTouchAnyFieldStreams}
           />
         ),
       form: Form.useForm()[0],
@@ -143,7 +143,7 @@ const SourceEditorComponent = ({
         <SourceEditorDestinations
           form={form}
           initialValues={sourceData.current}
-          handleTouchAnyField={createTouchField(2)}
+          handleTouchAnyField={handleTouchAnyFieldDestinations}
         />
       ),
       form: Form.useForm()[0],
@@ -152,11 +152,20 @@ const SourceEditorComponent = ({
     }
   ]);
 
-  const createTouchField = (index: number) => (value: boolean) => {
-    const tab = sourcesTabs.current[index];
-
+  const handleTouchAnyFieldEditor = useCallback((value: boolean) => {
+    const tab = sourcesTabs.current[0];
     tab.touched = value === undefined ? true : value;
-  };
+  }, []);
+
+  const handleTouchAnyFieldStreams = useCallback((value: boolean) => {
+    const tab = sourcesTabs.current[1];
+    tab.touched = value === undefined ? true : value;
+  }, []);
+
+  const handleTouchAnyFieldDestinations = useCallback((value: boolean) => {
+    const tab = sourcesTabs.current[2];
+    tab.touched = value === undefined ? true : value;
+  }, []);
 
   const handleDisableFormControls = useCallback(() => {
     setControlsDisabled(true);
@@ -177,13 +186,16 @@ const SourceEditorComponent = ({
     [history]
   );
 
-  const handleBringSourceData = (): Promise<SourceData> => {
+  const handleBringSourceData = (options?: {
+    skipValidation?: boolean;
+  }): Promise<SourceData> => {
     return sourcePageUtils.bringSourceData({
       sourcesTabs: sourcesTabs.current,
       sourceData: sourceData.current,
       forceUpdate,
       options: {
-        omitEmptyValues: connectorSource.protoType === 'airbyte'
+        omitEmptyValues: connectorSource.protoType === 'airbyte',
+        skipValidation: options?.skipValidation ?? false
       }
     });
   };
