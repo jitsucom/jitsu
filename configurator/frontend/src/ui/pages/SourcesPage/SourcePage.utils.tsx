@@ -65,21 +65,24 @@ const sourcePageUtils = {
     forceUpdate: any;
     options?: {
       omitEmptyValues?: boolean;
+      skipValidation?: boolean;
     };
   }) => {
     return Promise.all(
       sourcesTabs.map((tab: Tab) =>
-        validateTabForm(tab, {
-          forceUpdate,
-          beforeValidate: () => (tab.errorsCount = 0),
-          errorCb: (errors) => (tab.errorsCount = errors.errorFields?.length)
-        })
+        options?.skipValidation
+          ? tab.form.getFieldsValue()
+          : validateTabForm(tab, {
+              forceUpdate,
+              beforeValidate: () => (tab.errorsCount = 0),
+              errorCb: (errors) =>
+                (tab.errorsCount = errors.errorFields?.length)
+            })
       )
     ).then(
       (
         allValues: [{ [key: string]: string }, CollectionSource[], string[]]
       ) => {
-        debugger;
         const enrichedData = {
           ...sourceData,
           ...allValues.reduce((result: any, current: any) => {
@@ -105,8 +108,6 @@ const sourcePageUtils = {
             }
           );
         }
-
-        debugger;
 
         return enrichedData;
       }
