@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	serviceName = "Jitsu-Configurator"
+	serviceName           = "Jitsu-Configurator"
 	jitsuServerDefaultUrl = "http://host.docker.internal:8001"
 )
 
@@ -53,9 +53,9 @@ var (
 	builtAt string
 )
 
-type Version struct{
-	version string `json:"version"`
-	builtAt string `json:"builtAt"`
+type Version struct {
+	Version string `json:"version"`
+	BuiltAt string `json:"builtAt"`
 }
 
 func main() {
