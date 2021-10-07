@@ -17,7 +17,7 @@ var DefaultHTTPConfiguration = &adapters.HTTPConfiguration{
 	RetryCount:                9,
 	ClientMaxIdleConns:        1000,
 	ClientMaxIdleConnsPerHost: 1000,
-	QueueFullnessThreshold:    10_000,
+	QueueFullnessThreshold:    50_000, //assume that JSON event consumes 2KB => inmemory queue will max 200MB
 }
 
 //WebHook is a destination that can send configurable HTTP requests
