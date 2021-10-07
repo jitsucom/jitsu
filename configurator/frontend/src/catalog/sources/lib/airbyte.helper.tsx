@@ -161,9 +161,9 @@ const mapAirbyteSpecNode = function mapSpecNode(
       } else if (specNode['oneOf']) {
         // this is a rare case, see the Postgres source spec for an example
         optionsEntries = getEntriesFromOneOfField(specNode, nodeName);
-        const optionsFieldName = Object.keys(
+        const [optionsFieldName] = Object.entries(
           optionsEntries[0][1]['properties']
-        )[0];
+        ).find(([fieldName, fieldNode]) => !!fieldNode['const']);
         const options = optionsEntries.map(
           ([_, childNode]) =>
             childNode['properties']?.[optionsFieldName]?.['const']
@@ -231,7 +231,7 @@ const mapAirbyteSpecNode = function mapSpecNode(
             setChildrenParameters
           })
         );
-      } else {
+      } else if (isSubNodeOf_oneOf(specNode)) {
         // Special case for the nodes from the `oneOf` list in the `object` node
         const childrenNodesEntries = Object.entries(
           specNode['properties']
@@ -239,11 +239,12 @@ const mapAirbyteSpecNode = function mapSpecNode(
           ([_, nodeA], [__, nodeB]) => nodeA?.['order'] - nodeB?.['order']
         );
 
-        const parentNodeValueProperty = childrenNodesEntries[0][0];
+        const [parentNodeValueProperty, selectValueNode] =
+          childrenNodesEntries.find(([_, node]) => !!node['const']);
         const parentNodeValueKey = `${parentNode.id}.${parentNodeValueProperty}`;
         const _listOfRequiredFields: string[] = specNode['required'] || [];
         childrenNodesEntries
-          .slice(1) // Ecludes the first entry as it is a duplicate definition of the parent node
+          .filter(([_, node]) => !node['const']) // Ecludes the entry with the select option value
           .forEach(([nodeName, node]) =>
             result.push(
               ...mapSpecNode(node, {
@@ -255,7 +256,7 @@ const mapAirbyteSpecNode = function mapSpecNode(
                     .split('.')
                     .reduce((obj, key) => obj[key] || {}, config);
                   const showChildFieldIfThisParentValueSelected =
-                    childrenNodesEntries[0][1]?.['const'];
+                    selectValueNode?.['const'];
                   return (
                     parentSelectionNodeValue !==
                     showChildFieldIfThisParentValueSelected
@@ -313,29 +314,49 @@ const getEntriesFromOneOfField = (
 ): [string, object][] => {
   const subNodes = node['oneOf'] as unknown;
 
-  return Object.entries(subNodes).map(([idx, subNode]) => [
-    `${nodeName}-option-${idx}`,
-    subNode
-  ]);
+  return Object.entries(subNodes).map(([idx, subNode]) => {
+    /**
+     * Set subNode type to undefined so that the algorithm further
+     * recognise the node as the `oneOf` node. Refer to `isSubNodeOf_oneOf` for implementation.
+     */
+    const newSubNode = { ...subNode, type: undefined };
+    return [`${nodeName}-option-${idx}`, newSubNode];
+  });
 };
 
 /**
- *
- *
- * Airbyte Sources Streams Mapping
+ * Takes airbyte spec node that has `oneOf` field and returns the
+ * list of entries of the form `[selectOptionString, subNode][]`.
+ * Fields entries are `[fieldName, fieldNode][]`
+ * @param node
  */
+const getOptionNamesAndFieldsEntriesFromOneOfField = (node: unknown) => {
+  const subNodes = node['oneOf'] as any;
 
-/**
- *
- */
-export const mapAirbyteStreamsToCollections = (
-  streams: unknown[]
-): CollectionParameter[] => {
-  return [];
+  return Object.values(subNodes).map((subNode: any) => {
+    /**
+     * Set subNode type to undefined so that the algorithm further
+     * recognise the node as the `oneOf` node. Refer to `isSubNodeOf_oneOf` for implementation.
+     */
+    subNode['type'] = undefined;
+
+    /**
+     * Get the entries of a subNode.
+     * One of the entries represents the select option.
+     * The rest of the nodes are just regular fields which should conditionally
+     * render only if corresponding select option is chosen by user.
+     */
+    const propertiesEntries = Object.entries(subNode['properties']);
+
+    /**
+     * Find the node that has a non-empty `const` field. The value of this field is the name for the select option.
+     */
+    const [selectOptionNodeName, selectOptionNode] = propertiesEntries.find(
+      ([_, node]: [any, any]) => !!node.const
+    );
+  });
 };
 
-const mapAirbyteStream = function mapStream(
-  stream: unknown
-): CollectionParameter {
-  return null;
-};
+const isSubNodeOf_oneOf = (node: any): boolean => node.type === undefined;
+
+
