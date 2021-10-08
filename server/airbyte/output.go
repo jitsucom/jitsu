@@ -71,7 +71,7 @@ type Stream struct {
 	Namespace               string     `json:"namespace,omitempty"`
 }
 
-//Stream is a dto for Airbyte catalog Schema object serialization
+//Schema is a dto for Airbyte catalog Schema object serialization
 type Schema struct {
 	Properties map[string]*base.Property `json:"properties,omitempty"`
 }
