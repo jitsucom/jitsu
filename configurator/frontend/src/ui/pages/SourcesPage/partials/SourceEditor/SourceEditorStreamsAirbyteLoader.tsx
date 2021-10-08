@@ -35,9 +35,12 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
   const pollingInstance = useRef<null | Poll>(null);
   const { isLoadingConfigParameters } = useSourceEditorSyncContext();
 
-  const formLoadedForTheFirstTime: boolean = !initialValues.catalog?.streams;
+  const formLoadedForTheFirstTime: boolean =
+    !initialValues.config?.catalog?.streams && !initialValues.catalog?.streams;
   const previouslyCheckedStreams: AirbyteStreamData[] =
-    initialValues.catalog?.streams ?? [];
+    initialValues.config?.catalog?.streams ??
+    initialValues.catalog?.streams ??
+    [];
 
   const cancelPolling = () => {
     pollingInstance.current?.cancel();

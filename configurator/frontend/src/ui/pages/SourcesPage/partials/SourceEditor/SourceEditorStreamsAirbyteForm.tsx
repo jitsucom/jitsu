@@ -12,12 +12,16 @@ interface Props {
   selectAllFieldsByDefault?: boolean;
 }
 
+const CATALOG_FIELD_PATH = 'config.catalog';
+
 const setAirbyteStreamsFormValues = (
   form: FormInstance,
   valuesToSet: AirbyteStreamData[]
 ): void => {
-  const values = form.getFieldsValue();
-  form.setFieldsValue({ catalog: { streams: valuesToSet } });
+  const values = form.getFieldValue(CATALOG_FIELD_PATH);
+  form.setFieldsValue({
+    [CATALOG_FIELD_PATH]: { ...values, streams: valuesToSet }
+  });
 };
 
 const addStreamInForm = (
@@ -25,8 +29,14 @@ const addStreamInForm = (
   streamToAdd: AirbyteStreamData
 ): void => {
   const values = form.getFieldsValue();
-  const selectedStreams = [...(values?.catalog?.streams ?? []), streamToAdd];
-  form.setFieldsValue({ ...values, catalog: { streams: selectedStreams } });
+  const selectedStreams = [
+    ...(values?.[CATALOG_FIELD_PATH]?.streams ?? []),
+    streamToAdd
+  ];
+  form.setFieldsValue({
+    ...values,
+    [CATALOG_FIELD_PATH]: { streams: selectedStreams }
+  });
   console.log('Added', form.getFieldsValue());
 };
 
@@ -34,17 +44,17 @@ const updateStreamValuesInForm = (
   form: FormInstance,
   updatedStreamData: AirbyteStreamData
 ): void => {
-  const updatedStreams = (form.getFieldsValue()?.catalog?.streams ?? []).map(
-    (streamData) => {
-      if (
-        streamData.stream.name === updatedStreamData.stream ||
-        streamData.stream.namespace === updatedStreamData.stream.namespace
-      ) {
-        return updatedStreamData;
-      }
-      return streamData;
+  const updatedStreams = (
+    form.getFieldsValue()?.[CATALOG_FIELD_PATH]?.streams ?? []
+  ).map((streamData) => {
+    if (
+      streamData.stream.name === updatedStreamData.stream ||
+      streamData.stream.namespace === updatedStreamData.stream.namespace
+    ) {
+      return updatedStreamData;
     }
-  );
+    return streamData;
+  });
 
   setAirbyteStreamsFormValues(form, updatedStreams);
 };
@@ -54,14 +64,17 @@ const deleteStreamFromForm = (
   streamToDelete: AirbyteStreamData
 ): void => {
   const values = form.getFieldsValue();
-  const selectedStreams = (values?.catalog?.streams ?? []).filter(
+  const selectedStreams = (values?.[CATALOG_FIELD_PATH]?.streams ?? []).filter(
     (selectedStream) =>
       !(
         selectedStream.stream.name === streamToDelete.stream.name &&
         selectedStream.stream.namespace === streamToDelete.stream.namespace
       )
   );
-  form.setFieldsValue({ ...values, catalog: { streams: selectedStreams } });
+  form.setFieldsValue({
+    ...values,
+    [CATALOG_FIELD_PATH]: { streams: selectedStreams }
+  });
 };
 
 const SourceEditorStreamsAirbyteForm = ({
@@ -114,8 +127,6 @@ const SourceEditorStreamsAirbyteForm = ({
       ? allStreams
       : initiallySelectedStreams;
     setAirbyteStreamsFormValues(form, initialValues);
-
-    console.log('Initialized. Values: ', form.getFieldsValue());
   }, []);
 
   return (
@@ -131,7 +142,7 @@ const SourceEditorStreamsAirbyteForm = ({
           {/**
            * An empty form used to register the catalog field
            */}
-          <Form.Item name="catalog" />
+          <Form.Item name={CATALOG_FIELD_PATH} />
         </Form>
         {streamsToDisplay?.length ? (
           <Collapse
