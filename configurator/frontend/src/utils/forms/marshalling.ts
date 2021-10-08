@@ -1,6 +1,17 @@
 import { isNullOrUndef } from 'lib/commons/utils';
 import isArray from 'lodash/isArray';
+import isObject from 'lodash/isObject';
 import set from 'lodash/set';
+
+const mapFieldValueArray = (array: Array<unknown>) => {
+  return array.map((value) =>
+    isArray(value)
+      ? mapFieldValueArray(value)
+      : isObject(value)
+      ? makeObjectFromFieldsValues(value)
+      : value
+  );
+};
 
 const makeObjectFromFieldsValues = <F = any>(
   fields: any,
@@ -14,13 +25,14 @@ const makeObjectFromFieldsValues = <F = any>(
       set(accumulator, current, value === 'null' ? null : value);
     } else if (typeof value === 'object') {
       if (isArray(value)) {
-        set(
-          accumulator,
-          current,
-          value.map((f) =>
-            typeof f === 'object' ? makeObjectFromFieldsValues(f) : f
-          )
-        );
+        set(accumulator, current, mapFieldValueArray(value));
+        // set(
+        //   accumulator,
+        //   current,
+        //   value.map((f) =>
+        //     typeof f === 'object' ? makeObjectFromFieldsValues(f) : f
+        //   )
+        // );
       } else if (value != null) {
         set(accumulator, current, makeObjectFromFieldsValues(value));
       }

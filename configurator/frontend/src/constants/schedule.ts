@@ -5,8 +5,8 @@ export type CollectionSchedule = {
 }
 
 export const COLLECTIONS_SCHEDULES: CollectionSchedule[] = [
-  { value: '@daily', label: '1 day', id: '1d' },
-  { value: '@hourly', label: '1 hour', id: '5h' },
+  { value: '@daily', label: 'Once a day', id: '1d' },
+  { value: '@hourly', label: 'Once an hour', id: '1h' },
   { value: '*/5 * * * *', label: '5 minutes', id: '5m' },
-  { value: '*/1 * * * *', label: '1 minute', id: '1m' },
+  { value: '*/1 * * * *', label: '1 minute', id: '1m' }
 ];
