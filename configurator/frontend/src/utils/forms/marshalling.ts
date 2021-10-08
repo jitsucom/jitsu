@@ -26,6 +26,13 @@ const makeObjectFromFieldsValues = <F = any>(
     } else if (typeof value === 'object') {
       if (isArray(value)) {
         set(accumulator, current, mapFieldValueArray(value));
+        // set(
+        //   accumulator,
+        //   current,
+        //   value.map((f) =>
+        //     typeof f === 'object' ? makeObjectFromFieldsValues(f) : f
+        //   )
+        // );
       } else if (value != null) {
         set(accumulator, current, makeObjectFromFieldsValues(value));
       }
