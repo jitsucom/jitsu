@@ -68,7 +68,7 @@ those variables will not work!
     Do not forget to <code inline={true}>chmod 777 /local_logs_mount</code> if you're mounting
     <code inline={true}>/home/eventnative/data/logs/</code>
     <br /><br />
-    Create <code inline={true}>jitsu_workspace</code> (docker volume create --name jitsu_workspace) volume and mount as well as <code inline={true}>/var/run/docker.sock</code> if you want <a href="/docs/sources-configuration/airbyte">Airbyte based connectors</a> to work
+    Do mount <code inline={true}>jitsu_workspace</code> and <code inline={true}>/var/run/docker.sock</code> if you want <a href="/docs/sources-configuration/airbyte">Airbyte based connectors</a> to work
 </Hint>
 
 
@@ -99,8 +99,7 @@ those variables will not work!
         <i>(optional)</i>
       </td>
       <td>
-        Required for <a href="/docs/sources-configuration/airbyte">Airbyte connectors</a> support. Mount to <code inline={true}>/home/eventnative/data/airbyte</code>
-        (with <code inline={true}>-v jitsu_workspace:/home/eventnative/data/airbyte</code>). Name <code inline={true}>jitsu_workspace</code> should be exactly this.
+        Required for <a href="/docs/sources-configuration/airbyte">Airbyte connectors</a> support. Mount with <code inline={true}>-v jitsu_workspace:/home/eventnative/data/airbyte</code>). Name <code inline={true}>jitsu_workspace</code> should be exactly this.
       </td>
     </tr>
     <tr>
