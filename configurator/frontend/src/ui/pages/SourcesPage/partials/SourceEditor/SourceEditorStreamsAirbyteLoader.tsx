@@ -43,7 +43,8 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
   const {
     isLoading: isLoadingAirbyteStreams,
     data: airbyteStreamsLoadedData,
-    error: airbyteStreamsLoadError
+    error: airbyteStreamsLoadError,
+    reloader: reloadStreams
   } = useLoaderAsObject<AirbyteStreamData[]>(async () => {
     if (!connectorSource.staticStreamsConfigEndpoint)
       throw new Error(
@@ -109,6 +110,13 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
       return streams;
     }
   }, [isLoadingConfigParameters]);
+
+  // useEffect(() => {
+  //   if (airbyteStreamsLoadError) {
+  //     pollingInstance.current?.cancel();
+  //     reloadStreams();
+  //   }
+  // });
 
   useEffect(
     () => () => {
