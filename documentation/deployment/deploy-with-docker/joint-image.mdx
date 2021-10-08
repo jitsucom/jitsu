@@ -82,6 +82,15 @@ under `/configurator` path
         </td>
     </tr>
     <tr>
+      <td>
+        <b><code inline={true}>/home/eventnative/data/airbyte</code></b><br />
+        <i>(optional)</i>
+      </td>
+      <td>
+        Required for <a href="/docs/sources-configuration/airbyte">Airbyte connectors</a> support. Mount with <code inline={true}>-v jitsu_workspace:/home/eventnative/data/airbyte</code>). Name <code inline={true}>jitsu_workspace</code> should be exactly this.
+      </td>
+    </tr>
+    <tr>
         <td>
             <b><code inline={true}>/var/run/docker.sock</code></b><br />
             <i>(optional)</i>

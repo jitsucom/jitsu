@@ -87,18 +87,32 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 		return nil, fmt.Errorf("Error parsing airbyte initial state [%v]: %v", config.InitialState, err)
 	}
 
+	var streamsRepresentation map[string]*base.StreamRepresentation
+	streamTableNameMapping := map[string]string{}
 	catalogDiscovered := atomic.NewBool(false)
 	if catalogPath != "" {
 		catalogDiscovered.Store(true)
+
+		//parse streams from config
+		streamsRepresentation, err = parseFormattedCatalog(config.Catalog)
+		if err != nil {
+			return nil, fmt.Errorf("Error parse formatted catalog: %v", err)
+		}
+
+		for streamName := range streamsRepresentation {
+			streamTableNameMapping[streamName] = config.StreamTableNamesPrefix + streamName
+		}
 	}
 
 	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, config.DockerImage, configPath, catalogPath, "", statePath,
 		config.StreamTableNamesPrefix, pathToConfigs, config.StreamTableNames)
 	s := &Airbyte{
-		pathToConfigs:     pathToConfigs,
-		catalogDiscovered: catalogDiscovered,
+		pathToConfigs:         pathToConfigs,
+		catalogDiscovered:     catalogDiscovered,
+		streamsRepresentation: streamsRepresentation,
 	}
 	s.AbstractCLIDriver = *abstract
+	s.AbstractCLIDriver.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
 
 	safego.Run(s.EnsureCatalog)
 
@@ -273,7 +287,6 @@ func (a *Airbyte) Type() string {
 }
 
 //doDiscover discovers source catalog
-//makes streams {"selected": true}
 //reformat catalog to airbyte format
 //returns catalog
 func (a *Airbyte) doDiscover() (string, map[string]*base.StreamRepresentation, error) {
@@ -288,7 +301,7 @@ func (a *Airbyte) doDiscover() (string, map[string]*base.StreamRepresentation, e
 		return "", nil, fmt.Errorf("Error airbyte --discover: %v. %s", err, errStrWriter.String())
 	}
 
-	catalog, streamsRepresentation, err := parseCatalog(a.GetTap(), outWriter)
+	catalog, streamsRepresentation, err := parseUnformattedCatalog(a.GetTap(), outWriter)
 	if err != nil {
 		return "", nil, err
 	}
