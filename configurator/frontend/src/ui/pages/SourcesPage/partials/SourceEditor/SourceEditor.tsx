@@ -304,13 +304,27 @@ const SourceEditorComponent = ({
               onTabChange={setActiveTabKey}
               tabBarExtraContent={
                 <span className="uppercase">
-                  <NavLink to={                      generatePath(taskLogsPageRoute, { sourceId })
-                  }>View Logs</NavLink>
+                  {editorMode === 'edit' && (
+                    <NavLink
+                      to={generatePath(taskLogsPageRoute, {
+                        sourceId: sourceId ?? connectorSource.id ?? 'not_found'
+                      })}
+                    >
+                      View Logs
+                    </NavLink>
+                  )}
+                  {editorMode === 'edit' && connectorSource?.documentation && (
+                    <>
+                      {' '}
+                      <span className="text-link text-xl">•</span>{' '}
+                    </>
+                  )}
                   {connectorSource?.documentation && (
-                    <> <span className="text-link text-xl">•</span> <a
-                      onClick={() => setDocumentationVisible(true)}
-                    >Documentation
-                    </a></>
+                    <>
+                      <a onClick={() => setDocumentationVisible(true)}>
+                        Documentation
+                      </a>
+                    </>
                   )}
                 </span>
               }

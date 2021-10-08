@@ -1,5 +1,6 @@
 // @Libs
 import snakeCase from 'lodash/snakeCase';
+import merge from 'lodash/merge';
 // @Types
 import { SourceConnector } from 'catalog/sources/types';
 // @Utils
@@ -86,12 +87,12 @@ const sourcePageUtils = {
         const enrichedData = {
           ...sourceData,
           ...allValues.reduce((result: any, current: any) => {
-            return {
-              ...result,
-              ...makeObjectFromFieldsValues(current, {
+            return merge(
+              result,
+              makeObjectFromFieldsValues(current, {
                 omitEmptyValues: options?.omitEmptyValues
               })
-            };
+            );
           }, {})
         };
 
@@ -123,7 +124,7 @@ const sourcePageUtils = {
 
       if (response['status'] === 'pending') {
         closeableMessage.loading(
-          'Please, allow some time for the Singer tap installation to complete. Once the tap is installed, we will test the connection and send a push notification with the result.'
+          'Please, allow some time for the connector source installation to complete. Once the connector source is installed, we will test the connection and send a push notification with the result.'
         );
 
         connectionTestMessagePrefix = `Source ${src.sourceId} connection test result: `;

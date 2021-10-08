@@ -4,8 +4,7 @@ import { useLoaderAsObject } from 'hooks/useLoader';
 import { ErrorCard } from 'lib/components/ErrorCard/ErrorCard';
 import { LoadableFieldsLoadingMessageCard } from 'lib/components/LoadingFormCard/LoadingFormCard';
 import ApplicationServices from 'lib/services/ApplicationServices';
-import { cloneDeep } from 'lodash';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Poll } from 'utils/polling';
 import { withQueryParams } from 'utils/queryParams';
 import {
@@ -36,20 +35,31 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
   const pollingInstance = useRef<null | Poll>(null);
   const { isLoadingConfigParameters } = useSourceEditorSyncContext();
 
-  const formLoadedForTheFirstTime: boolean = !initialValues.catalog?.streams;
+  const formLoadedForTheFirstTime: boolean =
+    !initialValues.config?.catalog?.streams && !initialValues.catalog?.streams;
   const previouslyCheckedStreams: AirbyteStreamData[] =
-    initialValues.catalog?.streams ?? [];
+    initialValues.config?.catalog?.streams ??
+    initialValues.catalog?.streams ??
+    [];
+
+  const cancelPolling = () => {
+    pollingInstance.current?.cancel();
+    pollingInstance.current = null;
+  };
 
   const {
     isLoading: isLoadingAirbyteStreams,
     data: airbyteStreamsLoadedData,
-    error: airbyteStreamsLoadError
+    error: airbyteStreamsLoadError,
+    reloader: reloadAirbyteStreams
   } = useLoaderAsObject<AirbyteStreamData[]>(async () => {
     if (!connectorSource.staticStreamsConfigEndpoint)
       throw new Error(
         'Used SourceEditorStreamsAirbyteLoader component but endpoint for loading streams config not specified in Source Connector'
       );
     if (!isLoadingConfigParameters) {
+      cancelPolling();
+
       const data = (await handleBringSourceData({ skipValidation: true }))
         .config.config;
       const baseUrl = connectorSource.staticStreamsConfigEndpoint;
@@ -72,6 +82,8 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
 
       poll.start();
       const response = await poll.wait();
+
+      if (!response) return [];
 
       assertIsObject(response);
       assertIsObject(response.catalog);
@@ -110,12 +122,27 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
     }
   }, [isLoadingConfigParameters]);
 
-  useEffect(
-    () => () => {
-      pollingInstance.current?.cancel();
-    },
-    []
-  );
+  useEffect(() => () => cancelPolling(), []);
+
+  /**
+   * The following statements implement the opposite useEffect.
+   * The last useEffect will run only if neither of `isLoadingAirbyteStreams`,
+   * `airbyteStreamsLoadError`, `airbyteStreamsLoadedData` has changed;
+   */
+
+  let shouldReload = true;
+
+  useEffect(() => {
+    shouldReload = false;
+  }, [
+    isLoadingAirbyteStreams,
+    airbyteStreamsLoadError,
+    airbyteStreamsLoadedData
+  ]);
+
+  useEffect(() => {
+    shouldReload && !isLoadingAirbyteStreams && reloadAirbyteStreams();
+  });
 
   return airbyteStreamsLoadError ? (
     <Row>
