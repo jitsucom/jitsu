@@ -143,7 +143,8 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 	return nil
 }
 
-func parseCatalog(dockerImage string, outWriter *logging.StringWriter) ([]byte, map[string]*base.StreamRepresentation, error) {
+//parseUnformattedCatalog parses raw catalog which was taken from Airbyte discover
+func parseUnformattedCatalog(dockerImage string, outWriter *logging.StringWriter) ([]byte, map[string]*base.StreamRepresentation, error) {
 	parsedRow, err := airbyte.Instance.ParseCatalogRow(outWriter)
 	if err != nil {
 		return nil, nil, err
@@ -190,6 +191,44 @@ func parseCatalog(dockerImage string, outWriter *logging.StringWriter) ([]byte, 
 	b, _ := json.MarshalIndent(formattedCatalog, "", "    ")
 
 	return b, streamsRepresentation, nil
+}
+
+//parseFormattedCatalog parses formatted catalog from (UI/input)
+func parseFormattedCatalog(catalogIface interface{}) (map[string]*base.StreamRepresentation, error) {
+	b, _ := json.Marshal(catalogIface)
+	catalog := &airbyte.Catalog{}
+	if err := json.Unmarshal(b, catalog); err != nil {
+		return nil, fmt.Errorf("can't unmarshal into airbyte.Catalog{}: %v", err)
+	}
+
+	streamsRepresentation := map[string]*base.StreamRepresentation{}
+	for _, stream := range catalog.Streams {
+		var keyFields []string
+		for _, sourceDefinedPrimaryKeys := range stream.Stream.SourceDefinedPrimaryKey {
+			if len(sourceDefinedPrimaryKeys) > 0 {
+				keyFields = sourceDefinedPrimaryKeys
+			}
+		}
+
+		//streams schema representation
+		streamSchema := schema.Fields{}
+		base.ParseProperties(base.AirbyteType, "", stream.Stream.JsonSchema.Properties, streamSchema)
+
+		streamsRepresentation[stream.Stream.Name] = &base.StreamRepresentation{
+			Namespace:  stream.Stream.Namespace,
+			StreamName: stream.Stream.Name,
+			BatchHeader: &schema.BatchHeader{
+				TableName: stream.Stream.Name,
+				Fields:    streamSchema,
+			},
+			KeyFields: keyFields,
+			Objects:   []map[string]interface{}{},
+			//Set need clean only if full refresh => table will be truncated before data storing
+			NeedClean: stream.SyncMode == syncModeFullRefresh,
+		}
+	}
+
+	return streamsRepresentation, nil
 }
 
 //getSyncMode returns incremental if supported
