@@ -1,3 +1,4 @@
+import { generatePath, NavLink } from 'react-router-dom';
 // @Libs
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Prompt, Redirect, useHistory, useParams } from 'react-router-dom';
@@ -39,6 +40,7 @@ import styles from './SourceEditor.module.less';
 import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOutlined';
 import { WithSourceEditorSyncContext } from './SourceEditorSyncContext';
 import { SourceEditorStreamsAirbyteLoader } from './SourceEditorStreamsAirbyteLoader';
+import { taskLogsPageRoute } from '../../../TaskLogs/TaskLogsPage';
 
 export type SourceTabKey = 'config' | 'streams' | 'destinations';
 
@@ -50,8 +52,7 @@ const SourceEditorComponent = ({
 
   const forceUpdate = useForceUpdate();
 
-  const params =
-    useParams<{ source?: string; sourceId?: string; tabName?: string }>();
+  const { source, sourceId } = useParams<{ source?: string; sourceId?: string; tabName?: string }>();
 
   const [sourceSaving, setSourceSaving] = useState<boolean>(false);
   const [savePopover, switchSavePopover] = useState<boolean>(false);
@@ -66,31 +67,31 @@ const SourceEditorComponent = ({
   const [documentationVisible, setDocumentationVisible] = useState(false);
 
   const connectorSource = useMemo<SourceConnector>(() => {
-    let sourceType = params.source
-      ? params.source
-      : params.sourceId
-      ? sourcesStore.sources.find((src) => src.sourceId === params.sourceId)
+    let sourceType = source
+      ? source
+      : sourceId
+        ? sourcesStore.sources.find((src) => src.sourceId === sourceId)
           ?.sourceProtoType
-      : undefined;
+        : undefined;
 
     return sourceType
       ? allSources.find(
-          (source: SourceConnector) =>
-            snakeCase(source.id) === snakeCase(sourceType)
-        )
+        (source: SourceConnector) =>
+          snakeCase(source.id) === snakeCase(sourceType)
+      )
       : undefined;
-  }, [params.source, params.sourceId]);
+  }, [source, sourceId]);
 
   const sourceData = useRef<SourceData>(
-    sourcesStore.sources.find((src) => src.sourceId === params.sourceId) ??
+    sourcesStore.sources.find((src) => src.sourceId === sourceId) ??
       ({
         sourceId: sourcePageUtils.getSourceId(
-          params.source,
+          source,
           sourcesStore.sources.map((src) => src.sourceId)
         ),
         connected: false,
         sourceType: sourcePageUtils.getSourceType(connectorSource),
-        sourceProtoType: snakeCase(params.source)
+        sourceProtoType: snakeCase(source)
       } as SourceData)
   );
 
@@ -203,7 +204,7 @@ const SourceEditorComponent = ({
   const handleTestConnection = () => {
     setTestConnecting(true);
     handleBringSourceData()
-      .then(async (response: SourceData) => {
+      .then(async(response: SourceData) => {
         sourceData.current = response;
 
         const testConnectionResults = await sourcePageUtils.testConnection(
@@ -224,7 +225,7 @@ const SourceEditorComponent = ({
     setSourceSaving(true);
 
     handleBringSourceData()
-      .then(async (response: SourceData) => {
+      .then(async(response: SourceData) => {
         sourceData.current = response;
 
         const testConnectionResults = await sourcePageUtils.testConnection(
@@ -302,15 +303,16 @@ const SourceEditorComponent = ({
               activeTabKey={activeTabKey}
               onTabChange={setActiveTabKey}
               tabBarExtraContent={
-                connectorSource?.documentation && (
-                  <Button
-                    type="link"
-                    icon={<QuestionCircleOutlined />}
-                    onClick={() => setDocumentationVisible(true)}
-                  >
-                    Documentation
-                  </Button>
-                )
+                <span className="uppercase">
+                  <NavLink to={                      generatePath(taskLogsPageRoute, { sourceId })
+                  }>View Logs</NavLink>
+                  {connectorSource?.documentation && (
+                    <> <span className="text-link text-xl">•</span> <a
+                      onClick={() => setDocumentationVisible(true)}
+                    >Documentation
+                    </a></>
+                  )}
+                </span>
               }
             />
           </WithSourceEditorSyncContext>
