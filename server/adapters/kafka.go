@@ -71,7 +71,7 @@ func (k *Kafka) BulkInsert(table *Table, objects []map[string]interface{}) error
 	return k.sendObjects(table.Name, objects)
 }
 
-func (k *Kafka) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+func (k *Kafka) BulkUpdate(table *Table, objects []map[string]interface{}, _ *DeleteConditions) error {
 	return k.sendObjects(table.Name, objects)
 }
 
@@ -87,12 +87,12 @@ func (k *Kafka) GetTableSchema(tableName string) (*Table, error) {
 }
 
 //CreateTable empty implementation
-func (k *Kafka) CreateTable(schemaToCreate *Table) error {
+func (k *Kafka) CreateTable(*Table) error {
 	return nil
 }
 
 //PatchTableSchema empty implementation
-func (k *Kafka) PatchTableSchema(schemaToAdd *Table) error {
+func (k *Kafka) PatchTableSchema(*Table) error {
 	return nil
 }
 
@@ -126,6 +126,6 @@ func (k *Kafka) sendObjects(topic string, objects []map[string]interface{}) erro
 }
 
 //Truncate empty implementation
-func (k *Kafka) Truncate(tableName string) error {
+func (k *Kafka) Truncate(string) error {
 	return nil
 }
