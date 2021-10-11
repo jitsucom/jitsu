@@ -2,7 +2,7 @@ import { generatePath, NavLink } from 'react-router-dom';
 // @Libs
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Prompt, Redirect, useHistory, useParams } from 'react-router-dom';
-import { Button, Collapse, Drawer, Form } from 'antd';
+import { Collapse, Drawer, Form } from 'antd';
 import { observer } from 'mobx-react-lite';
 import cn from 'classnames';
 import snakeCase from 'lodash/snakeCase';
@@ -17,9 +17,7 @@ import { EditorButtons } from 'ui/components/EditorButtons/EditorButtons';
 // @Store
 import { sourcesStore } from 'stores/sources';
 // @Types
-import {
-  CommonSourcePageProps
-} from 'ui/pages/SourcesPage/SourcesPage';
+import { CommonSourcePageProps } from 'ui/pages/SourcesPage/SourcesPage';
 import { SourceConnector } from 'catalog/sources/types';
 import { FormInstance } from 'antd/es';
 import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
@@ -29,7 +27,6 @@ import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 import { allSources } from 'catalog/sources/lib';
 // @Utils
 import { sourcePageUtils } from 'ui/pages/SourcesPage/SourcePage.utils';
-import { validateTabForm } from 'utils/forms/validateTabForm';
 // @Hooks
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Services
@@ -37,10 +34,9 @@ import { closeableMessage, handleError } from 'lib/components/components';
 import { firstToLower } from 'lib/commons/utils';
 // @Styles
 import styles from './SourceEditor.module.less';
-import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOutlined';
 import { WithSourceEditorSyncContext } from './SourceEditorSyncContext';
 import { SourceEditorStreamsAirbyteLoader } from './SourceEditorStreamsAirbyteLoader';
-import { taskLogsPageRoute } from '../../../TaskLogs/TaskLogsPage';
+import { taskLogsPageRoute } from '../../../../TaskLogs/TaskLogsPage';
 
 export type SourceTabKey = 'config' | 'streams' | 'destinations';
 
@@ -52,7 +48,8 @@ const SourceEditorComponent = ({
 
   const forceUpdate = useForceUpdate();
 
-  const { source, sourceId } = useParams<{ source?: string; sourceId?: string; tabName?: string }>();
+  const { source, sourceId } =
+    useParams<{ source?: string; sourceId?: string; tabName?: string }>();
 
   const [sourceSaving, setSourceSaving] = useState<boolean>(false);
   const [savePopover, switchSavePopover] = useState<boolean>(false);
@@ -70,15 +67,15 @@ const SourceEditorComponent = ({
     let sourceType = source
       ? source
       : sourceId
-        ? sourcesStore.sources.find((src) => src.sourceId === sourceId)
+      ? sourcesStore.sources.find((src) => src.sourceId === sourceId)
           ?.sourceProtoType
-        : undefined;
+      : undefined;
 
     return sourceType
       ? allSources.find(
-        (source: SourceConnector) =>
-          snakeCase(source.id) === snakeCase(sourceType)
-      )
+          (source: SourceConnector) =>
+            snakeCase(source.id) === snakeCase(sourceType)
+        )
       : undefined;
   }, [source, sourceId]);
 
@@ -204,7 +201,7 @@ const SourceEditorComponent = ({
   const handleTestConnection = () => {
     setTestConnecting(true);
     handleBringSourceData()
-      .then(async(response: SourceData) => {
+      .then(async (response: SourceData) => {
         sourceData.current = response;
 
         const testConnectionResults = await sourcePageUtils.testConnection(
@@ -225,7 +222,7 @@ const SourceEditorComponent = ({
     setSourceSaving(true);
 
     handleBringSourceData()
-      .then(async(response: SourceData) => {
+      .then(async (response: SourceData) => {
         sourceData.current = response;
 
         const testConnectionResults = await sourcePageUtils.testConnection(

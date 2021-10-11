@@ -13,7 +13,7 @@ import { COLLECTIONS_SCHEDULES } from 'constants/schedule';
 // @Styles
 import editorStyles from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
 import { LoadableFieldsForm } from 'ui/components/LoadableFieldsForm/LoadableFieldsForm';
-import { useServices } from '../../../../../hooks/useServices';
+import { useServices } from '../../../../../../hooks/useServices';
 
 export interface Props {
   form: FormInstance;
