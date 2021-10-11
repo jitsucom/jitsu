@@ -7,10 +7,6 @@ declare interface CollectionSource {
   schedule: string;
 }
 
-declare type StreamWithRawData = CollectionSource & {
-  rawStreamData: UnknownObject;
-};
-
 declare type SourceData = NativeSourceData & AirbyteSourceData;
 declare interface NativeSourceData {
   collections: CollectionSource[];
@@ -30,7 +26,7 @@ declare interface AirbyteSourceData {
   sourceType: 'airbyte';
   /**
    * @deprecated
-   * The new path for streams is config.config.catalog.streams
+   * The new path for streams is config.catalog.streams
    */
   catalog?: {
     streams: Array<AirbyteStreamData>;

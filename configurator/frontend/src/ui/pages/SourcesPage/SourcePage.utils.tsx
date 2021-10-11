@@ -14,7 +14,7 @@ import { ListItemTitle } from 'ui/components/ListItem/ListItemTitle';
 import { Tab } from 'ui/components/Tabs/TabsConfigurator';
 import { validateTabForm } from 'utils/forms/validateTabForm';
 import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
-import { SourceTabKey } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditor';
+import { SourceTabKey } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditorLegacy/SourceEditor';
 import { Poll } from 'utils/polling';
 
 const sourcePageUtils = {
