@@ -14,4 +14,4 @@ ui-dev-compose/redis-insights
 .run/
 package-lock.json
 package.json
-server
+./server
