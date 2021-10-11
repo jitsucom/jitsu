@@ -13,7 +13,7 @@ type SyncCommand struct {
 
 //Shutdown uses Kill() under the hood. Closes task
 func (sc *SyncCommand) Shutdown() error {
-	sc.TaskCloser.CloseWithError("Service shutdown.. Closing..", false)
+	sc.TaskCloser.CloseWithError("Command has been killed..", false)
 	return sc.kill()
 }
 
