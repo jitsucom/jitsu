@@ -219,12 +219,16 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 	destinationStorages []storages.Storage) error {
 	now := time.Now().UTC()
 
+	refreshWindow, err := driver.GetRefreshWindow()
+	if err != nil {
+		return fmt.Errorf("Error getting refresh window: %v", err)
+	}
 	intervals, err := driver.GetAllAvailableIntervals()
 	if err != nil {
 		return fmt.Errorf("Error getting all available intervals: %v", err)
 	}
 
-	taskLogger.INFO("Total intervals: [%d]", len(intervals))
+	taskLogger.INFO("Total intervals: [%d] Refresh window: %s", len(intervals), refreshWindow)
 	collectionMetaKey := driver.GetCollectionMetaKey()
 
 	var intervalsToSync []*driversbase.TimeInterval
@@ -234,7 +238,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			return fmt.Errorf("Error getting interval [%s] signature: %v", interval.String(), err)
 		}
 
-		nowSignature := interval.CalculateSignatureFrom(now)
+		nowSignature := interval.CalculateSignatureFrom(now, refreshWindow)
 
 		//just for logs
 		var intervalLogStatus string
@@ -295,7 +299,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 
 		counters.SuccessPullSourceEvents(task.Source, rowsCount)
 
-		if err := te.metaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now)); err != nil {
+		if err := te.metaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now, refreshWindow)); err != nil {
 			logging.SystemErrorf("Unable to save source: [%s] collection: [%s] meta key: [%s] signature: %v", task.Source, task.Collection, collectionMetaKey, err)
 		}
 

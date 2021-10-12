@@ -1,3 +1,4 @@
+import { generatePath, NavLink } from 'react-router-dom';
 // @Libs
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Prompt, Redirect, useHistory, useParams } from 'react-router-dom';
@@ -37,16 +38,21 @@ import { firstToLower } from 'lib/commons/utils';
 // @Styles
 import styles from './SourceEditor.module.less';
 import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOutlined';
+import { WithSourceEditorSyncContext } from './SourceEditorSyncContext';
+import { SourceEditorStreamsAirbyteLoader } from './SourceEditorStreamsAirbyteLoader';
+import { taskLogsPageRoute } from '../../../TaskLogs/TaskLogsPage';
 
 export type SourceTabKey = 'config' | 'streams' | 'destinations';
 
-const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageProps) => {
+const SourceEditorComponent = ({
+  setBreadcrumbs,
+  editorMode
+}: CommonSourcePageProps) => {
   const history = useHistory();
 
   const forceUpdate = useForceUpdate();
 
-  const params =
-    useParams<{ source?: string; sourceId?: string; tabName?: string }>();
+  const { source, sourceId } = useParams<{ source?: string; sourceId?: string; tabName?: string }>();
 
   const [sourceSaving, setSourceSaving] = useState<boolean>(false);
   const [savePopover, switchSavePopover] = useState<boolean>(false);
@@ -61,31 +67,31 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
   const [documentationVisible, setDocumentationVisible] = useState(false);
 
   const connectorSource = useMemo<SourceConnector>(() => {
-    let sourceType = params.source
-      ? params.source
-      : params.sourceId
-      ? sourcesStore.sources.find((src) => src.sourceId === params.sourceId)
+    let sourceType = source
+      ? source
+      : sourceId
+        ? sourcesStore.sources.find((src) => src.sourceId === sourceId)
           ?.sourceProtoType
-      : undefined;
+        : undefined;
 
     return sourceType
       ? allSources.find(
-          (source: SourceConnector) =>
-            snakeCase(source.id) === snakeCase(sourceType)
-        )
+        (source: SourceConnector) =>
+          snakeCase(source.id) === snakeCase(sourceType)
+      )
       : undefined;
-  }, [params.source, params.sourceId]);
+  }, [source, sourceId]);
 
   const sourceData = useRef<SourceData>(
-    sourcesStore.sources.find((src) => src.sourceId === params.sourceId) ??
+    sourcesStore.sources.find((src) => src.sourceId === sourceId) ??
       ({
         sourceId: sourcePageUtils.getSourceId(
-          params.source,
+          source,
           sourcesStore.sources.map((src) => src.sourceId)
         ),
         connected: false,
         sourceType: sourcePageUtils.getSourceType(connectorSource),
-        sourceProtoType: snakeCase(params.source)
+        sourceProtoType: snakeCase(source)
       } as SourceData)
   );
 
@@ -100,7 +106,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
           isCreateForm={editorMode === 'add'}
           initialValues={sourceData.current}
           sources={sourcesStore.sources}
-          handleTouchAnyField={createTouchField(0)}
+          handleTouchAnyField={handleTouchAnyFieldEditor}
           disableFormControls={handleDisableFormControls}
           enableFormControls={handleEnableFormControls}
         />
@@ -111,16 +117,24 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
     {
       key: 'streams',
       name: 'Streams',
-      getComponent: (form: FormInstance) => (
-          <SourceEditorStreams
-              form={form}
-              initialValues={sourceData.current}
-              connectorSource={connectorSource}
-              handleTouchAnyField={createTouchField(1)}
+      getComponent: (form: FormInstance) =>
+        connectorSource.protoType === 'airbyte' ? (
+          <SourceEditorStreamsAirbyteLoader
+            form={form}
+            initialValues={sourceData.current}
+            connectorSource={connectorSource}
+            handleBringSourceData={handleBringSourceData}
           />
-      ),
+        ) : (
+          <SourceEditorStreams
+            form={form}
+            initialValues={sourceData.current}
+            connectorSource={connectorSource}
+            handleTouchAnyField={handleTouchAnyFieldStreams}
+          />
+        ),
       form: Form.useForm()[0],
-      isHidden: !!connectorSource?.protoType,
+      isHidden: connectorSource?.protoType === 'singer',
       touched: false
     },
     {
@@ -130,7 +144,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
         <SourceEditorDestinations
           form={form}
           initialValues={sourceData.current}
-          handleTouchAnyField={createTouchField(2)}
+          handleTouchAnyField={handleTouchAnyFieldDestinations}
         />
       ),
       form: Form.useForm()[0],
@@ -139,12 +153,20 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
     }
   ]);
 
-  const createTouchField =
-    (index: number) => (value: boolean) => {
-      const tab = sourcesTabs.current[index];
+  const handleTouchAnyFieldEditor = useCallback((value: boolean) => {
+    const tab = sourcesTabs.current[0];
+    tab.touched = value === undefined ? true : value;
+  }, []);
 
-      tab.touched = value === undefined ? true : value;
-    };
+  const handleTouchAnyFieldStreams = useCallback((value: boolean) => {
+    const tab = sourcesTabs.current[1];
+    tab.touched = value === undefined ? true : value;
+  }, []);
+
+  const handleTouchAnyFieldDestinations = useCallback((value: boolean) => {
+    const tab = sourcesTabs.current[2];
+    tab.touched = value === undefined ? true : value;
+  }, []);
 
   const handleDisableFormControls = useCallback(() => {
     setControlsDisabled(true);
@@ -165,15 +187,24 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
     [history]
   );
 
+  const handleBringSourceData = (options?: {
+    skipValidation?: boolean;
+  }): Promise<SourceData> => {
+    return sourcePageUtils.bringSourceData({
+      sourcesTabs: sourcesTabs.current,
+      sourceData: sourceData.current,
+      forceUpdate,
+      options: {
+        omitEmptyValues: connectorSource.protoType === 'airbyte',
+        skipValidation: options?.skipValidation ?? false
+      }
+    });
+  };
+
   const handleTestConnection = () => {
     setTestConnecting(true);
-    sourcePageUtils
-      .bringSourceData({
-        sourcesTabs: sourcesTabs.current,
-        sourceData: sourceData.current,
-        forceUpdate
-      })
-      .then(async (response: SourceData) => {
+    handleBringSourceData()
+      .then(async(response: SourceData) => {
         sourceData.current = response;
 
         const testConnectionResults = await sourcePageUtils.testConnection(
@@ -193,13 +224,8 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
   const handleSaveSource = () => {
     setSourceSaving(true);
 
-    sourcePageUtils
-      .bringSourceData({
-        sourcesTabs: sourcesTabs.current,
-        sourceData: sourceData.current,
-        forceUpdate
-      })
-      .then(async (response: SourceData) => {
+    handleBringSourceData()
+      .then(async(response: SourceData) => {
         sourceData.current = response;
 
         const testConnectionResults = await sourcePageUtils.testConnection(
@@ -269,24 +295,41 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
     <>
       <div className={cn('flex flex-col items-stretch flex-auto')}>
         <div className={cn('flex-grow')}>
-          <TabsConfigurator
-            type="card"
-            className={cn(styles.tabCard)}
-            tabsList={sourcesTabs.current}
-            activeTabKey={activeTabKey}
-            onTabChange={setActiveTabKey}
-            tabBarExtraContent={
-              connectorSource?.documentation && (
-                <Button
-                  type="link"
-                  icon={<QuestionCircleOutlined />}
-                  onClick={() => setDocumentationVisible(true)}
-                >
-                  Documentation
-                </Button>
-              )
-            }
-          />
+          <WithSourceEditorSyncContext connectorSource={connectorSource}>
+            <TabsConfigurator
+              type="card"
+              className={cn(styles.tabCard)}
+              tabsList={sourcesTabs.current}
+              activeTabKey={activeTabKey}
+              onTabChange={setActiveTabKey}
+              tabBarExtraContent={
+                <span className="uppercase">
+                  {editorMode === 'edit' && (
+                    <NavLink
+                      to={generatePath(taskLogsPageRoute, {
+                        sourceId: sourceId ?? connectorSource.id ?? 'not_found'
+                      })}
+                    >
+                      View Logs
+                    </NavLink>
+                  )}
+                  {editorMode === 'edit' && connectorSource?.documentation && (
+                    <>
+                      {' '}
+                      <span className="text-link text-xl">•</span>{' '}
+                    </>
+                  )}
+                  {connectorSource?.documentation && (
+                    <>
+                      <a onClick={() => setDocumentationVisible(true)}>
+                        Documentation
+                      </a>
+                    </>
+                  )}
+                </span>
+              }
+            />
+          </WithSourceEditorSyncContext>
         </div>
 
         <div className="flex-shrink border-t pt-2">

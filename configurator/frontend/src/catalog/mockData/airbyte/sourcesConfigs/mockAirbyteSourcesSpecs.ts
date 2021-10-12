@@ -8,7 +8,8 @@ import {
   googleAds,
   microsoftTeams,
   postgres,
-  braintree
+  braintree,
+  github
 } from './airbyte';
 
 export const allMockAirbyteSourcesSpecs = Object.freeze({
@@ -21,5 +22,6 @@ export const allMockAirbyteSourcesSpecs = Object.freeze({
   googleAds,
   microsoftTeams,
   postgres,
-  braintree
+  braintree,
+  github
 } as const);

@@ -40,7 +40,7 @@ const (
 	AdsCollection      = "ads"
 	fbMaxAttempts      = 2
 
-	fbMarketingAPIVersion      = "v11.0"
+	fbMarketingAPIVersion      = "v12.0"
 	defaultFacebookReportLevel = "ad"
 )
 
@@ -92,6 +92,10 @@ func TestFacebookMarketingConnection(sourceConfig *base.SourceConfig) error {
 	}
 
 	return nil
+}
+
+func (fm *FacebookMarketing) GetRefreshWindow() (time.Duration, error) {
+	return time.Hour * 24 * 31, nil
 }
 
 //GetAllAvailableIntervals return half a year by default
@@ -147,9 +151,8 @@ func (fm *FacebookMarketing) syncAdsReport(interval *base.TimeInterval) ([]map[s
 }
 
 func (fm *FacebookMarketing) buildTimeInterval(interval *base.TimeInterval) string {
-	dayStart := interval.LowerEndpoint()
-	since := base.DAY.Format(dayStart)
-	until := base.DAY.Format(dayStart.AddDate(0, 0, 1))
+	since := base.DAY.Format(interval.LowerEndpoint())
+	until := base.DAY.Format(interval.UpperEndpoint())
 	return fmt.Sprintf("{'since': '%s', 'until': '%s'}", since, until)
 }
 

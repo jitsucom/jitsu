@@ -8,16 +8,18 @@ const (
 	StateType            = "STATE"
 	RecordType           = "RECORD"
 	CatalogType          = "CATALOG"
+	SpecType             = "SPEC"
 )
 
 //Row is a dto for airbyte output row representation
 type Row struct {
-	Type             string      `json:"type"`
-	Log              *LogRow     `json:"log,omitempty"`
-	ConnectionStatus *StatusRow  `json:"connectionStatus,omitempty"`
-	State            *StateRow   `json:"state,omitempty"`
-	Record           *RecordRow  `json:"record,omitempty"`
-	Catalog          *CatalogRow `json:"catalog,omitempty"`
+	Type             string                 `json:"type"`
+	Log              *LogRow                `json:"log,omitempty"`
+	ConnectionStatus *StatusRow             `json:"connectionStatus,omitempty"`
+	State            *StateRow              `json:"state,omitempty"`
+	Record           *RecordRow             `json:"record,omitempty"`
+	Catalog          *CatalogRow            `json:"catalog,omitempty"`
+	Spec             map[string]interface{} `json:"spec,omitempty"`
 }
 
 //LogRow is a dto for airbyte logs serialization
@@ -69,7 +71,7 @@ type Stream struct {
 	Namespace               string     `json:"namespace,omitempty"`
 }
 
-//Stream is a dto for Airbyte catalog Schema object serialization
+//Schema is a dto for Airbyte catalog Schema object serialization
 type Schema struct {
 	Properties map[string]*base.Property `json:"properties,omitempty"`
 }

@@ -3,18 +3,21 @@
  */
 type ToTitleCaseOptions = {
   /**
-   * Object with specific rules that override the default 'case' -> 'Case' mapping
+   * Object with specific rules that override the default title case 'word' -> 'Word' mapping
    */
   rules?: Rules;
   /**
    * Flag that controls whether to apply the default mapping rules
    */
   useDefaultRules?: boolean;
+  /**
+   * Specify a separator such as '_' for the snake case. Default separator is whitespace.
+   */
+  separator?: string;
 };
 
 type Rules = { [key: string]: string };
 
-/** @type {SpecialType1} */
 const toTitleCaseDefaultOptions: ToTitleCaseOptions = {
   rules: {
     js: 'JS',
@@ -73,7 +76,7 @@ export const toTitleCase = (
       : { ...toTitleCaseDefaultOptions, ...options }
     : toTitleCaseDefaultOptions;
   return value
-    .split(' ')
+    .split(options?.separator ?? ' ')
     .map((_word) => {
       const word = _word.toLowerCase();
       const mappedByRule = rules[word];

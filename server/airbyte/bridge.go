@@ -132,23 +132,10 @@ func (b *Bridge) GetOrLoadCatalog(dockerImage string, config map[string]interfac
 	return nil, nil
 }
 
-//loadCatalog pulls image & discovers catalog
+//loadCatalog discovers catalog
 //returns catalog bytes or error if occurred
 func (b *Bridge) loadCatalog(key, dockerImage string, config map[string]interface{}) {
 	defer b.catalogLoadingInProgress.Delete(key)
-
-	pullImgOutWriter := logging.NewStringWriter()
-	pullImgErrWriter := logging.NewStringWriter()
-	//pull last image
-	if err := runner.ExecCmd(BridgeType, Command, pullImgOutWriter, pullImgErrWriter, "pull", b.ReformatImageName(dockerImage)); err != nil {
-		errMsg := b.BuildMsg("Error pulling airbyte image:", pullImgOutWriter, pullImgErrWriter, err)
-		logging.Error(errMsg)
-
-		b.catalogMutex.Lock()
-		b.errorByConfigHash[key] = errors.New(errMsg)
-		b.catalogMutex.Unlock()
-		return
-	}
 
 	//discover catalog
 	catalogRow, err := b.executeDiscover(dockerImage, config)
@@ -209,19 +196,6 @@ func (b *Bridge) executeDiscover(dockerImage string, config map[string]interface
 func (b *Bridge) loadSpec(dockerImage string) {
 	defer b.specLoadingInProgress.Delete(dockerImage)
 
-	pullImgOutWriter := logging.NewStringWriter()
-	pullImgErrWriter := logging.NewStringWriter()
-	//pull last image
-	if err := runner.ExecCmd(BridgeType, Command, pullImgOutWriter, pullImgErrWriter, "pull", b.ReformatImageName(dockerImage)); err != nil {
-		errMsg := b.BuildMsg("Error pulling airbyte image:", pullImgOutWriter, pullImgErrWriter, err)
-		logging.Error(errMsg)
-
-		b.specMutex.Lock()
-		b.errorByDockerImage[dockerImage] = errors.New(errMsg)
-		b.specMutex.Unlock()
-		return
-	}
-
 	outWriter := logging.NewStringWriter()
 	errWriter := logging.NewStringWriter()
 	if err := runner.ExecCmd(BridgeType, Command, outWriter, errWriter, "run", "--rm", "-i", b.ReformatImageName(dockerImage), "spec"); err != nil {
@@ -234,25 +208,40 @@ func (b *Bridge) loadSpec(dockerImage string) {
 		return
 	}
 
-	parts := strings.Split(outWriter.String(), "\n")
-	for _, p := range parts {
-		v := map[string]interface{}{}
-		if err := json.Unmarshal([]byte(p), &v); err == nil {
-			b.specMutex.Lock()
-			b.specByDockerImage[dockerImage] = v
-			delete(b.errorByDockerImage, dockerImage)
-			b.specMutex.Unlock()
-			return
-		}
+	spec, err := b.parseSpecRow(outWriter)
+	if err != nil {
+		logging.Error(err)
+
+		b.specMutex.Lock()
+		b.errorByDockerImage[dockerImage] = err
+		b.specMutex.Unlock()
+		return
 	}
 
-	errMsg := fmt.Sprintf("Error parsing airbyte spec as json: %s", outWriter.String())
-	logging.Error(errMsg)
-
 	b.specMutex.Lock()
-	b.errorByDockerImage[dockerImage] = errors.New(errMsg)
+	b.specByDockerImage[dockerImage] = spec
+	delete(b.errorByDockerImage, dockerImage)
 	b.specMutex.Unlock()
-	return
+}
+
+//parseSpecRow parses output, finds catalog row and returns it or returns err
+func (b *Bridge) parseSpecRow(outWriter *logging.StringWriter) (*Row, error) {
+	parts := strings.Split(outWriter.String(), "\n")
+	for _, p := range parts {
+		parsedRow := &Row{}
+		err := json.Unmarshal([]byte(p), parsedRow)
+		if err != nil {
+			continue
+		}
+
+		if parsedRow.Type != SpecType || parsedRow.Spec == nil {
+			continue
+		}
+
+		return parsedRow, nil
+	}
+
+	return nil, fmt.Errorf("Error parsing airbyte spec result as json: %s", outWriter.String())
 }
 
 //ParseCatalogRow parses output, finds catalog row and returns it or returns err

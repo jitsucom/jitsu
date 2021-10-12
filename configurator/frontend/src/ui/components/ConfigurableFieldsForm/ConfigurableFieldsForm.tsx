@@ -14,28 +14,22 @@ import {
   Select,
   Switch,
   Tooltip,
-  Modal,
   Spin,
   FormItemProps
 } from 'antd';
 import debounce from 'lodash/debounce';
+import isEqual from 'lodash/isEqual';
 import get from 'lodash/get';
 import cn from 'classnames';
 // @Components
 import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
 import { EditableList } from 'lib/components/EditableList/EditableList';
 import { CodeEditor } from 'ui/components/CodeEditor/CodeEditor';
-import {
-  CodeDebugger,
-  FormValues as DebuggerFormValues
-} from 'ui/components/CodeDebugger/CodeDebugger';
+import { FormValues as DebuggerFormValues } from 'ui/components/CodeDebugger/CodeDebugger';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
 // @Types
-import {
-  Parameter,
-  ParameterType
-} from 'catalog/sources/types';
+import { Parameter, ParameterType } from 'catalog/sources/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 // @Utils
 import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
@@ -43,11 +37,11 @@ import { isoDateValidator } from 'utils/validation/validators';
 // @Hooks
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
-import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
-import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
 import BugIcon from 'icons/bug';
+import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
+import { CodeDebuggerModal } from '../CodeDebuggerModal/CodeDebuggerModal';
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -80,7 +74,7 @@ const isDebugSupported = function (id) {
 
 const services = ApplicationServices.get();
 
-const ConfigurableFieldsForm = ({
+const ConfigurableFieldsFormComponent = ({
   fieldsParamsList,
   form,
   initialValues,
@@ -106,13 +100,13 @@ const ConfigurableFieldsForm = ({
     '_formData.dbtCause': false
   };
 
-  const handleTouchField = debounce(handleTouchAnyField, 1000);
-
   const forceUpdate = useForceUpdate();
+
+  const handleTouchField = debounce(handleTouchAnyField, 1000);
 
   const handleChangeIntInput = useCallback(
     (id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value.replace(/\D/g, '');
+      const value = +e.target.value.replace(/\D/g, '') || '';
       form.setFieldsValue({ [id]: value });
     },
     [form]
@@ -171,10 +165,10 @@ const ConfigurableFieldsForm = ({
   ) => {
     const fieldsValue = form.getFieldsValue();
     const defaultValueToDisplay =
-          form.getFieldValue(id) ||
-          getInitialValue(id, defaultValue, constantValue, type?.typeName);
+      form.getFieldValue(id) ??
+      getInitialValue(id, defaultValue, constantValue, type?.typeName);
 
-    form.setFieldsValue({id: defaultValueToDisplay})
+    form.setFieldsValue({ id: defaultValueToDisplay });
 
     switch (type?.typeName) {
       case 'description':
@@ -185,17 +179,18 @@ const ConfigurableFieldsForm = ({
             defaultValue={defaultValueToDisplay}
             autoComplete="off"
             iconRender={(visible) =>
-              visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
+              visible ? <EyeOutlined /> : <EyeInvisibleOutlined />
             }
           />
         );
 
       case 'int': {
         return (
-          <Input 
+          <Input
             defaultValue={defaultValueToDisplay}
-            autoComplete="off" 
-            onChange={handleChangeIntInput(id)} 
+            autoComplete="off"
+            inputMode="numeric"
+            onChange={handleChangeIntInput(id)}
           />
         );
       }
@@ -223,11 +218,12 @@ const ConfigurableFieldsForm = ({
       case 'javascript':
       case 'json': {
         return (
-          <div>
+          <>
             <CodeEditor
-              handleChange={handleJsonChange(id)}
               initialValue={defaultValueToDisplay}
+              className={styles.codeEditor}
               language={type?.typeName}
+              handleChange={handleJsonChange(id)}
             />
             <span className="z-50 absolute top-2 right-3">
               {isDebugSupported(id) && (
@@ -238,7 +234,7 @@ const ConfigurableFieldsForm = ({
                 </Tooltip>
               )}
             </span>
-          </div>
+          </>
         );
       }
 
@@ -298,24 +294,22 @@ const ConfigurableFieldsForm = ({
     if (debugModalsValues[id].current) {
       form.setFieldsValue({ [id]: debugModalsValues[id].current });
     }
-    handleCloseDebugger(id);
   };
 
   useEffect(() => {
     /**
-     * 
+     *
      * 1st render:
-     * component creates fields, fills them with values, 
+     * component creates fields, fills them with values,
      * lets the `form` instance to pick them
-     * 
+     *
      */
     let formValues = {};
+    const formFields: Parameters<typeof form.setFields>[0] = [];
     fieldsParamsList.forEach((param: Parameter) => {
-      let constantValue: any; 
+      let constantValue: any;
       if (typeof param.constant === 'function') {
-        constantValue = param.constant(
-          makeObjectFromFieldsValues(formValues)
-        );
+        constantValue = param.constant(makeObjectFromFieldsValues(formValues));
       }
 
       constantValue = constantValue || param.constant;
@@ -326,18 +320,26 @@ const ConfigurableFieldsForm = ({
         constantValue,
         param.type?.typeName
       );
+
       formValues[param.id] = initialValue;
+
+      formFields.push({
+        name: param.id,
+        value: initialValue,
+        touched: false
+      });
     });
-    form.setFieldsValue(formValues);
+    // form.setFieldsValue(formValues);
+    form.setFields(formFields);
 
     /**
-     * 
-     * 2nd render: component removes/adds fields conditionally 
+     *
+     * 2nd render: component removes/adds fields conditionally
      *  depending on the form values
-     * 
+     *
      */
-    forceUpdate()
-  }, [])
+    forceUpdate();
+  }, []);
 
   return loading ? (
     typeof loading === 'boolean' ? (
@@ -430,28 +432,17 @@ const ConfigurableFieldsForm = ({
             <Row key={id} className={cn(isHidden && 'hidden')}>
               <Col span={24}>
                 {isDebugSupported(id) ? (
-                  <Modal
-                    className={styles.modal}
-                    closable={false}
-                    maskClosable={false}
-                    onCancel={() => handleCloseDebugger(id)}
-                    onOk={() => handleSaveDebugger(id)}
-                    okText={`Save ${displayName} template`}
+                  <CodeDebuggerModal
                     visible={debugModalsStates[id][0]}
-                    wrapClassName={styles.modalWrap}
-                    width="80%"
-                  >
-                    <CodeDebugger
-                      className="pb-2"
-                      codeFieldLabel="Expression"
-                      defaultCodeValue={get(initialValues, id)}
-                      handleClose={() => handleCloseDebugger(id)}
-                      handleCodeChange={(value) =>
-                        handleCodeChange(id, value.toString())
-                      }
-                      run={(values) => handleDebuggerRun(id, values)}
-                    />
-                  </Modal>
+                    codeFieldLabelDebugger="Expression"
+                    defaultCodeValueDebugger={get(initialValues, id)}
+                    handleCloseDebugger={() => handleCloseDebugger(id)}
+                    handleCodeChangeDebugger={(value) =>
+                      handleCodeChange(id, value.toString())
+                    }
+                    runDebugger={(values) => handleDebuggerRun(id, values)}
+                    handleSaveCodeDebugger={() => handleSaveDebugger(id)}
+                  />
                 ) : null}
                 <Form.Item
                   className={cn(
@@ -494,7 +485,13 @@ const ConfigurableFieldsForm = ({
   );
 };
 
+const ConfigurableFieldsForm = ConfigurableFieldsFormComponent;
 
-ConfigurableFieldsForm.displayName = 'ConfigurableFieldsForm';
+// const ConfigurableFieldsForm = React.memo(
+//   ConfigurableFieldsFormComponent,
+//   isEqual
+// );
+
+// ConfigurableFieldsForm.displayName = 'ConfigurableFieldsForm';
 
 export { ConfigurableFieldsForm };

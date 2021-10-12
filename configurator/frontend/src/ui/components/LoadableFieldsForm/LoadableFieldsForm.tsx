@@ -1,6 +1,7 @@
 // @Libs
-import { useEffect, useState, FC } from 'react';
-import { Card, Col, Row, Spin } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Col, Row } from 'antd';
+import isEqual from 'lodash/isEqual';
 // @Types
 import { Parameter, SourceConnector } from 'catalog/sources/types';
 // @Services
@@ -10,8 +11,11 @@ import editorStyles from 'ui/components/ConfigurableFieldsForm/ConfigurableField
 import { ConfigurableFieldsForm } from '../ConfigurableFieldsForm/ConfigurableFieldsForm';
 import { ErrorCard } from 'lib/components/ErrorCard/ErrorCard';
 import { FormInstance } from 'antd/es';
-import { mapAirbyteSpecToSourceConnectorConfig } from 'catalog/sources/lib/helper';
+import { mapAirbyteSpecToSourceConnectorConfig } from 'catalog/sources/lib/airbyte.helper';
 import { Poll } from 'utils/polling';
+import { useSourceEditorSyncContext } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditorSyncContext';
+import { LoadableFieldsLoadingMessageCard } from 'lib/components/LoadingFormCard/LoadingFormCard';
+import { toTitleCase } from 'utils/strings';
 
 type Props = {
   sourceReference: SourceConnector;
@@ -22,7 +26,7 @@ type Props = {
   enableFormControls?: VoidFunction;
 };
 
-export const LoadableFieldsForm = ({
+const LoadableFieldsFormComponent = ({
   sourceReference,
   form,
   initialValues,
@@ -31,6 +35,7 @@ export const LoadableFieldsForm = ({
   enableFormControls
 }: Props) => {
   const services = useServices();
+  const { setIsLoadingConfigParameters } = useSourceEditorSyncContext();
   const [_fieldsParameters, setFieldsParameters] = useState<null | Parameter[]>(
     null
   );
@@ -79,17 +84,18 @@ export const LoadableFieldsForm = ({
 
       if (response?.['status'] && response?.['status'] !== 'pending') {
         const parsedData = mapAirbyteSpecToSourceConnectorConfig(
-          response?.['spec']?.['spec']?.['connectionSpecification'],
-          sourceReference.displayName,
-          {
-            nodeName: 'config',
-            parentNode: { id: 'config' }
-          }
-        );
+          response?.['spec']?.['spec']?.['connectionSpecification']
+        ).map<Parameter>((parameter) => ({
+          ...parameter,
+          displayName: toTitleCase(parameter.displayName, { separator: '_' })
+        }));
+
         setFieldsParameters(parsedData);
         setIsLoadingParameters(false);
-        if (resolve) resolve(parsedData);
-        if (enableFormControls) enableFormControls();
+
+        resolve?.(parsedData);
+        enableFormControls?.();
+
         return;
       }
 
@@ -111,6 +117,8 @@ export const LoadableFieldsForm = ({
         poll.start();
         await poll.wait();
       }
+
+      setIsLoadingConfigParameters(false);
     };
 
     pullParametersFields();
@@ -136,7 +144,11 @@ export const LoadableFieldsForm = ({
     <Row>
       <Col span={4} />
       <Col span={20} className={editorStyles.field}>
-        <LoadableFieldsLoadingMessageCard />
+        <LoadableFieldsLoadingMessageCard
+          title="Loading the source config"
+          longLoadingMessage="Loading the configuration spec takes longer than usual. This might happen if you are configuring such source for the first time - Jitsu will need some time to pull a docker image with the connector code"
+          showLongLoadingMessageAfterMs={5000}
+        />
       </Col>
     </Row>
   ) : (
@@ -149,33 +161,10 @@ export const LoadableFieldsForm = ({
   );
 };
 
-const LoadableFieldsLoadingMessageCard: FC = () => {
-  const INITIAL_DESCRIPTION = null;
-  const LONG_LOADING_DESCRIPTION =
-    'Loading the configuration spec takes longer than usual. This might happen if you are configuring such source for the first time - Jitsu will need some time to pull a docker image with the connector code';
-  const [description, setDescription] = useState<null | string>(
-    INITIAL_DESCRIPTION
-  );
+const LoadableFieldsForm = LoadableFieldsFormComponent;
 
-  useEffect(() => {
-    const SHOW_LONG_LOADING_DESCRIPTION_AFTER_MS = 3000;
-    const timeout = setTimeout(
-      () => setDescription(LONG_LOADING_DESCRIPTION),
-      SHOW_LONG_LOADING_DESCRIPTION_AFTER_MS
-    );
+// const LoadableFieldsForm = React.memo(LoadableFieldsFormComponent, isEqual);
 
-    return () => {
-      clearTimeout(timeout);
-    };
-  }, []);
+// LoadableFieldsForm.displayName = 'LoadableFieldsForm';
 
-  return (
-    <Card className={'form-fields-card'}>
-      <Card.Meta
-        avatar={<Spin />}
-        title="Loading the source config"
-        description={description}
-      />
-    </Card>
-  );
-};
+export { LoadableFieldsForm };

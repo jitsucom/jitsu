@@ -13,6 +13,7 @@ import { COLLECTIONS_SCHEDULES } from 'constants/schedule';
 // @Styles
 import editorStyles from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
 import { LoadableFieldsForm } from 'ui/components/LoadableFieldsForm/LoadableFieldsForm';
+import { useServices } from '../../../../../hooks/useServices';
 
 export interface Props {
   form: FormInstance;
@@ -35,6 +36,8 @@ const SourceEditorConfigComponent = ({
   disableFormControls,
   enableFormControls
 }: Props) => {
+  const services = useServices();
+  const subscription = services.currentSubscription?.currentPlan;
   const validateUniqueSourceId = useCallback(
     (rule: RuleObject, value: string) =>
       sources?.find((source: SourceData) => source.sourceId === value)
@@ -90,31 +93,37 @@ const SourceEditorConfigComponent = ({
         </Col>
       </Row>
 
-
-        <Row>
-          <Col span={24}>
-            <Form.Item
-              initialValue={initialSchedule}
-              name="schedule"
-              className={`form-field_fixed-label ${editorStyles.field}`}
-              label="Schedule:"
-              labelCol={{ span: 4 }}
-              wrapperCol={{ span: 20 }}
-              rules={[
-                { required: true, message: 'You have to choose schedule' }
-              ]}
-            >
-              <Select>
-                {COLLECTIONS_SCHEDULES.map((option) => (
-                  <Select.Option value={option.value} key={option.value}>
+      <Row>
+        <Col span={24}>
+          <Form.Item
+            initialValue={initialSchedule}
+            name="schedule"
+            className={`form-field_fixed-label ${editorStyles.field}`}
+            label="Schedule:"
+            labelCol={{ span: 4 }}
+            wrapperCol={{ span: 20 }}
+            rules={[{ required: true, message: 'You have to choose schedule' }]}
+          >
+            <Select>
+              {COLLECTIONS_SCHEDULES.map((option) => {
+                const available = subscription
+                  ? subscription.quota.allowedSchedules.includes(option.id)
+                  : true;
+                return (
+                  <Select.Option
+                    value={option.value}
+                    key={option.value}
+                    disabled={!available}
+                  >
                     {option.label}
+                    {!available && ' - n/a, upgrade plan'}
                   </Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-        </Row>
-
+                );
+              })}
+            </Select>
+          </Form.Item>
+        </Col>
+      </Row>
 
       <ConfigurableFieldsForm
         initialValues={initialValues}
@@ -123,7 +132,7 @@ const SourceEditorConfigComponent = ({
         handleTouchAnyField={handleTouchAnyField}
       />
 
-      {sourceReference.hasLoadableParameters && (
+      {sourceReference.hasLoadableConfigParameters && (
         <LoadableFieldsForm
           sourceReference={sourceReference}
           initialValues={initialValues}

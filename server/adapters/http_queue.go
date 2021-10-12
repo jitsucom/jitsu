@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/joncrlsn/dque"
+	"go.uber.org/atomic"
 	"time"
 )
 
@@ -18,7 +19,7 @@ type QueuedRequest struct {
 	SerializedRetryableRequest []byte
 }
 
-//RetryableRequest is a HTTP request with retry count
+//RetryableRequest is an HTTP request with retry count
 type RetryableRequest struct {
 	Request      *Request
 	Retry        int
@@ -43,6 +44,7 @@ func QueuedRequestBuilder() interface{} {
 //PersistentQueue is a queue (persisted on file system) with requests
 type PersistentQueue struct {
 	queue *dque.DQue
+	size  *atomic.Uint64
 }
 
 //NewPersistentQueue returns configured PersistentQueue instance
@@ -51,7 +53,7 @@ func NewPersistentQueue(queueName, fallbackDir string) (*PersistentQueue, error)
 	if err != nil {
 		return nil, fmt.Errorf("Error opening/creating HTTP requests queue [%s] in Dir [%s]: %v", queueName, fallbackDir, err)
 	}
-	return &PersistentQueue{queue: queue}, nil
+	return &PersistentQueue{queue: queue, size: atomic.NewUint64(uint64(queue.Size()))}, nil
 }
 
 //Add puts HTTP request and error callback to the queue
@@ -62,7 +64,12 @@ func (pq *PersistentQueue) Add(req *Request, eventContext *EventContext) error {
 //AddRequest puts request to the queue with retryCount
 func (pq *PersistentQueue) AddRequest(req *RetryableRequest) error {
 	serialized, _ := json.Marshal(req)
-	return pq.queue.Enqueue(&QueuedRequest{SerializedRetryableRequest: serialized})
+	if err := pq.queue.Enqueue(&QueuedRequest{SerializedRetryableRequest: serialized}); err != nil {
+		return err
+	}
+
+	pq.size.Inc()
+	return nil
 }
 
 //DequeueBlock waits when enqueued request is ready and return it
@@ -74,6 +81,8 @@ func (pq *PersistentQueue) DequeueBlock() (*RetryableRequest, error) {
 		}
 		return nil, err
 	}
+
+	pq.size.Dec()
 
 	wrappedReq, ok := iface.(*QueuedRequest)
 	if !ok {
@@ -87,6 +96,11 @@ func (pq *PersistentQueue) DequeueBlock() (*RetryableRequest, error) {
 	}
 
 	return retryableRequest, nil
+}
+
+//Size returns queue size. Separate atomic counter is used because queue.Size() is a blocking operation
+func (pq *PersistentQueue) Size() uint64 {
+	return pq.size.Load()
 }
 
 //Close closes underlying persistent queue

@@ -2,6 +2,8 @@
 
 ## Understanding sources (aka connectors)
 
+![Sources (connectors) and Collection (streams)](/img/docs/sources-streams.png)
+
 Sources (or connectors) are used to import data from external API (Google Analytics, Facebook, etc) or databases (redis, firebase, etc)
 into [destinations](/docs/destinations-configuration). Each source represents a connection to particular API.
 
@@ -9,7 +11,7 @@ Synchronization scheduling engine is called sync tasks [sync tasks](/docs/source
 
 Jitsu supports 3 type of sources:
 
- * Native sources (example: [Google Ads](/docs/sources/facebook-marketing), [Facebook](/docs/sources/google-ads)). Those sources are written in Go and are a part of Jitsu code-base
+ * Native sources (example: [Google Ads](/docs/sources/google-ads), [Facebook](/docs/sources/facebook-marketing)). Those sources are written in Go and are a part of Jitsu code-base
  * [Singer](https://singer.io) based sources. Singer as a collection of ETL-connectors written in Python (called 'taps'). Singer-based sources are not part of Jitsu codebase. Jitsu just runs the python package, processes output and
 saves data to a destination. [Learn more about Singer-based sources configuration](/docs/sources-configuration/singer-taps)
  * [Airbyte](https://airbyte.io) based sources. Airbyte is an ETL-framework similar to Sinnger. Airbyte sources are distributed as docker images. Jitsu pulls those images,
@@ -27,7 +29,7 @@ collections (users, firestore) are static while **Google Analytics** collections
 ## Native Connecting Configuration
 
 This section applies only to connectors that are native part of Jitsu. A full list of native connectors is:
-is: [facebook](/docs/sources/facebook), [google-ads](/source/facebook), [google-analytics](/docs/sources/google-analytics),
+is: [facebook](/docs/sources/facebook), [google-ads](/docs/sources/google-ads), [google-analytics](/docs/sources/google-analytics),
 [redis](/docs/sources/redis), [google-play](/docs/sources/google-play), [firebase](/docs/sources/firebase), [amplitude](/sources/amplitude).
 
 Other connectors  (based either on Singer, or Airbyte) has a slighly different configuration syntax. Learn more abour [Singer-based](/docs/sources-configuration/singer-taps)

@@ -118,6 +118,11 @@ type Driver interface {
 	//your driver to load for the last year by month chunks, you need to return 12 time intervals, each covering one
 	//month. There is drivers/granularity.ALL for data sources that store data which may not be split by date.
 	GetAllAvailableIntervals() ([]*TimeInterval, error)
+
+	//GetRefreshWindow return times duration during which Jitsu will keep reloading stream data.
+	//Necessary for Sources where data may change retroactively (analytics, ads)
+	GetRefreshWindow() (time.Duration, error)
+
 	//GetObjectsFor returns slice of objects per time interval. Each slice element is one object from the data source.
 	GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error)
 	//Type returns string type of driver. Should be unique among drivers
