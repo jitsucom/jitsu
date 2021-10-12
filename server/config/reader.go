@@ -8,14 +8,18 @@ import (
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/spf13/viper"
 	"os"
+	"regexp"
 	"strings"
 )
+
+const notsetDefaultValue = "__NOTSET_DEFAULT_VALUE__"
+var templateVariablePattern = regexp.MustCompile(`\$\{env\.[\w_]+(?:\|[^\}]*)?\}`)
 
 //Read reads config from configSourceStr that might be (HTTP URL or path to YAML/JSON file or plain JSON string)
 //replaces all ${env.VAR} placeholders with OS variables
 //configSourceStr might be overridden by "config_location" ENV variable
 //returns err if occurred
-func Read(configSourceStr string, containerizedRun bool, configNotFoundErrMsg string) error {
+func Read(configSourceStr string, containerizedRun bool, configNotFoundErrMsg string, appName string) error {
 	viper.AutomaticEnv()
 
 	//support OS env variables as lower case and dot divided variables e.g. SERVER_PORT as server.port
@@ -26,7 +30,7 @@ func Read(configSourceStr string, containerizedRun bool, configNotFoundErrMsg st
 	if overriddenConfigLocation != "" {
 		configSourceStr = overriddenConfigLocation
 	}
-
+	logging.Infof("%s config location: %s", appName, configSourceStr)
 	var payload *resources.ResponsePayload
 	var err error
 	if strings.HasPrefix(configSourceStr, "http://") || strings.HasPrefix(configSourceStr, "https://") {
@@ -64,40 +68,31 @@ func Read(configSourceStr string, containerizedRun bool, configNotFoundErrMsg st
 	envPlaceholderValues := map[string]interface{}{}
 	for _, k := range viper.AllKeys() {
 		value := viper.GetString(k)
-		if strings.Contains(value, "${env.") {
-			parts := strings.Split(value, "${env.")
-			if len(parts) != 2 {
-				logging.Fatalf("Malformed ${env.VAR} placeholder in config value: %s = %s", k, value)
-			}
-
-			values := strings.Split(parts[1], "}")
-			if len(values) != 2 {
-				logging.Fatalf("Malformed ${env.VAR} placeholder in config value: %s = %s", k, value)
-			}
-
-			var envName, defaultValue string
-			envExpression := values[0]
-			envName = envExpression
-			//check if default value
-			if strings.Contains(envName, "|") {
-				envNameParts := strings.Split(envName, "|")
-				if len(envNameParts) != 2 {
-					logging.Fatalf("Malformed ${env.VAR|default_value} placeholder in config value: %s = %s", k, value)
+		if templateVariablePattern.MatchString(value) {
+			res := templateVariablePattern.ReplaceAllStringFunc(value, func(value string) string {
+				envExpression := strings.TrimSuffix(strings.TrimPrefix(value, "${env."), "}")
+				defaultValue := notsetDefaultValue
+				envName := envExpression
+				//check if default value provided
+				if strings.Contains(envName, "|") {
+					envNameParts := strings.Split(envName, "|")
+					if len(envNameParts) != 2 {
+						logging.Fatalf("Malformed ${env.VAR|default_value} placeholder in config value: %s = %s", k, value)
+					}
+					envName = envNameParts[0]
+					defaultValue = envNameParts[1]
 				}
-				envName = envNameParts[0]
-				defaultValue = envNameParts[1]
-			}
-			res := os.Getenv(envName)
-			if len(res) == 0 {
-				if defaultValue == "" {
-					logging.Fatalf("Mandatory env variable was not found: %s", envName)
+				res := os.Getenv(envName)
+				if res == "" {
+					if defaultValue == notsetDefaultValue {
+						logging.Fatalf("Mandatory env variable was not found: %s", envName)
+					}
+					res = defaultValue
 				}
-
-				res = defaultValue
-			}
-
+				return res
+			})
 			valuePath := jsonutils.NewJSONPath(strings.ReplaceAll(k, ".", "/"))
-			err := valuePath.Set(envPlaceholderValues, strings.ReplaceAll(value, "${env."+envExpression+"}", res))
+			err := valuePath.Set(envPlaceholderValues, res)
 			if err != nil {
 				logging.Fatalf("Unable to set value in %s config path", k)
 			}

@@ -3,6 +3,11 @@ import nodejs_assert from 'assert';
 // @Utils
 import { toArrayIfNot } from './arrays';
 
+type AssertionOptions = {
+  errMsg?: string;
+  allowUndefined?: boolean;
+};
+
 /**
  * Checks if value is an object.
  *
@@ -54,6 +59,30 @@ export function hasOwnProperty<O extends {}, P extends PropertyKey>(
  */
 export function assert(condition: boolean, errMsg?: string): asserts condition {
   nodejs_assert(condition, errMsg);
+}
+
+/**
+ * Asserts whether the value is string - if not, throws an error.
+ * Useful for making type checks that will provide type narrowing.
+ *
+ * @param value value to assert
+ * @param errMsg error message to throw if assertion fails
+ *
+ * @returns void or never
+ *
+ */
+export function assertIsString(
+  value: unknown,
+  options?: AssertionOptions
+): asserts value is string {
+  let condition = typeof value === 'string';
+  if (options?.allowUndefined)
+    condition = condition || typeof value === 'undefined';
+
+  assert(
+    condition,
+    options?.errMsg || `array assertion failed - ${value} is not an array`
+  );
 }
 
 /**
@@ -147,4 +176,21 @@ export function assertHasOwnProperty<O extends {}, P extends PropertyKey>(
   errMsg?: string
 ): asserts object is O & Record<P, unknown> {
   assert(hasOwnProperty<O, P>(object, property), errMsg);
+}
+
+/**
+ * Asserts that object has all properties from the argument array
+ *
+ * @param object object to check
+ * @param properties array of properties to look for
+ * @param errMsg error to display if assertion failed
+ *
+ * @returns void or never
+ */
+ export function assertHasAllProperties<O extends {}, P extends PropertyKey[]>(
+  object: O,
+  properties: P,
+  errMsg?: string
+): asserts object is O & Record<keyof P, unknown> {
+  properties.forEach(property => assert(hasOwnProperty(object, property), errMsg));
 }

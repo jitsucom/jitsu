@@ -41,7 +41,7 @@ ENV TZ=UTC
 
 COPY --from=configurator /home/configurator /home/configurator
 COPY --from=server /home/eventnative /home/eventnative
-ADD configurator.yaml /home/configurator/data/config/
+
 ADD eventnative.yaml /home/eventnative/data/config/
 ADD entrypoint.sh /home/eventnative/entrypoint.sh
 ADD nginx.conf /etc/nginx/nginx.conf
@@ -55,6 +55,6 @@ RUN mv /home/configurator/app/web /home/configurator/web &&\
 USER $EVENTNATIVE_USER
 
 VOLUME ["/home/$EVENTNATIVE_USER/data", "/home/configurator/data"]
-EXPOSE 8000 8001 7000
+EXPOSE 8000
 
 ENTRYPOINT ["/home/eventnative/entrypoint.sh"]

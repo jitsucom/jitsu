@@ -9,6 +9,7 @@ import (
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"time"
 )
@@ -33,6 +34,8 @@ type HTTPConfiguration struct {
 
 	ClientMaxIdleConns        int
 	ClientMaxIdleConnsPerHost int
+
+	QueueFullnessThreshold uint64
 }
 
 //HTTPAdapter is an adapter for sending HTTP requests with retries
@@ -50,7 +53,10 @@ type HTTPAdapter struct {
 	destinationID string
 	retryCount    int
 	retryDelay    time.Duration
-	closed        *atomic.Bool
+	//when reached - requests can't be retried => fallback
+	queueFullnessThreshold uint64
+
+	closed *atomic.Bool
 }
 
 //NewHTTPAdapter returns configured HTTPAdapter and starts queue observing goroutine
@@ -69,10 +75,11 @@ func NewHTTPAdapter(config *HTTPAdapterConfiguration) (*HTTPAdapter, error) {
 		errorHandler:   config.ErrorHandler,
 		successHandler: config.SuccessHandler,
 
-		destinationID: config.DestinationID,
-		retryCount:    config.HTTPConfig.RetryCount,
-		retryDelay:    config.HTTPConfig.RetryDelay,
-		closed:        atomic.NewBool(false),
+		destinationID:          config.DestinationID,
+		retryCount:             config.HTTPConfig.RetryCount,
+		retryDelay:             config.HTTPConfig.RetryDelay,
+		queueFullnessThreshold: config.HTTPConfig.QueueFullnessThreshold,
+		closed:                 atomic.NewBool(false),
 	}
 
 	reqQueue, err := NewPersistentQueue("http_queue.dst="+config.DestinationID, config.Dir)
@@ -173,17 +180,27 @@ func (h *HTTPAdapter) sendRequestWithRetry(i interface{}) {
 	}
 }
 
+//doRetry retries request.
+//without retry if:
+// - queue size is greater than threshold
+// - retry limit is reached
 func (h *HTTPAdapter) doRetry(retryableRequest *RetryableRequest, sendErr error) {
-	if retryableRequest.Retry < h.retryCount {
-		retryableRequest.Retry += 1
-		retryableRequest.DequeuedTime = time.Now().UTC().Add(h.retryDelay)
-		if err := h.queue.AddRequest(retryableRequest); err != nil {
-			logging.SystemErrorf("[%s] Error enqueueing HTTP request after sending: %v", h.destinationID, err)
-			h.errorHandler(true, retryableRequest.EventContext, sendErr)
-		} else {
-			h.errorHandler(false, retryableRequest.EventContext, sendErr)
+	//if queue fullness threshold configured check if queue size not exceed
+	if h.queueFullnessThreshold == 0 || h.queueFullnessThreshold > h.queue.Size() {
+
+		//check retry count and increment exponential 2^X
+		if retryableRequest.Retry < h.retryCount {
+			delay := time.Duration(math.Pow(2, float64(retryableRequest.Retry))) * h.retryDelay
+			retryableRequest.Retry += 1
+			retryableRequest.DequeuedTime = time.Now().UTC().Add(delay)
+			if err := h.queue.AddRequest(retryableRequest); err != nil {
+				logging.SystemErrorf("[%s] Error enqueueing HTTP request after sending: %v", h.destinationID, err)
+				h.errorHandler(true, retryableRequest.EventContext, sendErr)
+			} else {
+				h.errorHandler(false, retryableRequest.EventContext, sendErr)
+			}
+			return
 		}
-		return
 	}
 
 	headersJSON, _ := json.Marshal(retryableRequest.Request.Headers)

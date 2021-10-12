@@ -2,22 +2,35 @@ server:
   name: jitsu
   disable_welcome_page: true
   strict_auth_tokens: true
-  admin_token: '${env.SERVER_ADMIN_TOKEN}'
-  telemetry: 'http://localhost:7000/api/v1/telemetry?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
+  admin_token: '${env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+  telemetry: '${env.JITSU_CONFIGURATOR_URL}/api/v1/telemetry?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
 
-api_keys: 'http://localhost:7000/api/v1/apikeys?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
+geo:
+  maxmind_path: '${env.MAX_MIND_PATH|}'
 
-destinations: 'http://localhost:7000/api/v1/destinations?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
+api_keys: '${env.JITSU_CONFIGURATOR_URL}/api/v1/apikeys?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
 
-sources: 'http://localhost:7000/api/v1/sources?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
+destinations: '${env.JITSU_CONFIGURATOR_URL}/api/v1/destinations?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
 
-system: 'http://localhost:7000/api/v1/system/configuration'
+sources: '${env.JITSU_CONFIGURATOR_URL}/api/v1/sources?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+
+system: '${env.JITSU_CONFIGURATOR_URL}/api/v1/system/configuration'
+
+notifications:
+  slack:
+    url: '${env.SLACK_NOTIFICATIONS_WEBHOOK|}'
+
+users_recognition:
+  enabled: '${env.USER_RECOGNITION_ENABLED|true}'
 
 meta:
   storage:
     redis:
       host: '${env.REDIS_URL}'
       tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+
+coordination:
+  type: redis
 
 sql_debug_log:
   ddl:
@@ -26,3 +39,6 @@ sql_debug_log:
   queries:
     path: /home/eventnative/data/logs
     rotation_min: 60
+
+google-ads:
+  developer-token: '${env.GOOGLE_ADS_DEVELOPER_TOKEN|}'

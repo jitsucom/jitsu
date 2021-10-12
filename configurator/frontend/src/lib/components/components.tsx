@@ -4,7 +4,6 @@
  */
 
 import React, { ReactNode } from 'react';
-import set from 'lodash/set';
 import './components.less';
 import { Col, message, Progress, Modal, Row, Spin, Typography } from 'antd';
 import CloseCircleOutlined from '@ant-design/icons/lib/icons/CloseCircleOutlined';
@@ -15,7 +14,12 @@ import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
 import plumber from '../../icons/plumber.png';
 
 import ApplicationServices from '../services/ApplicationServices';
-import { copyToClipboard, firstToLower, isNullOrUndef, numberFormat, sleep, withDefaults } from '../commons/utils';
+import {
+  copyToClipboard,
+  firstToLower,
+  sleep,
+  withDefaults
+} from '../commons/utils';
 
 type IPreloaderProps = {
   text?: string;
@@ -26,14 +30,16 @@ type IPreloaderProps = {
  * parent's component display = block
  */
 export function Preloader(props: IPreloaderProps) {
-  let text = props.text ?
-    props.text :
-    'Loading user data...';
+  let text = props.text ? props.text : 'Loading user data...';
   //do not change img src here. We need to make sure that the image url is the same as
   //in pre-react boot loader
   return (
     <div style={{}} className="preloader-wrapper">
-      <img src="/boot/loading.gif" alt="[loading]" className="preloader-image"/>
+      <img
+        src="/boot/loading.gif"
+        alt="[loading]"
+        className="preloader-image"
+      />
       <div className="preloader-text">{text}</div>
     </div>
   );
@@ -41,18 +47,17 @@ export function Preloader(props: IPreloaderProps) {
 
 const DEFAULT_ERROR_TEXT = (
   <p>
-    The application has crashed :( We are making everything possible to fix the situation ASAP. Please, contact us at
-    support@jitsu.com. Useful information may be found in developer console
+    The application has crashed :( We are making everything possible to fix the
+    situation ASAP. Please, contact us at support@jitsu.com. Useful information
+    may be found in developer console
   </p>
 );
 
 export function GlobalError(props) {
-  let text = props.children ?
-    props.children :
-    DEFAULT_ERROR_TEXT;
+  let text = props.children ? props.children : DEFAULT_ERROR_TEXT;
   return (
     <div style={{}} className="error-wrapper">
-      <img src={plumber} alt="[loading]" className="error-image"/>
+      <img src={plumber} alt="[loading]" className="error-image" />
       <div className="error-text">{text}</div>
     </div>
   );
@@ -61,15 +66,17 @@ export function GlobalError(props) {
 export function CenteredSpin() {
   return (
     <div className="common-centered-spin">
-      <Spin size="large"/>
+      <Spin size="large" />
     </div>
   );
 }
 
 export function CenteredError({ error }) {
-  return <div className="common-centered-spin">Error: {error?.message ?
-    error.message :
-    'Unknown error'}</div>;
+  return (
+    <div className="common-centered-spin">
+      Error: {error?.message ? error.message : 'Unknown error'}
+    </div>
+  );
 }
 
 export function makeErrorHandler(errorDescription: string) {
@@ -87,7 +94,7 @@ export type MessageFunc = (args: MessageContent) => MessageType;
 
 function applyEllipsisToMessageIfNeeded(message: string): JSX.Element | string {
   const SUFFIX_CHARS_COUNT: number = 50; // num of letters to show after the ellipsis
-  const needToApplyEllipsis: boolean = message.length > 2 * SUFFIX_CHARS_COUNT
+  const needToApplyEllipsis: boolean = message.length > 2 * SUFFIX_CHARS_COUNT;
 
   let messageWithEllipsis: JSX.Element | undefined;
   if (needToApplyEllipsis) {
@@ -114,7 +121,8 @@ function messageFactory(type: CloseableMessageType): MessageFunc {
   return (content: MessageContent) => {
     const key = Math.random() + '';
 
-    if (typeof content === 'string') content = applyEllipsisToMessageIfNeeded(content);
+    if (typeof content === 'string')
+      content = applyEllipsisToMessageIfNeeded(content);
 
     const customization = {
       icon: (
@@ -131,9 +139,7 @@ function messageFactory(type: CloseableMessageType): MessageFunc {
 
     const closeableContent = (
       <span className="closable-message">
-        <span className="closable-message_content">
-          {content}
-        </span>
+        <span className="closable-message_content">{content}</span>
         <CloseOutlined
           className="close-message-icon"
           onClick={() => message.destroy(key)}
@@ -163,7 +169,10 @@ export function handleError(error: any, errorDescription?: string) {
   if (errorDescription !== undefined) {
     if (error.message) {
       closeableMessage.error(`${errorDescription}: ${error.message}`);
-      console.error(`Error occurred - ${errorDescription} - ${error.message}`, error);
+      console.error(
+        `Error occurred - ${errorDescription} - ${error.message}`,
+        error
+      );
     } else {
       closeableMessage.error(`${errorDescription}`);
       console.error(`Error occurred - ${errorDescription}`, error);
@@ -201,9 +210,9 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
   }
 
   private getLifecycle(): ComponentLifecycle {
-    return this.state['__lifecycle'] === undefined ?
-      ComponentLifecycle.WAITING :
-      this.state['__lifecycle'];
+    return this.state['__lifecycle'] === undefined
+      ? ComponentLifecycle.WAITING
+      : this.state['__lifecycle'];
   }
 
   emptyState(): S {
@@ -237,15 +246,19 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
   render() {
     let lifecycle = this.getLifecycle();
     if (lifecycle === ComponentLifecycle.WAITING) {
-      return <CenteredSpin/>;
+      return <CenteredSpin />;
     } else if (lifecycle === ComponentLifecycle.ERROR) {
-      return this.renderError(this.state['__errorObject'])
+      return this.renderError(this.state['__errorObject']);
     } else {
       try {
         return (
-          <div className={this.state['__doNotFadeIn'] === true ?
-            '' :
-            'common-component-fadein'}>
+          <div
+            className={
+              this.state['__doNotFadeIn'] === true
+                ? ''
+                : 'common-component-fadein'
+            }
+          >
             {this.renderReady()}
           </div>
         );
@@ -274,7 +287,7 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
    */
   protected async reload(callback?: () => Promise<any | void>) {
     if (!callback) {
-      callback = async() => {
+      callback = async () => {
         return this.load();
       };
     }
@@ -303,10 +316,9 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
     return (
       <div className="common-error-wrapper">
         <div className="common-error-details">
-          <b>Error occurred</b>: {firstToLower(error.message ?
-          error.message :
-          'Unknown error')}
-          <br/>
+          <b>Error occurred</b>:{' '}
+          {firstToLower(error.message ? error.message : 'Unknown error')}
+          <br />
           See details in console log
         </div>
       </div>
@@ -337,30 +349,38 @@ export function Align(props: IAlignProps) {
   });
 
   // @ts-ignore
-  return <div style={{ textAlign: HORIZONTAL_ALIGN_MAP[props.horizontal] }}>{props.children}</div>;
+  return (
+    <div style={{ textAlign: HORIZONTAL_ALIGN_MAP[props.horizontal] as any }}>
+      {props.children}
+    </div>
+  );
 }
 
 export function lazyComponent(importFactory) {
   let LazyComponent = React.lazy(importFactory);
   return (props) => {
     return (
-      <React.Suspense fallback={<CenteredSpin/>}>
+      <React.Suspense fallback={<CenteredSpin />}>
         <LazyComponent {...props} />
       </React.Suspense>
     );
   };
 }
 
-export function ActionLink({ children, onClick }: { children: any; onClick?: () => void }) {
+export function ActionLink({
+  children,
+  onClick
+}: {
+  children: any;
+  onClick?: () => void;
+}) {
   let props = onClick
-    ?
-    {
-      onClick: () => {
-        onClick();
+    ? {
+        onClick: () => {
+          onClick();
+        }
       }
-    }
-    :
-    {};
+    : {};
   return (
     <div className="action-link" {...props}>
       <span>{children}</span>
@@ -368,26 +388,11 @@ export function ActionLink({ children, onClick }: { children: any; onClick?: () 
   );
 }
 
-import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
-import dark from 'react-syntax-highlighter/dist/esm/styles/hljs/dark';
-import js from 'react-syntax-highlighter/dist/esm/languages/hljs/javascript';
-import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
-import yaml from 'react-syntax-highlighter/dist/esm/languages/hljs/yaml';
-import bash from 'react-syntax-highlighter/dist/esm/languages/hljs/bash';
-import html from 'react-syntax-highlighter/dist/esm/languages/hljs/xml'
-import { ArgsProps, MessageInstance } from 'antd/es/message';
+import { ArgsProps } from 'antd/es/message';
 import { MessageType } from 'antd/lib/message';
 import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
-import { max } from 'lodash-es';
 import cn from 'classnames';
-
-SyntaxHighlighter.registerLanguage('javascript', js);
-SyntaxHighlighter.registerLanguage('json', json);
-SyntaxHighlighter.registerLanguage('yaml', yaml);
-SyntaxHighlighter.registerLanguage('bash', bash);
-SyntaxHighlighter.registerLanguage('html', html);
-
-const SyntaxHighlighterAsync = SyntaxHighlighter; //lazyComponent(() => import('react-syntax-highlighter'));
+import { SyntaxHighlighterAsync } from './SyntaxHighlighter/SyntaxHighlighter';
 
 type ICodeSnippetProps = {
   children: ReactNode;
@@ -399,58 +404,51 @@ type ICodeSnippetProps = {
 };
 
 export function CodeSnippet(props: ICodeSnippetProps) {
-  let toolBarPos = props.toolbarPosition ?
-    props.toolbarPosition :
-    'bottom';
+  const toolBarPos = props.toolbarPosition ? props.toolbarPosition : 'bottom';
 
-  let copy = () => {
+  const copy = () => {
     copyToClipboard(props.children, true);
     message.info('Code copied to clipboard');
   };
 
-  let toolbar = (
-    <Row className={cn('code-snippet-toolbar', 'code-snippet-toolbar-' + toolBarPos)}>
+  const toolbar = (
+    <Row
+      className={cn(
+        'code-snippet-toolbar',
+        'code-snippet-toolbar-' + toolBarPos
+      )}
+    >
       <Col span={16}>{props.extra}</Col>
       <Col span={8}>
         <Align horizontal="right">
-          {toolBarPos === 'bottom' ?
-            (
-              <ActionLink onClick={copy}>Copy To Clipboard</ActionLink>
-            ) :
-            (
-              <a onClick={copy}>
-                <CopyOutlined/>
-              </a>
-            )}
+          {toolBarPos === 'bottom' ? (
+            <ActionLink onClick={copy}>Copy To Clipboard</ActionLink>
+          ) : (
+            <a onClick={copy}>
+              <CopyOutlined />
+            </a>
+          )}
         </Align>
       </Col>
     </Row>
   );
 
-  let classes = [
+  const classes = [
     'code-snippet-wrapper-' + toolBarPos,
     'code-snippet-wrapper',
-    props.size === 'large' ?
-      'code-snippet-large' :
-      'code-snippet-small'
+    props.size === 'large' ? 'code-snippet-large' : 'code-snippet-small'
   ];
   if (props.className) {
     classes.push(props.className);
   }
 
-  set(dark, 'hljs.background', '#1e2a31');
-
   return (
     <div className={classes.join(' ')}>
-      {toolBarPos === 'top' ?
-        toolbar :
-        null}
-      <SyntaxHighlighterAsync style={dark} language={props.language}>
+      {toolBarPos === 'top' ? toolbar : null}
+      <SyntaxHighlighterAsync language={props.language}>
         {props.children}
       </SyntaxHighlighterAsync>
-      {toolBarPos === 'bottom' ?
-        toolbar :
-        null}
+      {toolBarPos === 'bottom' ? toolbar : null}
     </div>
   );
 }

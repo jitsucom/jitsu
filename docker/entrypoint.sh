@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+echo "Starting Jitsu. $@"
 
 ### Vars
 PID_SERVER=0
@@ -39,7 +40,8 @@ check_shutdown(){
 }
 
 ### Jitsu CLI has different entrypoint
-if [ -n "$1" ]; then
+if [ -n "$1" ] && [ "$1" != "/home/eventnative/entrypoint.sh" ]; then
+  echo "Jitsu CLI"
   /home/eventnative/app/eventnative "$@"
   if [ $? != 0 ] ; then
     exit 1
@@ -54,33 +56,13 @@ if [[ -z "$NGINX_PORT_VALUE" ]]; then
   NGINX_PORT_VALUE=8000
 fi
 
-# Jitsu Server admin token
-if [[ -z "$SERVER_ADMIN_TOKEN" ]]; then
-  export SERVER_ADMIN_TOKEN=$(random)
-  echo "Generated Jitsu server admin token: $SERVER_ADMIN_TOKEN"
-fi
-
-# Jitsu Configurator admin token
-if [[ -z "$CONFIGURATOR_ADMIN_TOKEN" ]]; then
-  export CONFIGURATOR_ADMIN_TOKEN=$(random)
-  echo "Generated Jitsu configurator admin token: $CONFIGURATOR_ADMIN_TOKEN"
-fi
-
-# Jitsu UI authorization access secret
-if [[ -z "$UI_AUTH_ACCESS_SECRET" ]]; then
-  export UI_AUTH_ACCESS_SECRET=$(random)
-fi
-
-# Jitsu UI authorization refresh secret
-if [[ -z "$UI_AUTH_REFRESH_SECRET" ]]; then
-  export UI_AUTH_REFRESH_SECRET=$(random)
-fi
-
 # Apply bashrc
 source ~/.bashrc
 
 trap graceful_exit SIGQUIT SIGTERM SIGINT SIGHUP
 
+export JITSU_CONFIGURATOR_URL=http://localhost:7000
+export JITSU_SERVER_URL=http://localhost:8001
 ### Start services
 # Start Jitsu Configurator process
 /home/configurator/app/configurator -cfg=/home/configurator/data/config/configurator.yaml -cr=true -dhid=jitsu &

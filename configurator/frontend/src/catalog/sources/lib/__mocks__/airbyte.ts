@@ -1,6 +1,6 @@
 import { allMockAirbyteSources } from 'catalog/mockData/airbyte/sourcesLib/mockAirbyteSourcesLib';
 import { allAirbyteSources } from '../airbyte';
-import { makeAirbyteSource } from '../helper';
+import { makeAirbyteSource } from '../airbyte.helper';
 jest.unmock('../airbyte');
 
 /**

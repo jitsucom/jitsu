@@ -5,39 +5,46 @@ import {Redirect, Route, Switch} from 'react-router-dom';
 import {Button, Form, Input, message, Modal} from 'antd';
 
 import './App.less';
-import ApplicationServices, {setDebugInfo} from './lib/services/ApplicationServices';
-import {CenteredSpin, GlobalError, handleError, Preloader} from './lib/components/components';
-import {reloadPage} from './lib/commons/utils';
+import ApplicationServices from './lib/services/ApplicationServices';
+import {
+  CenteredSpin,
+  GlobalError,
+  handleError,
+  Preloader
+} from './lib/components/components';
+import { reloadPage, setDebugInfo } from './lib/commons/utils';
 import {User} from './lib/services/model';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
 import { ApplicationPage, emailIsNotConfirmedMessageConfig, SlackChatWidget } from './Layout';
-import { initPaymentPlan, PaymentPlanStatus } from 'lib/services/billing';
+import { checkQuotas, getCurrentSubscription, CurrentSubscription, paymentPlans } from 'lib/services/billing';
 import { OnboardingTour } from 'lib/components/OnboardingTour/OnboardingTour';
 import { initializeAllStores } from 'stores/_initializeAllStores';
 import { destinationsStore } from './stores/destinations';
 import { sourcesStore } from './stores/sources';
+import BillingBlockingModal from './lib/components/BillingModal/BillingBlockingModal';
+import moment, { Moment } from 'moment';
 
 enum AppLifecycle {
-    LOADING, //Application is loading
-    REQUIRES_LOGIN, //Login form is displayed
-    APP, //Application
-    ERROR //Global error (maintenance)
+  LOADING, //Application is loading
+  REQUIRES_LOGIN, //Login form is displayed
+  APP, //Application
+  ERROR //Global error (maintenance)
 }
 
 type AppState = {
-    lifecycle: AppLifecycle;
-    globalErrorDetails?: string;
-    extraControls?: React.ReactNode;
-    user?: User;
-    paymentPlanStatus?: PaymentPlanStatus;
+  lifecycle: AppLifecycle;
+  globalErrorDetails?: string;
+  extraControls?: React.ReactNode;
+  user?: User;
+  paymentPlanStatus?: CurrentSubscription;
 };
 
 export const initializeApplication = async (
   services: ApplicationServices = ApplicationServices.get()
 ): Promise<{
   user: User;
-  paymentPlanStatus: PaymentPlanStatus;
+  paymentPlanStatus: CurrentSubscription;
 }> => {
   await services.init();
   const { user } = await services.userService.waitForUser();
@@ -48,10 +55,33 @@ export const initializeApplication = async (
 
   await initializeAllStores();
 
-  let paymentPlanStatus: PaymentPlanStatus;
+  let paymentPlanStatus: CurrentSubscription;
   if (user && services.features.billingEnabled) {
-    paymentPlanStatus = await initPaymentPlan(services.activeProject, services.backendApiClient, destinationsStore, sourcesStore);
+    if (services.activeProject) {
+      paymentPlanStatus = await getCurrentSubscription(
+        services.activeProject,
+        services.backendApiClient,
+        destinationsStore,
+        sourcesStore
+      );
+    } else {
+      //project is not initialized yet, return mock result
+      paymentPlanStatus = {
+        autorenew: false,
+        expiration: moment().add(1, 'M'),
+        usage: {
+          events: 0,
+          sources: 0,
+          destinations: 0
+        },
+        currentPlan: paymentPlans.free,
+        quotaPeriodStart: moment(),
+        doNotBlock: true
+
+      }
+    }
   }
+  services.currentSubscription = paymentPlanStatus;
 
   return { user, paymentPlanStatus };
 };
@@ -76,9 +106,7 @@ export default class App extends React.Component<{}, AppState> {
 
     public async componentDidMount() {
         try {
-            const { user, paymentPlanStatus } = await initializeApplication(
-              this.services
-            );
+            const { user, paymentPlanStatus } = await initializeApplication(this.services);
 
             this.setState({
               lifecycle: user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
@@ -176,7 +204,7 @@ export default class App extends React.Component<{}, AppState> {
 
         routes.push(<Redirect key="dashboardRedirect" from="*" to="/dashboard"/>);
 
-        const extraForms = <OnboardingTour />;
+        const extraForms = [<OnboardingTour />];
         if (this.services.userService.getUser().forcePasswordChange) {
             return (
                 <SetNewPassword
@@ -185,6 +213,12 @@ export default class App extends React.Component<{}, AppState> {
                     }}
                 />
             );
+        } else if (this.state.paymentPlanStatus) {
+          const quotasMessage = checkQuotas(this.state.paymentPlanStatus);
+          if (quotasMessage) {
+            extraForms.push(<BillingBlockingModal blockingReason={quotasMessage} subscription={this.state.paymentPlanStatus}/>)
+          }
+
         }
         return (
             <>
