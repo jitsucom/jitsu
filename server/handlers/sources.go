@@ -152,14 +152,8 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 	}
 	err := testSourceConnection(sourceConfig)
 	if err != nil {
-		notReadyErr, ok := err.(*runner.NotReadyError)
-		if ok {
-			if notReadyErr.PreviousError() == "" {
-				c.JSON(http.StatusOK, middleware.PendingResponse())
-				return
-			}
-
-			c.JSON(http.StatusOK, middleware.PendingResponseWithMessage(notReadyErr.PreviousError()))
+		if err == runner.ErrNotReady {
+			c.JSON(http.StatusOK, middleware.PendingResponse())
 			return
 		}
 

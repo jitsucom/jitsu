@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/parsers"
@@ -12,10 +13,16 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/singer"
 	"go.uber.org/atomic"
+	"io"
+	"os/exec"
 	"path"
+	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 )
+
+const syncTimeout = time.Hour * 24
 
 var (
 	blacklistStreamsByTap = map[string]map[string]bool{
@@ -25,15 +32,20 @@ var (
 	}
 )
 
+//Singer is a Singer CLI driver
 type Singer struct {
-	sync.RWMutex
 	base.AbstractCLIDriver
+
+	mutex              *sync.RWMutex
+	activeSyncCommands map[string]*SyncCommand
 
 	pathToConfigs     string
 	streamReplication map[string]string
 	catalogDiscovered *atomic.Bool
 
 	discoverCatalogLastError error
+
+	closed chan struct{}
 }
 
 func init() {
@@ -131,9 +143,14 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 		config.StreamTableNamesPrefix, pathToConfigs, config.StreamTableNames)
 
 	s := &Singer{
+		mutex:              &sync.RWMutex{},
+		activeSyncCommands: map[string]*SyncCommand{},
+
 		pathToConfigs:     pathToConfigs,
 		streamReplication: streamReplicationMappings,
 		catalogDiscovered: catalogDiscovered,
+
+		closed: make(chan struct{}),
 	}
 
 	s.AbstractCLIDriver = *abstract
@@ -164,7 +181,7 @@ func TestSinger(sourceConfig *base.SourceConfig) error {
 	command := path.Join(singer.Instance.VenvDir, singerDriver.GetTap(), "bin", singerDriver.GetTap())
 	args := []string{"-c", singerDriver.GetConfigPath(), "--discover"}
 
-	err = runner.ExecCmd(base.SingerType, command, outWriter, errWriter, args...)
+	err = runner.ExecCmd(base.SingerType, command, outWriter, errWriter, time.Second*50, args...)
 	if err != nil {
 		return fmt.Errorf("Error singer --discover: %v. %s", err, errWriter.String())
 	}
@@ -194,9 +211,9 @@ func (s *Singer) EnsureTapAndCatalog() {
 
 		catalogPath, propertiesPath, streamNames, err := doDiscover(s.ID(), s.GetTap(), s.pathToConfigs, s.GetConfigPath())
 		if err != nil {
-			s.Lock()
+			s.mutex.Lock()
 			s.discoverCatalogLastError = err
-			s.Unlock()
+			s.mutex.Unlock()
 
 			retry++
 			logging.Errorf("[%s] Error configuring Singer: %v. Scheduled next try after: %d minutes", s.ID(), err, retry)
@@ -209,9 +226,9 @@ func (s *Singer) EnsureTapAndCatalog() {
 			streamTableNameMapping[streamName] = s.GetTableNamePrefix() + streamName
 		}
 
-		s.Lock()
+		s.mutex.Lock()
 		s.discoverCatalogLastError = nil
-		s.Unlock()
+		s.mutex.Unlock()
 
 		s.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
 		s.SetCatalogPath(catalogPath)
@@ -227,10 +244,10 @@ func (s *Singer) Ready() (bool, error) {
 	ready, err := singer.Instance.IsTapReady(s.GetTap())
 	if !ready {
 		if err != nil {
-			return false, runner.NewNotReadyError(err.Error())
+			return false, runner.NewCompositeNotReadyError(err.Error())
 		}
 
-		return false, runner.NewNotReadyError("")
+		return false, runner.ErrNotReady
 	}
 
 	//check catalog after tap because catalog can be configured and discovered by user
@@ -238,14 +255,14 @@ func (s *Singer) Ready() (bool, error) {
 		return true, nil
 	}
 
-	s.RLock()
-	defer s.RUnlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 	msg := ""
 	if s.discoverCatalogLastError != nil {
 		msg = s.discoverCatalogLastError.Error()
 	}
 
-	return false, runner.NewNotReadyError(msg)
+	return false, runner.NewCompositeNotReadyError(msg)
 }
 
 func (s *Singer) Load(state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
@@ -291,11 +308,147 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, dataConsumer 
 		logger:            taskLogger,
 	}
 
-	return s.LoadAndParse(taskLogger, sop, singer.Instance.LogWriter, taskCloser, command, args...)
+	return s.loadAndParse(taskLogger, sop, singer.Instance.LogWriter, taskCloser, command, args...)
+}
+
+func (s *Singer) loadAndParse(taskLogger logging.TaskLogger, cliParser base.CLIParser, rawLogStdoutWriter io.Writer,
+	taskCloser base.CLITaskCloser, command string, args ...string) error {
+	taskLogger.INFO("ID [%s] exec: %s %s", taskCloser.TaskID(), command, strings.Join(args, " "))
+
+	//exec cmd and analyze response from stdout & stderr
+	execSyncCmd := exec.Command(command, args...)
+	stdout, _ := execSyncCmd.StdoutPipe()
+	defer stdout.Close()
+	stderr, _ := execSyncCmd.StderrPipe()
+	defer stderr.Close()
+
+	syncCommand := &SyncCommand{
+		Command:    execSyncCmd,
+		TaskCloser: taskCloser,
+	}
+	s.mutex.Lock()
+	s.activeSyncCommands[taskCloser.TaskID()] = syncCommand
+	s.mutex.Unlock()
+
+	defer func() {
+		s.mutex.Lock()
+		delete(s.activeSyncCommands, taskCloser.TaskID())
+		s.mutex.Unlock()
+	}()
+
+	commandFinished := make(chan struct{})
+	defer close(commandFinished)
+	//close command by timeout
+	safego.Run(func() {
+		ticker := time.NewTicker(syncTimeout)
+		for {
+			select {
+			case <-s.closed:
+				return
+			case <-commandFinished:
+				return
+			case <-ticker.C:
+				logging.Warnf("[%s] Singer sync run timeout after [%s]", s.ID(), syncTimeout.String())
+
+				if err := syncCommand.Command.Process.Kill(); err != nil {
+					logging.SystemErrorf("Error terminating Singer command %s: %v", syncCommand.Command.String(), err)
+				}
+
+				s.mutex.Lock()
+				delete(s.activeSyncCommands, taskCloser.TaskID())
+				s.mutex.Unlock()
+			}
+		}
+	})
+
+	err := execSyncCmd.Start()
+	if err != nil {
+		return err
+	}
+
+	var wg sync.WaitGroup
+	var parsingErr error
+
+	//writing result singer writes result to stdout
+	wg.Add(1)
+	safego.Run(func() {
+		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Error("panic in singer task")
+				logging.Error(string(debug.Stack()))
+				killErr := syncCommand.Kill(fmt.Sprintf("%v. Process will be killed", r))
+				if killErr != nil {
+					taskLogger.ERROR("Error killing process: %v", killErr)
+					logging.Errorf("[%s] error killing process: %v", taskCloser.TaskID(), killErr)
+				}
+				return
+			}
+		}()
+
+		parsingErr = cliParser.Parse(stdout)
+		if parsingErr != nil {
+			killErr := syncCommand.Kill(fmt.Sprintf("Parse output error: %v. Process will be killed", parsingErr))
+			if killErr != nil {
+				taskLogger.ERROR("Error killing process: %v", killErr)
+				logging.Errorf("[%s] error killing process: %v", taskCloser.TaskID(), killErr)
+			}
+		}
+	})
+
+	dualWriter := logging.Dual{FileWriter: taskLogger, Stdout: logging.NewPrefixDateTimeProxy(fmt.Sprintf("[%s]", s.ID()), rawLogStdoutWriter)}
+
+	//writing process logs singer to stderr
+	wg.Add(1)
+	safego.Run(func() {
+		defer wg.Done()
+		io.Copy(dualWriter, stderr)
+	})
+
+	wg.Wait()
+
+	err = execSyncCmd.Wait()
+	if err != nil {
+		return err
+	}
+
+	if parsingErr != nil {
+		return parsingErr
+	}
+
+	return nil
 }
 
 func (s *Singer) Type() string {
 	return base.SingerType
+}
+
+//Close kills all commands and returns errors if occurred
+func (s *Singer) Close() (multiErr error) {
+	if s.IsClosed() {
+		return nil
+	}
+
+	s.mutex.Lock()
+	for _, command := range s.activeSyncCommands {
+		logging.Infof("[%s] killing process: %s", s.ID(), command.Command.String())
+		if err := command.Shutdown(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error killing singer sync command: %v", s.ID(), err))
+		}
+	}
+
+	s.mutex.Unlock()
+
+	return multiErr
+}
+
+func (s *Singer) IsClosed() bool {
+	select {
+	case <-s.closed:
+		return true
+	default:
+		return false
+	}
 }
 
 //doDiscover discovers tap catalog and returns catalog and properties paths
@@ -308,7 +461,7 @@ func doDiscover(sourceID, tap, pathToConfigs, configFilePath string) (string, st
 	command := path.Join(singer.Instance.VenvDir, tap, "bin", tap)
 	args := []string{"-c", configFilePath, "--discover"}
 
-	err := runner.ExecCmd(base.SingerType, command, outWriter, dualStdErrWriter, args...)
+	err := runner.ExecCmd(base.SingerType, command, outWriter, dualStdErrWriter, time.Minute*10, args...)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("Error singer --discover: %v. %s", err, errStrWriter.String())
 	}

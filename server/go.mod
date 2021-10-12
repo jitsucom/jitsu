@@ -10,6 +10,7 @@ require (
 	firebase.google.com/go/v4 v4.1.0
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/charmbracelet/lipgloss v0.2.1
+	github.com/docker/docker v20.10.6+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dop251/goja v0.0.0-20210630164231-8f81471d5d0b
 	github.com/gin-gonic/gin v1.6.3

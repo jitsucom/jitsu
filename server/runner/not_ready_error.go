@@ -1,24 +1,28 @@
 package runner
 
-type NotReadyError struct {
+import "errors"
+
+var ErrNotReady = errors.New("not ready")
+
+type CompositeNotReadyError struct {
 	previousError string
 }
 
-func NewNotReadyError(previousError string) *NotReadyError {
-	return &NotReadyError{previousError: previousError}
+func NewCompositeNotReadyError(previousError string) *CompositeNotReadyError {
+	return &CompositeNotReadyError{previousError: previousError}
 }
 
 //Error returns not ready error
-func (nre *NotReadyError) Error() string {
-	msg := "not ready. Please retry attempt a bit later"
-	if nre.previousError != "" {
-		msg += ". previous error: " + nre.previousError
+func (cnre *CompositeNotReadyError) Error() string {
+	msg := ErrNotReady.Error()
+	if cnre.previousError != "" {
+		msg += ": " + cnre.previousError
 	}
 
 	return msg
 }
 
 //PreviousError returns previous error
-func (nre *NotReadyError) PreviousError() string {
-	return nre.previousError
+func (cnre *CompositeNotReadyError) PreviousError() string {
+	return cnre.previousError
 }
