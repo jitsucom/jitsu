@@ -12,7 +12,7 @@ type GoogleAnalytics struct {
 }
 
 func init() {
-	RegisterStorage(GoogleAnalyticsType, NewGoogleAnalytics)
+	RegisterStorage(StorageType{typeName: GoogleAnalyticsType, createFunc: NewGoogleAnalytics})
 }
 
 //NewGoogleAnalytics return GoogleAnalytics instance

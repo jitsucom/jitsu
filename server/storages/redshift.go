@@ -24,7 +24,7 @@ type AwsRedshift struct {
 }
 
 func init() {
-	RegisterStorage(RedshiftType, NewAwsRedshift)
+	RegisterStorage(StorageType{typeName: RedshiftType, createFunc: NewAwsRedshift})
 }
 
 //NewAwsRedshift returns AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode

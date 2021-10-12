@@ -11,7 +11,7 @@ type Amplitude struct {
 }
 
 func init() {
-	RegisterStorage(AmplitudeType, NewAmplitude)
+	RegisterStorage(StorageType{typeName: AmplitudeType, createFunc: NewAmplitude})
 }
 
 //NewAmplitude returns configured Amplitude destination
