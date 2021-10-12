@@ -129,7 +129,6 @@ func (a *Amplitude) TestAccess() error {
 		httpReq.Header.Add(k, v)
 	}
 
-	//send event with no user_id and expect error
 	resp, err := http.DefaultClient.Do(httpReq)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
