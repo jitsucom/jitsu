@@ -12,8 +12,10 @@ import (
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/singer"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"go.uber.org/atomic"
 	"io"
+	"os"
 	"os/exec"
 	"path"
 	"runtime/debug"
@@ -162,24 +164,46 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 
 //TestSinger tests singer connection (runs discover) if tap has been installed otherwise returns nil
 func TestSinger(sourceConfig *base.SourceConfig) error {
-	driver, err := NewSinger(context.Background(), sourceConfig, nil)
+	config := &Config{}
+	err := base.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return err
 	}
-	defer driver.Close()
-
-	singerDriver, _ := driver.(*Singer)
-
-	ready, err := singerDriver.Ready()
-	if !ready {
+	if err := config.Validate(); err != nil {
 		return err
 	}
+
+	ready, err := singer.Instance.IsTapReady(config.Tap)
+	if !ready {
+		if err != nil {
+			return err
+		}
+
+		return runner.ErrNotReady
+	}
+
+	//save config
+	pathToConfigs := path.Join(singer.Instance.VenvDir, sourceConfig.SourceID, config.Tap, "test")
+	if err := logging.EnsureDir(pathToConfigs); err != nil {
+		return fmt.Errorf("Error creating singer venv config dir: %v", err)
+	}
+	fileName := uuid.NewLettersNumbers() + ".json"
+	//parse singer config as file path
+	configPath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, fileName), config.Config)
+	if err != nil {
+		return fmt.Errorf("Error parsing singer config [%v]: %v", config.Config, err)
+	}
+	defer func() {
+		if err := os.RemoveAll(configPath); err != nil {
+			logging.SystemErrorf("Error deleting generated singer config dir [%s]: %v", configPath, err)
+		}
+	}()
 
 	outWriter := logging.NewStringWriter()
 	errWriter := logging.NewStringWriter()
 
-	command := path.Join(singer.Instance.VenvDir, singerDriver.GetTap(), "bin", singerDriver.GetTap())
-	args := []string{"-c", singerDriver.GetConfigPath(), "--discover"}
+	command := path.Join(singer.Instance.VenvDir, config.Tap, "bin", config.Tap)
+	args := []string{"-c", configPath, "--discover"}
 
 	err = runner.ExecCmd(base.SingerType, command, outWriter, errWriter, time.Second*50, args...)
 	if err != nil {
@@ -192,7 +216,6 @@ func TestSinger(sourceConfig *base.SourceConfig) error {
 //EnsureTapAndCatalog ensures Singer tap via singer.Instance
 // and does discover if catalog wasn't provided
 func (s *Singer) EnsureTapAndCatalog() {
-	singer.Instance.EnsureTap(s.GetTap())
 	retry := 0
 
 	for {

@@ -78,6 +78,8 @@ func (b *Bridge) IsTapReady(tap string) (bool, error) {
 		return true, nil
 	}
 
+	b.ensureTap(tap)
+
 	b.mutex.RLock()
 	err, ok := b.installErrorsByTap[tap]
 	b.mutex.RUnlock()
@@ -89,8 +91,8 @@ func (b *Bridge) IsTapReady(tap string) (bool, error) {
 	return false, nil
 }
 
-//EnsureTap runs async update pip and install singer tap
-func (b *Bridge) EnsureTap(tap string) {
+//ensureTap runs async update pip and install singer tap
+func (b *Bridge) ensureTap(tap string) {
 	//ensure tap is installed
 	if b.installTaps {
 		//tap is installed

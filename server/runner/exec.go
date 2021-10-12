@@ -29,7 +29,7 @@ func ExecCmd(system, cmd string, stdOutWriter, stdErrWriter io.Writer, timeout t
 			case <-closed:
 				return
 			case <-ticker.C:
-				logging.Warnf("system [%s] command [%s] run [%s] timeout", system, execCmd.String(), strings.Join(args, ", "), timeout.String())
+				logging.Warnf("system [%s] command [%s] run [%s] timeout", system, execCmd.String(), timeout.String())
 				if err := execCmd.Process.Kill(); err != nil {
 					logging.SystemErrorf("Error terminating command [%s %s]: %v", cmd, strings.Join(args, ", "), err)
 				}
