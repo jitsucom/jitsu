@@ -65,10 +65,8 @@ export class Poll<T = unknown> implements IPoll<T> {
   private endPolling(result: T | null = null): void {
     this.result = result;
     this.cleanup();
-    if (this.resultPromiseResolve) {
-      this.resultPromiseResolve(result);
-      this.resultPromiseResolve = null;
-    }
+    this.resultPromiseResolve?.(result);
+    this.resultPromiseResolve = null;
   }
 
   private failPolling(error?: Error) {
@@ -77,7 +75,7 @@ export class Poll<T = unknown> implements IPoll<T> {
       this.resultPromiseReject(
         error ||
           new Error(
-            'Polling silently faile. Please, see the stack trace for detailes.'
+            'Polling silently failed. Please, see the stack trace for details.'
           )
       );
       this.resultPromiseReject = null;

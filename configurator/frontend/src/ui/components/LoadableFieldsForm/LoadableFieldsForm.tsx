@@ -1,6 +1,7 @@
 // @Libs
-import { useEffect, useState, FC } from 'react';
-import { Card, Col, Row, Spin } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Col, Row } from 'antd';
+import isEqual from 'lodash/isEqual';
 // @Types
 import { Parameter, SourceConnector } from 'catalog/sources/types';
 // @Services
@@ -14,6 +15,7 @@ import { mapAirbyteSpecToSourceConnectorConfig } from 'catalog/sources/lib/airby
 import { Poll } from 'utils/polling';
 import { useSourceEditorSyncContext } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditorSyncContext';
 import { LoadableFieldsLoadingMessageCard } from 'lib/components/LoadingFormCard/LoadingFormCard';
+import { toTitleCase } from 'utils/strings';
 
 type Props = {
   sourceReference: SourceConnector;
@@ -24,7 +26,7 @@ type Props = {
   enableFormControls?: VoidFunction;
 };
 
-export const LoadableFieldsForm = ({
+const LoadableFieldsFormComponent = ({
   sourceReference,
   form,
   initialValues,
@@ -83,11 +85,17 @@ export const LoadableFieldsForm = ({
       if (response?.['status'] && response?.['status'] !== 'pending') {
         const parsedData = mapAirbyteSpecToSourceConnectorConfig(
           response?.['spec']?.['spec']?.['connectionSpecification']
-        );
+        ).map<Parameter>((parameter) => ({
+          ...parameter,
+          displayName: toTitleCase(parameter.displayName, { separator: '_' })
+        }));
+
         setFieldsParameters(parsedData);
         setIsLoadingParameters(false);
-        if (resolve) resolve(parsedData);
-        if (enableFormControls) enableFormControls();
+
+        resolve?.(parsedData);
+        enableFormControls?.();
+
         return;
       }
 
@@ -152,3 +160,11 @@ export const LoadableFieldsForm = ({
     />
   );
 };
+
+const LoadableFieldsForm = LoadableFieldsFormComponent;
+
+// const LoadableFieldsForm = React.memo(LoadableFieldsFormComponent, isEqual);
+
+// LoadableFieldsForm.displayName = 'LoadableFieldsForm';
+
+export { LoadableFieldsForm };

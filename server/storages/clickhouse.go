@@ -22,7 +22,7 @@ type ClickHouse struct {
 }
 
 func init() {
-	RegisterStorage(ClickHouseType, NewClickHouse)
+	RegisterStorage(StorageType{typeName: ClickHouseType, createFunc: NewClickHouse})
 }
 
 //NewClickHouse returns configured ClickHouse instance

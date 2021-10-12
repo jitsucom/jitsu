@@ -4,8 +4,7 @@ import { useLoaderAsObject } from 'hooks/useLoader';
 import { ErrorCard } from 'lib/components/ErrorCard/ErrorCard';
 import { LoadableFieldsLoadingMessageCard } from 'lib/components/LoadingFormCard/LoadingFormCard';
 import ApplicationServices from 'lib/services/ApplicationServices';
-import { cloneDeep } from 'lodash';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Poll } from 'utils/polling';
 import { withQueryParams } from 'utils/queryParams';
 import {
@@ -20,7 +19,9 @@ type Props = {
   form: FormInstance;
   initialValues: SourceData;
   connectorSource: SourceConnector;
-  handleBringSourceData: () => Promise<SourceData>;
+  handleBringSourceData: (options?: {
+    skipValidation?: boolean;
+  }) => Promise<SourceData>;
 };
 
 const services = ApplicationServices.get();
@@ -34,21 +35,33 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
   const pollingInstance = useRef<null | Poll>(null);
   const { isLoadingConfigParameters } = useSourceEditorSyncContext();
 
-  const formLoadedForTheFirstTime: boolean = !initialValues.catalog?.streams;
+  const formLoadedForTheFirstTime: boolean =
+    !initialValues.config?.catalog?.streams && !initialValues.catalog?.streams;
   const previouslyCheckedStreams: AirbyteStreamData[] =
-    initialValues.catalog?.streams ?? [];
+    initialValues.config?.catalog?.streams ??
+    initialValues.catalog?.streams ??
+    [];
+
+  const cancelPolling = () => {
+    pollingInstance.current?.cancel();
+    pollingInstance.current = null;
+  };
 
   const {
     isLoading: isLoadingAirbyteStreams,
     data: airbyteStreamsLoadedData,
-    error: airbyteStreamsLoadError
+    error: airbyteStreamsLoadError,
+    reloader: reloadAirbyteStreams
   } = useLoaderAsObject<AirbyteStreamData[]>(async () => {
     if (!connectorSource.staticStreamsConfigEndpoint)
       throw new Error(
         'Used SourceEditorStreamsAirbyteLoader component but endpoint for loading streams config not specified in Source Connector'
       );
     if (!isLoadingConfigParameters) {
-      const data = (await handleBringSourceData()).config.config;
+      cancelPolling();
+
+      const data = (await handleBringSourceData({ skipValidation: true }))
+        .config.config;
       const baseUrl = connectorSource.staticStreamsConfigEndpoint;
       const project_id = services.userService.getUser().projects[0].id;
 
@@ -70,6 +83,8 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
       poll.start();
       const response = await poll.wait();
 
+      if (!response) return [];
+
       assertIsObject(response);
       assertIsObject(response.catalog);
       assertIsArrayOfTypes(response.catalog.streams, {});
@@ -77,9 +92,8 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
       const rawAirbyteStreams: UnknownObject[] = response.catalog.streams;
 
       const streams: AirbyteStreamData[] = rawAirbyteStreams.map((stream) => {
-
         assertIsString(stream.name);
-        assertIsString(stream.namespace);
+        assertIsString(stream.namespace, { allowUndefined: true });
         assertIsObject(stream.json_schema);
         assertIsArrayOfTypes(stream.supported_sync_modes, '');
 
@@ -108,19 +122,38 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
     }
   }, [isLoadingConfigParameters]);
 
-  useEffect(
-    () => () => {
-      pollingInstance.current?.cancel();
-    },
-    []
-  );
+  useEffect(() => () => cancelPolling(), []);
+
+  /**
+   * The following statements implement the opposite useEffect.
+   * The last useEffect will run only if neither of `isLoadingAirbyteStreams`,
+   * `airbyteStreamsLoadError`, `airbyteStreamsLoadedData` has changed;
+   */
+
+  let shouldReload = true;
+
+  useEffect(() => {
+    shouldReload = false;
+  }, [
+    isLoadingAirbyteStreams,
+    airbyteStreamsLoadError,
+    airbyteStreamsLoadedData
+  ]);
+
+  useEffect(() => {
+    shouldReload && !isLoadingAirbyteStreams && reloadAirbyteStreams();
+  });
 
   return airbyteStreamsLoadError ? (
     <Row>
       <Col span={24}>
         <ErrorCard
           title={`Source configuration validation failed`}
-          description={`Invalid configuration. See more details in the error stack.`}
+          description={`Connection is not configured.${
+            airbyteStreamsLoadError.stack
+              ? ' See more details in the error stack.'
+              : ''
+          }`}
           stackTrace={airbyteStreamsLoadError.stack}
           className={'form-fields-card'}
         />
@@ -144,34 +177,4 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
       selectAllFieldsByDefault={formLoadedForTheFirstTime}
     />
   );
-};
-
-/**
- * Deletes previously saved streams (aka collections) if they are not in the new list
- * of static streams.
- *
- * Note: The list of static streams depends on the Connection Parameters config; The
- * list is updated every time user changes the config.
- *
- * @param initialData
- * @returns
- */
-const applyNewAirbyteStreamsToInitialValues = (
-  initialValues: SourceData,
-  newStaticStreams: StreamWithRawData[]
-): SourceData => {
-  if (initialValues.collections) {
-    const allowedNames = new Set(newStaticStreams.map((stream) => stream.name));
-    const collections = initialValues.collections.filter((stream) =>
-      allowedNames.has(stream.name)
-    );
-
-    const updatedInitialValues = cloneDeep(initialValues);
-    updatedInitialValues.collections = newStaticStreams;
-    // updatedInitialValues.collections = collections;
-
-    return updatedInitialValues;
-  }
-
-  return initialValues;
 };

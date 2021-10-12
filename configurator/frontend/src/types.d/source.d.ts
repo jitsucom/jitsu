@@ -28,8 +28,18 @@ declare interface NativeSourceData {
 
 declare interface AirbyteSourceData {
   sourceType: 'airbyte';
+  /**
+   * @deprecated
+   * The new path for streams is config.config.catalog.streams
+   */
   catalog?: {
     streams: Array<AirbyteStreamData>;
+  };
+  config: {
+    [key: string]: string;
+    catalog?: {
+      streams: Array<AirbyteStreamData>;
+    };
   };
 }
 
@@ -38,7 +48,7 @@ declare type AirbyteStreamData = {
   destination_sync_mode: string;
   stream: {
     name: string;
-    namespace: string;
+    namespace?: string;
     json_schema: UnknownObject;
     supported_sync_modes: string[];
     [key: string]: unknown;
