@@ -114,7 +114,7 @@ func (a *Amplitude) TestAccess() error {
 		return err
 	}
 
-	body := map[string]interface{}{"event_type": "test"}
+	body := map[string]interface{}{"event_type": "connection_test", "user_id": "hello@jitsu.com"}
 	r, err := httpReqFactory.Create(body)
 	if err != nil {
 		return err
@@ -145,7 +145,7 @@ func (a *Amplitude) TestAccess() error {
 			return fmt.Errorf("Error unmarshalling amplitude response body: %v", err)
 		}
 
-		if response.Code != 400 {
+		if response.Code != 200 {
 			return fmt.Errorf("error connecting to amplitude [code=%d]: %s", response.Code, response.Error)
 		}
 
