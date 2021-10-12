@@ -26,7 +26,7 @@ type MySQL struct {
 }
 
 func init() {
-	RegisterStorage(MySQLType, NewMySQL)
+	RegisterStorage(StorageType{typeName: MySQLType, createFunc: NewMySQL})
 }
 
 //NewMySQL returns configured MySQL Destination
