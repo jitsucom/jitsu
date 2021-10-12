@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/runner"
 	"net/http"
 )
 
@@ -35,22 +35,22 @@ func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 		return
 	}
 
-	spec, err := airbyte.Instance.GetOrLoadSpec(dockerImage)
+	airbyteRunner := airbyte.NewRunner(dockerImage, airbyte.LatestVersion, "")
+	spec, err := airbyteRunner.Spec()
 	if err != nil {
-		//pending status with error (some previous spec loads failed)
-		c.JSON(http.StatusOK, middleware.PendingResponseWithMessage(fmt.Sprintf("Previous spec load failed: %v. Started a new spec load task.", err)))
+		if err == runner.ErrNotReady {
+			c.JSON(http.StatusOK, middleware.PendingResponse())
+			return
+		}
+
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
 		return
 	}
 
-	if spec != nil {
-		c.JSON(http.StatusOK, SpecResponse{
-			StatusResponse: middleware.OKResponse(),
-			Spec:           spec,
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, middleware.PendingResponse())
+	c.JSON(http.StatusOK, SpecResponse{
+		StatusResponse: middleware.OKResponse(),
+		Spec:           spec,
+	})
 }
 
 //CatalogHandler returns airbyte catalog by docker name and config
@@ -68,20 +68,20 @@ func (ah *AirbyteHandler) CatalogHandler(c *gin.Context) {
 		return
 	}
 
-	catalog, err := airbyte.Instance.GetOrLoadCatalog(dockerImage, airbyteSourceConnectorConfig)
+	airbyteRunner := airbyte.NewRunner(dockerImage, airbyte.LatestVersion, "")
+	catalogRow, err := airbyteRunner.Discover(airbyteSourceConnectorConfig)
 	if err != nil {
-		//pending status with error (some previous catalog loads failed)
-		c.JSON(http.StatusOK, middleware.PendingResponseWithMessage(fmt.Sprintf("Previous catalog load failed: %v. Started a new catalog load task.", err)))
+		if err == runner.ErrNotReady {
+			c.JSON(http.StatusOK, middleware.PendingResponse())
+			return
+		}
+
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
 		return
 	}
 
-	if catalog != nil {
-		c.JSON(http.StatusOK, CatalogResponse{
-			StatusResponse: middleware.OKResponse(),
-			Catalog:        catalog,
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, middleware.PendingResponse())
+	c.JSON(http.StatusOK, CatalogResponse{
+		StatusResponse: middleware.OKResponse(),
+		Catalog:        catalogRow,
+	})
 }

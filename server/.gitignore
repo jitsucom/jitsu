@@ -10,6 +10,7 @@ temp/
 drivers/test_output/*
 
 tracker
+server
 
 node_modules/
 /web/build/

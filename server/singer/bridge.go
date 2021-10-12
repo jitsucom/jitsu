@@ -11,6 +11,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 )
 
 const singerBridgeType = "singer_bridge"
@@ -131,20 +132,20 @@ func (b *Bridge) installTap(tap string) error {
 	pathToTap := path.Join(b.VenvDir, tap)
 
 	//create virtual env
-	err := runner.ExecCmd(singerBridgeType, b.PythonExecPath, b.LogWriter, b.LogWriter, "-m", "venv", pathToTap)
+	err := runner.ExecCmd(singerBridgeType, b.PythonExecPath, b.LogWriter, b.LogWriter, time.Minute*10, "-m", "venv", pathToTap)
 	if err != nil {
 		return fmt.Errorf("error creating singer python venv for [%s]: %v", pathToTap, err)
 	}
 
 	//update pip
-	err = runner.ExecCmd(singerBridgeType, path.Join(pathToTap, "/bin/python3"), b.LogWriter, b.LogWriter, "-m", "pip", "install", "--upgrade", "pip")
+	err = runner.ExecCmd(singerBridgeType, path.Join(pathToTap, "/bin/python3"), b.LogWriter, b.LogWriter, time.Minute*10, "-m", "pip", "install", "--upgrade", "pip")
 	if err != nil {
 		return fmt.Errorf("error updating pip for [%s] env: %v", pathToTap, err)
 
 	}
 
 	//install tap
-	err = runner.ExecCmd(singerBridgeType, path.Join(pathToTap, "/bin/pip3"), b.LogWriter, b.LogWriter, "install", tap)
+	err = runner.ExecCmd(singerBridgeType, path.Join(pathToTap, "/bin/pip3"), b.LogWriter, b.LogWriter, time.Minute*20, "install", tap)
 	if err != nil {
 		return fmt.Errorf("error installing singer tap [%s]: %v", tap, err)
 	}
@@ -162,7 +163,7 @@ func (b *Bridge) UpdateTap(tap string) error {
 	command := path.Join(pathToTap, "/bin/pip3")
 	args := []string{"install", tap, "--upgrade"}
 
-	err := runner.ExecCmd(singerBridgeType, command, b.LogWriter, b.LogWriter, args...)
+	err := runner.ExecCmd(singerBridgeType, command, b.LogWriter, b.LogWriter, time.Minute*20, args...)
 	if err != nil {
 		return err
 	}
