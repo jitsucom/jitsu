@@ -2,6 +2,11 @@ package middleware
 
 import "fmt"
 
+const (
+	StatusOK      = "ok"
+	StatusPending = "pending"
+)
+
 //ErrorResponse is a dto for sending error response
 type ErrorResponse struct {
 	Message string `json:"message"`
@@ -22,10 +27,21 @@ func ErrResponse(msg string, err error) *ErrorResponse {
 
 //StatusResponse is a dto for sending operation status
 type StatusResponse struct {
-	Status string `json:"status"`
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
 }
 
 //OKResponse returns StatusResponse with Status = "ok"
 func OKResponse() StatusResponse {
-	return StatusResponse{Status: "ok"}
+	return StatusResponse{Status: StatusOK}
+}
+
+//PendingResponse returns StatusResponse with Status = "pending"
+func PendingResponse() StatusResponse {
+	return StatusResponse{Status: StatusPending}
+}
+
+//PendingResponseWithMessage returns StatusResponse with Status = "pending" and msg
+func PendingResponseWithMessage(msg string) StatusResponse {
+	return StatusResponse{Status: StatusPending, Message: msg}
 }

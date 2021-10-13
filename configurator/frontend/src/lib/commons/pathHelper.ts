@@ -13,7 +13,9 @@ export function getBaseUIPath() {
 }
 
 export function getBackendApiBase(env: Record<string, string>) {
-  let backendApiBase = env.BACKEND_API_BASE || `${window.location.protocol}//${window.location.host}`
+  let backendApiBase =
+    env.BACKEND_API_BASE ||
+    `${window.location.protocol}//${window.location.host}`;
   if (window.location.pathname.indexOf(CONFIGURATOR_PREFIX) === 0) {
     backendApiBase = concatenateURLs(backendApiBase, CONFIGURATOR_PREFIX)
   }

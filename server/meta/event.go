@@ -1,9 +1,11 @@
 package meta
 
 type Event struct {
-	Original string `json:"original,omitempty" redis:"original"`
-	Success  string `json:"success,omitempty" redis:"success"`
-	Error    string `json:"error,omitempty" redis:"error"`
+	Original      string `json:"original,omitempty" redis:"original"`
+	Success       string `json:"success,omitempty" redis:"success"`
+	Error         string `json:"error,omitempty" redis:"error"`
+	Skip          string `json:"skip,omitempty" redis:"skip"`
+	DestinationID string `json:"destination_id,omitempty" redis:"destination_id"`
 }
 
 type EventsPerTime struct {

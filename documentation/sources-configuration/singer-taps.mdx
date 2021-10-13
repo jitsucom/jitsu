@@ -1,0 +1,113 @@
+---
+sort: 9
+---
+
+# Singer Based Sources
+
+[Singer](https://www.singer.io/) is an open-source project that provides 100+ API connectors (so-called 'taps') to different platforms. Jitsu supports Singer
+as an of the connectors backend (the other one being [Airbyte](/docs/sources-configuration/airbyte) and [native connectors](/docs/sources-configuration)
+
+Singer configuration is a set of JSON objects (see [specification](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#input)):
+
+| Name | Description |
+| :--- | :--- |
+| [Config](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#config) (required) | JSON object contains authorization keys, account ids, start date (date for downloading since). JSON structure depends on the tap. |
+| [Catalog](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#catalog) | JSON object contains all streams (object types) and fields to download. If not provided, Jitsu will do discover and save catalog with all available streams. JSON structure is standardized, but stream and field names depend on the tap. |
+| [State](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#state) | JSON payload contains bookmarks that specify an initial state. It is used when you need to download not all data. |
+| Properties | `Deprecated`. JSON object contains streams and fields schema like Catalog. Used by some legacy taps (e.g. [Facebook tap](https://github.com/singer-io/tap-facebook)) |
+
+### General configuration
+
+Jitsu executes singer taps with Python within [Virtual Environment](https://docs.python.org/3/tutorial/venv.html). `python3` and `venv` should be installed
+on a machine running Jitsu. If you're deploying Jitsu with Docker, that part can be skipped,
+
+Configurations:
+
+```yaml
+
+singer-bridge:
+  python: /path/to/python #Optional. Default value is 'python3'
+  venv_dir: /path/to/venv_dir #Optional. Default value is './venv'
+  log:
+    path: /home/eventnative/logs #or "global" constant for writing logs to stdout
+    rotation_min: 60 #Optional. Default value is 1440 (24 hours)
+    max_backups: 5 #Optional. Default value is 0 (no limit)
+```
+
+To add a source use following snippet:
+
+```yaml
+sources:
+  ...
+  jitsu_singer_facebook:
+    type: singer
+    destinations: [ "postgres_destination_id" ]
+    config:
+      tap: tap-facebook
+      config: /home/eventnative/data/config/facebook_config.json
+      properties: /home/eventnative/data/config/facebook_props.json
+      initial_state: /home/eventnative/data/config/facebook_initial_state.json
+  jitsu_singer_shopify:
+    type: singer
+    destinations: [ "clickhouse_destination_id" ]
+    config:
+      tap: tap-shopify
+      config: '{"config_key1":"value"}'
+      catalog: '{"field_1":"value"}'
+
+```
+
+
+<Hint>
+    JSON configuration parameters such as <code inline="true">config</code>, <code inline="true">catalog</code>, <code inline="true">state</code> and <code inline="true">properties</code> can be a raw JSON or JSON string or path to local JSON file
+</Hint>
+
+### Table Names
+
+Jitsu creates tables with names `$sourceID_$SingerStreamName` by default. For instance, table with name `jitsu_singer_shopify_orders` will be created according to the following configuration:
+
+```yaml
+sources:
+  ...
+  jitsu_singer_shopify:
+    type: singer
+    destinations: [ "clickhouse_destination_id" ]
+    config:
+      tap: tap-shopify
+      config: ...
+      catalog: '{"streams":[{"stream": "orders", ...}]}'
+
+```
+
+Table names might be overridden by adding `stream_table_names` configuration parameter:
+
+```yaml
+sources:
+  ...
+  jitsu_singer_shopify:
+    type: singer
+    destinations: [ "clickhouse_destination_id" ]
+    config:
+      tap: tap-shopify
+      config: ...
+      catalog: '{"streams":[{"stream": "orders", ...}, {"stream": "products", ...}]}'
+      stream_table_names:
+        orders: my_orders
+        products: my_products
+```
+
+Also, table name overriding might be a part of Singer catalog.json. Just add `destination_table_name` string into each stream:
+
+```yaml
+sources:
+  ...
+  jitsu_singer_shopify:
+    type: singer
+    destinations: [ "clickhouse_destination_id" ]
+    config:
+      tap: tap-shopify
+      config: ...
+      catalog: '{"streams":[{"stream": "orders", "destination_table_name":"my_orders", ...}, {"stream": "products", "destination_table_name":"my_products", ...}]}'
+```
+
+In both examples table with names `my_orders` and `my_products` will be created.

@@ -32,7 +32,7 @@ are completely stateless and doesn't require advances balancing technics such as
 
 **Interaction with Redis**. If two or more Jitsu Servers is deployed within the cluster, they require a connection to Redis. Redis is used for coordination (make sure,
 two task isn't being executed at same time or two nodes aren't making DB schema changes simultaneously), caching (task log, events cache for
-[user recognition](/docs/other-features/retrospective-user-recognition)) and other monitor tasks.
+[user recognition](/docs/other-features/retroactive-user-recognition)) and other monitor tasks.
 
 **Interaction with Jitsu Configurator**. If Jitsu Server is configured to work with a configurator, it will pull destinations / sources configuration
 every 3 seconds through HTTP. Both HTTP client and Jitsu Configurator supports `Last-Modified`/`If-Modified-Since` caching optimization.
@@ -62,7 +62,7 @@ We recommend to set up Redis with 2 nodes and master-slave replication.
 
 ### Coordination with etcd (legacy)
 
-Jitsu Server can use `etcd` as a coordination service instead of Redis. It will still require redis to run [user recognition](/docs/other-features/retrospective-user-recognition)
+Jitsu Server can use `etcd` as a coordination service instead of Redis. It will still require redis to run [user recognition](/docs/other-features/retroactive-user-recognition)
 and calculating statistics. We do not recommend set up new clusters with etcd (we do plan to support etcd as an alternative coordination services in the future)
 
 ## Configuration

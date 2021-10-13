@@ -109,15 +109,19 @@ func (ch *ClickHouse) Type() string {
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
-	flatData, failedEvents, err := ch.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+	flatData, failedEvents, skippedEvents, err := ch.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
 		ch.eventsCache.Error(ch.IsCachingDisabled(), ch.ID(), failedEvent.EventID, failedEvent.Error)
+	}
+	//update cache and counter with skipped events
+	for _, skipEvent := range skippedEvents.Events {
+		ch.eventsCache.Skip(ch.IsCachingDisabled(), ch.ID(), skipEvent.EventID, skipEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -136,17 +140,23 @@ func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, a
 			if err != nil {
 				ch.eventsCache.Error(ch.IsCachingDisabled(), ch.ID(), ch.uniqueIDField.Extract(object), err.Error())
 			} else {
-				ch.eventsCache.Succeed(ch.IsCachingDisabled(), ch.ID(), ch.uniqueIDField.Extract(object), object, table)
+				ch.eventsCache.Succeed(&adapters.EventContext{
+					CacheDisabled:  ch.IsCachingDisabled(),
+					DestinationID:  ch.ID(),
+					EventID:        ch.uniqueIDField.Extract(object),
+					ProcessedEvent: object,
+					Table:          table,
+				})
 			}
 		}
 	}
 
 	//store failed events to fallback only if other events have been inserted ok
 	if storeFailedEvents {
-		return tableResults, failedEvents, nil
+		return tableResults, failedEvents, skippedEvents, nil
 	}
 
-	return tableResults, nil, nil
+	return tableResults, nil, skippedEvents, nil
 }
 
 //check table schema
@@ -167,6 +177,10 @@ func (ch *ClickHouse) storeTable(adapter adapters.SQLAdapter, tableHelper *Table
 //SyncStore is used in storing chunk of pulled data to ClickHouse with processing
 func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return syncStoreImpl(ch, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
+}
+
+func (ch *ClickHouse) Clean(tableName string) error {
+	return cleanImpl(ch, tableName)
 }
 
 //Update uses SyncStore under the hood
