@@ -14,6 +14,7 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"go.uber.org/atomic"
 	"path"
+	"strings"
 	"sync"
 	"time"
 )
@@ -25,7 +26,7 @@ type Airbyte struct {
 
 	activeRunners map[string]*airbyte.Runner
 
-	airbyteConfig            interface{}
+	config                   *Config
 	pathToConfigs            string
 	streamsRepresentation    map[string]*base.StreamRepresentation
 	catalogDiscovered        *atomic.Bool
@@ -55,6 +56,11 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 
 	if airbyte.Instance == nil {
 		return nil, errors.New("airbyte-bridge must be configured")
+	}
+
+	config.DockerImage = strings.TrimPrefix(config.DockerImage, airbyte.DockerImageRepositoryPrefix)
+	if config.ImageVersion == "" {
+		config.ImageVersion = airbyte.LatestVersion
 	}
 
 	pathToConfigs := path.Join(airbyte.Instance.ConfigDir, sourceConfig.SourceID, config.DockerImage)
@@ -109,7 +115,7 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 	s := &Airbyte{
 		mutex:                 &sync.RWMutex{},
 		activeRunners:         map[string]*airbyte.Runner{},
-		airbyteConfig:         config.Config,
+		config:                config,
 		pathToConfigs:         pathToConfigs,
 		catalogDiscovered:     catalogDiscovered,
 		streamsRepresentation: streamsRepresentation,
@@ -134,7 +140,12 @@ func TestAirbyte(sourceConfig *base.SourceConfig) error {
 		return err
 	}
 
-	airbyteRunner := airbyte.NewRunner(config.DockerImage, airbyte.LatestVersion, "")
+	config.DockerImage = strings.TrimPrefix(config.DockerImage, airbyte.DockerImageRepositoryPrefix)
+	if config.ImageVersion == "" {
+		config.ImageVersion = airbyte.LatestVersion
+	}
+
+	airbyteRunner := airbyte.NewRunner(config.DockerImage, config.ImageVersion, "")
 	return airbyteRunner.Check(config.Config)
 }
 
@@ -188,7 +199,7 @@ func (a *Airbyte) EnsureCatalog() {
 //Ready returns true if catalog is discovered
 func (a *Airbyte) Ready() (bool, error) {
 	//check if docker image isn't pulled
-	ready := airbyte.Instance.IsImagePulled(airbyte.Instance.AddAirbytePrefix(a.GetTap()), airbyte.LatestVersion)
+	ready := airbyte.Instance.IsImagePulled(airbyte.Instance.AddAirbytePrefix(a.GetTap()), a.config.ImageVersion)
 	if !ready {
 		return false, runner.ErrNotReady
 	}
@@ -224,7 +235,7 @@ func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer
 		return err
 	}
 
-	airbyteRunner := airbyte.NewRunner(a.GetTap(), airbyte.LatestVersion, taskCloser.TaskID())
+	airbyteRunner := airbyte.NewRunner(a.GetTap(), a.config.ImageVersion, taskCloser.TaskID())
 	return airbyteRunner.Read(dataConsumer, a.streamsRepresentation, taskLogger, taskCloser, a.ID(), statePath)
 }
 
@@ -257,8 +268,8 @@ func (a *Airbyte) Close() (multiErr error) {
 //reformat catalog to airbyte format and writes it to the file system
 //returns catalog
 func (a *Airbyte) loadCatalog() (string, map[string]*base.StreamRepresentation, error) {
-	airbyteRunner := airbyte.NewRunner(a.GetTap(), airbyte.LatestVersion, "")
-	rawCatalog, err := airbyteRunner.Discover(a.airbyteConfig)
+	airbyteRunner := airbyte.NewRunner(a.GetTap(), a.config.ImageVersion, "")
+	rawCatalog, err := airbyteRunner.Discover(a.config.Config)
 	if err != nil {
 		return "", nil, err
 	}
