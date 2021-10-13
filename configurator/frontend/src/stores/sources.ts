@@ -3,7 +3,9 @@ import { makeAutoObservable } from 'mobx';
 // @Store
 import { IDestinationsStore } from './destinations';
 // @Services
-import ApplicationServices from 'lib/services/ApplicationServices';
+import ApplicationServices, {
+  IApplicationServices
+} from 'lib/services/ApplicationServices';
 // @Utils
 import { intersection, without } from 'lodash';
 import { toArrayIfNot } from 'utils/arrays';
@@ -31,9 +33,9 @@ type EditSourcesOptions = {
   updateDestinations?: boolean;
 };
 
-const EDIT_SOURCES_DEFAULT_OPTIONS: EditSourcesOptions = {
+const EDIT_SOURCES_DEFAULT_OPTIONS = {
   updateDestinations: true
-};
+} as const;
 
 enum SourceStoreGeneralState {
   'IDLE' = 'IDLE'
@@ -60,13 +62,12 @@ export type SourcesStoreState =
 const { IDLE, GLOBAL_LOADING, BACKGROUND_LOADING, GLOBAL_ERROR } =
   SourcesStoreState;
 
-const services = ApplicationServices.get();
-
 class SourcesStore implements ISourcesStore {
   private _sources: SourceData[] = [];
   private _state: SourcesStoreState = GLOBAL_LOADING;
   private _errorMessage: string = '';
   private _destinatinonsStore: IDestinationsStore | undefined;
+  private services: IApplicationServices = ApplicationServices.get();
 
   constructor() {
     makeAutoObservable(this);
@@ -92,13 +93,13 @@ class SourcesStore implements ISourcesStore {
     const updatedDestinationsMap: { [key: string]: DestinationData } = {};
     updatedSources.forEach((source) => {
       this._destinatinonsStore.destinations.forEach((destination) => {
-        const destinationLinkedToSoucre = !!destination._sources?.includes(
+        const destinationIsLinkedToSoucre = !!destination._sources?.includes(
           source.sourceId
         );
         const destinationNeedsToBeLinked = !!source.destinations?.includes(
           destination._uid
         );
-        if (destinationLinkedToSoucre === destinationNeedsToBeLinked) return;
+        if (destinationIsLinkedToSoucre === destinationNeedsToBeLinked) return;
 
         const updatedDestination =
           updatedDestinationsMap[destination._uid] || destination;
@@ -175,9 +176,9 @@ class SourcesStore implements ISourcesStore {
     this.resetError();
     this._state = showGlobalLoader ? GLOBAL_LOADING : BACKGROUND_LOADING;
     try {
-      const { sources } = yield services.storageService.get(
+      const { sources } = yield this.services.storageService.get(
         'sources',
-        services.activeProject.id
+        this.services.activeProject.id
       );
       this._sources = sources || [];
     } catch (error) {
@@ -195,10 +196,10 @@ class SourcesStore implements ISourcesStore {
     this._state = BACKGROUND_LOADING;
     const updatedSources = [...this._sources, sourceToAdd];
     try {
-      const result = yield services.storageService.save(
+      const result = yield this.services.storageService.save(
         'sources',
         { sources: updatedSources },
-        services.activeProject.id
+        this.services.activeProject.id
       );
       this._sources = updatedSources;
       this.updateDestinationsLinksBySourcesUpdates(sourceToAdd);
@@ -216,10 +217,10 @@ class SourcesStore implements ISourcesStore {
       ({ sourceId }) => sourceId !== sourceToDelete.sourceId
     );
     try {
-      const result = yield services.storageService.save(
+      const result = yield this.services.storageService.save(
         'sources',
         { sources: updatedSources },
-        services.activeProject.id
+        this.services.activeProject.id
       );
       this._sources = updatedSources;
       this.unlinkDeletedSourcesFromDestinations(sourceToDelete);
@@ -241,14 +242,13 @@ class SourcesStore implements ISourcesStore {
       const updateCandidate = sourcesToUpdate.find(
         (updateCandidate) => updateCandidate.sourceId === source.sourceId
       );
-      if (!updateCandidate) return source;
-      return updateCandidate;
+      return updateCandidate || source;
     });
     try {
-      const result = yield services.storageService.save(
+      yield this.services.storageService.save(
         'sources',
         { sources: updatedSources },
-        services.activeProject.id
+        this.services.activeProject.id
       );
       this._sources = updatedSources;
       if (options.updateDestinations)

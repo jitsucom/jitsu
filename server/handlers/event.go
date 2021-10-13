@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -35,9 +36,11 @@ type EventResponse struct {
 
 //CachedEvent is a dto for events cache
 type CachedEvent struct {
-	Original json.RawMessage `json:"original,omitempty"`
-	Success  json.RawMessage `json:"success,omitempty"`
-	Error    string          `json:"error,omitempty"`
+	Original      json.RawMessage `json:"original,omitempty"`
+	Success       json.RawMessage `json:"success,omitempty"`
+	Error         string          `json:"error,omitempty"`
+	Skip          string          `json:"skip,omitempty"`
+	DestinationID string          `json:"destination_id"`
 }
 
 //CachedEventsResponse dto for events cache response
@@ -84,7 +87,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	}
 	token := iface.(string)
 
-	reqContext := getRequestContext(c)
+	reqContext := getRequestContext(c, eventsArray...)
 
 	//put all events to write-ahead-log if idle
 	if appstatus.Instance.Idle.Load() {
@@ -164,9 +167,11 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 		eventsArray := eh.eventsCache.GetN(destinationID, start, end, limit)
 		for _, event := range eventsArray {
 			response.Events = append(response.Events, CachedEvent{
-				Original: []byte(event.Original),
-				Success:  []byte(event.Success),
-				Error:    event.Error,
+				Original:      []byte(event.Original),
+				Success:       []byte(event.Success),
+				Error:         event.Error,
+				Skip:          event.Skip,
+				DestinationID: event.DestinationID,
 			})
 		}
 		response.ResponseEvents += len(eventsArray)
@@ -176,12 +181,23 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-//extractIP returns client IP address parsed from HTTP request (headers, remoteAddr)
-func extractIP(c *gin.Context) string {
+//extractIP returns client IP from input events or if no one has - parses from HTTP request (headers, remoteAddr)
+func extractIP(c *gin.Context, eventPayloads ...events.Event) string {
+	for _, e := range eventPayloads {
+		if ip, ok := e[enrichment.IPKey]; ok {
+			if ipStr, ok := ip.(string); ok {
+				return ipStr
+			}
+		}
+	}
+
+	//from HTTP request
 	ip := c.Request.Header.Get("X-Real-IP")
+
 	if ip == "" {
 		ip = c.Request.Header.Get("X-Forwarded-For")
 	}
+
 	if ip == "" {
 		remoteAddr := c.Request.RemoteAddr
 		if remoteAddr != "" {
@@ -199,8 +215,8 @@ func extractIP(c *gin.Context) string {
 	return ip
 }
 
-func getRequestContext(c *gin.Context) *events.RequestContext {
-	clientIP := extractIP(c)
+func getRequestContext(c *gin.Context, eventPayloads ...events.Event) *events.RequestContext {
+	clientIP := extractIP(c, eventPayloads...)
 	var compliant *bool
 	cookiesLawCompliant := true
 

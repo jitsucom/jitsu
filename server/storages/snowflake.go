@@ -147,16 +147,20 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
 	_, tableHelper := s.getAdapters()
-	flatData, failedEvents, err := s.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	flatData, failedEvents, skippedEvents, err := s.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
 		s.eventsCache.Error(s.IsCachingDisabled(), s.ID(), failedEvent.EventID, failedEvent.Error)
+	}
+	//update cache and counter with skipped events
+	for _, skipEvent := range skippedEvents.Events {
+		s.eventsCache.Skip(s.IsCachingDisabled(), s.ID(), skipEvent.EventID, skipEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -174,17 +178,23 @@ func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alr
 			if err != nil {
 				s.eventsCache.Error(s.IsCachingDisabled(), s.ID(), s.uniqueIDField.Extract(object), err.Error())
 			} else {
-				s.eventsCache.Succeed(s.IsCachingDisabled(), s.ID(), s.uniqueIDField.Extract(object), object, table)
+				s.eventsCache.Succeed(&adapters.EventContext{
+					CacheDisabled:  s.IsCachingDisabled(),
+					DestinationID:  s.ID(),
+					EventID:        s.uniqueIDField.Extract(object),
+					ProcessedEvent: object,
+					Table:          table,
+				})
 			}
 		}
 	}
 
 	//store failed events to fallback only if other events have been inserted ok
 	if storeFailedEvents {
-		return tableResults, failedEvents, nil
+		return tableResults, failedEvents, skippedEvents, nil
 	}
 
-	return tableResults, nil, nil
+	return tableResults, nil, skippedEvents, nil
 }
 
 //check table schema
@@ -196,7 +206,7 @@ func (s *Snowflake) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 		return err
 	}
 
-	b, header := fdata.GetPayloadBytesWithHeader(schema.CsvMarshallerInstance)
+	b, header := fdata.GetPayloadBytesWithHeader(schema.VerticalBarSeparatedMarshallerInstance)
 	if err := s.stageAdapter.UploadBytes(fdata.FileName, b); err != nil {
 		return err
 	}
@@ -220,6 +230,10 @@ func (s *Snowflake) GetUsersRecognition() *UserRecognitionConfiguration {
 // SyncStore is used in storing chunk of pulled data to Snowflake with processing
 func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return syncStoreImpl(s, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
+}
+
+func (s *Snowflake) Clean(tableName string) error {
+	return cleanImpl(s, tableName)
 }
 
 //Update uses SyncStore under the hood

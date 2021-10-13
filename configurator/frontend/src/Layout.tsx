@@ -2,8 +2,15 @@
 // @Libs
 import * as React from 'react';
 import { useState } from 'react';
-import { NavLink, useHistory } from 'react-router-dom';
-import { Button, Dropdown, Menu, message, Modal, MessageArgsProps } from 'antd';
+import { NavLink, useHistory, useLocation, useParams } from 'react-router-dom';
+import {
+  Button,
+  Dropdown,
+  message,
+  Modal,
+  MessageArgsProps,
+  Tooltip, notification
+} from 'antd';
 // @Components
 import {
   BreadcrumbsProps,
@@ -22,14 +29,16 @@ import Icon, {
   NotificationOutlined,
   CloudOutlined,
   DownloadOutlined,
-  WechatOutlined,
   UserOutlined,
   UserSwitchOutlined,
   LogoutOutlined,
-  PartitionOutlined
+  PartitionOutlined,
+  ThunderboltOutlined
 } from '@ant-design/icons';
 import logo from 'icons/logo.svg';
+import logoMini from 'icons/logo-square.svg';
 import { ReactComponent as DbtCloudIcon } from 'icons/dbtCloud.svg';
+import { ReactComponent as KeyIcon } from 'icons/key.svg';
 import classNames from 'classnames';
 // @Model
 import { Permission, User } from 'lib/services/model';
@@ -38,98 +47,90 @@ import { reloadPage } from 'lib/commons/utils';
 import { Page, usePageLocation } from 'navigation';
 // @Services
 import { useServices } from 'hooks/useServices';
-import { getIntercom } from 'lib/services/intercom-wrapper';
 import { AnalyticsBlock } from 'lib/services/analytics';
-import { PaymentPlanStatus } from 'lib/services/billing';
+import { CurrentSubscription } from 'lib/services/billing';
 // @Styles
 import styles from './Layout.module.less';
 // @Misc
 import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
+import { FeatureSettings } from './lib/services/ApplicationServices';
+import { usePersistentState } from './hooks/usePersistentState';
+import githubLogo from './icons/github.svg';
 
-export const ApplicationMenu: React.FC<{}> = () => {
+type MenuItem = {
+  icon: React.ReactNode
+  title: React.ReactNode
+  link: string,
+  enabled: (f: FeatureSettings) => boolean
+}
+
+const makeItem = (icon: React.ReactNode, title: React.ReactNode, link: string, enabled = (f: FeatureSettings) => true): MenuItem => {
+  return { icon, title, link, enabled };
+}
+
+const menuItems = [
+  makeItem(<PartitionOutlined/>, 'Home', '/connections'),
+  makeItem(<ThunderboltOutlined/>, 'Live Events', '/events_stream'),
+  makeItem(<AreaChartOutlined/>, 'Statistics', '/dashboard'),
+  makeItem(<Icon component={KeyIcon}/>, 'API Keys', '/api_keys'),
+  makeItem(<ApiOutlined/>, 'Sources', '/sources'),
+  makeItem(<NotificationOutlined/>, 'Destinations', '/destinations'),
+  makeItem(<Icon component={DbtCloudIcon}/>, 'dbt Cloud Integration', '/dbtcloud'),
+  makeItem(<CloudOutlined/>, 'Custom Domains', '/domains', (f) => f.enableCustomDomains),
+  makeItem(<DownloadOutlined/>, 'Download Config', '/cfg_download', (f) => f.enableCustomDomains)
+];
+
+export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) => {
   const key = usePageLocation().mainMenuKey;
-  const services = useServices();
 
-  return (
-    <Menu
-      selectable={false}
-      focusable={false}
-      mode="inline"
-      selectedKeys={[key]}
-      className="border-0"
-    >
-      <Menu.Item key="connections" icon={<PartitionOutlined />}>
-        <NavLink to="/connections" activeClassName="selected">
-          Connections
-        </NavLink>
-      </Menu.Item>
-      <Menu.Item key="dashboard" icon={<AreaChartOutlined />}>
-        <NavLink to="/dashboard" activeClassName="selected">
-          Dashboard
-        </NavLink>
-      </Menu.Item>
-      <Menu.Item key="api_keys" icon={<UnlockOutlined />}>
-        <NavLink to="/api_keys" activeClassName="selected">
-          Events API
-        </NavLink>
-      </Menu.Item>
-      <Menu.Item key="sources" icon={<ApiOutlined />}>
-        <NavLink to="/sources" activeClassName="selected">
-          Sources
-        </NavLink>
-      </Menu.Item>
-      <Menu.Item key="destinations" icon={<NotificationOutlined />}>
-        <NavLink to="/destinations" activeClassName="selected">
-          Destinations
-        </NavLink>
-      </Menu.Item>
-      <Menu.Item key="dbtcloud" icon={<DbtCloudIcon />}>
-        <NavLink to="/dbtcloud" activeClassName="selected">
-          dbt Cloud
-        </NavLink>
-      </Menu.Item>
-      {services.features.enableCustomDomains && (
-        <Menu.Item key="domains" icon={<CloudOutlined />}>
-          <NavLink to="/domains" activeClassName="selected">
-            Custom Domains
-          </NavLink>
-        </Menu.Item>
-      )}
-      <Menu.Item key="cfg_download" icon={<DownloadOutlined />}>
-        <NavLink to="/cfg_download" activeClassName="selected">
-          Generate Config
-        </NavLink>
-      </Menu.Item>
-    </Menu>
-  );
+  return <div className="pt-3">
+    {menuItems.map(item => {
+      const selected = item.link === '/' + key;
+      return <NavLink to={item.link} key={item.link}>
+        <div key={item.link} className={`${selected && 'bg-bgPrimary'} whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}>
+          {!expanded && <Tooltip title={item.title} placement="right" mouseEnterDelay={0}>
+            {item.icon}
+          </Tooltip>}
+
+          {expanded && <>{item.icon}<span className="pl-2 whitespace-nowrap">{item.title}</span></>}
+        </div>
+      </NavLink>
+    })}
+  </div>
 };
 
 export const ApplicationSidebar: React.FC<{}> = () => {
-  const services = useServices();
-  const intercom = getIntercom();
-  return <div className={styles.sideBarContent} >
+  const [expanded, setExpanded] = usePersistentState(true, 'jitsu_menuExpanded');
+
+  return <div className={`relative ${styles.sideBarContent}`}>
     <div>
+      <div className={`${expanded ?
+        'w-3' :
+        'w-2'} absolute inline-block top-3 right-0 bg-bgTableHeader h-12 flex items-center justify-center rounded-l cursor-pointer`}
+           onClick={() => setExpanded(!expanded)}>
+        <svg xmlns="http://www.w3.org/2000/svg" className={`transform ${expanded ?
+          'rotate-90' :
+          '-rotate-90'}`} viewBox="0 0 24 24">
+          <path
+            d="M14.121,13.879c-0.586-0.586-6.414-6.414-7-7c-1.172-1.172-3.071-1.172-4.243,0	c-1.172,1.172-1.172,3.071,0,4.243c0.586,0.586,6.414,6.414,7,7c1.172,1.172,3.071,1.172,4.243,0	C15.293,16.95,15.293,15.05,14.121,13.879z"
+            opacity=".35"/>
+          <path
+            d="M14.121,18.121c0.586-0.586,6.414-6.414,7-7c1.172-1.172,1.172-3.071,0-4.243c-1.172-1.172-3.071-1.172-4.243,0	c-0.586,0.586-6.414,6.414-7,7c-1.172,1.172-1.172,3.071,0,4.243C11.05,19.293,12.95,19.293,14.121,18.121z"/>
+        </svg>
+      </div>
       <a href="https://jitsu.com" className="text-center block pt-5 h-14">
-        <img src={logo} alt="[logo]" className="w-32 mx-auto"/>
+        <img src={expanded ?
+          logo :
+          logoMini} alt="[logo]" className="h-8 mx-auto"/>
       </a>
-      <ApplicationMenu/>
-    </div>
-    <div className="flex justify-center pb-4"><Button type="link" size="large"
-      onClick={() => {
-        if (services.features.chatSupportType === 'chat') {
-          intercom('show');
-        } else {
-          document.getElementById('jitsuSlackWidget').click();
-        }
-      }}><WechatOutlined/> Chat with us!
-    </Button>
+      <ApplicationMenu expanded={expanded}/>
     </div>
   </div>
 }
 
 export type PageHeaderProps = {
   user: User
-  plan: PaymentPlanStatus
+  plan: CurrentSubscription
 }
 
 function abbr(user: User) {
@@ -148,7 +149,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
           `flex-shrink flex justify-center items-center mx-1`
         }
       >
-        <NotificationsWidget />
+        <NotificationsWidget/>
       </div>
       <div className="flex-shrink flex justify-center items-center">
         <Dropdown
@@ -168,7 +169,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
             size="large"
             shape="circle"
           >
-            {abbr(user) || <UserOutlined />}
+            {abbr(user) || <UserOutlined/>}
           </Button>
         </Dropdown>
       </div>
@@ -176,7 +177,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
   );
 }
 
-export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMenu: () => void}> = ({ plan, user , hideMenu }) => {
+export const DropdownMenu: React.FC<{ user: User, plan: CurrentSubscription, hideMenu: () => void }> = ({ plan, user, hideMenu }) => {
   const services = useServices();
   const history = useHistory();
 
@@ -191,7 +192,7 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMe
       AnalyticsBlock.blockAll();
       await services.userService.becomeUser(email);
     } catch (e) {
-      handleError(e, "Can't login as other user");
+      handleError(e, 'Can\'t login as other user');
       AnalyticsBlock.unblockAll();
     }
   };
@@ -205,14 +206,8 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMe
       <div className="py-2 border-b border-main px-5 flex flex-col items-start">
         <div>Project: <b>{services.activeProject.name || 'Unspecified'}</b></div>
       </div>
-      {services.features.billingEnabled &&<div className="py-5 border-b border-main px-5 flex flex-col items-start">
-        <CurrentPlan
-          limit={plan.currentPlan.events_limit}
-          usage={plan.eventsThisMonth}
-          planTitle={plan.currentPlan.name}
-          onPlanChangeModalOpen={hideMenu}
-          planId={plan.currentPlan.id}
-        />
+      {services.features.billingEnabled && services.applicationConfiguration.billingUrl && <div className="py-5 border-b border-main px-5 flex flex-col items-start">
+        <CurrentPlan planStatus={plan} onPlanChangeModalOpen={hideMenu}/>
       </div>}
       <div className="p-2 flex flex-col items-stretch">
         <Button
@@ -221,17 +216,17 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMe
           key="settings"
           icon={<SettingOutlined/>}
           onClick={showSettings}>
-            Settings
+          Settings
         </Button>
         {services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER) &&
-          <Button
-            className="text-left"
-            type="text"
-            key="become"
-            icon={<UserSwitchOutlined/>}
-            onClick={becomeUser}>
-              Become User
-          </Button>
+        <Button
+          className="text-left"
+          type="text"
+          key="become"
+          icon={<UserSwitchOutlined/>}
+          onClick={becomeUser}>
+          Become User
+        </Button>
         }
         <Button
           className="text-left"
@@ -248,18 +243,30 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMe
 export type ApplicationPageWrapperProps = {
   page: Page
   user: User
-  plan: PaymentPlanStatus
+  plan: CurrentSubscription
   [propName: string]: any
+}
+
+function handleBillingMessage(params) {
+  if (!params.get('billingMessage')) {
+    return;
+  }
+
+  (params.get('billingStatus') === 'error' ? notification.error : notification.success)({
+    message: params.get('billingMessage'),
+    duration: 5
+  });
 }
 
 export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, page, user, ...rest }) => {
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbsProps>(withHome({ elements: [{ title: page.pageHeader }] }));
+  handleBillingMessage(new URLSearchParams(useLocation().search))
 
   let Component = page.component as React.ExoticComponent;
   let props = { setBreadcrumbs }
   return <div className={styles.applicationPage}>
     <div className={classNames(styles.sidebar)}>
-      <ApplicationSidebar />
+      <ApplicationSidebar/>
     </div>
     <div className={classNames(styles.rightbar)}>
       <PageHeader user={user} plan={plan}><Breadcrumbs {...breadcrumbs} /></PageHeader>
@@ -273,22 +280,24 @@ export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, p
 export const SlackChatWidget: React.FC<{}> = () => {
   const services = useServices();
   const [modalVisible, setModalVisible] = useState(false);
-  return <><div id="jitsuSlackWidget"
-    onClick={() => {
-      services.analyticsService.track('slack_invitation_open');
-      setModalVisible(true)
-    }}
-    className="fixed bottom-5 right-5 rounded-full bg-primary text-text w-12 h-12 flex justify-center items-center cursor-pointer hover:bg-primaryHover">
-    <svg className="h-6 w-6" fill="currentColor"  viewBox="0 0 24 24">
-      <path d="M 4 3 C 2.9 3 2 3.9 2 5 L 2 15.792969 C 2 16.237969 2.5385156 16.461484 2.8535156 16.146484 L 5 14 L 14 14 C 15.1 14 16 13.1 16 12 L 16 5 C 16 3.9 15.1 3 14 3 L 4 3 z M 18 8 L 18 12 C 18 14.209 16.209 16 14 16 L 8 16 L 8 17 C 8 18.1 8.9 19 10 19 L 19 19 L 21.146484 21.146484 C 21.461484 21.461484 22 21.237969 22 20.792969 L 22 10 C 22 8.9 21.1 8 20 8 L 18 8 z"/>
-    </svg>
-  </div>
-  <SlackInvitationModal visible={modalVisible} hide={() => {
-    setModalVisible(false);
-  }}/></>
+  return <>
+    <div id="jitsuSlackWidget"
+         onClick={() => {
+           services.analyticsService.track('slack_invitation_open');
+           setModalVisible(true)
+         }}
+         className="fixed bottom-5 right-5 rounded-full bg-primary text-text w-12 h-12 flex justify-center items-center cursor-pointer hover:bg-primaryHover">
+      <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+        <path
+          d="M 4 3 C 2.9 3 2 3.9 2 5 L 2 15.792969 C 2 16.237969 2.5385156 16.461484 2.8535156 16.146484 L 5 14 L 14 14 C 15.1 14 16 13.1 16 12 L 16 5 C 16 3.9 15.1 3 14 3 L 4 3 z M 18 8 L 18 12 C 18 14.209 16.209 16 14 16 L 8 16 L 8 17 C 8 18.1 8.9 19 10 19 L 19 19 L 21.146484 21.146484 C 21.461484 21.461484 22 21.237969 22 20.792969 L 22 10 C 22 8.9 21.1 8 20 8 L 18 8 z"/>
+      </svg>
+    </div>
+    <SlackInvitationModal visible={modalVisible} hide={() => {
+      setModalVisible(false);
+    }}/></>
 }
 
-export const SlackInvitationModal: React.FC<{visible: boolean, hide: () => void}> = ({ visible , hide }) => {
+export const SlackInvitationModal: React.FC<{ visible: boolean, hide: () => void }> = ({ visible, hide }) => {
 
   return <Modal
     title="Join Jitsu Slack"
@@ -310,17 +319,17 @@ export const SlackInvitationModal: React.FC<{visible: boolean, hide: () => void}
         }}
 
         size="large" type="primary" icon={<Icon component={() => <svg className="fill-current" viewBox="0 0 24 24" height="1em" width="1em">
-          <path d="m8.843 12.651c-1.392 0-2.521 1.129-2.521 2.521v6.306c0 1.392 1.129 2.521 2.521 2.521s2.521-1.129 2.521-2.521v-6.306c-.001-1.392-1.13-2.521-2.521-2.521z"/>
-          <path d="m.019 15.172c0 1.393 1.13 2.523 2.523 2.523s2.523-1.13 2.523-2.523v-2.523h-2.521c-.001 0-.001 0-.002 0-1.393 0-2.523 1.13-2.523 2.523z"/>
-          <path d="m8.846-.001c-.001 0-.002 0-.003 0-1.393 0-2.523 1.13-2.523 2.523s1.13 2.523 2.523 2.523h2.521v-2.523c0-.001 0-.003 0-.005-.001-1.391-1.128-2.518-2.518-2.518z"/>
-          <path d="m2.525 11.37h6.318c1.393 0 2.523-1.13 2.523-2.523s-1.13-2.523-2.523-2.523h-6.318c-1.393 0-2.523 1.13-2.523 2.523s1.13 2.523 2.523 2.523z"/>
-          <path d="m21.457 6.323c-1.391 0-2.518 1.127-2.518 2.518v.005 2.523h2.521c1.393 0 2.523-1.13 2.523-2.523s-1.13-2.523-2.523-2.523c-.001 0-.002 0-.003 0z"/>
-          <path d="m12.641 2.522v6.325c0 1.392 1.129 2.521 2.521 2.521s2.521-1.129 2.521-2.521v-6.325c0-1.392-1.129-2.521-2.521-2.521-1.392 0-2.521 1.129-2.521 2.521z"/>
-          <g>
-            <path d="m17.682 21.476c0-1.392-1.129-2.521-2.521-2.521h-2.521v2.523c.001 1.391 1.129 2.519 2.521 2.519s2.521-1.129 2.521-2.521z"/>
-            <path d="m21.479 12.649h-6.318c-1.393 0-2.523 1.13-2.523 2.523s1.13 2.523 2.523 2.523h6.318c1.393 0 2.523-1.13 2.523-2.523s-1.13-2.523-2.523-2.523z"/>
-          </g>
-        </svg>} />}>Join Jitsu Slack</Button>
+        <path d="m8.843 12.651c-1.392 0-2.521 1.129-2.521 2.521v6.306c0 1.392 1.129 2.521 2.521 2.521s2.521-1.129 2.521-2.521v-6.306c-.001-1.392-1.13-2.521-2.521-2.521z"/>
+        <path d="m.019 15.172c0 1.393 1.13 2.523 2.523 2.523s2.523-1.13 2.523-2.523v-2.523h-2.521c-.001 0-.001 0-.002 0-1.393 0-2.523 1.13-2.523 2.523z"/>
+        <path d="m8.846-.001c-.001 0-.002 0-.003 0-1.393 0-2.523 1.13-2.523 2.523s1.13 2.523 2.523 2.523h2.521v-2.523c0-.001 0-.003 0-.005-.001-1.391-1.128-2.518-2.518-2.518z"/>
+        <path d="m2.525 11.37h6.318c1.393 0 2.523-1.13 2.523-2.523s-1.13-2.523-2.523-2.523h-6.318c-1.393 0-2.523 1.13-2.523 2.523s1.13 2.523 2.523 2.523z"/>
+        <path d="m21.457 6.323c-1.391 0-2.518 1.127-2.518 2.518v.005 2.523h2.521c1.393 0 2.523-1.13 2.523-2.523s-1.13-2.523-2.523-2.523c-.001 0-.002 0-.003 0z"/>
+        <path d="m12.641 2.522v6.325c0 1.392 1.129 2.521 2.521 2.521s2.521-1.129 2.521-2.521v-6.325c0-1.392-1.129-2.521-2.521-2.521-1.392 0-2.521 1.129-2.521 2.521z"/>
+        <g>
+          <path d="m17.682 21.476c0-1.392-1.129-2.521-2.521-2.521h-2.521v2.523c.001 1.391 1.129 2.519 2.521 2.519s2.521-1.129 2.521-2.521z"/>
+          <path d="m21.479 12.649h-6.318c-1.393 0-2.523 1.13-2.523 2.523s1.13 2.523 2.523 2.523h6.318c1.393 0 2.523-1.13 2.523-2.523s-1.13-2.523-2.523-2.523z"/>
+        </g>
+      </svg>}/>}>Join Jitsu Slack</Button>
     </div>
   </Modal>
 }
@@ -333,7 +342,7 @@ const EmailIsNotConfirmedMessage: React.FC<{ messageKey: React.Key }> = ({
     useState<boolean>(false);
 
   const handleDestroyMessage = () => message.destroy(messageKey);
-  const handleresendConfirmationLink = async () => {
+  const handleresendConfirmationLink = async() => {
     setIsSendingVerification(true);
     try {
       await services.userService.sendConfirmationEmail();
@@ -346,15 +355,17 @@ const EmailIsNotConfirmedMessage: React.FC<{ messageKey: React.Key }> = ({
     <span className="flex flex-col items-center mt-1">
       <span>
         <span>{'Email '}</span>
-        {services.userService.getUser()?.email ? (
-          <span className={`font-semibold ${styles.emailHighlight}`}>
+        {services.userService.getUser()?.email ?
+          (
+            <span className={`font-semibold ${styles.emailHighlight}`}>
             {services.userService.getUser()?.email}
           </span>
-        ) : (
-          ''
-        )}
+          ) :
+          (
+            ''
+          )}
         <span>
-          {` is not verified. Please, follow the instructions in your email 
+          {` is not verified. Please, follow the instructions in your email
             to complete the verification process.`}
         </span>
       </span>
@@ -381,5 +392,5 @@ export const emailIsNotConfirmedMessageConfig: MessageArgsProps = {
   key: MESSAGE_KEY,
   duration: null,
   icon: <>{null}</>,
-  content: <EmailIsNotConfirmedMessage messageKey={MESSAGE_KEY} />
+  content: <EmailIsNotConfirmedMessage messageKey={MESSAGE_KEY}/>
 };

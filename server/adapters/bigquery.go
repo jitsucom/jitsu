@@ -16,7 +16,9 @@ import (
 )
 
 const (
-	deleteBigQueryTemplate      = "DELETE FROM `%s.%s.%s` WHERE %s"
+	deleteBigQueryTemplate   = "DELETE FROM `%s.%s.%s` WHERE %s"
+	truncateBigQueryTemplate = "TRUNCATE TABLE `%s.%s.%s`"
+
 	rowsLimitPerInsertOperation = 500
 )
 
@@ -43,7 +45,15 @@ type BigQuery struct {
 
 //NewBigQuery return configured BigQuery adapter instance
 func NewBigQuery(ctx context.Context, config *GoogleConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*BigQuery, error) {
-	client, err := bigquery.NewClient(ctx, config.Project, config.credentials)
+
+	var client *bigquery.Client
+	var err error
+	if config.credentials == nil {
+		client, err = bigquery.NewClient(ctx, config.Project)
+	} else {
+		client, err = bigquery.NewClient(ctx, config.Project, config.credentials)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("Error creating BigQuery client: %v", err)
 	}
@@ -261,7 +271,20 @@ func (bq *BigQuery) DropTable(table *Table) error {
 	return nil
 }
 
-func (bq *BigQuery) insertItems(inserter *bigquery.Inserter, items []*BQItem) error {
+//Truncate deletes all records in tableName table
+func (bq *BigQuery) Truncate(tableName string) error {
+	query := fmt.Sprintf(truncateBigQueryTemplate, bq.config.Project, bq.config.Dataset, tableName)
+	bq.queryLogger.LogQuery(query)
+	_, err := bq.client.Query(query).Read(bq.ctx)
+	if err != nil {
+		return mapError(err)
+	}
+
+	return nil
+}
+
+func (bq *BigQuery) insertItems(inserter *bigquery.Inserter,
+	items []*BQItem) error {
 	err := inserter.Put(bq.ctx, items)
 	if err != nil {
 		putMultiError, ok := err.(bigquery.PutMultiError)

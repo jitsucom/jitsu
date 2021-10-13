@@ -2,8 +2,8 @@
 
 .field {
   :global {
-    .ant-form-item-control-input {
-      max-width: 800px;
+    .ant-form-item-control-input, .form-fields-card {
+      @apply max-w-3xl;
     }
   }
 }
@@ -26,12 +26,13 @@
 }
 
 .modal {
-  height: calc(100% - 200px);
   @apply flex;
 
   :global {
     .ant-modal-content {
       @apply flex flex-auto flex-col;
+      @apply rounded-md !important;
+      max-height: 95%;
     }
 
     .ant-modal-body {
@@ -43,6 +44,12 @@
       border-top: none !important;
     }
   }
+}
+
+.codeEditor {
+  border: 1px solid @secondaryBorder;
+  border-radius: @border-radius-base;
+  overflow: hidden !important;
 }
 
 .bugIcon {

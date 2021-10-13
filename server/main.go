@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/multiplexing"
@@ -115,17 +116,21 @@ func main() {
 	// Setup application directory as working directory
 	setAppWorkDir()
 
-	if err := config.Read(*configSource, *containerizedRun, configNotFound); err != nil {
+	if err := config.Read(*configSource, *containerizedRun, configNotFound, "Jitsu Server"); err != nil {
 		logging.Fatal("Error while reading application config:", err)
 	}
 
 	//parse EN version
+	appconfig.RawVersion = tag
+	appconfig.BuiltAt = builtAt
 	parsed := appconfig.VersionRegex.FindStringSubmatch(tag)
 	if len(parsed) == 4 {
-		appconfig.RawVersion = parsed[0]
 		appconfig.MajorVersion = parsed[1]
 		appconfig.MinorVersion = parsed[3]
 		appconfig.Beta = parsed[2] == "beta"
+	}
+	if tag == "beta" {
+		appconfig.Beta = true
 	}
 
 	environment := os.Getenv("ENVIRONMENT")
@@ -141,6 +146,8 @@ func main() {
 		viper.GetBool("singer-bridge.install_taps"), viper.GetBool("singer-bridge.update_taps"), appconfig.Instance.SingerLogsWriter); err != nil {
 		logging.Fatal(err)
 	}
+
+	airbyte.Init(viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), appconfig.Instance.AirbyteLogsWriter)
 
 	enrichment.InitDefault(
 		viper.GetString("server.fields_configuration.src_source_ip"),
@@ -259,7 +266,7 @@ func main() {
 	eventsCache := caching.NewEventsCache(metaStorage, eventsCacheSize)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
-	// ** Retrospective users recognition
+	// ** Retroactive users recognition
 	globalRecognitionConfiguration := &storages.UsersRecognition{
 		Enabled:             viper.GetBool("users_recognition.enabled"),
 		AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
@@ -335,7 +342,7 @@ func main() {
 
 	adminToken := viper.GetString("server.admin_token")
 	if strings.HasPrefix(adminToken, "demo") {
-		logging.Errorf("\n\t*** Please replace server.admin_token with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
+		logging.Errorf("\n\t*** ⚠️  Please replace server.admin_token (SERVER_ADMIN_TOKEN env variable) with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
 	}
 
 	fallbackService, err := fallback.NewService(logEventPath, destinationsService, usersRecognitionService)

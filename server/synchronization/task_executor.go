@@ -6,7 +6,6 @@ import (
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
-	"github.com/jitsucom/jitsu/server/drivers/singer"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -103,12 +102,14 @@ func (te *TaskExecutor) execute(i interface{}) {
 	logging.Infof("[%s] Running task...", task.ID)
 	taskLogger.INFO("Running task...")
 
+	taskCloser := NewTaskCloser(task, taskLogger, te.metaStorage)
+
 	task.Status = RUNNING.String()
 	task.StartedAt = timestamp.NowUTC()
 	err := te.metaStorage.UpsertTask(task)
 	if err != nil {
 		msg := fmt.Sprintf("Error updating running task [%s] in meta.Storage: %v", task.ID, err)
-		te.handleError(task, taskLogger, msg, true)
+		taskCloser.CloseWithError(msg, true)
 		return
 	}
 
@@ -116,7 +117,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	collectionLock, err := te.monitorKeeper.Lock(task.Source, task.Collection)
 	if err != nil {
 		msg := fmt.Sprintf("Error getting lock source [%s] collection [%s] task [%s]: %v", task.Source, task.Collection, task.ID, err)
-		te.handleError(task, taskLogger, msg, true)
+		taskCloser.CloseWithError(msg, true)
 		return
 	}
 	logging.Debugf("[TASK %s] Lock obtained for source [%s] collection [%s]!", task.ID, task.Source, task.Collection)
@@ -125,14 +126,14 @@ func (te *TaskExecutor) execute(i interface{}) {
 	sourceUnit, err := te.sourceService.GetSource(task.Source)
 	if err != nil {
 		msg := fmt.Sprintf("Error getting source in task [%s]: %v", task.ID, err)
-		te.handleError(task, taskLogger, msg, true)
+		taskCloser.CloseWithError(msg, true)
 		return
 	}
 
 	driver, ok := sourceUnit.DriverPerCollection[task.Collection]
 	if !ok {
 		msg := fmt.Sprintf("Collection with id [%s] wasn't found in source [%s] in task [%s]", task.Collection, task.Source, task.ID)
-		te.handleError(task, taskLogger, msg, true)
+		taskCloser.CloseWithError(msg, true)
 		return
 	}
 	//get destinations
@@ -157,7 +158,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 
 	if len(destinationStorages) == 0 {
 		msg := fmt.Sprintf("Empty destinations. Task [%s] will be skipped", task.ID)
-		te.handleError(task, taskLogger, msg, false)
+		taskCloser.CloseWithError(msg, false)
 		return
 	}
 
@@ -165,22 +166,15 @@ func (te *TaskExecutor) execute(i interface{}) {
 	start := time.Now().UTC()
 
 	var taskErr error
-	if driver.Type() == driversbase.SingerType {
-		singerDriver, _ := driver.(*singer.Singer)
-
-		ready, notReadyError := singerDriver.Ready()
-		if !ready {
-			te.handleError(task, taskLogger, notReadyError.Error(), false)
-			return
-		}
-
-		taskErr = te.syncSinger(task, taskLogger, singerDriver, destinationStorages)
+	cliDriver, ok := driver.(driversbase.CLIDriver)
+	if ok {
+		taskErr = te.syncCLI(task, taskLogger, cliDriver, destinationStorages, taskCloser)
 	} else {
 		taskErr = te.sync(task, taskLogger, driver, destinationStorages)
 	}
 
 	if taskErr != nil {
-		te.handleError(task, taskLogger, taskErr.Error(), false)
+		taskCloser.CloseWithError(taskErr.Error(), false)
 		return
 	}
 
@@ -193,7 +187,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	err = te.metaStorage.UpsertTask(task)
 	if err != nil {
 		msg := fmt.Sprintf("Error updating success task [%s] in meta.Storage: %v", task.ID, err)
-		te.handleError(task, taskLogger, msg, true)
+		taskCloser.CloseWithError(msg, true)
 		return
 	}
 	te.onSuccess(task, sourceUnit, taskLogger)
@@ -209,7 +203,7 @@ func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLog
 		"started_at":  task.StartedAt,
 	}
 	for _, id := range source.PostHandleDestinationIDs {
-		err :=  te.destinationService.PostHandle(id, event)
+		err := te.destinationService.PostHandle(id, event)
 		if err != nil {
 			logging.Error(err)
 			taskLogger.ERROR(err.Error())
@@ -219,16 +213,22 @@ func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLog
 	}
 }
 
-//sync source. Return error if occurred
-func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver driversbase.Driver, destinationStorages []storages.Storage) error {
+//sync runs source synchronization. Return error if occurred
+//doesn't use task closer because there is no async tasks
+func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver driversbase.Driver,
+	destinationStorages []storages.Storage) error {
 	now := time.Now().UTC()
 
+	refreshWindow, err := driver.GetRefreshWindow()
+	if err != nil {
+		return fmt.Errorf("Error getting refresh window: %v", err)
+	}
 	intervals, err := driver.GetAllAvailableIntervals()
 	if err != nil {
 		return fmt.Errorf("Error getting all available intervals: %v", err)
 	}
 
-	taskLogger.INFO("Total intervals: [%d]", len(intervals))
+	taskLogger.INFO("Total intervals: [%d] Refresh window: %s", len(intervals), refreshWindow)
 	collectionMetaKey := driver.GetCollectionMetaKey()
 
 	var intervalsToSync []*driversbase.TimeInterval
@@ -238,7 +238,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			return fmt.Errorf("Error getting interval [%s] signature: %v", interval.String(), err)
 		}
 
-		nowSignature := interval.CalculateSignatureFrom(now)
+		nowSignature := interval.CalculateSignatureFrom(now, refreshWindow)
 
 		//just for logs
 		var intervalLogStatus string
@@ -297,9 +297,9 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			counters.SuccessEvents(storage.ID(), rowsCount)
 		}
 
-		counters.SuccessSourceEvents(task.Source, rowsCount)
+		counters.SuccessPullSourceEvents(task.Source, rowsCount)
 
-		if err := te.metaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now)); err != nil {
+		if err := te.metaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now, refreshWindow)); err != nil {
 			logging.SystemErrorf("Unable to save source: [%s] collection: [%s] meta key: [%s] signature: %v", task.Source, task.Collection, collectionMetaKey, err)
 		}
 
@@ -309,50 +309,29 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 	return nil
 }
 
-//syncSinger sync singer source. Return err if occurred
-func (te *TaskExecutor) syncSinger(task *meta.Task, taskLogger *TaskLogger, singerDriver *singer.Singer, destinationStorages []storages.Storage) error {
-	//get singer state
-	singerState, err := te.metaStorage.GetSignature(task.Source, singerDriver.GetTap(), driversbase.ALL.String())
+//syncCLI syncs singer/airbyte source
+//returns err if occurred
+func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver,
+	destinationStorages []storages.Storage, taskCloser *TaskCloser) error {
+	state, err := te.metaStorage.GetSignature(task.Source, cliDriver.GetTap(), driversbase.ALL.String())
 	if err != nil {
 		return fmt.Errorf("Error getting state from meta storage: %v", err)
-
 	}
 
-	if singerState != "" {
-		taskLogger.INFO("Running synchronization with state: %s", singerState)
+	if state != "" {
+		taskLogger.INFO("Running synchronization with state: %s", state)
 	} else {
 		taskLogger.INFO("Running synchronization")
 	}
 
-	rs := NewResultSaver(task, singerDriver.GetTap(), singerDriver.GetCollectionMetaKey(), singerDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.metaStorage, singerDriver.GetStreamTableNameMapping())
+	rs := NewResultSaver(task, cliDriver.GetTap(), cliDriver.GetCollectionMetaKey(), cliDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.metaStorage, cliDriver.GetStreamTableNameMapping())
 
-	err = singerDriver.Load(singerState, taskLogger, rs)
+	err = cliDriver.Load(state, taskLogger, rs, taskCloser)
 	if err != nil {
 		return fmt.Errorf("Error synchronization: %v", err)
 	}
 
 	return nil
-}
-
-//handleError write logs, update task status and logs in Redis
-func (te *TaskExecutor) handleError(task *meta.Task, taskLogger *TaskLogger, msg string, systemErr bool) {
-	if systemErr {
-		logging.SystemErrorf("[%s] "+msg, task.ID)
-	} else {
-		logging.Errorf("[%s] "+msg, task.ID)
-	}
-
-	taskLogger.ERROR(msg)
-	task.Status = FAILED.String()
-	task.FinishedAt = time.Now().UTC().Format(timestamp.Layout)
-
-	err := te.metaStorage.UpsertTask(task)
-	if err != nil {
-		msg := fmt.Sprintf("Error updating failed task [%s] in meta.Storage: %v", task.ID, err)
-		logging.SystemError(msg)
-		taskLogger.ERROR(msg)
-		return
-	}
 }
 
 func (te *TaskExecutor) Close() error {

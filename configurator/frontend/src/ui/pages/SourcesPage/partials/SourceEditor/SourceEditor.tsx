@@ -1,3 +1,4 @@
+import { generatePath, NavLink } from 'react-router-dom';
 // @Libs
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Prompt, Redirect, useHistory, useParams } from 'react-router-dom';
@@ -7,7 +8,7 @@ import cn from 'classnames';
 import snakeCase from 'lodash/snakeCase';
 // @Page
 import { SourceEditorConfig } from './SourceEditorConfig';
-import { SourceEditorCollections } from './SourceEditorCollections';
+import { SourceEditorStreams } from './SourceEditorStreams';
 import { SourceEditorDestinations } from './SourceEditorDestinations';
 // @Components
 import { Tab, TabsConfigurator } from 'ui/components/Tabs/TabsConfigurator';
@@ -37,128 +38,178 @@ import { firstToLower } from 'lib/commons/utils';
 // @Styles
 import styles from './SourceEditor.module.less';
 import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOutlined';
+import { WithSourceEditorSyncContext } from './SourceEditorSyncContext';
+import { SourceEditorStreamsAirbyteLoader } from './SourceEditorStreamsAirbyteLoader';
+import { taskLogsPageRoute } from '../../../TaskLogs/TaskLogsPage';
 
-export type SourceTabKey = 'config' | 'collections' | 'destinations';
+export type SourceTabKey = 'config' | 'streams' | 'destinations';
 
-const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageProps) => {
+const SourceEditorComponent = ({
+  setBreadcrumbs,
+  editorMode
+}: CommonSourcePageProps) => {
   const history = useHistory();
 
   const forceUpdate = useForceUpdate();
 
-  const params = useParams<{ source?: string; sourceId?: string; tabName?: string; }>();
+  const { source, sourceId } = useParams<{ source?: string; sourceId?: string; tabName?: string }>();
 
   const [sourceSaving, setSourceSaving] = useState<boolean>(false);
   const [savePopover, switchSavePopover] = useState<boolean>(false);
+  const [controlsDisabled, setControlsDisabled] = useState<boolean>(false);
 
   const [testConnecting, setTestConnecting] = useState<boolean>(false);
-  const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
+  const [testConnectingPopover, switchTestConnectingPopover] =
+    useState<boolean>(false);
 
   const [activeTabKey, setActiveTabKey] = useState<SourceTabKey>('config');
 
   const [documentationVisible, setDocumentationVisible] = useState(false);
 
-  const connectorSource = useMemo<SourceConnector>(
-    () => {
-      let sourceType = params.source
-        ? params.source
-        : params.sourceId
-          ? sourcesStore.sources.find(src => src.sourceId === params.sourceId)?.sourceProtoType
-          : undefined;
-
-      return sourceType
-        ? allSources.find((source: SourceConnector) => snakeCase(source.id) === snakeCase(sourceType))
+  const connectorSource = useMemo<SourceConnector>(() => {
+    let sourceType = source
+      ? source
+      : sourceId
+        ? sourcesStore.sources.find((src) => src.sourceId === sourceId)
+          ?.sourceProtoType
         : undefined;
-    },
-    [params.source, params.sourceId]
-  );
+
+    return sourceType
+      ? allSources.find(
+        (source: SourceConnector) =>
+          snakeCase(source.id) === snakeCase(sourceType)
+      )
+      : undefined;
+  }, [source, sourceId]);
 
   const sourceData = useRef<SourceData>(
-    sourcesStore.sources.find(src => src.sourceId === params.sourceId) ?? {
-      sourceId: sourcePageUtils.getSourceId(params.source, sourcesStore.sources.map(src => src.sourceId)),
-      connected: false,
-      sourceType: sourcePageUtils.getSourceType(connectorSource),
-      sourceProtoType: snakeCase(params.source)
-    } as SourceData
+    sourcesStore.sources.find((src) => src.sourceId === sourceId) ??
+      ({
+        sourceId: sourcePageUtils.getSourceId(
+          source,
+          sourcesStore.sources.map((src) => src.sourceId)
+        ),
+        connected: false,
+        sourceType: sourcePageUtils.getSourceType(connectorSource),
+        sourceProtoType: snakeCase(source)
+      } as SourceData)
   );
 
-  const submittedOnce = useRef<boolean>(false);
-
-  const sourcesTabs = useRef<Tab<SourceTabKey>[]>([{
-    key: 'config',
-    name: 'Connection Properties',
-    getComponent: (form: FormInstance) => (
-      <SourceEditorConfig
-        form={form}
-        sourceReference={connectorSource}
-        isCreateForm={editorMode === 'add'}
-        initialValues={sourceData.current}
-        sources={sourcesStore.sources}
-        handleTouchAnyField={validateAndTouchField(0)}
-      />
-    ),
-    form: Form.useForm()[0],
-    touched: false
-  },
-  {
-    key: 'collections',
-    name: 'Collections',
-    getComponent: (form: FormInstance) => (
-      <SourceEditorCollections
-        form={form}
-        initialValues={sourceData.current}
-        connectorSource={connectorSource}
-        handleTouchAnyField={validateAndTouchField(1)}
-      />
-    ),
-    form: Form.useForm()[0],
-    isHidden: connectorSource?.isSingerType,
-    touched: false
-  },
-  {
-    key: 'destinations',
-    name: 'Linked Destinations',
-    getComponent: (form: FormInstance) => (
-      <SourceEditorDestinations
-        form={form}
-        initialValues={sourceData.current}
-        handleTouchAnyField={validateAndTouchField(2)}
-      />
-    ),
-    form: Form.useForm()[0],
-    errorsLevel: 'warning',
-    touched: false
-  }]);
-
-  const validateAndTouchField = useCallback(
-    (index: number) => (value: boolean) => {
-      const tab = sourcesTabs.current[index];
-
-      tab.touched = value === undefined ? true : value
-
-      if (submittedOnce.current) {
-        validateTabForm(tab, { forceUpdate, beforeValidate: () => tab.errorsCount = 0, errorCb: errors => tab.errorsCount = errors.errorFields?.length });
-      }
+  const sourcesTabs = useRef<Tab<SourceTabKey>[]>([
+    {
+      key: 'config',
+      name: 'Connection Properties',
+      getComponent: (form: FormInstance) => (
+        <SourceEditorConfig
+          form={form}
+          sourceReference={connectorSource}
+          isCreateForm={editorMode === 'add'}
+          initialValues={sourceData.current}
+          sources={sourcesStore.sources}
+          handleTouchAnyField={handleTouchAnyFieldEditor}
+          disableFormControls={handleDisableFormControls}
+          enableFormControls={handleEnableFormControls}
+        />
+      ),
+      form: Form.useForm()[0],
+      touched: false
     },
-    [forceUpdate]
-  );
+    {
+      key: 'streams',
+      name: 'Streams',
+      getComponent: (form: FormInstance) =>
+        connectorSource.protoType === 'airbyte' ? (
+          <SourceEditorStreamsAirbyteLoader
+            form={form}
+            initialValues={sourceData.current}
+            connectorSource={connectorSource}
+            handleBringSourceData={handleBringSourceData}
+          />
+        ) : (
+          <SourceEditorStreams
+            form={form}
+            initialValues={sourceData.current}
+            connectorSource={connectorSource}
+            handleTouchAnyField={handleTouchAnyFieldStreams}
+          />
+        ),
+      form: Form.useForm()[0],
+      isHidden: connectorSource?.protoType === 'singer',
+      touched: false
+    },
+    {
+      key: 'destinations',
+      name: 'Linked Destinations',
+      getComponent: (form: FormInstance) => (
+        <SourceEditorDestinations
+          form={form}
+          initialValues={sourceData.current}
+          handleTouchAnyField={handleTouchAnyFieldDestinations}
+        />
+      ),
+      form: Form.useForm()[0],
+      errorsLevel: 'warning',
+      touched: false
+    }
+  ]);
+
+  const handleTouchAnyFieldEditor = useCallback((value: boolean) => {
+    const tab = sourcesTabs.current[0];
+    tab.touched = value === undefined ? true : value;
+  }, []);
+
+  const handleTouchAnyFieldStreams = useCallback((value: boolean) => {
+    const tab = sourcesTabs.current[1];
+    tab.touched = value === undefined ? true : value;
+  }, []);
+
+  const handleTouchAnyFieldDestinations = useCallback((value: boolean) => {
+    const tab = sourcesTabs.current[2];
+    tab.touched = value === undefined ? true : value;
+  }, []);
+
+  const handleDisableFormControls = useCallback(() => {
+    setControlsDisabled(true);
+  }, []);
+
+  const handleEnableFormControls = useCallback(() => {
+    setControlsDisabled(false);
+  }, []);
 
   const savePopoverClose = useCallback(() => switchSavePopover(false), []);
-  const testConnectingPopoverClose = useCallback(() => switchTestConnectingPopover(false), []);
+  const testConnectingPopoverClose = useCallback(
+    () => switchTestConnectingPopover(false),
+    []
+  );
 
-  const handleCancel = useCallback(() => history.push(sourcesPageRoutes.root), [history]);
+  const handleCancel = useCallback(
+    () => history.push(sourcesPageRoutes.root),
+    [history]
+  );
+
+  const handleBringSourceData = (options?: {
+    skipValidation?: boolean;
+  }): Promise<SourceData> => {
+    return sourcePageUtils.bringSourceData({
+      sourcesTabs: sourcesTabs.current,
+      sourceData: sourceData.current,
+      forceUpdate,
+      options: {
+        omitEmptyValues: connectorSource.protoType === 'airbyte',
+        skipValidation: options?.skipValidation ?? false
+      }
+    });
+  };
 
   const handleTestConnection = () => {
     setTestConnecting(true);
-
-    sourcePageUtils.bringSourceData({
-      sourcesTabs: sourcesTabs.current,
-      sourceData: sourceData.current,
-      forceUpdate
-    })
+    handleBringSourceData()
       .then(async(response: SourceData) => {
         sourceData.current = response;
 
-        const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current);
+        const testConnectionResults = await sourcePageUtils.testConnection(
+          sourceData.current
+        );
 
         sourceData.current = {
           ...sourceData.current,
@@ -171,19 +222,16 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
   };
 
   const handleSaveSource = () => {
-    submittedOnce.current = true;
-
     setSourceSaving(true);
 
-    sourcePageUtils.bringSourceData({
-      sourcesTabs: sourcesTabs.current,
-      sourceData: sourceData.current,
-      forceUpdate
-    })
+    handleBringSourceData()
       .then(async(response: SourceData) => {
         sourceData.current = response;
 
-        const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current, true);
+        const testConnectionResults = await sourcePageUtils.testConnection(
+          sourceData.current,
+          true
+        );
 
         sourceData.current = {
           ...sourceData.current,
@@ -195,19 +243,21 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
           if (editorMode === 'edit')
             sourcesStore.editSources(sourceData.current);
 
-          sourcesTabs.current.forEach((tab: Tab) => tab.touched = false);
+          sourcesTabs.current.forEach((tab: Tab) => (tab.touched = false));
 
           history.push(sourcesPageRoutes.root);
 
           if (sourceData.current.connected) {
             closeableMessage.success('New source has been added!');
           } else {
-            closeableMessage.warn(`Source has been saved, but test has failed with '${firstToLower(
-              sourceData.current.connectedErrorMessage
-            )}'. Data from this source will not be available`);
+            closeableMessage.warn(
+              `Source has been saved, but test has failed with '${firstToLower(
+                sourceData.current.connectedErrorMessage
+              )}'. Data from this source will not be available`
+            );
           }
-        } catch(error) {
-          handleError(error, 'Something goes wrong, source hasn\'t been added');
+        } catch (error) {
+          handleError(error, "Something goes wrong, source hasn't been added");
         }
       })
       .catch(() => {
@@ -215,18 +265,26 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
       })
       .finally(() => {
         setSourceSaving(false);
-      })
+      });
   };
 
   useEffect(() => {
-    setBreadcrumbs(withHome({
-      elements: [
-        { title: 'Sources', link: sourcesPageRoutes.root },
-        {
-          title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode={editorMode} />
-        }
-      ]
-    }));
+    setBreadcrumbs(
+      withHome({
+        elements: [
+          { title: 'Sources', link: sourcesPageRoutes.root },
+          {
+            title: (
+              <PageHeader
+                title={connectorSource?.displayName}
+                icon={connectorSource?.pic}
+                mode={editorMode}
+              />
+            )
+          }
+        ]
+      })
+    );
   }, [connectorSource, setBreadcrumbs]);
 
   if (!connectorSource) {
@@ -237,62 +295,106 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
     <>
       <div className={cn('flex flex-col items-stretch flex-auto')}>
         <div className={cn('flex-grow')}>
-          <TabsConfigurator
-            type="card"
-            className={cn(styles.tabCard)}
-            tabsList={sourcesTabs.current}
-            activeTabKey={activeTabKey}
-            onTabChange={setActiveTabKey}
-            tabBarExtraContent={connectorSource?.documentation &&
-            <Button type="link" icon={<QuestionCircleOutlined />}
-              onClick={() => setDocumentationVisible(true)}>
-              Documentation
-            </Button>}
-          />
+          <WithSourceEditorSyncContext connectorSource={connectorSource}>
+            <TabsConfigurator
+              type="card"
+              className={cn(styles.tabCard)}
+              tabsList={sourcesTabs.current}
+              activeTabKey={activeTabKey}
+              onTabChange={setActiveTabKey}
+              tabBarExtraContent={
+                <span className="uppercase">
+                  {editorMode === 'edit' && (
+                    <NavLink
+                      to={generatePath(taskLogsPageRoute, {
+                        sourceId: sourceId ?? connectorSource.id ?? 'not_found'
+                      })}
+                    >
+                      View Logs
+                    </NavLink>
+                  )}
+                  {editorMode === 'edit' && connectorSource?.documentation && (
+                    <>
+                      {' '}
+                      <span className="text-link text-xl">•</span>{' '}
+                    </>
+                  )}
+                  {connectorSource?.documentation && (
+                    <>
+                      <a onClick={() => setDocumentationVisible(true)}>
+                        Documentation
+                      </a>
+                    </>
+                  )}
+                </span>
+              }
+            />
+          </WithSourceEditorSyncContext>
         </div>
 
         <div className="flex-shrink border-t pt-2">
           <EditorButtons
             save={{
               isRequestPending: sourceSaving,
-              isPopoverVisible: savePopover && sourcesTabs.current.some((tab: Tab) => tab.errorsCount > 0),
+              isPopoverVisible:
+                savePopover &&
+                sourcesTabs.current.some((tab: Tab) => tab.errorsCount > 0),
               handlePress: handleSaveSource,
               handlePopoverClose: savePopoverClose,
               titleText: 'Source editor errors',
-              tabsList: sourcesTabs.current
+              tabsList: sourcesTabs.current,
+              disabled: controlsDisabled
             }}
             test={{
               isRequestPending: testConnecting,
-              isPopoverVisible: testConnectingPopover && sourcesTabs.current[0].errorsCount > 0,
+              isPopoverVisible:
+                testConnectingPopover && sourcesTabs.current[0].errorsCount > 0,
               handlePress: handleTestConnection,
               handlePopoverClose: testConnectingPopoverClose,
               titleText: 'Connection Properties errors',
-              tabsList: [sourcesTabs.current[0]]
+              tabsList: [sourcesTabs.current[0]],
+              disabled: controlsDisabled
             }}
             handleCancel={handleCancel}
           />
         </div>
       </div>
 
-      <Prompt message={sourcePageUtils.getPromptMessage(sourcesTabs.current)}/>
+      <Prompt message={sourcePageUtils.getPromptMessage(sourcesTabs.current)} />
 
-      {connectorSource?.documentation && <Drawer
-        title={<h2>{connectorSource.displayName} documentation</h2>}
-        placement="right"
-        closable={true}
-        onClose={() => setDocumentationVisible(false)}
-        width="70%"
-        visible={documentationVisible}
-      ><div className={styles.documentation}>
-          <Collapse defaultActiveKey={['connection']} ghost>
-            <Collapse.Panel header={<div className="uppercase font-bold">{connectorSource.displayName} overview</div>} key="overview" >
-              {connectorSource.documentation.overview}
-            </Collapse.Panel>
-            <Collapse.Panel header={<div className="uppercase font-bold">How to connect</div>} key="connection">
-              {connectorSource.documentation.connection}
-            </Collapse.Panel>
-          </Collapse>
-        </div></Drawer>}
+      {connectorSource?.documentation && (
+        <Drawer
+          title={<h2>{connectorSource.displayName} documentation</h2>}
+          placement="right"
+          closable={true}
+          onClose={() => setDocumentationVisible(false)}
+          width="70%"
+          visible={documentationVisible}
+        >
+          <div className={styles.documentation}>
+            <Collapse defaultActiveKey={['connection']} ghost>
+              <Collapse.Panel
+                header={
+                  <div className="uppercase font-bold">
+                    {connectorSource.displayName} overview
+                  </div>
+                }
+                key="overview"
+              >
+                {connectorSource.documentation.overview}
+              </Collapse.Panel>
+              <Collapse.Panel
+                header={
+                  <div className="uppercase font-bold">How to connect</div>
+                }
+                key="connection"
+              >
+                {connectorSource.documentation.connection}
+              </Collapse.Panel>
+            </Collapse>
+          </div>
+        </Drawer>
+      )}
     </>
   );
 };

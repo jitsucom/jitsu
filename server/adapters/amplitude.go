@@ -39,7 +39,7 @@ func newAmplitudeRequestFactory(apiKey string) (HTTPRequestFactory, error) {
 //put empty array in body if object is nil (is used in test connection)
 func (arf *AmplitudeRequestFactory) Create(object map[string]interface{}) (*Request, error) {
 	//empty array is required. Otherwise nil will be sent (error)
-	eventsArr := []map[string]interface{}{}
+	var eventsArr []map[string]interface{}
 	if object != nil {
 		eventsArr = append(eventsArr, object)
 	}
@@ -92,7 +92,6 @@ func NewAmplitude(config *AmplitudeConfig, httpAdapterConfiguration *HTTPAdapter
 	}
 
 	httpAdapterConfiguration.HTTPReqFactory = httpReqFactory
-
 	httpAdapter, err := NewHTTPAdapter(httpAdapterConfiguration)
 	if err != nil {
 		return nil, err

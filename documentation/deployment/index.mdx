@@ -8,45 +8,13 @@ title: Deployment
 our platform incredibly easy to deploy and use. Below, we have several step-by-step guides outlining
 how to set up Jitsu on a variety of different environments  with the easiest being [**Heroku deploy**](/docs/deployment/deploy-on-heroku) and [**Docker deploy**](/docs/deployment/deploy-with-docker).
 
-
-## Jitsu Architecture
-
-We built **Jitsu** (🐳 [@jitsucom/jitsu](https://hub.docker.com/r/jitsucom/jitsu)) to have as few external dependencies as possible. It consists of following services:
-
- * **Jitsu Server** (🐳 [@jitsucom/server](https://hub.docker.com/r/jitsucom/server)) — Jitsu core main application written in GO language.
-HTTP service that can accept analytics user events from javascript/API as well as can pull data from 3rd party platforms (such as [Stripe](https://stripe.com/), [Google Analytics](https://analytics.google.com/), [Intercom](https://www.intercom.com/), etc) and store it data-warehouse of your choice.
-It performs all job such as transformations, queueing, batching, task scheduling etc. Jitsu Server accepts YAML file configuration.
-Some sections of YAML configuration can be reloadable. Jitsu Server sends GET requests every N seconds to get reloadable configuration sections such as [api_keys](/docs/configuration/authorization#http-url),
-[destinations](/docs/destinations-configuration#configuring-destinations-via-http--endpoint), [sources](docs/sources-configuration#configuring-sources-via-http--endpoint) if they contain HTTP URL.
-
- * **Jitsu Configurator** (🐳 [@jitsucom/configurator](https://hub.docker.com/r/jitsucom/configurator)) — web application that contains
-Jitsu User Interface (like on [Jitsu.Cloud](https://cloud.jitsu.com)) and backend - HTTP service written in GO language.
-Jitsu Configurator solves the problem of configuring Jitsu Server. You can create your API keys, destinations, sources in user interface
-and Jitsu Server will get it via HTTP API. Configurator stores all objects (api keys, destinations, sources) as serialized JSONs in Redis.
-
-<Hint>
-  Jitsu Configurator and some features (e.g. <a href="/docs/other-features/retrospective-user-recognition">Retrospective User Recognition</a>) require <b>Redis</b>.
-  Also if you have more than one node of Jitsu Server running, Redis is required for redundancy (as provisions coordination service).
-</Hint>
-
-**Jitsu** (🐳 [@jitsucom/jitsu](https://hub.docker.com/r/jitsucom/jitsu)) - is a single docker image that includes both services (Jitsu Server and Jitsu Configurator) and [Nginx](https://nginx.org/).
-Jitsu has started on `8000` port, there are the following running services inside:
-- Jitsu Server starts on `8001` port with **default*** YAML configuration - `api_keys`, `destinations`, `sources` sections are reloadable from Jitsu Configurator.
-- Jitsu Configurator starts on `7000` port with **default*** YAML configuration.
-- Nginx starts on `8000` and routes all requests from `address:8000/` to Jitsu Server, all requests from `address:8000/configurator` to Jitsu Configurator.
-
-<Hint>
-  <b>default*</b> configuration might be overridden with your custom YAML configuration file via docker mount (volumes).
-  Simultaneously we do not recommend to override YAML configuration (only if you know what you do). In most cases, it’s easier to configure Jitsu Server via Configurator UI.
-</Hint>
-
-You can try Configurator UI at [Jitsu.Cloud](https://cloud.jitsu.com)
-**Jitsu Server** can be used without **Jitsu Configurator** (and UI) with [YAML configuration](https://jitsu.com/docs/configuration). Read more about [Jitsu Server docker deployment](/docs/deployment/deploy-with-docker).
-
-
-## All deployment methods
+## One-Click Deployments
 
 <LargeLink title="Deploy on Heroku" href="/docs/deployment/deploy-on-heroku" />
+
+<LargeLink title="Deploy with Docker Compose" href="/docs/deployment/deploy-with-docker/docker-compose" />
+
+## Other deployment methods
 
 <LargeLink title="Deploy with Docker" href="/docs/deployment/deploy-with-docker" />
 

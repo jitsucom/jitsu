@@ -33,6 +33,7 @@ const (
 	insertSFTemplate                    = `INSERT INTO %s.%s (%s) VALUES %s`
 	deleteSFTemplate                    = `DELETE FROM %s.%s WHERE %s`
 	dropSFTableTemplate                 = `DROP TABLE %s.%s`
+	truncateSFTableTemplate             = `TRUNCATE TABLE IF EXISTS %s.%s`
 )
 
 var (
@@ -386,6 +387,17 @@ func (s *Snowflake) DropTable(table *Table) error {
 	return wrappedTx.DirectCommit()
 }
 
+//Truncate deletes all records in tableName table
+func (s *Snowflake) Truncate(tableName string) error {
+	sqlParams := SqlParams{
+		dataSource:  s.dataSource,
+		queryLogger: s.queryLogger,
+		ctx:         s.ctx,
+	}
+	statement := fmt.Sprintf(truncateSFTableTemplate, s.config.Db, tableName)
+	return sqlParams.commonTruncate(tableName, statement)
+}
+
 //createTableInTransaction creates database table with name,columns provided in Table representation
 func (s *Snowflake) createTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	var columnsDDL []string
@@ -471,7 +483,7 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 //bulkMergeInTransaction uses temporary table and insert from select statement
 func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	tmpTable := &Table{
-		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers(),
+		Name:           fmt.Sprintf("jitsu_tmp_%s", uuid.NewLettersNumbers()[:5]),
 		Columns:        table.Columns,
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,

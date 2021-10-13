@@ -395,8 +395,8 @@ const DestinationEditor = ({
     breadCrumbs.push({
       title: (
         <PageHeader
-          title={destinationReference.displayName}
-          icon={destinationReference.ui.icon}
+          title={destinationReference?.displayName ?? 'Not Found'}
+          icon={destinationReference?.ui.icon}
           mode={params.standalone ? 'edit' : editorMode}
         />
       )

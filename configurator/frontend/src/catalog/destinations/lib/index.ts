@@ -11,6 +11,8 @@ import webhookDestination from './webhook';
 import amplitudeDestination from './amplitude';
 import hubspotDestination from './hubspot';
 import dbtcloudDestination from './dbtcloud';
+import s3Destination from './s3';
+import { Destination } from '../types';
 
 export {
   postgresDestination,
@@ -24,7 +26,8 @@ export {
   webhookDestination,
   amplitudeDestination,
   hubspotDestination,
-  dbtcloudDestination
+  dbtcloudDestination,
+  s3Destination
 }
 
 export const destinationsReferenceMap = {
@@ -39,7 +42,8 @@ export const destinationsReferenceMap = {
   webhook: webhookDestination,
   amplitude: amplitudeDestination,
   hubspot: hubspotDestination,
-  dbtcloud: dbtcloudDestination
+  dbtcloud: dbtcloudDestination,
+  s3: s3Destination
 } as const;
 
 export type DestinationReference =
