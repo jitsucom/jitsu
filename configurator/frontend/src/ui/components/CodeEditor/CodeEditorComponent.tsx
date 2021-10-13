@@ -45,7 +45,11 @@ const CodeEditorComponent = ({
     const model = ref.current.editor.getModel();
     const value = model.getValue();
 
-    if (e.metaKey || e.altKey) return; // excludes the hotkeys
+    /**
+     * excludes the `cmd/ctrl + S` hotkey
+     */
+    if (hotkeysOverrides && (e.metaKey || e.ctrlKey) && e.keyCode === 83)
+      return;
 
     handleChangeProp(value);
   };
