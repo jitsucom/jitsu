@@ -1,18 +1,42 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/runner"
+	"io/ioutil"
 	"net/http"
+	"net/url"
+	"sort"
+	"time"
 )
+
+const (
+	dockerHubURLTemplate = "https://hub.docker.com/v2/repositories/%s/%s/tags?page_size=1000"
+	defaultTimeout       = 20 * time.Second
+)
+
+//DockerHubResponse is a DockerHub tags response dto
+type DockerHubResponse struct {
+	Next    string          `json:"next"`
+	Results []*DockerHubTag `json:"results"`
+}
+
+//DockerHubTag is a DockerHub tags dto
+type DockerHubTag struct {
+	Name          string `json:"name"`
+	TagLastPushed string `json:"tag_last_pushed"`
+}
 
 type SpecResponse struct {
 	middleware.StatusResponse
 
-	Spec interface{} `json:"spec"`
+	Spec     interface{} `json:"spec"`
+	Versions []string    `json:"versions"`
 }
 
 type CatalogResponse struct {
@@ -21,13 +45,16 @@ type CatalogResponse struct {
 	Catalog interface{} `json:"catalog"`
 }
 
-type AirbyteHandler struct{}
-
-func NewAirbyteHandler() *AirbyteHandler {
-	return &AirbyteHandler{}
+type AirbyteHandler struct {
+	httpClient *http.Client
 }
 
-//SpecHandler returns airbyte spec by docker name
+func NewAirbyteHandler() *AirbyteHandler {
+	return &AirbyteHandler{httpClient: &http.Client{Timeout: defaultTimeout}}
+}
+
+//SpecHandler requests available docker version from DockerHub and requests airbyte spec with the last or specified version
+//returns airbyte spec and available versions by docker name
 func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 	dockerImage := c.Param("dockerImageName")
 	if dockerImage == "" {
@@ -35,7 +62,23 @@ func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 		return
 	}
 
-	airbyteRunner := airbyte.NewRunner(dockerImage, airbyte.LatestVersion, "")
+	sortedAvailableTagsVersions, err := ah.getAvailableDockerVersions(dockerImage)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(fmt.Sprintf("error getting available docker image [%s] versions from DockerHub: %v", dockerImage, err), nil))
+		return
+	}
+
+	if len(sortedAvailableTagsVersions) == 0 {
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(fmt.Sprintf("Docker Image %s doesn't have availabe tag on hub.docker.com", dockerImage), nil))
+		return
+	}
+
+	imageVersion := c.Query("image_version")
+	if imageVersion == "" {
+		imageVersion = sortedAvailableTagsVersions[0]
+	}
+
+	airbyteRunner := airbyte.NewRunner(dockerImage, imageVersion, "")
 	spec, err := airbyteRunner.Spec()
 	if err != nil {
 		if err == runner.ErrNotReady {
@@ -50,6 +93,7 @@ func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, SpecResponse{
 		StatusResponse: middleware.OKResponse(),
 		Spec:           spec,
+		Versions:       sortedAvailableTagsVersions,
 	})
 }
 
@@ -68,7 +112,13 @@ func (ah *AirbyteHandler) CatalogHandler(c *gin.Context) {
 		return
 	}
 
-	airbyteRunner := airbyte.NewRunner(dockerImage, airbyte.LatestVersion, "")
+	imageVersion := c.Query("image_version")
+	if imageVersion == "" {
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("image_version is required query parameter", nil))
+		return
+	}
+
+	airbyteRunner := airbyte.NewRunner(dockerImage, imageVersion, "")
 	catalogRow, err := airbyteRunner.Discover(airbyteSourceConnectorConfig)
 	if err != nil {
 		if err == runner.ErrNotReady {
@@ -84,4 +134,77 @@ func (ah *AirbyteHandler) CatalogHandler(c *gin.Context) {
 		StatusResponse: middleware.OKResponse(),
 		Catalog:        catalogRow,
 	})
+}
+
+func (ah *AirbyteHandler) getAvailableDockerVersions(dockerImageName string) ([]string, error) {
+	var tags []*DockerHubTag
+	nextURL := fmt.Sprintf(dockerHubURLTemplate, "airbyte", dockerImageName)
+	for nextURL != "" {
+		responseVersions, next, err := ah.requestDockerHubTags(nextURL)
+		if err != nil {
+			return nil, err
+		}
+		tags = append(tags, responseVersions...)
+		nextURL = next
+	}
+
+	//sort by pushed date
+	sort.Slice(tags, func(i, j int) bool {
+		a := tags[i]
+		aTime, _ := time.Parse(a.TagLastPushed, time.RFC3339Nano)
+		b := tags[j]
+		bTime, _ := time.Parse(b.TagLastPushed, time.RFC3339Nano)
+		return aTime.Before(bTime)
+	})
+
+	var versions []string
+	for _, ver := range tags {
+		if ver.Name == "latest" {
+			continue
+		}
+
+		versions = append(versions, ver.Name)
+	}
+
+	return versions, nil
+}
+
+//requestDockerHubTags returns docker tags, next link or empty string
+//err if occurred
+func (ah *AirbyteHandler) requestDockerHubTags(reqURL string) ([]*DockerHubTag, string, error) {
+	resp, err := ah.httpClient.Get(reqURL)
+	if err != nil {
+		urlErr, ok := err.(*url.Error)
+		if ok && urlErr.Timeout() {
+			return nil, "", fmt.Errorf("timeout [%s] reached", defaultTimeout.String())
+		}
+
+		return nil, "", err
+	}
+	defer func() {
+		if resp.Body != nil {
+			resp.Body.Close()
+		}
+	}()
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("Error reading response: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("HTTP code = %d, body: %s", resp.StatusCode, string(respBody))
+	}
+
+	dhResp := &DockerHubResponse{}
+	if err := json.Unmarshal(respBody, dhResp); err != nil {
+		return nil, "", err
+	}
+
+	var tags []*DockerHubTag
+	for _, tag := range dhResp.Results {
+		tags = append(tags, tag)
+	}
+
+	return tags, dhResp.Next, nil
 }
