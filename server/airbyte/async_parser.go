@@ -89,9 +89,7 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 				return fmt.Errorf("Error parsing airbyte record line %s: %v", string(lineBytes), err)
 			}
 
-			streamName := schema.Reformat(row.Record.Stream)
-
-			output.Streams[streamName].Objects = append(output.Streams[streamName].Objects, row.Record.Data)
+			output.Streams[row.Record.Stream].Objects = append(output.Streams[row.Record.Stream].Objects, row.Record.Data)
 		default:
 			msg := fmt.Sprintf("Unknown airbyte output line type: %s [%s]", row.Type, string(lineBytes))
 			logging.Error(msg)
