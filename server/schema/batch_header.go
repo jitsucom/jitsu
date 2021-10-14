@@ -85,6 +85,14 @@ type SQLTypeSuggestion struct {
 	sqlTypePerDestination map[string]string
 }
 
+//NewSQLTypeSuggestion returns configured SQLTypeSuggestion instance
+func NewSQLTypeSuggestion(sqlType string, sqlTypePerDestination map[string]string) *SQLTypeSuggestion {
+	return &SQLTypeSuggestion{
+		sqlType:               sqlType,
+		sqlTypePerDestination: sqlTypePerDestination,
+	}
+}
+
 //Field is a data type holder with occurrences
 type Field struct {
 	dataType          *typing.DataType
