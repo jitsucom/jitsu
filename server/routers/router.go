@@ -58,6 +58,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	dryRunHandler := handlers.NewDryRunHandler(destinations, processorHolder.GetJSPreprocessor())
 	statisticsHandler := handlers.NewStatisticsHandler(metaStorage)
 
+	airbyteHandler := handlers.NewAirbyteHandler()
 	sourcesHandler := handlers.NewSourcesHandler(sourcesService, metaStorage, destinations)
 	pixelHandler := handlers.NewPixelHandler(multiplexingService, processorHolder.GetPixelPreprocessor())
 
@@ -108,8 +109,9 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.GET("/fallback", adminTokenMiddleware.AdminAuth(fallbackHandler.GetHandler))
 		apiV1.POST("/replay", adminTokenMiddleware.AdminAuth(fallbackHandler.ReplayHandler))
 
-		apiV1.GET("/airbyte/:dockerImageName/spec", adminTokenMiddleware.AdminAuth(handlers.NewAirbyteHandler().SpecHandler))
-		apiV1.POST("/airbyte/:dockerImageName/catalog", adminTokenMiddleware.AdminAuth(handlers.NewAirbyteHandler().CatalogHandler))
+		apiV1.GET("/airbyte/:dockerImageName/spec", adminTokenMiddleware.AdminAuth(airbyteHandler.SpecHandler))
+		apiV1.GET("/airbyte/:dockerImageName/versions", adminTokenMiddleware.AdminAuth(airbyteHandler.VersionsHandler))
+		apiV1.POST("/airbyte/:dockerImageName/catalog", adminTokenMiddleware.AdminAuth(airbyteHandler.CatalogHandler))
 	}
 
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))

@@ -17,7 +17,7 @@ import (
 
 const (
 	dockerHubURLTemplate = "https://hub.docker.com/v2/repositories/%s/%s/tags?page_size=1000"
-	defaultTimeout       = 20 * time.Second
+	defaultTimeout       = 40 * time.Second
 )
 
 //DockerHubResponse is a DockerHub tags response dto
@@ -32,11 +32,14 @@ type DockerHubTag struct {
 	TagLastPushed string `json:"tag_last_pushed"`
 }
 
+type VersionsResponse struct {
+	Versions []string `json:"versions"`
+}
+
 type SpecResponse struct {
 	middleware.StatusResponse
 
-	Spec     interface{} `json:"spec"`
-	Versions []string    `json:"versions"`
+	Spec interface{} `json:"spec"`
 }
 
 type CatalogResponse struct {
@@ -53,9 +56,8 @@ func NewAirbyteHandler() *AirbyteHandler {
 	return &AirbyteHandler{httpClient: &http.Client{Timeout: defaultTimeout}}
 }
 
-//SpecHandler requests available docker version from DockerHub and requests airbyte spec with the last or specified version
-//returns airbyte spec and available versions by docker name
-func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
+//VersionsHandler requests available docker version from DockerHub and returns them by docker image name
+func (ah *AirbyteHandler) VersionsHandler(c *gin.Context) {
 	dockerImage := c.Param("dockerImageName")
 	if dockerImage == "" {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("docker image name is required path parameter", nil))
@@ -73,9 +75,22 @@ func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 		return
 	}
 
+	c.JSON(http.StatusOK, VersionsResponse{
+		Versions: sortedAvailableTagsVersions,
+	})
+}
+
+//SpecHandler returns airbyte spec by docker name
+func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
+	dockerImage := c.Param("dockerImageName")
+	if dockerImage == "" {
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("docker image name is required path parameter", nil))
+		return
+	}
+
 	imageVersion := c.Query("image_version")
 	if imageVersion == "" {
-		imageVersion = sortedAvailableTagsVersions[0]
+		imageVersion = airbyte.LatestVersion
 	}
 
 	airbyteRunner := airbyte.NewRunner(dockerImage, imageVersion, "")
@@ -93,7 +108,6 @@ func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, SpecResponse{
 		StatusResponse: middleware.OKResponse(),
 		Spec:           spec,
-		Versions:       sortedAvailableTagsVersions,
 	})
 }
 
