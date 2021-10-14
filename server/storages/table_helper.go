@@ -24,14 +24,15 @@ type TableHelper struct {
 	pkFields           map[string]bool
 	columnTypesMapping map[typing.DataType]string
 
-	streamMode bool
-	maxColumns int
+	destinationType string
+	streamMode      bool
+	maxColumns      int
 }
 
 //NewTableHelper returns configured TableHelper instance
 //Note: columnTypesMapping must be not empty (or fields will be ignored)
 func NewTableHelper(sqlAdapter adapters.SQLAdapter, monitorKeeper MonitorKeeper, pkFields map[string]bool,
-	columnTypesMapping map[typing.DataType]string, maxColumns int) *TableHelper {
+	columnTypesMapping map[typing.DataType]string, maxColumns int, destinationType string) *TableHelper {
 
 	return &TableHelper{
 		sqlAdapter:    sqlAdapter,
@@ -41,7 +42,8 @@ func NewTableHelper(sqlAdapter adapters.SQLAdapter, monitorKeeper MonitorKeeper,
 		pkFields:           pkFields,
 		columnTypesMapping: columnTypesMapping,
 
-		maxColumns: maxColumns,
+		destinationType: destinationType,
+		maxColumns:      maxColumns,
 	}
 }
 
@@ -56,7 +58,13 @@ func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters
 	}
 
 	for fieldName, field := range batchHeader.Fields {
-		//map storage type
+		suggestedSQLType, ok := field.GetSuggestedSQLType(th.destinationType)
+		if ok {
+			table.Columns[fieldName] = adapters.Column{SQLType: suggestedSQLType}
+			continue
+		}
+
+		//map Jitsu type -> SQL type
 		sqlType, ok := th.columnTypesMapping[field.GetType()]
 		if ok {
 			table.Columns[fieldName] = adapters.Column{SQLType: sqlType}
