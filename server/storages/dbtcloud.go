@@ -52,7 +52,7 @@ func NewDbtCloud(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(dbtAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0)
+	tableHelper := NewTableHelper(dbtAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, DbtCloudType)
 
 	dbt.tableHelper = tableHelper
 	dbt.adapter = dbtAdapter
