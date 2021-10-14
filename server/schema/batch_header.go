@@ -79,18 +79,45 @@ func (f Fields) Header() (header []string) {
 	return
 }
 
-//Field is a data type holder with occurrences
-type Field struct {
-	dataType       *typing.DataType
-	typeOccurrence map[typing.DataType]bool
+//SQLTypeSuggestion is a struct which keeps certain SQL types per certain destination type
+type SQLTypeSuggestion struct {
+	sqlType               string
+	sqlTypePerDestination map[string]string
 }
 
-//NewField return Field instance
+//Field is a data type holder with occurrences
+type Field struct {
+	dataType          *typing.DataType
+	sqlTypeSuggestion *SQLTypeSuggestion
+	typeOccurrence    map[typing.DataType]bool
+}
+
+//NewField returns Field instance
 func NewField(t typing.DataType) Field {
 	return Field{
 		dataType:       &t,
 		typeOccurrence: map[typing.DataType]bool{t: true},
 	}
+}
+
+//NewFieldWithSQLType returns Field instance with configured suggested sql types
+func NewFieldWithSQLType(t typing.DataType, sqlTypeSuggestion *SQLTypeSuggestion) Field {
+	return Field{
+		dataType:          &t,
+		sqlTypeSuggestion: sqlTypeSuggestion,
+		typeOccurrence:    map[typing.DataType]bool{t: true},
+	}
+}
+
+//GetSuggestedSQLType returns suggested SQL type if configured
+//is used in case when source overrides destination type
+func (f Field) GetSuggestedSQLType(destinationType string) (string, bool) {
+	if f.sqlTypeSuggestion != nil {
+		sqlType, ok := f.sqlTypeSuggestion.sqlTypePerDestination[destinationType]
+		return sqlType, ok
+	}
+
+	return "", false
 }
 
 //GetType get field type based on occurrence in one file

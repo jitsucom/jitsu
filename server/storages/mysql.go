@@ -52,7 +52,7 @@ func NewMySQL(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToMySQL, config.maxColumns)
+	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToMySQL, config.maxColumns, MySQLType)
 
 	m := &MySQL{
 		adapter:                       adapter,
