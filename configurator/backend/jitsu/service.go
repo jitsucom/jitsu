@@ -2,6 +2,7 @@ package jitsu
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	smdlwr "github.com/jitsucom/jitsu/server/middleware"
@@ -66,6 +67,9 @@ func (s *Service) sendReq(method, requestURL string, body io.Reader) (int, []byt
 	req.Header.Add(smdlwr.AdminTokenKey, s.adminToken)
 	resp, err := s.client.Do(req)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return 0, nil, ErrServerTimeout
+		}
 		urlErr, ok := err.(*url.Error)
 		if ok && urlErr.Timeout() {
 			return 0, nil, ErrServerTimeout

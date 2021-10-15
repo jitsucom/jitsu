@@ -149,7 +149,7 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	if err := airbyte.Init(ctx, viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), appconfig.Instance.AirbyteLogsWriter); err != nil {
-		logging.Fatal(err)
+		logging.Errorf("❌ Airbyte integration is disabled: %v. For using Airbyte run Jitsu with: -v /var/run/docker.sock:/var/run/docker.sock", err)
 	}
 
 	enrichment.InitDefault(

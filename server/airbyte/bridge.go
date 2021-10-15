@@ -57,7 +57,7 @@ func Init(ctx context.Context, configDir, workspaceVolume string, logWriter io.W
 
 	images, err := cli.ImageList(ctx, types.ImageListOptions{})
 	if err != nil {
-		return fmt.Errorf("Error executing docker image ls: %v", err)
+		return fmt.Errorf("error executing docker image ls: %v", err)
 	}
 
 	logging.Debug("[Airbyte] pulled docker images:")
