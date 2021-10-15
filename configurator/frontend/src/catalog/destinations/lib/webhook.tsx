@@ -45,6 +45,7 @@ const webhookDestination = {
       displayName: 'HTTP URL',
       required: true,
       type: stringType,
+      jsDebugger: 'object',
       documentation:
           <>HTTP URL constant string or <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a> e.g.:<br></br><i>"https://mydomain/" + $.event_type</i><br></br> will get <b>event_type</b> field from event and use it as a part of URL path.</>
     },
@@ -60,6 +61,7 @@ const webhookDestination = {
       displayName: 'HTTP JSON Body',
       required: false,
       type: jsType,
+      jsDebugger: 'object',
       documentation:
         <>HTTP body JSON constant, or <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a> e.g.:
           <pre>
