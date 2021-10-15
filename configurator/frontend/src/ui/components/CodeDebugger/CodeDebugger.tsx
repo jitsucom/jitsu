@@ -116,6 +116,7 @@ const CodeDebugger = ({
     };
 
   const handleSaveCode = () => {
+    console.log("S")
     _handleSaveCode();
     setIsCodeSaved(true);
   };
@@ -284,7 +285,7 @@ const CodeDebugger = ({
                 <div
                   className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}
                 >
-                  <p
+                  <div
                     className={cn('flex flex-col w-full h-full m-0', {
                       [styles.itemError]: calcResult?.code === 'error',
                       [styles.itemSuccess]: calcResult?.code === 'success'
@@ -327,7 +328,7 @@ const CodeDebugger = ({
                         )}
                       </span>
                     )}
-                  </p>
+                  </div>
                 </div>
               </SectionWithLabel>
             </ReflexElement>
@@ -544,7 +545,7 @@ const ControlsComponent: React.FC<ControlsProps> = ({
           </Button>
         </Tooltip>
         <Tooltip title={`${OS_CMD_BUTTON}+S`} mouseEnterDelay={1}>
-          <Button size="middle" type="primary" icon={<DownloadOutlined />}>
+          <Button size="middle" type="primary" onClick={handleSave} icon={<DownloadOutlined />}>
             <span className={`${styles.adaptiveLabel}`}>{'Save'}</span>
           </Button>
         </Tooltip>

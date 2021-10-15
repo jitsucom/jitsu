@@ -2,6 +2,7 @@ package schema
 
 import (
 	"github.com/jitsucom/jitsu/server/identifiers"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/spf13/viper"
 	"io/ioutil"
 	"testing"
@@ -142,7 +143,7 @@ func TestProcessFilePayload(t *testing.T) {
 			[]events.SkippedEvent{},
 		},
 	}
-	p, err := NewProcessor("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 0)
+	p, err := NewProcessor("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, "", &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 0)
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -320,7 +321,7 @@ func TestProcessFact(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	p, err := NewProcessor("test", `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+	p, err := NewProcessor("test", `events_{{._timestamp.Format "2006_01"}}`, "", fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
 
 	require.NoError(t, err)
 	for _, tt := range tests {
@@ -334,6 +335,72 @@ func TestProcessFact(t *testing.T) {
 				require.NoError(t, err)
 
 				test.ObjectsEqual(t, tt.expectedBatchHeader, batchHeader, "BatchHeader results aren't equal")
+				test.ObjectsEqual(t, tt.expectedObject, actual, "Processed objects aren't equal")
+			}
+		})
+	}
+}
+
+func TestProcessTransform(t *testing.T) {
+	viper.Set("server.log.path", "")
+
+	err := appconfig.Init(false, "")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                string
+		input               map[string]interface{}
+		expectedObject      events.Event
+		expectedErr         string
+	}{
+		{
+			"Empty input event - error",
+			map[string]interface{}{"event_type": "site_page", "url": "https://jitsu.com", "field1": "somedata"},
+			map[string]interface{}{"event": "pageview", "url": "https://jitsu.com"},
+			"",
+		},
+		{
+			"Empty input event - error",
+			map[string]interface{}{"event_type": "indentify", "user": map[string]interface{}{"email": "hello@jitsu.com"},"url": "https://jitsu.com", "field1": "somedata"},
+			map[string]interface{}{"event": "indentify", "userid": "hello@jitsu.com"},
+			"",
+		},
+	}
+	appconfig.Init(false, "")
+
+	fieldMapper := DummyMapper{}
+	transormExpression := `
+switch ($.event_type) {
+    case "site_page":
+        return {
+            event: "pageview",
+            url: $.url
+        }
+    case "indentify":
+        if ($.user?.email) {
+            return {
+                    event: "indentify",
+                    userid: $.user.email
+                }
+        } else {
+            return null
+        }
+    default:
+        return {...$, source: "JITSU"}
+}
+`
+	p, err := NewProcessor("test", `events`, transormExpression, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+
+	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, actual, err := p.ProcessEvent(tt.input)
+			logging.Infof("input: %v expected: %v acutal: %v", tt.input, tt.expectedObject, actual)
+			if tt.expectedErr != "" {
+				require.Error(t, err)
+				require.Equal(t, tt.expectedErr, err.Error())
+			} else {
+				require.NoError(t, err)
 				test.ObjectsEqual(t, tt.expectedObject, actual, "Processed objects aren't equal")
 			}
 		})

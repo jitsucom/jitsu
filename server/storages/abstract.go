@@ -59,7 +59,7 @@ func (a *Abstract) IsCachingDisabled() bool {
 	return a.cachingConfiguration != nil && a.cachingConfiguration.Disabled
 }
 
-func (a *Abstract) DryRun(payload events.Event) ([]adapters.TableField, error) {
+func (a *Abstract) DryRun(payload events.Event) ([][]adapters.TableField, error) {
 	_, tableHelper := a.getAdapters()
 	return dryRun(payload, a.processor, tableHelper)
 }

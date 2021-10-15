@@ -42,6 +42,7 @@ import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
 import { CodeDebuggerModal } from '../CodeDebuggerModal/CodeDebuggerModal';
+import js from "react-syntax-highlighter/dist/esm/languages/hljs/javascript";
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -62,16 +63,6 @@ export const FormItemName = {
   }
 };
 
-const debuggableFields = [
-  '_formData.tableName',
-  '_formData.body',
-  '_formData.url',
-  '_formData.dbtCause'
-];
-const isDebugSupported = function (id) {
-  return debuggableFields.includes(id);
-};
-
 const services = ApplicationServices.get();
 
 const ConfigurableFieldsFormComponent = ({
@@ -81,24 +72,27 @@ const ConfigurableFieldsFormComponent = ({
   loading,
   handleTouchAnyField
 }: Props) => {
-  const debugModalsStates = {
-    '_formData.tableName': useState<boolean>(false),
-    '_formData.body': useState<boolean>(false),
-    '_formData.url': useState<boolean>(false),
-    '_formData.dbtCause': useState<boolean>(false)
-  };
-  const debugModalsValues = {
-    '_formData.tableName': useRef<string>(),
-    '_formData.body': useRef<string>(),
-    '_formData.url': useRef<string>(),
-    '_formData.dbtCause': useRef<string>()
-  };
-  const debugModalsReformat = {
-    '_formData.tableName': true,
-    '_formData.body': false,
-    '_formData.url': false,
-    '_formData.dbtCause': false
-  };
+  const [debugModalsStates, setDebugModalsStates] = useState<{ [id: string] : boolean; }>({})
+  const debugModalsValues = useRef<{ [id: string] : string; }>({})
+
+  // const debugModalsStates = {
+  //   '_formData.tableName': useState<boolean>(false),
+  //   '_formData.body': useState<boolean>(false),
+  //   '_formData.url': useState<boolean>(false),
+  //   '_formData.dbtCause': useState<boolean>(false)
+  // };
+  // const debugModalsValues = {
+  //   '_formData.tableName': useRef<string>(),
+  //   '_formData.body': useRef<string>(),
+  //   '_formData.url': useRef<string>(),
+  //   '_formData.dbtCause': useRef<string>()
+  // };
+  // const debugModalsReformat = {
+  //   '_formData.tableName': true,
+  //   '_formData.body': false,
+  //   '_formData.url': false,
+  //   '_formData.dbtCause': false
+  // };
 
   const forceUpdate = useForceUpdate();
 
@@ -161,7 +155,8 @@ const ConfigurableFieldsFormComponent = ({
     type: ParameterType<any>,
     id: string,
     defaultValue?: any,
-    constantValue?: any
+    constantValue?: any,
+    jsDebugger?: "object" | "string" | null
   ) => {
     const fieldsValue = form.getFieldsValue();
     const defaultValueToDisplay =
@@ -226,9 +221,9 @@ const ConfigurableFieldsFormComponent = ({
               handleChange={handleJsonChange(id)}
             />
             <span className="z-50 absolute top-2 right-3">
-              {isDebugSupported(id) && (
+              {jsDebugger && (
                 <Tooltip title="Debug expression">
-                  <span onClick={() => debugModalsStates[id][1](true)}>
+                  <span onClick={() => setDebugModalsStates({...debugModalsStates, [id]: true})}>
                     <BugIcon className={styles.bugIcon} />
                   </span>
                 </Tooltip>
@@ -253,12 +248,12 @@ const ConfigurableFieldsFormComponent = ({
             defaultValue={defaultValueToDisplay}
             autoComplete="off"
             suffix={
-              isDebugSupported(id) && (
+              jsDebugger && (
                 <Tooltip title="Debug expression">
                   <span>
                     <BugIcon
                       className={styles.bugIcon}
-                      onClick={() => debugModalsStates[id][1](true)}
+                      onClick={() => setDebugModalsStates({...debugModalsStates, [id]: true})}
                     />
                   </span>
                 </Tooltip>
@@ -270,9 +265,9 @@ const ConfigurableFieldsFormComponent = ({
     }
   };
 
-  const handleDebuggerRun = async (id: string, values: DebuggerFormValues) => {
+  const handleDebuggerRun = async (debuggerType: "object" | "string", values: DebuggerFormValues) => {
     const data = {
-      reformat: debugModalsReformat[id],
+      reformat: debuggerType == "string",
       expression: values.code,
       object: JSON.parse(values.object)
     };
@@ -285,15 +280,16 @@ const ConfigurableFieldsFormComponent = ({
   };
 
   const handleCodeChange = (id: string, value: string) => {
-    debugModalsValues[id].current = value;
+    debugModalsValues.current[id] = value;
   };
 
-  const handleCloseDebugger = (id) => debugModalsStates[id][1](false);
+  const handleCloseDebugger = (id) => setDebugModalsStates({...debugModalsStates, [id]: false});
 
   const handleSaveDebugger = (id) => {
-    if (debugModalsValues[id].current) {
-      form.setFieldsValue({ [id]: debugModalsValues[id].current });
+    if (debugModalsValues.current[id]) {
+      form.setFieldsValue({ [id]: debugModalsValues.current[id] });
     }
+    handleCloseDebugger(id)
   };
 
   useEffect(() => {
@@ -358,7 +354,8 @@ const ConfigurableFieldsFormComponent = ({
           defaultValue,
           required,
           constant,
-          omitFieldRule
+          omitFieldRule,
+           jsDebugger
         }: Parameter) => {
           const currentFormValues = form.getFieldsValue() ?? {};
           const defaultFormValues = fieldsParamsList.reduce(
@@ -431,16 +428,16 @@ const ConfigurableFieldsFormComponent = ({
           return isOmitted ? null : !isHidden ? (
             <Row key={id} className={cn(isHidden && 'hidden')}>
               <Col span={24}>
-                {isDebugSupported(id) ? (
+                {jsDebugger ? (
                   <CodeDebuggerModal
-                    visible={debugModalsStates[id][0]}
+                    visible={debugModalsStates[id]}
                     codeFieldLabelDebugger="Expression"
                     defaultCodeValueDebugger={get(initialValues, id)}
                     handleCloseDebugger={() => handleCloseDebugger(id)}
                     handleCodeChangeDebugger={(value) =>
                       handleCodeChange(id, value.toString())
                     }
-                    runDebugger={(values) => handleDebuggerRun(id, values)}
+                    runDebugger={(values) => handleDebuggerRun(jsDebugger, values)}
                     handleSaveCodeDebugger={() => handleSaveDebugger(id)}
                   />
                 ) : null}
@@ -467,7 +464,7 @@ const ConfigurableFieldsFormComponent = ({
                   wrapperCol={{ span: 20 }}
                   rules={validationRules}
                 >
-                  {getFieldComponent(type, id, defaultValue, constantValue)}
+                  {getFieldComponent(type, id, defaultValue, constantValue, jsDebugger)}
                 </Form.Item>
               </Col>
             </Row>

@@ -3,21 +3,30 @@ package schema
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/maputils"
+	"github.com/jitsucom/jitsu/server/templates"
 	"strings"
 )
+const TableNameParameter = "__JITSU_TABLE_NAME"
 
 var ErrSkipObject = errors.New("Table name template return empty string. This object will be skipped.")
+
+type Envelope struct {
+	Header *BatchHeader
+	Event events.Event
+}
 
 type Processor struct {
 	identifier              string
 	tableNameExtractor      *TableNameExtractor
 	lookupEnrichmentStep    *enrichment.LookupEnrichmentStep
+	transformer				*templates.JsTemplateExecutor
 	mappingStep             *MappingStep
 	pulledEventsMappingStep *MappingStep
 	breakOnError            bool
@@ -25,7 +34,7 @@ type Processor struct {
 	maxColumnNameLen        int
 }
 
-func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule,
+func NewProcessor(destinationID, tableNameFuncExpression string, transform string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule,
 	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int) (*Processor, error) {
 	mappingStep := NewMappingStep(fieldMapper, flattener, typeResolver)
 	pulledEventsMappingStep := NewMappingStep(&DummyMapper{}, flattener, typeResolver)
@@ -33,11 +42,23 @@ func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper eve
 	if err != nil {
 		return nil, err
 	}
-
+	var transformer	*templates.JsTemplateExecutor
+	if transform != "" && transform != templates.TransformDefaultTemplate {
+		transformFunctions := make(map[string]interface{})
+		for k,v := range templates.JSONSerializeFuncs {
+			transformFunctions[k] = v
+		}
+		transformFunctions["TABLE_NAME"] = TableNameParameter
+		transformer, err = templates.NewJsTemplateExecutor(transform, transformFunctions)
+		if err != nil {
+			return nil, fmt.Errorf("failed to init transform javascript: %v", err)
+		}
+	}
 	return &Processor{
 		identifier:              destinationID,
 		tableNameExtractor:      tableNameExtractor,
 		lookupEnrichmentStep:    enrichment.NewLookupEnrichmentStep(enrichmentRules),
+		transformer: 			 transformer,
 		mappingStep:             mappingStep,
 		pulledEventsMappingStep: pulledEventsMappingStep,
 		breakOnError:            breakOnError,
@@ -47,7 +68,7 @@ func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper eve
 }
 
 //ProcessEvent returns table representation, processed flatten object
-func (p *Processor) ProcessEvent(event map[string]interface{}) (*BatchHeader, events.Event, error) {
+func (p *Processor) ProcessEvent(event map[string]interface{}) ([]Envelope, error) {
 	return p.processObject(event, map[string]bool{})
 }
 
@@ -60,7 +81,7 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 	filePerTable := map[string]*ProcessedFile{}
 
 	for _, event := range objects {
-		batchHeader, processedObject, err := p.processObject(event, alreadyUploadedTables)
+		envelops, err := p.processObject(event, alreadyUploadedTables)
 		if err != nil {
 			//handle skip object functionality
 			if err == ErrSkipObject {
@@ -85,21 +106,24 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 				failedEvents.Src[events.ExtractSrc(event)]++
 			}
 		}
-
-		//don't process empty and skipped object (batchHeader.Exists() func is nil-protected)
-		if batchHeader.Exists() {
-			f, ok := filePerTable[batchHeader.TableName]
-			if !ok {
-				filePerTable[batchHeader.TableName] = &ProcessedFile{
-					FileName:    fileName,
-					BatchHeader: batchHeader,
-					payload:     []map[string]interface{}{processedObject},
-					eventsSrc:   map[string]int{events.ExtractSrc(event): 1},
+		for _, envelop := range envelops {
+			//don't process empty and skipped object (batchHeader.Exists() func is nil-protected)
+			batchHeader := envelop.Header
+			processedObject := envelop.Event
+			if batchHeader.Exists() {
+				f, ok := filePerTable[batchHeader.TableName]
+				if !ok {
+					filePerTable[batchHeader.TableName] = &ProcessedFile{
+						FileName:    fileName,
+						BatchHeader: batchHeader,
+						payload:     []map[string]interface{}{processedObject},
+						eventsSrc:   map[string]int{events.ExtractSrc(event): 1},
+					}
+				} else {
+					f.BatchHeader.Fields.Merge(batchHeader.Fields)
+					f.payload = append(f.payload, processedObject)
+					f.eventsSrc[events.ExtractSrc(event)]++
 				}
-			} else {
-				f.BatchHeader.Fields.Merge(batchHeader.Fields)
-				f.payload = append(f.payload, processedObject)
-				f.eventsSrc[events.ExtractSrc(event)]++
 			}
 		}
 	}
@@ -148,31 +172,62 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 //1. extract table name
 //2. execute enrichment.LookupEnrichmentStep and MappingStep
 //or ErrSkipObject/another error
-func (p *Processor) processObject(object map[string]interface{}, alreadyUploadedTables map[string]bool) (*BatchHeader, map[string]interface{}, error) {
+func (p *Processor) processObject(object map[string]interface{}, alreadyUploadedTables map[string]bool) ([]Envelope, error) {
 	objectCopy := maputils.CopyMap(object)
-
 	tableName, err := p.tableNameExtractor.Extract(objectCopy)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if tableName == "" || tableName == "null" || tableName == "false" {
-		return nil, nil, ErrSkipObject
+		return nil, ErrSkipObject
 	}
-
-	//object has been already processed (storage:table pair might be already processed)
-	_, ok := alreadyUploadedTables[tableName]
-	if ok {
-		return &BatchHeader{}, nil, nil
-	}
-
 	p.lookupEnrichmentStep.Execute(objectCopy)
-
 	bh, mappedObject, err := p.mappingStep.Execute(tableName, objectCopy)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return p.foldLongFields(bh, mappedObject)
+	transformed, err := p.transformer.ProcessEvent(mappedObject)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply javascript transform: %v", err)
+	}
+	if transformed == nil {
+		//transform that returns null causes skipped event
+		return nil, ErrSkipObject
+	}
+	toProcess := make([]map[string]interface{}, 0, 1)
+	switch obj := transformed.(type) {
+	case map[string]interface{}:
+		toProcess = append(toProcess, obj)
+	case []map[string]interface{}:
+		for i, o := range obj {
+			newUniqueId := fmt.Sprintf("%s_%d", appconfig.Instance.GlobalUniqueIDField.Extract(o), i)
+			appconfig.Instance.GlobalUniqueIDField.Set(o, newUniqueId)
+			toProcess = append(toProcess, o)
+		}
+	default:
+		return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected object.", transformed)
+	}
+	envelops := make([]Envelope, 0, len(toProcess))
+
+	for _, object := range toProcess {
+		tableName := fmt.Sprint(object[TableNameParameter])
+		if tableName == "" {
+			tableName = bh.TableName
+		}
+		//object has been already processed (storage:table pair might be already processed)
+		_, ok := alreadyUploadedTables[tableName]
+		if ok {
+			continue
+		}
+		bh, obj, err := p.foldLongFields(&BatchHeader{tableName, bh.Fields}, object)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process long fields: %v", err)
+		}
+		envelops = append(envelops, Envelope{bh, obj} )
+	}
+
+	return envelops, nil
 }
 
 //foldLongFields replace all column names with truncated values if they exceed the limit
@@ -208,6 +263,7 @@ func (p *Processor) foldLongFields(header *BatchHeader, object map[string]interf
 
 func (p *Processor) Close() {
 	p.tableNameExtractor.Close()
+	p.transformer.Close()
 }
 
 //cutName converts input name that exceeds maxLen to lower length string by cutting parts between '_' to 2 symbols.
