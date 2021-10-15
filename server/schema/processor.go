@@ -186,10 +186,14 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	if err != nil {
 		return nil, err
 	}
-
-	transformed, err := p.transformer.ProcessEvent(mappedObject)
-	if err != nil {
-		return nil, fmt.Errorf("failed to apply javascript transform: %v", err)
+	var transformed interface{}
+	if p.transformer != nil {
+		transformed, err = p.transformer.ProcessEvent(mappedObject)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply javascript transform: %v", err)
+		}
+	} else {
+		transformed = mappedObject
 	}
 	if transformed == nil {
 		//transform that returns null causes skipped event
