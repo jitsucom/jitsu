@@ -267,7 +267,9 @@ func (p *Processor) foldLongFields(header *BatchHeader, object map[string]interf
 
 func (p *Processor) Close() {
 	p.tableNameExtractor.Close()
-	p.transformer.Close()
+	if p.transformer != nil {
+		p.transformer.Close()
+	}
 }
 
 //cutName converts input name that exceeds maxLen to lower length string by cutting parts between '_' to 2 symbols.
