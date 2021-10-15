@@ -236,6 +236,17 @@ func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer
 	}
 
 	airbyteRunner := airbyte.NewRunner(a.GetTap(), a.config.ImageVersion, taskCloser.TaskID())
+
+	a.mutex.Lock()
+	a.activeRunners[taskCloser.TaskID()] = airbyteRunner
+	a.mutex.Unlock()
+
+	defer func() {
+		a.mutex.Lock()
+		delete(a.activeRunners, taskCloser.TaskID())
+		a.mutex.Unlock()
+	}()
+
 	return airbyteRunner.Read(dataConsumer, a.streamsRepresentation, taskLogger, taskCloser, a.ID(), statePath)
 }
 

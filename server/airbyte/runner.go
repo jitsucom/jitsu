@@ -243,7 +243,7 @@ func (r *Runner) run(stdoutHandler, stderrHandler func(io.Reader) error, timeout
 		}
 	})
 
-	defer close(r.closed)
+	defer r.Close()
 
 	//exec cmd and analyze response from stdout & stderr
 	r.command = exec.Command(DockerCommand, args...)

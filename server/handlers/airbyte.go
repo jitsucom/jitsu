@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/airbyte"
@@ -10,7 +12,6 @@ import (
 	"github.com/jitsucom/jitsu/server/runner"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"sort"
 	"time"
 )
@@ -128,8 +129,7 @@ func (ah *AirbyteHandler) CatalogHandler(c *gin.Context) {
 
 	imageVersion := c.Query("image_version")
 	if imageVersion == "" {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse("image_version is required query parameter", nil))
-		return
+		imageVersion = airbyte.LatestVersion
 	}
 
 	airbyteRunner := airbyte.NewRunner(dockerImage, imageVersion, "")
@@ -188,8 +188,7 @@ func (ah *AirbyteHandler) getAvailableDockerVersions(dockerImageName string) ([]
 func (ah *AirbyteHandler) requestDockerHubTags(reqURL string) ([]*DockerHubTag, string, error) {
 	resp, err := ah.httpClient.Get(reqURL)
 	if err != nil {
-		urlErr, ok := err.(*url.Error)
-		if ok && urlErr.Timeout() {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, "", fmt.Errorf("timeout [%s] reached", defaultTimeout.String())
 		}
 

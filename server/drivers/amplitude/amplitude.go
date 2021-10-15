@@ -12,7 +12,7 @@ import (
 
 //amplitudeHTTPConfiguration contains default amplitude HTTP timeouts/retry/delays,etc
 var amplitudeHTTPConfiguration = &adapters.HTTPConfiguration{
-	GlobalClientTimeout:       1 * time.Minute,
+	GlobalClientTimeout:       10 * time.Minute,
 	RetryDelay:                10 * time.Second,
 	RetryCount:                5,
 	ClientMaxIdleConns:        1000,
