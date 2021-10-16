@@ -13,6 +13,12 @@ import { SourceEditor as SourceEditorLegacy } from './SourceEditorLegacy/SourceE
 import { SourceConnector } from 'catalog/sources/types';
 import { CommonSourcePageProps } from 'ui/pages/SourcesPage/SourcesPage';
 
+/**
+ * This component is a temporary switch between the new and the legacy 
+ * implementations of the SourceEditor component.
+ * 
+ * Do not pass the data obtained here to the children components.
+ */
 export const SourceEditorSwitch: React.FC<CommonSourcePageProps> = (props) => {
   const { source, sourceId } =
     useParams<{ source?: string; sourceId?: string; tabName?: string }>();
