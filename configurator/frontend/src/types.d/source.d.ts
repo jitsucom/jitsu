@@ -1,42 +1,20 @@
+declare type SourceConfigurationData = PlainObjectWithPrimitiveValues;
+declare type SourceStreamData = CollectionSource | AirbyteStreamData;
+
+/**
+ * Collections have been renamed to Streams as of September 2021
+ */
 declare interface CollectionSource {
   name: string;
   type: string;
   parameters: Array<{
     [key: string]: string[];
   }>;
-  schedule: string;
-}
-
-declare type SourceData = NativeSourceData & AirbyteSourceData;
-declare interface NativeSourceData {
-  collections: CollectionSource[];
-  config: {
-    [key: string]: string;
-  };
-  schedule?: string;
-  destinations: string[];
-  sourceId: string;
-  sourceProtoType: string;
-  connected: boolean;
-  connectedErrorMessage?: string;
-  sourceType: string;
-}
-
-declare interface AirbyteSourceData {
-  sourceType: 'airbyte';
   /**
    * @deprecated
-   * The new path for streams is config.catalog.streams
+   * Schedule is set in SourceData `config` field.
    */
-  catalog?: {
-    streams: Array<AirbyteStreamData>;
-  };
-  config: {
-    [key: string]: string;
-    catalog?: {
-      streams: Array<AirbyteStreamData>;
-    };
-  };
+  schedule: string;
 }
 
 declare type AirbyteStreamData = {
@@ -51,3 +29,35 @@ declare type AirbyteStreamData = {
   };
 };
 
+declare type SourceData = NativeSourceData & AirbyteSourceData;
+declare interface NativeSourceData {
+  collections: CollectionSource[];
+  config: {
+    [key: string]: string;
+  };
+  schedule?: string;
+  destinations: string[];
+  sourceId: string;
+  sourceName?: string;
+  sourceProtoType: string;
+  connected: boolean;
+  connectedErrorMessage?: string;
+  sourceType: string;
+}
+
+declare interface AirbyteSourceData {
+  sourceType: 'airbyte';
+  /**
+   * @deprecated as of October 2021.
+   * The new path for streams is config.catalog.streams
+   */
+  catalog?: {
+    streams: Array<AirbyteStreamData>;
+  };
+  config: {
+    [key: string]: string;
+    catalog?: {
+      streams: Array<AirbyteStreamData>;
+    };
+  };
+}
