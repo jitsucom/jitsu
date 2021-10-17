@@ -1,5 +1,4 @@
 // @Libs
-import React from 'react';
 import { Button, Popover } from 'antd';
 // @Components
 import { PopoverTitle } from 'ui/components/Popover/PopoverTitle';
@@ -21,8 +20,6 @@ export interface Props {
   testConnectionButton?: ButtonProps;
   handleCancel?: VoidFunction;
 }
-
-type SourceEditorControlsViewProps = {};
 
 const SourceEditorViewControls = ({
   saveButton,

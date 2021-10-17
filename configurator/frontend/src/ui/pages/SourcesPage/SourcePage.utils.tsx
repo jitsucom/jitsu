@@ -22,6 +22,8 @@ const sourcePageUtils = {
     sourceConnector?.protoType
       ? sourceConnector?.protoType
       : snakeCase(sourceConnector?.id),
+  getSourcePrototype: (sourceConnector: SourceConnector): string =>
+    snakeCase(sourceConnector?.id),
   getSourceId: (sourceProtoType: string, sourcesIds: string[]) => {
     const isUniqueSourceId = !sourcesIds.find((id) => id === sourceProtoType);
 

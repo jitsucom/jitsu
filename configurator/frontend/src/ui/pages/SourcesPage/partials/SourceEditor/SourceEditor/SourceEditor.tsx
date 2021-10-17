@@ -15,8 +15,10 @@ import { SourceEditorViewTabs } from './SourceEditorViewTabs';
 import { withHome as breadcrumbsWithHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
 import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
+import { sourceEditorUtils } from './SourceEditor.utils';
+// @Utils
 
-type SourceEditorState = {
+export type SourceEditorState = {
   /**
    * Source configuration tab
    */
@@ -32,7 +34,7 @@ type SourceEditorState = {
   /**
    * Whether user made any changes
    */
-  changed: boolean;
+  stateChanged: boolean;
 };
 
 type CommonStateProperties = {
@@ -51,6 +53,13 @@ type ConnectionsState = {
   destinations: string[];
 } & CommonStateProperties;
 
+export type SourceConfigurationData = {
+  sourceId: string;
+  sourceName?: string;
+  schedule: string;
+} & PlainObjectWithPrimitiveValues;
+export type SourceStreamData = CollectionSource | AirbyteStreamData;
+
 export type UpdateConfigurationFields = (
   newFileds: Partial<ConfigurationState>
 ) => void;
@@ -59,29 +68,22 @@ export type UpdateConnectionsFields = (
   newFileds: Partial<ConnectionsState>
 ) => void;
 
-const initialState: SourceEditorState = {
-  configuration: { config: {}, errorsCount: 0 },
-  streams: { streams: [], errorsCount: 0 },
-  connections: { destinations: [], errorsCount: 0 },
-  changed: false
-};
-
 const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
+  const history = useHistory();
+  const allSourcesList = sourcesStore.sources;
   const { sourceId } = useParams<{ sourceId?: string }>();
 
-  const history = useHistory();
-
-  const allSourcesList = sourcesStore.sources;
+  const initialSourceDataFromBackend = useMemo<Optional<SourceData>>(
+    () => allSourcesList.find((src) => src.sourceId === sourceId),
+    [sourceId, allSourcesList]
+  );
 
   /**
    * `useState` is currently used for drafting purposes
    * it will be changed to `useReducer` later on
    */
-  const [state, setState] = useState<SourceEditorState>(initialState);
-
-  const initialSourceDataFromBackend = useMemo<Optional<SourceData>>(
-    () => allSourcesList.find((src) => src.sourceId === sourceId),
-    [sourceId, allSourcesList]
+  const [state, setState] = useState<SourceEditorState>(
+    sourceEditorUtils.getInitialState(sourceId, initialSourceDataFromBackend)
   );
 
   const sourceDataFromCatalog = useMemo<CatalogSourceConnector>(() => {
@@ -102,7 +104,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
       setState((state) => ({
         ...state,
         configuration: { ...state.configuration, ...newConfigurationFields },
-        changed: true
+        stateChanged: true
       }));
     },
     []
@@ -112,7 +114,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
     setState((state) => ({
       ...state,
       streams: { ...state.streams, ...newStreamsFields },
-      changed: true
+      stateChanged: true
     }));
   }, []);
 
@@ -121,13 +123,22 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
       setState((state) => ({
         ...state,
         connections: { ...state.connections, ...newConnectionsFields },
-        changed: true
+        stateChanged: true
       }));
     },
     []
   );
 
-  const handleTestConnection = useCallback<VoidFunction>(() => {}, []);
+  const handleTestConnection = useCallback<VoidFunction>(async () => {
+    // sourcePageUtils.testConnection();
+    console.log(
+      sourceEditorUtils.getSourceDataFromState(
+        state,
+        sourceDataFromCatalog,
+        initialSourceDataFromBackend
+      )
+    );
+  }, [state, sourceDataFromCatalog, initialSourceDataFromBackend]);
 
   const handleLeave = useCallback<VoidFunction>(() => history.goBack(), []);
 
@@ -158,6 +169,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
         onConfigurationChange={updateConfiguration}
         onStreamsChange={updateStreams}
         onConnectionsChange={updateConnections}
+        handleTestConnection={handleTestConnection}
         handleLeaveEditor={handleLeave}
       />
 
@@ -165,7 +177,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
         message={
           'You have unsaved changes. Are you sure you want to leave without saving?'
         }
-        when={state.changed}
+        when={state.stateChanged}
       />
 
       {/* <DocumentationDrawer /> */}
