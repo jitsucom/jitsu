@@ -49,7 +49,7 @@ func TestMySQLPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, mySQL)
 
-	tableHelperWithPk := storages.NewTableHelper(mySQL, coordination.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToMySQL, 0)
+	tableHelperWithPk := storages.NewTableHelper(mySQL, coordination.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToMySQL, 0, storages.MySQLType)
 
 	// all events should be merged as have the same PK value
 	tableWithMerge := tableHelperWithPk.MapTableSchema(&schema.BatchHeader{
@@ -72,7 +72,7 @@ func TestMySQLPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, rowsUnique)
 
-	tableHelperWithoutPk := storages.NewTableHelper(mySQL, coordination.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToMySQL, 0)
+	tableHelperWithoutPk := storages.NewTableHelper(mySQL, coordination.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToMySQL, 0, storages.MySQLType)
 	// all events should be merged as have the same PK value
 	table := tableHelperWithoutPk.MapTableSchema(&schema.BatchHeader{
 		TableName: "users",

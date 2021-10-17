@@ -863,7 +863,21 @@ func checkErr(err error) error {
 		if pgErr.Detail != "" {
 			msgParts = append(msgParts, pgErr.Detail)
 		}
-
+		if pgErr.Schema != "" {
+			msgParts = append(msgParts, "schema:" + pgErr.Schema)
+		}
+		if pgErr.Table != "" {
+			msgParts = append(msgParts, "table:" + pgErr.Table)
+		}
+		if pgErr.Column != "" {
+			msgParts = append(msgParts, "column:" + pgErr.Column)
+		}
+		if pgErr.DataTypeName != "" {
+			msgParts = append(msgParts, "data_type:" + pgErr.DataTypeName)
+		}
+		if pgErr.Constraint != "" {
+			msgParts = append(msgParts, "constraint:" + pgErr.Constraint)
+		}
 		return errors.New(strings.Join(msgParts, " "))
 	}
 
