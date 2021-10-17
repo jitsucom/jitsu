@@ -36,7 +36,7 @@ func NewKafka(config *Config) (Storage, error) {
 
 	kafka := &Kafka{}
 
-	tableHelper := NewTableHelper(kafkaAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.maxColumns)
+	tableHelper := NewTableHelper(kafkaAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.maxColumns, KafkaType)
 
 	kafka.adapter = kafkaAdapter
 	kafka.tableHelper = tableHelper
