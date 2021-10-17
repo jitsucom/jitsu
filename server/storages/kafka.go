@@ -20,7 +20,7 @@ type Kafka struct {
 }
 
 func init() {
-	RegisterStorage(KafkaType, NewKafka)
+	RegisterStorage(StorageType{typeName: KafkaType, createFunc: NewKafka})
 }
 
 func NewKafka(config *Config) (Storage, error) {
