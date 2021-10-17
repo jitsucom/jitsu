@@ -3,11 +3,15 @@ import { useCallback, useMemo, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 // @Types
 import { SourceConnector as CatalogSourceConnector } from 'catalog/sources/types';
-import { UpdateConfigurationFields } from './SourceEditor';
+import {
+  SourceConfigurationData,
+  UpdateConfigurationFields
+} from './SourceEditor';
 // @Components
 import { SourceEditorFormConfigurationConfigurableFields } from './SourceEditorFormConfigurationConfigurableFields';
 import { SourceEditorFormConfigurationLoadableFields } from './SourceEditorFormConfigurationLoadableFields';
 import { SourceEditorFormConfigurationStaticFields } from './SourceEditorFormConfigurationStaticFields';
+import { sourceEditorUtils } from './SourceEditor.utils';
 
 type Props = {
   initialSourceDataFromBackend: Optional<SourceData>;
@@ -37,23 +41,14 @@ export type UpdateConfigLoadableFieldsValues = (
   values: PlainObjectWithPrimitiveValues
 ) => void;
 
-const initialState: ConfigState = {
-  staticFieldsValues: {
-    sourceId: '',
-    sourceName: '',
-    schedule: ''
-  },
-  configurableFieldsValues: {},
-  loadableFiedsValues: {}
-};
-
 const configStateToSourceConfig = (
   state: ConfigState
 ): SourceConfigurationData => {
-  return Object.values(state).reduce<SourceConfigurationData>(
-    (result, current) => ({ ...result, ...current }),
-    {}
-  );
+  return {
+    ...state.staticFieldsValues,
+    ...state.configurableFieldsValues,
+    ...state.loadableFiedsValues
+  };
 };
 
 const SourceEditorFormConfiguration: React.FC<Props> = ({
@@ -61,14 +56,18 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
   sourceDataFromCatalog,
   onChange
 }) => {
-  const staticFieldsInitialValues = useMemo<StaticFieldsValues>(
-    () => ({
-      sourceId: initialSourceDataFromBackend?.sourceId,
-      sourceName: initialSourceDataFromBackend?.sourceName,
-      schedule: initialSourceDataFromBackend?.schedule
-    }),
-    []
-  );
+  const staticFieldsInitialValues = useMemo<StaticFieldsValues>(() => {
+    const { sourceId, sourceName, schedule } =
+      sourceEditorUtils.getInitialState(
+        sourceDataFromCatalog.id,
+        initialSourceDataFromBackend
+      ).configuration.config;
+    return {
+      sourceId,
+      sourceName,
+      schedule
+    };
+  }, []);
 
   const [configState, setConfigState] = useState<ConfigState>({
     staticFieldsValues: staticFieldsInitialValues,

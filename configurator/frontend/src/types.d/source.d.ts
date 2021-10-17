@@ -1,6 +1,3 @@
-declare type SourceConfigurationData = PlainObjectWithPrimitiveValues;
-declare type SourceStreamData = CollectionSource | AirbyteStreamData;
-
 /**
  * Collections have been renamed to Streams as of September 2021
  */
@@ -33,20 +30,25 @@ declare type SourceData = NativeSourceData & AirbyteSourceData;
 declare interface NativeSourceData {
   collections: CollectionSource[];
   config: {
-    [key: string]: string;
+    [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues;
   };
   schedule?: string;
   destinations: string[];
   sourceId: string;
   sourceName?: string;
-  sourceProtoType: string;
   connected: boolean;
   connectedErrorMessage?: string;
-  sourceType: string;
+  /**
+   * Source type, either `airbyte`, `singer` or `{source_type}` if source is native
+   */
+  sourceType: 'airbyte' | 'singer' | string;
+  /**
+   * Snake-cased catalog source id
+   */
+  sourceProtoType: string;
 }
 
 declare interface AirbyteSourceData {
-  sourceType: 'airbyte';
   /**
    * @deprecated as of October 2021.
    * The new path for streams is config.catalog.streams
@@ -55,9 +57,10 @@ declare interface AirbyteSourceData {
     streams: Array<AirbyteStreamData>;
   };
   config: {
-    [key: string]: string;
+    config: PlainObjectWithPrimitiveValues;
     catalog?: {
       streams: Array<AirbyteStreamData>;
     };
+    [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues;
   };
 }

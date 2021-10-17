@@ -4,6 +4,7 @@ import cn from 'classnames';
 import { SourceEditorFormConfiguration } from './SourceEditorFormConfiguration';
 import { SourceEditorFormStreams } from './SourceEditorFormStreams';
 import { SourceEditorFormConnections } from './SourceEditorFormConnections';
+import { SourceEditorViewControls } from './SourceEditorViewControls';
 // @Types
 import { SourceConnector as CatalogSourceConnector } from 'catalog/sources/types';
 import {
@@ -11,7 +12,6 @@ import {
   UpdateStreamsFields,
   UpdateConnectionsFields
 } from './SourceEditor';
-import { SourceEditorViewControls } from './SourceEditorViewControls';
 
 type SourceEditorTabsViewProps = {
   initialSourceDataFromBackend: Optional<SourceData>;
@@ -19,6 +19,7 @@ type SourceEditorTabsViewProps = {
   onConfigurationChange: UpdateConfigurationFields;
   onStreamsChange: UpdateStreamsFields;
   onConnectionsChange: UpdateConnectionsFields;
+  handleTestConnection: VoidFunction;
   handleLeaveEditor: VoidFunction;
 };
 
@@ -28,6 +29,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
   onConfigurationChange,
   onStreamsChange,
   onConnectionsChange,
+  handleTestConnection,
   handleLeaveEditor
 }) => {
   return (
@@ -54,7 +56,12 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
         <div className="flex-shrink border-t pt-2">
           <SourceEditorViewControls
             saveButton={{
+              showErrorsPopover: false,
               handleClick: () => {}
+            }}
+            testConnectionButton={{
+              showErrorsPopover: false,
+              handleClick: handleTestConnection
             }}
             handleCancel={handleLeaveEditor}
           />
