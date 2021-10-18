@@ -143,7 +143,11 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 		if err != nil {
 			return nil, fmt.Errorf("Error mapping object: %v", err)
 		}
-		fields, err := p.typeResolver.Resolve(processedObject)
+		flatObject, err := p.flattener.FlattenObject(processedObject)
+		if err != nil {
+			return nil, err
+		}
+		fields, err := p.typeResolver.Resolve(flatObject)
 		if err != nil {
 			return nil, err
 		}
