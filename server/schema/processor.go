@@ -181,7 +181,7 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 //skips object if tableNameExtractor returns empty string, 'null' or 'false'
 //returns table representation of object and flatten, mapped object
 //1. extract table name
-//2. execute enrichment.LookupEnrichmentStep and MappingStep
+//2. execute enrichment.LookupEnrichmentStep and Mapping
 //or ErrSkipObject/another error
 func (p *Processor) processObject(object map[string]interface{}, alreadyUploadedTables map[string]bool) ([]Envelope, error) {
 	objectCopy := maputils.CopyMap(object)
@@ -219,14 +219,18 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	switch obj := transformed.(type) {
 	case map[string]interface{}:
 		toProcess = append(toProcess, obj)
-	case []map[string]interface{}:
+	case []interface{}:
 		for i, o := range obj {
-			newUniqueId := fmt.Sprintf("%s_%d", appconfig.Instance.GlobalUniqueIDField.Extract(o), i)
-			appconfig.Instance.GlobalUniqueIDField.Set(o, newUniqueId)
-			toProcess = append(toProcess, o)
+			casted, ok := o.(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", o)
+			}
+			newUniqueId := fmt.Sprintf("%s_%d", appconfig.Instance.GlobalUniqueIDField.Extract(object), i)
+			appconfig.Instance.GlobalUniqueIDField.Set(casted, newUniqueId)
+			toProcess = append(toProcess, casted)
 		}
 	default:
-		return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected object.", transformed)
+		return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", transformed)
 	}
 	envelops := make([]Envelope, 0, len(toProcess))
 
