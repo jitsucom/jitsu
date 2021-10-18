@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Poll, PollingSetupCallback } from 'utils/polling';
-import useLoader, { Loader } from './useLoader';
 
 type UsePollingOptions = {
   /**
@@ -12,16 +11,6 @@ type UsePollingOptions = {
    * Is 5 minutes by default.
    */
   timeout_ms?: number;
-  /**
-   * A callback that accepts the response and returns a boolean
-   * that indicates whether to stop polling and return the result
-   */
-  resolvePollingIf?: (response: unknown) => boolean;
-  /**
-   * A callback that accepts the response and returns a boolean
-   * that indicates whether to cancel polling by throwing an error
-   */
-  rejectPollingIf?: (response: unknown) => boolean;
 };
 
 type UsePollingReturnType<T> = {
@@ -42,7 +31,7 @@ type UsePollingReturnType<T> = {
    * Callback for cancelling the poll manually. Helpful for a clean
    * up when component unmounts.
    */
-  cancel: () => void;
+  cancel: VoidFunction;
 };
 
 const defaultOptions: UsePollingOptions = {
@@ -55,18 +44,6 @@ const defaultOptions: UsePollingOptions = {
  * satisfied or until it is timed out.
  */
 export const usePolling = <T>(
-  // /**
-  //  * Loader function which returns the data promise. This function
-  //  * will be polled.
-  //  */
-  // loader: Loader<T>,
-  // /**
-  //  * Function that receives the polling response data and returns
-  //  * `boolean` indicating whether to stop polling and resove with
-  //  * the latest polling result.
-  //  */
-  // condition: (data: T) => boolean,
-
   /**
    *
    */
@@ -77,19 +54,54 @@ export const usePolling = <T>(
    */
   options: UsePollingOptions = {}
 ): UsePollingReturnType<T> => {
-  const { interval_ms, timeout_ms } = { ...defaultOptions, ...(options || {}) };
-  const [_loader, setLoader] = useState<Loader<T | null>>(null);
-  const [cancel, setCancel] = useState<() => void>(() => {});
-  const [error, data, , , isLoading] = useLoader<T | null>(
-    _loader || (async () => null),
-    [_loader]
-  );
+  const { interval_ms, timeout_ms } = { ...defaultOptions, ...(options ?? {}) };
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [data, setData] = useState<T | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+
+  const cancelCurrentPoll = useRef<Optional<VoidFunction>>(null);
+  const outdateCurrentPoll = useRef<Optional<VoidFunction>>(null);
+
+  const poll = async () => {
+    console.log('flow started');
+    setIsLoading(true);
+    setError(null);
+
+    let blockStateUpdates: boolean = false;
+    outdateCurrentPoll.current = () => {
+      blockStateUpdates = true;
+    };
+
+    try {
+      const poll = new Poll<T>(callback, interval_ms, timeout_ms);
+      poll.start();
+
+      cancelCurrentPoll.current = poll.cancel;
+
+      const result = await poll.wait();
+      !blockStateUpdates && setData(result);
+    } catch (e) {
+      let error = e;
+      if (!(error instanceof Error)) {
+        error = new Error(e);
+      }
+      !blockStateUpdates && setError(error);
+    } finally {
+      if (blockStateUpdates) {
+        console.log('flow blocked');
+      }
+      !blockStateUpdates && setIsLoading(false);
+    }
+  };
+
+  const cancel = () => {
+    outdateCurrentPoll.current?.();
+    cancelCurrentPoll.current?.();
+  };
 
   useEffect(() => {
-    const poll = new Poll<T>(callback, interval_ms, timeout_ms);
-    poll.start();
-    setLoader(() => poll.wait);
-    setCancel(() => poll.cancel);
+    cancel();
+    poll();
   }, []);
 
   return {

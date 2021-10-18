@@ -122,10 +122,8 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
         initialValues={staticFieldsInitialValues}
         onChange={handleChangeStaticValues}
       />
-      <SourceEditorFormConfigurationConfigurableFields
-        onChange={handleChangeConfigurableValues}
-      />
       <SourceEditorFormConfigurationLoadableFields
+        sourceDataFromCatalog={sourceDataFromCatalog}
         onChange={handleChangeLoadableValues}
       />
     </>
