@@ -15,7 +15,7 @@ import (
 )
 const TableNameParameter = "__JITSU_TABLE_NAME"
 
-var ErrSkipObject = errors.New("Table name template return empty string. This object will be skipped.")
+var ErrSkipObject = errors.New("Transform or table name filter marked object to be skipped. This object will be skipped.")
 
 type Envelope struct {
 	Header *BatchHeader
@@ -27,8 +27,10 @@ type Processor struct {
 	tableNameExtractor      *TableNameExtractor
 	lookupEnrichmentStep    *enrichment.LookupEnrichmentStep
 	transformer				*templates.JsTemplateExecutor
-	mappingStep             *MappingStep
-	pulledEventsMappingStep *MappingStep
+	fieldMapper  			events.Mapper
+	pulledEventsfieldMapper events.Mapper
+	typeResolver 			TypeResolver
+	flattener    			Flattener
 	breakOnError            bool
 	uniqueIDField           *identifiers.UniqueID
 	maxColumnNameLen        int
@@ -36,8 +38,6 @@ type Processor struct {
 
 func NewProcessor(destinationID, tableNameFuncExpression string, transform string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule,
 	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int) (*Processor, error) {
-	mappingStep := NewMappingStep(fieldMapper, flattener, typeResolver)
-	pulledEventsMappingStep := NewMappingStep(&DummyMapper{}, flattener, typeResolver)
 	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression)
 	if err != nil {
 		return nil, err
@@ -59,8 +59,10 @@ func NewProcessor(destinationID, tableNameFuncExpression string, transform strin
 		tableNameExtractor:      tableNameExtractor,
 		lookupEnrichmentStep:    enrichment.NewLookupEnrichmentStep(enrichmentRules),
 		transformer: 			 transformer,
-		mappingStep:             mappingStep,
-		pulledEventsMappingStep: pulledEventsMappingStep,
+		fieldMapper:             fieldMapper,
+		pulledEventsfieldMapper: &DummyMapper{},
+		typeResolver: 			 typeResolver,
+		flattener: 				 flattener,
 		breakOnError:            breakOnError,
 		uniqueIDField:           uniqueIDField,
 		maxColumnNameLen:        maxColumnNameLen,
@@ -137,10 +139,15 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]interface{}) (map[string]*ProcessedFile, error) {
 	var pf *ProcessedFile
 	for _, event := range objects {
-		batchHeader, processedObject, err := p.pulledEventsMappingStep.Execute(tableName, event)
+		processedObject, err := p.pulledEventsfieldMapper.Map(event)
+		if err != nil {
+			return nil, fmt.Errorf("Error mapping object: %v", err)
+		}
+		fields, err := p.typeResolver.Resolve(processedObject)
 		if err != nil {
 			return nil, err
 		}
+		batchHeader := &BatchHeader{TableName: tableName, Fields: fields}
 
 		//don't process empty and skipped object
 		if !batchHeader.Exists() {
@@ -181,8 +188,13 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	if tableName == "" || tableName == "null" || tableName == "false" {
 		return nil, ErrSkipObject
 	}
+
 	p.lookupEnrichmentStep.Execute(objectCopy)
-	bh, mappedObject, err := p.mappingStep.Execute(tableName, objectCopy)
+	mappedObject, err := p.fieldMapper.Map(objectCopy)
+	if err != nil {
+		return nil, fmt.Errorf("Error mapping object: %v", err)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -215,16 +227,25 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	envelops := make([]Envelope, 0, len(toProcess))
 
 	for _, object := range toProcess {
-		tableName := fmt.Sprint(object[TableNameParameter])
-		if tableName == "" {
-			tableName = bh.TableName
+		newTableName, ok := object[TableNameParameter].(string)
+		if !ok {
+			newTableName = tableName
 		}
+		delete(object, TableNameParameter)
 		//object has been already processed (storage:table pair might be already processed)
-		_, ok := alreadyUploadedTables[tableName]
+		_, ok = alreadyUploadedTables[newTableName]
 		if ok {
 			continue
 		}
-		bh, obj, err := p.foldLongFields(&BatchHeader{tableName, bh.Fields}, object)
+		flatObject, err := p.flattener.FlattenObject(object)
+		if err != nil {
+			return nil, err
+		}
+		fields, err := p.typeResolver.Resolve(flatObject)
+		if err != nil {
+			return nil, err
+		}
+		bh, obj, err := p.foldLongFields(&BatchHeader{newTableName, fields}, flatObject)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process long fields: %v", err)
 		}
