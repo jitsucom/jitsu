@@ -211,11 +211,12 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	mappingFieldType := schema.Default
 	maxColumns := f.maxColumns
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField
+	transform := ""
 	if destination.DataLayout != nil {
 		mappingFieldType = destination.DataLayout.MappingType
 		oldStyleMappings = destination.DataLayout.Mapping
 		newStyleMapping = destination.DataLayout.Mappings
-
+		transform = destination.DataLayout.Transform
 		if destination.DataLayout.TableNameTemplate != "" {
 			tableName = destination.DataLayout.TableNameTemplate
 		}
@@ -312,7 +313,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 
 	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
 
-	processor, err := schema.NewProcessor(destinationID, tableName, destination.DataLayout.Transform, fieldMapper, enrichmentRules, flattener, typeResolver,
+	processor, err := schema.NewProcessor(destinationID, tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver,
 		destination.BreakOnError, uniqueIDField, maxColumnNameLength)
 	if err != nil {
 		return nil, nil, err
