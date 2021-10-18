@@ -30,6 +30,7 @@ const googleAnalytics = {
   id: 'google_analytics',
   type: 'other',
   displayName: 'GoogleAnalytics',
+  defaultTransform: 'return $',
   hidden: false,
   parameters: [
     modeParameter('stream'),

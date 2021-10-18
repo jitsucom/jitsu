@@ -1,48 +1,31 @@
 // @Libs
-import React, {
-  ReactNode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState
-} from 'react';
-import {
-  Col,
-  Form,
-  Input,
-  Row,
-  Select,
-  Switch,
-  Tooltip,
-  Spin,
-  FormItemProps
-} from 'antd';
+import React, {ReactNode, useCallback, useEffect, useState} from 'react';
+import {Col, Form, FormItemProps, Input, Row, Select, Spin, Switch, Tooltip} from 'antd';
 import debounce from 'lodash/debounce';
-import isEqual from 'lodash/isEqual';
 import get from 'lodash/get';
 import cn from 'classnames';
 // @Components
-import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
-import { EditableList } from 'lib/components/EditableList/EditableList';
-import { CodeEditor } from 'ui/components/CodeEditor/CodeEditor';
-import { FormValues as DebuggerFormValues } from 'ui/components/CodeDebugger/CodeDebugger';
+import {LabelWithTooltip} from 'ui/components/LabelWithTooltip/LabelWithTooltip';
+import {EditableList} from 'lib/components/EditableList/EditableList';
+import {CodeEditor} from 'ui/components/CodeEditor/CodeEditor';
+import {FormValues as DebuggerFormValues} from 'ui/components/CodeDebugger/CodeDebugger';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
 // @Types
-import { Parameter, ParameterType } from 'catalog/sources/types';
-import { FormInstance } from 'antd/lib/form/hooks/useForm';
+import {Parameter, ParameterType} from 'catalog/sources/types';
+import {FormInstance} from 'antd/lib/form/hooks/useForm';
 // @Utils
-import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
-import { isoDateValidator } from 'utils/validation/validators';
+import {makeObjectFromFieldsValues} from 'utils/forms/marshalling';
+import {isoDateValidator} from 'utils/validation/validators';
 // @Hooks
-import { useForceUpdate } from 'hooks/useForceUpdate';
+import {useForceUpdate} from 'hooks/useForceUpdate';
 // @Icons
 import BugIcon from 'icons/bug';
-import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
+import {EyeInvisibleOutlined, EyeOutlined} from '@ant-design/icons';
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
-import { CodeDebuggerModal } from '../CodeDebuggerModal/CodeDebuggerModal';
-import js from "react-syntax-highlighter/dist/esm/languages/hljs/javascript";
+import {CodeDebuggerModal} from '../CodeDebuggerModal/CodeDebuggerModal';
+import {InputWithDebug} from "./InputWithDebug";
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -73,26 +56,7 @@ const ConfigurableFieldsFormComponent = ({
   handleTouchAnyField
 }: Props) => {
   const [debugModalsStates, setDebugModalsStates] = useState<{ [id: string] : boolean; }>({})
-  const debugModalsValues = useRef<{ [id: string] : string; }>({})
-
-  // const debugModalsStates = {
-  //   '_formData.tableName': useState<boolean>(false),
-  //   '_formData.body': useState<boolean>(false),
-  //   '_formData.url': useState<boolean>(false),
-  //   '_formData.dbtCause': useState<boolean>(false)
-  // };
-  // const debugModalsValues = {
-  //   '_formData.tableName': useRef<string>(),
-  //   '_formData.body': useRef<string>(),
-  //   '_formData.url': useRef<string>(),
-  //   '_formData.dbtCause': useRef<string>()
-  // };
-  // const debugModalsReformat = {
-  //   '_formData.tableName': true,
-  //   '_formData.body': false,
-  //   '_formData.url': false,
-  //   '_formData.dbtCause': false
-  // };
+  const [debugModalsValues, setDebugModalsValues] = useState<{ [id: string] : string; }>({})
 
   const forceUpdate = useForceUpdate();
 
@@ -220,10 +184,10 @@ const ConfigurableFieldsFormComponent = ({
               language={type?.typeName}
               handleChange={handleJsonChange(id)}
             />
-            <span className="z-50 absolute top-2 right-3">
+            <span className="z-50 absolute top-1.5 right-3">
               {jsDebugger && (
                 <Tooltip title="Debug expression">
-                  <span onClick={() => setDebugModalsStates({...debugModalsStates, [id]: true})}>
+                  <span onClick={() => {setDebugModalsValues({...debugModalsValues, [id]: form.getFieldValue(id)}); setDebugModalsStates({...debugModalsStates, [id]: true})}}>
                     <BugIcon className={styles.bugIcon} />
                   </span>
                 </Tooltip>
@@ -243,24 +207,12 @@ const ConfigurableFieldsFormComponent = ({
 
       case 'string':
       default: {
-        return (
-          <Input
-            defaultValue={defaultValueToDisplay}
-            autoComplete="off"
-            suffix={
-              jsDebugger && (
-                <Tooltip title="Debug expression">
-                  <span>
-                    <BugIcon
-                      className={styles.bugIcon}
-                      onClick={() => setDebugModalsStates({...debugModalsStates, [id]: true})}
-                    />
-                  </span>
-                </Tooltip>
-              )
-            }
-          />
-        );
+        return (<InputWithDebug id={id}
+                                jsDebugger={jsDebugger}
+                                onButtonClick={() => {
+                                  setDebugModalsValues({...debugModalsValues, [id]: form.getFieldValue(id)});
+                                  setDebugModalsStates({...debugModalsStates, [id]: true})
+                                }}/>);
       }
     }
   };
@@ -279,17 +231,11 @@ const ConfigurableFieldsFormComponent = ({
     );
   };
 
-  const handleCodeChange = (id: string, value: string) => {
-    debugModalsValues.current[id] = value;
-  };
-
   const handleCloseDebugger = (id) => setDebugModalsStates({...debugModalsStates, [id]: false});
 
-  const handleSaveDebugger = (id) => {
-    if (debugModalsValues.current[id]) {
-      form.setFieldsValue({ [id]: debugModalsValues.current[id] });
-    }
-    handleCloseDebugger(id)
+  const handleSaveDebugger = (id, value: string) => {
+      form.setFieldsValue({ [id]: value });
+      handleCloseDebugger(id)
   };
 
   useEffect(() => {
@@ -432,13 +378,10 @@ const ConfigurableFieldsFormComponent = ({
                   <CodeDebuggerModal
                     visible={debugModalsStates[id]}
                     codeFieldLabelDebugger="Expression"
-                    defaultCodeValueDebugger={get(initialValues, id)}
+                    defaultCodeValueDebugger={debugModalsValues[id]}
                     handleCloseDebugger={() => handleCloseDebugger(id)}
-                    handleCodeChangeDebugger={(value) =>
-                      handleCodeChange(id, value.toString())
-                    }
                     runDebugger={(values) => handleDebuggerRun(jsDebugger, values)}
-                    handleSaveCodeDebugger={() => handleSaveDebugger(id)}
+                    handleSaveCodeDebugger={(value) => handleSaveDebugger(id, value)}
                   />
                 ) : null}
                 <Form.Item
