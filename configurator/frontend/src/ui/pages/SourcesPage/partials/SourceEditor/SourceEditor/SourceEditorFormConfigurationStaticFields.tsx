@@ -6,7 +6,7 @@ import { sourcesStore } from 'stores/sources';
 // @Constants
 import { COLLECTIONS_SCHEDULES } from 'constants/schedule';
 // @Types
-import { UpdateConfigStaticFieldsValues } from './SourceEditorFormConfiguration';
+import { UpdateConfigurationFields } from './SourceEditor';
 import { Rule as AntdFormItemValidationRule } from 'rc-field-form/lib/interface';
 // @Services
 import { useServices } from 'hooks/useServices';
@@ -14,13 +14,12 @@ import { observer } from 'mobx-react-lite';
 
 type FormFields = {
   sourceId: string;
-  sourceName: string;
   schedule: string;
 };
 
 type Props = {
-  initialValues: Optional<FormFields>;
-  onChange: UpdateConfigStaticFieldsValues;
+  initialValues: Optional<SourceData>;
+  onChange: UpdateConfigurationFields;
 };
 
 const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
@@ -70,23 +69,6 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
             wrapperCol={{ span: 20 }}
           >
             <Input disabled autoComplete="off" />
-          </AntdForm.Item>
-        </Col>
-      </Row>
-
-      <Row>
-        <Col span={24}>
-          <AntdForm.Item
-            initialValue={
-              initialValues.sourceName ?? initialValues.sourceId ?? ''
-            }
-            // className={`form-field_fixed-label ${editorStyles.field}`}
-            label={<span>Source Name</span>}
-            name="sourceName"
-            labelCol={{ span: 4 }}
-            wrapperCol={{ span: 20 }}
-          >
-            <Input autoComplete="off" />
           </AntdForm.Item>
         </Col>
       </Row>

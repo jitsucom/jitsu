@@ -1,7 +1,7 @@
-import { UpdateConfigConfigurableFieldsValues } from './SourceEditorFormConfiguration';
+import { UpdateConfigurationFields } from './SourceEditor';
 
 type Props = {
-  onChange: UpdateConfigConfigurableFieldsValues;
+  onChange: UpdateConfigurationFields;
 };
 
 export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> =
