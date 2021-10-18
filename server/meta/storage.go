@@ -74,10 +74,11 @@ func NewStorage(meta *viper.Viper) (Storage, error) {
 	host := meta.GetString("redis.host")
 	port := meta.GetInt("redis.port")
 	password := meta.GetString("redis.password")
+	sentinelMaster := meta.GetString("redis.sentinel_master_name")
 	anonymousEventsTTL := meta.GetInt("redis.ttl_minutes.anonymous_events")
 	tlsSkipVerify := meta.GetBool("redis.tls_skip_verify")
 
-	redisConfig := NewRedisConfiguration(host, port, password, tlsSkipVerify)
+	redisConfig := NewRedisConfiguration(host, port, password, tlsSkipVerify, sentinelMaster)
 	redisConfig.CheckAndSetDefaultPort()
 
 	return NewRedis(redisConfig, anonymousEventsTTL)
