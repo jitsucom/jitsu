@@ -131,13 +131,13 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
 
   const handleTestConnection = useCallback<VoidFunction>(async () => {
     // sourcePageUtils.testConnection();
-    console.log(
-      sourceEditorUtils.getSourceDataFromState(
-        state,
-        sourceDataFromCatalog,
-        initialSourceDataFromBackend
-      )
+    const sourceData = sourceEditorUtils.getSourceDataFromState(
+      state,
+      sourceDataFromCatalog,
+      initialSourceDataFromBackend
     );
+
+    console.log(sourceData);
   }, [state, sourceDataFromCatalog, initialSourceDataFromBackend]);
 
   const handleLeave = useCallback<VoidFunction>(() => history.goBack(), []);

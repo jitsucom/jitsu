@@ -1,21 +1,103 @@
+// @Libs
+import { Col, Row, Form } from 'antd';
+import { Parameter, SourceConnector } from 'catalog/sources/types';
+// @Services
+import ApplicationServices from 'lib/services/ApplicationServices';
+// @Components
+import { ErrorCard } from 'lib/components/ErrorCard/ErrorCard';
+import { LoadableFieldsLoadingMessageCard } from 'lib/components/LoadingFormCard/LoadingFormCard';
+import { ConfigurableFieldsForm } from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm';
+// @Types
 import { UpdateConfigConfigurableFieldsValues } from './SourceEditorFormConfiguration';
+// @Utils
+import { toTitleCase } from 'utils/strings';
+import { mapAirbyteSpecToSourceConnectorConfig } from 'catalog/sources/lib/airbyte.helper';
+import { usePolling } from 'hooks/usePolling';
+import { useEffect } from 'react';
 
 type Props = {
+  sourceDataFromCatalog: SourceConnector;
   onChange: UpdateConfigConfigurableFieldsValues;
 };
 
-export const SourceEditorFormConfigurationLoadableFields: React.FC<Props> =
-  () => {
-    // const form = useForm()
+export const SourceEditorFormConfigurationLoadableFields: React.FC<Props> = ({
+  sourceDataFromCatalog,
+  onChange
+}) => {
+  const [form] = Form.useForm();
 
-    // load fields from backend
+  const {
+    isLoading: isLoadingParameters,
+    data: fieldsParameters,
+    error: loadingParametersError,
+    cancel: cancelPoll
+  } = usePolling<Parameter[]>((end, fail) => async () => {
+    try {
+      const result = await pullAirbyteSpec(sourceDataFromCatalog.id);
+      end(result);
+    } catch (error) {
+      fail(error);
+    }
+  });
 
-    // useEffect(() => { onChange(form.getFieldsValues) })
-    return (
-      // <Form form={form} />
+  /**
+   * Temporary values
+   */
+  const initialValues = {};
+  const editorStyles = { field: null };
 
-      // Render Loader/Error/Fields
+  useEffect(() => () => cancelPoll(), []);
 
-      null
-    );
-  };
+  return loadingParametersError ? (
+    <Row>
+      <Col span={4} />
+      <Col span={20} className={editorStyles.field}>
+        <ErrorCard
+          title={`Failed to load the source specification data`}
+          descriptionWithContacts={null}
+          stackTrace={loadingParametersError.stack}
+          className={'form-fields-card'}
+        />
+      </Col>
+    </Row>
+  ) : isLoadingParameters ? (
+    <Row>
+      <Col span={4} />
+      <Col span={20} className={editorStyles.field}>
+        <LoadableFieldsLoadingMessageCard
+          title="Loading the source configuration"
+          longLoadingMessage="Loading the spec takes longer than usual. This might happen if you are configuring such source for the first time - Jitsu will need some time to pull a docker image with the connector code"
+          showLongLoadingMessageAfterMs={5000}
+        />
+      </Col>
+    </Row>
+  ) : (
+    <Form form={form}>
+      <ConfigurableFieldsForm
+        fieldsParamsList={fieldsParameters || []}
+        form={form}
+        initialValues={initialValues}
+      />
+    </Form>
+  );
+};
+
+const pullAirbyteSpec = async (sourceId: string): Promise<Parameter[]> => {
+  const services = ApplicationServices.get();
+  const response = await services.backendApiClient.get(
+    `/airbyte/${sourceId.replace('airbyte-', '')}/spec?project_id=${
+      services.activeProject.id
+    }`,
+    { proxy: true }
+  );
+
+  if (response?.message) throw new Error(response?.message);
+  if (response?.status && response?.status !== 'pending') {
+    return mapAirbyteSpecToSourceConnectorConfig(
+      response?.['spec']?.['spec']?.['connectionSpecification']
+    ).map<Parameter>((parameter) => ({
+      ...parameter,
+      displayName: toTitleCase(parameter.displayName, { separator: '_' })
+    }));
+  }
+};

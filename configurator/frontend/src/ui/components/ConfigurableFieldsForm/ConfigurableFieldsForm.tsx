@@ -53,7 +53,7 @@ export interface Props {
   initialValues: any;
   namePrefix?: string;
   loading?: boolean | ReactNode;
-  handleTouchAnyField: (...args: any) => void;
+  handleTouchAnyField?: (...args: any) => void;
 }
 
 export const FormItemName = {
@@ -102,7 +102,7 @@ const ConfigurableFieldsFormComponent = ({
 
   const forceUpdate = useForceUpdate();
 
-  const handleTouchField = debounce(handleTouchAnyField, 1000);
+  const handleTouchField = debounce(handleTouchAnyField ?? (() => {}), 1000);
 
   const handleChangeIntInput = useCallback(
     (id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {

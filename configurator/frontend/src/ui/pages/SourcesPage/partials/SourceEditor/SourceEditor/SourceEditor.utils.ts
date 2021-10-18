@@ -1,7 +1,12 @@
-import { SourceConnector } from 'catalog/sources/types';
+// @Libs
+import { clone, cloneDeep, merge } from 'lodash';
+// @Store
 import { sourcesStore } from 'stores/sources';
+// @Utils
 import { sourcePageUtils } from 'ui/pages/SourcesPage/SourcePage.utils';
+// @Types
 import { SourceEditorState } from './SourceEditor';
+import { SourceConnector } from 'catalog/sources/types';
 
 export const sourceEditorUtils = {
   getSourceDataFromState: (
@@ -24,7 +29,7 @@ export const sourceEditorUtils = {
     } as const;
 
     const initialSourceData = sourceInitialData
-      ? sourceInitialData
+      ? cloneDeep(sourceInitialData)
       : ({
           sourceType: sourcePageUtils.getSourceType(sourceCatalogData),
           sourceProtoType:
@@ -33,10 +38,7 @@ export const sourceEditorUtils = {
           connectedErrorMessage: ''
         } as const);
 
-    return {
-      ...initialSourceData,
-      ...updatedSourceData
-    };
+    return merge(initialSourceData, updatedSourceData);
   },
 
   getInitialState: (
