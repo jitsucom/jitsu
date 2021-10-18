@@ -411,7 +411,7 @@ func (s *Singer) loadAndParse(taskLogger logging.TaskLogger, cliParser base.CLIP
 
 		parsingErr = cliParser.Parse(stdout)
 		if parsingErr != nil {
-			killErr := syncCommand.Kill(fmt.Sprintf("Parse output error: %v. Process will be killed", parsingErr))
+			killErr := syncCommand.Kill(fmt.Sprintf("Process error: %v. Process will be killed", parsingErr))
 			if killErr != nil {
 				taskLogger.ERROR("Error killing process: %v", killErr)
 				logging.Errorf("[%s] error killing process: %v", taskCloser.TaskID(), killErr)

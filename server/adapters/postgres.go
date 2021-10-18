@@ -863,6 +863,15 @@ func checkErr(err error) error {
 		if pgErr.Detail != "" {
 			msgParts = append(msgParts, pgErr.Detail)
 		}
+		if pgErr.Table != "" {
+			msgParts = append(msgParts, pgErr.Table)
+		}
+		if pgErr.Column != "" {
+			msgParts = append(msgParts, pgErr.Column)
+		}
+		if pgErr.Where != "" {
+			msgParts = append(msgParts, pgErr.Where)
+		}
 
 		return errors.New(strings.Join(msgParts, " "))
 	}
