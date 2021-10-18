@@ -1,12 +1,11 @@
 // @Libs
-import { clone, cloneDeep, merge } from 'lodash';
-// @Store
-import { sourcesStore } from 'stores/sources';
+import { cloneDeep, merge } from 'lodash';
 // @Utils
 import { sourcePageUtils } from 'ui/pages/SourcesPage/SourcePage.utils';
 // @Types
 import { SourceEditorState } from './SourceEditor';
 import { SourceConnector } from 'catalog/sources/types';
+import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
 
 export const sourceEditorUtils = {
   getSourceDataFromState: (
@@ -15,53 +14,25 @@ export const sourceEditorUtils = {
     sourceInitialData?: SourceData
   ): SourceData => {
     const { configuration, streams, connections } = sourceEditorState;
-    const { sourceId, sourceName, schedule, ...config } = configuration.config;
 
-    const updatedSourceData = {
-      sourceId: `${sourceId}`,
-      sourceName: `${sourceName ?? sourceId}`,
-      schedule: `${schedule}`,
-      config: {
-        config
-      },
-      collections: streams as any,
-      destinations: connections as any
-    } as const;
+    const updatedSourceData = merge(
+      makeObjectFromFieldsValues(configuration.config),
+      makeObjectFromFieldsValues(streams.streams),
+      makeObjectFromFieldsValues(connections.destinations)
+    );
 
     const initialSourceData = sourceInitialData
       ? cloneDeep(sourceInitialData)
-      : ({
-          sourceType: sourcePageUtils.getSourceType(sourceCatalogData),
-          sourceProtoType:
-            sourcePageUtils.getSourcePrototype(sourceCatalogData),
-          connected: false,
-          connectedErrorMessage: ''
-        } as const);
+      : createInitialSourceData(sourceCatalogData);
 
     return merge(initialSourceData, updatedSourceData);
-  },
-
-  getInitialState: (
-    sourceId: string,
-    sourceInitialData?: SourceData
-  ): SourceEditorState => {
-    const uniqueSourceId = sourcePageUtils.getSourceId(
-      sourceId,
-      sourcesStore.sources.map((src) => src.sourceId)
-    );
-
-    const initialConfig: SourceEditorState['configuration']['config'] = {
-      sourceId: sourceInitialData?.sourceId ?? uniqueSourceId,
-      sourceName: sourceInitialData?.sourceName ?? sourceId,
-      schedule: sourceInitialData?.schedule ?? '@daily',
-      ...(sourceInitialData.config?.config ?? {})
-    };
-
-    return {
-      configuration: { config: initialConfig, errorsCount: 0 },
-      streams: { streams: [], errorsCount: 0 },
-      connections: { destinations: [], errorsCount: 0 },
-      stateChanged: false
-    };
   }
 };
+
+const createInitialSourceData = (sourceCatalogData: SourceConnector) =>
+  ({
+    sourceType: sourcePageUtils.getSourceType(sourceCatalogData),
+    sourceProtoType: sourcePageUtils.getSourcePrototype(sourceCatalogData),
+    connected: false,
+    connectedErrorMessage: ''
+  } as const);

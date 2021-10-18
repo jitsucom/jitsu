@@ -163,7 +163,6 @@ const ConfigurableFieldsFormComponent = ({
     defaultValue?: any,
     constantValue?: any
   ) => {
-    const fieldsValue = form.getFieldsValue();
     const defaultValueToDisplay =
       form.getFieldValue(id) ??
       getInitialValue(id, defaultValue, constantValue, type?.typeName);
@@ -176,7 +175,6 @@ const ConfigurableFieldsFormComponent = ({
       case 'password':
         return (
           <Input.Password
-            defaultValue={defaultValueToDisplay}
             autoComplete="off"
             iconRender={(visible) =>
               visible ? <EyeOutlined /> : <EyeInvisibleOutlined />
@@ -187,7 +185,6 @@ const ConfigurableFieldsFormComponent = ({
       case 'int': {
         return (
           <Input
-            defaultValue={defaultValueToDisplay}
             autoComplete="off"
             inputMode="numeric"
             onChange={handleChangeIntInput(id)}
@@ -198,7 +195,6 @@ const ConfigurableFieldsFormComponent = ({
       case 'selection': {
         return (
           <Select
-            defaultValue={defaultValueToDisplay}
             allowClear
             mode={type.data.maxOptions > 1 ? 'multiple' : undefined}
             onChange={forceUpdate}
@@ -250,7 +246,6 @@ const ConfigurableFieldsFormComponent = ({
       default: {
         return (
           <Input
-            defaultValue={defaultValueToDisplay}
             autoComplete="off"
             suffix={
               isDebugSupported(id) && (

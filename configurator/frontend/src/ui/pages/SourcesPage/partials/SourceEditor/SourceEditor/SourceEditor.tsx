@@ -53,20 +53,32 @@ type ConnectionsState = {
   destinations: string[];
 } & CommonStateProperties;
 
-export type SourceConfigurationData = {
-  sourceId: string;
-  sourceName?: string;
-  schedule: string;
-} & PlainObjectWithPrimitiveValues;
+export type SourceConfigurationData = PlainObjectWithPrimitiveValues;
 export type SourceStreamData = CollectionSource | AirbyteStreamData;
 
 export type UpdateConfigurationFields = (
-  newFileds: Partial<ConfigurationState>
+  newFileds: Partial<SourceConfigurationData>
 ) => void;
 export type UpdateStreamsFields = (newFileds: Partial<StreamsState>) => void;
 export type UpdateConnectionsFields = (
   newFileds: Partial<ConnectionsState>
 ) => void;
+
+const initialState: SourceEditorState = {
+  configuration: {
+    config: {},
+    errorsCount: 0
+  },
+  streams: {
+    streams: [],
+    errorsCount: 0
+  },
+  connections: {
+    destinations: [],
+    errorsCount: 0
+  },
+  stateChanged: false
+};
 
 const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
   const history = useHistory();
@@ -83,7 +95,8 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
    * it will be changed to `useReducer` later on
    */
   const [state, setState] = useState<SourceEditorState>(
-    sourceEditorUtils.getInitialState(sourceId, initialSourceDataFromBackend)
+    // sourceEditorUtils.getInitialState(sourceId, initialSourceDataFromBackend)
+    initialState
   );
 
   const sourceDataFromCatalog = useMemo<CatalogSourceConnector>(() => {
@@ -103,7 +116,10 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
     (newConfigurationFields) => {
       setState((state) => ({
         ...state,
-        configuration: { ...state.configuration, ...newConfigurationFields },
+        configuration: {
+          ...state.configuration,
+          config: { ...state.configuration.config, ...newConfigurationFields }
+        },
         stateChanged: true
       }));
     },
@@ -160,6 +176,11 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
       })
     );
   }, [sourceDataFromCatalog, setBreadcrumbs]);
+
+  useEffect(() => {
+    state;
+    debugger;
+  }, [state.configuration.config]);
 
   return (
     <>
