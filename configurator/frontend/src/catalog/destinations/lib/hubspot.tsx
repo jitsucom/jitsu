@@ -31,6 +31,7 @@ const hubspotDestination = {
   id: 'hubspot',
   type: 'other',
   displayName: 'HubSpot',
+  defaultTransform: 'transformHubspot($)',
   hidden: false,
   ui: {
     icon,

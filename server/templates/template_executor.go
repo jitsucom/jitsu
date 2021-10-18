@@ -2,6 +2,7 @@ package templates
 
 import (
 	"bytes"
+	_ "embed"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/safego"
@@ -14,6 +15,9 @@ import (
 const (
 	jsLoadingErrorText = "JS LOADING ERROR"
 )
+
+//go:embed js/transform/hubspot.js
+var hubspotTransform string
 
 type TemplateExecutor interface {
 	ProcessEvent(events.Event) (interface{}, error)

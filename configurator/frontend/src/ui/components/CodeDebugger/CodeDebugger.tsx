@@ -58,7 +58,7 @@ export interface CodeDebuggerProps {
   /**
    * Callback for the `save` button
    */
-  handleSaveCode?: () => void;
+  handleSaveCode?: (value: string) => void;
 }
 
 export interface FormValues {
@@ -117,7 +117,7 @@ const CodeDebugger = ({
 
   const handleSaveCode = () => {
     console.log("S")
-    _handleSaveCode();
+    _handleSaveCode(form.getFieldValue('code'));
     setIsCodeSaved(true);
   };
 
@@ -166,7 +166,7 @@ const CodeDebugger = ({
     if (defaultCodeValue) {
       form.setFieldsValue({ code: defaultCodeValue });
     }
-  }, [defaultCodeValue]);
+  }, [defaultCodeValue, form]);
 
   useEffect(() => {
     document.body.addEventListener('click', handleCloseEvents);
@@ -203,7 +203,7 @@ const CodeDebugger = ({
         <ReflexContainer orientation="vertical">
           {showInputEditor && (
             <ReflexElement>
-              <SectionWithLabel label="Event JSON" htmlFor="object">
+              <SectionWithLabel label="Event JSON:" htmlFor="object">
                 <Form.Item className={`${styles.field} w-full`} name="object">
                   <CodeEditor
                     initialValue={
@@ -221,8 +221,8 @@ const CodeDebugger = ({
               </SectionWithLabel>
               <Dropdown
                 forceRender
-                className="absolute right-4 bottom-3"
-                placement="topRight"
+                className="absolute left-28 top-0.5"
+                placement="topLeft"
                 overlay={<DebugEvents handleClick={handleEventClick} />}
                 trigger={['click']}
                 visible={isEventsVisible}
@@ -258,11 +258,11 @@ const CodeDebugger = ({
                 >
                   <CodeEditor
                     initialValue={
-                      form.getFieldValue('code') ?? defaultCodeValue
+                      defaultCodeValue
                     }
                     language="javascript"
                     enableLineNumbers
-                    reRenderEditorOnInitialValueChange={false}
+                    reRenderEditorOnInitialValueChange={true}
                     handleChange={handleChange('code')}
                     hotkeysOverrides={{
                       onCmdCtrlEnter: form.submit,
@@ -358,7 +358,8 @@ const CodeDebugger = ({
         {!showCodeEditor && (
           <Form.Item className={`hidden`} name="code">
             <CodeEditor
-              initialValue={form.getFieldValue('code') ?? defaultCodeValue}
+              initialValue={defaultCodeValue}
+              reRenderEditorOnInitialValueChange={true}
               language={'json'}
               handleChange={handleChange('code')}
               hotkeysOverrides={{

@@ -12,6 +12,7 @@ const dbtcloudDestination = {
     id: 'dbtcloud',
     type: 'other',
     displayName: 'dbt Cloud',
+    defaultTransform: 'return $',
     hidden: true,
     ui: {
         icon,

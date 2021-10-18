@@ -36,6 +36,7 @@ const webhookDestination = {
   id: 'webhook',
   type: 'other',
   displayName: 'WebHook',
+  defaultTransform: 'return $',
   hidden: false,
   parameters: [
     modeParameter('stream'),

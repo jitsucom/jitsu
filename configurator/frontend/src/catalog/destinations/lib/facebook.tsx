@@ -39,6 +39,7 @@ const facebookDestination = {
   id: 'facebook',
   type: 'other',
   displayName: 'Facebook',
+  defaultTransform: 'return $',
   hidden: false,
   ui: {
     icon,

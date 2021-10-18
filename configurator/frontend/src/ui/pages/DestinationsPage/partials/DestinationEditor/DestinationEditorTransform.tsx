@@ -11,6 +11,7 @@ import {jsType, stringType} from "../../../../../catalog/sources/types";
 import {TabDescription} from "../../../../components/Tabs/TabDescription";
 import {DESTINATION_EDITOR_MAPPING} from "../../../../../embeddedDocs/mappings";
 import styles from "../../../SourcesPage/partials/SourceEditor/SourceEditor.module.less";
+import {destinationsReferenceMap} from "../../../../../catalog/destinations/lib";
 
 export interface Props {
     destinationData: DestinationData;
@@ -40,7 +41,7 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                     fieldsParamsList={[{
                         id: '_transform',
                         displayName: 'Javascript Transformation',
-                        defaultValue: '',
+                        defaultValue: destinationsReferenceMap[destinationData._type].defaultTransform,
                         required: false,
                         jsDebugger: 'object',
                         type: jsType,
