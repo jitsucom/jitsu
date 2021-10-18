@@ -108,7 +108,7 @@ func TestProcessFilePayload(t *testing.T) {
 				},
 			},
 			[]events.FailedEvent{{Event: []byte(`{"_geo_data":{},"event_type":"views","key1000":"super value"}`), Error: "error extracting table name: _timestamp field doesn't exist"}},
-			[]events.SkippedEvent{{EventID: "qoow1", Error: "Table name template return empty string. This object will be skipped."}},
+			[]events.SkippedEvent{{EventID: "qoow1", Error: "Transform or table name filter marked object to be skipped. This object will be skipped."}},
 		},
 		{
 			"Input fallback file",
