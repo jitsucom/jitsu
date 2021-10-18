@@ -326,14 +326,16 @@ func TestProcessFact(t *testing.T) {
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			batchHeader, actual, err := p.ProcessEvent(tt.input)
+			envelopes, err := p.ProcessEvent(tt.input)
 
 			if tt.expectedErr != "" {
 				require.Error(t, err)
 				require.Equal(t, tt.expectedErr, err.Error())
 			} else {
 				require.NoError(t, err)
-
+				test.ObjectsEqual(t, 1, len(envelopes), "Expected 1 object")
+				batchHeader := envelopes[0].Header
+				actual := envelopes[0].Event
 				test.ObjectsEqual(t, tt.expectedBatchHeader, batchHeader, "BatchHeader results aren't equal")
 				test.ObjectsEqual(t, tt.expectedObject, actual, "Processed objects aren't equal")
 			}
@@ -394,13 +396,15 @@ switch ($.event_type) {
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, actual, err := p.ProcessEvent(tt.input)
-			logging.Infof("input: %v expected: %v acutal: %v", tt.input, tt.expectedObject, actual)
+			envelopes, err := p.ProcessEvent(tt.input)
 			if tt.expectedErr != "" {
 				require.Error(t, err)
 				require.Equal(t, tt.expectedErr, err.Error())
 			} else {
 				require.NoError(t, err)
+				test.ObjectsEqual(t, 1, len(envelopes), "Expected 1 object")
+				actual := envelopes[0].Event
+				logging.Infof("input: %v expected: %v acutal: %v", tt.input, tt.expectedObject, actual)
 				test.ObjectsEqual(t, tt.expectedObject, actual, "Processed objects aren't equal")
 			}
 		})
