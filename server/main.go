@@ -438,7 +438,8 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 		redisConfig := meta.NewRedisConfiguration(coordinationRedisConfiguration.GetString("host"),
 			coordinationRedisConfiguration.GetInt("port"),
 			coordinationRedisConfiguration.GetString("password"),
-			coordinationRedisConfiguration.GetBool("tls_skip_verify"))
+			coordinationRedisConfiguration.GetBool("tls_skip_verify"),
+			coordinationRedisConfiguration.GetString("sentinel_master_name"))
 		redisConfig.CheckAndSetDefaultPort()
 		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, redisConfig)
 	}
