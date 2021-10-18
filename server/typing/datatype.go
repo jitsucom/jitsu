@@ -28,6 +28,8 @@ const (
 	STRING
 	//TIMESTAMP type for string values that match timestamp pattern
 	TIMESTAMP
+	//ARRAY type for all arrays
+	ARRAY
 )
 
 var (
@@ -37,6 +39,7 @@ var (
 		"double":    FLOAT64,
 		"timestamp": TIMESTAMP,
 		"boolean":   BOOL,
+		"array":     ARRAY,
 	}
 	typeToInputString = map[DataType]string{
 		STRING:    "string",
@@ -44,6 +47,7 @@ var (
 		FLOAT64:   "double",
 		TIMESTAMP: "timestamp",
 		BOOL:      "boolean",
+		ARRAY:     "array",
 	}
 )
 
@@ -61,6 +65,8 @@ func (dt DataType) String() string {
 		return "TIMESTAMP"
 	case BOOL:
 		return "BOOL"
+	case ARRAY:
+		return "ARRAY"
 	case UNKNOWN:
 		return "UNKNOWN"
 	}
@@ -148,6 +154,8 @@ func TypeFromValue(v interface{}) (DataType, error) {
 		return TIMESTAMP, nil
 	case bool:
 		return BOOL, nil
+	case []interface{}, []string, []map[string]interface{}, []float64, []float32, []int64, []int32, []time.Time, []bool:
+		return ARRAY, nil
 	default:
 		return UNKNOWN, fmt.Errorf("Unknown DataType for value: %v type: %t", v, v)
 	}

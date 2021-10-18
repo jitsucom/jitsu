@@ -10,9 +10,9 @@ import (
 )
 
 // Typecast tree
-//      STRING(4)
-//     /      \
-//FLOAT64(3)  TIMESTAMP(5)
+//              STRING(4)
+//          /     |        \
+//FLOAT64(3)  TIMESTAMP(5)  ARRAY(6)
 //    |
 //  INT64(2)
 //    |

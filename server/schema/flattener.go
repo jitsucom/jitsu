@@ -1,8 +1,6 @@
 package schema
 
 import (
-	"encoding/json"
-	"fmt"
 	"reflect"
 	"strings"
 )
@@ -41,12 +39,13 @@ func (f *FlattenerImpl) flatten(key string, value interface{}, destination map[s
 	key = Reformat(key)
 	t := reflect.ValueOf(value)
 	switch t.Kind() {
-	case reflect.Slice:
-		b, err := json.Marshal(value)
-		if err != nil {
-			return fmt.Errorf("Error marshaling array with key %s: %v", key, err)
-		}
-		destination[key] = string(b)
+	//TODO
+	/*case reflect.Slice:
+	b, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("Error marshaling array with key %s: %v", key, err)
+	}
+	destination[key] = string(b)*/
 	case reflect.Map:
 		unboxed := value.(map[string]interface{})
 		for k, v := range unboxed {

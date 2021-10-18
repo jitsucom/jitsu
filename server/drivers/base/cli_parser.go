@@ -56,7 +56,7 @@ func ParseProperties(system, prefix string, properties map[string]*Property, res
 			case "boolean":
 				fieldType = typing.BOOL
 			case "array":
-				fieldType = typing.STRING
+				fieldType = typing.ARRAY
 			case "object":
 				ParseProperties(system, prefix+name+"_", property.Properties, resultFields)
 				continue

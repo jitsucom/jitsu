@@ -72,6 +72,7 @@ var (
 		typing.TIMESTAMP: "timestamp",
 		typing.BOOL:      "boolean",
 		typing.UNKNOWN:   "text",
+		typing.ARRAY:     "jsonb",
 	}
 )
 
