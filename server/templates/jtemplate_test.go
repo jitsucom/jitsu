@@ -75,13 +75,13 @@ func TestJavascriptTemplate(t *testing.T) {
 }
 
 func test(t *testing.T, data templateTestData) {
-	t.Logf("Test %v. Template:\n%v\nInput: %v\nExpected: %v", data.name, data.template, data.event, data.expected)
+	//t.Logf("Test %v. Template:\n%v\nInput: %v\nExpected: %v", data.name, data.template, data.event, data.expected)
 	templateExecutor, err := SmartParse(data.name, data.template, JSONSerializeFuncs)
 	if err != nil {
 		testExpectedError(t, data, err)
 		return
 	}
-	t.Logf("Format %s", templateExecutor.Format())
+	//t.Logf("Format %s", templateExecutor.Format())
 	value, err := templateExecutor.ProcessEvent(data.event)
 	if err != nil {
 		testExpectedError(t, data, err)
@@ -93,7 +93,7 @@ func test(t *testing.T, data templateTestData) {
 	if !cmp.Equal(value, data.expected) {
 		t.Errorf("Not equals. %v != expected: %v\nDiff:%v", value, data.expected, cmp.Diff(value, data.expected))
 	} else {
-		t.Logf("%s", value)
+		//t.Logf("%s", value)
 	}
 }
 
