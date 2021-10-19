@@ -5,7 +5,6 @@ go 1.16
 require (
 	cloud.google.com/go/firestore v1.3.0
 	firebase.google.com/go/v4 v4.1.0
-	github.com/FZambia/sentinel v1.1.0 // indirect
 	github.com/bramvdbogaerde/go-scp v0.0.0-20200820121624-ded9ee94aef5
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/contrib v0.0.0-20201101042839-6a891bf89f19
