@@ -3,8 +3,6 @@ package redis
 import (
 	"encoding/json"
 	"errors"
-	"github.com/jitsucom/jitsu/server/logging"
-	"strings"
 )
 
 //RedisConfig is a Redis configuration dto for serialization
@@ -23,16 +21,6 @@ func (rc *RedisConfig) Validate() error {
 	}
 	if rc.Host == "" {
 		return errors.New("host is not set")
-	}
-	if rc.SentinelMasterName != "" {
-		logging.Infof("redis sentinel master name is: %s", rc.SentinelMasterName)
-		i, err := rc.Port.Int64()
-		if i == 0  || err != nil{
-			return errors.New("redis sentinel port is required")
-		}
-		if strings.HasPrefix(rc.SentinelMasterName, "redis") {
-			return errors.New("redis sentinel host should be of the form subdomain.domain,  eg: localhost, stg-redis-headless.redis.svc.cluster.local . no redis:// or rediss:// prefix")
-		}
 	}
 	return nil
 }
