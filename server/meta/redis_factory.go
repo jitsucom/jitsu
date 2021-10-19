@@ -98,8 +98,14 @@ func (rpf *RedisPoolFactory) Create() (*RedisPool, error) {
 		}
 
 		if rpf.sentinelMasterName != "" {
+			var nodes []string
+			if strings.Contains(rpf.host, ",") {
+				nodes = strings.Split(rpf.host, ",")
+			} else {
+				nodes = []string{fmt.Sprintf("%s:%d", rpf.host, rpf.port)}
+			}
 			redisSentinel = &sentinel.Sentinel{
-				Addrs:      []string{fmt.Sprintf("%s:%d", rpf.host, rpf.port)},
+				Addrs:      nodes,
 				MasterName: rpf.sentinelMasterName,
 				Dial: func(addr string) (redis.Conn, error) {
 					c, err := redis.Dial(
