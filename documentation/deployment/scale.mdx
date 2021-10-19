@@ -111,18 +111,24 @@ coordination:
 
 ### redis sentinel support
 
-requires adding 'sentinel_master_name' key to configuration
-and explicitly specifying sentinel port
-on successful connection to one sentinel, all other sentinels will be discovered
+requires adding 'sentinel_master_name' key to the configuration.
+If port isn't specified, default 23679 will be used.
+on successful connection to one sentinel, all other sentinels will be discovered.
 
 ```yaml
 # eventnative.yaml
 meta:
   storage:
     redis:
-      host: your_redis_host # eg: localhost, redis-headless.redis.svc.cluster.local
+      host: your_sentinel_host # eg: localhost, redis-headless.redis.svc.cluster.local
       port: 26379
       sentinel_master_name: redis_dev_master
+
+## or configuration via sentinel URL
+meta:
+  storage:
+    redis:
+      host: 'sentinel://redis_dev_master:redis_password@sentinel_host:sentinel_port'
 
 # configurator.yaml
 storage:
