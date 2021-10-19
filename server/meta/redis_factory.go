@@ -60,67 +60,9 @@ func NewRedisPoolFactory(host string, port int, password string, tlsSkipVerify b
 //3. sentinel://master_name:password@node1:port,node2:port
 //4. plain host
 func (rpf *RedisPoolFactory) Create() (*RedisPool, error) {
-	var dialFunc func() (redis.Conn, error)
-	var redisSentinel *sentinel.Sentinel
-	options := []redis.DialOption{defaultDialConnectTimeout, defaultDialReadTimeout}
-
-	if rpf.isURL() || rpf.isSecuredURL() {
-		shouldSkipTls := rpf.tlsSkipVerify || rpf.isURL()
-		options = append(options, redis.DialTLSSkipVerify(shouldSkipTls))
-		dialFunc = newDialURLFunc(rpf.host, options)
-	} else if rpf.isSentinelURL() {
-		masterName, password, nodes, err := extractFromSentinelURL(rpf.host)
-		if err != nil {
-			return nil, err
-		}
-
-		if password != "" {
-			options = append(options, redis.DialPassword(password))
-		}
-
-		redisSentinel = &sentinel.Sentinel{
-			Addrs:      nodes,
-			MasterName: masterName,
-			Dial: func(addr string) (redis.Conn, error) {
-				c, err := redis.Dial(
-					"tcp",
-					addr, options...)
-				if err != nil {
-					return nil, err
-				}
-				return c, nil
-			},
-		}
-		dialFunc = newSentinelDialFunc(redisSentinel, options)
-	} else {
-		if rpf.password != "" {
-			options = append(options, redis.DialPassword(rpf.password))
-		}
-
-		if rpf.sentinelMasterName != "" {
-			var nodes []string
-			if strings.Contains(rpf.host, ",") {
-				nodes = strings.Split(rpf.host, ",")
-			} else {
-				nodes = []string{fmt.Sprintf("%s:%d", rpf.host, rpf.port)}
-			}
-			redisSentinel = &sentinel.Sentinel{
-				Addrs:      nodes,
-				MasterName: rpf.sentinelMasterName,
-				Dial: func(addr string) (redis.Conn, error) {
-					c, err := redis.Dial(
-						"tcp",
-						addr, options...)
-					if err != nil {
-						return nil, err
-					}
-					return c, nil
-				},
-			}
-			dialFunc = newSentinelDialFunc(redisSentinel, options)
-		} else {
-			dialFunc = newDialTcpFunc(rpf.host, rpf.port, options)
-		}
+	redisSentinel, dialFunc, err := rpf.getSentinelAndDialFunc()
+	if err != nil {
+		return nil, err
 	}
 
 	poolToRedis := &redis.Pool{
@@ -151,9 +93,88 @@ func (rpf *RedisPoolFactory) Create() (*RedisPool, error) {
 	}, nil
 }
 
+func (rpf *RedisPoolFactory) getSentinelAndDialFunc() (*sentinel.Sentinel, func() (redis.Conn, error), error) {
+	options := []redis.DialOption{defaultDialConnectTimeout, defaultDialReadTimeout}
+
+	// 1. redis:// redis://
+	if rpf.isURL() || rpf.isSecuredURL() {
+		shouldSkipTls := rpf.tlsSkipVerify || rpf.isURL()
+		options = append(options, redis.DialTLSSkipVerify(shouldSkipTls))
+		dialFunc := newDialURLFunc(rpf.host, options)
+		return nil, dialFunc, nil
+	}
+
+	// 2. sentinel://
+	if rpf.isSentinelURL() {
+		masterName, password, nodes, err := extractFromSentinelURL(rpf.host)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if password != "" {
+			options = append(options, redis.DialPassword(password))
+		}
+
+		redisSentinel := &sentinel.Sentinel{
+			Addrs:      nodes,
+			MasterName: masterName,
+			Dial: func(addr string) (redis.Conn, error) {
+				c, err := redis.Dial(
+					"tcp",
+					addr, options...)
+				if err != nil {
+					return nil, err
+				}
+				return c, nil
+			},
+		}
+		dialFunc := newSentinelDialFunc(redisSentinel, options)
+		return redisSentinel, dialFunc, nil
+
+	}
+
+	if rpf.password != "" {
+		options = append(options, redis.DialPassword(rpf.password))
+	}
+
+	//host, port with sentinel
+	if rpf.sentinelMasterName != "" {
+		var nodes []string
+		if strings.Contains(rpf.host, ",") {
+			nodes = strings.Split(rpf.host, ",")
+		} else {
+			nodes = []string{fmt.Sprintf("%s:%d", rpf.host, rpf.port)}
+		}
+		redisSentinel := &sentinel.Sentinel{
+			Addrs:      nodes,
+			MasterName: rpf.sentinelMasterName,
+			Dial: func(addr string) (redis.Conn, error) {
+				c, err := redis.Dial(
+					"tcp",
+					addr, options...)
+				if err != nil {
+					return nil, err
+				}
+				return c, nil
+			},
+		}
+		dialFunc := newSentinelDialFunc(redisSentinel, options)
+		return redisSentinel, dialFunc, nil
+	}
+
+	//host port
+	dialFunc := newDialTcpFunc(rpf.host, rpf.port, options)
+	return nil, dialFunc, nil
+}
+
 //CheckAndSetDefaultPort checks if port isn't set - put defaultRedisPort, if sentinel mode put defaultSentinelPort
 func (rpf *RedisPoolFactory) CheckAndSetDefaultPort() (int, bool) {
 	if rpf.port == 0 && !rpf.isURL() && !rpf.isSecuredURL() && !rpf.isSentinelURL() {
+		if strings.Contains(rpf.host, ",") {
+			//multiple sentinel
+			return 0, false
+		}
+
 		parts := strings.Split(rpf.host, ":")
 		if len(parts) == 2 {
 			port, err := strconv.Atoi(parts[1])
@@ -197,6 +218,9 @@ func (rpf *RedisPoolFactory) Details() string {
 
 	connectionString := fmt.Sprintf("%s:%d", rpf.host, rpf.port)
 	if rpf.sentinelMasterName != "" {
+		if strings.Contains(rpf.host, ",") {
+			connectionString = rpf.host
+		}
 		return fmt.Sprintf("%s with configured sentinel: %s", connectionString, rpf.sentinelMasterName)
 	}
 
