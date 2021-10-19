@@ -78,8 +78,8 @@ func NewStorage(meta *viper.Viper) (Storage, error) {
 	anonymousEventsTTL := meta.GetInt("redis.ttl_minutes.anonymous_events")
 	tlsSkipVerify := meta.GetBool("redis.tls_skip_verify")
 
-	redisConfig := NewRedisConfiguration(host, port, password, tlsSkipVerify, sentinelMaster)
-	redisConfig.CheckAndSetDefaultPort()
+	factory := NewRedisPoolFactory(host, port, password, tlsSkipVerify, sentinelMaster)
+	factory.CheckAndSetDefaultPort()
 
-	return NewRedis(redisConfig, anonymousEventsTTL)
+	return NewRedis(factory, anonymousEventsTTL)
 }

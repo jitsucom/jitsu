@@ -22,7 +22,7 @@ const (
 //Redis is a Redis driver. It is used in syncing data from Redis.
 type Redis struct {
 	collection     *base.Collection
-	connectionPool *redis.Pool
+	connectionPool *meta.RedisPool
 	redisKey       string
 }
 
@@ -57,12 +57,12 @@ func NewRedis(_ context.Context, sourceConfig *base.SourceConfig, collection *ba
 		return nil, fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
 	}
 
-	redisConfig := meta.NewRedisConfiguration(config.Host, int(intPort), config.Password, config.TLSSkipVerify,config.SentinelMasterName)
-	if defaultPort, ok := redisConfig.CheckAndSetDefaultPort(); ok {
+	factory := meta.NewRedisPoolFactory(config.Host, int(intPort), config.Password, config.TLSSkipVerify, config.SentinelMasterName)
+	if defaultPort, ok := factory.CheckAndSetDefaultPort(); ok {
 		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", sourceConfig.SourceID, defaultPort)
 	}
 
-	pool, err := meta.NewRedisPool(redisConfig)
+	pool, err := factory.Create()
 	if err != nil {
 		return nil, err
 	}
@@ -90,10 +90,10 @@ func TestRedis(sourceConfig *base.SourceConfig) error {
 		return fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
 	}
 
-	redisConfig := meta.NewRedisConfiguration(config.Host, int(intPort), config.Password, config.TLSSkipVerify,config.SentinelMasterName)
-	redisConfig.CheckAndSetDefaultPort()
+	factory := meta.NewRedisPoolFactory(config.Host, int(intPort), config.Password, config.TLSSkipVerify, config.SentinelMasterName)
+	factory.CheckAndSetDefaultPort()
 
-	pool, err := meta.NewRedisPool(redisConfig)
+	pool, err := factory.Create()
 	if err != nil {
 		return err
 	}

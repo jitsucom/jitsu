@@ -33,14 +33,14 @@ const (
 	systemsCollectionVersionsKey = "systems:versions"
 )
 
-//RedisService is a redis implementation for Service
+//RedisService is a redis implementation for coordination Service
 type RedisService struct {
 	ctx        context.Context
 	serverName string
 	selfmutex  sync.RWMutex
 	unlockMe   map[string]*storages.RetryableLock
 
-	pool    *redis.Pool
+	pool    *meta.RedisPool
 	redsync *redsync.Redsync
 
 	closed bool
@@ -58,22 +58,22 @@ func (mp *MutexProxy) Unlock(context context.Context) error {
 }
 
 //NewRedisService returns configured RedisService instance
-func NewRedisService(ctx context.Context, serverName string, config *meta.RedisConfiguration) (Service, error) {
-	logging.Infof("🛫 Initializing redis coordination service [%s]...", config.String())
+func NewRedisService(ctx context.Context, serverName string, factory *meta.RedisPoolFactory) (Service, error) {
+	logging.Infof("🛫 Initializing redis coordination service [%s]...", factory.Details())
 
-	redigoPool, err := meta.NewRedisPool(config)
+	redisPool, err := factory.Create()
 	if err != nil {
 		return nil, err
 	}
 
-	redisSync := redsync.New(rsyncpool.NewPool(redigoPool))
+	redisSync := redsync.New(rsyncpool.NewPool(redisPool.GetPool()))
 
 	rs := &RedisService{
 		ctx:        ctx,
 		selfmutex:  sync.RWMutex{},
 		serverName: serverName,
 		unlockMe:   map[string]*storages.RetryableLock{},
-		pool:       redigoPool,
+		pool:       redisPool,
 		redsync:    redisSync,
 	}
 	rs.startHeartBeating()
