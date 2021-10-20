@@ -25,6 +25,9 @@ import {
   removeFromArrayIfFound,
   substituteArrayValueIfFound
 } from 'utils/arrays';
+import { sourcePageUtils } from 'ui/pages/SourcesPage/SourcePage.utils';
+import { closeableMessage } from 'lib/components/components';
+import { firstToLower } from 'lib/commons/utils';
 // @Utils
 
 export type SourceEditorState = {
@@ -46,9 +49,14 @@ export type SourceEditorState = {
   stateChanged: boolean;
 };
 
+export type SetSourceEditorState = React.Dispatch<
+  React.SetStateAction<SourceEditorState>
+>;
+
 type ConfigurationState = {
   config: SourceConfigurationData;
   getErrorsCount: () => Promise<number>;
+  errorsCount: number;
 };
 
 type StreamsState = {
@@ -87,7 +95,7 @@ export type UpdateStream = (
 ) => void;
 export type SetStreams = (
   pathToStreamsInSourceData: string,
-  streams: AirbyteStreamData[]
+  streams: any
 ) => void;
 
 export type AddConnection = (
@@ -103,10 +111,17 @@ export type SetConnections = (
   connectionIds: string[]
 ) => void;
 
+export type TabsErrorsState = {
+  configuration: number;
+  streams: number;
+  connections: number;
+};
+
 const initialState: SourceEditorState = {
   configuration: {
     config: {},
-    getErrorsCount: async () => 0
+    getErrorsCount: async () => 0,
+    errorsCount: 0
   },
   streams: {
     streams: {},
@@ -151,9 +166,11 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({
     [sourceId, allSourcesList]
   );
 
-  console.log(initialSourceDataFromBackend);
-
   const [state, setState] = useState<SourceEditorState>(initialState);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isTestingConnection, setIsTestingConnection] =
+    useState<boolean>(false);
+  const [tabErrorsVisible, setTabErrorsVisible] = useState<boolean>(false);
   const [showDocumentation, setShowDocumentation] = useState<boolean>(false);
   const [configIsValidatedByStreams, setConfigIsValidatedByStreams] =
     useState<boolean>(false);
@@ -173,6 +190,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({
         stateChanged: true
       }));
       setConfigIsValidatedByStreams(false);
+      setTabErrorsVisible(false);
     },
     []
   );
@@ -319,28 +337,77 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({
     );
   };
 
-  const handleTestConnection = useCallback<VoidFunction>(async () => {
-    // sourcePageUtils.testConnection();
+  const validateCountErrors = async (): Promise<number> => {
     const configurationErrorsCount = await state.configuration.getErrorsCount();
-    const streamsErrorsCount = state.streams.errorsCount;
-    const connectionsErrorsCount = state.connections.errorsCount;
 
-    const errorsCounts = {
-      configuration: configurationErrorsCount,
-      streams: state.streams.errorsCount,
-      connectins: state.connections.errorsCount
-    };
+    setState((state) => {
+      const newState = cloneDeep(state);
+      newState.configuration.errorsCount = configurationErrorsCount;
+      return newState;
+    });
 
-    console.log(errorsCounts);
+    setTabErrorsVisible(true);
 
-    if (Object.values(errorsCounts).some((count) => !!count)) return;
+    return (
+      configurationErrorsCount +
+      state.streams.errorsCount +
+      state.connections.errorsCount
+    );
+  };
 
-    const sourceData = handleBringSourceData();
+  const handleTestConnection = useCallback(async () => {
+    setIsTestingConnection(true);
+    try {
+      const isErrored = !!(await validateCountErrors());
+      if (isErrored) return;
 
-    console.log(sourceData);
-  }, [state, sourceDataFromCatalog, initialSourceDataFromBackend]);
+      const sourceData = handleBringSourceData();
+      return await sourcePageUtils.testConnection(sourceData);
+    } finally {
+      setIsTestingConnection(false);
+    }
+  }, [state]);
 
-  const handleLeave = useCallback<VoidFunction>(() => history.goBack(), []);
+  const handleSave = useCallback<AsyncVoidFunction>(async () => {
+    setIsSaving(true);
+    try {
+      const sourceData = handleBringSourceData();
+      const testConnectionResults = await sourcePageUtils.testConnection(
+        sourceData,
+        true
+      );
+
+      const sourceDataToSave: SourceData = {
+        ...sourceData,
+        ...testConnectionResults
+      };
+
+      if (editorMode === 'add') sourcesStore.addSource(sourceDataToSave);
+      if (editorMode === 'edit') sourcesStore.editSources(sourceDataToSave);
+
+      handleLeaveEditor({ goToSourcesList: true });
+
+      if (sourceDataToSave.connected) {
+        closeableMessage.success('New source has been added!');
+      } else {
+        closeableMessage.warn(
+          `Source has been saved, but test has failed with '${firstToLower(
+            sourceDataToSave.connectedErrorMessage
+          )}'. Data from this source will not be available`
+        );
+      }
+    } catch {
+      setIsSaving(false);
+    }
+  }, [editorMode, state]);
+
+  const handleLeaveEditor = useCallback<
+    (options?: { goToSourcesList?: boolean }) => void
+  >((options) => {
+    options.goToSourcesList
+      ? history.push(sourcesPageRoutes.root)
+      : history.goBack();
+  }, []);
 
   useEffect(() => {
     setBreadcrumbs(
@@ -364,13 +431,18 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({
   return (
     <>
       <SourceEditorViewTabs
+        state={state}
         sourceId={sourceId}
         editorMode={editorMode}
         stateChanged={state.stateChanged}
+        showTabsErrors={tabErrorsVisible}
         showDocumentationDrawer={showDocumentation}
         initialSourceDataFromBackend={initialSourceDataFromBackend}
         sourceDataFromCatalog={sourceDataFromCatalog}
         configIsValidatedByStreams={configIsValidatedByStreams}
+        isSaving={isSaving}
+        isTestingConnection={isTestingConnection}
+        setState={setState}
         setShowDocumentationDrawer={setShowDocumentation}
         handleSetConfigValidatedByStreams={handleSetConfigValidatedByStreams}
         onConfigurationChange={updateConfiguration}
@@ -383,8 +455,9 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({
         removeConnection={removeConnection}
         setConnections={setConnections}
         handleBringSourceData={handleBringSourceData}
+        handleSave={handleSave}
         handleTestConnection={handleTestConnection}
-        handleLeaveEditor={handleLeave}
+        handleLeaveEditor={handleLeaveEditor}
       />
     </>
   );

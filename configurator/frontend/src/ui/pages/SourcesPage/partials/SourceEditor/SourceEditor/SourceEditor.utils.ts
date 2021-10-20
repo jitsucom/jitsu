@@ -22,7 +22,15 @@ export const sourceEditorUtils = {
       makeObjectFromFieldsValues(connections.connections)
     );
 
-    return updatedSourceData;
+    const catalogSourceData: Pick<
+      SourceData,
+      'sourceType' | 'sourceProtoType'
+    > = {
+      sourceType: sourcePageUtils.getSourceType(sourceCatalogData),
+      sourceProtoType: sourcePageUtils.getSourcePrototype(sourceCatalogData)
+    };
+
+    return merge(updatedSourceData, catalogSourceData);
   }
 };
 
@@ -38,8 +46,6 @@ export const createInitialSourceData = (sourceCatalogData: SourceConnector) =>
       sourcesStore.sources.map((source) => source.sourceId)
     ),
     schedule: COLLECTIONS_SCHEDULES[0].value,
-    sourceType: sourcePageUtils.getSourceType(sourceCatalogData),
-    sourceProtoType: sourcePageUtils.getSourcePrototype(sourceCatalogData),
     connected: false,
     connectedErrorMessage: ''
   } as const);

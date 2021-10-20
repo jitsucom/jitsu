@@ -26,7 +26,7 @@ interface Props {
   setStreams: SetStreams;
 }
 
-const STREAMS_CATALOG_PATH = 'config.catalog';
+const STREAMS_CATALOG_PATH = 'config.catalog.streams';
 
 const getAirbyteStreamUniqueId = (stream: AirbyteStreamData): string =>
   `${stream.stream.name}__${stream.stream.namespace}`;

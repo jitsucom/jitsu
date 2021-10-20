@@ -21,14 +21,17 @@ import { SourceConnector } from 'catalog/sources/types';
 import {
   AddStream,
   RemoveStream,
+  SetSourceEditorState,
   SetStreams,
   UpdateStream
 } from './SourceEditor';
+import { cloneDeep } from 'lodash';
 
 type Props = {
   initialSourceDataFromBackend: Optional<Partial<SourceData>>;
   sourceDataFromCatalog: SourceConnector;
   sourceConfigValidatedByStreamsTab: boolean;
+  setSourceEditorState: SetSourceEditorState;
   handleSetConfigValidatedByStreams: VoidFunction;
   addStream: AddStream;
   removeStream: RemoveStream;
@@ -41,6 +44,7 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
   initialSourceDataFromBackend,
   sourceDataFromCatalog,
   sourceConfigValidatedByStreamsTab,
+  setSourceEditorState,
   handleSetConfigValidatedByStreams,
   addStream,
   removeStream,
@@ -80,12 +84,28 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
     if (!sourceConfigValidatedByStreamsTab) restartPolling();
   }, [sourceConfigValidatedByStreamsTab]);
 
+  useEffect(() => {
+    setSourceEditorState((state) => {
+      const newState = cloneDeep(state);
+      newState.streams.errorsCount = error ? 1 : 0;
+      return newState;
+    });
+  }, [error]);
+
+  useEffect(() => {
+    setStreams(
+      'config.docker_image',
+      sourceDataFromCatalog.id.replace('airbyte-', '')
+    );
+  }, []);
+
   return (
     <>
       {data && (
         <SourceEditorFormStreamsLoadableForm
           allStreams={data}
           initiallySelectedStreams={previouslyCheckedStreams}
+          selectAllFieldsByDefault={!previouslyCheckedStreams.length}
           hide={isLoading || !!error}
           addStream={addStream}
           removeStream={removeStream}
