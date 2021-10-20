@@ -32,6 +32,7 @@ import { sourcePageUtils } from 'ui/pages/SourcesPage/SourcePage.utils';
 import { taskLogsPageRoute } from 'ui/pages/TaskLogs/TaskLogsPage';
 import { withProgressBar } from 'lib/components/components';
 import { showQuotaLimitModal } from '../../../../../lib/services/billing';
+import {SourceCard} from "../../../../components/SourceCard/SourceCard";
 
 const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
   const history = useHistory();
@@ -161,89 +162,12 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
         </Button>
       </div>
 
-      <ul>
+      <div className="flex flex-wrap justify-center">
         {sourcesStore.sources.map((src: SourceData) => {
           const reference = allSourcesMap[src.sourceProtoType];
-
-          return (
-            <ListItem
-              description={
-                <ListItemDescription render={reference.displayName} />
-              }
-              title={sourcePageUtils.getTitle(src)}
-              icon={reference?.pic}
-              id={src.sourceId}
-              key={src.sourceId}
-              actions={[
-                {
-                  component: (
-                    <Dropdown
-                      trigger={['click']}
-                      overlay={
-                        <Menu>
-                          <Menu.Item key="inc">
-                            <Button
-                              type="link"
-                              onClick={async() =>
-                                await scheduleTasks(src, false)
-                              }
-                            >
-                              Sync Now
-                            </Button>
-                          </Menu.Item>
-                          <Menu.Item key="all">
-                            <Button
-                              onClick={async() =>
-                                await scheduleTasks(src, true)
-                              }
-                              type="link"
-                            >
-                              Full Re-sync (clear cache)
-                            </Button>
-                          </Menu.Item>
-                        </Menu>
-                      }
-                    >
-                      <Button type="link" className="align-bottom">
-                        Sync Now <DownOutlined />
-                      </Button>
-                    </Dropdown>
-                  ),
-                  icon: <CodeOutlined />
-                },
-                {
-                  onClick: () =>
-                    history.push(
-                      generatePath(taskLogsPageRoute, {
-                        sourceId: src.sourceId
-                      })
-                    ),
-                  title: 'View logs',
-                  icon: <CodeOutlined />
-                },
-                {
-                  onClick: () =>
-                    history.push(
-                      generatePath(sourcesPageRoutes.editExact, {
-                        sourceId: src.sourceId
-                      })
-                    ),
-                  title: 'Edit',
-                  icon: <EditOutlined />
-                },
-                {
-                  onClick: () => {
-                    sourcesStore.deleteSource(src);
-                    message.success('Sources list successfully updated');
-                  },
-                  title: 'Delete',
-                  icon: <DeleteOutlined />
-                }
-              ]}
-            />
-          );
+          return (<SourceCard src={src} />);
         })}
-      </ul>
+      </div>
     </>
   );
 };

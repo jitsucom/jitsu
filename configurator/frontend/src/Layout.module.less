@@ -1,10 +1,11 @@
 @import "theme.less";
 
 .applicationPage {
-  @apply flex flex-row flex-grow border items-stretch;
+  @apply flex flex-row flex-grow items-stretch;
 }
 
 .applicationPageComponent {
+  @apply pt-4;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -18,30 +19,38 @@
   //min-width: 12rem;
 }
 
+
 .rightbar {
-  @apply flex flex-col flex-grow justify-start px-4;
+  @apply flex flex-col flex-grow justify-start px-4 pt-3;
   width: calc(100vw - 16rem);
   //max-width: calc(100vw - 16rem);
   min-width: 800px;
   margin-left: auto;
   margin-right: auto;
-  padding-top: 14px;
-  padding-bottom: 20px;
 }
+
+.selectedMenuItem {
+  border-left: 1px solid @splitBorder;
+  border-top: 1px solid @splitBorder;
+  border-bottom: 1px solid @splitBorder;
+  margin-right: -1px;
+  border-right: 1px solid @bgPrimary;
+}
+
 
 .sideBarContent {
   @apply flex flex-col justify-between;
   width: 100%;
   min-width: 100%;
-  background-color: @secondary-background !important;
+  background-color: @bgPrimary;
+  border-right: 1px solid @splitBorder;
+
 }
 .sideBarContent :global .ant-menu {
-  background-color: @secondary-background !important;
 }
 
 .sideBarContent :global .ant-menu-item-selected {
   border-right: 0 !important;
-  background-color: @primary-background !important;
   border-top-left-radius: 16px;
   border-bottom-left-radius: 16px;
   color: @link-color;
@@ -81,3 +90,10 @@
 //.collapsedMenuItem a svg {
 //  width: 2em;
 //}
+
+
+.expandButton {
+  @apply absolute inline-block top-3 left-1 h-12 flex items-center justify-center rounded-r cursor-pointer text-text hover:text-primary;
+  border: 0;
+}
+
