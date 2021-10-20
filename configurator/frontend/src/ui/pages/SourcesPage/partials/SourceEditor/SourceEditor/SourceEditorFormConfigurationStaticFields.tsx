@@ -1,5 +1,5 @@
 // @Libs
-import { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { Form as AntdForm, Input, Row, Col, Select, FormProps } from 'antd';
 // @Store
 import { sourcesStore } from 'stores/sources';
@@ -7,10 +7,13 @@ import { sourcesStore } from 'stores/sources';
 import { COLLECTIONS_SCHEDULES } from 'constants/schedule';
 // @Types
 import { UpdateConfigurationFields } from './SourceEditor';
+import { ValidateGetErrorsCount } from './SourceEditorFormConfiguration';
 import { Rule as AntdFormItemValidationRule } from 'rc-field-form/lib/interface';
 // @Services
 import { useServices } from 'hooks/useServices';
 import { observer } from 'mobx-react-lite';
+// @Styles
+import editorStyles from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
 
 type FormFields = {
   sourceId: string;
@@ -18,13 +21,19 @@ type FormFields = {
 };
 
 type Props = {
-  initialValues: Optional<SourceData>;
+  editorMode: 'add' | 'edit';
+  initialValues: Optional<Partial<SourceData>>;
   onChange: UpdateConfigurationFields;
+  setValidator: React.Dispatch<
+    React.SetStateAction<(validator: ValidateGetErrorsCount) => void>
+  >;
 };
 
 const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
+  editorMode,
   initialValues,
-  onChange
+  onChange,
+  setValidator
 }) => {
   const [form] = AntdForm.useForm<FormFields>();
   const services = useServices();
@@ -32,6 +41,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
   const sourcesList = sourcesStore.sources;
 
   const validateUniqueSourceId = (_, value: string) =>
+    editorMode === 'add' &&
     sourcesList?.find((source: SourceData) => source.sourceId === value)
       ? Promise.reject('Source ID must be unique!')
       : Promise.resolve();
@@ -50,6 +60,24 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
     onChange(allValues);
   }, []);
 
+  /**
+   * set initial state and validator on first render
+   */
+  useEffect(() => {
+    const validateGetErrorsCount: ValidateGetErrorsCount = async () => {
+      let errorsCount = 0;
+      try {
+        await form.validateFields();
+      } catch (error) {
+        errorsCount = +error?.errorFields?.length;
+      }
+      return errorsCount;
+    };
+
+    onChange(form.getFieldsValue());
+    setValidator(() => validateGetErrorsCount);
+  }, []);
+
   return (
     <AntdForm
       name="source-config"
@@ -60,15 +88,15 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
       <Row>
         <Col span={24}>
           <AntdForm.Item
-            initialValue={initialValues.sourceId}
-            // className={`form-field_fixed-label ${editorStyles.field}`}
+            initialValue={initialValues?.sourceId}
+            className={`form-field_fixed-label ${editorStyles.field}`}
             label={<span>SourceId</span>}
             name="sourceId"
             rules={sourceIdValidationRules}
             labelCol={{ span: 4 }}
             wrapperCol={{ span: 20 }}
           >
-            <Input disabled autoComplete="off" />
+            <Input disabled={editorMode === 'edit'} autoComplete="off" />
           </AntdForm.Item>
         </Col>
       </Row>
@@ -76,9 +104,9 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
       <Row>
         <Col span={24}>
           <AntdForm.Item
-            initialValue={initialValues.schedule}
+            initialValue={initialValues?.schedule}
             name="schedule"
-            // className={`form-field_fixed-label ${editorStyles.field}`}
+            className={`form-field_fixed-label ${editorStyles.field}`}
             label="Schedule"
             labelCol={{ span: 4 }}
             wrapperCol={{ span: 20 }}

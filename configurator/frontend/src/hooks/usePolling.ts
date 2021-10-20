@@ -28,10 +28,14 @@ type UsePollingReturnType<T> = {
    */
   isLoading: boolean;
   /**
-   * Callback for cancelling the poll manually. Helpful for a clean
-   * up when component unmounts.
+   * Callback for cancelling the poll manually. Helpful for a manual
+   * cleanup when component unmounts.
    */
   cancel: VoidFunction;
+  /**
+   * Callback for restarting the poll.
+   */
+  reload: VoidFunction;
 };
 
 const defaultOptions: UsePollingOptions = {
@@ -99,15 +103,26 @@ export const usePolling = <T>(
     cancelCurrentPoll.current?.();
   };
 
+  const reload = () => {
+    cancel();
+    poll();
+  };
+
   useEffect(() => {
     cancel();
     poll();
   }, []);
 
+  /**
+   * Cleans up unfinished poll when component is unmounted;
+   */
+  useEffect(() => cancel, []);
+
   return {
     error,
     data,
     isLoading,
-    cancel
+    cancel,
+    reload
   };
 };

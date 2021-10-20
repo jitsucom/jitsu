@@ -15,10 +15,10 @@ import {
   Switch,
   Tooltip,
   Spin,
-  FormItemProps
+  FormItemProps,
+  InputNumber
 } from 'antd';
 import debounce from 'lodash/debounce';
-import isEqual from 'lodash/isEqual';
 import get from 'lodash/get';
 import cn from 'classnames';
 // @Components
@@ -54,6 +54,7 @@ export interface Props {
   namePrefix?: string;
   loading?: boolean | ReactNode;
   handleTouchAnyField?: (...args: any) => void;
+  setInitialFormValues?: (values: PlainObjectWithPrimitiveValues) => void;
 }
 
 export const FormItemName = {
@@ -79,7 +80,8 @@ const ConfigurableFieldsFormComponent = ({
   form,
   initialValues,
   loading,
-  handleTouchAnyField
+  handleTouchAnyField,
+  setInitialFormValues
 }: Props) => {
   const debugModalsStates = {
     '_formData.tableName': useState<boolean>(false),
@@ -105,8 +107,7 @@ const ConfigurableFieldsFormComponent = ({
   const handleTouchField = debounce(handleTouchAnyField ?? (() => {}), 1000);
 
   const handleChangeIntInput = useCallback(
-    (id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = +e.target.value.replace(/\D/g, '') || '';
+    (id: string) => (value: number) => {
       form.setFieldsValue({ [id]: value });
     },
     [form]
@@ -184,7 +185,7 @@ const ConfigurableFieldsFormComponent = ({
 
       case 'int': {
         return (
-          <Input
+          <InputNumber
             autoComplete="off"
             inputMode="numeric"
             onChange={handleChangeIntInput(id)}
@@ -324,7 +325,8 @@ const ConfigurableFieldsFormComponent = ({
         touched: false
       });
     });
-    // form.setFieldsValue(formValues);
+
+    setInitialFormValues?.(formValues);
     form.setFields(formFields);
 
     /**

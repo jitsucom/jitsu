@@ -9,27 +9,31 @@ import { LoadableFieldsLoadingMessageCard } from 'lib/components/LoadingFormCard
 import { ConfigurableFieldsForm } from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm';
 // @Types
 import { UpdateConfigurationFields } from './SourceEditor';
+import { ValidateGetErrorsCount } from './SourceEditorFormConfiguration';
+// @Hooks
+import { usePolling } from 'hooks/usePolling';
 // @Utils
 import { toTitleCase } from 'utils/strings';
 import { mapAirbyteSpecToSourceConnectorConfig } from 'catalog/sources/lib/airbyte.helper';
-import { usePolling } from 'hooks/usePolling';
 import { useEffect } from 'react';
 
 type Props = {
   initialValues: any;
   sourceDataFromCatalog: SourceConnector;
   onChange: UpdateConfigurationFields;
+  setValidator: React.Dispatch<
+    React.SetStateAction<(validator: ValidateGetErrorsCount) => void>
+  >;
 };
 
 export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> =
-  ({ initialValues, sourceDataFromCatalog, onChange }) => {
+  ({ initialValues, sourceDataFromCatalog, onChange, setValidator }) => {
     const [form] = Form.useForm();
 
     const {
       isLoading: isLoadingParameters,
       data: fieldsParameters,
-      error: loadingParametersError,
-      cancel: cancelPoll
+      error: loadingParametersError
     } = usePolling<Parameter[]>((end, fail) => async () => {
       try {
         const result = await pullAirbyteSpec(sourceDataFromCatalog.id);
@@ -44,7 +48,22 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
      */
     const editorStyles = { field: null };
 
-    useEffect(() => () => cancelPoll(), []);
+    /**
+     * set validator on first render
+     */
+    useEffect(() => {
+      const validateGetErrorsCount: ValidateGetErrorsCount = async () => {
+        let errorsCount = 0;
+        try {
+          await form.validateFields();
+        } catch (error) {
+          errorsCount = +error?.errorFields?.length;
+        }
+        return errorsCount;
+      };
+
+      setValidator(() => validateGetErrorsCount);
+    }, []);
 
     return loadingParametersError ? (
       <Row>
@@ -75,6 +94,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
           fieldsParamsList={fieldsParameters || []}
           form={form}
           initialValues={initialValues}
+          setInitialFormValues={onChange}
         />
       </Form>
     );
