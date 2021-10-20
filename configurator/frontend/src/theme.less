@@ -74,6 +74,14 @@
 @default-transition-animation: linear;
 @default-transiton: @default-transition-duration @default-transition-animation @default-transition-delay;
 
+.box-shadow-base {
+  box-shadow: @box-shadow-base;
+}
+
+.border-debug {
+  border: 1px solid red;
+}
+
 .font-heading {
   font-family: @font-heading;
 }
@@ -95,7 +103,7 @@
   }
 }
 
-.ant-select-item-option-active {
+.ant-select-item-option-active, .ant-dropdown-menu-submenu-active .ant-dropdown-menu-submenu-title {
   background-color: @bgSecondary !important;
 }
 
