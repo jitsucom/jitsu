@@ -66,7 +66,7 @@ const DestinationEditorConnectorsComponent = ({
                 <>
                   <NameWithPicture icon={proto?.pic}>
                     <b>{proto?.displayName}: </b>{' '}
-                    {sourcePageUtils.getTitle(src)}
+                    {src.displayName || src.sourceId}
                   </NameWithPicture>
                 </>
               ),
