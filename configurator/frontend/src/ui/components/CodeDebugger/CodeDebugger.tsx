@@ -84,7 +84,10 @@ const CodeDebugger = ({
   //to save code changes on component reload and pass it here from parent in effect bellow
   const [codeValue, setCodeValue] = useState<string>(defaultCodeValue);
 
-  const [objectInitialValue, setObjectInitialValue] = useState<string>('');
+  const [objectInitialValue, setObjectInitialValue] = useState<string>(`{
+   "event_type": "example_event",
+   "advice": "Click 'Copy Recent Event' button above to paste real one from event stream." 
+}`);
   //object value used for monaco code suggestions
   const [objectValue, setObjectValue] = useState<string>('');
   const [isEventsVisible, setEventsVisible] = useState<boolean>(false);
