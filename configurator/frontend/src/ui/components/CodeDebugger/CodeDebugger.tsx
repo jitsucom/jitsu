@@ -1,5 +1,5 @@
 // @Libs
-import React, { memo, useCallback, useEffect, useState } from 'react';
+import React, {memo, useCallback, useEffect, useRef, useState} from 'react';
 import { ReflexContainer, ReflexSplitter, ReflexElement } from 'react-reflex';
 import { Button, Checkbox, Dropdown, Form, Spin, Tooltip } from 'antd';
 import hotkeys from 'hotkeys-js';
@@ -81,9 +81,12 @@ const CodeDebugger = ({
   handleSaveCode: _handleSaveCode,
   run
 }: CodeDebuggerProps) => {
-  const [isCodeSaved, setIsCodeSaved] = useState<boolean>(true);
+  //to save code changes on component reload and pass it here from parent in effect bellow
+  const [codeValue, setCodeValue] = useState<string>(defaultCodeValue);
 
   const [objectInitialValue, setObjectInitialValue] = useState<string>('');
+  //object value used for monaco code suggestions
+  const [objectValue, setObjectValue] = useState<string>('');
   const [isEventsVisible, setEventsVisible] = useState<boolean>(false);
   const [calcResult, setCalcResult] = useState<CalculationResult>();
   const [runIsLoading, setRunIsLoading] = useState<boolean>(false);
@@ -99,6 +102,7 @@ const CodeDebugger = ({
   }, []);
 
   const toggleCodeEditor = useCallback(() => {
+    setCodeValue(form.getFieldValue('code'))
     setShowCodeEditor((val) => !val);
   }, []);
 
@@ -111,14 +115,17 @@ const CodeDebugger = ({
       form.setFieldsValue({ [name]: value ? value : '' });
       if (name === 'code' && handleCodeChange) {
         handleCodeChange(value);
-        isCodeSaved && setIsCodeSaved(false);
       }
     };
+
+  const handlePaste = () => {
+    setCodeValue(form.getFieldValue('code'))
+    setObjectValue(form.getFieldValue('object'))
+  }
 
   const handleSaveCode = () => {
     console.log("S")
     _handleSaveCode(form.getFieldValue('code'));
-    setIsCodeSaved(true);
   };
 
   const handleRun = async (values: FormValues) => {
@@ -145,8 +152,10 @@ const CodeDebugger = ({
   };
 
   const handleEventClick = (event: RecentEvent) => () => {
-    handleChange('object')(JSON.stringify(event, null, 2));
-
+    const obj = JSON.stringify(event, null, 2)
+    handleChange('object')(obj);
+    setCodeValue(form.getFieldValue('code'))
+    setObjectValue(obj)
     setEventsVisible(false);
   };
 
@@ -165,6 +174,7 @@ const CodeDebugger = ({
   useEffect(() => {
     if (defaultCodeValue) {
       form.setFieldsValue({ code: defaultCodeValue });
+      setCodeValue(defaultCodeValue)
     }
   }, [defaultCodeValue, form]);
 
@@ -211,6 +221,7 @@ const CodeDebugger = ({
                     }
                     language={'json'}
                     handleChange={handleChange('object')}
+                    handlePaste={handlePaste}
                     hotkeysOverrides={{
                       onCmdCtrlEnter: form.submit,
                       onCmdCtrlI: toggleInputEditor,
@@ -248,7 +259,6 @@ const CodeDebugger = ({
             <ReflexElement>
               <SectionWithLabel
                 label={`${codeFieldLabel}`}
-                labelClassName={isCodeSaved ? '' : styles.saveIndicator}
                 htmlFor="code"
               >
                 <Form.Item
@@ -258,10 +268,11 @@ const CodeDebugger = ({
                 >
                   <CodeEditor
                     initialValue={
-                      defaultCodeValue
+                      codeValue
                     }
                     language="javascript"
                     enableLineNumbers
+                    extraSuggestions={objectValue}
                     reRenderEditorOnInitialValueChange={true}
                     handleChange={handleChange('code')}
                     hotkeysOverrides={{
@@ -358,7 +369,7 @@ const CodeDebugger = ({
         {!showCodeEditor && (
           <Form.Item className={`hidden`} name="code">
             <CodeEditor
-              initialValue={defaultCodeValue}
+              initialValue={codeValue}
               reRenderEditorOnInitialValueChange={true}
               language={'json'}
               handleChange={handleChange('code')}

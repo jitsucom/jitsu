@@ -120,7 +120,8 @@ const ConfigurableFieldsFormComponent = ({
     id: string,
     defaultValue?: any,
     constantValue?: any,
-    jsDebugger?: "object" | "string" | null
+    jsDebugger?: "object" | "string" | null,
+    bigField?: boolean
   ) => {
     const fieldsValue = form.getFieldsValue();
     const defaultValueToDisplay =
@@ -301,7 +302,8 @@ const ConfigurableFieldsFormComponent = ({
           required,
           constant,
           omitFieldRule,
-           jsDebugger
+           jsDebugger,
+            bigField
         }: Parameter) => {
           const currentFormValues = form.getFieldsValue() ?? {};
           const defaultFormValues = fieldsParamsList.reduce(
@@ -390,10 +392,11 @@ const ConfigurableFieldsFormComponent = ({
                     styles.field,
                     (type?.typeName === 'json' ||
                       type?.typeName === 'javascript') &&
-                      styles.jsonField
+                      styles.jsonField,
+                      bigField &&styles.bigField
                   )}
                   name={formItemName}
-                  label={
+                  label={ !bigField ? (
                     documentation ? (
                       <LabelWithTooltip
                         documentation={documentation}
@@ -401,13 +404,13 @@ const ConfigurableFieldsFormComponent = ({
                       />
                     ) : (
                       <span>{displayName}:</span>
-                    )
+                    )) : (<span></span>)
                   }
-                  labelCol={{ span: 4 }}
-                  wrapperCol={{ span: 20 }}
+                  labelCol={{ span: bigField ? 1 : 4 }}
+                  wrapperCol={{ span: bigField ? 23 : 20 }}
                   rules={validationRules}
                 >
-                  {getFieldComponent(type, id, defaultValue, constantValue, jsDebugger)}
+                  {getFieldComponent(type, id, defaultValue, constantValue, jsDebugger, bigField)}
                 </Form.Item>
               </Col>
             </Row>

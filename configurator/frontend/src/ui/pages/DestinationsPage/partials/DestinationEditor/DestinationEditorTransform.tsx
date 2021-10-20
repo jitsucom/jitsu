@@ -10,8 +10,9 @@ import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import {jsType, stringType} from "../../../../../catalog/sources/types";
 import {TabDescription} from "../../../../components/Tabs/TabDescription";
 import {DESTINATION_EDITOR_MAPPING} from "../../../../../embeddedDocs/mappings";
-import styles from "../../../SourcesPage/partials/SourceEditor/SourceEditor.module.less";
+import styles from "./DestinationEditor.module.less";
 import {destinationsReferenceMap} from "../../../../../catalog/destinations/lib";
+import {CodeSnippet} from "../../../../../lib/components/components";
 
 export interface Props {
     destinationData: DestinationData;
@@ -26,10 +27,11 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
 
     return (
         <>
-            <TabDescription>{DESTINATION_EDITOR_MAPPING}</TabDescription>
-            <a onClick={() => setDocumentationVisible(true)}>
-                Documentation
-            </a>
+            <TabDescription><>
+                <p>Use the power of Javascript to modify incoming event object, replace it with completely new event or produce multiple events based on incoming data.<br/>
+                Also you can use Transform to set destination table name for each event or to completely skip event.</p>
+                <p><a onClick={() => setDocumentationVisible(true)}>See examples</a> or read more about Transform in <a href="https://jitsu.com/docs/configuration/schema-and-mappings" target="_blank" rel="noreferrer">Documentation</a>.</p>
+            </></TabDescription>
             <Form
                 name="destination-config"
                 form={form}
@@ -45,10 +47,11 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                         required: false,
                         jsDebugger: 'object',
                         type: jsType,
-                        documentation: <>
-                            A text description of the reason for running this job.
-                            The value is treated as <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a>
-                        </>
+                        bigField: true,
+                        // documentation: <>
+                        //     A text description of the reason for running this job.
+                        //     The value is treated as <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a>
+                        // </>
                     }]}
                     form={form}
                     initialValues={destinationData}
@@ -56,28 +59,64 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
             </Form>
 
                 <Drawer
-                    title={<h2>Transform documentation</h2>}
+                    title={<h2>Transform Examples</h2>}
                     placement="right"
                     closable={true}
                     onClose={() => setDocumentationVisible(false)}
-                    width="70%"
+                    width="40%"
                     visible={documentationVisible}
                 >
                     <div className={styles.documentation}>
                         <Collapse defaultActiveKey={['overview']} ghost>
-                            <Collapse.Panel
-                                header={
-                                    <div className="uppercase font-bold">
-                                        Overview
-                                    </div>
-                                }
-                                key="overview"
-                            ><p>
-                                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aliquam efficitur fringilla nisl, non efficitur metus. Proin volutpat aliquet turpis, a varius turpis rhoncus eget. Suspendisse augue leo, condimentum non nisl id, vestibulum porta turpis. Nunc pulvinar viverra est et fermentum. Fusce augue lectus, molestie ac augue sit amet, ultrices mollis libero. Vivamus eget dui vehicula, facilisis arcu in, porttitor arcu. Interdum et malesuada fames ac ante ipsum primis in faucibus. Etiam congue egestas turpis nec luctus. Praesent lectus ex, lobortis sit amet magna non, volutpat interdum lectus. Sed consequat at mauris vitae rhoncus. Nunc sit amet elementum risus, varius sodales lacus. Nunc consectetur porttitor facilisis. Nullam eget lorem ultrices, tincidunt libero ut, condimentum dui.
-                            </p><p>
-                                Vestibulum a ultricies tortor, quis porta sapien. Integer blandit, erat eu placerat ornare, lorem elit suscipit nunc, ornare hendrerit diam urna eu justo. Quisque at ligula dignissim eros consectetur posuere. Pellentesque sit amet facilisis mauris, at tempus dui. Nullam lacinia eleifend odio, ac condimentum massa pretium vel. Sed eu augue quis urna dapibus tristique. Donec nec eleifend est. Aliquam auctor mauris ut elit pretium, a sodales tortor efficitur. Quisque tincidunt, diam eu posuere ullamcorper, ipsum tellus sagittis enim, sit amet eleifend mauris neque vitae nisi. Etiam egestas mi vitae magna venenatis, sit amet mollis neque vehicula. Nullam id ipsum in elit laoreet tempor ac eget sem. Morbi blandit quam hendrerit enim tristique maximus nec eget turpis. Vivamus condimentum tellus tincidunt faucibus eleifend. Duis eu velit ullamcorper, fringilla nisi ut, consequat tortor.
-                        </p>
-                        </Collapse.Panel>
+                            <Collapse.Panel header={<div className="font-bold">Overview</div>}
+                                key="overview">
+                                <p>You can use modern javascript language features and builtin functions to transform incoming event.<br/>
+                                Jitsu puts incoming event as global variable: <code>$</code><br/></p><p>
+                                Provided javascript need to return:
+                                <ul>
+                                    <li><b>single object</b> - modified incoming event or completely new object </li>
+                                    <li><b>array of objects</b> - single incoming event will result in multiple events in destinations</li>
+                                    <li><b>null</b> - to skip event from processing</li>
+                                </ul>
+                                </p>
+                                <p>To override destination table you need to add special property to resulting events.
+                                    This name stored in global variable: <code>TABLE_NAME</code>
+                                </p>
+                            </Collapse.Panel>
+                            <Collapse.Panel header={<div className="font-bold">Modify incoming event</div>}
+                                            key="modify">
+                                <p>Jitsu spread operator allows to make copy of incoming event while applying some changes in just few lines of code:</p>
+                                    <CodeSnippet size={"large"} language={"javascript"}>{
+`return {...$,
+    new_property: $.event_type
+}`
+                                    }</CodeSnippet>
+                                <p>Add property to user object:</p>
+                                    <CodeSnippet size={"large"} language={"javascript"}>{
+`return {...$, 
+        user: {...$.user, state: "active"}
+        }`
+                                    }</CodeSnippet>
+                            </Collapse.Panel>
+                            <Collapse.Panel header={<div className="font-bold">Building new event</div>}
+                                            key="new">
+                                <p>Collect some user properties to the new object:</p>
+                                    <CodeSnippet size={"large"} language={"javascript"}>{
+`return {
+  properties: [
+    {
+      property: "email",
+      value: $.user?.email
+    },
+    {
+      property: "language",
+      value: $.user_language
+    }
+  ]
+}`
+                                    }</CodeSnippet>
+
+                            </Collapse.Panel>
                         </Collapse>
                     </div>
                 </Drawer>
