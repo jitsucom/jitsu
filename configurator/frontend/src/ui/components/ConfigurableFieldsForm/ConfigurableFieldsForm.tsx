@@ -1,6 +1,6 @@
 // @Libs
 import React, {ReactNode, useCallback, useEffect, useState} from 'react';
-import {Col, Form, FormItemProps, Input, Row, Select, Spin, Switch, Tooltip} from 'antd';
+import {Button, Col, Form, FormItemProps, Input, Row, Select, Spin, Switch, Tooltip} from 'antd';
 import debounce from 'lodash/debounce';
 import get from 'lodash/get';
 import cn from 'classnames';
@@ -21,7 +21,7 @@ import {isoDateValidator} from 'utils/validation/validators';
 import {useForceUpdate} from 'hooks/useForceUpdate';
 // @Icons
 import BugIcon from 'icons/bug';
-import {EyeInvisibleOutlined, EyeOutlined} from '@ant-design/icons';
+import {ApiOutlined, CodeOutlined, EyeInvisibleOutlined, EyeOutlined} from '@ant-design/icons';
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
 import {CodeDebuggerModal} from '../CodeDebuggerModal/CodeDebuggerModal';
@@ -76,6 +76,13 @@ const ConfigurableFieldsFormComponent = ({
       forceUpdate();
     },
     [form, forceUpdate]
+  );
+  const handleOpenDebugger = useCallback(
+      (id: string)  => {
+        setDebugModalsValues({...debugModalsValues, [id]: form.getFieldValue(id)});
+        setDebugModalsStates({...debugModalsStates, [id]: true})
+      },
+      [form]
   );
 
   const handleJsonChange = (id: string) => (value: string) => {
@@ -185,12 +192,24 @@ const ConfigurableFieldsFormComponent = ({
               language={type?.typeName}
               handleChange={handleJsonChange(id)}
             />
-            <span className="z-50 absolute top-1.5 right-3">
+            <span className="z-50">
               {jsDebugger && (
-                <Tooltip title="Debug expression">
-                  <span onClick={() => {setDebugModalsValues({...debugModalsValues, [id]: form.getFieldValue(id)}); setDebugModalsStates({...debugModalsStates, [id]: true})}}>
-                    <BugIcon className={styles.bugIcon} />
-                  </span>
+                <Tooltip title="Open Editor">
+                    {bigField ?
+                        <Button
+                            size="large"
+                            className="absolute mr-0 mt-0 top-0 right-0"
+                            type="text"
+                            onClick={() => handleOpenDebugger(id)}
+                            icon={<CodeOutlined />}
+                        >
+                          Open Editor
+                        </Button>
+                        :
+                        <span className="absolute top-1.5 right-3">
+                          <BugIcon onClick={() => handleOpenDebugger(id)} className={styles.bugIcon}/>
+                        </span>
+                    }
                 </Tooltip>
               )}
             </span>
@@ -210,10 +229,7 @@ const ConfigurableFieldsFormComponent = ({
       default: {
         return (<InputWithDebug id={id}
                                 jsDebugger={jsDebugger}
-                                onButtonClick={() => {
-                                  setDebugModalsValues({...debugModalsValues, [id]: form.getFieldValue(id)});
-                                  setDebugModalsStates({...debugModalsStates, [id]: true})
-                                }}/>);
+                                onButtonClick={() => handleOpenDebugger(id)}/>);
       }
     }
   };
@@ -406,8 +422,8 @@ const ConfigurableFieldsFormComponent = ({
                       <span>{displayName}:</span>
                     )) : (<span></span>)
                   }
-                  labelCol={{ span: bigField ? 1 : 4 }}
-                  wrapperCol={{ span: bigField ? 23 : 20 }}
+                  labelCol={{ span: bigField ? 0 : 4 }}
+                  wrapperCol={{ span: bigField ? 24 : 20 }}
                   rules={validationRules}
                 >
                   {getFieldComponent(type, id, defaultValue, constantValue, jsDebugger, bigField)}
