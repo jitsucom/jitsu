@@ -168,7 +168,7 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
           return (
             <ListItem
               description={
-                <ListItemDescription render={reference.displayName} />
+                <ListItemDescription render={reference?.displayName} />
               }
               title={sourcePageUtils.getTitle(src)}
               icon={reference?.pic}
@@ -184,7 +184,7 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
                           <Menu.Item key="inc">
                             <Button
                               type="link"
-                              onClick={async() =>
+                              onClick={async () =>
                                 await scheduleTasks(src, false)
                               }
                             >
@@ -193,7 +193,7 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
                           </Menu.Item>
                           <Menu.Item key="all">
                             <Button
-                              onClick={async() =>
+                              onClick={async () =>
                                 await scheduleTasks(src, true)
                               }
                               type="link"
