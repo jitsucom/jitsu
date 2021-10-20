@@ -323,11 +323,13 @@ func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) 
 //UpdateSucceedEvent updates event record in Redis with success field = JSON of succeed event
 func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error {
 	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
+	lastEventsIndexKey := "last_events_index:destination#" + destinationID
+	originalEventKey := "last_events:destination#" + destinationID + ":id#" + extractOriginalEventId(eventID)
 
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "success", success, "error", "", "destination_id", destinationID)
+	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "success", success, "error", "", "destination_id", destinationID, lastEventsIndexKey, time.Now().UTC().Unix(), eventID, originalEventKey)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err
@@ -339,11 +341,13 @@ func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error
 //UpdateErrorEvent updates event record in Redis with error field = error string
 func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
 	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
+	lastEventsIndexKey := "last_events_index:destination#" + destinationID
+	originalEventKey := "last_events:destination#" + destinationID + ":id#" + extractOriginalEventId(eventID)
 
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "error", error, "destination_id", destinationID)
+	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "error", error, "destination_id", destinationID, lastEventsIndexKey, time.Now().UTC().Unix(), eventID, originalEventKey)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err
@@ -355,11 +359,12 @@ func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
 //UpdateSkipEvent updates event record in Redis with skip field = error string
 func (r *Redis) UpdateSkipEvent(destinationID, eventID, error string) error {
 	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
-
+	lastEventsIndexKey := "last_events_index:destination#" + destinationID
+	originalEventKey := "last_events:destination#" + destinationID + ":id#" + extractOriginalEventId(eventID)
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "skip", error, "error", "", "destination_id", destinationID)
+	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "skip", error, "error", "", "destination_id", destinationID, lastEventsIndexKey, time.Now().UTC().Unix(), eventID, originalEventKey)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err
@@ -1084,4 +1089,11 @@ func getCoveredMonths(start, end time.Time) []string {
 	}
 
 	return months
+}
+
+func extractOriginalEventId(eventId string) string {
+	if parts := strings.Split(eventId, "_"); len(parts) == 2 {
+		return parts[0];
+	}
+	return eventId
 }

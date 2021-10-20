@@ -7,6 +7,8 @@ export interface Props {
   reRenderEditorOnInitialValueChange?: boolean;
   dynamicHeight?: () => number;
   handleChange: (value: string) => void;
+  handlePaste?: () => void;
+  extraSuggestions?: string;
   hotkeysOverrides?: {
     onCmdCtrlEnter?: () => void;
     onCmdCtrlI?: () => void;

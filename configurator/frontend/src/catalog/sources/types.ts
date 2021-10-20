@@ -280,6 +280,10 @@ export type Parameter = {
    * Debugger supports 2 mode based on expected result value: object or string
    */
   jsDebugger?: "object" | "string" | null;
+  /**
+   * Field use full width by omitting label and prefer higher height where applicable
+   */
+  bigField?: boolean;
 };
 
 export interface CollectionParameter extends Parameter {

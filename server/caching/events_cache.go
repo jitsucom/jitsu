@@ -3,6 +3,7 @@ package caching
 import (
 	"encoding/json"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -134,6 +135,10 @@ func (ec *EventsCache) succeed(eventContext *adapters.EventContext) {
 		logging.SystemErrorf("[EventsCache] Succeed(): Event id can't be empty. Destination [%s] event %s", eventContext.DestinationID, eventContext.ProcessedEvent.Serialize())
 		return
 	}
+	eventId := eventContext.EventID
+	if processedEventId := appconfig.Instance.GlobalUniqueIDField.Extract(eventContext.ProcessedEvent); processedEventId != "" {
+		eventId = processedEventId
+	}
 
 	var eventEntity interface{}
 
@@ -190,7 +195,7 @@ func (ec *EventsCache) succeed(eventContext *adapters.EventContext) {
 		return
 	}
 
-	err = ec.storage.UpdateSucceedEvent(eventContext.DestinationID, eventContext.EventID, string(b))
+	err = ec.storage.UpdateSucceedEvent(eventContext.DestinationID, eventId, string(b))
 	if err != nil {
 		logging.SystemErrorf("[%s] Error updating success event %s in cache: %v", eventContext.DestinationID, eventContext.ProcessedEvent.Serialize(), err)
 		return

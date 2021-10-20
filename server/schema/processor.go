@@ -225,8 +225,10 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 			if !ok {
 				return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", o)
 			}
-			newUniqueId := fmt.Sprintf("%s_%d", appconfig.Instance.GlobalUniqueIDField.Extract(object), i)
-			appconfig.Instance.GlobalUniqueIDField.Set(casted, newUniqueId)
+			if i > 0 {
+				newUniqueId := fmt.Sprintf("%s_%d", appconfig.Instance.GlobalUniqueIDField.Extract(object), i)
+				appconfig.Instance.GlobalUniqueIDField.Set(casted, newUniqueId)
+			}
 			toProcess = append(toProcess, casted)
 		}
 	default:
