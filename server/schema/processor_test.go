@@ -386,7 +386,7 @@ func TestProcessTransform(t *testing.T) {
 		{
 			"multiple events",
 			map[string]interface{}{"event_type": "multiply", "eventn_ctx_event_id": "a1024", "url": "https://jitsu.com", "conversions": 3, "field1": "somedata"},
-			[]events.Event{{"event": "conversion", "eventn_ctx_event_id": "a1024_0", "url": "https://jitsu.com"},{"event": "conversion", "eventn_ctx_event_id": "a1024_1", "url": "https://jitsu.com"},{"event": "conversion", "eventn_ctx_event_id": "a1024_2", "url": "https://jitsu.com"}},
+			[]events.Event{{"event": "conversion", "url": "https://jitsu.com"},{"event": "conversion", "eventn_ctx_event_id": "a1024_1", "url": "https://jitsu.com"},{"event": "conversion", "eventn_ctx_event_id": "a1024_2", "url": "https://jitsu.com"}},
 			[]string{"conversion_0", "conversion_1", "conversion_2"},
 			"",
 		},
