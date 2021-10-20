@@ -194,7 +194,7 @@ const ConfigurableFieldsFormComponent = ({
             />
             <span className="z-50">
               {jsDebugger && (
-                <Tooltip title="Open Editor">
+                <>
                     {bigField ?
                         <Button
                             size="large"
@@ -203,14 +203,16 @@ const ConfigurableFieldsFormComponent = ({
                             onClick={() => handleOpenDebugger(id)}
                             icon={<CodeOutlined />}
                         >
-                          Open Editor
+                          Open Debugger
                         </Button>
                         :
-                        <span className="absolute top-1.5 right-3">
-                          <BugIcon onClick={() => handleOpenDebugger(id)} className={styles.bugIcon}/>
-                        </span>
+                        <Tooltip title="Debug expression">
+                          <span className="absolute top-1.5 right-3">
+                            <BugIcon onClick={() => handleOpenDebugger(id)} className={styles.bugIcon}/>
+                          </span>
+                        </Tooltip>
                     }
-                </Tooltip>
+                </>
               )}
             </span>
           </>
