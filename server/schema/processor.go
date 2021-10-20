@@ -152,7 +152,7 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 			continue
 		}
 
-		foldedBatchHeader, foldedObject, _ := p.foldLongFields(batchHeader, processedObject)
+		foldedBatchHeader, foldedObject, _ := p.foldLongFields(batchHeader, flatObject)
 
 		if pf == nil {
 			pf = &ProcessedFile{
