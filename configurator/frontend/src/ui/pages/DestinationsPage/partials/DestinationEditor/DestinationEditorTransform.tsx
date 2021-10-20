@@ -28,9 +28,9 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
     return (
         <>
             <TabDescription><>
-                <p>Use the power of Javascript to modify incoming event object, replace it with completely new event or produce multiple events based on incoming data.<br/>
-                Also you can use Transform to set destination table name for each event or to completely skip event.</p>
-                <p><a onClick={() => setDocumentationVisible(true)}>See examples</a> or read more about Transform in <a href="https://jitsu.com/docs/configuration/schema-and-mappings" target="_blank" rel="noreferrer">Documentation</a>.</p>
+                <p>Use the power of Javascript to modify incoming event object, replace it with a completely new event or produce multiple events based on incoming data.<br/>
+                    Also, you can use Transform to set the destination table name for each event or to skip the event altogether.</p>
+                <p><a onClick={() => setDocumentationVisible(true)}>Documentation</a></p>
             </></TabDescription>
             <Form
                 name="destination-config"
@@ -70,22 +70,22 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                         <Collapse defaultActiveKey={['overview']} ghost>
                             <Collapse.Panel header={<div className="font-bold">Overview</div>}
                                 key="overview">
-                                <p>You can use modern javascript language features and builtin functions to transform incoming event.<br/>
-                                Jitsu puts incoming event as global variable: <code>$</code><br/></p><p>
-                                Provided javascript need to return:
+                                <p>You can use modern javascript language features and built-in functions to transform an incoming event.<br/>
+                                    Jitsu puts incoming event as a global variable: <code>$</code><br/></p><p>
+                                Provided javascript must return:
                                 <ul>
                                     <li><b>single object</b> - modified incoming event or completely new object </li>
-                                    <li><b>array of objects</b> - single incoming event will result in multiple events in destinations</li>
+                                    <li><b>array of objects</b> - a single incoming event will result in multiple events in destinations</li>
                                     <li><b>null</b> - to skip event from processing</li>
                                 </ul>
                                 </p>
-                                <p>To override destination table you need to add special property to resulting events.
-                                    This name stored in global variable: <code>TABLE_NAME</code>
+                                <p>To override the destination table, you need to add a special property to the resulting events.
+                                    This property name is stored in the global variable: <code>TABLE_NAME</code>
                                 </p>
                             </Collapse.Panel>
                             <Collapse.Panel header={<div className="font-bold">Modify incoming event</div>}
                                             key="modify">
-                                <p>Jitsu spread operator allows to make copy of incoming event while applying some changes in just few lines of code:</p>
+                                <p>Javascript spread operator allows making a copy of an incoming event while applying some changes in just a few lines of code:</p>
                                     <CodeSnippet size={"large"} language={"javascript"}>{
 `return {...$,
     new_property: $.event_type
@@ -98,7 +98,7 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
         }`
                                     }</CodeSnippet>
                             </Collapse.Panel>
-                            <Collapse.Panel header={<div className="font-bold">Building new event</div>}
+                            <Collapse.Panel header={<div className="font-bold">Build new event</div>}
                                             key="new">
                                 <p>Collect some user properties to the new object:</p>
                                     <CodeSnippet size={"large"} language={"javascript"}>{
@@ -116,6 +116,48 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
 }`
                                     }</CodeSnippet>
 
+                                <p>Put an original event as a string payload:</p>
+                                <CodeSnippet size={"large"} language={"javascript"}>{
+`return {
+        "event_type": "POST event",
+        "payload": JSON.stringify($)
+}`
+                                }</CodeSnippet>
+
+                            </Collapse.Panel>
+                            <Collapse.Panel header={<div className="font-bold">Produce multiple events</div>}
+                                            key="multiple">
+                                <p>Produce multiple purchase events from a single shopping cart event:</p>
+                                <CodeSnippet size={"large"} language={"javascript"}>{
+`if ($.event_type == "conversion" && $.products?.length > 0) {
+        let results = []
+        for (const product of $.products) {
+                results.push({
+                        event_type: "purchase",
+                        product_id: product.id,
+                        price: product.price
+                })
+        }
+        return results
+} else {
+        //skip events without any purchase
+        return null
+}`
+                                }</CodeSnippet>
+
+                            </Collapse.Panel>
+                            <Collapse.Panel header={<div className="font-bold">Override destination table</div>}
+                                            key="tablename">
+                                <p>Using Javascript spread operator:</p>
+                                <CodeSnippet size={"large"} language={"javascript"}>{
+                                    `return {...$, [TABLE_NAME]: "new_table_name"}`
+                                }</CodeSnippet>
+                                <p><code>TABLE_NAME</code> is not a property name. It is a global variable pointing to an actual property name.</p>
+                                <p>Conventional way:</p>
+                                <CodeSnippet size={"large"} language={"javascript"}>{
+`$[TABLE_NAME] = "new_table_name"
+return $`
+                                }</CodeSnippet>
                             </Collapse.Panel>
                         </Collapse>
                     </div>
