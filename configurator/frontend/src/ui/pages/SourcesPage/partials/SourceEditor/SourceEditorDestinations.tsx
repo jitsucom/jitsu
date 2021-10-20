@@ -17,7 +17,6 @@ import { destinationsReferenceMap } from 'catalog/destinations/lib';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { Destination } from 'catalog/destinations/types';
 // @Utils
-import { destinationsUtils } from 'ui/pages/DestinationsPage/DestinationsPage.utils';
 import { destinationsStore } from 'stores/destinations';
 
 export interface Props {
@@ -53,7 +52,7 @@ const SourceEditorDestinationsComponent = ({
               reference.syncFromSourcesStatus !== 'supported',
           title: (
             <NameWithPicture icon={reference.ui.icon}>
-              <b>{reference.displayName}</b>: {destinationsUtils.getTitle(dst)}
+              <b>{reference.displayName}</b>: {dst.displayName || dst._id}
             </NameWithPicture>
           ),
           description: <i className="text-xs">{getDescription(reference)}</i>
