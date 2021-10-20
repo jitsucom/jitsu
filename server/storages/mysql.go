@@ -113,7 +113,7 @@ func CreateMySQLAdapter(ctx context.Context, config adapters.DataSourceConfig, q
 	return mySQLAdapter, nil
 }
 
-func (m *MySQL) DryRun(payload events.Event) ([]adapters.TableField, error) {
+func (m *MySQL) DryRun(payload events.Event) ([][]adapters.TableField, error) {
 	_, tableHelper := m.getAdapters()
 	return dryRun(payload, m.processor, tableHelper)
 }

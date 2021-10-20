@@ -10,6 +10,7 @@ export type Destination = {
     parameters: readonly Parameter[]
     syncFromSourcesStatus: 'supported' | 'coming_soon' | 'not_supported'
     hidden?: boolean
+    defaultTransform?: string
 }
 
 /**
