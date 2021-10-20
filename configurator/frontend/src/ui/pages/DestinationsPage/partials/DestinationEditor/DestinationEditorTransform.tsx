@@ -48,10 +48,6 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                         jsDebugger: 'object',
                         type: jsType,
                         bigField: true,
-                        // documentation: <>
-                        //     A text description of the reason for running this job.
-                        //     The value is treated as <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a>
-                        // </>
                     }]}
                     form={form}
                     initialValues={destinationData}

@@ -124,7 +124,6 @@ const CodeDebugger = ({
   }
 
   const handleSaveCode = () => {
-    console.log("S")
     _handleSaveCode(form.getFieldValue('code'));
   };
 
