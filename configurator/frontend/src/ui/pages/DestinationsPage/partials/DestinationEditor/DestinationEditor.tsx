@@ -10,6 +10,7 @@ import { EditorButtons } from 'ui/components/EditorButtons/EditorButtons';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
 import { closeableMessage } from 'lib/components/components';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
+import { DestinationEditorTransform } from './DestinationEditorTransform';
 import { DestinationEditorConnectors } from './DestinationEditorConnectors';
 import { DestinationEditorMappings } from './DestinationEditorMappings';
 import { DestinationEditorMappingsLibrary } from './DestinationEditorMappingsLibrary';
@@ -43,6 +44,7 @@ import { AreaChartOutlined, WarningOutlined } from '@ant-design/icons';
 
 type DestinationTabKey =
   | 'config'
+  | 'transform'
   | 'mappings'
   | 'sources'
   | 'settings'
@@ -198,6 +200,20 @@ const DestinationEditor = ({
           destinationData={destinationData.current}
           handleTouchAnyField={validateAndTouchField(0)}
         />
+      ),
+      form: Form.useForm()[0],
+      touched: false
+    },
+    {
+      key: 'transform',
+      name: 'Transform',
+      getComponent: (form: FormInstance) => (
+          <DestinationEditorTransform
+              form={form}
+              destinationReference={destinationReference}
+              destinationData={destinationData.current}
+              handleTouchAnyField={validateAndTouchField(0)}
+          />
       ),
       form: Form.useForm()[0],
       touched: false

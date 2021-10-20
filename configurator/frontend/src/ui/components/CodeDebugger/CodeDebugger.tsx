@@ -1,5 +1,5 @@
 // @Libs
-import React, { memo, useCallback, useEffect, useState } from 'react';
+import React, {memo, useCallback, useEffect, useRef, useState} from 'react';
 import { ReflexContainer, ReflexSplitter, ReflexElement } from 'react-reflex';
 import { Button, Checkbox, Dropdown, Form, Spin, Tooltip } from 'antd';
 import hotkeys from 'hotkeys-js';
@@ -58,7 +58,7 @@ export interface CodeDebuggerProps {
   /**
    * Callback for the `save` button
    */
-  handleSaveCode?: () => void;
+  handleSaveCode?: (value: string) => void;
 }
 
 export interface FormValues {
@@ -81,9 +81,12 @@ const CodeDebugger = ({
   handleSaveCode: _handleSaveCode,
   run
 }: CodeDebuggerProps) => {
-  const [isCodeSaved, setIsCodeSaved] = useState<boolean>(true);
+  //to save code changes on component reload and pass it here from parent in effect bellow
+  const [codeValue, setCodeValue] = useState<string>(defaultCodeValue);
 
   const [objectInitialValue, setObjectInitialValue] = useState<string>('');
+  //object value used for monaco code suggestions
+  const [objectValue, setObjectValue] = useState<string>('');
   const [isEventsVisible, setEventsVisible] = useState<boolean>(false);
   const [calcResult, setCalcResult] = useState<CalculationResult>();
   const [runIsLoading, setRunIsLoading] = useState<boolean>(false);
@@ -99,6 +102,7 @@ const CodeDebugger = ({
   }, []);
 
   const toggleCodeEditor = useCallback(() => {
+    setCodeValue(form.getFieldValue('code'))
     setShowCodeEditor((val) => !val);
   }, []);
 
@@ -111,13 +115,16 @@ const CodeDebugger = ({
       form.setFieldsValue({ [name]: value ? value : '' });
       if (name === 'code' && handleCodeChange) {
         handleCodeChange(value);
-        isCodeSaved && setIsCodeSaved(false);
       }
     };
 
+  const handlePaste = () => {
+    setCodeValue(form.getFieldValue('code'))
+    setObjectValue(form.getFieldValue('object'))
+  }
+
   const handleSaveCode = () => {
-    _handleSaveCode();
-    setIsCodeSaved(true);
+    _handleSaveCode(form.getFieldValue('code'));
   };
 
   const handleRun = async (values: FormValues) => {
@@ -144,8 +151,10 @@ const CodeDebugger = ({
   };
 
   const handleEventClick = (event: RecentEvent) => () => {
-    handleChange('object')(JSON.stringify(event, null, 2));
-
+    const obj = JSON.stringify(event, null, 2)
+    handleChange('object')(obj);
+    setCodeValue(form.getFieldValue('code'))
+    setObjectValue(obj)
     setEventsVisible(false);
   };
 
@@ -164,8 +173,9 @@ const CodeDebugger = ({
   useEffect(() => {
     if (defaultCodeValue) {
       form.setFieldsValue({ code: defaultCodeValue });
+      setCodeValue(defaultCodeValue)
     }
-  }, [defaultCodeValue]);
+  }, [defaultCodeValue, form]);
 
   useEffect(() => {
     document.body.addEventListener('click', handleCloseEvents);
@@ -202,7 +212,7 @@ const CodeDebugger = ({
         <ReflexContainer orientation="vertical">
           {showInputEditor && (
             <ReflexElement>
-              <SectionWithLabel label="Event JSON" htmlFor="object">
+              <SectionWithLabel label="Event JSON:" htmlFor="object">
                 <Form.Item className={`${styles.field} w-full`} name="object">
                   <CodeEditor
                     initialValue={
@@ -210,6 +220,7 @@ const CodeDebugger = ({
                     }
                     language={'json'}
                     handleChange={handleChange('object')}
+                    handlePaste={handlePaste}
                     hotkeysOverrides={{
                       onCmdCtrlEnter: form.submit,
                       onCmdCtrlI: toggleInputEditor,
@@ -220,8 +231,8 @@ const CodeDebugger = ({
               </SectionWithLabel>
               <Dropdown
                 forceRender
-                className="absolute right-4 bottom-3"
-                placement="topRight"
+                className="absolute left-28 top-0.5"
+                placement="topLeft"
                 overlay={<DebugEvents handleClick={handleEventClick} />}
                 trigger={['click']}
                 visible={isEventsVisible}
@@ -247,7 +258,6 @@ const CodeDebugger = ({
             <ReflexElement>
               <SectionWithLabel
                 label={`${codeFieldLabel}`}
-                labelClassName={isCodeSaved ? '' : styles.saveIndicator}
                 htmlFor="code"
               >
                 <Form.Item
@@ -257,11 +267,12 @@ const CodeDebugger = ({
                 >
                   <CodeEditor
                     initialValue={
-                      form.getFieldValue('code') ?? defaultCodeValue
+                      codeValue
                     }
                     language="javascript"
                     enableLineNumbers
-                    reRenderEditorOnInitialValueChange={false}
+                    extraSuggestions={objectValue}
+                    reRenderEditorOnInitialValueChange={true}
                     handleChange={handleChange('code')}
                     hotkeysOverrides={{
                       onCmdCtrlEnter: form.submit,
@@ -284,7 +295,7 @@ const CodeDebugger = ({
                 <div
                   className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}
                 >
-                  <p
+                  <div
                     className={cn('flex flex-col w-full h-full m-0', {
                       [styles.itemError]: calcResult?.code === 'error',
                       [styles.itemSuccess]: calcResult?.code === 'success'
@@ -327,7 +338,7 @@ const CodeDebugger = ({
                         )}
                       </span>
                     )}
-                  </p>
+                  </div>
                 </div>
               </SectionWithLabel>
             </ReflexElement>
@@ -357,7 +368,8 @@ const CodeDebugger = ({
         {!showCodeEditor && (
           <Form.Item className={`hidden`} name="code">
             <CodeEditor
-              initialValue={form.getFieldValue('code') ?? defaultCodeValue}
+              initialValue={codeValue}
+              reRenderEditorOnInitialValueChange={true}
               language={'json'}
               handleChange={handleChange('code')}
               hotkeysOverrides={{
@@ -544,7 +556,7 @@ const ControlsComponent: React.FC<ControlsProps> = ({
           </Button>
         </Tooltip>
         <Tooltip title={`${OS_CMD_BUTTON}+S`} mouseEnterDelay={1}>
-          <Button size="middle" type="primary" icon={<DownloadOutlined />}>
+          <Button size="middle" type="primary" onClick={handleSave} icon={<DownloadOutlined />}>
             <span className={`${styles.adaptiveLabel}`}>{'Save'}</span>
           </Button>
         </Tooltip>

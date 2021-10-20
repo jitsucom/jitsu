@@ -83,7 +83,7 @@ func (sw *StreamingWorker) start() {
 				RawEvent:      fact,
 			}
 
-			batchHeader, flattenObject, err := sw.processor.ProcessEvent(fact)
+			envelops, err := sw.processor.ProcessEvent(fact)
 			if err != nil {
 				if err == schema.ErrSkipObject {
 					if !appconfig.Instance.DisableSkipEventsWarn {
@@ -98,25 +98,28 @@ func (sw *StreamingWorker) start() {
 
 				continue
 			}
-
-			//don't process empty object
-			if !batchHeader.Exists() {
-				continue
-			}
-
-			table := sw.getTableHelper().MapTableSchema(batchHeader)
-
-			eventContext.ProcessedEvent = flattenObject
-			eventContext.Table = table
-
-			if err := sw.streamingStorage.Insert(eventContext); err != nil {
-				logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.Serialize(), table.Name, err)
-				if isConnectionError(err) {
-					//retry
-					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenID)
+			for _, envelop := range envelops {
+				batchHeader := envelop.Header
+				flattenObject := envelop.Event
+				//don't process empty object
+				if !batchHeader.Exists() {
+					continue
 				}
 
-				continue
+				table := sw.getTableHelper().MapTableSchema(batchHeader)
+
+				eventContext.ProcessedEvent = flattenObject
+				eventContext.Table = table
+
+				if err := sw.streamingStorage.Insert(eventContext); err != nil {
+					logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.Serialize(), table.Name, err)
+					if isConnectionError(err) {
+						//retry
+						sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenID)
+					}
+
+					continue
+				}
 			}
 		}
 	})
