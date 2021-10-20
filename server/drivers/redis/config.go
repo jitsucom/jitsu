@@ -7,10 +7,11 @@ import (
 
 //RedisConfig is a Redis configuration dto for serialization
 type RedisConfig struct {
-	Host          string      `mapstructure:"host" json:"host,omitempty" yaml:"host,omitempty"`
-	Port          json.Number `mapstructure:"port" json:"port,omitempty" yaml:"port,omitempty"`
-	Password      string      `mapstructure:"password" json:"password,omitempty" yaml:"password,omitempty"`
-	TLSSkipVerify bool        `mapstructure:"tls_skip_verify" json:"tls_skip_verify,omitempty" yaml:"tls_skip_verify,omitempty"`
+	Host               string      `mapstructure:"host" json:"host,omitempty" yaml:"host,omitempty"`
+	Port               json.Number `mapstructure:"port" json:"port,omitempty" yaml:"port,omitempty"`
+	Password           string      `mapstructure:"password" json:"password,omitempty" yaml:"password,omitempty"`
+	SentinelMasterName string      `mapstructure:"sentinel_master_name" json:"sentinel_master_name,omitempty" yaml:"sentinel_master_name,omitempty"`
+	TLSSkipVerify      bool        `mapstructure:"tls_skip_verify" json:"tls_skip_verify,omitempty" yaml:"tls_skip_verify,omitempty"`
 }
 
 //Validate returns err if configuration is invalid

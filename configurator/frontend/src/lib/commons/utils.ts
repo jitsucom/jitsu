@@ -1,11 +1,7 @@
 /* eslint-disable */
-import moment, { Duration, Moment } from 'moment';
-import { LS_ACCESS_KEY, LS_REFRESH_KEY } from 'lib/services/UserServiceBackend';
-import {
-  assertHasOwnProperty,
-  assertIsArray,
-  assertIsObject
-} from 'utils/typeCheck';
+import moment, { Duration, Moment } from "moment"
+import { LS_ACCESS_KEY, LS_REFRESH_KEY } from "lib/services/UserServiceBackend"
+import { assertHasOwnProperty, assertIsArray, assertIsObject } from "utils/typeCheck"
 
 export function concatenateURLs(baseUrl: string, url: string) {
   let base = baseUrl.endsWith('/')
@@ -256,5 +252,18 @@ export function reactElementToString(children: React.ReactElement<any, string | 
     return children.map(reactElementToString).join('\n');
   } else {
     console.warn('Can\'t convert react element to highlightable <Code />. Using to string', safeToString(children))
+  }
+}
+
+export function comparator<T>(f: (t: T) => any): (a1: T, a2: T) => number {
+  return (a1: T, a2) => {
+    let v1 = f(a1)
+    let v2 = f(a2)
+    if (v1 > v2) {
+      return -1
+    } else if (v1 < v2) {
+      return 1
+    }
+    return 0
   }
 }

@@ -26,7 +26,7 @@ type WebHook struct {
 }
 
 func init() {
-	RegisterStorage(WebHookType, NewWebHook)
+	RegisterStorage(StorageType{typeName: WebHookType, createFunc: NewWebHook})
 }
 
 //NewWebHook returns configured WebHook destination
@@ -65,7 +65,7 @@ func NewWebHook(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(wbAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0)
+	tableHelper := NewTableHelper(wbAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, WebHookType)
 
 	wh.tableHelper = tableHelper
 	wh.adapter = wbAdapter

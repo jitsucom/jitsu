@@ -24,7 +24,7 @@ type AwsRedshift struct {
 }
 
 func init() {
-	RegisterStorage(RedshiftType, NewAwsRedshift)
+	RegisterStorage(StorageType{typeName: RedshiftType, createFunc: NewAwsRedshift})
 }
 
 //NewAwsRedshift returns AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
@@ -69,7 +69,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.maxColumns)
+	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.maxColumns, RedshiftType)
 
 	ar := &AwsRedshift{
 		s3Adapter:                     s3Adapter,

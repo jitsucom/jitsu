@@ -28,7 +28,7 @@ type Snowflake struct {
 }
 
 func init() {
-	RegisterStorage(SnowflakeType, NewSnowflake)
+	RegisterStorage(StorageType{typeName: SnowflakeType, createFunc: NewSnowflake})
 }
 
 //NewSnowflake returns Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
@@ -83,7 +83,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake, config.maxColumns)
+	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake, config.maxColumns, SnowflakeType)
 
 	snowflake := &Snowflake{
 		stageAdapter:                  stageAdapter,

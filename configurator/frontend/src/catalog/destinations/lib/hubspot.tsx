@@ -39,7 +39,6 @@ const hubspotDestination = {
   },
   parameters: [
     modeParameter('stream'),
-    tableName(filteringExpressionDocumentation),
     {
       id: '_formData.apiKey',
       displayName: 'API Key',
