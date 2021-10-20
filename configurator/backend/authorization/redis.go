@@ -20,16 +20,16 @@ const (
 //jwt_refresh_tokens:user#userID [refresh_token_id, access_token_id, refresh_token_id, access_token_id] hashtable where field = refresh_token_id and value = access_token_id (TTL RefreshTokenTTL)
 //password_reset#reset_id user_id 1 hour - key contains user_id with ttl = 1 hour
 
-//RedisProvider provide authorization storage
+//RedisProvider provides authorization storage
 type RedisProvider struct {
 	jwtTokenManager *JwtTokenManager
-	pool            *redis.Pool
+	pool            *meta.RedisPool
 }
 
-func NewRedisProvider(accessSecret, refreshSecret string, config *meta.RedisConfiguration) (*RedisProvider, error) {
-	logging.Infof("Initializing redis authorization storage [%s]...", config.String())
+func NewRedisProvider(accessSecret, refreshSecret string, factory *meta.RedisPoolFactory) (*RedisProvider, error) {
+	logging.Infof("Initializing redis authorization storage [%s]...", factory.Details())
 
-	pool, err := meta.NewRedisPool(config)
+	pool, err := factory.Create()
 	if err != nil {
 		return nil, err
 	}

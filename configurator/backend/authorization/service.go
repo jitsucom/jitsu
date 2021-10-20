@@ -50,11 +50,12 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 		}
 
 		port := vp.GetInt("auth.redis.port")
+		sentinelMaster := vp.GetString("auth.redis.sentinel_master_name")
 		redisPassword := vp.GetString("auth.redis.password")
 		tlsSkipVerify := vp.GetBool("auth.redis.tls_skip_verify")
 
-		redisConfig := meta.NewRedisConfiguration(host, port, redisPassword, tlsSkipVerify)
-		if defaultPort, ok := redisConfig.CheckAndSetDefaultPort(); ok {
+		redisPoolFactory := meta.NewRedisPoolFactory(host, port, redisPassword, tlsSkipVerify, sentinelMaster)
+		if defaultPort, ok := redisPoolFactory.CheckAndSetDefaultPort(); ok {
 			logging.Infof("auth.redis.port isn't configured. Will be used default: %d", defaultPort)
 		}
 
@@ -76,7 +77,7 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 			logging.Infof("'auth.redis.refresh_secret' has been generated: %q. For keeping UI authorization sessions between application restarts - provide any random string or uuid value in configurator.yaml or via UI_AUTH_REFRESH_SECRET env variable.", refreshSecret)
 		}
 
-		authProvider, err = NewRedisProvider(accessSecret, refreshSecret, redisConfig)
+		authProvider, err = NewRedisProvider(accessSecret, refreshSecret, redisPoolFactory)
 		if err != nil {
 			return nil, err
 		}

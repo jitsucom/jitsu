@@ -246,7 +246,7 @@ func main() {
 		}
 	}
 
-	// ** Closing Meta Storage and Coordination SErvice
+	// ** Closing Meta Storage and Coordination Service
 	// Close after all for saving last task statuses
 	defer func() {
 		if err := coordinationService.Close(); err != nil {
@@ -434,13 +434,19 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 
 	//configured
 	if coordinationRedisConfiguration != nil {
+		host := coordinationRedisConfiguration.GetString("host")
+		if host == "" {
+			return nil, errors.New("coordination.redis.host is required config parameter")
+		}
+
 		telemetry.Coordination("redis")
-		redisConfig := meta.NewRedisConfiguration(coordinationRedisConfiguration.GetString("host"),
+		factory := meta.NewRedisPoolFactory(host,
 			coordinationRedisConfiguration.GetInt("port"),
 			coordinationRedisConfiguration.GetString("password"),
-			coordinationRedisConfiguration.GetBool("tls_skip_verify"))
-		redisConfig.CheckAndSetDefaultPort()
-		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, redisConfig)
+			coordinationRedisConfiguration.GetBool("tls_skip_verify"),
+			coordinationRedisConfiguration.GetString("sentinel_master_name"))
+		factory.CheckAndSetDefaultPort()
+		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, factory)
 	}
 
 	return nil, errors.New("Unknown coordination configuration. Currently only [redis, etcd] are supported. " +
