@@ -22,3 +22,6 @@ declare type UnknownObject = {
 declare type PlainObjectWithPrimitiveValues = {
   [key: string]: string | number | boolean;
 }
+declare type DeepPartial<T> = {
+  [P in keyof T]?: DeepPartial<T[P]>;
+};

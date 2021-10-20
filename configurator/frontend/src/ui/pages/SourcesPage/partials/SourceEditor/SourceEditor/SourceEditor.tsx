@@ -1,8 +1,8 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { observer } from 'mobx-react-lite';
-import { Prompt, useHistory, useParams } from 'react-router';
-import { snakeCase } from 'lodash';
+import { useHistory, useParams } from 'react-router';
+import { cloneDeep, snakeCase } from 'lodash';
 // @Types
 import { CommonSourcePageProps } from 'ui/pages/SourcesPage/SourcesPage';
 import { SourceConnector as CatalogSourceConnector } from 'catalog/sources/types';
@@ -15,7 +15,16 @@ import { SourceEditorViewTabs } from './SourceEditorViewTabs';
 import { withHome as breadcrumbsWithHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
 import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
-import { sourceEditorUtils } from './SourceEditor.utils';
+import {
+  createInitialSourceData,
+  sourceEditorUtils,
+  sourceEditorUtilsAirbyte
+} from './SourceEditor.utils';
+import {
+  addToArrayIfNotDuplicate,
+  removeFromArrayIfFound,
+  substituteArrayValueIfFound
+} from 'utils/arrays';
 // @Utils
 
 export type SourceEditorState = {
@@ -37,71 +46,94 @@ export type SourceEditorState = {
   stateChanged: boolean;
 };
 
-type CommonStateProperties = {
+type ConfigurationState = {
+  config: SourceConfigurationData;
+  getErrorsCount: () => Promise<number>;
+};
+
+type StreamsState = {
+  streams: SourceStreamsData;
   errorsCount: number;
 };
 
-type ConfigurationState = {
-  config: SourceConfigurationData;
-} & CommonStateProperties;
-
-type StreamsState = {
-  streams: SourceStreamData[];
-} & CommonStateProperties;
-
 type ConnectionsState = {
-  destinations: string[];
-} & CommonStateProperties;
+  connections: SourceConnectionsData;
+  errorsCount: number;
+};
 
 export type SourceConfigurationData = PlainObjectWithPrimitiveValues;
-export type SourceStreamData = CollectionSource | AirbyteStreamData;
+export type SourceStreamsData = {
+  [pathToStreamsInSourceData: string]: AirbyteStreamData[];
+};
+export type SourceConnectionsData = {
+  [pathToConnectionsInSourceData: string]: string[];
+};
 
 export type UpdateConfigurationFields = (
   newFileds: Partial<SourceConfigurationData>
 ) => void;
-export type UpdateStreamsFields = (newFileds: Partial<StreamsState>) => void;
-export type UpdateConnectionsFields = (
-  newFileds: Partial<ConnectionsState>
+
+export type AddStream = (
+  pathToStreamsInSourceData: string,
+  stream: AirbyteStreamData
+) => void;
+export type RemoveStream = (
+  pathToStreamsInSourceData: string,
+  stream: AirbyteStreamData
+) => void;
+export type UpdateStream = (
+  pathToStreamsInSourceData: string,
+  stream: AirbyteStreamData
+) => void;
+export type SetStreams = (
+  pathToStreamsInSourceData: string,
+  streams: AirbyteStreamData[]
+) => void;
+
+export type AddConnection = (
+  pathToConnectionsInSourceData: string,
+  connectionId: string
+) => void;
+export type RemoveConnection = (
+  pathToConnectionsInSourceData: string,
+  connectionId: string
+) => void;
+export type SetConnections = (
+  pathToConnectionsInSourceData: string,
+  connectionIds: string[]
 ) => void;
 
 const initialState: SourceEditorState = {
   configuration: {
     config: {},
-    errorsCount: 0
+    getErrorsCount: async () => 0
   },
   streams: {
-    streams: [],
+    streams: {},
     errorsCount: 0
   },
   connections: {
-    destinations: [],
+    connections: {},
     errorsCount: 0
   },
   stateChanged: false
 };
 
-const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
+const SourceEditor: React.FC<CommonSourcePageProps> = ({
+  editorMode,
+  setBreadcrumbs
+}) => {
   const history = useHistory();
   const allSourcesList = sourcesStore.sources;
-  const { sourceId } = useParams<{ sourceId?: string }>();
-
-  const initialSourceDataFromBackend = useMemo<Optional<SourceData>>(
-    () => allSourcesList.find((src) => src.sourceId === sourceId),
-    [sourceId, allSourcesList]
-  );
-
-  /**
-   * `useState` is currently used for drafting purposes
-   * it will be changed to `useReducer` later on
-   */
-  const [state, setState] = useState<SourceEditorState>(
-    // sourceEditorUtils.getInitialState(sourceId, initialSourceDataFromBackend)
-    initialState
-  );
+  const { source, sourceId } =
+    useParams<{ source?: string; sourceId?: string }>();
 
   const sourceDataFromCatalog = useMemo<CatalogSourceConnector>(() => {
-    let sourceType = sourceId
-      ? allSourcesList.find((src) => src.sourceId === sourceId)?.sourceProtoType
+    let sourceType = source
+      ? source
+      : sourceId
+      ? sourcesStore.sources.find((src) => src.sourceId === sourceId)
+          ?.sourceProtoType
       : undefined;
 
     return sourceType
@@ -111,6 +143,24 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
         )
       : undefined;
   }, [sourceId, allSourcesList]);
+
+  const initialSourceDataFromBackend = useMemo<Optional<Partial<SourceData>>>(
+    () =>
+      allSourcesList.find((src) => src.sourceId === sourceId) ??
+      createInitialSourceData(sourceDataFromCatalog),
+    [sourceId, allSourcesList]
+  );
+
+  console.log(initialSourceDataFromBackend);
+
+  const [state, setState] = useState<SourceEditorState>(initialState);
+  const [showDocumentation, setShowDocumentation] = useState<boolean>(false);
+  const [configIsValidatedByStreams, setConfigIsValidatedByStreams] =
+    useState<boolean>(false);
+
+  const handleSetConfigValidatedByStreams = useCallback(() => {
+    setConfigIsValidatedByStreams(true);
+  }, []);
 
   const updateConfiguration = useCallback<UpdateConfigurationFields>(
     (newConfigurationFields) => {
@@ -122,36 +172,170 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
         },
         stateChanged: true
       }));
+      setConfigIsValidatedByStreams(false);
     },
     []
   );
 
-  const updateStreams = useCallback<UpdateStreamsFields>((newStreamsFields) => {
-    setState((state) => ({
-      ...state,
-      streams: { ...state.streams, ...newStreamsFields },
-      stateChanged: true
-    }));
+  const setConfigurationValidator = useCallback<
+    (validator: () => Promise<number>) => void
+  >((validator) => {
+    setState((state) => {
+      const newState = cloneDeep(state);
+      newState.configuration.getErrorsCount = validator;
+      return newState;
+    });
   }, []);
 
-  const updateConnections = useCallback<UpdateConnectionsFields>(
-    (newConnectionsFields) => {
-      setState((state) => ({
-        ...state,
-        connections: { ...state.connections, ...newConnectionsFields },
-        stateChanged: true
-      }));
+  const addStream = useCallback<AddStream>(
+    (pathToStreamsInSourceData, stream) => {
+      setState((state) => {
+        const newState = cloneDeep(state);
+        const oldStreams = newState.streams.streams[pathToStreamsInSourceData];
+
+        const newStreams = addToArrayIfNotDuplicate(
+          oldStreams,
+          stream,
+          sourceEditorUtilsAirbyte.streamsAreEqual
+        );
+
+        newState.streams.streams[pathToStreamsInSourceData] = newStreams;
+
+        return newState;
+      });
     },
     []
   );
+
+  const removeStream = useCallback<RemoveStream>(
+    (pathToStreamsInSourceData, stream) => {
+      setState((state) => {
+        const newState = cloneDeep(state);
+        const oldStreams = newState.streams.streams[pathToStreamsInSourceData];
+
+        const newStreams = removeFromArrayIfFound(
+          oldStreams,
+          stream,
+          sourceEditorUtilsAirbyte.streamsAreEqual
+        );
+
+        newState.streams.streams[pathToStreamsInSourceData] = newStreams;
+
+        return newState;
+      });
+    },
+    []
+  );
+
+  const updateStream = useCallback<UpdateStream>(
+    (pathToStreamsInSourceData, stream) => {
+      setState((state) => {
+        const newState = cloneDeep(state);
+        const oldStreams = newState.streams.streams[pathToStreamsInSourceData];
+
+        let newStreams = substituteArrayValueIfFound(
+          oldStreams,
+          stream,
+          sourceEditorUtilsAirbyte.streamsAreEqual
+        );
+
+        newState.streams.streams[pathToStreamsInSourceData] = newStreams;
+
+        return newState;
+      });
+    },
+    []
+  );
+
+  const setStreams = useCallback<SetStreams>(
+    (pathToStreamsInSourceData, streams) => {
+      setState((state) => {
+        const newState = cloneDeep(state);
+        newState.streams.streams[pathToStreamsInSourceData] = streams;
+        return newState;
+      });
+    },
+    []
+  );
+
+  const addConnection = useCallback<AddConnection>(
+    (pathToConnectionsInSourceData, connection) => {
+      setState((state) => {
+        const newState = cloneDeep(state);
+        const oldConnections =
+          newState.connections.connections[pathToConnectionsInSourceData];
+
+        const newConnections = addToArrayIfNotDuplicate(
+          oldConnections,
+          connection
+        );
+
+        newState.connections.connections[pathToConnectionsInSourceData] =
+          newConnections;
+
+        return newState;
+      });
+    },
+    []
+  );
+
+  const removeConnection = useCallback<RemoveConnection>(
+    (pathToConnectionsInSourceData, connection) => {
+      setState((state) => {
+        const newState = cloneDeep(state);
+        const oldConnections =
+          newState.connections.connections[pathToConnectionsInSourceData];
+
+        const newConnections = removeFromArrayIfFound(
+          oldConnections,
+          connection
+        );
+
+        newState.connections.connections[pathToConnectionsInSourceData] =
+          newConnections;
+
+        return newState;
+      });
+    },
+    []
+  );
+
+  const setConnections = useCallback<SetConnections>(
+    (pathToConnectionsInSourceData, connections) => {
+      setState((state) => {
+        const newState = cloneDeep(state);
+        newState.connections.connections[pathToConnectionsInSourceData] =
+          connections;
+        return newState;
+      });
+    },
+    []
+  );
+
+  const handleBringSourceData = () => {
+    return sourceEditorUtils.getSourceDataFromState(
+      state,
+      sourceDataFromCatalog
+    );
+  };
 
   const handleTestConnection = useCallback<VoidFunction>(async () => {
     // sourcePageUtils.testConnection();
-    const sourceData = sourceEditorUtils.getSourceDataFromState(
-      state,
-      sourceDataFromCatalog,
-      initialSourceDataFromBackend
-    );
+    const configurationErrorsCount = await state.configuration.getErrorsCount();
+    const streamsErrorsCount = state.streams.errorsCount;
+    const connectionsErrorsCount = state.connections.errorsCount;
+
+    const errorsCounts = {
+      configuration: configurationErrorsCount,
+      streams: state.streams.errorsCount,
+      connectins: state.connections.errorsCount
+    };
+
+    console.log(errorsCounts);
+
+    if (Object.values(errorsCounts).some((count) => !!count)) return;
+
+    const sourceData = handleBringSourceData();
 
     console.log(sourceData);
   }, [state, sourceDataFromCatalog, initialSourceDataFromBackend]);
@@ -168,40 +352,40 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ setBreadcrumbs }) => {
               <PageHeader
                 title={sourceDataFromCatalog?.displayName}
                 icon={sourceDataFromCatalog?.pic}
-                mode={'Mode not set' as any}
+                mode={editorMode}
               />
             )
           }
         ]
       })
     );
-  }, [sourceDataFromCatalog, setBreadcrumbs]);
-
-  useEffect(() => {
-    state;
-    debugger;
-  }, [state.configuration.config]);
+  }, [editorMode, sourceDataFromCatalog, setBreadcrumbs]);
 
   return (
     <>
       <SourceEditorViewTabs
+        sourceId={sourceId}
+        editorMode={editorMode}
+        stateChanged={state.stateChanged}
+        showDocumentationDrawer={showDocumentation}
         initialSourceDataFromBackend={initialSourceDataFromBackend}
         sourceDataFromCatalog={sourceDataFromCatalog}
+        configIsValidatedByStreams={configIsValidatedByStreams}
+        setShowDocumentationDrawer={setShowDocumentation}
+        handleSetConfigValidatedByStreams={handleSetConfigValidatedByStreams}
         onConfigurationChange={updateConfiguration}
-        onStreamsChange={updateStreams}
-        onConnectionsChange={updateConnections}
+        setConfigurationValidator={setConfigurationValidator}
+        addStream={addStream}
+        removeStream={removeStream}
+        updateStream={updateStream}
+        setStreams={setStreams}
+        addConnection={addConnection}
+        removeConnection={removeConnection}
+        setConnections={setConnections}
+        handleBringSourceData={handleBringSourceData}
         handleTestConnection={handleTestConnection}
         handleLeaveEditor={handleLeave}
       />
-
-      <Prompt
-        message={
-          'You have unsaved changes. Are you sure you want to leave without saving?'
-        }
-        when={state.stateChanged}
-      />
-
-      {/* <DocumentationDrawer /> */}
     </>
   );
 };
