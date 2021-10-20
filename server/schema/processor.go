@@ -13,7 +13,6 @@ import (
 	"github.com/jitsucom/jitsu/server/templates"
 	"strings"
 )
-const TableNameParameter = "__JITSU_TABLE_NAME"
 
 var ErrSkipObject = errors.New("Transform or table name filter marked object to be skipped. This object will be skipped.")
 
@@ -44,12 +43,7 @@ func NewProcessor(destinationID, tableNameFuncExpression string, transform strin
 	}
 	var transformer	*templates.JsTemplateExecutor
 	if transform != "" && transform != templates.TransformDefaultTemplate {
-		transformFunctions := make(map[string]interface{})
-		for k,v := range templates.JSONSerializeFuncs {
-			transformFunctions[k] = v
-		}
-		transformFunctions["TABLE_NAME"] = TableNameParameter
-		transformer, err = templates.NewJsTemplateExecutor(transform, transformFunctions)
+		transformer, err = templates.NewJsTemplateExecutor(transform, templates.JSONSerializeFuncs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to init transform javascript: %v", err)
 		}
@@ -237,11 +231,11 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	envelops := make([]Envelope, 0, len(toProcess))
 
 	for _, object := range toProcess {
-		newTableName, ok := object[TableNameParameter].(string)
+		newTableName, ok := object[templates.TableNameParameter].(string)
 		if !ok {
 			newTableName = tableName
 		}
-		delete(object, TableNameParameter)
+		delete(object, templates.TableNameParameter)
 		//object has been already processed (storage:table pair might be already processed)
 		_, ok = alreadyUploadedTables[newTableName]
 		if ok {

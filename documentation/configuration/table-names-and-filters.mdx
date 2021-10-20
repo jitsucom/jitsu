@@ -2,6 +2,8 @@
 
 **Jitsu** supports splitting events stream into different tables in DWH based on event JSON payload. It works by applying [JavaScript functions](/docs/configuration/javascript-functions) to incoming JSON objects. It can select a table name or pass a constant or even filter certain events from the destination. It is configured in the destination section and each destination has its own rules.
 
+See also [JavaScript Transform](/docs/configuration/table-names-and-filters) for full event transformation using JavaScript
+
 ## **Table Name Selection**
 
 By default table name will be `events` constant. It can be overridden in several ways:

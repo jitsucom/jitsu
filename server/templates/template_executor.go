@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/safego"
+	"reflect"
 	"strings"
 	"sync"
 	"text/template"
@@ -34,7 +35,14 @@ type goTemplateExecutor struct {
 func newGoTemplateExecutor(name string, expression string, extraFunctions template.FuncMap) (*goTemplateExecutor, error) {
 	tmpl := template.New(name)
 	if extraFunctions != nil {
-		tmpl = tmpl.Funcs(extraFunctions)
+		var funcs = make(map[string]interface{})
+		for k, fn := range extraFunctions {
+			v := reflect.ValueOf(fn)
+			if v.Kind() == reflect.Func {
+				funcs[k] = fn
+			}
+		}
+		tmpl = tmpl.Funcs(funcs)
 	}
 	tmpl, err := tmpl.Parse(expression)
 	if err != nil {
