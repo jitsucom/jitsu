@@ -27,11 +27,11 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
 
     return (
         <>
-            <TabDescription><>
+            <TabDescription>
                 <p>Use the power of Javascript to modify incoming event object, replace it with a completely new event or produce multiple events based on incoming data.<br/>
-                    Also, you can use Transform to set the destination table name for each event or to skip the event altogether.</p>
-                <p><a onClick={() => setDocumentationVisible(true)}>Documentation</a></p>
-            </></TabDescription>
+                    Also, you can use Transform to set the destination table name for each event or to skip the event altogether. <a onClick={() => setDocumentationVisible(true)}>Open Documentation →</a>
+                </p>
+            </TabDescription>
             <Form
                 name="destination-config"
                 form={form}
@@ -59,7 +59,7 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                     placement="right"
                     closable={true}
                     onClose={() => setDocumentationVisible(false)}
-                    width="40%"
+                    width="50%"
                     visible={documentationVisible}
                 >
                     <div className={styles.documentation}>

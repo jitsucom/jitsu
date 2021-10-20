@@ -30,6 +30,7 @@ const CodeEditorComponent = ({
   initialValue,
   className,
   language = 'json',
+  readonly,
   enableLineNumbers,
   extraSuggestions,
   reRenderEditorOnInitialValueChange = true,
@@ -105,6 +106,7 @@ const CodeEditorComponent = ({
       theme="own-theme"
       defaultValue={defaultValue}
       options={{
+        readOnly: readonly,
         automaticLayout: true,
         glyphMargin: false,
         folding: false,

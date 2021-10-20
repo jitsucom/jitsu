@@ -4,6 +4,7 @@ export interface Props {
   height?: number;
   language?: string;
   enableLineNumbers?: boolean;
+  readonly?: boolean;
   reRenderEditorOnInitialValueChange?: boolean;
   dynamicHeight?: () => number;
   handleChange: (value: string) => void;
