@@ -87,7 +87,7 @@ export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) =
     {menuItems.map(item => {
       const selected = item.link === '/' + key;
       return <NavLink to={item.link} key={item.link}>
-        <div key={item.link} className={`${selected && 'bg-bgPrimary'} whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}>
+        <div key={item.link} className={`${selected && styles.selectedMenuItem} whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}>
           {!expanded && <Tooltip title={item.title} placement="right" mouseEnterDelay={0}>
             {item.icon}
           </Tooltip>}
@@ -104,17 +104,13 @@ export const ApplicationSidebar: React.FC<{}> = () => {
 
   return <div className={`relative ${styles.sideBarContent}`}>
     <div>
-      <div className={`${expanded ?
-        'w-3' :
-        'w-2'} absolute inline-block top-3 right-0 bg-bgTableHeader h-12 flex items-center justify-center rounded-l cursor-pointer`}
+      <div className={`${expanded ? 'w-3' : 'w-2'} ${styles.expandButton}`}
            onClick={() => setExpanded(!expanded)}>
         <svg xmlns="http://www.w3.org/2000/svg" className={`transform ${expanded ?
           'rotate-90' :
-          '-rotate-90'}`} viewBox="0 0 24 24">
-          <path
-            d="M14.121,13.879c-0.586-0.586-6.414-6.414-7-7c-1.172-1.172-3.071-1.172-4.243,0	c-1.172,1.172-1.172,3.071,0,4.243c0.586,0.586,6.414,6.414,7,7c1.172,1.172,3.071,1.172,4.243,0	C15.293,16.95,15.293,15.05,14.121,13.879z"
-            opacity=".35"/>
-          <path
+          '-rotate-90'}`} viewBox="0 0 24 24" fill="currentColor">
+          <path fill="currentColor" d="M14.121,13.879c-0.586-0.586-6.414-6.414-7-7c-1.172-1.172-3.071-1.172-4.243,0	c-1.172,1.172-1.172,3.071,0,4.243c0.586,0.586,6.414,6.414,7,7c1.172,1.172,3.071,1.172,4.243,0	C15.293,16.95,15.293,15.05,14.121,13.879z"/>
+          <path fill="currentColor"
             d="M14.121,18.121c0.586-0.586,6.414-6.414,7-7c1.172-1.172,1.172-3.071,0-4.243c-1.172-1.172-3.071-1.172-4.243,0	c-0.586,0.586-6.414,6.414-7,7c-1.172,1.172-1.172,3.071,0,4.243C11.05,19.293,12.95,19.293,14.121,18.121z"/>
         </svg>
       </div>
@@ -140,9 +136,9 @@ function abbr(user: User) {
 export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) => {
   const [dropdownVisible, setDropdownVisible] = useState(false);
   return (
-    <div className="border-b border-splitBorder mb-4 h-12 flex flex-nowrap">
+    <div className="border-b border-splitBorder mb-0 h-14 flex flex-nowrap">
       <div className="flex-grow">
-        <div className="h-12 flex items-center">{children}</div>
+        <div className="h-14 flex items-center">{children}</div>
       </div>
       <div
         className={
@@ -198,8 +194,8 @@ export const DropdownMenu: React.FC<{ user: User, plan: CurrentSubscription, hid
   };
 
   return (
-    <div className="bg-bgSecondary">
-      <div className="py-5 border-b border-main px-5 flex flex-col items-center">
+    <div>
+      <div className="py-5 border-b px-5 flex flex-col items-center">
         <div className="text-center text-text text-lg">{user.name}</div>
         <div className="text-secondaryText text-xs underline">{user.email}</div>
       </div>

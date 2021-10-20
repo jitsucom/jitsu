@@ -28,6 +28,8 @@ declare type AirbyteStreamData = {
 
 declare type SourceData = NativeSourceData & AirbyteSourceData;
 declare interface NativeSourceData {
+  //name displayed on a source. Used only in UI
+  displayName?: string
   collections: CollectionSource[];
   config: {
     [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues;

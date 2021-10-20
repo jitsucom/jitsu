@@ -32,73 +32,11 @@ const (
 )
 
 var (
-	ErrTaskNotFound           = errors.New("Sync task wasn't found")
-	defaultDialConnectTimeout = redis.DialConnectTimeout(10 * time.Second)
-	defaultDialReadTimeout    = redis.DialReadTimeout(10 * time.Second)
+	ErrTaskNotFound = errors.New("Sync task wasn't found")
 )
 
-//RedisConfiguration is a dto with Redis credentials and configuration parameters
-type RedisConfiguration struct {
-	host          string
-	port          int
-	password      string
-	tlsSkipVerify bool
-}
-
-//NewRedisConfiguration returns filled RedisConfiguration and removes quotes in host
-func NewRedisConfiguration(host string, port int, password string, tlsSkipVerify bool) *RedisConfiguration {
-	host = strings.TrimPrefix(host, `"`)
-	host = strings.TrimPrefix(host, `'`)
-	host = strings.TrimSuffix(host, `"`)
-	host = strings.TrimSuffix(host, `'`)
-	return &RedisConfiguration{
-		host:          host,
-		port:          port,
-		password:      password,
-		tlsSkipVerify: tlsSkipVerify,
-	}
-}
-
-//CheckAndSetDefaultPort checks if port isn't set - put 6379
-func (rc *RedisConfiguration) CheckAndSetDefaultPort() (int, bool) {
-	if rc.port == 0 && !rc.IsURL() && !rc.IsSecuredURL() {
-		parts := strings.Split(rc.host, ":")
-		if len(parts) == 2 {
-			port, err := strconv.Atoi(parts[1])
-			if err == nil {
-				rc.port = port
-				rc.host = parts[0]
-				return rc.port, false
-			}
-		}
-		rc.port = 6379
-		return rc.port, true
-	}
-
-	return 0, false
-}
-
-//IsURL returns true if RedisConfiguration contains connection credentials via URL
-func (rc *RedisConfiguration) IsURL() bool {
-	return strings.HasPrefix(rc.host, "redis://")
-}
-
-//IsSecuredURL returns true if RedisConfiguration contains connection credentials via secured(SSL) URL
-func (rc *RedisConfiguration) IsSecuredURL() bool {
-	return strings.HasPrefix(rc.host, "rediss://")
-}
-
-//String returns host:port or host if host is an URL
-func (rc *RedisConfiguration) String() string {
-	if rc.IsURL() || rc.IsSecuredURL() {
-		return rc.host
-	}
-
-	return fmt.Sprintf("%s:%d", rc.host, rc.port)
-}
-
 type Redis struct {
-	pool                      *redis.Pool
+	pool                      *RedisPool
 	anonymousEventsSecondsTTL int
 }
 
@@ -143,82 +81,19 @@ type Redis struct {
 //sync_tasks#taskID hash with fields [id, source, collection, priority, created_at, started_at, finished_at, status]
 
 //NewRedis returns configured Redis struct with connection pool
-func NewRedis(config *RedisConfiguration, anonymousEventsMinutesTTL int) (*Redis, error) {
+func NewRedis(factory *RedisPoolFactory, anonymousEventsMinutesTTL int) (*Redis, error) {
 	if anonymousEventsMinutesTTL > 0 {
-		logging.Infof("🏪 Initializing meta storage redis [%s] with anonymous events ttl: %d...", config.String(), anonymousEventsMinutesTTL)
+		logging.Infof("🏪 Initializing meta storage redis [%s] with anonymous events ttl: %d...", factory.Details(), anonymousEventsMinutesTTL)
 	} else {
-		logging.Infof("🏪 Initializing meta storage redis [%s]...", config.String())
+		logging.Infof("🏪 Initializing meta storage redis [%s]...", factory.Details())
 	}
 
-	pool, err := NewRedisPool(config)
+	pool, err := factory.Create()
 	if err != nil {
 		return nil, err
 	}
 
 	return &Redis{pool: pool, anonymousEventsSecondsTTL: anonymousEventsMinutesTTL * 60}, nil
-}
-
-//NewRedisPool returns configured Redis connection pool and err if ping failed
-//host might be URLS : [redis:// or rediss://] or plain host
-func NewRedisPool(config *RedisConfiguration) (*redis.Pool, error) {
-	var dialFunc func() (redis.Conn, error)
-	if config.IsSecuredURL() {
-		//redis secured URL
-		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.DialURL(config.host, redis.DialTLSSkipVerify(config.tlsSkipVerify), defaultDialConnectTimeout, defaultDialReadTimeout)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		}
-	} else if config.IsURL() {
-		//redis unsecured URL
-		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.DialURL(config.host, redis.DialTLSSkipVerify(true), defaultDialConnectTimeout, defaultDialReadTimeout)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		}
-	} else {
-		//host + port
-		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.Dial(
-				"tcp",
-				config.String(),
-				defaultDialConnectTimeout,
-				defaultDialReadTimeout,
-				redis.DialPassword(config.password),
-			)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		}
-	}
-	pool := &redis.Pool{
-		MaxIdle:     100,
-		MaxActive:   600,
-		IdleTimeout: 240 * time.Second,
-
-		Wait: false,
-		Dial: dialFunc,
-		TestOnBorrow: func(c redis.Conn, t time.Time) error {
-			_, err := c.Do("PING")
-			return err
-		},
-	}
-
-	//test connection
-	connection := pool.Get()
-	defer connection.Close()
-
-	if _, err := redis.String(connection.Do("PING")); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("Error testing Redis connection: %v", err)
-	}
-
-	return pool, nil
 }
 
 //GetSignature returns sync interval signature from Redis
