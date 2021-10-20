@@ -19,7 +19,7 @@ var amplitudeHTTPConfiguration = &adapters.HTTPConfiguration{
 	ClientMaxIdleConnsPerHost: 1000,
 }
 
-// Amplitude is a Amplitude driver.
+// Amplitude is an Amplitude driver.
 // It is used in syncing data from Amplitude.
 type Amplitude struct {
 	adapter    *AmplitudeAdapter
