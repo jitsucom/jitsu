@@ -577,6 +577,11 @@ func (r *Redis) GetAllTasksForInitialHeartbeat(runningStatus, scheduledStatus st
 			//filter by status
 			task, err := r.getTask(conn, taskID)
 			if err != nil {
+				if err == ErrTaskNotFound {
+					logging.SystemErrorf("task [%s] wasn't found in initial heartbeat", taskID)
+					continue
+				}
+
 				return nil, err
 			}
 
