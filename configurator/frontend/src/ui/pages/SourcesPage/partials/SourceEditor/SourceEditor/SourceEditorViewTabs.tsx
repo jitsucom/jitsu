@@ -5,16 +5,17 @@ import { Prompt } from 'react-router';
 import { SourceEditorFormConfiguration } from './SourceEditorFormConfiguration';
 import { SourceEditorFormStreams } from './SourceEditorFormStreams';
 import { SourceEditorFormConnections } from './SourceEditorFormConnections';
-import { SourceEditorViewControls } from './SourceEditorViewControls';
-import { SourceEditorViewTabsExtraControls } from './SourceEditorViewTabsExtraControls';
-import { SourceEditorDocumentationDrawer } from './SourceEditorDocumentationDrawer';
+import { SourceEditorViewTabsControls } from "./SourceEditorViewTabsControls"
+import { SourceEditorViewTabsExtraControls } from "./SourceEditorViewTabsExtraControls"
+import { SourceEditorDocumentationDrawer } from "./SourceEditorDocumentationDrawer"
 // @Types
-import { SourceConnector as CatalogSourceConnector } from 'catalog/sources/types';
+import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
 import { SourceEditorState, SetSourceEditorState } from "./SourceEditor"
 import { TabName } from "ui/components/Tabs/TabName"
 
 type SourceEditorTabsViewProps = {
   state: SourceEditorState
+  controlsDisabled: boolean
   sourceId: string
   editorMode: "add" | "edit"
   showTabsErrors: boolean
@@ -23,6 +24,7 @@ type SourceEditorTabsViewProps = {
   sourceDataFromCatalog: CatalogSourceConnector
   configIsValidatedByStreams: boolean
   setSourceEditorState: SetSourceEditorState
+  setControlsDisabled: ReactSetState<boolean>
   setTabsErrorsVisible: (value: boolean) => void
   setConfigIsValidatedByStreams: (value: boolean) => void
   setShowDocumentationDrawer: (value: boolean) => void
@@ -34,6 +36,7 @@ type SourceEditorTabsViewProps = {
 
 export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
   state,
+  controlsDisabled,
   sourceId,
   editorMode,
   showTabsErrors,
@@ -42,6 +45,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
   sourceDataFromCatalog,
   configIsValidatedByStreams,
   setSourceEditorState,
+  setControlsDisabled,
   setTabsErrorsVisible,
   setConfigIsValidatedByStreams,
   setShowDocumentationDrawer,
@@ -80,6 +84,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
                 initialSourceDataFromBackend={initialSourceDataFromBackend}
                 sourceDataFromCatalog={sourceDataFromCatalog}
                 setSourceEditorState={setSourceEditorState}
+                setControlsDisabled={setControlsDisabled}
                 setTabErrorsVisible={setTabsErrorsVisible}
                 setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
               />
@@ -93,6 +98,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
                 sourceDataFromCatalog={sourceDataFromCatalog}
                 sourceConfigValidatedByStreamsTab={configIsValidatedByStreams}
                 setSourceEditorState={setSourceEditorState}
+                setControlsDisabled={setControlsDisabled}
                 setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
                 handleBringSourceData={handleBringSourceData}
               />
@@ -116,16 +122,15 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
         </div>
 
         <div className="flex-shrink border-t pt-2">
-          <SourceEditorViewControls
+          <SourceEditorViewTabsControls
             saveButton={{
-              showErrorsPopover: false,
               handleClick: handleSave,
             }}
             testConnectionButton={{
-              showErrorsPopover: false,
               handleClick: handleTestConnection,
             }}
             handleCancel={handleLeaveEditor}
+            controlsDisabled={controlsDisabled}
           />
         </div>
       </div>
