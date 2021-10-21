@@ -78,6 +78,7 @@ type DataLayout struct {
 	//Deprecated
 	Mapping []string `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
 
+	Transform		  string		  `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
 	Mappings          *schema.Mapping `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
 	MaxColumns        int             `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
 	TableNameTemplate string          `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
@@ -210,11 +211,12 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	mappingFieldType := schema.Default
 	maxColumns := f.maxColumns
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField
+	transform := ""
 	if destination.DataLayout != nil {
 		mappingFieldType = destination.DataLayout.MappingType
 		oldStyleMappings = destination.DataLayout.Mapping
 		newStyleMapping = destination.DataLayout.Mappings
-
+		transform = destination.DataLayout.Transform
 		if destination.DataLayout.TableNameTemplate != "" {
 			tableName = destination.DataLayout.TableNameTemplate
 		}
@@ -311,7 +313,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 
 	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
 
-	processor, err := schema.NewProcessor(destinationID, tableName, fieldMapper, enrichmentRules, flattener, typeResolver,
+	processor, err := schema.NewProcessor(destinationID, tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver,
 		destination.BreakOnError, uniqueIDField, maxColumnNameLength)
 	if err != nil {
 		return nil, nil, err

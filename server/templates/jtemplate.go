@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const TransformDefaultTemplate = "return $"
+
 var (
 	unquotedSQLIdentifier = regexp.MustCompile("^(?:[a-zA-Z][a-zA-Z0-9_$#]*[.]?)+$")
 	quotedSQLIdentifier = regexp.MustCompile(`^(?:["][^"\n\r\t]+["][.]?)+$`)
@@ -33,7 +35,7 @@ func SmartParse(name string, expression string, extraFunctions template.FuncMap)
 			return newConstTemplateExecutor(expression)
 		}
 		//Try parse template as JavaScript
-		jsTmpl, err := newJsTemplateExecutor(expression, extraFunctions)
+		jsTmpl, err := NewJsTemplateExecutor(expression, extraFunctions)
 		if err != nil {
 			if multiErr != nil {
 				err = multierror.Append(multiErr, fmt.Errorf("error while parsing as Javascript: %v", err))

@@ -76,7 +76,8 @@ export const tableName = (customDocs?: ReactNode): Parameter => {
     ),
     required: true,
     defaultValue: 'events',
-    type: stringType
+    type: stringType,
+    jsDebugger: 'string'
   };
 };
 

@@ -11,7 +11,6 @@ import { SourceEditorFormConnectionsView } from './SourceEditorFormConnectionsVi
 import { Destination } from 'catalog/destinations/types';
 import { SetSourceEditorState } from "./SourceEditor"
 // @Utils
-import { destinationsUtils } from "ui/pages/DestinationsPage/DestinationsPage.utils"
 import { cloneDeep } from "lodash"
 
 type Props = {
@@ -43,7 +42,7 @@ const SourceEditorFormConnectionsComponent: React.FC<Props> = ({
           disabled: reference.syncFromSourcesStatus !== "supported",
           title: (
             <NameWithPicture icon={reference.ui.icon}>
-              <b>{reference.displayName}</b>: {destinationsUtils.getTitle(dst)}
+              <b>{reference.displayName}</b>: {dst.displayName || dst._id}
             </NameWithPicture>
           ),
           description: <i className="text-xs">{getDescription(reference)}</i>,

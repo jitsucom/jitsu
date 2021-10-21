@@ -53,6 +53,7 @@ const amplitudeDestination = {
   id: 'amplitude',
   type: 'other',
   displayName: 'Amplitude',
+  defaultTransform: 'return $',
   hidden: false,
   ui: {
     icon,

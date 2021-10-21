@@ -12,6 +12,7 @@ const dbtcloudDestination = {
     id: 'dbtcloud',
     type: 'other',
     displayName: 'dbt Cloud',
+    defaultTransform: 'return $',
     hidden: true,
     ui: {
         icon,
@@ -65,6 +66,7 @@ const dbtcloudDestination = {
             displayName: 'Cause',
             defaultValue: '`${_.event_type} ID: ${_.source}`',
             required: true,
+            jsDebugger: 'object',
             type: stringType,
             documentation: <>
                 A text description of the reason for running this job.

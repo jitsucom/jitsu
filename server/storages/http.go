@@ -26,7 +26,7 @@ func (h *HTTPStorage) Insert(eventContext *adapters.EventContext) error {
 	return h.adapter.Insert(eventContext)
 }
 
-func (h *HTTPStorage) DryRun(payload events.Event) ([]adapters.TableField, error) {
+func (h *HTTPStorage) DryRun(payload events.Event) ([][]adapters.TableField, error) {
 	return dryRun(payload, h.processor, h.tableHelper)
 }
 

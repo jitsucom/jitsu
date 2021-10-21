@@ -82,7 +82,7 @@ func TestTransform(t *testing.T) {
 			} else if !cmp.Equal(res, tt.expected) {
 				t.Errorf("%s transpiled to: %s\nInput: %s\nResult: %s\nNot equal\nExpected: %s", tt.filename, script, tt.input, res, tt.expected)
 			} else {
-				t.Logf("%s transpiled to: %s\nInput: %s\nResult: %s\nExpected: %s", tt.filename, script, tt.input, res, tt.expected)
+				//t.Logf("%s transpiled to: %s\nInput: %s\nResult: %s\nExpected: %s", tt.filename, script, tt.input, res, tt.expected)
 			}
 		})
 	}

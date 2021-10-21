@@ -40,7 +40,6 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
       ),
     []
   )
-
   const handleAddClick = useCallback(() => {
     services.features.billingEnabled
     if (sourcesStore.sources.length >= services.currentSubscription?.currentPlan.quota.sources ?? 999) {
@@ -88,10 +87,9 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
       </div>
 
       <div className="flex flex-wrap justify-center">
-        {sourcesStore.sources.map((src: SourceData) => {
-          const reference = allSourcesMap[src.sourceProtoType]
-          return <SourceCard src={src} />
-        })}
+        {sourcesStore.sources.map((src: SourceData) => (
+          <SourceCard src={src} />
+        ))}
       </div>
     </>
   )
