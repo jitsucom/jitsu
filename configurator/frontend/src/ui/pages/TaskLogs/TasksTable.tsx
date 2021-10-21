@@ -1,28 +1,21 @@
-import { generatePath, NavLink } from 'react-router-dom';
-import ApplicationServices from 'lib/services/ApplicationServices';
-import { ReactNode, useState } from 'react';
-import {
-  CenteredError,
-  CenteredSpin,
-  handleError,
-  withProgressBar
-} from 'lib/components/components';
-import { Button, Table, Tag } from 'antd';
-import RedoOutlined from '@ant-design/icons/lib/icons/RedoOutlined';
-import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
-import moment, { Moment } from 'moment';
-import { colorMap, Task, TaskId, TaskStatus } from 'ui/pages/TaskLogs/utils';
-import { taskLogsViewerRoute } from 'ui/pages/TaskLogs/TaskLogViewer';
-import useLoader from 'hooks/useLoader';
-import { useServices } from 'hooks/useServices';
-import { useForceUpdate } from 'hooks/useForceUpdate';
-import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
+import { generatePath, NavLink } from "react-router-dom"
+import { ReactNode, useState } from "react"
+import { CenteredError, CenteredSpin, withProgressBar } from "lib/components/components"
+import { Button, Table, Tag } from "antd"
+import RedoOutlined from "@ant-design/icons/lib/icons/RedoOutlined"
+import moment, { Moment } from "moment"
+import { colorMap, Task, TaskId, TaskStatus } from "ui/pages/TaskLogs/utils"
+import { taskLogsViewerRoute } from "ui/pages/TaskLogs/TaskLogViewer"
+import useLoader from "hooks/useLoader"
+import { useServices } from "hooks/useServices"
+import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
+import { comparator } from "../../../lib/commons/utils"
 
 export type TasksTableProps = {
-  source: SourceData,
+  source: SourceData
   projectId: string
-  start: Moment,
-  end: Moment,
+  start: Moment
+  end: Moment
   status?: TaskStatus
   collection?: string
 }
@@ -169,19 +162,6 @@ function toAntColumn(c: ColumnData, props: TasksTableProps) {
     key: c.column,
     title: c.title,
     render: c.render ? (text, record) => { return c.render(record, props) } : undefined
-  }
-}
-
-function comparator<T>(f: (t:T) => any): ((a1: T, a2: T) => number) {
-  return (a1: T, a2) => {
-    let v1 = f(a1);
-    let v2 = f(a2);
-    if (v1 > v2) {
-      return -1
-    } else if (v1 < v2) {
-      return 1;
-    }
-    return 0;
   }
 }
 

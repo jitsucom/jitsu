@@ -107,7 +107,7 @@ func TestProcessFilePayload(t *testing.T) {
 				},
 			},
 			[]events.FailedEvent{{Event: []byte(`{"_geo_data":{},"event_type":"views","key1000":"super value"}`), Error: "error extracting table name: _timestamp field doesn't exist"}},
-			[]events.SkippedEvent{{EventID: "qoow1", Error: "Table name template return empty string. This object will be skipped."}},
+			[]events.SkippedEvent{{EventID: "qoow1", Error: "Transform or table name filter marked object to be skipped. This object will be skipped."}},
 		},
 		{
 			"Input fallback file",
@@ -142,7 +142,7 @@ func TestProcessFilePayload(t *testing.T) {
 			[]events.SkippedEvent{},
 		},
 	}
-	p, err := NewProcessor("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 0)
+	p, err := NewProcessor("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, "", &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 0)
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -320,21 +320,133 @@ func TestProcessFact(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	p, err := NewProcessor("test", `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+	p, err := NewProcessor("test", `events_{{._timestamp.Format "2006_01"}}`, "", fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
 
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			batchHeader, actual, err := p.ProcessEvent(tt.input)
+			envelopes, err := p.ProcessEvent(tt.input)
 
 			if tt.expectedErr != "" {
 				require.Error(t, err)
 				require.Equal(t, tt.expectedErr, err.Error())
 			} else {
 				require.NoError(t, err)
-
+				test.ObjectsEqual(t, 1, len(envelopes), "Expected 1 object")
+				batchHeader := envelopes[0].Header
+				actual := envelopes[0].Event
 				test.ObjectsEqual(t, tt.expectedBatchHeader, batchHeader, "BatchHeader results aren't equal")
 				test.ObjectsEqual(t, tt.expectedObject, actual, "Processed objects aren't equal")
+			}
+		})
+	}
+}
+
+func TestProcessTransform(t *testing.T) {
+	viper.Set("server.log.path", "")
+
+	err := appconfig.Init(false, "")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                string
+		input           map[string]interface{}
+		expectedObjects []events.Event
+		expectedTables []string
+		expectedErr     string
+	}{
+		{
+			"simple transform 1",
+			map[string]interface{}{"event_type": "site_page", "url": "https://jitsu.com", "field1": "somedata"},
+			[]events.Event{{"event": "pageview", "url": "https://jitsu.com"}},
+			[]string{"events"},
+			"",
+		},
+		{
+			"simple transform 2",
+			map[string]interface{}{"event_type": "indentify", "user": map[string]interface{}{"email": "hello@jitsu.com"},"url": "https://jitsu.com", "field1": "somedata"},
+			[]events.Event{{"event": "indentify", "userid": "hello@jitsu.com"}},
+			[]string{"events"},
+			"",
+		},
+		{
+			"skip",
+			map[string]interface{}{"event_type": "indentify", "user": map[string]interface{}{"anon": "123"},"url": "https://jitsu.com", "field1": "somedata"},
+			[]events.Event{},
+			[]string{},
+			"Transform or table name filter marked object to be skipped. This object will be skipped.",
+		},
+		{
+			"transform with table name",
+			map[string]interface{}{"event_type": "to_the_table", "url": "https://jitsu.com", "field1": "somedata"},
+			[]events.Event{{"event_type": "to_the_table", "url": "https://jitsu.com", "field1": "somedata"}},
+			[]string{"to_the_table"},
+			"",
+		},
+		{
+			"multiple events",
+			map[string]interface{}{"event_type": "multiply", "eventn_ctx_event_id": "a1024", "url": "https://jitsu.com", "conversions": 3, "field1": "somedata"},
+			[]events.Event{{"event": "conversion", "url": "https://jitsu.com"},{"event": "conversion", "eventn_ctx_event_id": "a1024_1", "url": "https://jitsu.com"},{"event": "conversion", "eventn_ctx_event_id": "a1024_2", "url": "https://jitsu.com"}},
+			[]string{"conversion_0", "conversion_1", "conversion_2"},
+			"",
+		},
+	}
+	appconfig.Init(false, "")
+
+	fieldMapper := DummyMapper{}
+	transormExpression := `
+switch ($.event_type) {
+    case "site_page":
+        return {
+            event: "pageview",
+            url: $.url
+        }
+    case "indentify":
+        if ($.user?.email) {
+            return {
+                    event: "indentify",
+                    userid: $.user.email
+                }
+        } else {
+            return null
+        }
+    case "multiply":
+        let convs = new Array();
+        for (i = 0; i < $.conversions; i++) {
+            convs.push({
+                          event: "conversion",
+                          [TABLE_NAME]: "conversion_" + i,
+                          url: $.url
+                        })
+        }
+        return convs
+    default:
+        return {...$, [TABLE_NAME]: $.event_type}
+}
+`
+	p, err := NewProcessor("test", `events`, transormExpression, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+
+	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			envelopes, err := p.ProcessEvent(tt.input)
+			if tt.expectedErr != "" {
+				require.Error(t, err)
+				require.Equal(t, tt.expectedErr, err.Error())
+			} else {
+				require.NoError(t, err)
+				test.ObjectsEqual(t, len(tt.expectedObjects), len(envelopes), "Number of expected objects doesnt match.")
+				for i := 0; i < len(envelopes); i++ {
+					actual := envelopes[i].Event
+					expected := tt.expectedObjects[i]
+					table := envelopes[i].Header.TableName
+					expectedTable := tt.expectedTables[i]
+					//logging.Infof("input: %v expected: %v actual: %v", tt.input, expected, actual)
+					//logging.Infof("input: %v expected table: %v actual: %v", tt.input, expectedTable, table)
+					test.ObjectsEqual(t, expected, actual, "Processed objects aren't equal")
+					test.ObjectsEqual(t, expectedTable, table, "Table names aren't equal")
+				}
+
 			}
 		})
 	}

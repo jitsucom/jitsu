@@ -31,8 +31,8 @@ const (
 var (
 	//ErrUnknownDestination error for checking unknown destination type
 	ErrUnknownDestination = errors.New("Unknown destination type")
-	//StorageConstructors is used in all destinations init() methods
-	StorageConstructors = make(map[string]func(*Config) (Storage, error))
+	//StorageTypes is used in all destinations init() methods
+	StorageTypes = make(map[string]StorageType)
 
 	maxColumnNameLengthByDestinationType = map[string]int{
 		RedshiftType:  115,
@@ -78,6 +78,7 @@ type DataLayout struct {
 	//Deprecated
 	Mapping []string `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
 
+	Transform		  string		  `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
 	Mappings          *schema.Mapping `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
 	MaxColumns        int             `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
 	TableNameTemplate string          `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
@@ -143,14 +144,20 @@ type Config struct {
 }
 
 //RegisterStorage registers function to create new storage(destination) instance
-func RegisterStorage(storageType string,
-	createStorageFunc func(config *Config) (Storage, error)) {
-	StorageConstructors[storageType] = createStorageFunc
+func RegisterStorage(storageType StorageType) {
+	StorageTypes[storageType.typeName] = storageType
 }
+
 
 //Factory is a destinations factory for creation
 type Factory interface {
 	Create(name string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error)
+}
+
+type StorageType struct {
+	typeName string
+	createFunc func(config *Config) (Storage, error)
+	defaultTableName string
 }
 
 //FactoryImpl is a destinations factory implementation
@@ -192,7 +199,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 
 	logging.Infof("[%s] initializing destination of type: %s in mode: %s", destinationID, destination.Type, destination.Mode)
 
-	storageConstructor, ok := StorageConstructors[destination.Type]
+	storageType, ok := StorageTypes[destination.Type]
 	if !ok {
 		return nil, nil, ErrUnknownDestination
 	}
@@ -204,11 +211,12 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	mappingFieldType := schema.Default
 	maxColumns := f.maxColumns
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField
+	transform := ""
 	if destination.DataLayout != nil {
 		mappingFieldType = destination.DataLayout.MappingType
 		oldStyleMappings = destination.DataLayout.Mapping
 		newStyleMapping = destination.DataLayout.Mappings
-
+		transform = destination.DataLayout.Transform
 		if destination.DataLayout.TableNameTemplate != "" {
 			tableName = destination.DataLayout.TableNameTemplate
 		}
@@ -229,8 +237,12 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	}
 
 	if tableName == "" {
+		tableName = storageType.defaultTableName
+	}
+	if tableName == "" {
 		tableName = defaultTableName
 		logging.Infof("[%s] uses default table: %s", destinationID, tableName)
+
 	}
 
 	if len(pkFields) > 0 {
@@ -294,10 +306,6 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	if needDummy(&destination) {
 		flattener = schema.NewDummyFlattener()
 		typeResolver = schema.NewDummyTypeResolver()
-		if destination.Type == DbtCloudType {
-			//works only on specific event types
-			tableName = dbtCloudTableNameFilter
-		}
 	} else {
 		flattener = schema.NewFlattener()
 		typeResolver = schema.NewTypeResolver()
@@ -305,7 +313,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 
 	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
 
-	processor, err := schema.NewProcessor(destinationID, tableName, fieldMapper, enrichmentRules, flattener, typeResolver,
+	processor, err := schema.NewProcessor(destinationID, tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver,
 		destination.BreakOnError, uniqueIDField, maxColumnNameLength)
 	if err != nil {
 		return nil, nil, err
@@ -368,7 +376,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		PostHandleDestinations: destination.PostHandleDestinations,
 	}
 
-	storageProxy := newProxy(storageConstructor, storageConfig)
+	storageProxy := newProxy(storageType.createFunc, storageConfig)
 
 	return storageProxy, eventQueue, nil
 }

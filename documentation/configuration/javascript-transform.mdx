@@ -1,0 +1,100 @@
+# JavaScript Transform
+
+Use the power of Javascript to modify incoming event object, replace it with a completely new event or produce multiple events based on incoming data.<br/>
+Also, you can use Transform to set the destination table name for each event or to skip the event altogether.
+
+## Overview
+
+You can use modern javascript language features and built-in functions to transform an incoming event.
+Jitsu puts incoming event as a global variable: `$`
+
+Provided javascript must return:
+
+ * **single object** - modified incoming event or completely new object 
+ * **array of objects** - a single incoming event will result in multiple events in destinations 
+ * **null** - to skip event from processing
+
+To override the destination table, you need to add a special property to the resulting events. This property name is stored in the global variable: `TABLE_NAME`
+
+## Modify incoming event
+
+Javascript spread operator allows making a copy of an incoming event while applying some changes in just a few lines of code:
+
+```javascript
+return {...$,
+    new_property: $.event_type
+}
+```
+Add property to user object:
+
+```javascript
+return {...$,
+    user: {...$.user, state: "active"}
+}
+```
+
+## Build new event
+
+Collect some user properties to the new object:
+
+```javascript
+return {
+    properties: [
+        {
+            property: "email",
+            value: $.user?.email
+        },
+        {
+            property: "language",
+            value: $.user_language
+        }
+    ]
+}
+```
+
+Put an original event as a string payload:
+
+```javascript
+return {
+    "event_type": "POST event",
+    "payload": JSON.stringify($)
+}
+```
+
+## Produce multiple events
+
+Produce multiple purchase events from a single shopping cart event:
+
+```javascript
+if ($.event_type == "conversion" && $.products?.length > 0) {
+    let results = []
+    for (const product of $.products) {
+        results.push({
+            event_type: "purchase",
+            product_id: product.id,
+            price: product.price
+        })
+    }
+    return results
+} else {
+    //skip events without any purchase
+    return null
+}
+```
+
+## Override destination table
+
+Using Javascript spread operator:
+
+```javascript
+return {...$, [TABLE_NAME]: "new_table_name"}
+```
+
+`TABLE_NAME` is not a property name. It is a global variable pointing to an actual property name.
+
+Conventional way:
+
+```javascript
+$[TABLE_NAME] = "new_table_name"
+return $
+```

@@ -24,7 +24,7 @@ type AwsRedshift struct {
 }
 
 func init() {
-	RegisterStorage(RedshiftType, NewAwsRedshift)
+	RegisterStorage(StorageType{typeName: RedshiftType, createFunc: NewAwsRedshift})
 }
 
 //NewAwsRedshift returns AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
@@ -69,7 +69,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.maxColumns)
+	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.maxColumns, RedshiftType)
 
 	ar := &AwsRedshift{
 		s3Adapter:                     s3Adapter,
@@ -185,24 +185,26 @@ func (ar *AwsRedshift) Clean(tableName string) error {
 //Update updates record in Redshift
 func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 	_, tableHelper := ar.getAdapters()
-	batchHeader, processedObject, err := ar.processor.ProcessEvent(object)
+	envelops, err := ar.processor.ProcessEvent(object)
 	if err != nil {
 		return err
 	}
+	for _, envelop := range envelops {
+		batchHeader := envelop.Header
+		processedObject := envelop.Event
+		table := tableHelper.MapTableSchema(batchHeader)
 
-	table := tableHelper.MapTableSchema(batchHeader)
+		dbSchema, err := tableHelper.EnsureTableWithCaching(ar.ID(), table)
+		if err != nil {
+			return err
+		}
 
-	dbSchema, err := tableHelper.EnsureTableWithCaching(ar.ID(), table)
-	if err != nil {
-		return err
+		start := time.Now()
+		if err = ar.redshiftAdapter.Update(dbSchema, processedObject, ar.uniqueIDField.GetFlatFieldName(), ar.uniqueIDField.Extract(object)); err != nil {
+			return err
+		}
+		logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.ID(), time.Now().Sub(start).Seconds())
 	}
-
-	start := time.Now()
-	if err = ar.redshiftAdapter.Update(dbSchema, processedObject, ar.uniqueIDField.GetFlatFieldName(), ar.uniqueIDField.Extract(object)); err != nil {
-		return err
-	}
-	logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.ID(), time.Now().Sub(start).Seconds())
-
 	return nil
 }
 
