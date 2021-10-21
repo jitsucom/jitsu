@@ -9,71 +9,66 @@ import { destinationsReferenceMap } from 'catalog/destinations/lib';
 import { SourceEditorFormConnectionsView } from './SourceEditorFormConnectionsView';
 // @Types
 import { Destination } from 'catalog/destinations/types';
-import {
-  AddConnection,
-  RemoveConnection,
-  SetConnections
-} from './SourceEditor';
+import { SetSourceEditorState } from "./SourceEditor"
 // @Utils
-import { destinationsUtils } from 'ui/pages/DestinationsPage/DestinationsPage.utils';
+import { destinationsUtils } from "ui/pages/DestinationsPage/DestinationsPage.utils"
+import { cloneDeep } from "lodash"
 
 type Props = {
-  initialSourceDataFromBackend: Optional<Partial<SourceData>>;
-  addConnection: AddConnection;
-  removeConnection: RemoveConnection;
-  setConnections: SetConnections;
-};
-
-export interface ConnectedItem {
-  id: string;
-  disabled?: boolean;
-  title: React.ReactNode;
-  description?: React.ReactNode;
+  initialSourceDataFromBackend: Optional<Partial<SourceData>>
+  setSourceEditorState: SetSourceEditorState
 }
 
-const CONNECTIONS_SOURCEDATA_PATH = 'destinations';
+export interface ConnectedItem {
+  id: string
+  disabled?: boolean
+  title: React.ReactNode
+  description?: React.ReactNode
+}
+
+const CONNECTIONS_SOURCEDATA_PATH = "destinations"
 
 const SourceEditorFormConnectionsComponent: React.FC<Props> = ({
   initialSourceDataFromBackend,
-  addConnection,
-  removeConnection,
-  setConnections
+  setSourceEditorState,
 }) => {
-  const destinations = destinationsStore.destinations;
+  const destinations = destinationsStore.destinations
 
   const destinationsList = useMemo<ConnectedItem[]>(
     () =>
       destinations?.map((dst: DestinationData) => {
-        const reference = destinationsReferenceMap[dst._type];
+        const reference = destinationsReferenceMap[dst._type]
         return {
           id: dst._uid,
-          disabled: reference.syncFromSourcesStatus !== 'supported',
+          disabled: reference.syncFromSourcesStatus !== "supported",
           title: (
             <NameWithPicture icon={reference.ui.icon}>
               <b>{reference.displayName}</b>: {destinationsUtils.getTitle(dst)}
             </NameWithPicture>
           ),
-          description: <i className="text-xs">{getDescription(reference)}</i>
-        };
+          description: <i className="text-xs">{getDescription(reference)}</i>,
+        }
       }) ?? [],
     [destinations]
-  );
+  )
 
   const preparedInitialValue = useMemo(
     () => initialSourceDataFromBackend?.destinations ?? [],
     [initialSourceDataFromBackend]
-  );
+  )
 
   const handleChange = useCallback(
     (connections: string[]) => {
-      setConnections(CONNECTIONS_SOURCEDATA_PATH, connections);
+      setConnections(setSourceEditorState, CONNECTIONS_SOURCEDATA_PATH, connections)
     },
     [setConnections]
-  );
+  )
 
   useEffect(() => {
-    setConnections(CONNECTIONS_SOURCEDATA_PATH, preparedInitialValue);
-  }, []);
+    setConnections(setSourceEditorState, CONNECTIONS_SOURCEDATA_PATH, preparedInitialValue, {
+      doNotSetStateChanged: true,
+    })
+  }, [])
 
   return (
     <SourceEditorFormConnectionsView
@@ -81,16 +76,14 @@ const SourceEditorFormConnectionsComponent: React.FC<Props> = ({
       initialValues={preparedInitialValue}
       handleItemChange={handleChange}
     />
-  );
-};
+  )
+}
 
-const SourceEditorFormConnections = observer(
-  SourceEditorFormConnectionsComponent
-);
+const SourceEditorFormConnections = observer(SourceEditorFormConnectionsComponent)
 
-SourceEditorFormConnections.displayName = 'SourceEditorFormConnections';
+SourceEditorFormConnections.displayName = "SourceEditorFormConnections"
 
-export { SourceEditorFormConnections };
+export { SourceEditorFormConnections }
 
 /** */
 
@@ -99,6 +92,22 @@ export { SourceEditorFormConnections };
  */
 
 /** */
+
+const setConnections = (
+  setSourceEditorState: SetSourceEditorState,
+  sourceDataPath: string,
+  connectionsIds: string[],
+  options?: {
+    doNotSetStateChanged?: boolean
+  }
+): void => {
+  setSourceEditorState(state => {
+    const newState = cloneDeep(state)
+    newState.connections.connections[sourceDataPath] = connectionsIds
+    if (!options?.doNotSetStateChanged) newState.stateChanged = true
+    return newState
+  })
+}
 
 function getDescription(reference: Destination) {
   if (reference.syncFromSourcesStatus === 'supported') {

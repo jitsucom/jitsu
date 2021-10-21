@@ -1,69 +1,98 @@
 // @Libs
 import { observer } from 'mobx-react-lite';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from "react"
 // @Types
-import { SourceConnector as CatalogSourceConnector } from 'catalog/sources/types';
-import { UpdateConfigurationFields } from './SourceEditor';
+import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
+import { SetSourceEditorState } from "./SourceEditor"
 // @Components
-import { SourceEditorFormConfigurationStaticFields } from './SourceEditorFormConfigurationStaticFields';
-import { SourceEditorFormConfigurationConfigurableLoadableFields } from './SourceEditorFormConfigurationConfigurableLoadableFields';
+import { SourceEditorFormConfigurationStaticFields } from "./SourceEditorFormConfigurationStaticFields"
+import { SourceEditorFormConfigurationConfigurableLoadableFields } from "./SourceEditorFormConfigurationConfigurableLoadableFields"
+import { cloneDeep } from "lodash"
 
 type Props = {
-  editorMode: 'add' | 'edit';
-  initialSourceDataFromBackend: Optional<Partial<SourceData>>;
-  sourceDataFromCatalog: CatalogSourceConnector;
-  onChange: UpdateConfigurationFields;
-  setValidator: (validator: () => Promise<number>) => void;
-};
+  editorMode: "add" | "edit"
+  initialSourceDataFromBackend: Optional<Partial<SourceData>>
+  sourceDataFromCatalog: CatalogSourceConnector
+  setSourceEditorState: SetSourceEditorState
+  setTabErrorsVisible: (value: boolean) => void
+  setConfigIsValidatedByStreams: (value: boolean) => void
+}
 
-export type ValidateGetErrorsCount = () => Promise<number>;
-const initialValidator: () => ValidateGetErrorsCount = () => async () => 0;
+export type ValidateGetErrorsCount = () => Promise<number>
+export type PatchConfig = (
+  allValues: PlainObjectWithPrimitiveValues,
+  options?: {
+    doNotSetStateChanged?: boolean
+  }
+) => void
+
+const initialValidator: () => ValidateGetErrorsCount = () => async () => 0
 
 const SourceEditorFormConfiguration: React.FC<Props> = ({
   editorMode,
   initialSourceDataFromBackend,
   sourceDataFromCatalog,
-  onChange,
-  setValidator
+  setSourceEditorState,
+  setTabErrorsVisible,
+  setConfigIsValidatedByStreams,
 }) => {
-  const [staticFieldsValidator, setStaticFieldsValidator] =
-    useState<ValidateGetErrorsCount>(initialValidator);
-  const [
-    configurableLoadableFieldsValidator,
-    setConfigurableLoadableFieldsValidator
-  ] = useState<ValidateGetErrorsCount>(initialValidator);
+  const [staticFieldsValidator, setStaticFieldsValidator] = useState<ValidateGetErrorsCount>(initialValidator)
+  const [configurableLoadableFieldsValidator, setConfigurableLoadableFieldsValidator] =
+    useState<ValidateGetErrorsCount>(initialValidator)
+
+  const patchConfig = useCallback<PatchConfig>((allValues, options) => {
+    setSourceEditorState(state => {
+      const newState = cloneDeep(state)
+
+      newState.configuration.config = {
+        ...newState.configuration.config,
+        ...allValues,
+      }
+
+      if (!options?.doNotSetStateChanged) newState.stateChanged = true
+
+      setTabErrorsVisible(false)
+      setConfigIsValidatedByStreams(false)
+
+      return newState
+    })
+  }, [])
 
   useEffect(() => {
     const validateConfigAndCountErrors = async (): Promise<number> => {
-      const staticFieldsErrorsCount = await staticFieldsValidator();
-      const configurableLoadableFieldsErrorsCount =
-        await configurableLoadableFieldsValidator();
-      return staticFieldsErrorsCount + configurableLoadableFieldsErrorsCount;
-    };
+      const staticFieldsErrorsCount = await staticFieldsValidator()
+      const configurableLoadableFieldsErrorsCount = await configurableLoadableFieldsValidator()
+      return staticFieldsErrorsCount + configurableLoadableFieldsErrorsCount
+    }
 
-    setValidator(validateConfigAndCountErrors);
-  }, [staticFieldsValidator, configurableLoadableFieldsValidator]);
+    setSourceEditorState(state => {
+      const newState = cloneDeep(state)
+      newState.configuration.getErrorsCount = validateConfigAndCountErrors
+      return newState
+    })
+  }, [staticFieldsValidator, configurableLoadableFieldsValidator])
 
   return (
     <>
       <SourceEditorFormConfigurationStaticFields
         editorMode={editorMode}
         initialValues={initialSourceDataFromBackend}
-        onChange={onChange}
+        patchConfig={patchConfig}
         setValidator={setStaticFieldsValidator}
       />
       <SourceEditorFormConfigurationConfigurableLoadableFields
         initialValues={initialSourceDataFromBackend}
         sourceDataFromCatalog={sourceDataFromCatalog}
-        onChange={onChange}
+        patchConfig={patchConfig}
+        setSourceEditorState={setSourceEditorState}
         setValidator={setConfigurableLoadableFieldsValidator}
       />
     </>
-  );
-};
+  )
+}
 
-const Wrapped = observer(SourceEditorFormConfiguration);
+const Wrapped = observer(SourceEditorFormConfiguration)
 
-Wrapped.displayName = 'SourceEditorFormConfiguration';
+Wrapped.displayName = "SourceEditorFormConfiguration"
 
-export { Wrapped as SourceEditorFormConfiguration };
+export { Wrapped as SourceEditorFormConfiguration }
