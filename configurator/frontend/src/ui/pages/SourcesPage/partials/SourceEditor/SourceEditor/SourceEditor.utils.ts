@@ -12,27 +12,27 @@ import { COLLECTIONS_SCHEDULES } from 'constants/schedule';
 export const sourceEditorUtils = {
   getSourceDataFromState: (
     sourceEditorState: SourceEditorState,
-    sourceCatalogData: SourceConnector
+    sourceCatalogData: SourceConnector,
+    initialSourceDataFromBackend: Partial<SourceData>
   ): SourceData => {
-    const { configuration, streams, connections } = sourceEditorState;
+    const { configuration, streams, connections } = sourceEditorState
 
-    const updatedSourceData = merge(
-      makeObjectFromFieldsValues(configuration.config),
+    let updatedSourceData = merge(
+      makeObjectFromFieldsValues(merge({}, ...Object.values(configuration.config))),
       makeObjectFromFieldsValues(streams.streams),
       makeObjectFromFieldsValues(connections.connections)
-    );
+    )
 
-    const catalogSourceData: Pick<
-      SourceData,
-      'sourceType' | 'sourceProtoType'
-    > = {
+    const catalogSourceData: Pick<SourceData, "sourceType" | "sourceProtoType"> = {
       sourceType: sourcePageUtils.getSourceType(sourceCatalogData),
-      sourceProtoType: sourcePageUtils.getSourcePrototype(sourceCatalogData)
-    };
+      sourceProtoType: sourcePageUtils.getSourcePrototype(sourceCatalogData),
+    }
 
-    return merge(updatedSourceData, catalogSourceData);
-  }
-};
+    updatedSourceData = { ...(initialSourceDataFromBackend ?? {}), ...catalogSourceData, ...updatedSourceData }
+
+    return updatedSourceData
+  },
+}
 
 export const sourceEditorUtilsAirbyte = {
   streamsAreEqual: (a: AirbyteStreamData, b: AirbyteStreamData): boolean =>

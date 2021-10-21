@@ -38,6 +38,7 @@ export interface Props {
   namePrefix?: string
   loading?: boolean | ReactNode
   handleTouchAnyField?: (...args: any) => void
+  setFormValues?: (values: PlainObjectWithPrimitiveValues) => void
   setInitialFormValues?: (values: PlainObjectWithPrimitiveValues) => void
 }
 
@@ -55,6 +56,7 @@ const ConfigurableFieldsFormComponent = ({
   initialValues,
   loading,
   handleTouchAnyField,
+  setFormValues,
   setInitialFormValues,
 }: Props) => {
   const [debugModalsStates, setDebugModalsStates] = useState<{ [id: string]: boolean }>({})
@@ -267,6 +269,10 @@ const ConfigurableFieldsFormComponent = ({
      */
     forceUpdate()
   }, [])
+
+  useEffect(() => {
+    setFormValues?.(form.getFieldsValue())
+  })
 
   return loading ? (
     typeof loading === "boolean" ? (
