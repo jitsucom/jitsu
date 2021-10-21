@@ -26,6 +26,8 @@ type Props = {
   setValidator: ReactSetState<(validator: ValidateGetErrorsCount) => void>
 }
 
+const CONFIG_KEY = "staticParameters"
+
 const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
   editorMode,
   initialValues,
@@ -48,7 +50,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
   )
 
   const handleFormValuesChange: FormProps<PlainObjectWithPrimitiveValues>["onValuesChange"] = (_, values) => {
-    patchConfig(values)
+    patchConfig(CONFIG_KEY, values)
   }
 
   /**
@@ -66,7 +68,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
     }
 
     // onChange(form.getFieldsValue());
-    patchConfig(form.getFieldsValue(), { doNotSetStateChanged: true })
+    patchConfig(CONFIG_KEY, form.getFieldsValue(), { doNotSetStateChanged: true })
     setValidator(() => validateGetErrorsCount)
 
     // handleFormValuesChange({}, form.getFieldsValue());

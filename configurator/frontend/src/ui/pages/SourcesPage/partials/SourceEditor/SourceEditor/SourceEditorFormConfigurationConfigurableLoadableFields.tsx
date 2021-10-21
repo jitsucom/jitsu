@@ -25,6 +25,8 @@ type Props = {
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
 }
 
+const CONFIG_KEY = "loadableParameters"
+
 export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> = ({
   initialValues,
   sourceDataFromCatalog,
@@ -50,12 +52,12 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     }
   })
 
-  const handleFormValuesChange: FormProps<PlainObjectWithPrimitiveValues>["onValuesChange"] = (_, values) => {
-    patchConfig(values)
+  const handleFormValuesChange = (values: PlainObjectWithPrimitiveValues): void => {
+    patchConfig(CONFIG_KEY, values)
   }
 
   const handleSetInitialFormValues = (values: PlainObjectWithPrimitiveValues): void => {
-    patchConfig(values, { doNotSetStateChanged: true })
+    patchConfig(CONFIG_KEY, values, { doNotSetStateChanged: true })
   }
 
   /**
@@ -99,11 +101,12 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
       </Col>
     </Row>
   ) : (
-    <Form form={form} onValuesChange={handleFormValuesChange}>
+    <Form form={form}>
       <ConfigurableFieldsForm
         fieldsParamsList={fieldsParameters || []}
         form={form}
         initialValues={initialValues}
+        setFormValues={handleFormValuesChange}
         setInitialFormValues={handleSetInitialFormValues}
       />
     </Form>

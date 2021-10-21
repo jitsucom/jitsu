@@ -60,7 +60,9 @@ type ConnectionsState = {
   errorsCount: number
 }
 
-export type SourceConfigurationData = PlainObjectWithPrimitiveValues
+export type SourceConfigurationData = {
+  [key: string]: PlainObjectWithPrimitiveValues
+}
 export type SourceStreamsData = {
   [pathToStreamsInSourceData: string]: AirbyteStreamData[] | string
 }
@@ -116,7 +118,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   const [configIsValidatedByStreams, setConfigIsValidatedByStreams] = useState<boolean>(false)
 
   const handleBringSourceData = () => {
-    return sourceEditorUtils.getSourceDataFromState(state, sourceDataFromCatalog)
+    return sourceEditorUtils.getSourceDataFromState(state, sourceDataFromCatalog, initialSourceDataFromBackend)
   }
 
   const validateCountErrors = async (): Promise<number> => {

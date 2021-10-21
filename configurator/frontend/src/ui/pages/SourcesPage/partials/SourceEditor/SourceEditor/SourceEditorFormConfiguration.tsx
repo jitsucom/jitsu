@@ -21,6 +21,7 @@ type Props = {
 
 export type ValidateGetErrorsCount = () => Promise<number>
 export type PatchConfig = (
+  key: string,
   allValues: PlainObjectWithPrimitiveValues,
   options?: {
     doNotSetStateChanged?: boolean
@@ -42,14 +43,11 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
   const [configurableLoadableFieldsValidator, setConfigurableLoadableFieldsValidator] =
     useState<ValidateGetErrorsCount>(initialValidator)
 
-  const patchConfig = useCallback<PatchConfig>((allValues, options) => {
+  const patchConfig = useCallback<PatchConfig>((key, allValues, options) => {
     setSourceEditorState(state => {
       const newState = cloneDeep(state)
 
-      newState.configuration.config = {
-        ...newState.configuration.config,
-        ...allValues,
-      }
+      newState.configuration.config[key] = allValues
 
       if (!options?.doNotSetStateChanged) newState.stateChanged = true
 
@@ -79,6 +77,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
    */
   useEffect(() => {
     patchConfig(
+      "dockerImageField",
       { "config.docker_image": sourceDataFromCatalog.id.replace("airbyte-", "") },
       { doNotSetStateChanged: true }
     )
