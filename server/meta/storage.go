@@ -54,6 +54,10 @@ type Storage interface {
 	GetTask(taskID string) (*Task, error)
 	GetAllTaskIDs(sourceID, collection string, descendingOrder bool) ([]string, error)
 	RemoveTasks(sourceID, collection string, taskIDs ...string) (int, error)
+	TaskHeartBeat(taskID string) error
+	RemoveTaskFromHeartBeat(taskID string) error
+	GetAllTasksHeartBeat() (map[string]string, error)
+	GetAllTasksForInitialHeartbeat(runningStatus, scheduledStatus string, lastActivityThreshold time.Duration) ([]string, error)
 
 	//task logs
 	AppendTaskLog(taskID string, now time.Time, system, message, level string) error
