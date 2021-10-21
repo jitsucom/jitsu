@@ -190,6 +190,25 @@ func (rs *RedisService) Unlock(lock storages.Lock) error {
 	return nil
 }
 
+//UnlockCleanUp unlocks and deletes lock key from Redis
+func (rs *RedisService) UnlockCleanUp(system string, collection string) error {
+	identifier := rs.getMutexName(system, collection)
+
+	conn := rs.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("DEL", identifier)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	rs.selfmutex.Lock()
+	delete(rs.unlockMe, identifier)
+	rs.selfmutex.Unlock()
+
+	return nil
+}
+
 //Close closes connection to Redis and unlocks all locks
 func (rs *RedisService) Close() error {
 	rs.closed = true

@@ -18,6 +18,8 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/panjf2000/ants/v2"
+	"go.uber.org/atomic"
+	"strings"
 	"time"
 )
 
@@ -30,12 +32,24 @@ type TaskExecutor struct {
 	metaStorage        meta.Storage
 	monitorKeeper      storages.MonitorKeeper
 
-	closed bool
+	stalledThreshold      time.Duration
+	lastActivityThreshold time.Duration
+	observerStalledEvery  time.Duration
+	closed                *atomic.Bool
 }
 
 //NewTaskExecutor returns TaskExecutor and starts 2 goroutines (monitoring and queue observer)
-func NewTaskExecutor(poolSize int, sourceService *sources.Service, destinationService *destinations.Service, metaStorage meta.Storage, monitorKeeper storages.MonitorKeeper) (*TaskExecutor, error) {
-	executor := &TaskExecutor{sourceService: sourceService, destinationService: destinationService, metaStorage: metaStorage, monitorKeeper: monitorKeeper}
+func NewTaskExecutor(poolSize, stalledThresholdSeconds, stalledLastActivityThresholdMinutes, observeStalledTaskEverySeconds int, sourceService *sources.Service, destinationService *destinations.Service, metaStorage meta.Storage, monitorKeeper storages.MonitorKeeper) (*TaskExecutor, error) {
+	executor := &TaskExecutor{
+		sourceService:         sourceService,
+		destinationService:    destinationService,
+		metaStorage:           metaStorage,
+		monitorKeeper:         monitorKeeper,
+		stalledThreshold:      time.Duration(stalledThresholdSeconds) * time.Second,
+		lastActivityThreshold: time.Duration(stalledLastActivityThresholdMinutes) * time.Minute,
+		observerStalledEvery:  time.Duration(observeStalledTaskEverySeconds) * time.Second,
+		closed:                atomic.NewBool(false),
+	}
 	pool, err := ants.NewPoolWithFunc(poolSize, executor.execute)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating goroutines pool: %v", err)
@@ -44,15 +58,98 @@ func NewTaskExecutor(poolSize int, sourceService *sources.Service, destinationSe
 	executor.workersPool = pool
 	executor.startMonitoring()
 	executor.startObserver()
+	executor.startTaskController()
+	//this func is for recording all existed tasks (previous Jitsu versions don't write heartbeat in Redis)
+	//it also helps to close all stalled tasks
+	safego.Run(executor.initialHeartbeat)
 
 	return executor, nil
+}
+
+//initialHeartbeat gets all stalled tasks and does initial heartbeat
+//it helps to close tasks which were created in previous Jitsu versions
+func (te *TaskExecutor) initialHeartbeat() {
+	taskIDs, err := te.metaStorage.GetAllTasksForInitialHeartbeat(RUNNING.String(), SCHEDULED.String(), te.lastActivityThreshold)
+	if err != nil {
+		logging.SystemErrorf("error getting all tasks ids for initial heartbeat: %v", err)
+		return
+	}
+
+	if len(taskIDs) > 0 {
+		logging.Infof("Tasks for initial heartbeat:\n%s", strings.Join(taskIDs, "\b\n"))
+
+		for _, taskID := range taskIDs {
+			if hbErr := te.metaStorage.TaskHeartBeat(taskID); hbErr != nil {
+				logging.SystemErrorf("error in task [%s] initial heartbeat: %v", taskID, hbErr)
+			}
+		}
+	}
+}
+
+//startTaskController runs goroutine for controlling task heartbeat. If a task doesn't send heartbeat 1 time per 10 sec
+//(last heart beat was > stalled_threshold ago) and status isn't SUCCESS or FAILED -> change its status to FAILED
+func (te *TaskExecutor) startTaskController() {
+	safego.RunWithRestart(func() {
+		for {
+			if te.closed.Load() {
+				break
+			}
+
+			tasksHeartBeats, err := te.metaStorage.GetAllTasksHeartBeat()
+			if err != nil {
+				logging.SystemErrorf("error getting all tasks heartbeat: %v", err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			for taskID, lastHeartBeat := range tasksHeartBeats {
+				lastHeartBeatTime, err := time.Parse(time.RFC3339Nano, lastHeartBeat)
+				if err != nil {
+					logging.SystemErrorf("error parsing task [%s] heartbeat timestamp str [%s]: %v", taskID, lastHeartBeat, err)
+					continue
+				}
+
+				if time.Now().UTC().Before(lastHeartBeatTime.Add(te.stalledThreshold)) {
+					//not enough time
+					continue
+				}
+
+				//check and update the status
+				task, err := te.metaStorage.GetTask(taskID)
+				if err != nil {
+					logging.SystemErrorf("error getting task by id [%s] in heartbeat controller: %v", taskID, err)
+					continue
+				}
+
+				if task.Status == RUNNING.String() || task.Status == SCHEDULED.String() {
+					taskLogger := NewTaskLogger(task.ID, te.metaStorage)
+					taskCloser := NewTaskCloser(task, taskLogger, te.metaStorage)
+					stalledTimeAgo := time.Now().UTC().Sub(lastHeartBeatTime)
+
+					errMsg := fmt.Sprintf("The task is marked as Stalled. Jitsu has not received any updates from this task [%.2f] seconds (~ %.2f minutes). It might happen due to server restart. Sometimes out of memory errors might be a cause. You can check application logs and if so, please give Jitsu more RAM.", stalledTimeAgo.Seconds(), stalledTimeAgo.Minutes())
+					taskCloser.CloseWithError(errMsg, false)
+
+					if err := te.monitorKeeper.UnlockCleanUp(task.Source, task.Collection); err != nil {
+						logging.SystemErrorf("error unlocking task [%s] from heartbeat: %v", taskID, err)
+					}
+				}
+
+				if err := te.metaStorage.RemoveTaskFromHeartBeat(taskID); err != nil {
+					logging.SystemErrorf("error removing task [%s] from heartbeat: %v", taskID, err)
+				}
+
+			}
+
+			time.Sleep(te.observerStalledEvery)
+		}
+	})
 }
 
 //startMonitoring run goroutine for setting pool size metrics every 20 seconds
 func (te *TaskExecutor) startMonitoring() {
 	safego.RunWithRestart(func() {
 		for {
-			if te.closed {
+			if te.closed.Load() {
 				break
 			}
 
@@ -68,7 +165,7 @@ func (te *TaskExecutor) startMonitoring() {
 func (te *TaskExecutor) startObserver() {
 	safego.RunWithRestart(func() {
 		for {
-			if te.closed {
+			if te.closed.Load() {
 				break
 			}
 
@@ -88,7 +185,7 @@ func (te *TaskExecutor) startObserver() {
 	})
 }
 
-//run validate task and execute sync (singer or plain)
+//execute runs task validating and syncing (cli or plain)
 func (te *TaskExecutor) execute(i interface{}) {
 	task, ok := i.(*meta.Task)
 	if !ok {
@@ -100,7 +197,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	//create redis logger
 	taskLogger := NewTaskLogger(task.ID, te.metaStorage)
 	logging.Infof("[%s] Running task...", task.ID)
-	taskLogger.INFO("Running task...")
+	taskLogger.INFO("Running task with id: %s", task.ID)
 
 	taskCloser := NewTaskCloser(task, taskLogger, te.metaStorage)
 
@@ -113,6 +210,30 @@ func (te *TaskExecutor) execute(i interface{}) {
 		return
 	}
 
+	//task heartbeat
+	taskDone := make(chan struct{})
+	defer close(taskDone)
+	safego.Run(func() {
+		//first heart beat
+		if hbErr := te.metaStorage.TaskHeartBeat(task.ID); hbErr != nil {
+			logging.SystemErrorf("error in task [%s] first heartbeat: %v", task.ID, hbErr)
+		}
+
+		//every 10 seconds
+		ticker := time.NewTicker(10 * time.Second)
+		for {
+			select {
+			case <-taskDone:
+				return
+			case <-ticker.C:
+				if hbErr := te.metaStorage.TaskHeartBeat(task.ID); hbErr != nil {
+					logging.SystemErrorf("error in task [%s] heartbeat: %v", task.ID, hbErr)
+				}
+			}
+		}
+	})
+
+	taskLogger.INFO("Acquiring lock...")
 	logging.Debugf("[TASK %s] Getting sync lock source [%s] collection [%s]...", task.ID, task.Source, task.Collection)
 	collectionLock, err := te.monitorKeeper.Lock(task.Source, task.Collection)
 	if err != nil {
@@ -120,6 +241,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 		taskCloser.CloseWithError(msg, true)
 		return
 	}
+	taskLogger.INFO("Lock has been acquired!")
 	logging.Debugf("[TASK %s] Lock obtained for source [%s] collection [%s]!", task.ID, task.Source, task.Collection)
 	defer te.monitorKeeper.Unlock(collectionLock)
 
@@ -335,7 +457,7 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 }
 
 func (te *TaskExecutor) Close() error {
-	te.closed = true
+	te.closed.Store(true)
 
 	if te.workersPool != nil {
 		te.workersPool.Release()
