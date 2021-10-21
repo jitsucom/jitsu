@@ -12,6 +12,7 @@ const (
 	RUNNING   Status = "RUNNING"
 	FAILED    Status = "FAILED"
 	SUCCESS   Status = "SUCCESS"
+	CANCELED  Status = "CANCELED"
 )
 
 func (s Status) String() string {
@@ -28,7 +29,9 @@ func StatusFromString(value string) (Status, error) {
 		return SUCCESS, nil
 	case "RUNNING":
 		return RUNNING, nil
+	case "CANCELED":
+		return CANCELED, nil
 	default:
-		return "", fmt.Errorf("Unknown status: %s. Supported: [SCHEDULED, FAILED, SUCCESS, RUNNING]", value)
+		return "", fmt.Errorf("Unknown status: %s. Supported: [SCHEDULED, FAILED, SUCCESS, RUNNING, CANCELED]", value)
 	}
 }

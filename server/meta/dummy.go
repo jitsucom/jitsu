@@ -55,6 +55,13 @@ func (d *Dummy) GetTask(taskID string) (*Task, error)                   { return
 func (d *Dummy) RemoveTasks(sourceID, collection string, taskIDs ...string) (int, error) {
 	return 0, nil
 }
+func (d *Dummy) TaskHeartBeat(taskID string) error                { return nil }
+func (d *Dummy) RemoveTaskFromHeartBeat(taskID string) error      { return nil }
+func (d *Dummy) GetAllTasksHeartBeat() (map[string]string, error) { return map[string]string{}, nil }
+func (d *Dummy) GetAllTasksForInitialHeartbeat(runningStatus, scheduledStatus string, lastActivityThreshold time.Duration) ([]string, error) {
+	return nil, nil
+}
+
 func (d *Dummy) AppendTaskLog(taskID string, now time.Time, system, message, level string) error {
 	return nil
 }
