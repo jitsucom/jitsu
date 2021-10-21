@@ -16,7 +16,7 @@ import SyncOutlined from "@ant-design/icons/lib/icons/SyncOutlined"
 /**
  * Action - link or onClick handler
  */
-export type ConnectionCardAction = string | (() => void)
+export type ConnectionCardAction = string | (() => void) | undefined
 
 /**
  * Returns link (if action is string, meaning URL), or Button
@@ -29,7 +29,11 @@ function ActionLink({ action, children }: { action: ConnectionCardAction; childr
       </NavLink>
     )
   } else {
-    return <Button onClick={action} icon={children} type="link" />
+    return (
+      <a className="text-text" onClick={action}>
+        {children}
+      </a>
+    )
   }
 }
 
@@ -39,7 +43,7 @@ export type ConnectionCardProps = {
 
   deleteAction: ConnectionCardAction
   editAction: ConnectionCardAction
-  menuOverlay: ReactElement
+  menuOverlay: ReactElement | undefined
 
   title: string
   rename: (newName: string) => Promise<any>
@@ -47,11 +51,15 @@ export type ConnectionCardProps = {
   subtitle: ReactNode
 
   status: ReactNode
+
+  //If connection card is loading - we're waiting something from the
+  //server which changes the state of the card
+  loading?: boolean
 }
 
 export function ConnectionCard(props: ConnectionCardProps) {
   return (
-    <div className={styles.connectionCard}>
+    <div className={`${styles.connectionCard} ${props.loading && styles.connectionCardLoading}`}>
       <div className="w-full flex justify-between items-start">
         <div className="flex items-center">
           <div className="h-12">{props.icon}</div>
@@ -62,21 +70,25 @@ export function ConnectionCard(props: ConnectionCardProps) {
             <div className="text-secondaryText">{props.subtitle}</div>
           </div>
         </div>
-        <Dropdown trigger={["click"]} overlay={props.menuOverlay}>
+        {props.menuOverlay && <Dropdown trigger={["click"]} overlay={props.menuOverlay}>
           <Button type="ghost" size="small">
             ···
           </Button>
-        </Dropdown>
+        </Dropdown>}
       </div>
-      <div className="pt-6 flex items-center">
-        <div>{props.status}</div>
-        <div className="flex justify-end flex-grow items-center">
-          <ActionLink action={props.editAction}>
-            <EditOutlined />
-          </ActionLink>
-          <ActionLink action={props.deleteAction}>
-            <DeleteOutlined />
-          </ActionLink>
+      <div className="pt-6 flex items-end">
+        <div className="flex-grow">{props.status}</div>
+        <div className="flex justify-end flex-grow items-end space-x-2">
+          {props.editAction && (
+            <ActionLink action={props.editAction}>
+              <EditOutlined />
+            </ActionLink>
+          )}
+          {props.deleteAction && (
+            <ActionLink action={props.deleteAction}>
+              <DeleteOutlined />
+            </ActionLink>
+          )}
         </div>
       </div>
     </div>

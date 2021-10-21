@@ -6,7 +6,6 @@ import { destinationsStore } from "../../../stores/destinations"
 import { handleError } from "../../../lib/components/components"
 import { generatePath, NavLink } from "react-router-dom"
 import { destinationPageRoutes } from "../../pages/DestinationsPage/DestinationsPage.routes"
-import { getEntitiesCollection } from "../../../lib/services/ServerStorage"
 import { useServices } from "../../../hooks/useServices"
 import React from "react"
 import Tooltip from "antd/es/tooltip"
@@ -15,6 +14,7 @@ import DeleteOutlined from "@ant-design/icons/lib/icons/DeleteOutlined"
 import CodeOutlined from "@ant-design/icons/lib/icons/CodeOutlined"
 import SubMenu from "antd/lib/menu/SubMenu"
 import SyncOutlined from "@ant-design/icons/lib/icons/SyncOutlined"
+import { flowResult } from "mobx"
 
 export type DestinationCardProps = {
   dst: DestinationData
@@ -24,9 +24,8 @@ export function DestinationCard({ dst }: DestinationCardProps) {
   const reference = destinationsReferenceMap[dst._type]
   const services = useServices()
   const rename = async (newName: string) => {
-    await getEntitiesCollection(services.storageService, "destinations", services.activeProject.id, {
-      idFieldPath: "_uid",
-    }).patch(dst._uid, { displayName: newName })
+    await services.storageService.table("destinations").patch(dst._uid, { displayName: newName })
+    await flowResult(destinationsStore.pullDestinations())
   }
   let deleteAction = () => {
     Modal.confirm({
@@ -55,29 +54,32 @@ export function DestinationCard({ dst }: DestinationCardProps) {
       deleteAction={deleteAction}
       editAction={editLink}
       rename={rename}
-      menuOverlay={<Menu>
-        <Menu.Item icon={<EditOutlined />}>
-          <NavLink to={editLink}>Edit</NavLink>
-        </Menu.Item>
-        <Menu.Item icon={<DeleteOutlined />} onClick={deleteAction}>
-          Delete
-        </Menu.Item>
-        <Menu.Item icon={<CodeOutlined />}>
-          <NavLink to={statLink}>Statistics</NavLink>
-        </Menu.Item>
-      </Menu>}
-      subtitle={<>
-        mode: {dst._formData?.mode}
-      </>}
+      menuOverlay={
+        <Menu>
+          <Menu.Item icon={<EditOutlined />}>
+            <NavLink to={editLink}>Edit</NavLink>
+          </Menu.Item>
+          <Menu.Item icon={<DeleteOutlined />} onClick={deleteAction}>
+            Delete
+          </Menu.Item>
+          <Menu.Item icon={<CodeOutlined />}>
+            <NavLink to={statLink}>Statistics</NavLink>
+          </Menu.Item>
+        </Menu>
+      }
+      subtitle={<>mode: {dst._formData?.mode}</>}
       status={
-        <Tooltip overlay={dst._connectionTestOk ? 'Connection successful' : `Connection failed: ${dst._connectionErrorMessage}`}>
+        <Tooltip
+          overlay={
+            dst._connectionTestOk ? "Connection successful" : `Connection failed: ${dst._connectionErrorMessage}`
+          }>
           <Badge
             size="default"
             status={dst._connectionTestOk ? "success" : "error"}
             text={
               <span className={`text-${dst._connectionTestOk ? "success" : "error"}`}>
-              {dst._connectionTestOk ? "Active" : "Connection test failed"}
-            </span>
+                {dst._connectionTestOk ? "Active" : "Connection test failed"}
+              </span>
             }
           />
         </Tooltip>

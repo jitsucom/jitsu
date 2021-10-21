@@ -5,7 +5,7 @@ import { allSources } from "../../../catalog/sources/lib"
 import snakeCase from "lodash/snakeCase"
 import EditOutlined from "@ant-design/icons/lib/icons/EditOutlined"
 import DeleteOutlined from "@ant-design/icons/lib/icons/DeleteOutlined"
-import { Badge, Button, Dropdown, Menu, Modal, Spin, Tag, Tooltip } from "antd"
+import { Badge, Button, Dropdown, Menu, Modal, Skeleton, Spin, Tag, Tooltip } from "antd"
 import SubMenu from "antd/lib/menu/SubMenu"
 import CodeOutlined from "@ant-design/icons/lib/icons/CodeOutlined"
 import SyncOutlined from "@ant-design/icons/lib/icons/SyncOutlined"
@@ -16,7 +16,6 @@ import { sourcesStore } from "../../../stores/sources"
 import ExclamationCircleOutlined from "@ant-design/icons/lib/icons/ExclamationCircleOutlined"
 import { closeableMessage, withProgressBar } from "../../../lib/components/components"
 import { useServices } from "../../../hooks/useServices"
-import { getEntitiesCollection } from "../../../lib/services/ServerStorage"
 import { EditableName } from "../EditableName/EditableName"
 import useLoader, { useLoaderAsObject } from "../../../hooks/useLoader"
 import { Task, TaskId } from "../../pages/TaskLogs/utils"
@@ -24,9 +23,11 @@ import moment from "moment"
 import { taskLogsViewerRoute } from "../../pages/TaskLogs/TaskLogViewer"
 import { comparator } from "../../../lib/commons/utils"
 import { ConnectionCard } from "../ConnectionCard/ConnectionCard"
+import { flowResult } from "mobx"
+import { destinationsStore } from "../../../stores/destinations"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
-  (accumulator: { [key: string]: SourceConnector }, current: SourceConnector) => ({
+  (accumulator, current) => ({
     ...accumulator,
     [snakeCase(current.id)]: current,
   }),
@@ -93,9 +94,8 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
   }
 
   const rename = async (sourceId: string, newName: string) => {
-    await getEntitiesCollection(services.storageService, "sources", services.activeProject.id, {
-      idFieldPath: "sourceId",
-    }).patch(sourceId, { displayName: newName })
+    await services.storageService.table("sources").patch(sourceId, { displayName: newName })
+    await flowResult(sourcesStore.pullSources())
   }
 
   const editLink = generatePath(sourcesPageRoutes.editExact, { sourceId: src.sourceId })
@@ -201,17 +201,18 @@ function LastTaskStatus({ sourceId }) {
   })
 
   if (isLoading) {
-    return <Spin />
+    return <Skeleton active title={false} paragraph={{ rows: 1, width: ["100%"] }} className="w-full" />
   }
-  if (error) {
-    return <Tag color="error">ERROR !</Tag>
-  }
-  if (!task?.status) {
+  //workaround: "doesn't exist" really means no tasks
+  if (!task?.status && (error?.message || "").indexOf("doesn't exist")) {
     return (
       <Tooltip overlay={<>This connector hasn't been started yet</>}>
         <Tag color="default">NO RUNS</Tag>
       </Tooltip>
     )
+  }
+  if (error) {
+    return <Tag color="error">ERROR !</Tag>
   }
   const date = task.finished_at ? moment.utc(task.finished_at) : null
   const now = moment.utc(new Date().toISOString())
