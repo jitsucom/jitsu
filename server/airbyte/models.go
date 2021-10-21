@@ -69,7 +69,7 @@ type Stream struct {
 	JsonSchema              *Schema    `json:"json_schema,omitempty"`
 	SupportedSyncModes      []string   `json:"supported_sync_modes,omitempty"`
 	SourceDefinedPrimaryKey [][]string `json:"source_defined_primary_key,omitempty"`
-	SourceDefinedCursor     bool       `json:"source_defined_cursor,omitempty"`
+	SourceDefinedCursor     bool       `json:"source_defined_cursor"`
 	DefaultCursorField      []string   `json:"default_cursor_field,omitempty"`
 
 	Namespace string `json:"namespace,omitempty"`

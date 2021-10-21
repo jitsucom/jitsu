@@ -52,9 +52,10 @@ func Init(ctx context.Context, configDir, workspaceVolume string, logWriter io.W
 
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error creating docker client: %v", err)
 	}
 
+	logging.Infof("Loading local airbyte docker images..")
 	images, err := cli.ImageList(ctx, types.ImageListOptions{})
 	if err != nil {
 		return fmt.Errorf("error executing docker image ls: %v", err)
