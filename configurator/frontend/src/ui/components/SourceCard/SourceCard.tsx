@@ -14,7 +14,7 @@ import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { taskLogsPageRoute } from "../../pages/TaskLogs/TaskLogsPage"
 import { sourcesStore } from "../../../stores/sources"
 import ExclamationCircleOutlined from "@ant-design/icons/lib/icons/ExclamationCircleOutlined"
-import { closeableMessage, withProgressBar } from "../../../lib/components/components"
+import { withProgressBar } from "../../../lib/components/components"
 import { useServices } from "../../../hooks/useServices"
 import { EditableName } from "../EditableName/EditableName"
 import useLoader, { useLoaderAsObject } from "../../../hooks/useLoader"
@@ -25,6 +25,7 @@ import { comparator } from "../../../lib/commons/utils"
 import { ConnectionCard } from "../ConnectionCard/ConnectionCard"
 import { flowResult } from "mobx"
 import { destinationsStore } from "../../../stores/destinations"
+import { actionNotification } from "../ActionNotification/ActionNotification"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator, current) => ({
@@ -112,7 +113,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
       onCancel: () => {},
       onOk: async () => {
         sourcesStore.deleteSource(src)
-        closeableMessage.success("Sources list successfully updated")
+        actionNotification.success("Sources list successfully updated")
       },
     })
   }

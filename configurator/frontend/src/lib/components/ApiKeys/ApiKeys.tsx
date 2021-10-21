@@ -2,13 +2,12 @@
 import React, { ReactNode, useState } from "react"
 import { flowResult } from "mobx"
 import { Observer, observer } from "mobx-react-lite"
-import { Button, Drawer, Input, message, Modal, Popover, Select, Space, Switch, Table, Tabs, Tooltip } from "antd"
+import { Button, Drawer, Input, Menu, message, Modal, Popover, Select, Space, Switch, Table, Tabs, Tooltip } from "antd"
 // @Components
 import {
   ActionLink,
   CenteredError,
   CenteredSpin,
-  closeableMessage,
   CodeInline,
   CodeSnippet,
   handleError,
@@ -43,6 +42,8 @@ import { Code } from "../Code/Code"
 import { ConnectionCard } from "../../../ui/components/ConnectionCard/ConnectionCard"
 import { apiKeysReferenceMap } from "../../../catalog/apiKeys/lib"
 import { ConfigurationEntitiesTable } from "../../services/ServerStorage"
+import { actionNotification } from "../../../ui/components/ActionNotification/ActionNotification"
+import { DeleteOutlined } from "@ant-design/icons"
 
 /**
  * What's displayed as loading?
@@ -52,24 +53,13 @@ import { ConfigurationEntitiesTable } from "../../services/ServerStorage"
  */
 type LoadingState = number | "NEW" | null
 
-function generateNewKeyWithConfirmation(onConfirm: () => void) {
-  Modal.confirm({
-    title: "Please confirm deletion of destination",
-    icon: <ExclamationCircleOutlined />,
-    content:
-      "Are you sure you want to delete generate new key? Previously generated key will be lost and you'll need to reconfigure ALL clients",
-    okText: "Generate new key",
-    cancelText: "Cancel",
-    onOk: onConfirm,
-    onCancel: () => {},
-  })
-}
 
 type ApiKeyCardProps = {
   apiKey: UserApiKey
+  showDocumentation: () => void
 }
 
-function ApiKeyCard({ apiKey: key }: ApiKeyCardProps) {
+function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) {
   const [loading, setLoading] = useState(false)
   const services = useServices()
   let keysBackend = services.storageService.table<APIKey>("api_keys")
@@ -81,27 +71,32 @@ function ApiKeyCard({ apiKey: key }: ApiKeyCardProps) {
     return newKey
   }
 
+  let deleteKey = async () => {
+    setLoading(true)
+    try {
+      await keysBackend.remove(key.uid)
+      await flowResult(apiKeysStore.pullApiKeys())
+    } finally {
+      setLoading(false)
+    }
+  }
   return (
     <ConnectionCard
       loading={loading}
       title={key.comment || key.uid}
       icon={apiKeysReferenceMap.js.icon}
-      deleteAction={async () => {
-        setLoading(true)
-        try {
-          await keysBackend.remove(key.uid)
-          await flowResult(apiKeysStore.pullApiKeys())
-        } finally {
-          setLoading(false)
-        }
-      }}
+      deleteAction={deleteKey}
       editAction={undefined}
-      menuOverlay={null}
+      menuOverlay={<Menu>
+        <Menu.Item icon={<DeleteOutlined />} onClick={deleteKey}>
+          Delete
+        </Menu.Item>
+      </Menu>}
       rename={async newName => {
         await keysBackend.patch(key.uid, { comment: newName })
         await flowResult(apiKeysStore.pullApiKeys())
       }}
-      subtitle={<>Show connection instructions</>}
+      subtitle={<a onClick={showDocumentation}>Show connection instructions→</a>}
       status={
         <>
           <div className="text-xs">
@@ -168,9 +163,9 @@ const ApiKeysComponent: React.FC = () => {
                 origins: [],
               })
               await flowResult(apiKeysStore.pullApiKeys())
-              closeableMessage.info("New API key has been saved!")
+              actionNotification.info("New API key has been saved!")
             } catch (error) {
-              closeableMessage.error(`Failed to add new token: ${error.message || error}`)
+              actionNotification.error(`Failed to add new token: ${error.message || error}`)
             } finally {
               setLoading(null)
             }
@@ -189,7 +184,7 @@ const ApiKeysComponent: React.FC = () => {
           .slice()
           .reverse()
           .map(key => (
-            <ApiKeyCard apiKey={key} key={key.uid} />
+            <ApiKeyCard apiKey={key} key={key.uid} showDocumentation={() => setDocumentationDrawerKey(key)} />
           ))}
       </div>
       <Drawer width="70%" visible={!!documentationDrawerKey} onClose={() => setDocumentationDrawerKey(null)}>
@@ -243,7 +238,7 @@ function SecretKey({ children, rotateKey }: SecretKeyProps) {
             title: "Please confirm key rotation",
             icon: <ExclamationCircleOutlined />,
             content:
-              "Are you sure you want to delete generate new key? Previously generated key will be lost and you'll need to reconfigure ALL clients",
+              "Are you sure you want to rotate the key? Previously generated key will be lost and you'll need to reconfigure ALL clients",
             okText: "Generate new key",
             cancelText: "Cancel",
             onOk: async () => {

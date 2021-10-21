@@ -24,8 +24,8 @@ export type ConnectionCardAction = string | (() => void) | undefined
 function ActionLink({ action, children }: { action: ConnectionCardAction; children: ReactNode }) {
   if (typeof action === "string") {
     return (
-      <NavLink to={action}>
-        <a className="text-text">{children}</a>
+      <NavLink to={action} className="pr-0.5">
+        {children}
       </NavLink>
     )
   } else {
@@ -62,7 +62,9 @@ export function ConnectionCard(props: ConnectionCardProps) {
     <div className={`${styles.connectionCard} ${props.loading && styles.connectionCardLoading}`}>
       <div className="w-full flex justify-between items-start">
         <div className="flex items-center">
-          <div className="h-12">{props.icon}</div>
+          <div className="h-12">
+            <ActionLink action={props.editAction}>{props.icon}</ActionLink>
+          </div>
           <div className="pl-4 h-12 h-full flex flex-col justify-between ">
             <div>
               <EditableName className="text-base font-bold" name={props.title} update={props.rename} />
@@ -70,25 +72,18 @@ export function ConnectionCard(props: ConnectionCardProps) {
             <div className="text-secondaryText">{props.subtitle}</div>
           </div>
         </div>
-        {props.menuOverlay && <Dropdown trigger={["click"]} overlay={props.menuOverlay}>
-          <Button type="ghost" size="small">
-            ···
-          </Button>
-        </Dropdown>}
+        {props.menuOverlay && (
+          <Dropdown trigger={["click"]} overlay={props.menuOverlay}>
+            <Button type="ghost" size="small">
+              ···
+            </Button>
+          </Dropdown>
+        )}
       </div>
       <div className="pt-6 flex items-end">
         <div className="flex-grow">{props.status}</div>
         <div className="flex justify-end flex-grow items-end space-x-2">
-          {props.editAction && (
-            <ActionLink action={props.editAction}>
-              <EditOutlined />
-            </ActionLink>
-          )}
-          {props.deleteAction && (
-            <ActionLink action={props.deleteAction}>
-              <DeleteOutlined />
-            </ActionLink>
-          )}
+          {props.editAction && <ActionLink action={props.editAction}>Edit</ActionLink>}
         </div>
       </div>
     </div>

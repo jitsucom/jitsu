@@ -8,7 +8,6 @@ import cn from 'classnames';
 import { TabsConfigurator } from 'ui/components/Tabs/TabsConfigurator';
 import { EditorButtons } from 'ui/components/EditorButtons/EditorButtons';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
-import { closeableMessage } from 'lib/components/components';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
 import { DestinationEditorTransform } from './DestinationEditorTransform';
 import { DestinationEditorConnectors } from './DestinationEditorConnectors';
@@ -41,6 +40,7 @@ import { firstToLower } from 'lib/commons/utils';
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
 import { AreaChartOutlined, WarningOutlined } from '@ant-design/icons';
+import { actionNotification } from "../../../../components/ActionNotification/ActionNotification"
 
 type DestinationTabKey =
   | 'config'
@@ -359,7 +359,7 @@ const DestinationEditor = ({
                 `${destinationData.current._type} has been saved!`
               );
           } else {
-            closeableMessage.warn(
+            actionNotification.warn(
               `${
                 destinationData.current._type
               } has been saved, but test has failed with '${firstToLower(
