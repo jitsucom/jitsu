@@ -968,7 +968,7 @@ func getCoveredMonths(start, end time.Time) []string {
 
 func extractOriginalEventId(eventId string) string {
 	if parts := strings.Split(eventId, "_"); len(parts) == 2 {
-		return parts[0];
+		return parts[0]
 	}
 	return eventId
 }
