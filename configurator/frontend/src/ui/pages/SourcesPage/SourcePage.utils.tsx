@@ -10,7 +10,6 @@ import { closeableMessage, handleError } from 'lib/components/components';
 import ApplicationServices from 'lib/services/ApplicationServices';
 import Marshal from 'lib/commons/marshalling';
 // @Components
-import { ListItemTitle } from 'ui/components/ListItem/ListItemTitle';
 import { Tab } from 'ui/components/Tabs/TabsConfigurator';
 import { validateTabForm } from 'utils/forms/validateTabForm';
 import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
@@ -30,25 +29,6 @@ const sourcePageUtils = {
     }
 
     return getUniqueAutoIncId(sourceProtoType, sourcesIds);
-  },
-
-  getTitle: (src: SourceData) => {
-    return (
-      <ListItemTitle
-        render={src.sourceId}
-        error={!src.connected}
-        errorMessage={
-          <>
-            Last connection test failed with{' '}
-            <b>
-              <i>'{src.connectedErrorMessage}'</i>
-            </b>
-            . Source might be unavailable. Please, go to editor and fix the
-            connection settings
-          </>
-        }
-      />
-    );
   },
   getPromptMessage: (tabs: Tab[]) => () =>
     tabs.some((tab) => tab.touched)

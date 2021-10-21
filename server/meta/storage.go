@@ -54,6 +54,10 @@ type Storage interface {
 	GetTask(taskID string) (*Task, error)
 	GetAllTaskIDs(sourceID, collection string, descendingOrder bool) ([]string, error)
 	RemoveTasks(sourceID, collection string, taskIDs ...string) (int, error)
+	TaskHeartBeat(taskID string) error
+	RemoveTaskFromHeartBeat(taskID string) error
+	GetAllTasksHeartBeat() (map[string]string, error)
+	GetAllTasksForInitialHeartbeat(runningStatus, scheduledStatus string, lastActivityThreshold time.Duration) ([]string, error)
 
 	//task logs
 	AppendTaskLog(taskID string, now time.Time, system, message, level string) error
@@ -74,11 +78,12 @@ func NewStorage(meta *viper.Viper) (Storage, error) {
 	host := meta.GetString("redis.host")
 	port := meta.GetInt("redis.port")
 	password := meta.GetString("redis.password")
+	sentinelMaster := meta.GetString("redis.sentinel_master_name")
 	anonymousEventsTTL := meta.GetInt("redis.ttl_minutes.anonymous_events")
 	tlsSkipVerify := meta.GetBool("redis.tls_skip_verify")
 
-	redisConfig := NewRedisConfiguration(host, port, password, tlsSkipVerify)
-	redisConfig.CheckAndSetDefaultPort()
+	factory := NewRedisPoolFactory(host, port, password, tlsSkipVerify, sentinelMaster)
+	factory.CheckAndSetDefaultPort()
 
-	return NewRedis(redisConfig, anonymousEventsTTL)
+	return NewRedis(factory, anonymousEventsTTL)
 }

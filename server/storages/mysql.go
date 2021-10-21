@@ -26,7 +26,7 @@ type MySQL struct {
 }
 
 func init() {
-	RegisterStorage(MySQLType, NewMySQL)
+	RegisterStorage(StorageType{typeName: MySQLType, createFunc: NewMySQL})
 }
 
 //NewMySQL returns configured MySQL Destination
@@ -52,7 +52,7 @@ func NewMySQL(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToMySQL, config.maxColumns)
+	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToMySQL, config.maxColumns, MySQLType)
 
 	m := &MySQL{
 		adapter:                       adapter,
@@ -113,7 +113,7 @@ func CreateMySQLAdapter(ctx context.Context, config adapters.DataSourceConfig, q
 	return mySQLAdapter, nil
 }
 
-func (m *MySQL) DryRun(payload events.Event) ([]adapters.TableField, error) {
+func (m *MySQL) DryRun(payload events.Event) ([][]adapters.TableField, error) {
 	_, tableHelper := m.getAdapters()
 	return dryRun(payload, m.processor, tableHelper)
 }

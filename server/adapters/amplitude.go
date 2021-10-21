@@ -114,7 +114,8 @@ func (a *Amplitude) TestAccess() error {
 		return err
 	}
 
-	r, err := httpReqFactory.Create(nil)
+	body := map[string]interface{}{"event_type": "connection_test", "user_id": "hello@jitsu.com"}
+	r, err := httpReqFactory.Create(body)
 	if err != nil {
 		return err
 	}
@@ -128,7 +129,6 @@ func (a *Amplitude) TestAccess() error {
 		httpReq.Header.Add(k, v)
 	}
 
-	//send empty request and expect error
 	resp, err := http.DefaultClient.Do(httpReq)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
@@ -145,10 +145,9 @@ func (a *Amplitude) TestAccess() error {
 		}
 
 		if response.Code != 200 {
-			return fmt.Errorf("Error connecting to amplitude [code=%d]: %s", response.Code, response.Error)
+			return fmt.Errorf("error connecting to amplitude [code=%d]: %s", response.Code, response.Error)
 		}
 
-		//assume other errors - it's ok
 		return nil
 	}
 
