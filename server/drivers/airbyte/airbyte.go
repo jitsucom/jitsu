@@ -24,7 +24,7 @@ type Airbyte struct {
 	mutex *sync.RWMutex
 	base.AbstractCLIDriver
 
-	activeRunners map[string]*airbyte.Runner
+	activeCommands map[string]*SyncCommand
 
 	config                   *Config
 	pathToConfigs            string
@@ -114,7 +114,7 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 		config.StreamTableNamesPrefix, pathToConfigs, config.StreamTableNames)
 	s := &Airbyte{
 		mutex:                 &sync.RWMutex{},
-		activeRunners:         map[string]*airbyte.Runner{},
+		activeCommands:        map[string]*SyncCommand{},
 		config:                config,
 		pathToConfigs:         pathToConfigs,
 		catalogDiscovered:     catalogDiscovered,
@@ -238,12 +238,15 @@ func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer
 	airbyteRunner := airbyte.NewRunner(a.GetTap(), a.config.ImageVersion, taskCloser.TaskID())
 
 	a.mutex.Lock()
-	a.activeRunners[taskCloser.TaskID()] = airbyteRunner
+	a.activeCommands[taskCloser.TaskID()] = &SyncCommand{
+		Runner:     airbyteRunner,
+		TaskCloser: taskCloser,
+	}
 	a.mutex.Unlock()
 
 	defer func() {
 		a.mutex.Lock()
-		delete(a.activeRunners, taskCloser.TaskID())
+		delete(a.activeCommands, taskCloser.TaskID())
 		a.mutex.Unlock()
 	}()
 
@@ -263,9 +266,9 @@ func (a *Airbyte) Close() (multiErr error) {
 	close(a.closed)
 
 	a.mutex.Lock()
-	for _, activeRunner := range a.activeRunners {
-		logging.Infof("[%s] killing process: %s", a.ID(), activeRunner.GetCommand())
-		if err := activeRunner.Close(); err != nil && err != airbyte.ErrAlreadyTerminated {
+	for _, activeCommand := range a.activeCommands {
+		logging.Infof("[%s] killing process: %s", a.ID(), activeCommand.Runner.GetCommand())
+		if err := activeCommand.Shutdown(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error killing airbyte read command: %v", a.ID(), err))
 		}
 	}
