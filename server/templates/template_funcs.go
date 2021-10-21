@@ -10,6 +10,8 @@ import (
 	"github.com/jitsucom/jitsu/server/jsonutils"
 )
 
+const TableNameParameter = "__JITSU_TABLE_NAME"
+
 //JSONSerializeFuncs are additional funcs for using from text/template.
 //for example for embedding whole object as JSON into another JSON
 var JSONSerializeFuncs = template.FuncMap{
@@ -28,6 +30,8 @@ var JSONSerializeFuncs = template.FuncMap{
 	"get": func(v interface{}, path string, defaultValue interface{}) (interface{}, error) {
 		return get_impl(v, path, defaultValue)
 	},
+
+	"TABLE_NAME": TableNameParameter,
 }
 
 func marshal(v interface{}, indent, quote bool) (string, error) {

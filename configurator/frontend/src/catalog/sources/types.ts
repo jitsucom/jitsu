@@ -275,6 +275,15 @@ export type Parameter = {
    * Function of current config that shows whether to use field (render and send value) or not.
    */
   omitFieldRule?: (config: unknown) => boolean;
+  /**
+   * Javascript Debugger is supported to help edit this property value.
+   * Debugger supports 2 mode based on expected result value: object or string
+   */
+  jsDebugger?: "object" | "string" | null;
+  /**
+   * Field use full width by omitting label and prefer higher height where applicable
+   */
+  bigField?: boolean;
 };
 
 export interface CollectionParameter extends Parameter {

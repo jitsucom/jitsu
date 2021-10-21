@@ -53,6 +53,7 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 	}
 
 	enrichMappingRules(destination, config)
+	config.DataLayout.Transform = destination.Transform
 	setEnrichmentRules(destination, config)
 
 	if len(destination.PrimaryKeyFields) > 0 {

@@ -2,6 +2,7 @@ package templates
 
 import (
 	"bytes"
+	"reflect"
 	"strings"
 	"testing"
 	"text/template"
@@ -10,7 +11,14 @@ import (
 )
 
 func parseHelper(event map[string]interface{}, page string) (string, error) {
-	templateObject, err := template.New("body").Funcs(JSONSerializeFuncs).Parse(page)
+	var funcs = make(map[string]interface{})
+	for k, fn := range JSONSerializeFuncs {
+		v := reflect.ValueOf(fn)
+		if v.Kind() == reflect.Func {
+			funcs[k] = fn
+		}
+	}
+	templateObject, err := template.New("body").Funcs(funcs).Parse(page)
 	if err != nil {
 		return "", err
 	}

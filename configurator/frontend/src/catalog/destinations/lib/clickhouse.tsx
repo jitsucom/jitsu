@@ -28,6 +28,7 @@ const destination = {
   id: 'clickhouse',
   type: 'database',
   displayName: 'ClickHouse',
+  defaultTransform: 'return $',
   hidden: false,
   ui: {
     icon,

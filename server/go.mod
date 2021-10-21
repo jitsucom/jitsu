@@ -8,6 +8,7 @@ require (
 	cloud.google.com/go/firestore v1.1.1
 	cloud.google.com/go/storage v1.10.0
 	firebase.google.com/go/v4 v4.1.0
+	github.com/FZambia/sentinel v1.1.0
 	github.com/Shopify/sarama v1.29.1
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/charmbracelet/lipgloss v0.2.1

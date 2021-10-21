@@ -166,13 +166,16 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 	for _, destinationID := range strings.Split(destinationIDs, ",") {
 		eventsArray := eh.eventsCache.GetN(destinationID, start, end, limit)
 		for _, event := range eventsArray {
-			response.Events = append(response.Events, CachedEvent{
-				Original:      []byte(event.Original),
-				Success:       []byte(event.Success),
-				Error:         event.Error,
-				Skip:          event.Skip,
-				DestinationID: event.DestinationID,
-			})
+			m := make(map[string]interface{})
+			if err := json.Unmarshal([]byte(event.Original), &m); err == nil {
+				response.Events = append(response.Events, CachedEvent{
+					Original:      []byte(event.Original),
+					Success:       []byte(event.Success),
+					Error:         event.Error,
+					Skip:          event.Skip,
+					DestinationID: event.DestinationID,
+				})
+			}
 		}
 		response.ResponseEvents += len(eventsArray)
 		response.TotalEvents += eh.eventsCache.GetTotal(destinationID)
@@ -236,7 +239,7 @@ func getRequestContext(c *gin.Context, eventPayloads ...events.Event) *events.Re
 			logging.SystemErrorf("Unknown value %q for %q query parameter", middleware.CookiePolicyParameter, cookiePolicy)
 		}
 	}
-	hashedAnonymousID := fmt.Sprintf("%x", md5.Sum([]byte(clientIP + c.Request.UserAgent())))
+	hashedAnonymousID := fmt.Sprintf("%x", md5.Sum([]byte(clientIP+c.Request.UserAgent())))
 
 	var jitsuAnonymousID string
 	if !cookiesLawCompliant {
@@ -270,7 +273,7 @@ func getRequestContext(c *gin.Context, eventPayloads ...events.Event) *events.Re
 		ClientIP:            clientIP,
 		Referer:             c.Request.Referer(),
 		JitsuAnonymousID:    jitsuAnonymousID,
-		HashedAnonymousID:	 hashedAnonymousID,
+		HashedAnonymousID:   hashedAnonymousID,
 		CookiesLawCompliant: cookiesLawCompliant,
 	}
 }

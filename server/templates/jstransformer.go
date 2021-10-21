@@ -45,7 +45,11 @@ func LoadTemplateScript(script string, extraFunctions template.FuncMap) (func(ma
 	vm := goja.New()
 	//limit call stack size to prevent endless recurison
 	vm.SetMaxCallStackSize(42)
-	_, err := vm.RunString(script)
+	_, err := vm.RunString(hubspotTransform)
+	if err != nil {
+		return nil, err
+	}
+	_, err = vm.RunString(script)
 	if err != nil {
 		return nil, err
 	}
