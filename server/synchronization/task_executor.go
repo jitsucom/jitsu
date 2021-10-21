@@ -76,7 +76,7 @@ func (te *TaskExecutor) initialHeartbeat() {
 	}
 
 	if len(taskIDs) > 0 {
-		logging.Infof("Tasks for initial heartbeat:\n", strings.Join(taskIDs, "\b\n"))
+		logging.Infof("Tasks for initial heartbeat:\n%s", strings.Join(taskIDs, "\b\n"))
 
 		for _, taskID := range taskIDs {
 			if hbErr := te.metaStorage.TaskHeartBeat(taskID); hbErr != nil {
