@@ -23,6 +23,7 @@ import { Task, TaskId } from "../../pages/TaskLogs/utils"
 import moment from "moment"
 import { taskLogsViewerRoute } from "../../pages/TaskLogs/TaskLogViewer"
 import { comparator } from "../../../lib/commons/utils"
+import { ConnectionCard } from "../ConnectionCard/ConnectionCard"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator: { [key: string]: SourceConnector }, current: SourceConnector) => ({
@@ -34,9 +35,12 @@ const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
 export type SourceCardProps = {
   //Source we display
   src: SourceData
+
+  //if true, we won't pull latest task data.
+  short?: boolean
 }
 
-export function SourceCard({ src }: SourceCardProps) {
+export function SourceCard({ src, short = false }: SourceCardProps) {
   const reference: SourceConnector = allSourcesMap[src.sourceProtoType]
 
   const history = useHistory()
@@ -96,7 +100,7 @@ export function SourceCard({ src }: SourceCardProps) {
 
   const editLink = generatePath(sourcesPageRoutes.editExact, { sourceId: src.sourceId })
 
-  const viewLogsLink = generatePath(taskLogsPageRoute, { sourceId: src.sourceId });
+  const viewLogsLink = generatePath(taskLogsPageRoute, { sourceId: src.sourceId })
 
   const deleteSrc = (src: SourceData) => {
     Modal.confirm({
@@ -113,72 +117,65 @@ export function SourceCard({ src }: SourceCardProps) {
     })
   }
 
-  return (
-    <div className={styles.sourceCard}>
-      <div className="w-full flex justify-between items-start">
-        <div className="flex items-center">
-          <div className="h-12">{reference.pic}</div>
-          <div className="pl-4 h-12 h-full flex flex-col justify-between ">
-            <div>
-              <EditableName
-                className="text-base font-bold"
-                name={src.displayName || src.sourceId}
-                update={(newName: string) => rename(src.sourceId, newName)}
-              />
-            </div>
-            <div className="text-secondaryText">
-              <span className="inline-block mr-1">{reference.displayName}</span>
-              <Tooltip
-                trigger={"hover"}
-                overlay={
-                  src.connected ? (
-                    <>Jitsu successfully connected to {reference.displayName}</>
-                  ) : (
-                    <>
-                      Connection to {reference.displayName} failed: {src.connectedErrorMessage}
-                    </>
-                  )
-                }>
-                <Badge size="default" status={src.connected ? "success" : "error"} />
-              </Tooltip>
-            </div>
-          </div>
-        </div>
-        <Dropdown
-          trigger={["click"]}
-          overlay={
-            <Menu>
-              <Menu.Item icon={<EditOutlined />}>
-                <NavLink to={editLink}>Edit</NavLink>
-              </Menu.Item>
-              <Menu.Item icon={<DeleteOutlined />} onClick={() => deleteSrc(src)}>
-                Delete
-              </Menu.Item>
-              <Menu.Item icon={<CodeOutlined />}>
-                <NavLink to={viewLogsLink}>View Logs</NavLink>
-              </Menu.Item>
+  let connectionStatus = (
+    <Tooltip
+      trigger={"hover"}
+      overlay={
+        src.connected ? (
+          <>Jitsu successfully connected to {reference.displayName}</>
+        ) : (
+          <>
+            Connection to {reference.displayName} failed: {src.connectedErrorMessage}
+          </>
+        )
+      }>
+      <Badge
+        size="default"
+        status={src.connected ? "success" : "error"}
+        text={
+          short && (
+            <span className={`text-${src.connected ? "success" : "error"}`}>
+              {src.connected ? "Active" : "Connection test failed"}
+            </span>
+          )
+        }
+      />
+    </Tooltip>
+  )
 
-              <SubMenu title="Sync Now" icon={<SyncOutlined />}>
-                <Menu.Item onClick={async () => await scheduleTasks(src, false)}>Incremental Sync</Menu.Item>
-                <Menu.Item onClick={async () => await scheduleTasks(src, true)}>Full re-refresh</Menu.Item>
-              </SubMenu>
-            </Menu>
-          }>
-          <Button type="ghost" size="small">
-            ···
-          </Button>
-        </Dropdown>
-      </div>
-      <div className="pt-6 flex items-center">
-        <div>
-          <LastTaskStatus sourceId={src.sourceId} />
-        </div>
-        <div className="flex justify-end flex-grow items-center">
-          <NavLink to={editLink}><a className="text-text"><EditOutlined /></a></NavLink>
-          <Button type="link" icon={<DeleteOutlined />} onClick={() => deleteSrc(src)} />
-        </div>
-      </div>
-    </div>
+  return (
+    <ConnectionCard
+      icon={reference.pic}
+      deleteAction={() => deleteSrc(src)}
+      editAction={editLink}
+      menuOverlay={
+        <Menu>
+          <Menu.Item icon={<EditOutlined />}>
+            <NavLink to={editLink}>Edit</NavLink>
+          </Menu.Item>
+          <Menu.Item icon={<DeleteOutlined />} onClick={() => deleteSrc(src)}>
+            Delete
+          </Menu.Item>
+          <Menu.Item icon={<CodeOutlined />}>
+            <NavLink to={viewLogsLink}>View Logs</NavLink>
+          </Menu.Item>
+
+          <SubMenu title="Sync Now" icon={<SyncOutlined />}>
+            <Menu.Item onClick={async () => await scheduleTasks(src, false)}>Incremental Sync</Menu.Item>
+            <Menu.Item onClick={async () => await scheduleTasks(src, true)}>Full re-refresh</Menu.Item>
+          </SubMenu>
+        </Menu>
+      }
+      title={src.displayName || src.sourceId}
+      rename={(newName: string) => rename(src.sourceId, newName)}
+      subtitle={
+        <>
+          <span className="inline-block mr-1">{reference.displayName}</span>
+          {!short && connectionStatus}
+        </>
+      }
+      status={short ? connectionStatus : <LastTaskStatus sourceId={src.sourceId} />}
+    />
   )
 }
 
@@ -197,8 +194,8 @@ function LastTaskStatus({ sourceId }) {
         end: new Date().toISOString(),
         start: moment().subtract(90, "days").toISOString(),
         limit: 100,
-      }
-    });
+      },
+    })
     const tasksSorted = tasks.tasks.sort(comparator<Task>(t => new Date(t.finished_at)))
     return tasksSorted?.[0]
   })

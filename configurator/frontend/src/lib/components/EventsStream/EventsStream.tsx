@@ -26,7 +26,7 @@ type Event = {
   timestamp: Moment,
   eventId: string,
   rawJson: any
-  destinationResults: Record<string, DestinationStatus>
+  destinationResults: Record<string, DestinationStatus[]>
 }
 
 type DestinationStatus = {
@@ -40,7 +40,7 @@ function getEventId(json: any) {
 
 function newEvent(json: any): Event {
   return {
-    timestamp: moment.utc(json._timestamp),
+    timestamp: json._timestamp ? moment.utc(json._timestamp) : moment.utc(new Date(2020,1,1)),
     eventId: getEventId(json),
     rawJson: json,
     destinationResults: {}
@@ -84,10 +84,13 @@ function processEvents(data: { destinationId: string; events: any }[]) {
       } else {
         status = 'pending'
       }
-      normalizedEvent.destinationResults[dst.destinationId] = {
+      if (!normalizedEvent.destinationResults[dst.destinationId]) {
+        normalizedEvent.destinationResults[dst.destinationId] = []
+      }
+      normalizedEvent.destinationResults[dst.destinationId].push({
         status,
         rawJson: event.success || event.error || event.skip
-      }
+      })
     })
   })
 
@@ -158,29 +161,33 @@ const EventsView: React.FC<{ event: Event, className?: string, allDestinations: 
         {JSON.stringify(event.rawJson, null, 2)}
       </Code>
     </Tabs.TabPane>
-    {Object.entries(event.destinationResults).map(([destinationId, result]) => {
-
-      const destination = allDestinations[destinationId];
-      const destinationType = destinationsReferenceMap[destination._type];
-      let display;
-      if (result.status === 'error') {
-        display = <div className="font-monospace flex justify-center items-center text-error">
-          {JSON.stringify(result.rawJson)} (error)
-        </div>
-      } else if (result.status === 'pending') {
-        display = <div className="font-monospace flex justify-center items-center text-warning">
-          Event is in queue and hasn't been sent to {destination._id} yet
-        </div>
-      } else if (result.status === 'skip') {
-        display = <div className="font-monospace flex justify-center items-center">Event was skipped: {JSON.stringify(result.rawJson)}</div>
-      } else {
-        display = getResultView(result.rawJson);
+    {Object.entries(event.destinationResults).map(([destinationId, results]) => {
+      let panes = []
+      for (let i = 0; i < results.length; i++)  {
+        const result = results[i]
+        const destination = allDestinations[destinationId];
+        const destinationType = destinationsReferenceMap[destination._type];
+        let display;
+        if (result.status === 'error') {
+          display = <div className="font-monospace flex justify-center items-center text-error">
+            {JSON.stringify(result.rawJson)} (error)
+          </div>
+        } else if (result.status === 'pending') {
+          display = <div className="font-monospace flex justify-center items-center text-warning">
+            Event is in queue and hasn't been sent to {destination._id} yet
+          </div>
+        } else if (result.status === 'skip') {
+          display = <div className="font-monospace flex justify-center items-center">Event was skipped: {JSON.stringify(result.rawJson)}</div>
+        } else {
+          display = getResultView(result.rawJson);
+        }
+        const error = result.status === 'error';
+        const pending = result.status === 'pending';
+        panes.push(<Tabs.TabPane tab={<TabTitle error={error} icon={destinationType.ui.icon}>{destination._id}</TabTitle>} key={destinationId + "_" + i}>
+          {display}
+        </Tabs.TabPane>)
       }
-      const error = result.status === 'error';
-      const pending = result.status === 'pending';
-      return <Tabs.TabPane tab={<TabTitle error={error} icon={destinationType.ui.icon}>{destination._id}</TabTitle>} key={destinationId}>
-        {display}
-      </Tabs.TabPane>
+      return panes
     })}
   </Tabs>
 }
@@ -250,8 +257,8 @@ const EventsList: React.FC<{ destinationsFilter: string[], reloadCount: number }
   return <div className="w-full">
     {events.map(event => {
       const active = event.eventId === selectedEvent;
-      const hasFailedEvent = !!Object.values(event.destinationResults).find(dest => dest.status === 'error')
-      const hasPendingEvent = !!Object.values(event.destinationResults).find(dest => dest.status === 'pending')
+      const hasFailedEvent = !!Object.values(event.destinationResults).flatMap(res => res).find(dest => dest.status === 'error')
+      const hasPendingEvent = !!Object.values(event.destinationResults).flatMap(res => res).find(dest => dest.status === 'pending')
       return <div key={event.eventId}>
         <div
           className={`overflow-hidden w-full flex flex-row border-b border-secondaryText border-opacity-50 items-center cursor-pointer h-12 ${selectedEvent === event.eventId ?
