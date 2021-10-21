@@ -21,7 +21,7 @@ type Props = {
   initialValues: any
   sourceDataFromCatalog: SourceConnector
   patchConfig: PatchConfig
-  setSourceEditorState: SetSourceEditorState
+  setControlsDisabled: ReactSetState<boolean>
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
 }
 
@@ -29,6 +29,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   initialValues,
   sourceDataFromCatalog,
   patchConfig,
+  setControlsDisabled,
   setValidator,
 }) => {
   const [form] = Form.useForm()
@@ -38,11 +39,14 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     data: fieldsParameters,
     error: loadingParametersError,
   } = usePolling<Parameter[]>((end, fail) => async () => {
+    setControlsDisabled(true)
     try {
       const result = await pullAirbyteSpec(sourceDataFromCatalog.id)
       end(result)
     } catch (error) {
       fail(error)
+    } finally {
+      setControlsDisabled(false)
     }
   })
 

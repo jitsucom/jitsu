@@ -2,8 +2,6 @@
 import { useEffect, useMemo } from 'react';
 import { Col, Row } from 'antd';
 import { cloneDeep, isArray } from "lodash"
-// @Services
-import ApplicationServices from "lib/services/ApplicationServices"
 // @Components
 import { ErrorCard } from "lib/components/ErrorCard/ErrorCard"
 import { SourceEditorFormStreamsLoadableForm } from "./SourceEditorFormStreamsLoadableForm"
@@ -11,19 +9,19 @@ import { LoadableFieldsLoadingMessageCard } from "lib/components/LoadingFormCard
 // @Hooks
 import { usePolling } from "hooks/usePolling"
 // @Utils
-import { withQueryParams } from "utils/queryParams"
 import { sourceEditorUtilsAirbyte } from "./SourceEditor.utils"
-import { assertIsArrayOfTypes, assertIsObject, assertIsString } from "utils/typeCheck"
 import { addToArrayIfNotDuplicate, removeFromArrayIfFound, substituteArrayValueIfFound } from "utils/arrays"
 // @Types
 import { SourceConnector } from "catalog/sources/types"
 import { SetSourceEditorState } from "./SourceEditor"
+import { pullAllAirbyteStreams } from "./SourceEditorPullData"
 
 type Props = {
   initialSourceDataFromBackend: Optional<Partial<SourceData>>
   sourceDataFromCatalog: SourceConnector
   sourceConfigValidatedByStreamsTab: boolean
   setSourceEditorState: SetSourceEditorState
+  setControlsDisabled: ReactSetState<boolean>
   setConfigIsValidatedByStreams: (value: boolean) => void
   handleBringSourceData: () => SourceData
 }
@@ -33,6 +31,7 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
   sourceDataFromCatalog,
   sourceConfigValidatedByStreamsTab,
   setSourceEditorState,
+  setControlsDisabled,
   setConfigIsValidatedByStreams,
   handleBringSourceData,
 }) => {
@@ -55,12 +54,17 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
       fail(error)
     } finally {
       setConfigIsValidatedByStreams(true)
+      setControlsDisabled(false)
     }
   })
 
   useEffect(() => {
     if (!sourceConfigValidatedByStreamsTab) restartPolling()
   }, [sourceConfigValidatedByStreamsTab])
+
+  useEffect(() => {
+    if (!data && isLoading) setControlsDisabled(true)
+  }, [isLoading, data])
 
   useEffect(() => {
     setSourceEditorState(state => {
@@ -70,15 +74,9 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
     })
   }, [error])
 
-  useEffect(() => {
-    setStreams(setSourceEditorState, "config.docker_image", sourceDataFromCatalog.id.replace("airbyte-", ""), {
-      doNotSetStateChanged: true,
-    })
-  }, [])
-
   return (
     <>
-      {data && (
+      {data && !error && !isLoading && (
         <SourceEditorFormStreamsLoadableForm
           allStreams={data}
           initiallySelectedStreams={previouslyCheckedStreams}
@@ -112,7 +110,7 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
             />
           </Col>
         </Row>
-      ) : (
+      ) : !data ? (
         <Row>
           <Col span={24}>
             <ErrorCard
@@ -122,76 +120,9 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
             />
           </Col>
         </Row>
-      )}
+      ) : null}
     </>
   )
-}
-
-const pullAllAirbyteStreams = async (
-  previouslyCheckedStreams: AirbyteStreamData[],
-  sourceDataFromCatalog: SourceConnector,
-  handleBringSourceData: () => SourceData
-): Promise<AirbyteStreamData[] | undefined> => {
-  const services = ApplicationServices.get()
-
-  const config = (await handleBringSourceData()).config.config
-  const baseUrl = sourceDataFromCatalog.staticStreamsConfigEndpoint
-  const project_id = services.userService.getUser().projects[0].id
-
-  const response = await services.backendApiClient.post(withQueryParams(baseUrl, { project_id }), config, {
-    proxy: true,
-  })
-
-  if (response.message) throw new Error(response.message)
-
-  if (response.status !== "pending") {
-    assertIsObject(response, `Airbyte streams parsing error: backend response is not an object`)
-    assertIsObject(response.catalog, `Airbyte streams parsing error: backend response.catalog is not an object`)
-    assertIsArrayOfTypes(
-      response.catalog.streams,
-      {},
-      `Airbyte streams parsing error: backend response.catalog.streams is not an array of objects`
-    )
-
-    const rawAirbyteStreams: UnknownObject[] = response.catalog?.streams
-
-    const streams: AirbyteStreamData[] = rawAirbyteStreams.map(stream => {
-      assertIsString(stream.name, {
-        errMsg: `Airbyte streams parsing error: stream.name is not a string`,
-      })
-      assertIsString(stream.namespace, {
-        allowUndefined: true,
-        errMsg: `Airbyte streams parsing error: stream.namespace is not a string or undefined`,
-      })
-      assertIsObject(stream.json_schema, `Airbyte streams parsing error: stream.json_schema is not an object`)
-      assertIsArrayOfTypes(
-        stream.supported_sync_modes,
-        "",
-        `Airbyte streams parsing error: stream.supported_sync_modes is not an array of strings`
-      )
-
-      const previouslyCheckedStreamData = previouslyCheckedStreams.find(
-        checkedStream =>
-          checkedStream.stream.name === stream.name && checkedStream.stream.namespace === stream.namespace
-      )
-
-      if (previouslyCheckedStreamData) return previouslyCheckedStreamData
-
-      return {
-        sync_mode: stream.supported_sync_modes[0],
-        destination_sync_mode: "overwrite",
-        stream: {
-          name: stream.name,
-          namespace: stream.namespace,
-          json_schema: stream.json_schema,
-          supported_sync_modes: stream.supported_sync_modes,
-          ...stream,
-        },
-      }
-    })
-
-    return streams
-  }
 }
 
 // @Utils (temporary)

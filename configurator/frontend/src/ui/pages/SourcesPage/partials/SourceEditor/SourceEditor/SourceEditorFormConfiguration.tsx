@@ -14,6 +14,7 @@ type Props = {
   initialSourceDataFromBackend: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
   setSourceEditorState: SetSourceEditorState
+  setControlsDisabled: ReactSetState<boolean>
   setTabErrorsVisible: (value: boolean) => void
   setConfigIsValidatedByStreams: (value: boolean) => void
 }
@@ -33,6 +34,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
   initialSourceDataFromBackend,
   sourceDataFromCatalog,
   setSourceEditorState,
+  setControlsDisabled,
   setTabErrorsVisible,
   setConfigIsValidatedByStreams,
 }) => {
@@ -72,6 +74,16 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
     })
   }, [staticFieldsValidator, configurableLoadableFieldsValidator])
 
+  /**
+   * Sets source type specific fields
+   */
+  useEffect(() => {
+    patchConfig(
+      { "config.docker_image": sourceDataFromCatalog.id.replace("airbyte-", "") },
+      { doNotSetStateChanged: true }
+    )
+  }, [])
+
   return (
     <>
       <SourceEditorFormConfigurationStaticFields
@@ -84,7 +96,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
         initialValues={initialSourceDataFromBackend}
         sourceDataFromCatalog={sourceDataFromCatalog}
         patchConfig={patchConfig}
-        setSourceEditorState={setSourceEditorState}
+        setControlsDisabled={setControlsDisabled}
         setValidator={setConfigurableLoadableFieldsValidator}
       />
     </>

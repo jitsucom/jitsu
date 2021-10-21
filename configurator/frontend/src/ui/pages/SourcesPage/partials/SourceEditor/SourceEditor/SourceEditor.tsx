@@ -15,61 +15,52 @@ import { SourceEditorViewTabs } from './SourceEditorViewTabs';
 import { withHome as breadcrumbsWithHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
 import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
-import {
-  createInitialSourceData,
-  sourceEditorUtils,
-  sourceEditorUtilsAirbyte
-} from './SourceEditor.utils';
-import {
-  addToArrayIfNotDuplicate,
-  removeFromArrayIfFound,
-  substituteArrayValueIfFound
-} from 'utils/arrays';
-import { sourcePageUtils } from 'ui/pages/SourcesPage/SourcePage.utils';
-import { closeableMessage } from 'lib/components/components';
-import { firstToLower } from 'lib/commons/utils';
+import { createInitialSourceData, sourceEditorUtils } from "./SourceEditor.utils"
+import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
+import { closeableMessage } from "lib/components/components"
+import { firstToLower } from "lib/commons/utils"
+import { SourceEditorViewSteps } from "./SourceEditorViewSteps"
+import { pullAllAirbyteStreams } from "./SourceEditorPullData"
 // @Utils
 
 export type SourceEditorState = {
   /**
    * Source configuration tab
    */
-  configuration: ConfigurationState;
+  configuration: ConfigurationState
   /**
    * Source streams tab
    */
-  streams: StreamsState;
+  streams: StreamsState
   /**
    * Source connected destinations tab
    */
-  connections: ConnectionsState;
+  connections: ConnectionsState
   /**
    * Whether user made any changes
    */
-  stateChanged: boolean;
-};
+  stateChanged: boolean
+}
 
-export type SetSourceEditorState = React.Dispatch<
-  React.SetStateAction<SourceEditorState>
->;
+export type SetSourceEditorState = React.Dispatch<React.SetStateAction<SourceEditorState>>
 
 type ConfigurationState = {
-  config: SourceConfigurationData;
-  getErrorsCount: () => Promise<number>;
-  errorsCount: number;
-};
+  config: SourceConfigurationData
+  getErrorsCount: () => Promise<number>
+  errorsCount: number
+}
 
 type StreamsState = {
-  streams: SourceStreamsData;
-  errorsCount: number;
-};
+  streams: SourceStreamsData
+  errorsCount: number
+}
 
 type ConnectionsState = {
-  connections: SourceConnectionsData;
-  errorsCount: number;
-};
+  connections: SourceConnectionsData
+  errorsCount: number
+}
 
-export type SourceConfigurationData = PlainObjectWithPrimitiveValues;
+export type SourceConfigurationData = PlainObjectWithPrimitiveValues
 export type SourceStreamsData = {
   [pathToStreamsInSourceData: string]: AirbyteStreamData[] | string
 }
@@ -119,6 +110,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   )
 
   const [state, setState] = useState<SourceEditorState>(initialState)
+  const [controlsDisabled, setControlsDisabled] = useState<boolean>(false)
   const [tabErrorsVisible, setTabErrorsVisible] = useState<boolean>(false)
   const [showDocumentation, setShowDocumentation] = useState<boolean>(false)
   const [configIsValidatedByStreams, setConfigIsValidatedByStreams] = useState<boolean>(false)
@@ -139,6 +131,28 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     setTabErrorsVisible(true)
 
     return configurationErrorsCount + state.streams.errorsCount + state.connections.errorsCount
+  }
+
+  const handleValidateAndTestConfig = async () => {
+    setControlsDisabled(true)
+    try {
+      const fieldsErrored = !!(await validateCountErrors())
+      if (fieldsErrored) throw new Error("Some fields are empty")
+
+      const sourceData = handleBringSourceData()
+      const testResult = await sourcePageUtils.testConnection(sourceData)
+      if (!testResult.connected) throw new Error(testResult.connectedErrorMessage)
+
+      try {
+        await pullAllAirbyteStreams([], sourceDataFromCatalog, handleBringSourceData)
+      } catch (e) {
+        const error = e instanceof Error ? e : new Error(e)
+        closeableMessage.error(`Invalid configuration. Message:\n${error.message};\nError Stack:\n${error.stack}`)
+        throw error
+      }
+    } finally {
+      setControlsDisabled(false)
+    }
   }
 
   const handleTestConnection = useCallback(async () => {
@@ -198,27 +212,45 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     )
   }, [editorMode, sourceDataFromCatalog, setBreadcrumbs])
 
-  return (
-    <>
-      <SourceEditorViewTabs
-        state={state}
-        sourceId={sourceId}
-        editorMode={editorMode}
-        showTabsErrors={tabErrorsVisible}
-        showDocumentationDrawer={showDocumentation}
-        initialSourceDataFromBackend={initialSourceDataFromBackend}
-        sourceDataFromCatalog={sourceDataFromCatalog}
-        configIsValidatedByStreams={configIsValidatedByStreams}
-        setSourceEditorState={setState}
-        setTabsErrorsVisible={setTabErrorsVisible}
-        setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
-        setShowDocumentationDrawer={setShowDocumentation}
-        handleBringSourceData={handleBringSourceData}
-        handleSave={handleSave}
-        handleTestConnection={handleTestConnection}
-        handleLeaveEditor={handleLeaveEditor}
-      />
-    </>
+  return editorMode === "add" ? (
+    <SourceEditorViewSteps
+      state={state}
+      controlsDisabled={controlsDisabled}
+      editorMode={editorMode}
+      showDocumentationDrawer={showDocumentation}
+      initialSourceDataFromBackend={initialSourceDataFromBackend}
+      sourceDataFromCatalog={sourceDataFromCatalog}
+      configIsValidatedByStreams={configIsValidatedByStreams}
+      setSourceEditorState={setState}
+      setControlsDisabled={setControlsDisabled}
+      setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
+      setShowDocumentationDrawer={setShowDocumentation}
+      handleBringSourceData={handleBringSourceData}
+      handleSave={handleSave}
+      handleLeaveEditor={handleLeaveEditor}
+      handleValidateAndTestConfig={handleValidateAndTestConfig}
+    />
+  ) : (
+    <SourceEditorViewTabs
+      state={state}
+      controlsDisabled={controlsDisabled}
+      sourceId={sourceId}
+      editorMode={editorMode}
+      showTabsErrors={tabErrorsVisible}
+      showDocumentationDrawer={showDocumentation}
+      initialSourceDataFromBackend={initialSourceDataFromBackend}
+      sourceDataFromCatalog={sourceDataFromCatalog}
+      configIsValidatedByStreams={configIsValidatedByStreams}
+      setSourceEditorState={setState}
+      setControlsDisabled={setControlsDisabled}
+      setTabsErrorsVisible={setTabErrorsVisible}
+      setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
+      setShowDocumentationDrawer={setShowDocumentation}
+      handleBringSourceData={handleBringSourceData}
+      handleSave={handleSave}
+      handleTestConnection={handleTestConnection}
+      handleLeaveEditor={handleLeaveEditor}
+    />
   )
 }
 

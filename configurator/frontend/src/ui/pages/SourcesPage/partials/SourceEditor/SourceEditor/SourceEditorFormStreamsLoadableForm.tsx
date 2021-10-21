@@ -147,7 +147,9 @@ const SourceEditorFormStreamsLoadableForm = ({
                               e.stopPropagation()
                             }}>
                             {streamData.stream.supported_sync_modes.map(mode => (
-                              <Select.Option value={mode}>{mode}</Select.Option>
+                              <Select.Option key={mode} value={mode}>
+                                {mode}
+                              </Select.Option>
                             ))}
                           </Select>
                         ) : (
