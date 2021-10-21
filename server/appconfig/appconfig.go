@@ -48,7 +48,7 @@ var (
 	Instance     *AppConfig
 	RawVersion   string
 	MajorVersion string
-	BuiltAt 	 string
+	BuiltAt      string
 	MinorVersion string
 	Beta         bool
 )
@@ -63,6 +63,9 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.destinations_reload_sec", 1)
 	viper.SetDefault("server.sources_reload_sec", 1)
 	viper.SetDefault("server.sync_tasks.pool.size", 16)
+	viper.SetDefault("server.sync_tasks.stalled.last_heartbeat_threshold_seconds", 15)
+	viper.SetDefault("server.sync_tasks.stalled.last_activity_threshold_minutes", 20)
+	viper.SetDefault("server.sync_tasks.stalled.observe_stalled_every_seconds", 20)
 	viper.SetDefault("server.sync_tasks.store_logs.last_runs", -1)
 	viper.SetDefault("server.disable_version_reminder", false)
 	viper.SetDefault("server.disable_skip_events_warn", false)

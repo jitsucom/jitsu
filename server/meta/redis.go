@@ -24,6 +24,9 @@ const (
 	//all api keys - push events
 	pushSourceIndex = "push_sources_index"
 
+	syncTasksPrefix  = "sync_tasks#"
+	taskHeartBeatKey = "sync_tasks_heartbeat"
+
 	responseTimestampLayout = "2006-01-02T15:04:05+0000"
 
 	SuccessStatus = "success"
@@ -73,6 +76,8 @@ type Redis struct {
 //
 //** Sources Synchronization **
 // - task_id = $source_$collection_$UUID
+//sync_tasks_heartbeat [task_id] last_timestamp - hashtable with hash=task_id and value = last_timestamp.
+//
 //sync_tasks_priority_queue [priority, task_id] - tasks to execute with priority
 //
 //sync_tasks_index:source#sourceID:collection#collectionID [timestamp_long taskID] - sorted set of taskID and timestamps
@@ -405,7 +410,7 @@ func (r *Redis) UpsertTask(task *Task) error {
 	defer conn.Close()
 
 	//save task
-	taskKey := "sync_tasks#" + task.ID
+	taskKey := syncTasksPrefix + task.ID
 	_, err := conn.Do("HMSET", redis.Args{taskKey}.AddFlat(task)...)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
@@ -459,7 +464,7 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ...string) (int
 
 	taskKeys := make([]interface{}, 0, len(taskIDs))
 	for _, id := range taskIDs {
-		taskKeys = append(taskKeys, "sync_tasks#"+id)
+		taskKeys = append(taskKeys, syncTasksPrefix+id)
 	}
 
 	removed, err = redis.Int(conn.Do("DEL", taskKeys...))
@@ -472,7 +477,7 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ...string) (int
 	}
 	taskLogKeys := make([]interface{}, 0, len(taskIDs))
 	for _, id := range taskIDs {
-		taskLogKeys = append(taskLogKeys, "sync_tasks#"+id+":logs")
+		taskLogKeys = append(taskLogKeys, syncTasksPrefix+id+":logs")
 	}
 
 	removed, err = redis.Int(conn.Do("DEL", taskLogKeys...))
@@ -484,6 +489,158 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ...string) (int
 		logging.Debugf("Removed logs from %d of %d tasks. source:%s collection:%s", removed, len(taskIDs), sourceID, collection)
 	}
 	return removed, nil
+}
+
+//TaskHeartBeat sets current timestamp into heartbeat key
+func (r *Redis) TaskHeartBeat(taskID string) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("HSET", taskHeartBeatKey, taskID, timestamp.NowUTC())
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
+//RemoveTaskFromHeartBeat removes taskID current timestamp from heartbeat key
+func (r *Redis) RemoveTaskFromHeartBeat(taskID string) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("HDEL", taskHeartBeatKey, taskID)
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
+//GetAllTasksHeartBeat returns map with taskID-last heartbeat timestamp pairs
+func (r *Redis) GetAllTasksHeartBeat() (map[string]string, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	tasksHeartBeat, err := redis.StringMap(conn.Do("HGETALL", taskHeartBeatKey))
+	noticeError(err)
+	if err != nil {
+		if err == redis.ErrNil {
+			return map[string]string{}, nil
+		}
+
+		return nil, err
+	}
+
+	return tasksHeartBeat, nil
+}
+
+//GetAllTasksForInitialHeartbeat returns all task IDs where:
+//1. task is RUNNING and last log time more than last activity threshold
+//2. task is SCHEDULED and task creation time more than last activity threshold
+func (r *Redis) GetAllTasksForInitialHeartbeat(runningStatus, scheduledStatus string, lastActivityThreshold time.Duration) ([]string, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	//the task is stalled if last activity was before current time - lastActivityThreshold
+	stalledTime := time.Now().UTC().Truncate(lastActivityThreshold)
+
+	var taskIDs []string
+	cursor := 0
+
+	for {
+		scannedResult, err := redis.Values(conn.Do("SCAN", cursor, "MATCH", syncTasksPrefix+"*", "TYPE", "hash", "COUNT", 50000))
+		if err != nil {
+			noticeError(err)
+			if err != nil && err != redis.ErrNil {
+				return nil, err
+			}
+		}
+
+		if len(scannedResult) != 2 {
+			return nil, fmt.Errorf("error len of SCAN result: %v", scannedResult)
+		}
+
+		cursor, _ = redis.Int(scannedResult[0], nil)
+		taskKeysOutput, _ := redis.Strings(scannedResult[1], nil)
+
+		for _, taskKey := range taskKeysOutput {
+			taskID := strings.TrimPrefix(taskKey, syncTasksPrefix)
+
+			//filter by status
+			task, err := r.getTask(conn, taskID)
+			if err != nil {
+				return nil, err
+			}
+
+			if task.Status == runningStatus {
+				ok, err := r.filterStalledTaskInRunningStatus(conn, task, stalledTime)
+				if err != nil {
+					return nil, err
+				}
+
+				if ok {
+					taskIDs = append(taskIDs, taskID)
+				}
+			} else if task.Status == scheduledStatus {
+				ok, err := r.filterStalledTaskInScheduledStatus(task, stalledTime)
+				if err != nil {
+					return nil, err
+				}
+
+				if ok {
+					taskIDs = append(taskIDs, taskID)
+				}
+			}
+		}
+
+		//end of cycle
+		if cursor == 0 {
+			break
+		}
+	}
+
+	return taskIDs, nil
+}
+
+//filterStalledTaskInRunningStatus gets last logs and compares with stalledTime. If there is no logs, compare task creation time
+//returns true if task is stalled
+func (r *Redis) filterStalledTaskInRunningStatus(conn redis.Conn, task *Task, stalledTime time.Time) (bool, error) {
+	lastLogArr, err := redis.Values(conn.Do("ZREVRANGEBYSCORE", syncTasksPrefix+task.ID+":logs", time.Now().Unix(), 0, "LIMIT", 0, 1, "WITHSCORES"))
+	if err != nil {
+		noticeError(err)
+		if err != nil && err != redis.ErrNil {
+			return false, err
+		}
+	}
+
+	//by last log
+	if len(lastLogArr) == 2 {
+		lastLogTimeUnix, _ := redis.Int(lastLogArr[1], nil)
+		lastLogTime := time.Unix(int64(lastLogTimeUnix), 0)
+		return lastLogTime.Before(stalledTime), nil
+	}
+
+	//by started time
+	startedAt, err := time.Parse(time.RFC3339Nano, task.StartedAt)
+	if err != nil {
+		return false, fmt.Errorf("error parsing started_at [%s] of task [%s] as time: %v", task.StartedAt, task.ID, err)
+	}
+
+	return startedAt.Before(stalledTime), nil
+}
+
+//filterStalledTaskInScheduledStatus gets task creation time and compares with stalledTime
+//returns true if task is stalled
+func (r *Redis) filterStalledTaskInScheduledStatus(task *Task, stalledTime time.Time) (bool, error) {
+	createdAt, err := time.Parse(time.RFC3339Nano, task.CreatedAt)
+	if err != nil {
+		return false, fmt.Errorf("error parsing created_at [%s] of task [%s] as time: %v", task.StartedAt, task.ID, err)
+	}
+
+	return createdAt.Before(stalledTime), nil
 }
 
 //GetAllTasks returns all source's tasks by collection and time criteria
@@ -507,7 +664,7 @@ func (r *Redis) GetAllTasks(sourceID, collection string, start, end time.Time, l
 	var tasks []Task
 	for _, taskID := range taskIDs {
 		//get certain task
-		taskKey := "sync_tasks#" + taskID
+		taskKey := syncTasksPrefix + taskID
 		task, err := redis.Values(conn.Do("HGETALL", taskKey))
 		noticeError(err)
 		if err != nil && err != redis.ErrNil {
@@ -545,7 +702,7 @@ func (r *Redis) GetLastTask(sourceID, collection string) (*Task, error) {
 	}
 
 	taskID := taskValues[0]
-	task, err := r.GetTask(taskID)
+	task, err := r.getTask(conn, taskID)
 	if err != nil {
 		if err == ErrTaskNotFound {
 			logging.SystemErrorf("Task with id: %s exists in priority queue but doesn't exist in sync_task#%s record", taskID, taskID)
@@ -557,12 +714,17 @@ func (r *Redis) GetLastTask(sourceID, collection string) (*Task, error) {
 	return task, err
 }
 
-//GetTask returns task by task ID or ErrTaskNotFound
+//GetTask opens connection and returns result of getTask
 func (r *Redis) GetTask(taskID string) (*Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	taskFields, err := redis.Values(conn.Do("HGETALL", "sync_tasks#"+taskID))
+	return r.getTask(conn, taskID)
+}
+
+//getTask returns task by task ID or ErrTaskNotFound
+func (r *Redis) getTask(conn redis.Conn, taskID string) (*Task, error) {
+	taskFields, err := redis.Values(conn.Do("HGETALL", syncTasksPrefix+taskID))
 	noticeError(err)
 	if err != nil {
 		if err == redis.ErrNil {
@@ -590,7 +752,7 @@ func (r *Redis) AppendTaskLog(taskID string, now time.Time, system, message, lev
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	taskLogsKey := "sync_tasks#" + taskID + ":logs"
+	taskLogsKey := syncTasksPrefix + taskID + ":logs"
 	logRecord := TaskLogRecord{
 		Time:    now.Format(timestamp.Layout),
 		System:  system,
@@ -612,7 +774,7 @@ func (r *Redis) GetTaskLogs(taskID string, start, end time.Time) ([]TaskLogRecor
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	taskLogsKey := "sync_tasks#" + taskID + ":logs"
+	taskLogsKey := syncTasksPrefix + taskID + ":logs"
 	logsRecords, err := redis.Strings(conn.Do("ZRANGEBYSCORE", taskLogsKey, start.Unix(), end.Unix()))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
@@ -654,7 +816,7 @@ func (r *Redis) PollTask() (*Task, error) {
 
 	taskID := values[0]
 
-	task, err := r.GetTask(taskID)
+	task, err := r.getTask(conn, taskID)
 	if err != nil && err == ErrTaskNotFound {
 		logging.SystemErrorf("Task with id: %s exists in priority queue but doesn't exist in sync_task#%s record", taskID, taskID)
 	}

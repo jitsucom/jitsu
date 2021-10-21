@@ -143,7 +143,7 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 		}
 	}
 
-	if lastTask != nil && lastTask.Status != FAILED.String() && lastTask.Status != SUCCESS.String() {
+	if lastTask != nil && (lastTask.Status == SCHEDULED.String() || lastTask.Status == RUNNING.String()) {
 		return lastTask.ID, ErrSourceCollectionIsSyncing
 	}
 
