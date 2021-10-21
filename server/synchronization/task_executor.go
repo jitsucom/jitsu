@@ -19,6 +19,7 @@ import (
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
+	"strings"
 	"time"
 )
 
@@ -74,9 +75,13 @@ func (te *TaskExecutor) initialHeartbeat() {
 		return
 	}
 
-	for _, taskID := range taskIDs {
-		if hbErr := te.metaStorage.TaskHeartBeat(taskID); hbErr != nil {
-			logging.SystemErrorf("error in task [%s] initial heartbeat: %v", taskID, hbErr)
+	if len(taskIDs) > 0 {
+		logging.Infof("Tasks for initial heartbeat:\n", strings.Join(taskIDs, "\b\n"))
+
+		for _, taskID := range taskIDs {
+			if hbErr := te.metaStorage.TaskHeartBeat(taskID); hbErr != nil {
+				logging.SystemErrorf("error in task [%s] initial heartbeat: %v", taskID, hbErr)
+			}
 		}
 	}
 }
@@ -209,6 +214,12 @@ func (te *TaskExecutor) execute(i interface{}) {
 	taskDone := make(chan struct{})
 	defer close(taskDone)
 	safego.Run(func() {
+		//first heart beat
+		if hbErr := te.metaStorage.TaskHeartBeat(task.ID); hbErr != nil {
+			logging.SystemErrorf("error in task [%s] first heartbeat: %v", task.ID, hbErr)
+		}
+
+		//every 10 seconds
 		ticker := time.NewTicker(10 * time.Second)
 		for {
 			select {
