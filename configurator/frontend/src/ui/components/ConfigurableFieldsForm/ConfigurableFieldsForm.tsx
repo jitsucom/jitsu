@@ -6,74 +6,58 @@ import React, {
   useRef,
   useState
 } from 'react';
-import {
-  Col,
-  Form,
-  Input,
-  Row,
-  Select,
-  Switch,
-  Tooltip,
-  Spin,
-  FormItemProps,
-  InputNumber
-} from 'antd';
-import debounce from 'lodash/debounce';
-import get from 'lodash/get';
-import cn from 'classnames';
+import { Col, Form, Input, Row, Select, Switch, Tooltip, Spin, FormItemProps, InputNumber, FormProps } from "antd"
+import debounce from "lodash/debounce"
+import get from "lodash/get"
+import cn from "classnames"
 // @Components
-import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
-import { EditableList } from 'lib/components/EditableList/EditableList';
-import { CodeEditor } from 'ui/components/CodeEditor/CodeEditor';
-import { FormValues as DebuggerFormValues } from 'ui/components/CodeDebugger/CodeDebugger';
+import { LabelWithTooltip } from "ui/components/LabelWithTooltip/LabelWithTooltip"
+import { EditableList } from "lib/components/EditableList/EditableList"
+import { CodeEditor } from "ui/components/CodeEditor/CodeEditor"
+import { FormValues as DebuggerFormValues } from "ui/components/CodeDebugger/CodeDebugger"
 // @Services
-import ApplicationServices from 'lib/services/ApplicationServices';
+import ApplicationServices from "lib/services/ApplicationServices"
 // @Types
-import { Parameter, ParameterType } from 'catalog/sources/types';
-import { FormInstance } from 'antd/lib/form/hooks/useForm';
+import { Parameter, ParameterType } from "catalog/sources/types"
+import { FormInstance } from "antd/lib/form/hooks/useForm"
 // @Utils
-import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
-import { isoDateValidator } from 'utils/validation/validators';
+import { makeObjectFromFieldsValues } from "utils/forms/marshalling"
+import { isoDateValidator } from "utils/validation/validators"
 // @Hooks
-import { useForceUpdate } from 'hooks/useForceUpdate';
+import { useForceUpdate } from "hooks/useForceUpdate"
 // @Icons
-import BugIcon from 'icons/bug';
-import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
+import BugIcon from "icons/bug"
+import { EyeOutlined, EyeInvisibleOutlined } from "@ant-design/icons"
 // @Styles
-import styles from './ConfigurableFieldsForm.module.less';
-import { CodeDebuggerModal } from '../CodeDebuggerModal/CodeDebuggerModal';
+import styles from "./ConfigurableFieldsForm.module.less"
+import { CodeDebuggerModal } from "../CodeDebuggerModal/CodeDebuggerModal"
 
 /**
  * @param loading if `true` shows loader instead of the fields.
  * Accepts `ReactNode` to show it instead of the default loader.
  */
 export interface Props {
-  fieldsParamsList: readonly Parameter[];
-  form: FormInstance;
-  initialValues: any;
-  namePrefix?: string;
-  loading?: boolean | ReactNode;
-  handleTouchAnyField?: (...args: any) => void;
-  setInitialFormValues?: (values: PlainObjectWithPrimitiveValues) => void;
+  fieldsParamsList: readonly Parameter[]
+  form: FormInstance
+  initialValues: any
+  namePrefix?: string
+  loading?: boolean | ReactNode
+  handleTouchAnyField?: (...args: any) => void
+  setInitialFormValues?: (values: PlainObjectWithPrimitiveValues) => void
 }
 
 export const FormItemName = {
-  serialize: (id) => {
-    return id;
-  }
-};
+  serialize: id => {
+    return id
+  },
+}
 
-const debuggableFields = [
-  '_formData.tableName',
-  '_formData.body',
-  '_formData.url',
-  '_formData.dbtCause'
-];
+const debuggableFields = ["_formData.tableName", "_formData.body", "_formData.url", "_formData.dbtCause"]
 const isDebugSupported = function (id) {
-  return debuggableFields.includes(id);
-};
+  return debuggableFields.includes(id)
+}
 
-const services = ApplicationServices.get();
+const services = ApplicationServices.get()
 
 const ConfigurableFieldsFormComponent = ({
   fieldsParamsList,
@@ -81,139 +65,116 @@ const ConfigurableFieldsFormComponent = ({
   initialValues,
   loading,
   handleTouchAnyField,
-  setInitialFormValues
+  setInitialFormValues,
 }: Props) => {
   const debugModalsStates = {
-    '_formData.tableName': useState<boolean>(false),
-    '_formData.body': useState<boolean>(false),
-    '_formData.url': useState<boolean>(false),
-    '_formData.dbtCause': useState<boolean>(false)
-  };
+    "_formData.tableName": useState<boolean>(false),
+    "_formData.body": useState<boolean>(false),
+    "_formData.url": useState<boolean>(false),
+    "_formData.dbtCause": useState<boolean>(false),
+  }
   const debugModalsValues = {
-    '_formData.tableName': useRef<string>(),
-    '_formData.body': useRef<string>(),
-    '_formData.url': useRef<string>(),
-    '_formData.dbtCause': useRef<string>()
-  };
+    "_formData.tableName": useRef<string>(),
+    "_formData.body": useRef<string>(),
+    "_formData.url": useRef<string>(),
+    "_formData.dbtCause": useRef<string>(),
+  }
   const debugModalsReformat = {
-    '_formData.tableName': true,
-    '_formData.body': false,
-    '_formData.url': false,
-    '_formData.dbtCause': false
-  };
+    "_formData.tableName": true,
+    "_formData.body": false,
+    "_formData.url": false,
+    "_formData.dbtCause": false,
+  }
 
-  const forceUpdate = useForceUpdate();
+  const forceUpdate = useForceUpdate()
 
-  const handleTouchField = debounce(handleTouchAnyField ?? (() => {}), 1000);
+  const handleTouchField = debounce(handleTouchAnyField ?? (() => {}), 1000)
 
   const handleChangeIntInput = useCallback(
     (id: string) => (value: number) => {
-      form.setFieldsValue({ [id]: value });
+      form.setFieldsValue({ [id]: value })
     },
     [form]
-  );
+  )
 
   const handleChangeSwitch = useCallback(
     (id: string) => (value: boolean) => {
-      form.setFieldsValue({ [id]: value });
-      forceUpdate();
+      form.setFieldsValue({ [id]: value })
+      forceUpdate()
     },
     [form, forceUpdate]
-  );
+  )
 
   const handleJsonChange = (id: string) => (value: string) => {
     form.setFieldsValue({
-      [id]: value ? value : ''
-    });
-    handleTouchField();
-  };
+      [id]: value ? value : "",
+    })
+    handleTouchField()
+  }
 
-  const getInitialValue = (
-    id: string,
-    defaultValue: any,
-    constantValue: any,
-    type: string
-  ) => {
-    const initial = get(initialValues, id);
+  const getInitialValue = (id: string, defaultValue: any, constantValue: any, type: string) => {
+    const initial = get(initialValues, id)
 
     if (initial) {
-      return initial;
+      return initial
     }
 
-    let calcValue: any;
-    if (typeof defaultValue !== 'undefined') {
-      calcValue = defaultValue;
-    } else if (typeof constantValue !== 'undefined') {
-      calcValue = constantValue;
-    } else if (type === 'json') {
-      calcValue = {};
-    } else if (type === 'javascript') {
-      calcValue = 'return {}';
-    } else if (type.indexOf('array/') === 0) {
-      calcValue = [];
+    let calcValue: any
+    if (typeof defaultValue !== "undefined") {
+      calcValue = defaultValue
+    } else if (typeof constantValue !== "undefined") {
+      calcValue = constantValue
+    } else if (type === "json") {
+      calcValue = {}
+    } else if (type === "javascript") {
+      calcValue = "return {}"
+    } else if (type.indexOf("array/") === 0) {
+      calcValue = []
     } else {
-      calcValue = '';
+      calcValue = ""
     }
 
-    return type === 'json' ? JSON.stringify(calcValue) : calcValue;
-  };
+    return type === "json" ? JSON.stringify(calcValue) : calcValue
+  }
 
-  const getFieldComponent = (
-    type: ParameterType<any>,
-    id: string,
-    defaultValue?: any,
-    constantValue?: any
-  ) => {
+  const getFieldComponent = (type: ParameterType<any>, id: string, defaultValue?: any, constantValue?: any) => {
     const defaultValueToDisplay =
-      form.getFieldValue(id) ??
-      getInitialValue(id, defaultValue, constantValue, type?.typeName);
+      form.getFieldValue(id) ?? getInitialValue(id, defaultValue, constantValue, type?.typeName)
 
-    form.setFieldsValue({ id: defaultValueToDisplay });
+    form.setFieldsValue({ id: defaultValueToDisplay })
 
     switch (type?.typeName) {
-      case 'description':
-        return <div className="pt-1.5">{defaultValue}</div>;
-      case 'password':
+      case "description":
+        return <div className="pt-1.5">{defaultValue}</div>
+      case "password":
         return (
           <Input.Password
             autoComplete="off"
-            iconRender={(visible) =>
-              visible ? <EyeOutlined /> : <EyeInvisibleOutlined />
-            }
+            iconRender={visible => (visible ? <EyeOutlined /> : <EyeInvisibleOutlined />)}
           />
-        );
+        )
 
-      case 'int': {
-        return (
-          <InputNumber
-            autoComplete="off"
-            inputMode="numeric"
-            onChange={handleChangeIntInput(id)}
-          />
-        );
+      case "int": {
+        return <InputNumber autoComplete="off" inputMode="numeric" onChange={handleChangeIntInput(id)} />
       }
       // ToDo: check if it can be <select> in some cases
-      case 'selection': {
+      case "selection": {
         return (
-          <Select
-            allowClear
-            mode={type.data.maxOptions > 1 ? 'multiple' : undefined}
-            onChange={forceUpdate}
-          >
+          <Select allowClear mode={type.data.maxOptions > 1 ? "multiple" : undefined} onChange={forceUpdate}>
             {type.data.options.map(({ id, displayName }: Option) => {
               return (
                 <Select.Option value={id} key={id}>
                   {displayName}
                 </Select.Option>
-              );
+              )
             })}
           </Select>
-        );
+        )
       }
-      case 'array/string':
-        return <EditableList initialValue={defaultValueToDisplay} />;
-      case 'javascript':
-      case 'json': {
+      case "array/string":
+        return <EditableList initialValue={defaultValueToDisplay} />
+      case "javascript":
+      case "json": {
         return (
           <>
             <CodeEditor
@@ -232,18 +193,13 @@ const ConfigurableFieldsFormComponent = ({
               )}
             </span>
           </>
-        );
+        )
       }
 
-      case 'boolean':
-        return (
-          <Switch
-            onChange={handleChangeSwitch(id)}
-            defaultChecked={getInitialValue(id, false, '', '')}
-          />
-        );
+      case "boolean":
+        return <Switch onChange={handleChangeSwitch(id)} defaultChecked={getInitialValue(id, false, "", "")} />
 
-      case 'string':
+      case "string":
       default: {
         return (
           <Input
@@ -252,45 +208,40 @@ const ConfigurableFieldsFormComponent = ({
               isDebugSupported(id) && (
                 <Tooltip title="Debug expression">
                   <span>
-                    <BugIcon
-                      className={styles.bugIcon}
-                      onClick={() => debugModalsStates[id][1](true)}
-                    />
+                    <BugIcon className={styles.bugIcon} onClick={() => debugModalsStates[id][1](true)} />
                   </span>
                 </Tooltip>
               )
             }
           />
-        );
+        )
       }
     }
-  };
+  }
 
   const handleDebuggerRun = async (id: string, values: DebuggerFormValues) => {
     const data = {
       reformat: debugModalsReformat[id],
       expression: values.code,
-      object: JSON.parse(values.object)
-    };
+      object: JSON.parse(values.object),
+    }
 
-    return services.backendApiClient.post(
-      `/templates/evaluate?project_id=${services.activeProject.id}`,
-      data,
-      { proxy: true }
-    );
-  };
+    return services.backendApiClient.post(`/templates/evaluate?project_id=${services.activeProject.id}`, data, {
+      proxy: true,
+    })
+  }
 
   const handleCodeChange = (id: string, value: string) => {
-    debugModalsValues[id].current = value;
-  };
+    debugModalsValues[id].current = value
+  }
 
-  const handleCloseDebugger = (id) => debugModalsStates[id][1](false);
+  const handleCloseDebugger = id => debugModalsStates[id][1](false)
 
-  const handleSaveDebugger = (id) => {
+  const handleSaveDebugger = id => {
     if (debugModalsValues[id].current) {
-      form.setFieldsValue({ [id]: debugModalsValues[id].current });
+      form.setFieldsValue({ [id]: debugModalsValues[id].current })
     }
-  };
+  }
 
   useEffect(() => {
     /**
@@ -300,34 +251,29 @@ const ConfigurableFieldsFormComponent = ({
      * lets the `form` instance to pick them
      *
      */
-    let formValues = {};
-    const formFields: Parameters<typeof form.setFields>[0] = [];
+    let formValues = {}
+    const formFields: Parameters<typeof form.setFields>[0] = []
     fieldsParamsList.forEach((param: Parameter) => {
-      let constantValue: any;
-      if (typeof param.constant === 'function') {
-        constantValue = param.constant(makeObjectFromFieldsValues(formValues));
+      let constantValue: any
+      if (typeof param.constant === "function") {
+        constantValue = param.constant(makeObjectFromFieldsValues(formValues))
       }
 
-      constantValue = constantValue || param.constant;
+      constantValue = constantValue || param.constant
 
-      const initialValue = getInitialValue(
-        param.id,
-        param.defaultValue,
-        constantValue,
-        param.type?.typeName
-      );
+      const initialValue = getInitialValue(param.id, param.defaultValue, constantValue, param.type?.typeName)
 
-      formValues[param.id] = initialValue;
+      formValues[param.id] = initialValue
 
       formFields.push({
         name: param.id,
         value: initialValue,
-        touched: false
-      });
-    });
+        touched: false,
+      })
+    })
 
-    setInitialFormValues?.(formValues);
-    form.setFields(formFields);
+    setInitialFormValues?.(formValues)
+    form.setFields(formFields)
 
     /**
      *
@@ -335,11 +281,11 @@ const ConfigurableFieldsFormComponent = ({
      *  depending on the form values
      *
      */
-    forceUpdate();
-  }, []);
+    forceUpdate()
+  }, [])
 
   return loading ? (
-    typeof loading === 'boolean' ? (
+    typeof loading === "boolean" ? (
       <Spin />
     ) : (
       <>{loading}</>
@@ -347,66 +293,47 @@ const ConfigurableFieldsFormComponent = ({
   ) : (
     <>
       {fieldsParamsList.map(
-        ({
-          id,
-          documentation,
-          displayName,
-          type,
-          defaultValue,
-          required,
-          constant,
-          omitFieldRule
-        }: Parameter) => {
-          const currentFormValues = form.getFieldsValue() ?? {};
+        ({ id, documentation, displayName, type, defaultValue, required, constant, omitFieldRule }: Parameter) => {
+          const currentFormValues = form.getFieldsValue() ?? {}
           const defaultFormValues = fieldsParamsList.reduce(
             (result, { id, defaultValue }) => ({
               ...result,
-              [id]: defaultValue
+              [id]: defaultValue,
             }),
             {}
-          );
-          const formItemName = id;
+          )
+          const formItemName = id
           const formValues = {
             ...defaultFormValues,
-            ...currentFormValues
-          };
-          const parsedFormValues = makeObjectFromFieldsValues(formValues);
-          const constantValue =
-            typeof constant === 'function'
-              ? constant?.(parsedFormValues)
-              : constant;
-          const isHidden = constantValue !== undefined;
-          const isOmitted = omitFieldRule
-            ? omitFieldRule(parsedFormValues)
-            : false;
+            ...currentFormValues,
+          }
+          const parsedFormValues = makeObjectFromFieldsValues(formValues)
+          const constantValue = typeof constant === "function" ? constant?.(parsedFormValues) : constant
+          const isHidden = constantValue !== undefined
+          const isOmitted = omitFieldRule ? omitFieldRule(parsedFormValues) : false
 
-          const validationRules: FormItemProps['rules'] = [];
+          const validationRules: FormItemProps["rules"] = []
           if (!isHidden) {
-            const isReuqired =
-              typeof required === 'boolean'
-                ? required
-                : required?.(parsedFormValues);
+            const isReuqired = typeof required === "boolean" ? required : required?.(parsedFormValues)
             if (isReuqired)
               validationRules.push({
                 required: true,
-                message: `${displayName} field is required.`
-              });
-            if (type?.typeName === 'isoUtcDate')
-              validationRules.push(
-                isoDateValidator(`${displayName} field is required.`)
-              );
+                message: `${displayName} field is required.`,
+              })
+            if (type?.typeName === "isoUtcDate")
+              validationRules.push(isoDateValidator(`${displayName} field is required.`))
 
             /**
              * Currently `antd` built in validations do not work as expected,
              * therefore validations are currently omitted
              *
              */
-            if (type?.typeName === 'string') {
+            if (type?.typeName === "string") {
               // assertIsStringParameterType(type);
               // type.pattern &&
               //   validationRules.push({ pattern: new RegExp(type.pattern) });
             }
-            if (type?.typeName === 'int') {
+            if (type?.typeName === "int") {
               // assertIsIntParameterType(type);
               // (type.minimum || type.maximum) &&
               //   validationRules.push({
@@ -426,7 +353,7 @@ const ConfigurableFieldsFormComponent = ({
           }
 
           return isOmitted ? null : !isHidden ? (
-            <Row key={id} className={cn(isHidden && 'hidden')}>
+            <Row key={id} className={cn(isHidden && "hidden")}>
               <Col span={24}>
                 {isDebugSupported(id) ? (
                   <CodeDebuggerModal
@@ -434,53 +361,40 @@ const ConfigurableFieldsFormComponent = ({
                     codeFieldLabelDebugger="Expression"
                     defaultCodeValueDebugger={get(initialValues, id)}
                     handleCloseDebugger={() => handleCloseDebugger(id)}
-                    handleCodeChangeDebugger={(value) =>
-                      handleCodeChange(id, value.toString())
-                    }
-                    runDebugger={(values) => handleDebuggerRun(id, values)}
+                    handleCodeChangeDebugger={value => handleCodeChange(id, value.toString())}
+                    runDebugger={values => handleDebuggerRun(id, values)}
                     handleSaveCodeDebugger={() => handleSaveDebugger(id)}
                   />
                 ) : null}
                 <Form.Item
                   className={cn(
-                    'form-field_fixed-label',
+                    "form-field_fixed-label",
                     styles.field,
-                    (type?.typeName === 'json' ||
-                      type?.typeName === 'javascript') &&
-                      styles.jsonField
+                    (type?.typeName === "json" || type?.typeName === "javascript") && styles.jsonField
                   )}
                   name={formItemName}
                   label={
                     documentation ? (
-                      <LabelWithTooltip
-                        documentation={documentation}
-                        render={displayName}
-                      />
+                      <LabelWithTooltip documentation={documentation} render={displayName} />
                     ) : (
                       <span>{displayName}:</span>
                     )
                   }
                   labelCol={{ span: 4 }}
                   wrapperCol={{ span: 20 }}
-                  rules={validationRules}
-                >
+                  rules={validationRules}>
                   {getFieldComponent(type, id, defaultValue, constantValue)}
                 </Form.Item>
               </Col>
             </Row>
           ) : (
-            <Form.Item
-              key={formItemName}
-              name={formItemName}
-              hidden={true}
-              initialValue={constantValue}
-            />
-          );
+            <Form.Item key={formItemName} name={formItemName} hidden={true} initialValue={constantValue} />
+          )
         }
       )}
     </>
-  );
-};
+  )
+}
 
 const ConfigurableFieldsForm = ConfigurableFieldsFormComponent;
 

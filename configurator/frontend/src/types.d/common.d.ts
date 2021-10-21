@@ -10,6 +10,7 @@ declare type Optional<T> = T | null | undefined;
 declare type GenericFunction<A, R> = (...args: A) => R | Promise<R>;
 declare type VoidFunction = () => void;
 declare type AsyncVoidFunction = () => Promise<void>;
+declare type AsyncUnknownFunction = () => Promise<unknown>
 declare type NotFunction<T> = T extends Function ? never : T;
 
 // @Objects
@@ -25,3 +26,7 @@ declare type PlainObjectWithPrimitiveValues = {
 declare type DeepPartial<T> = {
   [P in keyof T]?: DeepPartial<T[P]>;
 };
+
+// @React
+
+declare type ReactSetState<T> = React.Dispatch<React.SetStateAction<T>>;

@@ -10,83 +10,50 @@ import { SourceEditorViewTabsExtraControls } from './SourceEditorViewTabsExtraCo
 import { SourceEditorDocumentationDrawer } from './SourceEditorDocumentationDrawer';
 // @Types
 import { SourceConnector as CatalogSourceConnector } from 'catalog/sources/types';
-import {
-  UpdateConfigurationFields,
-  AddStream,
-  RemoveStream,
-  SetStreams,
-  AddConnection,
-  RemoveConnection,
-  SetConnections,
-  UpdateStream,
-  SourceEditorState,
-  SetSourceEditorState
-} from './SourceEditor';
-import { TabName } from 'ui/components/Tabs/TabName';
+import { SourceEditorState, SetSourceEditorState } from "./SourceEditor"
+import { TabName } from "ui/components/Tabs/TabName"
 
 type SourceEditorTabsViewProps = {
-  state: SourceEditorState;
-  sourceId: string;
-  editorMode: 'add' | 'edit';
-  stateChanged: boolean;
-  showTabsErrors: boolean;
-  showDocumentationDrawer: boolean;
-  initialSourceDataFromBackend: Optional<Partial<SourceData>>;
-  sourceDataFromCatalog: CatalogSourceConnector;
-  configIsValidatedByStreams: boolean;
-  isSaving: boolean;
-  isTestingConnection: boolean;
-  setState: SetSourceEditorState;
-  setShowDocumentationDrawer: (value: boolean) => void;
-  handleSetConfigValidatedByStreams: VoidFunction;
-  onConfigurationChange: UpdateConfigurationFields;
-  setConfigurationValidator: (validator: () => Promise<number>) => void;
-  addStream: AddStream;
-  removeStream: RemoveStream;
-  updateStream: UpdateStream;
-  setStreams: SetStreams;
-  addConnection: AddConnection;
-  removeConnection: RemoveConnection;
-  setConnections: SetConnections;
-  handleBringSourceData: () => SourceData;
-  handleSave: VoidFunction;
-  handleTestConnection: VoidFunction;
-  handleLeaveEditor: VoidFunction;
-};
+  state: SourceEditorState
+  sourceId: string
+  editorMode: "add" | "edit"
+  showTabsErrors: boolean
+  showDocumentationDrawer: boolean
+  initialSourceDataFromBackend: Optional<Partial<SourceData>>
+  sourceDataFromCatalog: CatalogSourceConnector
+  configIsValidatedByStreams: boolean
+  setSourceEditorState: SetSourceEditorState
+  setTabsErrorsVisible: (value: boolean) => void
+  setConfigIsValidatedByStreams: (value: boolean) => void
+  setShowDocumentationDrawer: (value: boolean) => void
+  handleBringSourceData: () => SourceData
+  handleSave: AsyncUnknownFunction
+  handleTestConnection: AsyncUnknownFunction
+  handleLeaveEditor: VoidFunction
+}
 
 export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
   state,
   sourceId,
   editorMode,
-  stateChanged,
   showTabsErrors,
   showDocumentationDrawer,
   initialSourceDataFromBackend,
   sourceDataFromCatalog,
   configIsValidatedByStreams,
-  isSaving,
-  isTestingConnection,
-  setState,
+  setSourceEditorState,
+  setTabsErrorsVisible,
+  setConfigIsValidatedByStreams,
   setShowDocumentationDrawer,
-  handleSetConfigValidatedByStreams,
-  onConfigurationChange,
-  setConfigurationValidator,
-  addStream,
-  removeStream,
-  setStreams,
-  updateStream,
-  addConnection,
-  removeConnection,
-  setConnections,
   handleBringSourceData,
   handleSave,
   handleTestConnection,
-  handleLeaveEditor
+  handleLeaveEditor,
 }) => {
   return (
     <>
-      <div className={cn('flex flex-col items-stretch flex-auto')}>
-        <div className={cn('flex-grow')}>
+      <div className={cn("flex flex-col items-stretch flex-auto")}>
+        <div className={cn("flex-grow")}>
           <Tabs
             type="card"
             defaultActiveKey="configuration"
@@ -94,11 +61,10 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
               <SourceEditorViewTabsExtraControls
                 sourceId={sourceId}
                 sourceDataFromCatalog={sourceDataFromCatalog}
-                showLogsButton={editorMode === 'edit'}
+                showLogsButton={editorMode === "edit"}
                 setDocumentationVisible={setShowDocumentationDrawer}
               />
-            }
-          >
+            }>
             <Tabs.TabPane
               key="configuration"
               tab={
@@ -108,39 +74,26 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
                   hideErrorsCount={!showTabsErrors}
                 />
               }
-              forceRender
-            >
+              forceRender>
               <SourceEditorFormConfiguration
                 editorMode={editorMode}
                 initialSourceDataFromBackend={initialSourceDataFromBackend}
                 sourceDataFromCatalog={sourceDataFromCatalog}
-                onChange={onConfigurationChange}
-                setValidator={setConfigurationValidator}
+                setSourceEditorState={setSourceEditorState}
+                setTabErrorsVisible={setTabsErrorsVisible}
+                setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
               />
             </Tabs.TabPane>
             <Tabs.TabPane
               key="streams"
-              tab={
-                <TabName
-                  name="Streams"
-                  errorsCount={state.streams.errorsCount}
-                  hideErrorsCount={!showTabsErrors}
-                />
-              }
-              forceRender
-            >
+              tab={<TabName name="Streams" errorsCount={state.streams.errorsCount} hideErrorsCount={!showTabsErrors} />}
+              forceRender>
               <SourceEditorFormStreams
                 initialSourceDataFromBackend={initialSourceDataFromBackend}
                 sourceDataFromCatalog={sourceDataFromCatalog}
                 sourceConfigValidatedByStreamsTab={configIsValidatedByStreams}
-                setSourceEditorState={setState}
-                handleSetConfigValidatedByStreams={
-                  handleSetConfigValidatedByStreams
-                }
-                addStream={addStream}
-                removeStream={removeStream}
-                updateStream={updateStream}
-                setStreams={setStreams}
+                setSourceEditorState={setSourceEditorState}
+                setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
                 handleBringSourceData={handleBringSourceData}
               />
             </Tabs.TabPane>
@@ -153,13 +106,10 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
                   hideErrorsCount={!showTabsErrors}
                 />
               }
-              forceRender
-            >
+              forceRender>
               <SourceEditorFormConnections
                 initialSourceDataFromBackend={initialSourceDataFromBackend}
-                addConnection={addConnection}
-                removeConnection={removeConnection}
-                setConnections={setConnections}
+                setSourceEditorState={setSourceEditorState}
               />
             </Tabs.TabPane>
           </Tabs>
@@ -169,13 +119,11 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
           <SourceEditorViewControls
             saveButton={{
               showErrorsPopover: false,
-              loading: isSaving,
-              handleClick: handleSave
+              handleClick: handleSave,
             }}
             testConnectionButton={{
               showErrorsPopover: false,
-              loading: isTestingConnection,
-              handleClick: handleTestConnection
+              handleClick: handleTestConnection,
             }}
             handleCancel={handleLeaveEditor}
           />
@@ -183,10 +131,8 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
       </div>
 
       <Prompt
-        message={
-          'You have unsaved changes. Are you sure you want to leave without saving?'
-        }
-        when={stateChanged && !isSaving}
+        message={"You have unsaved changes. Are you sure you want to leave without saving?"}
+        when={state.stateChanged}
       />
 
       {sourceDataFromCatalog?.documentation && (
@@ -197,5 +143,5 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
         />
       )}
     </>
-  );
-};
+  )
+}
