@@ -33,7 +33,7 @@ import { validateTabForm } from 'utils/forms/validateTabForm';
 // @Hooks
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Services
-import { closeableMessage, handleError } from 'lib/components/components';
+import { handleError } from 'lib/components/components';
 import { firstToLower } from 'lib/commons/utils';
 // @Styles
 import styles from './SourceEditor.module.less';
@@ -41,6 +41,7 @@ import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOu
 import { WithSourceEditorSyncContext } from './SourceEditorSyncContext';
 import { SourceEditorStreamsAirbyteLoader } from './SourceEditorStreamsAirbyteLoader';
 import { taskLogsPageRoute } from '../../../TaskLogs/TaskLogsPage';
+import { actionNotification } from "../../../../components/ActionNotification/ActionNotification"
 
 export type SourceTabKey = 'config' | 'streams' | 'destinations';
 
@@ -248,9 +249,9 @@ const SourceEditorComponent = ({
           history.push(sourcesPageRoutes.root);
 
           if (sourceData.current.connected) {
-            closeableMessage.success('New source has been added!');
+            actionNotification.success('New source has been added!');
           } else {
-            closeableMessage.warn(
+            actionNotification.warn(
               `Source has been saved, but test has failed with '${firstToLower(
                 sourceData.current.connectedErrorMessage
               )}'. Data from this source will not be available`

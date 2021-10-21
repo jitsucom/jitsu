@@ -27,7 +27,7 @@ export function EditableName({ name, className, update, maxLen = 25 }: EditableN
   const [saving, setSaving] = useState(false)
   const [currentName, setCurrentName] = useState(name)
   return (
-    <span className={`inline-block flex flex-nowrap items-center ${className}`}>
+    <span className={`inline-block flex flex-nowrap items-center ${className}`} onDoubleClick={changeName}>
       <span className="">
         <LabelEllipsis maxLen={maxLen}>{!saving ? currentName : "Saving..."}</LabelEllipsis>
       </span>
