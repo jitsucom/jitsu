@@ -314,6 +314,22 @@ func (ts *TaskService) GetTaskLogs(taskID string, start, end time.Time) ([]LogRe
 	return result, nil
 }
 
+//CancelTask saves CANCEL status into the task in Redis
+func (ts *TaskService) CancelTask(taskID string) error {
+	if ts.metaStorage == nil {
+		return ErrMetaStorageRequired
+	}
+
+	if err := ts.metaStorage.UpdateFinishedTask(taskID, CANCELED.String()); err != nil {
+		return fmt.Errorf("error changing task [%s] status to [%s]: %v", taskID, CANCELED.String(), err)
+	}
+
+	taskLogger := NewTaskLogger(taskID, ts.metaStorage)
+	taskLogger.WARN(ErrTaskHasBeenCanceled.Error())
+
+	return nil
+}
+
 func (ts *TaskService) IsConfigured() bool {
 	return ts.configured
 }

@@ -102,6 +102,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.GET("/tasks/:taskID", adminTokenMiddleware.AdminAuth(taskHandler.GetByIDHandler))
 		apiV1.POST("/tasks", adminTokenMiddleware.AdminAuth(taskHandler.SyncHandler))
 		apiV1.GET("/tasks/:taskID/logs", adminTokenMiddleware.AdminAuth(taskHandler.TaskLogsHandler))
+		apiV1.POST("/tasks/:taskID/cancel", adminTokenMiddleware.AdminAuth(taskHandler.TaskCancelHandler))
 
 		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler))
 		apiV1.GET("/events/cache", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler))
