@@ -77,8 +77,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
                   errorsCount={state.configuration.errorsCount}
                   hideErrorsCount={!showTabsErrors}
                 />
-              }
-              forceRender>
+              }>
               <SourceEditorFormConfiguration
                 editorMode={editorMode}
                 initialSourceDataFromBackend={initialSourceDataFromBackend}
@@ -91,8 +90,9 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
             </Tabs.TabPane>
             <Tabs.TabPane
               key="streams"
-              tab={<TabName name="Streams" errorsCount={state.streams.errorsCount} hideErrorsCount={!showTabsErrors} />}
-              forceRender>
+              tab={
+                <TabName name="Streams" errorsCount={state.streams.errorsCount} hideErrorsCount={!showTabsErrors} />
+              }>
               <SourceEditorFormStreams
                 initialSourceDataFromBackend={initialSourceDataFromBackend}
                 sourceDataFromCatalog={sourceDataFromCatalog}
@@ -111,8 +111,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
                   errorsCount={state.connections.errorsCount}
                   hideErrorsCount={!showTabsErrors}
                 />
-              }
-              forceRender>
+              }>
               <SourceEditorFormConnections
                 initialSourceDataFromBackend={initialSourceDataFromBackend}
                 setSourceEditorState={setSourceEditorState}

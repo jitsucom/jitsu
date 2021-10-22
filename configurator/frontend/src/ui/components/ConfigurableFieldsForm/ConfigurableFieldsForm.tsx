@@ -18,7 +18,7 @@ import { FormInstance } from "antd/lib/form/hooks/useForm"
 import { makeObjectFromFieldsValues } from "utils/forms/marshalling"
 import { isoDateValidator } from "utils/validation/validators"
 // @Hooks
-import { useForceUpdate } from "hooks/useForceUpdate"
+import { useForceUpdate, useForceUpdateTarget } from "hooks/useForceUpdate"
 // @Icons
 import BugIcon from "icons/bug"
 import { CodeOutlined, EyeInvisibleOutlined, EyeOutlined } from "@ant-design/icons"
@@ -62,7 +62,8 @@ const ConfigurableFieldsFormComponent = ({
   const [debugModalsStates, setDebugModalsStates] = useState<{ [id: string]: boolean }>({})
   const [debugModalsValues, setDebugModalsValues] = useState<{ [id: string]: string }>({})
 
-  const forceUpdate = useForceUpdate()
+  const forceUpdateAll = useForceUpdate()
+  const { forceUpdateTargets, forceUpdateTheTarget } = useForceUpdateTarget()
 
   const handleTouchField = debounce(handleTouchAnyField ?? (() => {}), 1000)
 
@@ -76,9 +77,9 @@ const ConfigurableFieldsFormComponent = ({
   const handleChangeSwitch = useCallback(
     (id: string) => (value: boolean) => {
       form.setFieldsValue({ [id]: value })
-      forceUpdate()
+      forceUpdateAll()
     },
-    [form, forceUpdate]
+    [form, forceUpdateAll]
   )
   const handleOpenDebugger = useCallback(
     (id: string) => {
@@ -151,7 +152,10 @@ const ConfigurableFieldsFormComponent = ({
       // ToDo: check if it can be <select> in some cases
       case "selection": {
         return (
-          <Select allowClear mode={type.data.maxOptions > 1 ? "multiple" : undefined} onChange={forceUpdate}>
+          <Select
+            allowClear
+            mode={type.data.maxOptions > 1 ? "multiple" : undefined}
+            onChange={() => forceUpdateTheTarget("select")}>
             {type.data.options.map(({ id, displayName }: Option) => {
               return (
                 <Select.Option value={id} key={id}>
@@ -229,6 +233,17 @@ const ConfigurableFieldsFormComponent = ({
     handleCloseDebugger(id)
   }
 
+  /**
+   * Runs after every re-render caused by `Select` field change
+   * to pick up the values of conditionally rendered fields.
+   */
+  useEffect(() => {
+    const a = form.getFieldsValue()
+    const set = Object.values(a).every(value => value !== undefined)
+    debugger
+    if (set) setFormValues(a)
+  }, [forceUpdateTargets["select"]])
+
   useEffect(() => {
     /**
      *
@@ -249,7 +264,7 @@ const ConfigurableFieldsFormComponent = ({
 
       const initialValue = getInitialValue(param.id, param.defaultValue, constantValue, param.type?.typeName)
 
-      formValues[param.id] = initialValue
+      if (initialValue !== "") formValues[param.id] = initialValue
 
       formFields.push({
         name: param.id,
@@ -257,6 +272,8 @@ const ConfigurableFieldsFormComponent = ({
         touched: false,
       })
     })
+
+    debugger
 
     setInitialFormValues?.(formValues)
     form.setFields(formFields)
@@ -267,12 +284,8 @@ const ConfigurableFieldsFormComponent = ({
      *  depending on the form values
      *
      */
-    forceUpdate()
+    forceUpdateAll()
   }, [])
-
-  useEffect(() => {
-    setFormValues?.(form.getFieldsValue())
-  })
 
   return loading ? (
     typeof loading === "boolean" ? (

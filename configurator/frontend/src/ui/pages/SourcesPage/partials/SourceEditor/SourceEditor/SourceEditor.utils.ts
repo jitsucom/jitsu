@@ -15,9 +15,9 @@ export const sourceEditorUtils = {
     sourceCatalogData: SourceConnector,
     initialSourceDataFromBackend: Partial<SourceData>
   ): SourceData => {
-    const { configuration, streams, connections } = sourceEditorState
+    const { configuration, streams, connections } = sourceEditorState ?? {}
 
-    let updatedSourceData = merge(
+    let updatedSourceData: SourceData = merge(
       makeObjectFromFieldsValues(merge({}, ...Object.values(configuration.config))),
       makeObjectFromFieldsValues(streams.streams),
       makeObjectFromFieldsValues(connections.connections)
@@ -29,6 +29,9 @@ export const sourceEditorUtils = {
     }
 
     updatedSourceData = { ...(initialSourceDataFromBackend ?? {}), ...catalogSourceData, ...updatedSourceData }
+    if (!updatedSourceData?.config?.catalog && initialSourceDataFromBackend?.config?.catalog) {
+      updatedSourceData["config"]["catalog"] = initialSourceDataFromBackend.config.catalog
+    }
 
     return updatedSourceData
   },
