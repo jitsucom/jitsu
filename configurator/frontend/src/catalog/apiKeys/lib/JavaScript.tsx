@@ -5,7 +5,7 @@ export const jsApiKey: ApiKeyReferenceData = {
   icon: (
     <svg
       id="Capa_1"
-      enable-background="new 0 0 510 510"
+      enableBackground="new 0 0 510 510"
       height="100%"
       width="100%"
       viewBox="0 0 510 510"

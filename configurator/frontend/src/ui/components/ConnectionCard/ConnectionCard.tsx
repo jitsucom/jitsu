@@ -21,16 +21,26 @@ export type ConnectionCardAction = string | (() => void) | undefined
 /**
  * Returns link (if action is string, meaning URL), or Button
  */
-function ActionLink({ action, children }: { action: ConnectionCardAction; children: ReactNode }) {
-  if (typeof action === "string") {
+function ActionLink({
+  action,
+  children,
+  ...rest
+}: {
+  action: ConnectionCardAction
+  children: ReactNode
+  [key: string]: any
+}) {
+  if (!action) {
+    return <span {...rest}>{children}</span>
+  } else if (typeof action === "string") {
     return (
-      <NavLink to={action} className="pr-0.5">
+      <NavLink to={action} {...rest}>
         {children}
       </NavLink>
     )
   } else {
     return (
-      <a className="text-text" onClick={action}>
+      <a className="text-text" onClick={action} {...rest}>
         {children}
       </a>
     )
@@ -59,7 +69,9 @@ export type ConnectionCardProps = {
 
 export function ConnectionCard(props: ConnectionCardProps) {
   return (
-    <div className={`${styles.connectionCard} ${props.loading && styles.connectionCardLoading}`}>
+    <ActionLink
+      action={props.editAction}
+      className={`${styles.connectionCard} ${props.loading && styles.connectionCardLoading}`}>
       <div className="w-full flex justify-between items-start">
         <div className="flex items-center">
           <div className="h-12">
@@ -86,6 +98,6 @@ export function ConnectionCard(props: ConnectionCardProps) {
           {props.editAction && <ActionLink action={props.editAction}>Edit</ActionLink>}
         </div>
       </div>
-    </div>
+    </ActionLink>
   )
 }
