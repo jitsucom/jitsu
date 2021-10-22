@@ -64,6 +64,16 @@
   @apply text-lg my-2 border-b text-heading;
 }
 
+.documentation pre {
+  padding-bottom: 14px !important;
+  background-color: @bgPrimary !important;
+}
+
+.documentation :global .ant-collapse-content-box {
+  background-color: unset !important;
+}
+
+
 .documentation code {
   @apply bg-bgTableHeader rounded px-1;
   padding-bottom: 0.125rem;
