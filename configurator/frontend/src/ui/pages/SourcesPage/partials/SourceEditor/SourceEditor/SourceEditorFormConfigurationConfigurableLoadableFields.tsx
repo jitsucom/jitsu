@@ -56,6 +56,10 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     patchConfig(CONFIG_KEY, values)
   }
 
+  const handleFormValuesChangeForm: FormProps<PlainObjectWithPrimitiveValues>["onValuesChange"] = (_, values) => {
+    patchConfig(CONFIG_KEY, values)
+  }
+
   const handleSetInitialFormValues = (values: PlainObjectWithPrimitiveValues): void => {
     patchConfig(CONFIG_KEY, values, { doNotSetStateChanged: true })
   }
@@ -101,7 +105,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
       </Col>
     </Row>
   ) : (
-    <Form form={form}>
+    <Form form={form} onValuesChange={handleFormValuesChangeForm}>
       <ConfigurableFieldsForm
         fieldsParamsList={fieldsParameters || []}
         form={form}

@@ -47,6 +47,8 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
     setSourceEditorState(state => {
       const newState = cloneDeep(state)
 
+      debugger
+
       newState.configuration.config[key] = allValues
 
       if (!options?.doNotSetStateChanged) newState.stateChanged = true

@@ -118,7 +118,16 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   const [configIsValidatedByStreams, setConfigIsValidatedByStreams] = useState<boolean>(false)
 
   const handleBringSourceData = () => {
-    return sourceEditorUtils.getSourceDataFromState(state, sourceDataFromCatalog, initialSourceDataFromBackend)
+    let sourceEditorState = state
+    setState(state => {
+      sourceEditorState = state
+      return state
+    })
+    return sourceEditorUtils.getSourceDataFromState(
+      sourceEditorState,
+      sourceDataFromCatalog,
+      initialSourceDataFromBackend
+    )
   }
 
   const validateCountErrors = async (): Promise<number> => {
@@ -138,6 +147,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   const handleValidateAndTestConfig = async () => {
     setControlsDisabled(true)
     try {
+      debugger
       const fieldsErrored = !!(await validateCountErrors())
       if (fieldsErrored) throw new Error("Some fields are empty")
 
@@ -166,7 +176,11 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   }, [state])
 
   const handleSave = useCallback<AsyncVoidFunction>(async () => {
-    setState(state => ({ ...state, stateChanged: false }))
+    let sourceEditorState = null
+    setState(state => {
+      sourceEditorState = state
+      return { ...state, stateChanged: false }
+    })
     const sourceData = handleBringSourceData()
     const testConnectionResults = await sourcePageUtils.testConnection(sourceData, true)
 
@@ -213,6 +227,8 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       })
     )
   }, [editorMode, sourceDataFromCatalog, setBreadcrumbs])
+
+  debugger
 
   return editorMode === "add" ? (
     <SourceEditorViewSteps
