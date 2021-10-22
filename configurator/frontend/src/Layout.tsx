@@ -72,7 +72,7 @@ const menuItems = [
   makeItem(<PartitionOutlined/>, 'Home', '/connections'),
   makeItem(<ThunderboltOutlined/>, 'Live Events', '/events_stream'),
   makeItem(<AreaChartOutlined/>, 'Statistics', '/dashboard'),
-  makeItem(<Icon component={KeyIcon}/>, 'API Keys', '/api_keys'),
+  makeItem(<Icon component={KeyIcon}/>, 'API Keys', '/api-keys'),
   makeItem(<ApiOutlined/>, 'Sources', '/sources'),
   makeItem(<NotificationOutlined/>, 'Destinations', '/destinations'),
   makeItem(<Icon component={DbtCloudIcon}/>, 'dbt Cloud Integration', '/dbtcloud'),
