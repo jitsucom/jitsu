@@ -2,13 +2,12 @@ package airbyte
 
 import (
 	"errors"
-	"github.com/jitsucom/jitsu/server/airbyte"
-	"strings"
 )
 
 //Config is a dto for airbyte configuration serialization
 type Config struct {
 	DockerImage            string            `mapstructure:"docker_image" json:"docker_image,omitempty" yaml:"docker_image,omitempty"`
+	ImageVersion           string            `mapstructure:"image_version" json:"image_version,omitempty" yaml:"image_version,omitempty"`
 	Config                 interface{}       `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
 	Catalog                interface{}       `mapstructure:"catalog" json:"catalog,omitempty" yaml:"catalog,omitempty"`
 	InitialState           interface{}       `mapstructure:"initial_state" json:"initial_state,omitempty" yaml:"initial_state,omitempty"`
@@ -33,8 +32,6 @@ func (ac *Config) Validate() error {
 	if ac.StreamTableNames == nil {
 		ac.StreamTableNames = map[string]string{}
 	}
-
-	ac.DockerImage = strings.TrimPrefix(ac.DockerImage, airbyte.DockerImageRepositoryPrefix)
 
 	return nil
 }

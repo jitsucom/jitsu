@@ -435,7 +435,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 //returns err if occurred
 func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver,
 	destinationStorages []storages.Storage, taskCloser *TaskCloser) error {
-	state, err := te.metaStorage.GetSignature(task.Source, cliDriver.GetTap(), driversbase.ALL.String())
+	state, err := te.metaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey(), driversbase.ALL.String())
 	if err != nil {
 		return fmt.Errorf("Error getting state from meta storage: %v", err)
 	}

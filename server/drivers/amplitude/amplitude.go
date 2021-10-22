@@ -12,14 +12,14 @@ import (
 
 //amplitudeHTTPConfiguration contains default amplitude HTTP timeouts/retry/delays,etc
 var amplitudeHTTPConfiguration = &adapters.HTTPConfiguration{
-	GlobalClientTimeout:       1 * time.Minute,
+	GlobalClientTimeout:       10 * time.Minute,
 	RetryDelay:                10 * time.Second,
 	RetryCount:                5,
 	ClientMaxIdleConns:        1000,
 	ClientMaxIdleConnsPerHost: 1000,
 }
 
-// Amplitude is a Amplitude driver.
+// Amplitude is an Amplitude driver.
 // It is used in syncing data from Amplitude.
 type Amplitude struct {
 	adapter    *AmplitudeAdapter
