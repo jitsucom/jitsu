@@ -147,7 +147,10 @@ func main() {
 		logging.Fatal(err)
 	}
 
-	airbyte.Init(viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), appconfig.Instance.AirbyteLogsWriter)
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := airbyte.Init(ctx, viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), appconfig.Instance.AirbyteLogsWriter); err != nil {
+		logging.Errorf("❌ Airbyte integration is disabled: %v. For using Airbyte run Jitsu with: -v /var/run/docker.sock:/var/run/docker.sock", err)
+	}
 
 	enrichment.InitDefault(
 		viper.GetString("server.fields_configuration.src_source_ip"),
@@ -172,7 +175,6 @@ func main() {
 	}
 
 	//listen to shutdown signal to free up all resources
-	ctx, cancel := context.WithCancel(context.Background())
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP)
 	go func() {

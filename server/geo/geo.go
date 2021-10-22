@@ -2,6 +2,7 @@ package geo
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"errors"
 	"fmt"
@@ -115,7 +116,18 @@ func loadAndCreateGeoIPParser(maxmindDownloadURLTemplate, geoipPath string) (*ge
 			return nil, fmt.Errorf("Error reading maxmind db from http source: %s %v", geoipPath, err)
 		}
 
-		return geoip2.FromBytes(b)
+		reader, firstErr := geoip2.FromBytes(b)
+		if firstErr != nil {
+			//try to read tar.gz
+			payloadFromTarGz, err := extractMaxMindDBFromTarGz(bytes.NewBuffer(b))
+			if err != nil {
+				return nil, firstErr
+			}
+
+			return geoip2.FromBytes(payloadFromTarGz)
+		}
+
+		return reader, nil
 	} else if strings.Contains(geoipPath, "maxmind://") {
 		//load from official MaxMind HTTP source
 		maxmindDBURL := fmt.Sprintf(maxmindDownloadURLTemplate, strings.TrimSpace(strings.ReplaceAll(geoipPath, "maxmind://", "")))
