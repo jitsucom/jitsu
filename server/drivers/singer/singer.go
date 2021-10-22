@@ -39,7 +39,7 @@ type Singer struct {
 	base.AbstractCLIDriver
 
 	mutex              *sync.RWMutex
-	activeSyncCommands map[string]*SyncCommand
+	activeSyncCommands map[string]*base.SyncCommand
 
 	pathToConfigs     string
 	streamReplication map[string]string
@@ -146,7 +146,7 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 
 	s := &Singer{
 		mutex:              &sync.RWMutex{},
-		activeSyncCommands: map[string]*SyncCommand{},
+		activeSyncCommands: map[string]*base.SyncCommand{},
 
 		pathToConfigs:     pathToConfigs,
 		streamReplication: streamReplicationMappings,
@@ -336,6 +336,10 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, dataConsumer 
 
 func (s *Singer) loadAndParse(taskLogger logging.TaskLogger, cliParser base.CLIParser, rawLogStdoutWriter io.Writer,
 	taskCloser base.CLITaskCloser, command string, args ...string) error {
+	if err := taskCloser.HandleCanceling(); err != nil {
+		return err
+	}
+
 	taskLogger.INFO("ID [%s] exec: %s %s", taskCloser.TaskID(), command, strings.Join(args, " "))
 
 	//exec cmd and analyze response from stdout & stderr
@@ -345,8 +349,8 @@ func (s *Singer) loadAndParse(taskLogger logging.TaskLogger, cliParser base.CLIP
 	stderr, _ := execSyncCmd.StderrPipe()
 	defer stderr.Close()
 
-	syncCommand := &SyncCommand{
-		Command:    execSyncCmd,
+	syncCommand := &base.SyncCommand{
+		Cmd:        &CommandCloser{command: execSyncCmd},
 		TaskCloser: taskCloser,
 	}
 	s.mutex.Lock()
@@ -363,18 +367,26 @@ func (s *Singer) loadAndParse(taskLogger logging.TaskLogger, cliParser base.CLIP
 	defer close(commandFinished)
 	//close command by timeout
 	safego.Run(func() {
-		ticker := time.NewTicker(syncTimeout)
+		timeoutTicker := time.NewTicker(syncTimeout)
+		cancelTicker := time.NewTicker(3 * time.Second)
 		for {
 			select {
 			case <-s.closed:
 				return
 			case <-commandFinished:
 				return
-			case <-ticker.C:
+			case <-cancelTicker.C:
+				if err := taskCloser.HandleCanceling(); err != nil {
+					if err := syncCommand.Cancel(); err != nil {
+						logging.SystemErrorf("error canceling task [%s] sync command: %v", taskCloser.TaskID(), err)
+					}
+					return
+				}
+			case <-timeoutTicker.C:
 				logging.Warnf("[%s] Singer sync run timeout after [%s]", s.ID(), syncTimeout.String())
 
-				if err := syncCommand.Command.Process.Kill(); err != nil {
-					logging.SystemErrorf("Error terminating Singer command %s: %v", syncCommand.Command.String(), err)
+				if err := syncCommand.Cmd.Close(); err != nil {
+					logging.SystemErrorf("Error terminating Singer command %s: %v", syncCommand.Cmd.String(), err)
 				}
 
 				s.mutex.Lock()
@@ -454,7 +466,7 @@ func (s *Singer) Close() (multiErr error) {
 
 	s.mutex.Lock()
 	for _, command := range s.activeSyncCommands {
-		logging.Infof("[%s] killing process: %s", s.ID(), command.Command.String())
+		logging.Infof("[%s] killing process: %s", s.ID(), command.Cmd.String())
 		if err := command.Shutdown(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error killing singer sync command: %v", s.ID(), err))
 		}

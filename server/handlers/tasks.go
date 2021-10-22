@@ -224,6 +224,22 @@ func (sh *TaskHandler) SyncHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, TaskIDResponse{ID: taskID})
 }
 
+func (sh *TaskHandler) TaskCancelHandler(c *gin.Context) {
+	taskID := c.Param("taskID")
+	if taskID == "" {
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("'task_id' is required path parameter", nil))
+		return
+	}
+
+	err := sh.taskService.CancelTask(taskID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, middleware.OKResponse())
+}
+
 func extractCollectionID(sourceType string, c *gin.Context) string {
 	if sourceType == driversbase.SingerType || sourceType == driversbase.AirbyteType {
 		return drivers.DefaultCollection

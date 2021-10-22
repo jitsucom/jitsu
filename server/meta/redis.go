@@ -389,7 +389,7 @@ func (r *Redis) DeleteAnonymousEvent(destinationID, anonymousID, eventID string)
 
 //CreateTask saves task into Redis and add Task ID in index
 func (r *Redis) CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error {
-	err := r.UpsertTask(task)
+	err := r.upsertTask(task)
 	if err != nil {
 		return err
 	}
@@ -409,8 +409,8 @@ func (r *Redis) CreateTask(sourceID, collection string, task *Task, createdAt ti
 	return nil
 }
 
-//UpsertTask overwrite task in Redis (save or update)
-func (r *Redis) UpsertTask(task *Task) error {
+//upsertTask overwrite task in Redis (save or update)
+func (r *Redis) upsertTask(task *Task) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
@@ -494,6 +494,34 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ...string) (int
 		logging.Debugf("Removed logs from %d of %d tasks. source:%s collection:%s", removed, len(taskIDs), sourceID, collection)
 	}
 	return removed, nil
+}
+
+//UpdateStartedTask updates only status and started_at field in the task
+func (r *Redis) UpdateStartedTask(taskID, status string) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("HSET", syncTasksPrefix+taskID, "status", status, "started_at", timestamp.NowUTC())
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
+//UpdateFinishedTask updates only status and finished_at field in the task
+func (r *Redis) UpdateFinishedTask(taskID, status string) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("HSET", syncTasksPrefix+taskID, "status", status, "finished_at", timestamp.NowUTC())
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
 }
 
 //TaskHeartBeat sets current timestamp into heartbeat key

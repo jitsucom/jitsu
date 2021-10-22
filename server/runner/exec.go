@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"errors"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"io"
@@ -9,6 +10,8 @@ import (
 	"sync"
 	"time"
 )
+
+var ErrAirbyteAlreadyTerminated = errors.New("Airbyte Runner has been already terminated. You can use it only once.")
 
 //ExecCmd executes command with args and uses stdOutWriter and stdErrWriter to pipe the result
 //runs separate goroutine for timeout control

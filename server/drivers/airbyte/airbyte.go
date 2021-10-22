@@ -24,7 +24,7 @@ type Airbyte struct {
 	mutex *sync.RWMutex
 	base.AbstractCLIDriver
 
-	activeCommands map[string]*SyncCommand
+	activeCommands map[string]*base.SyncCommand
 
 	config                   *Config
 	pathToConfigs            string
@@ -114,7 +114,7 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 		config.StreamTableNamesPrefix, pathToConfigs, config.StreamTableNames)
 	s := &Airbyte{
 		mutex:                 &sync.RWMutex{},
-		activeCommands:        map[string]*SyncCommand{},
+		activeCommands:        map[string]*base.SyncCommand{},
 		config:                config,
 		pathToConfigs:         pathToConfigs,
 		catalogDiscovered:     catalogDiscovered,
@@ -224,6 +224,10 @@ func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer
 		return fmt.Errorf("%s has already been closed", a.Type())
 	}
 
+	if err := taskCloser.HandleCanceling(); err != nil {
+		return err
+	}
+
 	//waiting when airbyte is ready
 	ready, readyErr := base.WaitReadiness(a, taskLogger)
 	if !ready {
@@ -237,18 +241,39 @@ func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer
 
 	airbyteRunner := airbyte.NewRunner(a.GetTap(), a.config.ImageVersion, taskCloser.TaskID())
 
-	a.mutex.Lock()
-	a.activeCommands[taskCloser.TaskID()] = &SyncCommand{
-		Runner:     airbyteRunner,
+	syncCommand := &base.SyncCommand{
+		Cmd:        airbyteRunner,
 		TaskCloser: taskCloser,
 	}
+	a.mutex.Lock()
+	a.activeCommands[taskCloser.TaskID()] = syncCommand
 	a.mutex.Unlock()
 
+	loadDone := make(chan struct{})
 	defer func() {
+		close(loadDone)
+
 		a.mutex.Lock()
 		delete(a.activeCommands, taskCloser.TaskID())
 		a.mutex.Unlock()
 	}()
+
+	safego.Run(func() {
+		ticker := time.NewTicker(3 * time.Second)
+		for {
+			select {
+			case <-loadDone:
+				return
+			case <-ticker.C:
+				if err := taskCloser.HandleCanceling(); err != nil {
+					if cancelErr := syncCommand.Cancel(); cancelErr != nil {
+						logging.SystemErrorf("error canceling task [%s] sync command: %v", taskCloser.TaskID(), cancelErr)
+					}
+					return
+				}
+			}
+		}
+	})
 
 	return airbyteRunner.Read(dataConsumer, a.streamsRepresentation, taskLogger, taskCloser, a.ID(), statePath)
 }
@@ -267,7 +292,7 @@ func (a *Airbyte) Close() (multiErr error) {
 
 	a.mutex.Lock()
 	for _, activeCommand := range a.activeCommands {
-		logging.Infof("[%s] killing process: %s", a.ID(), activeCommand.Runner.GetCommand())
+		logging.Infof("[%s] killing process: %s", a.ID(), activeCommand.Cmd.String())
 		if err := activeCommand.Shutdown(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error killing airbyte read command: %v", a.ID(), err))
 		}

@@ -123,7 +123,7 @@ func (te *TaskExecutor) startTaskController() {
 
 				if task.Status == RUNNING.String() || task.Status == SCHEDULED.String() {
 					taskLogger := NewTaskLogger(task.ID, te.metaStorage)
-					taskCloser := NewTaskCloser(task, taskLogger, te.metaStorage)
+					taskCloser := NewTaskCloser(task.ID, taskLogger, te.metaStorage)
 					stalledTimeAgo := time.Now().UTC().Sub(lastHeartBeatTime)
 
 					errMsg := fmt.Sprintf("The task is marked as Stalled. Jitsu has not received any updates from this task [%.2f] seconds (~ %.2f minutes). It might happen due to server restart. Sometimes out of memory errors might be a cause. You can check application logs and if so, please give Jitsu more RAM.", stalledTimeAgo.Seconds(), stalledTimeAgo.Minutes())
@@ -196,16 +196,19 @@ func (te *TaskExecutor) execute(i interface{}) {
 
 	//create redis logger
 	taskLogger := NewTaskLogger(task.ID, te.metaStorage)
+	taskCloser := NewTaskCloser(task.ID, taskLogger, te.metaStorage)
+
+	if taskCloser.HandleCanceling() == ErrTaskHasBeenCanceled {
+		return
+	}
+
+	//run the task
 	logging.Infof("[%s] Running task...", task.ID)
 	taskLogger.INFO("Running task with id: %s", task.ID)
 
-	taskCloser := NewTaskCloser(task, taskLogger, te.metaStorage)
-
-	task.Status = RUNNING.String()
-	task.StartedAt = timestamp.NowUTC()
-	err := te.metaStorage.UpsertTask(task)
+	err := te.metaStorage.UpdateStartedTask(task.ID, RUNNING.String())
 	if err != nil {
-		msg := fmt.Sprintf("Error updating running task [%s] in meta.Storage: %v", task.ID, err)
+		msg := fmt.Sprintf("Error updating started task [%s] in meta.Storage: %v", task.ID, err)
 		taskCloser.CloseWithError(msg, true)
 		return
 	}
@@ -292,10 +295,14 @@ func (te *TaskExecutor) execute(i interface{}) {
 	if ok {
 		taskErr = te.syncCLI(task, taskLogger, cliDriver, destinationStorages, taskCloser)
 	} else {
-		taskErr = te.sync(task, taskLogger, driver, destinationStorages)
+		taskErr = te.sync(task, taskLogger, driver, destinationStorages, taskCloser)
 	}
 
 	if taskErr != nil {
+		if taskErr == ErrTaskHasBeenCanceled {
+			return
+		}
+
 		taskCloser.CloseWithError(taskErr.Error(), false)
 		return
 	}
@@ -304,9 +311,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	taskLogger.INFO("FINISHED SUCCESSFULLY in [%.2f] seconds (~ %.2f minutes)", end.Seconds(), end.Minutes())
 	logging.Infof("[%s] FINISHED SUCCESSFULLY in [%.2f] seconds (~ %.2f minutes)", task.ID, end.Seconds(), end.Minutes())
 
-	task.Status = SUCCESS.String()
-	task.FinishedAt = timestamp.NowUTC()
-	err = te.metaStorage.UpsertTask(task)
+	err = te.metaStorage.UpdateFinishedTask(task.ID, SUCCESS.String())
 	if err != nil {
 		msg := fmt.Sprintf("Error updating success task [%s] in meta.Storage: %v", task.ID, err)
 		taskCloser.CloseWithError(msg, true)
@@ -338,7 +343,7 @@ func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLog
 //sync runs source synchronization. Return error if occurred
 //doesn't use task closer because there is no async tasks
 func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver driversbase.Driver,
-	destinationStorages []storages.Storage) error {
+	destinationStorages []storages.Storage, taskCloser *TaskCloser) error {
 	now := time.Now().UTC()
 
 	refreshWindow, err := driver.GetRefreshWindow()
@@ -355,6 +360,10 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 
 	var intervalsToSync []*driversbase.TimeInterval
 	for _, interval := range intervals {
+		if err := taskCloser.HandleCanceling(); err != nil {
+			return err
+		}
+
 		storedSignature, err := te.metaStorage.GetSignature(task.Source, collectionMetaKey, interval.String())
 		if err != nil {
 			return fmt.Errorf("Error getting interval [%s] signature: %v", interval.String(), err)
@@ -382,6 +391,10 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 	collectionTableName := driver.GetCollectionTable()
 	reformattedTableName := schema.Reformat(collectionTableName)
 	for _, intervalToSync := range intervalsToSync {
+		if err := taskCloser.HandleCanceling(); err != nil {
+			return err
+		}
+
 		taskLogger.INFO("Running [%s] synchronization", intervalToSync.String())
 
 		objects, err := driver.GetObjectsFor(intervalToSync)
@@ -432,7 +445,6 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 }
 
 //syncCLI syncs singer/airbyte source
-//returns err if occurred
 func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver,
 	destinationStorages []storages.Storage, taskCloser *TaskCloser) error {
 	state, err := te.metaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey(), driversbase.ALL.String())
@@ -450,6 +462,10 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 
 	err = cliDriver.Load(state, taskLogger, rs, taskCloser)
 	if err != nil {
+		if err == ErrTaskHasBeenCanceled {
+			return err
+		}
+
 		return fmt.Errorf("Error synchronization: %v", err)
 	}
 
