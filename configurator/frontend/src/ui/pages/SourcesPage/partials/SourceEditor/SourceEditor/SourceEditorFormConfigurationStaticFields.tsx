@@ -12,8 +12,8 @@ import { Rule as AntdFormItemValidationRule } from "rc-field-form/lib/interface"
 import { useServices } from "hooks/useServices"
 import { observer } from "mobx-react-lite"
 // @Styles
-import editorStyles from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less"
-
+// import editorStyles from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less"
+const editorStyles = {field: ''}
 type FormFields = {
   sourceId: string
   schedule: string
@@ -81,7 +81,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
           <AntdForm.Item
             initialValue={initialValues?.sourceId}
             className={`form-field_fixed-label ${editorStyles.field}`}
-            label={<span>SourceId</span>}
+            label={<span className="w-full">SourceId</span>}
             name="sourceId"
             rules={sourceIdValidationRules}
             labelCol={{ span: 4 }}
@@ -97,7 +97,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
             initialValue={initialValues?.schedule}
             name="schedule"
             className={`form-field_fixed-label ${editorStyles.field}`}
-            label="Schedule"
+            label={<span className="w-full">Schedule</span>}
             labelCol={{ span: 4 }}
             wrapperCol={{ span: 20 }}
             rules={[{ required: true, message: "You have to choose schedule" }]}>

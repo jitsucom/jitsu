@@ -144,21 +144,34 @@ ul {
 
 .form-field_fixed-label {
   .ant-form-item-label {
-    label {
-      align-items: unset;
-      padding: 5px 10px 0 0;
+    @apply mr-2;
 
-      span {
-        white-space: normal;
-      }
+    label {
+      width: 100%;
+      justify-content: flex-end;
 
       &::after {
         content: "";
+        @apply w-2;
         display: inline-block;
-        position: static;
-        margin: 0 0 0 2px;
+        position: initial;
+        margin: 0;
+        align-self: flex-start;
       }
     }
+  }
+
+  & .label-with-tooltip {
+    @apply flex min-w-0 w-full items-center;
+    display: flex;
+  }
+
+  & .label-with-tooltip_label {
+    @apply flex-grow flex-shrink truncate;
+  }
+
+  & .label-with-tooltip_question-mark {
+    @apply flex-shrink-0 flex-grow-0;
   }
 
   .ant-form-item-required {
