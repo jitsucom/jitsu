@@ -24,10 +24,6 @@ const (
 	connectionStatusFailed  = "FAILED"
 )
 
-var (
-	ErrAlreadyTerminated = errors.New("Airbyte Runner has been already terminated. You can use it only once.")
-)
-
 //Runner is an Airbyte Docker runner
 //Can only be used once
 //Self-closed (see run() func)
@@ -55,8 +51,8 @@ func NewRunner(dockerImage, imageVersion, identifier string) *Runner {
 	}
 }
 
-//GetCommand returns exec command string
-func (r *Runner) GetCommand() string {
+//String returns exec command string
+func (r *Runner) String() string {
 	if r.command == nil {
 		return ""
 	}
@@ -163,8 +159,8 @@ func (r *Runner) Read(dataConsumer base.CLIDataConsumer, streamsRepresentation m
 				logging.Error("panic in airbyte runner")
 				logging.Error(string(debug.Stack()))
 				msg := fmt.Sprintf("%v. Process will be killed", rec)
-				taskCloser.CloseWithError(msg, false)
-				if killErr := r.Close(); killErr != nil && killErr != ErrAlreadyTerminated {
+				taskCloser.CloseWithError(msg, true)
+				if killErr := r.Close(); killErr != nil && killErr != runner.ErrAirbyteAlreadyTerminated {
 					taskLogger.ERROR("Error closing airbyte runner: %v", killErr)
 					logging.Errorf("[%s] closing airbyte runner: %v", taskCloser.TaskID(), killErr)
 				}
@@ -174,7 +170,7 @@ func (r *Runner) Read(dataConsumer base.CLIDataConsumer, streamsRepresentation m
 		err := asyncParser.parse(stdout)
 		if err != nil {
 			taskCloser.CloseWithError(fmt.Sprintf("Process error: %v. Process will be killed", err), false)
-			if killErr := r.Close(); killErr != nil && killErr != ErrAlreadyTerminated {
+			if killErr := r.Close(); killErr != nil && killErr != runner.ErrAirbyteAlreadyTerminated {
 				taskLogger.ERROR("Error closing airbyte runner: %v", killErr)
 				logging.Errorf("[%s] closing airbyte runner: %v", taskCloser.TaskID(), killErr)
 			}
@@ -198,7 +194,7 @@ func (r *Runner) Read(dataConsumer base.CLIDataConsumer, streamsRepresentation m
 
 func (r *Runner) Close() error {
 	if r.terminated() {
-		return ErrAlreadyTerminated
+		return runner.ErrAirbyteAlreadyTerminated
 	}
 
 	close(r.closed)
@@ -219,7 +215,7 @@ func (r *Runner) terminated() bool {
 
 func (r *Runner) run(stdoutHandler, stderrHandler func(io.Reader) error, timeout time.Duration, args ...string) error {
 	if r.terminated() {
-		return ErrAlreadyTerminated
+		return runner.ErrAirbyteAlreadyTerminated
 	}
 
 	if !Instance.IsImagePulled(Instance.AddAirbytePrefix(r.DockerImage), r.Version) {
@@ -236,7 +232,7 @@ func (r *Runner) run(stdoutHandler, stderrHandler func(io.Reader) error, timeout
 			case <-ticker.C:
 				logging.Warnf("[%s] Airbyte run timeout after [%s]", r.identifier, timeout.String())
 				if err := r.Close(); err != nil {
-					if err != ErrAlreadyTerminated {
+					if err != runner.ErrAirbyteAlreadyTerminated {
 						logging.SystemErrorf("Error terminating Airbyte runner [%s:%s] after timeout: %v", r.DockerImage, r.Version, err)
 					}
 				}
