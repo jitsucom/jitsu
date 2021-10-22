@@ -377,8 +377,8 @@ func (s *Singer) loadAndParse(taskLogger logging.TaskLogger, cliParser base.CLIP
 				return
 			case <-cancelTicker.C:
 				if err := taskCloser.HandleCanceling(); err != nil {
-					if err := syncCommand.Cancel(); err != nil {
-						logging.SystemErrorf("error canceling task [%s] sync command: %v", taskCloser.TaskID(), err)
+					if cancelErr := syncCommand.Cancel(); cancelErr != nil {
+						logging.SystemErrorf("error canceling task [%s] sync command: %v", taskCloser.TaskID(), cancelErr)
 					}
 					return
 				}
