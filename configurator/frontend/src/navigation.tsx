@@ -22,6 +22,7 @@ import { LoginLink } from 'lib/components/LoginLink/LoginLink';
 import SignupPage from './ui/pages/GetStartedPage/SignupPage';
 import LoginPage from './ui/pages/GetStartedPage/LoginPage';
 import { StatusPage } from './lib/components/StatusPage/StatusPage';
+import { apiKeysRoutes, ApiKeyEditor } from "./lib/components/ApiKeys/ApiKeyEditor"
 // @Components
 const ApiKeys = React.lazy(() => import('./lib/components/ApiKeys/ApiKeys'));
 const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/CustomDomains'));
@@ -139,55 +140,55 @@ export const PRIVATE_PAGES: Page[] = [
   ),
 
   new Page(
-    'Jitsu | edit destinations',
+    'Edit destinations · Jitsu',
     Object.keys(destinationPageRoutes).map((key) => destinationPageRoutes[key]),
     DestinationsPage,
     'Edit destinations'
   ),
   new Page(
-    'dbt Cloud integration',
+    'Edit API keys · Jitsu',
+    [apiKeysRoutes.newExact, apiKeysRoutes.editExact],
+    ApiKeyEditor,
+    'Edit destinations'
+  ),
+  new Page(
+    'dbt Cloud integration · Jitsu',
     '/dbtcloud',
     DbtCloudPage,
     'dbt Cloud'
   ),
   new Page(
-    'Jitsu | download config',
+    'Download config · Jitsu',
     '/cfg_download',
     DownloadConfig,
     'Download Jitsu Server configuration'
   ),
-  new Page('Jitsu | edit API keys', '/api_keys', ApiKeys, 'API Keys'),
+  new Page('Edit API keys · Jitsu', '/api-keys', ApiKeys, 'API Keys'),
   new Page(
-    'Jitsu | edit custom domains',
+    'Edit custom domains · Jitsu',
     '/domains',
     CustomDomains,
     'Custom tracking domains'
   ),
   new Page(
-    'Jitsu | reset password',
+    'Reset password · Jitsu',
     ['/reset_password/:resetId'],
     PasswordForm,
     '',
     true
   ),
   new Page(
-    'Jitsu | sources',
+    'Edit sources  · Jitsu',
     Object.keys(sourcesPageRoutes).map((key) => sourcesPageRoutes[key]),
     SourcesPage,
     'Sources'
   ),
+  new Page('Task logs · Jitsu', taskLogsPageRoute, TaskLogsPage, 'Task Logs'),
   new Page(
-    'Jitsu | sources',
-    Object.keys(sourcesPageRoutes).map((key) => sourcesPageRoutes[key]),
-    SourcesPage,
-    'Sources'
-  ),
-  new Page('Jitsu | task logs', taskLogsPageRoute, TaskLogsPage, 'Task Logs'),
-  new Page(
-    'Jitsu | Task Logs View',
+    'Task Logs View · Jitsu',
     taskLogsViewerRoute,
     TaskLogViewer,
     'Task Logs'
   ),
-  new Page('Jitsu | Settings', settingsPageRoutes, SettingsPage, 'Settings')
+  new Page('Settings · Jitsu', settingsPageRoutes, SettingsPage, 'Settings')
 ];
