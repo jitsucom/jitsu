@@ -9,7 +9,7 @@ import { destinationPageRoutes } from 'ui/pages/DestinationsPage/DestinationsPag
 import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 // @Stores
 import { destinationsStore } from './destinations';
-import { apiKeysStore, UserApiKey } from './apiKeys';
+import { apiKeysStore } from './apiKeys';
 import { sourcesStore } from './sources';
 import { apiKeysReferenceMap } from 'catalog/apiKeys/lib';
 
@@ -36,7 +36,7 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
     makeAutoObservable(this);
   }
 
-  private get orphanApiKeys(): UserApiKey[] {
+  private get orphanApiKeys(): APIKey[] {
     return this._apiKeysStore.apiKeys.filter(({ uid }) => {
       const keyIsConnected = this._destinationsStore.destinations.reduce(
         (isConnected, destination) =>
