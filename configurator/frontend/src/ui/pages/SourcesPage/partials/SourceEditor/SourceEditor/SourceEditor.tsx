@@ -17,10 +17,10 @@ import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
 import { createInitialSourceData, sourceEditorUtils } from "./SourceEditor.utils"
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
-import { closeableMessage } from "lib/components/components"
 import { firstToLower } from "lib/commons/utils"
 import { SourceEditorViewSteps } from "./SourceEditorViewSteps"
 import { pullAllAirbyteStreams } from "./SourceEditorPullData"
+import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 // @Utils
 
 export type SourceEditorState = {
@@ -159,7 +159,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
         await pullAllAirbyteStreams([], sourceDataFromCatalog, handleBringSourceData)
       } catch (e) {
         const error = e instanceof Error ? e : new Error(e)
-        closeableMessage.error(`Invalid configuration. Message:\n${error.message};\nError Stack:\n${error.stack}`)
+        actionNotification.error(`Invalid configuration. Message:\n${error.message};\nError Stack:\n${error.stack}`)
         throw error
       }
     } finally {
@@ -195,9 +195,9 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     handleLeaveEditor({ goToSourcesList: true })
 
     if (sourceDataToSave.connected) {
-      closeableMessage.success(editorMode === "add" ? "New source has been added!" : "Source has been saved")
+      actionNotification.success(editorMode === "add" ? "New source has been added!" : "Source has been saved")
     } else {
-      closeableMessage.warn(
+      actionNotification.warn(
         `Source has been saved, but test has failed with '${firstToLower(
           sourceDataToSave.connectedErrorMessage
         )}'. Data from this source will not be available`

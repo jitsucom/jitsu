@@ -3,6 +3,7 @@ package meta
 import "encoding/json"
 
 //Task is a Redis entity
+//some fields are updated using names in Storage (like status updating)
 type Task struct {
 	ID         string `json:"id,omitempty" redis:"id"`
 	Source     string `json:"source,omitempty" redis:"source"`

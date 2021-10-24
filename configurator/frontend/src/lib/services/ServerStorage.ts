@@ -1,46 +1,62 @@
 import Marshal from "lib/commons/marshalling"
 import { BackendApiClient } from "./BackendApiClient"
 import { User } from "./model"
+import ApplicationServices from "./ApplicationServices"
 
 /**
  * A generic object storage
  */
-export interface ServerStorage {
+export abstract class ServerStorage {
   /**
    * Returns an object by key. If key is not set, user id will be used as key
    */
-  get(collectionName: string, key: string): Promise<any>
+  abstract get(collectionName: string, key: string): Promise<any>
 
   /**
    * Returns user info object (user id is got from authorization token)
    */
-  getUserInfo(): Promise<User>
+  abstract getUserInfo(): Promise<User>
 
   /**
    * Saves an object by key. If key is not set, user id will be used as key
    */
-  save(collectionName: string, data: any, key: string): Promise<void>
+  abstract save(collectionName: string, data: any, key: string): Promise<void>
 
   /**
    * Saves users information required for system (on-boarding status, user projects, etc.)
    * (user id is got from authorization token)
    * @param data User JSON representation
    */
-  saveUserInfo(data: any): Promise<void>
+  abstract saveUserInfo(data: any): Promise<void>
+
+  /**
+   * Returns a table-like structure for managing config. See ConfigurationEntitiesTable
+   */
+  table<T = any>(type: 'api_keys' | 'destinations' | 'sources'): ConfigurationEntitiesTable<T> {
+    let projectId = ApplicationServices.get().activeProject.id
+    if (type === "api_keys") {
+      return getEntitiesTable<T>(this, type, projectId, {
+        arrayNodePath: "keys",
+        idFieldPath: "uid",
+      })
+    } if (type === 'destinations') {
+      return getEntitiesTable<T>(this, type, projectId, {
+        idFieldPath: "_uid",
+      });
+    } else if (type === 'sources') {
+      return getEntitiesTable<T>(this, "sources", projectId, {
+        idFieldPath: "sourceId",
+      })
+    } else {
+      throw new Error(`Unknown table type ${type}`)
+    }
+  }
 }
 
 /**
- * This is a layer on top of ServerStorage. It works with individual objects within collections. It assumes that
- * collection has a following structure:
- *
- * {
- *   collectionName: [
- *     collectionObject1, collectionObject2
- *   ]
- *
- * }
+ * Table-like structure for managing server-side config
  */
-export interface EntitiesCollection<T = any> {
+export interface ConfigurationEntitiesTable<T = any> {
   /**
    * Return all entities. stripFields - fields that should be removed from all entities
    */
@@ -54,15 +70,25 @@ export interface EntitiesCollection<T = any> {
   /**
    * Patches the entity by id (merges current version with object)
    */
-  patch(id: string, object: T): Promise<void>
+  patch(id: string, object: Partial<T>): Promise<void>
 
   /**
    * Replaces entity by id
    */
   replace(id: string, object: T): Promise<void>
+
+  /**
+   * Adds an object to collection
+   */
+  add(object: T): Promise<void>
+
+  /**
+   * Removes entity by id
+   */
+  remove(id: string): Promise<void>
 }
 
-export function getEntitiesCollection<T = any>(
+function getEntitiesTable<T = any>(
   storage: ServerStorage,
   collectionName: string,
   collectionId: string,
@@ -72,8 +98,27 @@ export function getEntitiesCollection<T = any>(
     //Path to collectionId field
     idFieldPath: string
   }
-): EntitiesCollection<T> {
+): ConfigurationEntitiesTable<T> {
   const arrayNode = dataLayout.arrayNodePath ?? collectionName
+
+  async function getCollection() {
+    let collection = await storage.get(collectionName, collectionId)
+    if (!collection) {
+      throw new Error(`Can't find collection with id=${collectionId} @ ${collectionName}`)
+    }
+    return collection
+  }
+
+  const getArrayNode = collection => {
+    let objects = collection[arrayNode]
+    if (!objects) {
+      throw new Error(
+        `Can't find ${arrayNode} in ${collectionName} object collection. Available: ${Object.keys(collection)}`
+      )
+    }
+    return objects
+  }
+
   /**
    * Warning: this implementation is not complete. It has a certain caveats and serves
    * as a temporary solution unless we have a logic implemented on the server. Caveats:
@@ -81,6 +126,18 @@ export function getEntitiesCollection<T = any>(
    *   - arrayNode and idFieldPath are not treated as json paths (e.g. `a` will work, but `a.b` won't)
    */
   return {
+    async add<T>(object: T): Promise<void> {
+      let collection = await getCollection()
+      let objects = getArrayNode(collection) as T[]
+      objects.push(object)
+      await storage.save(collectionName, collection, collectionId)
+    },
+    async remove(id: string): Promise<void> {
+      let collection = await getCollection()
+      let objects = getArrayNode(collection) as T[]
+      collection[arrayNode] = objects.filter(obj => obj[dataLayout.idFieldPath] !== id)
+      await storage.save(collectionName, collection, collectionId)
+    },
     get(id: string): Promise<T> {
       throw new Error("Not implemented")
     },
@@ -88,16 +145,8 @@ export function getEntitiesCollection<T = any>(
       throw new Error("Not implemented")
     },
     async patch<T>(id: string, patch: T): Promise<void> {
-      let collection = await storage.get(collectionName, collectionId)
-      if (!collection) {
-        throw new Error(`Can't find collection with id=${collectionId} @ ${collectionName}`)
-      }
-      let objects = collection[arrayNode]
-      if (!objects) {
-        throw new Error(
-          `Can't find ${arrayNode} in ${collectionName} object collection. Available: ${Object.keys(collection)}`
-        )
-      }
+      let collection = await getCollection()
+      let objects = getArrayNode(collection)
       let currentObject = objects.find(obj => obj[dataLayout.idFieldPath] === id)
       if (!currentObject) {
         throw new Error(
@@ -116,11 +165,12 @@ export function getEntitiesCollection<T = any>(
   }
 }
 
-export class HttpServerStorage implements ServerStorage {
+export class HttpServerStorage extends ServerStorage {
   public static readonly USERS_INFO_PATH = "/users/info"
   private backendApi: BackendApiClient
 
   constructor(backendApi: BackendApiClient) {
+    super()
     this.backendApi = backendApi
   }
 

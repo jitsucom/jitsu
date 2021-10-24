@@ -44,7 +44,7 @@ var (
 	SchemaToRedshift = map[typing.DataType]string{
 		typing.STRING:    "character varying(65535)",
 		typing.INT64:     "bigint",
-		typing.FLOAT64:   "numeric(38,18)",
+		typing.FLOAT64:   "double precision",
 		typing.TIMESTAMP: "timestamp",
 		typing.BOOL:      "boolean",
 		typing.UNKNOWN:   "character varying(65535)",

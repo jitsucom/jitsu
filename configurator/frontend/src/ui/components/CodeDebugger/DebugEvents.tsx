@@ -25,7 +25,7 @@ const DebugEvents = ({ handleClick }: Props) => {
   const { data: eventsData, isLoading } = useLoaderAsObject(
     async () =>
       await services.backendApiClient.get(
-        `/events/cache?project_id=${services.activeProject.id}&limit=100`,
+        `/events/cache?project_id=${services.activeProject.id}&limit=10`,
         { proxy: true }
       )
   );

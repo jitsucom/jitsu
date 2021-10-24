@@ -46,14 +46,21 @@ type Storage interface {
 	GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error)
 	DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error
 
-	//sync tasks
+	// ** Sync Tasks **
 	CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error
-	UpsertTask(task *Task) error
 	GetAllTasks(sourceID, collection string, start, end time.Time, limit int) ([]Task, error)
 	GetLastTask(sourceID, collection string) (*Task, error)
 	GetTask(taskID string) (*Task, error)
 	GetAllTaskIDs(sourceID, collection string, descendingOrder bool) ([]string, error)
 	RemoveTasks(sourceID, collection string, taskIDs ...string) (int, error)
+	UpdateStartedTask(taskID, status string) error
+	UpdateFinishedTask(taskID, status string) error
+
+	//heartbeat
+	TaskHeartBeat(taskID string) error
+	RemoveTaskFromHeartBeat(taskID string) error
+	GetAllTasksHeartBeat() (map[string]string, error)
+	GetAllTasksForInitialHeartbeat(runningStatus, scheduledStatus string, lastActivityThreshold time.Duration) ([]string, error)
 
 	//task logs
 	AppendTaskLog(taskID string, now time.Time, system, message, level string) error
