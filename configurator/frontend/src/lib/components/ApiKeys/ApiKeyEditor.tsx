@@ -1,7 +1,7 @@
 import { Button, Form, Input } from "antd"
 import { observer } from "mobx-react-lite"
 import { apiKeysStore } from "../../../stores/apiKeys"
-import { useParams } from "react-router-dom"
+import { Prompt, useHistory, useParams } from "react-router-dom"
 import { CenteredError } from "../components"
 import { useForm } from "antd/es/form/Form"
 import { LabelEllipsis } from "../../../ui/components/LabelEllipsis/LabelEllipsis"
@@ -12,6 +12,10 @@ import { LabelWithTooltip } from "../../../ui/components/LabelWithTooltip/LabelW
 import TextArea from "antd/es/input/TextArea"
 import { BreadcrumbsProps, withHome } from "../../../ui/components/Breadcrumbs/Breadcrumbs"
 import { FormInstance } from "antd/es/form/hooks/useForm"
+import { confirmDelete } from "../../commons/deletionConfirmation"
+import { flowResult } from "mobx"
+import { useServices } from "../../../hooks/useServices"
+import { sourcePageUtils } from "../../../ui/pages/SourcesPage/SourcePage.utils"
 
 export const apiKeysRoutes = {
   newExact: "/api-keys/new",
@@ -105,17 +109,41 @@ const FormActions: React.FC<{}> = ({ children }) => {
   return <div className="w-full flex justify-end space-x-4">{children}</div>
 }
 
+const unsavedMessage = "You have unsaved changes. Are you sure you want to leave the page?"
+
+type EditorObject = Omit<APIKey, "origins"> & { originsText?: string }
+
+function getEditorObject({ origins, ...rest }: APIKey) {
+  return {
+    ...rest,
+    comment: rest.comment || rest.uid,
+    originsText: origins ? origins.join("\n") : "",
+  }
+}
+
+function getKey({ originsText, ...rest }: EditorObject, initialValue: APIKey) {
+  return {
+    ...initialValue,
+    ...rest,
+    origins: originsText && originsText.trim() !== "" ? originsText.split("\n").map(line => line.trim()) : [],
+  }
+}
+
 const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
-  const { id = undefined } = useParams<{ id?: string }>()
-  const initialApiKey = id ? apiKeysStore.apiKeys.find(key => key.uid === id.replace("-", ".")) : newKey()
+  let { id = undefined } = useParams<{ id?: string }>()
+  if (id) {
+    id = id.replace("-", ".");
+  }
+  const initialApiKey = id ? apiKeysStore.apiKeys.find(key => id) : newKey()
   if (!initialApiKey) {
     return <CenteredError error={new Error(`Key with id ${id} not found`)} />
   }
-  const [apiKey, setApiKey] = useState<APIKey & { originsText?: string }>({
-    ...initialApiKey,
-    originsText: initialApiKey.origins ? initialApiKey.origins.join('\n') : '',
-    comment: initialApiKey.comment || initialApiKey.uid
-  })
+  const [editorObject, setEditorObject] = useState<EditorObject>(getEditorObject(initialApiKey))
+  let services = useServices()
+  let keysBackend = services.storageService.table<APIKey>("api_keys")
+  const history = useHistory()
+  const [deleting, setDeleting] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [form] = useForm<any>()
   props.setBreadcrumbs(
     withHome({
@@ -130,28 +158,13 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
       ],
     })
   )
-  form.setFieldsValue({
-    ...apiKey,
-    origins: undefined,
-    originsText: apiKey.origins ? initialApiKey.origins.join("\n") : "",
-  })
+  form.setFieldsValue(editorObject)
   return (
     <div className="flex justify-center w-full">
+      {form.isFieldsTouched() && !saving && !deleting && <Prompt message={unsavedMessage} />}
       <div className="w-full pt-8" style={{ maxWidth: "1000px" }}>
         <Form
-          form={form}
-          onChange={vals => {
-            setApiKey({
-              ...(form.getFieldsValue() as APIKey),
-              originsText: undefined,
-              origins: vals['originsText']
-                ? vals['originsText']
-                    .trim()
-                    .split("\n")
-                    .map(line => line.trim())
-                : [],
-            })
-          }}>
+          form={form}>
           <FormLayout>
             <FormField label="Key Name" tooltip="Name of the key" key="comment">
               <Form.Item name="comment">
@@ -160,8 +173,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
             </FormField>
             <SecretKey
               onGenerate={() => {
-                setApiKey({
-                  ...apiKey,
+                setEditorObject({
+                  ...editorObject,
                   jsAuth: apiKeysStore.generateApiToken("js"),
                 })
               }}
@@ -172,8 +185,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
             </SecretKey>
             <SecretKey
               onGenerate={() => {
-                setApiKey({
-                  ...apiKey,
+                setEditorObject({
+                  ...editorObject,
                   serverAuth: apiKeysStore.generateApiToken("s2s"),
                 })
               }}
@@ -198,17 +211,66 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
               </Form.Item>
             </FormField>
             <FormActions>
-              <Button htmlType="submit" size="large" type="default" danger onClick={() => {
-
-              }}>
-                Delete
-              </Button>
-              <Button htmlType="submit" size="large" type="default" onClick={() => {
-
-              }}>
+              {id && (
+                <Button
+                  loading={deleting}
+                  htmlType="submit"
+                  size="large"
+                  type="default"
+                  danger
+                  onClick={() => {
+                    confirmDelete({
+                      entityName: "api key",
+                      action: async () => {
+                        setDeleting(true)
+                        try {
+                          await keysBackend.remove(id)
+                          await flowResult(apiKeysStore.pullApiKeys())
+                          await history.push(apiKeysRoutes.listExact)
+                        } finally {
+                          setDeleting(false)
+                        }
+                      },
+                    })
+                  }}>
+                  Delete
+                </Button>
+              )}
+              <Button
+                htmlType="submit"
+                size="large"
+                type="default"
+                onClick={() => {
+                  if (form.isFieldsTouched()) {
+                    if (confirm(unsavedMessage)) {
+                      history.push(apiKeysRoutes.listExact)
+                    }
+                  } else {
+                    history.push(apiKeysRoutes.listExact)
+                  }
+                }}>
                 Cancel
               </Button>
-              <Button htmlType="submit" size="large" type="primary">
+              <Button
+                loading={saving}
+                htmlType="submit"
+                size="large"
+                type="primary"
+                onClick={async () => {
+                  try {
+                    setSaving(true)
+                    let key = getKey(form.getFieldsValue(), initialApiKey)
+                    if (id) {
+                      await keysBackend.replace(id, key)
+                    } else {
+                      await keysBackend.add(key)
+                    }
+                    await flowResult(apiKeysStore.pullApiKeys())
+                    history.push(apiKeysRoutes.listExact);
+                  } finally {
+                    setSaving(false)
+                  }
+                }}>
                 Save
               </Button>
             </FormActions>

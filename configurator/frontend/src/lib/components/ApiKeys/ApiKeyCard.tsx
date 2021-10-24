@@ -12,6 +12,7 @@ import ReloadOutlined from "@ant-design/icons/lib/icons/ReloadOutlined"
 import ExclamationCircleOutlined from "@ant-design/icons/lib/icons/ExclamationCircleOutlined"
 import { generatePath, NavLink } from "react-router-dom"
 import { apiKeysRoutes } from "./ApiKeyEditor"
+import { confirmDelete } from "../../commons/deletionConfirmation"
 
 type ApiKeyCardProps = {
   apiKey: APIKey
@@ -30,14 +31,19 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
     return newKey
   }
 
-  let deleteKey = async () => {
-    setLoading(true)
-    try {
-      await keysBackend.remove(key.uid)
-      await flowResult(apiKeysStore.pullApiKeys())
-    } finally {
-      setLoading(false)
-    }
+  let deleteAction = async () => {
+    confirmDelete({
+      entityName: 'api key',
+      action: async () => {
+        setLoading(true)
+        try {
+          await keysBackend.remove(key.uid)
+          await flowResult(apiKeysStore.pullApiKeys())
+        } finally {
+          setLoading(false)
+        }
+      }
+    })
   }
   let editLink = generatePath(apiKeysRoutes.editExact, { id: key.uid.replace('.', '-') })
   return (
@@ -45,14 +51,14 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
       loading={loading}
       title={key.comment || key.uid}
       icon={apiKeysReferenceMap.js.icon}
-      deleteAction={deleteKey}
+      deleteAction={deleteAction}
       editAction={editLink}
       menuOverlay={
         <Menu>
           <Menu.Item icon={<EditOutlined />}>
             <NavLink to={editLink}>Edit</NavLink>
           </Menu.Item>
-          <Menu.Item icon={<DeleteOutlined />} onClick={deleteKey}>
+          <Menu.Item icon={<DeleteOutlined />} onClick={deleteAction}>
             Delete
           </Menu.Item>
         </Menu>

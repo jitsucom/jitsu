@@ -34,7 +34,7 @@ function ActionLink({
     return <span {...rest}>{children}</span>
   } else if (typeof action === "string") {
     return (
-      <NavLink to={action} {...rest}>
+      <NavLink to={action} {...rest} style={{color: 'unset'}}>
         {children}
       </NavLink>
     )
@@ -69,35 +69,31 @@ export type ConnectionCardProps = {
 
 export function ConnectionCard(props: ConnectionCardProps) {
   return (
-    <ActionLink
-      action={props.editAction}
-      className={`${styles.connectionCard} ${props.loading && styles.connectionCardLoading}`}>
+    <div className={`${styles.connectionCard} ${props.loading && styles.connectionCardLoading}`}>
       <div className="w-full flex justify-between items-start">
         <div className="flex items-center">
           <div className="h-12">
             <ActionLink action={props.editAction}>{props.icon}</ActionLink>
           </div>
           <div className="pl-4 h-12 h-full flex flex-col justify-between ">
-            <div>
+            <ActionLink action={props.editAction}>
               <EditableName className="text-base font-bold" name={props.title} update={props.rename} />
-            </div>
+            </ActionLink>
             <div className="text-secondaryText">{props.subtitle}</div>
           </div>
         </div>
         {props.menuOverlay && (
           <Dropdown trigger={["click"]} overlay={props.menuOverlay}>
-            <Button type="ghost" size="small">
-              ···
-            </Button>
+            <div className="text-lg px-3 hover:bg-splitBorder cursor-pointer rounded-full text-center">⋮</div>
           </Dropdown>
         )}
       </div>
       <div className="pt-6 flex items-end">
         <div className="flex-grow">{props.status}</div>
-        <div className="flex justify-end flex-grow items-end space-x-2">
-          {props.editAction && <ActionLink action={props.editAction}>Edit</ActionLink>}
+        <div className="flex justify-end flex-grow items-end space-x-2 pr-2">
+          {props.editAction && <ActionLink action={props.editAction}><EditOutlined /></ActionLink>}
         </div>
       </div>
-    </ActionLink>
+    </div>
   )
 }
