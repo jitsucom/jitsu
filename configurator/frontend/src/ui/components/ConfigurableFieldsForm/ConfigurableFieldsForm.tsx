@@ -63,7 +63,7 @@ const ConfigurableFieldsFormComponent = ({
   const [debugModalsValues, setDebugModalsValues] = useState<{ [id: string]: string }>({})
 
   const forceUpdateAll = useForceUpdate()
-  const { forceUpdateTargets, forceUpdateTheTarget } = useForceUpdateTarget()
+  const { forceUpdatedTargets, forceUpdateTheTarget } = useForceUpdateTarget()
 
   const handleTouchField = debounce(handleTouchAnyField ?? (() => {}), 1000)
 
@@ -238,11 +238,9 @@ const ConfigurableFieldsFormComponent = ({
    * to pick up the values of conditionally rendered fields.
    */
   useEffect(() => {
-    const a = form.getFieldsValue()
-    const set = Object.values(a).every(value => value !== undefined)
-    debugger
-    if (set) setFormValues(a)
-  }, [forceUpdateTargets["select"]])
+    const isInitialRender = !forceUpdatedTargets["select"]
+    if (!isInitialRender) setFormValues(form.getFieldsValue())
+  }, [forceUpdatedTargets["select"]])
 
   useEffect(() => {
     /**
@@ -256,24 +254,29 @@ const ConfigurableFieldsFormComponent = ({
     const formFields: Parameters<typeof form.setFields>[0] = []
     fieldsParamsList.forEach((param: Parameter) => {
       let constantValue: any
-      if (typeof param.constant === "function") {
-        constantValue = param.constant(makeObjectFromFieldsValues(formValues))
+      const initConfig = makeObjectFromFieldsValues(formValues)
+
+      const fieldNeeded = !param.omitFieldRule?.(initConfig)
+      const id = param.id
+
+      if (fieldNeeded) {
+        if (typeof param.constant === "function") {
+          constantValue = param.constant(initConfig)
+        }
+
+        constantValue = constantValue || param.constant
+
+        const initialValue = getInitialValue(param.id, param.defaultValue, constantValue, param.type?.typeName)
+
+        formValues[param.id] = initialValue
+
+        formFields.push({
+          name: param.id,
+          value: initialValue,
+          touched: false,
+        })
       }
-
-      constantValue = constantValue || param.constant
-
-      const initialValue = getInitialValue(param.id, param.defaultValue, constantValue, param.type?.typeName)
-
-      if (initialValue !== "") formValues[param.id] = initialValue
-
-      formFields.push({
-        name: param.id,
-        value: initialValue,
-        touched: false,
-      })
     })
-
-    debugger
 
     setInitialFormValues?.(formValues)
     form.setFields(formFields)

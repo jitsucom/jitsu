@@ -147,7 +147,6 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   const handleValidateAndTestConfig = async () => {
     setControlsDisabled(true)
     try {
-      debugger
       const fieldsErrored = !!(await validateCountErrors())
       if (fieldsErrored) throw new Error("Some fields are empty")
 
@@ -228,9 +227,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     )
   }, [editorMode, sourceDataFromCatalog, setBreadcrumbs])
 
-  debugger
-
-  return editorMode === "add" ? (
+  return (
     <SourceEditorViewSteps
       state={state}
       controlsDisabled={controlsDisabled}
@@ -247,27 +244,6 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       handleSave={handleSave}
       handleLeaveEditor={handleLeaveEditor}
       handleValidateAndTestConfig={handleValidateAndTestConfig}
-    />
-  ) : (
-    <SourceEditorViewTabs
-      state={state}
-      controlsDisabled={controlsDisabled}
-      sourceId={sourceId}
-      editorMode={editorMode}
-      showTabsErrors={tabErrorsVisible}
-      showDocumentationDrawer={showDocumentation}
-      initialSourceDataFromBackend={initialSourceDataFromBackend}
-      sourceDataFromCatalog={sourceDataFromCatalog}
-      configIsValidatedByStreams={configIsValidatedByStreams}
-      setSourceEditorState={setState}
-      setControlsDisabled={setControlsDisabled}
-      setTabsErrorsVisible={setTabErrorsVisible}
-      setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
-      setShowDocumentationDrawer={setShowDocumentation}
-      handleBringSourceData={handleBringSourceData}
-      handleSave={handleSave}
-      handleTestConnection={handleTestConnection}
-      handleLeaveEditor={handleLeaveEditor}
     />
   )
 }
