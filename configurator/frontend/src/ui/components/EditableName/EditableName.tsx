@@ -5,9 +5,10 @@ export type EditableNameProps = {
   name: string
   className?: string
   update: (newName: string) => Promise<any>
+  maxLen?: number
 }
 
-export function EditableName({ name, className, update }: EditableNameProps) {
+export function EditableName({ name, className, update, maxLen = 25 }: EditableNameProps) {
   const changeName = async () => {
     let newName = prompt("Please, enter a new name", currentName)
     if (newName) {
@@ -26,9 +27,9 @@ export function EditableName({ name, className, update }: EditableNameProps) {
   const [saving, setSaving] = useState(false)
   const [currentName, setCurrentName] = useState(name)
   return (
-    <span className={`inline-block flex flex-nowrap items-center ${className}`}>
+    <span className={`inline-block flex flex-nowrap items-center ${className}`} onDoubleClick={changeName}>
       <span className="">
-        <LabelEllipsis maxLen={20}>{!saving ? currentName : "Saving..."}</LabelEllipsis>
+        <LabelEllipsis maxLen={maxLen}>{!saving ? currentName : "Saving..."}</LabelEllipsis>
       </span>
       <svg
         onClick={changeName}

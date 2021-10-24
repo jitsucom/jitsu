@@ -160,6 +160,7 @@ type CLIDataConsumer interface {
 type CLITaskCloser interface {
 	TaskID() string
 	CloseWithError(msg string, systemErr bool)
+	HandleCanceling() error
 }
 
 //CLIOutputRepresentation is a singer/airbyte output representation

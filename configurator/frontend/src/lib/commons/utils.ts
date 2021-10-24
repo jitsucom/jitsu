@@ -2,6 +2,7 @@
 import moment, { Duration, Moment } from "moment"
 import { LS_ACCESS_KEY, LS_REFRESH_KEY } from "lib/services/UserServiceBackend"
 import { assertHasOwnProperty, assertIsArray, assertIsObject } from "utils/typeCheck"
+import { ReactNode } from "react"
 
 export function concatenateURLs(baseUrl: string, url: string) {
   let base = baseUrl.endsWith('/')
@@ -242,8 +243,7 @@ function safeToString(obj: any) {
  * Tries to the best to convert children from any type to string
  * @param children
  */
-export function reactElementToString(children: React.ReactElement<any, string | React.JSXElementConstructor<any>> | string | number | {} | React.ReactNodeArray | React.ReactPortal | boolean): string {
-
+export function reactElementToString(children: ReactNode): string {
   if (!children) {
     return '';
   } else if (typeof children === 'string') {
@@ -251,7 +251,7 @@ export function reactElementToString(children: React.ReactElement<any, string | 
   } else if (Array.isArray(children)) {
     return children.map(reactElementToString).join('\n');
   } else {
-    console.warn('Can\'t convert react element to highlightable <Code />. Using to string', safeToString(children))
+    console.warn(`Can't convert react element to highlightable <Code />. Using to string`, safeToString(children))
   }
 }
 
@@ -265,5 +265,13 @@ export function comparator<T>(f: (t: T) => any): (a1: T, a2: T) => number {
       return 1
     }
     return 0
+  }
+}
+
+export function trimMiddle(str: string, maxLen: number, ellisis = "...") {
+  if (str.length <= maxLen) {
+    return str;
+  } else {
+    return str.substr(0, maxLen / 2 - (ellisis.length - 1)) + ellisis + str.substr(str.length - maxLen / 2 + 1)
   }
 }
