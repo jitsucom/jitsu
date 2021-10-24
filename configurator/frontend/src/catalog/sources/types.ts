@@ -233,33 +233,33 @@ export type Parameter = {
   /**
    * Display name (for UI)
    */
-  displayName?: string;
+  displayName?: string
   /**
    * Id (corresponds to key in yaml config)
    */
-  id: string;
+  id: string
   /**
    * Type of parameter
    */
-  type?: ParameterType<any>;
+  type?: ParameterType<any>
   /**
    * Default value (should be displayed by default)
    */
-  defaultValue?: any;
+  defaultValue?: any
   /**
    *  Flag describes required/optional nature of the field. IF empty - field is optional
    *  Either constant or function of current config
    */
-  required?: ConstantOrFunction<any, any>;
+  required?: ConstantOrFunction<any, any>
   /**
    * Documentation
    */
-  documentation?: ReactNode;
+  documentation?: ReactNode
   /**
    * IDs of parameters that should include this parameter as a nested one. The first ID
    * in the array belongs to the closest parent parameter.
    */
-  parentParametersIds?: string[];
+  parentParametersIds?: string[]
   /**
    * Either constant or function of current config (to be able to hide fields based on rules)
    *
@@ -270,21 +270,21 @@ export type Parameter = {
    * use `constant !== undefined` to send a hidden value to backend. To conditionally omit the field completely
    * use `omitFieldRule` function.
    */
-  constant?: ConstantOrFunction<any, any>;
+  constant?: ConstantOrFunction<any, any>
   /**
-   * Function of current config that shows whether to use field (render and send value) or not.
+   * Function of current config that shows whether to omit the field and its value completely.
    */
-  omitFieldRule?: (config: unknown) => boolean;
+  omitFieldRule?: (config: unknown) => boolean
   /**
    * Javascript Debugger is supported to help edit this property value.
    * Debugger supports 2 mode based on expected result value: object or string
    */
-  jsDebugger?: "object" | "string" | null;
+  jsDebugger?: "object" | "string" | null
   /**
    * Field use full width by omitting label and prefer higher height where applicable
    */
-  bigField?: boolean;
-};
+  bigField?: boolean
+}
 
 export interface CollectionParameter extends Parameter {
   /**

@@ -16,12 +16,12 @@ export function useForceUpdate() {
  * the same as `useforceUpdate` hook
  */
 export const useForceUpdateTarget = (): {
-  forceUpdateTargets: UnknownObject
+  forceUpdatedTargets: UnknownObject
   forceUpdateTheTarget: (key?: string) => void
 } => {
   const [state, setState] = useState<UnknownObject>({})
 
-  const forceUpdateTargets = state;
+  const forceUpdatedTargets = state
   const forceUpdateTheTarget = useCallback((key?: string) => {
     key
       ? setState(state => ({ ...state, [key]: {} }))
@@ -29,7 +29,7 @@ export const useForceUpdateTarget = (): {
   }, [])
 
   return {
-    forceUpdateTargets,
-    forceUpdateTheTarget
+    forceUpdatedTargets,
+    forceUpdateTheTarget,
   }
 }

@@ -54,74 +54,103 @@ import styles from './Layout.module.less';
 // @Misc
 import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
 import { FeatureSettings } from './lib/services/ApplicationServices';
-import { usePersistentState } from './hooks/usePersistentState';
-import githubLogo from './icons/github.svg';
+import { usePersistentState } from "./hooks/usePersistentState"
 
 type MenuItem = {
   icon: React.ReactNode
   title: React.ReactNode
-  link: string,
+  link: string
   enabled: (f: FeatureSettings) => boolean
 }
 
-const makeItem = (icon: React.ReactNode, title: React.ReactNode, link: string, enabled = (f: FeatureSettings) => true): MenuItem => {
-  return { icon, title, link, enabled };
+const makeItem = (
+  icon: React.ReactNode,
+  title: React.ReactNode,
+  link: string,
+  enabled = (f: FeatureSettings) => true
+): MenuItem => {
+  return { icon, title, link, enabled }
 }
 
 const menuItems = [
-  makeItem(<PartitionOutlined/>, 'Home', '/connections'),
-  makeItem(<ThunderboltOutlined/>, 'Live Events', '/events_stream'),
-  makeItem(<AreaChartOutlined/>, 'Statistics', '/dashboard'),
-  makeItem(<Icon component={KeyIcon}/>, 'API Keys', '/api_keys'),
-  makeItem(<ApiOutlined/>, 'Sources', '/sources'),
-  makeItem(<NotificationOutlined/>, 'Destinations', '/destinations'),
-  makeItem(<Icon component={DbtCloudIcon}/>, 'dbt Cloud Integration', '/dbtcloud'),
-  makeItem(<CloudOutlined/>, 'Custom Domains', '/domains', (f) => f.enableCustomDomains),
-  makeItem(<DownloadOutlined/>, 'Download Config', '/cfg_download', (f) => f.enableCustomDomains)
-];
+  makeItem(<PartitionOutlined />, "Home", "/connections"),
+  makeItem(<ThunderboltOutlined />, "Live Events", "/events_stream"),
+  makeItem(<AreaChartOutlined />, "Statistics", "/dashboard"),
+  makeItem(<Icon component={KeyIcon} />, "API Keys", "/api_keys"),
+  makeItem(<ApiOutlined />, "Sources", "/sources"),
+  makeItem(<NotificationOutlined />, "Destinations", "/destinations"),
+  makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud"),
+  makeItem(<CloudOutlined />, "Custom Domains", "/domains", f => f.enableCustomDomains),
+  makeItem(<DownloadOutlined />, "Download Config", "/cfg_download", f => f.enableCustomDomains),
+]
 
 export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) => {
-  const key = usePageLocation().mainMenuKey;
+  const key = usePageLocation().mainMenuKey
 
-  return <div className="pt-3">
-    {menuItems.map(item => {
-      const selected = item.link === '/' + key;
-      return <NavLink to={item.link} key={item.link}>
-        <div key={item.link} className={`${selected && styles.selectedMenuItem} whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}>
-          {!expanded && <Tooltip title={item.title} placement="right" mouseEnterDelay={0}>
-            {item.icon}
-          </Tooltip>}
+  return (
+    <div className={`max-h-full overflow-x-visible overflow-y-auto my-3 ${styles.sideBarContent_applicationMenu}`}>
+      {menuItems.map(item => {
+        const selected = item.link === "/" + key
+        return (
+          <NavLink to={item.link} key={item.link}>
+            <div
+              key={item.link}
+              className={`${
+                selected ? styles.selectedMenuItem : styles.sideBarContent_item__withRightBorder
+              } whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}>
+              {!expanded && (
+                <Tooltip title={item.title} placement="right" mouseEnterDelay={0}>
+                  {item.icon}
+                </Tooltip>
+              )}
 
-          {expanded && <>{item.icon}<span className="pl-2 whitespace-nowrap">{item.title}</span></>}
-        </div>
-      </NavLink>
-    })}
-  </div>
-};
+              {expanded && (
+                <>
+                  {item.icon}
+                  <span className="pl-2 whitespace-nowrap">{item.title}</span>
+                </>
+              )}
+            </div>
+          </NavLink>
+        )
+      })}
+    </div>
+  )
+}
 
 export const ApplicationSidebar: React.FC<{}> = () => {
-  const [expanded, setExpanded] = usePersistentState(true, 'jitsu_menuExpanded');
+  const [expanded, setExpanded] = usePersistentState<boolean>(true, "jitsu_menuExpanded")
 
-  return <div className={`relative ${styles.sideBarContent}`}>
-    <div>
-      <div className={`${expanded ? 'w-3' : 'w-2'} ${styles.expandButton}`}
-           onClick={() => setExpanded(!expanded)}>
-        <svg xmlns="http://www.w3.org/2000/svg" className={`transform ${expanded ?
-          'rotate-90' :
-          '-rotate-90'}`} viewBox="0 0 24 24" fill="currentColor">
-          <path fill="currentColor" d="M14.121,13.879c-0.586-0.586-6.414-6.414-7-7c-1.172-1.172-3.071-1.172-4.243,0	c-1.172,1.172-1.172,3.071,0,4.243c0.586,0.586,6.414,6.414,7,7c1.172,1.172,3.071,1.172,4.243,0	C15.293,16.95,15.293,15.05,14.121,13.879z"/>
-          <path fill="currentColor"
-            d="M14.121,18.121c0.586-0.586,6.414-6.414,7-7c1.172-1.172,1.172-3.071,0-4.243c-1.172-1.172-3.071-1.172-4.243,0	c-0.586,0.586-6.414,6.414-7,7c-1.172,1.172-1.172,3.071,0,4.243C11.05,19.293,12.95,19.293,14.121,18.121z"/>
-        </svg>
+  return (
+    <div className={`relative ${styles.sideBarContent}`}>
+      <div className="flex flex-col items-stretch h-full">
+        <div className={`${styles.sideBarContent_item__withRightBorder}`}>
+          <div className={`${expanded ? "w-3" : "w-2"} ${styles.expandButton}`} onClick={() => setExpanded(!expanded)}>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className={`transform ${expanded ? "rotate-90" : "-rotate-90"}`}
+              viewBox="0 0 24 24"
+              fill="currentColor">
+              <path
+                fill="currentColor"
+                d="M14.121,13.879c-0.586-0.586-6.414-6.414-7-7c-1.172-1.172-3.071-1.172-4.243,0	c-1.172,1.172-1.172,3.071,0,4.243c0.586,0.586,6.414,6.414,7,7c1.172,1.172,3.071,1.172,4.243,0	C15.293,16.95,15.293,15.05,14.121,13.879z"
+              />
+              <path
+                fill="currentColor"
+                d="M14.121,18.121c0.586-0.586,6.414-6.414,7-7c1.172-1.172,1.172-3.071,0-4.243c-1.172-1.172-3.071-1.172-4.243,0	c-0.586,0.586-6.414,6.414-7,7c-1.172,1.172-1.172,3.071,0,4.243C11.05,19.293,12.95,19.293,14.121,18.121z"
+              />
+            </svg>
+          </div>
+          <a href="https://jitsu.com" className={`text-center block pt-5 h-14`}>
+            <img src={expanded ? logo : logoMini} alt="[logo]" className="h-8 mx-auto" />
+          </a>
+        </div>
+        <div className={`flex-grow flex-shrink min-h-0 ${styles.sideBarContent_item__withRightBorder}`}>
+          <ApplicationMenu expanded={expanded} />
+        </div>
       </div>
-      <a href="https://jitsu.com" className="text-center block pt-5 h-14">
-        <img src={expanded ?
-          logo :
-          logoMini} alt="[logo]" className="h-8 mx-auto"/>
-      </a>
-      <ApplicationMenu expanded={expanded}/>
     </div>
-  </div>
+  )
 }
 
 export type PageHeaderProps = {
