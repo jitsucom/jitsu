@@ -7,17 +7,31 @@ export interface Props {
   name: React.ReactNode;
   errorsCount: number;
   errorsLevel?: 'warning' | 'error';
+  hideErrorsCount?: boolean;
 }
 
-const TabNameComponent = ({ name, errorsCount, errorsLevel = 'error' }: Props) => (
+const TabNameComponent = ({
+  name,
+  errorsCount,
+  errorsLevel = 'error',
+  hideErrorsCount
+}: Props) => (
   <>
-    {
-      errorsCount === 0
-        ? name
-        : <span className={cn(styles.name, errorsCount > 0 && styles[errorsLevel])}>{name} <sup>{errorsCount}</sup></span>
-    }
+    {errorsCount === 0 ? (
+      name
+    ) : (
+      <span
+        className={cn(
+          styles.name,
+          errorsCount > 0 && !hideErrorsCount && styles[errorsLevel]
+        )}
+      >
+        {name}
+        {!hideErrorsCount && <sup>{errorsCount}</sup>}
+      </span>
+    )}
   </>
-)
+);
 
 TabNameComponent.displayName = 'TabName';
 
