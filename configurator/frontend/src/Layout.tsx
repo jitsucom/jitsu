@@ -2,24 +2,13 @@
 // @Libs
 import * as React from 'react';
 import { useState } from 'react';
-import { NavLink, useHistory, useLocation, useParams } from 'react-router-dom';
-import {
-  Button,
-  Dropdown,
-  message,
-  Modal,
-  MessageArgsProps,
-  Tooltip, notification
-} from 'antd';
+import { NavLink, Redirect, Route, useHistory, useLocation, Switch } from "react-router-dom"
+import { Button, Dropdown, message, Modal, MessageArgsProps, Tooltip, notification } from "antd"
 // @Components
-import {
-  BreadcrumbsProps,
-  withHome,
-  Breadcrumbs
-} from 'ui/components/Breadcrumbs/Breadcrumbs';
-import { NotificationsWidget } from 'lib/components/NotificationsWidget/NotificationsWidget';
-import { CurrentPlan } from 'ui/components/CurrentPlan/CurrentPlan';
-import { handleError } from 'lib/components/components';
+import { BreadcrumbsProps, withHome, Breadcrumbs } from "ui/components/Breadcrumbs/Breadcrumbs"
+import { NotificationsWidget } from "lib/components/NotificationsWidget/NotificationsWidget"
+import { CurrentPlan } from "ui/components/CurrentPlan/CurrentPlan"
+import { CenteredSpin, handleError } from "lib/components/components"
 // @Icons
 import Icon, {
   SettingOutlined,
@@ -33,27 +22,27 @@ import Icon, {
   UserSwitchOutlined,
   LogoutOutlined,
   PartitionOutlined,
-  ThunderboltOutlined
-} from '@ant-design/icons';
-import logo from 'icons/logo.svg';
-import logoMini from 'icons/logo-square.svg';
-import { ReactComponent as DbtCloudIcon } from 'icons/dbtCloud.svg';
-import { ReactComponent as KeyIcon } from 'icons/key.svg';
-import classNames from 'classnames';
+  ThunderboltOutlined,
+} from "@ant-design/icons"
+import logo from "icons/logo.svg"
+import logoMini from "icons/logo-square.svg"
+import { ReactComponent as DbtCloudIcon } from "icons/dbtCloud.svg"
+import { ReactComponent as KeyIcon } from "icons/key.svg"
+import classNames from "classnames"
 // @Model
-import { Permission, User } from 'lib/services/model';
+import { Permission, User } from "lib/services/model"
 // @Utils
-import { reloadPage } from 'lib/commons/utils';
-import { Page, usePageLocation } from 'navigation';
+import { reloadPage } from "lib/commons/utils"
+import { Page, usePageLocation } from "navigation"
 // @Services
-import { useServices } from 'hooks/useServices';
-import { AnalyticsBlock } from 'lib/services/analytics';
-import { CurrentSubscription } from 'lib/services/billing';
+import { useServices } from "hooks/useServices"
+import { AnalyticsBlock } from "lib/services/analytics"
+import { CurrentSubscription } from "lib/services/billing"
 // @Styles
-import styles from './Layout.module.less';
+import styles from "./Layout.module.less"
 // @Misc
-import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
-import { FeatureSettings } from './lib/services/ApplicationServices';
+import { settingsPageRoutes } from "./ui/pages/SettingsPage/SettingsPage"
+import { FeatureSettings } from "./lib/services/ApplicationServices"
 import { usePersistentState } from "./hooks/usePersistentState"
 
 type MenuItem = {
@@ -159,68 +148,65 @@ export type PageHeaderProps = {
 }
 
 function abbr(user: User) {
-  return user.name?.split(' ').filter(part => part.length > 0).map(part => part[0]).join('').toUpperCase();
+  return user.name
+    ?.split(" ")
+    .filter(part => part.length > 0)
+    .map(part => part[0])
+    .join("")
+    .toUpperCase()
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) => {
-  const [dropdownVisible, setDropdownVisible] = useState(false);
+  const [dropdownVisible, setDropdownVisible] = useState(false)
   return (
     <div className="border-b border-splitBorder mb-0 h-14 flex flex-nowrap">
       <div className="flex-grow">
         <div className="h-14 flex items-center">{children}</div>
       </div>
-      <div
-        className={
-          `flex-shrink flex justify-center items-center mx-1`
-        }
-      >
-        <NotificationsWidget/>
+      <div className={`flex-shrink flex justify-center items-center mx-1`}>
+        <NotificationsWidget />
       </div>
       <div className="flex-shrink flex justify-center items-center">
         <Dropdown
-          trigger={['click']}
-          onVisibleChange={(vis) => setDropdownVisible(vis)}
+          trigger={["click"]}
+          onVisibleChange={vis => setDropdownVisible(vis)}
           visible={dropdownVisible}
-          overlay={
-            <DropdownMenu
-              user={user}
-              plan={plan}
-              hideMenu={() => setDropdownVisible(false)}
-            />
-          }
-        >
+          overlay={<DropdownMenu user={user} plan={plan} hideMenu={() => setDropdownVisible(false)} />}>
           <Button
             className="ml-1 border-primary border-2 hover:border-text text-text hover:text-text"
             size="large"
-            shape="circle"
-          >
-            {abbr(user) || <UserOutlined/>}
+            shape="circle">
+            {abbr(user) || <UserOutlined />}
           </Button>
         </Dropdown>
       </div>
     </div>
-  );
+  )
 }
 
-export const DropdownMenu: React.FC<{ user: User, plan: CurrentSubscription, hideMenu: () => void }> = ({ plan, user, hideMenu }) => {
-  const services = useServices();
-  const history = useHistory();
+export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hideMenu: () => void }> = ({
+  plan,
+  user,
+  hideMenu,
+}) => {
+  const services = useServices()
+  const history = useHistory()
 
   const showSettings = React.useCallback<() => void>(() => history.push(settingsPageRoutes[0]), [history])
 
-  const becomeUser = async() => {
-    let email = prompt('Please enter e-mail of the user', '');
+  const becomeUser = async () => {
+    let email = prompt("Please enter e-mail of the user", "")
     if (!email) {
-      return;
+      return
     }
     try {
-      AnalyticsBlock.blockAll();
-      await services.userService.becomeUser(email);
+      AnalyticsBlock.blockAll()
+      await services.userService.becomeUser(email)
     } catch (e) {
-      handleError(e, 'Can\'t login as other user');
-      AnalyticsBlock.unblockAll();
+      handleError(e, "Can't login as other user")
+      AnalyticsBlock.unblockAll()
     }
-  };
+  }
 
   return (
     <div>
@@ -229,77 +215,113 @@ export const DropdownMenu: React.FC<{ user: User, plan: CurrentSubscription, hid
         <div className="text-secondaryText text-xs underline">{user.email}</div>
       </div>
       <div className="py-2 border-b border-main px-5 flex flex-col items-start">
-        <div>Project: <b>{services.activeProject.name || 'Unspecified'}</b></div>
+        <div>
+          Project: <b>{services.activeProject.name || "Unspecified"}</b>
+        </div>
       </div>
-      {services.features.billingEnabled && services.applicationConfiguration.billingUrl && <div className="py-5 border-b border-main px-5 flex flex-col items-start">
-        <CurrentPlan planStatus={plan} onPlanChangeModalOpen={hideMenu}/>
-      </div>}
+      {services.features.billingEnabled && services.applicationConfiguration.billingUrl && (
+        <div className="py-5 border-b border-main px-5 flex flex-col items-start">
+          <CurrentPlan planStatus={plan} onPlanChangeModalOpen={hideMenu} />
+        </div>
+      )}
       <div className="p-2 flex flex-col items-stretch">
-        <Button
-          type="text"
-          className="text-left"
-          key="settings"
-          icon={<SettingOutlined/>}
-          onClick={showSettings}>
+        <Button type="text" className="text-left" key="settings" icon={<SettingOutlined />} onClick={showSettings}>
           Settings
         </Button>
-        {services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER) &&
-        <Button
-          className="text-left"
-          type="text"
-          key="become"
-          icon={<UserSwitchOutlined/>}
-          onClick={becomeUser}>
-          Become User
-        </Button>
-        }
+        {services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER) && (
+          <Button className="text-left" type="text" key="become" icon={<UserSwitchOutlined />} onClick={becomeUser}>
+            Become User
+          </Button>
+        )}
         <Button
           className="text-left"
           type="text"
           key="logout"
-          icon={<LogoutOutlined/>}
-          onClick={() => services.userService.removeAuth(reloadPage)
-          }>Logout</Button>
+          icon={<LogoutOutlined />}
+          onClick={() => services.userService.removeAuth(reloadPage)}>
+          Logout
+        </Button>
       </div>
     </div>
-  );
+  )
 }
 
 export type ApplicationPageWrapperProps = {
-  page: Page
+  pages: Page[]
+  extraForms?: JSX.Element[]
   user: User
   plan: CurrentSubscription
   [propName: string]: any
 }
 
 function handleBillingMessage(params) {
-  if (!params.get('billingMessage')) {
-    return;
+  if (!params.get("billingMessage")) {
+    return
   }
 
-  (params.get('billingStatus') === 'error' ? notification.error : notification.success)({
-    message: params.get('billingMessage'),
-    duration: 5
-  });
+  ;(params.get("billingStatus") === "error" ? notification.error : notification.success)({
+    message: params.get("billingMessage"),
+    duration: 5,
+  })
 }
 
-export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, page, user, ...rest }) => {
-  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbsProps>(withHome({ elements: [{ title: page.pageHeader }] }));
+export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, pages, user, extraForms }) => {
+  const location = useLocation()
+  const services = useServices()
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbsProps>(
+    withHome({ elements: [{ title: pages[0].pageHeader }] })
+  )
+  const routes = pages.map(page => {
+    const Component = page.component as React.ExoticComponent
+    return (
+      <Route
+        key={page.pageTitle}
+        path={page.getPrefixedPath()}
+        exact={true}
+        render={routeProps => {
+          services.analyticsService.onPageLoad({
+            pagePath: routeProps.location.hash,
+          })
+          document["title"] = page.pageTitle
+          // setBreadcrumbs(withHome({ elements: [{ title: page.pageHeader }] }))
+
+          return <Component setBreadcrumbs={setBreadcrumbs} {...(routeProps as any)} />
+        }}
+      />
+    )
+  })
+
+  routes.push(<Redirect key="dashboardRedirect" from="*" to="/dashboard" />)
   handleBillingMessage(new URLSearchParams(useLocation().search))
 
-  let Component = page.component as React.ExoticComponent;
-  let props = { setBreadcrumbs }
-  return <div className={styles.applicationPage}>
-    <div className={classNames(styles.sidebar)}>
-      <ApplicationSidebar/>
-    </div>
-    <div className={classNames(styles.rightbar)}>
-      <PageHeader user={user} plan={plan}><Breadcrumbs {...breadcrumbs} /></PageHeader>
-      <div className={styles.applicationPageComponent}>
-        <Component {...(props as any)} />
+  React.useEffect(() => {
+    // const pageMatchingPathname = pages.find(page => page.path.some(path => location.pathname.includes(path)))
+    const pageMatchingPathname = pages.find(page => page.path.includes(location.pathname))
+    // const a = pages
+    // const b = pages.map(p => p.path)
+    // const c = location.pathname
+    // debugger
+    if (pageMatchingPathname) setBreadcrumbs(withHome({ elements: [{ title: pageMatchingPathname.pageHeader }] }))
+  }, [location.pathname])
+
+  return (
+    <div className={styles.applicationPage}>
+      <div className={classNames(styles.sidebar)}>
+        <ApplicationSidebar />
+      </div>
+      <div className={classNames(styles.rightbar)}>
+        <PageHeader user={user} plan={plan}>
+          <Breadcrumbs {...breadcrumbs} />
+        </PageHeader>
+        <div className={styles.applicationPageComponent}>
+          <React.Suspense fallback={<CenteredSpin />}>
+            <Switch key={"appPagesSwitch"}>{routes}</Switch>
+            {extraForms}
+          </React.Suspense>
+        </div>
       </div>
     </div>
-  </div>;
+  )
 }
 
 export const SlackChatWidget: React.FC<{}> = () => {

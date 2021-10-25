@@ -120,7 +120,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
           </Tabs>
         </div>
 
-        <div className="flex-shrink border-t pt-2">
+        <div className="flex-shrink border-t py-2">
           <SourceEditorViewTabsControls
             saveButton={{
               handleClick: handleSave,

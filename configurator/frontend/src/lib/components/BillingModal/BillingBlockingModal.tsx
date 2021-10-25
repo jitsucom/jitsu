@@ -24,23 +24,41 @@ export type BillingBlockingModalProps = {
 const BillingBlockingModal = (props: BillingBlockingModalProps) => {
   const [visible, setVisible] = useState(true);
   const services = useServices();
-  return <Modal
-    closable={!!props.closeable}
-    visible={visible}
-    footer={!!props.closeable ? <>
-      <Button type="primary" onClick={() => setVisible(false)}>Close</Button>
-    </> : <Button type="link" size="small" onClick={() => services.userService.removeAuth(reloadPage)}>Logout from Jitsu</Button>}
-    width={800}
-    title={<span className="text-xl">Your account is paused</span>}
-  >
-    <div className="text-lg">
-      <p>Your account is paused due to usage about the quota: <>{props.blockingReason} </></p>
-      <p>You can't edit the configuration.As a courtesy we kept you data flowing through Jitsu.{' '}
-        However, we reserve the right to pause it at any moment</p>
-      <p>Please upgrade to any of the <a href="https://jitsu.com/pricing">following plans</a>: </p>
-      <UpgradePlan planStatus={props.subscription} />
-    </div>
-  </Modal>
+  return (
+    <Modal
+      key="billingBlockingModal"
+      closable={!!props.closeable}
+      visible={visible}
+      footer={
+        !!props.closeable ? (
+          <>
+            <Button type="primary" onClick={() => setVisible(false)}>
+              Close
+            </Button>
+          </>
+        ) : (
+          <Button type="link" size="small" onClick={() => services.userService.removeAuth(reloadPage)}>
+            Logout from Jitsu
+          </Button>
+        )
+      }
+      width={800}
+      title={<span className="text-xl">Your account is paused</span>}>
+      <div className="text-lg">
+        <p>
+          Your account is paused due to usage about the quota: <>{props.blockingReason} </>
+        </p>
+        <p>
+          You can't edit the configuration.As a courtesy we kept you data flowing through Jitsu. However, we reserve the
+          right to pause it at any moment
+        </p>
+        <p>
+          Please upgrade to any of the <a href="https://jitsu.com/pricing">following plans</a>:{" "}
+        </p>
+        <UpgradePlan planStatus={props.subscription} />
+      </div>
+    </Modal>
+  )
 }
 
 export default BillingBlockingModal;

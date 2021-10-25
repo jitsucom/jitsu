@@ -90,7 +90,7 @@ const DestinationsListComponent = ({ setBreadcrumbs }: CommonDestinationPageProp
       <div className="flex flex-wrap justify-center">
         {destinationsStore.destinations.map((dst: DestinationData) => {
           const statLink = generatePath(destinationPageRoutes.statisticsExact, { id: dst._id })
-          return <DestinationCard dst={dst} />
+          return <DestinationCard key={dst._uid} dst={dst} />
         })}
       </div>
     </>
