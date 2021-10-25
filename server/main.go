@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/system"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/jitsucom/jitsu/server/wal"
 	"math/rand"
 	"net/http"
@@ -218,6 +219,8 @@ func main() {
 	if err != nil {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
+	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
+	telemetry.EnrichSystemInfo(clusterID)
 
 	// ** Coordination Service **
 	var coordinationService coordination.Service

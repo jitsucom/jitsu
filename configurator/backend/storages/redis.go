@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+//TODO change to config#meta someday
 const lastUpdatedPerCollection = "configs#meta#last_updated"
 
 type Redis struct {
@@ -130,7 +131,7 @@ func toStringMap(value interface{}) (map[string]interface{}, error) {
 }
 
 func toRedisKey(collection string) string {
-	return "config#" + collection
+	return meta.ConfigPrefix + collection
 }
 
 func (r *Redis) Close() error {
