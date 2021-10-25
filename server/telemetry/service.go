@@ -89,7 +89,7 @@ func EnrichSystemInfo(clusterID string) {
 	if v != nil {
 		instance.reqFactory.iInfo.RAMTotalGB = math.Round(float64(v.Total) / 1024 / 1024 / 1024)
 		instance.reqFactory.iInfo.RAMFreeGB = math.Round(float64(v.Free) / 1024 / 1024 / 1024)
-		instance.reqFactory.iInfo.RAMUsage = fmt.Sprintf("%f%%", v.UsedPercent)
+		instance.reqFactory.iInfo.RAMUsage = fmt.Sprintf("%.2f%%", v.UsedPercent)
 	}
 
 	cpuInfo, _ := cpu.Info()
@@ -140,35 +140,35 @@ func CLIStart(command string, dateFilters, state bool, chunkSize int64) {
 	instance.usage(&Usage{CLIStart: 1, CLICommand: command, CLIDateFilters: dateFilters, CLIState: state, CLIChunkSize: chunkSize})
 }
 
-//EventsPerSrc increments events collector counter per Src
-func EventsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
+//PushedEventsPerSrc increments events collector counter per Src
+func PushedEventsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
 	if !instance.usageOptOut.Load() {
 		for src, quantity := range quantityPerSrc {
-			Event(sourceID, destinationID, src, quantity)
+			Event(sourceID, destinationID, src, "", quantity)
 		}
 	}
 }
 
 //Event increments events collector counter
-func Event(sourceID, destinationID, src string, quantity int) {
+func Event(sourceID, destinationID, src, sourceType string, quantity int) {
 	if !instance.usageOptOut.Load() {
-		instance.collector.Event(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, uint64(quantity))
+		instance.collector.Event(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, sourceType, uint64(quantity))
 	}
 }
 
-//ErrorsPerSrc increments errors collector counter per Src
-func ErrorsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
+//PushedErrorsPerSrc increments errors collector counter per Src
+func PushedErrorsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
 	if !instance.usageOptOut.Load() {
 		for src, quantity := range quantityPerSrc {
-			Error(sourceID, destinationID, src, quantity)
+			Error(sourceID, destinationID, src, "", quantity)
 		}
 	}
 }
 
 //Error increments errors collector counter
-func Error(sourceID, destinationID, src string, quantity int) {
+func Error(sourceID, destinationID, src, sourceType string, quantity int) {
 	if !instance.usageOptOut.Load() {
-		instance.collector.Error(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, uint64(quantity))
+		instance.collector.Error(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, sourceType, uint64(quantity))
 	}
 }
 
@@ -225,7 +225,7 @@ func (s *Service) usage(usage *Usage) {
 }
 
 func (s *Service) startUsage() {
-	ticker := time.NewTicker(time.Hour)
+	ticker := time.NewTicker(10 * time.Minute)
 	safego.RunWithRestart(func() {
 		for {
 			if instance.closed {
@@ -284,6 +284,7 @@ func (s *Service) getUsage() []*Usage {
 			EventsSrc:   key.src,
 			Source:      key.sourceID,
 			Destination: key.destinationID,
+			SourceType:  key.sourceType,
 		})
 	}
 
@@ -293,6 +294,7 @@ func (s *Service) getUsage() []*Usage {
 			EventsSrc:   key.src,
 			Source:      key.sourceID,
 			Destination: key.destinationID,
+			SourceType:  key.sourceType,
 		})
 	}
 
