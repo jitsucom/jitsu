@@ -426,19 +426,14 @@ const DestinationEditor = ({
 
   return destinationReference ? (
     <>
-      <div
-        className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}
-      >
+      <div className={cn("flex flex-col items-stretch flex-auto", styles.wrapper)}>
         <div className={styles.mainArea} id="dst-editor-tabs">
           {isAbleToConnectItems() && (
             <Card className={styles.linkedWarning}>
               <WarningOutlined className={styles.warningIcon} />
               <article>
-                This destination is not linked to any API keys or Connector. You{' '}
-                <span
-                  className={styles.pseudoLink}
-                  onClick={() => setActiveTabKey('sources')}
-                >
+                This destination is not linked to any API keys or Connector. You{" "}
+                <span className={styles.pseudoLink} onClick={() => setActiveTabKey("sources")}>
                   can link the destination here
                 </span>
                 .
@@ -457,52 +452,41 @@ const DestinationEditor = ({
                 className="mr-3"
                 type="link"
                 onClick={handleViewStatistics}
-                icon={<AreaChartOutlined />}
-              >
+                icon={<AreaChartOutlined />}>
                 Statistics
               </Button>
             }
           />
         </div>
 
-        <div className="flex-shrink border-t pt-2">
+        <div className="flex-shrink border-t py-2">
           <EditorButtons
             save={{
               isRequestPending: destinationSaving,
-              isPopoverVisible:
-                savePopover &&
-                destinationsTabs.current.some(
-                  (tab: Tab) => tab.errorsCount > 0
-                ),
+              isPopoverVisible: savePopover && destinationsTabs.current.some((tab: Tab) => tab.errorsCount > 0),
               handlePress: handleSaveDestination,
               handlePopoverClose: savePopoverClose,
-              titleText: 'Destination editor errors',
-              tabsList: destinationsTabs.current
+              titleText: "Destination editor errors",
+              tabsList: destinationsTabs.current,
             }}
             test={{
               isRequestPending: testConnecting,
-              isPopoverVisible:
-                testConnectingPopover &&
-                destinationsTabs.current[0].errorsCount > 0,
+              isPopoverVisible: testConnectingPopover && destinationsTabs.current[0].errorsCount > 0,
               handlePress: handleTestConnection,
               handlePopoverClose: testConnectingPopoverClose,
-              titleText: 'Connection Properties errors',
-              tabsList: [destinationsTabs.current[0]]
+              titleText: "Connection Properties errors",
+              tabsList: [destinationsTabs.current[0]],
             }}
             handleCancel={params.standalone ? undefined : handleCancel}
           />
         </div>
       </div>
 
-      <Prompt
-        message={destinationEditorUtils.getPromptMessage(
-          destinationsTabs.current
-        )}
-      />
+      <Prompt message={destinationEditorUtils.getPromptMessage(destinationsTabs.current)} />
     </>
   ) : (
     <DestinationNotFound destinationId={params.id} />
-  );
+  )
 };;
 
 DestinationEditor.displayName = 'DestinationEditor';

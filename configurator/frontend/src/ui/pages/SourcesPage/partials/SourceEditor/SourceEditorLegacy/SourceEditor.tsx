@@ -298,7 +298,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
           </WithSourceEditorSyncContext>
         </div>
 
-        <div className="flex-shrink border-t pt-2">
+        <div className="flex-shrink border-t py-2">
           <EditorButtons
             save={{
               isRequestPending: sourceSaving,
