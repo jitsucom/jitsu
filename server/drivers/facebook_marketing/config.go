@@ -6,6 +6,8 @@ import (
 )
 
 type FacebookMarketing struct {
+	base.IntervalDriver
+
 	collection   *base.Collection
 	config       *FacebookMarketingConfig
 	reportConfig *FacebookReportConfig

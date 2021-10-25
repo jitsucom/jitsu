@@ -3,10 +3,14 @@ package telemetry
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/spf13/viper"
 	"go.uber.org/atomic"
+	"math"
 	"net/http"
 	"time"
 )
@@ -75,6 +79,29 @@ func Init(serviceName, commit, tag, builtAt, dockerHubID string) {
 	}
 
 	instance.startUsage()
+}
+
+//EnrichSystemInfo enriches request factory (every request) with system information (CPU/RAM)
+func EnrichSystemInfo(clusterID string) {
+	instance.reqFactory.iInfo.ClusterID = clusterID
+
+	v, _ := mem.VirtualMemory()
+	if v != nil {
+		instance.reqFactory.iInfo.RAMTotalGB = math.Round(float64(v.Total) / 1024 / 1024 / 1024)
+		instance.reqFactory.iInfo.RAMFreeGB = math.Round(float64(v.Free) / 1024 / 1024 / 1024)
+		instance.reqFactory.iInfo.RAMUsage = fmt.Sprintf("%f%%", v.UsedPercent)
+	}
+
+	cpuInfo, _ := cpu.Info()
+	if len(cpuInfo) > 0 {
+		data := cpuInfo[0]
+		instance.reqFactory.iInfo.CPUInfoInstances = len(cpuInfo)
+		instance.reqFactory.iInfo.CPUCores = int(data.Cores)
+		instance.reqFactory.iInfo.CPUModelName = data.ModelName
+		instance.reqFactory.iInfo.CPUModel = data.Model
+		instance.reqFactory.iInfo.CPUFamily = data.Family
+		instance.reqFactory.iInfo.CPUVendor = data.VendorID
+	}
 }
 
 //reInit initializes telemetry configuration
@@ -160,11 +187,15 @@ func Destination(destinationID, destinationType, mode, mappingsStyle string, use
 }
 
 //Source puts usage event with hashed source id and type
-func Source(sourceID, sourceType string) {
+func Source(sourceID, sourceType, sourceConnectorOrigin, sourceConnectorVersion, sourceSchedule string, streams int) {
 	if !instance.usageOptOut.Load() {
 		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
-			Source:     resources.GetStringHash(sourceID),
-			SourceType: sourceType,
+			Source:                 resources.GetStringHash(sourceID),
+			SourceType:             sourceType,
+			SourceConnectorOrigin:  sourceConnectorOrigin,
+			SourceConnectorVersion: sourceConnectorVersion,
+			SourceSchedule:         sourceSchedule,
+			SourceStreams:          streams,
 		})
 	}
 }
