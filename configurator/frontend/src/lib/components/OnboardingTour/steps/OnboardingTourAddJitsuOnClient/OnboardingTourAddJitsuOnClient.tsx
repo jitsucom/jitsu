@@ -7,7 +7,7 @@ import ApplicationServices from 'lib/services/ApplicationServices';
 // @Components
 import { OnboardingClientDocs } from './OnboardingClientDocs';
 // @Store
-import { apiKeysStore, UserApiKey } from 'stores/apiKeys';
+import { apiKeysStore } from 'stores/apiKeys';
 import { destinationsStore } from 'stores/destinations';
 // @Styles
 import styles from './OnboardingTourAddJitsuOnClient.module.less';
@@ -19,7 +19,7 @@ type Props = {
 
 export const OnboardingTourAddJitsuOnClient: React.FC<Props> = observer(
   ({ handleGoNext, handleGoBack }) => {
-    const [apiKey, setApiKey] = useState<UserApiKey | null>(null);
+    const [apiKey, setApiKey] = useState<APIKey | null>(null);
 
     useEffect(() => {
       const getLinkedApiKey = async (): Promise<void> => {
@@ -32,7 +32,7 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = observer(
         }
 
         let unlinkedKey = apiKeysStore.apiKeys[0];
-        
+
 
         // at this point, all destinations can only be unlinked (or null)
         const unlinkedDestination = destinationsStore.destinations[0];

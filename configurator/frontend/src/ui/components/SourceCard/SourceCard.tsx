@@ -26,6 +26,7 @@ import { ConnectionCard } from "../ConnectionCard/ConnectionCard"
 import { flowResult } from "mobx"
 import { destinationsStore } from "../../../stores/destinations"
 import { actionNotification } from "../ActionNotification/ActionNotification"
+import { SourcesUtils } from "../../../utils/sources.utils"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator, current) => ({
@@ -167,7 +168,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
           </SubMenu>
         </Menu>
       }
-      title={src.displayName || src.sourceId}
+      title={SourcesUtils.getDisplayName(src)}
       rename={(newName: string) => rename(src.sourceId, newName)}
       subtitle={
         <>

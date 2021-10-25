@@ -86,6 +86,12 @@ export interface ConfigurationEntitiesTable<T = any> {
    * Removes entity by id
    */
   remove(id: string): Promise<void>
+
+  /**
+   * Upserts the object. Creates a new one (if the object with id doesn't exist), or creates a new one
+   */
+  upsert(id: string, object: T): Promise<void>
+
 }
 
 function getEntitiesTable<T = any>(
@@ -126,6 +132,9 @@ function getEntitiesTable<T = any>(
    *   - arrayNode and idFieldPath are not treated as json paths (e.g. `a` will work, but `a.b` won't)
    */
   return {
+    upsert<T>(id: string, object: T): Promise<void> {
+      throw new Error("Not implemented")
+    },
     async add<T>(object: T): Promise<void> {
       let collection = await getCollection()
       let objects = getArrayNode(collection) as T[]
@@ -159,9 +168,19 @@ function getEntitiesTable<T = any>(
       }
       await storage.save(collectionName, collection, collectionId)
     },
-    replace<T>(id: string, object: T): Promise<void> {
-      throw new Error("Not implemented")
-    },
+    async replace<T>(id: string, object: T): Promise<void> {
+      let collection = await getCollection();
+      let objects = getArrayNode(collection);
+      let objIndex = objects.findIndex(obj => obj[dataLayout.idFieldPath] === id)
+      if (objIndex < 0) {
+        throw new Error(
+          `Can't find object where ${dataLayout.idFieldPath} === ${id} in collection ${collectionName}(path=${arrayNode}). All objects: ${JSON.stringify(objects, null, 2)}`
+        )
+      }
+      objects[objIndex] = object;
+
+      await storage.save(collectionName, collection, collectionId)
+    }
   }
 }
 
