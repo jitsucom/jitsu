@@ -12,8 +12,8 @@ import { Rule as AntdFormItemValidationRule } from "rc-field-form/lib/interface"
 import { useServices } from "hooks/useServices"
 import { observer } from "mobx-react-lite"
 // @Styles
-// import editorStyles from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less"
-const editorStyles = {field: ''}
+import editorStyles from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less"
+
 type FormFields = {
   sourceId: string
   schedule: string

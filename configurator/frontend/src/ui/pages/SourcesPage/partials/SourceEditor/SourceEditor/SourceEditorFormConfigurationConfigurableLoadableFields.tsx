@@ -8,7 +8,6 @@ import { ErrorCard } from "lib/components/ErrorCard/ErrorCard"
 import { LoadableFieldsLoadingMessageCard } from "lib/components/LoadingFormCard/LoadingFormCard"
 import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 // @Types
-import { SetSourceEditorState } from "./SourceEditor"
 import { PatchConfig, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
 // @Hooks
 import { usePolling } from "hooks/usePolling"
@@ -89,7 +88,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
           title={`Failed to load the source specification data`}
           descriptionWithContacts={null}
           stackTrace={loadingParametersError.stack}
-          className={"form-fields-card"}
+          className={`form-fields-card`}
         />
       </Col>
     </Row>
@@ -101,6 +100,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
           title="Loading the source configuration"
           longLoadingMessage="Loading the spec takes longer than usual. This might happen if you are configuring such source for the first time - Jitsu will need some time to pull a docker image with the connector code"
           showLongLoadingMessageAfterMs={5000}
+          className={`form-fields-card`}
         />
       </Col>
     </Row>
