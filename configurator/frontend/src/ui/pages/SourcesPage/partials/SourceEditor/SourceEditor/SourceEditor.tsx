@@ -106,9 +106,8 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       : undefined
   }, [sourceId, allSourcesList])
 
-  const initialSourceDataFromBackend = useMemo<Optional<Partial<SourceData>>>(
-    () => allSourcesList.find(src => src.sourceId === sourceId) ?? createInitialSourceData(sourceDataFromCatalog),
-    [sourceId, allSourcesList]
+  const [initialSourceData, setInitialSourceData] = useState<Optional<Partial<SourceData>>>(
+    () => allSourcesList.find(src => src.sourceId === sourceId) ?? createInitialSourceData(sourceDataFromCatalog)
   )
 
   const [state, setState] = useState<SourceEditorState>(initialState)
@@ -123,11 +122,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       sourceEditorState = state
       return state
     })
-    return sourceEditorUtils.getSourceDataFromState(
-      sourceEditorState,
-      sourceDataFromCatalog,
-      initialSourceDataFromBackend
-    )
+    return sourceEditorUtils.getSourceDataFromState(sourceEditorState, sourceDataFromCatalog, initialSourceData)
   }
 
   const validateCountErrors = async (): Promise<number> => {
@@ -153,14 +148,6 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       const sourceData = handleBringSourceData()
       const testResult = await sourcePageUtils.testConnection(sourceData)
       if (!testResult.connected) throw new Error(testResult.connectedErrorMessage)
-
-      try {
-        await pullAllAirbyteStreams([], sourceDataFromCatalog, handleBringSourceData)
-      } catch (e) {
-        const error = e instanceof Error ? e : new Error(e)
-        actionNotification.error(`Invalid configuration. Message:\n${error.message};\nError Stack:\n${error.stack}`)
-        throw error
-      }
     } finally {
       setControlsDisabled(false)
     }
@@ -204,6 +191,10 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     }
   }, [editorMode, state])
 
+  const handleCompleteStep = () => {
+    setInitialSourceData(handleBringSourceData())
+  }
+
   const handleLeaveEditor = useCallback<(options?: { goToSourcesList?: boolean }) => void>(options => {
     options.goToSourcesList ? history.push(sourcesPageRoutes.root) : history.goBack()
   }, [])
@@ -233,7 +224,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       controlsDisabled={controlsDisabled}
       editorMode={editorMode}
       showDocumentationDrawer={showDocumentation}
-      initialSourceDataFromBackend={initialSourceDataFromBackend}
+      initialSourceData={initialSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
       configIsValidatedByStreams={configIsValidatedByStreams}
       setSourceEditorState={setState}
@@ -242,6 +233,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       setShowDocumentationDrawer={setShowDocumentation}
       handleBringSourceData={handleBringSourceData}
       handleSave={handleSave}
+      handleCompleteStep={handleCompleteStep}
       handleLeaveEditor={handleLeaveEditor}
       handleValidateAndTestConfig={handleValidateAndTestConfig}
     />

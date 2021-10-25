@@ -20,7 +20,7 @@ type SourceEditorTabsViewProps = {
   editorMode: "add" | "edit"
   showTabsErrors: boolean
   showDocumentationDrawer: boolean
-  initialSourceDataFromBackend: Optional<Partial<SourceData>>
+  initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
   configIsValidatedByStreams: boolean
   setSourceEditorState: SetSourceEditorState
@@ -41,7 +41,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
   editorMode,
   showTabsErrors,
   showDocumentationDrawer,
-  initialSourceDataFromBackend,
+  initialSourceData,
   sourceDataFromCatalog,
   configIsValidatedByStreams,
   setSourceEditorState,
@@ -80,7 +80,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
               }>
               <SourceEditorFormConfiguration
                 editorMode={editorMode}
-                initialSourceDataFromBackend={initialSourceDataFromBackend}
+                initialSourceData={initialSourceData}
                 sourceDataFromCatalog={sourceDataFromCatalog}
                 setSourceEditorState={setSourceEditorState}
                 setControlsDisabled={setControlsDisabled}
@@ -94,7 +94,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
                 <TabName name="Streams" errorsCount={state.streams.errorsCount} hideErrorsCount={!showTabsErrors} />
               }>
               <SourceEditorFormStreams
-                initialSourceDataFromBackend={initialSourceDataFromBackend}
+                initialSourceData={initialSourceData}
                 sourceDataFromCatalog={sourceDataFromCatalog}
                 sourceConfigValidatedByStreamsTab={configIsValidatedByStreams}
                 setSourceEditorState={setSourceEditorState}
@@ -113,7 +113,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
                 />
               }>
               <SourceEditorFormConnections
-                initialSourceDataFromBackend={initialSourceDataFromBackend}
+                initialSourceData={initialSourceData}
                 setSourceEditorState={setSourceEditorState}
               />
             </Tabs.TabPane>

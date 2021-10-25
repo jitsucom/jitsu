@@ -11,11 +11,12 @@ interface ButtonProps {
 
 export interface Props {
   proceedButton?: ButtonProps
+  handleStepBack?: VoidFunction
   handleCancel?: VoidFunction
   controlsDisabled?: boolean
 }
 
-const SourceEditorViewStepsControls = ({ proceedButton, handleCancel, controlsDisabled }: Props) => {
+const SourceEditorViewStepsControls = ({ proceedButton, handleStepBack, handleCancel, controlsDisabled }: Props) => {
   const [isProceedLoading, setIsProceedLoading] = useState<boolean>(false)
 
   const handleProceed = async () => {
@@ -33,12 +34,18 @@ const SourceEditorViewStepsControls = ({ proceedButton, handleCancel, controlsDi
         <Button
           type="primary"
           size="large"
-          className="mr-3"
+          className="mr-2"
           htmlType="button"
           loading={isProceedLoading}
           onClick={handleProceed}
           disabled={controlsDisabled}>
           {proceedButton.title ?? "Save"}
+        </Button>
+      )}
+
+      {handleStepBack && (
+        <Button type="default" size="large" className="mr-2" onClick={handleStepBack}>
+          Back
         </Button>
       )}
 

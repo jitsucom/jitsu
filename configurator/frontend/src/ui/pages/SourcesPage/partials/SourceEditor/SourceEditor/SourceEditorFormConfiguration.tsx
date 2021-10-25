@@ -11,7 +11,7 @@ import { cloneDeep } from "lodash"
 
 type Props = {
   editorMode: "add" | "edit"
-  initialSourceDataFromBackend: Optional<Partial<SourceData>>
+  initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
   setSourceEditorState: SetSourceEditorState
   setControlsDisabled: ReactSetState<boolean>
@@ -32,7 +32,7 @@ const initialValidator: () => ValidateGetErrorsCount = () => async () => 0
 
 const SourceEditorFormConfiguration: React.FC<Props> = ({
   editorMode,
-  initialSourceDataFromBackend,
+  initialSourceData,
   sourceDataFromCatalog,
   setSourceEditorState,
   setControlsDisabled,
@@ -87,12 +87,12 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
     <>
       <SourceEditorFormConfigurationStaticFields
         editorMode={editorMode}
-        initialValues={initialSourceDataFromBackend}
+        initialValues={initialSourceData}
         patchConfig={patchConfig}
         setValidator={setStaticFieldsValidator}
       />
       <SourceEditorFormConfigurationConfigurableLoadableFields
-        initialValues={initialSourceDataFromBackend}
+        initialValues={initialSourceData}
         sourceDataFromCatalog={sourceDataFromCatalog}
         patchConfig={patchConfig}
         setControlsDisabled={setControlsDisabled}
