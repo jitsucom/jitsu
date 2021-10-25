@@ -108,7 +108,7 @@ export const PRIVATE_PAGES: Page[] = [
   ),
   new Page("dbt Cloud integration", "/dbtcloud", DbtCloudPage, "dbt Cloud"),
   new Page("Jitsu | download config", "/cfg_download", DownloadConfig, "Download Jitsu Server configuration"),
-  new Page("Jitsu | edit API keys", "/api_keys", ApiKeys, "API Keys"),
+  new Page("Jitsu | edit API keys", "/api-keys", ApiKeys, "API Keys"),
   new Page("Jitsu | edit custom domains", "/domains", CustomDomains, "Custom tracking domains"),
   new Page(
     "Jitsu | sources",
@@ -125,4 +125,11 @@ export const PRIVATE_PAGES: Page[] = [
   new Page("Jitsu | task logs", taskLogsPageRoute, TaskLogsPage, "Task Logs"),
   new Page("Jitsu | Task Logs View", taskLogsViewerRoute, TaskLogViewer, "Task Logs"),
   new Page("Jitsu | Settings", settingsPageRoutes, SettingsPage, "Settings"),
+  new Page(
+    'Edit API keys · Jitsu',
+    [apiKeysRoutes.newExact, apiKeysRoutes.editExact],
+    ApiKeyEditor,
+    'Edit API Key'
+  ),
+
 ]

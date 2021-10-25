@@ -60,7 +60,7 @@ const FormField: React.FC<FormFieldProps> = ({ children, label, tooltip, splitte
   return (
     <div className={`flex flex-wrap items-start w-full py-4 ${splitter && "border-b border-splitBorder"}`}>
       <div style={{ width: "20em", minWidth: "20em" }} className="font-semibold">
-        {tooltip ? <LabelWithTooltip documentation={tooltip}>{label}</LabelWithTooltip> : label}
+        {tooltip ? <LabelWithTooltip documentation={tooltip} render={label} /> : label}
       </div>
       <div className="flex-grow">{children}</div>
     </div>
@@ -132,7 +132,7 @@ function getKey({ originsText, ...rest }: EditorObject, initialValue: APIKey) {
 const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
   let { id = undefined } = useParams<{ id?: string }>()
   if (id) {
-    id = id.replace("-", ".");
+    id = id.replace("-", ".")
   }
   const initialApiKey = id ? apiKeysStore.apiKeys.find(key => id) : newKey()
   if (!initialApiKey) {
@@ -145,26 +145,25 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
   const [deleting, setDeleting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form] = useForm<any>()
-  props.setBreadcrumbs(
-    withHome({
-      elements: [
-        {
-          link: apiKeysRoutes.listExact,
-          title: "Api Keys",
-        },
-        {
-          title: id ? "Edit Key" : "Create Key",
-        },
-      ],
-    })
-  )
+  // props.setBreadcrumbs(
+  //   withHome({
+  //     elements: [
+  //       {
+  //         link: apiKeysRoutes.listExact,
+  //         title: "Api Keys",
+  //       },
+  //       {
+  //         title: id ? "Edit Key" : "Create Key",
+  //       },
+  //     ],
+  //   })
+  // )
   form.setFieldsValue(editorObject)
   return (
     <div className="flex justify-center w-full">
       {form.isFieldsTouched() && !saving && !deleting && <Prompt message={unsavedMessage} />}
-      <div className="w-full pt-8" style={{ maxWidth: "1000px" }}>
-        <Form
-          form={form}>
+      <div className="w-full pt-8 px-4" style={{ maxWidth: "1000px" }}>
+        <Form form={form}>
           <FormLayout>
             <FormField label="Key Name" tooltip="Name of the key" key="comment">
               <Form.Item name="comment">
@@ -266,7 +265,7 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                       await keysBackend.add(key)
                     }
                     await flowResult(apiKeysStore.pullApiKeys())
-                    history.push(apiKeysRoutes.listExact);
+                    history.push(apiKeysRoutes.listExact)
                   } finally {
                     setSaving(false)
                   }
