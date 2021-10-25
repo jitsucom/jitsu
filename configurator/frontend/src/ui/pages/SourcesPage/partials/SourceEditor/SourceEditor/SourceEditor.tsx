@@ -135,7 +135,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
 
     setState(state => {
       const newState = cloneDeep(state)
-      state.configuration.errorsCount = configurationErrorsCount
+      newState.configuration.errorsCount = configurationErrorsCount
       return newState
     })
 
