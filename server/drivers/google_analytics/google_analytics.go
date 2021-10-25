@@ -48,6 +48,8 @@ var (
 )
 
 type GoogleAnalytics struct {
+	base.IntervalDriver
+
 	ctx                context.Context
 	config             *GoogleAnalyticsConfig
 	service            *ga.Service
@@ -88,8 +90,14 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *base.SourceConfig, co
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GA service: %v", err)
 	}
-	return &GoogleAnalytics{ctx: ctx, config: config, collection: collection, service: service,
-		reportFieldsConfig: &reportFieldsConfig}, nil
+	return &GoogleAnalytics{
+		IntervalDriver:     base.IntervalDriver{SourceType: sourceConfig.Type},
+		ctx:                ctx,
+		config:             config,
+		collection:         collection,
+		service:            service,
+		reportFieldsConfig: &reportFieldsConfig,
+	}, nil
 }
 
 //TestGoogleAnalytics tests connection to Google Analytics without creating Driver instance
