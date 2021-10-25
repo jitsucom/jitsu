@@ -88,7 +88,7 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
 
       <div className="flex flex-wrap justify-center">
         {sourcesStore.sources.map((src: SourceData) => (
-          <SourceCard src={src} />
+          <SourceCard key={src.sourceId} src={src} />
         ))}
       </div>
     </>
