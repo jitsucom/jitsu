@@ -112,13 +112,13 @@ const ConnectionsPageComponent: React.FC = () => {
         >
           {apiKeysStore.hasApiKeys || sourcesStore.hasSources ? (
             [
-              ...apiKeysStore.apiKeys.map(({ uid }) => {
+              ...apiKeysStore.apiKeys.map(({ uid, comment }) => {
                 return (
                   <CardContainer id={uid}>
                     <EntityCard
-                      name={<CardTitle title={`API Key ${uid}`} />}
+                      name={<CardTitle title={`API Key ${comment || uid}`} />}
                       message={<EntityMessage connectionTestOk={true} />}
-                      link="/api_keys"
+                      link="/api-keys"
                       icon={
                         <IconWrapper sizeTailwind={12}>
                           <EntityIcon entityType="api_key" />

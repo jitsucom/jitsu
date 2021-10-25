@@ -93,7 +93,7 @@ const SecretKey: React.FC<{
   return (
     <FormField label={formFieldLabel} tooltip={children}>
       <div className="flex flex-nowrap space-x-1 items-center">
-        <Form.Item name={formFieldName} className="w-full">
+        <Form.Item name={formFieldName} className="w-full" rules={[{ required: true }]}>
           <Input
             required={true}
             size="large"
@@ -134,7 +134,7 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
   if (id) {
     id = id.replace("-", ".")
   }
-  const initialApiKey = id ? apiKeysStore.apiKeys.find(key => id) : newKey()
+  const initialApiKey = id ? apiKeysStore.apiKeys.find(key => key.uid === id) : newKey()
   if (!initialApiKey) {
     return <CenteredError error={new Error(`Key with id ${id} not found`)} />
   }
@@ -165,50 +165,60 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
       <div className="w-full pt-8 px-4" style={{ maxWidth: "1000px" }}>
         <Form form={form}>
           <FormLayout>
-            <FormField label="Key Name" tooltip="Name of the key" key="comment">
-              <Form.Item name="comment">
-                <Input size="large" name="comment" placeholder="Key Name" required={true} />
-              </Form.Item>
-            </FormField>
-            <SecretKey
-              onGenerate={() => {
-                setEditorObject({
-                  ...editorObject,
-                  jsAuth: apiKeysStore.generateApiToken("js"),
-                })
-              }}
-              formFieldName="jsAuth"
-              formFieldLabel="Client-side (JS) key">
-              The key that is user for client-side Jitsu libraries (JavaScript, iOS etc). You can consider this key as
-              'public' since it is visible to any end-user
-            </SecretKey>
-            <SecretKey
-              onGenerate={() => {
-                setEditorObject({
-                  ...editorObject,
-                  serverAuth: apiKeysStore.generateApiToken("s2s"),
-                })
-              }}
-              formFieldName="serverAuth"
-              formFieldLabel="Server-side key">
-              The key that is user for sending data from backend libraries (python, s2s API etc). Do not publish this
-              key
-            </SecretKey>
-            <FormField
-              label="HTTP Origins"
-              tooltip={
-                <>
-                  If set, only traffic from listed domains will be accepted. Blocking is done via{" "}
-                  <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS">CORS headers</a>. Leave empty for
-                  accept traffic from any domain. Wildcard syntax (<code>*.domain.com</code>) is accepted. Put each
-                  domain on a new line
-                </>
-              }
-              key="js">
-              <Form.Item name="originsText">
-                <TextArea required={false} size="large" rows={10} name="originsText" />
-              </Form.Item>
-            </FormField>
+            <span
+              style={
+                deleting || saving
+                  ? {
+                      opacity: "0.5",
+                      pointerEvents: "none",
+                    }
+                  : {}
+              }>
+              <FormField label="Key Name" tooltip="Name of the key" key="comment">
+                <Form.Item name="comment">
+                  <Input size="large" name="comment" placeholder="Key Name" required={true} />
+                </Form.Item>
+              </FormField>
+              <SecretKey
+                onGenerate={() => {
+                  setEditorObject({
+                    ...editorObject,
+                    jsAuth: apiKeysStore.generateApiToken("js"),
+                  })
+                }}
+                formFieldName="jsAuth"
+                formFieldLabel="Client-side (JS) key">
+                The key that is user for client-side Jitsu libraries (JavaScript, iOS etc). You can consider this key as
+                'public' since it is visible to any end-user
+              </SecretKey>
+              <SecretKey
+                onGenerate={() => {
+                  setEditorObject({
+                    ...editorObject,
+                    serverAuth: apiKeysStore.generateApiToken("s2s"),
+                  })
+                }}
+                formFieldName="serverAuth"
+                formFieldLabel="Server-side key">
+                The key that is user for sending data from backend libraries (python, s2s API etc). Do not publish this
+                key
+              </SecretKey>
+              <FormField
+                label="HTTP Origins"
+                tooltip={
+                  <>
+                    If set, only traffic from listed domains will be accepted. Blocking is done via{" "}
+                    <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS">CORS headers</a>. Leave empty for
+                    accept traffic from any domain. Wildcard syntax (<code>*.domain.com</code>) is accepted. Put each
+                    domain on a new line
+                  </>
+                }
+                key="js">
+                <Form.Item name="originsText">
+                  <TextArea required={false} size="large" rows={10} name="originsText" />
+                </Form.Item>
+              </FormField>
+            </span>
             <FormActions>
               {id && (
                 <Button
