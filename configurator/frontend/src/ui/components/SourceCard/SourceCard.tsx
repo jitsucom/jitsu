@@ -226,7 +226,7 @@ function LastTaskStatus({ sourceId }) {
           taskId: TaskId.encode(task.id),
         })}>
         <Tag color={task.status === "SUCCESS" ? "success" : "error"}>{task.status.toUpperCase()}</Tag>
-        <a className="text-xs text-secondaryText underline">{date.from(now)}</a>
+        <a className="text-xs text-secondaryText underline">{date?.from(now)}</a>
       </NavLink>
     </span>
   )

@@ -1,17 +1,13 @@
 // @Libs
 import { useCallback, useEffect, useMemo } from "react"
-import { generatePath, useHistory } from "react-router-dom"
-import { Button, Dropdown, Menu, message } from "antd"
+import { useHistory } from "react-router-dom"
+import { Button } from "antd"
 import { observer } from "mobx-react-lite"
 import snakeCase from "lodash/snakeCase"
 // @Store
 import { sourcesStore } from "stores/sources"
 // @Icons
 import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined"
-import DeleteOutlined from "@ant-design/icons/lib/icons/DeleteOutlined"
-import CodeOutlined from "@ant-design/icons/lib/icons/CodeOutlined"
-import EditOutlined from "@ant-design/icons/lib/icons/EditOutlined"
-import DownOutlined from "@ant-design/icons/lib/icons/DownOutlined"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Types
@@ -25,9 +21,6 @@ import { allSources } from "catalog/sources/lib"
 // @Routes
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 // @Utils
-import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
-import { taskLogsPageRoute } from "ui/pages/TaskLogs/TaskLogsPage"
-import { withProgressBar } from "lib/components/components"
 import { showQuotaLimitModal } from "../../../../../lib/services/billing"
 import { SourceCard } from "../../../../components/SourceCard/SourceCard"
 

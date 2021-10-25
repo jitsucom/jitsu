@@ -30,7 +30,7 @@ before building the app (or running it with `yarn start`)
         <td>production</td>
         <td>Certain features such as debug logging will be enabled only in development mode</td>
     </tr>
-    <tr>
+    <tr> 
         <td><code>FIREBASE_CONFIG</code></td>
         <td><code>null</code></td>
         <td>Firebase config JSON. If not specified, Github and Google auth won't be available</td>

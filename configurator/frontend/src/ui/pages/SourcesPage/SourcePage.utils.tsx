@@ -13,7 +13,7 @@ import Marshal from 'lib/commons/marshalling';
 import { Tab } from 'ui/components/Tabs/TabsConfigurator';
 import { validateTabForm } from 'utils/forms/validateTabForm';
 import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
-import { SourceTabKey } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditor';
+import { SourceTabKey } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditorLegacy/SourceEditor';
 import { Poll } from 'utils/polling';
 import { actionNotification } from "../../components/ActionNotification/ActionNotification"
 
@@ -22,6 +22,8 @@ const sourcePageUtils = {
     sourceConnector?.protoType
       ? sourceConnector?.protoType
       : snakeCase(sourceConnector?.id),
+  getSourcePrototype: (sourceConnector: SourceConnector): string =>
+    snakeCase(sourceConnector?.id),
   getSourceId: (sourceProtoType: string, sourcesIds: string[]) => {
     const isUniqueSourceId = !sourcesIds.find((id) => id === sourceProtoType);
 

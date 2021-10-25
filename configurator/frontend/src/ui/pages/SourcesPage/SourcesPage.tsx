@@ -5,13 +5,11 @@ import { observer } from 'mobx-react-lite';
 import { sourcesPageRoutes } from './SourcesPage.routes';
 // @Components
 import { SourcesList } from './partials/SourcesList/SourcesList';
-import { SourceEditor } from './partials/SourceEditor/SourceEditor';
+import { SourceEditorSwitch } from './partials/SourceEditor/SourceEditorSwitch';
 import { AddSourceDialog } from './partials/AddSourceDialog/AddSourceDialog';
 import { CenteredError, CenteredSpin } from 'lib/components/components';
 // @Store
 import { sourcesStore, SourcesStoreState } from 'stores/sources';
-// @Services
-import ApplicationServices from 'lib/services/ApplicationServices';
 // @Styles
 import './SourcesPage.less';
 // @Types
@@ -23,13 +21,14 @@ export interface CollectionSourceData {
   _lastUpdated?: string;
 }
 
+export type SetBreadcrumbs = (breadcrumbs: BreadcrumbsProps) => void;
+
 export interface CommonSourcePageProps {
-  setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void;
+  setBreadcrumbs: SetBreadcrumbs;
   editorMode?: 'edit' | 'add';
 }
 
-const SourcesPageComponent = ({setBreadcrumbs}: PageProps) => {
-
+const SourcesPageComponent = ({ setBreadcrumbs }: PageProps) => {
   const params = useParams<unknown>();
 
   if (sourcesStore.state === SourcesStoreState.GLOBAL_ERROR) {
@@ -44,13 +43,13 @@ const SourcesPageComponent = ({setBreadcrumbs}: PageProps) => {
         <SourcesList {...{ setBreadcrumbs }} />
       </Route>
       <Route path={sourcesPageRoutes.addExact} strict={false} exact>
-        <SourceEditor {...{ setBreadcrumbs, editorMode: 'add' }} />
+        <SourceEditorSwitch {...{ setBreadcrumbs, editorMode: 'add' }} />
       </Route>
       <Route path={sourcesPageRoutes.add} strict={false} exact>
         <AddSourceDialog />
       </Route>
       <Route path={sourcesPageRoutes.editExact} strict={false} exact>
-        <SourceEditor
+        <SourceEditorSwitch
           key={params?.['sourceId'] || 'static_key'}
           {...{ setBreadcrumbs, editorMode: 'edit' }}
         />

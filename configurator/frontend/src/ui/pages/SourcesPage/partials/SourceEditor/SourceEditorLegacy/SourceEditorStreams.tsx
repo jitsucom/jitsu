@@ -1,21 +1,21 @@
-import { FormInstance } from "antd/lib/form/hooks/useForm";
+import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import {
   CollectionParameter,
   CollectionTemplate,
-  SourceConnector,
-} from "../../../../../catalog/sources/types";
-import styles from "./SourceEditor.module.less";
-import { FormListFieldData, FormListOperation } from "antd/es/form/FormList";
-import { Button, Col, Collapse, Form, Input, Popover, Row } from "antd";
-import { ChangeEvent, useCallback, useRef, useState } from "react";
-import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined";
-import { CaretRightOutlined } from "@ant-design/icons";
-import DeleteOutlined from "@ant-design/icons/lib/icons/DeleteOutlined";
-import { LabelWithTooltip } from "../../../../components/LabelWithTooltip/LabelWithTooltip";
-import { CodeInline } from "../../../../../lib/components/components";
-import { SourceFormCollectionsField } from "./SourceFormCollectionsField";
-import { getUniqueAutoIncId, randomId } from "../../../../../utils/numbers";
-import * as React from "react";
+  SourceConnector
+} from '../../../../../../catalog/sources/types';
+import styles from './SourceEditor.module.less';
+import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
+import { Button, Col, Collapse, Form, Input, Popover, Row } from 'antd';
+import { ChangeEvent, useCallback, useRef, useState } from 'react';
+import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
+import { CaretRightOutlined } from '@ant-design/icons';
+import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
+import { LabelWithTooltip } from '../../../../../components/LabelWithTooltip/LabelWithTooltip';
+import { CodeInline } from '../../../../../../lib/components/components';
+import { SourceFormCollectionsField } from './SourceFormCollectionsField';
+import { getUniqueAutoIncId, randomId } from '../../../../../../utils/numbers';
+import * as React from 'react';
 
 const { Panel } = Collapse;
 
@@ -487,6 +487,6 @@ const SourceEditorStreams = ({
     </Form>
   );
 };
-SourceEditorStreams.displayName = "SourceEditorStreams";
+SourceEditorStreams.displayName = 'SourceEditorStreams';
 
 export { SourceEditorStreams };
