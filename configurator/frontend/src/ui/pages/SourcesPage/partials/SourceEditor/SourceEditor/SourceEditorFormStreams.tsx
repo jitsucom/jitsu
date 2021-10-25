@@ -17,7 +17,7 @@ import { SetSourceEditorState } from "./SourceEditor"
 import { pullAllAirbyteStreams } from "./SourceEditorPullData"
 
 type Props = {
-  initialSourceDataFromBackend: Optional<Partial<SourceData>>
+  initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: SourceConnector
   sourceConfigValidatedByStreamsTab: boolean
   setSourceEditorState: SetSourceEditorState
@@ -27,7 +27,7 @@ type Props = {
 }
 
 export const SourceEditorFormStreams: React.FC<Props> = ({
-  initialSourceDataFromBackend,
+  initialSourceData,
   sourceDataFromCatalog,
   sourceConfigValidatedByStreamsTab,
   setSourceEditorState,
@@ -36,9 +36,8 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
   handleBringSourceData,
 }) => {
   const previouslyCheckedStreams = useMemo<AirbyteStreamData[]>(
-    () =>
-      initialSourceDataFromBackend?.config?.catalog?.streams ?? initialSourceDataFromBackend?.catalog?.streams ?? [],
-    [initialSourceDataFromBackend]
+    () => initialSourceData?.config?.catalog?.streams ?? initialSourceData?.catalog?.streams ?? [],
+    [initialSourceData]
   )
 
   const {
