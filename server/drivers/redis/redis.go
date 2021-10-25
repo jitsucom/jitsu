@@ -21,6 +21,8 @@ const (
 
 //Redis is a Redis driver. It is used in syncing data from Redis.
 type Redis struct {
+	base.IntervalDriver
+
 	collection     *base.Collection
 	connectionPool *meta.RedisPool
 	redisKey       string
@@ -68,6 +70,7 @@ func NewRedis(_ context.Context, sourceConfig *base.SourceConfig, collection *ba
 	}
 
 	return &Redis{
+		IntervalDriver: base.IntervalDriver{SourceType: sourceConfig.Type},
 		collection:     collection,
 		connectionPool: pool,
 		redisKey:       parameters.RedisKey,

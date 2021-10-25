@@ -22,6 +22,8 @@ var amplitudeHTTPConfiguration = &adapters.HTTPConfiguration{
 // Amplitude is an Amplitude driver.
 // It is used in syncing data from Amplitude.
 type Amplitude struct {
+	base.IntervalDriver
+
 	adapter    *AmplitudeAdapter
 	config     *AmplitudeConfig
 	collection *base.Collection
@@ -64,9 +66,10 @@ func NewAmplitude(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	}
 
 	return &Amplitude{
-		adapter:    adapter,
-		config:     config,
-		collection: collection,
+		IntervalDriver: base.IntervalDriver{SourceType: sourceConfig.Type},
+		adapter:        adapter,
+		config:         config,
+		collection:     collection,
 	}, nil
 }
 
