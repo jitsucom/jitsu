@@ -101,7 +101,7 @@ const SourceEditorFormStreamsLoadableForm = ({
           <Switch defaultChecked={true} className="ml-2" onChange={handleToggleAllStreams} />
         </div>
       </div>
-      <div className="flex-auto overflow-y-auto">
+      <div className="flex-auto overflow-y-auto pb-2">
         {streamsToDisplay?.length ? (
           <Collapse
             collapsible="header"

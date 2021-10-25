@@ -117,7 +117,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
 
   return (
     <>
-      <div className={cn("flex flex-col items-stretch flex-auto")}>
+      <div className={cn("flex flex-col items-stretch flex-grow-0 flex-shrink h-full min-h-0")}>
         <div className="flex-shrink-0 flex-grow-0 mb-6">
           <Steps current={currentStep}>
             {steps.map(({ title, description }, idx) => (
@@ -130,9 +130,10 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
             ))}
           </Steps>
         </div>
-        <div className={cn("flex-grow pr-4")}>{steps[currentStep]?.render}</div>
 
-        <div className="flex-shrink flex-grow-0 border-t pt-2">
+        <div className={cn("flex-grow flex-shrink min-h-0 overflow-y-auto pr-4")}>{steps[currentStep]?.render}</div>
+
+        <div className="flex-shrink flex-grow-0 border-t py-2">
           <SourceEditorViewStepsControls
             proceedButton={{
               title: steps[currentStep].proceedButtonTitle ?? "Next",
