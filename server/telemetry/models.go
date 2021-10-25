@@ -1,6 +1,6 @@
 package telemetry
 
-//InstanceInfo is a deploed server data dto
+//InstanceInfo is a deployed server data dto
 type InstanceInfo struct {
 	ID string `json:"id,omitempty"`
 
@@ -9,6 +9,18 @@ type InstanceInfo struct {
 	BuiltAt     string `json:"built_at,omitempty"`
 	ServiceName string `json:"service,omitempty"`
 	RunID       string `json:"run_id,omitempty"`
+	ClusterID   string `json:"cluster_id,omitempty"`
+
+	CPUInfoInstances int    `json:"cpu_info_instances,omitempty"`
+	CPUCores         int    `json:"cpu_cores,omitempty"`
+	CPUModelName     string `json:"cpu_model_name,omitempty"`
+	CPUModel         string `json:"cpu_model,omitempty"`
+	CPUFamily        string `json:"cpu_family,omitempty"`
+	CPUVendor        string `json:"cpu_vendor,omitempty"`
+
+	RAMTotalGB float64 `json:"ram_total_gb,omitempty"`
+	RAMFreeGB  float64 `json:"ram_free_gb,omitempty"`
+	RAMUsage   string  `json:"ram_usage,omitempty"`
 }
 
 //Usage is a usage accounting dto
@@ -21,8 +33,12 @@ type Usage struct {
 	Errors    uint64 `json:"errors,omitempty"`
 	EventsSrc string `json:"events_src,omitempty"`
 
-	Source     string `json:"hashed_source_id,omitempty"`
-	SourceType string `json:"source_type,omitempty"`
+	Source                 string `json:"hashed_source_id,omitempty"`
+	SourceType             string `json:"source_type,omitempty"`
+	SourceConnectorOrigin  string `json:"source_connector_origin,omitempty"`
+	SourceConnectorVersion string `json:"source_connector_version,omitempty"`
+	SourceSchedule         string `json:"source_schedule,omitempty"`
+	SourceStreams          int    `json:"source_streams,omitempty"`
 
 	Destination        string `json:"hashed_destination_id,omitempty"`
 	DestinationType    string `json:"destination_type,omitempty"`

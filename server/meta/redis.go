@@ -32,6 +32,9 @@ const (
 	SuccessStatus = "success"
 	ErrorStatus   = "errors"
 	SkipStatus    = "skip"
+
+	ConfigPrefix = "config#"
+	SystemKey    = "system"
 )
 
 var (
@@ -1018,6 +1021,38 @@ func (r *Redis) getEventsPerDay(conn redis.Conn, namespace, status string, ident
 	}
 
 	return eventsPerTime, nil
+}
+
+//GetOrCreateClusterID returns clusterID from Redis or save input one
+func (r *Redis) GetOrCreateClusterID(generatedClusterID string) string {
+	key := ConfigPrefix + SystemKey
+	field := "cluster_id"
+
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	clusterID, err := redis.String(conn.Do("HGET", key, field))
+	noticeError(err)
+	if err != nil {
+		if err != redis.ErrNil {
+			return "err"
+		}
+	}
+
+	if clusterID != "" {
+		return clusterID
+	}
+
+	//save and return generated
+	_, err = conn.Do("HSET", key, field, generatedClusterID)
+	noticeError(err)
+	if err != nil {
+		if err != redis.ErrNil {
+			return "err"
+		}
+	}
+
+	return generatedClusterID
 }
 
 func (r *Redis) Type() string {

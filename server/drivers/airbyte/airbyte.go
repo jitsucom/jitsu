@@ -278,6 +278,16 @@ func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer
 	return airbyteRunner.Read(dataConsumer, a.streamsRepresentation, taskLogger, taskCloser, a.ID(), statePath)
 }
 
+//GetDriversInfo returns telemetry information about the driver
+func (a *Airbyte) GetDriversInfo() *base.DriversInfo {
+	return &base.DriversInfo{
+		SourceType:       a.config.DockerImage,
+		ConnectorOrigin:  a.Type(),
+		ConnectorVersion: a.config.ImageVersion,
+		Streams:          len(a.streamsRepresentation),
+	}
+}
+
 func (a *Airbyte) Type() string {
 	return base.AirbyteType
 }
