@@ -239,7 +239,7 @@ const ConfigurableFieldsFormComponent = ({
    */
   useEffect(() => {
     const isInitialRender = !forceUpdatedTargets["select"]
-    if (!isInitialRender) setFormValues(form.getFieldsValue())
+    if (!isInitialRender) setFormValues?.(form.getFieldsValue())
   }, [forceUpdatedTargets["select"]])
 
   useEffect(() => {
