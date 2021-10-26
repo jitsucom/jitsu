@@ -13,7 +13,7 @@ export const sourceEditorUtils = {
   getSourceDataFromState: (
     sourceEditorState: SourceEditorState,
     sourceCatalogData: SourceConnector,
-    initialSourceDataFromBackend: Partial<SourceData>
+    initialSourceData: Partial<SourceData>
   ): SourceData => {
     const { configuration, streams, connections } = sourceEditorState ?? {}
 
@@ -28,9 +28,9 @@ export const sourceEditorUtils = {
       sourceProtoType: sourcePageUtils.getSourcePrototype(sourceCatalogData),
     }
 
-    updatedSourceData = { ...(initialSourceDataFromBackend ?? {}), ...catalogSourceData, ...updatedSourceData }
-    if (!updatedSourceData?.config?.catalog && initialSourceDataFromBackend?.config?.catalog) {
-      updatedSourceData["config"]["catalog"] = initialSourceDataFromBackend.config.catalog
+    updatedSourceData = { ...(initialSourceData ?? {}), ...catalogSourceData, ...updatedSourceData }
+    if (!updatedSourceData?.config?.catalog && initialSourceData?.config?.catalog) {
+      updatedSourceData["config"]["catalog"] = initialSourceData.config.catalog
     }
 
     return updatedSourceData

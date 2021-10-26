@@ -14,7 +14,7 @@ import { SetSourceEditorState } from "./SourceEditor"
 import { cloneDeep } from "lodash"
 
 type Props = {
-  initialSourceDataFromBackend: Optional<Partial<SourceData>>
+  initialSourceData: Optional<Partial<SourceData>>
   setSourceEditorState: SetSourceEditorState
 }
 
@@ -27,10 +27,7 @@ export interface ConnectedItem {
 
 const CONNECTIONS_SOURCEDATA_PATH = "destinations"
 
-const SourceEditorFormConnectionsComponent: React.FC<Props> = ({
-  initialSourceDataFromBackend,
-  setSourceEditorState,
-}) => {
+const SourceEditorFormConnectionsComponent: React.FC<Props> = ({ initialSourceData, setSourceEditorState }) => {
   const destinations = destinationsStore.destinations
 
   const destinationsList = useMemo<ConnectedItem[]>(
@@ -51,10 +48,7 @@ const SourceEditorFormConnectionsComponent: React.FC<Props> = ({
     [destinations]
   )
 
-  const preparedInitialValue = useMemo(
-    () => initialSourceDataFromBackend?.destinations ?? [],
-    [initialSourceDataFromBackend]
-  )
+  const preparedInitialValue = useMemo(() => initialSourceData?.destinations ?? [], [initialSourceData])
 
   const handleChange = useCallback(
     (connections: string[]) => {
