@@ -57,6 +57,12 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
     }
   })
 
+  const selectAllFieldsByDefault: boolean = !previouslyCheckedStreams.length
+
+  const initallySelectedFields = useMemo<AirbyteStreamData[]>(() => {
+    return selectAllFieldsByDefault ? data : previouslyCheckedStreams
+  }, [selectAllFieldsByDefault, previouslyCheckedStreams, data])
+
   useEffect(() => {
     if (!sourceConfigValidatedByStreamsTab) restartPolling()
   }, [sourceConfigValidatedByStreamsTab])
@@ -78,8 +84,8 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
       {data && !error && !isLoading && (
         <SourceEditorFormStreamsLoadableForm
           allStreams={data}
-          initiallySelectedStreams={previouslyCheckedStreams}
-          selectAllFieldsByDefault={!previouslyCheckedStreams.length}
+          initiallySelectedStreams={initallySelectedFields}
+          selectAllFieldsByDefault={selectAllFieldsByDefault}
           hide={isLoading || !!error}
           setSourceEditorState={setSourceEditorState}
         />

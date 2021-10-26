@@ -1,16 +1,18 @@
 // @Libs
 import React, { useCallback, useEffect, useState } from 'react';
 import { Collapse, Empty, Select, Switch } from 'antd';
-import { cloneDeep } from 'lodash';
+import { cloneDeep } from "lodash"
 // @Components
-import Search from 'antd/lib/input/Search';
-import { Code } from 'lib/components/Code/Code';
+import Search from "antd/lib/input/Search"
+import { Code } from "lib/components/Code/Code"
 // @Icons
-import { CaretRightOutlined } from '@ant-design/icons';
+import { CaretRightOutlined } from "@ant-design/icons"
 // @Types
 import { SetSourceEditorState } from "./SourceEditor"
 // @Utils
 import { addStream, removeStream, setStreams, updateStream } from "./SourceEditorFormStreams"
+// @Styles
+import styles from "./SourceEditorFormStreamsLoadableForm.module.less"
 
 interface Props {
   allStreams: Array<AirbyteStreamData>
@@ -29,24 +31,20 @@ const SourceEditorFormStreamsLoadableForm = ({
   hide,
   setSourceEditorState,
 }: Props) => {
+  const disableAnimations: boolean = allStreams.length > 30
+
   const initiallyCheckedStreams = selectAllFieldsByDefault ? allStreams : initiallySelectedStreams ?? []
 
   const [streamsToDisplay, setStreamsToDisplay] = useState<AirbyteStreamData[]>(allStreams)
 
-  const [checked, setChecked] = useState<Set<string>>(new Set(getAirbyteStreamsUniqueIds(initiallySelectedStreams)))
+  const [allChecked, setAllChecked] = useState<boolean>(selectAllFieldsByDefault || undefined)
 
   const handleAddStream = (stream: AirbyteStreamData) => {
     addStream(setSourceEditorState, STREAMS_SOURCE_DATA_PATH, stream)
-    setChecked(checkedStreams => new Set(checkedStreams).add(getAirbyteStreamUniqueId(stream)))
   }
 
   const handleRemoveStream = (stream: AirbyteStreamData) => {
     removeStream(setSourceEditorState, STREAMS_SOURCE_DATA_PATH, stream)
-    setChecked(checkedStreams => {
-      const newState = new Set(checkedStreams)
-      newState.delete(getAirbyteStreamUniqueId(stream))
-      return newState
-    })
   }
 
   const handleSetStreams = (
@@ -56,22 +54,26 @@ const SourceEditorFormStreamsLoadableForm = ({
     }
   ) => {
     setStreams(setSourceEditorState, STREAMS_SOURCE_DATA_PATH, streams, options)
-    setChecked(new Set(getAirbyteStreamsUniqueIds(streams)))
   }
 
-  const handleToggleStream = useCallback((checked: boolean, stream: AirbyteStreamData): void => {
+  const handleToggleStream = useCallback((checked: boolean, streamUid: string): void => {
+    const stream = allStreams.find(stream => getAirbyteStreamUniqueId(stream) === streamUid)
     checked ? handleAddStream(stream) : handleRemoveStream(stream)
   }, [])
 
   const handleToggleAllStreams = (checked: boolean) => {
-    checked ? handleSetStreams(allStreams) : handleSetStreams([])
+    requestAnimationFrame(() => {
+      setAllChecked(checked)
+      checked ? handleSetStreams(allStreams) : handleSetStreams([])
+    })
   }
 
-  const handleChangeStreamSyncMode = (mode: string, stream: AirbyteStreamData): void => {
+  const handleChangeStreamSyncMode = useCallback((mode: string, streamUid: string): void => {
+    const stream = allStreams.find(stream => getAirbyteStreamUniqueId(stream) === streamUid)
     const newStream = cloneDeep(stream)
     newStream.sync_mode = mode
     updateStream(setSourceEditorState, STREAMS_SOURCE_DATA_PATH, newStream)
-  }
+  }, [])
 
   const handleSearch = (query: string) => {
     setStreamsToDisplay(streams =>
@@ -90,7 +92,10 @@ const SourceEditorFormStreamsLoadableForm = ({
   }, [])
 
   return (
-    <div className={`h-full w-full flex-col items-stretch ${hide ? "hidden" : "flex"}`}>
+    <div
+      className={`h-full w-full flex-col items-stretch ${hide ? "hidden" : "flex"} ${
+        disableAnimations ? styles.disableAnimations : ""
+      }`}>
       <div className="flex items-center mb-4">
         <Search enterButton="Search" className="flex-auto" onSearch={handleSearch} onChange={handleSearchValueClear} />
         <div
@@ -103,93 +108,14 @@ const SourceEditorFormStreamsLoadableForm = ({
       </div>
       <div className="flex-auto overflow-y-auto pb-2">
         {streamsToDisplay?.length ? (
-          <Collapse
-            collapsible="header"
-            expandIconPosition="left"
-            destroyInactivePanel
-            expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}>
-            {streamsToDisplay.map(streamData => {
-              const showSyncModeSelection = streamData.stream.supported_sync_modes.length > 1
-              return (
-                <Collapse.Panel
-                  key={`${streamData.stream.name}__${streamData.stream.namespace}`}
-                  header={
-                    <div className="flex w-full pr-12 flex-wrap xl:flex-nowrap">
-                      <div
-                        className={
-                          "whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2"
-                        }>
-                        <span>Name:&nbsp;&nbsp;</span>
-                        <b title={streamData.stream.name}>{streamData.stream.name}</b>
-                      </div>
-                      {streamData.stream.namespace && (
-                        <div
-                          className={
-                            "whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2"
-                          }>
-                          Namespace:&nbsp;&nbsp;
-                          <b title={streamData.stream.namespace}>{streamData.stream.namespace}</b>
-                        </div>
-                      )}
-                      <div
-                        className={`whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden ${
-                          !showSyncModeSelection && "overflow-ellipsis"
-                        } pr-2`}>
-                        Sync Mode:&nbsp;&nbsp;
-                        {showSyncModeSelection ? (
-                          <Select
-                            size="small"
-                            disabled={!checked.has(getAirbyteStreamUniqueId(streamData))}
-                            defaultValue={streamData.sync_mode ?? streamData.stream.supported_sync_modes?.[0]}
-                            onChange={value => handleChangeStreamSyncMode(value, streamData)}
-                            onClick={e => {
-                              // hack to prevent antd expanding the collapsible
-                              e.stopPropagation()
-                            }}>
-                            {streamData.stream.supported_sync_modes.map(mode => (
-                              <Select.Option key={mode} value={mode}>
-                                {mode}
-                              </Select.Option>
-                            ))}
-                          </Select>
-                        ) : (
-                          <b title={streamData.sync_mode}>{streamData.sync_mode}</b>
-                        )}
-                      </div>
-                      <div
-                        className={
-                          "whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2"
-                        }>
-                        Destination Sync Mode:&nbsp;&nbsp;
-                        <b title={streamData.stream.namespace}>{streamData.destination_sync_mode}</b>
-                      </div>
-                    </div>
-                  }
-                  extra={
-                    <Switch
-                      checked={checked.has(getAirbyteStreamUniqueId(streamData))}
-                      defaultChecked={
-                        selectAllFieldsByDefault
-                          ? true
-                          : initiallySelectedStreams.some(
-                              selected =>
-                                selected.stream.name === streamData.stream.name &&
-                                selected.stream.namespace === streamData.stream.namespace
-                            )
-                      }
-                      className="absolute top-3 right-3"
-                      onChange={checked => handleToggleStream(checked, streamData)}
-                    />
-                  }>
-                  <div className="max-h-72 w-full overflow-y-auto">
-                    <Code language="json" className="w-full">
-                      {JSON.stringify(streamData.stream.json_schema?.properties, null, 2) ?? "null"}
-                    </Code>
-                  </div>
-                </Collapse.Panel>
-              )
-            })}
-          </Collapse>
+          <StreamsCollapsibleList
+            streamsToDisplay={streamsToDisplay}
+            initiallySelectedStreams={initiallySelectedStreams}
+            selectAllFieldsByDefault={selectAllFieldsByDefault}
+            allStreamsChecked={allChecked}
+            handleToggleStream={handleToggleStream}
+            handleChangeStreamSyncMode={handleChangeStreamSyncMode}
+          />
         ) : (
           <Empty className="h-full flex flex-col justify-center items-center" />
         )}
@@ -203,7 +129,194 @@ export { SourceEditorFormStreamsLoadableForm }
 
 // @Utils
 
-const getAirbyteStreamUniqueId = (stream: AirbyteStreamData): string =>
-  `${stream.stream.name}__${stream.stream.namespace}`
+type StreamNames = { streamName: string; streamNamespace?: string }
+function getAirbyteStreamUniqueId(stream: AirbyteStreamData): string
+function getAirbyteStreamUniqueId(names: StreamNames)
 
+function getAirbyteStreamUniqueId(data: AirbyteStreamData | StreamNames): string {
+  if ("stream" in data) {
+    return `${data.stream?.name}__${data.stream.namespace}`
+  }
+  if ("streamName" in data) {
+    return `${data.streamName}__${data.streamNamespace ?? "stream"}`
+  }
+}
 const getAirbyteStreamsUniqueIds = (streams: AirbyteStreamData[]): string[] => streams.map(getAirbyteStreamUniqueId)
+
+// @Components
+
+type StreamsCollapsibleListProps = {
+  streamsToDisplay: AirbyteStreamData[]
+  initiallySelectedStreams: AirbyteStreamData[]
+  selectAllFieldsByDefault: boolean
+  allStreamsChecked?: boolean
+  handleToggleStream: (checked: boolean, streamUid: string) => void
+  handleChangeStreamSyncMode: (mode: string, streamUid: string) => void
+}
+
+const StreamsCollapsibleListComponent: React.FC<StreamsCollapsibleListProps> = ({
+  streamsToDisplay,
+  initiallySelectedStreams,
+  selectAllFieldsByDefault,
+  allStreamsChecked,
+  handleToggleStream,
+  handleChangeStreamSyncMode,
+}) => {
+  return (
+    <Collapse
+      collapsible="header"
+      expandIconPosition="left"
+      destroyInactivePanel
+      expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}>
+      {streamsToDisplay.map(streamData => {
+        const showSyncModeSelection = streamData.stream.supported_sync_modes.length > 1
+        const streamJsonSchemaString = JSON.stringify(streamData.stream.json_schema?.properties, null, 2)
+        return (
+          <StreamPanel
+            streamName={streamData.stream.name}
+            streamNamespace={streamData.stream.namespace}
+            streamSyncMode={streamData.sync_mode}
+            streamSupportedSyncModes={streamData.stream.supported_sync_modes}
+            streamDestinationSyncMode={streamData.destination_sync_mode}
+            streamJsonSchemaString={streamJsonSchemaString}
+            initiallySelectedStreams={initiallySelectedStreams}
+            showSyncModeSelection={showSyncModeSelection}
+            selectAllFieldsByDefault={selectAllFieldsByDefault}
+            checked={allStreamsChecked}
+            handleToggleStream={handleToggleStream}
+            handleChangeStreamSyncMode={handleChangeStreamSyncMode}
+          />
+        )
+      })}
+    </Collapse>
+  )
+}
+
+const StreamsCollapsibleList = React.memo(StreamsCollapsibleListComponent)
+
+type StreamPanelProps = {
+  streamName: string
+  streamNamespace: string
+  streamSyncMode: string
+  streamSupportedSyncModes: string[]
+  streamDestinationSyncMode: string
+  streamJsonSchemaString: string
+  initiallySelectedStreams: AirbyteStreamData[]
+  showSyncModeSelection: boolean
+  selectAllFieldsByDefault: boolean
+  checked?: boolean
+  handleToggleStream: (checked: boolean, streamUid: string) => void
+  handleChangeStreamSyncMode: (mode: string, streamUid: string) => void
+}
+
+const StreamPanelComponent: React.FC<StreamPanelProps> = ({
+  streamName,
+  streamNamespace,
+  streamSyncMode,
+  streamSupportedSyncModes,
+  streamDestinationSyncMode,
+  streamJsonSchemaString,
+  initiallySelectedStreams,
+  showSyncModeSelection,
+  selectAllFieldsByDefault,
+  checked: _checked,
+  handleToggleStream,
+  handleChangeStreamSyncMode,
+}) => {
+  const streamUid = getAirbyteStreamUniqueId({ streamName, streamNamespace })
+  const [checked, setChecked] = useState<boolean>(() => {
+    return selectAllFieldsByDefault
+      ? true
+      : initiallySelectedStreams.some(
+          selected => selected.stream.name === streamName && selected.stream.namespace === streamNamespace
+        )
+  })
+
+  const toggle = (checked: boolean) => {
+    setChecked(checked)
+    handleToggleStream(checked, streamUid)
+  }
+
+  useEffect(() => {
+    if (_checked !== undefined) setChecked(_checked)
+  }, [_checked])
+
+  return (
+    <Collapse.Panel
+      key={streamUid}
+      header={
+        <div className="flex w-full pr-12 flex-wrap xl:flex-nowrap">
+          <div
+            className={
+              "whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2"
+            }>
+            <span>Name:&nbsp;&nbsp;</span>
+            <b title={streamName}>{streamName}</b>
+          </div>
+          {streamNamespace && (
+            <div
+              className={
+                "whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2"
+              }>
+              Namespace:&nbsp;&nbsp;
+              <b title={streamNamespace}>{streamNamespace}</b>
+            </div>
+          )}
+          <div
+            className={`whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden ${
+              !showSyncModeSelection && "overflow-ellipsis"
+            } pr-2`}>
+            Sync Mode:&nbsp;&nbsp;
+            {showSyncModeSelection ? (
+              <Select
+                size="small"
+                disabled={!checked}
+                defaultValue={streamSyncMode ?? streamSupportedSyncModes?.[0]}
+                onChange={value => handleChangeStreamSyncMode(value, streamUid)}
+                onClick={e => {
+                  // hack to prevent antd expanding the collapsible
+                  e.stopPropagation()
+                }}>
+                {streamSupportedSyncModes.map(mode => (
+                  <Select.Option key={mode} value={mode}>
+                    {mode}
+                  </Select.Option>
+                ))}
+              </Select>
+            ) : (
+              <b title={streamSyncMode}>{streamSyncMode}</b>
+            )}
+          </div>
+          <div
+            className={
+              "whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2"
+            }>
+            Destination Sync Mode:&nbsp;&nbsp;
+            <b title={streamNamespace}>{streamDestinationSyncMode}</b>
+          </div>
+        </div>
+      }
+      extra={
+        <Switch
+          checked={checked}
+          defaultChecked={
+            selectAllFieldsByDefault
+              ? true
+              : initiallySelectedStreams.some(
+                  selected => selected.stream.name === streamName && selected.stream.namespace === streamNamespace
+                )
+          }
+          className="absolute top-3 right-3"
+          onChange={toggle}
+        />
+      }>
+      <div className="max-h-72 w-full overflow-y-auto">
+        <Code language="json" className="w-full">
+          {streamJsonSchemaString ?? "null"}
+        </Code>
+      </div>
+    </Collapse.Panel>
+  )
+}
+
+const StreamPanel = React.memo(StreamPanelComponent)
