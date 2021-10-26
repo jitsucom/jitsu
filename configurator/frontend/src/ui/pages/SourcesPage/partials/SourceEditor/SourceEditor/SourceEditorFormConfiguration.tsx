@@ -8,11 +8,14 @@ import { SetSourceEditorState } from "./SourceEditor"
 import { SourceEditorFormConfigurationStaticFields } from "./SourceEditorFormConfigurationStaticFields"
 import { SourceEditorFormConfigurationConfigurableLoadableFields } from "./SourceEditorFormConfigurationConfigurableLoadableFields"
 import { cloneDeep } from "lodash"
+// @Styles
+import styles from './SourceEditorFormConfiguration.module.less'
 
 type Props = {
   editorMode: "add" | "edit"
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
+  disabled?: boolean
   setSourceEditorState: SetSourceEditorState
   setControlsDisabled: ReactSetState<boolean>
   setTabErrorsVisible: (value: boolean) => void
@@ -34,6 +37,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
   editorMode,
   initialSourceData,
   sourceDataFromCatalog,
+  disabled,
   setSourceEditorState,
   setControlsDisabled,
   setTabErrorsVisible,
@@ -84,7 +88,8 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
   }, [])
 
   return (
-    <>
+    <div className={styles.sourceEditorFormConfiguration}>
+      <fieldset disabled={disabled}>
       <SourceEditorFormConfigurationStaticFields
         editorMode={editorMode}
         initialValues={initialSourceData}
@@ -98,7 +103,8 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
         setControlsDisabled={setControlsDisabled}
         setValidator={setConfigurableLoadableFieldsValidator}
       />
-    </>
+      </fieldset>
+    </div>
   )
 }
 
