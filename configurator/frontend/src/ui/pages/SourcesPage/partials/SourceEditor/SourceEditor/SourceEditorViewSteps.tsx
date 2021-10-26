@@ -85,6 +85,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
           editorMode={editorMode}
           initialSourceData={initialSourceData}
           sourceDataFromCatalog={sourceDataFromCatalog}
+          disabled={currentStepIsLoading}
           setSourceEditorState={setSourceEditorState}
           setControlsDisabled={setControlsDisabled}
           setTabErrorsVisible={() => {}}
