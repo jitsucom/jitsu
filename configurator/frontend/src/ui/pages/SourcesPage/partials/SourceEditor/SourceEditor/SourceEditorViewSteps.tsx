@@ -18,7 +18,7 @@ type SourceEditorTabsViewProps = {
   controlsDisabled: boolean
   editorMode: "add" | "edit"
   showDocumentationDrawer: boolean
-  initialSourceDataFromBackend: Optional<Partial<SourceData>>
+  initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
   configIsValidatedByStreams: boolean
   setSourceEditorState: SetSourceEditorState
@@ -27,6 +27,7 @@ type SourceEditorTabsViewProps = {
   setShowDocumentationDrawer: (value: boolean) => void
   handleBringSourceData: () => SourceData
   handleSave: AsyncUnknownFunction
+  handleCompleteStep: VoidFunction
   handleLeaveEditor: VoidFunction
   handleValidateAndTestConfig: AsyncUnknownFunction
 }
@@ -36,7 +37,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   controlsDisabled,
   editorMode,
   showDocumentationDrawer,
-  initialSourceDataFromBackend,
+  initialSourceData,
   sourceDataFromCatalog,
   configIsValidatedByStreams,
   setSourceEditorState,
@@ -45,6 +46,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   setShowDocumentationDrawer,
   handleBringSourceData,
   handleSave,
+  handleCompleteStep,
   handleLeaveEditor,
   handleValidateAndTestConfig,
 }) => {
@@ -52,7 +54,13 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   const [currentStepIsLoading, setCurrentStepIsLoading] = useState<boolean>(false)
 
   const handleGoToNextStep: AsyncUnknownFunction = async () => {
+    handleCompleteStep()
     setCurrentStep(step => step + 1)
+  }
+
+  const handleStepBack: AsyncUnknownFunction = async () => {
+    handleCompleteStep()
+    setCurrentStep(step => step - 1)
   }
 
   const configurationProceedAction: AsyncUnknownFunction = async () => {
@@ -75,8 +83,9 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
       render: (
         <SourceEditorFormConfiguration
           editorMode={editorMode}
-          initialSourceDataFromBackend={initialSourceDataFromBackend}
+          initialSourceData={initialSourceData}
           sourceDataFromCatalog={sourceDataFromCatalog}
+          disabled={currentStepIsLoading}
           setSourceEditorState={setSourceEditorState}
           setControlsDisabled={setControlsDisabled}
           setTabErrorsVisible={() => {}}
@@ -90,7 +99,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
       description: "Select data pipelines",
       render: (
         <SourceEditorFormStreams
-          initialSourceDataFromBackend={initialSourceDataFromBackend}
+          initialSourceData={initialSourceData}
           sourceDataFromCatalog={sourceDataFromCatalog}
           sourceConfigValidatedByStreamsTab={configIsValidatedByStreams}
           setSourceEditorState={setSourceEditorState}
@@ -106,7 +115,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
       description: "Choose destinations to send data to",
       render: (
         <SourceEditorFormConnections
-          initialSourceDataFromBackend={initialSourceDataFromBackend}
+          initialSourceData={initialSourceData}
           setSourceEditorState={setSourceEditorState}
         />
       ),
@@ -140,6 +149,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
               handleClick: steps[currentStep].proceedAction,
             }}
             handleCancel={handleLeaveEditor}
+            handleStepBack={currentStep === 0 ? undefined : handleStepBack}
             controlsDisabled={controlsDisabled}
           />
         </div>
