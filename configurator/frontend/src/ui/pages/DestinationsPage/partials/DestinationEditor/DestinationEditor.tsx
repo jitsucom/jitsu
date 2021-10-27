@@ -127,7 +127,7 @@ const DestinationEditor = ({
       _mappings: newMappings
     };
 
-    const { form: mappingsForm } = destinationsTabs.current[1];
+    const { form: mappingsForm } = destinationsTabs.current[2];
     const { form: configForm } = destinationsTabs.current[0];
 
     await mappingsForm.setFieldsValue({
@@ -135,7 +135,7 @@ const DestinationEditor = ({
       '_mappings._keepUnmappedFields': newMappings._keepUnmappedFields ? 1 : 0
     });
 
-    destinationsTabs.current[1].touched = true;
+    destinationsTabs.current[2].touched = true;
 
     if (newTableName) {
       await configForm.setFieldsValue({
@@ -225,7 +225,7 @@ const DestinationEditor = ({
         <DestinationEditorMappings
           form={form}
           initialValues={destinationData.current._mappings}
-          handleTouchAnyField={validateAndTouchField(1)}
+          handleTouchAnyField={validateAndTouchField(2)}
         />
       ),
       form: Form.useForm()[0],
@@ -240,7 +240,7 @@ const DestinationEditor = ({
           form={form}
           initialValues={destinationData.current}
           destination={destinationReference}
-          handleTouchAnyField={validateAndTouchField(2)}
+          handleTouchAnyField={validateAndTouchField(3)}
         />
       ),
       form: Form.useForm()[0],
