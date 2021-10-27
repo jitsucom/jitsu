@@ -70,6 +70,9 @@ type Storage interface {
 	PushTask(task *Task) error
 	PollTask() (*Task, error)
 
+	//system
+	GetOrCreateClusterID(generatedClusterID string) string
+
 	Type() string
 }
 

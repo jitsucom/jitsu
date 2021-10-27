@@ -24,6 +24,8 @@ const (
 
 //Firebase is a Firebase/Firestore driver. It used in syncing data from Firebase/Firestore
 type Firebase struct {
+	base.IntervalDriver
+
 	ctx                    context.Context
 	config                 *FirebaseConfig
 	firestoreClient        *firestore.Client
@@ -86,6 +88,7 @@ func NewFirebase(ctx context.Context, sourceConfig *base.SourceConfig, collectio
 	}
 
 	return &Firebase{
+		IntervalDriver:         base.IntervalDriver{SourceType: sourceConfig.Type},
 		config:                 config,
 		ctx:                    ctx,
 		firestoreClient:        firestoreClient,
@@ -228,12 +231,12 @@ func convertSpecificTypes(source map[string]interface{}) map[string]interface{} 
 	for name, value := range source {
 		switch v := value.(type) {
 		case *latlng.LatLng:
-			source[name + ".latitude"] = v.GetLatitude()
-			source[name + ".longitude"] = v.GetLongitude()
+			source[name+".latitude"] = v.GetLatitude()
+			source[name+".longitude"] = v.GetLongitude()
 			delete(source, name)
 		case latlng.LatLng:
-			source[name + ".latitude"] = v.GetLatitude()
-			source[name + ".longitude"] = v.GetLongitude()
+			source[name+".latitude"] = v.GetLatitude()
+			source[name+".longitude"] = v.GetLongitude()
 			delete(source, name)
 		case map[string]interface{}:
 			source[name] = convertSpecificTypes(v)

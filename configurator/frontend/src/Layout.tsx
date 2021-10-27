@@ -44,6 +44,7 @@ import styles from "./Layout.module.less"
 import { settingsPageRoutes } from "./ui/pages/SettingsPage/SettingsPage"
 import { FeatureSettings } from "./lib/services/ApplicationServices"
 import { usePersistentState } from "./hooks/usePersistentState"
+import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
 
 type MenuItem = {
   icon: React.ReactNode
@@ -65,7 +66,7 @@ const menuItems = [
   makeItem(<PartitionOutlined />, "Home", "/connections"),
   makeItem(<ThunderboltOutlined />, "Live Events", "/events_stream"),
   makeItem(<AreaChartOutlined />, "Statistics", "/dashboard"),
-  makeItem(<Icon component={KeyIcon} />, "API Keys", "/api_keys"),
+  makeItem(<Icon component={KeyIcon} />, "API Keys", "/api-keys"),
   makeItem(<ApiOutlined />, "Sources", "/sources"),
   makeItem(<NotificationOutlined />, "Destinations", "/destinations"),
   makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud"),
@@ -285,7 +286,11 @@ export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, p
           document["title"] = page.pageTitle
           // setBreadcrumbs(withHome({ elements: [{ title: page.pageHeader }] }))
 
-          return <Component setBreadcrumbs={setBreadcrumbs} {...(routeProps as any)} />
+          return (
+            <ErrorBoundary>
+              <Component setBreadcrumbs={setBreadcrumbs} {...(routeProps as any)} />
+            </ErrorBoundary>
+          )
         }}
       />
     )

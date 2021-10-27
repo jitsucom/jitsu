@@ -71,7 +71,12 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *base.SourceConfig, 
 	if collection.Type != AdsCollection && collection.Type != InsightsCollection {
 		return nil, fmt.Errorf("Unknown collection [%s]: Only [%s] and [%s] are supported now", collection.Type, AdsCollection, InsightsCollection)
 	}
-	return &FacebookMarketing{collection: collection, config: config, reportConfig: reportConfig}, nil
+	return &FacebookMarketing{
+		IntervalDriver: base.IntervalDriver{SourceType: sourceConfig.Type},
+		collection:     collection,
+		config:         config,
+		reportConfig:   reportConfig,
+	}, nil
 }
 
 //TestFacebookMarketingConnection tests connection to Facebook without creating Driver instance
