@@ -454,6 +454,15 @@ func (s *Singer) loadAndParse(taskLogger logging.TaskLogger, cliParser base.CLIP
 	return nil
 }
 
+//GetDriversInfo returns telemetry information about the driver
+func (s *Singer) GetDriversInfo() *base.DriversInfo {
+	return &base.DriversInfo{
+		SourceType:      s.GetTap(),
+		ConnectorOrigin: s.Type(),
+		Streams:         len(s.streamReplication),
+	}
+}
+
 func (s *Singer) Type() string {
 	return base.SingerType
 }

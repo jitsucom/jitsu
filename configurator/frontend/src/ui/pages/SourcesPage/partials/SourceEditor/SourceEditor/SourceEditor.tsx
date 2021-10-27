@@ -1,20 +1,20 @@
 // @Libs
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { observer } from 'mobx-react-lite';
-import { useHistory, useParams } from 'react-router';
-import { cloneDeep, snakeCase } from 'lodash';
+import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { observer } from "mobx-react-lite"
+import { useHistory, useParams } from "react-router"
+import { cloneDeep, snakeCase } from "lodash"
 // @Types
-import { CommonSourcePageProps } from 'ui/pages/SourcesPage/SourcesPage';
-import { SourceConnector as CatalogSourceConnector } from 'catalog/sources/types';
+import { CommonSourcePageProps } from "ui/pages/SourcesPage/SourcesPage"
+import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
 // @Store
-import { sourcesStore } from 'stores/sources';
+import { sourcesStore } from "stores/sources"
 // @Catalog
-import { allSources as sourcesCatalog } from 'catalog/sources/lib';
+import { allSources as sourcesCatalog } from "catalog/sources/lib"
 // @Components
-import { SourceEditorViewTabs } from './SourceEditorViewTabs';
-import { withHome as breadcrumbsWithHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
-import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
-import { PageHeader } from 'ui/components/PageHeader/PageHeader';
+import { SourceEditorViewTabs } from "./SourceEditorViewTabs"
+import { withHome as breadcrumbsWithHome } from "ui/components/Breadcrumbs/Breadcrumbs"
+import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
+import { PageHeader } from "ui/components/PageHeader/PageHeader"
 import { createInitialSourceData, sourceEditorUtils } from "./SourceEditor.utils"
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 import { firstToLower } from "lib/commons/utils"
@@ -240,8 +240,8 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   )
 }
 
-const Wrapped = observer(SourceEditor);
+const Wrapped = observer(SourceEditor)
 
-Wrapped.displayName = 'SourceEditor';
+Wrapped.displayName = "SourceEditor"
 
-export { Wrapped as SourceEditor };
+export { Wrapped as SourceEditor }

@@ -6,7 +6,7 @@ import ApplicationServices from 'lib/services/ApplicationServices';
 import { intersection, union, without } from 'lodash';
 import { toArrayIfNot } from 'utils/arrays';
 import { ISourcesStore, sourcesStore } from './sources';
-import { apiKeysStore, IApiKeysStore, UserApiKey } from './apiKeys';
+import { apiKeysStore, IApiKeysStore } from './apiKeys';
 import {
   destinationsReferenceMap,
   DestinationReference
@@ -38,7 +38,7 @@ export interface IDestinationsStore {
   ) => Generator<Promise<unknown>, void, unknown>;
   createFreeDatabase: () => Generator<Promise<unknown>, void, unknown>;
   linkApiKeysToDestinations: (
-    apiKeys: UserApiKey | UserApiKey[],
+    apiKeys: APIKey | APIKey[],
     destinations: DestinationData | DestinationData[]
   ) => Generator<Promise<unknown>, void, unknown>;
 }
@@ -327,7 +327,7 @@ class DestinationsStore implements IDestinationsStore {
   }
 
   public *linkApiKeysToDestinations(
-    _apiKeys: UserApiKey | UserApiKey[],
+    _apiKeys: APIKey | APIKey[],
     _destinations: DestinationData | DestinationData[]
   ) {
     const apiKeysUids = toArrayIfNot(_apiKeys).map((key) => key.uid);

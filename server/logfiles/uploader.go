@@ -142,7 +142,7 @@ func (u *PeriodicUploader) Start() {
 						metrics.ErrorTokenEvents(tokenID, storage.ID(), errRowsCount)
 						counters.ErrorEvents(storage.ID(), errRowsCount)
 
-						telemetry.ErrorsPerSrc(tokenID, storage.ID(), eventsSrc)
+						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), eventsSrc)
 
 						continue
 					}
@@ -151,7 +151,7 @@ func (u *PeriodicUploader) Start() {
 					if !failedEvents.IsEmpty() {
 						storage.Fallback(failedEvents.Events...)
 
-						telemetry.ErrorsPerSrc(tokenID, storage.ID(), failedEvents.Src)
+						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), failedEvents.Src)
 					}
 
 					for tableName, result := range resultPerTable {
@@ -161,7 +161,7 @@ func (u *PeriodicUploader) Start() {
 							metrics.ErrorTokenEvents(tokenID, storage.ID(), result.RowsCount)
 							counters.ErrorEvents(storage.ID(), result.RowsCount)
 
-							telemetry.ErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
+							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
 						} else {
 							pHandles := storageProxy.GetPostHandleDestinations()
 							if pHandles != nil && result.RowsCount > 0 {
@@ -177,7 +177,7 @@ func (u *PeriodicUploader) Start() {
 							metrics.SuccessTokenEvents(tokenID, storage.ID(), result.RowsCount)
 							counters.SuccessEvents(storage.ID(), result.RowsCount)
 
-							telemetry.EventsPerSrc(tokenID, storage.ID(), result.EventsSrc)
+							telemetry.PushedEventsPerSrc(tokenID, storage.ID(), result.EventsSrc)
 						}
 
 						u.statusManager.UpdateStatus(fileName, storage.ID(), tableName, result.Err)
