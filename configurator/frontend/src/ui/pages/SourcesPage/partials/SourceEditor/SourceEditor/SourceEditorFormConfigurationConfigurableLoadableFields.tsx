@@ -17,14 +17,14 @@ import { mapAirbyteSpecToSourceConnectorConfig } from "catalog/sources/lib/airby
 import { useEffect } from "react"
 
 type Props = {
-  initialValues: any
+  initialValues: Partial<SourceData>
   sourceDataFromCatalog: SourceConnector
   patchConfig: PatchConfig
   setControlsDisabled: ReactSetState<boolean>
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
 }
 
-const CONFIG_KEY = "loadableParameters"
+const CONFIG_INTERNAL_STATE_KEY = "loadableParameters"
 
 export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> = ({
   initialValues,
@@ -52,15 +52,15 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   })
 
   const handleFormValuesChange = (values: PlainObjectWithPrimitiveValues): void => {
-    patchConfig(CONFIG_KEY, values)
+    patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
   }
 
   const handleFormValuesChangeForm: FormProps<PlainObjectWithPrimitiveValues>["onValuesChange"] = (_, values) => {
-    patchConfig(CONFIG_KEY, values)
+    patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
   }
 
   const handleSetInitialFormValues = (values: PlainObjectWithPrimitiveValues): void => {
-    patchConfig(CONFIG_KEY, values, { doNotSetStateChanged: true })
+    patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { doNotSetStateChanged: true })
   }
 
   /**
@@ -105,6 +105,12 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
       </Col>
     </Row>
   ) : (
+    /**
+     * Possible refactor -- use component for configurable fields
+     * e.g. <SourceEditorFormConfigurationConfigurableFields />
+     *
+     * make sure that their functionality won't diverge
+     */
     <Form form={form} onValuesChange={handleFormValuesChangeForm}>
       <ConfigurableFieldsForm
         fieldsParamsList={fieldsParameters || []}

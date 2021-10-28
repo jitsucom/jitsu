@@ -40,6 +40,17 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
     [initialSourceData]
   )
 
+  const config = useMemo(() => {
+    switch (sourceDataFromCatalog.protoType) {
+      case "airbyte":
+        return {
+          pullStreams: pullAllAirbyteStreams,
+        }
+      case "singer":
+        return {}
+    }
+  }, [])
+
   const {
     isLoading,
     data,
@@ -198,7 +209,7 @@ export const updateStream = (
 export const setStreams = (
   setSourceEditorState: SetSourceEditorState,
   sourceDataPath: string,
-  streams: AirbyteStreamData[] | string,
+  streams: AirbyteStreamData[],
   options?: {
     doNotSetStateChanged?: boolean
   }
