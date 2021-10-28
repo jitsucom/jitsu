@@ -2,11 +2,6 @@ package singer
 
 import "errors"
 
-//RawCatalog is a dto for Singer catalog serialization
-type RawCatalog struct {
-	Streams []map[string]interface{} `json:"streams,omitempty"`
-}
-
 //Catalog is a dto for Singer catalog partly serialization (only for extracting destination_table_name)
 type Catalog struct {
 	Streams []StreamCatalog `json:"streams,omitempty"`
