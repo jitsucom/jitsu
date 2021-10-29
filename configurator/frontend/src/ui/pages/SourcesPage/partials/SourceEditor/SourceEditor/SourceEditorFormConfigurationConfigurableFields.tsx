@@ -27,14 +27,17 @@ export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = 
   // get form fields from source connector
 
   const handleFormValuesChange = (values: PlainObjectWithPrimitiveValues): void => {
+    debugger
     patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
   }
 
   const handleFormValuesChangeForm: FormProps<PlainObjectWithPrimitiveValues>["onValuesChange"] = (_, values) => {
+    debugger
     patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
   }
 
   const handleSetInitialFormValues = (values: PlainObjectWithPrimitiveValues): void => {
+    debugger
     patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { doNotSetStateChanged: true })
   }
 
