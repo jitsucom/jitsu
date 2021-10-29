@@ -81,12 +81,12 @@ func (f Fields) Header() (header []string) {
 
 //SQLTypeSuggestion is a struct which keeps certain SQL types per certain destination type
 type SQLTypeSuggestion struct {
-	sqlType               string
-	sqlTypePerDestination map[string]string
+	sqlType               typing.SQLColumn
+	sqlTypePerDestination map[string]typing.SQLColumn
 }
 
 //NewSQLTypeSuggestion returns configured SQLTypeSuggestion instance
-func NewSQLTypeSuggestion(sqlType string, sqlTypePerDestination map[string]string) *SQLTypeSuggestion {
+func NewSQLTypeSuggestion(sqlType typing.SQLColumn, sqlTypePerDestination map[string]typing.SQLColumn) *SQLTypeSuggestion {
 	return &SQLTypeSuggestion{
 		sqlType:               sqlType,
 		sqlTypePerDestination: sqlTypePerDestination,
@@ -119,13 +119,19 @@ func NewFieldWithSQLType(t typing.DataType, sqlTypeSuggestion *SQLTypeSuggestion
 
 //GetSuggestedSQLType returns suggested SQL type if configured
 //is used in case when source overrides destination type
-func (f Field) GetSuggestedSQLType(destinationType string) (string, bool) {
+func (f Field) GetSuggestedSQLType(destinationType string) (typing.SQLColumn, bool) {
 	if f.sqlTypeSuggestion != nil {
 		sqlType, ok := f.sqlTypeSuggestion.sqlTypePerDestination[destinationType]
-		return sqlType, ok
+		if !ok && f.sqlTypeSuggestion.sqlType.Type != "" {
+			sqlType = f.sqlTypeSuggestion.sqlType
+			ok = true
+		}
+		if ok {
+			return typing.SQLColumn{Type: sqlType.Type, ColumnType: sqlType.ColumnType, Override: true}, ok
+		}
 	}
 
-	return "", false
+	return typing.SQLColumn{}, false
 }
 
 //GetType get field type based on occurrence in one file

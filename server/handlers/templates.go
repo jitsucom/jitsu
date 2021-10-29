@@ -16,6 +16,9 @@ type EvaluateTemplateRequest struct {
 	Object     map[string]interface{} `json:"object,omitempty"`
 	Expression string                 `json:"expression,omitempty"`
 	Reformat   bool                   `json:"reformat,omitempty"`
+	Type   	   string                 `json:"type,omitempty"`
+	Field      string                 `json:"field,omitempty"`
+
 }
 
 //EvaluateTemplateResponse is a response dto for testing text/template expressions
@@ -78,8 +81,11 @@ func evaluate(req *EvaluateTemplateRequest) (result string, format string, err e
 			err = fmt.Errorf("Error: %v", r)
 		}
 	}()
-
-	tmpl, err := templates.SmartParse("template evaluating", req.Expression, templates.JSONSerializeFuncs)
+	var transformIds []string
+	if req.Field == "_transform" {
+		transformIds = []string{req.Type, "segment"}
+	}
+	tmpl, err := templates.SmartParse("template evaluating", req.Expression, templates.JSONSerializeFuncs, transformIds...)
 	if err != nil {
 		return "", "", fmt.Errorf("error parsing template: %v", err)
 	}

@@ -2,6 +2,7 @@ package schema
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/jitsucom/jitsu/server/typing"
 )
@@ -39,6 +40,25 @@ func NewTypeResolver() *TypeResolverImpl {
 //reformat from json.Number into int64 or float64 and put back
 //reformat from string with timestamp into time.Time and put back
 func (tr *TypeResolverImpl) Resolve(object map[string]interface{}) (Fields, error) {
+	mappedTypes := make(map[string]typing.SQLColumn)
+	for k, v := range object {
+		if strings.Contains(k, "__sql_type_") {
+			delete(object, k)
+			key := strings.ReplaceAll(k, "__sql_type_", "")
+			switch val := v.(type) {
+				case []string:
+					if len(val) > 1 {
+						mappedTypes[key] = typing.SQLColumn{Type: val[0], ColumnType: val[1]}
+					} else {
+						mappedTypes[key] = typing.SQLColumn{Type: val[0]}
+					}
+				case string:
+					mappedTypes[key] = typing.SQLColumn{Type: val}
+			default:
+				return nil, fmt.Errorf("incorred type of value for __sql_type_: %T", v)
+			}
+		}
+	}
 	fields := Fields{}
 	//apply default typecast and define column types
 	for k, v := range object {
@@ -65,8 +85,11 @@ func (tr *TypeResolverImpl) Resolve(object map[string]interface{}) (Fields, erro
 			resultColumnType = defaultType
 			object[k] = converted
 		}
-
-		fields[k] = NewField(resultColumnType)
+		if sqlType, ok := mappedTypes[k]; ok {
+			fields[k] = NewFieldWithSQLType(resultColumnType, NewSQLTypeSuggestion(sqlType, nil))
+		} else {
+			fields[k] = NewField(resultColumnType)
+		}
 	}
 
 	return fields, nil

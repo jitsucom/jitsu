@@ -7,12 +7,13 @@ import { ConfigurableFieldsForm } from 'ui/components/ConfigurableFieldsForm/Con
 // @Types
 import { Destination } from 'catalog/destinations/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import {jsType, stringType} from "../../../../../catalog/sources/types";
+import {booleanType, jsType, stringType} from "../../../../../catalog/sources/types";
 import {TabDescription} from "../../../../components/Tabs/TabDescription";
 import {DESTINATION_EDITOR_MAPPING} from "../../../../../embeddedDocs/mappings";
 import styles from "./DestinationEditor.module.less";
 import {destinationsReferenceMap} from "../../../../../catalog/destinations/lib";
 import {CodeSnippet} from "../../../../../lib/components/components";
+import {camelCase} from "lodash";
 
 export interface Props {
     destinationData: DestinationData;
@@ -29,7 +30,8 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
         <>
             <TabDescription>
                 <p>Use the power of Javascript to modify incoming event object, replace it with a completely new event or produce multiple events based on incoming data.<br/>
-                    Also, you can use Transform to set the destination table name for each event or to skip the event altogether. <a onClick={() => setDocumentationVisible(true)}>Open Documentation →</a>
+                    Also, you can use <b>Transform</b> to set the destination table name for each event or to skip the event altogether. <a onClick={() => setDocumentationVisible(true)}>Open Documentation →</a><br/>
+                        <b>Transform</b> effectively replaces <b>Mappings</b> – both features cannot work together.
                 </p>
             </TabDescription>
             <Form
@@ -41,7 +43,17 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                 <ConfigurableFieldsForm
                     handleTouchAnyField={handleTouchAnyField}
                     fieldsParamsList={[{
+                        id: '_transform_enabled',
+                        displayName: 'Enable Javascript Transformation',
+                        documentation: 'LALA',
+                        defaultValue: false,
+                        required: false,
+                        type: booleanType,
+                        bigField: true
+                    },
+                        {
                         id: '_transform',
+                        codeSuggestions: [destinationData._type, "segment"].map(type => `declare function ${camelCase('to_' + type)}(event: object): object`).join('\n'),
                         displayName: 'Javascript Transformation',
                         defaultValue: destinationsReferenceMap[destinationData._type].defaultTransform,
                         required: false,
@@ -146,12 +158,12 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                                             key="tablename">
                                 <p>Using Javascript spread operator:</p>
                                 <CodeSnippet size={"large"} language={"javascript"}>{
-                                    `return {...$, [TABLE_NAME]: "new_table_name"}`
+                                    `return {...$, JITSU_TABLE_NAME: "new_table_name"}`
                                 }</CodeSnippet>
                                 <p><code>TABLE_NAME</code> is not a property name. It is a global variable pointing to an actual property name.</p>
                                 <p>Conventional way:</p>
                                 <CodeSnippet size={"large"} language={"javascript"}>{
-`$[TABLE_NAME] = "new_table_name"
+`$.JITSU_TABLE_NAME = "new_table_name"
 return $`
                                 }</CodeSnippet>
                             </Collapse.Panel>
