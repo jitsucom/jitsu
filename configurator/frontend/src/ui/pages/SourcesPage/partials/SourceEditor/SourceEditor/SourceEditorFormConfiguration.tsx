@@ -55,7 +55,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
     switch (sourceDataFromCatalog.protoType) {
       case "airbyte":
         return {
-          loadableFieldsEndpoint: "",
+          loadableFieldsEndpoint: "test",
           invisibleStaticFields: {
             "config.docker_image": sourceDataFromCatalog.id.replace("airbyte-", ""),
           },

@@ -15,6 +15,8 @@ declare interface CollectionSource {
   schedule: string
 }
 
+declare type StreamData = AirbyteStreamData | SingerStreamData
+
 declare type AirbyteStreamData = {
   sync_mode: string
   destination_sync_mode: string
@@ -28,9 +30,14 @@ declare type AirbyteStreamData = {
 }
 
 declare type SingerStreamData = {
-  id: string
-  name: string
-  json: string
+  tap_stream_id: string
+  stream: string
+  key_properties: string[]
+  schema: UnknownObject
+  metadata: {
+    breadcrumb: string[]
+    metadata: UnknownObject
+  }[]
 }
 
 declare type SourceData = NativeSourceData & AirbyteSourceData & SingerSourceData

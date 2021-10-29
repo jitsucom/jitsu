@@ -220,7 +220,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false,
   },
   {
-    deprecated: false,
+    deprecated: true,
     pic: logos.tap_github,
     displayName: "GitHub",
     tap: "tap-github",
