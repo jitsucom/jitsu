@@ -7,6 +7,8 @@ import (
 	"github.com/jitsucom/jitsu/server/typing"
 )
 
+const SqlTypeKeyword = "__sql_type_"
+
 //TypeResolver resolves schema.Fields from input object
 type TypeResolver interface {
 	Resolve(map[string]interface{}) (Fields, error)
@@ -42,15 +44,15 @@ func NewTypeResolver() *TypeResolverImpl {
 func (tr *TypeResolverImpl) Resolve(object map[string]interface{}) (Fields, error) {
 	mappedTypes := make(map[string]typing.SQLColumn)
 	for k, v := range object {
-		if strings.Contains(k, "__sql_type_") {
+		if strings.Contains(k, SqlTypeKeyword) {
 			delete(object, k)
-			key := strings.ReplaceAll(k, "__sql_type_", "")
+			key := strings.ReplaceAll(k, SqlTypeKeyword, "")
 			switch val := v.(type) {
-				case []string:
+				case []interface{}:
 					if len(val) > 1 {
-						mappedTypes[key] = typing.SQLColumn{Type: val[0], ColumnType: val[1]}
+						mappedTypes[key] = typing.SQLColumn{Type: fmt.Sprint(val[0]), ColumnType: fmt.Sprint(val[1])}
 					} else {
-						mappedTypes[key] = typing.SQLColumn{Type: val[0]}
+						mappedTypes[key] = typing.SQLColumn{Type: fmt.Sprint(val[0])}
 					}
 				case string:
 					mappedTypes[key] = typing.SQLColumn{Type: val}

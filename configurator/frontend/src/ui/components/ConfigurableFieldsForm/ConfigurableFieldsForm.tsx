@@ -222,6 +222,7 @@ const ConfigurableFieldsFormComponent = ({
   const handleDebuggerRun = async (field: string, debuggerType: "object" | "string", values: DebuggerFormValues) => {
     const data = {
       reformat: debuggerType == "string",
+      uid: initialValues._uid,
       type: initialValues._type,
       field: field,
       expression: values.code,
