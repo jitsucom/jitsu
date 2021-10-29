@@ -303,10 +303,10 @@ func (s *Snowflake) Insert(eventContext *EventContext) error {
 func (s *Snowflake) insertInTransaction(wrappedTx *Transaction, eventContext *EventContext) error {
 	var columnNames, placeholders []string
 	var values []interface{}
-	for name, value := range eventContext.Table.Columns {
+	for name, value := range eventContext.ProcessedEvent {
 		columnNames = append(columnNames, reformatValue(name))
 
-		castClause := s.getCastClause(name, value)
+		castClause := s.getCastClause(name, eventContext.Table.Columns[name])
 		placeholders = append(placeholders, "?"+castClause)
 		values = append(values, value)
 	}
