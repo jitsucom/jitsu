@@ -78,7 +78,9 @@ type DataLayout struct {
 	//Deprecated
 	Mapping []string `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
 
+	TransformEnabled  bool			  `mapstructure:"transform_enabled" json:"transform_enabled,omitempty" yaml:"transform_enabled,omitempty"`
 	Transform		  string		  `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
+	//Deprecated
 	Mappings          *schema.Mapping `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
 	MaxColumns        int             `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
 	TableNameTemplate string          `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
@@ -212,11 +214,16 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	maxColumns := f.maxColumns
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField
 	transform := ""
+	transformEnabled := false
 	if destination.DataLayout != nil {
-		mappingFieldType = destination.DataLayout.MappingType
-		oldStyleMappings = destination.DataLayout.Mapping
-		newStyleMapping = destination.DataLayout.Mappings
-		transform = destination.DataLayout.Transform
+		transformEnabled = destination.DataLayout.TransformEnabled
+		if transformEnabled {
+			transform = destination.DataLayout.Transform
+		} else {
+			mappingFieldType = destination.DataLayout.MappingType
+			oldStyleMappings = destination.DataLayout.Mapping
+			newStyleMapping = destination.DataLayout.Mappings
+		}
 		if destination.DataLayout.TableNameTemplate != "" {
 			tableName = destination.DataLayout.TableNameTemplate
 		}
@@ -313,7 +320,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 
 	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
 
-	processor, err := schema.NewProcessor(destinationID, tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver,
+	processor, err := schema.NewProcessor(destinationID, destination.Type, tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver,
 		destination.BreakOnError, uniqueIDField, maxColumnNameLength)
 	if err != nil {
 		return nil, nil, err

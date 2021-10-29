@@ -119,7 +119,7 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 
 //Insert provided object in AwsRedshift
 func (ar *AwsRedshift) Insert(eventContext *EventContext) error {
-	_, quotedColumnNames, placeholders, values := ar.dataSourceProxy.buildInsertPayload(eventContext.ProcessedEvent)
+	_, quotedColumnNames, placeholders, values := ar.dataSourceProxy.buildInsertPayload(eventContext.Table, eventContext.ProcessedEvent)
 
 	statement := fmt.Sprintf(insertTemplate, ar.dataSourceProxy.config.Schema, eventContext.Table.Name, strings.Join(quotedColumnNames, ", "), "("+strings.Join(placeholders, ", ")+")")
 	ar.dataSourceProxy.queryLogger.LogQueryWithValues(statement, values)

@@ -87,7 +87,7 @@ if ($.event_type == "conversion" && $.products?.length > 0) {
 Using Javascript spread operator:
 
 ```javascript
-return {...$, [TABLE_NAME]: "new_table_name"}
+return {...$, JITSU_TABLE_NAME: "new_table_name"}
 ```
 
 `TABLE_NAME` is not a property name. It is a global variable pointing to an actual property name.
@@ -95,6 +95,6 @@ return {...$, [TABLE_NAME]: "new_table_name"}
 Conventional way:
 
 ```javascript
-$[TABLE_NAME] = "new_table_name"
+$.JITSU_TABLE_NAME = "new_table_name"
 return $
 ```

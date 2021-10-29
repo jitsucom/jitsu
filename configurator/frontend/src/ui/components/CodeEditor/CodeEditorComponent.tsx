@@ -58,9 +58,7 @@ const CodeEditorComponent = ({
         const model = ref.current.editor.getModel();
         model.setValue(defaultValue);
         if (extraSuggestions) {
-          monaco.languages.typescript.javascriptDefaults.setExtraLibs([{content: `declare let $ = ${extraSuggestions};
-          declare let event = $;
-          declare let _ = $`}])
+          monaco.languages.typescript.javascriptDefaults.setExtraLibs([{content: extraSuggestions}])
         }
       }
     }

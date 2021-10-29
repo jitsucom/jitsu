@@ -59,6 +59,10 @@ export interface CodeDebuggerProps {
    * Callback for the `save` button
    */
   handleSaveCode?: (value: string) => void;
+  /**
+   * Additional code suggestions
+   * */
+  extraSuggestions?: string;
 }
 
 export interface FormValues {
@@ -79,7 +83,8 @@ const CodeDebugger = ({
   handleCodeChange,
   handleClose,
   handleSaveCode: _handleSaveCode,
-  run
+  run,
+  extraSuggestions
 }: CodeDebuggerProps) => {
   //to save code changes on component reload and pass it here from parent in effect bellow
   const [codeValue, setCodeValue] = useState<string>(defaultCodeValue);
@@ -274,7 +279,10 @@ const CodeDebugger = ({
                     }
                     language="javascript"
                     enableLineNumbers
-                    extraSuggestions={objectValue}
+                    extraSuggestions={`declare let $ = ${objectValue};
+          declare let event = $;
+          declare let _ = $
+          ${extraSuggestions}`}
                     reRenderEditorOnInitialValueChange={true}
                     handleChange={handleChange('code')}
                     hotkeysOverrides={{

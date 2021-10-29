@@ -340,7 +340,7 @@ func (ch *ClickHouse) CreateTable(tableSchema *Table) error {
 
 //GetTableSchema return table (name,columns with name and types) representation wrapped in Table struct
 func (ch *ClickHouse) GetTableSchema(tableName string) (*Table, error) {
-	table := &Table{Name: tableName, Columns: map[string]Column{}}
+	table := &Table{Name: tableName, Columns: map[string]typing.SQLColumn{}}
 	rows, err := ch.dataSource.QueryContext(ch.ctx, tableSchemaCHQuery, ch.database, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
@@ -353,7 +353,7 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*Table, error) {
 			return nil, fmt.Errorf("Error scanning result: %v", err)
 		}
 
-		table.Columns[columnName] = Column{SQLType: columnClickhouseType}
+		table.Columns[columnName] = typing.SQLColumn{Type: columnClickhouseType}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("Last rows.Err: %v", err)
@@ -395,9 +395,9 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 func (ch *ClickHouse) Insert(eventContext *EventContext) error {
 	var headerWithQuotes, placeholders []string
 	var values []interface{}
-	for name, value := range eventContext.ProcessedEvent {
+	for name, value := range eventContext.Table.Columns {
 		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
-		placeholders = append(placeholders, ch.getPlaceholder(name))
+		placeholders = append(placeholders, ch.getPlaceholder(name, value))
 		values = append(values, value)
 	}
 
@@ -440,7 +440,7 @@ func (ch *ClickHouse) BulkUpdate(table *Table, objects []map[string]interface{},
 }
 
 func (ch *ClickHouse) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
-	deleteCondition, values := ch.toDeleteQuery(deleteConditions)
+	deleteCondition, values := ch.toDeleteQuery(table, deleteConditions)
 	deleteQuery := fmt.Sprintf(deleteQueryChTemplate, ch.database, table.Name, deleteCondition)
 
 	ch.queryLogger.LogQueryWithValues(deleteQuery, values)
@@ -507,11 +507,11 @@ func (ch *ClickHouse) DropTable(table *Table) error {
 	return nil
 }
 
-func (ch *ClickHouse) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {
+func (ch *ClickHouse) toDeleteQuery(table *Table, conditions *DeleteConditions) (string, []interface{}) {
 	var queryConditions []string
 	var values []interface{}
 	for _, condition := range conditions.Conditions {
-		queryConditions = append(queryConditions, condition.Field+" "+condition.Clause+" "+ch.getPlaceholder(condition.Field))
+		queryConditions = append(queryConditions, condition.Field+" "+condition.Clause+" "+ch.getPlaceholder(condition.Field, table.Columns[condition.Field]))
 		values = append(values, condition.Value)
 	}
 	return strings.Join(queryConditions, conditions.JoinCondition), values
@@ -541,7 +541,7 @@ func (ch *ClickHouse) insertInTransaction(wrappedTx *Transaction, table *Table, 
 				valueArgs = append(valueArgs, ch.reformatValue(value))
 			} else {
 				column, _ := table.Columns[column]
-				defaultValue, ok := ch.getDefaultValue(column.SQLType)
+				defaultValue, ok := ch.getDefaultValue(column.Type)
 				if ok {
 					valueArgs = append(valueArgs, defaultValue)
 				} else {
@@ -550,7 +550,7 @@ func (ch *ClickHouse) insertInTransaction(wrappedTx *Transaction, table *Table, 
 
 			}
 			//placeholder
-			placeholder := ch.getPlaceholder(column)
+			placeholder := ch.getPlaceholder(column, table.Columns[column])
 
 			_, err = placeholdersBuilder.WriteString(placeholder)
 			if err != nil {
@@ -633,12 +633,12 @@ func (ch *ClickHouse) dropDistributedTableInTransaction(wrappedTx *Transaction, 
 }
 
 //columnDDL returns column DDL (column name, mapped sql type)
-func (ch *ClickHouse) columnDDL(name string, column Column) string {
+func (ch *ClickHouse) columnDDL(name string, column typing.SQLColumn) string {
 	//get sql type
-	columnSQLType := column.SQLType
+	columnSQLType := column.DDLType()
 	overriddenSQLType, ok := ch.sqlTypes[name]
 	if ok {
-		columnSQLType = overriddenSQLType.ColumnType
+		columnSQLType = overriddenSQLType.DDLType()
 	}
 
 	//get nullable or plain
@@ -653,8 +653,12 @@ func (ch *ClickHouse) columnDDL(name string, column Column) string {
 }
 
 //getPlaceholder returns "?" placeholder or with typecast
-func (ch *ClickHouse) getPlaceholder(columnName string) string {
+func (ch *ClickHouse) getPlaceholder(columnName string, column typing.SQLColumn) string {
 	castType, ok := ch.sqlTypes[columnName]
+	if !ok && column.Override {
+		castType = column
+		ok = true
+	}
 	if ok {
 		return fmt.Sprintf("cast(?, '%s')", castType.Type)
 	}
