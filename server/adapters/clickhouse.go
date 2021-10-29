@@ -395,9 +395,9 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 func (ch *ClickHouse) Insert(eventContext *EventContext) error {
 	var headerWithQuotes, placeholders []string
 	var values []interface{}
-	for name, value := range eventContext.Table.Columns {
+	for name, value := range eventContext.ProcessedEvent {
 		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
-		placeholders = append(placeholders, ch.getPlaceholder(name, value))
+		placeholders = append(placeholders, ch.getPlaceholder(name, eventContext.Table.Columns[name]))
 		values = append(values, value)
 	}
 
