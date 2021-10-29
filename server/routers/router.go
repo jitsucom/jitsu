@@ -95,7 +95,10 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 			sourcesRoute.POST("/clear_cache", adminTokenMiddleware.AdminAuth(sourcesHandler.ClearCacheHandler))
 		}
 
-		apiV1.GET("/statistics", adminTokenMiddleware.AdminAuth(statisticsHandler.GetHandler))
+		//536-issue DEPRECATED
+		apiV1.GET("/statistics", adminTokenMiddleware.AdminAuth(statisticsHandler.DeprecatedGetHandler))
+
+		apiV1.GET("/statistics/detailed", adminTokenMiddleware.AdminAuth(statisticsHandler.GetHandler))
 
 		apiV1.GET("/tasks", adminTokenMiddleware.AdminAuth(taskHandler.GetAllHandler))
 		apiV1.GET("/tasks/:taskID", adminTokenMiddleware.AdminAuth(taskHandler.GetByIDHandler))
