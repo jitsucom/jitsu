@@ -87,36 +87,43 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
 
       assertIsObject(response);
       assertIsObject(response.catalog);
-      assertIsArrayOfTypes(response.catalog.streams, {});
+      assertIsArrayOfTypes(
+        response.catalog.streams,
+        {},
+        "Failed to parse airbyte streams catalog because response.catalog.streams is not an array of objects."
+      )
 
-      const rawAirbyteStreams: UnknownObject[] = response.catalog.streams;
+      const rawAirbyteStreams: UnknownObject[] = response.catalog.streams
 
-      const streams: AirbyteStreamData[] = rawAirbyteStreams.map((stream) => {
-        assertIsString(stream.name);
-        assertIsString(stream.namespace, { allowUndefined: true });
-        assertIsObject(stream.json_schema);
-        assertIsArrayOfTypes(stream.supported_sync_modes, '');
+      const streams: AirbyteStreamData[] = rawAirbyteStreams.map(stream => {
+        assertIsString(stream.name)
+        assertIsString(stream.namespace, { allowUndefined: true })
+        assertIsObject(stream.json_schema)
+        assertIsArrayOfTypes(
+          stream.supported_sync_modes,
+          "",
+          "Failed to parse airbyte streams catalog because stream.supported_sync_modes is not an array of strings."
+        )
 
         const previouslyCheckedStreamData = previouslyCheckedStreams.find(
-          (checkedStream) =>
-            checkedStream.stream.name === stream.name &&
-            checkedStream.stream.namespace === stream.namespace
-        );
+          checkedStream =>
+            checkedStream.stream.name === stream.name && checkedStream.stream.namespace === stream.namespace
+        )
 
-        if (previouslyCheckedStreamData) return previouslyCheckedStreamData;
+        if (previouslyCheckedStreamData) return previouslyCheckedStreamData
 
         return {
           sync_mode: stream.supported_sync_modes[0],
-          destination_sync_mode: 'overwrite',
+          destination_sync_mode: "overwrite",
           stream: {
             name: stream.name,
             namespace: stream.namespace,
             json_schema: stream.json_schema,
             supported_sync_modes: stream.supported_sync_modes,
-            ...stream
-          }
-        };
-      });
+            ...stream,
+          },
+        }
+      })
 
       return streams;
     }

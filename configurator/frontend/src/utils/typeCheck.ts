@@ -53,12 +53,15 @@ export function hasOwnProperty<O extends {}, P extends PropertyKey>(
  *
  * @param {boolean} condition condition to check
  * @param {string} errMsg error message to throw if condition is falsy
+ * @param errorName error name to specify
  *
  * @returns {void} void
  * @throws {AssertionError} NodeJS assertion error
  */
-export function assert(condition: boolean, errMsg?: string): asserts condition {
-  nodejs_assert(condition, errMsg);
+export function assert(condition: boolean, errMsg?: string, errorName?: string): asserts condition {
+  const error = new Error(errMsg)
+  error.name = errorName
+  nodejs_assert(condition, error);
 }
 
 /**
@@ -67,13 +70,15 @@ export function assert(condition: boolean, errMsg?: string): asserts condition {
  *
  * @param value value to assert
  * @param errMsg error message to throw if assertion fails
+ * @param errorName error name to specify
  *
  * @returns void or never
  *
  */
 export function assertIsString(
   value: unknown,
-  options?: AssertionOptions
+  options?: AssertionOptions,
+  errorName?: string
 ): asserts value is string {
   let condition = typeof value === 'string';
   if (options?.allowUndefined)
@@ -81,7 +86,8 @@ export function assertIsString(
 
   assert(
     condition,
-    options?.errMsg || `array assertion failed - ${value} is not an array`
+    options?.errMsg || `array assertion failed - ${value} is not an array`,
+    errorName
   );
 }
 
@@ -91,17 +97,20 @@ export function assertIsString(
  *
  * @param value value to assert
  * @param errMsg error message to throw if assertion fails
+ * @param errorName error name to specify
  *
  * @returns void or never
  *
  */
 export function assertIsArray(
   value: unknown,
-  errMsg?: string
+  errMsg?: string,
+  errorName?: string
 ): asserts value is Array<unknown> {
   assert(
     Array.isArray(value),
-    errMsg || `array assertion failed - ${value} is not an array`
+    errMsg || `array assertion failed - ${value} is not an array`,
+    errorName
   );
 }
 
@@ -117,12 +126,14 @@ export function assertIsArray(
  * const array = ['foo', 'bar', 42, ']
  * ```
  * @param errMsg error message to throw if assertion fails
+ * @param errorName error name to specify
  * @returns
  */
 export function assertIsArrayOfTypes<T>(
   value: unknown,
   typeReferenceValues: T | T[],
-  errMsg?: string
+  errMsg: string,
+  errorName?: string
 ): asserts value is Array<T> {
   assertIsArray(value);
   if (value.length === 0) return;
@@ -137,7 +148,8 @@ export function assertIsArrayOfTypes<T>(
   );
   assert(
     negatedIntersection.length === 0,
-    errMsg || `array of type assertion failed`
+    errMsg || `array of type assertion failed`,
+    errorName
   );
 }
 
@@ -147,17 +159,20 @@ export function assertIsArrayOfTypes<T>(
  *
  * @param value value to assert
  * @param errMsg error message to throw if condition is falsy
+ * @param errorName error name to specify
  *
  * @returns void or never
  *
  */
 export function assertIsObject(
   value: unknown,
-  errMsg?: string
+  errMsg?: string,
+  errorName?: string
 ): asserts value is UnknownObject {
   assert(
     isObject(value),
-    errMsg || `object assertion failed - ${value} is not an object`
+    errMsg || `object assertion failed - ${value} is not an object`,
+    errorName
   );
 }
 
@@ -167,15 +182,17 @@ export function assertIsObject(
  * @param object object to check
  * @param property property to look for
  * @param errMsg error to display if assertion failed
+ * @param errorName error name to specify
  *
  * @returns void or never
  */
 export function assertHasOwnProperty<O extends {}, P extends PropertyKey>(
   object: O,
   property: P,
-  errMsg?: string
+  errMsg: string,
+  errorName?: string
 ): asserts object is O & Record<P, unknown> {
-  assert(hasOwnProperty<O, P>(object, property), errMsg);
+  assert(hasOwnProperty<O, P>(object, property), errMsg, errorName);
 }
 
 /**
@@ -184,13 +201,15 @@ export function assertHasOwnProperty<O extends {}, P extends PropertyKey>(
  * @param object object to check
  * @param properties array of properties to look for
  * @param errMsg error to display if assertion failed
+ * @param errorName error name to specify
  *
  * @returns void or never
  */
  export function assertHasAllProperties<O extends {}, P extends PropertyKey[]>(
   object: O,
   properties: P,
-  errMsg?: string
+  errMsg: string,
+  errorName?: string
 ): asserts object is O & Record<keyof P, unknown> {
-  properties.forEach(property => assert(hasOwnProperty(object, property), errMsg));
+  properties.forEach(property => assert(hasOwnProperty(object, property), errMsg, errorName));
 }

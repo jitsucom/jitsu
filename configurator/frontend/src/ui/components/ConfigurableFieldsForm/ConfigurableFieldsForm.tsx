@@ -90,9 +90,11 @@ const ConfigurableFieldsFormComponent = ({
   )
 
   const handleJsonChange = (id: string) => (value: string) => {
-    form.setFieldsValue({
+    const values = {
       [id]: value ? value : "",
-    })
+    }
+    setFormValues?.(values)
+    form.setFieldsValue(values)
     handleTouchField()
   }
 
@@ -129,7 +131,6 @@ const ConfigurableFieldsFormComponent = ({
     jsDebugger?: "object" | "string" | null,
     bigField?: boolean
   ) => {
-    const fieldsValue = form.getFieldsValue()
     const defaultValueToDisplay =
       form.getFieldValue(id) ?? getInitialValue(id, defaultValue, constantValue, type?.typeName)
 

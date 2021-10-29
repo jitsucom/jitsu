@@ -1,15 +1,17 @@
 // @Libs
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 // @Types
-import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
+import { SourceConnector as CatalogSourceConnector, SourceConnector } from "catalog/sources/types"
 import { SetSourceEditorState } from "./SourceEditor"
 // @Components
 import { SourceEditorFormConfigurationStaticFields } from "./SourceEditorFormConfigurationStaticFields"
 import { SourceEditorFormConfigurationConfigurableLoadableFields } from "./SourceEditorFormConfigurationConfigurableLoadableFields"
 import { cloneDeep } from "lodash"
 // @Styles
-import styles from './SourceEditorFormConfiguration.module.less'
+import styles from "./SourceEditorFormConfiguration.module.less"
+import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
+import { SourceEditorFormConfigurationConfigurableFields } from "./SourceEditorFormConfigurationConfigurableFields"
 
 type Props = {
   editorMode: "add" | "edit"
@@ -44,8 +46,29 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
   setConfigIsValidatedByStreams,
 }) => {
   const [staticFieldsValidator, setStaticFieldsValidator] = useState<ValidateGetErrorsCount>(initialValidator)
+  const [configurableFieldsValidator, setConfigurableFieldsValidator] =
+    useState<ValidateGetErrorsCount>(initialValidator)
   const [configurableLoadableFieldsValidator, setConfigurableLoadableFieldsValidator] =
     useState<ValidateGetErrorsCount>(initialValidator)
+
+  const sourceConfigurationSchema = useMemo(() => {
+    switch (sourceDataFromCatalog.protoType) {
+      case "airbyte":
+        return {
+          loadableFieldsEndpoint: "test",
+          invisibleStaticFields: {
+            "config.docker_image": sourceDataFromCatalog.id.replace("airbyte-", ""),
+          },
+        }
+      case "singer":
+        return {
+          configurableFields: sourceDataFromCatalog.configParameters,
+          invisibleStaticFields: {
+            "config.tap": sourceDataFromCatalog.id.replace("singer-", ""),
+          },
+        }
+    }
+  }, [])
 
   const patchConfig = useCallback<PatchConfig>((key, allValues, options) => {
     setSourceEditorState(state => {
@@ -65,8 +88,9 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
   useEffect(() => {
     const validateConfigAndCountErrors = async (): Promise<number> => {
       const staticFieldsErrorsCount = await staticFieldsValidator()
+      const configurableFieldsErrorsCount = await configurableFieldsValidator()
       const configurableLoadableFieldsErrorsCount = await configurableLoadableFieldsValidator()
-      return staticFieldsErrorsCount + configurableLoadableFieldsErrorsCount
+      return staticFieldsErrorsCount + configurableLoadableFieldsErrorsCount + configurableFieldsErrorsCount
     }
 
     setSourceEditorState(state => {
@@ -74,35 +98,44 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
       newState.configuration.getErrorsCount = validateConfigAndCountErrors
       return newState
     })
-  }, [staticFieldsValidator, configurableLoadableFieldsValidator])
+  }, [staticFieldsValidator, configurableFieldsValidator, configurableLoadableFieldsValidator])
 
   /**
-   * Sets source type specific fields
+   * Sets source type specific fields that are not configurable by user
    */
   useEffect(() => {
-    patchConfig(
-      "dockerImageField",
-      { "config.docker_image": sourceDataFromCatalog.id.replace("airbyte-", "") },
-      { doNotSetStateChanged: true }
-    )
+    sourceConfigurationSchema.invisibleStaticFields &&
+      patchConfig("invisibleStaticFields", sourceConfigurationSchema.invisibleStaticFields, {
+        doNotSetStateChanged: true,
+      })
   }, [])
 
   return (
     <div className={styles.sourceEditorFormConfiguration}>
       <fieldset disabled={disabled}>
-      <SourceEditorFormConfigurationStaticFields
-        editorMode={editorMode}
-        initialValues={initialSourceData}
-        patchConfig={patchConfig}
-        setValidator={setStaticFieldsValidator}
-      />
-      <SourceEditorFormConfigurationConfigurableLoadableFields
-        initialValues={initialSourceData}
-        sourceDataFromCatalog={sourceDataFromCatalog}
-        patchConfig={patchConfig}
-        setControlsDisabled={setControlsDisabled}
-        setValidator={setConfigurableLoadableFieldsValidator}
-      />
+        <SourceEditorFormConfigurationStaticFields
+          editorMode={editorMode}
+          initialValues={initialSourceData}
+          patchConfig={patchConfig}
+          setValidator={setStaticFieldsValidator}
+        />
+        {sourceConfigurationSchema.configurableFields && (
+          <SourceEditorFormConfigurationConfigurableFields
+            initialValues={initialSourceData}
+            configParameters={sourceConfigurationSchema.configurableFields}
+            patchConfig={patchConfig}
+            setValidator={setConfigurableFieldsValidator}
+          />
+        )}
+        {sourceConfigurationSchema.loadableFieldsEndpoint && (
+          <SourceEditorFormConfigurationConfigurableLoadableFields
+            initialValues={initialSourceData}
+            sourceDataFromCatalog={sourceDataFromCatalog}
+            patchConfig={patchConfig}
+            setControlsDisabled={setControlsDisabled}
+            setValidator={setConfigurableLoadableFieldsValidator}
+          />
+        )}
       </fieldset>
     </div>
   )
