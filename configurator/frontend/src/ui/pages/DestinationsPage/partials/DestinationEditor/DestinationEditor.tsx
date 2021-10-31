@@ -208,13 +208,14 @@ const DestinationEditor = ({
     },
     {
       key: 'mappings',
-      name: 'Mappings',
+      name: 'Mappings (Deprecated)',
       isDisabled: destinationData.current["_transform_enabled"],
       getComponent: (form: FormInstance) => (
           <DestinationEditorMappings
               form={form}
               initialValues={destinationData.current._mappings}
               handleTouchAnyField={validateAndTouchField(2)}
+              handleDataUpdate={handleUseLibrary}
           />
       ),
       form: Form.useForm()[0],
@@ -236,15 +237,6 @@ const DestinationEditor = ({
       errorsLevel: 'warning',
       touched: false,
       isHidden: params.standalone == 'true'
-    },
-    {
-      key: 'settings',
-      name: 'Configuration Templates',
-      touched: false,
-      isHidden: params.standalone == 'true',
-      getComponent: () => (
-          <DestinationEditorMappingsLibrary handleDataUpdate={handleUseLibrary} />
-      )
     }
   ];
 

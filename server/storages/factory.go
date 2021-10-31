@@ -78,7 +78,7 @@ type DataLayout struct {
 	//Deprecated
 	Mapping []string `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
 
-	TransformEnabled  bool			  `mapstructure:"transform_enabled" json:"transform_enabled,omitempty" yaml:"transform_enabled,omitempty"`
+	TransformEnabled  bool			  `mapstructure:"transform_enabled" json:"transform_enabled" yaml:"transform_enabled"`
 	Transform		  string		  `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
 	//Deprecated
 	Mappings          *schema.Mapping `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`

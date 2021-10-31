@@ -99,8 +99,7 @@ const ConfigurableFieldsFormComponent = ({
 
   const getInitialValue = (id: string, defaultValue: any, constantValue: any, type: string) => {
     const initial = get(initialValues, id)
-
-    if (initial) {
+    if (typeof initial !== "undefined") {
       return initial
     }
 
@@ -131,10 +130,8 @@ const ConfigurableFieldsFormComponent = ({
     bigField?: boolean,
     displayName?: string
   ) => {
-    const fieldsValue = form.getFieldsValue()
     const defaultValueToDisplay =
       form.getFieldValue(id) ?? getInitialValue(id, defaultValue, constantValue, type?.typeName)
-
     form.setFieldsValue({ id: defaultValueToDisplay })
 
     switch (type?.typeName) {
@@ -207,7 +204,7 @@ const ConfigurableFieldsFormComponent = ({
       }
 
       case "boolean":
-        return <div ><Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={getInitialValue(id, false, "", "")} />
+        return <div><Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={defaultValueToDisplay} />
           {bigField && <span className={"pl-3"}>{displayName}</span>}
         </div>
 

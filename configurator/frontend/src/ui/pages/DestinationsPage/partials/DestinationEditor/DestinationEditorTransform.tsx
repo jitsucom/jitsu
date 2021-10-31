@@ -9,7 +9,6 @@ import { Destination } from 'catalog/destinations/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import {booleanType, jsType, stringType} from "../../../../../catalog/sources/types";
 import {TabDescription} from "../../../../components/Tabs/TabDescription";
-import {DESTINATION_EDITOR_MAPPING} from "../../../../../embeddedDocs/mappings";
 import styles from "./DestinationEditor.module.less";
 import {destinationsReferenceMap} from "../../../../../catalog/destinations/lib";
 import {CodeSnippet} from "../../../../../lib/components/components";
@@ -45,8 +44,7 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                     fieldsParamsList={[{
                         id: '_transform_enabled',
                         displayName: 'Enable Javascript Transformation',
-                        documentation: 'LALA',
-                        defaultValue: false,
+                        defaultValue: !!destinationsReferenceMap[destinationData._type].defaultTransform,
                         required: false,
                         type: booleanType,
                         bigField: true
@@ -55,7 +53,7 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                         id: '_transform',
                         codeSuggestions: [destinationData._type, "segment"].map(type => `declare function ${camelCase('to_' + type)}(event: object): object`).join('\n'),
                         displayName: 'Javascript Transformation',
-                        defaultValue: destinationsReferenceMap[destinationData._type].defaultTransform,
+                        defaultValue: destinationsReferenceMap[destinationData._type].defaultTransform || 'return $',
                         required: false,
                         jsDebugger: 'object',
                         type: jsType,

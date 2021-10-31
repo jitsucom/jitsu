@@ -66,7 +66,7 @@ const postgresDestination = {
   syncFromSourcesStatus: 'supported',
   id: 'postgres',
   type: 'database',
-  defaultTransform: 'return $',
+  defaultTransform: '',
   displayName: 'Postgres SQL',
   hidden: false,
   ui: {

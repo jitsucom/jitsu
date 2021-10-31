@@ -36,7 +36,7 @@ const destination = {
   id: 'redshift',
   type: 'database',
   displayName: 'Redshift',
-  defaultTransform: 'return $',
+  defaultTransform: '',
   hidden: false,
   ui: {
     title: (cfg) => cfg._formData.redshiftHost,
