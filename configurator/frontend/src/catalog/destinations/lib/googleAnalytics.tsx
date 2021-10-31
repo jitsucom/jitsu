@@ -30,7 +30,9 @@ const googleAnalytics = {
   id: 'google_analytics',
   type: 'other',
   displayName: 'GoogleAnalytics',
-  defaultTransform: 'return $',
+  defaultTransform: `// Code of Google Analytics transform:
+// https://github.com/jitsucom/jitsu/blob/master/server/templates/js/transform/google_analytics.js
+return toGoogleAnalytics($)`,
   hidden: false,
   parameters: [
     modeParameter('stream'),

@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Col, Form, Row, Select } from 'antd';
+import {Button, Col, Drawer, Form, Row, Select} from 'antd';
 // @Components
 import { TabDescription } from 'ui/components/Tabs/TabDescription';
 import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
@@ -10,19 +10,23 @@ import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
-// @Constants
-import { DESTINATION_EDITOR_MAPPING } from 'embeddedDocs/mappings';
 // @Styles
 import styles from './DestinationEditor.module.less';
+import {DestinationEditorMappingsLibrary} from "./DestinationEditorMappingsLibrary";
 
 export interface Props {
   form: FormInstance;
   initialValues: DestinationMapping;
   handleTouchAnyField: (...args: any) => void;
+  handleDataUpdate: (
+      newMappings: DestinationMapping,
+      newTableName?: string
+  ) => Promise<void>;
 }
 
-const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }: Props) => {
+const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField, handleDataUpdate }: Props) => {
   const [actions, setActions] = useState<MappingAction[]>([]);
+  const [documentationVisible, setDocumentationVisible] = useState(false);
 
   useEffect(() => {
     setActions(initialValues?._mappings?.map((row: DestinationMappingRow) => row._action) ?? []);
@@ -84,8 +88,22 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }:
 
   return (
     <div className={styles.mappingsWrap}>
-      <TabDescription>{DESTINATION_EDITOR_MAPPING}</TabDescription>
-
+      <TabDescription>
+        <p><b>Mappings</b> feature is deprecated. It is highly recommended to use <b>Transform</b> instead.</p>
+        <p>Mapping defines how JSON will be transformed before it's sent to the target. Supported mapping actions: move, remove, cast. <br />
+          Read more about mapping and see example in our <a href="https://jitsu.com/docs/configuration/schema-and-mappings" target="_blank" rel="noreferrer">documentation</a>.</p>
+        <p>Use one of those <a onClick={() => setDocumentationVisible(true)}>pre-build templates</a> to configure Jitsu to implement one of the popular use-cases.</p>
+      </TabDescription>
+      <Drawer
+          title={<h2>Pre-build mapping templates</h2>}
+          placement="right"
+          closable={true}
+          onClose={() => setDocumentationVisible(false)}
+          width="50%"
+          visible={documentationVisible}
+      >
+        <DestinationEditorMappingsLibrary handleDataUpdate={handleDataUpdate} />
+      </Drawer>
       <Form form={form} name="form-mapping" onChange={handleFieldsChange}>
         <Row>
           <Col span={12}>
