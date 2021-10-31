@@ -46,7 +46,7 @@ func (f *FlattenerImpl) flatten(key string, value interface{}, destination map[s
 		if err != nil {
 			return fmt.Errorf("Error marshaling array with key %s: %v", key, err)
 		}
-		destination[key] = string(b)
+		destination[key] = strings.TrimSpace(string(b))
 	case reflect.Map:
 		unboxed := value.(map[string]interface{})
 		for k, v := range unboxed {

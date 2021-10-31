@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"github.com/docker/go-connections/nat"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -220,8 +221,21 @@ func (pgc *PostgresContainer) GetAllSortedRows(table, orderClause string) ([]map
 		// storing it in the map with the name of the column as the key.
 		object := make(map[string]interface{})
 		for i, colName := range cols {
-			val := columnPointers[i].(*interface{})
-			object[colName] = *val
+			val := *(columnPointers[i].(*interface{}))
+			if v, ok := val.([]uint8); ok {
+				str := string(v)
+				if strings.HasPrefix(str, "[") && strings.HasSuffix(str, "]") {
+					array := make([]interface{}, 0, 4)
+					if err := json.Unmarshal([]byte(str), &array); err != nil {
+						panic(err)
+					}
+					object[colName] = array
+				} else {
+					object[colName] = str
+				}
+			} else {
+				object[colName] = val
+			}
 		}
 
 		objects = append(objects, object)

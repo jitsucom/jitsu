@@ -21,17 +21,17 @@ import (
 const (
 	tableNamesQuery  = `SELECT table_name FROM information_schema.tables WHERE table_schema=$1`
 	tableSchemaQuery = `SELECT 
- 							pg_attribute.attname AS name,
-    						pg_catalog.format_type(pg_attribute.atttypid,pg_attribute.atttypmod) AS column_type
+							pg_attribute.attname AS name,
+							pg_catalog.format_type(pg_attribute.atttypid,pg_attribute.atttypmod) AS column_type
 						FROM pg_attribute
-         					JOIN pg_class ON pg_class.oid = pg_attribute.attrelid
-         					LEFT JOIN pg_attrdef pg_attrdef ON pg_attrdef.adrelid = pg_class.oid AND pg_attrdef.adnum = pg_attribute.attnum
-         					LEFT JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
-         					LEFT JOIN pg_constraint ON pg_constraint.conrelid = pg_class.oid AND pg_attribute.attnum = ANY (pg_constraint.conkey)
+						JOIN pg_class ON pg_class.oid = pg_attribute.attrelid
+							LEFT JOIN pg_attrdef pg_attrdef ON pg_attrdef.adrelid = pg_class.oid AND pg_attrdef.adnum = pg_attribute.attnum
+							LEFT JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+							LEFT JOIN pg_constraint ON pg_constraint.conrelid = pg_class.oid AND pg_attribute.attnum = ANY (pg_constraint.conkey)
 						WHERE pg_class.relkind = 'r'::char
-  							AND  pg_namespace.nspname = $1
-  							AND pg_class.relname = $2
-  							AND pg_attribute.attnum > 0`
+							AND  pg_namespace.nspname = $1
+							AND pg_class.relname = $2
+							AND pg_attribute.attnum > 0`
 	primaryKeyFieldsQuery = `SELECT
 							pg_attribute.attname
 						FROM pg_index, pg_class, pg_attribute, pg_namespace
@@ -42,7 +42,7 @@ const (
 								pg_class.relnamespace = pg_namespace.oid AND
 								pg_attribute.attrelid = pg_class.oid AND
 								pg_attribute.attnum = any(pg_index.indkey)
-					  	AND indisprimary`
+						AND indisprimary`
 	createDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS "%s"`
 	addColumnTemplate                 = `ALTER TABLE "%s"."%s" ADD COLUMN %s`
 	dropPrimaryKeyTemplate            = "ALTER TABLE %s.%s DROP CONSTRAINT %s"
@@ -72,6 +72,7 @@ var (
 		typing.TIMESTAMP: "timestamp",
 		typing.BOOL:      "boolean",
 		typing.UNKNOWN:   "text",
+		typing.ARRAY:     "jsonb",
 	}
 )
 
@@ -864,19 +865,19 @@ func checkErr(err error) error {
 			msgParts = append(msgParts, pgErr.Detail)
 		}
 		if pgErr.Schema != "" {
-			msgParts = append(msgParts, "schema:" + pgErr.Schema)
+			msgParts = append(msgParts, "schema:"+pgErr.Schema)
 		}
 		if pgErr.Table != "" {
-			msgParts = append(msgParts, "table:" + pgErr.Table)
+			msgParts = append(msgParts, "table:"+pgErr.Table)
 		}
 		if pgErr.Column != "" {
-			msgParts = append(msgParts, "column:" + pgErr.Column)
+			msgParts = append(msgParts, "column:"+pgErr.Column)
 		}
 		if pgErr.DataTypeName != "" {
-			msgParts = append(msgParts, "data_type:" + pgErr.DataTypeName)
+			msgParts = append(msgParts, "data_type:"+pgErr.DataTypeName)
 		}
 		if pgErr.Constraint != "" {
-			msgParts = append(msgParts, "constraint:" + pgErr.Constraint)
+			msgParts = append(msgParts, "constraint:"+pgErr.Constraint)
 		}
 		return errors.New(strings.Join(msgParts, " "))
 	}
