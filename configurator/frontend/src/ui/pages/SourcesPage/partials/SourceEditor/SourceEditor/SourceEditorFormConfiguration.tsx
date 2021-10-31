@@ -2,7 +2,7 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useState } from "react"
 // @Types
-import { SourceConnector as CatalogSourceConnector, SourceConnector } from "catalog/sources/types"
+import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
 import { SetSourceEditorState } from "./SourceEditor"
 // @Components
 import { SourceEditorFormConfigurationStaticFields } from "./SourceEditorFormConfigurationStaticFields"
@@ -10,7 +10,6 @@ import { SourceEditorFormConfigurationConfigurableLoadableFields } from "./Sourc
 import { cloneDeep } from "lodash"
 // @Styles
 import styles from "./SourceEditorFormConfiguration.module.less"
-import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 import { SourceEditorFormConfigurationConfigurableFields } from "./SourceEditorFormConfigurationConfigurableFields"
 
 type Props = {
