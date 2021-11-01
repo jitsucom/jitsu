@@ -165,17 +165,29 @@ export type TimeFormattedUserEvent = {
  */
 export function formatTimeOfRawUserEvents(rawEvents: unknown): TimeFormattedUserEvent[] {
   assertIsObject(rawEvents);
-  assertHasOwnProperty(rawEvents, 'events');
-  const events  = rawEvents.events;
+  assertHasOwnProperty(
+    rawEvents,
+    "events",
+    "Time formatting of raw event failed because the event doesn't have `events` property"
+  )
+  const events = rawEvents.events
 
-  assertIsArray(events);
+  assertIsArray(events)
   return events.map((rawEvent: unknown): TimeFormattedUserEvent => {
-    assertIsObject(rawEvent);
-    assertHasOwnProperty(rawEvent, 'original');
+    assertIsObject(rawEvent)
+    assertHasOwnProperty(
+      rawEvent,
+      "original",
+      "Time formatting of raw event failed because the event doesn't have `original` property"
+    )
 
-    const original = rawEvent.original;
-    assertIsObject(original);
-    assertHasOwnProperty(original, '_timestamp');
+    const original = rawEvent.original
+    assertIsObject(original)
+    assertHasOwnProperty(
+      original,
+      "_timestamp",
+      "Time formatting of raw event failed because the event doesn't have `_timestamp` property"
+    )
 
     return {
       time: moment(original._timestamp),
