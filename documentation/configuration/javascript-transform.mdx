@@ -4,6 +4,10 @@ Use the power of Javascript to modify incoming event object, replace it with a c
 Also, you can use Transform to assign Data Warehouse specific SQL types for object fields, set the destination table name for each event or to skip the event altogether.
 ## Overview
 
+<Hint>
+Transform deprecates <a href="/docs/configuration/schema-and-mappings">Mappings</a>. Once Transform is enabled for a destination, all Mappings configs are ignored.
+</Hint>
+
 You can use modern javascript language features and built-in functions to transform an incoming event.
 Jitsu puts incoming event as a global variable: `$`
 
@@ -16,6 +20,30 @@ Provided javascript must return:
 To override the destination table, you need to add a special property `JITSU_TABLE_NAME` to the resulting events.
 
 To override the destination SQL column type for a specific object field, you need to add an extra property with the special prefix `__sql_type_` added to the name of a field to resulting events. E.g.: `__sql_type_utc_time: "date"` sets SQL type **date** for column **utc_time**
+
+## Server YAML configuration
+
+Transform is controlled via `data_layout.transform_enabled` and `data_layout.transform` properties of **destination** object. <br/>
+
+Example:
+```yaml
+destinations:
+  example:
+    type: google_analytics
+    mode: stream
+    data_layout:
+      transform_enabled: true
+      transform: |-
+        const context = $.eventn_ctx || $
+
+        return {
+            ...$,
+            dl: context.url,
+            dh: context.doc_host,
+            dp: context.doc_path,
+            dt: context.page_title,
+        }
+```
 
 ## Modify incoming event
 
