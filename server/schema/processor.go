@@ -35,15 +35,16 @@ type Processor struct {
 	maxColumnNameLen        int
 }
 
-func NewProcessor(destinationID, tableNameFuncExpression string, transform string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule,
+func NewProcessor(destinationID, destinationType, tableNameFuncExpression string, transform string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule,
 	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int) (*Processor, error) {
-	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression)
+	var templateFunctions = templates.EnrichedFuncMap(map[string]string{"destinationId": destinationID, "destinationType": destinationType})
+	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression, templateFunctions)
 	if err != nil {
 		return nil, err
 	}
 	var transformer	*templates.JsTemplateExecutor
 	if transform != "" && transform != templates.TransformDefaultTemplate {
-		transformer, err = templates.NewJsTemplateExecutor(transform, templates.JSONSerializeFuncs)
+		transformer, err = templates.NewJsTemplateExecutor(transform, templateFunctions, []string{destinationType, "segment"}...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to init transform javascript: %v", err)
 		}

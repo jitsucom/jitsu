@@ -8,6 +8,7 @@ type Destination struct {
 	UID                            string                   `firestore:"_uid" json:"_uid"`
 	Type                           string                   `firestore:"_type"  json:"_type"`
 	Data                           interface{}              `firestore:"_formData" json:"_formData"`
+	TransformEnabled               bool                   	`firestore:"_transform_enabled"  json:"_transform_enabled"`
 	Transform                      string                   `firestore:"_transform"  json:"_transform"`
 	Mappings                       *Mappings                `firestore:"_mappings" json:"_mappings"`
 	Enrichment                     []*enrichment.RuleConfig `firestore:"_enrichment" json:"_enrichment"`

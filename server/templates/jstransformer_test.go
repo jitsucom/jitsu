@@ -62,7 +62,7 @@ func TestTransform(t *testing.T) {
 			if err != nil {
 				panic(err)
 			}
-			script, err := Transform(string(file))
+			script, err := BabelizeProcessEvent(string(file))
 			if err != nil {
 				t.Errorf("%s Transforming failed: %v", tt.filename, err)
 				return
