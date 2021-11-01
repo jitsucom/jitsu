@@ -12,7 +12,7 @@ For that, we provide to different approaches:
  * If you're sending events directly from [JS SDK](/docs/sending-data/javascript-reference/npm-or-yarn)
 or [through API](/docs/sending-data/api) Segment compatible data still can be produced.
 
-For both approaches you'll need to configure fields [mapping](/docs/configuration/schema-and-mappings).
+For both approaches you'll need to configure [Transform](/docs/configuration/javascript-transform).
 See [Mappings for Segment Compatibility](#mappings-for-segment-compatibility) section.
 
 Also, you'll need to create a view to mimic Segment's `users` table. See below
@@ -48,7 +48,21 @@ from identifies;
 If you're using analytics.js on frontend already - **EventNative** javascript should be configured according to [the following javascript reference](../sending-data/javascript-reference/events-interception).
 If you're sending events directly - **EventNative** javascript should be set up, tracking event calls should be placed according to your requirements and the destination should contain the following mapping configuration:
 
-Destination configuration should have the following mapping configuration:
+Destination configuration should have the following [Transform](/docs/configuration/javascript-transform) configuration:
+```yaml
+destinations:
+  example:
+    type: ...
+    ...
+    data_layout:
+      transform_enabled: true
+      transform: |-
+        return toSegment($)
+```
+Source code of `toSegment` transform function can be found [here](https://github.com/jitsucom/jitsu/blob/master/server/templates/js/transform/segment.js)
+
+
+Version of Jitsu below 1.37.0 must rely on the following mapping configuration instead:
 
 <Code language="yaml">
 {`
