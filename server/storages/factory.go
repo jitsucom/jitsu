@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/meta"
 	"strings"
@@ -35,11 +36,11 @@ var (
 	StorageTypes = make(map[string]StorageType)
 
 	maxColumnNameLengthByDestinationType = map[string]int{
-		RedshiftType:  115,
-		MySQLType:  64,
-		BigQueryType:  300,
-		PostgresType:  59,
-		SnowflakeType: 251,
+		RedshiftType:   115,
+		MySQLType:      64,
+		BigQueryType:   300,
+		PostgresType:   59,
+		SnowflakeType:  251,
 		ClickHouseType: 251,
 	}
 )
@@ -57,6 +58,7 @@ type DestinationConfig struct {
 	Staged                 bool                     `mapstructure:"staged" json:"staged,omitempty" yaml:"staged,omitempty"`
 	CachingConfiguration   *CachingConfiguration    `mapstructure:"caching" json:"caching,omitempty" yaml:"caching,omitempty"`
 	PostHandleDestinations []string                 `mapstructure:"post_handle_destinations" json:"post_handle_destinations,omitempty" yaml:"post_handle_destinations,omitempty"`
+	GeoDataResolverID      string                   `mapstructure:"geo_data_resolver_id" json:"geo_data_resolver_id,omitempty" yaml:"geo_data_resolver_id,omitempty"`
 
 	DataSource      *adapters.DataSourceConfig            `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
 	S3              *adapters.S3Config                    `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
@@ -78,7 +80,7 @@ type DataLayout struct {
 	//Deprecated
 	Mapping []string `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
 
-	Transform		  string		  `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
+	Transform         string          `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
 	Mappings          *schema.Mapping `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
 	MaxColumns        int             `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
 	TableNameTemplate string          `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
@@ -148,22 +150,22 @@ func RegisterStorage(storageType StorageType) {
 	StorageTypes[storageType.typeName] = storageType
 }
 
-
 //Factory is a destinations factory for creation
 type Factory interface {
 	Create(name string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error)
 }
 
 type StorageType struct {
-	typeName string
-	createFunc func(config *Config) (Storage, error)
+	typeName         string
+	createFunc       func(config *Config) (Storage, error)
 	defaultTableName string
 }
 
-//FactoryImpl is a destinations factory implementation
+//FactoryImpl is a destination's factory implementation
 type FactoryImpl struct {
 	ctx                 context.Context
 	logEventPath        string
+	geoService          *geo.Service
 	monitorKeeper       MonitorKeeper
 	eventsCache         *caching.EventsCache
 	globalLoggerFactory *logging.Factory
@@ -173,11 +175,12 @@ type FactoryImpl struct {
 }
 
 //NewFactory returns configured Factory
-func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
+func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
 	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, metaStorage meta.Storage, maxColumns int) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
+		geoService:          geoService,
 		monitorKeeper:       monitorKeeper,
 		eventsCache:         eventsCache,
 		globalLoggerFactory: globalLoggerFactory,
@@ -263,7 +266,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 
 	//default enrichment rules
 	enrichmentRules := []enrichment.Rule{
-		enrichment.DefaultJsIPRule,
+		enrichment.CreateDefaultJsIPRule(f.geoService, destination.GeoDataResolverID),
 		enrichment.DefaultJsUaRule,
 	}
 
@@ -271,7 +274,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	for _, ruleConfig := range destination.Enrichment {
 		logging.Infof("[%s] %s", destinationID, ruleConfig.String())
 
-		rule, err := enrichment.NewRule(ruleConfig)
+		rule, err := enrichment.NewRule(ruleConfig, f.geoService, destination.GeoDataResolverID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("Error creating enrichment rule [%s]: %v", ruleConfig.String(), err)
 		}

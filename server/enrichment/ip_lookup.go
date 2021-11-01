@@ -3,7 +3,6 @@ package enrichment
 import (
 	"strings"
 
-	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -15,15 +14,17 @@ const IPLookup = "ip_lookup"
 type IPLookupRule struct {
 	source                  jsonutils.JSONPath
 	destination             jsonutils.JSONPath
-	geoResolver             geo.Resolver
+	geoResolverID           string
+	geoService              *geo.Service
 	enrichmentConditionFunc func(map[string]interface{}) bool
 }
 
-func NewIPLookupRule(source, destination jsonutils.JSONPath) (*IPLookupRule, error) {
+func NewIPLookupRule(source, destination jsonutils.JSONPath, geoService *geo.Service, geoResolverID string) (*IPLookupRule, error) {
 	return &IPLookupRule{
-		source:      source,
-		destination: destination,
-		geoResolver: appconfig.Instance.GeoResolver,
+		source:        source,
+		destination:   destination,
+		geoService:    geoService,
+		geoResolverID: geoResolverID,
 		//always do enrichment
 		enrichmentConditionFunc: func(m map[string]interface{}) bool {
 			return true
@@ -83,8 +84,10 @@ func (ir *IPLookupRule) resolve(ipStr string) (data *geo.Data, err error) {
 		}
 	}
 
+	resolver := ir.geoService.GetGeoResolver(ir.geoResolverID)
+
 	for _, ip := range ips {
-		data, err = ir.geoResolver.Resolve(ip)
+		data, err = resolver.Resolve(ip)
 		//return first without error
 		if err == nil {
 			return data, err

@@ -302,6 +302,9 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 			c.JSON(http.StatusOK, Version{tag, builtAt})
 		})
 
+		geoDataResolversHandler := handlers.NewGeoDataResolversHandler(configurationsService)
+		apiV1.GET("/geo_data_resolvers", middleware.ServerAuth(middleware.IfModifiedSince(geoDataResolversHandler.GetHandler, configurationsService.GetGeoDataResolversLastUpdated), serverToken))
+
 		usersAPIGroup := apiV1.Group("/users")
 		{
 			usersAPIGroup.GET("/info", authenticatorMiddleware.ClientAuth(enConfigurationsHandler.GetUserInfo))

@@ -29,7 +29,6 @@ require (
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
 	github.com/lib/pq v1.10.2
 	github.com/logrusorgru/aurora v2.0.3+incompatible
-	github.com/mailru/easyjson v0.7.7
 	github.com/mailru/go-clickhouse v1.3.0
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/olekukonko/tablewriter v0.0.4
