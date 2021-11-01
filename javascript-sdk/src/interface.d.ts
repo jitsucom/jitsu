@@ -209,6 +209,7 @@ export type Conversion = {
   transaction_id?: string | number  //id of transaction
   affiliation?: string | number     //affiliation id
   revenue?: number                  //revenue
+  currency?: string                 //currency
   shipping_cost?: number            //shipping cost
   tax?: number                      //tax cost
 

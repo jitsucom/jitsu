@@ -233,7 +233,7 @@ func (s *Singer) EnsureTapAndCatalog() {
 			continue
 		}
 
-		catalogPath, propertiesPath, streamNames, err := doDiscover(s.ID(), s.GetTap(), s.pathToConfigs, s.GetConfigPath())
+		catalogPath, propertiesPath, streamNames, err := doDiscover(s.GetTap(), s.pathToConfigs, s.GetConfigPath())
 		if err != nil {
 			s.mutex.Lock()
 			s.discoverCatalogLastError = err
@@ -498,22 +498,10 @@ func (s *Singer) IsClosed() bool {
 
 //doDiscover discovers tap catalog and returns catalog and properties paths
 //applies blacklist streams to taps and make other streams {"selected": true}
-func doDiscover(sourceID, tap, pathToConfigs, configFilePath string) (string, string, []string, error) {
-	outWriter := logging.NewStringWriter()
-	errStrWriter := logging.NewStringWriter()
-	dualStdErrWriter := logging.Dual{FileWriter: errStrWriter, Stdout: logging.NewPrefixDateTimeProxy(fmt.Sprintf("[%s]", sourceID), singer.Instance.LogWriter)}
-
-	command := path.Join(singer.Instance.VenvDir, tap, "bin", tap)
-	args := []string{"-c", configFilePath, "--discover"}
-
-	err := runner.ExecCmd(base.SingerType, command, outWriter, dualStdErrWriter, time.Minute*10, args...)
+func doDiscover(tap, pathToConfigs, configFilePath string) (string, string, []string, error) {
+	catalog, err := singer.Instance.Discover(tap, configFilePath, nil)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("Error singer --discover: %v. %s", err, errStrWriter.String())
-	}
-
-	catalog := &RawCatalog{}
-	if err := json.Unmarshal(outWriter.Bytes(), &catalog); err != nil {
-		return "", "", nil, fmt.Errorf("Error unmarshalling catalog %s output: %v", outWriter.String(), err)
+		return "", "", nil, err
 	}
 
 	blackListStreams, ok := blacklistStreamsByTap[tap]
@@ -521,54 +509,24 @@ func doDiscover(sourceID, tap, pathToConfigs, configFilePath string) (string, st
 		blackListStreams = map[string]bool{}
 	}
 
+	//filter blackList streams
+	var filteredStreams []map[string]interface{}
 	var streamNames []string
-
 	for _, stream := range catalog.Streams {
 		streamName, ok := stream["stream"]
 		if ok {
 			streamNameStr := fmt.Sprint(streamName)
 			streamNames = append(streamNames, streamNameStr)
-			if _, ok := blackListStreams[streamNameStr]; ok {
-				continue
+			if _, ok := blackListStreams[streamNameStr]; !ok {
+				filteredStreams = append(filteredStreams, stream)
 			}
 		} else {
 			logging.Warnf("Stream [%v] doesn't have 'stream' name", stream)
 		}
 
-		//put selected=true into 'schema'
-		schemaStruct, ok := stream["schema"]
-		if !ok {
-			return "", "", nil, fmt.Errorf("Malformed discovered catalog structure %s: key 'schema' doesn't exist", outWriter.String())
-		}
-		schemaObj, ok := schemaStruct.(map[string]interface{})
-		if !ok {
-			return "", "", nil, fmt.Errorf("Malformed discovered catalog structure %s: value under key 'schema' must be object: %T", outWriter.String(), schemaStruct)
-		}
-
-		schemaObj["selected"] = true
-
-		//put selected=true into every 'metadata' object
-		metadataArrayIface, ok := stream["metadata"]
-		if ok {
-			metadataArray, ok := metadataArrayIface.([]interface{})
-			if ok {
-				for _, metadata := range metadataArray {
-					metadataObj, ok := metadata.(map[string]interface{})
-					if ok {
-						innerMetadata, ok := metadataObj["metadata"]
-						if ok {
-							innerMetadataObj, ok := innerMetadata.(map[string]interface{})
-							if ok {
-								innerMetadataObj["selected"] = true
-							}
-						}
-					}
-				}
-			}
-		}
 	}
 
-	b, _ := json.MarshalIndent(catalog, "", "    ")
+	b, _ := json.MarshalIndent(&singer.RawCatalog{Streams: filteredStreams}, "", "    ")
 
 	//write singer catalog as file path
 	catalogPath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, base.CatalogFileName), string(b))
