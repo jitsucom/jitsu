@@ -65,7 +65,7 @@ export const initializeApplication = async (
         sourcesStore
       );
     } else {
-      //project is not initialized yet, return mock result
+      /** project is not initialized yet, return mock result */
       paymentPlanStatus = {
         autorenew: false,
         expiration: moment().add(1, 'M'),
@@ -77,8 +77,21 @@ export const initializeApplication = async (
         currentPlan: paymentPlans.free,
         quotaPeriodStart: moment(),
         doNotBlock: true
-
       }
+    }
+  } else {
+    /** for opensource (self-hosted) only */
+    paymentPlanStatus = {
+        autorenew: false,
+        expiration: moment().add(1, 'M'),
+        usage: {
+            events: 0,
+            sources: 0,
+            destinations: 0
+        },
+        currentPlan: paymentPlans.opensource,
+        quotaPeriodStart: moment(),
+        doNotBlock: true
     }
   }
   services.currentSubscription = paymentPlanStatus;
