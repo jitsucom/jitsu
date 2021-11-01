@@ -11,7 +11,6 @@ import { sourcesStore } from "stores/sources"
 // @Catalog
 import { allSources as sourcesCatalog } from "catalog/sources/lib"
 // @Components
-import { SourceEditorViewTabs } from "./SourceEditorViewTabs"
 import { withHome as breadcrumbsWithHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { PageHeader } from "ui/components/PageHeader/PageHeader"
@@ -19,7 +18,6 @@ import { createInitialSourceData, sourceEditorUtils } from "./SourceEditor.utils
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 import { firstToLower } from "lib/commons/utils"
 import { SourceEditorViewSteps } from "./SourceEditorViewSteps"
-import { pullAllAirbyteStreams } from "./SourceEditorPullData"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 // @Utils
 
@@ -64,7 +62,7 @@ export type SourceConfigurationData = {
   [key: string]: PlainObjectWithPrimitiveValues
 }
 export type SourceStreamsData = {
-  [pathToStreamsInSourceData: string]: AirbyteStreamData[] | string
+  [pathToStreamsInSourceData: string]: StreamData[]
 }
 export type SourceConnectionsData = {
   [pathToConnectionsInSourceData: string]: string[]

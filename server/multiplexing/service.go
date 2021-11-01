@@ -34,7 +34,7 @@ func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.R
 	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
 	destinationStorages := s.destinationService.GetDestinations(tokenID)
 	if len(destinationStorages) == 0 {
-		counters.SkipSourceEvents(tokenID, 1)
+		counters.SkipPushSourceEvents(tokenID, 1)
 		return ErrNoDestinations
 	}
 
@@ -62,7 +62,7 @@ func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.R
 		//** Multiplexing **
 		consumers := s.destinationService.GetConsumers(tokenID)
 		if len(consumers) == 0 {
-			counters.SkipSourceEvents(tokenID, 1)
+			counters.SkipPushSourceEvents(tokenID, 1)
 			return ErrNoDestinations
 		}
 

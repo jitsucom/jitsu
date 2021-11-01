@@ -91,9 +91,11 @@ const ConfigurableFieldsFormComponent = ({
   )
 
   const handleJsonChange = (id: string) => (value: string) => {
-    form.setFieldsValue({
+    const values = {
       [id]: value ? value : "",
-    })
+    }
+    setFormValues?.(values)
+    form.setFieldsValue(values)
     handleTouchField()
   }
 
