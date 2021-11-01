@@ -51,6 +51,7 @@ type StorageProxy interface {
 	Get() (Storage, bool)
 	GetUniqueIDField() *identifiers.UniqueID
 	GetPostHandleDestinations() []string
+	GetGeoResolverID() string
 	IsCachingDisabled() bool
 	ID() string
 	Type() string

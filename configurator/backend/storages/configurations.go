@@ -23,7 +23,7 @@ type ConfigurationsStorage interface {
 	//Get returns a single configuration from collection
 	//If configuration is not found, must return ErrConfigurationNotFound for correct response message
 	Get(collection string, id string) ([]byte, error)
-	//GetGroupedByID return all the configurations of requested type grouped by id (result must be
+	//GetAllGroupedByID returns all the configurations of requested type grouped by id (result must be
 	//deserializable to map[string]<entity_type>
 	GetAllGroupedByID(collection string) ([]byte, error)
 	//GetCollectionLastUpdated returns time when collection was last updated
@@ -77,6 +77,7 @@ const (
 	sourcesCollection                    = "sources"
 	apiKeysCollection                    = "api_keys"
 	customDomainsCollection              = "custom_domains"
+	geoDataResolversCollection           = "geo_data_resolvers"
 	lastUpdatedField                     = "_lastUpdated"
 
 	telemetryCollection = "telemetry"
@@ -207,7 +208,7 @@ func (cs *ConfigurationsService) GetSourcesLastUpdated() (*time.Time, error) {
 }
 
 //GetSources return map with projectID:sources
-func (cs ConfigurationsService) GetSources() (map[string]*entities.Sources, error) {
+func (cs *ConfigurationsService) GetSources() (map[string]*entities.Sources, error) {
 	allSources, err := cs.storage.GetAllGroupedByID(sourcesCollection)
 	if err != nil {
 		return nil, err
@@ -237,6 +238,42 @@ func (cs *ConfigurationsService) GetSourcesByProjectID(projectID string) ([]*ent
 		return nil, fmt.Errorf("Error parsing sources of projectID [%s]: %v", projectID, err)
 	}
 	return sources.Sources, nil
+}
+
+func (cs *ConfigurationsService) GetGeoDataResolversLastUpdated() (*time.Time, error) {
+	return cs.storage.GetCollectionLastUpdated(geoDataResolversCollection)
+}
+
+//GetGeoDataResolvers return map with projectID:geo_data_resolver
+func (cs *ConfigurationsService) GetGeoDataResolvers() (map[string]*entities.GeoDataResolver, error) {
+	allDestinations, err := cs.storage.GetAllGroupedByID(geoDataResolversCollection)
+	if err != nil {
+		return nil, err
+	}
+	result := map[string]*entities.GeoDataResolver{}
+	err = json.Unmarshal(allDestinations, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (cs *ConfigurationsService) GetGeoDataResolverByProjectID(projectID string) (*entities.GeoDataResolver, error) {
+	doc, err := cs.storage.Get(geoDataResolversCollection, projectID)
+	if err != nil {
+		if err == ErrConfigurationNotFound {
+			return nil, nil
+		} else {
+			return nil, fmt.Errorf("error getting geo data resolvers by projectID [%s]: %v", projectID, err)
+		}
+	}
+
+	gdr := &entities.GeoDataResolver{}
+	err = json.Unmarshal(doc, gdr)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing geo data resolver of projectID [%s]: %v", projectID, err)
+	}
+	return gdr, nil
 }
 
 //CreateDefaultAPIKey returns generated default key per project only in case if no other API key exists
