@@ -125,7 +125,7 @@ func (u *PeriodicUploader) Start() {
 
 					if !skippedEvents.IsEmpty() {
 						metrics.SkipTokenEvents(tokenID, storage.ID(), len(skippedEvents.Events))
-						counters.SkipEvents(storage.ID(), len(skippedEvents.Events))
+						counters.SkipPushDestinationEvents(storage.ID(), len(skippedEvents.Events))
 					}
 
 					if err != nil {
@@ -140,7 +140,7 @@ func (u *PeriodicUploader) Start() {
 
 						errRowsCount := len(objects)
 						metrics.ErrorTokenEvents(tokenID, storage.ID(), errRowsCount)
-						counters.ErrorEvents(storage.ID(), errRowsCount)
+						counters.ErrorPushDestinationEvents(storage.ID(), errRowsCount)
 
 						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), eventsSrc)
 
@@ -159,7 +159,7 @@ func (u *PeriodicUploader) Start() {
 							archiveFile = false
 							logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.ID(), tableName, filePath, result.Err)
 							metrics.ErrorTokenEvents(tokenID, storage.ID(), result.RowsCount)
-							counters.ErrorEvents(storage.ID(), result.RowsCount)
+							counters.ErrorPushDestinationEvents(storage.ID(), result.RowsCount)
 
 							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
 						} else {
@@ -175,7 +175,7 @@ func (u *PeriodicUploader) Start() {
 								}
 							}
 							metrics.SuccessTokenEvents(tokenID, storage.ID(), result.RowsCount)
-							counters.SuccessEvents(storage.ID(), result.RowsCount)
+							counters.SuccessPushDestinationEvents(storage.ID(), result.RowsCount)
 
 							telemetry.PushedEventsPerSrc(tokenID, storage.ID(), result.EventsSrc)
 						}
