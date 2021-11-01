@@ -22,13 +22,14 @@ type Storage interface {
 
 	//** Counters **
 	//events counters
-	SuccessEvents(id, namespace string, now time.Time, value int) error
-	ErrorEvents(id, namespace string, now time.Time, value int) error
-	SkipEvents(id, namespace string, now time.Time, value int) error
+	SuccessEvents(id, namespace, eventType string, now time.Time, value int) error
+	ErrorEvents(id, namespace, eventType string, now time.Time, value int) error
+	SkipEvents(id, namespace, eventType string, now time.Time, value int) error
 	GetProjectSourceIDs(projectID string) ([]string, error)
-	GetProjectPushSourceIDs(projectID string) ([]string, error)
 	GetProjectDestinationIDs(projectID string) ([]string, error)
-	GetEventsWithGranularity(namespace, status string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error)
+	//536-issue DEPRECATED instead of it all project sources will be selected
+	GetProjectPushSourceIDs(projectID string) ([]string, error)
+	GetEventsWithGranularity(namespace, status, eventType string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error)
 
 	//** Cache **
 	//events caching

@@ -284,6 +284,10 @@ export type Parameter = {
    * Field use full width by omitting label and prefer higher height where applicable
    */
   bigField?: boolean
+  /**
+   * Code suggestions for CodeDebugger
+   */
+  codeSuggestions?: string
 }
 
 export interface CollectionParameter extends Parameter {

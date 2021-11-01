@@ -36,7 +36,7 @@ const webhookDestination = {
   id: 'webhook',
   type: 'other',
   displayName: 'WebHook',
-  defaultTransform: 'return $',
+  defaultTransform: '',
   hidden: false,
   parameters: [
     modeParameter('stream'),
@@ -47,6 +47,8 @@ const webhookDestination = {
       required: true,
       type: stringType,
       jsDebugger: 'object',
+      codeSuggestions: `declare let destinationId = "";
+declare let destinationType = "";`,
       documentation:
           <>HTTP URL constant string or <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a> e.g.:<br></br><i>"https://mydomain/" + $.event_type</i><br></br> will get <b>event_type</b> field from event and use it as a part of URL path.</>
     },
@@ -63,6 +65,8 @@ const webhookDestination = {
       required: false,
       type: jsType,
       jsDebugger: 'object',
+      codeSuggestions: `declare let destinationId = "";
+declare let destinationType = "";`,
       documentation:
         <>HTTP body JSON constant, or <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a> e.g.:
           <pre>

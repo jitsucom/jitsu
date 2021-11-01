@@ -28,8 +28,8 @@ func TestRedshiftBulkInsert(t *testing.T) {
 
 	table := &Table{
 		Name: "test_redshift_bulk_insert_" + uuid.NewLettersNumbers(),
-		Columns: Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"},
-			"user": Column{"text"}, "default": Column{"text"}},
+		Columns: Columns{"field1": typing.SQLColumn{Type: "text"}, "field2": typing.SQLColumn{Type: "text"}, "field3": typing.SQLColumn{Type: "bigint"},
+			"user": typing.SQLColumn{Type: "text"}, "default": typing.SQLColumn{Type: "text"}},
 	}
 	err = redshift.CreateTable(table)
 	require.NoError(t, err)
@@ -67,8 +67,8 @@ func TestRedshiftBulkUpdate(t *testing.T) {
 
 	table := &Table{
 		Name: "test_redshift_bulk_update_" + uuid.NewLettersNumbers(),
-		Columns: Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"},
-			"user": Column{"text"}, "default": Column{"text"}},
+		Columns: Columns{"field1": typing.SQLColumn{Type: "text"}, "field2": typing.SQLColumn{Type: "text"}, "field3": typing.SQLColumn{Type: "bigint"},
+			"user": typing.SQLColumn{Type: "text"}, "default": typing.SQLColumn{Type: "text"}},
 		PKFields: map[string]bool{"field1": true},
 	}
 	err = redshift.CreateTable(table)

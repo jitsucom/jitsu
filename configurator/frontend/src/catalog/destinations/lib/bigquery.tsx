@@ -69,7 +69,7 @@ const bigQueryDestination = {
   id: 'bigquery',
   type: 'database',
   displayName: 'BigQuery',
-  defaultTransform: 'return $',
+  defaultTransform: '',
   hidden: false,
   ui: {
     icon: icon,

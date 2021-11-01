@@ -71,7 +71,7 @@ const destination = {
   id: 'snowflake',
   type: 'database',
   displayName: 'Snowflake',
-  defaultTransform: 'return $',
+  defaultTransform: '',
   hidden: false,
   ui: {
     icon,

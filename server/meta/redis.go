@@ -15,19 +15,29 @@ import (
 
 const (
 	syncTasksPriorityQueueKey = "sync_tasks_priority_queue"
-	DestinationNamespace      = "destination"
-	SourceNamespace           = "source"
-	PushSourceNamespace       = "push_source"
+
+	DestinationNamespace = "destination"
+	SourceNamespace      = "source"
+
+	//536-issue DEPRECATED
+	//instead of this name - all sources will be in SourceNamespace and for push/pull events different keys will be selected
+	PushSourceNamespace = "push_source"
 
 	destinationIndex = "destinations_index"
 	sourceIndex      = "sources_index"
+
+	//536-issue DEPRECATED
 	//all api keys - push events
+	//instead of this name - all sources will be in SourceNamespace and for push/pull events different keys will be selected
 	pushSourceIndex = "push_sources_index"
 
 	syncTasksPrefix  = "sync_tasks#"
 	taskHeartBeatKey = "sync_tasks_heartbeat"
 
 	responseTimestampLayout = "2006-01-02T15:04:05+0000"
+
+	PushEventType = "push"
+	PullEventType = "pull"
 
 	SuccessStatus = "success"
 	ErrorStatus   = "errors"
@@ -54,17 +64,17 @@ type Redis struct {
 //** Events counters **
 // * per destination *
 //destinations_index:project#projectID [destinationID1, destinationID2] - set of destination ids
-//hourly_events:destination#destinationID:day#yyyymmdd:success [hour] - hashtable with success events counter by hour
-//hourly_events:destination#destinationID:day#yyyymmdd:errors  [hour] - hashtable with error events counter by hour
-//hourly_events:destination#destinationID:day#yyyymmdd:skip    [hour] - hashtable with skipped events counter by hour
-//daily_events:destination#destinationID:month#yyyymm:success  [day] - hashtable with success events counter by day
-//daily_events:destination#destinationID:month#yyyymm:errors   [day] - hashtable with error events counter by day
-//daily_events:destination#destinationID:month#yyyymm:skip     [day] - hashtable with skipped events counter by day
+//hourly_events:destination#destinationID:type#eventType:day#yyyymmdd:success [hour] - hashtable with success events counter by hour
+//hourly_events:destination#destinationID:type#eventType:day#yyyymmdd:errors  [hour] - hashtable with error events counter by hour
+//hourly_events:destination#destinationID:type#eventType:day#yyyymmdd:skip    [hour] - hashtable with skipped events counter by hour
+//daily_events:destination#destinationID:type#eventType:month#yyyymm:success  [day] - hashtable with success events counter by day
+//daily_events:destination#destinationID:type#eventType:month#yyyymm:errors   [day] - hashtable with error events counter by day
+//daily_events:destination#destinationID:type#eventType:month#yyyymm:skip     [day] - hashtable with skipped events counter by day
 //
 // * per source *
 //sources_index:project#projectID                    [sourceID1, sourceID2] - set of source ids
-//daily_events:source#sourceID:month#yyyymm:success            [day] - hashtable with success events counter by day
-//hourly_events:source#sourceID:day#yyyymmdd:success           [hour] - hashtable with success events counter by hour
+//daily_events:source#sourceID:type#eventType:month#yyyymm:success            [day] - hashtable with success events counter by day
+//hourly_events:source#sourceID:type#eventType:day#yyyymmdd:success           [hour] - hashtable with success events counter by hour
 // * per push source *
 //push_sources_index:project#projectID                         [sourceID1, sourceID2] - set of only pushed source ids (api keys) for billing
 //daily_events:push_source#sourceID:month#yyyymm:success            [day] - hashtable with success events counter by day
@@ -153,22 +163,18 @@ func (r *Redis) DeleteSignature(sourceID, collection string) error {
 }
 
 //SuccessEvents ensures that id is in the index and increments success events counter
-func (r *Redis) SuccessEvents(id, namespace string, now time.Time, value int) error {
-	err := r.ensureIDInIndex(id, namespace)
-	if err != nil {
-		return fmt.Errorf("Error ensuring id in index: %v", err)
-	}
-	return r.incrementEventsCount(id, namespace, SuccessStatus, now, value)
+func (r *Redis) SuccessEvents(id, namespace, eventType string, now time.Time, value int) error {
+	return r.incrementEventsCount(id, namespace, eventType, SuccessStatus, now, value)
 }
 
 //ErrorEvents increments error events counter
-func (r *Redis) ErrorEvents(id, namespace string, now time.Time, value int) error {
-	return r.incrementEventsCount(id, namespace, ErrorStatus, now, value)
+func (r *Redis) ErrorEvents(id, namespace, eventType string, now time.Time, value int) error {
+	return r.incrementEventsCount(id, namespace, eventType, ErrorStatus, now, value)
 }
 
 //SkipEvents increments skipp events counter
-func (r *Redis) SkipEvents(id, namespace string, now time.Time, value int) error {
-	return r.incrementEventsCount(id, namespace, SkipStatus, now, value)
+func (r *Redis) SkipEvents(id, namespace, eventType string, now time.Time, value int) error {
+	return r.incrementEventsCount(id, namespace, eventType, SkipStatus, now, value)
 }
 
 //AddEvent saves event JSON string into Redis and ensures that event ID is in index by destination ID
@@ -899,14 +905,14 @@ func (r *Redis) GetProjectDestinationIDs(projectID string) ([]string, error) {
 }
 
 //GetEventsWithGranularity returns events amount with time criteria by granularity, status and sources/destination ids
-func (r *Redis) GetEventsWithGranularity(namespace, status string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error) {
+func (r *Redis) GetEventsWithGranularity(namespace, status, eventType string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
 	if granularity == HOUR {
-		return r.getEventsPerHour(conn, namespace, status, ids, start, end)
+		return r.getEventsPerHour(conn, namespace, eventType, status, ids, start, end)
 	} else if granularity == DAY {
-		return r.getEventsPerDay(conn, namespace, status, ids, start, end)
+		return r.getEventsPerDay(conn, namespace, eventType, status, ids, start, end)
 	}
 
 	return nil, fmt.Errorf("Unknown granularity: %s", granularity.String())
@@ -916,7 +922,7 @@ func (r *Redis) GetEventsWithGranularity(namespace, status string, ids []string,
 //namespace: [destination, source]
 //status: [success, error, skip]
 //identifiers: sources/destinations ids
-func (r *Redis) getEventsPerHour(conn redis.Conn, namespace, status string, identifiers []string, start, end time.Time) ([]EventsPerTime, error) {
+func (r *Redis) getEventsPerHour(conn redis.Conn, namespace, eventType, status string, identifiers []string, start, end time.Time) ([]EventsPerTime, error) {
 	eventsPerChunk := map[string]int{} //key = 2021-03-17T00:00:00+0000 | value = events count
 
 	days := getCoveredDays(start, end)
@@ -925,7 +931,7 @@ func (r *Redis) getEventsPerHour(conn redis.Conn, namespace, status string, iden
 		keyTime, _ := time.Parse(timestamp.DayLayout, day)
 
 		for _, id := range identifiers {
-			key := fmt.Sprintf("hourly_events:%s#%s:day#%s:%s", namespace, id, day, status)
+			key := getHourlyEventsKey(id, namespace, eventType, day, status)
 
 			perHour, err := redis.IntMap(conn.Do("HGETALL", key))
 			if err != nil {
@@ -971,7 +977,7 @@ func (r *Redis) getEventsPerHour(conn redis.Conn, namespace, status string, iden
 //getEventsPerHour returns sum of sources/destinations events per day (between start and end)
 //namespace: [destination, source]
 //status: [success, error, skip]
-func (r *Redis) getEventsPerDay(conn redis.Conn, namespace, status string, identifiers []string, start, end time.Time) ([]EventsPerTime, error) {
+func (r *Redis) getEventsPerDay(conn redis.Conn, namespace, eventType, status string, identifiers []string, start, end time.Time) ([]EventsPerTime, error) {
 	eventsPerChunk := map[string]int{} //key = 2021-03-17T00:00:00+0000 | value = events count
 
 	months := getCoveredMonths(start, end)
@@ -980,7 +986,7 @@ func (r *Redis) getEventsPerDay(conn redis.Conn, namespace, status string, ident
 		keyTime, _ := time.Parse(timestamp.MonthLayout, month)
 
 		for _, id := range identifiers {
-			key := fmt.Sprintf("daily_events:%s#%s:month#%s:%s", namespace, id, month, status)
+			key := getDailyEventsKey(id, namespace, eventType, month, status)
 
 			perDay, err := redis.IntMap(conn.Do("HGETALL", key))
 			if err != nil {
@@ -1084,16 +1090,14 @@ func (r *Redis) getProjectIDs(projectID, indexName string) ([]string, error) {
 
 //ensureIDInIndex add id to corresponding index by projectID
 //namespaces: [destination, source]
-func (r *Redis) ensureIDInIndex(id, namespace string) error {
-	conn := r.pool.Get()
-	defer conn.Close()
-
+func (r *Redis) ensureIDInIndex(conn redis.Conn, id, namespace string) error {
 	var indexName string
 	switch namespace {
 	case DestinationNamespace:
 		indexName = destinationIndex
 	case SourceNamespace:
 		indexName = sourceIndex
+	//536-issue DEPRECATED
 	case PushSourceNamespace:
 		indexName = pushSourceIndex
 	default:
@@ -1120,13 +1124,20 @@ func (r *Redis) ensureIDInIndex(id, namespace string) error {
 
 //incrementEventsCount increment events counter
 //namespaces: [destination, source]
+//eventType: [push, pull]
 //status: [success, error, skip]
-func (r *Redis) incrementEventsCount(id, namespace, status string, now time.Time, value int) error {
+func (r *Redis) incrementEventsCount(id, namespace, eventType, status string, now time.Time, value int) error {
 	conn := r.pool.Get()
 	defer conn.Close()
+
+	if err := r.ensureIDInIndex(conn, id, namespace); err != nil {
+		return fmt.Errorf("Error ensuring id in index: %v", err)
+	}
+
 	//increment hourly events
 	dayKey := now.Format(timestamp.DayLayout)
-	hourlyEventsKey := "hourly_events:" + namespace + "#" + id + ":day#" + dayKey + ":" + status
+
+	hourlyEventsKey := getHourlyEventsKey(id, namespace, eventType, dayKey, status)
 	fieldHour := strconv.Itoa(now.Hour())
 	_, err := conn.Do("HINCRBY", hourlyEventsKey, fieldHour, value)
 	noticeError(err)
@@ -1136,7 +1147,7 @@ func (r *Redis) incrementEventsCount(id, namespace, status string, now time.Time
 
 	//increment daily events
 	monthKey := now.Format(timestamp.MonthLayout)
-	dailyEventsKey := "daily_events:" + namespace + "#" + id + ":month#" + monthKey + ":" + status
+	dailyEventsKey := getDailyEventsKey(id, namespace, eventType, monthKey, status)
 	fieldDay := strconv.Itoa(now.Day())
 	_, err = conn.Do("HINCRBY", dailyEventsKey, fieldDay, value)
 	noticeError(err)
@@ -1194,6 +1205,24 @@ func getCoveredMonths(start, end time.Time) []string {
 	}
 
 	return months
+}
+
+func getHourlyEventsKey(id, namespace, eventType, day, status string) string {
+	return getEventsKey("hourly_events", id, namespace, eventType, "day#"+day, status)
+}
+
+func getDailyEventsKey(id, namespace, eventType, month, status string) string {
+	return getEventsKey("daily_events", id, namespace, eventType, "month#"+month, status)
+}
+
+func getEventsKey(prefix, id, namespace, eventType, timeKey, status string) string {
+	//536-issue DEPRECATED
+	//backward compatibility
+	if eventType != "" {
+		eventType = ":type#" + eventType
+	}
+
+	return fmt.Sprintf("%s:%s#%s%s:%s:%s", prefix, namespace, id, eventType, timeKey, status)
 }
 
 func extractOriginalEventId(eventId string) string {

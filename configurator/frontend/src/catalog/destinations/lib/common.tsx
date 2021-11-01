@@ -77,7 +77,9 @@ export const tableName = (customDocs?: ReactNode): Parameter => {
     required: true,
     defaultValue: 'events',
     type: stringType,
-    jsDebugger: 'string'
+    jsDebugger: 'string',
+    codeSuggestions: `declare let destinationId = "";
+declare let destinationType = "";`
   };
 };
 
