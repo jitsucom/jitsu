@@ -273,7 +273,7 @@ func (m *MySQL) Close() error {
 }
 
 func (m *MySQL) getTable(tableName string) (*Table, error) {
-	table := &Table{Name: tableName, Columns: map[string]Column{}, PKFields: map[string]bool{}}
+	table := &Table{Name: tableName, Columns: map[string]typing.SQLColumn{}, PKFields: map[string]bool{}}
 	rows, err := m.dataSource.QueryContext(m.ctx, mySQLTableSchemaQuery, m.config.Db, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
@@ -290,7 +290,7 @@ func (m *MySQL) getTable(tableName string) (*Table, error) {
 			continue
 		}
 
-		table.Columns[columnName] = Column{SQLType: columnType}
+		table.Columns[columnName] = typing.SQLColumn{Type: columnType}
 	}
 
 	if err := rows.Err(); err != nil {
@@ -517,9 +517,9 @@ func (m *MySQL) buildUpdateSection(header []string) string {
 }
 
 //columnDDL returns column DDL (quoted column name, mapped sql type and 'not null' if pk field)
-func (m *MySQL) columnDDL(name string, column Column, pkFields map[string]bool) string {
+func (m *MySQL) columnDDL(name string, column typing.SQLColumn, pkFields map[string]bool) string {
 	var notNullClause string
-	sqlType := column.SQLType
+	sqlType := column.DDLType()
 
 	if overriddenSQLType, ok := m.sqlTypes[name]; ok {
 		sqlType = overriddenSQLType.ColumnType
@@ -554,7 +554,7 @@ func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 
 	var quotedColumnNames []string
 	for _, column := range table.GetPKFields() {
-		columnType := table.Columns[column].SQLType
+		columnType := table.Columns[column].Type
 		var quoted string
 		if columnType == SchemaToMySQL[typing.STRING] {
 			quoted = fmt.Sprintf("%s(%d)", m.quote(column), mySQLPrimaryKeyMaxLength)

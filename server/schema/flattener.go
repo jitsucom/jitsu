@@ -42,6 +42,11 @@ func (f *FlattenerImpl) flatten(key string, value interface{}, destination map[s
 	t := reflect.ValueOf(value)
 	switch t.Kind() {
 	case reflect.Slice:
+		if strings.Contains(key, SqlTypeKeyword) {
+			//meta field. value must be left untouched.
+			destination[key] = value
+			return nil
+		}
 		b, err := json.Marshal(value)
 		if err != nil {
 			return fmt.Errorf("Error marshaling array with key %s: %v", key, err)

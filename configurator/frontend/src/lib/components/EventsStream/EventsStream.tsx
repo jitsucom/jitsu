@@ -117,7 +117,7 @@ function trim(str: string, maxLen: number): string {
 }
 
 const TabTitle: React.FC<{ icon: any; error?: boolean }> = ({ icon, error, children }) => {
-  const maxLen = 10
+  const maxLen = 40
   const titleString = children.toString()
   const title = (
     <div className="align-baseline flex items-center">

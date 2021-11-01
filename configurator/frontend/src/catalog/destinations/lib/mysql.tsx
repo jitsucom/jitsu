@@ -12,7 +12,7 @@ const mysqlDestination = {
     id: 'mysql',
     type: 'database',
     displayName: 'MySQL',
-    defaultTransform: 'return $',
+    defaultTransform: '',
     hidden: false,
     ui: {
         icon: icon,

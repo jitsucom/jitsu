@@ -2,8 +2,9 @@ package templates
 
 import (
 	"bytes"
-	_ "embed"
+	"embed"
 	"fmt"
+	"github.com/iancoleman/strcase"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/safego"
 	"reflect"
@@ -17,8 +18,8 @@ const (
 	jsLoadingErrorText = "JS LOADING ERROR"
 )
 
-//go:embed js/transform/hubspot.js
-var hubspotTransform string
+//go:embed js/transform/*
+var transforms embed.FS
 
 type TemplateExecutor interface {
 	ProcessEvent(events.Event) (interface{}, error)
@@ -84,21 +85,36 @@ type JsTemplateExecutor struct {
 	loadingError error
 }
 
-func NewJsTemplateExecutor(expression string, extraFunctions template.FuncMap) (*JsTemplateExecutor, error) {
+func NewJsTemplateExecutor(expression string, extraFunctions template.FuncMap, transformIds ... string) (*JsTemplateExecutor, error) {
 	//First we need to transform js template to ES5 compatible code
-	script, err := Transform(expression)
+	script, err := BabelizeProcessEvent(expression)
 	if err != nil {
-		resError := fmt.Errorf("js transforming error: %v", err)
+		resError := fmt.Errorf("ES5 transforming error: %v", err)
 		//hack to keep compatibility with JSON templating (which sadly can't be valid JS)
-		script, err = Transform("return " + expression)
+		script, err = BabelizeProcessEvent("return " + expression)
 		if err != nil {
 			//we don't report resError instead of err here because we are not sure that adding "return" was the right thing to do
 			return nil, resError
 		}
 	}
+	//loading transform scripts for destinations
+	extraScripts := make([]string, 0, len(transformIds))
+	for _, transformId := range transformIds {
+		filename :=  "js/transform/" + transformId + ".js"
+		bytes, err := transforms.ReadFile(filename)
+		if err == nil {
+			es5script, err := Babelize(strings.ReplaceAll(string(bytes), "JitsuTransformFunction", strcase.ToLowerCamel("to_" + transformId)))
+			if err != nil {
+				return nil, fmt.Errorf("failed to transform %s to ES5 script: %v", filename, err)
+			}
+			extraScripts = append(extraScripts, es5script)
+		} else {
+			extraScripts = append(extraScripts, `function ` + strcase.ToLowerCamel("to_" + transformId) + `($) { return $ }`)
+		}
+	}
 
 	jte := &JsTemplateExecutor{sync.Mutex{}, make(chan events.Event), make(chan struct{}), make(chan interface{}), script, nil}
-	safego.RunWithRestart(func() { jte.start(extraFunctions) })
+	safego.RunWithRestart(func() { jte.start(extraFunctions, extraScripts...) })
 	_, err = jte.ProcessEvent(events.Event{})
 	if err != nil && strings.HasPrefix(err.Error(), jsLoadingErrorText) {
 		//we need to test that js function is properly loaded because that happens in JsTemplateExecutor's goroutine
@@ -108,9 +124,9 @@ func NewJsTemplateExecutor(expression string, extraFunctions template.FuncMap) (
 }
 
 
-func (jte *JsTemplateExecutor) start(extraFunctions template.FuncMap) {
+func (jte *JsTemplateExecutor) start(extraFunctions template.FuncMap, extraScripts ... string) {
 	//loads javascript into new vm instance
-	function, err := LoadTemplateScript(jte.transformedExpression, extraFunctions)
+	function, err := LoadTemplateScript(jte.transformedExpression, extraFunctions, extraScripts...)
 	if err != nil {
 		jte.loadingError =  fmt.Errorf("%s: %v\ntransformed function:\n%v\n",jsLoadingErrorText, err, jte.transformedExpression)
 	}

@@ -2,9 +2,12 @@ package schema
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/jitsucom/jitsu/server/typing"
 )
+
+const SqlTypeKeyword = "__sql_type_"
 
 //TypeResolver resolves schema.Fields from input object
 type TypeResolver interface {
@@ -22,6 +25,11 @@ func NewDummyTypeResolver() *DummyTypeResolver {
 
 //Resolve return one dummy field and Fields becomes not empty. (it is used in Facebook destination)
 func (dtr *DummyTypeResolver) Resolve(object map[string]interface{}) (Fields, error) {
+	for k, _ := range object {
+		if strings.Contains(k, SqlTypeKeyword) {
+			delete(object, k)
+		}
+	}
 	return Fields{"dummy": NewField(typing.UNKNOWN)}, nil
 }
 
@@ -39,6 +47,25 @@ func NewTypeResolver() *TypeResolverImpl {
 //reformat from json.Number into int64 or float64 and put back
 //reformat from string with timestamp into time.Time and put back
 func (tr *TypeResolverImpl) Resolve(object map[string]interface{}) (Fields, error) {
+	mappedTypes := make(map[string]typing.SQLColumn)
+	for k, v := range object {
+		if strings.Contains(k, SqlTypeKeyword) {
+			delete(object, k)
+			key := strings.ReplaceAll(k, SqlTypeKeyword, "")
+			switch val := v.(type) {
+				case []interface{}:
+					if len(val) > 1 {
+						mappedTypes[key] = typing.SQLColumn{Type: fmt.Sprint(val[0]), ColumnType: fmt.Sprint(val[1])}
+					} else {
+						mappedTypes[key] = typing.SQLColumn{Type: fmt.Sprint(val[0])}
+					}
+				case string:
+					mappedTypes[key] = typing.SQLColumn{Type: val}
+			default:
+				return nil, fmt.Errorf("incorred type of value for __sql_type_: %T", v)
+			}
+		}
+	}
 	fields := Fields{}
 	//apply default typecast and define column types
 	for k, v := range object {
@@ -65,8 +92,11 @@ func (tr *TypeResolverImpl) Resolve(object map[string]interface{}) (Fields, erro
 			resultColumnType = defaultType
 			object[k] = converted
 		}
-
-		fields[k] = NewField(resultColumnType)
+		if sqlType, ok := mappedTypes[k]; ok {
+			fields[k] = NewFieldWithSQLType(resultColumnType, NewSQLTypeSuggestion(sqlType, nil))
+		} else {
+			fields[k] = NewField(resultColumnType)
+		}
 	}
 
 	return fields, nil
