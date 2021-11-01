@@ -25,6 +25,11 @@ func NewDummyTypeResolver() *DummyTypeResolver {
 
 //Resolve return one dummy field and Fields becomes not empty. (it is used in Facebook destination)
 func (dtr *DummyTypeResolver) Resolve(object map[string]interface{}) (Fields, error) {
+	for k, _ := range object {
+		if strings.Contains(k, SqlTypeKeyword) {
+			delete(object, k)
+		}
+	}
 	return Fields{"dummy": NewField(typing.UNKNOWN)}, nil
 }
 

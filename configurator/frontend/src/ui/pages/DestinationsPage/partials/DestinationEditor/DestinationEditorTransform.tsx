@@ -29,7 +29,7 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
         <>
             <TabDescription>
                 <p>Use the power of Javascript to modify incoming event object, replace it with a completely new event or produce multiple events based on incoming data.<br/>
-                    Also, you can use <b>Transform</b> to set the destination table name for each event or to skip the event altogether. <a onClick={() => setDocumentationVisible(true)}>Open Documentation →</a><br/>
+                    Also, you can use <b>Transform</b> to assign Data Warehouse specific SQL types for object fields, set the destination table name for each event or to skip the event altogether. <a onClick={() => setDocumentationVisible(true)}>Open Documentation →</a><br/>
                         <b>Transform</b> effectively replaces <b>Mappings</b> – both features cannot work together.
                 </p>
             </TabDescription>
@@ -51,7 +51,9 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                     },
                         {
                         id: '_transform',
-                        codeSuggestions: [destinationData._type, "segment"].map(type => `declare function ${camelCase('to_' + type)}(event: object): object`).join('\n'),
+                        codeSuggestions: `declare const destinationId = "${destinationData._uid}";
+declare const destinationType = "${destinationData._type}";
+${[destinationData._type, "segment"].map(type => `declare function ${camelCase('to_' + type)}(event: object): object`).join('\n')}`,
                         displayName: 'Javascript Transformation',
                         defaultValue: destinationsReferenceMap[destinationData._type].defaultTransform || 'return $',
                         required: false,
@@ -85,9 +87,12 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                                     <li><b>null</b> - to skip event from processing</li>
                                 </ul>
                                 </p>
-                                <p>To override the destination table, you need to add a special property to the resulting events.
-                                    This property name is stored in the global variable: <code>TABLE_NAME</code>
+                                <p>To override the destination table, you need to add a special property <code>JITSU_TABLE_NAME</code> to the resulting events.
                                 </p>
+                                <p>To override the destination SQL column type for a specific object field, you need to add an extra property with the special prefix <code>__sql_type_</code> added to the name of a field to resulting events.
+                                    E.g.: <code>__sql_type_utc_time: "date"</code> sets SQL type <b>date</b> for column <b>utc_time</b>
+                                </p>
+                                <p>See more bellow.</p>
                             </Collapse.Panel>
                             <Collapse.Panel header={<div className="font-bold">Modify incoming event</div>}
                                             key="modify">
@@ -163,6 +168,27 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                                 <CodeSnippet size={"large"} language={"javascript"}>{
 `$.JITSU_TABLE_NAME = "new_table_name"
 return $`
+                                }</CodeSnippet>
+                            </Collapse.Panel>
+                            <Collapse.Panel header={<div className="font-bold">Override SQL column type</div>}
+                                            key="sql_type">
+                                <p>Set simple SQL types:</p>
+                                <CodeSnippet size={"large"} language={"javascript"}>{
+`return {...$, 
+    event_date: $.utc_time,                               
+    __sql_type_event_date: "date",
+    event_time: $.utc_time,
+    __sql_type_event_time: "time"
+}`
+                                }</CodeSnippet>
+                                <p>Sql types with extra parameters:<br/>
+                                Some Data Warehouses support extra parameters for column types during table creation.<br/>
+                                For such cases, Transform uses the following syntax to provide data type and column type separately:</p>
+                                <CodeSnippet size={"large"} language={"javascript"}>{
+                                    `return {...$, 
+    title: $.page_title,                               
+    __sql_type_title: ["varchar(256)", "varchar(256) encode zstd"]
+}`
                                 }</CodeSnippet>
                             </Collapse.Panel>
                         </Collapse>

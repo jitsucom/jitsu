@@ -128,7 +128,8 @@ const ConfigurableFieldsFormComponent = ({
     constantValue?: any,
     jsDebugger?: "object" | "string" | null,
     bigField?: boolean,
-    displayName?: string
+    displayName?: string,
+    codeSuggestions?: string
   ) => {
     const defaultValueToDisplay =
       form.getFieldValue(id) ?? getInitialValue(id, defaultValue, constantValue, type?.typeName)
@@ -174,6 +175,7 @@ const ConfigurableFieldsFormComponent = ({
             <CodeEditor
               initialValue={defaultValueToDisplay}
               className={styles.codeEditor}
+              extraSuggestions={codeSuggestions}
               language={type?.typeName}
               handleChange={handleJsonChange(id)}
             />
@@ -411,7 +413,7 @@ const ConfigurableFieldsFormComponent = ({
                   labelCol={{ span: bigField ? 0 : 4 }}
                   wrapperCol={{ span: bigField ? 24 : 20 }}
                   rules={validationRules}>
-                  {getFieldComponent(type, id, defaultValue, constantValue, jsDebugger, bigField, displayName)}
+                  {getFieldComponent(type, id, defaultValue, constantValue, jsDebugger, bigField, displayName, codeSuggestions)}
                 </Form.Item>
               </Col>
             </Row>
