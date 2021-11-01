@@ -39,6 +39,9 @@ const facebookDestination = {
   id: 'facebook',
   type: 'other',
   displayName: 'Facebook',
+  defaultTransform: `// Code of Facebook transform:
+// https://github.com/jitsucom/jitsu/blob/master/server/templates/js/transform/facebook.js
+return toFacebook($)`,
   hidden: false,
   ui: {
     icon,

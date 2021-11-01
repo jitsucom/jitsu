@@ -1,7 +1,7 @@
 # BASE STAGE
 FROM alpine:3.13 as main
 
-RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata docker sudo
+RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata docker bash sudo
 
 ARG dhid
 ENV DOCKER_HUB_ID=$dhid

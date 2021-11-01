@@ -12,7 +12,7 @@ Singer configuration is a set of JSON objects (see [specification](https://githu
 | Name | Description |
 | :--- | :--- |
 | [Config](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#config) (required) | JSON object contains authorization keys, account ids, start date (date for downloading since). JSON structure depends on the tap. |
-| [Catalog](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#catalog) (required) | JSON objec contains all streams (object types) and fields to download. JSON structure is standardized, but stream and field names depend on the tap. |
+| [Catalog](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#catalog) | JSON object contains all streams (object types) and fields to download. If not provided, Jitsu will do discover and save catalog with all available streams. JSON structure is standardized, but stream and field names depend on the tap. |
 | [State](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#state) | JSON payload contains bookmarks that specify an initial state. It is used when you need to download not all data. |
 | Properties | `Deprecated`. JSON object contains streams and fields schema like Catalog. Used by some legacy taps (e.g. [Facebook tap](https://github.com/singer-io/tap-facebook)) |
 

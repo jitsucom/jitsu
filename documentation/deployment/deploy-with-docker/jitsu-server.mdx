@@ -1,0 +1,129 @@
+---
+sort: 3
+---
+
+# Jitsu Server
+
+There' two options on how to deploy [Jitsu Server](/docs/deployment).
+
+* **Standalone Deployment** (without Configurator). In that case, the server will require a
+[dedicated configuration file](/docs/configuration). The file should be mounted as a docker volume (via
+`<local file path>.yaml/:/home/eventnative/data/config/eventnative.yaml`)
+* **With Configurator**. In that case, Jitsu Server is configured from UI, and configuration is being
+pulled from Configurator with HTTP
+
+Both of deployments uses `@jitsucom/server` image
+
+## Standalone deployment
+
+Please, read [a section about syntax and structure of Jitsu Server configuration](/docs/configuration)
+file called `eventnative.yaml` (we renamed from EventNative to Jitsu a while ago, but you'll see the name in config and code here and there).
+
+Don't forget to map `/home/eventnative/data/config/eventnative.yaml` to locally created configuration file!
+
+## Exposed ports
+
+`@jitsucom/server` image exposes `8000` port
+
+## Environment Variable
+
+If you're configuring Jitsu in Standalone mode (with [configuration file]((/docs/configuration))) - skip this section,
+those variables will not work!
+
+<APIParam small={true}  name="REDIS_URL" dataType="string" required={true} type="Docker Env Var">
+    Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
+    <code inline={true}>redis://host:port without password</code>
+</APIParam>
+<APIParam small={true} name="TLS_SKIP_VERIFY" dataType="boolean" required={false} type="Docker Env Var">
+    Redis: skip client certificate verification
+</APIParam>
+<APIParam small={true}  name="JITSU_CONFIGURATOR_URL" dataType="string" required={true} type="Docker Env Var">
+    HTTP URL of Jitsu Configurator
+</APIParam>
+<APIParam small={true}  name="SERVER_ADMIN_TOKEN" dataType="string" required={true} type="Docker Env Var">
+    Admin Token for authorizing requests from Configurator (should be the same as configured for <a href="/docs/deployment/deploy-with-docker/jitsu-cofigurator">Configurator</a>
+</APIParam>
+<APIParam small={true}  name="CONFIGURATOR_ADMIN_TOKEN" dataType="string" required={true} type="Docker Env Var">
+    Admin Token for authorizing requests to Configurator (should be the same as configured for <a href="/docs/deployment/deploy-with-docker/jitsu-cofigurator">Configurator</a>
+</APIParam>
+<APIParam small={true}  name="MAX_MIND_PATH" dataType="boolean" required={false} type="Docker Env Var">
+    Redis: skip client certificate verification
+</APIParam>
+<APIParam small={true}  name="SLACK_NOTIFICATIONS_WEBHOOK" dataType="string" required={false} type="Docker Env Var">
+    Slack webhook URL. Server starts, system errors, and panics information will be sent there
+</APIParam>
+<APIParam small={true} name="USER_RECOGNITION_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
+    If <a href="/docs/other-features/retroactive-user-recognition">Retroactive User Recognition</a> should be enabled.
+    <code inline={true}>true</code> by default
+</APIParam>
+<APIParam small={true} name="GOOGLE_ADS_DEVELOPER_TOKEN" dataType="string" required={false} type="Docker Env Var">
+    Developer Token for <a href="/docs/sources/google-ads">Google Ads connector</a>
+</APIParam>
+
+
+
+## Volumes
+
+<Hint>
+    Do not forget to <code inline={true}>chmod 777 /local_logs_mount</code> if you're mounting
+    <code inline={true}>/home/eventnative/data/logs/</code>
+    <br /><br />
+    Do mount <code inline={true}>jitsu_workspace</code> and <code inline={true}>/var/run/docker.sock</code> if you want <a href="/docs/sources-configuration/airbyte">Airbyte based connectors</a> to work
+</Hint>
+
+
+<table>
+    <thead>
+    <tr>
+        <th>Path (inside docker image)</th>
+        <th>Description</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <td>
+            <b><code inline={true}>/home/eventnative/data/logs/</code>*</b><br />
+            <i>(Highly recommended to mount)</i>
+        </td>
+        <td>
+            To send data <a href="/docs/destinations-configuration">in batches to destination</a>,{' '}
+            Jitsu needs to persist current batch on local disk. Internal queues are also persisted locally. If you
+            don't want to loose the data, it's highly recommended to mount this volume. <br /><br />Example:{' '}
+            <code inline={true}>-v $PWD/server_logs/:/home/eventnative/data/logs/</code>, make sure that the volume is writable with:{' '}
+            <code inline={true}>`chmod 777 $PWD/server_logs/</code><br /><br />This volume contains server application logs as well
+        </td>
+    </tr>
+    <tr>
+      <td>
+        <b><code inline={true}>/home/eventnative/data/airbyte</code></b><br />
+        <i>(optional)</i>
+      </td>
+      <td>
+        Required for <a href="/docs/sources-configuration/airbyte">Airbyte connectors</a> support. Mount with <code inline={true}>-v jitsu_workspace:/home/eventnative/data/airbyte</code>). Name <code inline={true}>jitsu_workspace</code> should be exactly this.
+      </td>
+    </tr>
+    <tr>
+        <td>
+            <b><code inline={true}>/var/run/docker.sock</code></b><br />
+            <i>(optional)</i>
+        </td>
+        <td>
+            Required for <a href="/docs/sources-configuration/airbyte">Airbyte connectors</a> support. Mount to <code inline={true}>/var/run/docker.sock</code>
+            (with <code inline={true}>-v /var/run/docker.sock:/var/run/docker.sock</code>)
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <b><code inline={true}>/home/eventnative/data/config/eventnative.yaml</code></b><br />
+            <i>(optional)</i>
+        </td>
+        <td>
+            That's the server configuration file. Do not touch it unless you're configuring Jitsu in standalone mode
+        </td>
+    </tr>
+    </tbody>
+</table>
+
+
+
+

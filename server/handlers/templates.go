@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/templates"
 	"net/http"
+	"text/template"
 )
 
 //EvaluateTemplateRequest is a request dto for testing text/template expressions
@@ -16,12 +17,15 @@ type EvaluateTemplateRequest struct {
 	Object     map[string]interface{} `json:"object,omitempty"`
 	Expression string                 `json:"expression,omitempty"`
 	Reformat   bool                   `json:"reformat,omitempty"`
+	Type       string                 `json:"type,omitempty"`
+	Uid        string                 `json:"uid,omitempty"`
+	Field      string                 `json:"field,omitempty"`
 }
 
 //EvaluateTemplateResponse is a response dto for testing text/template expressions
 type EvaluateTemplateResponse struct {
 	Result string `json:"result"`
-	Error string `json:"message"`
+	Error  string `json:"message"`
 	Format string `json:"format"`
 }
 
@@ -36,6 +40,11 @@ func (etr *EvaluateTemplateRequest) Validate() error {
 	}
 
 	return nil
+}
+
+//TemplateFunctions fills temlate functions with destination data from request
+func (etr *EvaluateTemplateRequest) TemplateFunctions() template.FuncMap {
+	return templates.EnrichedFuncMap(map[string]string{"destinationId": etr.Uid, "destinationType": etr.Type})
 }
 
 //EventTemplateHandler is a handler for testing text/template expression with income object
@@ -78,12 +87,15 @@ func evaluate(req *EvaluateTemplateRequest) (result string, format string, err e
 			err = fmt.Errorf("Error: %v", r)
 		}
 	}()
-
-	tmpl, err := templates.SmartParse("template evaluating", req.Expression, templates.JSONSerializeFuncs)
+	var transformIds []string
+	if req.Field == "_transform" {
+		transformIds = []string{req.Type, "segment"}
+	}
+	tmpl, err := templates.SmartParse("template evaluating", req.Expression, req.TemplateFunctions(), transformIds...)
 	if err != nil {
 		return "", "", fmt.Errorf("error parsing template: %v", err)
 	}
-	resultObject, err:= tmpl.ProcessEvent(req.Object)
+	resultObject, err := tmpl.ProcessEvent(req.Object)
 	if err != nil {
 		return "", tmpl.Format(), fmt.Errorf("error executing template: %v", err)
 	}
@@ -97,7 +109,7 @@ func evaluate(req *EvaluateTemplateRequest) (result string, format string, err e
 }
 
 func evaluateReformatted(req *EvaluateTemplateRequest) (string, string, error) {
-	tableNameExtractor, err := schema.NewTableNameExtractor(req.Expression)
+	tableNameExtractor, err := schema.NewTableNameExtractor(req.Expression, req.TemplateFunctions())
 	if err != nil {
 		return "", "", err
 	}

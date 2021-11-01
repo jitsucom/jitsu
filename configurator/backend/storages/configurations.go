@@ -49,8 +49,9 @@ func NewConfigurationsStorage(ctx context.Context, vp *viper.Viper) (Configurati
 		port := vp.GetInt("storage.redis.port")
 		password := vp.GetString("storage.redis.password")
 		tlsSkipVerify := vp.GetBool("storage.redis.tls_skip_verify")
+		sentinelMaster := vp.GetString("storage.redis.sentinel_master_name")
 
-		redisConfig := meta.NewRedisConfiguration(host, port, password, tlsSkipVerify)
+		redisConfig := meta.NewRedisPoolFactory(host, port, password, tlsSkipVerify, sentinelMaster)
 		if defaultPort, ok := redisConfig.CheckAndSetDefaultPort(); ok {
 			logging.Infof("storage.redis.port isn't configured. Will be used default: %d", defaultPort)
 		}

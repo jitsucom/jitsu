@@ -8,15 +8,17 @@ import {
 } from '@ant-design/icons';
 // @Styles
 import styles from './ErrorCard.module.less';
+import cn from "classnames"
 
 type ErrorCardProps = {
-  title?: string | ReactNode;
-  icon?: ReactNode;
-  description?: string | ReactNode;
-  descriptionWithContacts?: string | null;
-  stackTrace?: string;
-  className?: string;
-};
+  title?: string | ReactNode
+  icon?: ReactNode
+  description?: string | ReactNode
+  descriptionWithContacts?: string | null
+  stackTrace?: string
+  className?: string
+  onReload?: VoidFunction
+}
 
 export const ErrorCard: FC<ErrorCardProps> = ({
   title,
@@ -24,13 +26,13 @@ export const ErrorCard: FC<ErrorCardProps> = ({
   description,
   descriptionWithContacts,
   stackTrace,
-  className
+  className,
 }) => {
   return (
-    <Card bordered={false} className={className}>
+    <Card bordered={false} className={cn(className, "max-h-full")}>
       <Card.Meta
         avatar={icon || <ExclamationCircleOutlined className={styles.icon} />}
-        title={title || 'An Error Occured'}
+        title={title || "An Error Occured"}
         description={
           <>
             <>
@@ -45,41 +47,32 @@ export const ErrorCard: FC<ErrorCardProps> = ({
                     </>
                   ) : (
                     <>
-                      {
-                        'The application component crashed because of an internal error.'
-                      }
+                      {"The application component crashed because of an internal error."}
                       <br />
                     </>
                   )}
-                  {
-                    'Please, try to reload the page first and if the problem is still present contact us at'
-                  }{' '}
-                  <Typography.Paragraph
-                    copyable={{ tooltips: false }}
-                    className="inline"
-                  >
-                    {'support@jitsu.com'}
-                  </Typography.Paragraph>{' '}
-                  {'and our engineers will fix the problem asap.'}
+                  {"Please, try to reload the page first and if the problem is still present contact us at"}{" "}
+                  <Typography.Paragraph copyable={{ tooltips: false }} className="inline">
+                    {"support@jitsu.com"}
+                  </Typography.Paragraph>{" "}
+                  {"and our engineers will fix the problem asap."}
                 </span>
               )}
             </>
             <>
               {stackTrace && (
-                <Collapse
-                  bordered={false}
-                  className={`mt-2 ${styles.stackTraceCard}`}
-                >
+                <Collapse bordered={false} className={`mt-2 ${styles.stackTraceCard}`}>
                   <Collapse.Panel key={1} header="Error Stack Trace">
-                    <Typography.Paragraph
-                      copyable={{
-                        text: stackTrace,
-                        icon: [<CopyOutlined />, <CheckOutlined />]
-                      }}
-                      className={`flex flex-row ${styles.errorStackContainer}`}
-                    >
-                      <pre className="text-xs">{stackTrace}</pre>
-                    </Typography.Paragraph>
+                    <div className="overflow-y-auto">
+                      <Typography.Paragraph
+                        copyable={{
+                          text: stackTrace,
+                          icon: [<CopyOutlined />, <CheckOutlined />],
+                        }}
+                        className={`flex flex-row ${styles.errorStackContainer}`}>
+                        <pre className="text-xs">{stackTrace}</pre>
+                      </Typography.Paragraph>
+                    </div>
                   </Collapse.Panel>
                 </Collapse>
               )}
@@ -88,5 +81,5 @@ export const ErrorCard: FC<ErrorCardProps> = ({
         }
       />
     </Card>
-  );
-};
+  )
+}

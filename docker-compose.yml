@@ -5,7 +5,7 @@ networks:
 services:
   jitsu:
     container_name: jitsu
-    image: jitsucom/jitsu:latest
+    image: jitsucom/jitsu
     environment:
       - REDIS_URL=redis://redis:6379
     depends_on:

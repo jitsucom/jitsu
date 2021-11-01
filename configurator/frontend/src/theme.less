@@ -10,7 +10,9 @@
 @splitBorder: #394e5a;
 @primary: rgb(91, 20, 250);
 @link: rgb(135, 138, 252); //add to tailwind
-@success: #2cc56f;
+@success: rgb(11, 173, 81);
+@successHover: #0aa14b;
+@successActive: #2cc56f;
 @warning: #ffc021;
 @error: #e53935;
 @heading: #c1c9d2;
@@ -72,6 +74,14 @@
 @default-transition-animation: linear;
 @default-transiton: @default-transition-duration @default-transition-animation @default-transition-delay;
 
+.box-shadow-base {
+  box-shadow: @box-shadow-base;
+}
+
+.border-debug {
+  border: 1px solid red;
+}
+
 .font-heading {
   font-family: @font-heading;
 }
@@ -93,7 +103,7 @@
   }
 }
 
-.ant-select-item-option-active {
+.ant-select-item-option-active, .ant-dropdown-menu-submenu-active .ant-dropdown-menu-submenu-title {
   background-color: @bgSecondary !important;
 }
 
@@ -232,7 +242,7 @@
 @apply w-5 h-5;
 }
 
-.ant-tabs-tab-active {
+.ant-tabs-card .ant-tabs-tab-active {
   border-bottom-color: @bgPrimary !important;
-  background: linear-gradient(to bottom, @splitBorder 10%,@splitBorder 10%,@bgPrimary 10%,@bgPrimary 100%) !important;
+  background: linear-gradient(to bottom, @splitBorder 10%,@splitBorder 10%,transparent 10%,transparent 100%) !important;
 }

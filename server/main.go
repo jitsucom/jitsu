@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/system"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/jitsucom/jitsu/server/wal"
 	"math/rand"
 	"net/http"
@@ -116,17 +117,21 @@ func main() {
 	// Setup application directory as working directory
 	setAppWorkDir()
 
-	if err := config.Read(*configSource, *containerizedRun, configNotFound); err != nil {
+	if err := config.Read(*configSource, *containerizedRun, configNotFound, "Jitsu Server"); err != nil {
 		logging.Fatal("Error while reading application config:", err)
 	}
 
 	//parse EN version
+	appconfig.RawVersion = tag
+	appconfig.BuiltAt = builtAt
 	parsed := appconfig.VersionRegex.FindStringSubmatch(tag)
 	if len(parsed) == 4 {
-		appconfig.RawVersion = parsed[0]
 		appconfig.MajorVersion = parsed[1]
 		appconfig.MinorVersion = parsed[3]
 		appconfig.Beta = parsed[2] == "beta"
+	}
+	if tag == "beta" {
+		appconfig.Beta = true
 	}
 
 	environment := os.Getenv("ENVIRONMENT")
@@ -143,7 +148,10 @@ func main() {
 		logging.Fatal(err)
 	}
 
-	airbyte.Init(viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), appconfig.Instance.AirbyteLogsWriter)
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := airbyte.Init(ctx, viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), appconfig.Instance.AirbyteLogsWriter); err != nil {
+		logging.Errorf("❌ Airbyte integration is disabled: %v. For using Airbyte run Jitsu with: -v /var/run/docker.sock:/var/run/docker.sock", err)
+	}
 
 	enrichment.InitDefault(
 		viper.GetString("server.fields_configuration.src_source_ip"),
@@ -168,7 +176,6 @@ func main() {
 	}
 
 	//listen to shutdown signal to free up all resources
-	ctx, cancel := context.WithCancel(context.Background())
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP)
 	go func() {
@@ -212,6 +219,8 @@ func main() {
 	if err != nil {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
+	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
+	telemetry.EnrichSystemInfo(clusterID)
 
 	// ** Coordination Service **
 	var coordinationService coordination.Service
@@ -242,7 +251,7 @@ func main() {
 		}
 	}
 
-	// ** Closing Meta Storage and Coordination SErvice
+	// ** Closing Meta Storage and Coordination Service
 	// Close after all for saving last task statuses
 	defer func() {
 		if err := coordinationService.Close(); err != nil {
@@ -315,9 +324,12 @@ func main() {
 
 	//sources sync tasks pool size
 	poolSize := viper.GetInt("server.sync_tasks.pool.size")
+	stalledTasksThresholdSeconds := viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")
+	stalledLastLogThresholdMinutes := viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")
+	observeStalledTaskEverySeconds := viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")
 
 	//Create task executor
-	taskExecutor, err := synchronization.NewTaskExecutor(poolSize, sourceService, destinationsService, metaStorage, coordinationService)
+	taskExecutor, err := synchronization.NewTaskExecutor(poolSize, stalledTasksThresholdSeconds, stalledLastLogThresholdMinutes, observeStalledTaskEverySeconds, sourceService, destinationsService, metaStorage, coordinationService)
 	if err != nil {
 		logging.Fatal("Error creating sources sync task executor:", err)
 	}
@@ -338,7 +350,7 @@ func main() {
 
 	adminToken := viper.GetString("server.admin_token")
 	if strings.HasPrefix(adminToken, "demo") {
-		logging.Errorf("\n\t*** Please replace server.admin_token with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
+		logging.Errorf("\n\t*** ⚠️  Please replace server.admin_token (SERVER_ADMIN_TOKEN env variable) with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
 	}
 
 	fallbackService, err := fallback.NewService(logEventPath, destinationsService, usersRecognitionService)
@@ -430,13 +442,19 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 
 	//configured
 	if coordinationRedisConfiguration != nil {
+		host := coordinationRedisConfiguration.GetString("host")
+		if host == "" {
+			return nil, errors.New("coordination.redis.host is required config parameter")
+		}
+
 		telemetry.Coordination("redis")
-		redisConfig := meta.NewRedisConfiguration(coordinationRedisConfiguration.GetString("host"),
+		factory := meta.NewRedisPoolFactory(host,
 			coordinationRedisConfiguration.GetInt("port"),
 			coordinationRedisConfiguration.GetString("password"),
-			coordinationRedisConfiguration.GetBool("tls_skip_verify"))
-		redisConfig.CheckAndSetDefaultPort()
-		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, redisConfig)
+			coordinationRedisConfiguration.GetBool("tls_skip_verify"),
+			coordinationRedisConfiguration.GetString("sentinel_master_name"))
+		factory.CheckAndSetDefaultPort()
+		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, factory)
 	}
 
 	return nil, errors.New("Unknown coordination configuration. Currently only [redis, etcd] are supported. " +

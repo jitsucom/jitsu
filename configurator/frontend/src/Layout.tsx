@@ -2,24 +2,13 @@
 // @Libs
 import * as React from 'react';
 import { useState } from 'react';
-import { NavLink, useHistory, useLocation, useParams } from 'react-router-dom';
-import {
-  Button,
-  Dropdown,
-  message,
-  Modal,
-  MessageArgsProps,
-  Tooltip, notification
-} from 'antd';
+import { NavLink, Redirect, Route, useHistory, useLocation, Switch } from "react-router-dom"
+import { Button, Dropdown, message, Modal, MessageArgsProps, Tooltip, notification } from "antd"
 // @Components
-import {
-  BreadcrumbsProps,
-  withHome,
-  Breadcrumbs
-} from 'ui/components/Breadcrumbs/Breadcrumbs';
-import { NotificationsWidget } from 'lib/components/NotificationsWidget/NotificationsWidget';
-import { CurrentPlan } from 'ui/components/CurrentPlan/CurrentPlan';
-import { handleError } from 'lib/components/components';
+import { BreadcrumbsProps, withHome, Breadcrumbs } from "ui/components/Breadcrumbs/Breadcrumbs"
+import { NotificationsWidget } from "lib/components/NotificationsWidget/NotificationsWidget"
+import { CurrentPlan } from "ui/components/CurrentPlan/CurrentPlan"
+import { CenteredSpin, handleError } from "lib/components/components"
 // @Icons
 import Icon, {
   SettingOutlined,
@@ -33,99 +22,125 @@ import Icon, {
   UserSwitchOutlined,
   LogoutOutlined,
   PartitionOutlined,
-  ThunderboltOutlined
-} from '@ant-design/icons';
-import logo from 'icons/logo.svg';
-import logoMini from 'icons/logo-square.svg';
-import { ReactComponent as DbtCloudIcon } from 'icons/dbtCloud.svg';
-import { ReactComponent as KeyIcon } from 'icons/key.svg';
-import classNames from 'classnames';
+  ThunderboltOutlined,
+} from "@ant-design/icons"
+import logo from "icons/logo.svg"
+import logoMini from "icons/logo-square.svg"
+import { ReactComponent as DbtCloudIcon } from "icons/dbtCloud.svg"
+import { ReactComponent as KeyIcon } from "icons/key.svg"
+import classNames from "classnames"
 // @Model
-import { Permission, User } from 'lib/services/model';
+import { Permission, User } from "lib/services/model"
 // @Utils
-import { reloadPage } from 'lib/commons/utils';
-import { Page, usePageLocation } from 'navigation';
+import { reloadPage } from "lib/commons/utils"
+import { Page, usePageLocation } from "navigation"
 // @Services
-import { useServices } from 'hooks/useServices';
-import { AnalyticsBlock } from 'lib/services/analytics';
-import { CurrentSubscription } from 'lib/services/billing';
+import { useServices } from "hooks/useServices"
+import { AnalyticsBlock } from "lib/services/analytics"
+import { CurrentSubscription } from "lib/services/billing"
 // @Styles
-import styles from './Layout.module.less';
+import styles from "./Layout.module.less"
 // @Misc
-import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
-import { FeatureSettings } from './lib/services/ApplicationServices';
-import { usePersistentState } from './hooks/usePersistentState';
-import githubLogo from './icons/github.svg';
+import { settingsPageRoutes } from "./ui/pages/SettingsPage/SettingsPage"
+import { FeatureSettings } from "./lib/services/ApplicationServices"
+import { usePersistentState } from "./hooks/usePersistentState"
+import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
 
 type MenuItem = {
   icon: React.ReactNode
   title: React.ReactNode
-  link: string,
+  link: string
   enabled: (f: FeatureSettings) => boolean
 }
 
-const makeItem = (icon: React.ReactNode, title: React.ReactNode, link: string, enabled = (f: FeatureSettings) => true): MenuItem => {
-  return { icon, title, link, enabled };
+const makeItem = (
+  icon: React.ReactNode,
+  title: React.ReactNode,
+  link: string,
+  enabled = (f: FeatureSettings) => true
+): MenuItem => {
+  return { icon, title, link, enabled }
 }
 
 const menuItems = [
-  makeItem(<PartitionOutlined/>, 'Home', '/connections'),
-  makeItem(<ThunderboltOutlined/>, 'Live Events', '/events_stream'),
-  makeItem(<AreaChartOutlined/>, 'Statistics', '/dashboard'),
-  makeItem(<Icon component={KeyIcon}/>, 'API Keys', '/api_keys'),
-  makeItem(<ApiOutlined/>, 'Sources', '/sources'),
-  makeItem(<NotificationOutlined/>, 'Destinations', '/destinations'),
-  makeItem(<Icon component={DbtCloudIcon}/>, 'dbt Cloud Integration', '/dbtcloud'),
-  makeItem(<CloudOutlined/>, 'Custom Domains', '/domains', (f) => f.enableCustomDomains),
-  makeItem(<DownloadOutlined/>, 'Download Config', '/cfg_download', (f) => f.enableCustomDomains)
-];
+  makeItem(<PartitionOutlined />, "Home", "/connections"),
+  makeItem(<ThunderboltOutlined />, "Live Events", "/events_stream"),
+  makeItem(<AreaChartOutlined />, "Statistics", "/dashboard"),
+  makeItem(<Icon component={KeyIcon} />, "API Keys", "/api-keys"),
+  makeItem(<ApiOutlined />, "Sources", "/sources"),
+  makeItem(<NotificationOutlined />, "Destinations", "/destinations"),
+  makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud"),
+  makeItem(<CloudOutlined />, "Custom Domains", "/domains", f => f.enableCustomDomains),
+  makeItem(<DownloadOutlined />, "Download Config", "/cfg_download", f => f.enableCustomDomains),
+]
 
 export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) => {
-  const key = usePageLocation().mainMenuKey;
+  const key = usePageLocation().mainMenuKey
 
-  return <div className="pt-3">
-    {menuItems.map(item => {
-      const selected = item.link === '/' + key;
-      return <NavLink to={item.link} key={item.link}>
-        <div key={item.link} className={`${selected && 'bg-bgPrimary'} whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}>
-          {!expanded && <Tooltip title={item.title} placement="right" mouseEnterDelay={0}>
-            {item.icon}
-          </Tooltip>}
+  return (
+    <div className={`max-h-full overflow-x-visible overflow-y-auto my-3 ${styles.sideBarContent_applicationMenu}`}>
+      {menuItems.map(item => {
+        const selected = item.link === "/" + key
+        return (
+          <NavLink to={item.link} key={item.link}>
+            <div
+              key={item.link}
+              className={`${
+                selected ? styles.selectedMenuItem : styles.sideBarContent_item__withRightBorder
+              } whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}>
+              {!expanded && (
+                <Tooltip title={item.title} placement="right" mouseEnterDelay={0}>
+                  {item.icon}
+                </Tooltip>
+              )}
 
-          {expanded && <>{item.icon}<span className="pl-2 whitespace-nowrap">{item.title}</span></>}
-        </div>
-      </NavLink>
-    })}
-  </div>
-};
+              {expanded && (
+                <>
+                  {item.icon}
+                  <span className="pl-2 whitespace-nowrap">{item.title}</span>
+                </>
+              )}
+            </div>
+          </NavLink>
+        )
+      })}
+    </div>
+  )
+}
 
 export const ApplicationSidebar: React.FC<{}> = () => {
-  const [expanded, setExpanded] = usePersistentState(true, 'jitsu_menuExpanded');
+  const [expanded, setExpanded] = usePersistentState<boolean>(true, "jitsu_menuExpanded")
 
-  return <div className={`relative ${styles.sideBarContent}`}>
-    <div>
-      <div className={`${expanded ?
-        'w-3' :
-        'w-2'} absolute inline-block top-3 right-0 bg-bgTableHeader h-12 flex items-center justify-center rounded-l cursor-pointer`}
-           onClick={() => setExpanded(!expanded)}>
-        <svg xmlns="http://www.w3.org/2000/svg" className={`transform ${expanded ?
-          'rotate-90' :
-          '-rotate-90'}`} viewBox="0 0 24 24">
-          <path
-            d="M14.121,13.879c-0.586-0.586-6.414-6.414-7-7c-1.172-1.172-3.071-1.172-4.243,0	c-1.172,1.172-1.172,3.071,0,4.243c0.586,0.586,6.414,6.414,7,7c1.172,1.172,3.071,1.172,4.243,0	C15.293,16.95,15.293,15.05,14.121,13.879z"
-            opacity=".35"/>
-          <path
-            d="M14.121,18.121c0.586-0.586,6.414-6.414,7-7c1.172-1.172,1.172-3.071,0-4.243c-1.172-1.172-3.071-1.172-4.243,0	c-0.586,0.586-6.414,6.414-7,7c-1.172,1.172-1.172,3.071,0,4.243C11.05,19.293,12.95,19.293,14.121,18.121z"/>
-        </svg>
+  return (
+    <div className={`relative ${styles.sideBarContent}`}>
+      <div className="flex flex-col items-stretch h-full">
+        <div className={`${styles.sideBarContent_item__withRightBorder}`}>
+          <div className={`${expanded ? "w-3" : "w-2"} ${styles.expandButton}`} onClick={() => setExpanded(!expanded)}>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className={`transform ${expanded ? "rotate-90" : "-rotate-90"}`}
+              viewBox="0 0 24 24"
+              fill="currentColor">
+              <path
+                fill="currentColor"
+                d="M14.121,13.879c-0.586-0.586-6.414-6.414-7-7c-1.172-1.172-3.071-1.172-4.243,0	c-1.172,1.172-1.172,3.071,0,4.243c0.586,0.586,6.414,6.414,7,7c1.172,1.172,3.071,1.172,4.243,0	C15.293,16.95,15.293,15.05,14.121,13.879z"
+              />
+              <path
+                fill="currentColor"
+                d="M14.121,18.121c0.586-0.586,6.414-6.414,7-7c1.172-1.172,1.172-3.071,0-4.243c-1.172-1.172-3.071-1.172-4.243,0	c-0.586,0.586-6.414,6.414-7,7c-1.172,1.172-1.172,3.071,0,4.243C11.05,19.293,12.95,19.293,14.121,18.121z"
+              />
+            </svg>
+          </div>
+          <a href="https://jitsu.com" className={`text-center block pt-5 h-14`}>
+            <img src={expanded ? logo : logoMini} alt="[logo]" className="h-8 mx-auto" />
+          </a>
+        </div>
+        <div className={`flex-grow flex-shrink min-h-0 ${styles.sideBarContent_item__withRightBorder}`}>
+          <ApplicationMenu expanded={expanded} />
+        </div>
       </div>
-      <a href="https://jitsu.com" className="text-center block pt-5 h-14">
-        <img src={expanded ?
-          logo :
-          logoMini} alt="[logo]" className="h-8 mx-auto"/>
-      </a>
-      <ApplicationMenu expanded={expanded}/>
     </div>
-  </div>
+  )
 }
 
 export type PageHeaderProps = {
@@ -134,147 +149,184 @@ export type PageHeaderProps = {
 }
 
 function abbr(user: User) {
-  return user.name?.split(' ').filter(part => part.length > 0).map(part => part[0]).join('').toUpperCase();
+  return user.name
+    ?.split(" ")
+    .filter(part => part.length > 0)
+    .map(part => part[0])
+    .join("")
+    .toUpperCase()
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) => {
-  const [dropdownVisible, setDropdownVisible] = useState(false);
+  const [dropdownVisible, setDropdownVisible] = useState(false)
   return (
-    <div className="border-b border-splitBorder mb-4 h-12 flex flex-nowrap">
+    <div className="border-b border-splitBorder mb-0 h-14 flex flex-nowrap">
       <div className="flex-grow">
-        <div className="h-12 flex items-center">{children}</div>
+        <div className="h-14 flex items-center">{children}</div>
       </div>
-      <div
-        className={
-          `flex-shrink flex justify-center items-center mx-1`
-        }
-      >
-        <NotificationsWidget/>
+      <div className={`flex-shrink flex justify-center items-center mx-1`}>
+        <NotificationsWidget />
       </div>
       <div className="flex-shrink flex justify-center items-center">
         <Dropdown
-          trigger={['click']}
-          onVisibleChange={(vis) => setDropdownVisible(vis)}
+          trigger={["click"]}
+          onVisibleChange={vis => setDropdownVisible(vis)}
           visible={dropdownVisible}
-          overlay={
-            <DropdownMenu
-              user={user}
-              plan={plan}
-              hideMenu={() => setDropdownVisible(false)}
-            />
-          }
-        >
+          overlay={<DropdownMenu user={user} plan={plan} hideMenu={() => setDropdownVisible(false)} />}>
           <Button
             className="ml-1 border-primary border-2 hover:border-text text-text hover:text-text"
             size="large"
-            shape="circle"
-          >
-            {abbr(user) || <UserOutlined/>}
+            shape="circle">
+            {abbr(user) || <UserOutlined />}
           </Button>
         </Dropdown>
       </div>
     </div>
-  );
+  )
 }
 
-export const DropdownMenu: React.FC<{ user: User, plan: CurrentSubscription, hideMenu: () => void }> = ({ plan, user, hideMenu }) => {
-  const services = useServices();
-  const history = useHistory();
+export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hideMenu: () => void }> = ({
+  plan,
+  user,
+  hideMenu,
+}) => {
+  const services = useServices()
+  const history = useHistory()
 
   const showSettings = React.useCallback<() => void>(() => history.push(settingsPageRoutes[0]), [history])
 
-  const becomeUser = async() => {
-    let email = prompt('Please enter e-mail of the user', '');
+  const becomeUser = async () => {
+    let email = prompt("Please enter e-mail of the user", "")
     if (!email) {
-      return;
+      return
     }
     try {
-      AnalyticsBlock.blockAll();
-      await services.userService.becomeUser(email);
+      AnalyticsBlock.blockAll()
+      await services.userService.becomeUser(email)
     } catch (e) {
-      handleError(e, 'Can\'t login as other user');
-      AnalyticsBlock.unblockAll();
+      handleError(e, "Can't login as other user")
+      AnalyticsBlock.unblockAll()
     }
-  };
+  }
 
   return (
-    <div className="bg-bgSecondary">
-      <div className="py-5 border-b border-main px-5 flex flex-col items-center">
+    <div>
+      <div className="py-5 border-b px-5 flex flex-col items-center">
         <div className="text-center text-text text-lg">{user.name}</div>
         <div className="text-secondaryText text-xs underline">{user.email}</div>
       </div>
       <div className="py-2 border-b border-main px-5 flex flex-col items-start">
-        <div>Project: <b>{services.activeProject.name || 'Unspecified'}</b></div>
+        <div>
+          Project: <b>{services.activeProject.name || "Unspecified"}</b>
+        </div>
       </div>
-      {services.features.billingEnabled && services.applicationConfiguration.billingUrl && <div className="py-5 border-b border-main px-5 flex flex-col items-start">
-        <CurrentPlan planStatus={plan} onPlanChangeModalOpen={hideMenu}/>
-      </div>}
+      {services.features.billingEnabled && services.applicationConfiguration.billingUrl && (
+        <div className="py-5 border-b border-main px-5 flex flex-col items-start">
+          <CurrentPlan planStatus={plan} onPlanChangeModalOpen={hideMenu} />
+        </div>
+      )}
       <div className="p-2 flex flex-col items-stretch">
-        <Button
-          type="text"
-          className="text-left"
-          key="settings"
-          icon={<SettingOutlined/>}
-          onClick={showSettings}>
+        <Button type="text" className="text-left" key="settings" icon={<SettingOutlined />} onClick={showSettings}>
           Settings
         </Button>
-        {services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER) &&
-        <Button
-          className="text-left"
-          type="text"
-          key="become"
-          icon={<UserSwitchOutlined/>}
-          onClick={becomeUser}>
-          Become User
-        </Button>
-        }
+        {services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER) && (
+          <Button className="text-left" type="text" key="become" icon={<UserSwitchOutlined />} onClick={becomeUser}>
+            Become User
+          </Button>
+        )}
         <Button
           className="text-left"
           type="text"
           key="logout"
-          icon={<LogoutOutlined/>}
-          onClick={() => services.userService.removeAuth(reloadPage)
-          }>Logout</Button>
+          icon={<LogoutOutlined />}
+          onClick={() => services.userService.removeAuth(reloadPage)}>
+          Logout
+        </Button>
       </div>
     </div>
-  );
+  )
 }
 
 export type ApplicationPageWrapperProps = {
-  page: Page
+  pages: Page[]
+  extraForms?: JSX.Element[]
   user: User
   plan: CurrentSubscription
   [propName: string]: any
 }
 
 function handleBillingMessage(params) {
-  if (!params.get('billingMessage')) {
-    return;
+  if (!params.get("billingMessage")) {
+    return
   }
 
-  (params.get('billingStatus') === 'error' ? notification.error : notification.success)({
-    message: params.get('billingMessage'),
-    duration: 5
-  });
+  ;(params.get("billingStatus") === "error" ? notification.error : notification.success)({
+    message: params.get("billingMessage"),
+    duration: 5,
+  })
 }
 
-export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, page, user, ...rest }) => {
-  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbsProps>(withHome({ elements: [{ title: page.pageHeader }] }));
+export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, pages, user, extraForms }) => {
+  const location = useLocation()
+  const services = useServices()
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbsProps>(
+    withHome({ elements: [{ title: pages[0].pageHeader }] })
+  )
+  const routes = pages.map(page => {
+    const Component = page.component as React.ExoticComponent
+    return (
+      <Route
+        key={page.pageTitle}
+        path={page.getPrefixedPath()}
+        exact={true}
+        render={routeProps => {
+          services.analyticsService.onPageLoad({
+            pagePath: routeProps.location.hash,
+          })
+          document["title"] = page.pageTitle
+          // setBreadcrumbs(withHome({ elements: [{ title: page.pageHeader }] }))
+
+          return (
+            <ErrorBoundary>
+              <Component setBreadcrumbs={setBreadcrumbs} {...(routeProps as any)} />
+            </ErrorBoundary>
+          )
+        }}
+      />
+    )
+  })
+
+  routes.push(<Redirect key="dashboardRedirect" from="*" to="/dashboard" />)
   handleBillingMessage(new URLSearchParams(useLocation().search))
 
-  let Component = page.component as React.ExoticComponent;
-  let props = { setBreadcrumbs }
-  return <div className={styles.applicationPage}>
-    <div className={classNames(styles.sidebar)}>
-      <ApplicationSidebar/>
-    </div>
-    <div className={classNames(styles.rightbar)}>
-      <PageHeader user={user} plan={plan}><Breadcrumbs {...breadcrumbs} /></PageHeader>
-      <div className={styles.applicationPageComponent}>
-        <Component {...(props as any)} />
+  React.useEffect(() => {
+    // const pageMatchingPathname = pages.find(page => page.path.some(path => location.pathname.includes(path)))
+    const pageMatchingPathname = pages.find(page => page.path.includes(location.pathname))
+    // const a = pages
+    // const b = pages.map(p => p.path)
+    // const c = location.pathname
+    // debugger
+    if (pageMatchingPathname) setBreadcrumbs(withHome({ elements: [{ title: pageMatchingPathname.pageHeader }] }))
+  }, [location.pathname])
+
+  return (
+    <div className={styles.applicationPage}>
+      <div className={classNames(styles.sidebar)}>
+        <ApplicationSidebar />
+      </div>
+      <div className={classNames(styles.rightbar)}>
+        <PageHeader user={user} plan={plan}>
+          <Breadcrumbs {...breadcrumbs} />
+        </PageHeader>
+        <div className={styles.applicationPageComponent}>
+          <React.Suspense fallback={<CenteredSpin />}>
+            <Switch key={"appPagesSwitch"}>{routes}</Switch>
+            {extraForms}
+          </React.Suspense>
+        </div>
       </div>
     </div>
-  </div>;
+  )
 }
 
 export const SlackChatWidget: React.FC<{}> = () => {

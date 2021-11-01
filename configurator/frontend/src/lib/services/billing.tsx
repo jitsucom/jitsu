@@ -15,20 +15,35 @@ import moment, { Moment } from 'moment';
 import { UpgradePlan } from '../../ui/components/CurrentPlan/CurrentPlan';
 import { ReactElement } from 'react';
 
-export type PricingPlanId = 'free' | 'growth' | 'premium' | 'enterprise';
+export type PricingPlanId =
+  | 'opensource'
+  | 'free'
+  | 'growth'
+  | 'premium'
+  | 'enterprise';
 
 export interface Quota extends Usage {
   //allowed schedules (sync frequency), see schedule.ts for IDs
-  allowedSchedules: string[]
+  allowedSchedules: string[];
 }
 
 export type PricingPlan = {
   name: string;
   id: PricingPlanId;
-  quota: Quota
+  quota: Quota;
   price?: number;
 };
 
+const opensource: PricingPlan = {
+  name: 'Opensource',
+  id: 'opensource',
+  quota: {
+    destinations: 100,
+    sources: 150,
+    events: 10_000_000,
+    allowedSchedules: ['1d', '1h', '5m', '1m']
+  }
+};
 const free: PricingPlan = {
   name: 'Startup',
   id: 'free',
@@ -72,9 +87,13 @@ const enterprise: PricingPlan = {
     allowedSchedules: ['1d', '1h', '5m', '1m']
   }
 };
-export const paymentPlans: Record<PricingPlanId, PricingPlan> = { free, growth, premium, enterprise } as const;
-
-export const getFreePaymentPlan = () => paymentPlans.free;
+export const paymentPlans: Record<PricingPlanId, PricingPlan> = {
+  opensource,
+  free,
+  growth,
+  premium,
+  enterprise
+} as const;
 
 export type Usage = {
   events: number

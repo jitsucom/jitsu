@@ -9,22 +9,15 @@ import { toArrayIfNot } from 'utils/arrays';
 import { IDestinationsStore } from './destinations';
 import { intersection, without } from 'lodash';
 
-export type UserApiKey = {
-  uid: string;
-  jsAuth: string;
-  serverAuth: string;
-  origins?: string[];
-  comment?: string;
-};
 
 export interface IApiKeysStore {
-  apiKeys: UserApiKey[];
-  firstLinkedKey: UserApiKey | null;
+  apiKeys: APIKey[];
+  firstLinkedKey: APIKey | null;
   hasApiKeys: boolean;
   state: ApiKeysStoreState;
   error: string;
   injectDestinationsStore: (store: IDestinationsStore) => void;
-  getKeyByUid: (uid: string) => UserApiKey | null;
+  getKeyByUid: (uid: string) => APIKey | null;
   generateApiToken(type: string, len?: number): string;
   pullApiKeys: (
     showGlobalLoader: boolean
@@ -36,10 +29,10 @@ export interface IApiKeysStore {
     note?: string
   ) => Generator<Promise<unknown>, void, unknown>;
   deleteApiKey: (
-    apiKey: UserApiKey
+    apiKey: APIKey
   ) => Generator<Promise<unknown>, void, unknown>;
   editApiKeys: (
-    newData: UserApiKey | UserApiKey[]
+    newData: APIKey | APIKey[]
   ) => Generator<Promise<unknown>, void, unknown>;
 }
 
@@ -71,7 +64,7 @@ const { IDLE, GLOBAL_LOADING, BACKGROUND_LOADING, GLOBAL_ERROR } =
 const services = ApplicationServices.get();
 
 class ApiKeysStore implements IApiKeysStore {
-  private _apiKeys: UserApiKey[] = [];
+  private _apiKeys: APIKey[] = [];
   private _state: ApiKeysStoreState = GLOBAL_LOADING;
   private _errorMessage: string = '';
   private _destinationsStore: IDestinationsStore | undefined;
@@ -93,7 +86,7 @@ class ApiKeysStore implements IApiKeysStore {
     if (stateIsErrored) this._state = IDLE;
   }
 
-  private generateApiKey(comment?: string): UserApiKey {
+  private generateApiKey(comment?: string): APIKey {
     return {
       uid: this.generateApiToken('', 6),
       serverAuth: this.generateApiToken('s2s'),
@@ -104,7 +97,7 @@ class ApiKeysStore implements IApiKeysStore {
   }
 
   private removeDeletedApiKeysFromDestinations(
-    _deletedApiKeys: UserApiKey | UserApiKey[]
+    _deletedApiKeys: APIKey | APIKey[]
   ) {
     const deletedApiKeysUids = toArrayIfNot(_deletedApiKeys).map(
       (key) => key.uid
@@ -160,7 +153,7 @@ class ApiKeysStore implements IApiKeysStore {
     this._destinationsStore = store;
   }
 
-  public getKeyByUid(uid: string): UserApiKey | null {
+  public getKeyByUid(uid: string): APIKey | null {
     return this.apiKeys.find((key) => key.uid === uid) || null;
   }
 
@@ -214,7 +207,7 @@ class ApiKeysStore implements IApiKeysStore {
     }
   }
 
-  public *deleteApiKey(apiKeyToDelete: UserApiKey) {
+  public *deleteApiKey(apiKeyToDelete: APIKey) {
     this.resetError();
     this._state = BACKGROUND_LOADING;
     const updatedApiKeys = this._apiKeys.filter(
@@ -235,8 +228,8 @@ class ApiKeysStore implements IApiKeysStore {
     }
   }
 
-  public *editApiKeys(_apiKeysToUpdate: UserApiKey | UserApiKey[]) {
-    const apiKeysToUpdate: UserApiKey[] = isArray(_apiKeysToUpdate)
+  public *editApiKeys(_apiKeysToUpdate: APIKey | APIKey[]) {
+    const apiKeysToUpdate: APIKey[] = isArray(_apiKeysToUpdate)
       ? _apiKeysToUpdate
       : [_apiKeysToUpdate];
 

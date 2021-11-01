@@ -39,6 +39,7 @@ function useLoader<T>(loader: Loader<T>, deps?: DependencyList): LoaderResult<T>
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState(undefined);
   const loaderWrapper = async() => {
+    setError(null);
     setIsLoading(true);
     setData(null);
     try {

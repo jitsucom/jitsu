@@ -5,59 +5,64 @@ import { observer } from 'mobx-react-lite';
 import { sourcesPageRoutes } from './SourcesPage.routes';
 // @Components
 import { SourcesList } from './partials/SourcesList/SourcesList';
-import { SourceEditor } from './partials/SourceEditor/SourceEditor';
+import { SourceEditorSwitch } from './partials/SourceEditor/SourceEditorSwitch';
 import { AddSourceDialog } from './partials/AddSourceDialog/AddSourceDialog';
 import { CenteredError, CenteredSpin } from 'lib/components/components';
 // @Store
 import { sourcesStore, SourcesStoreState } from 'stores/sources';
-// @Services
-import ApplicationServices from 'lib/services/ApplicationServices';
 // @Styles
 import './SourcesPage.less';
 // @Types
 import { BreadcrumbsProps } from 'ui/components/Breadcrumbs/Breadcrumbs';
 import { PageProps } from 'navigation';
+import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
 
 export interface CollectionSourceData {
-  sources: SourceData[];
-  _lastUpdated?: string;
+  sources: SourceData[]
+  _lastUpdated?: string
 }
+
+export type SetBreadcrumbs = (breadcrumbs: BreadcrumbsProps) => void
 
 export interface CommonSourcePageProps {
-  setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void;
-  editorMode?: 'edit' | 'add';
+  setBreadcrumbs: SetBreadcrumbs
+  editorMode?: "edit" | "add"
 }
 
-const SourcesPageComponent = ({setBreadcrumbs}: PageProps) => {
-
-  const params = useParams<unknown>();
+const SourcesPageComponent = ({ setBreadcrumbs }: PageProps) => {
+  const params = useParams<unknown>()
 
   if (sourcesStore.state === SourcesStoreState.GLOBAL_ERROR) {
-    return <CenteredError error={sourcesStore.error} />;
+    return <CenteredError error={sourcesStore.error} />
   } else if (sourcesStore.state === SourcesStoreState.GLOBAL_LOADING) {
-    return <CenteredSpin />;
+    return <CenteredSpin />
   }
 
   return (
     <Switch>
       <Route path={sourcesPageRoutes.root} exact>
-        <SourcesList {...{ setBreadcrumbs }} />
+        <ErrorBoundary>
+          <SourcesList {...{ setBreadcrumbs }} />
+        </ErrorBoundary>
       </Route>
       <Route path={sourcesPageRoutes.addExact} strict={false} exact>
-        <SourceEditor {...{ setBreadcrumbs, editorMode: 'add' }} />
+        <ErrorBoundary>
+          <SourceEditorSwitch {...{ setBreadcrumbs, editorMode: "add" }} />
+        </ErrorBoundary>
       </Route>
       <Route path={sourcesPageRoutes.add} strict={false} exact>
-        <AddSourceDialog />
+        <ErrorBoundary>
+          <AddSourceDialog />
+        </ErrorBoundary>
       </Route>
       <Route path={sourcesPageRoutes.editExact} strict={false} exact>
-        <SourceEditor
-          key={params?.['sourceId'] || 'static_key'}
-          {...{ setBreadcrumbs, editorMode: 'edit' }}
-        />
+        <ErrorBoundary>
+          <SourceEditorSwitch key={params?.["sourceId"] || "static_key"} {...{ setBreadcrumbs, editorMode: "edit" }} />
+        </ErrorBoundary>
       </Route>
     </Switch>
-  );
-};
+  )
+}
 
 const SourcesPage = observer(SourcesPageComponent);
 

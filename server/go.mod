@@ -8,10 +8,12 @@ require (
 	cloud.google.com/go/firestore v1.1.1
 	cloud.google.com/go/storage v1.10.0
 	firebase.google.com/go/v4 v4.1.0
+	github.com/FZambia/sentinel v1.1.0
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/charmbracelet/lipgloss v0.2.1
+	github.com/docker/docker v20.10.6+incompatible
 	github.com/docker/go-connections v0.4.0
-	github.com/dop251/goja v0.0.0-20210630164231-8f81471d5d0b
+	github.com/dop251/goja v0.0.0-20211022113120-dc8c55024d06
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-redsync/redsync/v4 v4.3.0
 	github.com/go-sql-driver/mysql v1.6.0
@@ -33,10 +35,12 @@ require (
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/oschwald/geoip2-golang v1.4.0
 	github.com/panjf2000/ants/v2 v2.4.6
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/satori/go.uuid v1.2.0
 	github.com/segmentio/backo-go v0.0.0-20200129164019-23eae7c10bd3 // indirect
+	github.com/shirou/gopsutil/v3 v3.21.9
 	github.com/snowflakedb/gosnowflake v1.3.8
 	github.com/spf13/cast v1.3.1
 	github.com/spf13/cobra v1.2.1

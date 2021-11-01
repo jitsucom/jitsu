@@ -68,7 +68,7 @@ var (
 	SchemaToPostgres = map[typing.DataType]string{
 		typing.STRING:    "text",
 		typing.INT64:     "bigint",
-		typing.FLOAT64:   "numeric(38,18)",
+		typing.FLOAT64:   "double precision",
 		typing.TIMESTAMP: "timestamp",
 		typing.BOOL:      "boolean",
 		typing.UNKNOWN:   "text",
@@ -240,7 +240,7 @@ func (p *Postgres) GetTableSchema(tableName string) (*Table, error) {
 //Insert provided object in postgres with typecasts
 //uses upsert (merge on conflict) if primary_keys are configured
 func (p *Postgres) Insert(eventContext *EventContext) error {
-	columnsWithoutQuotes, columnsWithQuotes, placeholders, values := p.buildInsertPayload(eventContext.ProcessedEvent)
+	columnsWithoutQuotes, columnsWithQuotes, placeholders, values := p.buildInsertPayload(eventContext.Table, eventContext.ProcessedEvent)
 
 	var statement string
 	if len(eventContext.Table.PKFields) == 0 {
@@ -272,7 +272,7 @@ func (p *Postgres) Truncate(tableName string) error {
 }
 
 func (p *Postgres) getTable(tableName string) (*Table, error) {
-	table := &Table{Name: tableName, Columns: map[string]Column{}, PKFields: map[string]bool{}}
+	table := &Table{Name: tableName, Columns: map[string]typing.SQLColumn{}, PKFields: map[string]bool{}}
 	rows, err := p.dataSource.QueryContext(p.ctx, tableSchemaQuery, p.config.Schema, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
@@ -289,7 +289,7 @@ func (p *Postgres) getTable(tableName string) (*Table, error) {
 			continue
 		}
 
-		table.Columns[columnName] = Column{SQLType: columnPostgresType}
+		table.Columns[columnName] = typing.SQLColumn{Type: columnPostgresType}
 	}
 
 	if err := rows.Err(); err != nil {
@@ -508,7 +508,7 @@ func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table,
 		for i, column := range headerWithoutQuotes {
 			value, _ := row[column]
 			valueArgs = append(valueArgs, value)
-			castClause := p.getCastClause(column)
+			castClause := p.getCastClause(column, table.Columns[column])
 
 			_, err = placeholdersBuilder.WriteString("$" + strconv.Itoa(placeholdersCounter) + castClause)
 			if err != nil {
@@ -592,7 +592,7 @@ func (p *Postgres) dropTableInTransaction(wrappedTx *Transaction, table *Table) 
 }
 
 func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
-	deleteCondition, values := p.toDeleteQuery(deleteConditions)
+	deleteCondition, values := p.toDeleteQuery(table, deleteConditions)
 	query := fmt.Sprintf(deleteQueryTemplate, p.config.Schema, table.Name, deleteCondition)
 	p.queryLogger.LogQueryWithValues(query, values)
 
@@ -604,12 +604,12 @@ func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, del
 	return nil
 }
 
-func (p *Postgres) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {
+func (p *Postgres) toDeleteQuery(table *Table, conditions *DeleteConditions) (string, []interface{}) {
 	var queryConditions []string
 	var values []interface{}
 
 	for i, condition := range conditions.Conditions {
-		conditionString := condition.Field + " " + condition.Clause + " $" + strconv.Itoa(i+1) + p.getCastClause(condition.Field)
+		conditionString := condition.Field + " " + condition.Clause + " $" + strconv.Itoa(i+1) + p.getCastClause(condition.Field, table.Columns[condition.Field])
 		queryConditions = append(queryConditions, conditionString)
 		values = append(values, condition.Value)
 	}
@@ -637,9 +637,9 @@ func (p *Postgres) executeInsert(wrappedTx *Transaction, table *Table, headerWit
 }
 
 //columnDDL returns column DDL (quoted column name, mapped sql type and 'not null' if pk field)
-func (p *Postgres) columnDDL(name string, column Column, pkFields map[string]bool) string {
+func (p *Postgres) columnDDL(name string, column typing.SQLColumn, pkFields map[string]bool) string {
 	var notNullClause string
-	sqlType := column.SQLType
+	sqlType := column.DDLType()
 
 	if overriddenSQLType, ok := p.sqlTypes[name]; ok {
 		sqlType = overriddenSQLType.ColumnType
@@ -655,8 +655,12 @@ func (p *Postgres) columnDDL(name string, column Column, pkFields map[string]boo
 
 //getCastClause returns ::SQL_TYPE clause or empty string
 //$1::type, $2::type, $3, etc
-func (p *Postgres) getCastClause(name string) string {
+func (p *Postgres) getCastClause(name string, column typing.SQLColumn) string {
 	castType, ok := p.sqlTypes[name]
+	if !ok && column.Override {
+		castType = column
+		ok = true
+	}
 	if ok {
 		return "::" + castType.Type
 	}
@@ -714,7 +718,7 @@ func (p *Postgres) getPrimaryKeys(tableName string) (map[string]bool, error) {
 // 2. quoted column names slice
 // 2. placeholders slice
 // 3. values slice
-func (p *Postgres) buildInsertPayload(valuesMap map[string]interface{}) ([]string, []string, []string, []interface{}) {
+func (p *Postgres) buildInsertPayload(table *Table, valuesMap map[string]interface{}) ([]string, []string, []string, []interface{}) {
 	header := make([]string, len(valuesMap), len(valuesMap))
 	quotedHeader := make([]string, len(valuesMap), len(valuesMap))
 	placeholders := make([]string, len(valuesMap), len(valuesMap))
@@ -725,7 +729,7 @@ func (p *Postgres) buildInsertPayload(valuesMap map[string]interface{}) ([]strin
 		header[i] = name
 
 		//$1::type, $2::type, $3, etc ($0 - wrong)
-		placeholders[i] = fmt.Sprintf("$%d%s", i+1, p.getCastClause(name))
+		placeholders[i] = fmt.Sprintf("$%d%s", i+1, p.getCastClause(name, table.Columns[name]))
 		values[i] = value
 		i++
 	}
@@ -863,7 +867,21 @@ func checkErr(err error) error {
 		if pgErr.Detail != "" {
 			msgParts = append(msgParts, pgErr.Detail)
 		}
-
+		if pgErr.Schema != "" {
+			msgParts = append(msgParts, "schema:"+pgErr.Schema)
+		}
+		if pgErr.Table != "" {
+			msgParts = append(msgParts, "table:"+pgErr.Table)
+		}
+		if pgErr.Column != "" {
+			msgParts = append(msgParts, "column:"+pgErr.Column)
+		}
+		if pgErr.DataTypeName != "" {
+			msgParts = append(msgParts, "data_type:"+pgErr.DataTypeName)
+		}
+		if pgErr.Constraint != "" {
+			msgParts = append(msgParts, "constraint:"+pgErr.Constraint)
+		}
 		return errors.New(strings.Join(msgParts, " "))
 	}
 

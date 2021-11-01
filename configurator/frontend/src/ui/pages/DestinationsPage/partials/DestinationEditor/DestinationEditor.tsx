@@ -8,8 +8,8 @@ import cn from 'classnames';
 import { TabsConfigurator } from 'ui/components/Tabs/TabsConfigurator';
 import { EditorButtons } from 'ui/components/EditorButtons/EditorButtons';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
-import { closeableMessage } from 'lib/components/components';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
+import { DestinationEditorTransform } from './DestinationEditorTransform';
 import { DestinationEditorConnectors } from './DestinationEditorConnectors';
 import { DestinationEditorMappings } from './DestinationEditorMappings';
 import { DestinationEditorMappingsLibrary } from './DestinationEditorMappingsLibrary';
@@ -40,9 +40,11 @@ import { firstToLower } from 'lib/commons/utils';
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
 import { AreaChartOutlined, WarningOutlined } from '@ant-design/icons';
+import { actionNotification } from "../../../../components/ActionNotification/ActionNotification"
 
 type DestinationTabKey =
   | 'config'
+  | 'transform'
   | 'mappings'
   | 'sources'
   | 'settings'
@@ -125,22 +127,22 @@ const DestinationEditor = ({
       _mappings: newMappings
     };
 
-    const { form: mappingsForm } = destinationsTabs.current[1];
-    const { form: configForm } = destinationsTabs.current[0];
+    const { form: mappingsForm } = destinationsTabs[2];
+    const { form: configForm } = destinationsTabs[0];
 
     await mappingsForm.setFieldsValue({
       '_mappings._mappings': newMappings._mappings,
       '_mappings._keepUnmappedFields': newMappings._keepUnmappedFields ? 1 : 0
     });
 
-    destinationsTabs.current[1].touched = true;
+    destinationsTabs[2].touched = true;
 
     if (newTableName) {
       await configForm.setFieldsValue({
         '_formData.tableName': newTableName
       });
 
-      destinationsTabs.current[0].touched = true;
+      destinationsTabs[0].touched = true;
     }
 
     await forceUpdate();
@@ -175,42 +177,46 @@ const DestinationEditor = ({
     [forceUpdate]
   );
 
-  const validateAndTouchField = useCallback(
-    (index: number) => (value: boolean) => {
-      destinationsTabs.current[index].touched =
-        value === undefined ? true : value;
-
-      if (submittedOnce.current) {
-        validateTabForm(destinationsTabs.current[index]);
-      }
-    },
-    [validateTabForm]
-  );
-
   const tabsInitialData: Tab<DestinationTabKey>[] = [
     {
       key: 'config',
       name: 'Connection Properties',
       getComponent: (form: FormInstance) => (
-        <DestinationEditorConfig
-          form={form}
-          destinationReference={destinationReference}
-          destinationData={destinationData.current}
-          handleTouchAnyField={validateAndTouchField(0)}
-        />
+          <DestinationEditorConfig
+              form={form}
+              destinationReference={destinationReference}
+              destinationData={destinationData.current}
+              handleTouchAnyField={validateAndTouchField(0)}
+          />
+      ),
+      form: Form.useForm()[0],
+      touched: false
+    },
+    {
+      key: 'transform',
+      name: 'Transform',
+      getComponent: (form: FormInstance) => (
+          <DestinationEditorTransform
+              form={form}
+              destinationReference={destinationReference}
+              destinationData={destinationData.current}
+              handleTouchAnyField={validateAndTouchField(1)}
+          />
       ),
       form: Form.useForm()[0],
       touched: false
     },
     {
       key: 'mappings',
-      name: 'Mappings',
+      name: 'Mappings (Deprecated)',
+      isDisabled: destinationData.current["_transform_enabled"],
       getComponent: (form: FormInstance) => (
-        <DestinationEditorMappings
-          form={form}
-          initialValues={destinationData.current._mappings}
-          handleTouchAnyField={validateAndTouchField(1)}
-        />
+          <DestinationEditorMappings
+              form={form}
+              initialValues={destinationData.current._mappings}
+              handleTouchAnyField={validateAndTouchField(2)}
+              handleDataUpdate={handleUseLibrary}
+          />
       ),
       form: Form.useForm()[0],
       touched: false,
@@ -220,30 +226,48 @@ const DestinationEditor = ({
       key: 'sources',
       name: 'Linked Connectors & API Keys',
       getComponent: (form: FormInstance) => (
-        <DestinationEditorConnectors
-          form={form}
-          initialValues={destinationData.current}
-          destination={destinationReference}
-          handleTouchAnyField={validateAndTouchField(2)}
-        />
+          <DestinationEditorConnectors
+              form={form}
+              initialValues={destinationData.current}
+              destination={destinationReference}
+              handleTouchAnyField={validateAndTouchField(3)}
+          />
       ),
       form: Form.useForm()[0],
       errorsLevel: 'warning',
       touched: false,
       isHidden: params.standalone == 'true'
-    },
-    {
-      key: 'settings',
-      name: 'Configuration Templates',
-      touched: false,
-      isHidden: params.standalone == 'true',
-      getComponent: () => (
-        <DestinationEditorMappingsLibrary handleDataUpdate={handleUseLibrary} />
-      )
     }
   ];
 
-  const destinationsTabs = useRef<Tab<DestinationTabKey>[]>(tabsInitialData);
+  const [destinationsTabs, setDestinationsTabs] = useState<Tab<DestinationTabKey>[]>(tabsInitialData);
+
+  const validateAndTouchField = useCallback(
+    (index: number) => (value: boolean) => {
+      destinationsTabs[index].touched =
+          value === undefined ? true : value;
+
+      if (index == 1) {
+        setDestinationsTabs(oldTabs => {
+          if (oldTabs[1].form.getFieldValue("_transform_enabled") !== oldTabs[2].isDisabled) {
+            const newTabs = [...oldTabs.slice(0,2),
+              {...oldTabs[2],isDisabled: oldTabs[1].form.getFieldValue("_transform_enabled")},
+                ...oldTabs.slice(3)]
+            return newTabs
+          } else {
+            return oldTabs
+          }
+        })
+      }
+
+      if (submittedOnce.current) {
+        validateTabForm(destinationsTabs[index]);
+      }
+    },[validateTabForm, destinationsTabs, setDestinationsTabs]);
+
+
+
+
 
   const handleCancel = useCallback(() => {
     onCancel ? onCancel() : history.push(destinationPageRoutes.root);
@@ -266,7 +290,7 @@ const DestinationEditor = ({
   const handleTestConnection = useCallback(async () => {
     setTestConnecting(true);
 
-    const tab = destinationsTabs.current[0];
+    const tab = destinationsTabs[0];
 
     try {
       const config = await validateTabForm(tab);
@@ -289,7 +313,7 @@ const DestinationEditor = ({
     setDestinationSaving(true);
 
     Promise.all(
-      destinationsTabs.current
+      destinationsTabs
         .filter((tab: Tab) => !!tab.form)
         .map((tab: Tab) => validateTabForm(tab))
     )
@@ -331,7 +355,7 @@ const DestinationEditor = ({
               destinationsStore.editDestinations(destinationData.current)
             );
 
-          destinationsTabs.current.forEach((tab: Tab) => (tab.touched = false));
+          destinationsTabs.forEach((tab: Tab) => (tab.touched = false));
 
           if (destinationData.current._connectionTestOk) {
             if (editorMode === 'add')
@@ -343,7 +367,7 @@ const DestinationEditor = ({
                 `${destinationData.current._type} has been saved!`
               );
           } else {
-            closeableMessage.warn(
+            actionNotification.warn(
               `${
                 destinationData.current._type
               } has been saved, but test has failed with '${firstToLower(
@@ -365,6 +389,8 @@ const DestinationEditor = ({
         !disableForceUpdateOnSave && forceUpdate();
       });
   }, [
+    destinationsTabs,
+    destinationData,
     sources,
     history,
     validateTabForm,
@@ -395,8 +421,8 @@ const DestinationEditor = ({
     breadCrumbs.push({
       title: (
         <PageHeader
-          title={destinationReference.displayName}
-          icon={destinationReference.ui.icon}
+          title={destinationReference?.displayName ?? 'Not Found'}
+          icon={destinationReference?.ui.icon}
           mode={params.standalone ? 'edit' : editorMode}
         />
       )
@@ -410,19 +436,14 @@ const DestinationEditor = ({
 
   return destinationReference ? (
     <>
-      <div
-        className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}
-      >
+      <div className={cn("flex flex-col items-stretch flex-auto", styles.wrapper)}>
         <div className={styles.mainArea} id="dst-editor-tabs">
           {isAbleToConnectItems() && (
             <Card className={styles.linkedWarning}>
               <WarningOutlined className={styles.warningIcon} />
               <article>
-                This destination is not linked to any API keys or Connector. You{' '}
-                <span
-                  className={styles.pseudoLink}
-                  onClick={() => setActiveTabKey('sources')}
-                >
+                This destination is not linked to any API keys or Connector. You{" "}
+                <span className={styles.pseudoLink} onClick={() => setActiveTabKey("sources")}>
                   can link the destination here
                 </span>
                 .
@@ -432,7 +453,7 @@ const DestinationEditor = ({
           <TabsConfigurator
             type="card"
             className={styles.tabCard}
-            tabsList={destinationsTabs.current}
+            tabsList={destinationsTabs}
             activeTabKey={activeTabKey}
             onTabChange={setActiveTabKey}
             tabBarExtraContent={
@@ -441,52 +462,41 @@ const DestinationEditor = ({
                 className="mr-3"
                 type="link"
                 onClick={handleViewStatistics}
-                icon={<AreaChartOutlined />}
-              >
+                icon={<AreaChartOutlined />}>
                 Statistics
               </Button>
             }
           />
         </div>
 
-        <div className="flex-shrink border-t pt-2">
+        <div className="flex-shrink border-t py-2">
           <EditorButtons
             save={{
               isRequestPending: destinationSaving,
-              isPopoverVisible:
-                savePopover &&
-                destinationsTabs.current.some(
-                  (tab: Tab) => tab.errorsCount > 0
-                ),
+              isPopoverVisible: savePopover && destinationsTabs.some((tab: Tab) => tab.errorsCount > 0),
               handlePress: handleSaveDestination,
               handlePopoverClose: savePopoverClose,
-              titleText: 'Destination editor errors',
-              tabsList: destinationsTabs.current
+              titleText: "Destination editor errors",
+              tabsList: destinationsTabs,
             }}
             test={{
               isRequestPending: testConnecting,
-              isPopoverVisible:
-                testConnectingPopover &&
-                destinationsTabs.current[0].errorsCount > 0,
+              isPopoverVisible: testConnectingPopover && destinationsTabs[0].errorsCount > 0,
               handlePress: handleTestConnection,
               handlePopoverClose: testConnectingPopoverClose,
-              titleText: 'Connection Properties errors',
-              tabsList: [destinationsTabs.current[0]]
+              titleText: "Connection Properties errors",
+              tabsList: [destinationsTabs[0]],
             }}
             handleCancel={params.standalone ? undefined : handleCancel}
           />
         </div>
       </div>
 
-      <Prompt
-        message={destinationEditorUtils.getPromptMessage(
-          destinationsTabs.current
-        )}
-      />
+      <Prompt message={destinationEditorUtils.getPromptMessage(destinationsTabs)} />
     </>
   ) : (
     <DestinationNotFound destinationId={params.id} />
-  );
+  )
 };;
 
 DestinationEditor.displayName = 'DestinationEditor';

@@ -137,6 +137,30 @@ func (es *EtcdService) Unlock(lock storages.Lock) error {
 	return nil
 }
 
+func (es *EtcdService) UnlockCleanUp(system string, collection string) error {
+	ctx, cancel := context.WithDeadline(es.ctx, time.Now().Add(2*time.Minute))
+	defer cancel()
+
+	//the session depends on the context. We can't cancel() before unlock.
+	session, sessionError := concurrency.NewSession(es.client, concurrency.WithContext(ctx))
+	if sessionError != nil {
+		return nil
+	}
+	identifier := system + "_" + collection
+	l := concurrency.NewMutex(session, identifier)
+
+	err := l.Unlock(ctx)
+	if err != nil {
+		return fmt.Errorf("error unlocking %s: %v", identifier, err)
+	}
+
+	es.mutex.Lock()
+	delete(es.unlockMe, identifier)
+	es.mutex.Unlock()
+
+	return nil
+}
+
 //IsLocked return true if already locked
 func (es *EtcdService) IsLocked(system string, collection string) (bool, error) {
 	l, err := es.TryLock(system, collection)

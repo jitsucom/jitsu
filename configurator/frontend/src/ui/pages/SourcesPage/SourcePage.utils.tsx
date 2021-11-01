@@ -1,26 +1,29 @@
 // @Libs
 import snakeCase from 'lodash/snakeCase';
+import merge from 'lodash/merge';
 // @Types
 import { SourceConnector } from 'catalog/sources/types';
 // @Utils
 import { getUniqueAutoIncId } from 'utils/numbers';
-import { closeableMessage, handleError } from 'lib/components/components';
+import { handleError } from 'lib/components/components';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
 import Marshal from 'lib/commons/marshalling';
 // @Components
-import { ListItemTitle } from 'ui/components/ListItem/ListItemTitle';
 import { Tab } from 'ui/components/Tabs/TabsConfigurator';
 import { validateTabForm } from 'utils/forms/validateTabForm';
 import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
-import { SourceTabKey } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditor';
+import { SourceTabKey } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditorLegacy/SourceEditor';
 import { Poll } from 'utils/polling';
+import { actionNotification } from "../../components/ActionNotification/ActionNotification"
 
 const sourcePageUtils = {
   getSourceType: (sourceConnector: SourceConnector) =>
     sourceConnector?.protoType
       ? sourceConnector?.protoType
       : snakeCase(sourceConnector?.id),
+  getSourcePrototype: (sourceConnector: SourceConnector): string =>
+    snakeCase(sourceConnector?.id),
   getSourceId: (sourceProtoType: string, sourcesIds: string[]) => {
     const isUniqueSourceId = !sourcesIds.find((id) => id === sourceProtoType);
 
@@ -30,25 +33,6 @@ const sourcePageUtils = {
 
     return getUniqueAutoIncId(sourceProtoType, sourcesIds);
   },
-
-  getTitle: (src: SourceData) => {
-    return (
-      <ListItemTitle
-        render={src.sourceId}
-        error={!src.connected}
-        errorMessage={
-          <>
-            Last connection test failed with{' '}
-            <b>
-              <i>'{src.connectedErrorMessage}'</i>
-            </b>
-            . Source might be unavailable. Please, go to editor and fix the
-            connection settings
-          </>
-        }
-      />
-    );
-  },
   getPromptMessage: (tabs: Tab[]) => () =>
     tabs.some((tab) => tab.touched)
       ? 'You have unsaved changes. Are you sure you want to leave the page?'
@@ -57,19 +41,27 @@ const sourcePageUtils = {
   bringSourceData: ({
     sourcesTabs,
     sourceData,
-    forceUpdate
+    forceUpdate,
+    options
   }: {
     sourcesTabs: Tab<SourceTabKey>[];
     sourceData: any;
     forceUpdate: any;
+    options?: {
+      omitEmptyValues?: boolean;
+      skipValidation?: boolean;
+    };
   }) => {
     return Promise.all(
       sourcesTabs.map((tab: Tab) =>
-        validateTabForm(tab, {
-          forceUpdate,
-          beforeValidate: () => (tab.errorsCount = 0),
-          errorCb: (errors) => (tab.errorsCount = errors.errorFields?.length)
-        })
+        options?.skipValidation
+          ? tab.form.getFieldsValue()
+          : validateTabForm(tab, {
+              forceUpdate,
+              beforeValidate: () => (tab.errorsCount = 0),
+              errorCb: (errors) =>
+                (tab.errorsCount = errors.errorFields?.length)
+            })
       )
     ).then(
       (
@@ -78,10 +70,12 @@ const sourcePageUtils = {
         const enrichedData = {
           ...sourceData,
           ...allValues.reduce((result: any, current: any) => {
-            return {
-              ...result,
-              ...makeObjectFromFieldsValues(current)
-            };
+            return merge(
+              result,
+              makeObjectFromFieldsValues(current, {
+                omitEmptyValues: options?.omitEmptyValues
+              })
+            );
           }, {})
         };
 
@@ -112,8 +106,8 @@ const sourcePageUtils = {
       );
 
       if (response['status'] === 'pending') {
-        closeableMessage.loading(
-          'Please, allow some time for the Singer tap installation to complete. Once the tap is installed, we will test the connection and send a push notification with the result.'
+        actionNotification.loading(
+          'Please, allow some time for the connector source installation to complete. Once the connector source is installed, we will test the connection and send a push notification with the result.'
         );
 
         connectionTestMessagePrefix = `Source ${src.sourceId} connection test result: `;
@@ -145,7 +139,7 @@ const sourcePageUtils = {
 
       if (!hideMessage) {
         const message = 'Successfully connected';
-        closeableMessage.success(
+        actionNotification.success(
           connectionTestMessagePrefix
             ? `${connectionTestMessagePrefix}${message.toLowerCase()}`
             : message

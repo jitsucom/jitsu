@@ -11,7 +11,7 @@ type Amplitude struct {
 }
 
 func init() {
-	RegisterStorage(AmplitudeType, NewAmplitude)
+	RegisterStorage(StorageType{typeName: AmplitudeType, createFunc: NewAmplitude})
 }
 
 //NewAmplitude returns configured Amplitude destination
@@ -41,7 +41,7 @@ func NewAmplitude(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(aAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0)
+	tableHelper := NewTableHelper(aAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, AmplitudeType)
 
 	//HTTPStorage
 	a.tableHelper = tableHelper

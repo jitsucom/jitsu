@@ -12,16 +12,18 @@ import (
 
 //amplitudeHTTPConfiguration contains default amplitude HTTP timeouts/retry/delays,etc
 var amplitudeHTTPConfiguration = &adapters.HTTPConfiguration{
-	GlobalClientTimeout:       1 * time.Minute,
+	GlobalClientTimeout:       10 * time.Minute,
 	RetryDelay:                10 * time.Second,
 	RetryCount:                5,
 	ClientMaxIdleConns:        1000,
 	ClientMaxIdleConnsPerHost: 1000,
 }
 
-// Amplitude is a Amplitude driver.
+// Amplitude is an Amplitude driver.
 // It is used in syncing data from Amplitude.
 type Amplitude struct {
+	base.IntervalDriver
+
 	adapter    *AmplitudeAdapter
 	config     *AmplitudeConfig
 	collection *base.Collection
@@ -64,9 +66,10 @@ func NewAmplitude(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	}
 
 	return &Amplitude{
-		adapter:    adapter,
-		config:     config,
-		collection: collection,
+		IntervalDriver: base.IntervalDriver{SourceType: sourceConfig.Type},
+		adapter:        adapter,
+		config:         config,
+		collection:     collection,
 	}, nil
 }
 
@@ -119,6 +122,10 @@ func TestAmplitude(sourceConfig *base.SourceConfig) error {
 
 func (a *Amplitude) Close() error {
 	return a.adapter.Close()
+}
+
+func (a *Amplitude) GetRefreshWindow() (time.Duration, error) {
+	return time.Hour * 24, nil
 }
 
 func (a *Amplitude) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {

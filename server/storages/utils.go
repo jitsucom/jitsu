@@ -13,20 +13,24 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
-func dryRun(payload events.Event, processor *schema.Processor, tableHelper *TableHelper) ([]adapters.TableField, error) {
-	batchHeader, event, err := processor.ProcessEvent(payload)
+func dryRun(payload events.Event, processor *schema.Processor, tableHelper *TableHelper) ([][]adapters.TableField, error) {
+	envelops, err := processor.ProcessEvent(payload)
 	if err != nil {
 		return nil, err
 	}
+	res := make([][]adapters.TableField, 0, len(envelops))
+	for _, envelop := range envelops {
+		batchHeader := envelop.Header
+		event := envelop.Event
+		tableSchema := tableHelper.MapTableSchema(batchHeader)
+		var tableFields []adapters.TableField
 
-	tableSchema := tableHelper.MapTableSchema(batchHeader)
-	var dryRunResponses []adapters.TableField
-
-	for name, column := range tableSchema.Columns {
-		dryRunResponses = append(dryRunResponses, adapters.TableField{Field: name, Type: column.SQLType, Value: event[name]})
+		for name, column := range tableSchema.Columns {
+			tableFields = append(tableFields, adapters.TableField{Field: name, Type: column.Type, Value: event[name]})
+		}
+		res = append(res, tableFields)
 	}
-
-	return dryRunResponses, nil
+	return res, nil
 }
 
 func isConnectionError(err error) bool {

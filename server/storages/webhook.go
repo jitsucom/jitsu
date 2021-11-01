@@ -13,10 +13,11 @@ const defaultWorkersPoolSize = 10
 //DefaultHTTPConfiguration contains default HTTP timeouts/retry/delays,etc for HTTPAdapters
 var DefaultHTTPConfiguration = &adapters.HTTPConfiguration{
 	GlobalClientTimeout:       10 * time.Second,
-	RetryDelay:                3 * time.Second,
-	RetryCount:                3,
+	RetryDelay:                10 * time.Second,
+	RetryCount:                9,
 	ClientMaxIdleConns:        1000,
 	ClientMaxIdleConnsPerHost: 1000,
+	QueueFullnessThreshold:    100_000, //assume that JSON event consumes 2KB => inmemory queue will max 200MB
 }
 
 //WebHook is a destination that can send configurable HTTP requests
@@ -25,7 +26,7 @@ type WebHook struct {
 }
 
 func init() {
-	RegisterStorage(WebHookType, NewWebHook)
+	RegisterStorage(StorageType{typeName: WebHookType, createFunc: NewWebHook})
 }
 
 //NewWebHook returns configured WebHook destination
@@ -64,7 +65,7 @@ func NewWebHook(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(wbAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0)
+	tableHelper := NewTableHelper(wbAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, WebHookType)
 
 	wh.tableHelper = tableHelper
 	wh.adapter = wbAdapter
