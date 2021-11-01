@@ -31,6 +31,9 @@ const (
 	//instead of this name - all sources will be in SourceNamespace and for push/pull events different keys will be selected
 	pushSourceIndex = "push_sources_index"
 
+	syncTasksPrefix  = "sync_tasks#"
+	taskHeartBeatKey = "sync_tasks_heartbeat"
+
 	responseTimestampLayout = "2006-01-02T15:04:05+0000"
 
 	PushEventType = "push"
@@ -39,76 +42,17 @@ const (
 	SuccessStatus = "success"
 	ErrorStatus   = "errors"
 	SkipStatus    = "skip"
+
+	ConfigPrefix = "config#"
+	SystemKey    = "system"
 )
 
 var (
-	ErrTaskNotFound           = errors.New("Sync task wasn't found")
-	defaultDialConnectTimeout = redis.DialConnectTimeout(10 * time.Second)
-	defaultDialReadTimeout    = redis.DialReadTimeout(10 * time.Second)
+	ErrTaskNotFound = errors.New("Sync task wasn't found")
 )
 
-//RedisConfiguration is a dto with Redis credentials and configuration parameters
-type RedisConfiguration struct {
-	host          string
-	port          int
-	password      string
-	tlsSkipVerify bool
-}
-
-//NewRedisConfiguration returns filled RedisConfiguration and removes quotes in host
-func NewRedisConfiguration(host string, port int, password string, tlsSkipVerify bool) *RedisConfiguration {
-	host = strings.TrimPrefix(host, `"`)
-	host = strings.TrimPrefix(host, `'`)
-	host = strings.TrimSuffix(host, `"`)
-	host = strings.TrimSuffix(host, `'`)
-	return &RedisConfiguration{
-		host:          host,
-		port:          port,
-		password:      password,
-		tlsSkipVerify: tlsSkipVerify,
-	}
-}
-
-//CheckAndSetDefaultPort checks if port isn't set - put 6379
-func (rc *RedisConfiguration) CheckAndSetDefaultPort() (int, bool) {
-	if rc.port == 0 && !rc.IsURL() && !rc.IsSecuredURL() {
-		parts := strings.Split(rc.host, ":")
-		if len(parts) == 2 {
-			port, err := strconv.Atoi(parts[1])
-			if err == nil {
-				rc.port = port
-				rc.host = parts[0]
-				return rc.port, false
-			}
-		}
-		rc.port = 6379
-		return rc.port, true
-	}
-
-	return 0, false
-}
-
-//IsURL returns true if RedisConfiguration contains connection credentials via URL
-func (rc *RedisConfiguration) IsURL() bool {
-	return strings.HasPrefix(rc.host, "redis://")
-}
-
-//IsSecuredURL returns true if RedisConfiguration contains connection credentials via secured(SSL) URL
-func (rc *RedisConfiguration) IsSecuredURL() bool {
-	return strings.HasPrefix(rc.host, "rediss://")
-}
-
-//String returns host:port or host if host is an URL
-func (rc *RedisConfiguration) String() string {
-	if rc.IsURL() || rc.IsSecuredURL() {
-		return rc.host
-	}
-
-	return fmt.Sprintf("%s:%d", rc.host, rc.port)
-}
-
 type Redis struct {
-	pool                      *redis.Pool
+	pool                      *RedisPool
 	anonymousEventsSecondsTTL int
 }
 
@@ -145,6 +89,8 @@ type Redis struct {
 //
 //** Sources Synchronization **
 // - task_id = $source_$collection_$UUID
+//sync_tasks_heartbeat [task_id] last_timestamp - hashtable with hash=task_id and value = last_timestamp.
+//
 //sync_tasks_priority_queue [priority, task_id] - tasks to execute with priority
 //
 //sync_tasks_index:source#sourceID:collection#collectionID [timestamp_long taskID] - sorted set of taskID and timestamps
@@ -153,82 +99,19 @@ type Redis struct {
 //sync_tasks#taskID hash with fields [id, source, collection, priority, created_at, started_at, finished_at, status]
 
 //NewRedis returns configured Redis struct with connection pool
-func NewRedis(config *RedisConfiguration, anonymousEventsMinutesTTL int) (*Redis, error) {
+func NewRedis(factory *RedisPoolFactory, anonymousEventsMinutesTTL int) (*Redis, error) {
 	if anonymousEventsMinutesTTL > 0 {
-		logging.Infof("🏪 Initializing meta storage redis [%s] with anonymous events ttl: %d...", config.String(), anonymousEventsMinutesTTL)
+		logging.Infof("🏪 Initializing meta storage redis [%s] with anonymous events ttl: %d...", factory.Details(), anonymousEventsMinutesTTL)
 	} else {
-		logging.Infof("🏪 Initializing meta storage redis [%s]...", config.String())
+		logging.Infof("🏪 Initializing meta storage redis [%s]...", factory.Details())
 	}
 
-	pool, err := NewRedisPool(config)
+	pool, err := factory.Create()
 	if err != nil {
 		return nil, err
 	}
 
 	return &Redis{pool: pool, anonymousEventsSecondsTTL: anonymousEventsMinutesTTL * 60}, nil
-}
-
-//NewRedisPool returns configured Redis connection pool and err if ping failed
-//host might be URLS : [redis:// or rediss://] or plain host
-func NewRedisPool(config *RedisConfiguration) (*redis.Pool, error) {
-	var dialFunc func() (redis.Conn, error)
-	if config.IsSecuredURL() {
-		//redis secured URL
-		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.DialURL(config.host, redis.DialTLSSkipVerify(config.tlsSkipVerify), defaultDialConnectTimeout, defaultDialReadTimeout)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		}
-	} else if config.IsURL() {
-		//redis unsecured URL
-		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.DialURL(config.host, redis.DialTLSSkipVerify(true), defaultDialConnectTimeout, defaultDialReadTimeout)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		}
-	} else {
-		//host + port
-		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.Dial(
-				"tcp",
-				config.String(),
-				defaultDialConnectTimeout,
-				defaultDialReadTimeout,
-				redis.DialPassword(config.password),
-			)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		}
-	}
-	pool := &redis.Pool{
-		MaxIdle:     100,
-		MaxActive:   600,
-		IdleTimeout: 240 * time.Second,
-
-		Wait: false,
-		Dial: dialFunc,
-		TestOnBorrow: func(c redis.Conn, t time.Time) error {
-			_, err := c.Do("PING")
-			return err
-		},
-	}
-
-	//test connection
-	connection := pool.Get()
-	defer connection.Close()
-
-	if _, err := redis.String(connection.Do("PING")); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("Error testing Redis connection: %v", err)
-	}
-
-	return pool, nil
 }
 
 //GetSignature returns sync interval signature from Redis
@@ -329,11 +212,13 @@ func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) 
 //UpdateSucceedEvent updates event record in Redis with success field = JSON of succeed event
 func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error {
 	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
+	lastEventsIndexKey := "last_events_index:destination#" + destinationID
+	originalEventKey := "last_events:destination#" + destinationID + ":id#" + extractOriginalEventId(eventID)
 
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "success", success, "error", "", "destination_id", destinationID)
+	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "success", success, "error", "", "destination_id", destinationID, lastEventsIndexKey, time.Now().UTC().Unix(), eventID, originalEventKey)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err
@@ -345,11 +230,13 @@ func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error
 //UpdateErrorEvent updates event record in Redis with error field = error string
 func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
 	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
+	lastEventsIndexKey := "last_events_index:destination#" + destinationID
+	originalEventKey := "last_events:destination#" + destinationID + ":id#" + extractOriginalEventId(eventID)
 
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "error", error, "destination_id", destinationID)
+	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "error", error, "destination_id", destinationID, lastEventsIndexKey, time.Now().UTC().Unix(), eventID, originalEventKey)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err
@@ -361,11 +248,12 @@ func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
 //UpdateSkipEvent updates event record in Redis with skip field = error string
 func (r *Redis) UpdateSkipEvent(destinationID, eventID, error string) error {
 	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
-
+	lastEventsIndexKey := "last_events_index:destination#" + destinationID
+	originalEventKey := "last_events:destination#" + destinationID + ":id#" + extractOriginalEventId(eventID)
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "skip", error, "error", "", "destination_id", destinationID)
+	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "skip", error, "error", "", "destination_id", destinationID, lastEventsIndexKey, time.Now().UTC().Unix(), eventID, originalEventKey)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err
@@ -510,7 +398,7 @@ func (r *Redis) DeleteAnonymousEvent(destinationID, anonymousID, eventID string)
 
 //CreateTask saves task into Redis and add Task ID in index
 func (r *Redis) CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error {
-	err := r.UpsertTask(task)
+	err := r.upsertTask(task)
 	if err != nil {
 		return err
 	}
@@ -530,13 +418,13 @@ func (r *Redis) CreateTask(sourceID, collection string, task *Task, createdAt ti
 	return nil
 }
 
-//UpsertTask overwrite task in Redis (save or update)
-func (r *Redis) UpsertTask(task *Task) error {
+//upsertTask overwrite task in Redis (save or update)
+func (r *Redis) upsertTask(task *Task) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
 	//save task
-	taskKey := "sync_tasks#" + task.ID
+	taskKey := syncTasksPrefix + task.ID
 	_, err := conn.Do("HMSET", redis.Args{taskKey}.AddFlat(task)...)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
@@ -590,7 +478,7 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ...string) (int
 
 	taskKeys := make([]interface{}, 0, len(taskIDs))
 	for _, id := range taskIDs {
-		taskKeys = append(taskKeys, "sync_tasks#"+id)
+		taskKeys = append(taskKeys, syncTasksPrefix+id)
 	}
 
 	removed, err = redis.Int(conn.Do("DEL", taskKeys...))
@@ -603,7 +491,7 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ...string) (int
 	}
 	taskLogKeys := make([]interface{}, 0, len(taskIDs))
 	for _, id := range taskIDs {
-		taskLogKeys = append(taskLogKeys, "sync_tasks#"+id+":logs")
+		taskLogKeys = append(taskLogKeys, syncTasksPrefix+id+":logs")
 	}
 
 	removed, err = redis.Int(conn.Do("DEL", taskLogKeys...))
@@ -615,6 +503,191 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ...string) (int
 		logging.Debugf("Removed logs from %d of %d tasks. source:%s collection:%s", removed, len(taskIDs), sourceID, collection)
 	}
 	return removed, nil
+}
+
+//UpdateStartedTask updates only status and started_at field in the task
+func (r *Redis) UpdateStartedTask(taskID, status string) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("HSET", syncTasksPrefix+taskID, "status", status, "started_at", timestamp.NowUTC())
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
+//UpdateFinishedTask updates only status and finished_at field in the task
+func (r *Redis) UpdateFinishedTask(taskID, status string) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("HSET", syncTasksPrefix+taskID, "status", status, "finished_at", timestamp.NowUTC())
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
+//TaskHeartBeat sets current timestamp into heartbeat key
+func (r *Redis) TaskHeartBeat(taskID string) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("HSET", taskHeartBeatKey, taskID, timestamp.NowUTC())
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
+//RemoveTaskFromHeartBeat removes taskID current timestamp from heartbeat key
+func (r *Redis) RemoveTaskFromHeartBeat(taskID string) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("HDEL", taskHeartBeatKey, taskID)
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
+//GetAllTasksHeartBeat returns map with taskID-last heartbeat timestamp pairs
+func (r *Redis) GetAllTasksHeartBeat() (map[string]string, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	tasksHeartBeat, err := redis.StringMap(conn.Do("HGETALL", taskHeartBeatKey))
+	noticeError(err)
+	if err != nil {
+		if err == redis.ErrNil {
+			return map[string]string{}, nil
+		}
+
+		return nil, err
+	}
+
+	return tasksHeartBeat, nil
+}
+
+//GetAllTasksForInitialHeartbeat returns all task IDs where:
+//1. task is RUNNING and last log time more than last activity threshold
+//2. task is SCHEDULED and task creation time more than last activity threshold
+func (r *Redis) GetAllTasksForInitialHeartbeat(runningStatus, scheduledStatus string, lastActivityThreshold time.Duration) ([]string, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	//the task is stalled if last activity was before current time - lastActivityThreshold
+	stalledTime := time.Now().UTC().Truncate(lastActivityThreshold)
+
+	var taskIDs []string
+	cursor := 0
+
+	for {
+		scannedResult, err := redis.Values(conn.Do("SCAN", cursor, "MATCH", syncTasksPrefix+"*", "TYPE", "hash", "COUNT", 50000))
+		if err != nil {
+			noticeError(err)
+			if err != nil && err != redis.ErrNil {
+				return nil, err
+			}
+		}
+
+		if len(scannedResult) != 2 {
+			return nil, fmt.Errorf("error len of SCAN result: %v", scannedResult)
+		}
+
+		cursor, _ = redis.Int(scannedResult[0], nil)
+		taskKeysOutput, _ := redis.Strings(scannedResult[1], nil)
+
+		for _, taskKey := range taskKeysOutput {
+			taskID := strings.TrimPrefix(taskKey, syncTasksPrefix)
+
+			//filter by status
+			task, err := r.getTask(conn, taskID)
+			if err != nil {
+				if err == ErrTaskNotFound {
+					logging.SystemErrorf("task [%s] wasn't found in initial heartbeat", taskID)
+					continue
+				}
+
+				return nil, err
+			}
+
+			if task.Status == runningStatus {
+				ok, err := r.filterStalledTaskInRunningStatus(conn, task, stalledTime)
+				if err != nil {
+					return nil, err
+				}
+
+				if ok {
+					taskIDs = append(taskIDs, taskID)
+				}
+			} else if task.Status == scheduledStatus {
+				ok, err := r.filterStalledTaskInScheduledStatus(task, stalledTime)
+				if err != nil {
+					return nil, err
+				}
+
+				if ok {
+					taskIDs = append(taskIDs, taskID)
+				}
+			}
+		}
+
+		//end of cycle
+		if cursor == 0 {
+			break
+		}
+	}
+
+	return taskIDs, nil
+}
+
+//filterStalledTaskInRunningStatus gets last logs and compares with stalledTime. If there is no logs, compare task creation time
+//returns true if task is stalled
+func (r *Redis) filterStalledTaskInRunningStatus(conn redis.Conn, task *Task, stalledTime time.Time) (bool, error) {
+	lastLogArr, err := redis.Values(conn.Do("ZREVRANGEBYSCORE", syncTasksPrefix+task.ID+":logs", time.Now().Unix(), 0, "LIMIT", 0, 1, "WITHSCORES"))
+	if err != nil {
+		noticeError(err)
+		if err != nil && err != redis.ErrNil {
+			return false, err
+		}
+	}
+
+	//by last log
+	if len(lastLogArr) == 2 {
+		lastLogTimeUnix, _ := redis.Int(lastLogArr[1], nil)
+		lastLogTime := time.Unix(int64(lastLogTimeUnix), 0)
+		return lastLogTime.Before(stalledTime), nil
+	}
+
+	//by started time
+	startedAt, err := time.Parse(time.RFC3339Nano, task.StartedAt)
+	if err != nil {
+		return false, fmt.Errorf("error parsing started_at [%s] of task [%s] as time: %v", task.StartedAt, task.ID, err)
+	}
+
+	return startedAt.Before(stalledTime), nil
+}
+
+//filterStalledTaskInScheduledStatus gets task creation time and compares with stalledTime
+//returns true if task is stalled
+func (r *Redis) filterStalledTaskInScheduledStatus(task *Task, stalledTime time.Time) (bool, error) {
+	createdAt, err := time.Parse(time.RFC3339Nano, task.CreatedAt)
+	if err != nil {
+		return false, fmt.Errorf("error parsing created_at [%s] of task [%s] as time: %v", task.StartedAt, task.ID, err)
+	}
+
+	return createdAt.Before(stalledTime), nil
 }
 
 //GetAllTasks returns all source's tasks by collection and time criteria
@@ -638,7 +711,7 @@ func (r *Redis) GetAllTasks(sourceID, collection string, start, end time.Time, l
 	var tasks []Task
 	for _, taskID := range taskIDs {
 		//get certain task
-		taskKey := "sync_tasks#" + taskID
+		taskKey := syncTasksPrefix + taskID
 		task, err := redis.Values(conn.Do("HGETALL", taskKey))
 		noticeError(err)
 		if err != nil && err != redis.ErrNil {
@@ -676,7 +749,7 @@ func (r *Redis) GetLastTask(sourceID, collection string) (*Task, error) {
 	}
 
 	taskID := taskValues[0]
-	task, err := r.GetTask(taskID)
+	task, err := r.getTask(conn, taskID)
 	if err != nil {
 		if err == ErrTaskNotFound {
 			logging.SystemErrorf("Task with id: %s exists in priority queue but doesn't exist in sync_task#%s record", taskID, taskID)
@@ -688,12 +761,17 @@ func (r *Redis) GetLastTask(sourceID, collection string) (*Task, error) {
 	return task, err
 }
 
-//GetTask returns task by task ID or ErrTaskNotFound
+//GetTask opens connection and returns result of getTask
 func (r *Redis) GetTask(taskID string) (*Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	taskFields, err := redis.Values(conn.Do("HGETALL", "sync_tasks#"+taskID))
+	return r.getTask(conn, taskID)
+}
+
+//getTask returns task by task ID or ErrTaskNotFound
+func (r *Redis) getTask(conn redis.Conn, taskID string) (*Task, error) {
+	taskFields, err := redis.Values(conn.Do("HGETALL", syncTasksPrefix+taskID))
 	noticeError(err)
 	if err != nil {
 		if err == redis.ErrNil {
@@ -721,7 +799,7 @@ func (r *Redis) AppendTaskLog(taskID string, now time.Time, system, message, lev
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	taskLogsKey := "sync_tasks#" + taskID + ":logs"
+	taskLogsKey := syncTasksPrefix + taskID + ":logs"
 	logRecord := TaskLogRecord{
 		Time:    now.Format(timestamp.Layout),
 		System:  system,
@@ -743,7 +821,7 @@ func (r *Redis) GetTaskLogs(taskID string, start, end time.Time) ([]TaskLogRecor
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	taskLogsKey := "sync_tasks#" + taskID + ":logs"
+	taskLogsKey := syncTasksPrefix + taskID + ":logs"
 	logsRecords, err := redis.Strings(conn.Do("ZRANGEBYSCORE", taskLogsKey, start.Unix(), end.Unix()))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
@@ -785,7 +863,7 @@ func (r *Redis) PollTask() (*Task, error) {
 
 	taskID := values[0]
 
-	task, err := r.GetTask(taskID)
+	task, err := r.getTask(conn, taskID)
 	if err != nil && err == ErrTaskNotFound {
 		logging.SystemErrorf("Task with id: %s exists in priority queue but doesn't exist in sync_task#%s record", taskID, taskID)
 	}
@@ -951,6 +1029,38 @@ func (r *Redis) getEventsPerDay(conn redis.Conn, namespace, eventType, status st
 	return eventsPerTime, nil
 }
 
+//GetOrCreateClusterID returns clusterID from Redis or save input one
+func (r *Redis) GetOrCreateClusterID(generatedClusterID string) string {
+	key := ConfigPrefix + SystemKey
+	field := "cluster_id"
+
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	clusterID, err := redis.String(conn.Do("HGET", key, field))
+	noticeError(err)
+	if err != nil {
+		if err != redis.ErrNil {
+			return "err"
+		}
+	}
+
+	if clusterID != "" {
+		return clusterID
+	}
+
+	//save and return generated
+	_, err = conn.Do("HSET", key, field, generatedClusterID)
+	noticeError(err)
+	if err != nil {
+		if err != redis.ErrNil {
+			return "err"
+		}
+	}
+
+	return generatedClusterID
+}
+
 func (r *Redis) Type() string {
 	return RedisType
 }
@@ -1113,4 +1223,11 @@ func getEventsKey(prefix, id, namespace, eventType, timeKey, status string) stri
 	}
 
 	return fmt.Sprintf("%s:%s#%s%s:%s:%s", prefix, namespace, id, eventType, timeKey, status)
+}
+
+func extractOriginalEventId(eventId string) string {
+	if parts := strings.Split(eventId, "_"); len(parts) == 2 {
+		return parts[0]
+	}
+	return eventId
 }

@@ -41,6 +41,8 @@ var (
 )
 
 type GooglePlay struct {
+	base.IntervalDriver
+
 	config *GooglePlayConfig
 	client *storage.Client
 	ctx    context.Context
@@ -73,7 +75,13 @@ func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collect
 		return nil, fmt.Errorf("GooglePlay error creating google cloud storage client: %v", err)
 	}
 
-	return &GooglePlay{client: client, config: config, ctx: ctx, collection: collection}, nil
+	return &GooglePlay{
+		IntervalDriver: base.IntervalDriver{SourceType: sourceConfig.Type},
+		client:         client,
+		config:         config,
+		ctx:            ctx,
+		collection:     collection,
+	}, nil
 }
 
 //TestGooglePlay tests connection to Google Play without creating Driver instance

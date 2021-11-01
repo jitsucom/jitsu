@@ -40,8 +40,3 @@ func OKResponse() StatusResponse {
 func PendingResponse() StatusResponse {
 	return StatusResponse{Status: StatusPending}
 }
-
-//PendingResponseWithMessage returns StatusResponse with Status = "pending" and msg
-func PendingResponseWithMessage(msg string) StatusResponse {
-	return StatusResponse{Status: StatusPending, Message: msg}
-}

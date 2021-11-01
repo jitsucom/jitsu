@@ -104,7 +104,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 				errMsg := fmt.Sprintf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
 				metrics.ErrorSourceEvents(rs.task.Source, storage.ID(), rowsCount)
 				metrics.ErrorObjects(rs.task.Source, rowsCount)
-				telemetry.Error(rs.task.Source, storage.ID(), srcSource, rowsCount)
+				telemetry.Error(rs.task.Source, storage.ID(), srcSource, rs.tap, rowsCount)
 				counters.ErrorPullDestinationEvents(storage.ID(), rowsCount)
 				counters.ErrorPullSourceEvents(rs.task.Source, rowsCount)
 				return errors.New(errMsg)
@@ -112,7 +112,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 
 			metrics.SuccessSourceEvents(rs.task.Source, storage.ID(), rowsCount)
 			metrics.SuccessObjects(rs.task.Source, rowsCount)
-			telemetry.Event(rs.task.Source, storage.ID(), srcSource, rowsCount)
+			telemetry.Event(rs.task.Source, storage.ID(), srcSource, rs.tap, rowsCount)
 			counters.SuccessPullDestinationEvents(storage.ID(), rowsCount)
 		}
 

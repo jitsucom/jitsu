@@ -52,26 +52,20 @@ export const Tour: React.FC<Props> = function({
 
   return (
     <Modal
+      key="onboardingTourComponent"
       visible={showTour}
       footer={null}
       closable={closable}
       maskClosable={maskClosable}
-      width={'80vw'}
+      width={"80vw"}
       keyboard={closeOnEsc}
-      destroyOnClose
-    >
+      destroyOnClose>
       <div className={styles.container}>
         {currentStepRender}
-        {displayStep
-          && curretStepToDisplay >= firstStepToDisplay
-          && curretStepToDisplay <= amountOfStepsToDisplay
-          && (
-            <div className={styles.stepContainer}>
-              {`Step ${curretStepToDisplay} of ${amountOfStepsToDisplay}`}
-            </div>
-          )
-        }
+        {displayStep && curretStepToDisplay >= firstStepToDisplay && curretStepToDisplay <= amountOfStepsToDisplay && (
+          <div className={styles.stepContainer}>{`Step ${curretStepToDisplay} of ${amountOfStepsToDisplay}`}</div>
+        )}
       </div>
     </Modal>
-  );
+  )
 }

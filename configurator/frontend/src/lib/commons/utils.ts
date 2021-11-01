@@ -1,11 +1,8 @@
 /* eslint-disable */
-import moment, { Duration, Moment } from 'moment';
-import { LS_ACCESS_KEY, LS_REFRESH_KEY } from 'lib/services/UserServiceBackend';
-import {
-  assertHasOwnProperty,
-  assertIsArray,
-  assertIsObject
-} from 'utils/typeCheck';
+import moment, { Duration, Moment } from "moment"
+import { LS_ACCESS_KEY, LS_REFRESH_KEY } from "lib/services/UserServiceBackend"
+import { assertHasOwnProperty, assertIsArray, assertIsObject } from "utils/typeCheck"
+import { ReactNode } from "react"
 
 export function concatenateURLs(baseUrl: string, url: string) {
   let base = baseUrl.endsWith('/')
@@ -168,17 +165,29 @@ export type TimeFormattedUserEvent = {
  */
 export function formatTimeOfRawUserEvents(rawEvents: unknown): TimeFormattedUserEvent[] {
   assertIsObject(rawEvents);
-  assertHasOwnProperty(rawEvents, 'events');
-  const events  = rawEvents.events;
+  assertHasOwnProperty(
+    rawEvents,
+    "events",
+    "Time formatting of raw event failed because the event doesn't have `events` property"
+  )
+  const events = rawEvents.events
 
-  assertIsArray(events);
+  assertIsArray(events)
   return events.map((rawEvent: unknown): TimeFormattedUserEvent => {
-    assertIsObject(rawEvent);
-    assertHasOwnProperty(rawEvent, 'original');
+    assertIsObject(rawEvent)
+    assertHasOwnProperty(
+      rawEvent,
+      "original",
+      "Time formatting of raw event failed because the event doesn't have `original` property"
+    )
 
-    const original = rawEvent.original;
-    assertIsObject(original);
-    assertHasOwnProperty(original, '_timestamp');
+    const original = rawEvent.original
+    assertIsObject(original)
+    assertHasOwnProperty(
+      original,
+      "_timestamp",
+      "Time formatting of raw event failed because the event doesn't have `_timestamp` property"
+    )
 
     return {
       time: moment(original._timestamp),
@@ -246,8 +255,7 @@ function safeToString(obj: any) {
  * Tries to the best to convert children from any type to string
  * @param children
  */
-export function reactElementToString(children: React.ReactElement<any, string | React.JSXElementConstructor<any>> | string | number | {} | React.ReactNodeArray | React.ReactPortal | boolean): string {
-
+export function reactElementToString(children: ReactNode): string {
   if (!children) {
     return '';
   } else if (typeof children === 'string') {
@@ -255,6 +263,27 @@ export function reactElementToString(children: React.ReactElement<any, string | 
   } else if (Array.isArray(children)) {
     return children.map(reactElementToString).join('\n');
   } else {
-    console.warn('Can\'t convert react element to highlightable <Code />. Using to string', safeToString(children))
+    console.warn(`Can't convert react element to highlightable <Code />. Using to string`, safeToString(children))
+  }
+}
+
+export function comparator<T>(f: (t: T) => any): (a1: T, a2: T) => number {
+  return (a1: T, a2) => {
+    let v1 = f(a1)
+    let v2 = f(a2)
+    if (v1 > v2) {
+      return -1
+    } else if (v1 < v2) {
+      return 1
+    }
+    return 0
+  }
+}
+
+export function trimMiddle(str: string, maxLen: number, ellisis = "...") {
+  if (str.length <= maxLen) {
+    return str;
+  } else {
+    return str.substr(0, maxLen / 2 - (ellisis.length - 1)) + ellisis + str.substr(str.length - maxLen / 2 + 1)
   }
 }
