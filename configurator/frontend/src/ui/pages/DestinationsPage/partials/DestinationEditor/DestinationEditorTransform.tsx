@@ -44,7 +44,7 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                     fieldsParamsList={[{
                         id: '_transform_enabled',
                         displayName: 'Enable Javascript Transformation',
-                        defaultValue: !!destinationsReferenceMap[destinationData._type].defaultTransform,
+                        defaultValue: !!destinationsReferenceMap[destinationData._type].defaultTransform && !destinationData._mappings?._mappings,
                         required: false,
                         type: booleanType,
                         bigField: true
