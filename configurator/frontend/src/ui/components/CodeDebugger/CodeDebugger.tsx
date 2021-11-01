@@ -282,8 +282,6 @@ const CodeDebugger = ({
                     extraSuggestions={`declare let $ = ${objectValue};
           declare let event = $;
           declare let _ = $;
-          declare let destinationId = "";
-          declare let destinationType = "";
           ${extraSuggestions}`}
                     reRenderEditorOnInitialValueChange={true}
                     handleChange={handleChange('code')}

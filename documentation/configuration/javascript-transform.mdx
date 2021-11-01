@@ -1,8 +1,7 @@
 # JavaScript Transform
 
 Use the power of Javascript to modify incoming event object, replace it with a completely new event or produce multiple events based on incoming data.<br/>
-Also, you can use Transform to set the destination table name for each event or to skip the event altogether.
-
+Also, you can use Transform to assign Data Warehouse specific SQL types for object fields, set the destination table name for each event or to skip the event altogether.
 ## Overview
 
 You can use modern javascript language features and built-in functions to transform an incoming event.
@@ -14,7 +13,9 @@ Provided javascript must return:
  * **array of objects** - a single incoming event will result in multiple events in destinations 
  * **null** - to skip event from processing
 
-To override the destination table, you need to add a special property to the resulting events. This property name is stored in the global variable: `TABLE_NAME`
+To override the destination table, you need to add a special property `JITSU_TABLE_NAME` to the resulting events.
+
+To override the destination SQL column type for a specific object field, you need to add an extra property with the special prefix `__sql_type_` added to the name of a field to resulting events. E.g.: `__sql_type_utc_time: "date"` sets SQL type **date** for column **utc_time**
 
 ## Modify incoming event
 
@@ -97,4 +98,28 @@ Conventional way:
 ```javascript
 $.JITSU_TABLE_NAME = "new_table_name"
 return $
+```
+
+## Override SQL column type
+
+Set simple SQL types:
+
+```javascript
+return {...$, 
+    event_date: $.utc_time,                               
+    __sql_type_event_date: "date",
+    event_time: $.utc_time,
+    __sql_type_event_time: "time"
+}
+```
+Sql types with extra parameters:
+
+Some Data Warehouses support extra parameters for column types during table creation.
+For such cases, Transform uses the following syntax to provide data type and column type separately:
+
+```javascript
+return {...$,
+    title: $.page_title,
+    __sql_type_title: ["varchar(256)", "varchar(256) encode zstd"]
+}
 ```

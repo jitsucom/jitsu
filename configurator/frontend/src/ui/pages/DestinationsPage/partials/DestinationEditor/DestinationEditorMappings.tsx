@@ -92,7 +92,7 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField, h
         <p><b>Mappings</b> feature is deprecated. It is highly recommended to use <b>Transform</b> instead.</p>
         <p>Mapping defines how JSON will be transformed before it's sent to the target. Supported mapping actions: move, remove, cast. <br />
           Read more about mapping and see example in our <a href="https://jitsu.com/docs/configuration/schema-and-mappings" target="_blank" rel="noreferrer">documentation</a>.</p>
-        <p>Use one of those <a onClick={() => setDocumentationVisible(true)}>pre-build templates</a> to configure Jitsu to implement one of the popular use-cases.</p>
+        <p>Use one of <a onClick={() => setDocumentationVisible(true)}><b>Pre-build Mapping Templates</b></a> to configure Jitsu to implement one of the popular use-cases.</p>
       </TabDescription>
       <Drawer
           title={<h2>Pre-build mapping templates</h2>}
