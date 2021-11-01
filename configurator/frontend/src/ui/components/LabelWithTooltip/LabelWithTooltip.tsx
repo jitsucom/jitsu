@@ -12,13 +12,13 @@ export interface Props {
 }
 
 const LabelWithTooltipComponent = ({ render, documentation, className }: Props) => (
-  <span className={cn('label-with-tooltip', className)}>
-    {render}&nbsp;
+  <span className={cn("label-with-tooltip", className)}>
+    <span className="label-with-tooltip_label">{render}&nbsp;</span>
     <Tooltip title={documentation}>
-      <QuestionCircleOutlined />
+      <QuestionCircleOutlined className="label-with-tooltip_question-mark" />
     </Tooltip>
   </span>
-);
+)
 
 LabelWithTooltipComponent.displayName = 'LabelWithTooltip';
 

@@ -8,6 +8,7 @@ type CriteriaKey struct {
 	sourceID      string
 	destinationID string
 	src           string
+	sourceType    string
 }
 
 //Counter atomic counter

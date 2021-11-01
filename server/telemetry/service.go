@@ -3,10 +3,14 @@ package telemetry
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/spf13/viper"
 	"go.uber.org/atomic"
+	"math"
 	"net/http"
 	"time"
 )
@@ -77,6 +81,29 @@ func Init(serviceName, commit, tag, builtAt, dockerHubID string) {
 	instance.startUsage()
 }
 
+//EnrichSystemInfo enriches request factory (every request) with system information (CPU/RAM)
+func EnrichSystemInfo(clusterID string) {
+	instance.reqFactory.iInfo.ClusterID = clusterID
+
+	v, _ := mem.VirtualMemory()
+	if v != nil {
+		instance.reqFactory.iInfo.RAMTotalGB = math.Round(float64(v.Total) / 1024 / 1024 / 1024)
+		instance.reqFactory.iInfo.RAMFreeGB = math.Round(float64(v.Free) / 1024 / 1024 / 1024)
+		instance.reqFactory.iInfo.RAMUsage = fmt.Sprintf("%.2f%%", v.UsedPercent)
+	}
+
+	cpuInfo, _ := cpu.Info()
+	if len(cpuInfo) > 0 {
+		data := cpuInfo[0]
+		instance.reqFactory.iInfo.CPUInfoInstances = len(cpuInfo)
+		instance.reqFactory.iInfo.CPUCores = int(data.Cores)
+		instance.reqFactory.iInfo.CPUModelName = data.ModelName
+		instance.reqFactory.iInfo.CPUModel = data.Model
+		instance.reqFactory.iInfo.CPUFamily = data.Family
+		instance.reqFactory.iInfo.CPUVendor = data.VendorID
+	}
+}
+
 //reInit initializes telemetry configuration
 //it is used in case of reloadable telemetry configuration (when configuration is provided as a url)
 func reInit(payload []byte) {
@@ -113,35 +140,35 @@ func CLIStart(command string, dateFilters, state bool, chunkSize int64) {
 	instance.usage(&Usage{CLIStart: 1, CLICommand: command, CLIDateFilters: dateFilters, CLIState: state, CLIChunkSize: chunkSize})
 }
 
-//EventsPerSrc increments events collector counter per Src
-func EventsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
+//PushedEventsPerSrc increments events collector counter per Src
+func PushedEventsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
 	if !instance.usageOptOut.Load() {
 		for src, quantity := range quantityPerSrc {
-			Event(sourceID, destinationID, src, quantity)
+			Event(sourceID, destinationID, src, "", quantity)
 		}
 	}
 }
 
 //Event increments events collector counter
-func Event(sourceID, destinationID, src string, quantity int) {
+func Event(sourceID, destinationID, src, sourceType string, quantity int) {
 	if !instance.usageOptOut.Load() {
-		instance.collector.Event(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, uint64(quantity))
+		instance.collector.Event(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, sourceType, uint64(quantity))
 	}
 }
 
-//ErrorsPerSrc increments errors collector counter per Src
-func ErrorsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
+//PushedErrorsPerSrc increments errors collector counter per Src
+func PushedErrorsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
 	if !instance.usageOptOut.Load() {
 		for src, quantity := range quantityPerSrc {
-			Error(sourceID, destinationID, src, quantity)
+			Error(sourceID, destinationID, src, "", quantity)
 		}
 	}
 }
 
 //Error increments errors collector counter
-func Error(sourceID, destinationID, src string, quantity int) {
+func Error(sourceID, destinationID, src, sourceType string, quantity int) {
 	if !instance.usageOptOut.Load() {
-		instance.collector.Error(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, uint64(quantity))
+		instance.collector.Error(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, sourceType, uint64(quantity))
 	}
 }
 
@@ -160,11 +187,15 @@ func Destination(destinationID, destinationType, mode, mappingsStyle string, use
 }
 
 //Source puts usage event with hashed source id and type
-func Source(sourceID, sourceType string) {
+func Source(sourceID, sourceType, sourceConnectorOrigin, sourceConnectorVersion, sourceSchedule string, streams int) {
 	if !instance.usageOptOut.Load() {
 		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
-			Source:     resources.GetStringHash(sourceID),
-			SourceType: sourceType,
+			Source:                 resources.GetStringHash(sourceID),
+			SourceType:             sourceType,
+			SourceConnectorOrigin:  sourceConnectorOrigin,
+			SourceConnectorVersion: sourceConnectorVersion,
+			SourceSchedule:         sourceSchedule,
+			SourceStreams:          streams,
 		})
 	}
 }
@@ -194,7 +225,7 @@ func (s *Service) usage(usage *Usage) {
 }
 
 func (s *Service) startUsage() {
-	ticker := time.NewTicker(time.Hour)
+	ticker := time.NewTicker(10 * time.Minute)
 	safego.RunWithRestart(func() {
 		for {
 			if instance.closed {
@@ -253,6 +284,7 @@ func (s *Service) getUsage() []*Usage {
 			EventsSrc:   key.src,
 			Source:      key.sourceID,
 			Destination: key.destinationID,
+			SourceType:  key.sourceType,
 		})
 	}
 
@@ -262,6 +294,7 @@ func (s *Service) getUsage() []*Usage {
 			EventsSrc:   key.src,
 			Source:      key.sourceID,
 			Destination: key.destinationID,
+			SourceType:  key.sourceType,
 		})
 	}
 

@@ -22,8 +22,9 @@ const (
 	GoogleAdsType       = "google_ads"
 	RedisType           = "redis"
 
-	SingerType  = "singer"
-	AirbyteType = "airbyte"
+	SingerType          = "singer"
+	AirbyteType         = "airbyte"
+	NativeConnectorType = "native"
 
 	GoogleOAuthAuthorizationType = "OAuth"
 
@@ -125,12 +126,18 @@ type Driver interface {
 
 	//GetObjectsFor returns slice of objects per time interval. Each slice element is one object from the data source.
 	GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error)
+
 	//Type returns string type of driver. Should be unique among drivers
 	Type() string
+
 	//GetCollectionTable returns table name
 	GetCollectionTable() string
+
 	//GetCollectionMetaKey returns key for storing signature in meta.Storage
 	GetCollectionMetaKey() string
+
+	//GetDriversInfo returns telemetry information about the driver
+	GetDriversInfo() *DriversInfo
 }
 
 //CLIDriver interface must be implemented by every CLI source type (Singer or Airbyte)
@@ -160,6 +167,7 @@ type CLIDataConsumer interface {
 type CLITaskCloser interface {
 	TaskID() string
 	CloseWithError(msg string, systemErr bool)
+	HandleCanceling() error
 }
 
 //CLIOutputRepresentation is a singer/airbyte output representation
@@ -177,6 +185,14 @@ type StreamRepresentation struct {
 	KeyFields   []string
 	Objects     []map[string]interface{}
 	NeedClean   bool
+}
+
+//DriversInfo is a dto for sharing information about the driver into telemetry
+type DriversInfo struct {
+	SourceType       string
+	ConnectorOrigin  string
+	ConnectorVersion string
+	Streams          int
 }
 
 //RegisterDriver registers function to create new driver instance

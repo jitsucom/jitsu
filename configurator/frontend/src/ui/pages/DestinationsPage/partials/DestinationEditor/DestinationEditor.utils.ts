@@ -1,7 +1,8 @@
 import ApplicationServices from 'lib/services/ApplicationServices';
 import Marshal from 'lib/commons/marshalling';
-import { closeableMessage, handleError } from 'lib/components/components';
+import { handleError } from 'lib/components/components';
 import { Tab } from 'ui/components/Tabs/TabsConfigurator';
+import { actionNotification } from "../../../../components/ActionNotification/ActionNotification"
 
 const destinationEditorUtils = {
   testConnection: async (dst: DestinationData, hideMessage?: boolean) => {
@@ -14,7 +15,7 @@ const destinationEditorUtils = {
       dst._connectionTestOk = true;
 
       if (!hideMessage) {
-        closeableMessage.info('Successfully connected!');
+        actionNotification.info('Successfully connected!');
       }
     } catch (error) {
       dst._connectionTestOk = false;

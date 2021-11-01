@@ -12,7 +12,7 @@ type Facebook struct {
 }
 
 func init() {
-	RegisterStorage(FacebookType, NewFacebook)
+	RegisterStorage(StorageType{typeName: FacebookType, createFunc: NewFacebook})
 }
 
 //NewFacebook returns configured Facebook destination
@@ -43,7 +43,7 @@ func NewFacebook(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(fbAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0)
+	tableHelper := NewTableHelper(fbAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, FacebookType)
 
 	fb.adapter = fbAdapter
 	fb.tableHelper = tableHelper

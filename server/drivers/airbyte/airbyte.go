@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -18,20 +19,20 @@ import (
 	"time"
 )
 
-const (
-	connectionStatusSucceed = "SUCCEEDED"
-	connectionStatusFailed  = "FAILED"
-)
-
 //Airbyte is an Airbyte CLI driver
 type Airbyte struct {
-	sync.RWMutex
+	mutex *sync.RWMutex
 	base.AbstractCLIDriver
 
+	activeCommands map[string]*base.SyncCommand
+
+	config                   *Config
 	pathToConfigs            string
 	streamsRepresentation    map[string]*base.StreamRepresentation
 	catalogDiscovered        *atomic.Bool
 	discoverCatalogLastError error
+
+	closed chan struct{}
 }
 
 func init() {
@@ -55,6 +56,11 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 
 	if airbyte.Instance == nil {
 		return nil, errors.New("airbyte-bridge must be configured")
+	}
+
+	config.DockerImage = strings.TrimPrefix(config.DockerImage, airbyte.DockerImageRepositoryPrefix)
+	if config.ImageVersion == "" {
+		config.ImageVersion = airbyte.LatestVersion
 	}
 
 	pathToConfigs := path.Join(airbyte.Instance.ConfigDir, sourceConfig.SourceID, config.DockerImage)
@@ -107,9 +113,13 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, config.DockerImage, configPath, catalogPath, "", statePath,
 		config.StreamTableNamesPrefix, pathToConfigs, config.StreamTableNames)
 	s := &Airbyte{
+		mutex:                 &sync.RWMutex{},
+		activeCommands:        map[string]*base.SyncCommand{},
+		config:                config,
 		pathToConfigs:         pathToConfigs,
 		catalogDiscovered:     catalogDiscovered,
 		streamsRepresentation: streamsRepresentation,
+		closed:                make(chan struct{}),
 	}
 	s.AbstractCLIDriver = *abstract
 	s.AbstractCLIDriver.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
@@ -121,15 +131,22 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 
 //TestAirbyte tests airbyte connection (runs check) if docker has been ready otherwise returns errNotReady
 func TestAirbyte(sourceConfig *base.SourceConfig) error {
-	driver, err := NewAirbyte(context.Background(), sourceConfig, nil)
-	if err != nil {
+	config := &Config{}
+	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return err
 	}
-	defer driver.Close()
 
-	airbyteDriver, _ := driver.(*Airbyte)
+	if err := config.Validate(); err != nil {
+		return err
+	}
 
-	return airbyteDriver.check()
+	config.DockerImage = strings.TrimPrefix(config.DockerImage, airbyte.DockerImageRepositoryPrefix)
+	if config.ImageVersion == "" {
+		config.ImageVersion = airbyte.LatestVersion
+	}
+
+	airbyteRunner := airbyte.NewRunner(config.DockerImage, config.ImageVersion, "")
+	return airbyteRunner.Check(config.Config)
 }
 
 //EnsureCatalog does discover if catalog wasn't provided
@@ -144,23 +161,16 @@ func (a *Airbyte) EnsureCatalog() {
 			break
 		}
 
-		spec, err := airbyte.Instance.GetOrLoadSpec(a.GetTap())
-		if spec == nil {
-			if err == nil {
-				//no error, just not ready
-				time.Sleep(time.Second)
-			} else {
-				//error
-				time.Sleep(time.Second * 30)
-			}
-			continue
-		}
-
-		catalogPath, streamsRepresentation, err := a.doDiscover()
+		catalogPath, streamsRepresentation, err := a.loadCatalog()
 		if err != nil {
-			a.Lock()
+			if err == runner.ErrNotReady {
+				time.Sleep(time.Second)
+				continue
+			}
+
+			a.mutex.Lock()
 			a.discoverCatalogLastError = err
-			a.Unlock()
+			a.mutex.Unlock()
 
 			retry++
 
@@ -174,9 +184,9 @@ func (a *Airbyte) EnsureCatalog() {
 			streamTableNameMapping[streamName] = a.GetTableNamePrefix() + streamName
 		}
 
-		a.Lock()
+		a.mutex.Lock()
 		a.discoverCatalogLastError = nil
-		a.Unlock()
+		a.mutex.Unlock()
 
 		a.SetCatalogPath(catalogPath)
 		a.streamsRepresentation = streamsRepresentation
@@ -189,13 +199,9 @@ func (a *Airbyte) EnsureCatalog() {
 //Ready returns true if catalog is discovered
 func (a *Airbyte) Ready() (bool, error) {
 	//check if docker image isn't pulled
-	spec, err := airbyte.Instance.GetOrLoadSpec(a.GetTap())
-	if spec == nil {
-		if err != nil {
-			return false, runner.NewNotReadyError(err.Error())
-		}
-
-		return false, runner.NewNotReadyError("")
+	ready := airbyte.Instance.IsImagePulled(airbyte.Instance.AddAirbytePrefix(a.GetTap()), a.config.ImageVersion)
+	if !ready {
+		return false, runner.ErrNotReady
 	}
 
 	//check catalog after docker image because catalog can be configured and discovered by user
@@ -203,19 +209,23 @@ func (a *Airbyte) Ready() (bool, error) {
 		return true, nil
 	}
 
-	a.RLock()
-	defer a.RUnlock()
+	a.mutex.RLock()
+	defer a.mutex.RUnlock()
 	msg := ""
 	if a.discoverCatalogLastError != nil {
 		msg = a.discoverCatalogLastError.Error()
 	}
 
-	return false, runner.NewNotReadyError(msg)
+	return false, runner.NewCompositeNotReadyError(msg)
 }
 
 func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
 	if a.IsClosed() {
 		return fmt.Errorf("%s has already been closed", a.Type())
+	}
+
+	if err := taskCloser.HandleCanceling(); err != nil {
+		return err
 	}
 
 	//waiting when airbyte is ready
@@ -224,84 +234,96 @@ func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer
 		return readyErr
 	}
 
-	args := []string{"run", "--rm", "-i", "--name", taskCloser.TaskID(), "-v", fmt.Sprintf("%s:%s", airbyte.Instance.WorkspaceVolume, airbyte.VolumeAlias), airbyte.Instance.ReformatImageName(a.GetTap()), "read", "--config", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.ConfigFileName), "--catalog", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.CatalogFileName)}
-
 	statePath, err := a.GetStateFilePath(state)
 	if err != nil {
 		return err
 	}
 
-	if statePath != "" {
-		args = append(args, "--state", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.StateFileName))
+	airbyteRunner := airbyte.NewRunner(a.GetTap(), a.config.ImageVersion, taskCloser.TaskID())
+
+	syncCommand := &base.SyncCommand{
+		Cmd:        airbyteRunner,
+		TaskCloser: taskCloser,
 	}
+	a.mutex.Lock()
+	a.activeCommands[taskCloser.TaskID()] = syncCommand
+	a.mutex.Unlock()
 
-	sop := &streamOutputParser{
-		dataConsumer:          dataConsumer,
-		streamsRepresentation: a.streamsRepresentation,
-		logger:                taskLogger,
-	}
+	loadDone := make(chan struct{})
+	defer func() {
+		close(loadDone)
 
-	return a.LoadAndParse(taskLogger, sop, airbyte.Instance.LogWriter, taskCloser, airbyte.Command, args...)
-}
+		a.mutex.Lock()
+		delete(a.activeCommands, taskCloser.TaskID())
+		a.mutex.Unlock()
+	}()
 
-//Check runs airbyte check command
-//returns notReadyErr if an airbyte image isn't ready
-//returns err if connection failed
-func (a *Airbyte) check() error {
-	spec, err := airbyte.Instance.GetOrLoadSpec(a.GetTap())
-	if spec == nil && err != nil {
-		return runner.NewNotReadyError(err.Error())
-	}
-
-	outWriter := logging.NewStringWriter()
-	errWriter := logging.NewStringWriter()
-
-	args := []string{"run", "--rm", "-i", "-v", fmt.Sprintf("%s:%s", airbyte.Instance.WorkspaceVolume, airbyte.VolumeAlias), airbyte.Instance.ReformatImageName(a.GetTap()), "check", "--config", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.ConfigFileName)}
-	if err := runner.ExecCmd(airbyte.BridgeType, airbyte.Command, outWriter, errWriter, args...); err != nil {
-		return errors.New(airbyte.Instance.BuildMsg("Error executing airbyte check:", outWriter, errWriter, err))
-	}
-
-	parts := strings.Split(outWriter.String(), "\n")
-	for _, p := range parts {
-		parsedRow := &airbyte.Row{}
-		if err := json.Unmarshal([]byte(p), parsedRow); err == nil {
-			if parsedRow.Type == airbyte.ConnectionStatusType && parsedRow.ConnectionStatus != nil {
-				switch parsedRow.ConnectionStatus.Status {
-				case connectionStatusSucceed:
-					return nil
-				case connectionStatusFailed:
-					return errors.New(parsedRow.ConnectionStatus.Message)
-				default:
-					return fmt.Errorf("unknown airbyte connection status [%s]: %s", parsedRow.ConnectionStatus.Status, parsedRow.ConnectionStatus.Message)
+	safego.Run(func() {
+		ticker := time.NewTicker(3 * time.Second)
+		for {
+			select {
+			case <-loadDone:
+				return
+			case <-ticker.C:
+				if err := taskCloser.HandleCanceling(); err != nil {
+					if cancelErr := syncCommand.Cancel(); cancelErr != nil {
+						logging.SystemErrorf("error canceling task [%s] sync command: %v", taskCloser.TaskID(), cancelErr)
+					}
+					return
 				}
-
 			}
 		}
-	}
+	})
 
-	return fmt.Errorf("Error parsing airbyte check result as json: %s", outWriter.String())
+	return airbyteRunner.Read(dataConsumer, a.streamsRepresentation, taskLogger, taskCloser, a.ID(), statePath)
+}
+
+//GetDriversInfo returns telemetry information about the driver
+func (a *Airbyte) GetDriversInfo() *base.DriversInfo {
+	return &base.DriversInfo{
+		SourceType:       a.config.DockerImage,
+		ConnectorOrigin:  a.Type(),
+		ConnectorVersion: a.config.ImageVersion,
+		Streams:          len(a.streamsRepresentation),
+	}
 }
 
 func (a *Airbyte) Type() string {
 	return base.AirbyteType
 }
 
-//doDiscover discovers source catalog
-//reformat catalog to airbyte format
-//returns catalog
-func (a *Airbyte) doDiscover() (string, map[string]*base.StreamRepresentation, error) {
-	outWriter := logging.NewStringWriter()
-	errStrWriter := logging.NewStringWriter()
-	dualStdErrWriter := logging.Dual{FileWriter: errStrWriter, Stdout: logging.NewPrefixDateTimeProxy(fmt.Sprintf("[%s]", a.ID()), airbyte.Instance.LogWriter)}
-
-	args := []string{"run", "--rm", "-i", "-v", fmt.Sprintf("%s:%s", airbyte.Instance.WorkspaceVolume, airbyte.VolumeAlias), airbyte.Instance.ReformatImageName(a.GetTap()), "discover", "--config", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.ConfigFileName)}
-
-	err := runner.ExecCmd(base.AirbyteType, airbyte.Command, outWriter, dualStdErrWriter, args...)
-	if err != nil {
-		return "", nil, fmt.Errorf("Error airbyte --discover: %v. %s", err, errStrWriter.String())
+//Close kills all runners and returns errors if occurred
+func (a *Airbyte) Close() (multiErr error) {
+	if a.IsClosed() {
+		return nil
 	}
 
-	catalog, streamsRepresentation, err := parseUnformattedCatalog(a.GetTap(), outWriter)
+	close(a.closed)
+
+	a.mutex.Lock()
+	for _, activeCommand := range a.activeCommands {
+		logging.Infof("[%s] killing process: %s", a.ID(), activeCommand.Cmd.String())
+		if err := activeCommand.Shutdown(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error killing airbyte read command: %v", a.ID(), err))
+		}
+	}
+
+	a.mutex.Unlock()
+
+	return multiErr
+}
+
+//loadCatalog discovers source catalog
+//reformat catalog to airbyte format and writes it to the file system
+//returns catalog
+func (a *Airbyte) loadCatalog() (string, map[string]*base.StreamRepresentation, error) {
+	airbyteRunner := airbyte.NewRunner(a.GetTap(), a.config.ImageVersion, "")
+	rawCatalog, err := airbyteRunner.Discover(a.config.Config)
+	if err != nil {
+		return "", nil, err
+	}
+
+	catalog, streamsRepresentation, err := reformatCatalog(a.GetTap(), rawCatalog)
 	if err != nil {
 		return "", nil, err
 	}
@@ -313,4 +335,13 @@ func (a *Airbyte) doDiscover() (string, map[string]*base.StreamRepresentation, e
 	}
 
 	return catalogPath, streamsRepresentation, nil
+}
+
+func (a *Airbyte) IsClosed() bool {
+	select {
+	case <-a.closed:
+		return true
+	default:
+		return false
+	}
 }

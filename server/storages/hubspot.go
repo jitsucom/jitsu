@@ -11,7 +11,7 @@ type HubSpot struct {
 }
 
 func init() {
-	RegisterStorage(HubSpotType, NewHubSpot)
+	RegisterStorage(StorageType{typeName: HubSpotType, createFunc: NewHubSpot, defaultTableName: "$.user?.email"})
 }
 
 //NewHubSpot returns configured HubSpot destination
@@ -41,7 +41,7 @@ func NewHubSpot(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(hAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0)
+	tableHelper := NewTableHelper(hAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, HubSpotType)
 
 	h.tableHelper = tableHelper
 	h.adapter = hAdapter

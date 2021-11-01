@@ -40,7 +40,7 @@ var (
 	SchemaToSnowflake = map[typing.DataType]string{
 		typing.STRING:    "text",
 		typing.INT64:     "bigint",
-		typing.FLOAT64:   "numeric(38,18)",
+		typing.FLOAT64:   "double precision",
 		typing.TIMESTAMP: "timestamp(6)",
 		typing.BOOL:      "boolean",
 		typing.UNKNOWN:   "text",

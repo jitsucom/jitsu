@@ -8,8 +8,8 @@ import cn from 'classnames';
 import { TabsConfigurator } from 'ui/components/Tabs/TabsConfigurator';
 import { EditorButtons } from 'ui/components/EditorButtons/EditorButtons';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
-import { closeableMessage } from 'lib/components/components';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
+import { DestinationEditorTransform } from './DestinationEditorTransform';
 import { DestinationEditorConnectors } from './DestinationEditorConnectors';
 import { DestinationEditorMappings } from './DestinationEditorMappings';
 import { DestinationEditorMappingsLibrary } from './DestinationEditorMappingsLibrary';
@@ -40,9 +40,11 @@ import { firstToLower } from 'lib/commons/utils';
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
 import { AreaChartOutlined, WarningOutlined } from '@ant-design/icons';
+import { actionNotification } from "../../../../components/ActionNotification/ActionNotification"
 
 type DestinationTabKey =
   | 'config'
+  | 'transform'
   | 'mappings'
   | 'sources'
   | 'settings'
@@ -125,7 +127,7 @@ const DestinationEditor = ({
       _mappings: newMappings
     };
 
-    const { form: mappingsForm } = destinationsTabs.current[1];
+    const { form: mappingsForm } = destinationsTabs.current[2];
     const { form: configForm } = destinationsTabs.current[0];
 
     await mappingsForm.setFieldsValue({
@@ -133,7 +135,7 @@ const DestinationEditor = ({
       '_mappings._keepUnmappedFields': newMappings._keepUnmappedFields ? 1 : 0
     });
 
-    destinationsTabs.current[1].touched = true;
+    destinationsTabs.current[2].touched = true;
 
     if (newTableName) {
       await configForm.setFieldsValue({
@@ -203,13 +205,27 @@ const DestinationEditor = ({
       touched: false
     },
     {
+      key: 'transform',
+      name: 'Transform',
+      getComponent: (form: FormInstance) => (
+          <DestinationEditorTransform
+              form={form}
+              destinationReference={destinationReference}
+              destinationData={destinationData.current}
+              handleTouchAnyField={validateAndTouchField(0)}
+          />
+      ),
+      form: Form.useForm()[0],
+      touched: false
+    },
+    {
       key: 'mappings',
       name: 'Mappings',
       getComponent: (form: FormInstance) => (
         <DestinationEditorMappings
           form={form}
           initialValues={destinationData.current._mappings}
-          handleTouchAnyField={validateAndTouchField(1)}
+          handleTouchAnyField={validateAndTouchField(2)}
         />
       ),
       form: Form.useForm()[0],
@@ -224,7 +240,7 @@ const DestinationEditor = ({
           form={form}
           initialValues={destinationData.current}
           destination={destinationReference}
-          handleTouchAnyField={validateAndTouchField(2)}
+          handleTouchAnyField={validateAndTouchField(3)}
         />
       ),
       form: Form.useForm()[0],
@@ -343,7 +359,7 @@ const DestinationEditor = ({
                 `${destinationData.current._type} has been saved!`
               );
           } else {
-            closeableMessage.warn(
+            actionNotification.warn(
               `${
                 destinationData.current._type
               } has been saved, but test has failed with '${firstToLower(
@@ -410,19 +426,14 @@ const DestinationEditor = ({
 
   return destinationReference ? (
     <>
-      <div
-        className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}
-      >
+      <div className={cn("flex flex-col items-stretch flex-auto", styles.wrapper)}>
         <div className={styles.mainArea} id="dst-editor-tabs">
           {isAbleToConnectItems() && (
             <Card className={styles.linkedWarning}>
               <WarningOutlined className={styles.warningIcon} />
               <article>
-                This destination is not linked to any API keys or Connector. You{' '}
-                <span
-                  className={styles.pseudoLink}
-                  onClick={() => setActiveTabKey('sources')}
-                >
+                This destination is not linked to any API keys or Connector. You{" "}
+                <span className={styles.pseudoLink} onClick={() => setActiveTabKey("sources")}>
                   can link the destination here
                 </span>
                 .
@@ -441,52 +452,41 @@ const DestinationEditor = ({
                 className="mr-3"
                 type="link"
                 onClick={handleViewStatistics}
-                icon={<AreaChartOutlined />}
-              >
+                icon={<AreaChartOutlined />}>
                 Statistics
               </Button>
             }
           />
         </div>
 
-        <div className="flex-shrink border-t pt-2">
+        <div className="flex-shrink border-t py-2">
           <EditorButtons
             save={{
               isRequestPending: destinationSaving,
-              isPopoverVisible:
-                savePopover &&
-                destinationsTabs.current.some(
-                  (tab: Tab) => tab.errorsCount > 0
-                ),
+              isPopoverVisible: savePopover && destinationsTabs.current.some((tab: Tab) => tab.errorsCount > 0),
               handlePress: handleSaveDestination,
               handlePopoverClose: savePopoverClose,
-              titleText: 'Destination editor errors',
-              tabsList: destinationsTabs.current
+              titleText: "Destination editor errors",
+              tabsList: destinationsTabs.current,
             }}
             test={{
               isRequestPending: testConnecting,
-              isPopoverVisible:
-                testConnectingPopover &&
-                destinationsTabs.current[0].errorsCount > 0,
+              isPopoverVisible: testConnectingPopover && destinationsTabs.current[0].errorsCount > 0,
               handlePress: handleTestConnection,
               handlePopoverClose: testConnectingPopoverClose,
-              titleText: 'Connection Properties errors',
-              tabsList: [destinationsTabs.current[0]]
+              titleText: "Connection Properties errors",
+              tabsList: [destinationsTabs.current[0]],
             }}
             handleCancel={params.standalone ? undefined : handleCancel}
           />
         </div>
       </div>
 
-      <Prompt
-        message={destinationEditorUtils.getPromptMessage(
-          destinationsTabs.current
-        )}
-      />
+      <Prompt message={destinationEditorUtils.getPromptMessage(destinationsTabs.current)} />
     </>
   ) : (
     <DestinationNotFound destinationId={params.id} />
-  );
+  )
 };;
 
 DestinationEditor.displayName = 'DestinationEditor';
