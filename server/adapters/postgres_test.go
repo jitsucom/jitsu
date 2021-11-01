@@ -17,7 +17,7 @@ import (
 func TestDeduplicateObjects(t *testing.T) {
 	table := &Table{
 		Name:     "test_deduplicate",
-		Columns:  Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}, "user": Column{"text"}},
+		Columns:  Columns{"field1": typing.SQLColumn{Type: "text"}, "field2": typing.SQLColumn{Type: "text"}, "field3": typing.SQLColumn{Type: "bigint"}, "user": typing.SQLColumn{Type: "text"}},
 		PKFields: map[string]bool{"field1": true, "field2": true},
 	}
 
@@ -51,7 +51,7 @@ func TestDeduplicateObjects(t *testing.T) {
 func TestBulkInsert(t *testing.T) {
 	table := &Table{
 		Name:    "test_insert",
-		Columns: Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}, "user": Column{"text"}},
+		Columns: Columns{"field1": typing.SQLColumn{Type: "text"}, "field2": typing.SQLColumn{Type: "text"}, "field3": typing.SQLColumn{Type: "bigint"}, "user": typing.SQLColumn{Type: "text"}},
 	}
 	container, pg := setupDatabase(t, table)
 	defer container.Close()
@@ -65,7 +65,7 @@ func TestBulkInsert(t *testing.T) {
 func TestPostgresTruncateExistingTable(t *testing.T) {
 	table := &Table{
 		Name:    "test_truncate_existing_table",
-		Columns: Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}, "user": Column{"text"}},
+		Columns: Columns{"field1": typing.SQLColumn{Type: "text"}, "field2": typing.SQLColumn{Type: "text"}, "field3": typing.SQLColumn{Type: "bigint"}, "user": typing.SQLColumn{Type: "text"}},
 	}
 	container, pg := setupDatabase(t, table)
 	defer container.Close()
@@ -91,7 +91,7 @@ func TestPostgresTruncateNonexistentTable(t *testing.T) {
 func TestBulkMerge(t *testing.T) {
 	table := &Table{
 		Name:     "test_merge",
-		Columns:  Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}, "user": Column{"text"}},
+		Columns:  Columns{"field1": typing.SQLColumn{Type: "text"}, "field2": typing.SQLColumn{Type: "text"}, "field3": typing.SQLColumn{Type: "bigint"}, "user": typing.SQLColumn{Type: "text"}},
 		PKFields: map[string]bool{"field1": true},
 	}
 	container, pg := setupDatabase(t, table)

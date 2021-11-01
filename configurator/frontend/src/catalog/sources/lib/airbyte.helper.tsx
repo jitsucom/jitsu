@@ -161,9 +161,9 @@ const mapAirbyteSpecNode = function mapSpecNode(
       } else if (specNode['oneOf']) {
         // this is a rare case, see the Postgres source spec for an example
         optionsEntries = getEntriesFromOneOfField(specNode, nodeName);
-        const optionsFieldName = Object.keys(
+        const [optionsFieldName] = Object.entries(
           optionsEntries[0][1]['properties']
-        )[0];
+        ).find(([fieldName, fieldNode]) => !!fieldNode['const']);
         const options = optionsEntries.map(
           ([_, childNode]) =>
             childNode['properties']?.[optionsFieldName]?.['const']
@@ -231,7 +231,7 @@ const mapAirbyteSpecNode = function mapSpecNode(
             setChildrenParameters
           })
         );
-      } else {
+      } else if (isSubNodeOf_oneOf(specNode)) {
         // Special case for the nodes from the `oneOf` list in the `object` node
         const childrenNodesEntries = Object.entries(
           specNode['properties']
@@ -239,11 +239,12 @@ const mapAirbyteSpecNode = function mapSpecNode(
           ([_, nodeA], [__, nodeB]) => nodeA?.['order'] - nodeB?.['order']
         );
 
-        const parentNodeValueProperty = childrenNodesEntries[0][0];
+        const [parentNodeValueProperty, selectValueNode] =
+          childrenNodesEntries.find(([_, node]) => !!node['const']);
         const parentNodeValueKey = `${parentNode.id}.${parentNodeValueProperty}`;
         const _listOfRequiredFields: string[] = specNode['required'] || [];
         childrenNodesEntries
-          .slice(1) // Ecludes the first entry as it is a duplicate definition of the parent node
+          .filter(([_, node]) => !node['const']) // Ecludes the entry with the select option value
           .forEach(([nodeName, node]) =>
             result.push(
               ...mapSpecNode(node, {
@@ -255,7 +256,7 @@ const mapAirbyteSpecNode = function mapSpecNode(
                     .split('.')
                     .reduce((obj, key) => obj[key] || {}, config);
                   const showChildFieldIfThisParentValueSelected =
-                    childrenNodesEntries[0][1]?.['const'];
+                    selectValueNode?.['const'];
                   return (
                     parentSelectionNodeValue !==
                     showChildFieldIfThisParentValueSelected
@@ -313,29 +314,16 @@ const getEntriesFromOneOfField = (
 ): [string, object][] => {
   const subNodes = node['oneOf'] as unknown;
 
-  return Object.entries(subNodes).map(([idx, subNode]) => [
-    `${nodeName}-option-${idx}`,
-    subNode
-  ]);
+  return Object.entries(subNodes).map(([idx, subNode]) => {
+    /**
+     * Set subNode type to undefined so that the algorithm further
+     * recognise the node as the `oneOf` node. Refer to `isSubNodeOf_oneOf` for implementation.
+     */
+    const newSubNode = { ...subNode, type: undefined };
+    return [`${nodeName}-option-${idx}`, newSubNode];
+  });
 };
 
-/**
- *
- *
- * Airbyte Sources Streams Mapping
- */
+const isSubNodeOf_oneOf = (node: any): boolean => node.type === undefined;
 
-/**
- *
- */
-export const mapAirbyteStreamsToCollections = (
-  streams: unknown[]
-): CollectionParameter[] => {
-  return [];
-};
 
-const mapAirbyteStream = function mapStream(
-  stream: unknown
-): CollectionParameter {
-  return null;
-};

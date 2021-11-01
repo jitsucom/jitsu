@@ -3,7 +3,6 @@ package users
 import (
 	"encoding/json"
 	"fmt"
-
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -12,11 +11,15 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/joncrlsn/dque"
+	"github.com/pkg/errors"
+	"os"
+	"path"
 )
 
 const (
 	recognitionPayloadPerFile = 2000
 	queueName                 = "queue.users_recognition"
+	lockFile                  = "lock.lock"
 )
 
 //RecognitionPayload is a queue dto
@@ -69,9 +72,29 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		return &RecognitionService{closed: true}, nil
 	}
 
-	queue, err := dque.NewOrOpen(queueName, logEventPath, recognitionPayloadPerFile, RecognitionPayloadBuilder)
-	if err != nil {
-		return nil, fmt.Errorf("Error opening/creating recognized events queue [%s] in dir [%s]: %v", queueName, logEventPath, err)
+	var queue *dque.DQue
+	var err error
+	for queue == nil {
+		queue, err = dque.NewOrOpen(queueName, logEventPath, recognitionPayloadPerFile, RecognitionPayloadBuilder)
+		if err != nil {
+			var brokenFilePath string
+			switch e := errors.Cause(err).(type) {
+			case dque.ErrCorruptedSegment:
+				brokenFilePath = e.Path
+			case dque.ErrUnableToDecode:
+				brokenFilePath = e.Path
+			default:
+				return nil, fmt.Errorf("Error opening/creating recognized events queue [%s] in dir [%s]: %v", queueName, logEventPath, err)
+			}
+			if deleteErr := os.Remove(brokenFilePath); deleteErr != nil {
+				return nil, fmt.Errorf("Error opening/creating recognized events queue.\nAttempt to delete corrupted file %s failed: %v\nOriginal cause: %v", brokenFilePath, deleteErr, err)
+			}
+			logging.Errorf("%v\n Removed corruptedFile: %s", err, brokenFilePath)
+			if err = unlockDQue(logEventPath, queueName); err != nil {
+				return nil, err
+			}
+			continue
+		}
 	}
 
 	rs := &RecognitionService{
@@ -264,5 +287,14 @@ func (rs *RecognitionService) Close() error {
 		}
 	}
 
+	return nil
+}
+
+//unlockDQue workaround for github.com/joncrlsn/dque forgetting to release file lock
+func unlockDQue(dirPath string, name string) error {
+	l := path.Join(dirPath, name, lockFile)
+	if err := os.Remove(l); err != nil {
+		return fmt.Errorf("Failed to remove lock file %s: %v", l, err)
+	}
 	return nil
 }

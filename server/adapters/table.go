@@ -1,20 +1,18 @@
 package adapters
 
-import "reflect"
+import (
+	"github.com/jitsucom/jitsu/server/typing"
+	"reflect"
+)
 
 //Columns is a list of columns representation
-type Columns map[string]Column
+type Columns map[string]typing.SQLColumn
 
 //TableField is a table column representation
 type TableField struct {
 	Field string      `json:"field,omitempty"`
 	Type  string      `json:"type,omitempty"`
 	Value interface{} `json:"value,omitempty"`
-}
-
-//Column is a column representation
-type Column struct {
-	SQLType string
 }
 
 //Table is a dto for DWH Table representation
@@ -61,7 +59,7 @@ func (t *Table) GetPKFieldsMap() map[string]bool {
 // 2) all fields from another schema exist in current schema
 // NOTE: Diff method doesn't take types into account
 func (t Table) Diff(another *Table) *Table {
-	diff := &Table{Name: t.Name, Columns: map[string]Column{}, PKFields: map[string]bool{}}
+	diff := &Table{Name: t.Name, Columns: map[string]typing.SQLColumn{}, PKFields: map[string]bool{}}
 
 	if !another.Exists() {
 		return diff

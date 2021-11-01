@@ -1,21 +1,46 @@
 package runner
 
 import (
+	"errors"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"io"
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 )
 
+var ErrAirbyteAlreadyTerminated = errors.New("Airbyte Runner has been already terminated. You can use it only once.")
+
 //ExecCmd executes command with args and uses stdOutWriter and stdErrWriter to pipe the result
-func ExecCmd(system, cmd string, stdOutWriter, stdErrWriter io.Writer, args ...string) error {
-	logging.Debugf("Running %s command: %s with args [%s]", system, cmd, strings.Join(args, ", "))
+//runs separate goroutine for timeout control
+func ExecCmd(system, cmd string, stdOutWriter, stdErrWriter io.Writer, timeout time.Duration, args ...string) error {
+	logging.Debugf("Running %s command: %s with timeout [%s] with args [%s]", system, cmd, timeout.String(), strings.Join(args, ", "))
 	execCmd := exec.Command(cmd, args...)
 
 	stdout, _ := execCmd.StdoutPipe()
 	stderr, _ := execCmd.StderrPipe()
+
+	closed := make(chan struct{})
+
+	//self closed
+	safego.Run(func() {
+		ticker := time.NewTicker(timeout)
+		for {
+			select {
+			case <-closed:
+				return
+			case <-ticker.C:
+				logging.Warnf("system [%s] command [%s] run [%s] timeout", system, execCmd.String(), timeout.String())
+				if err := execCmd.Process.Kill(); err != nil {
+					logging.SystemErrorf("Error terminating command [%s %s]: %v", cmd, strings.Join(args, ", "), err)
+				}
+			}
+		}
+	})
+
+	defer close(closed)
 
 	err := execCmd.Start()
 	if err != nil {

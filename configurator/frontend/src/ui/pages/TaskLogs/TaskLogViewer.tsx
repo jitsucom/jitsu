@@ -4,7 +4,6 @@ import { generatePath, NavLink, useHistory, useParams } from 'react-router-dom';
 import {
   CenteredError,
   CenteredSpin,
-  closeableMessage,
   handleError
 } from 'lib/components/components';
 import { Task, TaskId, TaskLogEntry } from './utils';
@@ -24,6 +23,7 @@ import classNames from 'classnames';
 import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 import moment from 'moment';
 import ReloadOutlined from '@ant-design/icons/lib/icons/ReloadOutlined';
+import { actionNotification } from "../../components/ActionNotification/ActionNotification"
 
 export const taskLogsViewerRoute = '/sources/logs/:sourceId/:taskId'
 type TaskInfo = {

@@ -7,28 +7,29 @@ import (
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"strings"
+	"text/template"
 	"time"
 )
 
 //TableNameExtractor extracts table name from every JSON event
 type TableNameExtractor struct {
-	Expression string
-	tmpl                       templates.TemplateExecutor
-	useTimestamp               bool
+	Expression   string
+	tmpl         templates.TemplateExecutor
+	useTimestamp bool
 }
 
 //NewTableNameExtractor returns configured TableNameExtractor
-func NewTableNameExtractor(tableNameExtractExpression string) (*TableNameExtractor, error) {
+func NewTableNameExtractor(tableNameExtractExpression string, funcMap template.FuncMap) (*TableNameExtractor, error) {
 	//Table naming
-	tmpl, err := templates.SmartParse("table name extract", tableNameExtractExpression, templates.JSONSerializeFuncs)
+	tmpl, err := templates.SmartParse("table name extract", tableNameExtractExpression, funcMap)
 	if err != nil {
 		return nil, fmt.Errorf("table name template parsing error: %v", err)
 	}
 
 	return &TableNameExtractor{
-		Expression: tmpl.Expression(),
-		tmpl:                       tmpl,
-		useTimestamp:               strings.Contains(tableNameExtractExpression, timestamp.Key),
+		Expression:   tmpl.Expression(),
+		tmpl:         tmpl,
+		useTimestamp: strings.Contains(tableNameExtractExpression, timestamp.Key),
 	}, nil
 }
 
@@ -40,7 +41,7 @@ func (tne *TableNameExtractor) Extract(object map[string]interface{}) (result st
 	defer func() {
 		if r := recover(); r != nil {
 			result = ""
-			err = fmt.Errorf("error getting table name: %v",  r)
+			err = fmt.Errorf("error getting table name: %v", r)
 		}
 	}()
 

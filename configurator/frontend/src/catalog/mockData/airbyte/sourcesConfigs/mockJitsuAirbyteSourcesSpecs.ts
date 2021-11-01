@@ -4,7 +4,8 @@ import {
   mongodb,
   googleAds,
   postgres,
-  braintree
+  braintree,
+  github
 } from './jitsu';
 
 export const allMockJitsuAirbyteSourceConnectors = Object.freeze({
@@ -13,5 +14,6 @@ export const allMockJitsuAirbyteSourceConnectors = Object.freeze({
   mongodb,
   googleAds,
   postgres,
-  braintree
+  braintree,
+  github
 } as const);

@@ -45,7 +45,15 @@ type BigQuery struct {
 
 //NewBigQuery return configured BigQuery adapter instance
 func NewBigQuery(ctx context.Context, config *GoogleConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*BigQuery, error) {
-	client, err := bigquery.NewClient(ctx, config.Project, config.credentials)
+
+	var client *bigquery.Client
+	var err error
+	if config.credentials == nil {
+		client, err = bigquery.NewClient(ctx, config.Project)
+	} else {
+		client, err = bigquery.NewClient(ctx, config.Project, config.credentials)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("Error creating BigQuery client: %v", err)
 	}
@@ -122,7 +130,7 @@ func (bq *BigQuery) GetTableSchema(tableName string) (*Table, error) {
 	}
 
 	for _, field := range meta.Schema {
-		table.Columns[field.Name] = Column{SQLType: string(field.Type)}
+		table.Columns[field.Name] = typing.SQLColumn{Type: string(field.Type)}
 	}
 
 	return table, nil
@@ -144,10 +152,10 @@ func (bq *BigQuery) CreateTable(table *Table) error {
 
 	bqSchema := bigquery.Schema{}
 	for columnName, column := range table.Columns {
-		bigQueryType := bigquery.FieldType(strings.ToUpper(column.SQLType))
+		bigQueryType := bigquery.FieldType(strings.ToUpper(column.DDLType()))
 		sqlType, ok := bq.sqlTypes[columnName]
 		if ok {
-			bigQueryType = bigquery.FieldType(strings.ToUpper(sqlType.ColumnType))
+			bigQueryType = bigquery.FieldType(strings.ToUpper(sqlType.DDLType()))
 		}
 		bqSchema = append(bqSchema, &bigquery.FieldSchema{Name: columnName, Type: bigQueryType})
 	}
@@ -186,10 +194,10 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		bigQueryType := bigquery.FieldType(strings.ToUpper(column.SQLType))
+		bigQueryType := bigquery.FieldType(strings.ToUpper(column.DDLType()))
 		sqlType, ok := bq.sqlTypes[columnName]
 		if ok {
-			bigQueryType = bigquery.FieldType(strings.ToUpper(sqlType.ColumnType))
+			bigQueryType = bigquery.FieldType(strings.ToUpper(sqlType.DDLType()))
 		}
 		metadata.Schema = append(metadata.Schema, &bigquery.FieldSchema{Name: columnName, Type: bigQueryType})
 	}

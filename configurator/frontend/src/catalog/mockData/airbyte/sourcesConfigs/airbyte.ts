@@ -661,3 +661,92 @@ export const braintree = {
   },
   documentationUrl: 'https://docs.airbyte.io/integrations/sources/braintree'
 } as const;
+
+export const github = {
+  authSpecification: {
+    auth_type: 'oauth2.0',
+    oauth2Specification: {
+      oauthFlowInitParameters: [],
+      oauthFlowOutputParameters: [['access_token']],
+      rootObject: ['credentials', '0']
+    }
+  },
+  connectionSpecification: {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    additionalProperties: true,
+    properties: {
+      branch: {
+        description:
+          'Space-delimited list of GitHub repository branches to pull commits for, e.g. `airbytehq/airbyte/master`. If no branches are specified for a repository, the default branch will be pulled.',
+        examples: ['airbytehq/airbyte/master'],
+        title: 'Branch',
+        type: 'string'
+      },
+      credentials: {
+        description: 'Choose how to authenticate to Github',
+        oneOf: [
+          {
+            properties: {
+              access_token: {
+                airbyte_secret: true,
+                description: 'Oauth access token',
+                title: 'Access Token',
+                type: 'string'
+              },
+              option_title: {
+                const: 'OAuth Credentials',
+                description: 'OAuth Credentials',
+                title: 'Credentials title',
+                type: 'string'
+              }
+            },
+            required: ['access_token'],
+            title: 'Authenticate via Github (Oauth)',
+            type: 'object'
+          },
+          {
+            properties: {
+              option_title: {
+                const: 'PAT Credentials',
+                description: 'PAT Credentials',
+                title: 'Credentials title',
+                type: 'string'
+              },
+              personal_access_token: {
+                airbyte_secret: true,
+                description:
+                  'Log into Github and then generate a <a href="https://github.com/settings/tokens"> personal access token</a>. To load balance your API quota consumption across multiple API tokens, input multiple tokens separated with ","',
+                title: 'Personal Access Tokens',
+                type: 'string'
+              }
+            },
+            required: ['personal_access_token'],
+            title: 'Authenticate with Personal Access Token',
+            type: 'object'
+          }
+        ],
+        title: 'Authentication mechanism',
+        type: 'object'
+      },
+      repository: {
+        description:
+          'Space-delimited list of GitHub repositories/organizations, e.g. `airbytehq/airbyte` for single repository and `airbytehq/*` for get all repositories from organization',
+        examples: ['airbytehq/airbyte', 'airbytehq/*'],
+        title: 'Github repositories',
+        type: 'string'
+      },
+      start_date: {
+        description:
+          "The date from which you'd like to replicate data for GitHub in the format YYYY-MM-DDT00:00:00Z. All data generated after this date will be replicated. Note that it will be used only in the following incremental streams: comments, commits and issues.",
+        examples: ['2021-03-01T00:00:00Z'],
+        pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$',
+        title: 'Start date',
+        type: 'string'
+      }
+    },
+    required: ['start_date', 'repository'],
+    title: 'Github Source Spec',
+    type: 'object'
+  },
+  documentationUrl: 'https://docs.airbyte.io/integrations/sources/github'
+} as const;
