@@ -49,8 +49,8 @@ require (
 	github.com/testcontainers/testcontainers-go v0.11.0
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
 	github.com/vbauerster/mpb/v7 v7.1.3
-	github.com/xitongsys/parquet-go v1.6.1-0.20210908225659-172d453430aa
-	github.com/xitongsys/parquet-go-source v0.0.0-20201108113611-f372b7d813be
+	github.com/xitongsys/parquet-go v1.6.1
+	github.com/xitongsys/parquet-go-source v0.0.0-20211010230925-397910c5e371
 	github.com/xtgo/uuid v0.0.0-20140804021211-a0b114877d4c // indirect
 	go.etcd.io/etcd/client/v3 v3.5.0-alpha.0
 	go.uber.org/atomic v1.7.0

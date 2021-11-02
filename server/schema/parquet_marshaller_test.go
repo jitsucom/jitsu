@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+func TestParquetMarshal(t *testing.T) {
+	pm := NewParquetMarshaller()
+	tests := []struct {
+		name string
+		pte  *parquetTestEntity
+	}{
+		{
+			name: "all field types",
+			pte:  allFieldTypesParquetTestEntity(),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := pm.Marshal(tt.pte.batchHeader, []map[string]interface{}{tt.pte.inputObj})
+			require.NoError(t, err, "parquet marshalling failed")
+		})
+	}
+}
+
 func TestParquetMetadata(t *testing.T) {
 	pm := NewParquetMarshaller().(*ParquetMarshaller)
 	tests := []struct {
@@ -94,7 +113,7 @@ func allFieldTypesParquetTestEntity() *parquetTestEntity {
 			"name=field_string, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY",
 			"name=field_bool, type=BOOLEAN",
 			"name=field_float64, type=DOUBLE",
-			"name=field_timestamp, type=TIMESTAMP_MILLIS",
+			"name=field_timestamp, type=INT64, logicaltype=TIMESTAMP, logicaltype.isadjustedtoutc=true, logicaltype.unit=MILLIS",
 			"name=field_unknown, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY",
 		},
 		expectedRecord: []interface{}{
