@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex justify-center items-center w-full h-full">
           <div className="h-96 max-w-3xl px-16">
-            <ErrorCard title="Internal error occured" />
+            <ErrorCard title="Internal error occured" onReload={() => this.setState({ error: null })} />
           </div>
         </div>
       )
