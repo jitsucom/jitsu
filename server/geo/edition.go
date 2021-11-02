@@ -7,7 +7,7 @@ const (
 	GeoIP2CityEdition    Edition = "GeoIP2-City"
 	GeoIP2ISPEdition     Edition = "GeoIP2-ISP"
 	GeoIP2DomainEdition  Edition = "GeoIP2-Domain"
-	GeoIP2CountryEdition Edition = "GeoIP2-Contry"
+	GeoIP2CountryEdition Edition = "GeoIP2-Country"
 
 	//free databases
 	GeoLite2CityEdition    Edition = "GeoLite2-City"
