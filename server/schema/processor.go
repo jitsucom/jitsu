@@ -250,6 +250,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		if err != nil {
 			return nil, err
 		}
+		ClearTypeMetaFields(flatObject)
 		bh, obj, err := p.foldLongFields(&BatchHeader{newTableName, fields}, flatObject)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process long fields: %v", err)
@@ -333,4 +334,17 @@ func cutName(name string, maxLen int) string {
 	}
 
 	return cutName(name, maxLen)
+}
+
+func ClearTypeMetaFields(object map[string]interface{})  {
+	for k, v := range object {
+		if strings.Contains(k, SqlTypeKeyword) {
+			delete(object, k)
+		} else {
+			obj, ok := v.(map[string]interface{})
+			if ok {
+				ClearTypeMetaFields(obj)
+			}
+		}
+	}
 }
