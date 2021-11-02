@@ -72,7 +72,7 @@ export function ConnectionCard(props: ConnectionCardProps) {
     <div className={`${styles.connectionCard} ${props.loading && styles.connectionCardLoading}`}>
       <div className="w-full flex justify-between items-start">
         <div className="flex items-center">
-          <div className="h-12">
+          <div className="h-12 w-12">
             <ActionLink action={props.editAction}>{props.icon}</ActionLink>
           </div>
           <div className="pl-4 h-12 h-full flex flex-col justify-between ">
