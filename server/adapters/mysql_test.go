@@ -33,11 +33,11 @@ func TestMySQLBulkInsert(t *testing.T) {
 	table := &Table{
 		Name: "test_insert",
 		Columns: Columns{
-			"field1":          typing.SQLColumn{Type: SchemaToMySQL[typing.STRING]},
-			"field2":          typing.SQLColumn{Type: SchemaToMySQL[typing.STRING]},
-			"field3":          typing.SQLColumn{Type: SchemaToMySQL[typing.INT64]},
-			"user":            typing.SQLColumn{Type: SchemaToMySQL[typing.STRING]},
-			"_interval_start": typing.SQLColumn{Type: SchemaToMySQL[typing.TIMESTAMP]},
+			"field1":          typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
+			"field2":          typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
+			"field3":          typing.SQLColumn{Type:SchemaToMySQL[typing.INT64]},
+			"user":            typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
+			"_interval_start": typing.SQLColumn{Type:SchemaToMySQL[typing.TIMESTAMP]},
 		},
 	}
 	container, mySQL := setupMySQLDatabase(t, table)
@@ -54,11 +54,11 @@ func TestMySQLTruncateExistingTable(t *testing.T) {
 	table := &Table{
 		Name: "test_truncate_existing_table",
 		Columns: Columns{
-			"field1":          typing.SQLColumn{Type: SchemaToMySQL[typing.STRING]},
-			"field2":          typing.SQLColumn{Type: SchemaToMySQL[typing.STRING]},
-			"field3":          typing.SQLColumn{Type: SchemaToMySQL[typing.INT64]},
-			"user":            typing.SQLColumn{Type: SchemaToMySQL[typing.STRING]},
-			"_interval_start": typing.SQLColumn{Type: SchemaToMySQL[typing.TIMESTAMP]},
+			"field1":          typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
+			"field2":          typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
+			"field3":          typing.SQLColumn{Type:SchemaToMySQL[typing.INT64]},
+			"user":            typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
+			"_interval_start": typing.SQLColumn{Type:SchemaToMySQL[typing.TIMESTAMP]},
 		},
 	}
 	container, mySQL := setupMySQLDatabase(t, table)
@@ -87,11 +87,11 @@ func TestMySQLBulkMerge(t *testing.T) {
 	table := &Table{
 		Name: "test_merge",
 		Columns: Columns{
-			"field1":          typing.SQLColumn{Type: SchemaToMySQL[typing.STRING]},
-			"field2":          typing.SQLColumn{Type: SchemaToMySQL[typing.STRING]},
-			"field3":          typing.SQLColumn{Type: SchemaToMySQL[typing.INT64]},
-			"user":            typing.SQLColumn{Type: SchemaToMySQL[typing.STRING]},
-			"_interval_start": typing.SQLColumn{Type: SchemaToMySQL[typing.TIMESTAMP]},
+			"field1":          typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
+			"field2":          typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
+			"field3":          typing.SQLColumn{Type:SchemaToMySQL[typing.INT64]},
+			"user":            typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
+			"_interval_start": typing.SQLColumn{Type:SchemaToMySQL[typing.TIMESTAMP]},
 		},
 		PKFields: map[string]bool{"field1": true},
 	}

@@ -176,11 +176,11 @@ func TestClickhouseTruncateExistingTable(t *testing.T) {
 	table := &Table{
 		Name: "test_truncate_existing_table",
 		Columns: Columns{
-			"eventn_ctx_event_id": typing.SQLColumn{Type: SchemaToClickhouse[typing.STRING]},
-			"field2":              typing.SQLColumn{Type: SchemaToClickhouse[typing.STRING]},
-			"field3":              typing.SQLColumn{Type: SchemaToClickhouse[typing.INT64]},
-			"user":                typing.SQLColumn{Type: SchemaToClickhouse[typing.STRING]},
-			"_timestamp":          typing.SQLColumn{Type: SchemaToClickhouse[typing.TIMESTAMP]},
+			"eventn_ctx_event_id": typing.SQLColumn{Type:SchemaToClickhouse[typing.STRING]},
+			"field2":              typing.SQLColumn{Type:SchemaToClickhouse[typing.STRING]},
+			"field3":              typing.SQLColumn{Type:SchemaToClickhouse[typing.INT64]},
+			"user":                typing.SQLColumn{Type:SchemaToClickhouse[typing.STRING]},
+			"_timestamp":          typing.SQLColumn{Type:SchemaToClickhouse[typing.TIMESTAMP]},
 		},
 	}
 	container, clickHouse := setupClickHouseDatabase(t, table)

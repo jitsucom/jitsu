@@ -320,7 +320,7 @@ func TestProcessFact(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	p, err := NewProcessor("test", "google_analytics", `events_{{._timestamp.Format "2006_01"}}`, "", fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+	p, err := NewProcessor("test", "google_analytics",`events_{{._timestamp.Format "2006_01"}}`, "", fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
 
 	require.NoError(t, err)
 	for _, tt := range tests {
@@ -349,10 +349,10 @@ func TestProcessTransform(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name            string
+		name                string
 		input           map[string]interface{}
 		expectedObjects []events.Event
-		expectedTables  []string
+		expectedTables []string
 		expectedErr     string
 	}{
 		{
@@ -364,14 +364,14 @@ func TestProcessTransform(t *testing.T) {
 		},
 		{
 			"simple transform 2",
-			map[string]interface{}{"event_type": "indentify", "user": map[string]interface{}{"email": "hello@jitsu.com"}, "url": "https://jitsu.com", "field1": "somedata"},
+			map[string]interface{}{"event_type": "indentify", "user": map[string]interface{}{"email": "hello@jitsu.com"},"url": "https://jitsu.com", "field1": "somedata"},
 			[]events.Event{{"event": "indentify", "userid": "hello@jitsu.com"}},
 			[]string{"events"},
 			"",
 		},
 		{
 			"skip",
-			map[string]interface{}{"event_type": "indentify", "user": map[string]interface{}{"anon": "123"}, "url": "https://jitsu.com", "field1": "somedata"},
+			map[string]interface{}{"event_type": "indentify", "user": map[string]interface{}{"anon": "123"},"url": "https://jitsu.com", "field1": "somedata"},
 			[]events.Event{},
 			[]string{},
 			"Transform or table name filter marked object to be skipped. This object will be skipped.",
@@ -386,7 +386,7 @@ func TestProcessTransform(t *testing.T) {
 		{
 			"multiple events",
 			map[string]interface{}{"event_type": "multiply", "eventn_ctx_event_id": "a1024", "url": "https://jitsu.com", "conversions": 3, "field1": "somedata"},
-			[]events.Event{{"event": "conversion", "url": "https://jitsu.com"}, {"event": "conversion", "eventn_ctx_event_id": "a1024_1", "url": "https://jitsu.com"}, {"event": "conversion", "eventn_ctx_event_id": "a1024_2", "url": "https://jitsu.com"}},
+			[]events.Event{{"event": "conversion", "url": "https://jitsu.com"},{"event": "conversion", "eventn_ctx_event_id": "a1024_1", "url": "https://jitsu.com"},{"event": "conversion", "eventn_ctx_event_id": "a1024_2", "url": "https://jitsu.com"}},
 			[]string{"conversion_0", "conversion_1", "conversion_2"},
 			"",
 		},
@@ -433,7 +433,7 @@ switch ($.event_type) {
         return {...$, [TABLE_NAME]: $.event_type}
 }
 `
-	p, err := NewProcessor("test", "google_analytics", `events`, transormExpression, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+	p, err := NewProcessor("test", "google_analytics",`events`, transormExpression, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
 
 	require.NoError(t, err)
 	for _, tt := range tests {

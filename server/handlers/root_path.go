@@ -88,7 +88,7 @@ func (rph *RootPathHandler) Handler(c *gin.Context) {
 	c.Header("Content-type", htmlContentType)
 
 	if rph.welcome == nil {
-		c.Writer.Write([]byte(strings.ReplaceAll(blankPage, "[VERSION]", appconfig.RawVersion+" / "+appconfig.BuiltAt)))
+		c.Writer.Write([]byte(strings.ReplaceAll(blankPage,"[VERSION]", appconfig.RawVersion + " / " + appconfig.BuiltAt)))
 		return
 	}
 

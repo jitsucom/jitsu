@@ -13,7 +13,6 @@ import (
 )
 
 const notsetDefaultValue = "__NOTSET_DEFAULT_VALUE__"
-
 var templateVariablePattern = regexp.MustCompile(`\$\{env\.[\w_]+(?:\|[^\}]*)?\}`)
 
 //Read reads config from configSourceStr that might be (HTTP URL or path to YAML/JSON file or plain JSON string)

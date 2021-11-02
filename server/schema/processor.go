@@ -18,18 +18,18 @@ var ErrSkipObject = errors.New("Transform or table name filter marked object to 
 
 type Envelope struct {
 	Header *BatchHeader
-	Event  events.Event
+	Event events.Event
 }
 
 type Processor struct {
 	identifier              string
 	tableNameExtractor      *TableNameExtractor
 	lookupEnrichmentStep    *enrichment.LookupEnrichmentStep
-	transformer             *templates.JsTemplateExecutor
-	fieldMapper             events.Mapper
+	transformer				*templates.JsTemplateExecutor
+	fieldMapper  			events.Mapper
 	pulledEventsfieldMapper events.Mapper
-	typeResolver            TypeResolver
-	flattener               Flattener
+	typeResolver 			TypeResolver
+	flattener    			Flattener
 	breakOnError            bool
 	uniqueIDField           *identifiers.UniqueID
 	maxColumnNameLen        int
@@ -42,7 +42,7 @@ func NewProcessor(destinationID, destinationType, tableNameFuncExpression string
 	if err != nil {
 		return nil, err
 	}
-	var transformer *templates.JsTemplateExecutor
+	var transformer	*templates.JsTemplateExecutor
 	if transform != "" && transform != templates.TransformDefaultTemplate {
 		transformer, err = templates.NewJsTemplateExecutor(transform, templateFunctions, []string{destinationType, "segment"}...)
 		if err != nil {
@@ -53,11 +53,11 @@ func NewProcessor(destinationID, destinationType, tableNameFuncExpression string
 		identifier:              destinationID,
 		tableNameExtractor:      tableNameExtractor,
 		lookupEnrichmentStep:    enrichment.NewLookupEnrichmentStep(enrichmentRules),
-		transformer:             transformer,
+		transformer: 			 transformer,
 		fieldMapper:             fieldMapper,
 		pulledEventsfieldMapper: &DummyMapper{},
-		typeResolver:            typeResolver,
-		flattener:               flattener,
+		typeResolver: 			 typeResolver,
+		flattener: 				 flattener,
 		breakOnError:            breakOnError,
 		uniqueIDField:           uniqueIDField,
 		maxColumnNameLen:        maxColumnNameLen,
@@ -255,7 +255,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		if err != nil {
 			return nil, fmt.Errorf("failed to process long fields: %v", err)
 		}
-		envelops = append(envelops, Envelope{bh, obj})
+		envelops = append(envelops, Envelope{bh, obj} )
 	}
 
 	return envelops, nil

@@ -13,9 +13,9 @@ import (
 
 //TableNameExtractor extracts table name from every JSON event
 type TableNameExtractor struct {
-	Expression   string
-	tmpl         templates.TemplateExecutor
-	useTimestamp bool
+	Expression string
+	tmpl                       templates.TemplateExecutor
+	useTimestamp               bool
 }
 
 //NewTableNameExtractor returns configured TableNameExtractor
@@ -27,9 +27,9 @@ func NewTableNameExtractor(tableNameExtractExpression string, funcMap template.F
 	}
 
 	return &TableNameExtractor{
-		Expression:   tmpl.Expression(),
-		tmpl:         tmpl,
-		useTimestamp: strings.Contains(tableNameExtractExpression, timestamp.Key),
+		Expression: tmpl.Expression(),
+		tmpl:                       tmpl,
+		useTimestamp:               strings.Contains(tableNameExtractExpression, timestamp.Key),
 	}, nil
 }
 
@@ -41,7 +41,7 @@ func (tne *TableNameExtractor) Extract(object map[string]interface{}) (result st
 	defer func() {
 		if r := recover(); r != nil {
 			result = ""
-			err = fmt.Errorf("error getting table name: %v", r)
+			err = fmt.Errorf("error getting table name: %v",  r)
 		}
 	}()
 

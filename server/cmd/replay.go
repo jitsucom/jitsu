@@ -340,7 +340,7 @@ func filterFiles(absoluteFileNames []string, startStr string, endStr string) ([]
 		if err != nil {
 			return nil, fmt.Errorf("error parsing 'end': %v", err)
 		}
-		endDate = t.AddDate(0, 0, 1)
+		endDate = t.AddDate(0,0,1)
 	}
 
 	var result []string
