@@ -51,7 +51,7 @@ func Babelize(src string) (string, error) {
 
 //LoadTemplateScript loads script into newly created Javascript vm
 //Returns func that is mapped to javascript function inside vm instance
-func LoadTemplateScript(script string, extraFunctions template.FuncMap, extraScripts ...string) (func(map[string]interface{}) (interface{}, error), error) {
+func LoadTemplateScript(script string, extraFunctions template.FuncMap, extraScripts ... string) (func(map[string]interface{}) (interface{}, error), error) {
 	vm := goja.New()
 	//limit call stack size to prevent endless recurison
 	vm.SetMaxCallStackSize(42)
@@ -150,7 +150,7 @@ func exportValue(vp *goja.Value, vm *goja.Runtime) interface{} {
 
 func valuesToObjects(values []goja.Value) []interface{} {
 	objs := make([]interface{}, 0, len(values))
-	for _, o := range values {
+	for _,o := range values {
 		objs = append(objs, o.Export())
 	}
 	return objs

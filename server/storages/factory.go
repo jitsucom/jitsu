@@ -35,11 +35,11 @@ var (
 	StorageTypes = make(map[string]StorageType)
 
 	maxColumnNameLengthByDestinationType = map[string]int{
-		RedshiftType:   115,
-		MySQLType:      64,
-		BigQueryType:   300,
-		PostgresType:   59,
-		SnowflakeType:  251,
+		RedshiftType:  115,
+		MySQLType:  64,
+		BigQueryType:  300,
+		PostgresType:  59,
+		SnowflakeType: 251,
 		ClickHouseType: 251,
 	}
 )
@@ -78,8 +78,8 @@ type DataLayout struct {
 	//Deprecated
 	Mapping []string `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
 
-	TransformEnabled bool   `mapstructure:"transform_enabled" json:"transform_enabled" yaml:"transform_enabled"`
-	Transform        string `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
+	TransformEnabled  bool			  `mapstructure:"transform_enabled" json:"transform_enabled" yaml:"transform_enabled"`
+	Transform		  string		  `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
 	//Deprecated
 	Mappings          *schema.Mapping `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
 	MaxColumns        int             `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
@@ -150,14 +150,15 @@ func RegisterStorage(storageType StorageType) {
 	StorageTypes[storageType.typeName] = storageType
 }
 
+
 //Factory is a destinations factory for creation
 type Factory interface {
 	Create(name string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error)
 }
 
 type StorageType struct {
-	typeName         string
-	createFunc       func(config *Config) (Storage, error)
+	typeName string
+	createFunc func(config *Config) (Storage, error)
 	defaultTableName string
 }
 

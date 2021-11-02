@@ -19,7 +19,7 @@ import (
 const (
 	recognitionPayloadPerFile = 2000
 	queueName                 = "queue.users_recognition"
-	lockFile                  = "lock.lock"
+    lockFile = "lock.lock"
 )
 
 //RecognitionPayload is a queue dto
@@ -74,7 +74,7 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 
 	var queue *dque.DQue
 	var err error
-	for queue == nil {
+	for  ;queue == nil;  {
 		queue, err = dque.NewOrOpen(queueName, logEventPath, recognitionPayloadPerFile, RecognitionPayloadBuilder)
 		if err != nil {
 			var brokenFilePath string
@@ -291,7 +291,7 @@ func (rs *RecognitionService) Close() error {
 }
 
 //unlockDQue workaround for github.com/joncrlsn/dque forgetting to release file lock
-func unlockDQue(dirPath string, name string) error {
+func unlockDQue(dirPath string, name string) error  {
 	l := path.Join(dirPath, name, lockFile)
 	if err := os.Remove(l); err != nil {
 		return fmt.Errorf("Failed to remove lock file %s: %v", l, err)

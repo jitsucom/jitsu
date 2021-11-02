@@ -17,15 +17,16 @@ type EvaluateTemplateRequest struct {
 	Object     map[string]interface{} `json:"object,omitempty"`
 	Expression string                 `json:"expression,omitempty"`
 	Reformat   bool                   `json:"reformat,omitempty"`
-	Type       string                 `json:"type,omitempty"`
-	Uid        string                 `json:"uid,omitempty"`
+	Type   	   string                 `json:"type,omitempty"`
+	Uid   	   string                 `json:"uid,omitempty"`
 	Field      string                 `json:"field,omitempty"`
+
 }
 
 //EvaluateTemplateResponse is a response dto for testing text/template expressions
 type EvaluateTemplateResponse struct {
 	Result string `json:"result"`
-	Error  string `json:"message"`
+	Error string `json:"message"`
 	Format string `json:"format"`
 }
 
@@ -95,7 +96,7 @@ func evaluate(req *EvaluateTemplateRequest) (result string, format string, err e
 	if err != nil {
 		return "", "", fmt.Errorf("error parsing template: %v", err)
 	}
-	resultObject, err := tmpl.ProcessEvent(req.Object)
+	resultObject, err:= tmpl.ProcessEvent(req.Object)
 	if err != nil {
 		return "", tmpl.Format(), fmt.Errorf("error executing template: %v", err)
 	}

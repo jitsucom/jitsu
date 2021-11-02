@@ -111,13 +111,13 @@ func (sw *StreamingWorker) start() {
 				eventContext := &adapters.EventContext{
 					CacheDisabled: sw.streamingStorage.IsCachingDisabled(),
 					DestinationID: sw.streamingStorage.ID(),
-					EventID: utils.NvlString(sw.streamingStorage.GetUniqueIDField().Extract(flattenObject),
-						sw.streamingStorage.GetUniqueIDField().Extract(fact)),
-					TokenID:        tokenID,
-					Src:            events.ExtractSrc(fact),
-					RawEvent:       fact,
+					EventID:       utils.NvlString(sw.streamingStorage.GetUniqueIDField().Extract(flattenObject),
+						 							sw.streamingStorage.GetUniqueIDField().Extract(fact)),
+					TokenID:       tokenID,
+					Src:           events.ExtractSrc(fact),
+					RawEvent:      fact,
 					ProcessedEvent: flattenObject,
-					Table:          table,
+					Table: table,
 				}
 
 				if err := sw.streamingStorage.Insert(eventContext); err != nil {

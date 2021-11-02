@@ -48,14 +48,14 @@ func (tr *TypeResolverImpl) Resolve(object map[string]interface{}) (Fields, erro
 			delete(object, k)
 			key := strings.ReplaceAll(k, SqlTypeKeyword, "")
 			switch val := v.(type) {
-			case []interface{}:
-				if len(val) > 1 {
-					mappedTypes[key] = typing.SQLColumn{Type: fmt.Sprint(val[0]), ColumnType: fmt.Sprint(val[1])}
-				} else {
-					mappedTypes[key] = typing.SQLColumn{Type: fmt.Sprint(val[0])}
-				}
-			case string:
-				mappedTypes[key] = typing.SQLColumn{Type: val}
+				case []interface{}:
+					if len(val) > 1 {
+						mappedTypes[key] = typing.SQLColumn{Type: fmt.Sprint(val[0]), ColumnType: fmt.Sprint(val[1])}
+					} else {
+						mappedTypes[key] = typing.SQLColumn{Type: fmt.Sprint(val[0])}
+					}
+				case string:
+					mappedTypes[key] = typing.SQLColumn{Type: val}
 			default:
 				return nil, fmt.Errorf("incorred type of value for __sql_type_: %T", v)
 			}

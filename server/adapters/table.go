@@ -15,6 +15,7 @@ type TableField struct {
 	Value interface{} `json:"value,omitempty"`
 }
 
+
 //Table is a dto for DWH Table representation
 type Table struct {
 	Name           string

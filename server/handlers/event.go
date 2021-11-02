@@ -239,7 +239,7 @@ func getRequestContext(c *gin.Context, eventPayloads ...events.Event) *events.Re
 			logging.SystemErrorf("Unknown value %q for %q query parameter", middleware.CookiePolicyParameter, cookiePolicy)
 		}
 	}
-	hashedAnonymousID := fmt.Sprintf("%x", md5.Sum([]byte(clientIP+c.Request.UserAgent())))
+	hashedAnonymousID := fmt.Sprintf("%x", md5.Sum([]byte(clientIP + c.Request.UserAgent())))
 
 	var jitsuAnonymousID string
 	if !cookiesLawCompliant {
@@ -273,7 +273,7 @@ func getRequestContext(c *gin.Context, eventPayloads ...events.Event) *events.Re
 		ClientIP:            clientIP,
 		Referer:             c.Request.Referer(),
 		JitsuAnonymousID:    jitsuAnonymousID,
-		HashedAnonymousID:   hashedAnonymousID,
+		HashedAnonymousID:	 hashedAnonymousID,
 		CookiesLawCompliant: cookiesLawCompliant,
 	}
 }
