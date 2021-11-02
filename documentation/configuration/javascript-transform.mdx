@@ -119,8 +119,6 @@ Using Javascript spread operator:
 return {...$, JITSU_TABLE_NAME: "new_table_name"}
 ```
 
-`TABLE_NAME` is not a property name. It is a global variable pointing to an actual property name.
-
 Conventional way:
 
 ```javascript
@@ -150,4 +148,22 @@ return {...$,
     title: $.page_title,
     __sql_type_title: ["varchar(256)", "varchar(256) encode zstd"]
 }
+```
+
+## Predefined constants and functions
+
+Transform comes with predefined constants: `destinationId` and `destinationType`
+that can be used to enrich your data
+
+```javascript
+return {...$, 
+    destination_id: destinationId,
+    destination_type: destinationType,
+}
+```
+
+Also `toSegment(event)` function is available to set up [Segment Compatibility](/docs/other-features/segment-compatibility):
+
+```javascript
+return toSegment($)
 ```

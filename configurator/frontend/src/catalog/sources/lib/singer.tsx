@@ -324,7 +324,6 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false,
   },
   {
-    deprecated: true,
     pic: logos.tap_google_sheets,
     displayName: "Google Sheets",
     tap: "tap-google-sheets",
