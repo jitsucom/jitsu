@@ -69,7 +69,7 @@ func NewService(ctx context.Context, geoURL, globalGeoMaxmindPath, officialDownl
 	if globalGeoMaxmindPath != "" {
 		defaultResolverProxy, err := newResolverProxy(globalGeoMaxmindPath, service.factory.Create)
 		if err != nil {
-			logging.Warnf("❌ Failed to load MaxMind DB from %s: %v. Geo resolution won't be available", globalGeoMaxmindPath, err)
+			logging.Warnf("❌ Failed to load global MaxMind DB from %s: %v. Global geo resolution won't be available. You can configure custom one in Configurator UI", globalGeoMaxmindPath, err)
 		} else {
 			logging.Info("✅ Loaded MaxMind db:", globalGeoMaxmindPath)
 			service.globalGeoResolver = defaultResolverProxy
@@ -98,7 +98,8 @@ func (s *Service) updateResolvers(payload []byte) {
 	s.init(rc)
 
 	if len(s.geoResolversByID) == 0 {
-		logging.Info("❌ Geo resolution isn't configured. You can add MaxMind license key in Jitsu Configurator UI.")
+		//logging.Info("❌ Geo resolution isn't configured. You can add MaxMind license key in Jitsu Configurator UI.")
+		logging.Info("Custom geo resolvers aren't configured.")
 	}
 }
 
