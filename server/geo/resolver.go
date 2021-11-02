@@ -63,8 +63,8 @@ type Data struct {
 
 	ASN          uint   `json:"autonomous_system_number,omitempty"`
 	ASO          string `json:"autonomous_system_organization,omitempty"`
-	ISP          string `json:"isp"`
-	Organization string `json:"organization"`
+	ISP          string `json:"isp,omitempty"`
+	Organization string `json:"organization,omitempty"`
 	Domain       string `json:"domain,omitempty"`
 }
 
