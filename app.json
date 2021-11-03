@@ -1,6 +1,6 @@
 {
   "name": "Jitsu",
-  "description": "Jitsu is a real-time data collection platform. Deployment guide: https://jitsu.com/docs/deployment/deploy-on-heroku. More about Jitsu: https://jitus.com",
+  "description": "Jitsu is a real-time data collection platform. Deployment guide: https://jitsu.com/docs/deployment/deploy-on-heroku. More about Jitsu: https://jitsu.com",
   "success_url": "/",
   "repository": "https://github.com/jitsucom/jitsu",
   "logo": "https://jitsu.com/img/jitsu-light.svg",
