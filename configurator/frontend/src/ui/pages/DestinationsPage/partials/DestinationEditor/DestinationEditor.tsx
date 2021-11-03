@@ -1,6 +1,6 @@
 // @Libs
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { generatePath, Prompt, useHistory, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { generatePath, Prompt, useHistory, useParams } from "react-router-dom"
 import { Button, Card, Form } from "antd"
 import { flowResult } from "mobx"
 import cn from "classnames"
@@ -419,7 +419,8 @@ const DestinationEditor = ({
             onTabChange={setActiveTabKey}
             tabBarExtraContent={
               !params.standalone &&
-              !isOnboarding && (
+              !isOnboarding &&
+              editorMode == "edit" && (
                 <Button
                   size="large"
                   className="mr-3"
@@ -461,25 +462,22 @@ const DestinationEditor = ({
   ) : (
     <DestinationNotFound destinationId={params.id} />
   )
-};
+}
 
-DestinationEditor.displayName = 'DestinationEditor';
+DestinationEditor.displayName = "DestinationEditor"
 
 export { DestinationEditor }
 
-const getDestinationData = (params: {
-  id?: string;
-  type?: string;
-}): DestinationData =>
-  destinationsStore.allDestinations.find((dst) => dst._id === params.id) ||
+const getDestinationData = (params: { id?: string; type?: string }): DestinationData =>
+  destinationsStore.allDestinations.find(dst => dst._id === params.id) ||
   ({
     _id: getUniqueAutoIncId(
       params.type,
-      destinationsStore.allDestinations.map((dst) => dst._id)
+      destinationsStore.allDestinations.map(dst => dst._id)
     ),
     _uid: randomId(),
     _type: params.type,
     _mappings: { _keepUnmappedFields: true },
     _comment: null,
-    _onlyKeys: []
-  } as DestinationData);
+    _onlyKeys: [],
+  } as DestinationData)
