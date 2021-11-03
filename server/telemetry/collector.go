@@ -15,20 +15,22 @@ func newCollector() *Collector {
 }
 
 //Event increments events counter
-func (c *Collector) Event(sourceID, destinationID, src string, quantity uint64) {
+func (c *Collector) Event(sourceID, destinationID, src, sourceType string, quantity uint64) {
 	c.events.AddValue(CriteriaKey{
 		sourceID:      sourceID,
 		destinationID: destinationID,
 		src:           src,
+		sourceType:    sourceType,
 	}, quantity)
 }
 
 //Error increments errors counter
-func (c *Collector) Error(sourceID, destinationID, src string, quantity uint64) {
+func (c *Collector) Error(sourceID, destinationID, src, sourceType string, quantity uint64) {
 	c.errors.AddValue(CriteriaKey{
 		sourceID:      sourceID,
 		destinationID: destinationID,
 		src:           src,
+		sourceType:    sourceType,
 	}, quantity)
 }
 

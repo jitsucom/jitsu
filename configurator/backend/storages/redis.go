@@ -10,16 +10,17 @@ import (
 	"time"
 )
 
+//TODO change to config#meta someday
 const lastUpdatedPerCollection = "configs#meta#last_updated"
 
 type Redis struct {
-	pool *redis.Pool
+	pool *meta.RedisPool
 }
 
-func NewRedis(config *meta.RedisConfiguration) (*Redis, error) {
-	logging.Infof("Initializing redis configuration storage [%s]...", config.String())
+func NewRedis(factory *meta.RedisPoolFactory) (*Redis, error) {
+	logging.Infof("Initializing redis configuration storage [%s]...", factory.Details())
 
-	pool, err := meta.NewRedisPool(config)
+	pool, err := factory.Create()
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +131,7 @@ func toStringMap(value interface{}) (map[string]interface{}, error) {
 }
 
 func toRedisKey(collection string) string {
-	return "config#" + collection
+	return meta.ConfigPrefix + collection
 }
 
 func (r *Redis) Close() error {

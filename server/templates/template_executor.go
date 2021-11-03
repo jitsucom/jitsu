@@ -2,9 +2,12 @@ package templates
 
 import (
 	"bytes"
+	"embed"
 	"fmt"
+	"github.com/iancoleman/strcase"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/safego"
+	"reflect"
 	"strings"
 	"sync"
 	"text/template"
@@ -14,6 +17,9 @@ import (
 const (
 	jsLoadingErrorText = "JS LOADING ERROR"
 )
+
+//go:embed js/transform/*
+var transforms embed.FS
 
 type TemplateExecutor interface {
 	ProcessEvent(events.Event) (interface{}, error)
@@ -30,7 +36,14 @@ type goTemplateExecutor struct {
 func newGoTemplateExecutor(name string, expression string, extraFunctions template.FuncMap) (*goTemplateExecutor, error) {
 	tmpl := template.New(name)
 	if extraFunctions != nil {
-		tmpl = tmpl.Funcs(extraFunctions)
+		var funcs = make(map[string]interface{})
+		for k, fn := range extraFunctions {
+			v := reflect.ValueOf(fn)
+			if v.Kind() == reflect.Func {
+				funcs[k] = fn
+			}
+		}
+		tmpl = tmpl.Funcs(funcs)
 	}
 	tmpl, err := tmpl.Parse(expression)
 	if err != nil {
@@ -63,7 +76,7 @@ func (gte *goTemplateExecutor) isPlainText() bool {
 func (gte *goTemplateExecutor) Close() {
 }
 
-type asyncJsTemplateExecutor struct {
+type JsTemplateExecutor struct {
 	sync.Mutex
 	incoming chan events.Event
 	closed chan struct{}
@@ -72,33 +85,48 @@ type asyncJsTemplateExecutor struct {
 	loadingError error
 }
 
-func newJsTemplateExecutor(expression string, extraFunctions template.FuncMap) (*asyncJsTemplateExecutor, error) {
+func NewJsTemplateExecutor(expression string, extraFunctions template.FuncMap, transformIds ... string) (*JsTemplateExecutor, error) {
 	//First we need to transform js template to ES5 compatible code
-	script, err := Transform(expression)
+	script, err := BabelizeProcessEvent(expression)
 	if err != nil {
-		resError := fmt.Errorf("js transforming error: %v", err)
+		resError := fmt.Errorf("ES5 transforming error: %v", err)
 		//hack to keep compatibility with JSON templating (which sadly can't be valid JS)
-		script, err = Transform("return " + expression)
+		script, err = BabelizeProcessEvent("return " + expression)
 		if err != nil {
 			//we don't report resError instead of err here because we are not sure that adding "return" was the right thing to do
 			return nil, resError
 		}
 	}
+	//loading transform scripts for destinations
+	extraScripts := make([]string, 0, len(transformIds))
+	for _, transformId := range transformIds {
+		filename :=  "js/transform/" + transformId + ".js"
+		bytes, err := transforms.ReadFile(filename)
+		if err == nil {
+			es5script, err := Babelize(strings.ReplaceAll(string(bytes), "JitsuTransformFunction", strcase.ToLowerCamel("to_" + transformId)))
+			if err != nil {
+				return nil, fmt.Errorf("failed to transform %s to ES5 script: %v", filename, err)
+			}
+			extraScripts = append(extraScripts, es5script)
+		} else {
+			extraScripts = append(extraScripts, `function ` + strcase.ToLowerCamel("to_" + transformId) + `($) { return $ }`)
+		}
+	}
 
-	jte := &asyncJsTemplateExecutor{sync.Mutex{}, make(chan events.Event), make(chan struct{}), make(chan interface{}), script, nil}
-	safego.RunWithRestart(func() { jte.start(extraFunctions) })
+	jte := &JsTemplateExecutor{sync.Mutex{}, make(chan events.Event), make(chan struct{}), make(chan interface{}), script, nil}
+	safego.RunWithRestart(func() { jte.start(extraFunctions, extraScripts...) })
 	_, err = jte.ProcessEvent(events.Event{})
 	if err != nil && strings.HasPrefix(err.Error(), jsLoadingErrorText) {
-		//we need to test that js function is properly loaded because that happens in asyncJsTemplateExecutor's goroutine
+		//we need to test that js function is properly loaded because that happens in JsTemplateExecutor's goroutine
 		return nil, err
 	}
 	return jte, nil
 }
 
 
-func (jte *asyncJsTemplateExecutor) start(extraFunctions template.FuncMap) {
+func (jte *JsTemplateExecutor) start(extraFunctions template.FuncMap, extraScripts ... string) {
 	//loads javascript into new vm instance
-	function, err := LoadTemplateScript(jte.transformedExpression, extraFunctions)
+	function, err := LoadTemplateScript(jte.transformedExpression, extraFunctions, extraScripts...)
 	if err != nil {
 		jte.loadingError =  fmt.Errorf("%s: %v\ntransformed function:\n%v\n",jsLoadingErrorText, err, jte.transformedExpression)
 	}
@@ -122,7 +150,7 @@ func (jte *asyncJsTemplateExecutor) start(extraFunctions template.FuncMap) {
 	}
 }
 
-func (jte *asyncJsTemplateExecutor) ProcessEvent(event events.Event) (res interface{}, err error) {
+func (jte *JsTemplateExecutor) ProcessEvent(event events.Event) (res interface{}, err error) {
 	jte.Lock()
 	defer jte.Unlock()
 	if jte.cancelled() {
@@ -138,15 +166,15 @@ func (jte *asyncJsTemplateExecutor) ProcessEvent(event events.Event) (res interf
 	}
 }
 
-func (jte *asyncJsTemplateExecutor) Format() string {
+func (jte *JsTemplateExecutor) Format() string {
 	return "javascript"
 }
 
-func (jte *asyncJsTemplateExecutor) Expression() string {
+func (jte *JsTemplateExecutor) Expression() string {
 	return jte.transformedExpression
 }
 
-func (jte *asyncJsTemplateExecutor) cancelled() bool {
+func (jte *JsTemplateExecutor) cancelled() bool {
 	select {
 	case <-jte.closed:
 		return true
@@ -155,7 +183,7 @@ func (jte *asyncJsTemplateExecutor) cancelled() bool {
 	}
 }
 
-func (jte *asyncJsTemplateExecutor) Close() {
+func (jte *JsTemplateExecutor) Close() {
 	jte.Lock()
 	defer jte.Unlock()
 	close(jte.closed)

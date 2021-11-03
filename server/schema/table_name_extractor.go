@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"strings"
+	"text/template"
 	"time"
 )
 
@@ -18,9 +19,9 @@ type TableNameExtractor struct {
 }
 
 //NewTableNameExtractor returns configured TableNameExtractor
-func NewTableNameExtractor(tableNameExtractExpression string) (*TableNameExtractor, error) {
+func NewTableNameExtractor(tableNameExtractExpression string, funcMap template.FuncMap) (*TableNameExtractor, error) {
 	//Table naming
-	tmpl, err := templates.SmartParse("table name extract", tableNameExtractExpression, templates.JSONSerializeFuncs)
+	tmpl, err := templates.SmartParse("table name extract", tableNameExtractExpression, funcMap)
 	if err != nil {
 		return nil, fmt.Errorf("table name template parsing error: %v", err)
 	}

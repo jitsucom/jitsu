@@ -20,13 +20,14 @@ type WebhookRequestFactory struct {
 }
 
 //NewWebhookRequestFactory returns configured HTTPRequestFactory instance for webhook requests
-func NewWebhookRequestFactory(httpMethod, urlTmplStr, bodyTmplStr string, headers map[string]string) (HTTPRequestFactory, error) {
-	urlTmpl, err := templates.SmartParse("url", urlTmplStr, templates.JSONSerializeFuncs)
+func NewWebhookRequestFactory(destinationID, destinationType, httpMethod, urlTmplStr, bodyTmplStr string, headers map[string]string) (HTTPRequestFactory, error) {
+	var templateFunctions = templates.EnrichedFuncMap(map[string]string{"destinationId": destinationID, "destinationType": destinationType})
+	urlTmpl, err := templates.SmartParse("url", urlTmplStr, templateFunctions)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing URL template [%s]: %v", urlTmplStr, err)
 	}
 
-	bodyTmpl, err := templates.SmartParse("body", bodyTmplStr, templates.JSONSerializeFuncs)
+	bodyTmpl, err := templates.SmartParse("body", bodyTmplStr, templateFunctions)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing body template [%s]: %v", bodyTmplStr, err)
 	}

@@ -1,5 +1,5 @@
 import CopyOutlined from '@ant-design/icons/lib/icons/CopyOutlined';
-import hljs from 'highlight.js/lib/core';
+import hljs from 'highlight.js/lib/common';
 import './hljs.css';
 import { useState } from 'react';
 import { reactElementToString } from '../../commons/utils';
@@ -82,7 +82,7 @@ function trimCode(code: string) {
 export const Code: React.FC<CodeProps> = ({ hideCopyButton, language, className, children }) => {
   const rawCode = trimCode(reactElementToString(children));
   const [copied, setCopied] = useState(false)
-  const highlightedHtml = hljs.highlight(getLanguageSafe(language), rawCode).value;
+  const highlightedHtml = hljs.highlight(rawCode, {language: getLanguageSafe(language), ignoreIllegals: true}).value;
   return <div className={`font-monospace ${className} overflow-auto`}>
     <div className="relative">
       {!hideCopyButton && <div onClick={() => {
@@ -99,7 +99,7 @@ export const Code: React.FC<CodeProps> = ({ hideCopyButton, language, className,
       }} className="absolute top-0 right-0 cursor-pointer hover:text-primary text-lg">
         {!copied ? <CopyOutlined /> : <span className="transition duration-500 ease-in-out text-xs border-b border-dotted">Copied!</span>}
       </div>}
-      <pre className="overflow-visible" dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
+      <pre className="overflow-visible" dangerouslySetInnerHTML={{ __html: highlightedHtml || rawCode }} />
     </div>
   </div>;
 }

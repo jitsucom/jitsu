@@ -31,6 +31,7 @@ const hubspotDestination = {
   id: 'hubspot',
   type: 'other',
   displayName: 'HubSpot',
+  defaultTransform: '',
   hidden: false,
   ui: {
     icon,
@@ -39,7 +40,6 @@ const hubspotDestination = {
   },
   parameters: [
     modeParameter('stream'),
-    tableName(filteringExpressionDocumentation),
     {
       id: '_formData.apiKey',
       displayName: 'API Key',

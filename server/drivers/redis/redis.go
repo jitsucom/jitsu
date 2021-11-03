@@ -21,8 +21,10 @@ const (
 
 //Redis is a Redis driver. It is used in syncing data from Redis.
 type Redis struct {
+	base.IntervalDriver
+
 	collection     *base.Collection
-	connectionPool *redis.Pool
+	connectionPool *meta.RedisPool
 	redisKey       string
 }
 
@@ -32,7 +34,7 @@ func init() {
 }
 
 //NewRedis returns configured Redis driver instance
-func NewRedis(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
+func NewRedis(_ context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &RedisConfig{}
 	err := base.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
@@ -57,17 +59,18 @@ func NewRedis(ctx context.Context, sourceConfig *base.SourceConfig, collection *
 		return nil, fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
 	}
 
-	redisConfig := meta.NewRedisConfiguration(config.Host, int(intPort), config.Password, config.TLSSkipVerify)
-	if defaultPort, ok := redisConfig.CheckAndSetDefaultPort(); ok {
+	factory := meta.NewRedisPoolFactory(config.Host, int(intPort), config.Password, config.TLSSkipVerify, config.SentinelMasterName)
+	if defaultPort, ok := factory.CheckAndSetDefaultPort(); ok {
 		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", sourceConfig.SourceID, defaultPort)
 	}
 
-	pool, err := meta.NewRedisPool(redisConfig)
+	pool, err := factory.Create()
 	if err != nil {
 		return nil, err
 	}
 
 	return &Redis{
+		IntervalDriver: base.IntervalDriver{SourceType: sourceConfig.Type},
 		collection:     collection,
 		connectionPool: pool,
 		redisKey:       parameters.RedisKey,
@@ -90,10 +93,10 @@ func TestRedis(sourceConfig *base.SourceConfig) error {
 		return fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
 	}
 
-	redisConfig := meta.NewRedisConfiguration(config.Host, int(intPort), config.Password, config.TLSSkipVerify)
-	redisConfig.CheckAndSetDefaultPort()
+	factory := meta.NewRedisPoolFactory(config.Host, int(intPort), config.Password, config.TLSSkipVerify, config.SentinelMasterName)
+	factory.CheckAndSetDefaultPort()
 
-	pool, err := meta.NewRedisPool(redisConfig)
+	pool, err := factory.Create()
 	if err != nil {
 		return err
 	}

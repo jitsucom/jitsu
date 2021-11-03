@@ -125,7 +125,7 @@ func (u *PeriodicUploader) Start() {
 
 					if !skippedEvents.IsEmpty() {
 						metrics.SkipTokenEvents(tokenID, storage.ID(), len(skippedEvents.Events))
-						counters.SkipEvents(storage.ID(), len(skippedEvents.Events))
+						counters.SkipPushDestinationEvents(storage.ID(), len(skippedEvents.Events))
 					}
 
 					if err != nil {
@@ -140,9 +140,9 @@ func (u *PeriodicUploader) Start() {
 
 						errRowsCount := len(objects)
 						metrics.ErrorTokenEvents(tokenID, storage.ID(), errRowsCount)
-						counters.ErrorEvents(storage.ID(), errRowsCount)
+						counters.ErrorPushDestinationEvents(storage.ID(), errRowsCount)
 
-						telemetry.ErrorsPerSrc(tokenID, storage.ID(), eventsSrc)
+						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), eventsSrc)
 
 						continue
 					}
@@ -151,7 +151,7 @@ func (u *PeriodicUploader) Start() {
 					if !failedEvents.IsEmpty() {
 						storage.Fallback(failedEvents.Events...)
 
-						telemetry.ErrorsPerSrc(tokenID, storage.ID(), failedEvents.Src)
+						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), failedEvents.Src)
 					}
 
 					for tableName, result := range resultPerTable {
@@ -159,9 +159,9 @@ func (u *PeriodicUploader) Start() {
 							archiveFile = false
 							logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.ID(), tableName, filePath, result.Err)
 							metrics.ErrorTokenEvents(tokenID, storage.ID(), result.RowsCount)
-							counters.ErrorEvents(storage.ID(), result.RowsCount)
+							counters.ErrorPushDestinationEvents(storage.ID(), result.RowsCount)
 
-							telemetry.ErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
+							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
 						} else {
 							pHandles := storageProxy.GetPostHandleDestinations()
 							if pHandles != nil && result.RowsCount > 0 {
@@ -175,9 +175,9 @@ func (u *PeriodicUploader) Start() {
 								}
 							}
 							metrics.SuccessTokenEvents(tokenID, storage.ID(), result.RowsCount)
-							counters.SuccessEvents(storage.ID(), result.RowsCount)
+							counters.SuccessPushDestinationEvents(storage.ID(), result.RowsCount)
 
-							telemetry.EventsPerSrc(tokenID, storage.ID(), result.EventsSrc)
+							telemetry.PushedEventsPerSrc(tokenID, storage.ID(), result.EventsSrc)
 						}
 
 						u.statusManager.UpdateStatus(fileName, storage.ID(), tableName, result.Err)

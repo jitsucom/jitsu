@@ -70,32 +70,32 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 	switch config.Type {
 	case storages.PostgresType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: adapters.Column{SQLType: "text"},
-			timestamp.Key: adapters.Column{SQLType: "timestamp"},
+			uniqueIDField: typing.SQLColumn{Type:"text"},
+			timestamp.Key: typing.SQLColumn{Type:"timestamp"},
 		}
 		return testPostgres(config, eventContext)
 	case storages.ClickHouseType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: adapters.Column{SQLType: "String"},
-			timestamp.Key: adapters.Column{SQLType: "DateTime"},
+			uniqueIDField: typing.SQLColumn{Type:"String"},
+			timestamp.Key: typing.SQLColumn{Type:"DateTime"},
 		}
 		return testClickHouse(config, eventContext)
 	case storages.RedshiftType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: adapters.Column{SQLType: "text"},
-			timestamp.Key: adapters.Column{SQLType: "timestamp"},
+			uniqueIDField: typing.SQLColumn{Type:"text"},
+			timestamp.Key: typing.SQLColumn{Type:"timestamp"},
 		}
 		return testRedshift(config, eventContext)
 	case storages.BigQueryType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: adapters.Column{SQLType: string(bigquery.StringFieldType)},
-			timestamp.Key: adapters.Column{SQLType: string(bigquery.TimestampFieldType)},
+			uniqueIDField: typing.SQLColumn{Type:string(bigquery.StringFieldType)},
+			timestamp.Key: typing.SQLColumn{Type:string(bigquery.TimestampFieldType)},
 		}
 		return testBigQuery(config, eventContext)
 	case storages.SnowflakeType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: adapters.Column{SQLType: "text"},
-			timestamp.Key: adapters.Column{SQLType: "timestamp(6)"},
+			uniqueIDField: typing.SQLColumn{Type:"text"},
+			timestamp.Key: typing.SQLColumn{Type:"timestamp(6)"},
 		}
 		return testSnowflake(config, eventContext)
 	case storages.GoogleAnalyticsType:
@@ -140,8 +140,8 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		return dbtCloudAdapter.TestAccess()
 	case storages.MySQLType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: adapters.Column{SQLType: "text"},
-			timestamp.Key: adapters.Column{SQLType: "DATETIME"},
+			uniqueIDField: typing.SQLColumn{Type:"text"},
+			timestamp.Key: typing.SQLColumn{Type:"DATETIME"},
 		}
 		return testMySQL(config, eventContext)
 	case storages.S3Type:

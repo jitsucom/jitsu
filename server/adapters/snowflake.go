@@ -40,7 +40,7 @@ var (
 	SchemaToSnowflake = map[typing.DataType]string{
 		typing.STRING:    "text",
 		typing.INT64:     "bigint",
-		typing.FLOAT64:   "numeric(38,18)",
+		typing.FLOAT64:   "double precision",
 		typing.TIMESTAMP: "timestamp(6)",
 		typing.BOOL:      "boolean",
 		typing.UNKNOWN:   "text",
@@ -188,7 +188,7 @@ func (s *Snowflake) PatchTableSchema(patchSchema *Table) error {
 		_, err = alterStmt.ExecContext(s.ctx)
 		if err != nil {
 			wrappedTx.Rollback()
-			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, column.SQLType, err)
+			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, column.Type, err)
 		}
 	}
 
@@ -242,7 +242,7 @@ func (s *Snowflake) GetTableSchema(tableName string) (*Table, error) {
 		columnName := fmt.Sprint(line[0])
 		columnSnowflakeType := fmt.Sprint(line[1])
 
-		table.Columns[strings.ToLower(columnName)] = Column{SQLType: columnSnowflakeType}
+		table.Columns[strings.ToLower(columnName)] = typing.SQLColumn{Type: columnSnowflakeType}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("Last rows.Err: %v", err)
@@ -306,7 +306,7 @@ func (s *Snowflake) insertInTransaction(wrappedTx *Transaction, eventContext *Ev
 	for name, value := range eventContext.ProcessedEvent {
 		columnNames = append(columnNames, reformatValue(name))
 
-		castClause := s.getCastClause(name)
+		castClause := s.getCastClause(name, eventContext.Table.Columns[name])
 		placeholders = append(placeholders, "?"+castClause)
 		values = append(values, value)
 	}
@@ -450,7 +450,7 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 		for i, column := range unformattedColumnNames {
 			value, _ := row[column]
 			valueArgs = append(valueArgs, value)
-			castClause := s.getCastClause(column)
+			castClause := s.getCastClause(column, table.Columns[column])
 
 			_, err = placeholdersBuilder.WriteString("?" + castClause)
 			if err != nil {
@@ -597,8 +597,12 @@ func (s *Snowflake) Close() (multiErr error) {
 
 //getCastClause returns ::SQL_TYPE clause or empty string
 //$1::type, $2::type, $3, etc
-func (s *Snowflake) getCastClause(name string) string {
+func (s *Snowflake) getCastClause(name string, column typing.SQLColumn) string {
 	castType, ok := s.sqlTypes[name]
+	if !ok && column.Override {
+		castType = column
+		ok = true
+	}
 	if ok {
 		return "::" + castType.Type
 	}
@@ -607,8 +611,8 @@ func (s *Snowflake) getCastClause(name string) string {
 }
 
 //columnDDL returns column DDL (column name, mapped sql type)
-func (s *Snowflake) columnDDL(name string, column Column) string {
-	sqlColumnTypeDDL := column.SQLType
+func (s *Snowflake) columnDDL(name string, column typing.SQLColumn) string {
+	sqlColumnTypeDDL := column.DDLType()
 	overriddenSQLType, ok := s.sqlTypes[name]
 	if ok {
 		sqlColumnTypeDDL = overriddenSQLType.ColumnType

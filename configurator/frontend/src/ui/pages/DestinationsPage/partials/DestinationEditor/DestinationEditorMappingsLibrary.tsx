@@ -15,7 +15,6 @@ import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCi
 import { TabDescription } from 'ui/components/Tabs/TabDescription';
 // @Constant
 import { MAPPING_ROW_PROPS_MAP } from 'constants/mapping';
-import { MAPPING_LIBRARY } from 'embeddedDocs/mappingsLibrary';
 
 interface Props {
   handleDataUpdate: (
@@ -67,8 +66,6 @@ const DestinationEditorMappingsLibrary = ({ handleDataUpdate }: Props) => {
 
   return (
     <>
-      <TabDescription>{MAPPING_LIBRARY}</TabDescription>
-
       <div className={styles.library}>
         {
           Object.entries(mappings).map(([key, library]) => (

@@ -180,7 +180,18 @@ func (s *Service) init(sc map[string]driversbase.SourceConfig) {
 		s.Unlock()
 
 		logging.Infof("[%s] source has been initialized!", name)
-		telemetry.Source(name, sourceConfig.Type)
+
+		//telemetry
+		var streams int
+		var sourceType, connectorOrigin, connectorVersion string
+		for _, driver := range driverPerCollection {
+			streams += driver.GetDriversInfo().Streams
+			sourceType = driver.GetDriversInfo().SourceType
+			connectorOrigin = driver.GetDriversInfo().ConnectorOrigin
+			connectorVersion = driver.GetDriversInfo().ConnectorVersion
+		}
+
+		telemetry.Source(name, sourceType, connectorOrigin, connectorVersion, sourceConfig.Schedule, streams)
 	}
 }
 
