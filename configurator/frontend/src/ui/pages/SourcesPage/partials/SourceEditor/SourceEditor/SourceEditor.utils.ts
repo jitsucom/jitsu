@@ -37,11 +37,6 @@ export const sourceEditorUtils = {
   },
 }
 
-export const sourceEditorUtilsAirbyte = {
-  streamsAreEqual: (a: AirbyteStreamData, b: AirbyteStreamData): boolean =>
-    a.stream.name === b.stream.name && a.stream.namespace === b.stream.namespace
-};
-
 export const createInitialSourceData = (sourceCatalogData: SourceConnector) =>
   ({
     sourceId: sourcePageUtils.getSourceId(
