@@ -178,6 +178,7 @@ const OnboardingTourAddDestinationComponent: React.FC<Props> = ({
               disableForceUpdateOnSave
               onAfterSaveSucceded={onAfterCustomDestinationCreated}
               onCancel={handleCancelDestinationSetup}
+              isOnboarding={true}
             />
           </div>
         );
