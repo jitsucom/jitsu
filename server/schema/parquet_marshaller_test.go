@@ -7,8 +7,27 @@ import (
 	"time"
 )
 
-func TestParquetMarshal(t *testing.T) {
-	pm := NewParquetMarshaller()
+func TestNonGZIPParquetMarshal(t *testing.T) {
+	pm := NewParquetMarshaller(false)
+	tests := []struct {
+		name string
+		pte  *parquetTestEntity
+	}{
+		{
+			name: "all field types",
+			pte:  allFieldTypesParquetTestEntity(),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := pm.Marshal(tt.pte.batchHeader, []map[string]interface{}{tt.pte.inputObj})
+			require.NoError(t, err, "parquet marshalling failed")
+		})
+	}
+}
+
+func TestGZIPParquetMarshal(t *testing.T) {
+	pm := NewParquetMarshaller(true)
 	tests := []struct {
 		name string
 		pte  *parquetTestEntity
@@ -27,7 +46,7 @@ func TestParquetMarshal(t *testing.T) {
 }
 
 func TestParquetMetadata(t *testing.T) {
-	pm := NewParquetMarshaller().(*ParquetMarshaller)
+	pm := NewParquetMarshaller(false).(*ParquetMarshaller)
 	tests := []struct {
 		name string
 		pte  *parquetTestEntity
@@ -39,7 +58,7 @@ func TestParquetMetadata(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualMd, actualFieldIndex := pm.parquetMetadata(tt.pte.batchHeader)
+			actualMd, actualFieldIndex, _ := pm.parquetMetadata(tt.pte.batchHeader)
 			require.ElementsMatchf(t, tt.pte.expectedMetadata, actualMd, "parquet metadata is not consistent with batch header")
 			require.Equal(t, len(tt.pte.expectedMetadata), len(actualFieldIndex), "field index mapping is not consistent with batch header")
 		})
@@ -47,7 +66,7 @@ func TestParquetMetadata(t *testing.T) {
 }
 
 func TestParquetRecord(t *testing.T) {
-	pm := NewParquetMarshaller().(*ParquetMarshaller)
+	pm := NewParquetMarshaller(false).(*ParquetMarshaller)
 	tests := []struct {
 		name string
 		pte  *parquetTestEntity
@@ -59,7 +78,7 @@ func TestParquetRecord(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual := pm.parquetRecord(tt.pte.batchHeader, tt.pte.inputObj, fieldIndexStub(tt.pte.batchHeader))
+			actual, _ := pm.parquetRecord(tt.pte.batchHeader, tt.pte.inputObj, fieldIndexStub(tt.pte.batchHeader))
 			require.ElementsMatchf(t, tt.pte.expectedRecord, actual, "expected parquet record != actual parquet record")
 		})
 	}
@@ -95,18 +114,14 @@ func allFieldTypesParquetTestEntity() *parquetTestEntity {
 				"field_timestamp": Field{
 					dataType: typing.DataTypePtr(typing.TIMESTAMP),
 				},
-				"field_unknown": Field{
-					dataType: typing.DataTypePtr(typing.UNKNOWN),
-				},
 			},
 		},
 		inputObj: map[string]interface{}{
-			"field_int64":     12345,
+			"field_int64":     int64(12345),
 			"field_string":    "some test string",
 			"field_bool":      true,
 			"field_float64":   56.78,
 			"field_timestamp": testDatetime,
-			"field_unknown":   "some unknown type",
 		},
 		expectedMetadata: []string{
 			"name=field_int64, type=INT64",
@@ -114,15 +129,13 @@ func allFieldTypesParquetTestEntity() *parquetTestEntity {
 			"name=field_bool, type=BOOLEAN",
 			"name=field_float64, type=DOUBLE",
 			"name=field_timestamp, type=INT64, logicaltype=TIMESTAMP, logicaltype.isadjustedtoutc=true, logicaltype.unit=MILLIS",
-			"name=field_unknown, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY",
 		},
 		expectedRecord: []interface{}{
-			12345,
+			int64(12345),
 			"some test string",
 			true,
 			56.78,
 			testDatetime.Unix() * 1000,
-			"UNKNOWN",
 		},
 	}
 }
