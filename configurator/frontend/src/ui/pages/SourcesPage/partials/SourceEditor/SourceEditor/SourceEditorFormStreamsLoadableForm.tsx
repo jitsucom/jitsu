@@ -10,7 +10,6 @@ import { CaretRightOutlined } from "@ant-design/icons"
 import { SetSourceEditorState } from "./SourceEditor"
 // @Utils
 import { isArray } from "utils/typeCheck"
-import { sourceEditorUtilsAirbyte } from "./SourceEditor.utils"
 import { addToArrayIfNotDuplicate, removeFromArrayIfFound, substituteArrayValueIfFound } from "utils/arrays"
 // @Styles
 import styles from "./SourceEditorFormStreamsLoadableForm.module.less"
@@ -59,6 +58,7 @@ const SourceEditorFormStreamsLoadableForm = ({
   }
 
   const handleToggleStream = useCallback((checked: boolean, streamUid: string): void => {
+    debugger
     const stream = allStreams.find(stream => getStreamUid(stream) === streamUid)
     checked ? handleAddStream(stream) : handleRemoveStream(stream)
   }, [])
@@ -134,6 +134,8 @@ const getStreamUid = (stream: StreamData): string => {
     return getSingerStreamUniqueId(stream)
   }
 }
+
+const streamsAreEqual = (streamA: StreamData, streamB: StreamData) => getStreamUid(streamA) === getStreamUid(streamB)
 
 const isAirbyteStream = (stream: StreamData): stream is AirbyteStreamData => {
   return "stream" in stream && typeof stream.stream === "object"
@@ -390,7 +392,7 @@ export const addStream = (setSourceEditorState: SetSourceEditorState, sourceData
 
     let newStreams = oldStreams
     if (isArray(oldStreams)) {
-      newStreams = addToArrayIfNotDuplicate(oldStreams, stream, sourceEditorUtilsAirbyte.streamsAreEqual)
+      newStreams = addToArrayIfNotDuplicate(oldStreams, stream, streamsAreEqual)
     }
 
     newState.streams.streams[sourceDataPath] = newStreams
@@ -411,7 +413,7 @@ export const removeStream = (
 
     let newStreams = oldStreams
     if (isArray(oldStreams)) {
-      newStreams = removeFromArrayIfFound(oldStreams, stream, sourceEditorUtilsAirbyte.streamsAreEqual)
+      newStreams = removeFromArrayIfFound(oldStreams, stream, streamsAreEqual)
     }
 
     newState.streams.streams[sourceDataPath] = newStreams
@@ -432,7 +434,7 @@ export const updateStream = (
 
     let newStreams = oldStreams
     if (isArray(oldStreams)) {
-      newStreams = substituteArrayValueIfFound(oldStreams, stream, sourceEditorUtilsAirbyte.streamsAreEqual)
+      newStreams = substituteArrayValueIfFound(oldStreams, stream, streamsAreEqual)
     }
 
     newState.streams.streams[sourceDataPath] = newStreams
