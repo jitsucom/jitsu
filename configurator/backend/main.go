@@ -257,7 +257,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 
 	apiKeysHandler := handlers.NewAPIKeysHandler(configurationsService)
 
-	enConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsStorage)
+	enConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsService, configurationsStorage)
 
 	proxyHandler := handlers.NewProxyHandler(jitsuService, map[string]jitsu.APIDecorator{
 		//write here custom decorators for certain HTTP URN paths

@@ -28,7 +28,7 @@ func parseConfigAsLink(config *ResolverConfig) (string, error) {
 	}
 	mc := &MaxMindConfig{}
 
-	if err := jsonutils.UnmarshalConfig(config, mc); err != nil {
+	if err := jsonutils.UnmarshalConfig(config.Config, mc); err != nil {
 		return "", err
 	}
 

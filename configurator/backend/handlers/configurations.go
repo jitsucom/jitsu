@@ -13,11 +13,12 @@ import (
 )
 
 type ConfigurationHandler struct {
-	configStorage storages.ConfigurationsStorage
+	configurationsService *storages.ConfigurationsService
+	configStorage         storages.ConfigurationsStorage
 }
 
-func NewConfigurationsHandler(configStorage storages.ConfigurationsStorage) *ConfigurationHandler {
-	return &ConfigurationHandler{configStorage: configStorage}
+func NewConfigurationsHandler(configurationsService *storages.ConfigurationsService, configStorage storages.ConfigurationsStorage) *ConfigurationHandler {
+	return &ConfigurationHandler{configurationsService: configurationsService, configStorage: configStorage}
 }
 
 func (ch *ConfigurationHandler) GetConfig(c *gin.Context) {
@@ -67,7 +68,7 @@ func (ch *ConfigurationHandler) StoreUserInfo(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(bodyExtractionErrorMessage, nil))
 		return
 	}
-	err = ch.configStorage.Store(authorization.UsersInfoCollection, userID, data)
+	err = ch.configurationsService.StoreConfig(authorization.UsersInfoCollection, userID, data)
 	if err != nil {
 		configStoreErrorMessage := fmt.Sprintf("Failed to save user info [%s]: %v", userID, err)
 		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(configStoreErrorMessage, nil))
@@ -97,7 +98,7 @@ func (ch *ConfigurationHandler) saveConfig(c *gin.Context, collection string, id
 		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(bodyExtractionErrorMessage, nil))
 		return
 	}
-	err = ch.configStorage.Store(collection, id, data)
+	err = ch.configurationsService.StoreConfig(collection, id, data)
 	if err != nil {
 		configStoreErrorMessage := fmt.Sprintf("Failed to save collection [%s], id=[%s]: %v", collection, id, err)
 		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(configStoreErrorMessage, nil))
