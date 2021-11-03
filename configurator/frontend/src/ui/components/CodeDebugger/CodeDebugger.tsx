@@ -269,7 +269,7 @@ const CodeDebugger = ({
                 htmlFor="code"
               >
                 <Form.Item
-                  className={`${styles.field} pl-2`}
+                  className={`${styles.field} pl-2 break-normal`}
                   colon={false}
                   name="code"
                 >

@@ -72,6 +72,7 @@ type ControlsProps = {
   disableForceUpdateOnSave?: boolean;
   onAfterSaveSucceded?: () => void;
   onCancel?: () => void;
+  isOnboarding?: boolean
 };
 
 type Props = CommonDestinationPageProps & ConfigProps & ControlsProps;
@@ -82,7 +83,8 @@ const DestinationEditor = ({
   disableForceUpdateOnSave,
   setBreadcrumbs,
   onAfterSaveSucceded,
-  onCancel
+  onCancel,
+  isOnboarding
 }: Props) => {
   const history = useHistory();
 
@@ -204,7 +206,8 @@ const DestinationEditor = ({
           />
       ),
       form: Form.useForm()[0],
-      touched: false
+      touched: false,
+      isHidden: params.standalone == 'true'
     },
     {
       key: 'mappings',
@@ -220,7 +223,7 @@ const DestinationEditor = ({
       ),
       form: Form.useForm()[0],
       touched: false,
-      isHidden: params.standalone == 'true'
+      isHidden: params.standalone == 'true' || isOnboarding
     },
     {
       key: 'sources',
@@ -456,7 +459,7 @@ const DestinationEditor = ({
             tabsList={destinationsTabs}
             activeTabKey={activeTabKey}
             onTabChange={setActiveTabKey}
-            tabBarExtraContent={
+            tabBarExtraContent={ !params.standalone && !isOnboarding &&
               <Button
                 size="large"
                 className="mr-3"
