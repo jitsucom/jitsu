@@ -163,7 +163,6 @@ ${[destinationData._type, "segment"].map(type => `declare function ${camelCase('
                                 <CodeSnippet size={"large"} language={"javascript"}>{
                                     `return {...$, JITSU_TABLE_NAME: "new_table_name"}`
                                 }</CodeSnippet>
-                                <p><code>TABLE_NAME</code> is not a property name. It is a global variable pointing to an actual property name.</p>
                                 <p>Conventional way:</p>
                                 <CodeSnippet size={"large"} language={"javascript"}>{
 `$.JITSU_TABLE_NAME = "new_table_name"
@@ -189,6 +188,21 @@ return $`
     title: $.page_title,                               
     __sql_type_title: ["varchar(256)", "varchar(256) encode zstd"]
 }`
+                                }</CodeSnippet>
+                            </Collapse.Panel>
+                            <Collapse.Panel header={<div className="font-bold">Predefined constants and functions</div>}
+                                            key="predefined">
+                                <p>Transform comes with predefined constants: <code>destinationId</code> and <code>destinationType</code> that can be used to enrich your data:</p>
+                                <CodeSnippet size={"large"} language={"javascript"}>{
+`return {...$, 
+    destination_id: destinationId,
+    destination_type: destinationType,
+}`
+                                }</CodeSnippet>
+                                <p>Also <code>toSegment(event)</code> function is available to set up <a href={"https://jitsu.com/docs/other-features/segment-compatibility"} target={"_blank"}>Segment Compatibility</a>:
+                                </p>
+                                <CodeSnippet size={"large"} language={"javascript"}>{
+                                    `return toSegment($)`
                                 }</CodeSnippet>
                             </Collapse.Panel>
                         </Collapse>
