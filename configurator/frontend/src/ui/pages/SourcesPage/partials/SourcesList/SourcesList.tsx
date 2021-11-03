@@ -16,8 +16,6 @@ import { CommonSourcePageProps } from "ui/pages/SourcesPage/SourcesPage"
 import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 // @Styles
 import styles from "./SourcesList.module.less"
-// @Sources
-import { allSources } from "catalog/sources/lib"
 // @Routes
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 // @Utils
@@ -29,17 +27,6 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
 
   const services = useMemo(() => ApplicationServices.get(), [])
 
-  const allSourcesMap = useMemo<{ [key: string]: SourceConnector }>(
-    () =>
-      allSources.reduce(
-        (accumulator: { [key: string]: SourceConnector }, current: SourceConnector) => ({
-          ...accumulator,
-          [snakeCase(current.id)]: current,
-        }),
-        {}
-      ),
-    []
-  )
   const handleAddClick = useCallback(() => {
     services.features.billingEnabled
     if (sourcesStore.sources.length >= services.currentSubscription?.currentPlan.quota.sources ?? 999) {

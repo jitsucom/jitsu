@@ -294,15 +294,17 @@ const AirbyteStreamParameters: React.FC<AirbyteStreamParametersProps> = ({
   handleChangeStreamSyncMode,
 }) => {
   const initialSyncMode = streamData.sync_mode ?? streamData.stream.supported_sync_modes?.[0]
+  const needToDisplayData: boolean = !!initialSyncMode && !!streamData.stream.json_schema?.properties
   const [syncMode, setSyncMode] = useState<string>(initialSyncMode)
   const handleChangeSyncMode = value => {
     setSyncMode(value)
     handleChangeStreamSyncMode(value, streamData)
   }
-  return (
+  return needToDisplayData ? (
     <div className="flex flex-col w-full h-full flex-wrap">
-      <StreamParameter title="Sync mode">
-        {streamData.stream.supported_sync_modes.length ? (
+      {/* {streamData.stream.supported_sync_modes?.length ? ( */}
+      {false ? ( // temporarily disables sync mode selection
+        <StreamParameter title="Sync mode">
           <Select size="small" value={syncMode} disabled={!checked} onChange={handleChangeSyncMode}>
             {streamData.stream.supported_sync_modes.map(mode => (
               <Select.Option key={mode} value={mode}>
@@ -310,11 +312,10 @@ const AirbyteStreamParameters: React.FC<AirbyteStreamParametersProps> = ({
               </Select.Option>
             ))}
           </Select>
-        ) : (
-          { initialSyncMode }
-        )}
-      </StreamParameter>
-      {/* <StreamParameter title="Destination Sync Mode">{streamDestinationSyncMode}</StreamParameter> */}
+        </StreamParameter>
+      ) : initialSyncMode ? (
+        <StreamParameter title="Sync mode">{initialSyncMode}</StreamParameter>
+      ) : null}
 
       {streamData.stream.json_schema.properties && (
         <StreamParameter title="JSON Schema">
@@ -326,7 +327,7 @@ const AirbyteStreamParameters: React.FC<AirbyteStreamParametersProps> = ({
         </StreamParameter>
       )}
     </div>
-  )
+  ) : null
 }
 
 type SingerStreamHeaderProps = {
@@ -337,12 +338,7 @@ type SingerStreamHeaderProps = {
 const SingerStreamHeader: React.FC<SingerStreamHeaderProps> = ({ streamUid, streamName }) => {
   return (
     <div className="flex w-full pr-12 flex-wrap xl:flex-nowrap">
-      {/* <div className={"whitespace-nowrap min-w-0 max-w-lg overflow-hidden overflow-ellipsis pr-2"}>
-        <span>ID:&nbsp;&nbsp;</span>
-        <b title={streamUid}>{streamUid}</b>
-      </div> */}
       <div className={"whitespace-nowrap min-w-0 max-w-lg overflow-hidden overflow-ellipsis pr-2"}>
-        {/* <span>Name:&nbsp;&nbsp;</span> */}
         <b title={streamName}>{streamName}</b>
       </div>
     </div>
