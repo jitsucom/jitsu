@@ -24,25 +24,31 @@ import { useServices } from 'hooks/useServices';
  * 1. native connectors (protoType === undefined)
  * 2. not expert mode
  * 3. expert mode
- *
+ * 4. airbyte source on heroku (disabled)
+ * 
  * Airbyte connectors are disabled if the app is hosted using Heroku.
  */
+
+const isAirbyteSourceOnHeroku = (source: SourceConnector): boolean => {
+  return source.protoType === "airbyte" && ApplicationServices.get().features.environment === 'heroku'
+}
+
 const allAvailableSources = allSources.sort((a, b) => {
   if (a.protoType === undefined && b.protoType !== undefined) {
     return -1
   } else if (a.protoType !== undefined && b.protoType === undefined) {
     return 1
+  } else if (isAirbyteSourceOnHeroku(a) && !isAirbyteSourceOnHeroku(b)) {
+    return 1
+  } else if (!isAirbyteSourceOnHeroku(a) && isAirbyteSourceOnHeroku(b)) {
+    return -1
   } else if (a.expertMode && !b.expertMode) {
     return 1
   } else if (!a.expertMode && b.expertMode) {
     return -1
-  }
+  } 
   return a.displayName.localeCompare(b.displayName)
 })
-
-const isAirbyteSourceOnHeroku = (source: SourceConnector): boolean => {
-  return source.protoType === "airbyte" && ApplicationServices.get().features.environment === "heroku"
-}
 
 const AddSourceDialogComponent = () => {
   const history = useHistory()
