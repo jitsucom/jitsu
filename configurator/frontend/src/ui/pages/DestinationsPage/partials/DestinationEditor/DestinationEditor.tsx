@@ -459,7 +459,7 @@ const DestinationEditor = ({
             tabsList={destinationsTabs}
             activeTabKey={activeTabKey}
             onTabChange={setActiveTabKey}
-            tabBarExtraContent={ !params.standalone && !isOnboarding &&
+            tabBarExtraContent={ !params.standalone && !isOnboarding && editorMode == "edit" &&
               <Button
                 size="large"
                 className="mr-3"
