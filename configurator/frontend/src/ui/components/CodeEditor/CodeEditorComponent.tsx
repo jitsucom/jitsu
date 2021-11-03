@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef } from 'react';
 import * as monacoEditor from 'monaco-editor';
-import MonacoEditor from 'react-monaco-editor';
+import MonacoEditor, {monaco} from 'react-monaco-editor';
 import { Props } from './CodeEditor.types';
 import { IKeyboardEvent } from 'monaco-editor';
 import isEqual from 'lodash/isEqual';
@@ -30,9 +30,12 @@ const CodeEditorComponent = ({
   initialValue,
   className,
   language = 'json',
+  readonly,
   enableLineNumbers,
+  extraSuggestions,
   reRenderEditorOnInitialValueChange = true,
   handleChange: handleChangeProp,
+  handlePaste,
   hotkeysOverrides
 }: Props) => {
   const defaultValue = !initialValue
@@ -41,16 +44,9 @@ const CodeEditorComponent = ({
     ? initialValue
     : JSON.stringify(initialValue);
 
-  const handleChange = (e: IKeyboardEvent) => {
+  const handleChange = () => {
     const model = ref.current.editor.getModel();
     const value = model.getValue();
-
-    /**
-     * excludes the `cmd/ctrl + S` hotkey
-     */
-    if (hotkeysOverrides && (e.metaKey || e.ctrlKey) && e.keyCode === 83)
-      return;
-
     handleChangeProp(value);
   };
 
@@ -61,12 +57,17 @@ const CodeEditorComponent = ({
       if (initialValue && reRenderEditorOnInitialValueChange) {
         const model = ref.current.editor.getModel();
         model.setValue(defaultValue);
+        if (extraSuggestions) {
+          monaco.languages.typescript.javascriptDefaults.setExtraLibs([{content: extraSuggestions}])
+        }
       }
     }
-  }, [initialValue, reRenderEditorOnInitialValueChange]);
+  }, [initialValue, reRenderEditorOnInitialValueChange, extraSuggestions]);
 
   useEffect(() => {
-    ref.current?.editor?.onKeyUp(handleChange);
+    if (handlePaste) {
+      ref.current?.editor?.onDidPaste( e => handlePaste());
+    }
   }, []);
 
   useEffect(() => {
@@ -98,10 +99,12 @@ const CodeEditorComponent = ({
     <MonacoEditor
       ref={ref}
       className={className}
+      onChange={ e => handleChange()}
       language={language}
       theme="own-theme"
       defaultValue={defaultValue}
       options={{
+        readOnly: readonly,
         automaticLayout: true,
         glyphMargin: false,
         folding: false,

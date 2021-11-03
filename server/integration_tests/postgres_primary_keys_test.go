@@ -41,7 +41,7 @@ func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, pg)
 
-	tableHelperWithPk := storages.NewTableHelper(pg, coordination.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToPostgres, 0)
+	tableHelperWithPk := storages.NewTableHelper(pg, coordination.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToPostgres, 0, storages.PostgresType)
 
 	// all events should be merged as have the same PK value
 	tableWithMerge := tableHelperWithPk.MapTableSchema(&schema.BatchHeader{
@@ -64,7 +64,7 @@ func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, rowsUnique)
 
-	tableHelperWithoutPk := storages.NewTableHelper(pg, coordination.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToPostgres, 0)
+	tableHelperWithoutPk := storages.NewTableHelper(pg, coordination.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToPostgres, 0, storages.PostgresType)
 	// all events should be merged as have the same PK value
 	table := tableHelperWithoutPk.MapTableSchema(&schema.BatchHeader{
 		TableName: "users",

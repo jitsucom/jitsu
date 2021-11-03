@@ -74,6 +74,14 @@
 @default-transition-animation: linear;
 @default-transiton: @default-transition-duration @default-transition-animation @default-transition-delay;
 
+.box-shadow-base {
+  box-shadow: @box-shadow-base;
+}
+
+.border-debug {
+  border: 1px solid red;
+}
+
 .font-heading {
   font-family: @font-heading;
 }
@@ -95,17 +103,13 @@
   }
 }
 
-.ant-select-item-option-active {
+.ant-select-item-option-active, .ant-dropdown-menu-submenu-active .ant-dropdown-menu-submenu-title {
   background-color: @bgSecondary !important;
 }
 
 .ant-collapse-content-box {
   background-color: @primary-background !important;
 }
-
-//body {
-//  font-family: @font-main;
-//}
 
 .ant-card, .ant-modal-content {
   border-radius: @large-border-radius;
@@ -234,7 +238,7 @@
 @apply w-5 h-5;
 }
 
-.ant-tabs-tab-active {
+.ant-tabs-card .ant-tabs-tab-active {
   border-bottom-color: @bgPrimary !important;
-  background: linear-gradient(to bottom, @splitBorder 10%,@splitBorder 10%,@bgPrimary 10%,@bgPrimary 100%) !important;
+  background: linear-gradient(to bottom, @splitBorder 10%,@splitBorder 10%,transparent 10%,transparent 100%) !important;
 }

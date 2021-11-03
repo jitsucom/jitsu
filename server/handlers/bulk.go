@@ -41,7 +41,7 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(apiKey)
 	storageProxies := bh.destinationService.GetDestinations(tokenID)
 	if len(storageProxies) == 0 {
-		counters.SkipSourceEvents(tokenID, 1)
+		counters.SkipPushSourceEvents(tokenID, 1)
 		c.JSON(http.StatusUnprocessableEntity, middleware.ErrResponse(fmt.Sprintf(noDestinationsErrTemplate, apiKey), nil))
 		return
 	}
@@ -66,8 +66,8 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 
 			metrics.ErrorSourceEvents(tokenID, storageProxy.ID(), rowsCount)
 			metrics.ErrorObjects(tokenID, rowsCount)
-			telemetry.Error(tokenID, storageProxy.ID(), events.SrcBulk, rowsCount)
-			counters.ErrorEvents(storageProxy.ID(), rowsCount)
+			telemetry.Error(tokenID, storageProxy.ID(), events.SrcBulk, "", rowsCount)
+			counters.ErrorPushDestinationEvents(storageProxy.ID(), rowsCount)
 
 			c.JSON(http.StatusBadRequest, middleware.ErrResponse("failed to process file payload", err))
 			return
@@ -75,8 +75,8 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 
 		metrics.SuccessSourceEvents(tokenID, storageProxy.ID(), rowsCount)
 		metrics.SuccessObjects(tokenID, rowsCount)
-		telemetry.Event(tokenID, storageProxy.ID(), events.SrcBulk, rowsCount)
-		counters.SuccessEvents(storageProxy.ID(), rowsCount)
+		telemetry.Event(tokenID, storageProxy.ID(), events.SrcBulk, "", rowsCount)
+		counters.SuccessPushDestinationEvents(storageProxy.ID(), rowsCount)
 	}
 
 	counters.SuccessPushSourceEvents(tokenID, rowsCount)

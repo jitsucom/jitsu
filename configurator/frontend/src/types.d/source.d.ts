@@ -1,57 +1,92 @@
+/**
+ * Collections have been renamed to Streams as of September 2021
+ */
 declare interface CollectionSource {
-  name: string;
-  type: string;
+  name: string
+  type: string
   parameters: Array<{
-    [key: string]: string[];
-  }>;
-  schedule: string;
+    [key: string]: string[]
+  }>
+  /**
+   * @deprecated
+   * Individual schedules for collections are no longer supported.
+   * Schedule to be set globally in SourceData `config` field.
+   */
+  schedule: string
 }
 
-declare type StreamWithRawData = CollectionSource & {
-  rawStreamData: UnknownObject;
-};
+declare type StreamData = AirbyteStreamData | SingerStreamData
 
-declare type SourceData = NativeSourceData & AirbyteSourceData;
+declare type AirbyteStreamData = {
+  sync_mode: string
+  destination_sync_mode: string
+  stream: {
+    name: string
+    namespace?: string
+    json_schema: UnknownObject
+    supported_sync_modes?: string[]
+    [key: string]: unknown
+  }
+}
+
+declare type SingerStreamData = {
+  tap_stream_id: string
+  stream: string
+  key_properties: string[]
+  schema: UnknownObject
+  metadata: {
+    breadcrumb: string[]
+    metadata: UnknownObject
+  }[]
+}
+
+declare type SourceData = NativeSourceData & AirbyteSourceData & SingerSourceData
 declare interface NativeSourceData {
-  collections: CollectionSource[];
+  //name displayed on a source. Used only in UI
+  displayName?: string
+  collections: CollectionSource[]
   config: {
-    [key: string]: string;
-  };
-  schedule?: string;
-  destinations: string[];
-  sourceId: string;
-  sourceProtoType: string;
-  connected: boolean;
-  connectedErrorMessage?: string;
-  sourceType: string;
+    [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
+  }
+  schedule?: string
+  destinations: string[]
+  sourceId: string
+  sourceName?: string
+  connected: boolean
+  connectedErrorMessage?: string
+  /**
+   * Source type, either `airbyte`, `singer` or `{source_type}` if source is native
+   */
+  sourceType: "airbyte" | "singer" | string
+  /**
+   * Snake-cased catalog source id
+   */
+  sourceProtoType: string
 }
 
 declare interface AirbyteSourceData {
-  sourceType: 'airbyte';
   /**
-   * @deprecated
-   * The new path for streams is config.config.catalog.streams
+   * @deprecated as of October 2021.
+   * The new path for streams is config.catalog.streams
    */
   catalog?: {
-    streams: Array<AirbyteStreamData>;
-  };
+    streams: Array<AirbyteStreamData>
+  }
   config: {
-    [key: string]: string;
+    config: PlainObjectWithPrimitiveValues
     catalog?: {
-      streams: Array<AirbyteStreamData>;
-    };
-  };
+      streams: Array<AirbyteStreamData>
+    }
+    [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
+  }
 }
 
-declare type AirbyteStreamData = {
-  sync_mode: string;
-  destination_sync_mode: string;
-  stream: {
-    name: string;
-    namespace?: string;
-    json_schema: UnknownObject;
-    supported_sync_modes: string[];
-    [key: string]: unknown;
-  };
-};
-
+declare interface SingerSourceData {
+  config: {
+    config: PlainObjectWithPrimitiveValues
+    catalog?: {
+      streams: Array<SingerStreamData>
+    }
+    [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
+  }
+}

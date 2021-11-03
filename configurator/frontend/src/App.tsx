@@ -170,7 +170,7 @@ export default class App extends React.Component<{}, AppState> {
                                         this.services.analyticsService.onPageLoad({
                                             pagePath: routeProps.location.key || '/unknown'
                                         });
-                                        document.title = route.pageTitle;
+                                        document['title'] = route.pageTitle;
                                         return <Component {...(routeProps as any)} />;
                                     }}
                                 />
@@ -197,48 +197,23 @@ export default class App extends React.Component<{}, AppState> {
 
 
     appLayout() {
-        const routes = PRIVATE_PAGES.map((route) => {
-            const Component = route.component as ExoticComponent;
-            return <Route
-                    key={route.pageTitle}
-                    path={route.getPrefixedPath()}
-                    exact={true}
-                    render={(routeProps) => {
-                        this.services.analyticsService.onPageLoad({
-                            pagePath: routeProps.location.hash
-                        });
-                        document.title = route.pageTitle;
-                        return route.doNotWrap ?
-                            <Component {...(routeProps as any)} /> :
-                            <ApplicationPage user={this.state.user} plan={this.state.paymentPlanStatus} page={route} {...routeProps} />;
-                    }}
-                />;
-        });
-
-        routes.push(<Redirect key="dashboardRedirect" from="*" to="/dashboard"/>);
-
-        const extraForms = [<OnboardingTour />];
-        if (this.services.userService.getUser().forcePasswordChange) {
-            return (
-                <SetNewPassword
-                    onCompleted={async () => {
-                        reloadPage();
-                    }}
-                />
-            );
-        } else if (this.state.paymentPlanStatus) {
-          const quotasMessage = checkQuotas(this.state.paymentPlanStatus);
-          if (quotasMessage) {
-            extraForms.push(<BillingBlockingModal blockingReason={quotasMessage} subscription={this.state.paymentPlanStatus}/>)
-          }
-
-        }
+    const extraForms = [<OnboardingTour key="onboardingTour" />];
+    if (this.services.userService.getUser().forcePasswordChange) {
         return (
-            <>
-                <Switch>{routes}</Switch>
-                {extraForms}
-            </>
+            <SetNewPassword
+                onCompleted={async () => {
+                    reloadPage();
+                }}
+            />
         );
+    } else if (this.state.paymentPlanStatus) {
+      const quotasMessage = checkQuotas(this.state.paymentPlanStatus);
+      if (quotasMessage) {
+        extraForms.push(<BillingBlockingModal key="billingBlockingModal" blockingReason={quotasMessage} subscription={this.state.paymentPlanStatus}/>)
+      }
+
+    }
+        return <ApplicationPage key="applicationPage" user={this.state.user} plan={this.state.paymentPlanStatus} pages={PRIVATE_PAGES} extraForms={extraForms} />
     }
 }
 

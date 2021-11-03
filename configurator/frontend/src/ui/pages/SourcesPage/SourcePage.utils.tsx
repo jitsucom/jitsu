@@ -5,23 +5,25 @@ import merge from 'lodash/merge';
 import { SourceConnector } from 'catalog/sources/types';
 // @Utils
 import { getUniqueAutoIncId } from 'utils/numbers';
-import { closeableMessage, handleError } from 'lib/components/components';
+import { handleError } from 'lib/components/components';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
 import Marshal from 'lib/commons/marshalling';
 // @Components
-import { ListItemTitle } from 'ui/components/ListItem/ListItemTitle';
 import { Tab } from 'ui/components/Tabs/TabsConfigurator';
 import { validateTabForm } from 'utils/forms/validateTabForm';
 import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
-import { SourceTabKey } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditor';
+import { SourceTabKey } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditorLegacy/SourceEditor';
 import { Poll } from 'utils/polling';
+import { actionNotification } from "../../components/ActionNotification/ActionNotification"
 
 const sourcePageUtils = {
   getSourceType: (sourceConnector: SourceConnector) =>
     sourceConnector?.protoType
       ? sourceConnector?.protoType
       : snakeCase(sourceConnector?.id),
+  getSourcePrototype: (sourceConnector: SourceConnector): string =>
+    snakeCase(sourceConnector?.id),
   getSourceId: (sourceProtoType: string, sourcesIds: string[]) => {
     const isUniqueSourceId = !sourcesIds.find((id) => id === sourceProtoType);
 
@@ -30,25 +32,6 @@ const sourcePageUtils = {
     }
 
     return getUniqueAutoIncId(sourceProtoType, sourcesIds);
-  },
-
-  getTitle: (src: SourceData) => {
-    return (
-      <ListItemTitle
-        render={src.sourceId}
-        error={!src.connected}
-        errorMessage={
-          <>
-            Last connection test failed with{' '}
-            <b>
-              <i>'{src.connectedErrorMessage}'</i>
-            </b>
-            . Source might be unavailable. Please, go to editor and fix the
-            connection settings
-          </>
-        }
-      />
-    );
   },
   getPromptMessage: (tabs: Tab[]) => () =>
     tabs.some((tab) => tab.touched)
@@ -123,7 +106,7 @@ const sourcePageUtils = {
       );
 
       if (response['status'] === 'pending') {
-        closeableMessage.loading(
+        actionNotification.loading(
           'Please, allow some time for the connector source installation to complete. Once the connector source is installed, we will test the connection and send a push notification with the result.'
         );
 
@@ -156,7 +139,7 @@ const sourcePageUtils = {
 
       if (!hideMessage) {
         const message = 'Successfully connected';
-        closeableMessage.success(
+        actionNotification.success(
           connectionTestMessagePrefix
             ? `${connectionTestMessagePrefix}${message.toLowerCase()}`
             : message

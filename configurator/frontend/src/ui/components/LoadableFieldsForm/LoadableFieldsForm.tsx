@@ -13,7 +13,7 @@ import { ErrorCard } from 'lib/components/ErrorCard/ErrorCard';
 import { FormInstance } from 'antd/es';
 import { mapAirbyteSpecToSourceConnectorConfig } from 'catalog/sources/lib/airbyte.helper';
 import { Poll } from 'utils/polling';
-import { useSourceEditorSyncContext } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditorSyncContext';
+import { useSourceEditorSyncContext } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditorLegacy/SourceEditorSyncContext';
 import { LoadableFieldsLoadingMessageCard } from 'lib/components/LoadingFormCard/LoadingFormCard';
 import { toTitleCase } from 'utils/strings';
 

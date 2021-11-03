@@ -62,7 +62,7 @@ func TestTransform(t *testing.T) {
 			if err != nil {
 				panic(err)
 			}
-			script, err := Transform(string(file))
+			script, err := BabelizeProcessEvent(string(file))
 			if err != nil {
 				t.Errorf("%s Transforming failed: %v", tt.filename, err)
 				return
@@ -82,7 +82,7 @@ func TestTransform(t *testing.T) {
 			} else if !cmp.Equal(res, tt.expected) {
 				t.Errorf("%s transpiled to: %s\nInput: %s\nResult: %s\nNot equal\nExpected: %s", tt.filename, script, tt.input, res, tt.expected)
 			} else {
-				t.Logf("%s transpiled to: %s\nInput: %s\nResult: %s\nExpected: %s", tt.filename, script, tt.input, res, tt.expected)
+				//t.Logf("%s transpiled to: %s\nInput: %s\nResult: %s\nExpected: %s", tt.filename, script, tt.input, res, tt.expected)
 			}
 		})
 	}

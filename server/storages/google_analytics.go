@@ -12,7 +12,7 @@ type GoogleAnalytics struct {
 }
 
 func init() {
-	RegisterStorage(GoogleAnalyticsType, NewGoogleAnalytics)
+	RegisterStorage(StorageType{typeName: GoogleAnalyticsType, createFunc: NewGoogleAnalytics})
 }
 
 //NewGoogleAnalytics return GoogleAnalytics instance
@@ -43,7 +43,7 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0)
+	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, GoogleAnalyticsType)
 
 	ga.adapter = gaAdapter
 	ga.tableHelper = tableHelper

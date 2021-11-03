@@ -77,6 +77,7 @@ const destination = {
   id: 's3',
   type: 'other',
   displayName: 'Amazon S3',
+  defaultTransform: '',
   hidden: false,
   ui: {
     icon,
