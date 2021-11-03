@@ -24,7 +24,7 @@ declare type AirbyteStreamData = {
     name: string
     namespace?: string
     json_schema: UnknownObject
-    supported_sync_modes: string[]
+    supported_sync_modes?: string[]
     [key: string]: unknown
   }
 }

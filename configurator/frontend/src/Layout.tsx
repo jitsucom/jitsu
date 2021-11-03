@@ -300,12 +300,7 @@ export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, p
   handleBillingMessage(new URLSearchParams(useLocation().search))
 
   React.useEffect(() => {
-    // const pageMatchingPathname = pages.find(page => page.path.some(path => location.pathname.includes(path)))
     const pageMatchingPathname = pages.find(page => page.path.includes(location.pathname))
-    // const a = pages
-    // const b = pages.map(p => p.path)
-    // const c = location.pathname
-    // debugger
     if (pageMatchingPathname) setBreadcrumbs(withHome({ elements: [{ title: pageMatchingPathname.pageHeader }] }))
   }, [location.pathname])
 
