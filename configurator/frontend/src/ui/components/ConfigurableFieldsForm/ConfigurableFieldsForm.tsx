@@ -26,6 +26,7 @@ import { CodeOutlined, EyeInvisibleOutlined, EyeOutlined } from "@ant-design/ico
 import styles from "./ConfigurableFieldsForm.module.less"
 import { CodeDebuggerModal } from "../CodeDebuggerModal/CodeDebuggerModal"
 import { InputWithDebug } from "./InputWithDebug"
+import {SwitchWithLabel} from "./SwitchWithLabel";
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -77,7 +78,7 @@ const ConfigurableFieldsFormComponent = ({
   const handleChangeSwitch = useCallback(
     (id: string) => (value: boolean) => {
       form.setFieldsValue({ [id]: value })
-      handleTouchAnyField()
+      handleTouchAnyField?.()
       forceUpdateAll()
     },
     [form, forceUpdateAll]
@@ -208,10 +209,10 @@ const ConfigurableFieldsFormComponent = ({
       }
 
       case "boolean":
-        return <div><Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={defaultValueToDisplay} />
-          {bigField && <span className={"pl-3"}>{displayName}</span>}
-        </div>
-
+        return  bigField ?
+              <SwitchWithLabel label={displayName} id={id} onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
+              :
+              <Switch className={"mb-0.5"}  onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
 
       case "string":
       default: {
