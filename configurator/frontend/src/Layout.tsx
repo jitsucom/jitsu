@@ -78,7 +78,7 @@ export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) =
   const key = usePageLocation().mainMenuKey
 
   return (
-    <div className={`max-h-full overflow-x-visible overflow-y-auto my-3 ${styles.sideBarContent_applicationMenu}`}>
+    <div className={`max-h-full overflow-x-visible overflow-y-auto ${styles.sideBarContent_applicationMenu}`}>
       {menuItems.map(item => {
         const selected = item.link === "/" + key
         return (
@@ -114,29 +114,40 @@ export const ApplicationSidebar: React.FC<{}> = () => {
   return (
     <div className={`relative ${styles.sideBarContent}`}>
       <div className="flex flex-col items-stretch h-full">
-        <div className={`${styles.sideBarContent_item__withRightBorder}`}>
-          <div className={`${expanded ? "w-3" : "w-2"} ${styles.expandButton}`} onClick={() => setExpanded(!expanded)}>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className={`transform ${expanded ? "rotate-90" : "-rotate-90"}`}
-              viewBox="0 0 24 24"
-              fill="currentColor">
-              <path
-                fill="currentColor"
-                d="M14.121,13.879c-0.586-0.586-6.414-6.414-7-7c-1.172-1.172-3.071-1.172-4.243,0	c-1.172,1.172-1.172,3.071,0,4.243c0.586,0.586,6.414,6.414,7,7c1.172,1.172,3.071,1.172,4.243,0	C15.293,16.95,15.293,15.05,14.121,13.879z"
-              />
-              <path
-                fill="currentColor"
-                d="M14.121,18.121c0.586-0.586,6.414-6.414,7-7c1.172-1.172,1.172-3.071,0-4.243c-1.172-1.172-3.071-1.172-4.243,0	c-0.586,0.586-6.414,6.414-7,7c-1.172,1.172-1.172,3.071,0,4.243C11.05,19.293,12.95,19.293,14.121,18.121z"
-              />
-            </svg>
-          </div>
+        <div className={`pb-3 ${styles.sideBarContent_item__withRightBorder}`}>
           <a href="https://jitsu.com" className={`text-center block pt-5 h-14`}>
             <img src={expanded ? logo : logoMini} alt="[logo]" className="h-8 mx-auto" />
           </a>
         </div>
         <div className={`flex-grow flex-shrink min-h-0 ${styles.sideBarContent_item__withRightBorder}`}>
           <ApplicationMenu expanded={expanded} />
+        </div>
+        <div
+          className={`flex justify-center items-center py-2 ${styles.sideBarContent_item__withRightBorder}`}
+          onClick={() => setExpanded(!expanded)}>
+          <Button
+            type="text"
+            className={styles.expandButton}
+            icon={
+              <i className={`inline-block text-center align-baseline w-3 h-full ${expanded ? "mr-2" : ""}`}>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className={`transform ${expanded ? "rotate-90" : "-rotate-90"}`}
+                  viewBox="0 0 24 24"
+                  fill="currentColor">
+                  <path
+                    fill="currentColor"
+                    d="M14.121,13.879c-0.586-0.586-6.414-6.414-7-7c-1.172-1.172-3.071-1.172-4.243,0	c-1.172,1.172-1.172,3.071,0,4.243c0.586,0.586,6.414,6.414,7,7c1.172,1.172,3.071,1.172,4.243,0	C15.293,16.95,15.293,15.05,14.121,13.879z"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M14.121,18.121c0.586-0.586,6.414-6.414,7-7c1.172-1.172,1.172-3.071,0-4.243c-1.172-1.172-3.071-1.172-4.243,0	c-0.586,0.586-6.414,6.414-7,7c-1.172,1.172-1.172,3.071,0,4.243C11.05,19.293,12.95,19.293,14.121,18.121z"
+                  />
+                </svg>
+              </i>
+            }>
+            {expanded ? <span className="inline-block h-full">{"Minimize Sidebar"}</span> : null}
+          </Button>
         </div>
       </div>
     </div>
