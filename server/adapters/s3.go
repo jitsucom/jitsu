@@ -88,6 +88,10 @@ func (a *S3) Format() S3EncodingFormat {
 	return a.config.Format
 }
 
+func (a *S3) Compression() S3Compression {
+	return a.config.Compression
+}
+
 //UploadBytes creates named file on s3 with payload
 func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	if a.config.Folder != "" {

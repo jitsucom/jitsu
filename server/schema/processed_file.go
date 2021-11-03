@@ -34,10 +34,8 @@ func (pf *ProcessedFile) GetPayloadBytes(marshaller Marshaller) []byte {
 
 //GetPayloadUsingStronglyTypedMarshaller returns bytes, containing marshalled payload
 //StronglyTypedMarshaller needs to know payload schema (types of fields) to convert payload to byte slice
-func (pf *ProcessedFile) GetPayloadUsingStronglyTypedMarshaller(stm StronglyTypedMarshaller) []byte {
-	b, _ := stm.Marshal(pf.BatchHeader, pf.payload)
-	//TODO do i need error handling here?
-	return b
+func (pf *ProcessedFile) GetPayloadUsingStronglyTypedMarshaller(stm StronglyTypedMarshaller) ([]byte, error) {
+	return stm.Marshal(pf.BatchHeader, pf.payload)
 }
 
 //GetPayloadBytesWithHeader returns marshaling by marshaller func, joined with \n,  bytes
