@@ -89,7 +89,7 @@ func (mmr *MaxMindResolver) Resolve(ip string) (*Data, error) {
 	}
 
 	if mmr.ispParser != nil {
-		isp, err := mmr.asnParser.ISP(parsedIP)
+		isp, err := mmr.ispParser.ISP(parsedIP)
 		if err != nil {
 			return nil, fmt.Errorf("Error parsing isp geo from ip %s: %v", ip, err)
 		}
