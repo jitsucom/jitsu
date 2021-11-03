@@ -1,18 +1,17 @@
 import { apiKeysStore } from "../../../stores/apiKeys"
-import React, { ReactNode, useState } from "react"
+import { ReactNode, useState } from "react"
 import { useServices } from "../../../hooks/useServices"
 import { flowResult } from "mobx"
-import { Button, Menu, message, Modal, Tooltip } from "antd"
+import { Button, Menu, Tooltip } from "antd"
 import { ConnectionCard } from "../../../ui/components/ConnectionCard/ConnectionCard"
 import { apiKeysReferenceMap } from "../../../catalog/apiKeys/lib"
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons"
 import { copyToClipboard, reactElementToString, trimMiddle } from "../../commons/utils"
 import styles from "./ApiKeys.module.less"
-import ReloadOutlined from "@ant-design/icons/lib/icons/ReloadOutlined"
-import ExclamationCircleOutlined from "@ant-design/icons/lib/icons/ExclamationCircleOutlined"
 import { generatePath, NavLink } from "react-router-dom"
 import { apiKeysRoutes } from "./ApiKeyEditor"
 import { confirmDelete } from "../../commons/deletionConfirmation"
+import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 
 type ApiKeyCardProps = {
   apiKey: APIKey
@@ -27,13 +26,13 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
     let newKey = apiKeysStore.generateApiToken(type === "jsAuth" ? "js" : "s2s")
     await keysBackend.patch(key.uid, { [type]: newKey })
     await flowResult(apiKeysStore.pullApiKeys())
-    message.info("New key has been generated and saved")
+    actionNotification.info("New key has been generated and saved")
     return newKey
   }
 
   let deleteAction = async () => {
     confirmDelete({
-      entityName: 'api key',
+      entityName: "api key",
       action: async () => {
         setLoading(true)
         try {
@@ -42,10 +41,10 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
         } finally {
           setLoading(false)
         }
-      }
+      },
     })
   }
-  let editLink = generatePath(apiKeysRoutes.editExact, { id: key.uid.replace('.', '-') })
+  let editLink = generatePath(apiKeysRoutes.editExact, { id: key.uid.replace(".", "-") })
   return (
     <ConnectionCard
       loading={loading}
