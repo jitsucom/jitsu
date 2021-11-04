@@ -97,12 +97,11 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 		fileName = a.config.Folder + "/" + fileName
 	}
 
-	fileType := http.DetectContentType(fileBytes)
 	params := &s3.PutObjectInput{
-		Bucket:      aws.String(a.config.Bucket),
-		ContentType: aws.String(fileType),
+		Bucket: aws.String(a.config.Bucket),
 	}
 
+	var fileType string
 	if a.config.Compression == S3CompressionGZIP {
 		var err error
 		fileName = fileNameGZIP(fileName)
@@ -111,9 +110,12 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 			return fmt.Errorf("Error compressing file %v", err)
 		}
 		fileBytes = buf.Bytes()
-		params.ContentEncoding = aws.String(string(a.config.Compression))
+		fileType = "application/gzip"
+	} else {
+		fileType = http.DetectContentType(fileBytes)
 	}
 
+	params.ContentType = aws.String(fileType)
 	params.Key = aws.String(fileName)
 	params.Body = bytes.NewReader(fileBytes)
 	_, err := a.client.PutObject(params)
