@@ -18,7 +18,7 @@ type Config struct {
 //Validate returns err if configuration is invalid
 func (ac *Config) Validate() error {
 	if ac == nil {
-		return errors.New("Airbyte config is required")
+		return errors.New("Airbyte config is required. Please read docs https://jitsu.com/docs/sources-configuration/airbyte")
 	}
 
 	if ac.DockerImage == "" {
@@ -26,7 +26,7 @@ func (ac *Config) Validate() error {
 	}
 
 	if ac.Config == nil {
-		return errors.New("Airbyte config is required")
+		return errors.New("Airbyte config is required. Please read docs https://jitsu.com/docs/sources-configuration/airbyte")
 	}
 
 	if ac.StreamTableNames == nil {
