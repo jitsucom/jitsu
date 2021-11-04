@@ -5,14 +5,13 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
-	"net/http"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"net/http"
 )
 
 //S3 is a S3 adapter for uploading/deleting files
@@ -107,10 +106,11 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	if a.config.Compression == S3CompressionGZIP {
 		var err error
 		fileName = fileNameGZIP(fileName)
-		fileBytes, err = a.compressGZIP(fileBytes)
+		buf, err := a.compressGZIP(fileBytes)
 		if err != nil {
 			return fmt.Errorf("Error compressing file %v", err)
 		}
+		fileBytes = buf.Bytes()
 		params.ContentEncoding = aws.String(string(a.config.Compression))
 	}
 
@@ -123,17 +123,14 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	return nil
 }
 
-func (a *S3) compressGZIP(b []byte) ([]byte, error) {
+func (a *S3) compressGZIP(b []byte) (*bytes.Buffer, error) {
 	buf := new(bytes.Buffer)
 	w := gzip.NewWriter(buf)
 	defer w.Close()
 	if _, err := w.Write(b); err != nil {
 		return nil, err
 	}
-	if err := w.Flush(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return buf, nil
 }
 
 //DeleteObject deletes object from s3 bucket by key
