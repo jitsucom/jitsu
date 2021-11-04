@@ -18,6 +18,14 @@
     {
       "HostDirectory": "jitsu_configurator",
       "ContainerDirectory": "/home/configurator/data"
+    },
+    {
+      "HostDirectory": "/var/run/docker.sock",
+      "ContainerDirectory": "/var/run/docker.sock"
+    },
+    {
+      "HostDirectory": "workspace",
+      "ContainerDirectory": "/home/eventnative/data/airbyte"
     }
   ],
   "Entrypoint": "/home/eventnative/entrypoint.sh"
