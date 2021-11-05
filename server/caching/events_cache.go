@@ -166,7 +166,7 @@ func (ec *EventsCache) succeed(eventContext *adapters.EventContext) {
 			//some destinations might not have table (e.g. s3)
 			if eventContext.Table != nil {
 				if column, ok := eventContext.Table.Columns[name]; ok {
-					sqlType = column.SQLType
+					sqlType = column.Type
 				}
 			}
 

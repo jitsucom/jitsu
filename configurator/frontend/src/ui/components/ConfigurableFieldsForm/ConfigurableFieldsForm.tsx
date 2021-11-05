@@ -26,6 +26,7 @@ import { CodeOutlined, EyeInvisibleOutlined, EyeOutlined } from "@ant-design/ico
 import styles from "./ConfigurableFieldsForm.module.less"
 import { CodeDebuggerModal } from "../CodeDebuggerModal/CodeDebuggerModal"
 import { InputWithDebug } from "./InputWithDebug"
+import {SwitchWithLabel} from "./SwitchWithLabel";
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -77,6 +78,7 @@ const ConfigurableFieldsFormComponent = ({
   const handleChangeSwitch = useCallback(
     (id: string) => (value: boolean) => {
       form.setFieldsValue({ [id]: value })
+      handleTouchAnyField?.()
       forceUpdateAll()
     },
     [form, forceUpdateAll]
@@ -100,8 +102,7 @@ const ConfigurableFieldsFormComponent = ({
 
   const getInitialValue = (id: string, defaultValue: any, constantValue: any, type: string) => {
     const initial = get(initialValues, id)
-
-    if (initial) {
+    if (typeof initial !== "undefined") {
       return initial
     }
 
@@ -129,11 +130,12 @@ const ConfigurableFieldsFormComponent = ({
     defaultValue?: any,
     constantValue?: any,
     jsDebugger?: "object" | "string" | null,
-    bigField?: boolean
+    bigField?: boolean,
+    displayName?: string,
+    codeSuggestions?: string
   ) => {
     const defaultValueToDisplay =
       form.getFieldValue(id) ?? getInitialValue(id, defaultValue, constantValue, type?.typeName)
-
     form.setFieldsValue({ id: defaultValueToDisplay })
 
     switch (type?.typeName) {
@@ -176,6 +178,7 @@ const ConfigurableFieldsFormComponent = ({
             <CodeEditor
               initialValue={defaultValueToDisplay}
               className={styles.codeEditor}
+              extraSuggestions={codeSuggestions}
               language={type?.typeName}
               handleChange={handleJsonChange(id)}
             />
@@ -206,7 +209,10 @@ const ConfigurableFieldsFormComponent = ({
       }
 
       case "boolean":
-        return <Switch onChange={handleChangeSwitch(id)} defaultChecked={getInitialValue(id, false, "", "")} />
+        return  bigField ?
+              <SwitchWithLabel label={displayName} id={id} onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
+              :
+              <Switch className={"mb-0.5"}  onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
 
       case "string":
       default: {
@@ -215,9 +221,12 @@ const ConfigurableFieldsFormComponent = ({
     }
   }
 
-  const handleDebuggerRun = async (debuggerType: "object" | "string", values: DebuggerFormValues) => {
+  const handleDebuggerRun = async (field: string, debuggerType: "object" | "string", values: DebuggerFormValues) => {
     const data = {
       reformat: debuggerType == "string",
+      uid: initialValues._uid,
+      type: initialValues._type,
+      field: field,
       expression: values.code,
       object: JSON.parse(values.object),
     }
@@ -311,6 +320,7 @@ const ConfigurableFieldsFormComponent = ({
           omitFieldRule,
           jsDebugger,
           bigField,
+          codeSuggestions
         }: Parameter) => {
           const currentFormValues = form.getFieldsValue() ?? {}
           const defaultFormValues = fieldsParamsList.reduce(
@@ -377,9 +387,10 @@ const ConfigurableFieldsFormComponent = ({
                   <CodeDebuggerModal
                     visible={debugModalsStates[id]}
                     codeFieldLabelDebugger="Expression"
+                    extraSuggestionsDebugger={codeSuggestions}
                     defaultCodeValueDebugger={debugModalsValues[id]}
                     handleCloseDebugger={() => handleCloseDebugger(id)}
-                    runDebugger={values => handleDebuggerRun(jsDebugger, values)}
+                    runDebugger={values => handleDebuggerRun(id, jsDebugger, values)}
                     handleSaveCodeDebugger={value => handleSaveDebugger(id, value)}
                   />
                 ) : null}
@@ -388,7 +399,7 @@ const ConfigurableFieldsFormComponent = ({
                     "form-field_fixed-label",
                     styles.field,
                     (type?.typeName === "json" || type?.typeName === "javascript") && styles.jsonField,
-                    bigField && styles.bigField
+                      (type?.typeName === "json" || type?.typeName === "javascript") && bigField && styles.bigField
                   )}
                   name={formItemName}
                   label={
@@ -405,7 +416,7 @@ const ConfigurableFieldsFormComponent = ({
                   labelCol={{ span: bigField ? 0 : 4 }}
                   wrapperCol={{ span: bigField ? 24 : 20 }}
                   rules={validationRules}>
-                  {getFieldComponent(type, id, defaultValue, constantValue, jsDebugger, bigField)}
+                  {getFieldComponent(type, id, defaultValue, constantValue, jsDebugger, bigField, displayName, codeSuggestions)}
                 </Form.Item>
               </Col>
             </Row>

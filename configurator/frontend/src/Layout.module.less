@@ -28,23 +28,9 @@
 }
 
 .selectedMenuItem {
-  // position: relative;
   border-left: 1px solid @splitBorder;
   border-top: 1px solid @splitBorder;
   border-bottom: 1px solid @splitBorder;
-
-  /*  */
-  // &::after {
-  //   @apply absolute w-4;
-  //   content: "";
-  //   position: absolute;
-  //   top: 0;
-  //   right: -1px;
-  //   width: 10px;
-  //   height: 100%;
-  //   background-color: @bgPrimary;
-  // }
-
 }
 
 .sideBarContent {
@@ -113,8 +99,7 @@
   color: @warning;
 }
 
-.expandButton {
-  @apply absolute inline-block top-4 right-0 h-12 flex items-center justify-center rounded-r cursor-pointer text-text hover:text-primary;
-  border: 0;
+.expandButton:not(:hover):not(:active):not(:active:focus) {
+  color: @secondaryText !important
 }
 

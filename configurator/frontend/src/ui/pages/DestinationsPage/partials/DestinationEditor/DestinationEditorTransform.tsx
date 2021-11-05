@@ -7,12 +7,12 @@ import { ConfigurableFieldsForm } from 'ui/components/ConfigurableFieldsForm/Con
 // @Types
 import { Destination } from 'catalog/destinations/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import {jsType, stringType} from "../../../../../catalog/sources/types";
+import {booleanType, jsType, stringType} from "../../../../../catalog/sources/types";
 import {TabDescription} from "../../../../components/Tabs/TabDescription";
-import {DESTINATION_EDITOR_MAPPING} from "../../../../../embeddedDocs/mappings";
 import styles from "./DestinationEditor.module.less";
 import {destinationsReferenceMap} from "../../../../../catalog/destinations/lib";
 import {CodeSnippet} from "../../../../../lib/components/components";
+import {camelCase} from "lodash";
 
 export interface Props {
     destinationData: DestinationData;
@@ -29,7 +29,8 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
         <>
             <TabDescription>
                 <p>Use the power of Javascript to modify incoming event object, replace it with a completely new event or produce multiple events based on incoming data.<br/>
-                    Also, you can use Transform to set the destination table name for each event or to skip the event altogether. <a onClick={() => setDocumentationVisible(true)}>Open Documentation →</a>
+                    Also, you can use <b>Transform</b> to assign Data Warehouse specific SQL types for object fields, set the destination table name for each event or to skip the event altogether. <a onClick={() => setDocumentationVisible(true)}>Open Documentation →</a><br/>
+                        <b>Transform</b> effectively replaces <b>Mappings</b> – both features cannot work together.
                 </p>
             </TabDescription>
             <Form
@@ -41,9 +42,20 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                 <ConfigurableFieldsForm
                     handleTouchAnyField={handleTouchAnyField}
                     fieldsParamsList={[{
+                        id: '_transform_enabled',
+                        displayName: 'Enable Javascript Transformation',
+                        defaultValue: !!destinationsReferenceMap[destinationData._type].defaultTransform && !destinationData._mappings?._mappings,
+                        required: false,
+                        type: booleanType,
+                        bigField: true
+                    },
+                        {
                         id: '_transform',
+                        codeSuggestions: `declare const destinationId = "${destinationData._uid}";
+declare const destinationType = "${destinationData._type}";
+${[destinationData._type, "segment"].map(type => `declare function ${camelCase('to_' + type)}(event: object): object`).join('\n')}`,
                         displayName: 'Javascript Transformation',
-                        defaultValue: destinationsReferenceMap[destinationData._type].defaultTransform,
+                        defaultValue: destinationsReferenceMap[destinationData._type].defaultTransform || 'return $',
                         required: false,
                         jsDebugger: 'object',
                         type: jsType,
@@ -75,9 +87,12 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                                     <li><b>null</b> - to skip event from processing</li>
                                 </ul>
                                 </p>
-                                <p>To override the destination table, you need to add a special property to the resulting events.
-                                    This property name is stored in the global variable: <code>TABLE_NAME</code>
+                                <p>To override the destination table, you need to add a special property <code>JITSU_TABLE_NAME</code> to the resulting events.
                                 </p>
+                                <p>To override the destination SQL column type for a specific object field, you need to add an extra property with the special prefix <code>__sql_type_</code> added to the name of a field to resulting events.
+                                    E.g.: <code>__sql_type_utc_time: "date"</code> sets SQL type <b>date</b> for column <b>utc_time</b>
+                                </p>
+                                <p>See more bellow.</p>
                             </Collapse.Panel>
                             <Collapse.Panel header={<div className="font-bold">Modify incoming event</div>}
                                             key="modify">
@@ -146,13 +161,48 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                                             key="tablename">
                                 <p>Using Javascript spread operator:</p>
                                 <CodeSnippet size={"large"} language={"javascript"}>{
-                                    `return {...$, [TABLE_NAME]: "new_table_name"}`
+                                    `return {...$, JITSU_TABLE_NAME: "new_table_name"}`
                                 }</CodeSnippet>
-                                <p><code>TABLE_NAME</code> is not a property name. It is a global variable pointing to an actual property name.</p>
                                 <p>Conventional way:</p>
                                 <CodeSnippet size={"large"} language={"javascript"}>{
-`$[TABLE_NAME] = "new_table_name"
+`$.JITSU_TABLE_NAME = "new_table_name"
 return $`
+                                }</CodeSnippet>
+                            </Collapse.Panel>
+                            <Collapse.Panel header={<div className="font-bold">Override SQL column type</div>}
+                                            key="sql_type">
+                                <p>Set simple SQL types:</p>
+                                <CodeSnippet size={"large"} language={"javascript"}>{
+`return {...$, 
+    event_date: $.utc_time,                               
+    __sql_type_event_date: "date",
+    event_time: $.utc_time,
+    __sql_type_event_time: "time"
+}`
+                                }</CodeSnippet>
+                                <p>Sql types with extra parameters:<br/>
+                                Some Data Warehouses support extra parameters for column types during table creation.<br/>
+                                For such cases, Transform uses the following syntax to provide data type and column type separately:</p>
+                                <CodeSnippet size={"large"} language={"javascript"}>{
+                                    `return {...$, 
+    title: $.page_title,                               
+    __sql_type_title: ["varchar(256)", "varchar(256) encode zstd"]
+}`
+                                }</CodeSnippet>
+                            </Collapse.Panel>
+                            <Collapse.Panel header={<div className="font-bold">Predefined constants and functions</div>}
+                                            key="predefined">
+                                <p>Transform comes with predefined constants: <code>destinationId</code> and <code>destinationType</code> that can be used to enrich your data:</p>
+                                <CodeSnippet size={"large"} language={"javascript"}>{
+`return {...$, 
+    destination_id: destinationId,
+    destination_type: destinationType,
+}`
+                                }</CodeSnippet>
+                                <p>Also <code>toSegment(event)</code> function is available to set up <a href={"https://jitsu.com/docs/other-features/segment-compatibility"} target={"_blank"}>Segment Compatibility</a>:
+                                </p>
+                                <CodeSnippet size={"large"} language={"javascript"}>{
+                                    `return toSegment($)`
                                 }</CodeSnippet>
                             </Collapse.Panel>
                         </Collapse>

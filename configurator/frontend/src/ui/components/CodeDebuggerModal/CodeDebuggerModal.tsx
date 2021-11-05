@@ -24,6 +24,7 @@ export const CodeDebuggerModal: React.FC<Props> = ({
   handleCodeChangeDebugger,
   runDebugger = () => {},
   handleSaveCodeDebugger,
+    extraSuggestionsDebugger,
   className: modalClassName,
   centered: modalCentered,
   width: modalWidth,
@@ -48,6 +49,7 @@ export const CodeDebuggerModal: React.FC<Props> = ({
         handleCodeChange={handleCodeChangeDebugger}
         handleSaveCode={handleSaveCodeDebugger}
         run={runDebugger}
+        extraSuggestions={extraSuggestionsDebugger}
       />
     </Modal>
   );
