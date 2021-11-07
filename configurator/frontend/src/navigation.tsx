@@ -27,6 +27,18 @@ const ConnectionsPage = React.lazy(() => import("ui/pages/ConnectionsPage/Connec
 const PasswordForm = React.lazy(() => import("./lib/components/PasswordForm/PasswordForm"))
 const DownloadConfig = React.lazy(() => import("./lib/components/DownloadConfig/DownloadConfig"))
 
+// import ApiKeys from "./lib/components/ApiKeys/ApiKeys"
+// import CustomDomains from "./lib/components/CustomDomains/CustomDomains"
+// import DestinationsPage from "ui/pages/DestinationsPage/DestinationsPage"
+// import DbtCloudPage from "ui/pages/DbtCloud/DbtCloudPage"
+
+// import EventsStream from "./lib/components/EventsStream/EventsStream"
+// import SetupForm from "ui/pages/SetupPage/SetupForm"
+// import SourcesPage from "ui/pages/SourcesPage/SourcesPage"
+// import ConnectionsPage from "ui/pages/ConnectionsPage/ConnectionsPage"
+// import PasswordForm from "./lib/components/PasswordForm/PasswordForm"
+// import DownloadConfig from "./lib/components/DownloadConfig/DownloadConfig"
+
 export type PageLocation = {
   canonicalPath: string
   id: string
@@ -50,7 +62,7 @@ export type PageProps = {
   [propName: string]: any
 }
 
-type PageComponent = ExoticComponent | React.FC
+type PageComponent = ExoticComponent | React.FC | React.Component
 export class Page {
   readonly _component: PageComponent
 
