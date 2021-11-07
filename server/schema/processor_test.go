@@ -75,7 +75,7 @@ func TestProcessFilePayload(t *testing.T) {
 						"_timestamp":        NewField(typing.TIMESTAMP),
 						"event_type":        NewField(typing.STRING),
 						"key1":              NewField(typing.STRING),
-						"key10":             NewField(typing.STRING),
+						"key10":             NewField(typing.ARRAY),
 						"key10_sib1_1": Field{
 							dataType:       nil,
 							typeOccurrence: map[typing.DataType]bool{typing.STRING: true, typing.FLOAT64: true},
@@ -93,7 +93,7 @@ func TestProcessFilePayload(t *testing.T) {
 						"_timestamp":          NewField(typing.TIMESTAMP),
 						"event_type":          NewField(typing.STRING),
 						"key1_key2":           NewField(typing.STRING),
-						"key5":                NewField(typing.STRING),
+						"key5":                NewField(typing.ARRAY),
 						"key3":                NewField(typing.STRING)}},
 				},
 
@@ -134,7 +134,7 @@ func TestProcessFilePayload(t *testing.T) {
 						"_geo_data_longitude": NewField(typing.FLOAT64),
 						"_timestamp":          NewField(typing.TIMESTAMP),
 						"key1_key2":           NewField(typing.STRING),
-						"key5":                NewField(typing.STRING),
+						"key5":                NewField(typing.ARRAY),
 						"key3":                NewField(typing.STRING)}},
 				},
 			},
@@ -181,7 +181,7 @@ func TestProcessFilePayload(t *testing.T) {
 				test.ObjectsEqual(t, expectedUnit.FileName, v.FileName, k+" results filenames aren't equal")
 				test.ObjectsEqual(t, expectedUnit.payload, v.payload, k+" results payloads aren't equal")
 				test.ObjectsEqual(t, expectedUnit.BatchHeader, v.BatchHeader, k+" results data schemas aren't equal")
-
+				//test.MapsEqual(t, expectedUnit.BatchHeader.Fields, v.BatchHeader.Fields, k+" results data schemas aren't equal")
 			}
 		})
 	}

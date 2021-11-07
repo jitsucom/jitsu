@@ -46,6 +46,7 @@ var (
 		typing.TIMESTAMP: "DATETIME", // TIMESTAMP type only supports values from 1970 to 2038, DATETIME doesn't have such constrains
 		typing.BOOL:      "BOOLEAN",
 		typing.UNKNOWN:   "TEXT",
+		typing.ARRAY:     "JSON",
 	}
 )
 

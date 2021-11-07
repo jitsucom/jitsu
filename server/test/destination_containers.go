@@ -280,10 +280,19 @@ func (mc *MySQLContainer) GetAllSortedRows(table, orderClause string) ([]map[str
 		object := make(map[string]interface{})
 		for i, colName := range cols {
 			val := *(columnPointers[i].(*interface{}))
-			if val == nil {
-				object[colName] = nil
+			if v, ok := val.([]uint8); ok {
+				str := string(v)
+				if strings.HasPrefix(str, "[") && strings.HasSuffix(str, "]") {
+					array := make([]interface{}, 0, 4)
+					if err := json.Unmarshal([]byte(str), &array); err != nil {
+						panic(err)
+					}
+					object[colName] = array
+				} else {
+					object[colName] = str
+				}
 			} else {
-				object[colName] = string((val).([]uint8))
+				object[colName] = val
 			}
 		}
 
@@ -359,8 +368,8 @@ func NewClickhouseContainer(ctx context.Context) (*ClickHouseContainer, error) {
 
 //CountRows returns row count in DB table with name = table
 //or error if occurred
-func (ch *ClickHouseContainer) CountRows(table string) (int, error) {
-	dataSource, err := sql.Open("clickhouse", ch.Dsns[0])
+func (cc *ClickHouseContainer) CountRows(table string) (int, error) {
+	dataSource, err := sql.Open("clickhouse", cc.Dsns[0])
 	if err != nil {
 		return -1, err
 	}
@@ -375,10 +384,65 @@ func (ch *ClickHouseContainer) CountRows(table string) (int, error) {
 	return count, err
 }
 
+//GetAllSortedRows returns all selected row from table ordered according to orderClause
+//or error if occurred
+func (cc *ClickHouseContainer) GetAllSortedRows(table, orderClause string) ([]map[string]interface{}, error) {
+	dataSource, err := sql.Open("clickhouse", cc.Dsns[0])
+	if err != nil {
+		return nil, err
+	}
+	rows, err := dataSource.Query(fmt.Sprintf("SELECT * from %s %s", table, orderClause))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cols, _ := rows.Columns()
+
+	objects := []map[string]interface{}{}
+	for rows.Next() {
+		columns := make([]interface{}, len(cols))
+		columnPointers := make([]interface{}, len(cols))
+		for i := range columns {
+			columnPointers[i] = &columns[i]
+		}
+
+		// Scan the result into the column pointers...
+		if err := rows.Scan(columnPointers...); err != nil {
+			return nil, err
+		}
+
+		// Create our map, and retrieve the value for each column from the pointers slice,
+		// storing it in the map with the name of the column as the key.
+		object := make(map[string]interface{})
+		for i, colName := range cols {
+			val := *(columnPointers[i].(*interface{}))
+			if v, ok := val.([]uint8); ok {
+				str := string(v)
+				if strings.HasPrefix(str, "[") && strings.HasSuffix(str, "]") {
+					array := make([]interface{}, 0, 4)
+					if err := json.Unmarshal([]byte(str), &array); err != nil {
+						panic(err)
+					}
+					object[colName] = array
+				} else {
+					object[colName] = str
+				}
+			} else {
+				object[colName] = val
+			}
+		}
+
+		objects = append(objects, object)
+	}
+
+	return objects, nil
+}
+
 //Close terminates underlying docker container
-func (ch *ClickHouseContainer) Close() {
-	if ch.Container != nil {
-		err := ch.Container.Terminate(ch.Context)
+func (cc *ClickHouseContainer) Close() {
+	if cc.Container != nil {
+		err := cc.Container.Terminate(cc.Context)
 		if err != nil {
 			logging.Error("Failed to stop container")
 		}

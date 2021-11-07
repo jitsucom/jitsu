@@ -3,6 +3,7 @@ package test
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
@@ -28,3 +29,14 @@ func ObjectsEqual(t *testing.T, expected, actual interface{}, msgAndArgs ...inte
 		assert.Fail(t, fmt.Sprintf("Objects aren't equal \n Expected: %s \n Actual: %s", string(e), string(a)), msgAndArgs...)
 	}
 }
+
+//MapsEqual uses cmp.Equal under the hood
+//func MapsEqual(t *testing.T, expected, actual map[string]interface{}, msg string) {
+func MapsEqual(t *testing.T, expected, actual interface{}, msg string) {
+	if diff := cmp.Diff(expected, actual, cmp.Exporter(func(reflect.Type) bool { return true })); diff != ""{
+		a, _ := json.Marshal(actual)
+		e, _ := json.Marshal(expected)
+		assert.Fail(t, fmt.Sprintf("Objects aren't equal \n Expected: %s \n Actual: %s", string(e), string(a)), msg)
+	}
+}
+
