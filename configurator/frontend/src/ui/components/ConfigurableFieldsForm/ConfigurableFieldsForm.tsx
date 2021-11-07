@@ -265,16 +265,11 @@ const ConfigurableFieldsFormComponent = ({
     fieldsParamsList.forEach((param: Parameter) => {
       let constantValue: any
       const initConfig = makeObjectFromFieldsValues(formValues)
-
       const fieldNeeded = !param.omitFieldRule?.(initConfig)
       const id = param.id
 
       if (fieldNeeded) {
-        if (typeof param.constant === "function") {
-          constantValue = param.constant(initConfig)
-        }
-
-        constantValue = constantValue || param.constant
+        const constantValue = typeof param.constant === "function" ? param.constant?.(initConfig) : param.constant
 
         const initialValue = getInitialValue(param.id, param.defaultValue, constantValue, param.type?.typeName)
 
