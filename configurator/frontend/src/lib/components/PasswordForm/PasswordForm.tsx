@@ -1,40 +1,40 @@
 /* eslint-disable */
-import * as React from 'react';
-import { Button, Card, Form, Input, message } from 'antd';
-import './PasswordForm.less';
+import * as React from "react"
+import { Button, Card, Form, Input, message } from "antd"
+import "./PasswordForm.less"
 
-import LockOutlined from '@ant-design/icons/lib/icons/LockOutlined';
-import ApplicationServices from '../../services/ApplicationServices';
-import { handleError } from '../components';
+import LockOutlined from "@ant-design/icons/lib/icons/LockOutlined"
+import ApplicationServices from "../../services/ApplicationServices"
+import { handleError } from "../components"
 
-import logo from '../../../icons/logo.svg';
+import logo from "../../../icons/logo.svg"
 
 type State = {
-  loading?: boolean;
-};
+  loading?: boolean
+}
 
 export default class PasswordForm extends React.Component<any, State> {
-  private services: ApplicationServices;
+  private services: ApplicationServices
 
   constructor(props: any, context: any) {
-    super(props, context);
-    this.services = ApplicationServices.get();
-    this.state = { loading: false };
+    super(props, context)
+    this.services = ApplicationServices.get()
+    this.state = { loading: false }
   }
 
   async passwordChange(values) {
-    this.setState({ loading: true });
+    this.setState({ loading: true })
     try {
-      let resetId = this.props.match.params.resetId;
-      await this.services.userService.changePassword(values['password'], resetId);
-      message.success('Password has been changed!');
+      let resetId = this.props.match.params.resetId
+      await this.services.userService.changePassword(values["password"], resetId)
+      message.success("Password has been changed!")
       setTimeout(() => {
-        this.setState({ loading: false });
-        window.location.href = '/';
-      }, 800);
+        this.setState({ loading: false })
+        window.location.href = "/"
+      }, 800)
     } catch (error) {
-      handleError(error);
-      this.setState({ loading: false });
+      handleError(error)
+      this.setState({ loading: false })
     }
   }
 
@@ -44,11 +44,11 @@ export default class PasswordForm extends React.Component<any, State> {
         <img src={logo} alt="[logo]" className="h-16" />
         <h3 className="pt-6">Set your new password</h3>
       </div>
-    );
+    )
     return (
       <Card
         title={title}
-        style={{ margin: 'auto', marginTop: '100px', maxWidth: '500px' }}
+        style={{ margin: "auto", marginTop: "100px", maxWidth: "500px" }}
         bordered={false}
         className="password-form-card"
       >
@@ -56,19 +56,19 @@ export default class PasswordForm extends React.Component<any, State> {
           name="password-form"
           className="password-form"
           initialValues={{
-            remember: false
+            remember: false,
           }}
           requiredMark={false}
           layout="vertical"
-          onFinish={(values) => this.passwordChange(values)}
+          onFinish={values => this.passwordChange(values)}
         >
           <Form.Item
             name="password"
             rules={[
               {
                 required: true,
-                message: 'Please input new Password!'
-              }
+                message: "Please input new Password!",
+              },
             ]}
             label={<b>New Password</b>}
           >
@@ -84,6 +84,6 @@ export default class PasswordForm extends React.Component<any, State> {
           </div>
         </Form>
       </Card>
-    );
+    )
   }
 }

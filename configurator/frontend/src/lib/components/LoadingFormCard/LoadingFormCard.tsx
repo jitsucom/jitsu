@@ -1,5 +1,5 @@
-import { FC, useEffect, useState } from 'react';
-import { Card, Spin } from 'antd';
+import { FC, useEffect, useState } from "react"
+import { Card, Spin } from "antd"
 
 type Props = {
   title: string

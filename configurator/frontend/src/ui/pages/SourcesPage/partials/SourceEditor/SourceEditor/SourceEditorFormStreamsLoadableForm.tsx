@@ -86,7 +86,8 @@ const SourceEditorFormStreamsLoadableForm = ({
     <div
       className={`h-full w-full flex-col items-stretch ${hide ? "hidden" : "flex"} ${
         disableAllAnimations ? styles.disableAnimations : ""
-      }`}>
+      }`}
+    >
       <div className="flex items-center mb-4">
         <Input.Search
           enterButton="Search"
@@ -97,7 +98,8 @@ const SourceEditorFormStreamsLoadableForm = ({
         <div
           className="flex flex-grow-0 flex-shrink-0 items-center ml-4"
           onAnimationEndCapture={() => {}}
-          onAnimationIterationCapture={() => {}}>
+          onAnimationIterationCapture={() => {}}
+        >
           <label>{"Toggle all"}</label>
           <Switch
             defaultChecked={true}
@@ -199,7 +201,8 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
       <Collapse
         expandIconPosition="left"
         destroyInactivePanel
-        expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}>
+        expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
+      >
         {streamsToDisplay.map((streamData, idx) => {
           const streamUid = getStreamUid(streamData)
           const { header, content } = getStreamUiComponents(streamData)
@@ -210,7 +213,8 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
               header={header}
               initiallySelectedStreams={initiallySelectedStreams}
               checked={allStreamsChecked}
-              handleToggleStream={handleToggleStream}>
+              handleToggleStream={handleToggleStream}
+            >
               {content}
             </StreamPanel>
           )
@@ -256,7 +260,8 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
       {...rest}
       key={streamUid}
       header={header}
-      extra={<Switch checked={checked} className="absolute top-3 right-3" onChange={toggle} />}>
+      extra={<Switch checked={checked} className="absolute top-3 right-3" onChange={toggle} />}
+    >
       {children}
     </Collapse.Panel>
   )

@@ -1,5 +1,5 @@
 // @Libs
-import { observer } from 'mobx-react-lite';
+import { observer } from "mobx-react-lite"
 import { useCallback, useEffect, useMemo, useState } from "react"
 // @Types
 import { SourceConnector as CatalogSourceConnector, SourceConnector } from "catalog/sources/types"

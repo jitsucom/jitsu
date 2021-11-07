@@ -1,31 +1,26 @@
 // @Libs
-import React from 'react';
-import { Form } from 'antd';
-import debounce from 'lodash/debounce';
+import React from "react"
+import { Form } from "antd"
+import debounce from "lodash/debounce"
 // @Components
-import { ConfigurableFieldsForm } from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm';
+import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 // @Types
-import { Destination } from 'catalog/destinations/types';
-import { FormInstance } from 'antd/lib/form/hooks/useForm';
+import { Destination } from "catalog/destinations/types"
+import { FormInstance } from "antd/lib/form/hooks/useForm"
 
 export interface Props {
-  destinationData: DestinationData;
-  destinationReference: Destination;
-  form: FormInstance;
-  handleTouchAnyField: (...args: any) => void;
+  destinationData: DestinationData
+  destinationReference: Destination
+  form: FormInstance
+  handleTouchAnyField: (...args: any) => void
 }
 
 const DestinationEditorConfig = ({ destinationData, destinationReference, form, handleTouchAnyField }: Props) => {
-  const handleChange = debounce(handleTouchAnyField, 500);
+  const handleChange = debounce(handleTouchAnyField, 500)
 
   return (
     <>
-      <Form
-        name="destination-config"
-        form={form}
-        autoComplete="off"
-        onChange={handleChange}
-      >
+      <Form name="destination-config" form={form} autoComplete="off" onChange={handleChange}>
         <ConfigurableFieldsForm
           handleTouchAnyField={handleTouchAnyField}
           fieldsParamsList={destinationReference.parameters}
@@ -35,8 +30,8 @@ const DestinationEditorConfig = ({ destinationData, destinationReference, form, 
       </Form>
     </>
   )
-};
+}
 
-DestinationEditorConfig.displayName = 'DestinationEditorConfig';
+DestinationEditorConfig.displayName = "DestinationEditorConfig"
 
-export { DestinationEditorConfig };
+export { DestinationEditorConfig }

@@ -1,21 +1,21 @@
 // @Libs
-import React, { memo } from 'react';
+import React, { memo } from "react"
 // @Icons
-import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
+import CloseOutlined from "@ant-design/icons/lib/icons/CloseOutlined"
 // @Styles
-import styles from './PopoverTitle.module.less';
+import styles from "./PopoverTitle.module.less"
 
 export interface Props {
-  title: React.ReactNode;
-  handleClose: () => void;
+  title: React.ReactNode
+  handleClose: () => void
 }
 
 const PopoverTitleComponent = ({ handleClose, title }: Props) => (
   <p className={styles.title}>
-    <span>{title}:</span> <CloseOutlined onClick={handleClose}/>
+    <span>{title}:</span> <CloseOutlined onClick={handleClose} />
   </p>
-);
+)
 
-PopoverTitleComponent.displayName = 'PopoverTitle';
+PopoverTitleComponent.displayName = "PopoverTitle"
 
-export const PopoverTitle = memo(PopoverTitleComponent);
+export const PopoverTitle = memo(PopoverTitleComponent)

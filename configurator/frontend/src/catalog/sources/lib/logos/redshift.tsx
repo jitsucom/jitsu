@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -16,17 +16,11 @@ function Svg(props) {
         fill="#5193ce"
       />
       <path d="m129.2 254.8-129.2 64.6v1141.3l129.2 64.6z" fill="#205b97" />
-      <path
-        d="m979.8 1783.7 258.4-129.2v-1525.3l-258.4-129.2-79 847z"
-        fill="#5193ce"
-      />
-      <path
-        d="m635.2 1783.7-258.4-129.2v-1525.3l258.4-129.2 79 847z"
-        fill="#205b97"
-      />
+      <path d="m979.8 1783.7 258.4-129.2v-1525.3l-258.4-129.2-79 847z" fill="#5193ce" />
+      <path d="m635.2 1783.7-258.4-129.2v-1525.3l258.4-129.2 79 847z" fill="#205b97" />
       <path d="m635.2 0h348.1v1780.1h-348.1z" fill="#2e73b7" />
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

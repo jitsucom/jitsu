@@ -1,4 +1,4 @@
-import { ApiKeyReferenceData } from '../types';
+import { ApiKeyReferenceData } from "../types"
 
 export const jsApiKey: ApiKeyReferenceData = {
   type: "js",
@@ -10,7 +10,8 @@ export const jsApiKey: ApiKeyReferenceData = {
       width="100%"
       viewBox="0 0 510 510"
       xmlns="http://www.w3.org/2000/svg"
-      xmlnsXlink="http://www.w3.org/1999/xlink">
+      xmlnsXlink="http://www.w3.org/1999/xlink"
+    >
       <linearGradient id="lg1">
         <stop offset="0" stopColor="#ffda2d" />
         <stop offset="1" stopColor="#fdbf00" />
