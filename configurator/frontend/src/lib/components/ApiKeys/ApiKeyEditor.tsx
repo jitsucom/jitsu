@@ -173,7 +173,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                       pointerEvents: "none",
                     }
                   : {}
-              }>
+              }
+            >
               <FormField label="Key Name" tooltip="Name of the key" key="comment">
                 <Form.Item name="comment">
                   <Input size="large" name="comment" placeholder="Key Name" required={true} />
@@ -187,7 +188,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                   })
                 }}
                 formFieldName="jsAuth"
-                formFieldLabel="Client-side (JS) key">
+                formFieldLabel="Client-side (JS) key"
+              >
                 The key that is user for client-side Jitsu libraries (JavaScript, iOS etc). You can consider this key as
                 'public' since it is visible to any end-user
               </SecretKey>
@@ -199,7 +201,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                   })
                 }}
                 formFieldName="serverAuth"
-                formFieldLabel="Server-side key">
+                formFieldLabel="Server-side key"
+              >
                 The key that is user for sending data from backend libraries (python, s2s API etc). Do not publish this
                 key
               </SecretKey>
@@ -213,7 +216,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                     domain on a new line
                   </>
                 }
-                key="js">
+                key="js"
+              >
                 <Form.Item name="originsText">
                   <TextArea required={false} size="large" rows={10} name="originsText" />
                 </Form.Item>
@@ -241,7 +245,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                         }
                       },
                     })
-                  }}>
+                  }}
+                >
                   Delete
                 </Button>
               )}
@@ -257,7 +262,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                   } else {
                     history.push(apiKeysRoutes.listExact)
                   }
-                }}>
+                }}
+              >
                 Cancel
               </Button>
               <Button
@@ -279,7 +285,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                   } finally {
                     setSaving(false)
                   }
-                }}>
+                }}
+              >
                 Save
               </Button>
             </FormActions>

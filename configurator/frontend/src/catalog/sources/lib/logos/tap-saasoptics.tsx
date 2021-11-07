@@ -1,18 +1,12 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      height="100%"
-      width="100%"
-      viewBox="0 0 240 90"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" height="100%" width="100%" viewBox="0 0 240 90" {...props}>
       <defs>
-        <style>{'.cls-1{fill:#0296ce;}.cls-2{fill:#8ccd16;}'}</style>
+        <style>{".cls-1{fill:#0296ce;}.cls-2{fill:#8ccd16;}"}</style>
       </defs>
-      <title>{'saasoptics-logo_240x90_web'}</title>
+      <title>{"saasoptics-logo_240x90_web"}</title>
       <g id="Guidelines">
         <g id="rmDHYi.tif">
           <path
@@ -71,14 +65,11 @@ function Svg(props) {
             className="cls-2"
             d="M204.59,43.77a8.85,8.85,0,0,1,0-1c0-.4-.11-.51-.49-.48-.17,0-.47.16-.45-.24,0-.16.06-.23.22-.23h2c.17,0,.26.05.26.24s-.08.23-.25.24c-.67,0-.67,0-.67.72s0,1.3,0,2c0,.22,0,.33-.3.33s-.32-.08-.31-.32C204.6,44.56,204.59,44.17,204.59,43.77Z"
           />
-          <polygon
-            className="cls-2"
-            points="67.65 54.72 67.64 54.69 67.67 54.69 67.65 54.72"
-          />
+          <polygon className="cls-2" points="67.65 54.72 67.64 54.69 67.67 54.69 67.65 54.72" />
         </g>
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

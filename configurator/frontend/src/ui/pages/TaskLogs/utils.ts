@@ -1,11 +1,11 @@
 export const colorMap: Record<TaskStatus, string | undefined> = {
   SCHEDULED: undefined,
-  RUNNING: 'processing',
-  FAILED: 'error',
-  SUCCESS: 'success'
+  RUNNING: "processing",
+  FAILED: "error",
+  SUCCESS: "success",
 }
 
-export type TaskStatus = 'SCHEDULED' | 'RUNNING' | 'FAILED' | 'SUCCESS';
+export type TaskStatus = "SCHEDULED" | "RUNNING" | "FAILED" | "SUCCESS"
 
 export interface Task {
   id: string
@@ -19,9 +19,9 @@ export interface Task {
 }
 
 export interface TaskLogEntry {
-  time: string,
-  message: string,
-  level: 'info' | 'warn' | 'error'
+  time: string
+  message: string
+  level: "info" | "warn" | "error"
 }
 
 /**
@@ -33,10 +33,9 @@ export interface TaskLogEntry {
  */
 export const TaskId = {
   encode: (str: string) => {
-    return str.replaceAll('.', '-dot-').replaceAll('#', '-sharp-');
+    return str.replaceAll(".", "-dot-").replaceAll("#", "-sharp-")
   },
   decode: (id: string) => {
-    return id.replaceAll('-dot-', '.').replaceAll('-sharp-', '#');
-
-  }
+    return id.replaceAll("-dot-", ".").replaceAll("-sharp-", "#")
+  },
 }

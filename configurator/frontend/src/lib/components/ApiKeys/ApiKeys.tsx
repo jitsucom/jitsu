@@ -73,7 +73,8 @@ const ApiKeysComponent: React.FC = () => {
                 </div>
               ))}
             </div>
-          }>
+          }
+        >
           {"\u00A0"}
           <a>languages and frameworks</a>
           {"\u00A0"}
@@ -86,7 +87,8 @@ const ApiKeysComponent: React.FC = () => {
           size="large"
           icon={<PlusOutlined />}
           loading={"NEW" === loading}
-          onClick={generateNewKey}>
+          onClick={generateNewKey}
+        >
           Generate New Key
         </Button>
       </div>
@@ -181,7 +183,8 @@ export const KeyDocumentation: React.FC<KeyDocumentationProps> = function ({ tok
             </>
           )}
         </>
-      }>
+      }
+    >
       <Tabs.TabPane tab="Embed JavaScript" key="1">
         <p className="api-keys-documentation-tab-description">
           Easiest way to start tracking events within your web app is to add following snippet to{" "}

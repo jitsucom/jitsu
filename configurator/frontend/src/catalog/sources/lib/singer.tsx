@@ -1,20 +1,19 @@
-import * as logos from './logos';
-import {
-  booleanType,
-  dashDateType,
-  intType,
-  isoUtcDateType, passwordType,
-  stringType
-} from '../types';
-import { customParameters } from './helper';
-import { SingerTap } from '../types';
+import * as logos from "./logos"
+import { booleanType, dashDateType, intType, isoUtcDateType, passwordType, stringType } from "../types"
+import { customParameters } from "./helper"
+import { SingerTap } from "../types"
 import {
   githubDocumentation,
-  googleServiceAuthDocumentation, googleSheetsDocumentation,
+  googleServiceAuthDocumentation,
+  googleSheetsDocumentation,
   intercomDocumentation,
-  mixpanelDocumentation, mySqlDocumentation, shopifyDocumentation, slackDocumentation, stripeDocumentation
-} from '../lib/documentation';
-import { googleAuthConfigParameters } from '../lib/commonParams';
+  mixpanelDocumentation,
+  mySqlDocumentation,
+  shopifyDocumentation,
+  slackDocumentation,
+  stripeDocumentation,
+} from "../lib/documentation"
+import { googleAuthConfigParameters } from "../lib/commonParams"
 
 export const allSingerTaps: SingerTap[] = [
   {

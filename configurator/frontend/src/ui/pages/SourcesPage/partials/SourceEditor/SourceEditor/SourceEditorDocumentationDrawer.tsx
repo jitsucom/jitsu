@@ -1,21 +1,17 @@
 // @Components
-import { Collapse, Drawer } from 'antd';
+import { Collapse, Drawer } from "antd"
 // @Types
-import { SourceConnector } from 'catalog/sources/types';
+import { SourceConnector } from "catalog/sources/types"
 // @Styles
-import styles from './SourceEditorDocumentationDrawer.module.less';
+import styles from "./SourceEditorDocumentationDrawer.module.less"
 
 type Props = {
-  sourceDataFromCatalog: SourceConnector;
-  visible: boolean;
-  setVisible: (value: boolean) => void;
-};
+  sourceDataFromCatalog: SourceConnector
+  visible: boolean
+  setVisible: (value: boolean) => void
+}
 
-export const SourceEditorDocumentationDrawer: React.FC<Props> = ({
-  sourceDataFromCatalog,
-  visible,
-  setVisible
-}) => {
+export const SourceEditorDocumentationDrawer: React.FC<Props> = ({ sourceDataFromCatalog, visible, setVisible }) => {
   return (
     <Drawer
       title={<h2>{sourceDataFromCatalog.displayName} documentation</h2>}
@@ -26,25 +22,18 @@ export const SourceEditorDocumentationDrawer: React.FC<Props> = ({
       visible={visible}
     >
       <div className={styles.documentation}>
-        <Collapse defaultActiveKey={['connection']} ghost>
+        <Collapse defaultActiveKey={["connection"]} ghost>
           <Collapse.Panel
-            header={
-              <div className="uppercase font-bold">
-                {sourceDataFromCatalog.displayName} overview
-              </div>
-            }
+            header={<div className="uppercase font-bold">{sourceDataFromCatalog.displayName} overview</div>}
             key="overview"
           >
             {sourceDataFromCatalog.documentation.overview}
           </Collapse.Panel>
-          <Collapse.Panel
-            header={<div className="uppercase font-bold">How to connect</div>}
-            key="connection"
-          >
+          <Collapse.Panel header={<div className="uppercase font-bold">How to connect</div>} key="connection">
             {sourceDataFromCatalog.documentation.connection}
           </Collapse.Panel>
         </Collapse>
       </div>
     </Drawer>
-  );
-};
+  )
+}

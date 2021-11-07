@@ -1,20 +1,14 @@
-import {intType, isoUtcDateType, passwordType, selectionType, SourceConnector, stringType} from '../types';
-import { googleServiceAuthDocumentation } from '../lib/documentation';
+import { intType, isoUtcDateType, passwordType, selectionType, SourceConnector, stringType } from "../types"
+import { googleServiceAuthDocumentation } from "../lib/documentation"
 
-import { googleAuthConfigParameters } from '../lib/commonParams';
-import * as React from "react";
+import { googleAuthConfigParameters } from "../lib/commonParams"
+import * as React from "react"
 
 export const facebook: SourceConnector = {
   pic: (
     <svg height="100%" width="100%" viewBox="0 0 36 36" fill="url(#gradient)">
       <defs>
-        <linearGradient
-          x1="50%"
-          x2="50%"
-          y1="97.0782153%"
-          y2="0%"
-          id="gradient"
-        >
+        <linearGradient x1="50%" x2="50%" y1="97.0782153%" y2="0%" id="gradient">
           <stop offset="0%" stopColor="#0062E0" />
           <stop offset="100%" stopColor="#19AFFF" />
         </linearGradient>
@@ -29,107 +23,91 @@ export const facebook: SourceConnector = {
   documentation: {
     overview: (
       <>
-        The Facebook connector pulls data from{' '}
-        <a href="https://developers.facebook.com/docs/marketing-api/insights/">
-          Facebook Insights API
-        </a>
-        . The connector is highly configurable and can pull data broken down by
-        any dimensions from ads-, adset-, campaign- or account-level data
+        The Facebook connector pulls data from{" "}
+        <a href="https://developers.facebook.com/docs/marketing-api/insights/">Facebook Insights API</a>. The connector
+        is highly configurable and can pull data broken down by any dimensions from ads-, adset-, campaign- or
+        account-level data
       </>
     ),
     connection: (
       <>
         <h1>1. Obtain Facebook Account ID</h1>
-        Facebook has a great article about{' '}
-        <a href="https://www.facebook.com/business/help/1492627900875762">
-          How to get Facebook Account ID
-        </a>
+        Facebook has a great article about{" "}
+        <a href="https://www.facebook.com/business/help/1492627900875762">How to get Facebook Account ID</a>
         <h1>2. Generate Short-lived (1 hour) Facebook Access token</h1>
         <ul>
           <li>
-            Go to{' '}
-            <a href="https://developers.facebook.com/tools/explorer">
-              Facebook Graph API Explorer
-            </a>{' '}
-            page
+            Go to <a href="https://developers.facebook.com/tools/explorer">Facebook Graph API Explorer</a> page
           </li>
-          <li>
-            Select Facebook app which has access to your Facebook advertisements
-            data
-          </li>
+          <li>Select Facebook app which has access to your Facebook advertisements data</li>
           <li>Select User token</li>
           <li>
-            Select two permissions: <code>read_insights</code> and{' '}
-            <code>ads_read</code>
+            Select two permissions: <code>read_insights</code> and <code>ads_read</code>
           </li>
           <li>Click Generate Access Token</li>
         </ul>
         <h1>3. Generate Long-lived (60 days) Facebook Access token</h1>
-        For generating long lived access token please read{' '}
+        For generating long lived access token please read{" "}
         <a href="https://developers.facebook.com/docs/pages/access-tokens/#get-a-long-lived-user-access-token">
           Facebook article
         </a>
       </>
-    )
+    ),
   },
   collectionParameters: [
     {
-      applyOnlyTo: 'ads',
-      displayName: 'Report Fields',
-      id: 'fields',
+      applyOnlyTo: "ads",
+      displayName: "Report Fields",
+      id: "fields",
       // prettier-ignore
       type: selectionType(['bid_amount', 'adlabels', 'creative', 'status', 'created_time', 'updated_time', 'targeting', 'effective_status', 'campaign_id', 'adset_id', 'conversion_specs', 'recommendations', 'id', 'bid_info', 'last_updated_by_app_id', 'tracking_specs', 'bid_type', 'name', 'account_id', 'source_ad_id']),
       required: true,
-      documentation: <>Ads fields to download</>
+      documentation: <>Ads fields to download</>,
     },
     {
-      applyOnlyTo: 'insights',
-      displayName: 'Report Fields',
-      id: 'fields',
+      applyOnlyTo: "insights",
+      displayName: "Report Fields",
+      id: "fields",
       // prettier-ignore
       type: selectionType(['account_currency', 'account_id', 'account_name', 'ad_id', 'ad_name', 'adset_id', 'adset_name', 'campaign_id', 'campaign_name', 'objective', 'buying_type', 'cpc', 'cpm', 'cpp', 'ctr', 'estimated_ad_recall_rate', 'estimated_ad_recallers', 'reach', 'unique_clicks', 'unique_ctr', 'frequency', 'actions', 'conversions', 'spend', 'impressions']),
       required: true,
-      documentation: <>Insights fields to download</>
+      documentation: <>Insights fields to download</>,
     },
     {
-      displayName: 'Level of data',
-      id: 'level',
-      defaultValue: 'ad',
-      type: selectionType(['ad', 'adset', 'campaign', 'account'], 1),
+      displayName: "Level of data",
+      id: "level",
+      defaultValue: "ad",
+      type: selectionType(["ad", "adset", "campaign", "account"], 1),
       documentation: (
         <>
-          One of [ad, adset, campaign, account].{' '}
+          One of [ad, adset, campaign, account].{" "}
           <a href="https://developers.facebook.com/docs/marketing-api/reference/adgroup/insights/">
             Read more about level
           </a>
         </>
-      )
-    }
+      ),
+    },
   ],
-  displayName: 'Facebook Marketing',
-  id: 'facebook_marketing',
-  collectionTypes: ['insights', 'ads'],
+  displayName: "Facebook Marketing",
+  id: "facebook_marketing",
+  collectionTypes: ["insights", "ads"],
   configParameters: [
     {
-      displayName: 'Account ID',
-      id: 'config.account_id',
+      displayName: "Account ID",
+      id: "config.account_id",
       type: stringType,
       required: true,
       documentation: (
         <>
-          <a
-            target="_blank"
-            href="https://www.facebook.com/business/help/1492627900875762"
-            rel="noreferrer"
-          >
+          <a target="_blank" href="https://www.facebook.com/business/help/1492627900875762" rel="noreferrer">
             How to get Facebook Account ID
           </a>
         </>
-      )
+      ),
     },
     {
-      displayName: 'Access Token',
-      id: 'config.access_token',
+      displayName: "Access Token",
+      id: "config.access_token",
       type: stringType,
       required: true,
       documentation: (
@@ -142,212 +120,373 @@ export const facebook: SourceConnector = {
             How to get Facebook Access Token
           </a>
         </>
-      )
-    }
-  ]
-};
+      ),
+    },
+  ],
+}
 
 export const googleAds: SourceConnector = {
   pic: (
-      <svg height="100%"
-           viewBox="0 0 192 192" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <svg height="100%" viewBox="0 0 192 192" width="100%" xmlns="http://www.w3.org/2000/svg">
+      <g className="_ngcontent-awn-AWSM-2">
+        <rect fill="none" height="192" width="192" className="_ngcontent-awn-AWSM-2"></rect>
         <g className="_ngcontent-awn-AWSM-2">
-          <rect fill="none" height="192" width="192" className="_ngcontent-awn-AWSM-2"></rect>
-          <g className="_ngcontent-awn-AWSM-2">
-            <rect fill="#FBBC04" height="58.67" transform="matrix(0.5 -0.866 0.866 0.5 -46.2127 103.666)" width="117.33"
-                  x="8" y="62.52" className="_ngcontent-awn-AWSM-2"></rect>
-            <path
-                d="M180.07,127.99L121.4,26.38c-8.1-14.03-26.04-18.84-40.07-10.74c-14.03,8.1-18.84,26.04-10.74,40.07 l58.67,101.61c8.1,14.03,26.04,18.83,40.07,10.74C183.36,159.96,188.16,142.02,180.07,127.99z"
-                fill="#4285F4" className="_ngcontent-awn-AWSM-2"></path>
-            <circle cx="37.34" cy="142.66" fill="#34A853" r="29.33" className="_ngcontent-awn-AWSM-2"></circle>
-          </g>
+          <rect
+            fill="#FBBC04"
+            height="58.67"
+            transform="matrix(0.5 -0.866 0.866 0.5 -46.2127 103.666)"
+            width="117.33"
+            x="8"
+            y="62.52"
+            className="_ngcontent-awn-AWSM-2"
+          ></rect>
+          <path
+            d="M180.07,127.99L121.4,26.38c-8.1-14.03-26.04-18.84-40.07-10.74c-14.03,8.1-18.84,26.04-10.74,40.07 l58.67,101.61c8.1,14.03,26.04,18.83,40.07,10.74C183.36,159.96,188.16,142.02,180.07,127.99z"
+            fill="#4285F4"
+            className="_ngcontent-awn-AWSM-2"
+          ></path>
+          <circle cx="37.34" cy="142.66" fill="#34A853" r="29.33" className="_ngcontent-awn-AWSM-2"></circle>
         </g>
-      </svg>
+      </g>
+    </svg>
   ),
   collectionParameters: [
     {
-      displayName: 'Fields',
+      displayName: "Fields",
       documentation: (
-          <> Use <a href="https://developers.google.com/google-ads/api/fields/v8/overview_query_builder">Google Ads Query Builder</a> tool to build required query. Copy comma-separated field list from resulting GAQL query (part between SELECT and FROM keywords).
-            Don't forget to add date segments (e.g. segments.date) where it is necessary.
-          </>
+        <>
+          {" "}
+          Use{" "}
+          <a href="https://developers.google.com/google-ads/api/fields/v8/overview_query_builder">
+            Google Ads Query Builder
+          </a>{" "}
+          tool to build required query. Copy comma-separated field list from resulting GAQL query (part between SELECT
+          and FROM keywords). Don't forget to add date segments (e.g. segments.date) where it is necessary.
+        </>
       ),
-      id: 'fields',
+      id: "fields",
       // prettier-ignore
       type: stringType,
-      required: true
+      required: true,
     },
     {
-      displayName: 'Start Date',
-      id: 'start_date',
+      displayName: "Start Date",
+      id: "start_date",
       type: isoUtcDateType,
-      defaultValue: '2020-01-01',
-      required: true
-    }
+      defaultValue: "2020-01-01",
+      required: true,
+    },
   ],
   collectionTemplates: [
     {
-      templateName: 'Default Google Ads template',
+      templateName: "Default Google Ads template",
       description: <></>,
       collections: [
         {
-          type: 'label',
-          name: 'labels',
+          type: "label",
+          name: "labels",
           parameters: {
-            "fields": 'label.name, label.resource_name, label.id, label.status, label.text_label.background_color, label.text_label.description',
-            "start_date": '2020-01-01'
-          }
+            fields:
+              "label.name, label.resource_name, label.id, label.status, label.text_label.background_color, label.text_label.description",
+            start_date: "2020-01-01",
+          },
         },
         {
-          type: 'user_location_view',
-          name: 'user_location_report',
+          type: "user_location_view",
+          name: "user_location_report",
           parameters: {
-            "fields": 'metrics.cost_micros, metrics.interactions, campaign.id, metrics.all_conversions, metrics.average_cpv, metrics.average_cpm, metrics.value_per_all_conversions, customer.currency_code, customer.descriptive_name, user_location_view.resource_name, metrics.average_cost, metrics.impressions, metrics.interaction_event_types, metrics.value_per_conversion, customer.time_zone, metrics.average_cpc, metrics.clicks, ad_group.name, ad_group.status, metrics.video_view_rate, metrics.view_through_conversions, segments.ad_network_type, metrics.all_conversions_value, metrics.cost_per_conversion, metrics.cross_device_conversions, metrics.ctr, metrics.conversions, metrics.interaction_rate, metrics.video_views, customer.id, user_location_view.country_criterion_id, campaign.status, ad_group.base_ad_group, metrics.all_conversions_from_interactions_rate, campaign.base_campaign, campaign.name, metrics.conversions_from_interactions_rate, metrics.conversions_value, metrics.cost_per_all_conversions, segments.date',
-            "start_date": '2020-01-01'
-          }
+            fields:
+              "metrics.cost_micros, metrics.interactions, campaign.id, metrics.all_conversions, metrics.average_cpv, metrics.average_cpm, metrics.value_per_all_conversions, customer.currency_code, customer.descriptive_name, user_location_view.resource_name, metrics.average_cost, metrics.impressions, metrics.interaction_event_types, metrics.value_per_conversion, customer.time_zone, metrics.average_cpc, metrics.clicks, ad_group.name, ad_group.status, metrics.video_view_rate, metrics.view_through_conversions, segments.ad_network_type, metrics.all_conversions_value, metrics.cost_per_conversion, metrics.cross_device_conversions, metrics.ctr, metrics.conversions, metrics.interaction_rate, metrics.video_views, customer.id, user_location_view.country_criterion_id, campaign.status, ad_group.base_ad_group, metrics.all_conversions_from_interactions_rate, campaign.base_campaign, campaign.name, metrics.conversions_from_interactions_rate, metrics.conversions_value, metrics.cost_per_all_conversions, segments.date",
+            start_date: "2020-01-01",
+          },
         },
         {
-          type: 'shopping_performance_view',
-          name: 'shopping_performance_report',
+          type: "shopping_performance_view",
+          name: "shopping_performance_report",
           parameters: {
-            "fields": 'segments.product_bidding_category_level3, segments.product_channel, metrics.cost_per_conversion, metrics.cross_device_conversions, segments.product_custom_attribute4, metrics.value_per_conversion, segments.product_bidding_category_level1, segments.product_bidding_category_level4, segments.product_type_l4, campaign.name, metrics.ctr, segments.product_type_l2, campaign.status, segments.product_title, customer.descriptive_name, segments.product_country, customer.id, segments.product_item_id, metrics.all_conversions_value, metrics.conversions_value, segments.product_language, segments.product_type_l1, segments.product_aggregator_id, segments.product_merchant_id, metrics.value_per_all_conversions, ad_group.id, metrics.all_conversions, metrics.conversions, metrics.cost_micros, segments.product_custom_attribute0, metrics.impressions, ad_group.name, segments.product_custom_attribute2, segments.product_type_l3, segments.product_type_l5, campaign.id, segments.product_custom_attribute3, ad_group.status, metrics.average_cpc, segments.product_bidding_category_level2, segments.product_bidding_category_level5, metrics.clicks, metrics.all_conversions_from_interactions_rate, segments.product_brand, segments.product_channel_exclusivity, segments.product_custom_attribute1, segments.ad_network_type, metrics.conversions_from_interactions_rate, metrics.cost_per_all_conversions, segments.product_store_id, segments.click_type, segments.device, segments.product_condition, segments.date',
-            "start_date": '2020-01-01'
-          }
+            fields:
+              "segments.product_bidding_category_level3, segments.product_channel, metrics.cost_per_conversion, metrics.cross_device_conversions, segments.product_custom_attribute4, metrics.value_per_conversion, segments.product_bidding_category_level1, segments.product_bidding_category_level4, segments.product_type_l4, campaign.name, metrics.ctr, segments.product_type_l2, campaign.status, segments.product_title, customer.descriptive_name, segments.product_country, customer.id, segments.product_item_id, metrics.all_conversions_value, metrics.conversions_value, segments.product_language, segments.product_type_l1, segments.product_aggregator_id, segments.product_merchant_id, metrics.value_per_all_conversions, ad_group.id, metrics.all_conversions, metrics.conversions, metrics.cost_micros, segments.product_custom_attribute0, metrics.impressions, ad_group.name, segments.product_custom_attribute2, segments.product_type_l3, segments.product_type_l5, campaign.id, segments.product_custom_attribute3, ad_group.status, metrics.average_cpc, segments.product_bidding_category_level2, segments.product_bidding_category_level5, metrics.clicks, metrics.all_conversions_from_interactions_rate, segments.product_brand, segments.product_channel_exclusivity, segments.product_custom_attribute1, segments.ad_network_type, metrics.conversions_from_interactions_rate, metrics.cost_per_all_conversions, segments.product_store_id, segments.click_type, segments.device, segments.product_condition, segments.date",
+            start_date: "2020-01-01",
+          },
         },
         {
-          type: 'topic_view',
-          name: 'display_topics_performance',
+          type: "topic_view",
+          name: "display_topics_performance",
           parameters: {
-            "fields": 'segments.date,metrics.video_quartile_p25_rate,metrics.cost_micros,ad_group_criterion.topic.path,customer.id,campaign.status,metrics.conversions,metrics.cost_per_conversion,metrics.active_view_viewability,ad_group.id,ad_group_criterion.final_mobile_urls,segments.ad_network_type,metrics.average_cpv,ad_group_criterion.effective_cpm_bid_micros,metrics.gmail_secondary_clicks,metrics.conversions_from_interactions_rate,metrics.gmail_saves,metrics.interactions,metrics.video_quartile_p50_rate,metrics.active_view_measurable_impressions,metrics.all_conversions,ad_group_criterion.bid_modifier,metrics.gmail_forwards,metrics.video_quartile_p100_rate,segments.device,metrics.view_through_conversions,metrics.active_view_cpm,metrics.average_cpe,campaign.bidding_strategy_type,campaign.name,metrics.cross_device_conversions,metrics.interaction_rate,ad_group_criterion.negative,ad_group.status,metrics.all_conversions_from_interactions_rate,campaign.base_campaign,metrics.conversions_value,ad_group_criterion.effective_cpc_bid_micros,ad_group_criterion.topic.topic_constant,customer.descriptive_name,campaign.id,ad_group_criterion.criterion_id,ad_group_criterion.tracking_url_template,ad_group_criterion.url_custom_parameters,ad_group_criterion.effective_cpc_bid_source,ad_group_criterion.effective_cpm_bid_source,metrics.engagement_rate,metrics.value_per_conversion,metrics.active_view_ctr,metrics.average_cpm,campaign.bidding_strategy,metrics.value_per_all_conversions,metrics.video_view_rate,metrics.active_view_measurability,metrics.cost_per_all_conversions,metrics.video_views,metrics.active_view_impressions,metrics.clicks,metrics.engagements,ad_group_criterion.final_urls,metrics.impressions,ad_group_criterion.status,ad_group.name,metrics.average_cost,metrics.average_cpc,ad_group.base_ad_group,metrics.ctr,ad_group.targeting_setting.target_restrictions,metrics.video_quartile_p75_rate,customer.currency_code,customer.time_zone,metrics.active_view_measurable_cost_micros,metrics.all_conversions_value,metrics.interaction_event_types',
-            "start_date": '2020-01-01'
-          }
+            fields:
+              "segments.date,metrics.video_quartile_p25_rate,metrics.cost_micros,ad_group_criterion.topic.path,customer.id,campaign.status,metrics.conversions,metrics.cost_per_conversion,metrics.active_view_viewability,ad_group.id,ad_group_criterion.final_mobile_urls,segments.ad_network_type,metrics.average_cpv,ad_group_criterion.effective_cpm_bid_micros,metrics.gmail_secondary_clicks,metrics.conversions_from_interactions_rate,metrics.gmail_saves,metrics.interactions,metrics.video_quartile_p50_rate,metrics.active_view_measurable_impressions,metrics.all_conversions,ad_group_criterion.bid_modifier,metrics.gmail_forwards,metrics.video_quartile_p100_rate,segments.device,metrics.view_through_conversions,metrics.active_view_cpm,metrics.average_cpe,campaign.bidding_strategy_type,campaign.name,metrics.cross_device_conversions,metrics.interaction_rate,ad_group_criterion.negative,ad_group.status,metrics.all_conversions_from_interactions_rate,campaign.base_campaign,metrics.conversions_value,ad_group_criterion.effective_cpc_bid_micros,ad_group_criterion.topic.topic_constant,customer.descriptive_name,campaign.id,ad_group_criterion.criterion_id,ad_group_criterion.tracking_url_template,ad_group_criterion.url_custom_parameters,ad_group_criterion.effective_cpc_bid_source,ad_group_criterion.effective_cpm_bid_source,metrics.engagement_rate,metrics.value_per_conversion,metrics.active_view_ctr,metrics.average_cpm,campaign.bidding_strategy,metrics.value_per_all_conversions,metrics.video_view_rate,metrics.active_view_measurability,metrics.cost_per_all_conversions,metrics.video_views,metrics.active_view_impressions,metrics.clicks,metrics.engagements,ad_group_criterion.final_urls,metrics.impressions,ad_group_criterion.status,ad_group.name,metrics.average_cost,metrics.average_cpc,ad_group.base_ad_group,metrics.ctr,ad_group.targeting_setting.target_restrictions,metrics.video_quartile_p75_rate,customer.currency_code,customer.time_zone,metrics.active_view_measurable_cost_micros,metrics.all_conversions_value,metrics.interaction_event_types",
+            start_date: "2020-01-01",
+          },
         },
         {
-          type: 'display_keyword_view',
-          name: 'display_keywords_performance',
+          type: "display_keyword_view",
+          name: "display_keywords_performance",
           parameters: {
-            "fields": 'metrics.active_view_measurable_cost_micros, ad_group_criterion.final_urls, metrics.video_quartile_p50_rate, metrics.video_views, campaign.bidding_strategy, campaign.id, metrics.video_view_rate, metrics.average_cpe, metrics.engagement_rate, metrics.gmail_secondary_clicks, metrics.view_through_conversions, ad_group_criterion.effective_cpm_bid_micros, ad_group_criterion.effective_cpv_bid_micros, metrics.cross_device_conversions, ad_group_criterion.negative, metrics.value_per_conversion, metrics.video_quartile_p100_rate, metrics.active_view_viewability, segments.ad_network_type, metrics.cost_per_all_conversions, ad_group_criterion.effective_cpc_bid_micros, ad_group_criterion.effective_cpv_bid_source, segments.device, ad_group.targeting_setting.target_restrictions, metrics.active_view_measurability, metrics.average_cpc, ad_group_criterion.tracking_url_template, customer.currency_code, campaign.base_campaign, metrics.conversions, ad_group_criterion.effective_cpm_bid_source, ad_group_criterion.criterion_id, metrics.interaction_event_types, ad_group_criterion.url_custom_parameters, metrics.average_cost, ad_group_criterion.keyword.text, metrics.engagements, metrics.interactions, customer.descriptive_name, metrics.active_view_measurable_impressions, metrics.average_cpm, metrics.gmail_saves, ad_group_criterion.status, ad_group.status, metrics.conversions_from_interactions_rate, ad_group_criterion.effective_cpc_bid_source, customer.id, ad_group_criterion.final_mobile_urls, metrics.active_view_ctr, metrics.cost_per_conversion, metrics.video_quartile_p75_rate, ad_group.name, metrics.all_conversions_value, metrics.all_conversions, metrics.average_cpv, metrics.gmail_forwards, ad_group.id, campaign.name, campaign.status, metrics.value_per_all_conversions, customer.time_zone, metrics.active_view_cpm, metrics.all_conversions_from_interactions_rate, campaign.bidding_strategy_type, metrics.conversions_value, metrics.ctr, metrics.video_quartile_p25_rate, metrics.active_view_impressions, ad_group.base_ad_group, metrics.clicks, metrics.cost_micros, metrics.impressions,metrics.interaction_rate,segments.date',
-            "start_date": '2020-01-01'
-          }
+            fields:
+              "metrics.active_view_measurable_cost_micros, ad_group_criterion.final_urls, metrics.video_quartile_p50_rate, metrics.video_views, campaign.bidding_strategy, campaign.id, metrics.video_view_rate, metrics.average_cpe, metrics.engagement_rate, metrics.gmail_secondary_clicks, metrics.view_through_conversions, ad_group_criterion.effective_cpm_bid_micros, ad_group_criterion.effective_cpv_bid_micros, metrics.cross_device_conversions, ad_group_criterion.negative, metrics.value_per_conversion, metrics.video_quartile_p100_rate, metrics.active_view_viewability, segments.ad_network_type, metrics.cost_per_all_conversions, ad_group_criterion.effective_cpc_bid_micros, ad_group_criterion.effective_cpv_bid_source, segments.device, ad_group.targeting_setting.target_restrictions, metrics.active_view_measurability, metrics.average_cpc, ad_group_criterion.tracking_url_template, customer.currency_code, campaign.base_campaign, metrics.conversions, ad_group_criterion.effective_cpm_bid_source, ad_group_criterion.criterion_id, metrics.interaction_event_types, ad_group_criterion.url_custom_parameters, metrics.average_cost, ad_group_criterion.keyword.text, metrics.engagements, metrics.interactions, customer.descriptive_name, metrics.active_view_measurable_impressions, metrics.average_cpm, metrics.gmail_saves, ad_group_criterion.status, ad_group.status, metrics.conversions_from_interactions_rate, ad_group_criterion.effective_cpc_bid_source, customer.id, ad_group_criterion.final_mobile_urls, metrics.active_view_ctr, metrics.cost_per_conversion, metrics.video_quartile_p75_rate, ad_group.name, metrics.all_conversions_value, metrics.all_conversions, metrics.average_cpv, metrics.gmail_forwards, ad_group.id, campaign.name, campaign.status, metrics.value_per_all_conversions, customer.time_zone, metrics.active_view_cpm, metrics.all_conversions_from_interactions_rate, campaign.bidding_strategy_type, metrics.conversions_value, metrics.ctr, metrics.video_quartile_p25_rate, metrics.active_view_impressions, ad_group.base_ad_group, metrics.clicks, metrics.cost_micros, metrics.impressions,metrics.interaction_rate,segments.date",
+            start_date: "2020-01-01",
+          },
         },
         {
-          type: 'campaign',
-          name: 'campaigns',
+          type: "campaign",
+          name: "campaigns",
           parameters: {
-            "fields": 'campaign.target_cpa.cpc_bid_ceiling_micros,campaign.target_impression_share.cpc_bid_ceiling_micros,campaign.target_roas.cpc_bid_ceiling_micros,campaign.tracking_url_template,campaign.bidding_strategy,campaign.excluded_parent_asset_field_types,campaign.id,campaign.serving_status,campaign.optimization_score,campaign.real_time_bidding_setting.opt_in,campaign.app_campaign_setting.app_store,campaign.dynamic_search_ads_setting.language_code,campaign.end_date,campaign.final_url_suffix,campaign.local_campaign_setting.location_source_type,campaign.manual_cpv,campaign.target_cpa.target_cpa_micros,campaign.target_spend.target_spend_micros,campaign.experiment_type,campaign.manual_cpm,campaign.status,campaign.maximize_conversions.target_cpa,campaign.tracking_setting.tracking_url,campaign.video_brand_safety_suitability,campaign.target_impression_share.location,campaign.target_roas.cpc_bid_floor_micros,campaign.app_campaign_setting.bidding_strategy_goal_type,campaign.labels,campaign.manual_cpc.enhanced_cpc_enabled,campaign.network_settings.target_content_network,campaign.optimization_goal_setting.optimization_goal_types,campaign.percent_cpc.cpc_bid_ceiling_micros,campaign.frequency_caps,campaign.targeting_setting.target_restrictions,campaign.advertising_channel_type,campaign.geo_target_type_setting.positive_geo_target_type,campaign.hotel_setting.hotel_center_id,campaign.network_settings.target_google_search,campaign.percent_cpc.enhanced_cpc_enabled,campaign.accessible_bidding_strategy,campaign.commission.commission_rate_micros,campaign.geo_target_type_setting.negative_geo_target_type,campaign.ad_serving_optimization_status,campaign.app_campaign_setting.app_id,campaign.campaign_budget,campaign.target_impression_share.location_fraction_micros,campaign.dynamic_search_ads_setting.domain_name,campaign.payment_mode,campaign.vanity_pharma.vanity_pharma_display_url_mode,campaign.bidding_strategy_type,campaign.maximize_conversion_value.target_roas,campaign.target_cpa.cpc_bid_floor_micros,campaign.advertising_channel_sub_type,campaign.base_campaign,campaign.name,campaign.resource_name,campaign.selective_optimization.conversion_actions,campaign.shopping_setting.enable_local,campaign.network_settings.target_partner_search_network,campaign.target_cpm,campaign.target_roas.target_roas,campaign.target_spend.cpc_bid_ceiling_micros,campaign.url_custom_parameters,campaign.vanity_pharma.vanity_pharma_text,campaign.dynamic_search_ads_setting.feeds,campaign.dynamic_search_ads_setting.use_supplied_urls_only,campaign.network_settings.target_search_network,campaign.shopping_setting.campaign_priority,campaign.shopping_setting.sales_country,campaign.shopping_setting.merchant_id,campaign.start_date',
-            "start_date": '2020-01-01'
-          }
+            fields:
+              "campaign.target_cpa.cpc_bid_ceiling_micros,campaign.target_impression_share.cpc_bid_ceiling_micros,campaign.target_roas.cpc_bid_ceiling_micros,campaign.tracking_url_template,campaign.bidding_strategy,campaign.excluded_parent_asset_field_types,campaign.id,campaign.serving_status,campaign.optimization_score,campaign.real_time_bidding_setting.opt_in,campaign.app_campaign_setting.app_store,campaign.dynamic_search_ads_setting.language_code,campaign.end_date,campaign.final_url_suffix,campaign.local_campaign_setting.location_source_type,campaign.manual_cpv,campaign.target_cpa.target_cpa_micros,campaign.target_spend.target_spend_micros,campaign.experiment_type,campaign.manual_cpm,campaign.status,campaign.maximize_conversions.target_cpa,campaign.tracking_setting.tracking_url,campaign.video_brand_safety_suitability,campaign.target_impression_share.location,campaign.target_roas.cpc_bid_floor_micros,campaign.app_campaign_setting.bidding_strategy_goal_type,campaign.labels,campaign.manual_cpc.enhanced_cpc_enabled,campaign.network_settings.target_content_network,campaign.optimization_goal_setting.optimization_goal_types,campaign.percent_cpc.cpc_bid_ceiling_micros,campaign.frequency_caps,campaign.targeting_setting.target_restrictions,campaign.advertising_channel_type,campaign.geo_target_type_setting.positive_geo_target_type,campaign.hotel_setting.hotel_center_id,campaign.network_settings.target_google_search,campaign.percent_cpc.enhanced_cpc_enabled,campaign.accessible_bidding_strategy,campaign.commission.commission_rate_micros,campaign.geo_target_type_setting.negative_geo_target_type,campaign.ad_serving_optimization_status,campaign.app_campaign_setting.app_id,campaign.campaign_budget,campaign.target_impression_share.location_fraction_micros,campaign.dynamic_search_ads_setting.domain_name,campaign.payment_mode,campaign.vanity_pharma.vanity_pharma_display_url_mode,campaign.bidding_strategy_type,campaign.maximize_conversion_value.target_roas,campaign.target_cpa.cpc_bid_floor_micros,campaign.advertising_channel_sub_type,campaign.base_campaign,campaign.name,campaign.resource_name,campaign.selective_optimization.conversion_actions,campaign.shopping_setting.enable_local,campaign.network_settings.target_partner_search_network,campaign.target_cpm,campaign.target_roas.target_roas,campaign.target_spend.cpc_bid_ceiling_micros,campaign.url_custom_parameters,campaign.vanity_pharma.vanity_pharma_text,campaign.dynamic_search_ads_setting.feeds,campaign.dynamic_search_ads_setting.use_supplied_urls_only,campaign.network_settings.target_search_network,campaign.shopping_setting.campaign_priority,campaign.shopping_setting.sales_country,campaign.shopping_setting.merchant_id,campaign.start_date",
+            start_date: "2020-01-01",
+          },
         },
         {
-          type: 'ad_group',
-          name: 'ad_groups',
+          type: "ad_group",
+          name: "ad_groups",
           parameters: {
-            "fields": 'ad_group.id,ad_group.percent_cpc_bid_micros,ad_group.effective_target_roas_source,ad_group.final_url_suffix,ad_group.labels,ad_group.ad_rotation_mode,ad_group.base_ad_group,ad_group.effective_target_cpa_source,ad_group.type,ad_group.effective_target_cpa_micros,ad_group.effective_target_roas,ad_group.excluded_parent_asset_field_types,ad_group.resource_name,ad_group.explorer_auto_optimizer_setting.opt_in,ad_group.target_cpm_micros,ad_group.target_roas,ad_group.cpc_bid_micros,ad_group.status,ad_group.name,ad_group.campaign,ad_group.targeting_setting.target_restrictions,ad_group.tracking_url_template,ad_group.url_custom_parameters,ad_group.cpm_bid_micros,ad_group.cpv_bid_micros,ad_group.display_custom_bid_dimension,ad_group.target_cpa_micros',
-            "start_date": '2020-01-01'
-          }
+            fields:
+              "ad_group.id,ad_group.percent_cpc_bid_micros,ad_group.effective_target_roas_source,ad_group.final_url_suffix,ad_group.labels,ad_group.ad_rotation_mode,ad_group.base_ad_group,ad_group.effective_target_cpa_source,ad_group.type,ad_group.effective_target_cpa_micros,ad_group.effective_target_roas,ad_group.excluded_parent_asset_field_types,ad_group.resource_name,ad_group.explorer_auto_optimizer_setting.opt_in,ad_group.target_cpm_micros,ad_group.target_roas,ad_group.cpc_bid_micros,ad_group.status,ad_group.name,ad_group.campaign,ad_group.targeting_setting.target_restrictions,ad_group.tracking_url_template,ad_group.url_custom_parameters,ad_group.cpm_bid_micros,ad_group.cpv_bid_micros,ad_group.display_custom_bid_dimension,ad_group.target_cpa_micros",
+            start_date: "2020-01-01",
+          },
         },
         {
-          type: 'ad_group_ad',
-          name: 'ad_group_ad_performance',
+          type: "ad_group_ad",
+          name: "ad_group_ad_performance",
           parameters: {
-            "fields": 'ad_group_ad.policy_summary.approval_status,ad_group_ad.ad.final_mobile_urls,ad_group_ad.ad.gmail_ad.teaser.logo_image,ad_group_ad.ad.image_ad.mime_type,metrics.interaction_rate,ad_group_ad.ad.responsive_display_ad.accent_color,ad_group_ad.ad.gmail_ad.header_image,ad_group_ad.ad.responsive_display_ad.headlines,metrics.value_per_conversion,ad_group_ad.ad.legacy_responsive_display_ad.business_name,metrics.conversions_from_interactions_rate,metrics.cost_per_conversion,ad_group_ad.ad.legacy_responsive_display_ad.format_setting,ad_group_ad.ad.gmail_ad.teaser.headline,ad_group_ad.ad.expanded_text_ad.headline_part1,ad_group_ad.ad.responsive_display_ad.long_headline,ad_group_ad.ad.app_ad.images,customer.time_zone,metrics.active_view_measurable_cost_micros,metrics.average_cpv,ad_group_ad.ad.gmail_ad.marketing_image,ad_group_ad.ad.id,ad_group_ad.ad.responsive_display_ad.allow_flexible_color,ad_group_ad.ad.responsive_search_ad.path2,metrics.all_conversions_value,metrics.average_page_views,ad_group_ad.ad.expanded_text_ad.path1,customer.descriptive_name,ad_group_ad.ad.tracking_url_template,metrics.gmail_saves,ad_group_ad.ad.app_ad.mandatory_ad_text,metrics.conversions,segments.date,ad_group_ad.ad.legacy_responsive_display_ad.marketing_image,ad_group_ad.ad.gmail_ad.teaser.description,ad_group_ad.ad.responsive_display_ad.format_setting,ad_group_ad.ad.responsive_display_ad.youtube_videos,ad_group_ad.ad.app_ad.headlines,ad_group_ad.ad.legacy_responsive_display_ad.accent_color,metrics.value_per_current_model_attributed_conversion,ad_group.status,ad_group_ad.ad.legacy_responsive_display_ad.allow_flexible_color,metrics.average_cpe,campaign.id,ad_group_ad.ad.final_urls,metrics.engagement_rate,ad_group_ad.ad.responsive_display_ad.call_to_action_text,ad_group_ad.ad.gmail_ad.marketing_image_display_call_to_action.text_color,ad_group_ad.ad.responsive_display_ad.business_name,metrics.active_view_measurability,metrics.all_conversions_from_interactions_rate,metrics.conversions_value,ad_group_ad.ad.image_ad.pixel_height,ad_group_ad.ad.responsive_display_ad.main_color,metrics.active_view_cpm,ad_group_ad.ad.legacy_responsive_display_ad.call_to_action_text,ad_group_ad.ad.legacy_responsive_display_ad.square_marketing_image,ad_group_ad.ad.responsive_display_ad.marketing_images,ad_group_ad.ad.responsive_display_ad.square_marketing_images,metrics.video_quartile_p75_rate,metrics.video_view_rate,metrics.cross_device_conversions,ad_group_ad.ad.device_preference,ad_group_ad.ad.responsive_search_ad.path1,ad_group_ad.ad.expanded_text_ad.description,metrics.engagements,ad_group_ad.ad.expanded_text_ad.path2,metrics.percent_new_visitors,metrics.video_quartile_p50_rate,metrics.active_view_ctr,metrics.active_view_viewability,metrics.cost_per_current_model_attributed_conversion,metrics.ctr,ad_group_ad.ad.expanded_dynamic_search_ad.description,customer.id,metrics.value_per_all_conversions,metrics.gmail_forwards,metrics.interaction_event_types,ad_group_ad.status,metrics.top_impression_percentage,ad_group_ad.ad.type,ad_group_ad.ad.url_custom_parameters,metrics.active_view_impressions,segments.ad_network_type,metrics.gmail_secondary_clicks,ad_group_ad.ad.app_ad.descriptions,ad_group.name,metrics.clicks,ad_group_ad.ad.text_ad.description1,ad_group_ad.ad.display_url,metrics.bounce_rate,campaign.status,metrics.interactions,ad_group_ad.ad.responsive_display_ad.promo_text,metrics.video_views,metrics.view_through_conversions,ad_group_ad.ad.added_by_google_ads,ad_group.base_ad_group,metrics.current_model_attributed_conversions,ad_group_ad.ad.responsive_display_ad.descriptions,ad_group_ad.ad.text_ad.headline,ad_group_ad.ad.legacy_responsive_display_ad.long_headline,ad_group_ad.ad.legacy_responsive_display_ad.main_color,ad_group_ad.ad.legacy_responsive_display_ad.price_prefix,ad_group_ad.ad.app_ad.html5_media_bundles,metrics.active_view_measurable_impressions,ad_group_ad.ad.responsive_display_ad.logo_images,ad_group_ad.ad_strength,metrics.average_time_on_site,campaign.name,ad_group_ad.ad.text_ad.description2,ad_group_ad.ad.legacy_responsive_display_ad.square_logo_image,ad_group_ad.ad.image_ad.image_url,ad_group_ad.ad.image_ad.name,customer.currency_code,ad_group_ad.ad_group,metrics.average_cpc,ad_group_ad.ad.image_ad.pixel_width,metrics.video_quartile_p100_rate,metrics.current_model_attributed_conversions_value,ad_group_ad.ad.expanded_text_ad.description2,ad_group_ad.ad.expanded_text_ad.headline_part2,ad_group_ad.ad.responsive_display_ad.price_prefix,metrics.average_cpm,campaign.base_campaign,ad_group_ad.ad.responsive_search_ad.headlines,ad_group_ad.ad.legacy_responsive_display_ad.short_headline,ad_group_ad.ad.app_ad.youtube_videos,metrics.all_conversions,metrics.average_cost,ad_group_ad.ad.gmail_ad.teaser.business_name,metrics.impressions,ad_group_ad.ad.gmail_ad.marketing_image_display_call_to_action.text,ad_group_ad.ad.legacy_responsive_display_ad.promo_text,metrics.video_quartile_p25_rate,metrics.cost_micros,metrics.cost_per_all_conversions,ad_group_ad.ad.expanded_text_ad.headline_part3,ad_group_ad.ad.gmail_ad.marketing_image_headline,ad_group_ad.ad.gmail_ad.marketing_image_description,ad_group_ad.ad.responsive_display_ad.square_logo_images,ad_group_ad.ad.system_managed_resource_source,ad_group_ad.ad.legacy_responsive_display_ad.logo_image,ad_group_ad.ad.responsive_search_ad.descriptions',
-            "start_date": '2020-01-01'
-          }
+            fields:
+              "ad_group_ad.policy_summary.approval_status,ad_group_ad.ad.final_mobile_urls,ad_group_ad.ad.gmail_ad.teaser.logo_image,ad_group_ad.ad.image_ad.mime_type,metrics.interaction_rate,ad_group_ad.ad.responsive_display_ad.accent_color,ad_group_ad.ad.gmail_ad.header_image,ad_group_ad.ad.responsive_display_ad.headlines,metrics.value_per_conversion,ad_group_ad.ad.legacy_responsive_display_ad.business_name,metrics.conversions_from_interactions_rate,metrics.cost_per_conversion,ad_group_ad.ad.legacy_responsive_display_ad.format_setting,ad_group_ad.ad.gmail_ad.teaser.headline,ad_group_ad.ad.expanded_text_ad.headline_part1,ad_group_ad.ad.responsive_display_ad.long_headline,ad_group_ad.ad.app_ad.images,customer.time_zone,metrics.active_view_measurable_cost_micros,metrics.average_cpv,ad_group_ad.ad.gmail_ad.marketing_image,ad_group_ad.ad.id,ad_group_ad.ad.responsive_display_ad.allow_flexible_color,ad_group_ad.ad.responsive_search_ad.path2,metrics.all_conversions_value,metrics.average_page_views,ad_group_ad.ad.expanded_text_ad.path1,customer.descriptive_name,ad_group_ad.ad.tracking_url_template,metrics.gmail_saves,ad_group_ad.ad.app_ad.mandatory_ad_text,metrics.conversions,segments.date,ad_group_ad.ad.legacy_responsive_display_ad.marketing_image,ad_group_ad.ad.gmail_ad.teaser.description,ad_group_ad.ad.responsive_display_ad.format_setting,ad_group_ad.ad.responsive_display_ad.youtube_videos,ad_group_ad.ad.app_ad.headlines,ad_group_ad.ad.legacy_responsive_display_ad.accent_color,metrics.value_per_current_model_attributed_conversion,ad_group.status,ad_group_ad.ad.legacy_responsive_display_ad.allow_flexible_color,metrics.average_cpe,campaign.id,ad_group_ad.ad.final_urls,metrics.engagement_rate,ad_group_ad.ad.responsive_display_ad.call_to_action_text,ad_group_ad.ad.gmail_ad.marketing_image_display_call_to_action.text_color,ad_group_ad.ad.responsive_display_ad.business_name,metrics.active_view_measurability,metrics.all_conversions_from_interactions_rate,metrics.conversions_value,ad_group_ad.ad.image_ad.pixel_height,ad_group_ad.ad.responsive_display_ad.main_color,metrics.active_view_cpm,ad_group_ad.ad.legacy_responsive_display_ad.call_to_action_text,ad_group_ad.ad.legacy_responsive_display_ad.square_marketing_image,ad_group_ad.ad.responsive_display_ad.marketing_images,ad_group_ad.ad.responsive_display_ad.square_marketing_images,metrics.video_quartile_p75_rate,metrics.video_view_rate,metrics.cross_device_conversions,ad_group_ad.ad.device_preference,ad_group_ad.ad.responsive_search_ad.path1,ad_group_ad.ad.expanded_text_ad.description,metrics.engagements,ad_group_ad.ad.expanded_text_ad.path2,metrics.percent_new_visitors,metrics.video_quartile_p50_rate,metrics.active_view_ctr,metrics.active_view_viewability,metrics.cost_per_current_model_attributed_conversion,metrics.ctr,ad_group_ad.ad.expanded_dynamic_search_ad.description,customer.id,metrics.value_per_all_conversions,metrics.gmail_forwards,metrics.interaction_event_types,ad_group_ad.status,metrics.top_impression_percentage,ad_group_ad.ad.type,ad_group_ad.ad.url_custom_parameters,metrics.active_view_impressions,segments.ad_network_type,metrics.gmail_secondary_clicks,ad_group_ad.ad.app_ad.descriptions,ad_group.name,metrics.clicks,ad_group_ad.ad.text_ad.description1,ad_group_ad.ad.display_url,metrics.bounce_rate,campaign.status,metrics.interactions,ad_group_ad.ad.responsive_display_ad.promo_text,metrics.video_views,metrics.view_through_conversions,ad_group_ad.ad.added_by_google_ads,ad_group.base_ad_group,metrics.current_model_attributed_conversions,ad_group_ad.ad.responsive_display_ad.descriptions,ad_group_ad.ad.text_ad.headline,ad_group_ad.ad.legacy_responsive_display_ad.long_headline,ad_group_ad.ad.legacy_responsive_display_ad.main_color,ad_group_ad.ad.legacy_responsive_display_ad.price_prefix,ad_group_ad.ad.app_ad.html5_media_bundles,metrics.active_view_measurable_impressions,ad_group_ad.ad.responsive_display_ad.logo_images,ad_group_ad.ad_strength,metrics.average_time_on_site,campaign.name,ad_group_ad.ad.text_ad.description2,ad_group_ad.ad.legacy_responsive_display_ad.square_logo_image,ad_group_ad.ad.image_ad.image_url,ad_group_ad.ad.image_ad.name,customer.currency_code,ad_group_ad.ad_group,metrics.average_cpc,ad_group_ad.ad.image_ad.pixel_width,metrics.video_quartile_p100_rate,metrics.current_model_attributed_conversions_value,ad_group_ad.ad.expanded_text_ad.description2,ad_group_ad.ad.expanded_text_ad.headline_part2,ad_group_ad.ad.responsive_display_ad.price_prefix,metrics.average_cpm,campaign.base_campaign,ad_group_ad.ad.responsive_search_ad.headlines,ad_group_ad.ad.legacy_responsive_display_ad.short_headline,ad_group_ad.ad.app_ad.youtube_videos,metrics.all_conversions,metrics.average_cost,ad_group_ad.ad.gmail_ad.teaser.business_name,metrics.impressions,ad_group_ad.ad.gmail_ad.marketing_image_display_call_to_action.text,ad_group_ad.ad.legacy_responsive_display_ad.promo_text,metrics.video_quartile_p25_rate,metrics.cost_micros,metrics.cost_per_all_conversions,ad_group_ad.ad.expanded_text_ad.headline_part3,ad_group_ad.ad.gmail_ad.marketing_image_headline,ad_group_ad.ad.gmail_ad.marketing_image_description,ad_group_ad.ad.responsive_display_ad.square_logo_images,ad_group_ad.ad.system_managed_resource_source,ad_group_ad.ad.legacy_responsive_display_ad.logo_image,ad_group_ad.ad.responsive_search_ad.descriptions",
+            start_date: "2020-01-01",
+          },
         },
         {
-          type: 'ad_group_ad',
-          name: 'ad_group_ads',
+          type: "ad_group_ad",
+          name: "ad_group_ads",
           parameters: {
-            "fields": 'ad_group_ad.ad.responsive_display_ad.headlines, ad_group_ad.ad.responsive_display_ad.square_marketing_images, ad_group_ad.labels, ad_group_ad.ad.call_ad.conversion_reporting_state, ad_group_ad.ad.call_ad.phone_number, ad_group_ad.ad.display_url, ad_group_ad.ad.hotel_ad, ad_group_ad.ad.name, ad_group_ad.ad.legacy_responsive_display_ad.logo_image, ad_group_ad.ad.legacy_responsive_display_ad.price_prefix, ad_group_ad.ad.legacy_responsive_display_ad.square_logo_image, ad_group_ad.ad.call_ad.call_tracked, ad_group_ad.ad.call_ad.conversion_action, ad_group_ad.ad.call_ad.description2, ad_group_ad.ad.call_ad.disable_call_conversion, ad_group_ad.ad.image_ad.preview_pixel_height, ad_group_ad.ad.local_ad.videos, ad_group_ad.ad.shopping_smart_ad, ad_group_ad.ad.video_ad.out_stream.headline, ad_group_ad.ad.display_upload_ad.media_bundle, ad_group_ad.ad.responsive_display_ad.accent_color, ad_group_ad.ad.responsive_display_ad.control_spec.enable_asset_enhancements, ad_group_ad.ad.responsive_display_ad.format_setting, ad_group_ad.ad.text_ad.description1, ad_group_ad.ad.call_ad.business_name, ad_group_ad.ad.expanded_text_ad.headline_part3, ad_group_ad.ad.image_ad.mime_type, ad_group_ad.ad_strength, ad_group_ad.ad.app_ad.youtube_videos, ad_group_ad.ad.gmail_ad.header_image, ad_group_ad.ad.gmail_ad.marketing_image_headline, ad_group_ad.ad.gmail_ad.teaser.description, ad_group_ad.ad.image_ad.name, ad_group_ad.ad.call_ad.phone_number_verification_url, ad_group_ad.ad.device_preference, ad_group_ad.ad.legacy_responsive_display_ad.short_headline, ad_group_ad.ad.responsive_display_ad.call_to_action_text, ad_group_ad.ad.shopping_product_ad, ad_group_ad.ad.video_responsive_ad.call_to_actions, ad_group_ad.status, ad_group_ad.ad.gmail_ad.teaser.headline, ad_group_ad.ad.legacy_responsive_display_ad.description, ad_group_ad.ad.resource_name, ad_group_ad.ad.video_ad.in_stream.companion_banner, ad_group_ad.ad.video_ad.non_skippable.companion_banner, ad_group_ad.ad.responsive_display_ad.square_logo_images, ad_group_ad.ad.url_custom_parameters, ad_group_ad.ad.text_ad.description2, ad_group_ad.ad.video_ad.in_stream.action_button_label, ad_group_ad.ad.app_engagement_ad.descriptions, ad_group_ad.ad.expanded_text_ad.headline_part1, ad_group_ad.ad.gmail_ad.marketing_image_display_call_to_action.text_color, ad_group_ad.ad.id, ad_group_ad.ad.legacy_responsive_display_ad.promo_text, ad_group_ad.ad.app_ad.headlines, ad_group_ad.ad.app_engagement_ad.images, ad_group_ad.ad.local_ad.marketing_images, ad_group_ad.ad.responsive_display_ad.marketing_images, ad_group_ad.ad.call_ad.country_code, ad_group_ad.ad.system_managed_resource_source, ad_group_ad.ad.video_ad.discovery.description2, ad_group_ad.ad.video_ad.discovery.headline, ad_group_ad.ad.video_responsive_ad.headlines, ad_group_ad.ad.added_by_google_ads, ad_group_ad.ad.call_ad.description1, ad_group_ad.ad.call_ad.path2, ad_group_ad.ad.video_ad.out_stream.description, ad_group_ad.ad.responsive_display_ad.logo_images, ad_group_ad.ad.responsive_display_ad.main_color, ad_group_ad.ad.type, ad_group_ad.ad_group, ad_group_ad.ad.expanded_text_ad.headline_part2, ad_group_ad.ad.final_urls, ad_group_ad.ad.gmail_ad.product_videos, ad_group_ad.ad.legacy_responsive_display_ad.allow_flexible_color, ad_group_ad.ad.local_ad.headlines, ad_group_ad.ad.video_ad.media_file, ad_group_ad.ad.app_engagement_ad.headlines, ad_group_ad.ad.app_engagement_ad.videos, ad_group_ad.ad.expanded_dynamic_search_ad.description2, ad_group_ad.ad.responsive_search_ad.path2, ad_group_ad.ad.text_ad.headline, ad_group_ad.ad.local_ad.call_to_actions, ad_group_ad.ad.shopping_comparison_listing_ad.headline, ad_group_ad.ad.tracking_url_template, ad_group_ad.ad.video_responsive_ad.videos, ad_group_ad.ad.app_ad.images, ad_group_ad.ad.expanded_text_ad.description, ad_group_ad.ad.image_ad.image_url, ad_group_ad.ad.local_ad.path2, ad_group_ad.ad.responsive_search_ad.path1, ad_group_ad.ad.app_ad.mandatory_ad_text, ad_group_ad.ad.image_ad.preview_pixel_width, ad_group_ad.ad.responsive_display_ad.business_name, ad_group_ad.ad.responsive_display_ad.youtube_videos, ad_group_ad.resource_name, ad_group_ad.ad.call_ad.headline2, ad_group_ad.ad.legacy_responsive_display_ad.accent_color, ad_group_ad.ad.image_ad.pixel_height, ad_group_ad.ad.image_ad.preview_image_url, ad_group_ad.ad.local_ad.logo_images, ad_group_ad.ad.video_ad.bumper.companion_banner, ad_group_ad.ad.display_upload_ad.display_upload_product_type, ad_group_ad.ad.expanded_text_ad.path2, ad_group_ad.ad.final_url_suffix, ad_group_ad.ad.gmail_ad.marketing_image, ad_group_ad.ad.legacy_responsive_display_ad.business_name, ad_group_ad.ad.call_ad.path1, ad_group_ad.ad.legacy_responsive_display_ad.long_headline, ad_group_ad.ad.responsive_display_ad.promo_text, ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.policy_summary.review_status, ad_group_ad.ad.expanded_text_ad.description2, ad_group_ad.ad.video_ad.discovery.description1, ad_group_ad.ad.final_mobile_urls, ad_group_ad.ad.legacy_app_install_ad, ad_group_ad.ad.local_ad.path1, ad_group_ad.ad.gmail_ad.teaser.logo_image, ad_group_ad.ad.responsive_display_ad.price_prefix, ad_group_ad.policy_summary.approval_status, ad_group_ad.ad.expanded_dynamic_search_ad.description, ad_group_ad.ad.gmail_ad.marketing_image_description, ad_group_ad.ad.legacy_responsive_display_ad.format_setting, ad_group_ad.ad.video_ad.in_stream.action_headline, ad_group_ad.ad.smart_campaign_ad.descriptions, ad_group_ad.ad.video_responsive_ad.long_headlines, ad_group_ad.ad.gmail_ad.marketing_image_display_call_to_action.url_collection_id, ad_group_ad.ad.legacy_responsive_display_ad.call_to_action_text, ad_group_ad.ad.local_ad.descriptions, ad_group_ad.ad.responsive_display_ad.allow_flexible_color, ad_group_ad.ad.responsive_display_ad.control_spec.enable_autogen_video, ad_group_ad.ad.app_ad.descriptions, ad_group_ad.ad.app_ad.html5_media_bundles, ad_group_ad.ad.gmail_ad.product_images, ad_group_ad.ad.responsive_display_ad.descriptions, ad_group_ad.ad.legacy_responsive_display_ad.square_marketing_image, ad_group_ad.ad.responsive_display_ad.long_headline, ad_group_ad.ad.responsive_search_ad.descriptions, ad_group_ad.ad.smart_campaign_ad.headlines, ad_group_ad.ad.video_responsive_ad.descriptions, ad_group_ad.ad.expanded_text_ad.path1, ad_group_ad.ad.video_responsive_ad.companion_banners, ad_group_ad.policy_summary.policy_topic_entries, ad_group_ad.ad.gmail_ad.marketing_image_display_call_to_action.text, ad_group_ad.ad.gmail_ad.teaser.business_name, ad_group_ad.ad.image_ad.pixel_width, ad_group_ad.ad.legacy_responsive_display_ad.main_color, ad_group_ad.ad.legacy_responsive_display_ad.marketing_image, ad_group_ad.ad.call_ad.headline1, ad_group_ad.ad.final_app_urls, ad_group_ad.ad.url_collections',
-            "start_date": '2020-01-01'
-          }
+            fields:
+              "ad_group_ad.ad.responsive_display_ad.headlines, ad_group_ad.ad.responsive_display_ad.square_marketing_images, ad_group_ad.labels, ad_group_ad.ad.call_ad.conversion_reporting_state, ad_group_ad.ad.call_ad.phone_number, ad_group_ad.ad.display_url, ad_group_ad.ad.hotel_ad, ad_group_ad.ad.name, ad_group_ad.ad.legacy_responsive_display_ad.logo_image, ad_group_ad.ad.legacy_responsive_display_ad.price_prefix, ad_group_ad.ad.legacy_responsive_display_ad.square_logo_image, ad_group_ad.ad.call_ad.call_tracked, ad_group_ad.ad.call_ad.conversion_action, ad_group_ad.ad.call_ad.description2, ad_group_ad.ad.call_ad.disable_call_conversion, ad_group_ad.ad.image_ad.preview_pixel_height, ad_group_ad.ad.local_ad.videos, ad_group_ad.ad.shopping_smart_ad, ad_group_ad.ad.video_ad.out_stream.headline, ad_group_ad.ad.display_upload_ad.media_bundle, ad_group_ad.ad.responsive_display_ad.accent_color, ad_group_ad.ad.responsive_display_ad.control_spec.enable_asset_enhancements, ad_group_ad.ad.responsive_display_ad.format_setting, ad_group_ad.ad.text_ad.description1, ad_group_ad.ad.call_ad.business_name, ad_group_ad.ad.expanded_text_ad.headline_part3, ad_group_ad.ad.image_ad.mime_type, ad_group_ad.ad_strength, ad_group_ad.ad.app_ad.youtube_videos, ad_group_ad.ad.gmail_ad.header_image, ad_group_ad.ad.gmail_ad.marketing_image_headline, ad_group_ad.ad.gmail_ad.teaser.description, ad_group_ad.ad.image_ad.name, ad_group_ad.ad.call_ad.phone_number_verification_url, ad_group_ad.ad.device_preference, ad_group_ad.ad.legacy_responsive_display_ad.short_headline, ad_group_ad.ad.responsive_display_ad.call_to_action_text, ad_group_ad.ad.shopping_product_ad, ad_group_ad.ad.video_responsive_ad.call_to_actions, ad_group_ad.status, ad_group_ad.ad.gmail_ad.teaser.headline, ad_group_ad.ad.legacy_responsive_display_ad.description, ad_group_ad.ad.resource_name, ad_group_ad.ad.video_ad.in_stream.companion_banner, ad_group_ad.ad.video_ad.non_skippable.companion_banner, ad_group_ad.ad.responsive_display_ad.square_logo_images, ad_group_ad.ad.url_custom_parameters, ad_group_ad.ad.text_ad.description2, ad_group_ad.ad.video_ad.in_stream.action_button_label, ad_group_ad.ad.app_engagement_ad.descriptions, ad_group_ad.ad.expanded_text_ad.headline_part1, ad_group_ad.ad.gmail_ad.marketing_image_display_call_to_action.text_color, ad_group_ad.ad.id, ad_group_ad.ad.legacy_responsive_display_ad.promo_text, ad_group_ad.ad.app_ad.headlines, ad_group_ad.ad.app_engagement_ad.images, ad_group_ad.ad.local_ad.marketing_images, ad_group_ad.ad.responsive_display_ad.marketing_images, ad_group_ad.ad.call_ad.country_code, ad_group_ad.ad.system_managed_resource_source, ad_group_ad.ad.video_ad.discovery.description2, ad_group_ad.ad.video_ad.discovery.headline, ad_group_ad.ad.video_responsive_ad.headlines, ad_group_ad.ad.added_by_google_ads, ad_group_ad.ad.call_ad.description1, ad_group_ad.ad.call_ad.path2, ad_group_ad.ad.video_ad.out_stream.description, ad_group_ad.ad.responsive_display_ad.logo_images, ad_group_ad.ad.responsive_display_ad.main_color, ad_group_ad.ad.type, ad_group_ad.ad_group, ad_group_ad.ad.expanded_text_ad.headline_part2, ad_group_ad.ad.final_urls, ad_group_ad.ad.gmail_ad.product_videos, ad_group_ad.ad.legacy_responsive_display_ad.allow_flexible_color, ad_group_ad.ad.local_ad.headlines, ad_group_ad.ad.video_ad.media_file, ad_group_ad.ad.app_engagement_ad.headlines, ad_group_ad.ad.app_engagement_ad.videos, ad_group_ad.ad.expanded_dynamic_search_ad.description2, ad_group_ad.ad.responsive_search_ad.path2, ad_group_ad.ad.text_ad.headline, ad_group_ad.ad.local_ad.call_to_actions, ad_group_ad.ad.shopping_comparison_listing_ad.headline, ad_group_ad.ad.tracking_url_template, ad_group_ad.ad.video_responsive_ad.videos, ad_group_ad.ad.app_ad.images, ad_group_ad.ad.expanded_text_ad.description, ad_group_ad.ad.image_ad.image_url, ad_group_ad.ad.local_ad.path2, ad_group_ad.ad.responsive_search_ad.path1, ad_group_ad.ad.app_ad.mandatory_ad_text, ad_group_ad.ad.image_ad.preview_pixel_width, ad_group_ad.ad.responsive_display_ad.business_name, ad_group_ad.ad.responsive_display_ad.youtube_videos, ad_group_ad.resource_name, ad_group_ad.ad.call_ad.headline2, ad_group_ad.ad.legacy_responsive_display_ad.accent_color, ad_group_ad.ad.image_ad.pixel_height, ad_group_ad.ad.image_ad.preview_image_url, ad_group_ad.ad.local_ad.logo_images, ad_group_ad.ad.video_ad.bumper.companion_banner, ad_group_ad.ad.display_upload_ad.display_upload_product_type, ad_group_ad.ad.expanded_text_ad.path2, ad_group_ad.ad.final_url_suffix, ad_group_ad.ad.gmail_ad.marketing_image, ad_group_ad.ad.legacy_responsive_display_ad.business_name, ad_group_ad.ad.call_ad.path1, ad_group_ad.ad.legacy_responsive_display_ad.long_headline, ad_group_ad.ad.responsive_display_ad.promo_text, ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.policy_summary.review_status, ad_group_ad.ad.expanded_text_ad.description2, ad_group_ad.ad.video_ad.discovery.description1, ad_group_ad.ad.final_mobile_urls, ad_group_ad.ad.legacy_app_install_ad, ad_group_ad.ad.local_ad.path1, ad_group_ad.ad.gmail_ad.teaser.logo_image, ad_group_ad.ad.responsive_display_ad.price_prefix, ad_group_ad.policy_summary.approval_status, ad_group_ad.ad.expanded_dynamic_search_ad.description, ad_group_ad.ad.gmail_ad.marketing_image_description, ad_group_ad.ad.legacy_responsive_display_ad.format_setting, ad_group_ad.ad.video_ad.in_stream.action_headline, ad_group_ad.ad.smart_campaign_ad.descriptions, ad_group_ad.ad.video_responsive_ad.long_headlines, ad_group_ad.ad.gmail_ad.marketing_image_display_call_to_action.url_collection_id, ad_group_ad.ad.legacy_responsive_display_ad.call_to_action_text, ad_group_ad.ad.local_ad.descriptions, ad_group_ad.ad.responsive_display_ad.allow_flexible_color, ad_group_ad.ad.responsive_display_ad.control_spec.enable_autogen_video, ad_group_ad.ad.app_ad.descriptions, ad_group_ad.ad.app_ad.html5_media_bundles, ad_group_ad.ad.gmail_ad.product_images, ad_group_ad.ad.responsive_display_ad.descriptions, ad_group_ad.ad.legacy_responsive_display_ad.square_marketing_image, ad_group_ad.ad.responsive_display_ad.long_headline, ad_group_ad.ad.responsive_search_ad.descriptions, ad_group_ad.ad.smart_campaign_ad.headlines, ad_group_ad.ad.video_responsive_ad.descriptions, ad_group_ad.ad.expanded_text_ad.path1, ad_group_ad.ad.video_responsive_ad.companion_banners, ad_group_ad.policy_summary.policy_topic_entries, ad_group_ad.ad.gmail_ad.marketing_image_display_call_to_action.text, ad_group_ad.ad.gmail_ad.teaser.business_name, ad_group_ad.ad.image_ad.pixel_width, ad_group_ad.ad.legacy_responsive_display_ad.main_color, ad_group_ad.ad.legacy_responsive_display_ad.marketing_image, ad_group_ad.ad.call_ad.headline1, ad_group_ad.ad.final_app_urls, ad_group_ad.ad.url_collections",
+            start_date: "2020-01-01",
+          },
         },
         {
-          type: 'customer',
-          name: 'customers_performance',
+          type: "customer",
+          name: "customers_performance",
           parameters: {
-            "fields": 'customer.currency_code, customer.descriptive_name, customer.time_zone, metrics.active_view_ctr, metrics.active_view_cpm, metrics.active_view_impressions, metrics.active_view_measurability, metrics.active_view_measurable_cost_micros, metrics.active_view_measurable_impressions, metrics.active_view_viewability, metrics.all_conversions_from_interactions_rate, metrics.all_conversions_value, metrics.all_conversions, metrics.average_cpv, metrics.average_cpm, metrics.average_cpe, metrics.average_cpc, metrics.average_cost, metrics.clicks, customer.manager, segments.ad_network_type, segments.date, metrics.content_budget_lost_impression_share, metrics.content_impression_share, metrics.content_rank_lost_impression_share, metrics.conversions, metrics.conversions_value, metrics.conversions_from_interactions_rate, metrics.cost_micros, metrics.cost_per_all_conversions, metrics.cost_per_conversion, metrics.cross_device_conversions, metrics.ctr, metrics.engagements, metrics.engagement_rate, customer.id, metrics.impressions, metrics.interaction_event_types, metrics.interaction_rate, metrics.interactions, customer.auto_tagging_enabled, customer.test_account, metrics.search_budget_lost_impression_share, metrics.search_exact_match_impression_share, metrics.search_impression_share, metrics.search_rank_lost_impression_share, metrics.value_per_all_conversions, metrics.value_per_conversion, metrics.video_view_rate, metrics.video_views, metrics.view_through_conversions',
-            "start_date": '2020-01-01'
-          }
+            fields:
+              "customer.currency_code, customer.descriptive_name, customer.time_zone, metrics.active_view_ctr, metrics.active_view_cpm, metrics.active_view_impressions, metrics.active_view_measurability, metrics.active_view_measurable_cost_micros, metrics.active_view_measurable_impressions, metrics.active_view_viewability, metrics.all_conversions_from_interactions_rate, metrics.all_conversions_value, metrics.all_conversions, metrics.average_cpv, metrics.average_cpm, metrics.average_cpe, metrics.average_cpc, metrics.average_cost, metrics.clicks, customer.manager, segments.ad_network_type, segments.date, metrics.content_budget_lost_impression_share, metrics.content_impression_share, metrics.content_rank_lost_impression_share, metrics.conversions, metrics.conversions_value, metrics.conversions_from_interactions_rate, metrics.cost_micros, metrics.cost_per_all_conversions, metrics.cost_per_conversion, metrics.cross_device_conversions, metrics.ctr, metrics.engagements, metrics.engagement_rate, customer.id, metrics.impressions, metrics.interaction_event_types, metrics.interaction_rate, metrics.interactions, customer.auto_tagging_enabled, customer.test_account, metrics.search_budget_lost_impression_share, metrics.search_exact_match_impression_share, metrics.search_impression_share, metrics.search_rank_lost_impression_share, metrics.value_per_all_conversions, metrics.value_per_conversion, metrics.video_view_rate, metrics.video_views, metrics.view_through_conversions",
+            start_date: "2020-01-01",
+          },
         },
         {
-          type: 'customer',
-          name: 'customers',
+          type: "customer",
+          name: "customers",
           parameters: {
-            "fields": 'customer.auto_tagging_enabled, customer.call_reporting_setting.call_conversion_action, customer.call_reporting_setting.call_conversion_reporting_enabled, customer.call_reporting_setting.call_reporting_enabled, customer.conversion_tracking_setting.conversion_tracking_id, customer.conversion_tracking_setting.cross_account_conversion_tracking_id, customer.currency_code, customer.descriptive_name, customer.final_url_suffix, customer.has_partners_badge, customer.manager, customer.id, customer.optimization_score, customer.optimization_score_weight, customer.pay_per_conversion_eligibility_failure_reasons, customer.remarketing_setting.google_global_site_tag, customer.resource_name, customer.test_account, customer.time_zone, customer.tracking_url_template',
-            "start_date": '2020-01-01'
-          }
-        }
-      ]
-    }
+            fields:
+              "customer.auto_tagging_enabled, customer.call_reporting_setting.call_conversion_action, customer.call_reporting_setting.call_conversion_reporting_enabled, customer.call_reporting_setting.call_reporting_enabled, customer.conversion_tracking_setting.conversion_tracking_id, customer.conversion_tracking_setting.cross_account_conversion_tracking_id, customer.currency_code, customer.descriptive_name, customer.final_url_suffix, customer.has_partners_badge, customer.manager, customer.id, customer.optimization_score, customer.optimization_score_weight, customer.pay_per_conversion_eligibility_failure_reasons, customer.remarketing_setting.google_global_site_tag, customer.resource_name, customer.test_account, customer.time_zone, customer.tracking_url_template",
+            start_date: "2020-01-01",
+          },
+        },
+      ],
+    },
   ],
 
-  displayName: 'Google Ads',
-  id: 'google_ads',
-  collectionTypes: ['accessible_bidding_strategy','account_budget','account_budget_proposal','account_link','ad_group','ad_group_ad','ad_group_ad_asset_view','ad_group_ad_label','ad_group_asset','ad_group_audience_view','ad_group_bid_modifier','ad_group_criterion','ad_group_criterion_label','ad_group_criterion_simulation','ad_group_extension_setting','ad_group_feed','ad_group_label','ad_group_simulation','ad_parameter','ad_schedule_view','age_range_view','asset','asset_field_type_view','batch_job','bidding_data_exclusion','bidding_seasonality_adjustment','bidding_strategy','bidding_strategy_simulation','billing_setup','call_view','campaign','campaign_asset','campaign_audience_view','campaign_bid_modifier','campaign_budget','campaign_criterion','campaign_criterion_simulation','campaign_draft','campaign_experiment','campaign_extension_setting','campaign_feed','campaign_label','campaign_shared_set','campaign_simulation','carrier_constant','change_event','change_status','click_view','combined_audience','conversion_action','conversion_custom_variable','conversion_value_rule','conversion_value_rule_set','currency_constant','custom_audience','custom_interest','customer','customer_asset','customer_client','customer_client_link','customer_extension_setting','customer_feed','customer_label','customer_manager_link','customer_negative_criterion','customer_user_access','customer_user_access_invitation','detail_placement_view','detailed_demographic','display_keyword_view','distance_view','domain_category','dynamic_search_ads_search_term_view','expanded_landing_page_view','extension_feed_item','feed','feed_item','feed_item_set','feed_item_set_link','feed_item_target','feed_mapping','feed_placeholder_view','gender_view','geo_target_constant','geographic_view','group_placement_view','hotel_group_view','hotel_performance_view','income_range_view','keyword_plan','keyword_plan_ad_group','keyword_plan_ad_group_keyword','keyword_plan_campaign','keyword_plan_campaign_keyword','keyword_theme_constant','keyword_view','label','landing_page_view','language_constant','life_event','location_view','managed_placement_view','media_file','mobile_app_category_constant','mobile_device_constant','offline_user_data_job','operating_system_version_constant','paid_organic_search_term_view','parental_status_view','product_bidding_category_constant','product_group_view','recommendation','remarketing_action','search_term_view','shared_criterion','shared_set','shopping_performance_view','smart_campaign_search_term_view','smart_campaign_setting','third_party_app_analytics_link','topic_constant','topic_view','user_interest','user_list','user_location_view','video','webpage_view'],
+  displayName: "Google Ads",
+  id: "google_ads",
+  collectionTypes: [
+    "accessible_bidding_strategy",
+    "account_budget",
+    "account_budget_proposal",
+    "account_link",
+    "ad_group",
+    "ad_group_ad",
+    "ad_group_ad_asset_view",
+    "ad_group_ad_label",
+    "ad_group_asset",
+    "ad_group_audience_view",
+    "ad_group_bid_modifier",
+    "ad_group_criterion",
+    "ad_group_criterion_label",
+    "ad_group_criterion_simulation",
+    "ad_group_extension_setting",
+    "ad_group_feed",
+    "ad_group_label",
+    "ad_group_simulation",
+    "ad_parameter",
+    "ad_schedule_view",
+    "age_range_view",
+    "asset",
+    "asset_field_type_view",
+    "batch_job",
+    "bidding_data_exclusion",
+    "bidding_seasonality_adjustment",
+    "bidding_strategy",
+    "bidding_strategy_simulation",
+    "billing_setup",
+    "call_view",
+    "campaign",
+    "campaign_asset",
+    "campaign_audience_view",
+    "campaign_bid_modifier",
+    "campaign_budget",
+    "campaign_criterion",
+    "campaign_criterion_simulation",
+    "campaign_draft",
+    "campaign_experiment",
+    "campaign_extension_setting",
+    "campaign_feed",
+    "campaign_label",
+    "campaign_shared_set",
+    "campaign_simulation",
+    "carrier_constant",
+    "change_event",
+    "change_status",
+    "click_view",
+    "combined_audience",
+    "conversion_action",
+    "conversion_custom_variable",
+    "conversion_value_rule",
+    "conversion_value_rule_set",
+    "currency_constant",
+    "custom_audience",
+    "custom_interest",
+    "customer",
+    "customer_asset",
+    "customer_client",
+    "customer_client_link",
+    "customer_extension_setting",
+    "customer_feed",
+    "customer_label",
+    "customer_manager_link",
+    "customer_negative_criterion",
+    "customer_user_access",
+    "customer_user_access_invitation",
+    "detail_placement_view",
+    "detailed_demographic",
+    "display_keyword_view",
+    "distance_view",
+    "domain_category",
+    "dynamic_search_ads_search_term_view",
+    "expanded_landing_page_view",
+    "extension_feed_item",
+    "feed",
+    "feed_item",
+    "feed_item_set",
+    "feed_item_set_link",
+    "feed_item_target",
+    "feed_mapping",
+    "feed_placeholder_view",
+    "gender_view",
+    "geo_target_constant",
+    "geographic_view",
+    "group_placement_view",
+    "hotel_group_view",
+    "hotel_performance_view",
+    "income_range_view",
+    "keyword_plan",
+    "keyword_plan_ad_group",
+    "keyword_plan_ad_group_keyword",
+    "keyword_plan_campaign",
+    "keyword_plan_campaign_keyword",
+    "keyword_theme_constant",
+    "keyword_view",
+    "label",
+    "landing_page_view",
+    "language_constant",
+    "life_event",
+    "location_view",
+    "managed_placement_view",
+    "media_file",
+    "mobile_app_category_constant",
+    "mobile_device_constant",
+    "offline_user_data_job",
+    "operating_system_version_constant",
+    "paid_organic_search_term_view",
+    "parental_status_view",
+    "product_bidding_category_constant",
+    "product_group_view",
+    "recommendation",
+    "remarketing_action",
+    "search_term_view",
+    "shared_criterion",
+    "shared_set",
+    "shopping_performance_view",
+    "smart_campaign_search_term_view",
+    "smart_campaign_setting",
+    "third_party_app_analytics_link",
+    "topic_constant",
+    "topic_view",
+    "user_interest",
+    "user_list",
+    "user_location_view",
+    "video",
+    "webpage_view",
+  ],
   configParameters: [
     ...googleAuthConfigParameters({
-      requireSubject: true
+      requireSubject: true,
     }),
     {
-      displayName: 'Customer ID',
-      id: 'config.customer_id',
+      displayName: "Customer ID",
+      id: "config.customer_id",
       type: stringType,
       required: true,
       documentation: (
-          <>
-            The client customer ID is the account number of the Google Ads client account you want to pull data from. Pass it without '-' symbols.
-          </>
-      )
-    },{
-      displayName: 'Manager Customer ID',
-      id: 'config.manager_customer_id',
+        <>
+          The client customer ID is the account number of the Google Ads client account you want to pull data from. Pass
+          it without '-' symbols.
+        </>
+      ),
+    },
+    {
+      displayName: "Manager Customer ID",
+      id: "config.manager_customer_id",
       type: stringType,
       required: false,
       documentation: (
-          <>
-            For Google Ads API calls made by a manager to a client account (that is, when logging in as a manager to make API calls to one of its client accounts), you also need to supply the Manager Customer Id. This value represents the Google Ads customer ID of the manager making the API call. Pass it without '-' symbols.
-          </>
-      )
-    }
+        <>
+          For Google Ads API calls made by a manager to a client account (that is, when logging in as a manager to make
+          API calls to one of its client accounts), you also need to supply the Manager Customer Id. This value
+          represents the Google Ads customer ID of the manager making the API call. Pass it without '-' symbols.
+        </>
+      ),
+    },
   ],
   documentation: {
     overview: (
-        <>
-          The Google Ads connector pulls data from{' '}
-          <a href="https://developers.google.com/google-ads/api/fields/v8/overview">
-            Google Ads API
-          </a>
-          . The connector is highly configurable. You can compose any number of reports using <a href="https://developers.google.com/google-ads/api/fields/v8/overview_query_builder">Query Builder</a> by importing field lists to this source as separate streams.
-        </>
+      <>
+        The Google Ads connector pulls data from{" "}
+        <a href="https://developers.google.com/google-ads/api/fields/v8/overview">Google Ads API</a>. The connector is
+        highly configurable. You can compose any number of reports using{" "}
+        <a href="https://developers.google.com/google-ads/api/fields/v8/overview_query_builder">Query Builder</a> by
+        importing field lists to this source as separate streams.
+      </>
     ),
     connection: googleServiceAuthDocumentation({
       oauthEnabled: true,
       serviceAccountEnabled: true,
-      scopes: ['https://www.googleapis.com/auth/adwords'],
-      serviceName: 'Google Ads',
-      apis: ['Google Ads API'],
+      scopes: ["https://www.googleapis.com/auth/adwords"],
+      serviceName: "Google Ads",
+      apis: ["Google Ads API"],
       serviceAccountSpecifics: (
-          <>
-            <li>Go to "DETAILS" tab</li>
-            <li>Press "SHOW DOMAIN-WIDE DELEGATION" at the bottom, check <b>Enable Google Workspace Domain-wide Delegation</b> and press "SAVE" </li>
-            <li>Share the service account ID and the Google Ads API scope (https://www.googleapis.com/auth/adwords) with your domain administrator. Request the domain administrator to delegate domain-wide authority to your service account.</li>
-            <li>If you are the domain administrator, follow the instructions in the <a href="https://support.google.com/a/answer/162106">help center guide</a> to complete this step.</li>
-          </>
-      )
-    })
-  }
-};
-
+        <>
+          <li>Go to "DETAILS" tab</li>
+          <li>
+            Press "SHOW DOMAIN-WIDE DELEGATION" at the bottom, check{" "}
+            <b>Enable Google Workspace Domain-wide Delegation</b> and press "SAVE"{" "}
+          </li>
+          <li>
+            Share the service account ID and the Google Ads API scope (https://www.googleapis.com/auth/adwords) with
+            your domain administrator. Request the domain administrator to delegate domain-wide authority to your
+            service account.
+          </li>
+          <li>
+            If you are the domain administrator, follow the instructions in the{" "}
+            <a href="https://support.google.com/a/answer/162106">help center guide</a> to complete this step.
+          </li>
+        </>
+      ),
+    }),
+  },
+}
 
 export const googleAnalytics: SourceConnector = {
   pic: (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      height="100%"
-      width="100%"
-      viewBox="0 0 64 64"
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" height="100%" width="100%" viewBox="0 0 64 64">
       <g transform="matrix(.363638 0 0 .363636 -3.272763 -2.909091)">
         <path
           d="M130 29v132c0 14.77 10.2 23 21 23 10 0 21-7 21-23V30c0-13.54-10-22-21-22s-21 9.33-21 21z"
@@ -362,7 +501,7 @@ export const googleAnalytics: SourceConnector = {
   ),
   collectionParameters: [
     {
-      displayName: 'Dimensions',
+      displayName: "Dimensions",
       documentation: (
         <>
           <a href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer/">
@@ -370,7 +509,7 @@ export const googleAnalytics: SourceConnector = {
           </a>
         </>
       ),
-      id: 'dimensions',
+      id: "dimensions",
       // prettier-ignore
       type: selectionType(['ga:userType', 'ga:visitorType', 'ga:sessionCount', 'ga:visitCount', 'ga:daysSinceLastSession',
         'ga:userDefinedValue', 'ga:userBucket', 'ga:sessionDurationBucket', 'ga:visitLength', 'ga:referralPath',
@@ -423,10 +562,10 @@ export const googleAnalytics: SourceConnector = {
         'ga:dsKeywordId', 'ga:experimentCombination', 'ga:experimentName', 'ga:internalPromotionCreative', 'ga:internalPromotionId',
         'ga:internalPromotionName', 'ga:internalPromotionPosition', 'ga:isTrueViewVideoAd', 'ga:metroId', 'ga:nthHour', 'ga:orderCouponCode',
         'ga:productBrand', 'ga:productCategoryHierarchy', 'ga:productCategoryLevelXX', 'ga:productCouponCode', 'ga:productListName',
-        'ga:productListPosition', 'ga:productVariant', 'ga:regionId', 'ga:regionIsoCode', 'ga:shoppingStage', 'ga:subContinentCode'], 7)
+        'ga:productListPosition', 'ga:productVariant', 'ga:regionId', 'ga:regionIsoCode', 'ga:shoppingStage', 'ga:subContinentCode'], 7),
     },
     {
-      displayName: 'Metrics',
+      displayName: "Metrics",
       documentation: (
         <>
           <a href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer/">
@@ -434,7 +573,7 @@ export const googleAnalytics: SourceConnector = {
           </a>
         </>
       ),
-      id: 'metrics',
+      id: "metrics",
       // prettier-ignore
       type: selectionType([
         'ga:users', 'ga:visitors', 'ga:newUsers', 'ga:newVisits', 'ga:percentNewSessions',
@@ -489,141 +628,202 @@ export const googleAnalytics: SourceConnector = {
         'ga:productDetailViews', 'ga:productListCTR', 'ga:productListClicks', 'ga:productListViews', 'ga:productRefundAmount', 'ga:productRefunds',
         'ga:productRemovesFromCart', 'ga:productRevenuePerPurchase', 'ga:quantityAddedToCart', 'ga:quantityCheckedOut', 'ga:quantityRefunded',
         'ga:quantityRemovedFromCart', 'ga:refundAmount', 'ga:revenuePerUser', 'ga:sessionsPerUser', 'ga:totalRefunds', 'ga:transactionsPerUser'
-      ], 10)
-    }
+      ], 10),
+    },
   ],
   collectionTemplates: [
     {
-      templateName: 'Default template',
+      templateName: "Default template",
       description: <></>,
-      collections: [{
-        type: 'report',
-        name: 'daily_active_users',
-        parameters: {
-          dimensions: ['ga:date'],
-          metrics: ['ga:1dayUsers']
-        }
-      },{
-        type: 'report',
-        name: 'devices',
-        parameters: {
-          dimensions: ["ga:date", "ga:deviceCategory", "ga:operatingSystem", "ga:browser"],
-          metrics: ["ga:users", "ga:newUsers", "ga:sessions", "ga:sessionsPerUser", "ga:avgSessionDuration", "ga:pageviews", "ga:pageviewsPerSession", "ga:avgTimeOnPage", "ga:bounceRate", "ga:exitRate"]
-        }
-      },{
-        type: 'report',
-        name: 'four_weekly_active_users',
-        parameters: {
-          dimensions: ["ga:date"],
-          metrics: ["ga:28dayUsers"]
-        }
-      },{
-        type: 'report',
-        name: 'locations',
-        parameters: {
-          dimensions: ["ga:date", "ga:continent", "ga:subContinent", "ga:country", "ga:region", "ga:metro", "ga:city"],
-          metrics: ["ga:users", "ga:newUsers", "ga:sessions", "ga:sessionsPerUser", "ga:avgSessionDuration", "ga:pageviews", "ga:pageviewsPerSession", "ga:avgTimeOnPage", "ga:bounceRate", "ga:exitRate"]
-        }
-      },{
-        type: 'report',
-        name: 'monthly_active_users',
-        parameters: {
-          dimensions: ["ga:date"],
-          metrics: ["ga:30dayUsers"]
-        }
-      },{
-        type: 'report',
-        name: 'pages',
-        parameters: {
-          dimensions: ["ga:date", "ga:hostname", "ga:pagePath"],
-          metrics: ["ga:pageviews", "ga:uniquePageviews", "ga:avgTimeOnPage", "ga:entrances", "ga:entranceRate", "ga:bounceRate", "ga:exits", "ga:exitRate"]
-        }
-      },{
-        type: 'report',
-        name: 'traffic_sources',
-        parameters: {
-          dimensions: ["ga:date", "ga:source", "ga:medium", "ga:socialNetwork"],
-          metrics: ["ga:users", "ga:newUsers", "ga:sessions", "ga:sessionsPerUser", "ga:avgSessionDuration", "ga:pageviews", "ga:pageviewsPerSession", "ga:avgTimeOnPage", "ga:bounceRate", "ga:exitRate"]
-        }
-      },{
-        type: 'report',
-        name: 'two_weekly_active_users',
-        parameters: {
-          dimensions: ["ga:date"],
-          metrics: ["ga:14dayUsers"]
-        }
-      },{
-        type: 'report',
-        name: 'website_overview',
-        parameters: {
-          dimensions: ["ga:date"],
-          metrics: ["ga:users", "ga:newUsers", "ga:sessions", "ga:sessionsPerUser", "ga:avgSessionDuration", "ga:pageviews", "ga:pageviewsPerSession", "ga:avgTimeOnPage", "ga:bounceRate", "ga:exitRate"]
-        }
-      },{
-        type: 'report',
-        name: 'weekly_active_users',
-        parameters: {
-          dimensions: ["ga:date"],
-          metrics: ["ga:7dayUsers"]
-        }
-      }
-      ]
-    }
+      collections: [
+        {
+          type: "report",
+          name: "daily_active_users",
+          parameters: {
+            dimensions: ["ga:date"],
+            metrics: ["ga:1dayUsers"],
+          },
+        },
+        {
+          type: "report",
+          name: "devices",
+          parameters: {
+            dimensions: ["ga:date", "ga:deviceCategory", "ga:operatingSystem", "ga:browser"],
+            metrics: [
+              "ga:users",
+              "ga:newUsers",
+              "ga:sessions",
+              "ga:sessionsPerUser",
+              "ga:avgSessionDuration",
+              "ga:pageviews",
+              "ga:pageviewsPerSession",
+              "ga:avgTimeOnPage",
+              "ga:bounceRate",
+              "ga:exitRate",
+            ],
+          },
+        },
+        {
+          type: "report",
+          name: "four_weekly_active_users",
+          parameters: {
+            dimensions: ["ga:date"],
+            metrics: ["ga:28dayUsers"],
+          },
+        },
+        {
+          type: "report",
+          name: "locations",
+          parameters: {
+            dimensions: [
+              "ga:date",
+              "ga:continent",
+              "ga:subContinent",
+              "ga:country",
+              "ga:region",
+              "ga:metro",
+              "ga:city",
+            ],
+            metrics: [
+              "ga:users",
+              "ga:newUsers",
+              "ga:sessions",
+              "ga:sessionsPerUser",
+              "ga:avgSessionDuration",
+              "ga:pageviews",
+              "ga:pageviewsPerSession",
+              "ga:avgTimeOnPage",
+              "ga:bounceRate",
+              "ga:exitRate",
+            ],
+          },
+        },
+        {
+          type: "report",
+          name: "monthly_active_users",
+          parameters: {
+            dimensions: ["ga:date"],
+            metrics: ["ga:30dayUsers"],
+          },
+        },
+        {
+          type: "report",
+          name: "pages",
+          parameters: {
+            dimensions: ["ga:date", "ga:hostname", "ga:pagePath"],
+            metrics: [
+              "ga:pageviews",
+              "ga:uniquePageviews",
+              "ga:avgTimeOnPage",
+              "ga:entrances",
+              "ga:entranceRate",
+              "ga:bounceRate",
+              "ga:exits",
+              "ga:exitRate",
+            ],
+          },
+        },
+        {
+          type: "report",
+          name: "traffic_sources",
+          parameters: {
+            dimensions: ["ga:date", "ga:source", "ga:medium", "ga:socialNetwork"],
+            metrics: [
+              "ga:users",
+              "ga:newUsers",
+              "ga:sessions",
+              "ga:sessionsPerUser",
+              "ga:avgSessionDuration",
+              "ga:pageviews",
+              "ga:pageviewsPerSession",
+              "ga:avgTimeOnPage",
+              "ga:bounceRate",
+              "ga:exitRate",
+            ],
+          },
+        },
+        {
+          type: "report",
+          name: "two_weekly_active_users",
+          parameters: {
+            dimensions: ["ga:date"],
+            metrics: ["ga:14dayUsers"],
+          },
+        },
+        {
+          type: "report",
+          name: "website_overview",
+          parameters: {
+            dimensions: ["ga:date"],
+            metrics: [
+              "ga:users",
+              "ga:newUsers",
+              "ga:sessions",
+              "ga:sessionsPerUser",
+              "ga:avgSessionDuration",
+              "ga:pageviews",
+              "ga:pageviewsPerSession",
+              "ga:avgTimeOnPage",
+              "ga:bounceRate",
+              "ga:exitRate",
+            ],
+          },
+        },
+        {
+          type: "report",
+          name: "weekly_active_users",
+          parameters: {
+            dimensions: ["ga:date"],
+            metrics: ["ga:7dayUsers"],
+          },
+        },
+      ],
+    },
   ],
 
-  displayName: 'Google Analytics',
-  id: 'google_analytics',
-  collectionTypes: ['report'],
+  displayName: "Google Analytics",
+  id: "google_analytics",
+  collectionTypes: ["report"],
   configParameters: [
     ...googleAuthConfigParameters({}),
     {
-      displayName: 'View ID',
-      id: 'config.view_id',
+      displayName: "View ID",
+      id: "config.view_id",
       type: stringType,
       required: true,
       documentation: (
         <>
-          Read about{' '}
+          Read about{" "}
           <a href="https://jitsu.com/docs/sources-configuration/google-analytics#how-to-find-google-analytics-view-id">
             how to find Google Analytics View ID
           </a>
         </>
-      )
-    }
+      ),
+    },
   ],
   documentation: {
     overview: (
       <>
-        The Google Analytics connector pulls data from{' '}
-        <a href="https://developers.google.com/analytics/devguides/reporting/core/v4">
-          Google Analytics API
-        </a>
-        . The connector is highly configurable and can be used to pull data from
-        Google Ads too (if Google Analytics account is liked to Google Ads).
-        Full list of parameters can be{' '}
-        <a href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer">
-          found here
-        </a>
+        The Google Analytics connector pulls data from{" "}
+        <a href="https://developers.google.com/analytics/devguides/reporting/core/v4">Google Analytics API</a>. The
+        connector is highly configurable and can be used to pull data from Google Ads too (if Google Analytics account
+        is liked to Google Ads). Full list of parameters can be{" "}
+        <a href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer">found here</a>
       </>
     ),
     connection: googleServiceAuthDocumentation({
       oauthEnabled: true,
       serviceAccountEnabled: true,
-      scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
-      serviceName: 'Google Analytics',
-      apis: ['Google Analytics API']
-    })
-  }
-};
+      scopes: ["https://www.googleapis.com/auth/analytics.readonly"],
+      serviceName: "Google Analytics",
+      apis: ["Google Analytics API"],
+    }),
+  },
+}
 
 export const googlePlay: SourceConnector = {
   pic: (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      height="100%"
-      width="100%"
-      viewBox="0 0 48 48"
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" height="100%" width="100%" viewBox="0 0 48 48">
       <path
         fill="#4db6ac"
         d="M7.705,4.043C7.292,4.15,7,4.507,7,5.121c0,1.802,0,18.795,0,18.795S7,42.28,7,43.091c0,0.446,0.197,0.745,0.5,0.856l20.181-20.064L7.705,4.043z"
@@ -645,54 +845,39 @@ export const googlePlay: SourceConnector = {
   documentation: {
     overview: (
       <>
-        The Google Play connector can sync <b>earnings</b> (financial report)
-        and <b>sales</b> (statistics about sales).
+        The Google Play connector can sync <b>earnings</b> (financial report) and <b>sales</b> (statistics about sales).
       </>
     ),
     connection: googleServiceAuthDocumentation({
       oauthEnabled: true,
       serviceAccountEnabled: true,
-      scopes: ['https://www.googleapis.com/auth/devstorage.read_only'],
-      serviceName: 'Google Play',
-      apis: ['Cloud Storage']
-    })
+      scopes: ["https://www.googleapis.com/auth/devstorage.read_only"],
+      serviceName: "Google Play",
+      apis: ["Cloud Storage"],
+    }),
   },
-  displayName: 'Google Play',
-  id: 'google_play',
-  collectionTypes: ['earnings', 'sales'],
+  displayName: "Google Play",
+  id: "google_play",
+  collectionTypes: ["earnings", "sales"],
   collectionParameters: [],
   configParameters: [
     {
-      displayName: 'Account ID',
-      id: 'config.account_id',
+      displayName: "Account ID",
+      id: "config.account_id",
       type: stringType,
       required: true,
-      documentation: <>Identifier of your Google Play account</>
+      documentation: <>Identifier of your Google Play account</>,
     },
-    ...googleAuthConfigParameters({})
-  ]
-};
+    ...googleAuthConfigParameters({}),
+  ],
+}
 
 export const firebase: SourceConnector = {
   pic: (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      height="100%"
-      width="100%"
-      viewBox="0 0 48 48"
-    >
-      <path
-        fill="#ff8f00"
-        d="M8,37L23.234,8.436c0.321-0.602,1.189-0.591,1.494,0.02L30,19L8,37z"
-      />
-      <path
-        fill="#ffa000"
-        d="M8,36.992l5.546-34.199c0.145-0.895,1.347-1.089,1.767-0.285L26,22.992L8,36.992z"
-      />
-      <path
-        fill="#ff6f00"
-        d="M8.008 36.986L8.208 36.829 25.737 22.488 20.793 13.012z"
-      />
+    <svg xmlns="http://www.w3.org/2000/svg" height="100%" width="100%" viewBox="0 0 48 48">
+      <path fill="#ff8f00" d="M8,37L23.234,8.436c0.321-0.602,1.189-0.591,1.494,0.02L30,19L8,37z" />
+      <path fill="#ffa000" d="M8,36.992l5.546-34.199c0.145-0.895,1.347-1.089,1.767-0.285L26,22.992L8,36.992z" />
+      <path fill="#ff6f00" d="M8.008 36.986L8.208 36.829 25.737 22.488 20.793 13.012z" />
       <path
         fill="#ffc400"
         d="M8,37l26.666-25.713c0.559-0.539,1.492-0.221,1.606,0.547L40,37l-15,8.743 c-0.609,0.342-1.352,0.342-1.961,0L8,37z"
@@ -700,47 +885,42 @@ export const firebase: SourceConnector = {
     </svg>
   ),
   documentation: {
-    overview: (
-      <>
-        The Firebase connector can sync users and any collection from the
-        Firestore cloud.
-      </>
-    ),
+    overview: <>The Firebase connector can sync users and any collection from the Firestore cloud.</>,
     connection: googleServiceAuthDocumentation({
       oauthEnabled: false,
       serviceAccountEnabled: true,
-      scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
-      serviceName: 'Firebase Analytics',
-      apis: ['Firebase API']
-    })
+      scopes: ["https://www.googleapis.com/auth/analytics.readonly"],
+      serviceName: "Firebase Analytics",
+      apis: ["Firebase API"],
+    }),
   },
-  displayName: 'Firebase',
-  id: 'firebase',
-  collectionTypes: ['users', 'firestore'],
+  displayName: "Firebase",
+  id: "firebase",
+  collectionTypes: ["users", "firestore"],
   collectionParameters: [
     {
-      applyOnlyTo: 'firestore',
-      displayName: 'Firestore Collection',
-      id: 'collection',
+      applyOnlyTo: "firestore",
+      displayName: "Firestore Collection",
+      id: "collection",
       type: stringType,
       required: true,
-      documentation: <>Firestore collection ID</>
-    }
+      documentation: <>Firestore collection ID</>,
+    },
   ],
   configParameters: [
     ...googleAuthConfigParameters({
-      serviceAccountKey: 'config.key',
-      disableOauth: true
+      serviceAccountKey: "config.key",
+      disableOauth: true,
     }),
     {
-      displayName: 'Project ID',
-      id: 'config.project_id',
+      displayName: "Project ID",
+      id: "config.project_id",
       type: stringType,
       required: true,
-      documentation: <>Firebase Project ID from the Project Settings page.</>
-    }
-  ]
-};
+      documentation: <>Firebase Project ID from the Project Settings page.</>,
+    },
+  ],
+}
 
 export const redis: SourceConnector = {
   pic: (
@@ -779,75 +959,64 @@ export const redis: SourceConnector = {
           <ellipse cx="20.444" cy="21.402" rx="4.672" ry="1.811" />
         </g>
         <path d="m42.132 21.138-5.17 2.042-.004-4.087z" fill="#7a0c00" />
-        <path
-          d="m36.963 23.18-.56.22-5.166-2.042 5.723-2.264z"
-          fill="#ad2115"
-        />
+        <path d="m36.963 23.18-.56.22-5.166-2.042 5.723-2.264z" fill="#ad2115" />
       </g>
     </svg>
   ),
-  displayName: 'Redis',
-  id: 'redis',
+  displayName: "Redis",
+  id: "redis",
   collectionTypes: [],
   collectionParameters: [
     {
-      displayName: 'Redis Key Pattern',
-      id: 'redis_key',
+      displayName: "Redis Key Pattern",
+      id: "redis_key",
       type: stringType,
       required: true,
       documentation: (
         <>
-          Provide a certain Redis key to sync data from or pattern:{' '}
-          <b>my_currencies*</b>. Jitsu will search keys by pattern and sync
-          them.
+          Provide a certain Redis key to sync data from or pattern: <b>my_currencies*</b>. Jitsu will search keys by
+          pattern and sync them.
         </>
-      )
-    }
+      ),
+    },
   ],
   configParameters: [
     {
-      displayName: 'Redis Host',
-      id: 'config.host',
+      displayName: "Redis Host",
+      id: "config.host",
       type: stringType,
       required: true,
-      documentation: <>Redis host</>
+      documentation: <>Redis host</>,
     },
     {
-      displayName: 'Redis Port',
-      id: 'config.port',
+      displayName: "Redis Port",
+      id: "config.port",
       type: intType,
       defaultValue: 6379,
       required: true,
-      documentation: <>Redis port</>
+      documentation: <>Redis port</>,
     },
     {
-      displayName: 'Redis Password',
-      id: 'config.password',
+      displayName: "Redis Password",
+      id: "config.password",
       type: passwordType,
-      documentation: (
-        <>
-          Redis password. Leave it empty if your Redis doesn't have a password.
-        </>
-      )
-    }
+      documentation: <>Redis password. Leave it empty if your Redis doesn't have a password.</>,
+    },
   ],
   documentation: {
     overview: (
       <>
-        The Redis connector pulls data from{' '}
-        <a href="https://redis.io/commands/get">string</a>,{' '}
-        <a href="https://redis.io/commands/hscan">hash</a>,{' '}
-        <a href="https://redis.io/commands/lrange">list</a>,{' '}
-        <a href="https://redis.io/commands/sscan">set</a>,{' '}
-        <a href="https://redis.io/commands/zscan">sorted set</a> keys. It works
-        with a certain Redis key configuration as well as key pattern. Jitsu
-        uses <a href="https://redis.io/commands/scan">scan</a> commands which
-        prevent blocking and doesn't affect Redis performance.
+        The Redis connector pulls data from <a href="https://redis.io/commands/get">string</a>,{" "}
+        <a href="https://redis.io/commands/hscan">hash</a>, <a href="https://redis.io/commands/lrange">list</a>,{" "}
+        <a href="https://redis.io/commands/sscan">set</a>, <a href="https://redis.io/commands/zscan">sorted set</a>{" "}
+        keys. It works with a certain Redis key configuration as well as key pattern. Jitsu uses{" "}
+        <a href="https://redis.io/commands/scan">scan</a> commands which prevent blocking and doesn't affect Redis
+        performance.
       </>
     ),
-    connection: <></>
-  }
-};
+    connection: <></>,
+  },
+}
 
 export const amplitude: SourceConnector = {
   pic: (
@@ -864,14 +1033,8 @@ export const amplitude: SourceConnector = {
       xmlSpace="preserve"
     >
       <g id="Random-Assignments_2_">
-        <g
-          id="Amplitude-logomark"
-          transform="translate(-10.000000, -10.000000)"
-        >
-          <g
-            id="Amplitude_logomark"
-            transform="translate(10.000000, 10.000000)"
-          >
+        <g id="Amplitude-logomark" transform="translate(-10.000000, -10.000000)">
+          <g id="Amplitude_logomark" transform="translate(10.000000, 10.000000)">
             <path
               id="Shape"
               fill="#00A7CF"
@@ -890,12 +1053,9 @@ export const amplitude: SourceConnector = {
   documentation: {
     overview: (
       <>
-        The Amplitude connector pulls data from{' '}
-        <a href="https://developers.amplitude.com/docs/http-api-v2">
-          Amplitude API
-        </a>
-        . The connector can sync <b>active users</b>, <b>new users</b>,{' '}
-        <b>annotations</b>, <b>average sessions</b>, <b>cohorts</b> and{' '}
+        The Amplitude connector pulls data from{" "}
+        <a href="https://developers.amplitude.com/docs/http-api-v2">Amplitude API</a>. The connector can sync{" "}
+        <b>active users</b>, <b>new users</b>, <b>annotations</b>, <b>average sessions</b>, <b>cohorts</b> and{" "}
         <b>events</b>.
       </>
     ),
@@ -903,58 +1063,42 @@ export const amplitude: SourceConnector = {
       <>
         <ul>
           <li>
-            Go to the{' '}
-            <a href="https://analytics.amplitude.com/">
-              Amplitude Project settings
-            </a>{' '}
-            page
+            Go to the <a href="https://analytics.amplitude.com/">Amplitude Project settings</a> page
           </li>
           <li>
-            Save API Key and Secret Key value. It is used as API Secret in Jitsu
-            UI. Only Amplitude Admins and Managers can view API credentials on
-            Amplitude project settings page.
+            Save API Key and Secret Key value. It is used as API Secret in Jitsu UI. Only Amplitude Admins and Managers
+            can view API credentials on Amplitude project settings page.
           </li>
         </ul>
       </>
-    )
+    ),
   },
-  displayName: 'Amplitude',
-  id: 'amplitude',
-  collectionTypes: [
-    'active_users',
-    'annotations',
-    'average_sessions',
-    'cohorts',
-    'events',
-    'new_users'
-  ],
+  displayName: "Amplitude",
+  id: "amplitude",
+  collectionTypes: ["active_users", "annotations", "average_sessions", "cohorts", "events", "new_users"],
   configParameters: [
     {
-      displayName: 'API Key',
-      id: 'config.api_key',
+      displayName: "API Key",
+      id: "config.api_key",
       type: stringType,
       required: true,
       documentation: (
-        <>
-          Amplitude API Key from project settings page. Only Amplitude Admins
-          and Managers can view the API Key.
-        </>
-      )
+        <>Amplitude API Key from project settings page. Only Amplitude Admins and Managers can view the API Key.</>
+      ),
     },
     {
-      displayName: 'Secret Key',
-      id: 'config.secret_key',
+      displayName: "Secret Key",
+      id: "config.secret_key",
       type: stringType,
       required: true,
       documentation: (
         <>
-          Amplitude Secret Key from project settings page. Only Amplitude Admins
-          and Managers can view the Secret Key.
+          Amplitude Secret Key from project settings page. Only Amplitude Admins and Managers can view the Secret Key.
         </>
-      )
-    }
+      ),
+    },
   ],
-  collectionParameters: []
-};
+  collectionParameters: [],
+}
 
-export const allNativeConnectors = [facebook, redis, firebase, googleAds, googleAnalytics, googlePlay, amplitude];
+export const allNativeConnectors = [facebook, redis, firebase, googleAds, googleAnalytics, googlePlay, amplitude]

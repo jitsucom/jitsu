@@ -426,7 +426,8 @@ const DestinationEditor = ({
                   className="mr-3"
                   type="link"
                   onClick={handleViewStatistics}
-                  icon={<AreaChartOutlined />}>
+                  icon={<AreaChartOutlined />}
+                >
                   Statistics
                 </Button>
               )

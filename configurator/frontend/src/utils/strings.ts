@@ -5,40 +5,39 @@ type ToTitleCaseOptions = {
   /**
    * Object with specific rules that override the default title case 'word' -> 'Word' mapping
    */
-  rules?: Rules;
+  rules?: Rules
   /**
    * Flag that controls whether to apply the default mapping rules
    */
-  useDefaultRules?: boolean;
+  useDefaultRules?: boolean
   /**
    * Specify a separator such as '_' for the snake case. Default separator is whitespace.
    */
-  separator?: string;
-};
+  separator?: string
+}
 
-type Rules = { [key: string]: string };
+type Rules = { [key: string]: string }
 
 const toTitleCaseDefaultOptions: ToTitleCaseOptions = {
   rules: {
-    js: 'JS',
-    ts: 'TS',
-    id: 'ID',
-    db: 'DB',
-    api: 'API',
-    url: 'URL',
-    ssl: 'SSL',
-    ssh: 'SSH',
-    tls: 'TLS',
-    mysql: 'MySQL',
-    mongodb: 'MongoDB',
-    googleads: 'GoogleAds',
-    jdbc: 'JDBC'
+    js: "JS",
+    ts: "TS",
+    id: "ID",
+    db: "DB",
+    api: "API",
+    url: "URL",
+    ssl: "SSL",
+    ssh: "SSH",
+    tls: "TLS",
+    mysql: "MySQL",
+    mongodb: "MongoDB",
+    googleads: "GoogleAds",
+    jdbc: "JDBC",
   },
-  useDefaultRules: true
-};
+  useDefaultRules: true,
+}
 
-const { rules, ...toTitleCaseDefaultOptionsWithoutRules }: ToTitleCaseOptions =
-  toTitleCaseDefaultOptions;
+const { rules, ...toTitleCaseDefaultOptionsWithoutRules }: ToTitleCaseOptions = toTitleCaseDefaultOptions
 
 /**
  * Maps the string to the title case. Uses a default abbreviations dictionary
@@ -66,29 +65,26 @@ const { rules, ...toTitleCaseDefaultOptionsWithoutRules }: ToTitleCaseOptions =
  * // 'Use Of JSX Is Prohibited By NHTCA'
  * ```
  */
-export const toTitleCase = (
-  value: string,
-  options?: ToTitleCaseOptions
-): string => {
+export const toTitleCase = (value: string, options?: ToTitleCaseOptions): string => {
   const { rules } = options
     ? options.useDefaultRules === false
       ? { ...toTitleCaseDefaultOptionsWithoutRules, ...options }
       : { ...toTitleCaseDefaultOptions, ...options }
-    : toTitleCaseDefaultOptions;
+    : toTitleCaseDefaultOptions
   return value
-    .split(options?.separator ?? ' ')
-    .map((_word) => {
-      const word = _word.toLowerCase();
-      const mappedByRule = rules[word];
-      return mappedByRule || `${word[0].toUpperCase()}${word.slice(1)}`;
+    .split(options?.separator ?? " ")
+    .map(_word => {
+      const word = _word.toLowerCase()
+      const mappedByRule = rules[word]
+      return mappedByRule || `${word[0].toUpperCase()}${word.slice(1)}`
     })
-    .join(' ');
-};
+    .join(" ")
+}
 
 /**
  * Maps a `snake_case` string to a `regular case` string
  * @param value string to convert
  */
 export const snakeCaseToWords = (value: string): string => {
-  return value.split('_').join(' ');
-};
+  return value.split("_").join(" ")
+}

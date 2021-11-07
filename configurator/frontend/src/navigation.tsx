@@ -4,24 +4,15 @@ import { useLocation } from "react-router-dom"
 // @Routes
 import { destinationPageRoutes } from "ui/pages/DestinationsPage/DestinationsPage.routes"
 // @???
-import ComponentTest from './lib/components/componentTest';
-import {
-  TaskLogsPage,
-  taskLogsPageRoute
-} from 'ui/pages/TaskLogs/TaskLogsPage';
-import {
-  SettingsPage,
-  settingsPageRoutes
-} from 'ui/pages/SettingsPage/SettingsPage';
-import {
-  taskLogsViewerRoute,
-  TaskLogViewer
-} from 'ui/pages/TaskLogs/TaskLogViewer';
-import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
-import { LoginLink } from 'lib/components/LoginLink/LoginLink';
-import SignupPage from './ui/pages/GetStartedPage/SignupPage';
-import LoginPage from './ui/pages/GetStartedPage/LoginPage';
-import { StatusPage } from './lib/components/StatusPage/StatusPage';
+import ComponentTest from "./lib/components/componentTest"
+import { TaskLogsPage, taskLogsPageRoute } from "ui/pages/TaskLogs/TaskLogsPage"
+import { SettingsPage, settingsPageRoutes } from "ui/pages/SettingsPage/SettingsPage"
+import { taskLogsViewerRoute, TaskLogViewer } from "ui/pages/TaskLogs/TaskLogViewer"
+import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
+import { LoginLink } from "lib/components/LoginLink/LoginLink"
+import SignupPage from "./ui/pages/GetStartedPage/SignupPage"
+import LoginPage from "./ui/pages/GetStartedPage/LoginPage"
+import { StatusPage } from "./lib/components/StatusPage/StatusPage"
 import { apiKeysRoutes, ApiKeyEditor } from "./lib/components/ApiKeys/ApiKeyEditor"
 // @Components
 const ApiKeys = React.lazy(() => import("./lib/components/ApiKeys/ApiKeys"))
@@ -125,11 +116,5 @@ export const PRIVATE_PAGES: Page[] = [
   new Page("Jitsu | task logs", taskLogsPageRoute, TaskLogsPage, "Task Logs"),
   new Page("Jitsu | Task Logs View", taskLogsViewerRoute, TaskLogViewer, "Task Logs"),
   new Page("Jitsu | Settings", settingsPageRoutes, SettingsPage, "Settings"),
-  new Page(
-    'Edit API keys · Jitsu',
-    [apiKeysRoutes.newExact, apiKeysRoutes.editExact],
-    ApiKeyEditor,
-    'Edit API Key'
-  ),
-
+  new Page("Edit API keys · Jitsu", [apiKeysRoutes.newExact, apiKeysRoutes.editExact], ApiKeyEditor, "Edit API Key"),
 ]
