@@ -48,12 +48,12 @@ const icon = (
 );
 
 function isBatch(cfg) {
-  return cfg._formData?.mode === 'batch';
+  return cfg?._formData?.mode === 'batch';
 }
 
 function displayForBatchOnly<T>(defaultValue: T): Function<any, T> {
   return (cfg) => {
-    return cfg._formData?.mode === 'batch'
+    return cfg?._formData?.mode === 'batch'
       ? undefined //display the option
       : defaultValue; //hide the option, display default value
   };
@@ -75,7 +75,7 @@ const destination = {
   hidden: false,
   ui: {
     icon,
-    title: (cfg) => cfg._formData?.snowflakeDB,
+    title: (cfg) => cfg?._formData?.snowflakeDB,
     connectCmd: (cfg: object) => null
   },
   parameters: [
@@ -128,7 +128,7 @@ const destination = {
       id: '_formData.snowflakeStageName',
       displayName: 'Stage name',
       constant: displayForBatchOnly(''),
-      required: (cfg) => cfg._formData?.snowflakeStageType === 'gcs',
+      required: (cfg) => cfg?._formData?.snowflakeStageType === 'gcs',
       type: stringType
     },
     {
@@ -184,9 +184,9 @@ const destination = {
       '_formData.snowflakeS3AccessKey',
       '_formData.snowflakeS3SecretKey',
       (cfg) =>
-        cfg._formData?.mode !== 'batch' ||
-        (cfg._formData?.mode === 'batch' &&
-          cfg._formData?.snowflakeStageType !== 's3')
+        cfg?._formData?.mode !== 'batch' ||
+        (cfg?._formData?.mode === 'batch' &&
+          cfg?._formData?.snowflakeStageType !== 's3')
     )
   ]
 } as const;
