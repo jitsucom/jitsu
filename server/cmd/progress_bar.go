@@ -1,11 +1,12 @@
 package cmd
 
 import (
+	"io"
+	"path/filepath"
+
 	au "github.com/logrusorgru/aurora"
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
-	"io"
-	"path/filepath"
 )
 
 const (
@@ -60,7 +61,13 @@ func (mp *MultiProgressBar) SetCurrent(current int64) {
 //createKBFileBar creates progress bar per file which counts parts
 func (mp *MultiProgressBar) createKBFileBar(filePath string, fileSize int64) ProgressBar {
 	fileBar := mp.progress.Add(fileSize,
-		mpb.NewBarFiller(mpb.BarStyle().Lbound("╢").Filler(au.Index(99, "█").String()).Tip("").Padding(au.Index(104, "░").String()).Rbound("╟")),
+		nil,
+		mpb.BarExtender(
+			newLineBarFiller(
+				mpb.NewBarFiller(
+					mpb.BarStyle().Lbound("╢").
+						Filler(au.Index(99, "█").String()).Tip("").
+						Padding(au.Index(104, "░").String()).Rbound("╟")))),
 		mpb.BarFillerClearOnComplete(),
 		mpb.PrependDecorators(
 			decor.Name(filepath.Base(filePath)),
@@ -78,7 +85,13 @@ func (mp *MultiProgressBar) createKBFileBar(filePath string, fileSize int64) Pro
 //createPartFileBar creates progress bar per file which counts parts
 func (mp *MultiProgressBar) createPartFileBar(filePath string, fileSize int64) ProgressBar {
 	fileBar := mp.progress.Add(fileSize,
-		mpb.NewBarFiller(mpb.BarStyle().Lbound("╢").Filler(au.Index(99, "█").String()).Tip("").Padding(au.Index(104, "░").String()).Rbound("╟")),
+		nil,
+		mpb.BarExtender(
+			newLineBarFiller(
+				mpb.NewBarFiller(
+					mpb.BarStyle().Lbound("╢").
+						Filler(au.Index(99, "█").String()).Tip("").
+						Padding(au.Index(104, "░").String()).Rbound("╟")))),
 		mpb.BarFillerClearOnComplete(),
 		mpb.PrependDecorators(
 			decor.Name(filepath.Base(filePath)),
@@ -91,6 +104,15 @@ func (mp *MultiProgressBar) createPartFileBar(filePath string, fileSize int64) P
 		),
 	)
 	return &MultiProgressBar{progress: mp.progress, bar: fileBar}
+}
+
+func newLineBarFiller(filler mpb.BarFiller) mpb.BarFiller {
+	return mpb.BarFillerFunc(func(w io.Writer, reqWidth int, st decor.Statistics) {
+		if !st.Completed {
+			filler.Fill(w, reqWidth, st)
+			w.Write([]byte("\n"))
+		}
+	})
 }
 
 func (mp *MultiProgressBar) ProxyReader(r io.Reader) io.ReadCloser {
@@ -108,7 +130,13 @@ func (mp *MultiProgressBar) Type() string {
 //createProcessingBar creates global progress bar
 func createProcessingBar(p *mpb.Progress, allFilesSize int64) *mpb.Bar {
 	return p.Add(allFilesSize,
-		mpb.NewBarFiller(mpb.BarStyle().Lbound("╢").Filler(au.Index(93, "█").String()).Tip("").Padding(au.Index(99, "░").String()).Rbound("╟")),
+		nil,
+		mpb.BarExtender(
+			newLineBarFiller(
+				mpb.NewBarFiller(
+					mpb.BarStyle().Lbound("╢").
+						Filler(au.Index(93, "█").String()).Tip("").
+						Padding(au.Index(99, "░").String()).Rbound("╟")))),
 		mpb.PrependDecorators(
 			decor.Name("replay"),
 			decor.Percentage(decor.WCSyncSpace),
