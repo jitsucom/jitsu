@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/httputils"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"golang.org/x/oauth2/google"
 	"io"
 	"net/http"
@@ -79,14 +80,14 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 		},
 	}
 	config := &GoogleAdsConfig{}
-	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	reportConfig := &GoogleAdsCollectionConfig{}
-	if err := base.UnmarshalConfig(collection.Parameters, reportConfig); err != nil {
+	if err := jsonutils.UnmarshalConfig(collection.Parameters, reportConfig); err != nil {
 		return nil, err
 	}
 	if len(reportConfig.Fields) == 0 {
@@ -166,7 +167,7 @@ func (g *GoogleAds) GetObjectsFor(interval *base.TimeInterval) ([]map[string]int
 //TestGoogleAds tests connection to Google Ads without creating Driver instance
 func TestGoogleAds(sourceConfig *base.SourceConfig) error {
 	config := &GoogleAdsConfig{}
-	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return err
 	}
 	if err := config.Validate(); err != nil {

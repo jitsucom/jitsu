@@ -14,6 +14,7 @@ import (
 	_ "github.com/jitsucom/jitsu/server/drivers/google_play"
 	_ "github.com/jitsucom/jitsu/server/drivers/redis"
 	_ "github.com/jitsucom/jitsu/server/drivers/singer"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/scheduling"
 	"github.com/spf13/cast"
@@ -126,7 +127,7 @@ func ParseCollections(sourceConfig *base.SourceConfig) ([]*base.Collection, erro
 			}
 
 			collectionObj := &base.Collection{}
-			if err := base.UnmarshalConfig(collectionObjMap, collectionObj); err != nil {
+			if err := jsonutils.UnmarshalConfig(collectionObjMap, collectionObj); err != nil {
 				return nil, fmt.Errorf("error parsing collections: %v", err)
 			}
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/runner"
@@ -62,7 +63,7 @@ func init() {
 //3. in another goroutine: updates pip, install singer tap
 func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &Config{}
-	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +166,7 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 //TestSinger tests singer connection (runs discover) if tap has been installed otherwise returns nil
 func TestSinger(sourceConfig *base.SourceConfig) error {
 	config := &Config{}
-	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return err
 	}
