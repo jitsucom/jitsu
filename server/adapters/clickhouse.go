@@ -44,6 +44,7 @@ var (
 		typing.FLOAT64:   "Float64",
 		typing.TIMESTAMP: "DateTime",
 		typing.BOOL:      "UInt8",
+		typing.ARRAY:     "Array(String)",
 		typing.UNKNOWN:   "String",
 	}
 
@@ -83,6 +84,7 @@ var (
 		"lowcardinality(uint256)":  0,
 		"lowcardinality(string)":   "",
 		"uuid":                     "00000000-0000-0000-0000-000000000000",
+		"Array(String)": []string{},
 	}
 )
 

@@ -308,13 +308,18 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	}
 
 	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
+	//TODO create flattener and type resolver for specific storage type
 	var flattener schema.Flattener
 	var typeResolver schema.TypeResolver
 	if needDummy(&destination) {
 		flattener = schema.NewDummyFlattener()
 		typeResolver = schema.NewDummyTypeResolver()
 	} else {
-		flattener = schema.NewFlattener()
+		var flattenSlice func([]interface{}) (interface{}, error)
+		if destination.Type == ClickHouseType || destination.Type == SnowflakeType || destination.Type == BigQueryType {
+			flattenSlice = schema.SliceToSqlArrayOfStrings
+		}
+		flattener = schema.NewFlattener(flattenSlice)
 		typeResolver = schema.NewTypeResolver()
 	}
 

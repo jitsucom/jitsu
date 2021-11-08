@@ -30,6 +30,7 @@ var (
 		typing.FLOAT64:   string(bigquery.FloatFieldType),
 		typing.TIMESTAMP: string(bigquery.TimestampFieldType),
 		typing.BOOL:      string(bigquery.BooleanFieldType),
+		typing.ARRAY:     "ARRAY<STRING>",
 		typing.UNKNOWN:   string(bigquery.StringFieldType),
 	}
 )

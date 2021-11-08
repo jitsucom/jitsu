@@ -59,7 +59,7 @@ func TestFlattenObject(t *testing.T) {
 			map[string]interface{}{"ke_y1": "value1", "ke_y2": 2, "_ke_y2": 3, "ke_y2_": 4, "_key3_": 5, "key8_sub_key1": "event", "key10": true},
 		},
 	}
-	flattener := NewFlattener()
+	flattener := NewFlattener(nil)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			actualFlattenJSON, err := flattener.FlattenObject(tt.inputJSON)

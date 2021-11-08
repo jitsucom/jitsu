@@ -43,6 +43,7 @@ var (
 		typing.FLOAT64:   "double precision",
 		typing.TIMESTAMP: "timestamp(6)",
 		typing.BOOL:      "boolean",
+		typing.ARRAY:      "array",
 		typing.UNKNOWN:   "text",
 	}
 )

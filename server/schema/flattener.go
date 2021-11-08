@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -13,11 +12,16 @@ type Flattener interface {
 
 type FlattenerImpl struct {
 	omitNilValues bool
+	flattenSlice  func([]interface{}) (interface{}, error)
 }
 
-func NewFlattener() Flattener {
+func NewFlattener(sliceFlattener func([]interface{}) (interface{}, error)) Flattener {
+	if sliceFlattener == nil {
+		sliceFlattener = SliceToJsonString
+	}
 	return &FlattenerImpl{
 		omitNilValues: true,
+		flattenSlice:  sliceFlattener,
 	}
 }
 
@@ -47,11 +51,18 @@ func (f *FlattenerImpl) flatten(key string, value interface{}, destination map[s
 			destination[key] = value
 			return nil
 		}
-		b, err := json.Marshal(value)
-		if err != nil {
-			return fmt.Errorf("Error marshaling array with key %s: %v", key, err)
+		if t.IsNil() {
+			return nil
 		}
-		destination[key] = strings.TrimSpace(string(b))
+		generic := make([]interface{}, t.Len())
+		for i:=0; i<t.Len(); i++ {
+			generic[i] = t.Index(i).Interface()
+		}
+		flattened, err := f.flattenSlice(generic)
+		if err != nil {
+			return fmt.Errorf("can't flatten slice with key %s: %v", key, err)
+		}
+		destination[key] = flattened
 	case reflect.Map:
 		unboxed := value.(map[string]interface{})
 		for k, v := range unboxed {

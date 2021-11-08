@@ -47,6 +47,7 @@ var (
 		typing.FLOAT64:   "double precision",
 		typing.TIMESTAMP: "timestamp",
 		typing.BOOL:      "boolean",
+		typing.ARRAY:     "jsonb",
 		typing.UNKNOWN:   "character varying(65535)",
 	}
 )
