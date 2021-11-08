@@ -46,6 +46,7 @@
       background-color: @background-color-light;
       .default-transition(border-color);
       @apply border rounded-xl;
+      @apply transition-opacity duration-500;
 
       .pic {
         display: block;
@@ -129,10 +130,6 @@
         }
       }
 
-      .expertLabel {
-
-      }
-
       &:hover {
         border-color: @link-color;
 
@@ -152,6 +149,31 @@
       @media only screen and (max-width: 1200px) {
         width: calc(33.33% - 20px);
       }
+    }
+
+    .item__disabled {
+      position: relative;
+      color: @secondaryText !important;
+      border-color: @secondaryBorder !important;
+      background-color: @background-color-light !important;
+
+      -webkit-filter: grayscale(60%);
+      filter: grayscale(60%);
+    }
+
+    .item__disabled::after{
+      @apply transition-all duration-500 opacity-0;
+      @apply absolute block text-center w-3/4;
+      content: "This connector is currently not available. Click to learn more.";
+      left: 50%;
+      height: 80px; // height of the .pic
+      transform: translate(-50%, 0) scale3d(1.05, 1.05, 1);
+      background-color: @background-color-light;
+    }
+    
+    .item__disabled:hover::after {
+      @apply opacity-100;
+      transform: translate(-50%, 0);
     }
   }
 }

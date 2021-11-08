@@ -46,6 +46,10 @@ export type SourceCardProps = {
 export function SourceCard({ src, short = false }: SourceCardProps) {
   const reference: SourceConnector = allSourcesMap[src.sourceProtoType]
 
+  if (!reference) {
+    return null
+  }
+
   const history = useHistory()
 
   const services = useServices()

@@ -12,7 +12,7 @@ interface InputWithDebugProps {
 }
 
 const InputWithDebug: React.FC<InputWithDebugProps> = ({ id, jsDebugger, value = "", onChange, onButtonClick}) => {
-    const [text, setText] = useState("");
+    const [text, setText] = useState(value || "");
 
     const triggerChange = (changedValue: string) => {
         onChange?.(changedValue);
