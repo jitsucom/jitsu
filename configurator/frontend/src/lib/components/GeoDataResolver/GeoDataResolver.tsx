@@ -17,6 +17,7 @@ function GeoDataResolver() {
   const services = useServices();
 
   const [saving, setSaving] = useState(false)
+  const [formDisabled, setFormDisabled] = useState(false)
 
   const [form] = useForm<GeoDataResolverFormValues>()
 
@@ -26,7 +27,7 @@ function GeoDataResolver() {
       if (response.maxmind) {
         form.setFieldsValue({
           license_key: response.maxmind.license_key,
-          enabled: true
+          enabled: response.maxmind.enabled
         })
       } else {
         form.setFieldsValue({
@@ -34,6 +35,8 @@ function GeoDataResolver() {
           enabled: false
         })
       }
+
+      setFormDisabled(!form.getFieldsValue().enabled)
 
     }
     getGeoDataResolver();
@@ -79,6 +82,7 @@ function GeoDataResolver() {
               key="enabled">
               <Form.Item name="enabled" valuePropName="checked">
                 <Switch
+                  onChange={(value) => {setFormDisabled(!value)}}
                   size="default"
                 />
               </Form.Item>
@@ -95,7 +99,7 @@ function GeoDataResolver() {
                        }
                        key="license_key">
               <Form.Item name="license_key">
-                <Input size="large" name="license_key" placeholder="MaxMind Licence Key" required={true}/>
+                <Input disabled={formDisabled} size="large" name="license_key" placeholder="MaxMind Licence Key" required={true}/>
               </Form.Item>
             </FormField>
             <FormActions>

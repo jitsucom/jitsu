@@ -5,6 +5,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/resources"
+	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/spf13/viper"
 	"strings"
 	"sync"
@@ -79,7 +80,10 @@ func NewService(ctx context.Context, geoURL, globalGeoMaxmindPath, officialDownl
 	//per project
 	if geoURL != "" {
 		if strings.HasPrefix(geoURL, "http://") || strings.HasPrefix(geoURL, "https://") {
-			resources.Watch(serviceName, geoURL, resources.LoadFromHTTP, service.updateResolvers, time.Duration(reloadSec)*time.Second)
+			//all dbs load takes a long time
+			safego.Run(func() {
+				resources.Watch(serviceName, geoURL, resources.LoadFromHTTP, service.updateResolvers, time.Duration(reloadSec)*time.Second)
+			})
 		} else {
 			logging.Infof("❌ Geo resolution isn't available since unknown geo configuration provided: %s. Only http/https link is supported", geoURL)
 		}
