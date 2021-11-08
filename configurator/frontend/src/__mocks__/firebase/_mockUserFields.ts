@@ -1,9 +1,9 @@
-jest.unmock("firebase/app")
-import firebase from "firebase/app"
+jest.unmock("firebase/auth")
+import { User } from "firebase/auth"
 import { mockUserInfo } from "./_mockUserInfo"
 
 export type UserFields = Omit<
-  firebase.User,
+  User,
   | "delete"
   | "getIdToken"
   | "getIdTokenResult"
@@ -56,12 +56,6 @@ export const mockUserFields: UserFields = {
   metadata: {
     lastSignInTime: "Sun, 04 Jul 2021 07:57:16 GMT",
     creationTime: "Tue, 15 Jun 2021 11:56:24 GMT",
-  },
-  multiFactor: {
-    enroll: jest.fn(),
-    getSession: jest.fn(),
-    unenroll: jest.fn(),
-    enrolledFactors: [],
   },
 }
 

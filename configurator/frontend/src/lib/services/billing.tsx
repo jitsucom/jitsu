@@ -1,19 +1,21 @@
-import { IProject } from "lib/services/model"
-import { DatePoint, StatisticsService } from "lib/services/stat"
-import { withQueryParams } from "utils/queryParams"
-import { IDestinationsStore } from "../../stores/destinations"
-import { ISourcesStore } from "../../stores/sources"
-import ApplicationServices from "./ApplicationServices"
-import { BackendApiClient } from "./BackendApiClient"
-import firebase from "firebase/app"
-import "firebase/auth"
-import "firebase/firestore"
-import { isObject } from "utils/typeCheck"
-import { numberFormat } from "../commons/utils"
+// @Libs
+import { ReactElement } from "react"
 import { Modal, Typography } from "antd"
 import moment, { Moment } from "moment"
+// @Services
+import ApplicationServices from "./ApplicationServices"
+import { BackendApiClient } from "./BackendApiClient"
+// @Firebase
+import { getFirestore, collection, doc, getDoc } from "firebase/firestore"
+// @Types
+import { IDestinationsStore } from "../../stores/destinations"
+import { ISourcesStore } from "../../stores/sources"
+import { IProject } from "lib/services/model"
+import { DatePoint, StatisticsService } from "lib/services/stat"
+// @Utils
+import { withQueryParams } from "utils/queryParams"
+import { numberFormat } from "../commons/utils"
 import { UpgradePlan } from "../../ui/components/CurrentPlan/CurrentPlan"
-import { ReactElement } from "react"
 
 export type PricingPlanId = "opensource" | "free" | "growth" | "premium" | "enterprise"
 
@@ -206,9 +208,11 @@ export async function getCurrentSubscription(
 ): Promise<CurrentSubscription> {
   const statService = new StatisticsService(backendApiClient, project, true)
 
-  let subscription = (
-    await firebase.firestore().collection("subscriptions").doc(project.id).get()
-  ).data() as any as FirebaseSubscriptionEntry
+  const firebaseCollection = collection(getFirestore(), "subscriptions")
+  const firebaseDoc = doc(firebaseCollection, project.id)
+
+  let subscription = (await getDoc(firebaseDoc)).data() as any as FirebaseSubscriptionEntry
+
   if (!subscription) {
     subscription = { planId: "free", billingEmail: "none@none.com" }
   }
