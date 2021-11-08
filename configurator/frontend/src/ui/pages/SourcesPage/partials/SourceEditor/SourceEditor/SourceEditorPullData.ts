@@ -70,12 +70,14 @@ export const pullAllAirbyteStreams = async (
         `Airbyte streams parsing error: stream.json_schema is not an object`,
         PARSING_STREAMS_ERROR_NAME
       )
-      assertIsArrayOfTypes(
-        stream.supported_sync_modes,
-        "",
-        `Airbyte streams parsing error: stream.supported_sync_modes is not an array of strings`,
-        PARSING_STREAMS_ERROR_NAME
-      )
+      if (stream.supported_sync_modes !== undefined) {
+        assertIsArrayOfTypes(
+          stream.supported_sync_modes,
+          "",
+          `Airbyte streams parsing error: stream.supported_sync_modes is not an array of strings or undefined`,
+          PARSING_STREAMS_ERROR_NAME
+        )
+      }
 
       const previouslyCheckedStreamData = previouslyCheckedStreams.find(
         checkedStream =>
