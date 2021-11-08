@@ -70,8 +70,7 @@ const menuItems = [
   makeItem(<ApiOutlined />, "Sources", "/sources"),
   makeItem(<NotificationOutlined />, "Destinations", "/destinations"),
   makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud"),
-  //TODO maxmind uncomment
-  /*makeItem(<GlobalOutlined />, "Geo data resolver", "/geo_data_resolver"),*/
+  makeItem(<GlobalOutlined />, "Geo data resolver", "/geo_data_resolver"),
   makeItem(<CloudOutlined />, "Custom Domains", "/domains", f => f.enableCustomDomains),
   makeItem(<DownloadOutlined />, "Download Config", "/cfg_download", f => f.enableCustomDomains),
 ]
