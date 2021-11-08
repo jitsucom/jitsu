@@ -94,6 +94,10 @@ func (rsp *RetryableProxy) GetPostHandleDestinations() []string {
 	return rsp.config.PostHandleDestinations
 }
 
+func (rsp *RetryableProxy) GetGeoResolverID() string {
+	return rsp.config.destination.GeoDataResolverID
+}
+
 //Close stops underlying goroutine and close the storage
 func (rsp *RetryableProxy) Close() error {
 	rsp.closed.Store(true)

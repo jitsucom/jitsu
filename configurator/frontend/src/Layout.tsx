@@ -22,8 +22,8 @@ import Icon, {
   UserSwitchOutlined,
   LogoutOutlined,
   PartitionOutlined,
-  ThunderboltOutlined,
-} from "@ant-design/icons"
+  ThunderboltOutlined, GlobalOutlined
+} from '@ant-design/icons'
 import logo from "icons/logo.svg"
 import logoMini from "icons/logo-square.svg"
 import { ReactComponent as DbtCloudIcon } from "icons/dbtCloud.svg"
@@ -70,6 +70,7 @@ const menuItems = [
   makeItem(<ApiOutlined />, "Sources", "/sources"),
   makeItem(<NotificationOutlined />, "Destinations", "/destinations"),
   makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud"),
+  makeItem(<GlobalOutlined />, "Geo data resolver", "/geo_data_resolver"),
   makeItem(<CloudOutlined />, "Custom Domains", "/domains", f => f.enableCustomDomains),
   makeItem(<DownloadOutlined />, "Download Config", "/cfg_download", f => f.enableCustomDomains),
 ]

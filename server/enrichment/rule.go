@@ -3,6 +3,7 @@ package enrichment
 import (
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"strings"
 )
@@ -12,7 +13,7 @@ type Rule interface {
 	Execute(event map[string]interface{})
 }
 
-func NewRule(ruleConfig *RuleConfig) (Rule, error) {
+func NewRule(ruleConfig *RuleConfig, geoService *geo.Service, geoResolverID string) (Rule, error) {
 	err := ruleConfig.Validate()
 	if err != nil {
 		return nil, err
@@ -29,7 +30,7 @@ func NewRule(ruleConfig *RuleConfig) (Rule, error) {
 
 	switch ruleConfig.Name {
 	case IPLookup:
-		return NewIPLookupRule(source, destination)
+		return NewIPLookupRule(source, destination, geoService, geoResolverID)
 	case UserAgentParse:
 		return NewUserAgentParseRule(source, destination)
 	default:
