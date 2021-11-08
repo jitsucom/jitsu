@@ -1,36 +1,65 @@
 # Geo Data resolution
 
-**Jitsu** applies geo resolution during [enrichment](/docs/how-it-works/architecture#context-enrichment-step). Geo resolution means determining
+**Jitsu** applies resolved geo data during [enrichment](/docs/how-it-works/architecture#context-enrichment-step). Geo resolution means determining
 user's country, city, zip code \(and other location data\) from their IP address. Here's a full list of fields we enrich from the IP address:
 
-* country
+* continent
+* country _\(two-letter country code\)_
+* country_name _\(full country name)_
 * region _\(two-letter state code for US\)_
 * city
 * latitude
 * longitude
 * zip
+* autonomous_system_number
+* autonomous_system_organization
+* isp
+* organization
+* domain
 
 <Hint>
-Please note, latitude and longitude are approximate. They are most likely the coordinates of the center of a city.
+  Please note, latitude and longitude are approximate. They are most likely the coordinates of the center of a city.
 </Hint>
 
 ```json
 {
   "location": {
-    "ip": "127.0.0.1",
+    "continent": "North America",
     "country": "US",
-    "city": "New York",
-    "zip": "10128",
+    "country_name": "United States",
     "region": "NY",
-    "latitude": 40.7809
-    "longitude": -73.9502
+    "city": "New York",
+    "latitude": 40.7809,
+    "longitude": -73.9502,
+    "zip": "10128",
+    "autonomous_system_number": 16509,
+    "autonomous_system_organization": "AMAZON-02",
+    "organization": "Amazon.com",
+    "domain": "amazonaws.com"
   }
 }
 ```
 
 ### MaxMind
 
-Though **Jitsu** is free, we use [MaxMind's ](https://www.maxmind.com/en/geoip2-city)database for IP resolution. Once you'll get the file from MaxMind, please add it to the configuration YAML as:
+**Jitsu** uses [MaxMind](https://www.maxmind.com/) databases for geo resolution. There are two families of MaxMind databases: `GeoIP2` and `GeoLite2`.
+
+`GeoIP2` databases such as `GeoIP2-Country`, `GeoIP2-City`, `GeoIP2-ISP`, `GeoIP2-Domain` are paid geo databases. You can buy them all together or just anyone on [maxmind.com](https://www.maxmind.com/en/geoip2-databases).
+After purchasing, you will receive a license key. Put obtained license key on Jitsu UI -> Geo data resolver section (available since 1.37.2 version) or run Jitsu with [env variable](#configuration).
+
+`GeoLite2` databases such as `GeoLite2-Country`, `GeoLite2-City`, `GeoLite2-ASN` are free geo databases. For obtaining them you should just create a [free account](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data) and generate a license key for using it on Jitsu UI or env variable `MAX_MIND_PATH`.
+
+After setting MaxMind license key Jitsu downloads all available databases and uses them for enriching incoming events. For using a certain database add `?edition_id=<database type>` to MaxMind configuration. It is described in examples below.
+
+<Hint>
+  MaxMind license key is required for geo resolution. If it isn't configured - geo data won't be enriched into incoming events.
+</Hint>
+
+
+### Configuration
+
+Configuration via env variable - add `MAX_MIND_PATH` env variable like: `MAX_MIND_PATH=maxmind://<your license key>` or add comma-separated certain edition ids `MAX_MIND_PATH=maxmind://<your license key>?edition_id=GeoIP2-City,GeoIP2-ISP`, or set your license key on Jitsu UI -> Geo data resolver section (available since 1.37.2 version).
+If you use jitsucom/server, you can configure geo resolver via yaml configuration:
 
 ```yaml
 server:
@@ -41,15 +70,9 @@ destinations:
 
 geo.maxmind_path: path_to_file #local file
 #or
-geo.maxmind_path: 'maxmind://<YOUR_MAXMIND_LICENSE_KEY>' #Jitsu will download MaxMind DB from official MaxMind URL with your licence key
+geo.maxmind_path: 'maxmind://<YOUR_MAXMIND_LICENSE_KEY>' #Jitsu will download all available MaxMind DBs from official MaxMind URL with your licence key
+#or
+geo.maxmind_path: 'maxmind://<YOUR_MAXMIND_LICENSE_KEY>?edition_id=GeoIP2-City,GeoIP2-ISP' #Jitsu will download only GeoIP2-City and GeoIP2-ISP
 #or
 geo.maxmind_path: http://resource.url/path #hosted file
 ```
-
-If a file is not provided, **Jitsu** will still work, but geo data will not be resolved.
-
-<Hint>
-  Jitsu uses official MaxMind URL <code inline="true">https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-City&license_key=%s&suffix=tar.gz</code> and replaces <code inline="true">%s</code> with {' '}
-  your MaxMind licence key from <code inline="true">geo.maxmind_path: 'maxmind://{'<YOUR_MAXMIND_LICENSE_KEY>'}'</code>. For using another MaxMind file URL, please set <code inline="true">maxmind.download_url</code> {' '}
-  configuration parameter in <code inline="true">eventnative.yaml</code> with <code inline="true">%s</code> for replacing it with licence key.
-</Hint>
