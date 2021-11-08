@@ -1,6 +1,8 @@
 // jest.requireActual('firebase');
+jest.unmock("firebase/auth")
 jest.unmock("firebase/app")
-import firebase from "firebase/app"
+import { FirebaseApp } from "firebase/app"
+import firebase from "firebase/auth"
 import { mockUser, MockFirebaseUser } from "./__mockUser"
 
 /**
@@ -11,11 +13,11 @@ import { mockUser, MockFirebaseUser } from "./__mockUser"
  * - firebase auth methods: onAuthStateChanged,
  */
 
-type MockFirebaseAuth = Pick<firebase.auth.Auth, "onAuthStateChanged">
+type MockFirebaseAuth = Pick<firebase.Auth, "onAuthStateChanged">
 
 const mockFirebase = {
   initializeApp: jest.fn(),
-  auth: jest.fn((app?: firebase.app.App): MockFirebaseAuth => {
+  auth: jest.fn((app?: FirebaseApp): MockFirebaseAuth => {
     return {
       onAuthStateChanged: (callback: (user: MockFirebaseUser) => any): firebase.Unsubscribe => {
         callback(mockUser)
