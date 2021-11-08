@@ -133,7 +133,7 @@ func (ah *AirbyteHandler) CatalogHandler(c *gin.Context) {
 	}
 
 	airbyteRunner := airbyte.NewRunner(dockerImage, imageVersion, "")
-	catalogRow, err := airbyteRunner.Discover(airbyteSourceConnectorConfig)
+	catalogRow, err := airbyteRunner.Discover(airbyteSourceConnectorConfig, time.Minute)
 	if err != nil {
 		if err == runner.ErrNotReady {
 			c.JSON(http.StatusOK, middleware.PendingResponse())

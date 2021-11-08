@@ -116,7 +116,7 @@ func (r *Runner) Check(airbyteSourceConfig interface{}) error {
 }
 
 //Discover returns discovered raw catalog
-func (r *Runner) Discover(airbyteSourceConfig interface{}) (*CatalogRow, error) {
+func (r *Runner) Discover(airbyteSourceConfig interface{}, timeout time.Duration) (*CatalogRow, error) {
 	resultParser := &synchronousParser{desiredRowType: CatalogType}
 	errStrWriter := logging.NewStringWriter()
 	dualStdErrWriter := logging.Dual{FileWriter: errStrWriter, Stdout: logging.NewPrefixDateTimeProxy("[discover]", Instance.LogWriter)}
@@ -131,7 +131,7 @@ func (r *Runner) Discover(airbyteSourceConfig interface{}) (*CatalogRow, error) 
 		}
 	}()
 
-	err = r.run(resultParser.parse, copyTo(dualStdErrWriter), time.Minute,
+	err = r.run(resultParser.parse, copyTo(dualStdErrWriter), timeout,
 		"run", "--rm", "-i", "--name", r.identifier, "-v", fmt.Sprintf("%s:%s", Instance.WorkspaceVolume, VolumeAlias), fmt.Sprintf("%s:%s", Instance.AddAirbytePrefix(r.DockerImage), r.Version), "discover", "--config", path.Join(VolumeAlias, relatedFilePath))
 	if err != nil {
 		if err == runner.ErrNotReady {
