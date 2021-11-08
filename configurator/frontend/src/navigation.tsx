@@ -19,6 +19,7 @@ const ApiKeys = React.lazy(() => import("./lib/components/ApiKeys/ApiKeys"))
 const CustomDomains = React.lazy(() => import("./lib/components/CustomDomains/CustomDomains"))
 const DestinationsPage = React.lazy(() => import("ui/pages/DestinationsPage/DestinationsPage"))
 const DbtCloudPage = React.lazy(() => import("ui/pages/DbtCloud/DbtCloudPage"))
+const GeoDataResolver = React.lazy(() => import("./lib/components/GeoDataResolver/GeoDataResolver"))
 
 const EventsStream = React.lazy(() => import("./lib/components/EventsStream/EventsStream"))
 const SetupForm = React.lazy(() => import("ui/pages/SetupPage/SetupForm"))
@@ -98,6 +99,7 @@ export const PRIVATE_PAGES: Page[] = [
     "Edit destinations"
   ),
   new Page("dbt Cloud integration", "/dbtcloud", DbtCloudPage, "dbt Cloud"),
+  new Page("Jitsu | geo data resolver", "/geo_data_resolver", GeoDataResolver, "Geo data resolver"),
   new Page("Jitsu | download config", "/cfg_download", DownloadConfig, "Download Jitsu Server configuration"),
   new Page("Jitsu | edit API keys", "/api-keys", ApiKeys, "API Keys"),
   new Page("Jitsu | edit custom domains", "/domains", CustomDomains, "Custom tracking domains"),

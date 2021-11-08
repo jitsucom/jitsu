@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+const defaultDocID = "default"
+
 type Firebase struct {
 	ctx    context.Context
 	client *firestore.Client
@@ -92,14 +94,21 @@ func (fb *Firebase) GetCollectionLastUpdated(collection string) (*time.Time, err
 	return &t, nil
 }
 
-func (fb *Firebase) Store(collection string, documentID string, entity interface{}) error {
-	_, err := fb.client.Collection(collection).Doc(documentID).Set(fb.ctx, entity)
-	if err != nil {
-		return err
-	}
+func (fb *Firebase) UpdateCollectionLastUpdated(collection string) error {
 	var updates []firestore.Update
 	updates = append(updates, firestore.Update{Path: lastUpdatedField, Value: entime.AsISOString(time.Now().UTC())})
-	_, err = fb.client.Collection(collection).Doc(documentID).Update(fb.ctx, updates)
+	_, err := fb.client.Collection(collection).Doc(defaultDocID).Update(fb.ctx, updates)
+	return err
+}
+
+func (fb *Firebase) Store(collection string, documentID string, entity interface{}) error {
+	if _, err := fb.client.Collection(collection).Doc(documentID).Set(fb.ctx, entity); err != nil {
+		return err
+	}
+
+	var updates []firestore.Update
+	updates = append(updates, firestore.Update{Path: lastUpdatedField, Value: entime.AsISOString(time.Now().UTC())})
+	_, err := fb.client.Collection(collection).Doc(documentID).Update(fb.ctx, updates)
 	return err
 }
 
