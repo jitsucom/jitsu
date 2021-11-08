@@ -1,6 +1,6 @@
-import React, { ReactNode } from 'react';
-import { LabelWithTooltip } from '../../../ui/components/LabelWithTooltip/LabelWithTooltip';
-import cn from 'classnames';
+import React, { ReactNode } from "react"
+import { LabelWithTooltip } from "../../../ui/components/LabelWithTooltip/LabelWithTooltip"
+import cn from "classnames"
 
 export const unsavedMessage = "You have unsaved changes. Are you sure you want to leave the page?"
 
@@ -37,7 +37,7 @@ export const FormField: React.FC<FormFieldProps> = ({ children, label, tooltip, 
 
 export const FormLayout: React.FC<FormLayoutProps> = ({ className, children, title }) => {
   return (
-    <div className={cn(className, 'flex flex-col justify-center')}>
+    <div className={cn(className, "flex flex-col justify-center")}>
       {title && <div className="text-lg">{title}</div>}
       {children}
     </div>

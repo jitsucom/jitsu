@@ -22,8 +22,9 @@ import Icon, {
   UserSwitchOutlined,
   LogoutOutlined,
   PartitionOutlined,
-  ThunderboltOutlined, GlobalOutlined
-} from '@ant-design/icons'
+  ThunderboltOutlined,
+  GlobalOutlined,
+} from "@ant-design/icons"
 import logo from "icons/logo.svg"
 import logoMini from "icons/logo-square.svg"
 import { ReactComponent as DbtCloudIcon } from "icons/dbtCloud.svg"
