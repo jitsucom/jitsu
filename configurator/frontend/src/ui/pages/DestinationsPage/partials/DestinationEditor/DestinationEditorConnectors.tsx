@@ -106,7 +106,8 @@ const DestinationEditorConnectorsComponent = ({ form, initialValues, destination
               </b>
             }
             key="keys"
-            forceRender>
+            forceRender
+          >
             <div className="pl-6">
               <ConnectedItems
                 form={form}
@@ -125,7 +126,8 @@ const DestinationEditorConnectorsComponent = ({ form, initialValues, destination
               </b>
             }
             key="connectors"
-            forceRender>
+            forceRender
+          >
             <div className="pl-6">
               {destination.syncFromSourcesStatus === "supported" && sources?.length === 0 && (
                 <p className="text-sm text-secondaryText">

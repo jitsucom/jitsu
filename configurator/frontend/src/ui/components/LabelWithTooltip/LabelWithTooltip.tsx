@@ -1,14 +1,14 @@
 // @Libs
-import React, { memo } from 'react';
-import { Tooltip } from 'antd';
-import cn from 'classnames';
+import React, { memo } from "react"
+import { Tooltip } from "antd"
+import cn from "classnames"
 // @Icons
-import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOutlined';
+import QuestionCircleOutlined from "@ant-design/icons/lib/icons/QuestionCircleOutlined"
 
 export interface Props {
-  render?: React.ReactNode;
-  documentation: React.ReactNode;
-  className?: string;
+  render?: React.ReactNode
+  documentation: React.ReactNode
+  className?: string
 }
 
 const LabelWithTooltipComponent = ({ render, documentation, className }: Props) => (
@@ -20,6 +20,6 @@ const LabelWithTooltipComponent = ({ render, documentation, className }: Props) 
   </span>
 )
 
-LabelWithTooltipComponent.displayName = 'LabelWithTooltip';
+LabelWithTooltipComponent.displayName = "LabelWithTooltip"
 
-export const LabelWithTooltip = memo(LabelWithTooltipComponent);
+export const LabelWithTooltip = memo(LabelWithTooltipComponent)

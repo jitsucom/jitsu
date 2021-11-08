@@ -1,110 +1,89 @@
-import { PageProps } from 'navigation';
-import { useHistory, useLocation, useParams } from 'react-router-dom';
-import useLoader from 'hooks/useLoader';
-import ApplicationServices from 'lib/services/ApplicationServices';
-import React, { useEffect, useState } from 'react';
-import { CenteredError, CenteredSpin } from 'lib/components/components';
-import { DatePicker, Select, Tag } from 'antd';
-import { TasksTable } from 'ui/pages/TaskLogs/TasksTable';
-import { useServices } from 'hooks/useServices';
-import { colorMap, TaskStatus } from './utils';
-import styles from './TaskLogsPage.module.less';
-import moment from 'moment';
-import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
-import { allSources } from 'catalog/sources/lib';
-import snakeCase from 'lodash/snakeCase';
-import { SourceConnector } from 'catalog/sources/types';
-import { CollectionSourceData } from 'ui/pages/SourcesPage/SourcesPage';
-import { PageHeader } from 'ui/components/PageHeader/PageHeader';
-import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
+import { PageProps } from "navigation"
+import { useHistory, useLocation, useParams } from "react-router-dom"
+import useLoader from "hooks/useLoader"
+import ApplicationServices from "lib/services/ApplicationServices"
+import React, { useEffect, useState } from "react"
+import { CenteredError, CenteredSpin } from "lib/components/components"
+import { DatePicker, Select, Tag } from "antd"
+import { TasksTable } from "ui/pages/TaskLogs/TasksTable"
+import { useServices } from "hooks/useServices"
+import { colorMap, TaskStatus } from "./utils"
+import styles from "./TaskLogsPage.module.less"
+import moment from "moment"
+import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
+import { allSources } from "catalog/sources/lib"
+import snakeCase from "lodash/snakeCase"
+import { SourceConnector } from "catalog/sources/types"
+import { CollectionSourceData } from "ui/pages/SourcesPage/SourcesPage"
+import { PageHeader } from "ui/components/PageHeader/PageHeader"
+import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 
-export const taskLogsPageRoute = '/sources/logs/:sourceId';
+export const taskLogsPageRoute = "/sources/logs/:sourceId"
 
 export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
-  const params = useParams<{ sourceId: string; taskId: string }>();
-  const services = useServices();
-  const location = useLocation();
-  const history = useHistory();
-  const queryRaw = location.search;
-  const query = new URLSearchParams(queryRaw);
-  const [filterStatus, setFilterStatus] = useState<TaskStatus>(
-    (query.get('status') as TaskStatus) || undefined
-  );
-  const [filterCollection, setFilterCollection] = useState<string>(
-    query.get('collection') || undefined
-  );
+  const params = useParams<{ sourceId: string; taskId: string }>()
+  const services = useServices()
+  const location = useLocation()
+  const history = useHistory()
+  const queryRaw = location.search
+  const query = new URLSearchParams(queryRaw)
+  const [filterStatus, setFilterStatus] = useState<TaskStatus>((query.get("status") as TaskStatus) || undefined)
+  const [filterCollection, setFilterCollection] = useState<string>(query.get("collection") || undefined)
   const [filterStart, setFilterStart] = useState(
-    query.get('start')
-      ? moment.utc(query.get('start'))
-      : moment.utc().subtract(1, 'days').startOf('day')
-  );
+    query.get("start") ? moment.utc(query.get("start")) : moment.utc().subtract(1, "days").startOf("day")
+  )
   const [filterEnd, setFilterEnd] = useState(
-    query.get('end') ? moment.utc(query.get('end')) : moment.utc().endOf('day')
-  );
+    query.get("end") ? moment.utc(query.get("end")) : moment.utc().endOf("day")
+  )
   const [loadingError, source] = useLoader(async () => {
-    const appServices = ApplicationServices.get();
-    const data: CollectionSourceData = await appServices.storageService.get(
-      'sources',
-      appServices.activeProject.id
-    );
+    const appServices = ApplicationServices.get()
+    const data: CollectionSourceData = await appServices.storageService.get("sources", appServices.activeProject.id)
     if (!data.sources) {
-      throw new Error(
-        `Invalid response of "sources" collection: ${JSON.stringify(data)}`
-      );
+      throw new Error(`Invalid response of "sources" collection: ${JSON.stringify(data)}`)
     }
-    return data.sources.find(
-      (source: SourceData) => source.sourceId === params.sourceId
-    );
-  }, [params.sourceId]);
+    return data.sources.find((source: SourceData) => source.sourceId === params.sourceId)
+  }, [params.sourceId])
 
   useEffect(() => {
     if (source) {
       const connectorSource = allSources.find(
-        (candidate: SourceConnector) =>
-          snakeCase(candidate.id) === source?.sourceProtoType ??
-          ({} as SourceConnector)
-      );
+        (candidate: SourceConnector) => snakeCase(candidate.id) === source?.sourceProtoType ?? ({} as SourceConnector)
+      )
 
       setBreadcrumbs(
         withHome({
           elements: [
-            { title: 'Sources', link: sourcesPageRoutes.root },
+            { title: "Sources", link: sourcesPageRoutes.root },
             {
-              title: (
-                <PageHeader
-                  title={connectorSource?.displayName}
-                  icon={connectorSource?.pic}
-                  mode="edit"
-                />
-              ),
-              link: '/sources/edit/' + source.sourceId
+              title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode="edit" />,
+              link: "/sources/edit/" + source.sourceId,
             },
-            { title: 'Logs' }
-          ]
+            { title: "Logs" },
+          ],
         })
-      );
+      )
     }
-  }, [source?.sourceId, setBreadcrumbs]);
+  }, [source?.sourceId, setBreadcrumbs])
 
   const setFilter = (param, val, stateAction, toString?: (any) => string) => {
-    toString = toString || ((val) => val + '');
+    toString = toString || (val => val + "")
     if (val !== undefined) {
-      query.set(param, toString(val));
+      query.set(param, toString(val))
     } else {
-      query.delete(param);
+      query.delete(param)
     }
-    let queryStr = query.toString();
+    let queryStr = query.toString()
     if (queryStr.length > 0) {
-      queryStr = '?' + queryStr;
+      queryStr = "?" + queryStr
     }
-    history.push(`/sources/logs/${source.sourceId}${queryStr}`);
-    stateAction(val);
-  };
+    history.push(`/sources/logs/${source.sourceId}${queryStr}`)
+    stateAction(val)
+  }
 
   if (loadingError) {
-    return <CenteredError error={loadingError} />;
+    return <CenteredError error={loadingError} />
   } else if (!source) {
-    return <CenteredSpin />;
+    return <CenteredSpin />
   }
   return (
     <>
@@ -114,13 +93,9 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
           <span className={styles.filterEdit}>
             <Select
               className="w-full"
-              defaultValue={query.get('status') || 'ALL'}
-              onChange={(val) => {
-                setFilter(
-                  'status',
-                  val === 'ALL' ? undefined : (val as TaskStatus),
-                  setFilterStatus
-                );
+              defaultValue={query.get("status") || "ALL"}
+              onChange={val => {
+                setFilter("status", val === "ALL" ? undefined : (val as TaskStatus), setFilterStatus)
               }}
             >
               <Select.Option value="ALL">ALL</Select.Option>
@@ -137,13 +112,9 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
           <span className={styles.filterEdit}>
             <Select
               className="w-full"
-              defaultValue={query.get('collection') || 'ALL'}
-              onChange={(val) => {
-                setFilter(
-                  'collection',
-                  val === 'ALL' ? undefined : val,
-                  setFilterCollection
-                );
+              defaultValue={query.get("collection") || "ALL"}
+              onChange={val => {
+                setFilter("collection", val === "ALL" ? undefined : val, setFilterCollection)
               }}
             >
               <Select.Option value="ALL">ALL</Select.Option>
@@ -159,10 +130,8 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
             <DatePicker
               className="w-full"
               allowClear={false}
-              onChange={(val) => {
-                setFilter('start', val.startOf('day'), setFilterStart, (d) =>
-                  d.toISOString()
-                );
+              onChange={val => {
+                setFilter("start", val.startOf("day"), setFilterStart, d => d.toISOString())
               }}
               defaultValue={filterStart}
             />
@@ -174,10 +143,8 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
             <DatePicker
               className="w-full"
               allowClear={false}
-              onChange={(val) => {
-                setFilter('end', val.endOf('day'), setFilterEnd, (d) =>
-                  d.toISOString()
-                );
+              onChange={val => {
+                setFilter("end", val.endOf("day"), setFilterEnd, d => d.toISOString())
               }}
               defaultValue={filterEnd}
             />
@@ -193,11 +160,11 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
         end={filterEnd}
       />
     </>
-  );
-};
+  )
+}
 
 function plusDays(d: Date, days: number) {
-  let dCopy = new Date(d.getTime());
-  dCopy.setDate(d.getDate() + days);
-  return dCopy;
+  let dCopy = new Date(d.getTime())
+  dCopy.setDate(d.getDate() + days)
+  return dCopy
 }

@@ -2,16 +2,16 @@
 
 **Note**: DO NOT USE NPM!
 
-* `yarn install` - get all dependencies (run before any script)
-* `yarn start` - dev application (with hot reload) will be started on [http://localhost:9876](http://localhost:9876)
-* `yarn build` - build prod app, see build/ folder for results
-* `yarn add (-D)` - install and add package (-D - optional, use for install devDependency)
-* `yarn prettier:check` - check all *.ts|tsx files in src directory for compliance
-* `yarn prettier:write` - fix all mistakes in *.ts|tsx files in src directory
+- `yarn install` - get all dependencies (run before any script)
+- `yarn start` - dev application (with hot reload) will be started on [http://localhost:9876](http://localhost:9876)
+- `yarn build` - build prod app, see build/ folder for results
+- `yarn add (-D)` - install and add package (-D - optional, use for install devDependency)
+- `yarn prettier:check` - check all \*.ts|tsx files in src directory for compliance
+- `yarn prettier:write` - fix all mistakes in \*.ts|tsx files in src directory
 
 ## Application configuration
 
-The app recognize following environment variables. Those marked with '*' **must** be provided
+The app recognize following environment variables. Those marked with '\*' **must** be provided
 before building the app (or running it with `yarn start`)
 
 <table>
@@ -57,15 +57,12 @@ before building the app (or running it with `yarn start`)
     </tr>
 </table>
 
-
-**Note**: for adding new environment varialbles please list them in _webpack.config.js
+**Note**: for adding new environment varialbles please list them in \_webpack.config.js
 (look for `webpack.DefinePlugin`) and in env.js (look for `getClientEnvironment`)
-
-
 
 ## Troubleshooting
 
-* `rm -rf yarn.lock ./node_modules && yarn install`
+- `rm -rf yarn.lock ./node_modules && yarn install`
 
 ## Initial development setup setup
 
@@ -78,5 +75,5 @@ ESLint helps us to maintain the code style. Please, configure your IDE (or make 
 There're two ways on how to configure IDEA
 
 1. Configure it to reformat code after saving the file each time:
-![](https://github.com/jitsucom/eventnative-manager/raw/feature/eslint-formatter/frontend/docs/eslint-fix-enable.png)
+   ![](https://github.com/jitsucom/eventnative-manager/raw/feature/eslint-formatter/frontend/docs/eslint-fix-enable.png)
 2. Import [ESLint setting to internal IDEA formatter](https://www.jetbrains.com/help/idea/eslint.html)

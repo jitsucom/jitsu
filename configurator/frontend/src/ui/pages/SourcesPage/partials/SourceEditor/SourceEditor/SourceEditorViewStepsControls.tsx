@@ -38,7 +38,8 @@ const SourceEditorViewStepsControls = ({ proceedButton, handleStepBack, handleCa
           htmlType="button"
           loading={isProceedLoading}
           onClick={handleProceed}
-          disabled={controlsDisabled}>
+          disabled={controlsDisabled}
+        >
           {proceedButton.title ?? "Save"}
         </Button>
       )}

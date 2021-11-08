@@ -124,21 +124,19 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
 }
 
 const pullAirbyteSpec = async (sourceId: string): Promise<Parameter[]> => {
-  const services = ApplicationServices.get();
+  const services = ApplicationServices.get()
   const response = await services.backendApiClient.get(
-    `/airbyte/${sourceId.replace('airbyte-', '')}/spec?project_id=${
-      services.activeProject.id
-    }`,
+    `/airbyte/${sourceId.replace("airbyte-", "")}/spec?project_id=${services.activeProject.id}`,
     { proxy: true }
-  );
+  )
 
-  if (response?.message) throw new Error(response?.message);
-  if (response?.status && response?.status !== 'pending') {
+  if (response?.message) throw new Error(response?.message)
+  if (response?.status && response?.status !== "pending") {
     return mapAirbyteSpecToSourceConnectorConfig(
-      response?.['spec']?.['spec']?.['connectionSpecification']
-    ).map<Parameter>((parameter) => ({
+      response?.["spec"]?.["spec"]?.["connectionSpecification"]
+    ).map<Parameter>(parameter => ({
       ...parameter,
-      displayName: toTitleCase(parameter.displayName, { separator: '_' })
-    }));
+      displayName: toTitleCase(parameter.displayName, { separator: "_" }),
+    }))
   }
-};
+}

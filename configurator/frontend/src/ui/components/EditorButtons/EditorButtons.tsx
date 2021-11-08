@@ -1,28 +1,28 @@
 // @Libs
-import React from 'react';
-import { Button, Popover } from 'antd';
+import React from "react"
+import { Button, Popover } from "antd"
 // @Components
-import { PopoverTitle } from 'ui/components/Popover/PopoverTitle';
-import { PopoverErrorsContent } from 'ui/components/Popover/PopoverErrorsContent';
+import { PopoverTitle } from "ui/components/Popover/PopoverTitle"
+import { PopoverErrorsContent } from "ui/components/Popover/PopoverErrorsContent"
 // @Icons
-import { ApiOutlined, AreaChartOutlined } from '@ant-design/icons';
+import { ApiOutlined, AreaChartOutlined } from "@ant-design/icons"
 // @Types
-import { Tab } from 'ui/components/Tabs/TabsConfigurator';
+import { Tab } from "ui/components/Tabs/TabsConfigurator"
 
 interface ButtonProps {
-  isPopoverVisible: boolean;
-  isRequestPending: boolean;
-  handlePress: () => void;
-  handlePopoverClose: () => void;
-  titleText: string;
-  tabsList: Tab[];
-  disabled?: boolean;
+  isPopoverVisible: boolean
+  isRequestPending: boolean
+  handlePress: () => void
+  handlePopoverClose: () => void
+  titleText: string
+  tabsList: Tab[]
+  disabled?: boolean
 }
 
 export interface Props {
-  save: ButtonProps;
-  test: ButtonProps;
-  handleCancel: VoidFunction;
+  save: ButtonProps
+  test: ButtonProps
+  handleCancel: VoidFunction
 }
 
 const EditorButtons = ({ test, save, handleCancel }: Props) => {
@@ -30,12 +30,7 @@ const EditorButtons = ({ test, save, handleCancel }: Props) => {
     <>
       <Popover
         content={<PopoverErrorsContent tabsList={save.tabsList} />}
-        title={
-          <PopoverTitle
-            title={save.titleText}
-            handleClose={save.handlePopoverClose}
-          />
-        }
+        title={<PopoverTitle title={save.titleText} handleClose={save.handlePopoverClose} />}
         trigger="click"
         visible={save.isPopoverVisible}
       >
@@ -54,12 +49,7 @@ const EditorButtons = ({ test, save, handleCancel }: Props) => {
 
       <Popover
         content={<PopoverErrorsContent tabsList={test.tabsList} />}
-        title={
-          <PopoverTitle
-            title={test.titleText}
-            handleClose={test.handlePopoverClose}
-          />
-        }
+        title={<PopoverTitle title={test.titleText} handleClose={test.handlePopoverClose} />}
         trigger="click"
         visible={test.isPopoverVisible}
       >
@@ -82,9 +72,9 @@ const EditorButtons = ({ test, save, handleCancel }: Props) => {
         </Button>
       )}
     </>
-  );
-};
+  )
+}
 
-EditorButtons.displayName = 'EditorButtons';
+EditorButtons.displayName = "EditorButtons"
 
-export { EditorButtons };
+export { EditorButtons }

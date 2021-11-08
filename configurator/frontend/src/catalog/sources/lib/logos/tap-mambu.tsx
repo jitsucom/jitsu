@@ -1,18 +1,12 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      height="100%"
-      width="100%"
-      viewBox="0 0 198.8 198.8"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" height="100%" width="100%" viewBox="0 0 198.8 198.8" {...props}>
       <defs>
-        <style>{'.cls-1{fill:#84c011;}.cls-2{fill:#646b71;}'}</style>
+        <style>{".cls-1{fill:#84c011;}.cls-2{fill:#646b71;}"}</style>
       </defs>
-      <title>{'mambu-logo_200x200_square'}</title>
+      <title>{"mambu-logo_200x200_square"}</title>
       <g id="Guidelines">
         <g id="lTm1To.tif">
           <path
@@ -48,7 +42,7 @@ function Svg(props) {
         </g>
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg
