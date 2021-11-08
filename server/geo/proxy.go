@@ -46,6 +46,7 @@ func (up *UpdatableProxy) start() {
 			case <-up.closed:
 				return
 			case <-ticker.C:
+				logging.Info("running geo resolver databases update..")
 				resolver, err := up.factoryMethod(up.maxmindLink)
 				if err != nil {
 					logging.SystemErrorf("Error reloading geo resolver [%s]: %v", up.maxmindLink, err)
