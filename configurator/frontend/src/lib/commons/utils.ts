@@ -5,10 +5,8 @@ import { assertHasOwnProperty, assertIsArray, assertIsObject } from "utils/typeC
 import { ReactNode } from "react"
 
 export function concatenateURLs(baseUrl: string, url: string) {
-  let base = baseUrl.endsWith('/')
-    ? baseUrl.substr(0, baseUrl.length - 1)
-    : baseUrl;
-  return base + (url.startsWith('/') ? url : '/' + url);
+  let base = baseUrl.endsWith("/") ? baseUrl.substr(0, baseUrl.length - 1) : baseUrl
+  return base + (url.startsWith("/") ? url : "/" + url)
 }
 
 /**
@@ -19,26 +17,25 @@ export function concatenateURLs(baseUrl: string, url: string) {
  */
 export function setDebugInfo(field: string, obj: any, purify = true) {
   if (window) {
-    if (!window['__enUIDebug']) {
-      window['__enUIDebug'] = {};
+    if (!window["__enUIDebug"]) {
+      window["__enUIDebug"] = {}
     }
-    window['__enUIDebug'][field] =
-      typeof obj === 'object' && purify ? Object.assign({}, obj) : obj;
+    window["__enUIDebug"][field] = typeof obj === "object" && purify ? Object.assign({}, obj) : obj
   }
 }
 
 function circularReferencesReplacer() {
-  let cache = [];
+  let cache = []
   return (key, value) => {
-    if (typeof value === 'object' && value !== null) {
+    if (typeof value === "object" && value !== null) {
       // Duplicate reference found, discard key
-      if (cache.includes(value)) return;
+      if (cache.includes(value)) return
 
       // Store value in our collection
-      cache.push(value);
+      cache.push(value)
     }
-    return value;
-  };
+    return value
+  }
 }
 
 /**
@@ -47,20 +44,20 @@ function circularReferencesReplacer() {
  */
 export function alert(...object) {
   if (object.length === 1) {
-    console.log('Object:', object[0]);
-    window.alert(JSON.stringify(object[0], circularReferencesReplacer(), 4));
+    console.log("Object:", object[0])
+    window.alert(JSON.stringify(object[0], circularReferencesReplacer(), 4))
   } else {
-    console.log('Object:', object);
-    window.alert(JSON.stringify(object, circularReferencesReplacer(), 4));
+    console.log("Object:", object)
+    window.alert(JSON.stringify(object, circularReferencesReplacer(), 4))
   }
 }
 
 export function isNullOrUndef(val) {
-  return val === null || val === undefined;
+  return val === null || val === undefined
 }
 
 export function withDefaultVal<T>(val: T, defaultVal: T): T {
-  return isNullOrUndef(val) ? defaultVal : val;
+  return isNullOrUndef(val) ? defaultVal : val
 }
 
 /**
@@ -69,77 +66,77 @@ export function withDefaultVal<T>(val: T, defaultVal: T): T {
  */
 export function firstToLower(string: string) {
   if (string.length > 0) {
-    return string.charAt(0).toLowerCase() + string.slice(1);
+    return string.charAt(0).toLowerCase() + string.slice(1)
   }
-  return string;
+  return string
 }
 
 /**
  * Fully reloads current page
  */
 export function reloadPage() {
-  location.reload();
+  location.reload()
 }
 
 /**
  * Clean authorization tokens from local storage (without ApplicationServices context)
  */
-export function cleanAuthorizationLocalStorage(){
-  localStorage.removeItem(LS_ACCESS_KEY);
-  localStorage.removeItem(LS_REFRESH_KEY);
+export function cleanAuthorizationLocalStorage() {
+  localStorage.removeItem(LS_ACCESS_KEY)
+  localStorage.removeItem(LS_REFRESH_KEY)
 }
 
-type INumberFormatOpts = {};
+type INumberFormatOpts = {}
 
-type Formatter = (val: any) => string;
+type Formatter = (val: any) => string
 
 export function numberFormat(opts?: INumberFormatOpts | any): any {
   if (opts == undefined) {
-    return numberFormat({});
-  } else if (typeof opts === 'object') {
-    return (x) => {
+    return numberFormat({})
+  } else if (typeof opts === "object") {
+    return x => {
       if (x === undefined) {
-        return 'N/A';
+        return "N/A"
       }
-      return x.toLocaleString();
+      return x.toLocaleString()
       //return x.toString().replace(/\B(?<!\.\d*)(?=(\d{3})+(?!\d))/g, ",");
-    };
+    }
   } else {
-    let formatter: Formatter = numberFormat({});
-    return formatter(opts);
+    let formatter: Formatter = numberFormat({})
+    return formatter(opts)
   }
 }
 
 export function withDefaults<T>(obj: T, defaults: Partial<T>): T {
-  return { ...defaults, ...obj };
+  return { ...defaults, ...obj }
 }
 
 export function sleep(ms, retVal?: any | Error): Promise<void> {
   return new Promise((resolve, reject) =>
     setTimeout(() => {
       if (retVal instanceof Error) {
-        reject(retVal);
+        reject(retVal)
       } else {
-        resolve(retVal);
+        resolve(retVal)
       }
     }, ms)
-  );
+  )
 }
 
 export function copyToClipboard(value, unescapeNewLines?: boolean) {
-  const el = document.createElement('textarea');
+  const el = document.createElement("textarea")
 
-  el.value = unescapeNewLines ? value.replace('\\\n', '') : value;
-  document.body.appendChild(el);
-  el.select();
-  document.execCommand('copy');
-  document.body.removeChild(el);
+  el.value = unescapeNewLines ? value.replace("\\\n", "") : value
+  document.body.appendChild(el)
+  el.select()
+  document.execCommand("copy")
+  document.body.removeChild(el)
 }
 
 export type TimeFormattedUserEvent = {
-  time: Moment;
-  data: any;
-};
+  time: Moment
+  data: any
+}
 
 /**
  * Formats timestamps from raw user events to Moment.js format
@@ -164,7 +161,7 @@ export type TimeFormattedUserEvent = {
  * @throws assertion error (if raw event data model is not supported)
  */
 export function formatTimeOfRawUserEvents(rawEvents: unknown): TimeFormattedUserEvent[] {
-  assertIsObject(rawEvents);
+  assertIsObject(rawEvents)
   assertHasOwnProperty(
     rawEvents,
     "events",
@@ -200,17 +197,15 @@ export function formatTimeOfRawUserEvents(rawEvents: unknown): TimeFormattedUser
  * @param events - array of user events with Momet.js time at the top level
  * @returns array of same events sorted in descending order by time
  */
-export function sortTimeFormattedUserEventsDescending(
-  events: TimeFormattedUserEvent[]
-): TimeFormattedUserEvent[] {
+export function sortTimeFormattedUserEventsDescending(events: TimeFormattedUserEvent[]): TimeFormattedUserEvent[] {
   return events.sort((e1, e2) => {
     if (e1.time.isAfter(e2.time)) {
-      return -1;
+      return -1
     } else if (e2.time.isAfter(e1.time)) {
-      return 1;
+      return 1
     }
-    return 0;
-  });
+    return 0
+  })
 }
 
 /**
@@ -219,11 +214,8 @@ export function sortTimeFormattedUserEventsDescending(
  * @param timeAgo Moment.Duration period of time from the current date after which the latest event is considered to be 'a long ago'
  * @returns {boolean} Whether the event was before the (currentDate - timeAgo)
  */
-export function userEventWasTimeAgo(
-  event: TimeFormattedUserEvent,
-  timeAgo: Duration
-): boolean {
-  return event.time.isBefore(moment().subtract(timeAgo));
+export function userEventWasTimeAgo(event: TimeFormattedUserEvent, timeAgo: Duration): boolean {
+  return event.time.isBefore(moment().subtract(timeAgo))
 }
 
 /**
@@ -231,23 +223,21 @@ export function userEventWasTimeAgo(
  * @param events Array of user events with Momet.js time at the top level
  * @returns the latest user event or null if input is empty array
  */
-export function getLatestUserEvent(
-  events: TimeFormattedUserEvent[],
-): TimeFormattedUserEvent | null {
-  if (!events.length) return null;
-  return sortTimeFormattedUserEventsDescending(events)[0];
+export function getLatestUserEvent(events: TimeFormattedUserEvent[]): TimeFormattedUserEvent | null {
+  if (!events.length) return null
+  return sortTimeFormattedUserEventsDescending(events)[0]
 }
 
 /**
  * Turns any object to string
  */
 function safeToString(obj: any) {
-  if (typeof obj === 'string') {
-    return obj;
-  } else if (obj?.toString && typeof obj?.toString === 'function') {
-    return obj.toString();
+  if (typeof obj === "string") {
+    return obj
+  } else if (obj?.toString && typeof obj?.toString === "function") {
+    return obj.toString()
   } else {
-    return obj + ''
+    return obj + ""
   }
 }
 
@@ -257,11 +247,11 @@ function safeToString(obj: any) {
  */
 export function reactElementToString(children: ReactNode): string {
   if (!children) {
-    return '';
-  } else if (typeof children === 'string') {
-    return children;
+    return ""
+  } else if (typeof children === "string") {
+    return children
   } else if (Array.isArray(children)) {
-    return children.map(reactElementToString).join('\n');
+    return children.map(reactElementToString).join("\n")
   } else {
     console.warn(`Can't convert react element to highlightable <Code />. Using to string`, safeToString(children))
   }
@@ -282,7 +272,7 @@ export function comparator<T>(f: (t: T) => any): (a1: T, a2: T) => number {
 
 export function trimMiddle(str: string, maxLen: number, ellisis = "...") {
   if (str.length <= maxLen) {
-    return str;
+    return str
   } else {
     return str.substr(0, maxLen / 2 - (ellisis.length - 1)) + ellisis + str.substr(str.length - maxLen / 2 + 1)
   }

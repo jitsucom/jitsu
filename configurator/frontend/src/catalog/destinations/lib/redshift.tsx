@@ -1,5 +1,5 @@
-import { modeParameter, s3Credentials, tableName } from './common';
-import { stringType, passwordType, booleanType } from '../../sources/types';
+import { modeParameter, s3Credentials, tableName } from "./common"
+import { stringType, passwordType, booleanType } from "../../sources/types"
 
 const icon = (
   <svg
@@ -15,84 +15,81 @@ const icon = (
       fill="#5193ce"
     />
     <path d="m129.2 254.8-129.2 64.6v1141.3l129.2 64.6z" fill="#205b97" />
-    <path
-      d="m979.8 1783.7 258.4-129.2v-1525.3l-258.4-129.2-79 847z"
-      fill="#5193ce"
-    />
-    <path
-      d="m635.2 1783.7-258.4-129.2v-1525.3l258.4-129.2 79 847z"
-      fill="#205b97"
-    />
+    <path d="m979.8 1783.7 258.4-129.2v-1525.3l-258.4-129.2-79 847z" fill="#5193ce" />
+    <path d="m635.2 1783.7-258.4-129.2v-1525.3l258.4-129.2 79 847z" fill="#205b97" />
     <path d="m635.2 0h348.1v1780.1h-348.1z" fill="#2e73b7" />
   </svg>
-);
+)
 
 const destination = {
-  description: <>
-    RedShift is a fast and scalable data warehouse provided by AWS. Jitsu can send data to RedShift in both stream,
-    and batch mode. For batch mode you'll need to provide access to S3 bucket where Jitsu will store temporary data batches.
-  </>,
-  syncFromSourcesStatus: 'supported',
-  id: 'redshift',
-  type: 'database',
-  displayName: 'Redshift',
-  defaultTransform: '',
+  description: (
+    <>
+      RedShift is a fast and scalable data warehouse provided by AWS. Jitsu can send data to RedShift in both stream,
+      and batch mode. For batch mode you'll need to provide access to S3 bucket where Jitsu will store temporary data
+      batches.
+    </>
+  ),
+  syncFromSourcesStatus: "supported",
+  id: "redshift",
+  type: "database",
+  displayName: "Redshift",
+  defaultTransform: "",
   hidden: false,
   ui: {
-    title: (cfg) => cfg._formData.redshiftHost,
+    title: cfg => cfg._formData.redshiftHost,
     connectCmd: (cfg: object) => {
-      return `PGPASSWORD="${cfg['_formData']['redshiftPassword']}" psql -U ${cfg['_formData']['redshiftUser']} -d ${cfg['_formData']['redshiftDB']} -h ${cfg['_formData']['redshiftHost']} -p 5439 -c "SELECT 1"`
+      return `PGPASSWORD="${cfg["_formData"]["redshiftPassword"]}" psql -U ${cfg["_formData"]["redshiftUser"]} -d ${cfg["_formData"]["redshiftDB"]} -h ${cfg["_formData"]["redshiftHost"]} -p 5439 -c "SELECT 1"`
     },
-    icon
+    icon,
   },
   parameters: [
     modeParameter(),
     tableName(),
     {
-      id: '_formData.redshiftHost',
-      displayName: 'Host',
+      id: "_formData.redshiftHost",
+      displayName: "Host",
       required: true,
-      type: stringType
+      type: stringType,
     },
     {
-      id: '_formData.redshiftDB',
-      displayName: 'Database',
+      id: "_formData.redshiftDB",
+      displayName: "Database",
       required: true,
-      type: stringType
+      type: stringType,
     },
     {
-      id: '_formData.redshiftSchema',
-      displayName: 'Schema',
+      id: "_formData.redshiftSchema",
+      displayName: "Schema",
       required: true,
-      defaultValue: 'public',
-      type: stringType
+      defaultValue: "public",
+      type: stringType,
     },
     {
-      id: '_formData.redshiftUser',
-      displayName: 'Username',
+      id: "_formData.redshiftUser",
+      displayName: "Username",
       required: true,
-      type: stringType
+      type: stringType,
     },
     {
-      id: '_formData.redshiftPassword',
-      displayName: 'Password',
+      id: "_formData.redshiftPassword",
+      displayName: "Password",
       required: true,
-      type: passwordType
+      type: passwordType,
     },
     {
-      id: '_formData.redshiftUseHostedS3',
-      displayName: 'Use Jitsu S3 bucket',
+      id: "_formData.redshiftUseHostedS3",
+      displayName: "Use Jitsu S3 bucket",
       type: booleanType,
-      constant: false
+      constant: false,
     },
     ...s3Credentials(
-      '_formData.redshiftS3Region',
-      '_formData.redshiftS3Bucket',
-      '_formData.redshiftS3AccessKey',
-      '_formData.redshiftS3SecretKey',
-      (cfg) => cfg?._formData?.mode !== 'batch'
-    )
-  ]
-} as const;
+      "_formData.redshiftS3Region",
+      "_formData.redshiftS3Bucket",
+      "_formData.redshiftS3AccessKey",
+      "_formData.redshiftS3SecretKey",
+      cfg => cfg?._formData?.mode !== "batch"
+    ),
+  ],
+} as const
 
-export default destination;
+export default destination

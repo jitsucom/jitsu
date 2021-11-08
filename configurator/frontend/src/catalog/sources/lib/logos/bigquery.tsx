@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -9,14 +9,7 @@ function Svg(props) {
       viewBox="-1.633235433328256 7.0326093303156565 131.26574682416876 114.63439066968435"
       {...props}
     >
-      <linearGradient
-        id="bgq"
-        gradientUnits="userSpaceOnUse"
-        x1="64"
-        x2="64"
-        y1="7.034"
-        y2="120.789"
-      >
+      <linearGradient id="bgq" gradientUnits="userSpaceOnUse" x1="64" x2="64" y1="7.034" y2="120.789">
         <stop offset="0" stopColor="#4387fd" />
         <stop offset="1" stopColor="#4683ea" />
       </linearGradient>
@@ -34,7 +27,7 @@ function Svg(props) {
         <path d="M52.99 63.104v7.21a12.794 12.794 0 0 0 4.38 4.475V63.104zM61.675 57.026v19.411c.745.137 1.507.22 2.29.22.714 0 1.41-.075 2.093-.189V57.026zM70.766 66.1v8.562a12.786 12.786 0 0 0 4.382-4.7v-3.861zM80.691 78.287l-2.403 2.405a1.088 1.088 0 0 0 0 1.537l9.115 9.112a1.088 1.088 0 0 0 1.537 0l2.403-2.402a1.092 1.092 0 0 0 0-1.536l-9.116-9.116a1.09 1.09 0 0 0-1.536 0" />
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

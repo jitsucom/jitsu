@@ -5,8 +5,8 @@
  * @param object - object to extract entries from
  */
 export const typedObjectEntries = <O>(object: O): [keyof O, O[keyof O]][] => {
-  return Object.entries(object) as [keyof O, O[keyof O]][];
-};
+  return Object.entries(object) as [keyof O, O[keyof O]][]
+}
 
 /**
  * Filters object properties by the rule
@@ -15,10 +15,12 @@ export const typedObjectEntries = <O>(object: O): [keyof O, O[keyof O]][] => {
  * @param decideIfNeedToKeep rule that accepts object entries and returns boolean that if true will keep the object field
  * @returns new object with some fields filtered away
  */
-export const filterObject = <T extends Object, PreservedKeys extends keyof T>(object: T, decideIfNeedToKeep: (entry: [key: string, value: unknown]) => boolean): Pick<T, PreservedKeys> & Partial<Omit<T, PreservedKeys>> => {
-  return Object.fromEntries(
-    Object.entries(object).filter(decideIfNeedToKeep)
-  ) as Pick<T, PreservedKeys> & Partial<Omit<T, PreservedKeys>>
+export const filterObject = <T extends Object, PreservedKeys extends keyof T>(
+  object: T,
+  decideIfNeedToKeep: (entry: [key: string, value: unknown]) => boolean
+): Pick<T, PreservedKeys> & Partial<Omit<T, PreservedKeys>> => {
+  return Object.fromEntries(Object.entries(object).filter(decideIfNeedToKeep)) as Pick<T, PreservedKeys> &
+    Partial<Omit<T, PreservedKeys>>
 }
 
 // type NonNullableObject<T extends {[key: string]: any}> = {[key: keyof T]: T[keyof T]}

@@ -1,5 +1,5 @@
 // @Libs
-import { Badge, Button, Dropdown, Empty, Typography } from 'antd';
+import { Badge, Button, Dropdown, Empty, Typography } from "antd"
 import React, { useCallback, useEffect, useRef } from "react"
 import { observer } from "mobx-react-lite"
 import LeaderLine from "leader-line-new"
@@ -108,13 +108,15 @@ const ConnectionsPageComponent: React.FC = () => {
                 trigger={["click"]}
                 overlay={<AddSourceDropdownOverlay />}
                 className="flex-initial"
-                placement="bottomRight">
+                placement="bottomRight"
+              >
                 <Button type="ghost" size="large" icon={<PlusOutlined />}>
                   Add
                 </Button>
               </Dropdown>
             </div>
-          }>
+          }
+        >
           {apiKeysStore.hasApiKeys || sourcesStore.hasSources ? (
             [
               ...apiKeysStore.apiKeys.map(({ uid, comment }) => {
@@ -186,13 +188,15 @@ const ConnectionsPageComponent: React.FC = () => {
                       })}
                   />
                 }
-                className="flex-initial">
+                className="flex-initial"
+              >
                 <Button type="ghost" size="large" icon={<PlusOutlined />}>
                   Add
                 </Button>
               </Dropdown>
             </div>
-          }>
+          }
+        >
           {destinationsStore.hasDestinations ? (
             destinationsStore.destinations.map(({ _id, _uid, _type, _connectionTestOk }) => {
               return (
@@ -298,7 +302,8 @@ const CardTitle: React.FC<{ title: string }> = ({ title }) => {
       className="w-full"
       ellipsis={{
         suffix: parsedTitle.end,
-      }}>
+      }}
+    >
       {parsedTitle.start}
     </Typography.Text>
   )
@@ -319,7 +324,8 @@ const DestinationsEmptyList: React.FC = () => {
                 type="link"
                 size="small"
                 className={styles.linkButton}
-                onClick={() => destinationsStore.createFreeDatabase()}>
+                onClick={() => destinationsStore.createFreeDatabase()}
+              >
                 create a free demo database
               </Button>{" "}
               if you are just trying it out.

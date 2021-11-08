@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -12,7 +12,7 @@ function Svg(props) {
       y="0px"
       viewBox="0 0 200 200"
       style={{
-        enableBackground: 'new 0 0 200 200'
+        enableBackground: "new 0 0 200 200",
       }}
       xmlSpace="preserve"
       {...props}
@@ -20,7 +20,7 @@ function Svg(props) {
       <rect
         x={0}
         style={{
-          fill: '#33547D'
+          fill: "#33547D",
         }}
         width={200}
         height={200}
@@ -28,13 +28,13 @@ function Svg(props) {
       <g>
         <path
           style={{
-            fill: '#FFFFFF'
+            fill: "#FFFFFF",
           }}
           d="M52.7,84c8.8,0,16,7.2,16,16s-7.2,16-16,16s-16-7.2-16-16S43.9,84,52.7,84"
         />
         <circle
           style={{
-            fill: '#FFFFFF'
+            fill: "#FFFFFF",
           }}
           cx={110.5}
           cy={100.2}
@@ -42,7 +42,7 @@ function Svg(props) {
         />
         <circle
           style={{
-            fill: '#FFFFFF'
+            fill: "#FFFFFF",
           }}
           cx={158.1}
           cy={100.2}
@@ -50,7 +50,7 @@ function Svg(props) {
         />
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

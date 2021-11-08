@@ -1,48 +1,43 @@
-import { memo, useEffect, useRef, useState } from 'react';
-import { Form, Input, Button } from 'antd'
+import { memo, useEffect, useRef, useState } from "react"
+import { Form, Input, Button } from "antd"
 
 type ChangeEmailFormValues = {
-  email: string;
+  email: string
 }
 
 const changeEmailInitialFormValues: ChangeEmailFormValues = {
-  email: ''
+  email: "",
 }
 
 type Props = {
-  className?: string,
-  handleChangeEmail: (newEmail: string) => Promise<void>;
+  className?: string
+  handleChangeEmail: (newEmail: string) => Promise<void>
 }
 
-const ChangeEmailFormComponent: React.FC<Props> = ({
-  className,
-  handleChangeEmail
-}) => {
-  const inputRef = useRef(null);
-  const [form] = Form.useForm<ChangeEmailFormValues>();
-  const [showChangeEmailField, setShowChangeEmailField] = useState<boolean>(false);
-  const [isChangeEmailInProgress, setIsChangeEmailInProgress] = useState<boolean>(false);
+const ChangeEmailFormComponent: React.FC<Props> = ({ className, handleChangeEmail }) => {
+  const inputRef = useRef(null)
+  const [form] = Form.useForm<ChangeEmailFormValues>()
+  const [showChangeEmailField, setShowChangeEmailField] = useState<boolean>(false)
+  const [isChangeEmailInProgress, setIsChangeEmailInProgress] = useState<boolean>(false)
 
-  const handleSubmitNewEmail = async({ email }: ChangeEmailFormValues) => {
-    setIsChangeEmailInProgress(true);
-    await handleChangeEmail(email);
+  const handleSubmitNewEmail = async ({ email }: ChangeEmailFormValues) => {
+    setIsChangeEmailInProgress(true)
+    await handleChangeEmail(email)
     setShowChangeEmailField(val => !val)
-    setIsChangeEmailInProgress(false);
+    setIsChangeEmailInProgress(false)
   }
 
   useEffect(() => {
-    if (showChangeEmailField) inputRef.current?.focus?.();
-  }, [showChangeEmailField]);
+    if (showChangeEmailField) inputRef.current?.focus?.()
+  }, [showChangeEmailField])
 
   return (
-    <span className={`flex items-start -mb-2 ${className || ''}`}>
+    <span className={`flex items-start -mb-2 ${className || ""}`}>
       <Form
         form={form}
-        className={
-          `inline-block overflow-hidden max-h-14 max-w-xs transition-all duration-1000 ${
-            showChangeEmailField ? 'opacity-100 w-full mr-2' : 'opacity-0 w-0'
-          }`
-        }
+        className={`inline-block overflow-hidden max-h-14 max-w-xs transition-all duration-1000 ${
+          showChangeEmailField ? "opacity-100 w-full mr-2" : "opacity-0 w-0"
+        }`}
         requiredMark={false}
         initialValues={changeEmailInitialFormValues}
         onFinish={handleSubmitNewEmail}
@@ -52,46 +47,33 @@ const ChangeEmailFormComponent: React.FC<Props> = ({
           rules={[
             {
               required: true,
-              message: 'Can not be empty'
+              message: "Can not be empty",
             },
             {
-              type: 'email',
-              message: 'Invalid email format'
-            }
+              type: "email",
+              message: "Invalid email format",
+            },
           ]}
         >
-          <Input
-            ref={inputRef}
-            type="email"
-            autoComplete="email"
-            className="w-full min-w-0"
-          />
+          <Input ref={inputRef} type="email" autoComplete="email" className="w-full min-w-0" />
         </Form.Item>
       </Form>
       <Button
         type="primary"
         size="middle"
         loading={isChangeEmailInProgress}
-        htmlType={showChangeEmailField ? 'submit' : 'button'}
-        onClick={() => showChangeEmailField
-          ? form.submit()
-          : setShowChangeEmailField(true)
-        }
+        htmlType={showChangeEmailField ? "submit" : "button"}
+        onClick={() => (showChangeEmailField ? form.submit() : setShowChangeEmailField(true))}
       >
-        {showChangeEmailField ? 'Confirm Email' : 'Change Email' }
+        {showChangeEmailField ? "Confirm Email" : "Change Email"}
       </Button>
       {showChangeEmailField && (
-        <Button
-          type="default"
-          className="ml-2"
-          onClick={() => setShowChangeEmailField(false)}
-        >
-          {'Cancel'}
+        <Button type="default" className="ml-2" onClick={() => setShowChangeEmailField(false)}>
+          {"Cancel"}
         </Button>
       )}
     </span>
-  );
+  )
 }
 
-export const ChangeEmailForm = memo(ChangeEmailFormComponent);
-
+export const ChangeEmailForm = memo(ChangeEmailFormComponent)

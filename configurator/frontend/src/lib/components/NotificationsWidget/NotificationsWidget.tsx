@@ -1,27 +1,21 @@
 // @Libs
-import { useCallback, useState } from 'react';
-import { Badge, Drawer, Button } from 'antd';
-import { observer } from 'mobx-react-lite';
+import { useCallback, useState } from "react"
+import { Badge, Drawer, Button } from "antd"
+import { observer } from "mobx-react-lite"
 // @Components
-import { Notifications } from '../Notifications/Notifications';
+import { Notifications } from "../Notifications/Notifications"
 // @Store
-import { inAppNotificationsStore } from 'stores/inAppNotifications';
+import { inAppNotificationsStore } from "stores/inAppNotifications"
 // @Icons
-import { BellOutlined } from '@ant-design/icons';
+import { BellOutlined } from "@ant-design/icons"
 // @Styles
-import styles from './NotificationsWidget.module.less';
+import styles from "./NotificationsWidget.module.less"
 
 const NotificationsWidgetComponent: React.FC = () => {
-  const hasNotifications = inAppNotificationsStore.hasNotifications;
-  const [showDrawer, setShowDrawer] = useState<boolean>(false);
-  const handleOpenDrawer = useCallback<(...args: any) => void>(
-    () => setShowDrawer(true),
-    []
-  );
-  const handleCloseDrawer = useCallback<(...args: any) => void>(
-    () => setShowDrawer(false),
-    []
-  );
+  const hasNotifications = inAppNotificationsStore.hasNotifications
+  const [showDrawer, setShowDrawer] = useState<boolean>(false)
+  const handleOpenDrawer = useCallback<(...args: any) => void>(() => setShowDrawer(true), [])
+  const handleCloseDrawer = useCallback<(...args: any) => void>(() => setShowDrawer(false), [])
   return (
     <>
       <Button
@@ -39,7 +33,7 @@ const NotificationsWidgetComponent: React.FC = () => {
         closable={false}
         className={styles.drawer}
         onClose={handleCloseDrawer}
-        contentWrapperStyle={{ width: '80%', maxWidth: '300px' }}
+        contentWrapperStyle={{ width: "80%", maxWidth: "300px" }}
         bodyStyle={{ padding: 0 }}
       >
         <div className="h-full overflow-y-auto">
@@ -49,11 +43,11 @@ const NotificationsWidgetComponent: React.FC = () => {
         </div>
       </Drawer>
     </>
-  );
-};
+  )
+}
 
-const NotificationsWidget = observer(NotificationsWidgetComponent);
+const NotificationsWidget = observer(NotificationsWidgetComponent)
 
-NotificationsWidget.displayName = 'NotificationsWidget';
+NotificationsWidget.displayName = "NotificationsWidget"
 
-export { NotificationsWidget };
+export { NotificationsWidget }
