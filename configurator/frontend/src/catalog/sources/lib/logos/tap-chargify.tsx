@@ -1,16 +1,10 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      height="100%"
-      width="100%"
-      viewBox="0 0 200 200"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" height="100%" width="100%" viewBox="0 0 200 200" {...props}>
       <defs>
-        <style>{'.cls-1{fill:#5fca8e;}.cls-2{fill:#3d9ff8;}'}</style>
+        <style>{".cls-1{fill:#5fca8e;}.cls-2{fill:#3d9ff8;}"}</style>
       </defs>
       <g id="Guidelines">
         <path
@@ -23,7 +17,7 @@ function Svg(props) {
         />
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

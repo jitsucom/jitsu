@@ -1,19 +1,11 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      height="100%"
-      width="100%"
-      viewBox="0 0 200 200"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" height="100%" width="100%" viewBox="0 0 200 200" {...props}>
       <defs>
         <style>
-          {
-            '.cls-1{fill:#6a6e74;}.cls-2{fill:#558ffa;}.cls-3{fill:#e64f35;}.cls-4{fill:#f8c500;}.cls-5{fill:#4ab157;}'
-          }
+          {".cls-1{fill:#6a6e74;}.cls-2{fill:#558ffa;}.cls-3{fill:#e64f35;}.cls-4{fill:#f8c500;}.cls-5{fill:#4ab157;}"}
         </style>
       </defs>
       <g id="Guidelines">
@@ -61,7 +53,7 @@ function Svg(props) {
         />
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

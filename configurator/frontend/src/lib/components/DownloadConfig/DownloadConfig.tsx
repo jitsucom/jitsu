@@ -1,9 +1,9 @@
 /* eslint-disable */
-import React, { ReactElement, ReactNode, useEffect, useState } from 'react';
-import { CodeSnippet, LoadableComponent } from '../components';
-import ApplicationServices from '../../services/ApplicationServices';
-import './DownloadConfig.less';
-import CloudDownloadOutlined from '@ant-design/icons/lib/icons/CloudDownloadOutlined';
+import React, { ReactElement, ReactNode, useEffect, useState } from "react"
+import { CodeSnippet, LoadableComponent } from "../components"
+import ApplicationServices from "../../services/ApplicationServices"
+import "./DownloadConfig.less"
+import CloudDownloadOutlined from "@ant-design/icons/lib/icons/CloudDownloadOutlined"
 import { PageProps } from "navigation"
 
 type State = {
@@ -55,10 +55,12 @@ export default class DownloadConfig extends LoadableComponent<PageProps, State> 
             <a
               onClick={() => {
                 download("eventnative.yaml", this.state.code)
-              }}>
+              }}
+            >
               <u>./eventnative.yaml</u> <CloudDownloadOutlined />
             </a>
-          }>
+          }
+        >
           {this.state.code}
         </CodeSnippet>
       </>

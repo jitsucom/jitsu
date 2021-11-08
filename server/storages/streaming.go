@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/utils"
+	"go.uber.org/atomic"
 	"math/rand"
 	"time"
 )
@@ -32,7 +33,7 @@ type StreamingWorker struct {
 	streamingStorage StreamingStorage
 	tableHelper      []*TableHelper
 
-	closed bool
+	closed *atomic.Bool
 }
 
 //newStreamingWorker returns configured streaming worker
@@ -43,6 +44,7 @@ func newStreamingWorker(eventQueue *events.PersistentQueue, processor *schema.Pr
 		processor:        processor,
 		streamingStorage: streamingStorage,
 		tableHelper:      tableHelper,
+		closed:           atomic.NewBool(false),
 	}
 }
 
@@ -55,13 +57,13 @@ func (sw *StreamingWorker) start() {
 			if sw.streamingStorage.IsStaging() {
 				break
 			}
-			if sw.closed {
+			if sw.closed.Load() {
 				break
 			}
 
 			fact, dequeuedTime, tokenID, err := sw.eventQueue.DequeueBlock()
 			if err != nil {
-				if err == events.ErrQueueClosed && sw.closed {
+				if err == events.ErrQueueClosed && sw.closed.Load() {
 					continue
 				}
 				logging.SystemErrorf("[%s] Error reading event from queue: %v", sw.streamingStorage.ID(), err)
@@ -111,13 +113,13 @@ func (sw *StreamingWorker) start() {
 				eventContext := &adapters.EventContext{
 					CacheDisabled: sw.streamingStorage.IsCachingDisabled(),
 					DestinationID: sw.streamingStorage.ID(),
-					EventID:       utils.NvlString(sw.streamingStorage.GetUniqueIDField().Extract(flattenObject),
-						 							sw.streamingStorage.GetUniqueIDField().Extract(fact)),
-					TokenID:       tokenID,
-					Src:           events.ExtractSrc(fact),
-					RawEvent:      fact,
+					EventID: utils.NvlString(sw.streamingStorage.GetUniqueIDField().Extract(flattenObject),
+						sw.streamingStorage.GetUniqueIDField().Extract(fact)),
+					TokenID:        tokenID,
+					Src:            events.ExtractSrc(fact),
+					RawEvent:       fact,
 					ProcessedEvent: flattenObject,
-					Table: table,
+					Table:          table,
 				}
 
 				if err := sw.streamingStorage.Insert(eventContext); err != nil {
@@ -135,7 +137,7 @@ func (sw *StreamingWorker) start() {
 }
 
 func (sw *StreamingWorker) Close() error {
-	sw.closed = true
+	sw.closed.Store(true)
 
 	return nil
 }

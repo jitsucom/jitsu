@@ -70,7 +70,6 @@ export function makeErrorHandler(errorDescription: string) {
   return error => handleError(error, errorDescription)
 }
 
-
 /**
  * Default handler for error: show message and log error to console
  */

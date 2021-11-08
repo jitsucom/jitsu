@@ -1,59 +1,55 @@
 // @Libs
-import { ReactElement, ReactNode, useCallback, useMemo } from 'react';
-import { Modal } from 'antd';
-import { flowResult } from 'mobx';
-import { observer } from 'mobx-react-lite';
-import { useHistory } from 'react-router-dom';
+import { ReactElement, ReactNode, useCallback, useMemo } from "react"
+import { Modal } from "antd"
+import { flowResult } from "mobx"
+import { observer } from "mobx-react-lite"
+import { useHistory } from "react-router-dom"
 // @Components
-import { EmptyListView } from './EmptyListView';
+import { EmptyListView } from "./EmptyListView"
 // @Commons
-import { useServices } from 'hooks/useServices';
-import { destinationsStore } from 'stores/destinations';
+import { useServices } from "hooks/useServices"
+import { destinationsStore } from "stores/destinations"
 
 export interface Props {
-  title: ReactNode;
-  list?: ReactElement;
-  unit: string;
+  title: ReactNode
+  list?: ReactElement
+  unit: string
 }
 
 const EmptyListComponent = ({ title, list, unit }: Props) => {
-  const router = useHistory();
-  const services = useServices();
+  const router = useHistory()
+  const services = useServices()
 
   const needShowCreateDemoDatabase = useMemo<boolean>(
     () => services.features.createDemoDatabase,
     [services.features.createDemoDatabase]
-  );
+  )
 
-  const handleCreateFreeDatabase = useCallback<
-    () => Promise<void>
-  >(async () => {
-    await flowResult(destinationsStore.createFreeDatabase());
+  const handleCreateFreeDatabase = useCallback<() => Promise<void>>(async () => {
+    await flowResult(destinationsStore.createFreeDatabase())
     const modal = Modal.info({
-      title: 'New destination has been created',
+      title: "New destination has been created",
       content: (
         <>
-          We have created a Postgres database for you. Also we made sure that{' '}
+          We have created a Postgres database for you. Also we made sure that{" "}
           <a
             onClick={() => {
-              modal.destroy();
-              router.push('/api_keys');
+              modal.destroy()
+              router.push("/api_keys")
             }}
           >
             API key
-          </a>{' '}
+          </a>{" "}
           has been created and linked to current destination.
           <br />
-          Read more on how to send data to Jitsu with{' '}
-          <a href="https://jitsu.com/docs/sending-data/js-sdk">
-            JavaScript SDK
-          </a>{' '}
-          or <a href="https://jitsu.com/docs/sending-data/api">HTTP API</a>
+          Read more on how to send data to Jitsu with{" "}
+          <a href="https://jitsu.com/docs/sending-data/js-sdk">JavaScript SDK</a> or{" "}
+          <a href="https://jitsu.com/docs/sending-data/api">HTTP API</a>
         </>
       ),
-      onOk: () => modal.destroy()
-    });
-  }, [router]);
+      onOk: () => modal.destroy(),
+    })
+  }, [router])
 
   return (
     <EmptyListView
@@ -63,10 +59,10 @@ const EmptyListComponent = ({ title, list, unit }: Props) => {
       hideFreeDatabaseSeparateButton={!needShowCreateDemoDatabase}
       handleCreateFreeDatabase={handleCreateFreeDatabase}
     />
-  );
-};
+  )
+}
 
-const EmptyList = observer(EmptyListComponent);
-EmptyList.displayName = 'EmptyList';
+const EmptyList = observer(EmptyListComponent)
+EmptyList.displayName = "EmptyList"
 
-export { EmptyList };
+export { EmptyList }

@@ -206,21 +206,6 @@ func RegisterTestConnectionFunc(driverType string, testConnectionFunc func(confi
 	DriverTestConnectionFuncs[driverType] = testConnectionFunc
 }
 
-//UnmarshalConfig serializes and deserializes config into the object
-//return error if occurred
-func UnmarshalConfig(config interface{}, object interface{}) error {
-	b, err := json.Marshal(config)
-	if err != nil {
-		return fmt.Errorf("error marshalling object: %v", err)
-	}
-	err = json.Unmarshal(b, object)
-	if err != nil {
-		return fmt.Errorf("Error unmarshalling config: %v", err)
-	}
-
-	return nil
-}
-
 //WaitReadiness waits 90 sec until driver is ready or returns false and notReadyError
 func WaitReadiness(driver CLIDriver, taskLogger logging.TaskLogger) (bool, error) {
 	ready, _ := driver.Ready()

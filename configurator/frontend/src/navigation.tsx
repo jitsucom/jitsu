@@ -4,30 +4,22 @@ import { useLocation } from "react-router-dom"
 // @Routes
 import { destinationPageRoutes } from "ui/pages/DestinationsPage/DestinationsPage.routes"
 // @???
-import ComponentTest from './lib/components/componentTest';
-import {
-  TaskLogsPage,
-  taskLogsPageRoute
-} from 'ui/pages/TaskLogs/TaskLogsPage';
-import {
-  SettingsPage,
-  settingsPageRoutes
-} from 'ui/pages/SettingsPage/SettingsPage';
-import {
-  taskLogsViewerRoute,
-  TaskLogViewer
-} from 'ui/pages/TaskLogs/TaskLogViewer';
-import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
-import { LoginLink } from 'lib/components/LoginLink/LoginLink';
-import SignupPage from './ui/pages/GetStartedPage/SignupPage';
-import LoginPage from './ui/pages/GetStartedPage/LoginPage';
-import { StatusPage } from './lib/components/StatusPage/StatusPage';
+import ComponentTest from "./lib/components/componentTest"
+import { TaskLogsPage, taskLogsPageRoute } from "ui/pages/TaskLogs/TaskLogsPage"
+import { SettingsPage, settingsPageRoutes } from "ui/pages/SettingsPage/SettingsPage"
+import { taskLogsViewerRoute, TaskLogViewer } from "ui/pages/TaskLogs/TaskLogViewer"
+import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
+import { LoginLink } from "lib/components/LoginLink/LoginLink"
+import SignupPage from "./ui/pages/GetStartedPage/SignupPage"
+import LoginPage from "./ui/pages/GetStartedPage/LoginPage"
+import { StatusPage } from "./lib/components/StatusPage/StatusPage"
 import { apiKeysRoutes, ApiKeyEditor } from "./lib/components/ApiKeys/ApiKeyEditor"
 // @Components
 const ApiKeys = React.lazy(() => import("./lib/components/ApiKeys/ApiKeys"))
 const CustomDomains = React.lazy(() => import("./lib/components/CustomDomains/CustomDomains"))
 const DestinationsPage = React.lazy(() => import("ui/pages/DestinationsPage/DestinationsPage"))
 const DbtCloudPage = React.lazy(() => import("ui/pages/DbtCloud/DbtCloudPage"))
+const GeoDataResolver = React.lazy(() => import("./lib/components/GeoDataResolver/GeoDataResolver"))
 
 const EventsStream = React.lazy(() => import("./lib/components/EventsStream/EventsStream"))
 const SetupForm = React.lazy(() => import("ui/pages/SetupPage/SetupForm"))
@@ -107,6 +99,7 @@ export const PRIVATE_PAGES: Page[] = [
     "Edit destinations"
   ),
   new Page("dbt Cloud integration", "/dbtcloud", DbtCloudPage, "dbt Cloud"),
+  new Page("Jitsu | geo data resolver", "/geo_data_resolver", GeoDataResolver, "Geo data resolver"),
   new Page("Jitsu | download config", "/cfg_download", DownloadConfig, "Download Jitsu Server configuration"),
   new Page("Jitsu | edit API keys", "/api-keys", ApiKeys, "API Keys"),
   new Page("Jitsu | edit custom domains", "/domains", CustomDomains, "Custom tracking domains"),
@@ -125,11 +118,5 @@ export const PRIVATE_PAGES: Page[] = [
   new Page("Jitsu | task logs", taskLogsPageRoute, TaskLogsPage, "Task Logs"),
   new Page("Jitsu | Task Logs View", taskLogsViewerRoute, TaskLogViewer, "Task Logs"),
   new Page("Jitsu | Settings", settingsPageRoutes, SettingsPage, "Settings"),
-  new Page(
-    'Edit API keys · Jitsu',
-    [apiKeysRoutes.newExact, apiKeysRoutes.editExact],
-    ApiKeyEditor,
-    'Edit API Key'
-  ),
-
+  new Page("Edit API keys · Jitsu", [apiKeysRoutes.newExact, apiKeysRoutes.editExact], ApiKeyEditor, "Edit API Key"),
 ]

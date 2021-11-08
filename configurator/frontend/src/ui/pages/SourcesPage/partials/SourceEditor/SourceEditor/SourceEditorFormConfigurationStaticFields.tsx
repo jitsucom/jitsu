@@ -85,7 +85,8 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
             name="sourceId"
             rules={sourceIdValidationRules}
             labelCol={{ span: 4 }}
-            wrapperCol={{ span: 20 }}>
+            wrapperCol={{ span: 20 }}
+          >
             <Input disabled={editorMode === "edit"} autoComplete="off" />
           </AntdForm.Item>
         </Col>
@@ -100,7 +101,8 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
             label={<span className="w-full">Schedule</span>}
             labelCol={{ span: 4 }}
             wrapperCol={{ span: 20 }}
-            rules={[{ required: true, message: "You have to choose schedule" }]}>
+            rules={[{ required: true, message: "You have to choose schedule" }]}
+          >
             <Select>
               {COLLECTIONS_SCHEDULES.map(option => {
                 const available = subscription ? subscription.quota.allowedSchedules.includes(option.id) : true
@@ -119,8 +121,8 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
   )
 }
 
-const Wrapped = observer(SourceEditorFormConfigurationStaticFields);
+const Wrapped = observer(SourceEditorFormConfigurationStaticFields)
 
-Wrapped.displayName = 'SourceEditorFormConfigurationStaticFields';
+Wrapped.displayName = "SourceEditorFormConfigurationStaticFields"
 
-export { Wrapped as SourceEditorFormConfigurationStaticFields };
+export { Wrapped as SourceEditorFormConfigurationStaticFields }

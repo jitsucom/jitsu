@@ -9,8 +9,8 @@ import {
   microsoftTeams,
   postgres,
   braintree,
-  github
-} from './airbyte';
+  github,
+} from "./airbyte"
 
 export const allMockAirbyteSourcesSpecs = Object.freeze({
   hubspot,
@@ -23,5 +23,5 @@ export const allMockAirbyteSourcesSpecs = Object.freeze({
   microsoftTeams,
   postgres,
   braintree,
-  github
-} as const);
+  github,
+} as const)

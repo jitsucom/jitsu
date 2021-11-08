@@ -1,29 +1,29 @@
 // @Libs
-import { useCallback, useMemo } from 'react';
-import { Col, Form, Input, Row, Select } from 'antd';
-import { observer } from 'mobx-react-lite';
-import debounce from 'lodash/debounce';
+import { useCallback, useMemo } from "react"
+import { Col, Form, Input, Row, Select } from "antd"
+import { observer } from "mobx-react-lite"
+import debounce from "lodash/debounce"
 // @Types
-import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import { SourceConnector } from 'catalog/sources/types';
-import { Rule, RuleObject } from 'rc-field-form/lib/interface';
+import { FormInstance } from "antd/lib/form/hooks/useForm"
+import { SourceConnector } from "catalog/sources/types"
+import { Rule, RuleObject } from "rc-field-form/lib/interface"
 // @Components
-import { ConfigurableFieldsForm } from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm';
-import { COLLECTIONS_SCHEDULES } from 'constants/schedule';
+import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
+import { COLLECTIONS_SCHEDULES } from "constants/schedule"
 // @Styles
-import editorStyles from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
-import { LoadableFieldsForm } from 'ui/components/LoadableFieldsForm/LoadableFieldsForm';
-import { useServices } from '../../../../../../hooks/useServices';
+import editorStyles from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less"
+import { LoadableFieldsForm } from "ui/components/LoadableFieldsForm/LoadableFieldsForm"
+import { useServices } from "../../../../../../hooks/useServices"
 
 export interface Props {
-  form: FormInstance;
-  sourceReference: SourceConnector;
-  isCreateForm: boolean;
-  sources: SourceData[];
-  initialValues: SourceData;
-  handleTouchAnyField: (...args: any) => void;
-  disableFormControls?: VoidFunction;
-  enableFormControls?: VoidFunction;
+  form: FormInstance
+  sourceReference: SourceConnector
+  isCreateForm: boolean
+  sources: SourceData[]
+  initialValues: SourceData
+  handleTouchAnyField: (...args: any) => void
+  disableFormControls?: VoidFunction
+  enableFormControls?: VoidFunction
 }
 
 const SourceEditorConfigComponent = ({
@@ -34,49 +34,42 @@ const SourceEditorConfigComponent = ({
   initialValues = {} as SourceData,
   handleTouchAnyField,
   disableFormControls,
-  enableFormControls
+  enableFormControls,
 }: Props) => {
-  const services = useServices();
-  const subscription = services.currentSubscription?.currentPlan;
+  const services = useServices()
+  const subscription = services.currentSubscription?.currentPlan
   const validateUniqueSourceId = useCallback(
     (rule: RuleObject, value: string) =>
       sources?.find((source: SourceData) => source.sourceId === value)
-        ? Promise.reject('Source ID must be unique!')
+        ? Promise.reject("Source ID must be unique!")
         : Promise.resolve(),
     [sources]
-  );
+  )
 
-  const handleChange = debounce(handleTouchAnyField, 500);
+  const handleChange = debounce(handleTouchAnyField, 500)
 
   const sourceIdValidators = useMemo(() => {
-    const rules: Rule[] = [
-      { required: true, message: 'Source ID is required field' }
-    ];
+    const rules: Rule[] = [{ required: true, message: "Source ID is required field" }]
 
     if (isCreateForm) {
       rules.push({
-        validator: validateUniqueSourceId
-      });
+        validator: validateUniqueSourceId,
+      })
     }
 
-    return rules;
-  }, [validateUniqueSourceId, isCreateForm]);
+    return rules
+  }, [validateUniqueSourceId, isCreateForm])
 
   const initialSchedule = useMemo(() => {
     if (initialValues.schedule) {
-      return initialValues.schedule;
+      return initialValues.schedule
     }
 
-    return COLLECTIONS_SCHEDULES[0].value;
-  }, [initialValues]);
+    return COLLECTIONS_SCHEDULES[0].value
+  }, [initialValues])
 
   return (
-    <Form
-      name="source-config"
-      form={form}
-      autoComplete="off"
-      onChange={handleChange}
-    >
+    <Form name="source-config" form={form} autoComplete="off" onChange={handleChange}>
       <Row>
         <Col span={24}>
           <Form.Item
@@ -102,23 +95,17 @@ const SourceEditorConfigComponent = ({
             label="Schedule:"
             labelCol={{ span: 4 }}
             wrapperCol={{ span: 20 }}
-            rules={[{ required: true, message: 'You have to choose schedule' }]}
+            rules={[{ required: true, message: "You have to choose schedule" }]}
           >
             <Select>
-              {COLLECTIONS_SCHEDULES.map((option) => {
-                const available = subscription
-                  ? subscription.quota.allowedSchedules.includes(option.id)
-                  : true;
+              {COLLECTIONS_SCHEDULES.map(option => {
+                const available = subscription ? subscription.quota.allowedSchedules.includes(option.id) : true
                 return (
-                  <Select.Option
-                    value={option.value}
-                    key={option.value}
-                    disabled={!available}
-                  >
+                  <Select.Option value={option.value} key={option.value} disabled={!available}>
                     {option.label}
-                    {!available && ' - n/a, upgrade plan'}
+                    {!available && " - n/a, upgrade plan"}
                   </Select.Option>
-                );
+                )
               })}
             </Select>
           </Form.Item>
@@ -143,11 +130,11 @@ const SourceEditorConfigComponent = ({
         />
       )}
     </Form>
-  );
-};
+  )
+}
 
-const SourceEditorConfig = observer(SourceEditorConfigComponent);
+const SourceEditorConfig = observer(SourceEditorConfigComponent)
 
-SourceEditorConfig.displayName = 'SourceEditorConfig';
+SourceEditorConfig.displayName = "SourceEditorConfig"
 
-export { SourceEditorConfig };
+export { SourceEditorConfig }

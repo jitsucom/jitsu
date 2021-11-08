@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -14,7 +14,7 @@ function Svg(props) {
       <defs>
         <style>
           {
-            '.cls-1{fill:#4fc3f7;}.cls-2{fill:#4285f4;}.cls-3,.cls-8{fill:#1a237e;}.cls-3,.cls-5,.cls-6,.cls-7{opacity:0.2;}.cls-3,.cls-5,.cls-6{isolation:isolate;}.cls-4{fill:#ffc107;}.cls-5,.cls-9{fill:#fff;}.cls-6{fill:#bf360c;}.cls-10{fill:#3367d6;}.cls-11{fill:url(#linear-gradient);}.cls-12{fill-opacity:0.1;fill:url(#radial-gradient);}'
+            ".cls-1{fill:#4fc3f7;}.cls-2{fill:#4285f4;}.cls-3,.cls-8{fill:#1a237e;}.cls-3,.cls-5,.cls-6,.cls-7{opacity:0.2;}.cls-3,.cls-5,.cls-6{isolation:isolate;}.cls-4{fill:#ffc107;}.cls-5,.cls-9{fill:#fff;}.cls-6{fill:#bf360c;}.cls-10{fill:#3367d6;}.cls-11{fill:url(#linear-gradient);}.cls-12{fill-opacity:0.1;fill:url(#radial-gradient);}"
           }
         </style>
         <linearGradient
@@ -41,7 +41,7 @@ function Svg(props) {
           <stop offset={1} stopColor="#fff" stopOpacity={0} />
         </radialGradient>
       </defs>
-      <title>{'ga360-logo_200x200_square'}</title>
+      <title>{"ga360-logo_200x200_square"}</title>
       <path
         className="cls-1"
         d="M127.33,127.29a38.86,38.86,0,0,1-25.5,11.3c-.58,0-1.25.09-1.83.09a12.6,12.6,0,0,1-1.84-.09,61.94,61.94,0,0,1-28.68-8,59.24,59.24,0,0,1-13.14-10A61.59,61.59,0,0,1,46.29,46.34,61.74,61.74,0,0,0,100,157.23a61.77,61.77,0,0,0,38.54-55.44A38.1,38.1,0,0,1,127.33,127.29Z"
@@ -119,7 +119,7 @@ function Svg(props) {
         d="M166.84,56.29a64.22,64.22,0,0,0-13.14-10,59.47,59.47,0,0,0-10-13.14,61.8,61.8,0,0,0-87.42,0,64.22,64.22,0,0,0-10,13.14,61.78,61.78,0,0,0,.09,107.41,59.46,59.46,0,0,0,10.05,13.13,61.79,61.79,0,0,0,87.41,0,64.5,64.5,0,0,0,10.05-13.13,59.46,59.46,0,0,0,13.13-10A61.76,61.76,0,0,0,166.84,56.29ZM138.63,100A38.64,38.64,0,1,1,100,61.32,38.63,38.63,0,0,1,138.63,100Z"
       />
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

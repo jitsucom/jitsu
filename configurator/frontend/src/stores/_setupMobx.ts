@@ -1,5 +1,5 @@
 // import { configure } from 'mobx';
-import React from 'react';
+import React from "react"
 
 // configure({
 //   enforceActions: 'always',

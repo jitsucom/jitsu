@@ -1,92 +1,80 @@
-import { Col, FormInstance, Row } from 'antd';
-import { SourceConnector } from 'catalog/sources/types';
-import { useLoaderAsObject } from 'hooks/useLoader';
-import { ErrorCard } from 'lib/components/ErrorCard/ErrorCard';
-import { LoadableFieldsLoadingMessageCard } from 'lib/components/LoadingFormCard/LoadingFormCard';
-import ApplicationServices from 'lib/services/ApplicationServices';
-import { useEffect, useRef } from 'react';
-import { Poll } from 'utils/polling';
-import { withQueryParams } from 'utils/queryParams';
-import {
-  assertIsArrayOfTypes,
-  assertIsObject,
-  assertIsString
-} from 'utils/typeCheck';
-import { SourceEditorStreamsAirbyteForm } from './SourceEditorStreamsAirbyteForm';
-import { useSourceEditorSyncContext } from './SourceEditorSyncContext';
+import { Col, FormInstance, Row } from "antd"
+import { SourceConnector } from "catalog/sources/types"
+import { useLoaderAsObject } from "hooks/useLoader"
+import { ErrorCard } from "lib/components/ErrorCard/ErrorCard"
+import { LoadableFieldsLoadingMessageCard } from "lib/components/LoadingFormCard/LoadingFormCard"
+import ApplicationServices from "lib/services/ApplicationServices"
+import { useEffect, useRef } from "react"
+import { Poll } from "utils/polling"
+import { withQueryParams } from "utils/queryParams"
+import { assertIsArrayOfTypes, assertIsObject, assertIsString } from "utils/typeCheck"
+import { SourceEditorStreamsAirbyteForm } from "./SourceEditorStreamsAirbyteForm"
+import { useSourceEditorSyncContext } from "./SourceEditorSyncContext"
 
 type Props = {
-  form: FormInstance;
-  initialValues: SourceData;
-  connectorSource: SourceConnector;
-  handleBringSourceData: (options?: {
-    skipValidation?: boolean;
-  }) => Promise<SourceData>;
-};
+  form: FormInstance
+  initialValues: SourceData
+  connectorSource: SourceConnector
+  handleBringSourceData: (options?: { skipValidation?: boolean }) => Promise<SourceData>
+}
 
-const services = ApplicationServices.get();
+const services = ApplicationServices.get()
 
 export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
   form,
   initialValues,
   connectorSource,
-  handleBringSourceData
+  handleBringSourceData,
 }) => {
-  const pollingInstance = useRef<null | Poll>(null);
-  const { isLoadingConfigParameters } = useSourceEditorSyncContext();
+  const pollingInstance = useRef<null | Poll>(null)
+  const { isLoadingConfigParameters } = useSourceEditorSyncContext()
 
-  const formLoadedForTheFirstTime: boolean =
-    !initialValues.config?.catalog?.streams && !initialValues.catalog?.streams;
+  const formLoadedForTheFirstTime: boolean = !initialValues.config?.catalog?.streams && !initialValues.catalog?.streams
   const previouslyCheckedStreams: AirbyteStreamData[] =
-    initialValues.config?.catalog?.streams ??
-    initialValues.catalog?.streams ??
-    [];
+    initialValues.config?.catalog?.streams ?? initialValues.catalog?.streams ?? []
 
   const cancelPolling = () => {
-    pollingInstance.current?.cancel();
-    pollingInstance.current = null;
-  };
+    pollingInstance.current?.cancel()
+    pollingInstance.current = null
+  }
 
   const {
     isLoading: isLoadingAirbyteStreams,
     data: airbyteStreamsLoadedData,
     error: airbyteStreamsLoadError,
-    reloader: reloadAirbyteStreams
+    reloader: reloadAirbyteStreams,
   } = useLoaderAsObject<AirbyteStreamData[]>(async () => {
     if (!connectorSource.staticStreamsConfigEndpoint)
       throw new Error(
-        'Used SourceEditorStreamsAirbyteLoader component but endpoint for loading streams config not specified in Source Connector'
-      );
+        "Used SourceEditorStreamsAirbyteLoader component but endpoint for loading streams config not specified in Source Connector"
+      )
     if (!isLoadingConfigParameters) {
-      cancelPolling();
+      cancelPolling()
 
-      const data = (await handleBringSourceData({ skipValidation: true }))
-        .config.config;
-      const baseUrl = connectorSource.staticStreamsConfigEndpoint;
-      const project_id = services.userService.getUser().projects[0].id;
+      const data = (await handleBringSourceData({ skipValidation: true })).config.config
+      const baseUrl = connectorSource.staticStreamsConfigEndpoint
+      const project_id = services.userService.getUser().projects[0].id
 
       const poll = new Poll(
         (end, fail) => async () => {
-          const response = await services.backendApiClient.post(
-            withQueryParams(baseUrl, { project_id }),
-            data,
-            { proxy: true }
-          );
-          if (response.status !== 'pending') end(response);
-          if (response.message) fail(new Error(response.message));
+          const response = await services.backendApiClient.post(withQueryParams(baseUrl, { project_id }), data, {
+            proxy: true,
+          })
+          if (response.status !== "pending") end(response)
+          if (response.message) fail(new Error(response.message))
         },
         2000
-      );
+      )
 
-      pollingInstance.current = poll;
+      pollingInstance.current = poll
 
-      poll.start();
-      const response = await poll.wait();
+      poll.start()
+      const response = await poll.wait()
 
-      if (!response) return [];
+      if (!response) return []
 
-      assertIsObject(response);
-      assertIsObject(response.catalog);
+      assertIsObject(response)
+      assertIsObject(response.catalog)
       assertIsArrayOfTypes(
         response.catalog.streams,
         {},
@@ -125,11 +113,11 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
         }
       })
 
-      return streams;
+      return streams
     }
-  }, [isLoadingConfigParameters]);
+  }, [isLoadingConfigParameters])
 
-  useEffect(() => () => cancelPolling(), []);
+  useEffect(() => () => cancelPolling(), [])
 
   /**
    * The following statements implement the opposite useEffect.
@@ -137,19 +125,15 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
    * `airbyteStreamsLoadError`, `airbyteStreamsLoadedData` has changed;
    */
 
-  let shouldReload = true;
+  let shouldReload = true
 
   useEffect(() => {
-    shouldReload = false;
-  }, [
-    isLoadingAirbyteStreams,
-    airbyteStreamsLoadError,
-    airbyteStreamsLoadedData
-  ]);
+    shouldReload = false
+  }, [isLoadingAirbyteStreams, airbyteStreamsLoadError, airbyteStreamsLoadedData])
 
   useEffect(() => {
-    shouldReload && !isLoadingAirbyteStreams && reloadAirbyteStreams();
-  });
+    shouldReload && !isLoadingAirbyteStreams && reloadAirbyteStreams()
+  })
 
   return airbyteStreamsLoadError ? (
     <Row>
@@ -157,12 +141,10 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
         <ErrorCard
           title={`Source configuration validation failed`}
           description={`Connection is not configured.${
-            airbyteStreamsLoadError.stack
-              ? ' See more details in the error stack.'
-              : ''
+            airbyteStreamsLoadError.stack ? " See more details in the error stack." : ""
           }`}
           stackTrace={airbyteStreamsLoadError.stack}
-          className={'form-fields-card'}
+          className={"form-fields-card"}
         />
       </Col>
     </Row>
@@ -183,5 +165,5 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
       initiallySelectedStreams={previouslyCheckedStreams}
       selectAllFieldsByDefault={formLoadedForTheFirstTime}
     />
-  );
-};
+  )
+}

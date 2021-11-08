@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/jitsucom/jitsu/server/authorization"
-	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/useragent"
 	"github.com/spf13/viper"
@@ -25,7 +24,6 @@ type AppConfig struct {
 
 	EmptyGIFPixelOnexOne []byte
 
-	GeoResolver          geo.Resolver
 	UaResolver           useragent.Resolver
 	AuthorizationService *authorization.Service
 
@@ -62,6 +60,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.api_keys_reload_sec", 1)
 	viper.SetDefault("server.destinations_reload_sec", 1)
 	viper.SetDefault("server.sources_reload_sec", 1)
+	viper.SetDefault("server.geo_resolvers_reload_sec", 1)
 	viper.SetDefault("server.sync_tasks.pool.size", 16)
 	viper.SetDefault("server.sync_tasks.stalled.last_heartbeat_threshold_seconds", 15)
 	viper.SetDefault("server.sync_tasks.stalled.last_activity_threshold_minutes", 10)
@@ -98,7 +97,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.volumes.workspace", "jitsu_workspace")
 
 	//MaxMind URL
-	viper.SetDefault("maxmind.download_url", "https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-City&license_key=%s&suffix=tar.gz")
+	viper.SetDefault("maxmind.official_url", "https://download.maxmind.com/app/geoip_download?license_key=%s&edition_id=%s&suffix=tar.gz")
 
 	//Segment API mappings
 	//uses remove type mappings (e.g. "/page->") because we have root path mapping "/context -> /"
@@ -310,7 +309,6 @@ func Init(containerized bool, dockerHubID string) error {
 
 	appConfig.AuthorizationService = authService
 	appConfig.UaResolver = useragent.NewResolver()
-	appConfig.GeoResolver = loadGeoResolver()
 	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
 	appConfig.GlobalUniqueIDField = identifiers.NewUniqueID(uniqueIDField)
 
@@ -357,21 +355,4 @@ func (a *AppConfig) CloseWriteAheadLog() {
 	if err := a.writeAheadLog.Close(); err != nil {
 		logging.Errorf("[WriteAheadLog] %v", err)
 	}
-}
-
-func loadGeoResolver() geo.Resolver {
-	geoPath := viper.GetString("geo.maxmind_path")
-	if geoPath != "" {
-		geoResolver, err := geo.CreateResolver(viper.GetString("maxmind.download_url"), geoPath)
-		if err != nil {
-			logging.Warnf("❌ Failed to load MaxMind DB from %s: %v. Geo resolution won't be available", geoPath, err)
-		} else {
-			logging.Info("✅ Loaded MaxMind db:", geoPath)
-			return geoResolver
-		}
-	} else {
-		logging.Info("❌ Geo resolution won't be available as geo.maxmind_path is not set")
-	}
-
-	return &geo.DummyResolver{}
 }

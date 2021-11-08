@@ -298,19 +298,19 @@ func TestProcessFact(t *testing.T) {
 		},
 	}
 	appconfig.Init(false, "")
-	appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock}
 	appconfig.Instance.UaResolver = useragent.Mock{}
+	geoService := geo.NewTestService(geo.Mock{"10.10.10.10": geoDataMock})
 	uaRule, err := enrichment.NewRule(&enrichment.RuleConfig{
 		Name: enrichment.UserAgentParse,
 		From: "/field1/ua",
 		To:   "/field3",
-	})
+	}, nil, "")
 	require.NoError(t, err)
 	ipRule, err := enrichment.NewRule(&enrichment.RuleConfig{
 		Name: enrichment.IPLookup,
 		From: "/field1/ip",
 		To:   "/field4",
-	})
+	}, geoService, "")
 	require.NoError(t, err)
 
 	keepUnmapped := true
@@ -349,10 +349,10 @@ func TestProcessTransform(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name                string
+		name            string
 		input           map[string]interface{}
 		expectedObjects []events.Event
-		expectedTables []string
+		expectedTables  []string
 		expectedErr     string
 	}{
 		{
@@ -364,14 +364,14 @@ func TestProcessTransform(t *testing.T) {
 		},
 		{
 			"simple transform 2",
-			map[string]interface{}{"event_type": "indentify", "user": map[string]interface{}{"email": "hello@jitsu.com"},"url": "https://jitsu.com", "field1": "somedata"},
+			map[string]interface{}{"event_type": "indentify", "user": map[string]interface{}{"email": "hello@jitsu.com"}, "url": "https://jitsu.com", "field1": "somedata"},
 			[]events.Event{{"event": "indentify", "userid": "hello@jitsu.com"}},
 			[]string{"events"},
 			"",
 		},
 		{
 			"skip",
-			map[string]interface{}{"event_type": "indentify", "user": map[string]interface{}{"anon": "123"},"url": "https://jitsu.com", "field1": "somedata"},
+			map[string]interface{}{"event_type": "indentify", "user": map[string]interface{}{"anon": "123"}, "url": "https://jitsu.com", "field1": "somedata"},
 			[]events.Event{},
 			[]string{},
 			"Transform or table name filter marked object to be skipped. This object will be skipped.",
@@ -386,7 +386,7 @@ func TestProcessTransform(t *testing.T) {
 		{
 			"multiple events",
 			map[string]interface{}{"event_type": "multiply", "eventn_ctx_event_id": "a1024", "url": "https://jitsu.com", "conversions": 3, "field1": "somedata"},
-			[]events.Event{{"event": "conversion", "url": "https://jitsu.com"},{"event": "conversion", "eventn_ctx_event_id": "a1024_1", "url": "https://jitsu.com"},{"event": "conversion", "eventn_ctx_event_id": "a1024_2", "url": "https://jitsu.com"}},
+			[]events.Event{{"event": "conversion", "url": "https://jitsu.com"}, {"event": "conversion", "eventn_ctx_event_id": "a1024_1", "url": "https://jitsu.com"}, {"event": "conversion", "eventn_ctx_event_id": "a1024_2", "url": "https://jitsu.com"}},
 			[]string{"conversion_0", "conversion_1", "conversion_2"},
 			"",
 		},
