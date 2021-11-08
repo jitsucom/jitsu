@@ -1,31 +1,32 @@
 // @Libs
-import { memo } from 'react';
-import cn from 'classnames';
+import { memo } from "react"
+import cn from "classnames"
 // @Types
-import { SizeType } from 'antd/lib/config-provider/SizeContext';
+import { SizeType } from "antd/lib/config-provider/SizeContext"
 // @Styles
-import './FloatingLabel.less';
+import "./FloatingLabel.less"
 
 export interface Props {
-  className?: string;
-  htmlFor: string;
-  render: React.ReactNode;
+  className?: string
+  htmlFor: string
+  render: React.ReactNode
   size?: SizeType
-  hasValue?: boolean;
+  hasValue?: boolean
 }
 
 const FloatingLabelComponent = ({ className, htmlFor, render, hasValue, size }: Props) => {
   return (
-    <label className={cn(
-      'floating-label', className, hasValue && 'floating-label_active',
-      { 'floating-label-large': size === 'large' }
-    )}
-    htmlFor={htmlFor}>
+    <label
+      className={cn("floating-label", className, hasValue && "floating-label_active", {
+        "floating-label-large": size === "large",
+      })}
+      htmlFor={htmlFor}
+    >
       {render}
     </label>
-  );
-};
+  )
+}
 
-FloatingLabelComponent.displayName = 'FloatingLabel';
+FloatingLabelComponent.displayName = "FloatingLabel"
 
-export const FloatingLabel = memo(FloatingLabelComponent);
+export const FloatingLabel = memo(FloatingLabelComponent)

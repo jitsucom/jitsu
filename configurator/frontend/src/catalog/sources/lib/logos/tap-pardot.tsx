@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -71,7 +71,7 @@ function Svg(props) {
         />
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

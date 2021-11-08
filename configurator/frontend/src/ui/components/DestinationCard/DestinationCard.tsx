@@ -72,7 +72,8 @@ export function DestinationCard({ dst }: DestinationCardProps) {
         <Tooltip
           overlay={
             dst._connectionTestOk ? "Connection successful" : `Connection failed: ${dst._connectionErrorMessage}`
-          }>
+          }
+        >
           <Badge
             size="default"
             status={dst._connectionTestOk ? "success" : "error"}

@@ -8,7 +8,6 @@ import React, { ReactNode } from "react"
 import styles from "./ActionNotification.less"
 import { randomId } from "../../../utils/numbers"
 
-
 export type ActionNotificationType = "success" | "error" | "info" | "warn" | "loading"
 
 type NotificationActionMethod = (ActionNotificationType) => void
@@ -36,7 +35,8 @@ function messageFactory(type: ActionNotificationType): NotificationActionMethod 
             className="text-wrap flex-shrink"
             style={{
               maxWidth: "30rem",
-            }}>
+            }}
+          >
             {content}
           </div>
           <div className="cursor-pointer" onClick={destroyMessage}>

@@ -1,1 +1,21 @@
-node_modules
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+
+# bundle stats
+/dist
+
+# configs -- will keep multi-line json arrays
+.eslintrc.json
+.craco.config.js
+package.json
+tailwind.config.js
+tsconfig.json
+tsconfig.paths.json

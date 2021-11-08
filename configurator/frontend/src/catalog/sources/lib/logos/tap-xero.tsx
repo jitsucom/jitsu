@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -12,14 +12,12 @@ function Svg(props) {
       y="0px"
       viewBox="-205 297 200 200"
       style={{
-        enableBackground: 'new -205 297 200 200'
+        enableBackground: "new -205 297 200 200",
       }}
       xmlSpace="preserve"
       {...props}
     >
-      <style type="text/css">
-        {'\r\n\t.st0{fill:#00B7E3;}\r\n\t.st1{fill:#FFFFFF;}\r\n'}
-      </style>
+      <style type="text/css">{"\r\n\t.st0{fill:#00B7E3;}\r\n\t.st1{fill:#FFFFFF;}\r\n"}</style>
       <g>
         <path
           className="st0"
@@ -47,7 +45,7 @@ function Svg(props) {
         />
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/typing"
 	"google.golang.org/api/iterator"
@@ -58,7 +59,7 @@ func init() {
 //NewGooglePlay returns configured Google Play driver instance
 func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &GooglePlayConfig{}
-	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +71,8 @@ func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collect
 	if err != nil {
 		return nil, err
 	}
-	client, err := storage.NewClient(ctx, option.WithCredentialsJSON(credentialsJSON))
+	client, err := storage.NewClient(ctx, option.WithCredentialsJSON(credentialsJSON),
+		option.WithScopes("https://www.googleapis.com/auth/devstorage.read_only"))
 	if err != nil {
 		return nil, fmt.Errorf("GooglePlay error creating google cloud storage client: %v", err)
 	}
@@ -87,7 +89,7 @@ func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collect
 //TestGooglePlay tests connection to Google Play without creating Driver instance
 func TestGooglePlay(sourceConfig *base.SourceConfig) error {
 	config := &GooglePlayConfig{}
-	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return err
 	}
@@ -100,7 +102,9 @@ func TestGooglePlay(sourceConfig *base.SourceConfig) error {
 		return err
 	}
 
-	client, err := storage.NewClient(context.Background(), option.WithCredentialsJSON(credentialsJSON))
+	client, err := storage.NewClient(context.Background(),
+		option.WithCredentialsJSON(credentialsJSON),
+		option.WithScopes("https://www.googleapis.com/auth/devstorage.read_only"))
 	if err != nil {
 		return fmt.Errorf("GooglePlay error creating google cloud storage client: %v", err)
 	}

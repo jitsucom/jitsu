@@ -1,20 +1,20 @@
 // @Libs
-import { Route, Switch, useParams } from 'react-router-dom';
-import { observer } from 'mobx-react-lite';
+import { Route, Switch, useParams } from "react-router-dom"
+import { observer } from "mobx-react-lite"
 // @Routes
-import { sourcesPageRoutes } from './SourcesPage.routes';
+import { sourcesPageRoutes } from "./SourcesPage.routes"
 // @Components
-import { SourcesList } from './partials/SourcesList/SourcesList';
-import { SourceEditorSwitch } from './partials/SourceEditor/SourceEditorSwitch';
-import { AddSourceDialog } from './partials/AddSourceDialog/AddSourceDialog';
-import { CenteredError, CenteredSpin } from 'lib/components/components';
+import { SourcesList } from "./partials/SourcesList/SourcesList"
+import { SourceEditorSwitch } from "./partials/SourceEditor/SourceEditorSwitch"
+import { AddSourceDialog } from "./partials/AddSourceDialog/AddSourceDialog"
+import { CenteredError, CenteredSpin } from "lib/components/components"
 // @Store
-import { sourcesStore, SourcesStoreState } from 'stores/sources';
+import { sourcesStore, SourcesStoreState } from "stores/sources"
 // @Styles
-import './SourcesPage.less';
+import "./SourcesPage.less"
 // @Types
-import { BreadcrumbsProps } from 'ui/components/Breadcrumbs/Breadcrumbs';
-import { PageProps } from 'navigation';
+import { BreadcrumbsProps } from "ui/components/Breadcrumbs/Breadcrumbs"
+import { PageProps } from "navigation"
 import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
 
 export interface CollectionSourceData {
@@ -64,8 +64,8 @@ const SourcesPageComponent = ({ setBreadcrumbs }: PageProps) => {
   )
 }
 
-const SourcesPage = observer(SourcesPageComponent);
+const SourcesPage = observer(SourcesPageComponent)
 
-SourcesPage.displayName = 'SourcesPage';
+SourcesPage.displayName = "SourcesPage"
 
-export default SourcesPage;
+export default SourcesPage

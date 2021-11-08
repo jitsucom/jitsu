@@ -1,18 +1,12 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      height="100%"
-      width="100%"
-      viewBox="0 0 240 90"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" height="100%" width="100%" viewBox="0 0 240 90" {...props}>
       <defs>
         <style>
           {
-            '.cls-1{fill:#2760b2;}.cls-2{fill:#417cc2;}.cls-3{fill:#cc286e;}.cls-4{fill:#3f7cc2;}.cls-5{fill:#fdfdfd;}.cls-6{fill:#d8e2f4;}.cls-7{fill:#e7266a;}.cls-8{fill:#d4266c;}.cls-9{fill:#ca286e;}.cls-10{fill:#df266c;}.cls-11{fill:#2b63b3;}.cls-12{fill:#a62555;}.cls-13{fill:#dd276c;}.cls-14{fill:#d8e3f4;}'
+            ".cls-1{fill:#2760b2;}.cls-2{fill:#417cc2;}.cls-3{fill:#cc286e;}.cls-4{fill:#3f7cc2;}.cls-5{fill:#fdfdfd;}.cls-6{fill:#d8e2f4;}.cls-7{fill:#e7266a;}.cls-8{fill:#d4266c;}.cls-9{fill:#ca286e;}.cls-10{fill:#df266c;}.cls-11{fill:#2b63b3;}.cls-12{fill:#a62555;}.cls-13{fill:#dd276c;}.cls-14{fill:#d8e3f4;}"
           }
         </style>
       </defs>
@@ -89,7 +83,7 @@ function Svg(props) {
         />
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg
