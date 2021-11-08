@@ -1,17 +1,17 @@
-import { ReactElement, useState } from 'react';
-import { Button, Modal, Typography } from 'antd';
-import { UpgradePlan } from '../../../ui/components/CurrentPlan/CurrentPlan';
-import { CurrentSubscription } from '../../services/billing';
-import { useServices } from '../../../hooks/useServices';
-import { reloadPage } from '../../commons/utils';
+import { ReactElement, useState } from "react"
+import { Button, Modal, Typography } from "antd"
+import { UpgradePlan } from "../../../ui/components/CurrentPlan/CurrentPlan"
+import { CurrentSubscription } from "../../services/billing"
+import { useServices } from "../../../hooks/useServices"
+import { reloadPage } from "../../commons/utils"
 
 export type BillingBlockingModalProps = {
   /**
    * Description of what exact quota is overused
    */
-  blockingReason: ReactElement;
+  blockingReason: ReactElement
 
-  subscription: CurrentSubscription;
+  subscription: CurrentSubscription
 
   closeable?: boolean
 }
@@ -22,8 +22,8 @@ export type BillingBlockingModalProps = {
  * @constructor
  */
 const BillingBlockingModal = (props: BillingBlockingModalProps) => {
-  const [visible, setVisible] = useState(true);
-  const services = useServices();
+  const [visible, setVisible] = useState(true)
+  const services = useServices()
   return (
     <Modal
       key="billingBlockingModal"
@@ -43,7 +43,8 @@ const BillingBlockingModal = (props: BillingBlockingModalProps) => {
         )
       }
       width={800}
-      title={<span className="text-xl">Your account is paused</span>}>
+      title={<span className="text-xl">Your account is paused</span>}
+    >
       <div className="text-lg">
         <p>
           Your account is paused due to usage about the quota: <>{props.blockingReason} </>
@@ -61,4 +62,4 @@ const BillingBlockingModal = (props: BillingBlockingModalProps) => {
   )
 }
 
-export default BillingBlockingModal;
+export default BillingBlockingModal

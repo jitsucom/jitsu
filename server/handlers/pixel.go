@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/cors"
+	"github.com/jitsucom/jitsu/server/destinations"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"net/http"
@@ -33,15 +35,20 @@ type PixelHandler struct {
 	anonymIDPath        jsonutils.JSONPath
 	multiplexingService *multiplexing.Service
 	processor           events.Processor
+	destinationService  *destinations.Service
+	geoService          *geo.Service
 }
 
 //NewPixelHandler returns configured PixelHandler instance
-func NewPixelHandler(multiplexingService *multiplexing.Service, processor events.Processor) *PixelHandler {
+func NewPixelHandler(multiplexingService *multiplexing.Service, processor events.Processor,
+	destinationService *destinations.Service, geoService *geo.Service) *PixelHandler {
 	return &PixelHandler{
 		emptyGIF:            appconfig.Instance.EmptyGIFPixelOnexOne,
 		anonymIDPath:        jsonutils.NewJSONPath(anonymIDJSONPath),
 		multiplexingService: multiplexingService,
 		processor:           processor,
+		destinationService:  destinationService,
+		geoService:          geoService,
 	}
 }
 
@@ -56,11 +63,6 @@ func (ph *PixelHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	reqContext := getRequestContext(c)
-	if reqContext.CookiesLawCompliant {
-		reqContext.JitsuAnonymousID = ph.extractOrSetAnonymIDCookie(c, event, reqContext)
-	}
-
 	var strToken string
 	token, ok := event[middleware.TokenName]
 	if ok {
@@ -70,6 +72,19 @@ func (ph *PixelHandler) Handle(c *gin.Context) {
 		if ok {
 			strToken = fmt.Sprint(token)
 		}
+	}
+
+	//get geo resolver
+	geoResolver := ph.geoService.GetGlobalGeoResolver()
+	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(strToken)
+	destinationStorages := ph.destinationService.GetDestinations(tokenID)
+	if len(destinationStorages) > 0 {
+		geoResolver = ph.geoService.GetGeoResolver(destinationStorages[0].GetGeoResolverID())
+	}
+
+	reqContext := getRequestContext(c, geoResolver)
+	if reqContext.CookiesLawCompliant {
+		reqContext.JitsuAnonymousID = ph.extractOrSetAnonymIDCookie(c, event, reqContext)
 	}
 
 	err = ph.multiplexingService.AcceptRequest(ph.processor, reqContext, strToken, []events.Event{event})

@@ -1,4 +1,4 @@
-import { RadioButtonsGroup } from './RadioButtonsGroup';
+import { RadioButtonsGroup } from "./RadioButtonsGroup"
 
-export default RadioButtonsGroup;
-export { RadioButtonsGroup };
+export default RadioButtonsGroup
+export { RadioButtonsGroup }

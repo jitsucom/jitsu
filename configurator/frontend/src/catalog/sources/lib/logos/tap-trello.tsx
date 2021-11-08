@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -41,13 +41,13 @@ function Svg(props) {
             <stop
               offset={0}
               style={{
-                stopColor: '#338CCB'
+                stopColor: "#338CCB",
               }}
             />
             <stop
               offset={1}
               style={{
-                stopColor: '#0079BE'
+                stopColor: "#0079BE",
               }}
             />
           </linearGradient>
@@ -68,13 +68,13 @@ function Svg(props) {
             <stop
               offset={0}
               style={{
-                stopColor: '#338CCB'
+                stopColor: "#338CCB",
               }}
             />
             <stop
               offset={1}
               style={{
-                stopColor: '#0079BE'
+                stopColor: "#0079BE",
               }}
             />
           </linearGradient>
@@ -96,7 +96,7 @@ function Svg(props) {
         </g>
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

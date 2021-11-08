@@ -1,14 +1,14 @@
 // @Libs
-import { useCallback, useEffect, useMemo } from 'react';
-import { observer } from 'mobx-react-lite';
+import { useCallback, useEffect, useMemo } from "react"
+import { observer } from "mobx-react-lite"
 // @Store
-import { destinationsStore } from 'stores/destinations';
+import { destinationsStore } from "stores/destinations"
 // @Catalog
-import { destinationsReferenceMap } from 'catalog/destinations/lib';
+import { destinationsReferenceMap } from "catalog/destinations/lib"
 // @Components
-import { SourceEditorFormConnectionsView } from './SourceEditorFormConnectionsView';
+import { SourceEditorFormConnectionsView } from "./SourceEditorFormConnectionsView"
 // @Types
-import { Destination } from 'catalog/destinations/types';
+import { Destination } from "catalog/destinations/types"
 import { SetSourceEditorState } from "./SourceEditor"
 // @Utils
 import { cloneDeep } from "lodash"
@@ -103,18 +103,18 @@ const setConnections = (
 }
 
 function getDescription(reference: Destination) {
-  if (reference.syncFromSourcesStatus === 'supported') {
-    return null;
-  } else if (reference.syncFromSourcesStatus === 'coming_soon') {
-    return `${reference.displayName} synchronization is coming soon! At the moment, it's not available`;
+  if (reference.syncFromSourcesStatus === "supported") {
+    return null
+  } else if (reference.syncFromSourcesStatus === "coming_soon") {
+    return `${reference.displayName} synchronization is coming soon! At the moment, it's not available`
   } else {
-    return `${reference.displayName} synchronization is not supported`;
+    return `${reference.displayName} synchronization is not supported`
   }
 }
 
 const NameWithPicture: React.FC<{
-  icon: React.ReactNode;
-  children: React.ReactNode;
+  icon: React.ReactNode
+  children: React.ReactNode
 }> = ({ icon, children }) => {
   return (
     <span>
@@ -123,5 +123,5 @@ const NameWithPicture: React.FC<{
       </span>
       <span className="inline-block align-middle">{children}</span>
     </span>
-  );
-};
+  )
+}

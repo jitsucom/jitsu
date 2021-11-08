@@ -1,34 +1,74 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
-    <svg version="1.1" id="layer" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="-153 -46 652 652"
-         style={{
-           background: 'new -153 -46 652 652'
-         }} width="100%" height="100%" xmlSpace="preserve" {...props}>
+    <svg
+      version="1.1"
+      id="layer"
+      xmlns="http://www.w3.org/2000/svg"
+      xmlnsXlink="http://www.w3.org/1999/xlink"
+      x="0px"
+      y="0px"
+      viewBox="-153 -46 652 652"
+      style={{
+        background: "new -153 -46 652 652",
+      }}
+      width="100%"
+      height="100%"
+      xmlSpace="preserve"
+      {...props}
+    >
       <style type="text/css">
-        {'\n\t.st0{opacity:0.25;fill:#59C1A7;enable-background:new;}\n\t.st1{opacity:0.25;fill:#36C3F2;enable-background:new;}\n\t.st2{opacity:0.15;fill:#EF3D55;enable-background:new;}\n\t.st3{opacity:0.15;fill:#6A266D;enable-background:new;}\n\t.st4{fill:#6A266D;}\n\t.st5{fill:#36C3F2;}\n\t.st6{fill:#59C1A7;}\n\t.st7{fill:#EF3D55;}\n\t.st8{fill:#333332;}\n'}
+        {
+          "\n\t.st0{opacity:0.25;fill:#59C1A7;enable-background:new;}\n\t.st1{opacity:0.25;fill:#36C3F2;enable-background:new;}\n\t.st2{opacity:0.15;fill:#EF3D55;enable-background:new;}\n\t.st3{opacity:0.15;fill:#6A266D;enable-background:new;}\n\t.st4{fill:#6A266D;}\n\t.st5{fill:#36C3F2;}\n\t.st6{fill:#59C1A7;}\n\t.st7{fill:#EF3D55;}\n\t.st8{fill:#333332;}\n"
+        }
       </style>
       <g id="Lines">
-		<rect x="-60.7" y="283.2" transform="matrix(-0.7071 0.7071 -0.7071 -0.7071 184.4724 532.7988)" className="st0"
-              width="85.1" height="42.9"/>
+        <rect
+          x="-60.7"
+          y="283.2"
+          transform="matrix(-0.7071 0.7071 -0.7071 -0.7071 184.4724 532.7988)"
+          className="st0"
+          width="85.1"
+          height="42.9"
+        />
 
-        <rect x="-39.9" y="201.4" transform="matrix(-0.7071 0.7071 -0.7071 -0.7071 140.9651 429.546)" className="st1"
-              width="42.9" height="85.1"/>
+        <rect
+          x="-39.9"
+          y="201.4"
+          transform="matrix(-0.7071 0.7071 -0.7071 -0.7071 140.9651 429.546)"
+          className="st1"
+          width="42.9"
+          height="85.1"
+        />
 
-        <rect x="-101" y="262.1" transform="matrix(-0.7071 0.7071 -0.7071 -0.7071 79.5763 576.3806)" className="st2"
-              width="42.9" height="85.1"/>
+        <rect
+          x="-101"
+          y="262.1"
+          transform="matrix(-0.7071 0.7071 -0.7071 -0.7071 79.5763 576.3806)"
+          className="st2"
+          width="42.9"
+          height="85.1"
+        />
 
-        <rect x="-120.7" y="221.1" transform="matrix(-0.7071 0.7071 -0.7071 -0.7071 38.0733 469.2917)" className="st3"
-              width="85.1" height="42.9"/>
+        <rect
+          x="-120.7"
+          y="221.1"
+          transform="matrix(-0.7071 0.7071 -0.7071 -0.7071 38.0733 469.2917)"
+          className="st3"
+          width="85.1"
+          height="42.9"
+        />
       </g>
       <g id="Nodes">
-	<circle className="st4" cx="-49" cy="213.4" r="21.6"/>
-        <circle className="st5" cx="12" cy="274.6" r="21.6"/>
-        <circle className="st6" cx="-49" cy="335.6" r="21.6"/>
-        <circle className="st7" cx="-109.9" cy="274.4" r="21.6"/>
+        <circle className="st4" cx="-49" cy="213.4" r="21.6" />
+        <circle className="st5" cx="12" cy="274.6" r="21.6" />
+        <circle className="st6" cx="-49" cy="335.6" r="21.6" />
+        <circle className="st7" cx="-109.9" cy="274.4" r="21.6" />
       </g>
-      <path className="st8" d="M221.7,249h-26.3c-0.5,0-0.9,0.4-0.9,0.9v46.3c0,0.5,0.4,0.9,0.9,0.9h26.3c0.5,0,0.9-0.4,0.9-0.9v-7.4
+      <path
+        className="st8"
+        d="M221.7,249h-26.3c-0.5,0-0.9,0.4-0.9,0.9v46.3c0,0.5,0.4,0.9,0.9,0.9h26.3c0.5,0,0.9-0.4,0.9-0.9v-7.4
 	c0-0.5-0.4-0.9-0.9-0.9l0,0h-16.1c-1,0-1.7-0.7-1.7-1.7v-7.6c0-1,0.7-1.7,1.7-1.7h14.7c0.5,0,0.9-0.4,0.9-0.9v-6.6
 	c0-0.5-0.4-0.9-0.9-0.9h-14.7c-1,0-1.7-0.7-1.7-1.7v-7c0-1,0.7-1.7,1.7-1.7h16.1c0.5,0,0.9-0.4,0.9-0.9V250
 	C222.6,249.4,222.2,249,221.7,249L221.7,249z M330.9,297.1c0.3,0,0.6-0.2,0.7-0.4c0.2-0.2,0.2-0.6,0.1-0.8l-18.6-46.4
@@ -56,10 +96,10 @@ function Svg(props) {
 	h7.7c0.5,0,0.9-0.4,0.9-0.9l0,0v-7.4c0-0.5-0.4-0.9-0.9-0.9l0,0H99.2c-0.5,0-0.9,0.4-0.9,0.9l0,0v7.4c0,0.5,0.4,0.9,0.9,0.9l0,0h8.1
 	c1,0,1.7,0.7,1.7,1.7v26.6c0,0.9-0.8,1.6-1.7,1.6h-8.1c-0.5,0-0.9,0.4-0.9,0.9l0,0v7.4c0,0.5,0.4,0.9,0.9,0.9l0,0h10.4
 	c0.1,0,0.2,0.1,0.2,0.1h7.8c0.1,0,0.2,0,0.2-0.1h10c0.5,0,0.9-0.4,0.9-0.9l0,0v-7.4C128.7,288.3,128.3,287.9,127.8,287.9
-	L127.8,287.9z"/>
+	L127.8,287.9z"
+      />
     </svg>
-
-  );
+  )
 }
 
-export default Svg;
+export default Svg

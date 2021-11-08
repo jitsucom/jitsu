@@ -1,23 +1,23 @@
-import { memo, useState } from 'react';
-import { Switch } from 'antd'
+import { memo, useState } from "react"
+import { Switch } from "antd"
 
 type Props = {
-  isTelemetryEnabled: boolean,
-  className?: string,
-  handleChangeTelemetry: (enabled: boolean) => Promise<void>;
+  isTelemetryEnabled: boolean
+  className?: string
+  handleChangeTelemetry: (enabled: boolean) => Promise<void>
 }
 
 const TelemetrySettingsFormComponent: React.FC<Props> = ({
   isTelemetryEnabled,
-  handleChangeTelemetry: _handleChangeTelemetry
+  handleChangeTelemetry: _handleChangeTelemetry,
 }) => {
-  const [isChangeTelemetryInProgress, setIsChangeTelemetryInProgress] = useState<boolean>(false);
-  const handleChangeTelemetry = async(enabled: boolean) => {
-    setIsChangeTelemetryInProgress(true);
+  const [isChangeTelemetryInProgress, setIsChangeTelemetryInProgress] = useState<boolean>(false)
+  const handleChangeTelemetry = async (enabled: boolean) => {
+    setIsChangeTelemetryInProgress(true)
     try {
-      await _handleChangeTelemetry(enabled);
+      await _handleChangeTelemetry(enabled)
     } finally {
-      setIsChangeTelemetryInProgress(false);
+      setIsChangeTelemetryInProgress(false)
     }
   }
 
@@ -30,11 +30,10 @@ const TelemetrySettingsFormComponent: React.FC<Props> = ({
         onChange={handleChangeTelemetry}
       />
       <span className="ml-2">
-        {'Allow us to track the application state in order to detect and respond to any issues.'}
+        {"Allow us to track the application state in order to detect and respond to any issues."}
       </span>
     </span>
-  );
+  )
 }
 
-export const TelemetrySettingsForm = memo(TelemetrySettingsFormComponent);
-
+export const TelemetrySettingsForm = memo(TelemetrySettingsFormComponent)

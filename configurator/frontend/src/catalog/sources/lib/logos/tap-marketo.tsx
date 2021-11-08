@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -29,7 +29,7 @@ function Svg(props) {
         d="M100,182.5c-45.5,0-82.5-37-82.5-82.5s37-82.5,82.5-82.5s82.5,37,82.5,82.5S145.5,182.5,100,182.5z  M100,28.5c-39.4,0-71.5,32.1-71.5,71.5s32.1,71.5,71.5,71.5s71.5-32.1,71.5-71.5S139.4,28.5,100,28.5z"
       />
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

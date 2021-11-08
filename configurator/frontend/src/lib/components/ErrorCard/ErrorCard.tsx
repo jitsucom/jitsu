@@ -65,7 +65,8 @@ export const ErrorCard: FC<ErrorCardProps> = ({
                         text: stackTrace,
                         icon: [<CopyOutlined />, <CheckOutlined />],
                       }}
-                      className={`flex flex-row ${styles.errorStackContainer}`}>
+                      className={`flex flex-row ${styles.errorStackContainer}`}
+                    >
                       <pre className="text-xs">{stackTrace}</pre>
                     </Typography.Paragraph>
                   </div>

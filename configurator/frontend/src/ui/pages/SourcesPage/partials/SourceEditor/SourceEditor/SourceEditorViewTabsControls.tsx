@@ -49,7 +49,8 @@ const SourceEditorViewTabsControls = ({ saveButton, testConnectionButton, handle
           htmlType="button"
           loading={isSaveLoading}
           onClick={handleSave}
-          disabled={controlsDisabled || saveButton.disabled}>
+          disabled={controlsDisabled || saveButton.disabled}
+        >
           {saveButton.title ?? "Save"}
         </Button>
       )}
@@ -62,7 +63,8 @@ const SourceEditorViewTabsControls = ({ saveButton, testConnectionButton, handle
           loading={isTestLoading}
           onClick={handleTest}
           icon={<ApiOutlined />}
-          disabled={controlsDisabled || testConnectionButton.disabled}>
+          disabled={controlsDisabled || testConnectionButton.disabled}
+        >
           {testConnectionButton.title ?? "Test connection"}
         </Button>
       )}

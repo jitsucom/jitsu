@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -15,30 +15,23 @@ function Svg(props) {
       xmlSpace="preserve"
       {...props}
     >
-      <linearGradient
-        id="SVGID_1_"
-        gradientUnits="userSpaceOnUse"
-        x1={149.5981}
-        y1={152.6356}
-        x2={51.041}
-        y2={48.0426}
-      >
+      <linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1={149.5981} y1={152.6356} x2={51.041} y2={48.0426}>
         <stop
           offset={0}
           style={{
-            stopColor: '#DD4362'
+            stopColor: "#DD4362",
           }}
         />
         <stop
           offset={0.5671}
           style={{
-            stopColor: '#EE633F'
+            stopColor: "#EE633F",
           }}
         />
         <stop
           offset={1}
           style={{
-            stopColor: '#FB7C24'
+            stopColor: "#FB7C24",
           }}
         />
       </linearGradient>
@@ -47,7 +40,7 @@ function Svg(props) {
         d="M100,10L23.4,55.4v89.1L100,190l76.6-45.4V55.4L100,10z M99.8,173.4l-62.4-37V64.3l62.4-37v74 l62.4-37v72.2L99.8,173.4z"
       />
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

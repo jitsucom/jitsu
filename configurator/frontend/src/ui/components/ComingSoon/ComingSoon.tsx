@@ -1,10 +1,10 @@
 // @Libs
-import { memo } from 'react';
-import { Tooltip } from 'antd'
+import { memo } from "react"
+import { Tooltip } from "antd"
 
 export interface Props {
-  render: React.ReactNode;
-  documentation: React.ReactNode;
+  render: React.ReactNode
+  documentation: React.ReactNode
 }
 
 const ComingSoonComponent = ({ render, documentation }: Props) => (
@@ -15,8 +15,8 @@ const ComingSoonComponent = ({ render, documentation }: Props) => (
       <i>Coming Soon!</i>
     </sup>
   </Tooltip>
-);
+)
 
-ComingSoonComponent.displayName = 'ComingSoon';
+ComingSoonComponent.displayName = "ComingSoon"
 
-export const ComingSoon = memo(ComingSoonComponent);
+export const ComingSoon = memo(ComingSoonComponent)
