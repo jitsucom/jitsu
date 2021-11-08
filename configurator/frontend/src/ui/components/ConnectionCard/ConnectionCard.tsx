@@ -34,7 +34,7 @@ function ActionLink({
     return <span {...rest}>{children}</span>
   } else if (typeof action === "string") {
     return (
-      <NavLink to={action} {...rest} style={{color: 'unset'}}>
+      <NavLink to={action} {...rest} style={{ color: "unset" }}>
         {children}
       </NavLink>
     )
@@ -91,7 +91,11 @@ export function ConnectionCard(props: ConnectionCardProps) {
       <div className="pt-6 flex items-end">
         <div className="flex-grow">{props.status}</div>
         <div className="flex justify-end flex-grow items-end space-x-2 pr-2">
-          {props.editAction && <ActionLink action={props.editAction}><EditOutlined /></ActionLink>}
+          {props.editAction && (
+            <ActionLink action={props.editAction}>
+              <EditOutlined />
+            </ActionLink>
+          )}
         </div>
       </div>
     </div>

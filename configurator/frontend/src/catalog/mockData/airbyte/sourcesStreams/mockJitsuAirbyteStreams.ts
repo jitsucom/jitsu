@@ -1,4 +1,4 @@
-import { intType, SourceCollection, stringType } from 'catalog/sources/types';
+import { intType, SourceCollection, stringType } from "catalog/sources/types"
 
 export const mockJitsuAirbyteSourcesStreams: SourceCollection[] = [
   [

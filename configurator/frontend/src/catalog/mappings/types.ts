@@ -1,6 +1,6 @@
-import { ReactNode } from 'react';
+import { ReactNode } from "react"
 
-export type FielMappingAction = 'move' | 'remove' | 'cast' | 'constant';
+export type FielMappingAction = "move" | "remove" | "cast" | "constant"
 
 export interface FieldMapping {
   src: string | null
@@ -17,9 +17,9 @@ export interface FieldMapping {
 }
 
 export interface DestinationConfigurationTemplate {
-  displayName?: ReactNode,
-  tableNameTemplate?: string;
-  comment?: ReactNode;
+  displayName?: ReactNode
+  tableNameTemplate?: string
+  comment?: ReactNode
   keepUnmappedFields: boolean
   mappings: FieldMapping[]
 }

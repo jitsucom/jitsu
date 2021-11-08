@@ -1,12 +1,4 @@
-import {
-  hubspot,
-  mysql,
-  mongodb,
-  googleAds,
-  postgres,
-  braintree,
-  github
-} from './jitsu';
+import { hubspot, mysql, mongodb, googleAds, postgres, braintree, github } from "./jitsu"
 
 export const allMockJitsuAirbyteSourceConnectors = Object.freeze({
   hubspot,
@@ -15,5 +7,5 @@ export const allMockJitsuAirbyteSourceConnectors = Object.freeze({
   googleAds,
   postgres,
   braintree,
-  github
-} as const);
+  github,
+} as const)

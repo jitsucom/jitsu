@@ -1,79 +1,67 @@
 // @Libs
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from 'recharts';
-import { useReducer } from 'react';
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { useReducer } from "react"
 // @Types
-import { Moment } from 'moment';
+import { Moment } from "moment"
 // @Styles
-import styles from './StatisticsChart.module.less';
+import styles from "./StatisticsChart.module.less"
 
-type DataType = 'total' | 'success' | 'skip' | 'errors';
+type DataType = "total" | "success" | "skip" | "errors"
 
-type DataPoint = { date: Moment } & { [key in DataType]?: number };
+type DataPoint = { date: Moment } & { [key in DataType]?: number }
 
 type Props = {
-  data: DataPoint[];
-  granularity: 'hour' | 'day';
-  dataToDisplay?: DataType | DataType[];
-};
+  data: DataPoint[]
+  granularity: "hour" | "day"
+  dataToDisplay?: DataType | DataType[]
+}
 
 type State = {
-  [key in `hide_${DataType}_data`]: boolean;
-};
+  [key in `hide_${DataType}_data`]: boolean
+}
 
 const initialState: State = {
   hide_total_data: false,
   hide_errors_data: false,
   hide_skip_data: false,
-  hide_success_data: false
-};
+  hide_success_data: false,
+}
 
 const reducer = (state: State, action: { type: DataType }): State => {
-  const key = `hide_${action.type}_data`;
+  const key = `hide_${action.type}_data`
   return {
     ...state,
-    [key]: !state[key]
-  };
-};
+    [key]: !state[key],
+  }
+}
 
 const commonLineProps = {
-  type: 'monotone',
+  type: "monotone",
   // opacity: 0.9,
-  cursor: 'pointer',
+  cursor: "pointer",
   activeDot: { r: 8 },
-  strokeWidth: 2
-} as const;
+  strokeWidth: 2,
+} as const
 
 export const StatisticsChart: React.FC<Props> = ({
   data,
   granularity,
-  dataToDisplay = ['success', 'skip', 'errors']
+  dataToDisplay = ["success", "skip", "errors"],
 }) => {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, initialState)
 
   const handleClickOnLegend = (event: React.MouseEvent) => {
-    const clickedDataType = event['value'] as DataType;
-    dispatch({ type: clickedDataType });
-  };
+    const clickedDataType = event["value"] as DataType
+    dispatch({ type: clickedDataType })
+  }
 
   return (
     <ResponsiveContainer width="100%" minHeight={300} minWidth={300}>
       <LineChart
         className={styles.chart}
-        data={data.map((point) => ({
+        data={data.map(point => ({
           ...point,
-          date:
-            granularity == 'hour'
-              ? point.date.format('HH:mm')
-              : point.date.format('DD MMM')
+          date: granularity == "hour" ? point.date.format("HH:mm") : point.date.format("DD MMM"),
         }))}
       >
         <XAxis dataKey="date" tick={<CustomizedXAxisTick />} stroke="#394e5a" />
@@ -82,62 +70,42 @@ export const StatisticsChart: React.FC<Props> = ({
         <Legend onClick={handleClickOnLegend} />
         <Tooltip
           wrapperStyle={{
-            backgroundColor: '#22313a',
-            border: '1px solid #394e5a'
+            backgroundColor: "#22313a",
+            border: "1px solid #394e5a",
           }}
-          itemStyle={{ color: '#9bbcd1' }}
-          labelStyle={{ color: '#dcf3ff' }}
-          formatter={(value) => new Intl.NumberFormat('en').format(value)}
+          itemStyle={{ color: "#9bbcd1" }}
+          labelStyle={{ color: "#dcf3ff" }}
+          formatter={value => new Intl.NumberFormat("en").format(value)}
         />
-        {dataToDisplay.includes('total') && (
-          <Line
-            dataKey="total"
-            stroke={'rgb(135, 138, 252)'}
-            hide={state.hide_total_data}
-            {...commonLineProps}
-          />
+        {dataToDisplay.includes("total") && (
+          <Line dataKey="total" stroke={"rgb(135, 138, 252)"} hide={state.hide_total_data} {...commonLineProps} />
         )}
-        {dataToDisplay.includes('success') && (
-          <Line
-            dataKey="success"
-            stroke={'#2cc56f'}
-            hide={state.hide_success_data}
-            {...commonLineProps}
-          />
+        {dataToDisplay.includes("success") && (
+          <Line dataKey="success" stroke={"#2cc56f"} hide={state.hide_success_data} {...commonLineProps} />
         )}
-        {dataToDisplay.includes('skip') && (
-          <Line
-            dataKey="skip"
-            stroke={'#ffc021'}
-            hide={state.hide_skip_data}
-            {...commonLineProps}
-          />
+        {dataToDisplay.includes("skip") && (
+          <Line dataKey="skip" stroke={"#ffc021"} hide={state.hide_skip_data} {...commonLineProps} />
         )}
-        {dataToDisplay.includes('errors') && (
-          <Line
-            dataKey="errors"
-            stroke={'#e53935'}
-            hide={state.hide_errors_data}
-            {...commonLineProps}
-          />
+        {dataToDisplay.includes("errors") && (
+          <Line dataKey="errors" stroke={"#e53935"} hide={state.hide_errors_data} {...commonLineProps} />
         )}
       </LineChart>
     </ResponsiveContainer>
-  );
-};
+  )
+}
 
-const CustomizedXAxisTick = (props) => (
+const CustomizedXAxisTick = props => (
   <g transform={`translate(${props.x},${props.y})`}>
     <text x={0} y={0} dy={16} fontSize="10" textAnchor="end" fill="white">
       {props.payload.value}
     </text>
   </g>
-);
+)
 
-const CustomizedYAxisTick = (props) => (
+const CustomizedYAxisTick = props => (
   <g transform={`translate(${props.x},${props.y})`}>
     <text x={0} y={0} fontSize="10" textAnchor="end" fill="white">
-      {new Intl.NumberFormat('en').format(props.payload.value)}
+      {new Intl.NumberFormat("en").format(props.payload.value)}
     </text>
   </g>
-);
+)

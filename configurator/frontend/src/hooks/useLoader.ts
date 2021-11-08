@@ -1,12 +1,18 @@
-import { DependencyList, Dispatch, SetStateAction, useEffect, useState } from 'react';
+import { DependencyList, Dispatch, SetStateAction, useEffect, useState } from "react"
 
-export type Loader<T> = () => Promise<T>;
+export type Loader<T> = () => Promise<T>
 export type Reloader = () => Promise<void>
-type IsLoading = boolean;
+type IsLoading = boolean
 
-type LoaderResult<T> = [Error, T, Dispatch<SetStateAction<T>>, Reloader, IsLoading];
+type LoaderResult<T> = [Error, T, Dispatch<SetStateAction<T>>, Reloader, IsLoading]
 
-type LoaderResultObject<T> = {error: Error, data: T, setData: Dispatch<SetStateAction<T>>, reloader: Reloader, isLoading: IsLoading};
+type LoaderResultObject<T> = {
+  error: Error
+  data: T
+  setData: Dispatch<SetStateAction<T>>
+  reloader: Reloader
+  isLoading: IsLoading
+}
 
 /**
  * React hook for loading the data from remote component. Use it like this:
@@ -35,34 +41,34 @@ type LoaderResultObject<T> = {error: Error, data: T, setData: Dispatch<SetStateA
  *
  */
 function useLoader<T>(loader: Loader<T>, deps?: DependencyList): LoaderResult<T> {
-  const [data, setData] = useState(undefined);
+  const [data, setData] = useState(undefined)
   const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [error, setError] = useState(undefined);
-  const loaderWrapper = async() => {
-    setError(null);
-    setIsLoading(true);
-    setData(null);
+  const [error, setError] = useState(undefined)
+  const loaderWrapper = async () => {
+    setError(null)
+    setIsLoading(true)
+    setData(null)
     try {
-      setData(await loader());
+      setData(await loader())
     } catch (e) {
-      setError(e);
+      setError(e)
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
   useEffect(() => {
-    loaderWrapper();
+    loaderWrapper()
   }, deps ?? [])
-  return [error, data, setData, () => loaderWrapper(), isLoading];
+  return [error, data, setData, () => loaderWrapper(), isLoading]
 }
 
 /**
  * Same as asLoader, but returns an object instead of array
  */
 function useLoaderAsObject<T>(loader: Loader<T>, deps?: DependencyList) {
-  const [error, data, setData, reloader, isLoading] = useLoader(loader, deps);
+  const [error, data, setData, reloader, isLoading] = useLoader(loader, deps)
   return { error, data, setData, reloader, isLoading }
 }
 
-export default useLoader;
-export { useLoader, useLoaderAsObject };
+export default useLoader
+export { useLoader, useLoaderAsObject }

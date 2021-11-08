@@ -1,7 +1,7 @@
-import { jsApiKey } from './JavaScript';
+import { jsApiKey } from "./JavaScript"
 
-export { jsApiKey };
+export { jsApiKey }
 
 export const apiKeysReferenceMap = {
-  js: jsApiKey
-} as const;
+  js: jsApiKey,
+} as const

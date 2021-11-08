@@ -106,17 +106,19 @@ function SecretKey({ children, rotateKey }: SecretKeyProps) {
             <span className="text-base font-semibold rounded font-monospace text-secondaryText">{children}</span>
             <Button
               size="middle"
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
+              onClick={e => {
+                e.stopPropagation()
+                e.preventDefault()
                 setCopied(true)
                 setTimeout(() => setCopied(false), 1000)
                 copyToClipboard(keyStr)
-              }}>
+              }}
+            >
               {copied ? "Copied!" : "Copy"}
             </Button>
           </div>
-        }>
+        }
+      >
         <span className="cursor-pointer border px-1 py-0.5 mr-0.5 rounded font-monospace text-secondaryText flex-grow w-56 text-center">
           {trimMiddle(keyStr, 29, "•••")}
         </span>

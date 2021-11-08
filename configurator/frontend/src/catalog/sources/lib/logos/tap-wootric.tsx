@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -19,7 +19,7 @@ function Svg(props) {
       <circle fill="#61873C" cx={100} cy={100} r={63.3} />
       <circle fill="#344828" cx={100} cy={100} r={33.7} />
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

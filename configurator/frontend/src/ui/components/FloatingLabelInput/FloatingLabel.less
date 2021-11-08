@@ -1,5 +1,4 @@
-@import './src/theme';
-
+@import "./src/theme";
 
 .floating-label {
   @transition-duration: 150ms;
@@ -13,7 +12,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: font-size @transition-duration 0ms linear, top @transition-duration 0ms linear, height @transition-duration 0ms linear, color @transition-duration 0ms linear;
+  transition: font-size @transition-duration 0ms linear, top @transition-duration 0ms linear,
+    height @transition-duration 0ms linear, color @transition-duration 0ms linear;
 
   &_active {
     font-size: 11px !important;
@@ -33,8 +33,6 @@
   left: 32px;
 }
 
-
-
 .with-floating-label {
   .ant-input-suffix {
     margin: 0;
@@ -48,7 +46,6 @@
     padding: 0 2px;
     color: @text-color-secondary;
   }
-
 }
 
 .ant-form-item-has-error .floating-label {

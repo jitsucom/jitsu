@@ -1,7 +1,7 @@
 // @Libs
-import { HttpServerStorage } from 'lib/services/ServerStorage';
-import { rest } from 'msw';
-import { setupServer, SetupServerApi } from 'msw/node';
+import { HttpServerStorage } from "lib/services/ServerStorage"
+import { rest } from "msw"
+import { setupServer, SetupServerApi } from "msw/node"
 // @Mock Responses
 import {
   mockApiKeys,
@@ -10,19 +10,17 @@ import {
   mockDestinationTest,
   mockSources,
   mockStatistics,
-  mockUserInfo
-} from './tests-utils.mock-responses';
+  mockUserInfo,
+} from "./tests-utils.mock-responses"
 
 type MockEndpointConfig = {
-  responseData: { [key: string]: unknown };
-  requestFactory: (responseData: {
-    [key: string]: unknown;
-  }) => ReturnType<typeof rest[keyof typeof rest]>;
-};
+  responseData: { [key: string]: unknown }
+  requestFactory: (responseData: { [key: string]: unknown }) => ReturnType<typeof rest[keyof typeof rest]>
+}
 
 type MockServerConfig = {
-  readonly [key: string]: MockEndpointConfig;
-};
+  readonly [key: string]: MockEndpointConfig
+}
 
 /**
  *  Endpoints that are required to initialize the application
@@ -31,56 +29,53 @@ const mockObligatoryEndpoints = {
   configuration: {
     responseData: mockConfiguration,
     requestFactory: (mockData: unknown) =>
-      rest.get('*/system/configuration', (req, res, ctx) => {
-        return res(ctx.json(mockData));
-      })
+      rest.get("*/system/configuration", (req, res, ctx) => {
+        return res(ctx.json(mockData))
+      }),
   },
   userInfo: {
     responseData: mockUserInfo,
     requestFactory: (mockData: unknown) =>
       rest.get(`*${HttpServerStorage.USERS_INFO_PATH}*`, (req, res, ctx) => {
-        return res(ctx.json(mockData));
-      })
+        return res(ctx.json(mockData))
+      }),
   },
   statistics: {
     responseData: mockStatistics,
     requestFactory: (mockData: unknown) =>
-      rest.get('*/statistics*', (req, res, ctx) => {
-        return res(ctx.json(mockData));
-      })
+      rest.get("*/statistics*", (req, res, ctx) => {
+        return res(ctx.json(mockData))
+      }),
   },
   onboarded: {
     responseData: { completed: true },
     requestFactory: (mockData: unknown) =>
-      rest.get(
-        '*/configurations/onboarding_tour_completed*',
-        (req, res, ctx) => {
-          return res(ctx.json(mockData));
-        }
-      )
+      rest.get("*/configurations/onboarding_tour_completed*", (req, res, ctx) => {
+        return res(ctx.json(mockData))
+      }),
   },
   api_keys: {
     responseData: mockApiKeys,
-    requestFactory: (mockData) =>
-      rest.get('*/api_keys*', (req, res, ctx) => {
-        return res(ctx.json(mockData));
-      })
+    requestFactory: mockData =>
+      rest.get("*/api_keys*", (req, res, ctx) => {
+        return res(ctx.json(mockData))
+      }),
   },
   destinations_get: {
     responseData: mockDestinationsList,
-    requestFactory: (mockData) =>
-      rest.get('*/destinations', (req, res, ctx) => {
-        return res(ctx.json(mockData));
-      })
+    requestFactory: mockData =>
+      rest.get("*/destinations", (req, res, ctx) => {
+        return res(ctx.json(mockData))
+      }),
   },
   sources_get: {
     responseData: mockSources,
-    requestFactory: (mockData) =>
-      rest.get('*/configurations/sources*', (req, res, ctx) => {
-        return res(ctx.json(mockData));
-      })
-  }
-} as const;
+    requestFactory: mockData =>
+      rest.get("*/configurations/sources*", (req, res, ctx) => {
+        return res(ctx.json(mockData))
+      }),
+  },
+} as const
 
 /**
  * Other endpoints
@@ -88,30 +83,30 @@ const mockObligatoryEndpoints = {
 const mockEndpointsCatalog = {
   destination_test: {
     responseData: mockDestinationTest,
-    requestFactory: (mockData) =>
-      rest.post('*/destinations/test', (req, res, ctx) => {
-        return res(ctx.json(mockData));
-      })
+    requestFactory: mockData =>
+      rest.post("*/destinations/test", (req, res, ctx) => {
+        return res(ctx.json(mockData))
+      }),
   },
   destinations_post: {
     responseData: {
-      status: 'ok'
+      status: "ok",
     },
-    requestFactory: (mockData) =>
-      rest.post('*/destinations', (req, res, ctx) => {
-        return res(ctx.json(mockData));
-      })
+    requestFactory: mockData =>
+      rest.post("*/destinations", (req, res, ctx) => {
+        return res(ctx.json(mockData))
+      }),
   },
   sources_post: {
     responseData: {
-      status: 'ok'
+      status: "ok",
     },
-    requestFactory: (mockData) =>
-      rest.post('*/configurations/sources*', (req, res, ctx) => {
-        return res(ctx.json(mockData));
-      })
-  }
-} as const;
+    requestFactory: mockData =>
+      rest.post("*/configurations/sources*", (req, res, ctx) => {
+        return res(ctx.json(mockData))
+      }),
+  },
+} as const
 
 /**
  * Mock server setup
@@ -134,23 +129,21 @@ const mockEndpointsCatalog = {
  *
  * @returns configured mock server instance.
  */
-export function setupMockServer(
-  endpoints: MockServerConfig = {}
-): SetupServerApi {
+export function setupMockServer(endpoints: MockServerConfig = {}): SetupServerApi {
   const _endpoints: MockServerConfig = {
     ...mockObligatoryEndpoints,
     ...mockEndpointsCatalog,
-    ...endpoints
-  };
-  const _endpointsList = Object.values(_endpoints).map(
-    ({ responseData, requestFactory }) => requestFactory(responseData)
-  );
-  return setupServer(..._endpointsList);
+    ...endpoints,
+  }
+  const _endpointsList = Object.values(_endpoints).map(({ responseData, requestFactory }) =>
+    requestFactory(responseData)
+  )
+  return setupServer(..._endpointsList)
 }
 
 const defaultEndpoints = {
   required: mockObligatoryEndpoints,
-  catalog: mockEndpointsCatalog
-} as const;
+  catalog: mockEndpointsCatalog,
+} as const
 
-setupMockServer.endpoints = defaultEndpoints;
+setupMockServer.endpoints = defaultEndpoints

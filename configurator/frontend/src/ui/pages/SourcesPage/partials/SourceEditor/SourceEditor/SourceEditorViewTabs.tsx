@@ -1,10 +1,10 @@
-import { Tabs } from 'antd';
-import cn from 'classnames';
-import { Prompt } from 'react-router';
+import { Tabs } from "antd"
+import cn from "classnames"
+import { Prompt } from "react-router"
 // @Components
-import { SourceEditorFormConfiguration } from './SourceEditorFormConfiguration';
-import { SourceEditorFormStreams } from './SourceEditorFormStreams';
-import { SourceEditorFormConnections } from './SourceEditorFormConnections';
+import { SourceEditorFormConfiguration } from "./SourceEditorFormConfiguration"
+import { SourceEditorFormStreams } from "./SourceEditorFormStreams"
+import { SourceEditorFormConnections } from "./SourceEditorFormConnections"
 import { SourceEditorViewTabsControls } from "./SourceEditorViewTabsControls"
 import { SourceEditorViewTabsExtraControls } from "./SourceEditorViewTabsExtraControls"
 import { SourceEditorDocumentationDrawer } from "./SourceEditorDocumentationDrawer"
@@ -68,7 +68,8 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
                 showLogsButton={editorMode === "edit"}
                 setDocumentationVisible={setShowDocumentationDrawer}
               />
-            }>
+            }
+          >
             <Tabs.TabPane
               key="configuration"
               tab={
@@ -77,7 +78,8 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
                   errorsCount={state.configuration.errorsCount}
                   hideErrorsCount={!showTabsErrors}
                 />
-              }>
+              }
+            >
               <SourceEditorFormConfiguration
                 editorMode={editorMode}
                 initialSourceData={initialSourceData}
@@ -90,9 +92,8 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
             </Tabs.TabPane>
             <Tabs.TabPane
               key="streams"
-              tab={
-                <TabName name="Streams" errorsCount={state.streams.errorsCount} hideErrorsCount={!showTabsErrors} />
-              }>
+              tab={<TabName name="Streams" errorsCount={state.streams.errorsCount} hideErrorsCount={!showTabsErrors} />}
+            >
               <SourceEditorFormStreams
                 initialSourceData={initialSourceData}
                 sourceDataFromCatalog={sourceDataFromCatalog}
@@ -111,7 +112,8 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
                   errorsCount={state.connections.errorsCount}
                   hideErrorsCount={!showTabsErrors}
                 />
-              }>
+              }
+            >
               <SourceEditorFormConnections
                 initialSourceData={initialSourceData}
                 setSourceEditorState={setSourceEditorState}
