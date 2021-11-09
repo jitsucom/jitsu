@@ -862,11 +862,25 @@ export const googlePlay: SourceConnector = {
   collectionParameters: [],
   configParameters: [
     {
-      displayName: "Account ID",
+      displayName: "Bucket ID",
       id: "config.account_id",
       type: stringType,
       required: true,
-      documentation: <>Identifier of your Google Play account</>,
+      documentation: (
+        <>
+          <b>Google Cloud Storage Bucket ID:</b>
+          <br />
+          Sign in to your Google Play account.
+          <br />
+          In the right pane, select the app in the <b>Select an app</b> field.
+          <br />
+          Scroll to the end of the page to the Direct Report URIs section and copy the Bucket ID.
+          <br />
+          Your bucket ID begins with <b>pubsite_prod_</b>
+          <br />
+          For example: pubsite_prod_123456789876543
+        </>
+      ),
     },
     ...googleAuthConfigParameters({}),
   ],
