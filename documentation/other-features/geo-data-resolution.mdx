@@ -45,7 +45,7 @@ user's country, city, zip code \(and other location data\) from their IP address
 **Jitsu** uses [MaxMind](https://www.maxmind.com/) databases for geo resolution. There are two families of MaxMind databases: `GeoIP2` and `GeoLite2`.
 
 `GeoIP2` databases such as `GeoIP2-Country`, `GeoIP2-City`, `GeoIP2-ISP`, `GeoIP2-Domain` are paid geo databases. You can buy them all together or just anyone on [maxmind.com](https://www.maxmind.com/en/geoip2-databases).
-After purchasing, you will receive a license key. Put obtained license key on Jitsu UI -> Geo data resolver section (available since 1.37.2 version) or run Jitsu with [env variable](#configuration).
+After purchasing, you will receive a license key. Put obtained license key on Jitsu UI -> Geo data resolver section (available since 1.37.3 version) or run Jitsu with [env variable](#configuration).
 
 `GeoLite2` databases such as `GeoLite2-Country`, `GeoLite2-City`, `GeoLite2-ASN` are free geo databases. For obtaining them you should just create a [free account](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data) and generate a license key for using it on Jitsu UI or env variable `MAX_MIND_PATH`.
 
@@ -58,7 +58,7 @@ After setting MaxMind license key Jitsu downloads all available databases and us
 
 ### Configuration
 
-Configuration via env variable - add `MAX_MIND_PATH` env variable like: `MAX_MIND_PATH=maxmind://<your license key>` or add comma-separated certain edition ids `MAX_MIND_PATH=maxmind://<your license key>?edition_id=GeoIP2-City,GeoIP2-ISP`, or set your license key on Jitsu UI -> Geo data resolver section (available since 1.37.2 version).
+Configuration via env variable - add `MAX_MIND_PATH` env variable like: `MAX_MIND_PATH=maxmind://<your license key>` or add comma-separated certain edition ids `MAX_MIND_PATH=maxmind://<your license key>?edition_id=GeoIP2-City,GeoIP2-ISP`, or set your license key on Jitsu UI -> Geo data resolver section (available since 1.37.3 version).
 If you use jitsucom/server, you can configure geo resolver via yaml configuration:
 
 ```yaml
