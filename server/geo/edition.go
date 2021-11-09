@@ -1,6 +1,8 @@
 package geo
 
-import "errors"
+import (
+	"fmt"
+)
 
 const (
 	//paid databases
@@ -54,6 +56,6 @@ func fromString(value string) (Edition, error) {
 	case GeoLite2CountryEdition.String():
 		return GeoLite2CountryEdition, nil
 	default:
-		return Unknown, errors.New("unknown maxmind edition")
+		return Unknown, fmt.Errorf("unknown maxmind edition: '%s'", value)
 	}
 }
