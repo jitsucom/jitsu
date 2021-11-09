@@ -65,6 +65,9 @@ func (pm *ParquetMarshaller) parquetMetadata(bh *BatchHeader) ([]string, map[str
 	meta := make(map[string]parquetMetadataItem, len(bh.Fields))
 	i := 0
 	for field, fieldMeta := range bh.Fields {
+		if fieldMeta.dataType == nil {
+			return nil, nil, fmt.Errorf("field %s has nil data type", field)
+		}
 		switch *fieldMeta.dataType {
 		case typing.BOOL:
 			parquetSchema = append(parquetSchema, fmt.Sprintf("name=%s, type=BOOLEAN", field))
@@ -83,7 +86,7 @@ func (pm *ParquetMarshaller) parquetMetadata(bh *BatchHeader) ([]string, map[str
 			meta[field] = parquetMetadataItem{i,typing.TIMESTAMP, time.Time{}}
 		// UNKNOWN and default
 		default:
-			return nil, nil, fmt.Errorf("field %s has unmappable type", field)
+			return nil, nil, fmt.Errorf("field %s has unmappable data type", field)
 		}
 		i++
 	}
