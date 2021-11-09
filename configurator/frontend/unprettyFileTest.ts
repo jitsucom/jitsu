@@ -1,0 +1,1 @@
+const smallArray = ["a", "b"]
