@@ -10,6 +10,7 @@ import { PatchConfig, ValidateGetErrorsCount } from "./SourceEditorFormConfigura
 type Props = {
   initialValues: Partial<SourceData>
   configParameters: Parameter[]
+  forceFieldsValues: PlainObjectWithPrimitiveValues
   patchConfig: PatchConfig
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
 }
@@ -19,6 +20,7 @@ const CONFIG_INTERNAL_STATE_KEY = "configurableParameters"
 export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = ({
   initialValues,
   configParameters,
+  forceFieldsValues,
   patchConfig,
   setValidator,
 }) => {
@@ -37,6 +39,21 @@ export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = 
   const handleSetInitialFormValues = (values: PlainObjectWithPrimitiveValues): void => {
     patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { doNotSetStateChanged: true })
   }
+
+  /**
+   * Refactor -- use a function passed from parent component
+   */
+  useEffect(() => {
+    const currentValues = form.getFieldsValue()
+    const newValues = { ...currentValues }
+    Object.keys(newValues).forEach(key => {
+      Object.entries(forceFieldsValues).forEach(([forceKey, forceValue]) => {
+        if (key.includes(forceKey)) newValues[key] = forceValue
+      })
+    })
+    form.setFieldsValue(newValues)
+    handleFormValuesChange(newValues)
+  }, [forceFieldsValues, form])
 
   /**
    * set validator on first render

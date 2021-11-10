@@ -109,6 +109,9 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   )
 
   const [state, setState] = useState<SourceEditorState>(initialState)
+  const [forceConfigurationFieldsValues, setForceConfigurationFieldsValues] = useState<PlainObjectWithPrimitiveValues>(
+    {}
+  )
   const [controlsDisabled, setControlsDisabled] = useState<boolean>(false)
   const [tabErrorsVisible, setTabErrorsVisible] = useState<boolean>(false)
   const [showDocumentation, setShowDocumentation] = useState<boolean>(false)
@@ -151,13 +154,10 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     }
   }
 
-  const handleTestConnection = useCallback(async () => {
-    const isErrored = !!(await validateCountErrors())
-    if (isErrored) return
-
-    const sourceData = handleBringSourceData()
-    return await sourcePageUtils.testConnection(sourceData)
-  }, [state])
+  const handleSetForceConfigurationFieldsValues = useCallback<(data: PlainObjectWithPrimitiveValues) => void>(
+    data => setForceConfigurationFieldsValues(forceValues => ({ ...forceValues, ...data })),
+    []
+  )
 
   const handleSave = useCallback<AsyncVoidFunction>(async () => {
     let sourceEditorState = null
@@ -225,6 +225,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       initialSourceData={initialSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
       configIsValidatedByStreams={configIsValidatedByStreams}
+      forceConfigurationFieldsValues={forceConfigurationFieldsValues}
       setSourceEditorState={setState}
       setControlsDisabled={setControlsDisabled}
       setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
@@ -234,6 +235,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       handleCompleteStep={handleCompleteStep}
       handleLeaveEditor={handleLeaveEditor}
       handleValidateAndTestConfig={handleValidateAndTestConfig}
+      handleSetForceConfigurationFieldsValues={handleSetForceConfigurationFieldsValues}
     />
   )
 }
