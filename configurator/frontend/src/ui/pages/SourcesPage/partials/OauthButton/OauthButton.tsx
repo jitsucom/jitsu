@@ -38,18 +38,22 @@ export const OauthButton: React.FC<Props> = ({ service, className, disabled, ico
     new OauthService().checkIfOauthSupported(service).then(result => result && setIsOauthSupported(result)) // only change state if oauth supported
   }, [])
 
-  return isOauthSupported ? (
-    <Button
-      type="default"
-      size="large"
-      loading={isLoading}
-      danger={!!oauthError}
-      className={className}
-      disabled={disabled}
-      icon={icon ?? <KeyOutlined />}
-      onClick={handleClick}
-    >
-      {children}
-    </Button>
-  ) : null
+  return (
+    <div className={`transition-all duration-700 ${isOauthSupported ? "max-w-full" : "max-w-0"}`}>
+      <Button
+        type="default"
+        size="large"
+        loading={isLoading}
+        danger={!!oauthError}
+        className={`transiton all duration-1000 ${className} ${
+          isOauthSupported ? "opacity-100" : "opacity-0 transform-gpu scale-125)"
+        }`}
+        disabled={disabled}
+        icon={icon ?? <KeyOutlined />}
+        onClick={handleClick}
+      >
+        {children}
+      </Button>
+    </div>
+  )
 }
