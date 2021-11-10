@@ -53,6 +53,7 @@ const SourceEditorViewStepsControls: React.FC<Props> = ({ proceedButton, sourceD
       <OauthButton
         key="oauth-button"
         service={sourceDataFromCatalog.id}
+        forceNotSupported={sourceDataFromCatalog.expertMode}
         className="mr-2"
         disabled={controlsDisabled}
         icon={<span className="h-6 w-8 pr-2">{sourceDataFromCatalog.pic}</span>}
