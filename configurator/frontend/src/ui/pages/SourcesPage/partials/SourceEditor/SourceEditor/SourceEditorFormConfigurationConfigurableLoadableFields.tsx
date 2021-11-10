@@ -18,6 +18,7 @@ import { useEffect } from "react"
 
 type Props = {
   initialValues: Partial<SourceData>
+  forceFieldsValues: PlainObjectWithPrimitiveValues
   sourceDataFromCatalog: SourceConnector
   patchConfig: PatchConfig
   setControlsDisabled: ReactSetState<boolean>
@@ -29,6 +30,7 @@ const CONFIG_INTERNAL_STATE_KEY = "loadableParameters"
 export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> = ({
   initialValues,
   sourceDataFromCatalog,
+  forceFieldsValues,
   patchConfig,
   setControlsDisabled,
   setValidator,
@@ -63,8 +65,20 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { doNotSetStateChanged: true })
   }
 
+  useEffect(() => {
+    const currentValues = form.getFieldsValue()
+    const newValues = { ...currentValues }
+    Object.keys(newValues).forEach(key => {
+      Object.entries(forceFieldsValues).forEach(([forceKey, forceValue]) => {
+        if (key.includes(forceKey)) newValues[key] = forceValue
+      })
+    })
+    form.setFieldsValue(newValues)
+    handleFormValuesChange(newValues)
+  }, [forceFieldsValues, form])
+
   /**
-   * set validator on first render
+   * set form and validator to parent component after the first render
    */
   useEffect(() => {
     const validateGetErrorsCount: ValidateGetErrorsCount = async () => {
