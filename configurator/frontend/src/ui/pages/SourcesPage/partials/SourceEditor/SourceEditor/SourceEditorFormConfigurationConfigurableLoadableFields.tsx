@@ -65,6 +65,9 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { doNotSetStateChanged: true })
   }
 
+  /**
+   * Refactor -- use a function passed from parent component
+   */
   useEffect(() => {
     const currentValues = form.getFieldsValue()
     const newValues = { ...currentValues }
