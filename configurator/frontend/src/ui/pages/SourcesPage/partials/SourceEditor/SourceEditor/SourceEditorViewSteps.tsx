@@ -154,6 +154,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
               handleClick: steps[currentStep].proceedAction,
             }}
             sourceDataFromCatalog={sourceDataFromCatalog}
+            hideOauthButton={currentStep !== 0}
             setAuthSecrets={handleSetForceConfigurationFieldsValues}
             handleCancel={handleLeaveEditor}
             handleStepBack={currentStep === 0 ? undefined : handleStepBack}

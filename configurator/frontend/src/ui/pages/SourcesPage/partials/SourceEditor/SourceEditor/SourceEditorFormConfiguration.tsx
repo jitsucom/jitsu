@@ -135,6 +135,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
           <SourceEditorFormConfigurationConfigurableFields
             initialValues={initialSourceData}
             configParameters={sourceConfigurationSchema.configurableFields}
+            forceFieldsValues={forceFieldsValues}
             patchConfig={patchConfig}
             setValidator={setConfigurableFieldsValidator}
           />

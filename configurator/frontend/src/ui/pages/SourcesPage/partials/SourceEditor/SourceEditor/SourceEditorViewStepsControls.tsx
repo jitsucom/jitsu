@@ -15,6 +15,7 @@ interface ButtonProps {
 export interface Props {
   proceedButton?: ButtonProps
   sourceDataFromCatalog: SourceConnector
+  hideOauthButton?: boolean
   controlsDisabled?: boolean
   setAuthSecrets?: (data: any) => void
   handleStepBack?: VoidFunction
