@@ -67,7 +67,6 @@ export const usePolling = <T>(
   const outdateCurrentPoll = useRef<Optional<VoidFunction>>(null)
 
   const poll = async () => {
-    console.log("flow started")
     setIsLoading(true)
     setError(null)
 
@@ -91,9 +90,6 @@ export const usePolling = <T>(
       }
       !blockStateUpdates && setError(error)
     } finally {
-      if (blockStateUpdates) {
-        console.log("flow blocked")
-      }
       !blockStateUpdates && setIsLoading(false)
     }
   }

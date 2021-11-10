@@ -1,22 +1,21 @@
 // @Libs
 import { observer } from "mobx-react-lite"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { cloneDeep } from "lodash"
 // @Types
-import { SourceConnector as CatalogSourceConnector, SourceConnector } from "catalog/sources/types"
+import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
 import { SetSourceEditorState } from "./SourceEditor"
 // @Components
 import { SourceEditorFormConfigurationStaticFields } from "./SourceEditorFormConfigurationStaticFields"
 import { SourceEditorFormConfigurationConfigurableLoadableFields } from "./SourceEditorFormConfigurationConfigurableLoadableFields"
-import { cloneDeep } from "lodash"
-// @Styles
-import styles from "./SourceEditorFormConfiguration.module.less"
-import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 import { SourceEditorFormConfigurationConfigurableFields } from "./SourceEditorFormConfigurationConfigurableFields"
+import { OauthButton } from "../../OauthButton/OauthButton"
 
 type Props = {
   editorMode: "add" | "edit"
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
+  forceFieldsValues: PlainObjectWithPrimitiveValues
   disabled?: boolean
   setSourceEditorState: SetSourceEditorState
   setControlsDisabled: ReactSetState<boolean>
@@ -33,18 +32,31 @@ export type PatchConfig = (
   }
 ) => void
 
+type Forms = {
+  staticFields: PlainObjectWithPrimitiveValues | null
+  configurableFields: PlainObjectWithPrimitiveValues | null
+  configurableLoadableFields: PlainObjectWithPrimitiveValues | null
+}
+
 const initialValidator: () => ValidateGetErrorsCount = () => async () => 0
 
 const SourceEditorFormConfiguration: React.FC<Props> = ({
   editorMode,
   initialSourceData,
   sourceDataFromCatalog,
+  forceFieldsValues,
   disabled,
   setSourceEditorState,
   setControlsDisabled,
   setTabErrorsVisible,
   setConfigIsValidatedByStreams,
 }) => {
+  const [forms, setForms] = useState<Forms>({
+    staticFields: null,
+    configurableFields: null,
+    configurableLoadableFields: null,
+  })
+
   const [staticFieldsValidator, setStaticFieldsValidator] = useState<ValidateGetErrorsCount>(initialValidator)
   const [configurableFieldsValidator, setConfigurableFieldsValidator] =
     useState<ValidateGetErrorsCount>(initialValidator)
@@ -111,8 +123,8 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
   }, [])
 
   return (
-    <div className={styles.sourceEditorFormConfiguration}>
-      <fieldset disabled={disabled}>
+    <div>
+      <fieldset key="fields" disabled={disabled}>
         <SourceEditorFormConfigurationStaticFields
           editorMode={editorMode}
           initialValues={initialSourceData}
@@ -130,6 +142,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
         {sourceConfigurationSchema.loadableFieldsEndpoint && (
           <SourceEditorFormConfigurationConfigurableLoadableFields
             initialValues={initialSourceData}
+            forceFieldsValues={forceFieldsValues}
             sourceDataFromCatalog={sourceDataFromCatalog}
             patchConfig={patchConfig}
             setControlsDisabled={setControlsDisabled}
