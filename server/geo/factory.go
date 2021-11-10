@@ -77,8 +77,9 @@ func (f *MaxMindFactory) parseMaxmindAddress(path string) (string, []Edition, er
 	}
 
 	licenseKey := maxmindParts[0]
+	editionValues := strings.TrimPrefix(maxmindParts[1], "edition_id=")
 	var editions []Edition
-	for _, editionStr := range strings.Split(maxmindParts[1], ",") {
+	for _, editionStr := range strings.Split(editionValues, ",") {
 		edition, err := fromString(editionStr)
 		if err != nil {
 			return "", nil, err
