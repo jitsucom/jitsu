@@ -21,6 +21,7 @@ type SourceEditorTabsViewProps = {
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
   configIsValidatedByStreams: boolean
+  forceConfigurationFieldsValues: PlainObjectWithPrimitiveValues
   setSourceEditorState: SetSourceEditorState
   setControlsDisabled: ReactSetState<boolean>
   setConfigIsValidatedByStreams: (value: boolean) => void
@@ -30,6 +31,7 @@ type SourceEditorTabsViewProps = {
   handleCompleteStep: VoidFunction
   handleLeaveEditor: VoidFunction
   handleValidateAndTestConfig: AsyncUnknownFunction
+  handleSetForceConfigurationFieldsValues: (data: PlainObjectWithPrimitiveValues) => void
 }
 
 export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
@@ -40,6 +42,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   initialSourceData,
   sourceDataFromCatalog,
   configIsValidatedByStreams,
+  forceConfigurationFieldsValues,
   setSourceEditorState,
   setControlsDisabled,
   setConfigIsValidatedByStreams,
@@ -49,6 +52,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   handleCompleteStep,
   handleLeaveEditor,
   handleValidateAndTestConfig,
+  handleSetForceConfigurationFieldsValues,
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(0)
   const [currentStepIsLoading, setCurrentStepIsLoading] = useState<boolean>(false)
@@ -85,6 +89,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
           editorMode={editorMode}
           initialSourceData={initialSourceData}
           sourceDataFromCatalog={sourceDataFromCatalog}
+          forceFieldsValues={forceConfigurationFieldsValues}
           disabled={currentStepIsLoading}
           setSourceEditorState={setSourceEditorState}
           setControlsDisabled={setControlsDisabled}
@@ -142,12 +147,15 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
 
         <div className={cn("flex-grow flex-shrink min-h-0 overflow-y-auto pr-4")}>{steps[currentStep]?.render}</div>
 
-        <div className="flex-shrink flex-grow-0 border-t py-2">
+        <div className="flex items-center flex-shrink flex-grow-0 border-t py-2">
           <SourceEditorViewStepsControls
             proceedButton={{
               title: steps[currentStep].proceedButtonTitle ?? "Next",
               handleClick: steps[currentStep].proceedAction,
             }}
+            sourceDataFromCatalog={sourceDataFromCatalog}
+            hideOauthButton={currentStep !== 0}
+            setAuthSecrets={handleSetForceConfigurationFieldsValues}
             handleCancel={handleLeaveEditor}
             handleStepBack={currentStep === 0 ? undefined : handleStepBack}
             controlsDisabled={controlsDisabled}
