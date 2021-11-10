@@ -7,13 +7,22 @@ import { OauthService } from "lib/services/oauth"
 
 type Props = {
   service: string
+  forceNotSupported?: boolean
   className?: string
   disabled?: boolean
   icon?: React.ReactNode
   setAuthSecrets: (data: any) => void
 }
 
-export const OauthButton: React.FC<Props> = ({ service, className, disabled, icon, children, setAuthSecrets }) => {
+export const OauthButton: React.FC<Props> = ({
+  service,
+  forceNotSupported,
+  className,
+  disabled,
+  icon,
+  children,
+  setAuthSecrets,
+}) => {
   const [isOauthSupported, setIsOauthSupported] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [oauthError, setOauthError] = useState<string>("")
@@ -35,7 +44,8 @@ export const OauthButton: React.FC<Props> = ({ service, className, disabled, ico
   }
 
   useEffect(() => {
-    new OauthService().checkIfOauthSupported(service).then(result => result && setIsOauthSupported(result)) // only change state if oauth supported
+    !forceNotSupported &&
+      new OauthService().checkIfOauthSupported(service).then(result => result && setIsOauthSupported(result)) // only change state if oauth is supported
   }, [])
 
   return (
