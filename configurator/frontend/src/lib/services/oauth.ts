@@ -1,4 +1,5 @@
 import { throws } from "assert"
+import ApplicationServices from "./ApplicationServices"
 
 type OauthCredentials = { status: "success"; secrets: any }
 type OauthError = { status: "error"; errorMessage: string; errorDetails?: any }
@@ -16,10 +17,15 @@ interface IOauthService {
 }
 
 export class OauthService implements IOauthService {
-  private readonly OAUTH_BACKEND_API_BASE = "https://oauth.jitsu.com"
+  private readonly _oauthApiBase: string
+
+  constructor() {
+    this._oauthApiBase = ApplicationServices.get().applicationConfiguration.oauthApiBase
+  }
 
   public async checkIfOauthSupported(service: string): Promise<boolean> {
-    const response = await fetch(`${this.OAUTH_BACKEND_API_BASE}/api/info/${service}`)
+    if (!this._oauthApiBase) return false
+    const response = await fetch(`${this._oauthApiBase}/info/${service}`)
     if (response.status === 200) {
       const result: OauthSupportResponse = await response.json()
       return result.supported
@@ -28,8 +34,13 @@ export class OauthService implements IOauthService {
   }
 
   public async getCredentialsInSeparateWindow(service: string): Promise<OauthResult> {
+    if (!this._oauthApiBase)
+      throw new Error(
+        "Failed to get oauth credentials. Did you forget to set OAUTH_BACKEND_API_BASE environment variable?"
+      )
+
     const oauthWindow = window.open(
-      `${this.OAUTH_BACKEND_API_BASE}/api/oauth/${service}/init`,
+      `${this._oauthApiBase}/oauth/${service}/init`,
       `Authorize ${service}`,
       "toolbar=no, menubar=no, location=no, width=600, height=700, top=100, left=100"
     )
