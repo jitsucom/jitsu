@@ -14,15 +14,18 @@ interface ButtonProps {
 
 export interface Props {
   proceedButton?: ButtonProps
-  sourceDataFromCatalog: SourceConnector
   hideOauthButton?: boolean
   controlsDisabled?: boolean
-  setAuthSecrets?: (data: any) => void
   handleStepBack?: VoidFunction
   handleCancel?: VoidFunction
 }
 
-const SourceEditorViewStepsControls: React.FC<Props> = ({ proceedButton, sourceDataFromCatalog, controlsDisabled, setAuthSecrets, handleStepBack, handleCancel }) => {
+const SourceEditorViewStepsControls: React.FC<Props> = ({
+  proceedButton,
+  controlsDisabled,
+  handleStepBack,
+  handleCancel,
+}) => {
   const [isProceedLoading, setIsProceedLoading] = useState<boolean>(false)
 
   const handleProceed = async () => {
@@ -50,18 +53,6 @@ const SourceEditorViewStepsControls: React.FC<Props> = ({ proceedButton, sourceD
           {proceedButton.title ?? "Save"}
         </Button>
       )}
-
-      <OauthButton
-        key="oauth-button"
-        service={sourceDataFromCatalog.id}
-        forceNotSupported={sourceDataFromCatalog.expertMode}
-        className="mr-2"
-        disabled={controlsDisabled}
-        icon={<span className="h-6 w-8 pr-2">{sourceDataFromCatalog.pic}</span>}
-        setAuthSecrets={setAuthSecrets ?? (() => {})}
-      >
-        <span className="align-top">{`Log In to ${sourceDataFromCatalog.displayName} to Fill in OAuth Credentials`}</span>
-      </OauthButton>
 
       {handleStepBack && (
         <Button key="back-button" type="default" size="large" className="mr-2" onClick={handleStepBack}>

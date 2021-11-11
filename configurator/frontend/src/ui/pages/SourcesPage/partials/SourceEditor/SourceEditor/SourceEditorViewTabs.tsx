@@ -23,7 +23,6 @@ type SourceEditorTabsViewProps = {
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
   configIsValidatedByStreams: boolean
-  forceConfigurationFieldsValues: PlainObjectWithPrimitiveValues
   setSourceEditorState: SetSourceEditorState
   setControlsDisabled: ReactSetState<boolean>
   setTabsErrorsVisible: (value: boolean) => void
@@ -33,7 +32,6 @@ type SourceEditorTabsViewProps = {
   handleSave: AsyncUnknownFunction
   handleTestConnection: AsyncUnknownFunction
   handleLeaveEditor: VoidFunction
-  handleSetForceConfigurationFieldsValues: (data: PlainObjectWithPrimitiveValues) => void
 }
 
 export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
@@ -46,7 +44,6 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
   initialSourceData,
   sourceDataFromCatalog,
   configIsValidatedByStreams,
-  forceConfigurationFieldsValues,
   setSourceEditorState,
   setControlsDisabled,
   setTabsErrorsVisible,
@@ -56,7 +53,6 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
   handleSave,
   handleTestConnection,
   handleLeaveEditor,
-  handleSetForceConfigurationFieldsValues,
 }) => {
   return (
     <>
@@ -88,7 +84,6 @@ export const SourceEditorViewTabs: React.FC<SourceEditorTabsViewProps> = ({
                 editorMode={editorMode}
                 initialSourceData={initialSourceData}
                 sourceDataFromCatalog={sourceDataFromCatalog}
-                forceFieldsValues={forceConfigurationFieldsValues}
                 setSourceEditorState={setSourceEditorState}
                 setControlsDisabled={setControlsDisabled}
                 setTabErrorsVisible={setTabsErrorsVisible}
