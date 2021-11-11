@@ -1,16 +1,18 @@
 /* eslint-disable */
 import * as React from "react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Button, Form, Input, Switch, Table, Tooltip } from "antd"
 import { FormActions, FormField, FormLayout } from "../Form/Form"
 import { useForm } from "antd/es/form/Form"
 import { useServices } from "../../../hooks/useServices"
 import ApplicationServices from "../../services/ApplicationServices"
 import { actionNotification } from "../../../ui/components/ActionNotification/ActionNotification"
-import { CodeInline, handleError } from "../components"
+import { CenteredError, CenteredSpin, CodeInline, handleError } from "../components"
 import { withQueryParams } from "../../../utils/queryParams"
 import { ApiOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined } from "@ant-design/icons"
 import QuestionCircleOutlined from "@ant-design/icons/lib/icons/QuestionCircleOutlined"
+import useLoader from "../../../hooks/useLoader"
+import { MaxMindConfig } from "./utils"
 
 const geoDataResolversCollection = "geo_data_resolvers"
 
@@ -26,29 +28,33 @@ function GeoDataResolver() {
   const [testingConnection, setTestingConnection] = useState(false)
   const [formDisabled, setFormDisabled] = useState(false)
 
-  const [editionStatuses, setEditionStatuses] = useState(null)
-
   const [form] = useForm<GeoDataResolverFormValues>()
 
-  useEffect(() => {
-    const getGeoDataResolver = async() => {
-      const response = await services.storageService.get(geoDataResolversCollection, services.activeProject.id)
-      form.setFieldsValue({
-        license_key: response.maxmind?.license_key,
-        enabled: response.maxmind?.enabled,
-      })
+  const [loadingError, formConfig, setFormConfig] = useLoader<MaxMindConfig>(async () => {
+    const response = await services.storageService.get(geoDataResolversCollection, services.activeProject.id)
 
-      //set statuses or load
-      if (response.maxmind?.enabled && response.maxmind?._statuses) {
-        setEditionStatuses(response.maxmind._statuses)
-      } else {
-        const response = await ApplicationServices.get().backendApiClient.get(withQueryParams("/geo_data_resolvers/editions", { project_id: services.activeProject.id }), { proxy: true })
-        setEditionStatuses(response.editions)
-      }
-
-      setFormDisabled(!form.getFieldsValue().enabled)
+    let config = {
+      license_key: response.maxmind?.license_key,
+      enabled: response.maxmind?.enabled,
+      editions: []
     }
-    getGeoDataResolver()
+
+    //set statuses or load
+    if (response.maxmind?.enabled && response.maxmind?._statuses) {
+      config.editions = response.maxmind._statuses
+    } else {
+      const response = await ApplicationServices.get().backendApiClient.get(withQueryParams("/geo_data_resolvers/editions", { project_id: services.activeProject.id }), { proxy: true })
+      config.editions = response.editions
+    }
+
+    form.setFieldsValue({
+      license_key: config.license_key,
+      enabled: config.enabled,
+    })
+
+    setFormDisabled(!config.enabled)
+
+    return config
   }, [])
 
   const submit = async() => {
@@ -73,13 +79,13 @@ function GeoDataResolver() {
       maxmind: {
         enabled: formValues.enabled,
         license_key: formValues.license_key,
-        _statuses: formValues.enabled ? editionStatuses : null,
+        _statuses: formValues.enabled ? formConfig.editions : null,
       },
     }
 
     await services.storageService.save(geoDataResolversCollection, config, services.activeProject.id)
 
-    let anyConnected = editionStatuses.filter(editionStatus => {
+    let anyConnected = formConfig.editions.filter(editionStatus => {
       return editionStatus.main.status === "ok" || editionStatus.analog?.status === "ok"
     }).length > 0
 
@@ -105,11 +111,13 @@ function GeoDataResolver() {
       if (response.message) throw new Error(response.message)
 
       //enrich state
-      setEditionStatuses(response.editions)
+      let currentFormConfig = formConfig
+      currentFormConfig.editions = response.editions
+      setFormConfig(currentFormConfig)
 
       //show notification
       if (!hideMessage) {
-        let anyConnected = editionStatuses.filter(editionStatus => {
+        let anyConnected = formConfig.editions.filter(editionStatus => {
           return editionStatus.main.status === "ok" || editionStatus.analog?.status === "ok"
         }).length > 0
 
@@ -133,11 +141,19 @@ function GeoDataResolver() {
   const databaseStatusesRepresentation = (dbStatus: any) => {
     let body = <>-</>
     if (dbStatus) {
-      let icon = <ClockCircleOutlined className="text-secondaryText" />
+      let icon = <Tooltip title="Not connected yet">
+        <ClockCircleOutlined className="text-secondaryText" />
+      </Tooltip>
+
       if (dbStatus.status === 'ok') {
-        icon = <CheckCircleOutlined className="text-success" />
+        icon = <Tooltip title="Successfully connected">
+          <CheckCircleOutlined className="text-success" />
+        </Tooltip>
       } else if (dbStatus.status === 'error'){
-        icon = <CloseCircleOutlined className="text-error" />
+        icon = <Tooltip title={dbStatus.message}>
+          <CloseCircleOutlined className="text-error" />
+        </Tooltip>
+
       }
 
       body = <>
@@ -146,6 +162,13 @@ function GeoDataResolver() {
     }
 
     return body
+  }
+
+
+  if (loadingError) {
+    return <CenteredError error={loadingError} />
+  } else if (!formConfig) {
+    return <CenteredSpin />
   }
 
   return (
@@ -172,7 +195,7 @@ function GeoDataResolver() {
                     </Tooltip>
                   </>,
                 dataIndex: "main",
-                key: "main",
+                key: "name",
                 render: databaseStatusesRepresentation,
               },
               {
@@ -182,11 +205,11 @@ function GeoDataResolver() {
                   </Tooltip>
                 </>,
                 dataIndex: "analog",
-                key: "analog",
+                key: "name",
                 render: databaseStatusesRepresentation,
               },
             ]}
-            dataSource={editionStatuses}
+            dataSource={formConfig.editions}
           />
         </div>
 
