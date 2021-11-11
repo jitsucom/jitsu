@@ -44,23 +44,23 @@ func (e Edition) String() string {
 }
 
 func fromString(value string) (Edition, error) {
-	value = strings.ToLower(strings.TrimSpace(value))
-	switch value {
-	case GeoIP2CityEdition.String():
+	formattedValue := strings.ToLower(strings.TrimSpace(value))
+	switch formattedValue {
+	case strings.ToLower(GeoIP2CityEdition.String()):
 		return GeoIP2CityEdition, nil
-	case GeoIP2ISPEdition.String():
+	case strings.ToLower(GeoIP2ISPEdition.String()):
 		return GeoIP2ISPEdition, nil
-	case GeoIP2DomainEdition.String():
+	case strings.ToLower(GeoIP2DomainEdition.String()):
 		return GeoIP2DomainEdition, nil
-	case GeoIP2CountryEdition.String():
+	case strings.ToLower(GeoIP2CountryEdition.String()):
 		return GeoIP2CountryEdition, nil
-	case GeoLite2CityEdition.String():
+	case strings.ToLower(GeoLite2CityEdition.String()):
 		return GeoLite2CityEdition, nil
-	case GeoLite2ASNEdition.String():
+	case strings.ToLower(GeoLite2ASNEdition.String()):
 		return GeoLite2ASNEdition, nil
-	case GeoLite2CountryEdition.String():
+	case strings.ToLower(GeoLite2CountryEdition.String()):
 		return GeoLite2CountryEdition, nil
 	default:
-		return Unknown, fmt.Errorf("unknown maxmind edition: '%s'", value)
+		return Unknown, fmt.Errorf("unknown maxmind edition: '%s' (formatted: '%s'", value, formattedValue)
 	}
 }
