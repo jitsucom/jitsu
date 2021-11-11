@@ -11,6 +11,6 @@ export interface Edition {
 
 export interface EditionData {
   name: string
-  status: 'ok' | 'error' | 'unknown'
+  status: "ok" | "error" | "unknown"
   message: string
 }

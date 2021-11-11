@@ -36,14 +36,17 @@ function GeoDataResolver() {
     let config = {
       license_key: response.maxmind?.license_key,
       enabled: response.maxmind?.enabled,
-      editions: []
+      editions: [],
     }
 
     //set statuses or load
     if (response.maxmind?.enabled && response.maxmind?._statuses) {
       config.editions = response.maxmind._statuses
     } else {
-      const response = await ApplicationServices.get().backendApiClient.get(withQueryParams("/geo_data_resolvers/editions", { project_id: services.activeProject.id }), { proxy: true })
+      const response = await ApplicationServices.get().backendApiClient.get(
+        withQueryParams("/geo_data_resolvers/editions", { project_id: services.activeProject.id }),
+        { proxy: true }
+      )
       config.editions = response.editions
     }
 
@@ -57,7 +60,7 @@ function GeoDataResolver() {
     return config
   }, [])
 
-  const submit = async() => {
+  const submit = async () => {
     setSaving(true)
     let formValues = form.getFieldsValue()
     try {
@@ -72,7 +75,7 @@ function GeoDataResolver() {
     }
   }
 
-  const save = async() => {
+  const save = async () => {
     let formValues = form.getFieldsValue()
 
     let config = {
@@ -85,28 +88,35 @@ function GeoDataResolver() {
 
     await services.storageService.save(geoDataResolversCollection, config, services.activeProject.id)
 
-    let anyConnected = formConfig.editions.filter(editionStatus => {
-      return editionStatus.main.status === "ok" || editionStatus.analog?.status === "ok"
-    }).length > 0
+    let anyConnected =
+      formConfig.editions.filter(editionStatus => {
+        return editionStatus.main.status === "ok" || editionStatus.analog?.status === "ok"
+      }).length > 0
 
     if (!formValues.enabled || anyConnected) {
       actionNotification.success("Settings saved!")
     }
 
     if (formValues.enabled && !anyConnected) {
-      actionNotification.warn(`Settings have been saved, but there is no available MaxMind database for this license key. Geo Resolution won't be applied to your JSON events`)
+      actionNotification.warn(
+        `Settings have been saved, but there is no available MaxMind database for this license key. Geo Resolution won't be applied to your JSON events`
+      )
     }
   }
 
-  const testConnection = async(hideMessage?: boolean) => {
+  const testConnection = async (hideMessage?: boolean) => {
     setTestingConnection(true)
 
     let formValues = form.getFieldsValue()
 
     try {
-      const response = await ApplicationServices.get().backendApiClient.post(withQueryParams("/geo_data_resolvers/test", { project_id: services.activeProject.id }), { maxmind_url: formValues.license_key }, {
-        proxy: true,
-      })
+      const response = await ApplicationServices.get().backendApiClient.post(
+        withQueryParams("/geo_data_resolvers/test", { project_id: services.activeProject.id }),
+        { maxmind_url: formValues.license_key },
+        {
+          proxy: true,
+        }
+      )
 
       if (response.message) throw new Error(response.message)
 
@@ -117,9 +127,10 @@ function GeoDataResolver() {
 
       //show notification
       if (!hideMessage) {
-        let anyConnected = formConfig.editions.filter(editionStatus => {
-          return editionStatus.main.status === "ok" || editionStatus.analog?.status === "ok"
-        }).length > 0
+        let anyConnected =
+          formConfig.editions.filter(editionStatus => {
+            return editionStatus.main.status === "ok" || editionStatus.analog?.status === "ok"
+          }).length > 0
 
         if (anyConnected) {
           actionNotification.success("Successfully connected!")
@@ -127,7 +138,6 @@ function GeoDataResolver() {
           actionNotification.error("Connection failed: there is no available MaxMind database for this license key")
         }
       }
-
     } catch (error) {
       if (!hideMessage) {
         handleError(error, "Connection failed")
@@ -135,35 +145,40 @@ function GeoDataResolver() {
     } finally {
       setTestingConnection(false)
     }
-
   }
 
   const databaseStatusesRepresentation = (dbStatus: any) => {
     let body = <>-</>
     if (dbStatus) {
-      let icon = <Tooltip title="Not connected yet">
-        <ClockCircleOutlined className="text-secondaryText" />
-      </Tooltip>
-
-      if (dbStatus.status === 'ok') {
-        icon = <Tooltip title="Successfully connected">
-          <CheckCircleOutlined className="text-success" />
+      let icon = (
+        <Tooltip title="Not connected yet">
+          <ClockCircleOutlined className="text-secondaryText" />
         </Tooltip>
-      } else if (dbStatus.status === 'error'){
-        icon = <Tooltip title={dbStatus.message}>
-          <CloseCircleOutlined className="text-error" />
-        </Tooltip>
+      )
 
+      if (dbStatus.status === "ok") {
+        icon = (
+          <Tooltip title="Successfully connected">
+            <CheckCircleOutlined className="text-success" />
+          </Tooltip>
+        )
+      } else if (dbStatus.status === "error") {
+        icon = (
+          <Tooltip title={dbStatus.message}>
+            <CloseCircleOutlined className="text-error" />
+          </Tooltip>
+        )
       }
 
-      body = <>
-        {dbStatus.name}: {icon}
-      </>
+      body = (
+        <>
+          {dbStatus.name}: {icon}
+        </>
+      )
     }
 
     return body
   }
-
 
   if (loadingError) {
     return <CenteredError error={loadingError} />
@@ -176,11 +191,11 @@ function GeoDataResolver() {
       <div className="w-full pt-8 px-4" style={{ maxWidth: "1000px" }}>
         <p>
           Jitsu uses <a href="https://www.maxmind.com/">MaxMind</a> databases for geo resolution. There are two families
-          of MaxMind databases: <b>GeoIP2</b> and <b>GeoLite2</b>.
-          After setting a license key <b>all available MaxMind databases, which the license key has access</b>, will be
-          downloaded and used for enriching incoming events.
-          For using a certain database add <CodeInline>{"?edition_id=<database type>"}</CodeInline> to MaxMind License
-          Key value. For example: <CodeInline>{"M10sDzWKmnDYUBM0?edition_id=GeoIP2-City,GeoIP2-ISP"}</CodeInline>.
+          of MaxMind databases: <b>GeoIP2</b> and <b>GeoLite2</b>. After setting a license key{" "}
+          <b>all available MaxMind databases, which the license key has access</b>, will be downloaded and used for
+          enriching incoming events. For using a certain database add{" "}
+          <CodeInline>{"?edition_id=<database type>"}</CodeInline> to MaxMind License Key value. For example:{" "}
+          <CodeInline>{"M10sDzWKmnDYUBM0?edition_id=GeoIP2-City,GeoIP2-ISP"}</CodeInline>.
         </p>
 
         <div className="w-96 flex-wrap flex justify-content-center">
@@ -188,22 +203,27 @@ function GeoDataResolver() {
             pagination={false}
             columns={[
               {
-                title:
-                  <>Database {" "}
+                title: (
+                  <>
+                    Database{" "}
                     <Tooltip title="Paid MaxMind Database">
                       <QuestionCircleOutlined className="label-with-tooltip_question-mark" />
                     </Tooltip>
-                  </>,
+                  </>
+                ),
                 dataIndex: "main",
                 key: "name",
                 render: databaseStatusesRepresentation,
               },
               {
-                title: <>Analog {" "}
-                  <Tooltip title="Free MaxMind Database analog. Usually it is less accurate than paid version. It is downloaded only if paid one is unavailable.">
-                    <QuestionCircleOutlined className="label-with-tooltip_question-mark" />
-                  </Tooltip>
-                </>,
+                title: (
+                  <>
+                    Analog{" "}
+                    <Tooltip title="Free MaxMind Database analog. Usually it is less accurate than paid version. It is downloaded only if paid one is unavailable.">
+                      <QuestionCircleOutlined className="label-with-tooltip_question-mark" />
+                    </Tooltip>
+                  </>
+                ),
                 dataIndex: "analog",
                 key: "name",
                 render: databaseStatusesRepresentation,
@@ -220,8 +240,7 @@ function GeoDataResolver() {
               label="Enabled"
               tooltip={
                 <>
-                  If enabled - Jitsu downloads <a href="https://www.maxmind.com/en/geoip2-databases">GeoIP
-                  Databases</a>{" "}
+                  If enabled - Jitsu downloads <a href="https://www.maxmind.com/en/geoip2-databases">GeoIP Databases</a>{" "}
                   with your license key and enriches incoming JSON events with location based data. Read more
                   information about{" "}
                   <a href="https://jitsu.com/docs/other-features/geo-data-resolution">Geo data resolution</a>.
