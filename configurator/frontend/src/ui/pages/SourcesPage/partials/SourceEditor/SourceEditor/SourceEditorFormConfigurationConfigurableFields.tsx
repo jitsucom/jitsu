@@ -5,24 +5,25 @@ import { Form, FormProps } from "antd"
 import { Parameter } from "catalog/sources/types"
 import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 // @Components
-import { PatchConfig, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
+import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
 
 type Props = {
   initialValues: Partial<SourceData>
   configParameters: Parameter[]
-  forceFieldsValues: PlainObjectWithPrimitiveValues
   patchConfig: PatchConfig
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
+  setFormReference: SetFormReference
 }
 
 const CONFIG_INTERNAL_STATE_KEY = "configurableParameters"
+const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 
 export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = ({
   initialValues,
   configParameters,
-  forceFieldsValues,
   patchConfig,
   setValidator,
+  setFormReference,
 }) => {
   const [form] = Form.useForm()
 
@@ -41,22 +42,7 @@ export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = 
   }
 
   /**
-   * Refactor -- use a function passed from parent component
-   */
-  useEffect(() => {
-    const currentValues = form.getFieldsValue()
-    const newValues = { ...currentValues }
-    Object.keys(newValues).forEach(key => {
-      Object.entries(forceFieldsValues).forEach(([forceKey, forceValue]) => {
-        if (key.includes(forceKey)) newValues[key] = forceValue
-      })
-    })
-    form.setFieldsValue(newValues)
-    handleFormValuesChange(newValues)
-  }, [forceFieldsValues, form])
-
-  /**
-   * set validator on first render
+   * set validator and form reference on first render
    */
   useEffect(() => {
     const validateGetErrorsCount: ValidateGetErrorsCount = async () => {
@@ -70,6 +56,7 @@ export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = 
     }
 
     setValidator(() => validateGetErrorsCount)
+    setFormReference(CONFIG_FORM_KEY, form)
   }, [])
 
   return (

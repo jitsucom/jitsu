@@ -8,7 +8,7 @@ import { ErrorCard } from "lib/components/ErrorCard/ErrorCard"
 import { LoadableFieldsLoadingMessageCard } from "lib/components/LoadingFormCard/LoadingFormCard"
 import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 // @Types
-import { PatchConfig, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
+import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
 // @Hooks
 import { usePolling } from "hooks/usePolling"
 // @Utils
@@ -18,22 +18,23 @@ import { useEffect } from "react"
 
 type Props = {
   initialValues: Partial<SourceData>
-  forceFieldsValues: PlainObjectWithPrimitiveValues
   sourceDataFromCatalog: SourceConnector
   patchConfig: PatchConfig
   setControlsDisabled: ReactSetState<boolean>
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
+  setFormReference: SetFormReference
 }
 
 const CONFIG_INTERNAL_STATE_KEY = "loadableParameters"
+const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 
 export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> = ({
   initialValues,
   sourceDataFromCatalog,
-  forceFieldsValues,
   patchConfig,
   setControlsDisabled,
   setValidator,
+  setFormReference,
 }) => {
   const [form] = Form.useForm()
 
@@ -66,22 +67,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   }
 
   /**
-   * Refactor -- use a function passed from parent component
-   */
-  useEffect(() => {
-    const currentValues = form.getFieldsValue()
-    const newValues = { ...currentValues }
-    Object.keys(newValues).forEach(key => {
-      Object.entries(forceFieldsValues).forEach(([forceKey, forceValue]) => {
-        if (key.includes(forceKey)) newValues[key] = forceValue
-      })
-    })
-    form.setFieldsValue(newValues)
-    handleFormValuesChange(newValues)
-  }, [forceFieldsValues, form])
-
-  /**
-   * set form and validator to parent component after the first render
+   * set validator and form reference to parent component after the first render
    */
   useEffect(() => {
     const validateGetErrorsCount: ValidateGetErrorsCount = async () => {
@@ -95,6 +81,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     }
 
     setValidator(() => validateGetErrorsCount)
+    setFormReference(CONFIG_FORM_KEY, form)
   }, [])
 
   return loadingParametersError ? (
