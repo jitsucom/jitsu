@@ -65,6 +65,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 
 	bulkHandler := handlers.NewBulkHandler(destinations, processorHolder.GetBulkPreprocessor())
 
+	geoDataResolverHandler := handlers.NewGeoDataResolverHandler(geoService)
+
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
@@ -88,6 +90,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		//Dry run
 		apiV1.POST("/events/dry-run", middleware.TokenTwoFuncAuth(dryRunHandler.Handle, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
+		apiV1.GET("/geo_data_resolvers/editions", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.EditionsHandler))
+		apiV1.POST("/geo_data_resolvers/test", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.TestHandler))
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler))
 		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.EventTemplateHandler))
 

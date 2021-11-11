@@ -34,6 +34,63 @@ func NewMaxmindFactory(officialDownloadURLTemplate string) *MaxMindFactory {
 	return &MaxMindFactory{officialDownloadURLTemplate: officialDownloadURLTemplate}
 }
 
+//Test tries to download all MaxMind databases and returns all available Edition
+//or error if no editions are available
+func (f *MaxMindFactory) Test(maxmindURL string) ([]*EditionRule, error) {
+	licenseKey, editions, err := f.parseMaxmindAddress(maxmindURL)
+	if err != nil {
+		return nil, err
+	}
+
+	//use all paid editions by default
+	if len(editions) == 0 {
+		editions = paidEditions
+	}
+
+	var editionsResult []*EditionRule
+	for _, edition := range editions {
+		rule := &EditionRule{}
+
+		//main
+		url := fmt.Sprintf(f.officialDownloadURLTemplate, licenseKey, edition)
+		if err := checkPermissions(url); err != nil {
+			rule.Main = &EditionData{
+				Name:    edition,
+				Status:  StatusError,
+				Message: err.Error(),
+			}
+		} else {
+			rule.Main = &EditionData{
+				Name:   edition,
+				Status: StatusOK,
+			}
+		}
+
+		//analog
+		analog := edition.FreeAnalog()
+		if analog != Unknown {
+			rule.Analog = &EditionData{
+				Name:   analog,
+				Status: StatusUnknown,
+			}
+
+			if rule.Main.Status == StatusError {
+				url = fmt.Sprintf(f.officialDownloadURLTemplate, licenseKey, analog)
+				if err := checkPermissions(url); err != nil {
+					rule.Analog.Status = StatusError
+					rule.Analog.Message = err.Error()
+				} else {
+					rule.Analog.Status = StatusOK
+				}
+			}
+		}
+
+		editionsResult = append(editionsResult, rule)
+	}
+
+	return editionsResult, nil
+}
+
 //Create creates Resolver from:
 // 1. URL in format: maxmind://<license_key>?editions=GeoIP2-City,GeoIP2-ASN (and others)
 // 2. direct URL for download DB
@@ -208,6 +265,29 @@ func (f *MaxMindFactory) downloadOfficial(licenseKey string, edition Edition) (*
 
 	reader, err := parseDBFromBytes(b)
 	return reader, edition, err
+}
+
+//checkPermissions sends HTTP GET request and analyze HTTP response code
+func checkPermissions(url string) error {
+	r, err := http.Get(url)
+	if err != nil {
+		return fmt.Errorf("error loading db: %v", err)
+	}
+	defer r.Body.Close()
+
+	if r.StatusCode != 200 {
+		if r.StatusCode == http.StatusUnauthorized {
+			return ErrInvalidLicenseKey
+		}
+
+		b, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return fmt.Errorf("error reading db: %v", err)
+		}
+		return fmt.Errorf("error loading db: http code=%d [%s]", r.StatusCode, string(b))
+	}
+
+	return nil
 }
 
 func loadFromURL(url string) ([]byte, error) {
