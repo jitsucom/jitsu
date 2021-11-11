@@ -21,7 +21,6 @@ type SourceEditorTabsViewProps = {
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
   configIsValidatedByStreams: boolean
-  forceConfigurationFieldsValues: PlainObjectWithPrimitiveValues
   setSourceEditorState: SetSourceEditorState
   setControlsDisabled: ReactSetState<boolean>
   setConfigIsValidatedByStreams: (value: boolean) => void
@@ -31,7 +30,6 @@ type SourceEditorTabsViewProps = {
   handleCompleteStep: VoidFunction
   handleLeaveEditor: VoidFunction
   handleValidateAndTestConfig: AsyncUnknownFunction
-  handleSetForceConfigurationFieldsValues: (data: PlainObjectWithPrimitiveValues) => void
 }
 
 export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
@@ -42,7 +40,6 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   initialSourceData,
   sourceDataFromCatalog,
   configIsValidatedByStreams,
-  forceConfigurationFieldsValues,
   setSourceEditorState,
   setControlsDisabled,
   setConfigIsValidatedByStreams,
@@ -52,7 +49,6 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   handleCompleteStep,
   handleLeaveEditor,
   handleValidateAndTestConfig,
-  handleSetForceConfigurationFieldsValues,
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(0)
   const [currentStepIsLoading, setCurrentStepIsLoading] = useState<boolean>(false)
@@ -89,7 +85,6 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
           editorMode={editorMode}
           initialSourceData={initialSourceData}
           sourceDataFromCatalog={sourceDataFromCatalog}
-          forceFieldsValues={forceConfigurationFieldsValues}
           disabled={currentStepIsLoading}
           setSourceEditorState={setSourceEditorState}
           setControlsDisabled={setControlsDisabled}
@@ -132,7 +127,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   return (
     <>
       <div className={cn("flex flex-col items-stretch flex-grow-0 flex-shrink h-full min-h-0")}>
-        <div className="flex-shrink-0 flex-grow-0 mb-6">
+        <div className="flex-shrink-0 flex-grow-0 mb-4">
           <Steps current={currentStep}>
             {steps.map(({ title, description }, idx) => (
               <Steps.Step
@@ -153,9 +148,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
               title: steps[currentStep].proceedButtonTitle ?? "Next",
               handleClick: steps[currentStep].proceedAction,
             }}
-            sourceDataFromCatalog={sourceDataFromCatalog}
             hideOauthButton={currentStep !== 0}
-            setAuthSecrets={handleSetForceConfigurationFieldsValues}
             handleCancel={handleLeaveEditor}
             handleStepBack={currentStep === 0 ? undefined : handleStepBack}
             controlsDisabled={controlsDisabled}

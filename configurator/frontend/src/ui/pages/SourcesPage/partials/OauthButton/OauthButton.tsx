@@ -4,6 +4,8 @@ import { Button } from "antd"
 import { KeyOutlined } from "@ant-design/icons"
 import { useEffect, useState } from "react"
 import { OauthService } from "lib/services/oauth"
+import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+import { handleError } from "lib/components/components"
 
 type Props = {
   service: string
@@ -25,19 +27,18 @@ export const OauthButton: React.FC<Props> = ({
 }) => {
   const [isOauthSupported, setIsOauthSupported] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [oauthError, setOauthError] = useState<string>("")
 
-  const handleClick = async () => {
-    setOauthError("")
+  const handleClick = async (): Promise<void> => {
     setIsLoading(true)
     try {
       const oauthResult = await new OauthService().getCredentialsInSeparateWindow(service)
       if (oauthResult.status === "error") {
-        throw new Error(oauthResult.errorMessage)
+        actionNotification.error(oauthResult.errorMessage)
+        return
       }
       setAuthSecrets(oauthResult.secrets)
     } catch (error) {
-      setOauthError(error.message ?? "Oauth failed due to internal error. Please, file an issue.")
+      handleError(new Error(error.message ?? "Oauth failed due to internal error. Please, file an issue."))
     } finally {
       setIsLoading(false)
     }
@@ -49,15 +50,11 @@ export const OauthButton: React.FC<Props> = ({
   }, [])
 
   return (
-    <div className={`transition-all duration-700 ${isOauthSupported ? "max-w-full" : "max-w-0"}`}>
+    <div className={`h-full w-full transiton-transform duration-700 transform ${isOauthSupported ? "" : "scale-105)"}`}>
       <Button
         type="default"
-        size="large"
         loading={isLoading}
-        danger={!!oauthError}
-        className={`transiton all duration-1000 ${className} ${
-          isOauthSupported ? "opacity-100" : "opacity-0 transform-gpu scale-125)"
-        }`}
+        className={`transition-opacity duration-700 ${className} ${isOauthSupported ? "" : "opacity-0"}`}
         disabled={disabled}
         icon={icon ?? <KeyOutlined />}
         onClick={handleClick}
