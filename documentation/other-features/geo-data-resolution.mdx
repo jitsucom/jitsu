@@ -68,11 +68,15 @@ server:
 destinations:
 ...
 
-geo.maxmind_path: path_to_file #local file
-#or
-geo.maxmind_path: 'maxmind://<YOUR_MAXMIND_LICENSE_KEY>' #Jitsu will download all available MaxMind DBs from official MaxMind URL with your licence key
-#or
-geo.maxmind_path: 'maxmind://<YOUR_MAXMIND_LICENSE_KEY>?edition_id=GeoIP2-City,GeoIP2-ISP' #Jitsu will download only GeoIP2-City and GeoIP2-ISP
-#or
-geo.maxmind_path: http://resource.url/path #hosted file
+#local file
+geo.maxmind_path: path_to_file
+
+#Jitsu will download all available MaxMind DBs from official MaxMind URL with your licence key
+geo.maxmind_path: 'maxmind://<YOUR_MAXMIND_LICENSE_KEY>'
+
+#Jitsu will download only GeoIP2-City and GeoIP2-ISP
+geo.maxmind_path: 'maxmind://<YOUR_MAXMIND_LICENSE_KEY>?edition_id=GeoIP2-City,GeoIP2-ISP'
+
+#hosted file
+geo.maxmind_path: http://resource.url/path
 ```
