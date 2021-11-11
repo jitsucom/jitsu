@@ -22,7 +22,9 @@ func parseConfigFromBytes(b []byte) (map[string]*ResolverConfig, error) {
 	return payload.GeoResolvers, nil
 }
 
-func parseConfigAsLink(config *ResolverConfig) (string, error) {
+//ParseConfigAsLink works only with MaxMindType
+//returns MaxMind URL or error
+func ParseConfigAsLink(config *ResolverConfig) (string, error) {
 	if config.Type != MaxmindType {
 		return "", fmt.Errorf("unsupported geo resolver type: %s", config.Type)
 	}

@@ -124,7 +124,7 @@ func (sw *StreamingWorker) start() {
 
 				if err := sw.streamingStorage.Insert(eventContext); err != nil {
 					logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.Serialize(), table.Name, err)
-					if isConnectionError(err) {
+					if IsConnectionError(err) {
 						//retry
 						sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenID)
 					}
