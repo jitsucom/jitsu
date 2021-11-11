@@ -46,29 +46,3 @@ func (gdrh *GeoDataResolversHandler) GetHandler(c *gin.Context) {
 	logging.Debugf("Geo data resolvers response in [%.2f] seconds", time.Now().Sub(begin).Seconds())
 	c.JSON(http.StatusOK, &jgeo.Payload{GeoResolvers: idConfig})
 }
-
-func (gdrh *GeoDataResolversHandler) TestHandler(c *gin.Context) {
-	begin := time.Now()
-	geoDataResolversMap, err := gdrh.configurationsService.GetGeoDataResolvers()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, jmiddleware.ErrResponse(DestinationsGettingErrMsg, err))
-		return
-	}
-
-	idConfig := map[string]*jgeo.ResolverConfig{}
-	for projectID, geoDataResolverConfig := range geoDataResolversMap {
-		if geoDataResolverConfig.MaxMind != nil && geoDataResolverConfig.MaxMind.Enabled {
-			maxmindURL := geoDataResolverConfig.MaxMind.LicenseKey
-			if !strings.HasPrefix(maxmindURL, jgeo.MaxmindPrefix) {
-				maxmindURL = jgeo.MaxmindPrefix + maxmindURL
-			}
-			idConfig[projectID] = &jgeo.ResolverConfig{
-				Type:   jgeo.MaxmindType,
-				Config: jgeo.MaxMindConfig{MaxMindURL: maxmindURL},
-			}
-		}
-	}
-
-	logging.Debugf("Geo data resolvers response in [%.2f] seconds", time.Now().Sub(begin).Seconds())
-	c.JSON(http.StatusOK, &jgeo.Payload{GeoResolvers: idConfig})
-}
