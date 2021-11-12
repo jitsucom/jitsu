@@ -58,7 +58,7 @@ func NewS3(config *Config) (Storage, error) {
 	return s3, nil
 }
 
-func (s3 *S3) DryRun(payload events.Event) ([][]adapters.TableField, error) {
+func (s3 *S3) DryRun(events.Event) ([][]adapters.TableField, error) {
 	return nil, errors.New("s3 does not support dry run functionality")
 }
 
@@ -140,7 +140,13 @@ func (s3 *S3) marshall(fdata *schema.ProcessedFile) ([]byte, error) {
 
 func (s3 *S3) fileName(fdata *schema.ProcessedFile) string {
 	start, end := findStartEndTimestamp(fdata.GetPayload())
-	return fmt.Sprintf("%s-start-%s-end-%s.log", fdata.BatchHeader.TableName, timestamp.ToISOFormat(start), timestamp.ToISOFormat(end))
+	var extension string
+	if s3.s3Adapter.Format() == adapters.S3FormatParquet {
+		extension = "parquet"
+	} else {
+		extension = "log"
+	}
+	return fmt.Sprintf("%s-start-%s-end-%s.%s", fdata.BatchHeader.TableName, timestamp.ToISOFormat(start), timestamp.ToISOFormat(end), extension)
 }
 
 func findStartEndTimestamp(fdata []map[string]interface{}) (time.Time, time.Time) {
