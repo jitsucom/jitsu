@@ -18,6 +18,7 @@ import {
   isSignInWithEmailLink,
   updateEmail,
   updatePassword,
+  getIdToken,
 } from "firebase/auth"
 import { initializeApp, FirebaseApp } from "firebase/app"
 import Marshal from "../commons/marshalling"
@@ -39,10 +40,6 @@ export class FirebaseUserService implements UserService {
     this.firebaseApp = initializeApp(config)
     this.backendApi = backendApi
     this.storageService = storageService
-  }
-
-  public getFirebaseApp(): FirebaseApp {
-    return this.firebaseApp
   }
 
   initiateGithubLogin(): Promise<string> {
@@ -286,5 +283,9 @@ export class FirebaseUserService implements UserService {
 
   loginWithLink(email: string, href: string): Promise<void> {
     return signInWithEmailLink(getAuth(), email, href).then()
+  }
+
+  async getIdToken(): Promise<string> {
+    return await getIdToken(this.firebaseUser)
   }
 }
