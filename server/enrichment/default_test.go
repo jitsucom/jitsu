@@ -32,7 +32,7 @@ func TestDefault(t *testing.T) {
 	defer appconfig.Instance.Close()
 	defer appconfig.Instance.CloseEventsConsumers()
 
-	appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock}
+	geoService := geo.NewTestService(geo.Mock{"10.10.10.10": geoDataMock})
 
 	InitDefault(
 		viper.GetString("server.fields_configuration.src_source_ip"),
@@ -110,7 +110,8 @@ func TestDefault(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			DefaultJsIPRule.Execute(tt.input)
+			defaultJSIPRule := CreateDefaultJsIPRule(geoService, "")
+			defaultJSIPRule.Execute(tt.input)
 			DefaultJsUaRule.Execute(tt.input)
 			require.Equal(t, tt.expected, tt.input, "Enriched events aren't equal")
 		})

@@ -89,9 +89,8 @@ func TestIPLookup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			appconfig.Init(false, "")
-			appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock}
 
-			ipRule, err := NewIPLookupRule(jsonutils.NewJSONPath(tt.source), jsonutils.NewJSONPath(tt.destination))
+			ipRule, err := NewIPLookupRule(jsonutils.NewJSONPath(tt.source), jsonutils.NewJSONPath(tt.destination), geo.NewTestService(geo.Mock{"10.10.10.10": geoDataMock}), "")
 			require.NoError(t, err)
 
 			ipRule.Execute(tt.input)
