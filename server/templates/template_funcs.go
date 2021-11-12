@@ -33,7 +33,7 @@ var JSONSerializeFuncs = template.FuncMap{
 	"TABLE_NAME": TableNameParameter,
 }
 
-func EnrichedFuncMap(extraVars map[string]string) template.FuncMap{
+func EnrichedFuncMap(extraVars map[string]interface{}) template.FuncMap{
 	var templateFunctions = make(map[string]interface{})
 	for k,v := range JSONSerializeFuncs {
 		templateFunctions[k] = v

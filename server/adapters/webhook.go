@@ -30,9 +30,6 @@ func (whc *WebHookConfig) Validate() error {
 	if whc == nil {
 		return errors.New("webHook config is required")
 	}
-	if whc.URL == "" {
-		return errors.New("'url' is required parameter")
-	}
 
 	return nil
 }

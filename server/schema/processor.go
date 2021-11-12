@@ -36,8 +36,8 @@ type Processor struct {
 }
 
 func NewProcessor(destinationID, destinationType, tableNameFuncExpression string, transform string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule,
-	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int) (*Processor, error) {
-	var templateFunctions = templates.EnrichedFuncMap(map[string]string{"destinationId": destinationID, "destinationType": destinationType})
+	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int, templateVariables map[string]interface{}) (*Processor, error) {
+	var templateFunctions = templates.EnrichedFuncMap(templateVariables)
 	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression, templateFunctions)
 	if err != nil {
 		return nil, err

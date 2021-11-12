@@ -27,6 +27,7 @@ import styles from "./ConfigurableFieldsForm.module.less"
 import { CodeDebuggerModal } from "../CodeDebuggerModal/CodeDebuggerModal"
 import { InputWithDebug } from "./InputWithDebug"
 import { SwitchWithLabel } from "./SwitchWithLabel"
+import set from "lodash/set"
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -35,6 +36,7 @@ import { SwitchWithLabel } from "./SwitchWithLabel"
 export interface Props {
   fieldsParamsList: readonly Parameter[]
   form: FormInstance
+  configForm?: FormInstance
   initialValues: any
   namePrefix?: string
   loading?: boolean | ReactNode
@@ -54,6 +56,7 @@ const services = ApplicationServices.get()
 const ConfigurableFieldsFormComponent = ({
   fieldsParamsList,
   form,
+  configForm,
   initialValues,
   loading,
   handleTouchAnyField,
@@ -237,6 +240,12 @@ const ConfigurableFieldsFormComponent = ({
       field: field,
       expression: values.code,
       object: JSON.parse(values.object),
+      template_variables: Object.entries((configForm || form).getFieldsValue())
+        .filter(v => v[0].startsWith("_formData._"))
+        .reduce((accumulator: any, currentValue: [string, unknown]) => {
+          set(accumulator, currentValue[0].replace("_formData._", ""), currentValue[1])
+          return accumulator
+        }, {}),
     }
 
     return services.backendApiClient.post(`/templates/evaluate?project_id=${services.activeProject.id}`, data, {

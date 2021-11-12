@@ -166,6 +166,7 @@ const DestinationEditor = ({
     },
     [forceUpdate]
   )
+  const configForm = Form.useForm()[0]
 
   const tabsInitialData: Tab<DestinationTabKey>[] = [
     {
@@ -179,7 +180,7 @@ const DestinationEditor = ({
           handleTouchAnyField={validateAndTouchField(0)}
         />
       ),
-      form: Form.useForm()[0],
+      form: configForm,
       touched: false,
     },
     {
@@ -188,6 +189,7 @@ const DestinationEditor = ({
       getComponent: (form: FormInstance) => (
         <DestinationEditorTransform
           form={form}
+          configForm={configForm}
           destinationReference={destinationReference}
           destinationData={destinationData.current}
           handleTouchAnyField={validateAndTouchField(1)}
