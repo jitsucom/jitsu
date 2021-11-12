@@ -5,8 +5,6 @@ import moment, { Moment } from "moment"
 // @Services
 import ApplicationServices from "./ApplicationServices"
 import { BackendApiClient } from "./BackendApiClient"
-// @Firebase
-import { getFirestore, collection, doc, getDoc } from "firebase/firestore"
 // @Types
 import { IDestinationsStore } from "../../stores/destinations"
 import { ISourcesStore } from "../../stores/sources"
@@ -200,6 +198,43 @@ function parseSubscription(fb: FirebaseSubscriptionEntry, usage: Usage): Readonl
   }
 }
 
+async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
+  const services = ApplicationServices.get()
+  const billingUrl = services.applicationConfiguration.billingUrl
+
+  if (!billingUrl) {
+    return { planId: "opensource", billingEmail: "none@none.com" }
+  }
+
+  const project_id = services.activeProject.id
+  const user_id = services.userService.getUser().uid
+  const id_token = await services.userService.getIdToken()
+
+  try {
+    const subscriptionResponse = await fetch(`${billingUrl}/api/get-current-subscription`, {
+      method: "POST",
+      body: JSON.stringify({ project_id, user_id, id_token }),
+    })
+    const subscription = (await subscriptionResponse.json()).subscription
+
+    if (!subscription) {
+      return { planId: "free", billingEmail: "none@none.com" }
+    }
+
+    return subscription
+  } catch (error) {
+    console.error(
+      "Failed to fetch subscription. User: ",
+      services.userService.getUser(),
+      "Project: ",
+      services.activeProject,
+      "Error: ",
+      error
+    )
+    return { planId: "free", billingEmail: "none@none.com" }
+  }
+}
+
 export async function getCurrentSubscription(
   project: IProject,
   backendApiClient: BackendApiClient,
@@ -208,14 +243,7 @@ export async function getCurrentSubscription(
 ): Promise<CurrentSubscription> {
   const statService = new StatisticsService(backendApiClient, project, true)
 
-  const firebaseCollection = collection(getFirestore(), "subscriptions")
-  const firebaseDoc = doc(firebaseCollection, project.id)
-
-  let subscription = (await getDoc(firebaseDoc)).data() as any as FirebaseSubscriptionEntry
-
-  if (!subscription) {
-    subscription = { planId: "free", billingEmail: "none@none.com" }
-  }
+  const subscription = await fetchCurrentSubscription()
 
   let stat: DatePoint[]
   try {
