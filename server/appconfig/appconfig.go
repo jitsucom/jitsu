@@ -19,6 +19,7 @@ const emptyGIFOnexOne = "R0lGODlhAQABAIAAAAAAAP8AACH5BAEAAAEALAAAAAABAAEAAAICTAE
 type AppConfig struct {
 	ServerName string
 	Authority  string
+	ConfigPath string
 
 	DisableSkipEventsWarn bool
 
@@ -187,11 +188,13 @@ func setDefaultParams(containerized bool) {
 	if containerized {
 		viper.SetDefault("log.path", "/home/eventnative/data/logs/events")
 		viper.SetDefault("server.log.path", "/home/eventnative/data/logs")
+		viper.SetDefault("server.config.path", "/home/eventnative/data/config")
 		viper.SetDefault("singer-bridge.venv_dir", "/home/eventnative/data/venv")
 		viper.SetDefault("airbyte-bridge.config_dir", "/home/eventnative/data/airbyte")
 	} else {
 		viper.SetDefault("log.path", "./logs/events")
 		viper.SetDefault("server.log.path", "./logs")
+		viper.SetDefault("server.config.path", "/config")
 		viper.SetDefault("singer-bridge.venv_dir", "./venv")
 		viper.SetDefault("airbyte-bridge.config_dir", "./airbyte_config")
 	}
@@ -243,6 +246,7 @@ func Init(containerized bool, dockerHubID string) error {
 
 	var appConfig AppConfig
 	appConfig.ServerName = serverName
+	appConfig.ConfigPath = viper.GetString("server.config.path")
 
 	emptyGIF, err := base64.StdEncoding.DecodeString(emptyGIFOnexOne)
 	if err != nil {

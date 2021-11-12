@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/jitsucom/jitsu/server/uuid"
@@ -70,32 +71,32 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 	switch config.Type {
 	case storages.PostgresType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: typing.SQLColumn{Type:"text"},
-			timestamp.Key: typing.SQLColumn{Type:"timestamp"},
+			uniqueIDField: typing.SQLColumn{Type: "text"},
+			timestamp.Key: typing.SQLColumn{Type: "timestamp"},
 		}
 		return testPostgres(config, eventContext)
 	case storages.ClickHouseType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: typing.SQLColumn{Type:"String"},
-			timestamp.Key: typing.SQLColumn{Type:"DateTime"},
+			uniqueIDField: typing.SQLColumn{Type: "String"},
+			timestamp.Key: typing.SQLColumn{Type: "DateTime"},
 		}
 		return testClickHouse(config, eventContext)
 	case storages.RedshiftType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: typing.SQLColumn{Type:"text"},
-			timestamp.Key: typing.SQLColumn{Type:"timestamp"},
+			uniqueIDField: typing.SQLColumn{Type: "text"},
+			timestamp.Key: typing.SQLColumn{Type: "timestamp"},
 		}
 		return testRedshift(config, eventContext)
 	case storages.BigQueryType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: typing.SQLColumn{Type:string(bigquery.StringFieldType)},
-			timestamp.Key: typing.SQLColumn{Type:string(bigquery.TimestampFieldType)},
+			uniqueIDField: typing.SQLColumn{Type: string(bigquery.StringFieldType)},
+			timestamp.Key: typing.SQLColumn{Type: string(bigquery.TimestampFieldType)},
 		}
 		return testBigQuery(config, eventContext)
 	case storages.SnowflakeType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: typing.SQLColumn{Type:"text"},
-			timestamp.Key: typing.SQLColumn{Type:"timestamp(6)"},
+			uniqueIDField: typing.SQLColumn{Type: "text"},
+			timestamp.Key: typing.SQLColumn{Type: "timestamp(6)"},
 		}
 		return testSnowflake(config, eventContext)
 	case storages.GoogleAnalyticsType:
@@ -140,8 +141,8 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		return dbtCloudAdapter.TestAccess()
 	case storages.MySQLType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: typing.SQLColumn{Type:"text"},
-			timestamp.Key: typing.SQLColumn{Type:"DATETIME"},
+			uniqueIDField: typing.SQLColumn{Type: "text"},
+			timestamp.Key: typing.SQLColumn{Type: "DATETIME"},
 		}
 		return testMySQL(config, eventContext)
 	case storages.S3Type:
@@ -171,6 +172,11 @@ func testPostgres(config *storages.DestinationConfig, eventContext *adapters.Eve
 	}
 
 	config.DataSource.Parameters["connect_timeout"] = "6"
+
+	hash := resources.GetStringHash(config.DataSource.Host + config.DataSource.Username)
+	if err := adapters.ProcessSSL(appconfig.Instance.ConfigPath, hash, config.DataSource); err != nil {
+		return err
+	}
 
 	postgres, err := adapters.NewPostgres(context.Background(), config.DataSource, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
@@ -286,6 +292,11 @@ func testRedshift(config *storages.DestinationConfig, eventContext *adapters.Eve
 	}
 
 	config.DataSource.Parameters["connect_timeout"] = "6"
+
+	hash := resources.GetStringHash(config.DataSource.Host + config.DataSource.Username)
+	if err := adapters.ProcessSSL(appconfig.Instance.ConfigPath, hash, config.DataSource); err != nil {
+		return err
+	}
 
 	redshift, err := adapters.NewAwsRedshift(context.Background(), config.DataSource, config.S3, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
