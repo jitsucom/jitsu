@@ -6,6 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"net/http"
@@ -14,10 +15,16 @@ import (
 type DryRunHandler struct {
 	destinationService *destinations.Service
 	preprocessor       events.Processor
+	geoService         *geo.Service
 }
 
-func NewDryRunHandler(destinationService *destinations.Service, preprocessor events.Processor) *DryRunHandler {
-	return &DryRunHandler{destinationService: destinationService, preprocessor: preprocessor}
+func NewDryRunHandler(destinationService *destinations.Service, preprocessor events.Processor,
+	geoService *geo.Service) *DryRunHandler {
+	return &DryRunHandler{
+		destinationService: destinationService,
+		preprocessor:       preprocessor,
+		geoService:         geoService,
+	}
 }
 
 func (drh *DryRunHandler) Handle(c *gin.Context) {
@@ -49,7 +56,10 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	reqContext := getRequestContext(c, payload)
+	//get geo resolver
+	geoResolver := drh.geoService.GetGeoResolver(storageProxy.GetGeoResolverID())
+
+	reqContext := getRequestContext(c, geoResolver, payload)
 
 	//** Context enrichment **
 	enrichment.ContextEnrichmentStep(payload, c.GetString(middleware.TokenName), reqContext, drh.preprocessor, storage.GetUniqueIDField())

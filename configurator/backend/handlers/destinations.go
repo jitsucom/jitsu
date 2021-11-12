@@ -44,6 +44,12 @@ func (dh *DestinationsHandler) GetHandler(c *gin.Context) {
 		return
 	}
 
+	geoResolvers, err := dh.configurationsService.GetGeoDataResolvers()
+	if err != nil {
+		logging.SystemErrorf("Error getting geo resolvers: %v", err)
+		geoResolvers = map[string]*entities.GeoDataResolver{}
+	}
+
 	idConfig := map[string]enstorages.DestinationConfig{}
 	for projectID, destinationsEntity := range destinationsMap {
 		if len(destinationsEntity.Destinations) == 0 {
@@ -61,6 +67,12 @@ func (dh *DestinationsHandler) GetHandler(c *gin.Context) {
 			if err != nil {
 				logging.Errorf("Error mapping destination config for destination type: %s id: %s projectID: %s err: %v", destination.Type, destination.UID, projectID, err)
 				continue
+			}
+
+			//connect with geo resolver
+			geoResolverConfig, ok := geoResolvers[projectID]
+			if ok && geoResolverConfig.MaxMind != nil && geoResolverConfig.MaxMind.Enabled {
+				enDestinationConfig.GeoDataResolverID = projectID
 			}
 
 			idConfig[destinationID] = *enDestinationConfig

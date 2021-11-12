@@ -15,3 +15,7 @@ func (m Mock) Resolve(ip string) (*Data, error) {
 func (m Mock) Type() string {
 	return MaxmindType
 }
+
+func (m Mock) Close() error {
+	return nil
+}

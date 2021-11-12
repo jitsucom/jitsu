@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/runner"
@@ -45,7 +46,7 @@ func init() {
 //2. runs discover and collects catalog.json
 func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &Config{}
-	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +133,7 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 //TestAirbyte tests airbyte connection (runs check) if docker has been ready otherwise returns errNotReady
 func TestAirbyte(sourceConfig *base.SourceConfig) error {
 	config := &Config{}
-	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return err
 	}
 
@@ -318,7 +319,7 @@ func (a *Airbyte) Close() (multiErr error) {
 //returns catalog
 func (a *Airbyte) loadCatalog() (string, map[string]*base.StreamRepresentation, error) {
 	airbyteRunner := airbyte.NewRunner(a.GetTap(), a.config.ImageVersion, "")
-	rawCatalog, err := airbyteRunner.Discover(a.config.Config)
+	rawCatalog, err := airbyteRunner.Discover(a.config.Config, 5*time.Minute)
 	if err != nil {
 		return "", nil, err
 	}
