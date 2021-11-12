@@ -2,6 +2,7 @@ package storages
 
 import (
 	"fmt"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -44,6 +45,10 @@ func NewPostgres(config *Config) (Storage, error) {
 	//default connect timeout seconds
 	if _, ok := pgConfig.Parameters["connect_timeout"]; !ok {
 		pgConfig.Parameters["connect_timeout"] = "600"
+	}
+
+	if err := adapters.ProcessSSL(appconfig.Instance.ConfigPath, config.destinationID, pgConfig); err != nil {
+		return nil, err
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)

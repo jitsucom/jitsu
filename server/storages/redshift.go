@@ -2,6 +2,7 @@ package storages
 
 import (
 	"fmt"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -45,6 +46,10 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	//default connect timeout seconds
 	if _, ok := redshiftConfig.Parameters["connect_timeout"]; !ok {
 		redshiftConfig.Parameters["connect_timeout"] = "600"
+	}
+
+	if err := adapters.ProcessSSL(appconfig.Instance.ConfigPath, config.destinationID, redshiftConfig); err != nil {
+		return nil, err
 	}
 
 	var s3Adapter *adapters.S3
