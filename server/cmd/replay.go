@@ -28,10 +28,16 @@ var (
 	//command flags
 	state, file, start, end, host, apiKey, fallback string
 	chunkSize                                       int64
+	suppressErrors                                  int
 	disableProgressBars                             string
 	//command args
 	files []string
 )
+
+type filePathAndError struct {
+	path string
+	err  error
+}
 
 // replayCmd represents the base command when called without any subcommands
 var replayCmd = &cobra.Command{
@@ -57,20 +63,24 @@ var replayCmd = &cobra.Command{
 		} else if len(args) == 0 {
 			return errors.New("requires at least 1 file as an arguments or --file option")
 		}
+
 		return replay(file, args)
 	},
-	Version: version,
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	Version:       version,
 }
 
 func init() {
 	rootCmd.AddCommand(replayCmd)
 
 	replayCmd.Flags().StringVar(&state, "state", "", "(optional) a path to file where Jitsu will save the state - already uploaded files names. It prevents resending already loaded files on each run")
-	replayCmd.Flags().StringVar(&file, "file", "", "(optional) Single file to upload")
+	replayCmd.Flags().StringVar(&file, "file", "", "(optional) single file to upload")
 	replayCmd.Flags().StringVar(&start, "start", "", "(optional) start date as YYYY-MM-DD. Treated as the beginning of the day UTC (YYYY-MM-DD 00:00:00.000Z). If missing, all files will be processed")
 	replayCmd.Flags().StringVar(&end, "end", "", "(optional) end date as YYYY-MM-DD. Treated as the end of the day UTC (YYYY-MM-DD 23:59:59.999Z). If missing, all will be processed")
 	replayCmd.Flags().StringVar(&host, "host", "http://localhost:8000", "(optional) Jitsu host")
 	replayCmd.Flags().Int64Var(&chunkSize, "chunk-size", maxChunkSize, "(optional) max data chunk size in bytes (default 20 MB). If file size is greater then the file will be split into N chunks with max size and sent to Jitsu")
+	replayCmd.Flags().IntVar(&suppressErrors, "suppress-errors", 0, "(optional) suppressing the specified amount of errors")
 	replayCmd.Flags().StringVar(&disableProgressBars, "disable-progress-bars", "false", "(optional) if true then progress bars won't be displayed")
 	replayCmd.Flags().StringVar(&fallback, "fallback", "false", "(optional) If you would like to process failed events (from vents/failed directory) then use --fallback true")
 
@@ -102,6 +112,7 @@ func replay(inputFile string, inputMasks []string) error {
 	if err != nil {
 		return fmt.Errorf("error creating file state manager: %v", err)
 	}
+	defer stateManager.Close()
 
 	var filesToUpload []string
 	for _, f := range fileNameCollection {
@@ -129,6 +140,7 @@ func replay(inputFile string, inputMasks []string) error {
 
 	client := newBulkClient(host, apiKey, fallback == "true")
 
+	errorKeeper := make([]filePathAndError, 0)
 	var processedFiles int64
 	for _, absFilePath := range filesToUpload {
 		fileStat, err := os.Stat(absFilePath)
@@ -137,17 +149,29 @@ func replay(inputFile string, inputMasks []string) error {
 		}
 
 		if err := uploadFile(globalBar, client, absFilePath, fileStat.Size()); err != nil {
-			return fmt.Errorf("uploading file: %s\nmessage: %v", absFilePath, err)
+			errorKeeper = append(errorKeeper, filePathAndError{absFilePath, err})
+			if len(errorKeeper) > suppressErrors {
+				break
+			}
 		}
 		processedFiles++
 		globalBar.SetCurrent(processedFiles)
 		stateManager.Success(absFilePath)
 	}
 
-	globalBar.SetCurrent(capacity)
+	globalBar.SetSuccessCurrent(capacity)
 	//wait for globalBar filled
 	time.Sleep(time.Second)
-	stateManager.Close()
+
+	if len(errorKeeper) > 0 {
+		fmt.Println("Errors happened during uploading files:")
+		for _, item := range errorKeeper {
+			fmt.Printf("\t%s\n\t\t%v\n", item.path, item.err)
+		}
+		if len(errorKeeper) > suppressErrors {
+			return errors.New("The number of errors exceeds the limit --suppress-errors")
+		}
+	}
 
 	return nil
 }
@@ -179,10 +203,11 @@ func uploadFile(globalBar ProgressBar, client *bulkClient, filePath string, file
 	capacity := payloadSize + processingTime
 	fileProgressBar := globalBar.createKBFileBar(filePath, capacity)
 	if err := client.sendGzippedMultiPart(fileProgressBar, filePath, payload); err != nil {
+		fileProgressBar.SetCurrent(capacity)
 		return err
 	}
 
-	fileProgressBar.SetCurrent(capacity)
+	fileProgressBar.SetSuccessCurrent(capacity)
 
 	return nil
 }
@@ -208,6 +233,7 @@ func sendChunked(progressBar ProgressBar, filePath string, fileSize int64, sende
 	}
 
 	fileProgressBar := progressBar.createPartFileBar(filePath, capacity)
+	defer fileProgressBar.SetCurrent(capacity)
 
 	cbuffer := make([]byte, 0, bufio.MaxScanTokenSize)
 	scanner.Buffer(cbuffer, bufio.MaxScanTokenSize*100)
@@ -255,7 +281,7 @@ func sendChunked(progressBar ProgressBar, filePath string, fileSize int64, sende
 		}
 	}
 
-	fileProgressBar.SetCurrent(capacity)
+	fileProgressBar.SetSuccessCurrent(capacity)
 
 	return nil
 }

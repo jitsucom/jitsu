@@ -16,6 +16,7 @@ const (
 
 type ProgressBar interface {
 	SetCurrent(current int64)
+	SetSuccessCurrent(current int64)
 	createKBFileBar(filePath string, fileSize int64) ProgressBar
 	createPartFileBar(filePath string, fileSize int64) ProgressBar
 
@@ -28,6 +29,8 @@ type DummyProgressBar struct {
 }
 
 func (d *DummyProgressBar) SetCurrent(current int64) {}
+
+func (d *DummyProgressBar) SetSuccessCurrent(current int64) {}
 
 //createKBFileBar returns dummy progress bar
 func (d *DummyProgressBar) createKBFileBar(filePath string, fileSize int64) ProgressBar {
@@ -46,15 +49,25 @@ func (d *DummyProgressBar) Type() string { return dummyType }
 type MultiProgressBar struct {
 	progress *mpb.Progress
 	bar      *mpb.Bar
+	success  bool
 }
 
 func NewParentMultiProgressBar(capacity int64) *MultiProgressBar {
 	progress := mpb.New()
 	bar := createProcessingBar(progress, capacity)
-	return &MultiProgressBar{progress: progress, bar: bar}
+	return &MultiProgressBar{
+		progress: progress,
+		bar:      bar,
+		success:  false,
+	}
 }
 
 func (mp *MultiProgressBar) SetCurrent(current int64) {
+	mp.bar.SetCurrent(current)
+}
+
+func (mp *MultiProgressBar) SetSuccessCurrent(current int64) {
+	mp.success = true
 	mp.bar.SetCurrent(current)
 }
 
@@ -75,11 +88,15 @@ func (mp *MultiProgressBar) createKBFileBar(filePath string, fileSize int64) Pro
 		),
 		mpb.AppendDecorators(
 			decor.OnComplete(
-				decor.CountersKiloByte("%d / %d", decor.WCSyncWidth), au.Green("✓ done").String(),
+				decor.CountersKiloByte("%d / %d", decor.WCSyncWidth),
+				resultMessageFiller(mp.success,
+					au.Green("✓ done").String(),
+					au.Red("! error").String(),
+				),
 			),
 		),
 	)
-	return &MultiProgressBar{progress: mp.progress, bar: fileBar}
+	return &MultiProgressBar{progress: mp.progress, bar: fileBar, success: false}
 }
 
 //createPartFileBar creates progress bar per file which counts parts
@@ -99,11 +116,15 @@ func (mp *MultiProgressBar) createPartFileBar(filePath string, fileSize int64) P
 		),
 		mpb.AppendDecorators(
 			decor.OnComplete(
-				decor.CountersNoUnit("%d / %d parts", decor.WCSyncWidth), au.Green("✓ done").String(),
+				decor.CountersNoUnit("%d / %d parts", decor.WCSyncWidth),
+				resultMessageFiller(mp.success,
+					au.Green("✓ done").String(),
+					au.Red("! error").String(),
+				),
 			),
 		),
 	)
-	return &MultiProgressBar{progress: mp.progress, bar: fileBar}
+	return &MultiProgressBar{progress: mp.progress, bar: fileBar, success: false}
 }
 
 func newLineBarFiller(filler mpb.BarFiller) mpb.BarFiller {
@@ -113,6 +134,14 @@ func newLineBarFiller(filler mpb.BarFiller) mpb.BarFiller {
 			w.Write([]byte("\n"))
 		}
 	})
+}
+
+func resultMessageFiller(result bool, sucessMessage, errorMessage string) string {
+	if result {
+		return sucessMessage
+	} else {
+		return errorMessage
+	}
 }
 
 func (mp *MultiProgressBar) ProxyReader(r io.Reader) io.ReadCloser {
