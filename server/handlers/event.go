@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
@@ -57,17 +58,22 @@ type EventHandler struct {
 	eventsCache          *caching.EventsCache
 	parser               events.Parser
 	processor            events.Processor
+	destinationService   *destinations.Service
+	geoService           *geo.Service
 }
 
 //NewEventHandler returns configured EventHandler
 func NewEventHandler(writeAheadLogService *wal.Service, multiplexingService *multiplexing.Service,
-	eventsCache *caching.EventsCache, parser events.Parser, processor events.Processor) (eventHandler *EventHandler) {
+	eventsCache *caching.EventsCache, parser events.Parser, processor events.Processor, destinationService *destinations.Service,
+	geoService *geo.Service) (eventHandler *EventHandler) {
 	return &EventHandler{
 		writeAheadLogService: writeAheadLogService,
 		multiplexingService:  multiplexingService,
 		eventsCache:          eventsCache,
 		parser:               parser,
 		processor:            processor,
+		destinationService:   destinationService,
+		geoService:           geoService,
 	}
 }
 
@@ -87,7 +93,15 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	}
 	token := iface.(string)
 
-	reqContext := getRequestContext(c, eventsArray...)
+	//get geo resolver
+	geoResolver := eh.geoService.GetGlobalGeoResolver()
+	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
+	destinationStorages := eh.destinationService.GetDestinations(tokenID)
+	if len(destinationStorages) > 0 {
+		geoResolver = eh.geoService.GetGeoResolver(destinationStorages[0].GetGeoResolverID())
+	}
+
+	reqContext := getRequestContext(c, geoResolver, eventsArray...)
 
 	//put all events to write-ahead-log if idle
 	if appstatus.Instance.Idle.Load() {
@@ -218,7 +232,7 @@ func extractIP(c *gin.Context, eventPayloads ...events.Event) string {
 	return ip
 }
 
-func getRequestContext(c *gin.Context, eventPayloads ...events.Event) *events.RequestContext {
+func getRequestContext(c *gin.Context, geoResolver geo.Resolver, eventPayloads ...events.Event) *events.RequestContext {
 	clientIP := extractIP(c, eventPayloads...)
 	var compliant *bool
 	cookiesLawCompliant := true
@@ -228,7 +242,7 @@ func getRequestContext(c *gin.Context, eventPayloads ...events.Event) *events.Re
 	if cookiePolicy != "" {
 		switch cookiePolicy {
 		case middleware.ComplyValue:
-			value := complyWithCookieLaws(clientIP)
+			value := complyWithCookieLaws(geoResolver, clientIP)
 			compliant = &value
 			cookiesLawCompliant = value
 		case middleware.KeepValue:
@@ -239,7 +253,7 @@ func getRequestContext(c *gin.Context, eventPayloads ...events.Event) *events.Re
 			logging.SystemErrorf("Unknown value %q for %q query parameter", middleware.CookiePolicyParameter, cookiePolicy)
 		}
 	}
-	hashedAnonymousID := fmt.Sprintf("%x", md5.Sum([]byte(clientIP + c.Request.UserAgent())))
+	hashedAnonymousID := fmt.Sprintf("%x", md5.Sum([]byte(clientIP+c.Request.UserAgent())))
 
 	var jitsuAnonymousID string
 	if !cookiesLawCompliant {
@@ -253,7 +267,7 @@ func getRequestContext(c *gin.Context, eventPayloads ...events.Event) *events.Re
 		switch ipPolicy {
 		case middleware.ComplyValue:
 			if compliant == nil {
-				value := complyWithCookieLaws(clientIP)
+				value := complyWithCookieLaws(geoResolver, clientIP)
 				compliant = &value
 			}
 
@@ -273,7 +287,7 @@ func getRequestContext(c *gin.Context, eventPayloads ...events.Event) *events.Re
 		ClientIP:            clientIP,
 		Referer:             c.Request.Referer(),
 		JitsuAnonymousID:    jitsuAnonymousID,
-		HashedAnonymousID:	 hashedAnonymousID,
+		HashedAnonymousID:   hashedAnonymousID,
 		CookiesLawCompliant: cookiesLawCompliant,
 	}
 }
@@ -285,16 +299,16 @@ func getThreeOctets(ip string) string {
 }
 
 //complyWithCookieLaws returns true if geo data has been detected and ip isn't from EU or UK
-func complyWithCookieLaws(ip string) bool {
+func complyWithCookieLaws(geoResolver geo.Resolver, ip string) bool {
 	ipThreeOctets := getThreeOctets(ip)
 
-	if appconfig.Instance.GeoResolver.Type() != geo.MaxmindType {
+	if geoResolver.Type() != geo.MaxmindType {
 		return false
 	}
 
-	data, err := appconfig.Instance.GeoResolver.Resolve(ipThreeOctets)
+	data, err := geoResolver.Resolve(ipThreeOctets)
 	if err != nil {
-		logging.SystemErrorf("Error resolving IP %q into geo data: %v", ipThreeOctets, err)
+		logging.SystemErrorf("complying failed to resolve IP %q into geo data: %v", ipThreeOctets, err)
 		return false
 	}
 

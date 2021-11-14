@@ -26,7 +26,7 @@ import { CodeOutlined, EyeInvisibleOutlined, EyeOutlined } from "@ant-design/ico
 import styles from "./ConfigurableFieldsForm.module.less"
 import { CodeDebuggerModal } from "../CodeDebuggerModal/CodeDebuggerModal"
 import { InputWithDebug } from "./InputWithDebug"
-import {SwitchWithLabel} from "./SwitchWithLabel";
+import { SwitchWithLabel } from "./SwitchWithLabel"
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -158,7 +158,8 @@ const ConfigurableFieldsFormComponent = ({
           <Select
             allowClear
             mode={type.data.maxOptions > 1 ? "multiple" : undefined}
-            onChange={() => forceUpdateTheTarget("select")}>
+            onChange={() => forceUpdateTheTarget("select")}
+          >
             {type.data.options.map(({ id, displayName }: Option) => {
               return (
                 <Select.Option value={id} key={id}>
@@ -191,7 +192,8 @@ const ConfigurableFieldsFormComponent = ({
                       className="absolute mr-0 mt-0 top-0 right-0"
                       type="text"
                       onClick={() => handleOpenDebugger(id)}
-                      icon={<CodeOutlined />}>
+                      icon={<CodeOutlined />}
+                    >
                       Open Debugger
                     </Button>
                   ) : (
@@ -209,10 +211,16 @@ const ConfigurableFieldsFormComponent = ({
       }
 
       case "boolean":
-        return  bigField ?
-              <SwitchWithLabel label={displayName} id={id} onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
-              :
-              <Switch className={"mb-0.5"}  onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
+        return bigField ? (
+          <SwitchWithLabel
+            label={displayName}
+            id={id}
+            onChange={handleChangeSwitch(id)}
+            defaultChecked={!!defaultValueToDisplay}
+          />
+        ) : (
+          <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
+        )
 
       case "string":
       default: {
@@ -265,16 +273,11 @@ const ConfigurableFieldsFormComponent = ({
     fieldsParamsList.forEach((param: Parameter) => {
       let constantValue: any
       const initConfig = makeObjectFromFieldsValues(formValues)
-
       const fieldNeeded = !param.omitFieldRule?.(initConfig)
       const id = param.id
 
       if (fieldNeeded) {
-        if (typeof param.constant === "function") {
-          constantValue = param.constant(initConfig)
-        }
-
-        constantValue = constantValue || param.constant
+        const constantValue = typeof param.constant === "function" ? param.constant?.(initConfig) : param.constant
 
         const initialValue = getInitialValue(param.id, param.defaultValue, constantValue, param.type?.typeName)
 
@@ -320,7 +323,7 @@ const ConfigurableFieldsFormComponent = ({
           omitFieldRule,
           jsDebugger,
           bigField,
-          codeSuggestions
+          codeSuggestions,
         }: Parameter) => {
           const currentFormValues = form.getFieldsValue() ?? {}
           const defaultFormValues = fieldsParamsList.reduce(
@@ -399,7 +402,7 @@ const ConfigurableFieldsFormComponent = ({
                     "form-field_fixed-label",
                     styles.field,
                     (type?.typeName === "json" || type?.typeName === "javascript") && styles.jsonField,
-                      (type?.typeName === "json" || type?.typeName === "javascript") && bigField && styles.bigField
+                    (type?.typeName === "json" || type?.typeName === "javascript") && bigField && styles.bigField
                   )}
                   name={formItemName}
                   label={
@@ -415,8 +418,18 @@ const ConfigurableFieldsFormComponent = ({
                   }
                   labelCol={{ span: bigField ? 0 : 4 }}
                   wrapperCol={{ span: bigField ? 24 : 20 }}
-                  rules={validationRules}>
-                  {getFieldComponent(type, id, defaultValue, constantValue, jsDebugger, bigField, displayName, codeSuggestions)}
+                  rules={validationRules}
+                >
+                  {getFieldComponent(
+                    type,
+                    id,
+                    defaultValue,
+                    constantValue,
+                    jsDebugger,
+                    bigField,
+                    displayName,
+                    codeSuggestions
+                  )}
                 </Form.Item>
               </Col>
             </Row>

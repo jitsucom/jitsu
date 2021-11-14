@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState } from "react"
 // @Components
-import { Modal } from 'antd'
+import { Modal } from "antd"
 // @Styles
-import styles from './Tour.module.less';
+import styles from "./Tour.module.less"
 
 type TourStepContentArgs = {
-  goTo: (step: number) => void;
+  goTo: (step: number) => void
 }
 
 export type TourStep = {
@@ -13,18 +13,18 @@ export type TourStep = {
 }
 
 type Props = {
-  showTour?: boolean;
-  steps: TourStep[];
-  startAt?: number;
-  closable?: boolean;
-  maskClosable?: boolean;
-  closeOnEsc?: boolean;
-  displayStep?: boolean;
-  displayStepStartOffset?: number;
-  displayStepEndOffset?: number;
+  showTour?: boolean
+  steps: TourStep[]
+  startAt?: number
+  closable?: boolean
+  maskClosable?: boolean
+  closeOnEsc?: boolean
+  displayStep?: boolean
+  displayStepStartOffset?: number
+  displayStepEndOffset?: number
 }
 
-export const Tour: React.FC<Props> = function({
+export const Tour: React.FC<Props> = function ({
   showTour = true,
   steps,
   startAt,
@@ -33,22 +33,22 @@ export const Tour: React.FC<Props> = function({
   closeOnEsc = false,
   displayStep,
   displayStepStartOffset = 0,
-  displayStepEndOffset = 0
+  displayStepEndOffset = 0,
 }) {
-  const [currentStepIdx, setCurrentStepIdx] = useState<number>(startAt ?? 0);
+  const [currentStepIdx, setCurrentStepIdx] = useState<number>(startAt ?? 0)
 
   const currentStepRender = useMemo<React.ReactNode>(() => {
-    if (!steps.length) return null;
+    if (!steps.length) return null
 
-    const content = steps[currentStepIdx].content;
+    const content = steps[currentStepIdx].content
 
-    if (typeof content !== 'function') return content;
+    if (typeof content !== "function") return content
     return content({ goTo: setCurrentStepIdx })
   }, [currentStepIdx, setCurrentStepIdx, steps])
 
   const firstStepToDisplay = 1
   const amountOfStepsToDisplay = steps.length - displayStepStartOffset - displayStepEndOffset
-  const curretStepToDisplay = currentStepIdx + 1 - displayStepStartOffset;
+  const curretStepToDisplay = currentStepIdx + 1 - displayStepStartOffset
 
   return (
     <Modal
@@ -59,7 +59,8 @@ export const Tour: React.FC<Props> = function({
       maskClosable={maskClosable}
       width={"80vw"}
       keyboard={closeOnEsc}
-      destroyOnClose>
+      destroyOnClose
+    >
       <div className={styles.container}>
         {currentStepRender}
         {displayStep && curretStepToDisplay >= firstStepToDisplay && curretStepToDisplay <= amountOfStepsToDisplay && (

@@ -32,6 +32,9 @@ func (tpm *testProxyMock) IsCachingDisabled() bool { return false }
 //GetPostHandleDestinations is a mock func
 func (tpm *testProxyMock) GetPostHandleDestinations() []string { return nil }
 
+//GetGeoResolverID is a mock func
+func (tpm *testProxyMock) GetGeoResolverID() string { return "" }
+
 //MockFactory is a Mock destinations storages factory
 type MockFactory struct{}
 

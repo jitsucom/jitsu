@@ -277,7 +277,8 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
                     <NavLink
                       to={generatePath(taskLogsPageRoute, {
                         sourceId: sourceId ?? connectorSource.id ?? "not_found",
-                      })}>
+                      })}
+                    >
                       View Logs
                     </NavLink>
                   )}
@@ -332,12 +333,14 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
           closable={true}
           onClose={() => setDocumentationVisible(false)}
           width="70%"
-          visible={documentationVisible}>
+          visible={documentationVisible}
+        >
           <div className={styles.documentation}>
             <Collapse defaultActiveKey={["connection"]} ghost>
               <Collapse.Panel
                 header={<div className="uppercase font-bold">{connectorSource.displayName} overview</div>}
-                key="overview">
+                key="overview"
+              >
                 {connectorSource.documentation.overview}
               </Collapse.Panel>
               <Collapse.Panel header={<div className="uppercase font-bold">How to connect</div>} key="connection">

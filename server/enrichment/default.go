@@ -3,19 +3,23 @@ package enrichment
 import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"sync"
 )
 
 var (
-	DefaultJsIPRule = &IPLookupRule{}
+	DefaultSrcIP jsonutils.JSONPath
+	DefaultDstIP jsonutils.JSONPath
+
 	DefaultJsUaRule = &UserAgentParseRule{}
 )
 
 //InitDefault initializes default lookup enrichment rules
-//must be called after appconfig.Init()
 func InitDefault(srcIP, dstIP, srcUA, dstUA string) {
-	DefaultJsIPRule, _ = NewIPLookupRule(jsonutils.NewJSONPath(srcIP), jsonutils.NewJSONPath(dstIP))
+	DefaultSrcIP = jsonutils.NewJSONPath(srcIP)
+	DefaultDstIP = jsonutils.NewJSONPath(dstIP)
+
 	DefaultJsUaRule = &UserAgentParseRule{
 		source:      jsonutils.NewJSONPath(srcUA),
 		destination: jsonutils.NewJSONPath(dstUA),
@@ -27,4 +31,9 @@ func InitDefault(srcIP, dstIP, srcUA, dstUA string) {
 		mutex: &sync.RWMutex{},
 		cache: map[string]map[string]interface{}{},
 	}
+}
+
+func CreateDefaultJsIPRule(geoService *geo.Service, geoDataResolverID string) *IPLookupRule {
+	ipLookupRule, _ := NewIPLookupRule(DefaultSrcIP, DefaultDstIP, geoService, geoDataResolverID)
+	return ipLookupRule
 }

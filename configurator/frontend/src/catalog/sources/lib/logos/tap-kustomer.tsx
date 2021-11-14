@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -18,28 +18,11 @@ function Svg(props) {
       <rect fill="#FAFAFA" width={200} height={200} />
       <g>
         <defs>
-          <filter
-            id="Adobe_OpacityMaskFilter"
-            filterUnits="userSpaceOnUse"
-            x={25}
-            y={25.7}
-            width={150}
-            height={148.5}
-          >
-            <feColorMatrix
-              type="matrix"
-              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"
-            />
+          <filter id="Adobe_OpacityMaskFilter" filterUnits="userSpaceOnUse" x={25} y={25.7} width={150} height={148.5}>
+            <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" />
           </filter>
         </defs>
-        <mask
-          maskUnits="userSpaceOnUse"
-          x={25}
-          y={25.7}
-          width={150}
-          height={148.5}
-          id="mask-2_11_"
-        >
+        <mask maskUnits="userSpaceOnUse" x={25} y={25.7} width={150} height={148.5} id="mask-2_11_">
           <g filter="url(#Adobe_OpacityMaskFilter)">
             <polygon
               id="path-1_11_"
@@ -67,20 +50,10 @@ function Svg(props) {
             width={61}
             height={80.9}
           >
-            <feColorMatrix
-              type="matrix"
-              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"
-            />
+            <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" />
           </filter>
         </defs>
-        <mask
-          maskUnits="userSpaceOnUse"
-          x={69.5}
-          y={61.3}
-          width={61}
-          height={80.9}
-          id="mask-2_10_"
-        >
+        <mask maskUnits="userSpaceOnUse" x={69.5} y={61.3} width={61} height={80.9} id="mask-2_10_">
           <g filter="url(#Adobe_OpacityMaskFilter_1_)">
             <polygon
               id="path-1_10_"
@@ -108,20 +81,10 @@ function Svg(props) {
             width={150}
             height={148.5}
           >
-            <feColorMatrix
-              type="matrix"
-              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"
-            />
+            <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" />
           </filter>
         </defs>
-        <mask
-          maskUnits="userSpaceOnUse"
-          x={25}
-          y={25.7}
-          width={150}
-          height={148.5}
-          id="mask-2_9_"
-        >
+        <mask maskUnits="userSpaceOnUse" x={25} y={25.7} width={150} height={148.5} id="mask-2_9_">
           <g filter="url(#Adobe_OpacityMaskFilter_2_)">
             <polygon
               id="path-1_9_"
@@ -142,7 +105,7 @@ function Svg(props) {
         />
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

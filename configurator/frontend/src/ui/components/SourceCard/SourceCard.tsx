@@ -134,7 +134,8 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
             Connection to {reference.displayName} failed: {src.connectedErrorMessage}
           </>
         )
-      }>
+      }
+    >
       <Badge
         size="default"
         status={src.connected ? "success" : "error"}
@@ -229,7 +230,8 @@ function LastTaskStatus({ sourceId }) {
         to={generatePath(taskLogsViewerRoute, {
           sourceId: sourceId,
           taskId: TaskId.encode(task.id),
-        })}>
+        })}
+      >
         <Tag color={task.status === "SUCCESS" ? "success" : "error"}>{task.status.toUpperCase()}</Tag>
         <a className="text-xs text-secondaryText underline">{date?.from(now)}</a>
       </NavLink>

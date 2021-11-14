@@ -1,18 +1,18 @@
-import postgresDestination from './postgres';
-import mysqlDestination from './mysql';
-import bigQueryDestination from './bigquery';
-import redshiftDestination from './redshift';
-import clickHouseDestination from './clickhouse';
-import snowflakeDestination from './snowflake';
+import postgresDestination from "./postgres"
+import mysqlDestination from "./mysql"
+import bigQueryDestination from "./bigquery"
+import redshiftDestination from "./redshift"
+import clickHouseDestination from "./clickhouse"
+import snowflakeDestination from "./snowflake"
 
-import facebookDestination from './facebook';
-import googleAnalyticsDestination from './googleAnalytics';
-import webhookDestination from './webhook';
-import amplitudeDestination from './amplitude';
-import hubspotDestination from './hubspot';
-import dbtcloudDestination from './dbtcloud';
-import s3Destination from './s3';
-import { Destination } from '../types';
+import facebookDestination from "./facebook"
+import googleAnalyticsDestination from "./googleAnalytics"
+import webhookDestination from "./webhook"
+import amplitudeDestination from "./amplitude"
+import hubspotDestination from "./hubspot"
+import dbtcloudDestination from "./dbtcloud"
+import s3Destination from "./s3"
+import { Destination } from "../types"
 
 export {
   postgresDestination,
@@ -27,7 +27,7 @@ export {
   amplitudeDestination,
   hubspotDestination,
   dbtcloudDestination,
-  s3Destination
+  s3Destination,
 }
 
 export const destinationsReferenceMap = {
@@ -43,12 +43,9 @@ export const destinationsReferenceMap = {
   amplitude: amplitudeDestination,
   hubspot: hubspotDestination,
   dbtcloud: dbtcloudDestination,
-  s3: s3Destination
-} as const;
+  s3: s3Destination,
+} as const
 
-export type DestinationReference =
-  typeof destinationsReferenceMap[keyof typeof destinationsReferenceMap];
+export type DestinationReference = typeof destinationsReferenceMap[keyof typeof destinationsReferenceMap]
 
-export const destinationsReferenceList = Object.values(
-  destinationsReferenceMap
-);
+export const destinationsReferenceList = Object.values(destinationsReferenceMap)
