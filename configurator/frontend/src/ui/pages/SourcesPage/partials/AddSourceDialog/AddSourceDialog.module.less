@@ -1,5 +1,5 @@
-@import './src/theme';
-@import './src/assets/mixins/transition';
+@import "./src/theme";
+@import "./src/assets/mixins/transition";
 
 .dialog {
   .filter {
@@ -110,7 +110,7 @@
         }
 
         &:before {
-          content: '';
+          content: "";
           display: block;
           position: absolute;
           background-color: @background-color-light;
@@ -161,7 +161,7 @@
       filter: grayscale(60%);
     }
 
-    .item__disabled::after{
+    .item__disabled::after {
       @apply transition-all duration-500 opacity-0;
       @apply absolute block text-center w-3/4;
       content: "This connector is currently not available. Click to learn more.";
@@ -170,7 +170,7 @@
       transform: translate(-50%, 0) scale3d(1.05, 1.05, 1);
       background-color: @background-color-light;
     }
-    
+
     .item__disabled:hover::after {
       @apply opacity-100;
       transform: translate(-50%, 0);

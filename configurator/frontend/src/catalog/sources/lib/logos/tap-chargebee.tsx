@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -15,13 +15,7 @@ function Svg(props) {
       xmlSpace="preserve"
       {...props}
     >
-      <rect
-        fillRule="evenodd"
-        clipRule="evenodd"
-        fill="#FF6C36"
-        width={200}
-        height={200}
-      />
+      <rect fillRule="evenodd" clipRule="evenodd" fill="#FF6C36" width={200} height={200} />
       <g>
         <path
           fillRule="evenodd"
@@ -73,7 +67,7 @@ function Svg(props) {
         />
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

@@ -1,3 +1,3 @@
-const validationChain = (...args) => args.filter(validator => typeof validator === 'object');
+const validationChain = (...args) => args.filter(validator => typeof validator === "object")
 
-export { validationChain };
+export { validationChain }

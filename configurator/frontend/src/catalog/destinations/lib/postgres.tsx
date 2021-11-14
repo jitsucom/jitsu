@@ -1,13 +1,8 @@
-import { modeParameter, tableName } from './common';
-import { intType, stringType, passwordType, booleanType } from '../../sources/types';
+import { modeParameter, tableName } from "./common"
+import { intType, stringType, passwordType, booleanType } from "../../sources/types"
 
 const icon = (
-  <svg
-    viewBox="0 0 25.6 25.6"
-    height="100%"
-    width="100%"
-    xmlns="http://www.w3.org/2000/svg"
-  >
+  <svg viewBox="0 0 25.6 25.6" height="100%" width="100%" xmlns="http://www.w3.org/2000/svg">
     <g fill="none" stroke="#fff">
       <path
         d="m18.983 18.636c.163-1.357.114-1.555 1.124-1.336l.257.023c.777.035 1.793-.125 2.4-.402 1.285-.596 2.047-1.592.78-1.33-2.89.596-3.1-.383-3.1-.383 3.053-4.53 4.33-10.28 3.227-11.687-3.004-3.84-8.205-2.024-8.292-1.976l-.028.005c-.57-.12-1.2-.19-1.93-.2-1.308-.02-2.3.343-3.054.914 0 0-9.277-3.822-8.846 4.807.092 1.836 2.63 13.9 5.66 10.25 1.109-1.334 2.179-2.461 2.179-2.461.53.353 1.167.533 1.834.468l.052-.044a2.01 2.01 0 0 0 .021.518c-.78.872-.55 1.025-2.11 1.346-1.578.325-.65.904-.046 1.056.734.184 2.432.444 3.58-1.162l-.046.183c.306.245.285 1.76.33 2.842s.116 2.093.337 2.688.48 2.13 2.53 1.7c1.713-.367 3.023-.896 3.143-5.81"
@@ -57,84 +52,92 @@ const icon = (
       />
     </g>
   </svg>
-);
+)
 
 const postgresDestination = {
-  description: <>Postgres SQL is a one of the most popular databases. While it's not suitable for large datasets (more than 100m events),
-  it's probably an easiest way to start collecting data with Jitsu<br/><br />
-  Jitsu works with Postgres both in stream and batch mode</>,
-  syncFromSourcesStatus: 'supported',
-  id: 'postgres',
-  type: 'database',
-  defaultTransform: '',
-  displayName: 'Postgres SQL',
+  description: (
+    <>
+      Postgres SQL is a one of the most popular databases. While it's not suitable for large datasets (more than 100m
+      events), it's probably an easiest way to start collecting data with Jitsu
+      <br />
+      <br />
+      Jitsu works with Postgres both in stream and batch mode
+    </>
+  ),
+  syncFromSourcesStatus: "supported",
+  id: "postgres",
+  type: "database",
+  defaultTransform: "",
+  displayName: "Postgres SQL",
   hidden: false,
   ui: {
     icon: icon,
     connectCmd: (cfg: object) => {
-      return `PGPASSWORD="${cfg['_formData']['pgpassword']}" psql -U ${cfg['_formData']['pguser']} -d ${cfg['_formData']['pgdatabase']} -h ${cfg['_formData']['pghost']} -p ${cfg['_formData']['pgport']} -c "SELECT 1"`
+      return `PGPASSWORD="${cfg["_formData"]["pgpassword"]}" psql -U ${cfg["_formData"]["pguser"]} -d ${cfg["_formData"]["pgdatabase"]} -h ${cfg["_formData"]["pghost"]} -p ${cfg["_formData"]["pgport"]} -c "SELECT 1"`
     },
     title: (cfg: object) => {
-      return cfg['_formData']['pghost'];
-    }
+      return cfg["_formData"]["pghost"]
+    },
   },
   parameters: [
     {
-      id: '$type',
-      constant: 'PostgresConfig'
+      id: "$type",
+      constant: "PostgresConfig",
     },
-    modeParameter('stream'),
+    modeParameter("stream"),
     tableName(),
     {
-      id: '_formData.pghost',
-      displayName: 'Host',
+      id: "_formData.pghost",
+      displayName: "Host",
       required: true,
-      type: stringType
+      type: stringType,
     },
     {
-      id: '_formData.pgport',
-      displayName: 'Port',
+      id: "_formData.pgport",
+      displayName: "Port",
       required: true,
       defaultValue: 5432,
-      type: intType
+      type: intType,
     },
     {
-      id: '_formData.pgdatabase',
-      displayName: 'Database',
+      id: "_formData.pgdatabase",
+      displayName: "Database",
       required: true,
-      type: stringType
+      type: stringType,
     },
     {
-      id: '_formData.pgschema',
-      displayName: 'Schema',
-      defaultValue: 'public',
+      id: "_formData.pgschema",
+      displayName: "Schema",
+      defaultValue: "public",
       required: true,
-      type: stringType
+      type: stringType,
     },
     {
-      id: '_formData.pguser',
-      displayName: 'Username',
+      id: "_formData.pguser",
+      displayName: "Username",
       required: true,
-      type: stringType
+      type: stringType,
     },
     {
-      id: '_formData.pgpassword',
-      displayName: 'Password',
+      id: "_formData.pgpassword",
+      displayName: "Password",
       required: true,
-      type: passwordType
+      type: passwordType,
     },
     {
-      id: '_formData.pgdisablessl',
-      displayName: 'Disable SSL',
+      id: "_formData.pgdisablessl",
+      displayName: "Disable SSL",
       required: true,
       type: booleanType,
       defaultValue: false,
-      documentation: <>
-        All connections to Postgres will be unsecured (non-SSL). We do not recommend to disable SSL. Disabled SSL can be used with Postgres that is installed on the local machine.
-      </>
-    }
-  ]
+      documentation: (
+        <>
+          All connections to Postgres will be unsecured (non-SSL). We do not recommend to disable SSL. Disabled SSL can
+          be used with Postgres that is installed on the local machine.
+        </>
+      ),
+    },
+  ],
+} as const
 
-} as const;
-
-export default postgresDestination;
+export default postgresDestination

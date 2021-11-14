@@ -8,7 +8,7 @@ import { ErrorCard } from "lib/components/ErrorCard/ErrorCard"
 import { LoadableFieldsLoadingMessageCard } from "lib/components/LoadingFormCard/LoadingFormCard"
 import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 // @Types
-import { PatchConfig, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
+import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
 // @Hooks
 import { usePolling } from "hooks/usePolling"
 // @Utils
@@ -22,9 +22,11 @@ type Props = {
   patchConfig: PatchConfig
   setControlsDisabled: ReactSetState<boolean>
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
+  setFormReference: SetFormReference
 }
 
 const CONFIG_INTERNAL_STATE_KEY = "loadableParameters"
+const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 
 export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> = ({
   initialValues,
@@ -32,6 +34,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   patchConfig,
   setControlsDisabled,
   setValidator,
+  setFormReference,
 }) => {
   const [form] = Form.useForm()
 
@@ -64,7 +67,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   }
 
   /**
-   * set validator on first render
+   * set validator and form reference to parent component after the first render
    */
   useEffect(() => {
     const validateGetErrorsCount: ValidateGetErrorsCount = async () => {
@@ -78,6 +81,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     }
 
     setValidator(() => validateGetErrorsCount)
+    setFormReference(CONFIG_FORM_KEY, form)
   }, [])
 
   return loadingParametersError ? (
@@ -124,21 +128,19 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
 }
 
 const pullAirbyteSpec = async (sourceId: string): Promise<Parameter[]> => {
-  const services = ApplicationServices.get();
+  const services = ApplicationServices.get()
   const response = await services.backendApiClient.get(
-    `/airbyte/${sourceId.replace('airbyte-', '')}/spec?project_id=${
-      services.activeProject.id
-    }`,
+    `/airbyte/${sourceId.replace("airbyte-", "")}/spec?project_id=${services.activeProject.id}`,
     { proxy: true }
-  );
+  )
 
-  if (response?.message) throw new Error(response?.message);
-  if (response?.status && response?.status !== 'pending') {
+  if (response?.message) throw new Error(response?.message)
+  if (response?.status && response?.status !== "pending") {
     return mapAirbyteSpecToSourceConnectorConfig(
-      response?.['spec']?.['spec']?.['connectionSpecification']
-    ).map<Parameter>((parameter) => ({
+      response?.["spec"]?.["spec"]?.["connectionSpecification"]
+    ).map<Parameter>(parameter => ({
       ...parameter,
-      displayName: toTitleCase(parameter.displayName, { separator: '_' })
-    }));
+      displayName: toTitleCase(parameter.displayName, { separator: "_" }),
+    }))
   }
-};
+}

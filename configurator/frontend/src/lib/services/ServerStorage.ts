@@ -32,18 +32,19 @@ export abstract class ServerStorage {
   /**
    * Returns a table-like structure for managing config. See ConfigurationEntitiesTable
    */
-  table<T = any>(type: 'api_keys' | 'destinations' | 'sources'): ConfigurationEntitiesTable<T> {
+  table<T = any>(type: "api_keys" | "destinations" | "sources"): ConfigurationEntitiesTable<T> {
     let projectId = ApplicationServices.get().activeProject.id
     if (type === "api_keys") {
       return getEntitiesTable<T>(this, type, projectId, {
         arrayNodePath: "keys",
         idFieldPath: "uid",
       })
-    } if (type === 'destinations') {
+    }
+    if (type === "destinations") {
       return getEntitiesTable<T>(this, type, projectId, {
         idFieldPath: "_uid",
-      });
-    } else if (type === 'sources') {
+      })
+    } else if (type === "sources") {
       return getEntitiesTable<T>(this, "sources", projectId, {
         idFieldPath: "sourceId",
       })
@@ -91,7 +92,6 @@ export interface ConfigurationEntitiesTable<T = any> {
    * Upserts the object. Creates a new one (if the object with id doesn't exist), or creates a new one
    */
   upsert(id: string, object: T): Promise<void>
-
 }
 
 function getEntitiesTable<T = any>(
@@ -169,18 +169,24 @@ function getEntitiesTable<T = any>(
       await storage.save(collectionName, collection, collectionId)
     },
     async replace<T>(id: string, object: T): Promise<void> {
-      let collection = await getCollection();
-      let objects = getArrayNode(collection);
+      let collection = await getCollection()
+      let objects = getArrayNode(collection)
       let objIndex = objects.findIndex(obj => obj[dataLayout.idFieldPath] === id)
       if (objIndex < 0) {
         throw new Error(
-          `Can't find object where ${dataLayout.idFieldPath} === ${id} in collection ${collectionName}(path=${arrayNode}). All objects: ${JSON.stringify(objects, null, 2)}`
+          `Can't find object where ${
+            dataLayout.idFieldPath
+          } === ${id} in collection ${collectionName}(path=${arrayNode}). All objects: ${JSON.stringify(
+            objects,
+            null,
+            2
+          )}`
         )
       }
-      objects[objIndex] = object;
+      objects[objIndex] = object
 
       await storage.save(collectionName, collection, collectionId)
-    }
+    },
   }
 }
 

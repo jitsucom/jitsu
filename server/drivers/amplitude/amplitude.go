@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/drivers/base"
@@ -37,7 +38,7 @@ func init() {
 // NewAmplitude returns configured Amplitude driver instance
 func NewAmplitude(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &AmplitudeConfig{}
-	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
 
@@ -76,7 +77,7 @@ func NewAmplitude(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 // TestAmplitude tests connection to Amplitude without creating Driver instance
 func TestAmplitude(sourceConfig *base.SourceConfig) error {
 	config := &AmplitudeConfig{}
-	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return err
 	}
 

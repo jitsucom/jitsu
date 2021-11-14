@@ -1,13 +1,13 @@
 // @Libs
-import { merge } from 'lodash';
+import { merge } from "lodash"
 // @Utils
-import { sourcePageUtils } from 'ui/pages/SourcesPage/SourcePage.utils';
+import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 // @Types
-import { SourceEditorState } from './SourceEditor';
-import { SourceConnector } from 'catalog/sources/types';
-import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
-import { sourcesStore } from 'stores/sources';
-import { COLLECTIONS_SCHEDULES } from 'constants/schedule';
+import { SourceEditorState } from "./SourceEditor"
+import { SourceConnector } from "catalog/sources/types"
+import { makeObjectFromFieldsValues } from "utils/forms/marshalling"
+import { sourcesStore } from "stores/sources"
+import { COLLECTIONS_SCHEDULES } from "constants/schedule"
 
 export const sourceEditorUtils = {
   getSourceDataFromState: (
@@ -41,9 +41,9 @@ export const createInitialSourceData = (sourceCatalogData: SourceConnector) =>
   ({
     sourceId: sourcePageUtils.getSourceId(
       sourceCatalogData.id,
-      sourcesStore.sources.map((source) => source.sourceId)
+      sourcesStore.sources.map(source => source.sourceId)
     ),
     schedule: COLLECTIONS_SCHEDULES[0].value,
     connected: false,
-    connectedErrorMessage: ''
-  } as const);
+    connectedErrorMessage: "",
+  } as const)

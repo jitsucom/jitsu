@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -27,19 +27,19 @@ function Svg(props) {
         <stop
           offset={0}
           style={{
-            stopColor: '#A18BE7'
+            stopColor: "#A18BE7",
           }}
         />
         <stop
           offset={0.3893}
           style={{
-            stopColor: '#7D63C4'
+            stopColor: "#7D63C4",
           }}
         />
         <stop
           offset={1}
           style={{
-            stopColor: '#54349C'
+            stopColor: "#54349C",
           }}
         />
       </linearGradient>
@@ -47,36 +47,29 @@ function Svg(props) {
         fill="url(#SVGID_1_)"
         d="M156.8,94.6c0.3-1.5,0.4-3,0.4-4.6c0-15-12.2-27.2-27.2-27.2c-5.8,0-11.1,1.8-15.5,4.9 c-6.4-9.4-17.3-15.6-29.5-15.6c-19.7,0-35.8,16-35.8,35.8c0,2,0.2,2.6,0.5,4.5c-14.6,0.5-26.2,13.7-26.2,28.4c0,14.3,11,26,25,27.1 v0.1h100.8c15,0,27.2-12.2,27.2-27.2C176.5,108.3,168.2,97.9,156.8,94.6z"
       />
-      <linearGradient
-        id="SVGID_2_"
-        gradientUnits="userSpaceOnUse"
-        x1={76.33}
-        y1={85.0256}
-        x2={123.67}
-        y2={132.3657}
-      >
+      <linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1={76.33} y1={85.0256} x2={123.67} y2={132.3657}>
         <stop
           offset={0}
           style={{
-            stopColor: '#CCCCCB'
+            stopColor: "#CCCCCB",
           }}
         />
         <stop
           offset={0.2191}
           style={{
-            stopColor: '#F6F6F9'
+            stopColor: "#F6F6F9",
           }}
         />
         <stop
           offset={0.8263}
           style={{
-            stopColor: '#F6F6F9'
+            stopColor: "#F6F6F9",
           }}
         />
         <stop
           offset={1}
           style={{
-            stopColor: '#CCCCCB'
+            stopColor: "#CCCCCB",
           }}
         />
       </linearGradient>
@@ -89,7 +82,7 @@ function Svg(props) {
         d="M85.4,53.4c11.5,0,21.6,5.6,28,14.1c0.3,0.4,0.7,0.6,1.1,0.6c0.2,0,0.5-0.1,0.7-0.2c4.1-2.6,8.9-4,14-4 c14.6,0,26.4,11.8,26.4,26.4c0,1.1-0.1,2.3-0.2,3.4c-0.1,0.6,0.3,1.3,0.9,1.5c10.5,3.5,18.1,13.5,18.1,25.2 c-0.1,14.6-12.3,26.3-26.9,26.3H49.9l0,0c-13.7-1.4-24.3-13.1-24.3-27.1c0-13.9,10.5-25.4,24-26.9c0.7-0.1,1.3-0.7,1.2-1.5 c-0.1-0.9-0.1-1.9-0.1-2.9C50.6,69,66.2,53.4,85.4,53.4 M85.4,47.8c-22.1,0-40.1,17.8-40.3,39.9c-14.5,3.5-25,16.5-25,31.8 c0,8.1,3,16,8.5,22c4.3,4.7,9.8,8,15.9,9.6l4.3,0.8c0.9,0.2,1.8,0.3,2.6,0.3h3.5h92.7c17.9,0,32.4-14.3,32.5-31.9 c0.1-12.7-7.4-24.1-18.8-29.3c0-0.3,0-0.5,0-0.8c0-17.6-14.4-32-32-32c-4.8,0-9.4,1.1-13.7,3.1C107.9,52.8,96.9,47.8,85.4,47.8 L85.4,47.8z"
       />
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

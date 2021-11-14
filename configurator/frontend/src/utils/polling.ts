@@ -1,13 +1,13 @@
-import { assert } from './typeCheck';
+import { assert } from "./typeCheck"
 
 export interface IPoll<T> {
-  start(): void;
-  wait(): Promise<T>;
-  cancel(): void;
+  start(): void
+  wait(): Promise<T>
+  cancel(): void
 }
 
-type EndPollingFunction<T> = (result: T) => void;
-type FailPollingFunction = (error?: Error) => void;
+type EndPollingFunction<T> = (result: T) => void
+type FailPollingFunction = (error?: Error) => void
 
 export type PollingSetupCallback<T = unknown> = (
   end: EndPollingFunction<T>,

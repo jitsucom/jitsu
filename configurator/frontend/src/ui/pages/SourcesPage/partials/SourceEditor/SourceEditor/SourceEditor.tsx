@@ -109,6 +109,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   )
 
   const [state, setState] = useState<SourceEditorState>(initialState)
+
   const [controlsDisabled, setControlsDisabled] = useState<boolean>(false)
   const [tabErrorsVisible, setTabErrorsVisible] = useState<boolean>(false)
   const [showDocumentation, setShowDocumentation] = useState<boolean>(false)
@@ -150,14 +151,6 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       setControlsDisabled(false)
     }
   }
-
-  const handleTestConnection = useCallback(async () => {
-    const isErrored = !!(await validateCountErrors())
-    if (isErrored) return
-
-    const sourceData = handleBringSourceData()
-    return await sourcePageUtils.testConnection(sourceData)
-  }, [state])
 
   const handleSave = useCallback<AsyncVoidFunction>(async () => {
     let sourceEditorState = null

@@ -1,30 +1,30 @@
 // @Libs
-import React, { useEffect, useState } from 'react';
-import { Col, Row } from 'antd';
-import isEqual from 'lodash/isEqual';
+import React, { useEffect, useState } from "react"
+import { Col, Row } from "antd"
+import isEqual from "lodash/isEqual"
 // @Types
-import { Parameter, SourceConnector } from 'catalog/sources/types';
+import { Parameter, SourceConnector } from "catalog/sources/types"
 // @Services
-import { useServices } from 'hooks/useServices';
+import { useServices } from "hooks/useServices"
 // @Styles
-import editorStyles from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
-import { ConfigurableFieldsForm } from '../ConfigurableFieldsForm/ConfigurableFieldsForm';
-import { ErrorCard } from 'lib/components/ErrorCard/ErrorCard';
-import { FormInstance } from 'antd/es';
-import { mapAirbyteSpecToSourceConnectorConfig } from 'catalog/sources/lib/airbyte.helper';
-import { Poll } from 'utils/polling';
-import { useSourceEditorSyncContext } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditorLegacy/SourceEditorSyncContext';
-import { LoadableFieldsLoadingMessageCard } from 'lib/components/LoadingFormCard/LoadingFormCard';
-import { toTitleCase } from 'utils/strings';
+import editorStyles from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less"
+import { ConfigurableFieldsForm } from "../ConfigurableFieldsForm/ConfigurableFieldsForm"
+import { ErrorCard } from "lib/components/ErrorCard/ErrorCard"
+import { FormInstance } from "antd/es"
+import { mapAirbyteSpecToSourceConnectorConfig } from "catalog/sources/lib/airbyte.helper"
+import { Poll } from "utils/polling"
+import { useSourceEditorSyncContext } from "ui/pages/SourcesPage/partials/SourceEditor/SourceEditorLegacy/SourceEditorSyncContext"
+import { LoadableFieldsLoadingMessageCard } from "lib/components/LoadingFormCard/LoadingFormCard"
+import { toTitleCase } from "utils/strings"
 
 type Props = {
-  sourceReference: SourceConnector;
-  form: FormInstance;
-  initialValues: SourceData;
-  handleTouchAnyField: (...args: any) => void;
-  disableFormControls?: VoidFunction;
-  enableFormControls?: VoidFunction;
-};
+  sourceReference: SourceConnector
+  form: FormInstance
+  initialValues: SourceData
+  handleTouchAnyField: (...args: any) => void
+  disableFormControls?: VoidFunction
+  enableFormControls?: VoidFunction
+}
 
 const LoadableFieldsFormComponent = ({
   sourceReference,
@@ -32,17 +32,13 @@ const LoadableFieldsFormComponent = ({
   initialValues,
   handleTouchAnyField,
   disableFormControls,
-  enableFormControls
+  enableFormControls,
 }: Props) => {
-  const services = useServices();
-  const { setIsLoadingConfigParameters } = useSourceEditorSyncContext();
-  const [_fieldsParameters, setFieldsParameters] = useState<null | Parameter[]>(
-    null
-  );
-  const [_isLoadingParameters, setIsLoadingParameters] =
-    useState<boolean>(true);
-  const [_loadingParametersError, setLoadableParametersError] =
-    useState<null | Error>(null);
+  const services = useServices()
+  const { setIsLoadingConfigParameters } = useSourceEditorSyncContext()
+  const [_fieldsParameters, setFieldsParameters] = useState<null | Parameter[]>(null)
+  const [_isLoadingParameters, setIsLoadingParameters] = useState<boolean>(true)
+  const [_loadingParametersError, setLoadableParametersError] = useState<null | Error>(null)
 
   /**
    * fetches or polls the loadable config parameters fields spec
@@ -51,82 +47,79 @@ const LoadableFieldsFormComponent = ({
   useEffect(() => {
     const fetchSpec = (): Promise<unknown> => {
       return services.backendApiClient.get(
-        `/airbyte/${sourceReference.id.replace(
-          'airbyte-',
-          ''
-        )}/spec?project_id=${services.activeProject.id}`,
+        `/airbyte/${sourceReference.id.replace("airbyte-", "")}/spec?project_id=${services.activeProject.id}`,
         { proxy: true }
-      );
-    };
+      )
+    }
 
-    let needPolling = false;
+    let needPolling = false
 
     const pullAirbyteSpecOnce = async (
       resolve?: (result: any) => void,
       reject?: (error?: Error) => void
     ): Promise<void> => {
-      let response;
+      let response
       try {
-        response = await fetchSpec();
+        response = await fetchSpec()
       } catch (error) {
-        setLoadableParametersError(error);
-        setIsLoadingParameters(false);
-        if (reject) reject(error);
+        setLoadableParametersError(error)
+        setIsLoadingParameters(false)
+        if (reject) reject(error)
       }
 
-      if (response?.['message']) {
+      if (response?.["message"]) {
         // when server fails to return spec it returns a message
-        const error = new Error(`${response['message']}`);
-        setLoadableParametersError(error);
-        if (reject) reject(error);
-        return;
+        const error = new Error(`${response["message"]}`)
+        setLoadableParametersError(error)
+        if (reject) reject(error)
+        return
       }
 
-      if (response?.['status'] && response?.['status'] !== 'pending') {
+      if (response?.["status"] && response?.["status"] !== "pending") {
         const parsedData = mapAirbyteSpecToSourceConnectorConfig(
-          response?.['spec']?.['spec']?.['connectionSpecification']
-        ).map<Parameter>((parameter) => ({
+          response?.["spec"]?.["spec"]?.["connectionSpecification"]
+        ).map<Parameter>(parameter => ({
           ...parameter,
-          displayName: toTitleCase(parameter.displayName, { separator: '_' })
-        }));
+          displayName: toTitleCase(parameter.displayName, { separator: "_" }),
+        }))
 
-        setFieldsParameters(parsedData);
-        setIsLoadingParameters(false);
+        setFieldsParameters(parsedData)
+        setIsLoadingParameters(false)
 
-        resolve?.(parsedData);
-        enableFormControls?.();
+        resolve?.(parsedData)
+        enableFormControls?.()
 
-        return;
+        return
       }
 
-      needPolling = true;
-    };
+      needPolling = true
+    }
 
-    let poll: Poll | undefined;
+    let poll: Poll | undefined
 
     /**
      * fetches or polls and maps the airbyte spec
      */
     const pullParametersFields = async (): Promise<void> => {
-      if (disableFormControls) disableFormControls();
-      setIsLoadingParameters(true);
-      await pullAirbyteSpecOnce();
+      if (disableFormControls) disableFormControls()
+      setIsLoadingParameters(true)
+      await pullAirbyteSpecOnce()
 
       if (needPolling) {
-        poll = new Poll((end, fail) => () => pullAirbyteSpecOnce(end, fail));
-        poll.start();
-        await poll.wait();
+        poll = new Poll((end, fail) => () => pullAirbyteSpecOnce(end, fail))
+        poll.start()
+        await poll.wait()
       }
 
-      setIsLoadingConfigParameters(false);
-    };
+      setIsLoadingConfigParameters(false)
+    }
 
-    pullParametersFields();
+    pullParametersFields()
 
     return () => {
-      if (poll) poll.cancel();
-    };
-  }, []);
+      if (poll) poll.cancel()
+    }
+  }, [])
 
   return _loadingParametersError ? (
     <Row>
@@ -136,7 +129,7 @@ const LoadableFieldsFormComponent = ({
           title={`Failed to load the ${sourceReference.displayName} source spec`}
           descriptionWithContacts={null}
           stackTrace={_loadingParametersError.stack}
-          className={'form-fields-card'}
+          className={"form-fields-card"}
         />
       </Col>
     </Row>
@@ -158,13 +151,13 @@ const LoadableFieldsFormComponent = ({
       initialValues={initialValues}
       handleTouchAnyField={handleTouchAnyField}
     />
-  );
-};
+  )
+}
 
-const LoadableFieldsForm = LoadableFieldsFormComponent;
+const LoadableFieldsForm = LoadableFieldsFormComponent
 
 // const LoadableFieldsForm = React.memo(LoadableFieldsFormComponent, isEqual);
 
 // LoadableFieldsForm.displayName = 'LoadableFieldsForm';
 
-export { LoadableFieldsForm };
+export { LoadableFieldsForm }

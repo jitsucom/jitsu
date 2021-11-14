@@ -257,7 +257,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 
 	apiKeysHandler := handlers.NewAPIKeysHandler(configurationsService)
 
-	enConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsStorage)
+	enConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsService, configurationsStorage)
 
 	proxyHandler := handlers.NewProxyHandler(jitsuService, map[string]jitsu.APIDecorator{
 		//write here custom decorators for certain HTTP URN paths
@@ -301,6 +301,9 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 		apiV1.GET("/system/version", func(c *gin.Context) {
 			c.JSON(http.StatusOK, Version{tag, builtAt})
 		})
+
+		geoDataResolversHandler := handlers.NewGeoDataResolversHandler(configurationsService)
+		apiV1.GET("/geo_data_resolvers", middleware.ServerAuth(middleware.IfModifiedSince(geoDataResolversHandler.GetHandler, configurationsService.GetGeoDataResolversLastUpdated), serverToken))
 
 		usersAPIGroup := apiV1.Group("/users")
 		{

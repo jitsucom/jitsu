@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -17,17 +17,11 @@ function Svg(props) {
     >
       <rect fill="#2EDAB8" width={200} height={200} />
       <g>
-        <polygon
-          fill="#FFFFFF"
-          points="41.7,89.9 158.3,89.9 178.4,61.8 21.6,61.8  "
-        />
-        <polygon
-          fill="#FFFFFF"
-          points="60.8,138.2 137.2,138.2 157.3,110.1 42.7,110.1  "
-        />
+        <polygon fill="#FFFFFF" points="41.7,89.9 158.3,89.9 178.4,61.8 21.6,61.8  " />
+        <polygon fill="#FFFFFF" points="60.8,138.2 137.2,138.2 157.3,110.1 42.7,110.1  " />
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

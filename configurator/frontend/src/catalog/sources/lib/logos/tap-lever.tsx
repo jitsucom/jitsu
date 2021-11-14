@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -13,17 +13,11 @@ function Svg(props) {
       <defs>
         <style>
           {
-            '.cls-1{fill:none;}.cls-2{clip-path:url(#clip-path);}.cls-3{fill:#c3c6cc;}.cls-3,.cls-4{fill-rule:evenodd;}.cls-4{fill:#e1e3e6;}'
+            ".cls-1{fill:none;}.cls-2{clip-path:url(#clip-path);}.cls-3{fill:#c3c6cc;}.cls-3,.cls-4{fill-rule:evenodd;}.cls-4{fill:#e1e3e6;}"
           }
         </style>
         <clipPath id="clip-path">
-          <rect
-            className="cls-1"
-            x={19.27}
-            y={19.27}
-            width={161.45}
-            height={161.45}
-          />
+          <rect className="cls-1" x={19.27} y={19.27} width={161.45} height={161.45} />
         </clipPath>
       </defs>
       <g id="Guidelines">
@@ -43,7 +37,7 @@ function Svg(props) {
         </g>
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

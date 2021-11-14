@@ -5,6 +5,7 @@ import (
 	"context"
 	"firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"google.golang.org/genproto/googleapis/type/latlng"
 
 	"fmt"
@@ -42,7 +43,7 @@ func init() {
 //NewFirebase returns configured Firebase driver instance
 func NewFirebase(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &FirebaseConfig{}
-	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
 
@@ -58,7 +59,7 @@ func NewFirebase(ctx context.Context, sourceConfig *base.SourceConfig, collectio
 	//check firestore collection Key
 	if collection.Type == FirestoreCollection {
 		parameters := &FirestoreParameters{}
-		if err := base.UnmarshalConfig(collection.Parameters, parameters); err != nil {
+		if err := jsonutils.UnmarshalConfig(collection.Parameters, parameters); err != nil {
 			return nil, err
 		}
 
@@ -102,7 +103,7 @@ func NewFirebase(ctx context.Context, sourceConfig *base.SourceConfig, collectio
 func TestFirebase(sourceConfig *base.SourceConfig) error {
 	ctx := context.Background()
 	config := &FirebaseConfig{}
-	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return err
 	}
 

@@ -150,7 +150,8 @@ const columns: ColumnData[] = [
               to={generatePath(taskLogsViewerRoute, {
                 sourceId: props.source.sourceId,
                 taskId: TaskId.encode(t.logs.taskId),
-              })}>
+              })}
+            >
               View logs
             </NavLink>
           </div>
@@ -193,12 +194,14 @@ const columns: ColumnData[] = [
                   icon={<CloseCircleOutlined />}
                   onClick={async () => {
                     await t.cancelTask()
-                  }}>
+                  }}
+                >
                   Cancel
                 </Menu.Item>
               )}
             </Menu>
-          }>
+          }
+        >
           <div className="flex">
             <div className="text-xl px-4 py-1 cursor-pointer hover:bg-bgComponent flex-shrink rounded-full">⋮</div>
           </div>

@@ -8,6 +8,7 @@ import { LabelEllipsis } from "../../../ui/components/LabelEllipsis/LabelEllipsi
 import ReloadOutlined from "@ant-design/icons/lib/icons/ReloadOutlined"
 import React, { Children, ReactNode, useState } from "react"
 import cn from "classnames"
+import { FormField, FormLayout, FormActions, unsavedMessage } from "../Form/Form"
 import { LabelWithTooltip } from "../../../ui/components/LabelWithTooltip/LabelWithTooltip"
 import TextArea from "antd/es/input/TextArea"
 import { BreadcrumbsProps, withHome } from "../../../ui/components/Breadcrumbs/Breadcrumbs"
@@ -38,46 +39,6 @@ function newKey(): APIKey {
   }
 }
 
-const formItemLayout = {
-  labelCol: { span: 6 },
-  wrapperCol: { span: 18 },
-}
-
-type FormFieldProps = {
-  label: ReactNode
-  tooltip?: ReactNode
-  children: ReactNode
-  splitter?: boolean
-}
-
-type FormLayoutProps = {
-  title?: ReactNode
-  className?: string
-  children: React.ReactElement<FormFieldProps> | React.ReactElement<FormFieldProps>[]
-}
-
-const FormField: React.FC<FormFieldProps> = ({ children, label, tooltip, splitter = false }: FormFieldProps) => {
-  return (
-    <div className={`flex flex-wrap items-start w-full py-4 ${splitter && "border-b border-splitBorder"}`}>
-      <div style={{ width: "20em", minWidth: "20em" }} className="font-semibold">
-        {tooltip ? <LabelWithTooltip documentation={tooltip} render={label} /> : label}
-      </div>
-      <div className="flex-grow">{children}</div>
-    </div>
-  )
-}
-
-// const FormActions: React.FC<{}>
-
-const FormLayout: React.FC<FormLayoutProps> = ({ className, children, title }) => {
-  return (
-    <div className={cn(className, "flex flex-col justify-center")}>
-      {title && <div className="text-lg">{title}</div>}
-      {children}
-    </div>
-  )
-}
-
 const SecretKey: React.FC<{
   formFieldName: string
   formFieldLabel: string
@@ -104,12 +65,6 @@ const SecretKey: React.FC<{
     </FormField>
   )
 }
-
-const FormActions: React.FC<{}> = ({ children }) => {
-  return <div className="w-full flex justify-end space-x-4">{children}</div>
-}
-
-const unsavedMessage = "You have unsaved changes. Are you sure you want to leave the page?"
 
 type EditorObject = Omit<APIKey, "origins"> & { originsText?: string }
 
@@ -173,7 +128,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                       pointerEvents: "none",
                     }
                   : {}
-              }>
+              }
+            >
               <FormField label="Key Name" tooltip="Name of the key" key="comment">
                 <Form.Item name="comment">
                   <Input size="large" name="comment" placeholder="Key Name" required={true} />
@@ -187,7 +143,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                   })
                 }}
                 formFieldName="jsAuth"
-                formFieldLabel="Client-side (JS) key">
+                formFieldLabel="Client-side (JS) key"
+              >
                 The key that is user for client-side Jitsu libraries (JavaScript, iOS etc). You can consider this key as
                 'public' since it is visible to any end-user
               </SecretKey>
@@ -199,7 +156,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                   })
                 }}
                 formFieldName="serverAuth"
-                formFieldLabel="Server-side key">
+                formFieldLabel="Server-side key"
+              >
                 The key that is user for sending data from backend libraries (python, s2s API etc). Do not publish this
                 key
               </SecretKey>
@@ -213,7 +171,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                     domain on a new line
                   </>
                 }
-                key="js">
+                key="js"
+              >
                 <Form.Item name="originsText">
                   <TextArea required={false} size="large" rows={10} name="originsText" />
                 </Form.Item>
@@ -241,7 +200,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                         }
                       },
                     })
-                  }}>
+                  }}
+                >
                   Delete
                 </Button>
               )}
@@ -257,7 +217,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                   } else {
                     history.push(apiKeysRoutes.listExact)
                   }
-                }}>
+                }}
+              >
                 Cancel
               </Button>
               <Button
@@ -279,7 +240,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                   } finally {
                     setSaving(false)
                   }
-                }}>
+                }}
+              >
                 Save
               </Button>
             </FormActions>

@@ -67,6 +67,7 @@ type suiteBuilder struct {
 	globalUsersRecognitionConfig     *storages.UsersRecognition
 	systemService                    *system.Service
 	eventsCache                      *caching.EventsCache
+	geoService                       *geo.Service
 
 	metaStorage        meta.Storage
 	destinationService *destinations.Service
@@ -142,6 +143,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		destinationService:               destinationService,
 		systemService:                    systemService,
 		eventsCache:                      caching.NewEventsCache(metaStorage, 100),
+		geoService:                       geo.NewTestService(nil),
 	}
 }
 
@@ -158,14 +160,7 @@ func (sb *suiteBuilder) WithGeoDataMock(geoDataMock *geo.Data) SuiteBuilder {
 		}
 	}
 	//in case when ip_policy=strict or comply
-	appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock, "10.10.10.1": geoDataMock}
-
-	enrichment.InitDefault(
-		viper.GetString("server.fields_configuration.src_source_ip"),
-		viper.GetString("server.fields_configuration.dst_source_ip"),
-		viper.GetString("server.fields_configuration.src_ua"),
-		viper.GetString("server.fields_configuration.dst_ua"),
-	)
+	sb.geoService = geo.NewTestService(geo.Mock{"10.10.10.10": geoDataMock, "10.10.10.1": geoDataMock})
 
 	return sb
 }
@@ -185,7 +180,7 @@ func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig s
 	monitor := coordination.NewInMemoryService([]string{})
 	tempDir := os.TempDir()
 	loggerFactory := logging.NewFactory(tempDir, 5, false, nil, nil)
-	destinationsFactory := storages.NewFactory(context.Background(), tempDir, monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, 0)
+	destinationsFactory := storages.NewFactory(context.Background(), tempDir, sb.geoService, monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, 0)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
@@ -223,7 +218,7 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		fallback.NewTestService(), coordination.NewInMemoryService([]string{}), sb.eventsCache, sb.systemService,
-		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService)
+		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService)
 
 	server := &http.Server{
 		Addr:              sb.httpAuthority,

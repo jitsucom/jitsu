@@ -1,15 +1,8 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
-    <svg
-      viewBox="0 0 44 44"
-      height="100%"
-      width="100%"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
-    >
+    <svg viewBox="0 0 44 44" height="100%" width="100%" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
       <path
         d="M37.2617 33.6602L28.086 28.3594C26.7969 27.6172 25.1485 28.0586 24.4024 29.3477C24.1133 29.8555 24 30.4141 24.0547 30.957V41.3164C24.0547 42.7969 25.2578 44 26.7422 44C28.2227 44 29.4258 42.7969 29.4258 41.3164V35.3594L34.5664 38.3281C35.8555 39.0742 37.5078 38.6289 38.25 37.3398C38.9961 36.0508 38.5547 34.4023 37.2617 33.6602Z"
         fill="#29B5E8"
@@ -39,7 +32,7 @@ function Svg(props) {
         fill="#29B5E8"
       />
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

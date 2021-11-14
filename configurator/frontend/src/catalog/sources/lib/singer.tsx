@@ -1,20 +1,19 @@
-import * as logos from './logos';
-import {
-  booleanType,
-  dashDateType,
-  intType,
-  isoUtcDateType, passwordType,
-  stringType
-} from '../types';
-import { customParameters } from './helper';
-import { SingerTap } from '../types';
+import * as logos from "./logos"
+import { booleanType, dashDateType, intType, isoUtcDateType, passwordType, stringType } from "../types"
+import { customParameters } from "./helper"
+import { SingerTap } from "../types"
 import {
   githubDocumentation,
-  googleServiceAuthDocumentation, googleSheetsDocumentation,
+  googleServiceAuthDocumentation,
+  googleSheetsDocumentation,
   intercomDocumentation,
-  mixpanelDocumentation, mySqlDocumentation, shopifyDocumentation, slackDocumentation, stripeDocumentation
-} from '../lib/documentation';
-import { googleAuthConfigParameters } from '../lib/commonParams';
+  mixpanelDocumentation,
+  mySqlDocumentation,
+  shopifyDocumentation,
+  slackDocumentation,
+  stripeDocumentation,
+} from "../lib/documentation"
+import { googleAuthConfigParameters } from "../lib/commonParams"
 
 export const allSingerTaps: SingerTap[] = [
   {
@@ -28,6 +27,69 @@ export const allSingerTaps: SingerTap[] = [
     pic: logos.tap_adroll,
     displayName: "AdRoll",
     tap: "tap-adroll",
+    parameters: customParameters("tap-adroll", {
+      customConfig: [
+        {
+          displayName: "Cient ID",
+          id: "client_id",
+          type: stringType,
+          required: true,
+          documentation: (
+            <>
+              ID of the <a href="https://apidocs.nextroll.com/guides/get-started.html">NextRoll API</a> application
+            </>
+          ),
+        },
+        {
+          displayName: "Cient Secret",
+          id: "client_secret",
+          type: stringType,
+          required: true,
+          documentation: (
+            <>
+              Secret of the API key generated using the{" "}
+              <a href="https://developers.nextroll.com/my-apps">NextRoll developer account</a>
+            </>
+          ),
+        },
+        {
+          displayName: "Access Token",
+          id: "access_token",
+          type: stringType,
+          required: true,
+          documentation: (
+            <>
+              Access Token.{" "}
+              <a href="https://apidocs.nextroll.com/guides/oauth.html?highlight=access%20token#your-first-api-call">
+                Learn how to generate it
+              </a>{" "}
+              using the NextRoll API
+            </>
+          ),
+        },
+        {
+          displayName: "Refresh Token",
+          id: "refresh_token",
+          type: stringType,
+          required: true,
+          documentation: (
+            <>
+              Refresh Token.{" "}
+              <a href="https://apidocs.nextroll.com/guides/oauth.html?highlight=access%20token#your-first-api-call">
+                Learn how to generate it
+              </a>{" "}
+              using the NextRoll API
+            </>
+          ),
+        },
+        {
+          displayName: "Strat Date",
+          id: "start_date",
+          type: isoUtcDateType,
+          required: true,
+        },
+      ],
+    }),
     stable: true,
     hasNativeEquivalent: false,
   },

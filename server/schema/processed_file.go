@@ -32,6 +32,12 @@ func (pf *ProcessedFile) GetPayloadBytes(marshaller Marshaller) []byte {
 	return b
 }
 
+//GetPayloadUsingStronglyTypedMarshaller returns bytes, containing marshalled payload
+//StronglyTypedMarshaller needs to know payload schema (types of fields) to convert payload to byte slice
+func (pf *ProcessedFile) GetPayloadUsingStronglyTypedMarshaller(stm StronglyTypedMarshaller) ([]byte, error) {
+	return stm.Marshal(pf.BatchHeader, pf.payload)
+}
+
 //GetPayloadBytesWithHeader returns marshaling by marshaller func, joined with \n,  bytes
 //assume that payload can't be empty
 func (pf *ProcessedFile) GetPayloadBytesWithHeader(marshaller Marshaller) ([]byte, []string) {

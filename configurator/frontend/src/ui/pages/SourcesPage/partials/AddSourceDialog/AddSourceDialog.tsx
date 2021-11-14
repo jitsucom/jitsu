@@ -1,22 +1,22 @@
 // @Libs
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, generatePath, useHistory } from 'react-router-dom';
-import { Badge, Input, Modal } from 'antd';
-import cn from 'classnames';
-import debounce from 'lodash/debounce';
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { Link, generatePath, useHistory } from "react-router-dom"
+import { Badge, Input, Modal } from "antd"
+import cn from "classnames"
+import debounce from "lodash/debounce"
 // @Catalog sources
-import { allSources } from 'catalog/sources/lib';
+import { allSources } from "catalog/sources/lib"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Styles
-import styles from './AddSourceDialog.module.less';
+import styles from "./AddSourceDialog.module.less"
 // @Types
-import { SourceConnector } from 'catalog/sources/types';
+import { SourceConnector } from "catalog/sources/types"
 // @Icons
-import { StarOutlined, StarFilled, ExclamationCircleOutlined } from '@ant-design/icons';
+import { StarOutlined, StarFilled, ExclamationCircleOutlined } from "@ant-design/icons"
 // @Routes
-import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
-import { useServices } from 'hooks/useServices';
+import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
+import { useServices } from "hooks/useServices"
 
 /**
  * All sources which are available for adding. Some filtering & sorting is applied
@@ -25,12 +25,12 @@ import { useServices } from 'hooks/useServices';
  * 2. not expert mode
  * 3. expert mode
  * 4. airbyte source on heroku (disabled)
- * 
+ *
  * Airbyte connectors are disabled if the app is hosted using Heroku.
  */
 
 const isAirbyteSourceOnHeroku = (source: SourceConnector): boolean => {
-  return source.protoType === "airbyte" && ApplicationServices.get().features.environment === 'heroku'
+  return source.protoType === "airbyte" && ApplicationServices.get().features.environment === "heroku"
 }
 
 const allAvailableSources = allSources.sort((a, b) => {
@@ -46,7 +46,7 @@ const allAvailableSources = allSources.sort((a, b) => {
     return 1
   } else if (!a.expertMode && b.expertMode) {
     return -1
-  } 
+  }
   return a.displayName.localeCompare(b.displayName)
 })
 
@@ -155,7 +155,8 @@ const AddSourceDialogComponent = () => {
               to={generatePath(sourcesPageRoutes.addExact, { source: src.id })}
               key={src.id}
               className={`${styles.item} ${isAirbyteSourceOnHeroku(src) ? styles.item__disabled : ""}`}
-              onClick={handleClick(src)}>
+              onClick={handleClick(src)}
+            >
               <span className={styles.pic}>{src.pic}</span>
               <span className={styles.title}>{src.displayName}</span>
               {src.protoType === "airbyte" && <span className={styles.airbyteLabel}>{"powered by Airbyte"}</span>}
@@ -178,6 +179,6 @@ const AddSourceDialogComponent = () => {
   )
 }
 
-AddSourceDialogComponent.displayName = 'AddSourceDialog';
+AddSourceDialogComponent.displayName = "AddSourceDialog"
 
-export const AddSourceDialog = memo(AddSourceDialogComponent);
+export const AddSourceDialog = memo(AddSourceDialogComponent)
