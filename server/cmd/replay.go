@@ -283,6 +283,13 @@ func collectFiles(inputFile string, inputMasks []string) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error getting absolute path for %s: %v", inputFile, err)
 		}
+		info, err := os.Stat(absInputFile)
+		if err != nil {
+			return nil, fmt.Errorf("error getting file %s: %v", inputFile, err)
+		}
+		if info.IsDir() {
+			return nil, fmt.Errorf("--file should not specify a directory: %v", inputFile)
+		}
 		absoluteFileNamesAfterFiltering = append(absoluteFileNamesAfterFiltering, absInputFile)
 	}
 
