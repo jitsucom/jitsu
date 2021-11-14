@@ -6,9 +6,6 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/telemetry"
-	"github.com/jitsucom/jitsu/server/timestamp"
-	"github.com/spf13/cobra"
 	"io"
 	"io/ioutil"
 	"os"
@@ -16,6 +13,10 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -25,9 +26,9 @@ const (
 
 var (
 	//command flags
-	state, start, end, host, apiKey, fallback string
-	chunkSize                                 int64
-	disableProgressBars                       string
+	state, file, start, end, host, apiKey, fallback string
+	chunkSize                                       int64
+	disableProgressBars                             string
 	//command args
 	files []string
 )
@@ -48,10 +49,15 @@ var replayCmd = &cobra.Command{
 			time.Sleep(time.Second)
 		}
 
-		if len(args) == 0 {
-			return errors.New("requires at least 1 file as an arg")
+		if file != "" {
+			if start != "" || end != "" {
+				return errors.New("--file option is incompatible with --start and --end options")
+			}
+			args = nil
+		} else if len(args) == 0 {
+			return errors.New("requires at least 1 file as an arguments or --file option")
 		}
-		return replay(args)
+		return replay(file, args)
 	},
 	Version: version,
 }
@@ -60,6 +66,7 @@ func init() {
 	rootCmd.AddCommand(replayCmd)
 
 	replayCmd.Flags().StringVar(&state, "state", "", "(optional) a path to file where Jitsu will save the state - already uploaded files names. It prevents resending already loaded files on each run")
+	replayCmd.Flags().StringVar(&file, "file", "", "(optional) Single file to upload")
 	replayCmd.Flags().StringVar(&start, "start", "", "(optional) start date as YYYY-MM-DD. Treated as the beginning of the day UTC (YYYY-MM-DD 00:00:00.000Z). If missing, all files will be processed")
 	replayCmd.Flags().StringVar(&end, "end", "", "(optional) end date as YYYY-MM-DD. Treated as the end of the day UTC (YYYY-MM-DD 23:59:59.999Z). If missing, all will be processed")
 	replayCmd.Flags().StringVar(&host, "host", "http://localhost:8000", "(optional) Jitsu host")
@@ -77,25 +84,10 @@ func init() {
 // 1. always with full path filenames
 // 2. always sends gzipped payloads to Jitsu
 //returns err if occurred
-func replay(inputFiles []string) error {
-	matchedFiles, err := findFiles(inputFiles)
+func replay(inputFile string, inputMasks []string) error {
+	fileNameCollection, err := collectFiles(inputFile, inputMasks)
 	if err != nil {
-		return fmt.Errorf("find files error: %v", err)
-	}
-	absoluteFileNames, err := reformatFileNames(matchedFiles)
-	if err != nil {
-		return fmt.Errorf("preprocessing files failed: %v", err)
-	}
-
-	absoluteFileNamesAfterFiltering, err := filterFiles(absoluteFileNames, start, end)
-	if err != nil {
-		if err != nil {
-			return fmt.Errorf("filtering files by date failed: %v", err)
-		}
-	}
-
-	if len(absoluteFileNamesAfterFiltering) == 0 {
-		return errors.New("none of the files match the --start --end condition")
+		return fmt.Errorf("failed to collect files to upload: %v", err)
 	}
 
 	if state != "" {
@@ -112,7 +104,7 @@ func replay(inputFiles []string) error {
 	}
 
 	var filesToUpload []string
-	for _, f := range absoluteFileNamesAfterFiltering {
+	for _, f := range fileNameCollection {
 		//filter state file
 		if f == state {
 			continue
@@ -266,6 +258,39 @@ func sendChunked(progressBar ProgressBar, filePath string, fileSize int64, sende
 	fileProgressBar.SetCurrent(capacity)
 
 	return nil
+}
+
+// collectFiles prepare list of files to upload
+func collectFiles(inputFile string, inputMasks []string) ([]string, error) {
+	matchedFiles, err := findFiles(inputMasks)
+	if err != nil {
+		return nil, fmt.Errorf("find files error: %v", err)
+	}
+	absoluteFileNames, err := reformatFileNames(matchedFiles)
+	if err != nil {
+		return nil, fmt.Errorf("preprocessing files failed: %v", err)
+	}
+
+	absoluteFileNamesAfterFiltering, err := filterFiles(absoluteFileNames, start, end)
+	if err != nil {
+		if err != nil {
+			return nil, fmt.Errorf("filtering files by date failed: %v", err)
+		}
+	}
+
+	if inputFile != "" {
+		absInputFile, err := filepath.Abs(inputFile)
+		if err != nil {
+			return nil, fmt.Errorf("error getting absolute path for %s: %v", inputFile, err)
+		}
+		absoluteFileNamesAfterFiltering = append(absoluteFileNamesAfterFiltering, absInputFile)
+	}
+
+	if len(absoluteFileNamesAfterFiltering) == 0 {
+		return nil, errors.New("none of the files match the --start --end condition")
+	}
+
+	return absoluteFileNamesAfterFiltering, nil
 }
 
 //findFiles find files by masks and returns them
