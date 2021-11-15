@@ -331,7 +331,6 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	vars["destinationId"] = destinationID
 	vars["destinationType"] = destination.Type
 	utils.MapPutAll(vars, destination.TemplateVariables)
-	logging.Infof("s template vars: %v", vars)
 
 	processor, err := schema.NewProcessor(destinationID, utils.NvlString(destination.SubType, destination.Type), tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver,
 		destination.BreakOnError, uniqueIDField, maxColumnNameLength, vars)

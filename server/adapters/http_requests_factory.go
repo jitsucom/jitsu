@@ -2,7 +2,6 @@ package adapters
 
 import (
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/utils"
 	"github.com/mitchellh/mapstructure"
@@ -71,7 +70,6 @@ func (wrf *WebhookRequestFactory) Create(object map[string]interface{}) (req *Re
 			return nil, fmt.Errorf("cannot parse %s: %v", JitsuEnvelopParameter,  err)
 		}
 	}
-	logging.Infof("Envelop: %s", envelop)
 	if envelop.URL == "" {
 		rawUrl, err := wrf.urlTmpl.ProcessEvent(object)
 		if err != nil {
