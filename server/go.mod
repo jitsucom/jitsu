@@ -11,10 +11,10 @@ require (
 	github.com/FZambia/sentinel v1.1.0
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/charmbracelet/lipgloss v0.2.1
-	github.com/docker/docker v20.10.6+incompatible
+	github.com/docker/docker v20.10.7+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dop251/goja v0.0.0-20211022113120-dc8c55024d06
-	github.com/gin-gonic/gin v1.6.3
+	github.com/gin-gonic/gin v1.7.3
 	github.com/go-redsync/redsync/v4 v4.3.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gomodule/redigo v1.8.2
@@ -46,7 +46,7 @@ require (
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
-	github.com/testcontainers/testcontainers-go v0.11.0
+	github.com/testcontainers/testcontainers-go v0.11.1
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
 	github.com/vbauerster/mpb/v7 v7.1.3
 	github.com/xitongsys/parquet-go v1.6.1
