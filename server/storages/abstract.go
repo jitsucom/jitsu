@@ -161,7 +161,7 @@ func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error)
 //AccountResult checks input error and calls ErrorEvent or SuccessEvent
 func (a *Abstract) AccountResult(eventContext *adapters.EventContext, err error) {
 	if err != nil {
-		if isConnectionError(err) {
+		if IsConnectionError(err) {
 			a.ErrorEvent(false, eventContext, err)
 		} else {
 			a.ErrorEvent(true, eventContext, err)

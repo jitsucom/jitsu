@@ -102,8 +102,7 @@ func (s *Service) updateResolvers(payload []byte) {
 	s.init(rc)
 
 	if len(s.geoResolversByID) == 0 {
-		//logging.Info("❌ Geo resolution isn't configured. You can add MaxMind license key in Jitsu Configurator UI.")
-		logging.Info("Custom geo resolvers aren't configured.")
+		logging.Info("❌ Geo resolution isn't configured. You can add MaxMind license key on Jitsu Configurator UI.")
 	}
 }
 
@@ -153,7 +152,7 @@ func (s *Service) init(rc map[string]*ResolverConfig) {
 			s.mutex.Unlock()
 		}
 
-		maxmindlink, err := parseConfigAsLink(config)
+		maxmindlink, err := ParseConfigAsLink(config)
 		if err != nil {
 			logging.Errorf("[%s] Error initializing geo resolver of type %s: %v", id, config.Type, err)
 			continue
@@ -190,6 +189,16 @@ func (s *Service) GetGeoResolver(id string) Resolver {
 
 func (s *Service) GetGlobalGeoResolver() Resolver {
 	return s.globalGeoResolver
+}
+
+//TestGeoResolver proxies request to the factory
+func (s *Service) TestGeoResolver(url string) ([]*EditionRule, error) {
+	return s.factory.Test(url)
+}
+
+//GetPaidEditions returns paidEditions
+func (s *Service) GetPaidEditions() []Edition {
+	return paidEditions
 }
 
 //remove closes and removes geo resolver instance from Service
