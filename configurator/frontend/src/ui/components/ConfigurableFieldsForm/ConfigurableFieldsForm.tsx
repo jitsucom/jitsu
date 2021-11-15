@@ -1,6 +1,7 @@
 // @Libs
+import * as React from "react"
 import { ReactNode, useCallback, useEffect, useState } from "react"
-import { Button, Col, Form, FormItemProps, Input, Row, Select, Spin, Switch, Tooltip, InputNumber } from "antd"
+import { Button, Col, Form, FormItemProps, Input, InputNumber, Row, Select, Spin, Switch, Tooltip } from "antd"
 import debounce from "lodash/debounce"
 import get from "lodash/get"
 import cn from "classnames"
@@ -27,6 +28,7 @@ import styles from "./ConfigurableFieldsForm.module.less"
 import { CodeDebuggerModal } from "../CodeDebuggerModal/CodeDebuggerModal"
 import { InputWithDebug } from "./InputWithDebug"
 import { SwitchWithLabel } from "./SwitchWithLabel"
+import { InputWithUpload } from "./InputWithUpload"
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -70,6 +72,13 @@ const ConfigurableFieldsFormComponent = ({
 
   const handleChangeIntInput = useCallback(
     (id: string) => (value: number) => {
+      form.setFieldsValue({ [id]: value })
+    },
+    [form]
+  )
+
+  const handleChangeTextInput = useCallback(
+    (id: string) => (value: string) => {
       form.setFieldsValue({ [id]: value })
     },
     [form]
@@ -221,6 +230,9 @@ const ConfigurableFieldsFormComponent = ({
         ) : (
           <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
         )
+
+      case "file":
+        return <InputWithUpload onChange={handleChangeTextInput(id)} value={defaultValueToDisplay} />
 
       case "string":
       default: {

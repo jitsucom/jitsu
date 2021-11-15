@@ -1,5 +1,5 @@
 import { modeParameter, tableName } from "./common"
-import { intType, stringType, passwordType, booleanType } from "../../sources/types"
+import { fileType, hiddenValue, intType, passwordType, selectionTypeWithOptions, stringType } from "../../sources/types"
 
 const icon = (
   <svg viewBox="0 0 25.6 25.6" height="100%" width="100%" xmlns="http://www.w3.org/2000/svg">
@@ -125,17 +125,54 @@ const postgresDestination = {
       type: passwordType,
     },
     {
-      id: "_formData.pgdisablessl",
-      displayName: "Disable SSL",
-      required: true,
-      type: booleanType,
-      defaultValue: false,
+      id: "_formData.pgsslmode",
+      displayName: "SSL Mode",
       documentation: (
         <>
-          All connections to Postgres will be unsecured (non-SSL). We do not recommend to disable SSL. Disabled SSL can
-          be used with Postgres that is installed on the local machine.
+          SSL Mode is a configuration parameter to determine the security of the connection. There is an analogy to web
+          security: <b>Disable SSL</b> is HTTP and <b>verify-full</b> is HTTPS. Other options are between them. Default
+          one is <b>Require</b> which means that data will be encrypted. We do not recommend to disable SSL. Read more
+          about <a href="https://www.postgresql.org/docs/9.1/libpq-ssl.html">Postgres SSL Modes</a>.
         </>
       ),
+      required: true,
+      defaultValue: "require",
+      type: selectionTypeWithOptions(
+        [
+          { id: "require", displayName: "Require" },
+          { id: "verify-ca", displayName: "Verify CA" },
+          { id: "verify-full", displayName: "Full Verification" },
+          { id: "disable", displayName: "Disable SSL" },
+        ],
+        1
+      ),
+    },
+    {
+      id: "_formData.pgssl.server_ca",
+      displayName: "Server CA",
+      type: fileType,
+      required: true,
+      constant: hiddenValue("", cfg => {
+        return cfg?.["_formData"]?.pgsslmode === "require" || cfg?.["_formData"]?.pgsslmode === "disable"
+      }),
+    },
+    {
+      id: "_formData.pgssl.client_cert",
+      displayName: "Client certificate",
+      type: fileType,
+      required: true,
+      constant: hiddenValue("", cfg => {
+        return cfg?.["_formData"]?.pgsslmode === "require" || cfg?.["_formData"]?.pgsslmode === "disable"
+      }),
+    },
+    {
+      id: "_formData.pgssl.client_key",
+      displayName: "Client key",
+      type: fileType,
+      required: true,
+      constant: hiddenValue("", cfg => {
+        return cfg?.["_formData"]?.pgsslmode === "require" || cfg?.["_formData"]?.pgsslmode === "disable"
+      }),
     },
   ],
 } as const

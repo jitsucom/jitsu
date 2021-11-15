@@ -77,13 +77,14 @@ var (
 
 //DataSourceConfig dto for deserialized datasource config (e.g. in Postgres or AwsRedshift destination)
 type DataSourceConfig struct {
-	Host       string            `mapstructure:"host" json:"host,omitempty" yaml:"host,omitempty"`
-	Port       json.Number       `mapstructure:"port" json:"port,omitempty" yaml:"port,omitempty"`
-	Db         string            `mapstructure:"db" json:"db,omitempty" yaml:"db,omitempty"`
-	Schema     string            `mapstructure:"schema" json:"schema,omitempty" yaml:"schema,omitempty"`
-	Username   string            `mapstructure:"username" json:"username,omitempty" yaml:"username,omitempty"`
-	Password   string            `mapstructure:"password" json:"password,omitempty" yaml:"password,omitempty"`
-	Parameters map[string]string `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
+	Host             string            `mapstructure:"host" json:"host,omitempty" yaml:"host,omitempty"`
+	Port             json.Number       `mapstructure:"port" json:"port,omitempty" yaml:"port,omitempty"`
+	Db               string            `mapstructure:"db" json:"db,omitempty" yaml:"db,omitempty"`
+	Schema           string            `mapstructure:"schema" json:"schema,omitempty" yaml:"schema,omitempty"`
+	Username         string            `mapstructure:"username" json:"username,omitempty" yaml:"username,omitempty"`
+	Password         string            `mapstructure:"password" json:"password,omitempty" yaml:"password,omitempty"`
+	Parameters       map[string]string `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
+	SSLConfiguration *SSLConfig        `mapstructure:"ssl" json:"ssl,omitempty" yaml:"ssl,omitempty"`
 }
 
 //Validate required fields in DataSourceConfig
@@ -103,6 +104,12 @@ func (dsc *DataSourceConfig) Validate() error {
 
 	if dsc.Parameters == nil {
 		dsc.Parameters = map[string]string{}
+	}
+
+	if dsc.SSLConfiguration != nil {
+		if err := dsc.SSLConfiguration.Validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -868,19 +875,19 @@ func checkErr(err error) error {
 			msgParts = append(msgParts, pgErr.Detail)
 		}
 		if pgErr.Schema != "" {
-			msgParts = append(msgParts, "schema:" + pgErr.Schema)
+			msgParts = append(msgParts, "schema:"+pgErr.Schema)
 		}
 		if pgErr.Table != "" {
-			msgParts = append(msgParts, "table:" + pgErr.Table)
+			msgParts = append(msgParts, "table:"+pgErr.Table)
 		}
 		if pgErr.Column != "" {
-			msgParts = append(msgParts, "column:" + pgErr.Column)
+			msgParts = append(msgParts, "column:"+pgErr.Column)
 		}
 		if pgErr.DataTypeName != "" {
-			msgParts = append(msgParts, "data_type:" + pgErr.DataTypeName)
+			msgParts = append(msgParts, "data_type:"+pgErr.DataTypeName)
 		}
 		if pgErr.Constraint != "" {
-			msgParts = append(msgParts, "constraint:" + pgErr.Constraint)
+			msgParts = append(msgParts, "constraint:"+pgErr.Constraint)
 		}
 		return errors.New(strings.Join(msgParts, " "))
 	}
