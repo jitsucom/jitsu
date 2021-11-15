@@ -129,9 +129,10 @@ const postgresDestination = {
       displayName: "SSL Mode",
       documentation: (
         <>
-          SSL Mode is a configuration parameter to determine the security of the connection. There is an analogy to web security: {' '}
-          <b>Disable SSL</b> is HTTP and <b>verify-full</b> is HTTPS. Other options are between them. Default one is <b>Require</b> which {' '}
-          means that data will be encrypted. We do not recommend to disable SSL. Read more about <a href="https://www.postgresql.org/docs/9.1/libpq-ssl.html">Postgres SSL Modes</a>.
+          SSL Mode is a configuration parameter to determine the security of the connection. There is an analogy to web
+          security: <b>Disable SSL</b> is HTTP and <b>verify-full</b> is HTTPS. Other options are between them. Default
+          one is <b>Require</b> which means that data will be encrypted. We do not recommend to disable SSL. Read more
+          about <a href="https://www.postgresql.org/docs/9.1/libpq-ssl.html">Postgres SSL Modes</a>.
         </>
       ),
       required: true,
