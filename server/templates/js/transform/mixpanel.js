@@ -81,8 +81,8 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
       };
       //Set User Profile Properties Once
       $set_once = {
-        $initial_referrer: context.referer,
-        $initial_referring_domain: refDomain,
+        $initial_referrer: context.referer || "$direct",
+        $initial_referring_domain: refDomain || "$direct",
       };
     }
   }
@@ -134,6 +134,7 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
                 utm_campaign: utm.campaign,
                 utm_content: utm.content,
                 utm_term: utm.term,
+                Revenue: conversion.revenue || $.revenue,
                 ...eventExtraParams,
               },
             })
@@ -149,7 +150,7 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
         [eventName || eventType]: 1,
       };
       if (conversion.revenue || $.revenue) {
-        $add["Revenue"] = conversion.revenue || $.revenue;
+        $add["Lifetime Revenue"] = conversion.revenue || $.revenue;
       }
     }
   }

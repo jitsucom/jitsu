@@ -1,5 +1,13 @@
 import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
-import { arrayOf, booleanType, jsType, passwordType, selectionType, stringType } from "../../sources/types"
+import {
+  arrayOf,
+  booleanType,
+  descriptionType,
+  jsType,
+  passwordType,
+  selectionType,
+  stringType,
+} from "../../sources/types"
 
 const icon = (
   <svg width="100%" height="100%" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -21,7 +29,8 @@ const mixpanelDestination = {
   id: "mixpanel",
   type: "other",
   displayName: "Mixpanel",
-  defaultTransform: "return toMixpanel($, /* User Profile data */ {}, /* Override event name*/ '')",
+  defaultTransform:
+    "return toMixpanel($, /* User Profile updates */ {}, /* Additional Event properties */ {}, /* Overridden event name*/ '')",
   hidden: false,
   parameters: [
     {
@@ -30,17 +39,50 @@ const mixpanelDestination = {
     },
     modeParameter("stream"),
     {
+      id: "_formData.description",
+      displayName: "Description",
+      required: false,
+      type: descriptionType,
+      defaultValue: (
+        <span>
+          Jitsu sends events to Mixpanel Ingestion API filling as much Mixpanel Events Properties as possible from
+          original event data.
+          <br />
+          Mixpanel destination may also send User Profiles data to Mixpanel accounts that have User Profiles enabled.
+          <br />
+          <br />
+          For more on Mixpanel destination customization check{" "}
+          <a target="_blank" href="https://jitsu.com/docs/destinations-configuration/mixpanel">
+            Documentation
+          </a>
+        </span>
+      ),
+    },
+    {
       id: "_formData._token",
       displayName: "Project Token",
       required: true,
       type: stringType,
+      documentation: (
+        <>
+          <a href="https://developer.mixpanel.com/reference/project-token">Project Token</a>. A project's token can be
+          found in the Access Keys section of a project's settings overview page:{" "}
+          <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a>
+        </>
+      ),
     },
     {
       id: "_formData._users_enabled",
       displayName: "Enable User Profiles",
       required: false,
       type: booleanType,
-      documentation: <>Enable sending User Profiles data</>,
+      documentation: (
+        <>
+          Enables Mixpanel destination to work with User Profiles. <br /> See{" "}
+          <a href="https://jitsu.com/docs/destinations-configuration/mixpanel#user-profiles">User Profiles</a> section
+          of Documentation
+        </>
+      ),
     },
   ],
   ui: {

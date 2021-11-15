@@ -142,8 +142,6 @@ const ConfigurableFieldsFormComponent = ({
     form.setFieldsValue({ id: defaultValueToDisplay })
 
     switch (type?.typeName) {
-      case "description":
-        return <div className="pt-1.5">{defaultValue}</div>
       case "password":
         return (
           <Input.Password
@@ -406,40 +404,49 @@ const ConfigurableFieldsFormComponent = ({
                     handleSaveCodeDebugger={value => handleSaveDebugger(id, value)}
                   />
                 ) : null}
-                <Form.Item
-                  className={cn(
-                    "form-field_fixed-label",
-                    styles.field,
-                    (type?.typeName === "json" || type?.typeName === "javascript") && styles.jsonField,
-                    (type?.typeName === "json" || type?.typeName === "javascript") && bigField && styles.bigField
-                  )}
-                  name={formItemName}
-                  label={
-                    !bigField ? (
-                      documentation ? (
-                        <LabelWithTooltip documentation={documentation} render={displayName} />
+                {type?.typeName !== "description" ? (
+                  <Form.Item
+                    className={cn(
+                      "form-field_fixed-label",
+                      styles.field,
+                      (type?.typeName === "json" || type?.typeName === "javascript") && styles.jsonField,
+                      (type?.typeName === "json" || type?.typeName === "javascript") && bigField && styles.bigField
+                    )}
+                    name={formItemName}
+                    label={
+                      !bigField ? (
+                        documentation ? (
+                          <LabelWithTooltip documentation={documentation} render={displayName} />
+                        ) : (
+                          <span>{displayName}:</span>
+                        )
                       ) : (
-                        <span>{displayName}:</span>
+                        <span></span>
                       )
-                    ) : (
-                      <span></span>
-                    )
-                  }
-                  labelCol={{ span: bigField ? 0 : 4 }}
-                  wrapperCol={{ span: bigField ? 24 : 20 }}
-                  rules={validationRules}
-                >
-                  {getFieldComponent(
-                    type,
-                    id,
-                    defaultValue,
-                    constantValue,
-                    jsDebugger,
-                    bigField,
-                    displayName,
-                    codeSuggestions
-                  )}
-                </Form.Item>
+                    }
+                    labelCol={{ span: bigField ? 0 : 4 }}
+                    wrapperCol={{ span: bigField ? 24 : 20 }}
+                    rules={validationRules}
+                  >
+                    {getFieldComponent(
+                      type,
+                      id,
+                      defaultValue,
+                      constantValue,
+                      jsDebugger,
+                      bigField,
+                      displayName,
+                      codeSuggestions
+                    )}
+                  </Form.Item>
+                ) : (
+                  <div className="ant-row ant-form-item form-field_fixed-label">
+                    <div className="ant-col ant-col-4 ant-form-item-label">
+                      <label>{displayName}:</label>
+                    </div>
+                    <div className="ant-col ant-col-20 ant-form-item-control pt-1.5">{defaultValue}</div>
+                  </div>
+                )}
               </Col>
             </Row>
           ) : (
