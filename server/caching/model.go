@@ -19,7 +19,7 @@ type SucceedHTTPEvent struct {
 	URL     string                 `json:"url,omitempty"`
 	Method  string                 `json:"method,omitempty"`
 	Headers map[string]string      `json:"headers,omitempty"`
-	Body    map[string]interface{} `json:"body,omitempty"`
+	Body    string 				   `json:"body,omitempty"`
 }
 
 //channel dto

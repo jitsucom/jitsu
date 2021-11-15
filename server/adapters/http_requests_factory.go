@@ -3,7 +3,19 @@ package adapters
 import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/templates"
+	"github.com/jitsucom/jitsu/server/utils"
+	"github.com/mitchellh/mapstructure"
 )
+
+const JitsuEnvelopParameter = "JITSU_ENVELOP"
+
+type Envelop struct {
+	URL     string
+	Method  string
+	Headers map[string]string
+	Body	string
+}
+
 
 //HTTPRequestFactory is a factory for creating http.Request from input event object
 type HTTPRequestFactory interface {
@@ -21,7 +33,7 @@ type WebhookRequestFactory struct {
 
 //NewWebhookRequestFactory returns configured HTTPRequestFactory instance for webhook requests
 func NewWebhookRequestFactory(destinationID, destinationType, httpMethod, urlTmplStr, bodyTmplStr string, headers map[string]string) (HTTPRequestFactory, error) {
-	var templateFunctions = templates.EnrichedFuncMap(map[string]string{"destinationId": destinationID, "destinationType": destinationType})
+	var templateFunctions = templates.EnrichedFuncMap(map[string]interface{}{"destinationId": destinationID, "destinationType": destinationType})
 	urlTmpl, err := templates.SmartParse("url", urlTmplStr, templateFunctions)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing URL template [%s]: %v", urlTmplStr, err)
@@ -48,26 +60,47 @@ func (wrf *WebhookRequestFactory) Create(object map[string]interface{}) (req *Re
 			err = fmt.Errorf("Error constructing webhook request: %v", r)
 		}
 	}()
-
-	url, err := wrf.urlTmpl.ProcessEvent(object)
-	if err != nil {
-		return nil, fmt.Errorf("Error executing URL template: %v", err)
+	var body []byte
+	headers := make(map[string]string)
+	var envelop Envelop
+	envl, ok := object[JitsuEnvelopParameter]
+	if ok {
+		delete(object, JitsuEnvelopParameter)
+		if err := mapstructure.Decode(envl, &envelop); err != nil {
+			return nil, fmt.Errorf("cannot parse %s: %v", JitsuEnvelopParameter,  err)
+		}
 	}
-
-	rawBody, err := wrf.bodyTmpl.ProcessEvent(object)
-	if err != nil {
-		return nil, fmt.Errorf("Error executing body template: %v", err)
+	if envelop.URL == "" {
+		rawUrl, err := wrf.urlTmpl.ProcessEvent(object)
+		if err != nil {
+			return nil, fmt.Errorf("Error executing URL template: %v", err)
+		}
+		envelop.URL = templates.ToString(rawUrl, false, false, false)
 	}
-	body, err := templates.ToJSON(rawBody)
-	if err != nil {
-		return nil, err
+	if envelop.Method == "" {
+		envelop.Method = wrf.httpMethod
+	}
+	utils.StringMapPutAll(headers, wrf.headers)
+	utils.StringMapPutAll(headers, envelop.Headers)
+
+	if envelop.Body == "" {
+		rawBody, err := wrf.bodyTmpl.ProcessEvent(object)
+		if err != nil {
+			return nil, fmt.Errorf("Error executing body template: %v", err)
+		}
+		body, err = templates.ToJSONorStringBytes(rawBody)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		body = []byte(envelop.Body)
 	}
 
 	return &Request{
-		URL:     templates.ToString(url, false, false, false),
-		Method:  wrf.httpMethod,
+		URL:     envelop.URL,
+		Method:  envelop.Method,
 		Body:    body,
-		Headers: wrf.headers,
+		Headers: headers,
 	}, nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/utils"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -49,6 +50,7 @@ var (
 type DestinationConfig struct {
 	OnlyTokens             []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
 	Type                   string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
+	SubType                string        			`mapstructure:"subtype" json:"subtype,omitempty" yaml:"subtype,omitempty"`
 	Mode                   string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
 	DataLayout             *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
 	UsersRecognition       *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
@@ -59,6 +61,9 @@ type DestinationConfig struct {
 	CachingConfiguration   *CachingConfiguration    `mapstructure:"caching" json:"caching,omitempty" yaml:"caching,omitempty"`
 	PostHandleDestinations []string                 `mapstructure:"post_handle_destinations" json:"post_handle_destinations,omitempty" yaml:"post_handle_destinations,omitempty"`
 	GeoDataResolverID      string                   `mapstructure:"geo_data_resolver_id" json:"geo_data_resolver_id,omitempty" yaml:"geo_data_resolver_id,omitempty"`
+
+	//variables that can be used from javascript
+	TemplateVariables 	   map[string]interface{}		`mapstructure:"template_variables" json:"template_variables,omitempty" yaml:"template_variables,omitempty"`
 
 	DataSource      *adapters.DataSourceConfig            `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
 	S3              *adapters.S3Config                    `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
@@ -322,9 +327,13 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	}
 
 	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
+	vars := make(map[string]interface{})
+	vars["destinationId"] = destinationID
+	vars["destinationType"] = destination.Type
+	utils.MapPutAll(vars, destination.TemplateVariables)
 
-	processor, err := schema.NewProcessor(destinationID, destination.Type, tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver,
-		destination.BreakOnError, uniqueIDField, maxColumnNameLength)
+	processor, err := schema.NewProcessor(destinationID, utils.NvlString(destination.SubType, destination.Type), tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver,
+		destination.BreakOnError, uniqueIDField, maxColumnNameLength, vars)
 	if err != nil {
 		return nil, nil, err
 	}
