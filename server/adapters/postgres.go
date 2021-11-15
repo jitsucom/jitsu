@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/lib/pq"
-	"io/ioutil"
-	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -895,16 +893,4 @@ func checkErr(err error) error {
 	}
 
 	return err
-}
-
-//getFilePath checks if input payload is filepath - returns it
-//otherwise write payload as a file and returns abs file path
-func getFilePath(name, dir, payload string) (string, error) {
-	if path.IsAbs(payload) {
-		return payload, nil
-	}
-
-	filepath := path.Join(dir, name)
-	err := ioutil.WriteFile(filepath, []byte(payload), 0644)
-	return filepath, err
 }

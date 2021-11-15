@@ -126,16 +126,12 @@ const postgresDestination = {
     },
     {
       id: "_formData.pgsslmode",
-      displayName: "SSL Configuration",
+      displayName: "SSL Mode",
       documentation: (
         <>
-          <ul>
-            <li>
-              {" "}
-              Disable SSL: all connections to Postgres will be unsecured (non-SSL). We do not recommend to disable SSL.
-              Disabled SSL can be used with Postgres that is installed on the local machine.
-            </li>
-          </ul>
+          SSL Mode is a configuration parameter to determine the security of the connection. There is an analogy to web security: {' '}
+          <b>Disable SSL</b> is HTTP and <b>verify-full</b> is HTTPS. Other options are between them. Default one is <b>Require</b> which {' '}
+          means that data will be encrypted. We do not recommend to disable SSL. Read more about <a href="https://www.postgresql.org/docs/9.1/libpq-ssl.html">Postgres SSL Modes</a>.
         </>
       ),
       required: true,
@@ -152,29 +148,29 @@ const postgresDestination = {
     },
     {
       id: "_formData.pgssl.server_ca",
-      displayName: "Certificate authorities (CA) file",
+      displayName: "Server CA",
       type: fileType,
       required: true,
       constant: hiddenValue("", cfg => {
-        return cfg?.["_formData"]?.pgssl === "require" || cfg?.["_formData"]?.pgssl === "disable"
+        return cfg?.["_formData"]?.pgsslmode === "require" || cfg?.["_formData"]?.pgsslmode === "disable"
       }),
     },
     {
       id: "_formData.pgssl.client_cert",
-      displayName: "Client certificate file",
+      displayName: "Client certificate",
       type: fileType,
       required: true,
       constant: hiddenValue("", cfg => {
-        return cfg?.["_formData"]?.pgssl === "require" || cfg?.["_formData"]?.pgssl === "disable"
+        return cfg?.["_formData"]?.pgsslmode === "require" || cfg?.["_formData"]?.pgsslmode === "disable"
       }),
     },
     {
       id: "_formData.pgssl.client_key",
-      displayName: "Client key file",
+      displayName: "Client key",
       type: fileType,
       required: true,
       constant: hiddenValue("", cfg => {
-        return cfg?.["_formData"]?.pgssl === "require" || cfg?.["_formData"]?.pgssl === "disable"
+        return cfg?.["_formData"]?.pgsslmode === "require" || cfg?.["_formData"]?.pgsslmode === "disable"
       }),
     },
   ],

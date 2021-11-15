@@ -3,7 +3,10 @@ package adapters
 import (
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/logging"
+	"io/ioutil"
 	"path"
+	"strings"
 )
 
 const (
@@ -34,6 +37,22 @@ func (s SSLMode) String() string {
 	}
 }
 
+func FromString(sslMode string) SSLMode {
+	switch strings.TrimSpace(strings.ToLower(sslMode)) {
+	case SSLModeRequire.String():
+		return SSLModeRequire
+	case SSLModeDisable.String():
+		return SSLModeDisable
+	case SSLModeVerifyCA.String():
+		return SSLModeVerifyCA
+	case SSLModeVerifyFull.String():
+		return SSLModeVerifyFull
+	default:
+		logging.SystemErrorf("unknown SSL mode: %s", sslMode)
+		return Unknown
+	}
+}
+
 //SSLConfig is a dto for deserialized SSL configuration for Postgres
 type SSLConfig struct {
 	Mode       SSLMode `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
@@ -52,28 +71,27 @@ func (sc *SSLConfig) Validate() error {
 		return errors.New("'ssl.mode' is required parameter")
 	}
 
-	if sc.Mode == SSLModeRequire || sc.Mode == SSLModeDisable {
-		return nil
-	}
+	if sc.Mode == SSLModeVerifyCA || sc.Mode == SSLModeVerifyFull {
+		if sc.ServerCA == "" {
+			return errors.New("'ssl.server_ca' is required parameter")
+		}
 
-	if sc.ServerCA == "" {
-		return errors.New("'ssl.server_ca' is required parameter")
-	}
+		if sc.ClientCert == "" {
+			return errors.New("'ssl.client_cert' is required parameter")
+		}
 
-	if sc.ClientCert == "" {
-		return errors.New("'ssl.client_cert' is required parameter")
-	}
-
-	if sc.ClientKey == "" {
-		return errors.New("'ssl.client_key' is required parameter")
+		if sc.ClientKey == "" {
+			return errors.New("'ssl.client_key' is required parameter")
+		}
 	}
 
 	return nil
 }
 
-//ProcessSSL serializes SSL payload (ca, client cert, key) into files and enrich parameters with SSL config
+//ProcessSSL serializes SSL payload (ca, client cert, key) into files
+//enriches input DataSourceConfig parameters with SSL config
 //ssl configuration might be file path as well as string content
-func ProcessSSL(configDir, destinationID string, dsc *DataSourceConfig) error {
+func ProcessSSL(dir string, dsc *DataSourceConfig) error {
 	if dsc.SSLConfiguration == nil {
 		return nil
 	}
@@ -90,24 +108,39 @@ func ProcessSSL(configDir, destinationID string, dsc *DataSourceConfig) error {
 		return nil
 	}
 
-	dir := path.Join(configDir, destinationID)
-	serverCAPath, err := getFilePath("server_ca", dir, dsc.SSLConfiguration.ServerCA)
+	if err := logging.EnsureDir(dir); err != nil {
+		return fmt.Errorf("Error creating dir for SSL files: %v", err)
+	}
+
+	serverCAPath, err := getSSLFilePath("server_ca", dir, dsc.SSLConfiguration.ServerCA)
 	if err != nil {
 		return fmt.Errorf("error saving server_ca: %v", err)
 	}
 	dsc.Parameters["sslrootcert"] = serverCAPath
 
-	clientCertPath, err := getFilePath("client_cert", dir, dsc.SSLConfiguration.ClientCert)
+	clientCertPath, err := getSSLFilePath("client_cert", dir, dsc.SSLConfiguration.ClientCert)
 	if err != nil {
 		return fmt.Errorf("error saving client_cert: %v", err)
 	}
 	dsc.Parameters["sslcert"] = clientCertPath
 
-	clientKeyPath, err := getFilePath("client_key", dir, dsc.SSLConfiguration.ClientKey)
+	clientKeyPath, err := getSSLFilePath("client_key", dir, dsc.SSLConfiguration.ClientKey)
 	if err != nil {
 		return fmt.Errorf("error saving client_key: %v", err)
 	}
 	dsc.Parameters["sslkey"] = clientKeyPath
 
 	return nil
+}
+
+//getSSLFilePath checks if input payload is filepath - returns it
+//otherwise write payload as a file and returns abs file path
+func getSSLFilePath(name, dir, payload string) (string, error) {
+	if path.IsAbs(payload) {
+		return payload, nil
+	}
+
+	filepath := path.Join(dir, name)
+	err := ioutil.WriteFile(filepath, []byte(payload), 0600)
+	return filepath, err
 }
