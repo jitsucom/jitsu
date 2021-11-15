@@ -165,9 +165,19 @@ func mapPostgres(pgDestinations *entities.Destination) (*enstorages.DestinationC
 		return nil, fmt.Errorf("Error unmarshaling postgres form data: %v", err)
 	}
 
-	var parameters map[string]string
-	if pgFormData.DisableSSL {
-		parameters = map[string]string{"sslmode": "disable"}
+	var sslConfig *enadapters.SSLConfig
+	if pgFormData.SSLConfiguration != nil {
+		sslConfig = &enadapters.SSLConfig{}
+		sslConfig.ServerCA = pgFormData.SSLConfiguration.ServerCA
+		sslConfig.ClientCert = pgFormData.SSLConfiguration.ClientCert
+		sslConfig.ClientKey = pgFormData.SSLConfiguration.ClientKey
+	}
+
+	if pgFormData.SSLMode != enadapters.Unknown.String() {
+		if sslConfig == nil {
+			sslConfig = &enadapters.SSLConfig{}
+		}
+		sslConfig.Mode = enadapters.FromString(pgFormData.SSLMode)
 	}
 
 	return &enstorages.DestinationConfig{
@@ -178,13 +188,14 @@ func mapPostgres(pgDestinations *entities.Destination) (*enstorages.DestinationC
 			PrimaryKeyFields:  pgFormData.PKFields,
 		},
 		DataSource: &enadapters.DataSourceConfig{
-			Host:       pgFormData.Host,
-			Port:       pgFormData.Port,
-			Db:         pgFormData.Db,
-			Schema:     pgFormData.Schema,
-			Username:   pgFormData.Username,
-			Password:   pgFormData.Password,
-			Parameters: parameters,
+			Host:             pgFormData.Host,
+			Port:             pgFormData.Port,
+			Db:               pgFormData.Db,
+			Schema:           pgFormData.Schema,
+			Username:         pgFormData.Username,
+			Password:         pgFormData.Password,
+			Parameters:       map[string]string{},
+			SSLConfiguration: sslConfig,
 		},
 	}, nil
 }

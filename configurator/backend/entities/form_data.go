@@ -25,13 +25,17 @@ type PostgresFormData struct {
 	TableName string   `firestore:"tableName" json:"tableName"`
 	PKFields  []string `firestore:"pkFields" json:"pkFields"`
 
-	Db         string      `firestore:"pgdatabase" json:"pgdatabase"`
-	Host       string      `firestore:"pghost" json:"pghost"`
-	Password   string      `firestore:"pgpassword" json:"pgpassword"`
-	Port       json.Number `firestore:"pgport" json:"pgport"`
-	Schema     string      `firestore:"pgschema" json:"pgschema"`
-	Username   string      `firestore:"pguser" json:"pguser"`
-	DisableSSL bool        `firestore:"pgdisablessl" json:"pgdisablessl"`
+	Db       string      `firestore:"pgdatabase" json:"pgdatabase"`
+	Host     string      `firestore:"pghost" json:"pghost"`
+	Password string      `firestore:"pgpassword" json:"pgpassword"`
+	Port     json.Number `firestore:"pgport" json:"pgport"`
+	Schema   string      `firestore:"pgschema" json:"pgschema"`
+	Username string      `firestore:"pguser" json:"pguser"`
+	//DEPRECATED
+	DisableSSL bool `firestore:"pgdisablessl" json:"pgdisablessl"`
+
+	SSLMode          string              `firestore:"pgsslmode" json:"pgsslmode"`
+	SSLConfiguration *adapters.SSLConfig `firestore:"pgssl" json:"pgssl"`
 }
 
 //ClickHouseFormData entity is stored in main storage (Firebase/Redis)
