@@ -97,7 +97,6 @@ func evaluate(req *EvaluateTemplateRequest) (result string, format string, err e
 	if req.Field == "_transform" {
 		transformIds = []string{req.Type, "segment"}
 	}
-	logging.Infof("Ev Tmpl Vars: %v", req.TemplateFunctions())
 	tmpl, err := templates.SmartParse("template evaluating", req.Expression, req.TemplateFunctions(), transformIds...)
 	if err != nil {
 		return "", "", fmt.Errorf("error parsing template: %v", err)
