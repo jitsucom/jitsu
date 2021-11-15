@@ -14,8 +14,8 @@
     "console-stamp": "^0.2.9",
     "devserver": "^0.2.5",
     "express": "^4.17.1",
-    "merge": "^1.2.1",
-    "react-dev-utils": "^10.2.1",
+    "merge": "^2.1.1",
+    "react-dev-utils": "^11.0.4",
     "rollup": "^2.39.0",
     "rollup-plugin-commonjs": "^9.2.0",
     "rollup-plugin-copy": "^3.3.0",
@@ -39,5 +39,19 @@
   ],
   "dependencies": {
     "uuid": "^8.3.2"
+  },
+  "resolutions": {
+    "immer": "^9.0.6",
+    "http-proxy": "^1.18.1",
+    "qs": "^6.0.4",
+    "minimist": "^0.2.1",
+    "base64-url": "^2.0.0",
+    "morgan": "^1.9.1",
+    "cli": "^1.0.0",
+    "negotiator": "^0.6.1",
+    "debug": "^2.6.9",
+    "browserslist": "^4.16.5",
+    "fresh": "^0.5.2",
+    "mime": "^1.4.1"
   }
 }
