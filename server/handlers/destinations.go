@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"strings"
 	"time"
 
@@ -176,7 +175,7 @@ func testPostgres(config *storages.DestinationConfig, eventContext *adapters.Eve
 	config.DataSource.Parameters["connect_timeout"] = "6"
 
 	hash := resources.GetStringHash(config.DataSource.Host + config.DataSource.Username)
-	dir := path.Join(appconfig.Instance.ConfigPath, hash)
+	dir := adapters.SSLDir(appconfig.Instance.ConfigPath, hash)
 	if err := adapters.ProcessSSL(dir, config.DataSource); err != nil {
 		return err
 	}
@@ -304,7 +303,7 @@ func testRedshift(config *storages.DestinationConfig, eventContext *adapters.Eve
 	config.DataSource.Parameters["connect_timeout"] = "6"
 
 	hash := resources.GetStringHash(config.DataSource.Host + config.DataSource.Username)
-	dir := path.Join(appconfig.Instance.ConfigPath, hash)
+	dir := adapters.SSLDir(appconfig.Instance.ConfigPath, hash)
 	if err := adapters.ProcessSSL(dir, config.DataSource); err != nil {
 		return err
 	}
