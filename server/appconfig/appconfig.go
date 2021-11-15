@@ -97,6 +97,9 @@ func setDefaultParams(containerized bool) {
 
 	viper.SetDefault("server.volumes.workspace", "jitsu_workspace")
 
+	//User Recognition anonymous events default TTL 10080 min - 7 days
+	viper.SetDefault("meta.storage.redis.ttl_minutes.anonymous_events", 10080)
+
 	//MaxMind URL
 	viper.SetDefault("maxmind.official_url", "https://download.maxmind.com/app/geoip_download?license_key=%s&edition_id=%s&suffix=tar.gz")
 
