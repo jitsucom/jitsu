@@ -51,7 +51,7 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		return nil, err
 	}
 	templateVars := make(map[string]interface{})
-	for k,v := range destination.Data.(map[string]interface{}) {
+	for k, v := range destination.Data.(map[string]interface{}) {
 		if strings.HasPrefix(k, "_") {
 			templateVars[k[1:]] = v
 		}
@@ -174,9 +174,19 @@ func mapPostgres(pgDestinations *entities.Destination) (*enstorages.DestinationC
 		return nil, fmt.Errorf("Error unmarshaling postgres form data: %v", err)
 	}
 
-	var parameters map[string]string
-	if pgFormData.DisableSSL {
-		parameters = map[string]string{"sslmode": "disable"}
+	var sslConfig *enadapters.SSLConfig
+	if pgFormData.SSLConfiguration != nil {
+		sslConfig = &enadapters.SSLConfig{}
+		sslConfig.ServerCA = pgFormData.SSLConfiguration.ServerCA
+		sslConfig.ClientCert = pgFormData.SSLConfiguration.ClientCert
+		sslConfig.ClientKey = pgFormData.SSLConfiguration.ClientKey
+	}
+
+	if pgFormData.SSLMode != enadapters.Unknown.String() {
+		if sslConfig == nil {
+			sslConfig = &enadapters.SSLConfig{}
+		}
+		sslConfig.Mode = enadapters.FromString(pgFormData.SSLMode)
 	}
 
 	return &enstorages.DestinationConfig{
@@ -187,13 +197,14 @@ func mapPostgres(pgDestinations *entities.Destination) (*enstorages.DestinationC
 			PrimaryKeyFields:  pgFormData.PKFields,
 		},
 		DataSource: &enadapters.DataSourceConfig{
-			Host:       pgFormData.Host,
-			Port:       pgFormData.Port,
-			Db:         pgFormData.Db,
-			Schema:     pgFormData.Schema,
-			Username:   pgFormData.Username,
-			Password:   pgFormData.Password,
-			Parameters: parameters,
+			Host:             pgFormData.Host,
+			Port:             pgFormData.Port,
+			Db:               pgFormData.Db,
+			Schema:           pgFormData.Schema,
+			Username:         pgFormData.Username,
+			Password:         pgFormData.Password,
+			Parameters:       map[string]string{},
+			SSLConfiguration: sslConfig,
 		},
 	}, nil
 }
@@ -421,9 +432,9 @@ func mapWebhook(whDestination *entities.Destination) (*enstorages.DestinationCon
 	}
 
 	return &enstorages.DestinationConfig{
-		Type: enstorages.WebHookType,
+		Type:    enstorages.WebHookType,
 		SubType: whDestination.Type,
-		Mode: whFormData.Mode,
+		Mode:    whFormData.Mode,
 		WebHook: &enadapters.WebHookConfig{
 			URL:     whFormData.URL,
 			Method:  whFormData.Method,

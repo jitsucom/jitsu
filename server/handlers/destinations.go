@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -172,6 +174,19 @@ func testPostgres(config *storages.DestinationConfig, eventContext *adapters.Eve
 
 	config.DataSource.Parameters["connect_timeout"] = "6"
 
+	hash := resources.GetStringHash(config.DataSource.Host + config.DataSource.Username)
+	dir := adapters.SSLDir(appconfig.Instance.ConfigPath, hash)
+	if err := adapters.ProcessSSL(dir, config.DataSource); err != nil {
+		return err
+	}
+
+	//delete dir with SSL
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			logging.SystemErrorf("Error deleting generated ssl config dir [%s]: %v", dir, err)
+		}
+	}()
+
 	postgres, err := adapters.NewPostgres(context.Background(), config.DataSource, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
 		return err
@@ -286,6 +301,19 @@ func testRedshift(config *storages.DestinationConfig, eventContext *adapters.Eve
 	}
 
 	config.DataSource.Parameters["connect_timeout"] = "6"
+
+	hash := resources.GetStringHash(config.DataSource.Host + config.DataSource.Username)
+	dir := adapters.SSLDir(appconfig.Instance.ConfigPath, hash)
+	if err := adapters.ProcessSSL(dir, config.DataSource); err != nil {
+		return err
+	}
+
+	//delete dir with SSL
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			logging.SystemErrorf("Error deleting generated ssl config dir [%s]: %v", dir, err)
+		}
+	}()
 
 	redshift, err := adapters.NewAwsRedshift(context.Background(), config.DataSource, config.S3, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
