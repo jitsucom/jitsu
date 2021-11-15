@@ -103,7 +103,7 @@ if ($.event_type == "simple") {
 }
 return $
 `
-	p, err := schema.NewProcessor("test", "google_analytics",`events`, transormExpression, fieldMapper, []enrichment.Rule{}, schema.NewFlattener(), schema.NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+	p, err := schema.NewProcessor("test", "google_analytics",`events`, transormExpression, fieldMapper, []enrichment.Rule{}, schema.NewFlattener(), schema.NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, map[string]interface{}{})
 
 	require.NoError(t, err)
 	for _, tt := range tests {

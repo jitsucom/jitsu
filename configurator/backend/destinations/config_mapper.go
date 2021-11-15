@@ -8,6 +8,7 @@ import (
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/schema"
 	enstorages "github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/utils"
 	"strings"
 )
 
@@ -16,7 +17,7 @@ const defaultPrimaryKey = "eventn_ctx_event_id"
 func MapConfig(destinationID string, destination *entities.Destination, defaultS3 *enadapters.S3Config, postHandleDestinations []string) (*enstorages.DestinationConfig, error) {
 	var config *enstorages.DestinationConfig
 	var err error
-	switch destination.Type {
+	switch utils.NvlString(destination.SuperType, destination.Type) {
 	case enstorages.PostgresType:
 		config, err = mapPostgres(destination)
 	case enstorages.ClickHouseType:
@@ -49,6 +50,14 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 	if err != nil {
 		return nil, err
 	}
+	templateVars := make(map[string]interface{})
+	for k,v := range destination.Data.(map[string]interface{}) {
+		if strings.HasPrefix(k, "_") {
+			templateVars[k[1:]] = v
+		}
+	}
+
+	config.TemplateVariables = templateVars
 
 	enrichMappingRules(destination, config)
 	config.DataLayout.TransformEnabled = destination.TransformEnabled
@@ -413,6 +422,7 @@ func mapWebhook(whDestination *entities.Destination) (*enstorages.DestinationCon
 
 	return &enstorages.DestinationConfig{
 		Type: enstorages.WebHookType,
+		SubType: whDestination.Type,
 		Mode: whFormData.Mode,
 		WebHook: &enadapters.WebHookConfig{
 			URL:     whFormData.URL,
