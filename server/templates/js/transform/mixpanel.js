@@ -11,6 +11,10 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
   );
   const refDomain = matches && matches[1]; // domain will be null if no match is found
 
+  const mustUpdateUserProfile =
+    users_enabled &&
+    (user.internal_id || user.email || anonymous_users_enabled);
+
   function getEventType($) {
     switch ($.event_type) {
       case "user_identify":
@@ -62,7 +66,7 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
       });
     }
 
-    if (users_enabled) {
+    if (mustUpdateUserProfile) {
       $set = {
         $email: user.email,
         $name: user.name,
@@ -142,7 +146,7 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
       },
     });
 
-    if (users_enabled) {
+    if (mustUpdateUserProfile) {
       $set = {
         [`Last ${eventName || eventType}`]: $._timestamp,
       };
@@ -155,7 +159,7 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
     }
   }
 
-  if (users_enabled) {
+  if (mustUpdateUserProfile) {
     //Set User Profile Properties
 
     engageObject = {
