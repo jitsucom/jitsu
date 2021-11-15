@@ -84,6 +84,17 @@ const mixpanelDestination = {
         </>
       ),
     },
+    {
+      id: "_formData._anonymous_users_enabled",
+      displayName: "User Profiles for anonymous users",
+      required: false,
+      type: booleanType,
+      documentation: (
+        <>
+          Enables updating User Profiles for anonymous users. Requires <b>Enable User Profiles</b> enabled.
+        </>
+      ),
+    },
   ],
   ui: {
     icon,

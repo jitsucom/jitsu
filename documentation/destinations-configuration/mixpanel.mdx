@@ -126,6 +126,7 @@ destinations:
     template_variables:
       token: abc123abc123abc123
       users_enabled: true
+      anonymous_users_enabled: false
 ```
 
 ### Configuration Parameters
@@ -156,6 +157,13 @@ Configuration parameters for Mixpanel destination must be provided under `templa
       </td>
       <td>boolean</td>
       <td>Enables Mixpanel destination to work with User Profiles. See <a href="#user-profiles">User Profiles</a> section</td>
+    </tr>
+    <tr>
+      <td>
+          <b>anonymous_users_enabled</b>
+      </td>
+      <td>boolean</td>
+      <td>Enables updating User Profiles for anonymous users. Requires <b>users_enabled</b> set to <b>true</b></td>
     </tr>
   </tbody>
 </table>
