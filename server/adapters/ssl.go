@@ -88,6 +88,12 @@ func (sc *SSLConfig) Validate() error {
 	return nil
 }
 
+//SSLDir returns SSL dir
+// /:path_to_configs/ssl/:ID
+func SSLDir(dir, identifier string) string {
+	return path.Join(dir, "ssl", identifier)
+}
+
 //ProcessSSL serializes SSL payload (ca, client cert, key) into files
 //enriches input DataSourceConfig parameters with SSL config
 //ssl configuration might be file path as well as string content
