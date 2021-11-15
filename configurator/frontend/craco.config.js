@@ -15,14 +15,6 @@ module.exports = {
   devServer: {
     host: DEV_HOST,
     port: DEV_PORT,
-    // proxy: process.env.PROXY_BACKEND ? ({
-    //   '/api': {
-    //     target: `${process.env.PROXY_BACKEND}/api`,
-    //     secure: false,
-    //     changeOrigin: true
-    //
-    //   }
-    // }) : [] ,
     hot: true,
     historyApiFallback: true,
     headers: {
@@ -36,6 +28,11 @@ module.exports = {
       errors: true,
     },
     contentBase: __dirname + "/public",
+  },
+  babel: {
+    loaderOptions: {
+      babelrc: true,
+    },
   },
   webpack: {
     plugins: [
