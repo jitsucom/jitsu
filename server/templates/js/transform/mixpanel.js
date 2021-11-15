@@ -12,8 +12,12 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
   const refDomain = matches && matches[1]; // domain will be null if no match is found
 
   const mustUpdateUserProfile =
-    users_enabled &&
-    (user.internal_id || user.email || anonymous_users_enabled);
+    (typeof users_enabled != "undefined" ? users_enabled : false) &&
+    (user.internal_id ||
+      user.email ||
+      (typeof anonymous_users_enabled != "undefined"
+        ? anonymous_users_enabled
+        : false));
 
   function getEventType($) {
     switch ($.event_type) {
