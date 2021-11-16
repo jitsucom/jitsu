@@ -50,8 +50,8 @@ const BillingBlockingModal = (props: BillingBlockingModalProps) => {
           Your account is paused due to usage about the quota: <>{props.blockingReason} </>
         </p>
         <p>
-          You can't edit the configuration.As a courtesy we kept you data flowing through Jitsu. However, we reserve the
-          right to pause it at any moment
+          You can't edit the configuration. As a courtesy we kept you data flowing through Jitsu. However, we reserve
+          the right to pause it at any moment
         </p>
         <p>
           Please upgrade to any of the <a href="https://jitsu.com/pricing">following plans</a>:{" "}
