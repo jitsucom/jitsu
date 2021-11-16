@@ -13,6 +13,7 @@
 /dist
 
 # configs -- will keep multi-line json arrays
+.babelrc
 .eslintrc.json
 .craco.config.js
 package.json
