@@ -263,6 +263,11 @@ func testClickHouse(config *storages.DestinationConfig, eventContext *adapters.E
 			return err
 		}
 
+		if err := ch.CreateDB(config.ClickHouse.Database); err != nil {
+			ch.Close()
+			return err
+		}
+
 		if err = ch.CreateTable(eventContext.Table); err != nil {
 			ch.Close()
 			return err
