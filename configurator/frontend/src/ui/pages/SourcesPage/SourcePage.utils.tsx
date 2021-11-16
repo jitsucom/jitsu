@@ -22,6 +22,7 @@ const sourcePageUtils = {
     sourceConnector?.protoType ? sourceConnector?.protoType : snakeCase(sourceConnector?.id),
   getSourcePrototype: (sourceConnector: SourceConnector): string => snakeCase(sourceConnector?.id),
   getSourceId: (sourceProtoType: string, sourcesIds: string[]) => {
+    sourceProtoType = sourceProtoType.replace('airbyte-source-', '').replace('singer-tap-', '')
     const isUniqueSourceId = !sourcesIds.find(id => id === sourceProtoType)
 
     if (isUniqueSourceId) {
