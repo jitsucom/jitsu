@@ -18,7 +18,7 @@ export const makeAirbyteSource = (airbyteSource: AirbyteSource): SourceConnector
     expertMode: false,
     pic: airbyteSource.pic,
     displayName: airbyteSource.displayName,
-    id: `airbyte-${dockerImageNameWithoutPrefix}` as const,
+    id: `${dockerImageNameWithoutPrefix}` as const,
     collectionTypes: [],
     documentation: airbyteSource.documentation,
     collectionParameters: [],

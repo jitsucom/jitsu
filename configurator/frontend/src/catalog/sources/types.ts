@@ -302,6 +302,8 @@ type SourceConnectorId =
   | "firebase"
   | "redis"
   | "amplitude"
+  | `${string}`
+  //Backward compatibility
   | `singer-${string}`
   | `airbyte-source-${string}`
 export interface SourceConnector {
