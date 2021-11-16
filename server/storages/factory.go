@@ -50,7 +50,7 @@ var (
 type DestinationConfig struct {
 	OnlyTokens             []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
 	Type                   string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	SubType                string        			`mapstructure:"subtype" json:"subtype,omitempty" yaml:"subtype,omitempty"`
+	SubType                string                   `mapstructure:"subtype" json:"subtype,omitempty" yaml:"subtype,omitempty"`
 	Mode                   string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
 	DataLayout             *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
 	UsersRecognition       *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
@@ -63,7 +63,7 @@ type DestinationConfig struct {
 	GeoDataResolverID      string                   `mapstructure:"geo_data_resolver_id" json:"geo_data_resolver_id,omitempty" yaml:"geo_data_resolver_id,omitempty"`
 
 	//variables that can be used from javascript
-	TemplateVariables 	   map[string]interface{}		`mapstructure:"template_variables" json:"template_variables,omitempty" yaml:"template_variables,omitempty"`
+	TemplateVariables map[string]interface{} `mapstructure:"template_variables" json:"template_variables,omitempty" yaml:"template_variables,omitempty"`
 
 	DataSource      *adapters.DataSourceConfig            `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
 	S3              *adapters.S3Config                    `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
@@ -85,8 +85,8 @@ type DataLayout struct {
 	//Deprecated
 	Mapping []string `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
 
-	TransformEnabled  bool			  `mapstructure:"transform_enabled" json:"transform_enabled" yaml:"transform_enabled"`
-	Transform         string          `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
+	TransformEnabled bool   `mapstructure:"transform_enabled" json:"transform_enabled" yaml:"transform_enabled"`
+	Transform        string `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
 	//Deprecated
 	Mappings          *schema.Mapping `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
 	MaxColumns        int             `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
@@ -141,7 +141,7 @@ type Config struct {
 	streamMode             bool
 	maxColumns             int
 	monitorKeeper          MonitorKeeper
-	eventQueue             *events.PersistentQueue
+	eventQueue             events.PersistentQueue
 	eventsCache            *caching.EventsCache
 	loggerFactory          *logging.Factory
 	pkFields               map[string]bool
@@ -159,7 +159,7 @@ func RegisterStorage(storageType StorageType) {
 
 //Factory is a destinations factory for creation
 type Factory interface {
-	Create(name string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error)
+	Create(name string, destination DestinationConfig) (StorageProxy, events.PersistentQueue, error)
 }
 
 type StorageType struct {
@@ -199,7 +199,7 @@ func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Servic
 
 //Create builds event storage proxy and event consumer (logger or event-queue)
 //Enriches incoming configs with default values if needed
-func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error) {
+func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig) (StorageProxy, events.PersistentQueue, error) {
 	if destination.Type == "" {
 		destination.Type = destinationID
 	}
