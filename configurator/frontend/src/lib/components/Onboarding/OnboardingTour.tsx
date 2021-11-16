@@ -142,12 +142,6 @@ const OnboardingTour: React.FC = () => {
         await services.userService.update(user)
       }
 
-      const userCompletedOnboardingTourPreviously = (
-        await services.storageService.get("onboarding_tour_completed", services.activeProject.id)
-      ).completed
-
-      if (userCompletedOnboardingTourPreviously) return
-
       const [user, destinations, events] = await Promise.all([
         services.userService.getUser(),
         services.storageService.get("destinations", services.activeProject.id),
@@ -211,3 +205,5 @@ function calculateAmountOfSteps(config: OnboardingConfig): number {
 OnboardingTour.displayName = "OnboardingTour"
 
 export { OnboardingTour }
+
+export default OnboardingTour
