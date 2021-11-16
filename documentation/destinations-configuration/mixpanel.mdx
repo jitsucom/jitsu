@@ -1,5 +1,12 @@
 # Mixpanel
 
+<Hint>
+    <ul>
+        <li>Mixpanel destination is available in `beta` version only</li>
+        <li>This section of documentation is still in progress</li>
+    </ul>
+</Hint>
+
 **Jitsu** supports [Mixpanel](https://mixpanel.com) as a destination and
 sends data using  [Ingestion API](https://developer.mixpanel.com/reference/ingestion-api).
 
@@ -12,25 +19,25 @@ Mixpanel destination may also send User Profiles data to Mixpanel accounts that 
 Mixpanel destination relies on JavaScript Transform.
 Default implementation passes incoming event to `toMixpanel` javascript method that does all transformations:
 ```javascript
-return toMixpanel($, /* User Profile updates */ {}, /* Additional Event properties */ {}, /* Overridden event name*/ '')
+return toMixpanel($, {userProfileUpdates: {}, additionalProperties: {}, overriddenEventName: ''})
 ```
 `toMixpanel` source code may be found in [jitsu github repository](https://github.com/jitsucom/jitsu/blob/master/server/templates/js/transform/mixpanel.js). 
 
 You can extract additional properties from incoming event and pass it to `toMixpanel` – they will be added to Mixpanel event:
 ```javascript
-const additionalProperties = {
+const myProperties = {
     "Title": $.page_title
 }
-return toMixpanel($, /* User Profile updates */ {},  /*Additional Event properties */ additionalProperties, /* Overridden event name*/ '')
+return toMixpanel($, {userProfileUpdates: {}, additionalProperties: myProperties, overriddenEventName: ''})
 ```
 
 You can set your own event names based on incoming event data:
 ```javascript
-let overriddenEventName = ''
+let myEventName = ''
 if ($.doc_path?.startsWith("/shop/")) {
-    overriddenEventName = "Shop Page"
+    myEventName = "Shop Page"
 }
-return toMixpanel($, /* User Profile updates */ {},  /*Additional Event properties */ {}, /* Overridden event name */ overriddenEventName)
+return toMixpanel($, {userProfileUpdates: {}, additionalProperties: {}, overriddenEventName: myEventName})
 ```
 
 ## Tracking Revenue
@@ -67,8 +74,7 @@ let userProfileUpdates = {
   }
 }
 
-return toMixpanel($, /* User Profile updates */ userProfileUpdates,  /*Additional Event properties */ {}, /* Overridden event name */ '')
-
+return toMixpanel($, {userProfileUpdates: userProfileUpdates, additionalProperties: {}, overriddenEventName: ''})
 ```
 
 ### Other User Profile settings
@@ -84,7 +90,7 @@ let userProfileUpdates = {
     "Coins Gathered": 12
   }
 }
-return toMixpanel($, /* User Profile updates */ userProfileUpdates,  /*Additional Event properties */ {}, /* Overridden event name */ '')
+return toMixpanel($, {userProfileUpdates: userProfileUpdates, additionalProperties: {}, overriddenEventName: ''})
 ```
 
 [Union To List Property](https://developer.mixpanel.com/reference/user-profile-union):
@@ -95,7 +101,7 @@ let userProfileUpdates = {
     "Items purchased": ["socks", "shirts"]
   }
 }
-return toMixpanel($, /* User Profile updates */ userProfileUpdates,  /*Additional Event properties */ {}, /* Overridden event name */ '')
+return toMixpanel($, {userProfileUpdates: userProfileUpdates, additionalProperties: {}, overriddenEventName: ''})
 ```
 
 ## Skipping events
@@ -105,7 +111,7 @@ If not all event types are needed in Mixpanel – you can skip unnecessary evens
 if ($.event_type === "not_interesting") {
   return null
 }
-return toMixpanel($, /* User Profile updates */ {},  /*Additional Event properties */ {}, /* Overridden event name */ '')
+return toMixpanel($, {userProfileUpdates: {}, additionalProperties: {}, overriddenEventName: ''})
 ```
 
 

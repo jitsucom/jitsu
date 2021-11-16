@@ -29,8 +29,7 @@ const mixpanelDestination = {
   id: "mixpanel",
   type: "other",
   displayName: "Mixpanel",
-  defaultTransform:
-    "return toMixpanel($, /* User Profile updates */ {}, /* Additional Event properties */ {}, /* Overridden event name*/ '')",
+  defaultTransform: "return toMixpanel($, {userProfileUpdates: {}, additionalProperties: {}, overriddenEventName: ''})",
   hidden: false,
   parameters: [
     {

@@ -1,4 +1,11 @@
-function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
+function JitsuTransformFunction(
+  $,
+  {
+    userProfileUpdates = {},
+    additionalProperties = {},
+    overriddenEventName = "",
+  } = {}
+) {
   const context = $.eventn_ctx || $;
   const user = context.user || {};
   const utm = context.utm || {};
@@ -12,12 +19,8 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
   const refDomain = matches && matches[1]; // domain will be null if no match is found
 
   const mustUpdateUserProfile =
-    (typeof users_enabled != "undefined" ? users_enabled : false) &&
-    (user.internal_id ||
-      user.email ||
-      (typeof anonymous_users_enabled != "undefined"
-        ? anonymous_users_enabled
-        : false));
+    globalThis.users_enabled &&
+    (user.internal_id || user.email || globalThis.anonymous_users_enabled);
 
   function getEventType($) {
     switch ($.event_type) {
@@ -62,7 +65,7 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
                 properties: {
                   alias: user.anonymous_id || user.hashed_anonymous_id,
                   distinct_id: user.internal_id || user.email,
-                  token: token,
+                  token: globalThis.token,
                 },
               })
             ),
@@ -106,9 +109,9 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
           "data=" +
           encodeURIComponent(
             JSON.stringify({
-              event: eventName || eventType,
+              event: overriddenEventName || eventType,
               properties: {
-                token: token,
+                token: globalThis.token,
                 time: new Date($._timestamp).getTime(),
                 $insert_id: $.eventn_ctx_event_id || context.event_id,
                 $current_url: context.url,
@@ -143,7 +146,7 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
                 utm_content: utm.content,
                 utm_term: utm.term,
                 Revenue: conversion.revenue || $.revenue,
-                ...eventExtraParams,
+                ...additionalProperties,
               },
             })
           ),
@@ -152,10 +155,10 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
 
     if (mustUpdateUserProfile) {
       $set = {
-        [`Last ${eventName || eventType}`]: $._timestamp,
+        [`Last ${overriddenEventName || eventType}`]: $._timestamp,
       };
       $add = {
-        [eventName || eventType]: 1,
+        [overriddenEventName || eventType]: 1,
       };
       if (conversion.revenue || $.revenue) {
         $add["Lifetime Revenue"] = conversion.revenue || $.revenue;
@@ -166,22 +169,22 @@ function JitsuTransformFunction($, engageObject, eventExtraParams, eventName) {
   if (mustUpdateUserProfile) {
     //Set User Profile Properties
 
-    engageObject = {
-      ...engageObject,
-      $set: { ...$set, ...engageObject?.$set },
-      $set_once: { ...$set_once, ...engageObject?.$set_once },
-      $add: { ...$add, ...engageObject?.$add },
+    userProfileUpdates = {
+      ...userProfileUpdates,
+      $set: { ...$set, ...userProfileUpdates?.$set },
+      $set_once: { ...$set_once, ...userProfileUpdates?.$set_once },
+      $add: { ...$add, ...userProfileUpdates?.$add },
     };
 
     //Make a separate API request for engageObject properties.
     //Use batch update for updating multiple properties with one request
     let engages = [];
-    Object.keys(engageObject).forEach((key) => {
-      const engage = engageObject[key];
+    Object.keys(userProfileUpdates).forEach((key) => {
+      const engage = userProfileUpdates[key];
 
       if (Object.keys(engage).length > 0) {
         engages.push({
-          $token: token,
+          $token: globalThis.token,
           $distinct_id:
             user.internal_id ||
             user.email ||
