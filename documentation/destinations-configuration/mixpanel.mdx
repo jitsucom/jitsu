@@ -28,7 +28,7 @@ You can extract additional properties from incoming event and pass it to `toMixp
 const myProperties = {
     "Title": $.page_title
 }
-return toMixpanel($, {userProfileUpdates: {}, additionalProperties: myProperties, overriddenEventName: ''})
+return toMixpanel($, {additionalProperties: myProperties})
 ```
 
 You can set your own event names based on incoming event data:
@@ -37,7 +37,7 @@ let myEventName = ''
 if ($.doc_path?.startsWith("/shop/")) {
     myEventName = "Shop Page"
 }
-return toMixpanel($, {userProfileUpdates: {}, additionalProperties: {}, overriddenEventName: myEventName})
+return toMixpanel($, {overriddenEventName: myEventName})
 ```
 
 ## Tracking Revenue
@@ -74,7 +74,7 @@ let userProfileUpdates = {
   }
 }
 
-return toMixpanel($, {userProfileUpdates: userProfileUpdates, additionalProperties: {}, overriddenEventName: ''})
+return toMixpanel($, {userProfileUpdates: userProfileUpdates})
 ```
 
 ### Other User Profile settings
@@ -90,7 +90,7 @@ let userProfileUpdates = {
     "Coins Gathered": 12
   }
 }
-return toMixpanel($, {userProfileUpdates: userProfileUpdates, additionalProperties: {}, overriddenEventName: ''})
+return toMixpanel($, {userProfileUpdates: userProfileUpdates})
 ```
 
 [Union To List Property](https://developer.mixpanel.com/reference/user-profile-union):
@@ -101,7 +101,7 @@ let userProfileUpdates = {
     "Items purchased": ["socks", "shirts"]
   }
 }
-return toMixpanel($, {userProfileUpdates: userProfileUpdates, additionalProperties: {}, overriddenEventName: ''})
+return toMixpanel($, {userProfileUpdates: userProfileUpdates})
 ```
 
 ## Skipping events
@@ -111,7 +111,7 @@ If not all event types are needed in Mixpanel – you can skip unnecessary evens
 if ($.event_type === "not_interesting") {
   return null
 }
-return toMixpanel($, {userProfileUpdates: {}, additionalProperties: {}, overriddenEventName: ''})
+return toMixpanel($)
 ```
 
 
