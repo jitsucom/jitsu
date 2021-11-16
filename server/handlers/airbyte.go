@@ -9,10 +9,14 @@ import (
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/oauth"
 	"github.com/jitsucom/jitsu/server/runner"
+	"github.com/jitsucom/jitsu/server/utils"
+	"github.com/spf13/viper"
 	"io/ioutil"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -105,11 +109,46 @@ func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
 		return
 	}
-
+	row, ok := spec.(*airbyte.Row)
+	if !ok {
+		logging.Errorf("spec of unexpected type %T for: %s:%s", spec, dockerImage, imageVersion)
+	} else {
+		enrichOathFields(dockerImage, row.Spec)
+	}
 	c.JSON(http.StatusOK, SpecResponse{
 		StatusResponse: middleware.OKResponse(),
 		Spec:           spec,
 	})
+}
+
+func enrichOathFields(dockerImage string, spec interface{} ) {
+	oathFields, ok := oauth.Fields[dockerImage]
+	if ok {
+		props, err := utils.ExtractObject(spec, "connectionSpecification", "properties")
+		if err != nil {
+			logging.Errorf("failed to extract properties from spec for %s : %v", dockerImage, err)
+			return
+		}
+		propsMap, ok := props.(map[string]interface{})
+		if !ok {
+			logging.Errorf("cannot convert properties to map[string]interface{} from: %T", props)
+			return
+		}
+		for k,v := range oathFields {
+			pr, ok := propsMap[k]
+			if !ok {
+				continue
+			}
+			prMap, ok := pr.(map[string]interface{})
+			if !ok {
+				logging.Errorf("cannot convert property %s to map[string]interface{} from: %T", k, pr)
+				continue
+			}
+			prMap["env_name"] = strings.ReplaceAll(strings.ToUpper(v), ".", "_")
+			prMap["yaml_path"] = v
+			prMap["provided"] = viper.GetString(v) != ""
+		}
+	}
 }
 
 //CatalogHandler returns airbyte catalog by docker name and config
