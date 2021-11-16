@@ -113,7 +113,7 @@ export const makeSingerSource = (singerTap: SingerTap): SourceConnector => {
     expertMode: !singerTap.parameters,
     pic: singerTap.pic,
     displayName: singerTap.displayName,
-    id: `${singerTap.tap}` as const,
+    id: `singer-${singerTap.tap}` as const,
     collectionTypes: [],
     documentation: singerTap.documentation,
     collectionParameters: [],
