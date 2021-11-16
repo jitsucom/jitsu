@@ -10,6 +10,7 @@ require (
 	firebase.google.com/go/v4 v4.1.0
 	github.com/FZambia/sentinel v1.1.0
 	github.com/aws/aws-sdk-go v1.34.0
+	github.com/beeker1121/goque v2.1.0+incompatible // indirect
 	github.com/charmbracelet/lipgloss v0.2.1
 	github.com/docker/docker v20.10.6+incompatible
 	github.com/docker/go-connections v0.4.0
@@ -52,6 +53,7 @@ require (
 	github.com/xitongsys/parquet-go v1.6.1
 	github.com/xitongsys/parquet-go-source v0.0.0-20211010230925-397910c5e371
 	github.com/xtgo/uuid v0.0.0-20140804021211-a0b114877d4c // indirect
+	github.com/xtreding/goque/v2 v2.1.4
 	go.etcd.io/etcd/client/v3 v3.5.0-alpha.0
 	go.uber.org/atomic v1.7.0
 	golang.org/x/net v0.0.0-20210503060351-7fd8e65b6420
