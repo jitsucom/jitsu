@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -245,7 +246,10 @@ func testClickHouse(config *storages.DestinationConfig, eventContext *adapters.E
 		return multiErr
 	}
 
-	for _, dsn := range config.ClickHouse.Dsns {
+	for i, dsn := range config.ClickHouse.Dsns {
+		//create N tables where N=len(dsns). For testing each dsn
+		eventContext.Table.Name += strconv.Itoa(i)
+
 		dsnURL, err := url.Parse(strings.TrimSpace(dsn))
 		if err != nil {
 			return err
