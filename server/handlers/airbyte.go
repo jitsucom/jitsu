@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/airbyte"
+	airbyte2 "github.com/jitsucom/jitsu/server/drivers/airbyte"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/oauth"
@@ -134,6 +135,14 @@ func enrichOathFields(dockerImage string, spec interface{} ) {
 			logging.Errorf("cannot convert properties to map[string]interface{} from: %T", props)
 			return
 		}
+		specsRaw, _ := utils.ExtractObject(spec, "connectionSpecification")
+		specs := specsRaw.(map[string]interface{})
+		required, ok := specs["required"].([]interface{})
+		if !ok {
+			logging.Errorf("cannot get required properties of []interface{}. found: %T", specs["required"])
+			return
+		}
+		provided := make(map[string]bool)
 		for k,v := range oathFields {
 			pr, ok := propsMap[k]
 			if !ok {
@@ -144,10 +153,19 @@ func enrichOathFields(dockerImage string, spec interface{} ) {
 				logging.Errorf("cannot convert property %s to map[string]interface{} from: %T", k, pr)
 				continue
 			}
+			prov := viper.GetString(v) != ""
 			prMap["env_name"] = strings.ReplaceAll(strings.ToUpper(v), ".", "_")
 			prMap["yaml_path"] = v
-			prMap["provided"] = viper.GetString(v) != ""
+			prMap["provided"] = prov
+			provided[k] = prov
 		}
+		newReq := make([]interface{}, 0, len(required) - len(provided))
+		for _,v := range required {
+			if !provided[v.(string)] {
+				newReq = append(newReq, v)
+			}
+		}
+		specs["required"] = newReq
 	}
 }
 
@@ -165,6 +183,7 @@ func (ah *AirbyteHandler) CatalogHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
 		return
 	}
+	airbyte2.FillPreconfiguredOauth(dockerImage, airbyteSourceConnectorConfig)
 
 	imageVersion := c.Query("image_version")
 	if imageVersion == "" {
