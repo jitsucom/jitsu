@@ -10,11 +10,9 @@ import { SetSourceEditorState } from "./SourceEditor"
 import { SourceEditorFormConfigurationStaticFields } from "./SourceEditorFormConfigurationStaticFields"
 import { SourceEditorFormConfigurationConfigurableLoadableFields } from "./SourceEditorFormConfigurationConfigurableLoadableFields"
 import { SourceEditorFormConfigurationConfigurableFields } from "./SourceEditorFormConfigurationConfigurableFields"
-import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { OauthButton } from "../../OauthButton/OauthButton"
-import { handleError } from "lib/components/components"
 // @Utils
-import { toTitleCase } from "utils/strings"
+import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 
 type Props = {
   editorMode: "add" | "edit"
@@ -68,7 +66,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
 
   const setOauthSecretsToForms = useCallback<(secrets: PlainObjectWithPrimitiveValues) => void>(
     secrets => {
-      applyOauthValuesToForms(forms, secrets)
+      sourcePageUtils.applyOauthValuesToAntdForms(forms, secrets)
     },
     [forms]
   )
@@ -187,77 +185,3 @@ const Wrapped = observer(SourceEditorFormConfiguration)
 Wrapped.displayName = "SourceEditorFormConfiguration"
 
 export { Wrapped as SourceEditorFormConfiguration }
-
-// @Helpers
-
-const applyOauthValuesToForms = (forms: Forms, oauthValues: PlainObjectWithPrimitiveValues): void => {
-  const oauthFieldsSuccessfullySet: string[] = []
-  const oauthFieldsNotSet: string[] = []
-  Object.entries(oauthValues).forEach(([oauthFieldKey, oauthFieldValue]) => {
-    const [formToApplyValue, fieldKeyToApplyValue] = getFormAndKeyByOauthFieldKey(forms, oauthFieldKey)
-
-    if (!formToApplyValue || !fieldKeyToApplyValue) {
-      oauthFieldsNotSet.push(oauthFieldKey)
-      return
-    }
-
-    const newValues = { ...formToApplyValue.getFieldsValue() }
-    newValues[fieldKeyToApplyValue] = oauthFieldValue
-    formToApplyValue.setFieldsValue(newValues)
-    oauthFieldsSuccessfullySet.push(oauthFieldKey)
-  })
-
-  if (oauthFieldsSuccessfullySet.length > 0) {
-    const secretsNamesSeparator = oauthFieldsSuccessfullySet.length === 2 ? " and " : ", "
-    actionNotification.success(
-      `Successfully pasted ${oauthFieldsSuccessfullySet
-        .map(key => toTitleCase(key, { separator: "_" }))
-        .join(secretsNamesSeparator)}`
-    )
-  }
-
-  if (oauthFieldsNotSet.length > 0) {
-    const isPossiblyInternalError: boolean = oauthFieldsSuccessfullySet.length > 0
-    const messagePostfix = isPossiblyInternalError
-      ? "If you believe that this is an error, please, contact us at support@jitsu.com or file an issue to our github."
-      : "Did you forget to select OAuth authorization type?"
-    const secretsNamesSeparator = oauthFieldsNotSet.length === 2 ? " and " : ", "
-    const message = `Failed to paste ${oauthFieldsSuccessfullySet
-      .map(key => toTitleCase(key, { separator: "_" }))
-      .join(secretsNamesSeparator)} secret${oauthFieldsSuccessfullySet.length > 1 ? "s" : ""}. ${messagePostfix}`
-    isPossiblyInternalError ? handleError(new Error(message)) : actionNotification.warn(message)
-  }
-}
-
-const getFormAndKeyByOauthFieldKey = (
-  forms: Forms,
-  oauthFieldKey: string
-): [FormInstance<PlainObjectWithPrimitiveValues> | null, string | null] => {
-  let allFormsKeys: string[] = []
-  const allFormsWithValues: {
-    [key: string]: {
-      form: FormInstance<PlainObjectWithPrimitiveValues>
-      values: PlainObjectWithPrimitiveValues
-    }
-  } = Object.entries(forms).reduce((result, [formKey, form]) => {
-    const values = form.getFieldsValue()
-    allFormsKeys = [...allFormsKeys, ...Object.keys(values)]
-    return {
-      ...result,
-      [formKey]: {
-        form,
-        values,
-      },
-    }
-  }, {})
-
-  const formKey =
-    allFormsKeys.find(key => {
-      const keyName = key.split(".").pop() // gets access_token from config.config.access_token
-      return keyName === oauthFieldKey
-    }) ?? null
-
-  const { form } = formKey ? Object.values(allFormsWithValues).find(({ values }) => formKey in values) : { form: null }
-
-  return [form, formKey]
-}

@@ -77,7 +77,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
 
   return (
     <AntdForm name="source-config" form={form} autoComplete="off" onValuesChange={handleFormValuesChange}>
-      <Row>
+      <Row key="sourceId">
         <Col span={24}>
           <AntdForm.Item
             initialValue={initialValues?.sourceId}
@@ -93,7 +93,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
         </Col>
       </Row>
 
-      <Row>
+      <Row key="schedule">
         <Col span={24}>
           <AntdForm.Item
             initialValue={initialValues?.schedule}
