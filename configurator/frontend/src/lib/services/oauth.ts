@@ -2,7 +2,8 @@ import ApplicationServices from "./ApplicationServices"
 
 type OauthCredentials = { status: "success"; secrets: any }
 type OauthError = { status: "error"; errorMessage: string; errorDetails?: any }
-type OauthResult = OauthCredentials | OauthError
+type OauthWarning = { status: "warning"; message: string }
+type OauthResult = OauthCredentials | OauthWarning | OauthError
 
 export type OauthSupportResponse = {
   status: "ok"
@@ -72,7 +73,7 @@ export class OauthService implements IOauthService {
     const timer = setInterval(() => {
       if (oauthWindow.closed && !result) {
         clearInterval(timer)
-        endOauthFlow({ status: "error", errorMessage: "Popup window has been closed" })
+        endOauthFlow({ status: "warning", message: "Oauth did not complete because popup window has been closed" })
         window.removeEventListener("message", messageListener)
       }
     }, 400)
