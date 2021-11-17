@@ -32,6 +32,7 @@ export function SignupForm({ supportOauth }) {
         setTosHighlight(true)
         return
       }
+      debugger
       const email = await services.userService.initiateGoogleLogin()
       await trackSignup(email, "google")
       message.destroy()

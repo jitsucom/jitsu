@@ -85,14 +85,6 @@ export class FirebaseUserService implements UserService {
     let fbUserPromise = new Promise<FirebaseUser>((resolve, reject) => {
       let unregister = onAuthStateChanged(
         getAuth(),
-        /**
-         *
-         *
-         * mock onAuthStateChanged implementation so
-         * that it always returns a valid user
-         *
-         *
-         */
         (user: FirebaseUser) => {
           if (user) {
             this.firebaseUser = user
@@ -121,6 +113,7 @@ export class FirebaseUserService implements UserService {
       )
     })
     return fbUserPromise.then((user: FirebaseUser) => {
+      debugger
       if (user != null) {
         return this.restoreUser(user).then(user => {
           return { user: user, loggedIn: true, loginErrorMessage: null }
@@ -137,6 +130,7 @@ export class FirebaseUserService implements UserService {
     this.user = new User(fbUser.uid, () => this.apiAccess, {} as SuggestedUserInfo)
 
     const userInfo = await this.storageService.getUserInfo()
+    debugger
     const suggestedInfo = {
       email: fbUser.email,
       name: fbUser.displayName,
@@ -146,12 +140,15 @@ export class FirebaseUserService implements UserService {
       //Fix a bug where created date is not set for a new user
       if (!this.user.created) {
         this.user.created = new Date()
-        //await this.update(this.user);
+        await this.update(this.user);
       }
     } else {
-      this.user = new User(fbUser.uid, () => this.apiAccess, suggestedInfo)
+      // creates new user with a fresh project
+      this.user = new User(fbUser.uid, () => this.apiAccess, suggestedInfo, {
+        _project: new Project(randomId(), null),
+      })
       this.user.created = new Date()
-      //await this.update(this.user);
+      await this.update(this.user);
     }
     return this.user
   }
