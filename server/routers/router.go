@@ -99,6 +99,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		{
 			sourcesRoute.POST("/test", adminTokenMiddleware.AdminAuth(sourcesHandler.TestSourcesHandler))
 			sourcesRoute.POST("/clear_cache", adminTokenMiddleware.AdminAuth(sourcesHandler.ClearCacheHandler))
+			sourcesRoute.GET("/oauth_fields/:sourceType", adminTokenMiddleware.AdminAuth(sourcesHandler.OauthFields))
 		}
 
 		//536-issue DEPRECATED
