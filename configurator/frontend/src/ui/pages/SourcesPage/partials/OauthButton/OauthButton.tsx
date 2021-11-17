@@ -36,6 +36,10 @@ export const OauthButton: React.FC<Props> = ({
         actionNotification.error(oauthResult.errorMessage)
         return
       }
+      if (oauthResult.status === "warning") {
+        actionNotification.warn(oauthResult.message)
+        return
+      }
       setAuthSecrets(oauthResult.secrets)
     } catch (error) {
       handleError(new Error(error.message ?? "Oauth failed due to internal error. Please, file an issue."))
@@ -50,7 +54,7 @@ export const OauthButton: React.FC<Props> = ({
   }, [])
 
   return (
-    <div className={`h-full w-full transiton-transform duration-700 transform ${isOauthSupported ? "" : "scale-105)"}`}>
+    <div className={`h-full w-full transiton-transform duration-300 transform ${isOauthSupported ? "" : "scale-105)"}`}>
       <Button
         type="default"
         loading={isLoading}
