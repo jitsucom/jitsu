@@ -15,6 +15,7 @@ type PersistentQueue interface {
 }
 
 func NewPersistentQueue(identifier, queueName, logEventPath string) (PersistentQueue, error) {
+	//DEPRECATED
 	//return NewDQueBasedQueue(identifier, queueName, logEventPath)
 	return NewLevelDBQueue(identifier, queueName, logEventPath)
 }

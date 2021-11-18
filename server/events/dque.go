@@ -27,6 +27,7 @@ func QueuedFactBuilder() interface{} {
 }
 
 //DQueBasedQueue is a persisted queue
+//DEPRECATED
 type DQueBasedQueue struct {
 	queue      *dque.DQue
 	identifier string
