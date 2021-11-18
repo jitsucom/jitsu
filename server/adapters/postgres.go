@@ -514,6 +514,14 @@ func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table,
 
 		for i, column := range headerWithoutQuotes {
 			value, _ := row[column]
+			//replace zero byte character for text fields
+			if table.Columns[column].Type == "text" {
+				if v, ok := value.(string); ok {
+					if strings.ContainsRune(v, '\u0000') {
+						value = strings.ReplaceAll(v,"\u0000","")
+					}
+				}
+			}
 			valueArgs = append(valueArgs, value)
 			castClause := p.getCastClause(column, table.Columns[column])
 
