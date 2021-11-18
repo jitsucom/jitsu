@@ -3,7 +3,6 @@ package leveldb
 import (
 	"fmt"
 	"github.com/jitsucom/goque/v2"
-	"reflect"
 	"time"
 )
 
@@ -19,8 +18,9 @@ func NewQueue(dir string) (*Queue, error) {
 			if err != nil {
 				return nil, err
 			}
+		} else {
+			return nil, err
 		}
-		return nil, err
 	}
 
 	return &Queue{queue: queue}, nil
@@ -38,18 +38,14 @@ func (q *Queue) Enqueue(object interface{}) error {
 	return nil
 }
 
+//DequeueBlock accepts only pointers
 func (q *Queue) DequeueBlock(object interface{}) error {
 	item, err := q.dequeueBlock()
 	if err != nil {
 		return err
 	}
 
-	value := object
-	if reflect.ValueOf(object).Kind() != reflect.Ptr {
-		value = &object
-	}
-
-	if err := item.ToObject(value); err != nil {
+	if err := item.ToObject(object); err != nil {
 		return fmt.Errorf("error while deserializing object from queue: %v", err)
 	}
 
