@@ -2,7 +2,7 @@ package leveldb
 
 import (
 	"fmt"
-	"github.com/xtreding/goque/v2"
+	"github.com/jitsucom/goque/v2"
 	"reflect"
 	"time"
 )
