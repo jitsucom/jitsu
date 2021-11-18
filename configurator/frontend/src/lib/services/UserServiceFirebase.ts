@@ -140,7 +140,7 @@ export class FirebaseUserService implements UserService {
       //Fix a bug where created date is not set for a new user
       if (!this.user.created) {
         this.user.created = new Date()
-        await this.update(this.user);
+        await this.update(this.user)
       }
     } else {
       // creates new user with a fresh project
@@ -148,7 +148,7 @@ export class FirebaseUserService implements UserService {
         _project: new Project(randomId(), null),
       })
       this.user.created = new Date()
-      await this.update(this.user);
+      await this.update(this.user)
     }
     return this.user
   }
