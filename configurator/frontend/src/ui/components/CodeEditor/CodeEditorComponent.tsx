@@ -2,7 +2,6 @@ import { memo, useEffect, useRef } from "react"
 import * as monacoEditor from "monaco-editor"
 import MonacoEditor, { monaco } from "react-monaco-editor"
 import { Props } from "./CodeEditor.types"
-import { IKeyboardEvent } from "monaco-editor"
 import isEqual from "lodash/isEqual"
 
 monacoEditor.editor.defineTheme("own-theme", {
