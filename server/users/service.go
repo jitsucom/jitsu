@@ -7,11 +7,9 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
-	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/storages"
-	"github.com/joncrlsn/dque"
-	"github.com/pkg/errors"
+	"go.uber.org/atomic"
 	"os"
 	"path"
 )
@@ -19,38 +17,8 @@ import (
 const (
 	recognitionPayloadPerFile = 2000
 	queueName                 = "queue.users_recognition"
-    lockFile = "lock.lock"
+	lockFile                  = "lock.lock"
 )
-
-//RecognitionPayload is a queue dto
-type RecognitionPayload struct {
-	EventBytes []byte
-	//map[destinationID]EventIdentifiers
-	DestinationsIdentifiers map[string]EventIdentifiers
-}
-
-//EventIdentifiers is used for holding event identifiers
-type EventIdentifiers struct {
-	AnonymousID          string
-	EventID              string
-	IdentificationValues map[string]interface{}
-}
-
-//RecognitionPayloadBuilder creates and returns a new *RecognitionPayload (must be pointer).
-//This is used when we load a segment of the queue from disk.
-func RecognitionPayloadBuilder() interface{} {
-	return &RecognitionPayload{}
-}
-
-func (ei *EventIdentifiers) IsAllIdentificationValuesFilled() bool {
-	for _, value := range ei.IdentificationValues {
-		if value == nil {
-			return false
-		}
-	}
-
-	return true
-}
 
 //RecognitionService has a thread pool under the hood
 //saves anonymous events in meta storage
@@ -59,8 +27,8 @@ type RecognitionService struct {
 	metaStorage        meta.Storage
 	destinationService *destinations.Service
 
-	queue  *dque.DQue
-	closed bool
+	queue  *LevelDBQueue
+	closed *atomic.Bool
 }
 
 //NewRecognitionService creates a new RecognitionService if metaStorage configuration exists
@@ -69,41 +37,21 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		if configuration.IsEnabled() {
 			logging.Errorf("Users recognition requires 'meta.storage' configuration")
 		}
-		return &RecognitionService{closed: true}, nil
+		//return closed
+		return &RecognitionService{closed: atomic.NewBool(true)}, nil
 	}
 
-	var queue *dque.DQue
-	var err error
-	for  ;queue == nil;  {
-		queue, err = dque.NewOrOpen(queueName, logEventPath, recognitionPayloadPerFile, RecognitionPayloadBuilder)
-		if err != nil {
-			var brokenFilePath string
-			switch e := errors.Cause(err).(type) {
-			case dque.ErrCorruptedSegment:
-				brokenFilePath = e.Path
-			case dque.ErrUnableToDecode:
-				brokenFilePath = e.Path
-			default:
-				return nil, fmt.Errorf("Error opening/creating recognized events queue [%s] in dir [%s]: %v", queueName, logEventPath, err)
-			}
-			if deleteErr := os.Remove(brokenFilePath); deleteErr != nil {
-				return nil, fmt.Errorf("Error opening/creating recognized events queue.\nAttempt to delete corrupted file %s failed: %v\nOriginal cause: %v", brokenFilePath, deleteErr, err)
-			}
-			logging.Errorf("%v\n Removed corruptedFile: %s", err, brokenFilePath)
-			if err = unlockDQue(logEventPath, queueName); err != nil {
-				return nil, err
-			}
-			continue
-		}
+	queue, err := NewLevelDBQueue(queueName, logEventPath)
+	if err != nil {
+		return nil, fmt.Errorf("Error opening/creating recognized events queue [%s] in dir [%s]: %v", queueName, logEventPath, err)
 	}
 
 	rs := &RecognitionService{
 		destinationService: destinationService,
 		metaStorage:        metaStorage,
 		queue:              queue,
+		closed:             atomic.NewBool(false),
 	}
-
-	metrics.InitialUsersRecognitionQueueSize(queue.Size())
 
 	rs.start()
 
@@ -113,24 +61,17 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 func (rs *RecognitionService) start() {
 	safego.RunWithRestart(func() {
 		for {
-			if rs.closed {
+			if rs.closed.Load() {
 				break
 			}
 
-			iface, err := rs.queue.DequeueBlock()
-			metrics.DequeuedRecognitionEvent()
+			rp, err := rs.queue.DequeueBlock()
 			if err != nil {
-				if err == dque.ErrQueueClosed && rs.closed {
+				if rs.closed.Load() {
 					continue
 				}
 
 				logging.SystemErrorf("Error reading recognition payload from queue: %v", err)
-				continue
-			}
-
-			rp, ok := iface.(*RecognitionPayload)
-			if !ok {
-				logging.SystemErrorf("Error parsing recognition payload from queue: wrong type %T", iface)
 				continue
 			}
 
@@ -156,20 +97,17 @@ func (rs *RecognitionService) start() {
 
 //Event consumes events.Event and put it to the recognition queue
 func (rs *RecognitionService) Event(event events.Event, eventID string, destinationIDs []string) {
-	if rs.closed {
+	if rs.closed.Load() {
 		return
 	}
 
 	destinationIdentifiers := rs.getDestinationsForRecognition(event, eventID, destinationIDs)
 
 	rp := &RecognitionPayload{EventBytes: []byte(event.Serialize()), DestinationsIdentifiers: destinationIdentifiers}
-	err := rs.queue.Enqueue(rp)
-	if err != nil {
+	if err := rs.queue.Enqueue(rp); err != nil {
 		logging.SystemErrorf("Error saving recognition payload into the queue: %v", err)
 		return
 	}
-
-	metrics.EnqueuedRecognitionEvent()
 }
 
 func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, eventID string, destinationIDs []string) map[string]EventIdentifiers {
@@ -279,7 +217,7 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 //Close sets closed flag = true (stop goroutines)
 //closes the queue
 func (rs *RecognitionService) Close() error {
-	rs.closed = true
+	rs.closed.Store(true)
 
 	if rs.queue != nil {
 		if err := rs.queue.Close(); err != nil {
@@ -291,7 +229,7 @@ func (rs *RecognitionService) Close() error {
 }
 
 //unlockDQue workaround for github.com/joncrlsn/dque forgetting to release file lock
-func unlockDQue(dirPath string, name string) error  {
+func unlockDQue(dirPath string, name string) error {
 	l := path.Join(dirPath, name, lockFile)
 	if err := os.Remove(l); err != nil {
 		return fmt.Errorf("Failed to remove lock file %s: %v", l, err)

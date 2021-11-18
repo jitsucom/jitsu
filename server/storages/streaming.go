@@ -28,7 +28,7 @@ type StreamingStorage interface {
 
 //StreamingWorker reads events from queue and using events.StreamingStorage writes them
 type StreamingWorker struct {
-	eventQueue       *events.PersistentQueue
+	eventQueue       events.PersistentQueue
 	processor        *schema.Processor
 	streamingStorage StreamingStorage
 	tableHelper      []*TableHelper
@@ -37,7 +37,7 @@ type StreamingWorker struct {
 }
 
 //newStreamingWorker returns configured streaming worker
-func newStreamingWorker(eventQueue *events.PersistentQueue, processor *schema.Processor, streamingStorage StreamingStorage,
+func newStreamingWorker(eventQueue events.PersistentQueue, processor *schema.Processor, streamingStorage StreamingStorage,
 	tableHelper ...*TableHelper) *StreamingWorker {
 	return &StreamingWorker{
 		eventQueue:       eventQueue,
