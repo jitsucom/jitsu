@@ -13,7 +13,7 @@ type Props = Partial<DebuggerProps> & ModalProps
 
 /**
  * Decorates code debugger with an antd almost-full-height/width modal.
- * Accepts native modal props, debugger props should be postfixed with `Debugger`.
+ * Accepts antd Modal props and CodeDebugger props if they are postfixed with `Debugger`.
  */
 export const CodeDebuggerModal: React.FC<Props> = ({
   classNameDebugger,

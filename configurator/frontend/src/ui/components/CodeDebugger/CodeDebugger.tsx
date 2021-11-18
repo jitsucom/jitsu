@@ -1,5 +1,5 @@
 // @Libs
-import React, { memo, useCallback, useEffect, useRef, useState } from "react"
+import React, { memo, useCallback, useEffect, useState } from "react"
 import { ReflexContainer, ReflexSplitter, ReflexElement } from "react-reflex"
 import { Button, Checkbox, Dropdown, Form, Spin, Tooltip } from "antd"
 import hotkeys from "hotkeys-js"
@@ -48,6 +48,10 @@ export interface CodeDebuggerProps {
    * */
   defaultCodeValue?: string
   /**
+   * Additional code suggestions
+   * */
+  extraSuggestions?: string
+  /**
    * Code field change handler
    * */
   handleCodeChange?: (value: string | object) => void
@@ -59,10 +63,6 @@ export interface CodeDebuggerProps {
    * Callback for the `save` button
    */
   handleSaveCode?: (value: string) => void
-  /**
-   * Additional code suggestions
-   * */
-  extraSuggestions?: string
 }
 
 export interface FormValues {
@@ -80,11 +80,11 @@ const CodeDebugger = ({
   className,
   codeFieldLabel = "Table Name Expression",
   defaultCodeValue,
+  extraSuggestions,
   handleCodeChange,
   handleClose,
   handleSaveCode: _handleSaveCode,
   run,
-  extraSuggestions,
 }: CodeDebuggerProps) => {
   //to save code changes on component reload and pass it here from parent in effect bellow
   const [codeValue, setCodeValue] = useState<string>(defaultCodeValue)
@@ -205,7 +205,7 @@ const CodeDebugger = ({
         <ReflexContainer orientation="vertical">
           {showInputEditor && (
             <ReflexElement>
-              <SectionWithLabel label="Event JSON:" htmlFor="object">
+              <SectionWithLabel label="Event JSON" htmlFor="object">
                 <Form.Item className={`${styles.field} w-full`} name="object">
                   <CodeEditor
                     initialValue={form.getFieldValue("object") ?? objectInitialValue}
@@ -317,8 +317,8 @@ const CodeDebugger = ({
         </ReflexContainer>
 
         {/**
-         * Elements below keep the form values when the inputs are unmounted.
-         * Keep these elements out of the ReflexContainer, otherwise they will break the layout.
+         * Elements below are invisible and just keep the editors values when the editors are unmounted (hidden).
+         * Always keep these elements outside of the ReflexContainer, otherwise they will break the adjustable layout.
          * */}
 
         {!showInputEditor && (
@@ -327,11 +327,11 @@ const CodeDebugger = ({
               initialValue={form.getFieldValue("object") ?? objectInitialValue}
               language={"json"}
               handleChange={handleChange("object")}
-              hotkeysOverrides={{
-                onCmdCtrlEnter: form.submit,
-                onCmdCtrlI: toggleInputEditor,
-                onCmdCtrlU: toggleCodeEditor,
-              }}
+              // hotkeysOverrides={{
+              //   onCmdCtrlEnter: form.submit,
+              //   onCmdCtrlI: toggleInputEditor,
+              //   onCmdCtrlU: toggleCodeEditor,
+              // }}
             />
           </Form.Item>
         )}
@@ -343,11 +343,11 @@ const CodeDebugger = ({
               reRenderEditorOnInitialValueChange={true}
               language={"json"}
               handleChange={handleChange("code")}
-              hotkeysOverrides={{
-                onCmdCtrlEnter: form.submit,
-                onCmdCtrlI: toggleInputEditor,
-                onCmdCtrlU: toggleCodeEditor,
-              }}
+              // hotkeysOverrides={{
+              //   onCmdCtrlEnter: form.submit,
+              //   onCmdCtrlI: toggleInputEditor,
+              //   onCmdCtrlU: toggleCodeEditor,
+              // }}
             />
           </Form.Item>
         )}
@@ -402,9 +402,6 @@ const ControlsComponent: React.FC<ControlsProps> = ({
       toggleOutput()
       return false
     }
-    const _handleExit = () => {
-      handleExit()
-    }
     const _handleSave = (e: KeyboardEvent) => {
       e.preventDefault()
       handleSave()
@@ -415,23 +412,28 @@ const ControlsComponent: React.FC<ControlsProps> = ({
       handleRun()
       return false
     }
+    const handleEscape = e => {
+      if (e.key === "Escape") {
+        handleExit()
+      }
+    }
 
     hotkeys.filter = () => true // to enable hotkeys everywhere, even in input fields
 
     hotkeys("cmd+i,ctrl+i", handleToggleInput)
     hotkeys("cmd+u,ctrl+u", handleToggleCode)
     hotkeys("cmd+o,ctrl+o", handleToggleOutput)
-    hotkeys("escape", _handleExit)
     hotkeys("cmd+s,ctrl+s", _handleSave)
     hotkeys("cmd+enter,ctrl+enter", _handleRun)
+    document.addEventListener("keydown", handleEscape, true)
 
     return () => {
       hotkeys.unbind("cmd+i,ctrl+i", handleToggleInput)
       hotkeys.unbind("cmd+u,ctrl+u", handleToggleCode)
       hotkeys.unbind("cmd+o,ctrl+o", handleToggleOutput)
-      hotkeys.unbind("escape", _handleExit)
       hotkeys.unbind("cmd+s,ctrl+s", _handleSave)
       hotkeys.unbind("cmd+enter,ctrl+enter", _handleRun)
+      document.removeEventListener("keydown", handleEscape, true)
     }
   }, [])
 
