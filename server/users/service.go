@@ -37,7 +37,8 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		if configuration.IsEnabled() {
 			logging.Errorf("Users recognition requires 'meta.storage' configuration")
 		}
-		return &RecognitionService{closed: atomic.NewBool(false)}, nil
+		//return closed
+		return &RecognitionService{closed: atomic.NewBool(true)}, nil
 	}
 
 	queue, err := NewLevelDBQueue(queueName, logEventPath)
