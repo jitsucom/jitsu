@@ -27,11 +27,12 @@ type Airbyte struct {
 
 	activeCommands map[string]*base.SyncCommand
 
-	config                   *Config
-	pathToConfigs            string
-	streamsRepresentation    map[string]*base.StreamRepresentation
-	catalogDiscovered        *atomic.Bool
-	discoverCatalogLastError error
+	config                       *Config
+	selectedStreamsWithNamespace map[string]bool
+	pathToConfigs                string
+	streamsRepresentation        map[string]*base.StreamRepresentation
+	catalogDiscovered            *atomic.Bool
+	discoverCatalogLastError     error
 
 	closed chan struct{}
 }
@@ -112,16 +113,25 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 		}
 	}
 
+	var selectedStreamsWithNamespace map[string]bool
+	if len(config.SelectedStreams) > 0 {
+		selectedStreamsWithNamespace = map[string]bool{}
+		for _, sc := range config.SelectedStreams {
+			selectedStreamsWithNamespace[streamIdentifier(sc.Namespace, sc.Name)] = true
+		}
+	}
+
 	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, config.DockerImage, configPath, catalogPath, "", statePath,
 		config.StreamTableNamesPrefix, pathToConfigs, config.StreamTableNames)
 	s := &Airbyte{
-		mutex:                 &sync.RWMutex{},
-		activeCommands:        map[string]*base.SyncCommand{},
-		config:                config,
-		pathToConfigs:         pathToConfigs,
-		catalogDiscovered:     catalogDiscovered,
-		streamsRepresentation: streamsRepresentation,
-		closed:                make(chan struct{}),
+		mutex:                        &sync.RWMutex{},
+		activeCommands:               map[string]*base.SyncCommand{},
+		config:                       config,
+		selectedStreamsWithNamespace: selectedStreamsWithNamespace,
+		pathToConfigs:                pathToConfigs,
+		catalogDiscovered:            catalogDiscovered,
+		streamsRepresentation:        streamsRepresentation,
+		closed:                       make(chan struct{}),
 	}
 	s.AbstractCLIDriver = *abstract
 	s.AbstractCLIDriver.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
@@ -315,14 +325,28 @@ func (a *Airbyte) Close() (multiErr error) {
 	return multiErr
 }
 
-//loadCatalog discovers source catalog
-//reformat catalog to airbyte format and writes it to the file system
+//loadCatalog:
+//1. discovers source catalog
+//2. applies selected streams
+//3. reformat catalog to airbyte format and writes it to the file system
 //returns catalog
 func (a *Airbyte) loadCatalog() (string, map[string]*base.StreamRepresentation, error) {
 	airbyteRunner := airbyte.NewRunner(a.GetTap(), a.config.ImageVersion, "")
 	rawCatalog, err := airbyteRunner.Discover(a.config.Config, 5*time.Minute)
 	if err != nil {
 		return "", nil, err
+	}
+
+	//apply only selected streams
+	if len(a.selectedStreamsWithNamespace) > 0 {
+		var selectedStreams []*airbyte.Stream
+		for _, stream := range rawCatalog.Streams {
+			if _, selected := a.selectedStreamsWithNamespace[streamIdentifier(stream.Namespace, stream.Name)]; selected {
+				selectedStreams = append(selectedStreams, stream)
+			}
+		}
+
+		rawCatalog.Streams = selectedStreams
 	}
 
 	catalog, streamsRepresentation, err := reformatCatalog(a.GetTap(), rawCatalog)
@@ -346,4 +370,8 @@ func (a *Airbyte) IsClosed() bool {
 	default:
 		return false
 	}
+}
+
+func streamIdentifier(namespace, name string) string {
+	return namespace + name
 }
