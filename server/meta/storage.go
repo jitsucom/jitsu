@@ -83,6 +83,10 @@ func NewStorage(meta *viper.Viper) (Storage, error) {
 	}
 
 	host := meta.GetString("redis.host")
+	if host == "" {
+		return &Dummy{}, nil
+	}
+
 	port := meta.GetInt("redis.port")
 	password := meta.GetString("redis.password")
 	sentinelMaster := meta.GetString("redis.sentinel_master_name")
