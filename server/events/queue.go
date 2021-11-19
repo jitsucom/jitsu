@@ -3,6 +3,7 @@ package events
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/goque/v2"
 	"github.com/jitsucom/jitsu/server/leveldb"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/parsers"
@@ -52,6 +53,9 @@ func (ldq *LevelDBQueue) ConsumeTimed(f map[string]interface{}, t time.Time, tok
 func (ldq *LevelDBQueue) DequeueBlock() (Event, time.Time, string, error) {
 	qe := &QueuedEvent{}
 	if err := ldq.queue.DequeueBlock(qe); err != nil {
+		if err == goque.ErrDBClosed {
+			return nil, time.Time{}, "", ErrQueueClosed
+		}
 		return nil, time.Time{}, "", err
 	}
 
