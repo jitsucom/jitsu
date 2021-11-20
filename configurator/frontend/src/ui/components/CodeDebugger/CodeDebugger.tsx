@@ -1,7 +1,7 @@
 // @Libs
-import React, { memo, useCallback, useEffect, useState } from "react"
+import React, { memo, MutableRefObject, useCallback, useEffect, useRef, useState } from "react"
 import { ReflexContainer, ReflexSplitter, ReflexElement } from "react-reflex"
-import { Button, Checkbox, Dropdown, Form, Spin, Tooltip } from "antd"
+import { Button, Checkbox, Dropdown, Form, Spin, Tooltip, Popconfirm } from "antd"
 import hotkeys from "hotkeys-js"
 import cn from "classnames"
 // @Components
@@ -23,6 +23,7 @@ import {
   EyeFilled,
   EyeInvisibleFilled,
 } from "@ant-design/icons"
+import { useStateWithCallback } from "hooks/useStateWithCallback"
 
 export interface CodeDebuggerProps {
   /**
@@ -87,7 +88,7 @@ const CodeDebugger = ({
   run,
 }: CodeDebuggerProps) => {
   //to save code changes on component reload and pass it here from parent in effect bellow
-  const [codeValue, setCodeValue] = useState<string>(defaultCodeValue)
+  const [codeValue, setCodeValue] = useStateWithCallback<string>(defaultCodeValue)
 
   const [objectInitialValue, setObjectInitialValue] = useState<string>(`{
    "event_type": "example_event",
@@ -102,6 +103,17 @@ const CodeDebugger = ({
   const [showInputEditor, setShowInputEditor] = useState<boolean>(true)
   const [showCodeEditor, setShowCodeEditor] = useState<boolean>(true)
   const [showOutput, setShowOutput] = useState<boolean>(false)
+
+  const codeState = useRef({
+    isCodeSaved: true,
+    blockUpdates: false,
+  })
+
+  /** Stores whether  */
+  const codeSaved = useRef<boolean>(true)
+
+  /** Allows to change fields values without alarming user about the unsaved changes */
+  const isCodeSavedStateBlocked = useRef<boolean>(false)
 
   const [form] = Form.useForm()
 
@@ -118,12 +130,18 @@ const CodeDebugger = ({
     setShowOutput(val => !val)
   }, [])
 
-  const handleChange = (name: "object" | "code") => (value: string | object) => {
-    form.setFieldsValue({ [name]: value ? value : "" })
-    if (name === "code" && handleCodeChange) {
-      handleCodeChange(value)
+  const handleChange =
+    (name: "object" | "code") => (value: string | object, options?: { doNotSetCodeNotSaved?: boolean }) => {
+      form.setFieldsValue({ [name]: value ? value : "" })
+      if (name === "code") {
+        debugger
+        handleCodeChange?.(value)
+        // if (!options.doNotSetCodeNotSaved) {
+        if (!isCodeSavedStateBlocked.current) {
+          codeSaved.current = false
+        }
+      }
     }
-  }
 
   const handlePaste = () => {
     setCodeValue(form.getFieldValue("code"))
@@ -132,6 +150,7 @@ const CodeDebugger = ({
 
   const handleSaveCode = () => {
     _handleSaveCode(form.getFieldValue("code"))
+    codeSaved.current = true
   }
 
   const handleRun = async (values: FormValues) => {
@@ -175,16 +194,19 @@ const CodeDebugger = ({
 
   useEffect(() => {
     if (defaultCodeValue) {
+      debugger
+      isCodeSavedStateBlocked.current = true
       form.setFieldsValue({ code: defaultCodeValue })
-      setCodeValue(defaultCodeValue)
+      setCodeValue(defaultCodeValue, () => {
+        isCodeSavedStateBlocked.current = false
+      })
     }
   }, [defaultCodeValue, form])
 
   useEffect(() => {
     document.body.addEventListener("click", handleCloseEvents)
-
     return () => document.body.removeEventListener("click", handleCloseEvents)
-  }, [handleCloseEvents])
+  }, [])
 
   return (
     <div className={cn(className, "flex flex-col items-stretch h-screen max-h-full pt-4;")}>
@@ -193,6 +215,7 @@ const CodeDebugger = ({
           inputChecked={showInputEditor}
           codeChecked={showCodeEditor}
           outputChecked={showOutput}
+          codeSaved={codeSaved}
           toggleInput={toggleInputEditor}
           toggleCode={toggleCodeEditor}
           toggleOutput={toggleOutput}
@@ -297,14 +320,6 @@ const CodeDebugger = ({
                             className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
                           >
                             {calcResult.message}
-                            {/* {
-                            // 'safdasfs afdasfasdgasgdfags gasgafasdf asfafasdfasf afdasfdafdda sfasfadsfas fasfafsdasfafas'
-                            JSON.stringify(
-                              JSON.parse(calcResult.message),
-                              null,
-                              2
-                            )
-                          } */}
                           </SyntaxHighlighterAsync>
                         )}
                       </span>
@@ -317,7 +332,8 @@ const CodeDebugger = ({
         </ReflexContainer>
 
         {/**
-         * Elements below are invisible and just keep the editors values when the editors are unmounted (hidden).
+         * Elements below are invisible and serve for keeping the editors values when the editor components are unmounted (hidden).
+         * This hack is needed because ReactReflex won't allow us to hide sections without completely unmounting them.
          * Always keep these elements outside of the ReflexContainer, otherwise they will break the adjustable layout.
          * */}
 
@@ -327,11 +343,6 @@ const CodeDebugger = ({
               initialValue={form.getFieldValue("object") ?? objectInitialValue}
               language={"json"}
               handleChange={handleChange("object")}
-              // hotkeysOverrides={{
-              //   onCmdCtrlEnter: form.submit,
-              //   onCmdCtrlI: toggleInputEditor,
-              //   onCmdCtrlU: toggleCodeEditor,
-              // }}
             />
           </Form.Item>
         )}
@@ -343,11 +354,6 @@ const CodeDebugger = ({
               reRenderEditorOnInitialValueChange={true}
               language={"json"}
               handleChange={handleChange("code")}
-              // hotkeysOverrides={{
-              //   onCmdCtrlEnter: form.submit,
-              //   onCmdCtrlI: toggleInputEditor,
-              //   onCmdCtrlU: toggleCodeEditor,
-              // }}
             />
           </Form.Item>
         )}
@@ -364,12 +370,13 @@ export { CodeDebugger }
  * Controls
  */
 
-const OS_CMD_BUTTON = navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl"
+const OS_CMD_CTRL_KEY = navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl"
 
 type ControlsProps = {
   inputChecked: boolean
   codeChecked: boolean
   outputChecked: boolean
+  codeSaved: MutableRefObject<boolean>
   toggleInput: () => void
   toggleCode: () => void
   toggleOutput: () => void
@@ -382,13 +389,24 @@ const ControlsComponent: React.FC<ControlsProps> = ({
   inputChecked,
   codeChecked,
   outputChecked,
+  codeSaved,
   toggleInput,
   toggleCode,
   toggleOutput,
-  handleExit,
+  handleExit: handleCloseWithoutSaving,
   handleSave,
   handleRun,
 }) => {
+  const [isClosePopoverVisible, setIsClosePopoverVisible] = useState(false)
+
+  const handleClose = () => {
+    if (!codeSaved.current) {
+      setIsClosePopoverVisible(true)
+      return
+    }
+    handleCloseWithoutSaving()
+  }
+
   useEffect(() => {
     const handleToggleInput = () => {
       toggleInput()
@@ -414,7 +432,7 @@ const ControlsComponent: React.FC<ControlsProps> = ({
     }
     const handleEscape = e => {
       if (e.key === "Escape") {
-        handleExit()
+        handleClose()
       }
     }
 
@@ -439,12 +457,24 @@ const ControlsComponent: React.FC<ControlsProps> = ({
 
   return (
     <div className="flex items-stretch w-full h-full">
-      <Button size="middle" className="flex-grow-0" onClick={handleExit}>
-        <CloseOutlined className={styles.adaptiveIcon} />
-        <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>{"Close"}</span>
-      </Button>
+      <Popconfirm
+        title="You have some unsaved expression code. Do you want to quit?"
+        placement="rightBottom"
+        className="max-w-xs mr-4"
+        visible={isClosePopoverVisible}
+        onCancel={() => setIsClosePopoverVisible(false)}
+        onConfirm={() => {
+          handleCloseWithoutSaving()
+          setIsClosePopoverVisible(false)
+        }}
+      >
+        <Button size="middle" className="flex-grow-0" onClick={handleClose}>
+          <CloseOutlined className={styles.adaptiveIcon} />
+          <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>{"Close"}</span>
+        </Button>
+      </Popconfirm>
       <div className="flex justify-center items-center flex-auto min-w-0">
-        <Tooltip title={`${OS_CMD_BUTTON}+I`} mouseEnterDelay={1}>
+        <Tooltip title={`${OS_CMD_CTRL_KEY}+I`} mouseEnterDelay={1}>
           <Checkbox
             checked={inputChecked}
             className={cn("relative", styles.checkbox, styles.hideAntdCheckbox, styles.checkboxLabel, {
@@ -457,7 +487,7 @@ const ControlsComponent: React.FC<ControlsProps> = ({
             <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>{"Input"}</span>
           </Checkbox>
         </Tooltip>
-        <Tooltip title={`${OS_CMD_BUTTON}+U`} mouseEnterDelay={1}>
+        <Tooltip title={`${OS_CMD_CTRL_KEY}+U`} mouseEnterDelay={1}>
           <Checkbox
             checked={codeChecked}
             className={cn("relative", styles.checkbox, styles.hideAntdCheckbox, styles.checkboxLabel, {
@@ -470,7 +500,7 @@ const ControlsComponent: React.FC<ControlsProps> = ({
             <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>{"Expression"}</span>
           </Checkbox>
         </Tooltip>
-        <Tooltip title={`${OS_CMD_BUTTON}+O`} mouseEnterDelay={1}>
+        <Tooltip title={`${OS_CMD_CTRL_KEY}+O`} mouseEnterDelay={1}>
           <Checkbox
             checked={outputChecked}
             className={cn("relative", styles.checkbox, styles.hideAntdCheckbox, styles.checkboxLabel, {
@@ -485,7 +515,7 @@ const ControlsComponent: React.FC<ControlsProps> = ({
         </Tooltip>
       </div>
       <div className="flex-grow-0 ant-btn-group">
-        <Tooltip title={`${OS_CMD_BUTTON}+↵`} mouseEnterDelay={1}>
+        <Tooltip title={`${OS_CMD_CTRL_KEY}+↵`} mouseEnterDelay={1}>
           <Button
             size="middle"
             type="primary"
@@ -496,7 +526,7 @@ const ControlsComponent: React.FC<ControlsProps> = ({
             <span className={`${styles.adaptiveLabel}`}>{"Run"}</span>
           </Button>
         </Tooltip>
-        <Tooltip title={`${OS_CMD_BUTTON}+S`} mouseEnterDelay={1}>
+        <Tooltip title={`${OS_CMD_CTRL_KEY}+S`} mouseEnterDelay={1}>
           <Button size="middle" type="primary" onClick={handleSave} icon={<DownloadOutlined />}>
             <span className={`${styles.adaptiveLabel}`}>{"Save"}</span>
           </Button>
