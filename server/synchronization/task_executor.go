@@ -24,6 +24,7 @@ import (
 )
 
 const srcSource = "source"
+const ConfigSignatureSuffix = "_JITSU_config"
 
 type TaskExecutor struct {
 	workersPool        *ants.PoolWithFunc
@@ -449,8 +450,15 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver,
 	destinationStorages []storages.Storage, taskCloser *TaskCloser) error {
 	state, err := te.metaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey(), driversbase.ALL.String())
+
 	if err != nil {
 		return fmt.Errorf("Error getting state from meta storage: %v", err)
+	}
+
+	config, err := te.metaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey() + ConfigSignatureSuffix, driversbase.ALL.String())
+
+	if err != nil {
+		return fmt.Errorf("Error getting persisted config from meta storage: %v", err)
 	}
 
 	if state != "" {
@@ -458,10 +466,14 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 	} else {
 		taskLogger.INFO("Running synchronization")
 	}
+	if config != "" {
+		taskLogger.INFO("Loaded persisted config from meta storage: %s", config)
+	}
 
-	rs := NewResultSaver(task, cliDriver.GetTap(), cliDriver.GetCollectionMetaKey(), cliDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.metaStorage, cliDriver.GetStreamTableNameMapping())
 
-	err = cliDriver.Load(state, taskLogger, rs, taskCloser)
+	rs := NewResultSaver(task, cliDriver.GetTap(), cliDriver.GetCollectionMetaKey(), cliDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.metaStorage, cliDriver.GetStreamTableNameMapping(), cliDriver.GetConfigPath())
+
+	err = cliDriver.Load(config, state, taskLogger, rs, taskCloser)
 	if err != nil {
 		if err == ErrTaskHasBeenCanceled {
 			return err

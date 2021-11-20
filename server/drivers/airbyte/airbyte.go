@@ -221,7 +221,7 @@ func (a *Airbyte) Ready() (bool, error) {
 	return false, runner.NewCompositeNotReadyError(msg)
 }
 
-func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
+func (a *Airbyte) Load(config string, state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
 	if a.IsClosed() {
 		return fmt.Errorf("%s has already been closed", a.Type())
 	}
