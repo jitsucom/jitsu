@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+//TODO change to config#meta someday
 const lastUpdatedPerCollection = "configs#meta#last_updated"
 
 type Redis struct {
@@ -93,6 +94,19 @@ func (r *Redis) GetCollectionLastUpdated(collection string) (*time.Time, error) 
 	return &t, nil
 }
 
+func (r *Redis) UpdateCollectionLastUpdated(collection string) error {
+	connection := r.pool.Get()
+	defer connection.Close()
+
+	lastUpdatedTimestamp := entime.AsISOString(time.Now().UTC())
+
+	if _, err := connection.Do("hset", lastUpdatedPerCollection, collection, lastUpdatedTimestamp); err != nil {
+		return fmt.Errorf("Error while updating last_updated collection for [%s]: %v", collection, err)
+	}
+
+	return nil
+}
+
 func (r *Redis) Store(collection string, key string, entity interface{}) error {
 	connection := r.pool.Get()
 	defer connection.Close()
@@ -130,7 +144,7 @@ func toStringMap(value interface{}) (map[string]interface{}, error) {
 }
 
 func toRedisKey(collection string) string {
-	return "config#" + collection
+	return meta.ConfigPrefix + collection
 }
 
 func (r *Redis) Close() error {

@@ -142,7 +142,7 @@ func TestProcessFilePayload(t *testing.T) {
 			[]events.SkippedEvent{},
 		},
 	}
-	p, err := NewProcessor("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, "", &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 0)
+	p, err := NewProcessor("test", "google_analytics", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, "", &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 0, map[string]interface{}{})
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -298,19 +298,19 @@ func TestProcessFact(t *testing.T) {
 		},
 	}
 	appconfig.Init(false, "")
-	appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock}
 	appconfig.Instance.UaResolver = useragent.Mock{}
+	geoService := geo.NewTestService(geo.Mock{"10.10.10.10": geoDataMock})
 	uaRule, err := enrichment.NewRule(&enrichment.RuleConfig{
 		Name: enrichment.UserAgentParse,
 		From: "/field1/ua",
 		To:   "/field3",
-	})
+	}, nil, "")
 	require.NoError(t, err)
 	ipRule, err := enrichment.NewRule(&enrichment.RuleConfig{
 		Name: enrichment.IPLookup,
 		From: "/field1/ip",
 		To:   "/field4",
-	})
+	}, geoService, "")
 	require.NoError(t, err)
 
 	keepUnmapped := true
@@ -320,7 +320,7 @@ func TestProcessFact(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	p, err := NewProcessor("test", `events_{{._timestamp.Format "2006_01"}}`, "", fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+	p, err := NewProcessor("test", "google_analytics",`events_{{._timestamp.Format "2006_01"}}`, "", fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, map[string]interface{}{})
 
 	require.NoError(t, err)
 	for _, tt := range tests {
@@ -390,6 +390,13 @@ func TestProcessTransform(t *testing.T) {
 			[]string{"conversion_0", "conversion_1", "conversion_2"},
 			"",
 		},
+		{
+			"segment",
+			map[string]interface{}{"event_type": "user_identify", "source_ip": "127.0.0.1", "url": "https://jitsu.com", "app": "jitsu"},
+			[]events.Event{{"context_ip": "127.0.0.1", "app": "jitsu", "url": "https://jitsu.com"}},
+			[]string{"identifies"},
+			"",
+		},
 	}
 	appconfig.Init(false, "")
 
@@ -420,11 +427,13 @@ switch ($.event_type) {
                         })
         }
         return convs
+	case "user_identify":
+		return toSegment($)
     default:
         return {...$, [TABLE_NAME]: $.event_type}
 }
 `
-	p, err := NewProcessor("test", `events`, transormExpression, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+	p, err := NewProcessor("test", "google_analytics",`events`, transormExpression, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, map[string]interface{}{})
 
 	require.NoError(t, err)
 	for _, tt := range tests {

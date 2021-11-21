@@ -1,10 +1,9 @@
-
 /**
  * Main colors. Keep in sync with tailwind.config.js
  */
 @bgPrimary: rgb(17, 24, 39); //#22313a;
 @bgSecondary: rgb(31, 41, 55); //#1e2a31;
-@bgComponent: rgb(26,35,50); //#1A2332FF;
+@bgComponent: rgb(26, 35, 50); //#1A2332FF;
 
 @bgTableHeader: @bgComponent;
 @splitBorder: #394e5a;
@@ -59,14 +58,15 @@
 @border-radius-base: 6px;
 
 @font-size-base: 14px; // major text font size
-@box-shadow-base: 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 9px 28px 8px rgba(0, 0, 0, 0.05); // major shadow for layers
+@box-shadow-base: 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08),
+  0 9px 28px 8px rgba(0, 0, 0, 0.05); // major shadow for layers
 
 @large-border-radius: 12px;
 @small-border-radius: 6px;
 
-@font-main: 'system-ui', sans-serif;
-@font-monospace: 'Source Code Pro', monospace;
-@font-heading: 'Nunito Sans', sans-serif;
+@font-main: "system-ui", sans-serif;
+@font-monospace: "Source Code Pro", monospace;
+@font-heading: "Nunito Sans", sans-serif;
 
 // Animated transitions
 @default-transition-duration: 200ms;
@@ -90,7 +90,6 @@
   font-family: @font-monospace;
 }
 
-
 .ant-select-disabled.ant-select:not(.ant-select-customize-input) .ant-select-selector {
   background-color: rgba(255, 255, 255, 0.08) !important;
 }
@@ -103,7 +102,8 @@
   }
 }
 
-.ant-select-item-option-active, .ant-dropdown-menu-submenu-active .ant-dropdown-menu-submenu-title {
+.ant-select-item-option-active,
+.ant-dropdown-menu-submenu-active .ant-dropdown-menu-submenu-title {
   background-color: @bgSecondary !important;
 }
 
@@ -111,11 +111,8 @@
   background-color: @primary-background !important;
 }
 
-//body {
-//  font-family: @font-main;
-//}
-
-.ant-card, .ant-modal-content {
+.ant-card,
+.ant-modal-content {
   border-radius: @large-border-radius;
 }
 
@@ -129,7 +126,8 @@
   border-top-right-radius: @large-border-radius;
 }
 
-.ant-input, .ant-btn {
+.ant-input,
+.ant-btn {
   //border-radius: @small-border-radius;
 }
 
@@ -160,7 +158,8 @@
   //border-radius: @small-border-radius;
 }
 
-.ant-card, .ant-table {
+.ant-card,
+.ant-table {
   box-shadow: 0 3px 3px rgba(0, 0, 0, 0.05);
 }
 
@@ -178,7 +177,7 @@
 }
 .ant-tooltip-inner a:hover {
   //color: lightblue !important;
-  text-decoration: underline
+  text-decoration: underline;
 }
 
 // Antd Badge "processing" colors override
@@ -205,7 +204,6 @@
 //  vertical-align: bottom !important;
 //}
 
-
 .ant-dropdown-menu-item-active {
   background-color: @bgSecondary !important;
 }
@@ -231,18 +229,24 @@
 }
 
 .ant-popover-placement-rightTop > .ant-popover-content > .ant-popover-arrow {
-  transform: rotate(-45deg)  !important;
+  transform: rotate(-45deg) !important;
 }
 
 .icon-size-base svg {
-@apply w-4 h-4;
+  @apply w-4 h-4;
 }
 
 .icon-size-lg svg {
-@apply w-5 h-5;
+  @apply w-5 h-5;
 }
 
-.ant-tabs-tab-active {
+.ant-tabs-card .ant-tabs-tab-active {
   border-bottom-color: @bgPrimary !important;
-  background: linear-gradient(to bottom, @splitBorder 10%,@splitBorder 10%,@bgPrimary 10%,@bgPrimary 100%) !important;
+  background: linear-gradient(
+    to bottom,
+    @splitBorder 10%,
+    @splitBorder 10%,
+    transparent 10%,
+    transparent 100%
+  ) !important;
 }

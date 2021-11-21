@@ -1,9 +1,5 @@
-import {
-  filteringExpressionDocumentation,
-  modeParameter,
-  tableName
-} from './common';
-import { stringType } from '../../sources/types';
+import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
+import { stringType } from "../../sources/types"
 
 const icon = (
   <svg
@@ -35,51 +31,45 @@ const icon = (
       </g>
     </g>
   </svg>
-);
+)
 
 const amplitudeDestination = {
   description: (
     <>
-      Jitsu can send events from JS SDK or Events API to{' '}
-      <a href="https://developers.amplitude.com/docs/http-api-v2>">
-        Amplitude API
-      </a>
-      . Amplitude is an real-time analytics platform for marketers that can
-      build dashboards to filter new users by country, user activity, retention
-      rate and funnel audiences by custom events
+      Jitsu can send events from JS SDK or Events API to{" "}
+      <a href="https://developers.amplitude.com/docs/http-api-v2>">Amplitude API</a>. Amplitude is an real-time
+      analytics platform for marketers that can build dashboards to filter new users by country, user activity,
+      retention rate and funnel audiences by custom events
     </>
   ),
-  syncFromSourcesStatus: 'not_supported',
-  id: 'amplitude',
-  type: 'other',
-  displayName: 'Amplitude',
-  defaultTransform: 'return $',
+  syncFromSourcesStatus: "not_supported",
+  id: "amplitude",
+  type: "other",
+  displayName: "Amplitude",
+  defaultTransform: `// Code of Amplitude transform:
+// https://github.com/jitsucom/jitsu/blob/master/server/templates/js/transform/amplitude.js
+return toAmplitude($)`,
   hidden: false,
   ui: {
     icon,
-    title: (cfg) =>
-      `API Key: ${cfg._formData.apiKey.substr(
-        0,
-        cfg._formData.apiKey.length / 2
-      )}*****`,
-    connectCmd: (_) => null
+    title: cfg => `API Key: ${cfg._formData.apiKey.substr(0, cfg._formData.apiKey.length / 2)}*****`,
+    connectCmd: _ => null,
   },
   parameters: [
-    modeParameter('stream'),
+    modeParameter("stream"),
     tableName(filteringExpressionDocumentation),
     {
-      id: '_formData.apiKey',
-      displayName: 'API Key',
+      id: "_formData.apiKey",
+      displayName: "API Key",
       required: true,
       type: stringType,
       documentation: (
         <>
-          Your Amplitude API Key from{' '}
-          <a href="https://analytics.amplitude.com/">Project Settings</a> page.
+          Your Amplitude API Key from <a href="https://analytics.amplitude.com/">Project Settings</a> page.
         </>
-      )
-    }
-  ]
-} as const;
+      ),
+    },
+  ],
+} as const
 
-export default amplitudeDestination;
+export default amplitudeDestination

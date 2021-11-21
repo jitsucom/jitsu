@@ -12,7 +12,7 @@ import { handleError } from "lib/components/components"
 import { DropDownList } from "ui/components/DropDownList/DropDownList"
 import { EmptyList } from "ui/components/EmptyList/EmptyList"
 // @Icons
-import PlusOutlined  from "@ant-design/icons/lib/icons/PlusOutlined"
+import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined"
 // @Styles
 import styles from "./DestinationsList.module.less"
 // @Utils
@@ -30,7 +30,6 @@ const DestinationsListComponent = ({ setBreadcrumbs }: CommonDestinationPageProp
   const history = useHistory()
   const subscription = useServices().currentSubscription
 
-
   const dropDownList = useMemo(
     () => (
       <DropDownList
@@ -42,7 +41,7 @@ const DestinationsListComponent = ({ setBreadcrumbs }: CommonDestinationPageProp
             id: dst.id,
             icon: dst.ui.icon,
             handleClick: () => {
-              if (destinationsStore.allDestinations.length >= subscription?.currentPlan.quota.destinations ?? 999) {
+              if (destinationsStore.allDestinations.length >= subscription.currentPlan.quota.destinations) {
                 showQuotaLimitModal(
                   subscription,
                   <>You current plan allows to have only {subscription.currentPlan.quota.destinations} destinations</>
@@ -90,7 +89,7 @@ const DestinationsListComponent = ({ setBreadcrumbs }: CommonDestinationPageProp
       <div className="flex flex-wrap justify-center">
         {destinationsStore.destinations.map((dst: DestinationData) => {
           const statLink = generatePath(destinationPageRoutes.statisticsExact, { id: dst._id })
-          return <DestinationCard dst={dst} />
+          return <DestinationCard key={dst._uid} dst={dst} />
         })}
       </div>
     </>

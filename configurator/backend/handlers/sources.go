@@ -13,6 +13,7 @@ import (
 	jdriversairbyte "github.com/jitsucom/jitsu/server/drivers/airbyte"
 	jdriversbase "github.com/jitsucom/jitsu/server/drivers/base"
 	jdriverssinger "github.com/jitsucom/jitsu/server/drivers/singer"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	jmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	jsources "github.com/jitsucom/jitsu/server/sources"
@@ -187,7 +188,7 @@ func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, pos
 // - puts it with sourceID prefix into mapping map
 func enrichWithSingerTableNamesMapping(enSource *jdriversbase.SourceConfig) error {
 	config := &jdriverssinger.Config{}
-	if err := jdriversbase.UnmarshalConfig(enSource.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(enSource.Config, config); err != nil {
 		return err
 	}
 
@@ -217,7 +218,7 @@ func enrichWithSingerTableNamesMapping(enSource *jdriversbase.SourceConfig) erro
 	}
 
 	serializedConfig := map[string]interface{}{}
-	if err := jdriversbase.UnmarshalConfig(config, &serializedConfig); err != nil {
+	if err := jsonutils.UnmarshalConfig(config, &serializedConfig); err != nil {
 		return err
 	}
 
@@ -230,7 +231,7 @@ func enrichWithSingerTableNamesMapping(enSource *jdriversbase.SourceConfig) erro
 // - puts it with sourceID prefix into mapping map
 func enrichWithAirbyteTableNamesMapping(enSource *jdriversbase.SourceConfig) error {
 	config := &jdriversairbyte.Config{}
-	if err := jdriversbase.UnmarshalConfig(enSource.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(enSource.Config, config); err != nil {
 		return err
 	}
 
@@ -259,7 +260,7 @@ func enrichWithAirbyteTableNamesMapping(enSource *jdriversbase.SourceConfig) err
 	}
 
 	serializedConfig := map[string]interface{}{}
-	if err := jdriversbase.UnmarshalConfig(config, &serializedConfig); err != nil {
+	if err := jsonutils.UnmarshalConfig(config, &serializedConfig); err != nil {
 		return err
 	}
 

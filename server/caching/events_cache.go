@@ -144,19 +144,12 @@ func (ec *EventsCache) succeed(eventContext *adapters.EventContext) {
 
 	//proceed HTTP success event
 	if eventContext.HTTPRequest != nil {
-		var body map[string]interface{}
-		if len(eventContext.HTTPRequest.Body) > 0 {
-			body = map[string]interface{}{}
-			if err := json.Unmarshal(eventContext.HTTPRequest.Body, &body); err != nil {
-				logging.SystemErrorf("[%s] Error unmarshalling succeed HTTP event body: %s: %v", eventContext.DestinationID, string(eventContext.HTTPRequest.Body), err)
-			}
-		}
 		eventEntity = SucceedHTTPEvent{
 			DestinationID: eventContext.DestinationID,
 			URL:           eventContext.HTTPRequest.URL,
 			Method:        eventContext.HTTPRequest.Method,
 			Headers:       eventContext.HTTPRequest.Headers,
-			Body:          body,
+			Body:          string(eventContext.HTTPRequest.Body),
 		}
 	} else {
 		//database success event
@@ -166,7 +159,7 @@ func (ec *EventsCache) succeed(eventContext *adapters.EventContext) {
 			//some destinations might not have table (e.g. s3)
 			if eventContext.Table != nil {
 				if column, ok := eventContext.Table.Columns[name]; ok {
-					sqlType = column.SQLType
+					sqlType = column.Type
 				}
 			}
 

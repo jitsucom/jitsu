@@ -60,14 +60,14 @@ func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters
 	for fieldName, field := range batchHeader.Fields {
 		suggestedSQLType, ok := field.GetSuggestedSQLType(th.destinationType)
 		if ok {
-			table.Columns[fieldName] = adapters.Column{SQLType: suggestedSQLType}
+			table.Columns[fieldName] = suggestedSQLType
 			continue
 		}
 
 		//map Jitsu type -> SQL type
 		sqlType, ok := th.columnTypesMapping[field.GetType()]
 		if ok {
-			table.Columns[fieldName] = adapters.Column{SQLType: sqlType}
+			table.Columns[fieldName] = typing.SQLColumn{Type: sqlType}
 		} else {
 			logging.SystemErrorf("Unknown column type mapping for %s mapping: %v", field.GetType(), th.columnTypesMapping)
 		}

@@ -8,6 +8,7 @@ import (
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/schema"
 	enstorages "github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/utils"
 	"strings"
 )
 
@@ -16,7 +17,7 @@ const defaultPrimaryKey = "eventn_ctx_event_id"
 func MapConfig(destinationID string, destination *entities.Destination, defaultS3 *enadapters.S3Config, postHandleDestinations []string) (*enstorages.DestinationConfig, error) {
 	var config *enstorages.DestinationConfig
 	var err error
-	switch destination.Type {
+	switch utils.NvlString(destination.SuperType, destination.Type) {
 	case enstorages.PostgresType:
 		config, err = mapPostgres(destination)
 	case enstorages.ClickHouseType:
@@ -51,8 +52,17 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 	if err != nil {
 		return nil, err
 	}
+	templateVars := make(map[string]interface{})
+	for k, v := range destination.Data.(map[string]interface{}) {
+		if strings.HasPrefix(k, "_") {
+			templateVars[k[1:]] = v
+		}
+	}
+
+	config.TemplateVariables = templateVars
 
 	enrichMappingRules(destination, config)
+	config.DataLayout.TransformEnabled = destination.TransformEnabled
 	config.DataLayout.Transform = destination.Transform
 	setEnrichmentRules(destination, config)
 
@@ -166,9 +176,19 @@ func mapPostgres(pgDestinations *entities.Destination) (*enstorages.DestinationC
 		return nil, fmt.Errorf("Error unmarshaling postgres form data: %v", err)
 	}
 
-	var parameters map[string]string
-	if pgFormData.DisableSSL {
-		parameters = map[string]string{"sslmode": "disable"}
+	var sslConfig *enadapters.SSLConfig
+	if pgFormData.SSLConfiguration != nil {
+		sslConfig = &enadapters.SSLConfig{}
+		sslConfig.ServerCA = pgFormData.SSLConfiguration.ServerCA
+		sslConfig.ClientCert = pgFormData.SSLConfiguration.ClientCert
+		sslConfig.ClientKey = pgFormData.SSLConfiguration.ClientKey
+	}
+
+	if pgFormData.SSLMode != enadapters.Unknown.String() {
+		if sslConfig == nil {
+			sslConfig = &enadapters.SSLConfig{}
+		}
+		sslConfig.Mode = enadapters.FromString(pgFormData.SSLMode)
 	}
 
 	return &enstorages.DestinationConfig{
@@ -179,13 +199,14 @@ func mapPostgres(pgDestinations *entities.Destination) (*enstorages.DestinationC
 			PrimaryKeyFields:  pgFormData.PKFields,
 		},
 		DataSource: &enadapters.DataSourceConfig{
-			Host:       pgFormData.Host,
-			Port:       pgFormData.Port,
-			Db:         pgFormData.Db,
-			Schema:     pgFormData.Schema,
-			Username:   pgFormData.Username,
-			Password:   pgFormData.Password,
-			Parameters: parameters,
+			Host:             pgFormData.Host,
+			Port:             pgFormData.Port,
+			Db:               pgFormData.Db,
+			Schema:           pgFormData.Schema,
+			Username:         pgFormData.Username,
+			Password:         pgFormData.Password,
+			Parameters:       map[string]string{},
+			SSLConfiguration: sslConfig,
 		},
 	}, nil
 }
@@ -413,8 +434,9 @@ func mapWebhook(whDestination *entities.Destination) (*enstorages.DestinationCon
 	}
 
 	return &enstorages.DestinationConfig{
-		Type: enstorages.WebHookType,
-		Mode: whFormData.Mode,
+		Type:    enstorages.WebHookType,
+		SubType: whDestination.Type,
+		Mode:    whFormData.Mode,
 		WebHook: &enadapters.WebHookConfig{
 			URL:     whFormData.URL,
 			Method:  whFormData.Method,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"strings"
@@ -21,6 +22,8 @@ const (
 
 //Redis is a Redis driver. It is used in syncing data from Redis.
 type Redis struct {
+	base.IntervalDriver
+
 	collection     *base.Collection
 	connectionPool *meta.RedisPool
 	redisKey       string
@@ -34,7 +37,7 @@ func init() {
 //NewRedis returns configured Redis driver instance
 func NewRedis(_ context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &RedisConfig{}
-	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +48,7 @@ func NewRedis(_ context.Context, sourceConfig *base.SourceConfig, collection *ba
 	}
 
 	parameters := &RedisParameters{}
-	if err := base.UnmarshalConfig(collection.Parameters, parameters); err != nil {
+	if err := jsonutils.UnmarshalConfig(collection.Parameters, parameters); err != nil {
 		return nil, err
 	}
 	if err := parameters.Validate(); err != nil {
@@ -68,6 +71,7 @@ func NewRedis(_ context.Context, sourceConfig *base.SourceConfig, collection *ba
 	}
 
 	return &Redis{
+		IntervalDriver: base.IntervalDriver{SourceType: sourceConfig.Type},
 		collection:     collection,
 		connectionPool: pool,
 		redisKey:       parameters.RedisKey,
@@ -77,7 +81,7 @@ func NewRedis(_ context.Context, sourceConfig *base.SourceConfig, collection *ba
 //TestRedis tests connection to Redis without creating Driver instance
 func TestRedis(sourceConfig *base.SourceConfig) error {
 	config := &RedisConfig{}
-	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return err
 	}

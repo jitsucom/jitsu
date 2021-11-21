@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -108,7 +108,7 @@ function Svg(props) {
         <rect x={26.1} y={98.5} fill="#FFFFFF" width={147.8} height={1.5} />
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

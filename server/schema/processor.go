@@ -35,15 +35,16 @@ type Processor struct {
 	maxColumnNameLen        int
 }
 
-func NewProcessor(destinationID, tableNameFuncExpression string, transform string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule,
-	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int) (*Processor, error) {
-	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression)
+func NewProcessor(destinationID, destinationType, tableNameFuncExpression string, transform string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule,
+	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int, templateVariables map[string]interface{}) (*Processor, error) {
+	var templateFunctions = templates.EnrichedFuncMap(templateVariables)
+	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression, templateFunctions)
 	if err != nil {
 		return nil, err
 	}
 	var transformer *templates.JsTemplateExecutor
 	if transform != "" && transform != templates.TransformDefaultTemplate {
-		transformer, err = templates.NewJsTemplateExecutor(transform, templates.JSONSerializeFuncs)
+		transformer, err = templates.NewJsTemplateExecutor(transform, templateFunctions, []string{destinationType, "segment"}...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to init transform javascript: %v", err)
 		}
@@ -249,6 +250,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		if err != nil {
 			return nil, err
 		}
+		ClearTypeMetaFields(flatObject)
 		bh, obj, err := p.foldLongFields(&BatchHeader{newTableName, fields}, flatObject)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process long fields: %v", err)
@@ -332,4 +334,17 @@ func cutName(name string, maxLen int) string {
 	}
 
 	return cutName(name, maxLen)
+}
+
+func ClearTypeMetaFields(object map[string]interface{})  {
+	for k, v := range object {
+		if strings.Contains(k, SqlTypeKeyword) {
+			delete(object, k)
+		} else {
+			obj, ok := v.(map[string]interface{})
+			if ok {
+				ClearTypeMetaFields(obj)
+			}
+		}
+	}
 }

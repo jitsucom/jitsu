@@ -1,6 +1,6 @@
-import { Destination } from '../types';
-import { modeParameter, tableName } from './common';
-import { hiddenValue, jsonType, stringType } from '../../sources/types';
+import { Destination } from "../types"
+import { modeParameter, tableName } from "./common"
+import { hiddenValue, jsonType, stringType } from "../../sources/types"
 
 const icon = (
   <svg
@@ -9,14 +9,7 @@ const icon = (
     width="100%"
     viewBox="-1.633235433328256 7.0326093303156565 131.26574682416876 114.63439066968435"
   >
-    <linearGradient
-      id="bgq"
-      gradientUnits="userSpaceOnUse"
-      x1="64"
-      x2="64"
-      y1="7.034"
-      y2="120.789"
-    >
+    <linearGradient id="bgq" gradientUnits="userSpaceOnUse" x1="64" x2="64" y1="7.034" y2="120.789">
       <stop offset="0" stopColor="#4387fd" />
       <stop offset="1" stopColor="#4683ea" />
     </linearGradient>
@@ -34,104 +27,89 @@ const icon = (
       <path d="M52.99 63.104v7.21a12.794 12.794 0 0 0 4.38 4.475V63.104zM61.675 57.026v19.411c.745.137 1.507.22 2.29.22.714 0 1.41-.075 2.093-.189V57.026zM70.766 66.1v8.562a12.786 12.786 0 0 0 4.382-4.7v-3.861zM80.691 78.287l-2.403 2.405a1.088 1.088 0 0 0 0 1.537l9.115 9.112a1.088 1.088 0 0 0 1.537 0l2.403-2.402a1.092 1.092 0 0 0 0-1.536l-9.116-9.116a1.09 1.09 0 0 0-1.536 0" />
     </g>
   </svg>
-);
-
+)
 
 const bigQueryDestination = {
   description: (
     <>
-      <a href="https://cloud.google.com/bigquery">Google BigQuery</a> is a fast,
-      scalable, and easy-to-use data warehouse. Main advantages of Google
-      BiqQuery are:
+      <a href="https://cloud.google.com/bigquery">Google BigQuery</a> is a fast, scalable, and easy-to-use data
+      warehouse. Main advantages of Google BiqQuery are:
       <ul>
         <li>
-          <b>Serverless architecture</b>.{' '}
+          <b>Serverless architecture</b>.{" "}
         </li>
         <li>
           <b>Pay-as-you go</b>
         </li>
       </ul>
-      Jitsu can{' '}
-      <a href="https://cloud.google.com/bigquery/streaming-data-into-bigquery">
-        stream
-      </a>{' '}
-      and{' '}
-      <a href="https://cloud.google.com/bigquery/docs/batch-loading-data">
-        batch
-      </a>{' '}
-      data to Google BigQuery. Streaming will get data to BQ immediately,
-      however Google charges for each streamed record, while batching is free.
-      Streaming is the fastest way to get started, but batching will be cheaper
-      for large volumes.
+      Jitsu can <a href="https://cloud.google.com/bigquery/streaming-data-into-bigquery">stream</a> and{" "}
+      <a href="https://cloud.google.com/bigquery/docs/batch-loading-data">batch</a> data to Google BigQuery. Streaming
+      will get data to BQ immediately, however Google charges for each streamed record, while batching is free.
+      Streaming is the fastest way to get started, but batching will be cheaper for large volumes.
     </>
   ),
-  syncFromSourcesStatus: 'supported',
-  id: 'bigquery',
-  type: 'database',
-  displayName: 'BigQuery',
-  defaultTransform: 'return $',
+  syncFromSourcesStatus: "supported",
+  id: "bigquery",
+  type: "database",
+  displayName: "BigQuery",
+  defaultTransform: "",
   hidden: false,
   ui: {
     icon: icon,
     connectCmd: (cfg: object) => {
-      return `echo '${cfg['_formData']['bqJSONKey'].replaceAll(
-        '\n',
-        ' '
-      )}' > bqkey.json;\\\ngcloud auth activate-service-account --key-file bqkey.json;\\\nbq query "SELECT 1;"`;
+      return `echo '${cfg["_formData"]["bqJSONKey"].replaceAll(
+        "\n",
+        " "
+      )}' > bqkey.json;\\\ngcloud auth activate-service-account --key-file bqkey.json;\\\nbq query "SELECT 1;"`
     },
     title: (cfg: object) => {
-      return cfg['_formData']['pghost'];
-    }
+      return cfg["_formData"]["pghost"]
+    },
   },
   parameters: [
     {
-      id: '$type',
-      constant: 'BQConfig'
+      id: "$type",
+      constant: "BQConfig",
     },
     modeParameter(),
     tableName(),
     {
-      id: '_formData.bqProjectId',
-      displayName: 'Project Id',
+      id: "_formData.bqProjectId",
+      displayName: "Project Id",
       required: true,
-      type: stringType
+      type: stringType,
     },
     {
-      id: '_formData.bqDataset',
-      displayName: 'Dataset',
-      defaultValue: 'default',
-      type: stringType
+      id: "_formData.bqDataset",
+      displayName: "Dataset",
+      defaultValue: "default",
+      type: stringType,
     },
     {
-      id: '_formData.bqJSONKey',
-      displayName: 'Access Key',
+      id: "_formData.bqJSONKey",
+      displayName: "Access Key",
       documentation: (
         <>
-          Google Service Account JSON for BigQuery.{' '}
+          Google Service Account JSON for BigQuery.{" "}
           <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">
             Read more about Google Authorization
           </a>
         </>
       ),
       required: true,
-      type: jsonType
+      type: jsonType,
     },
     {
-      id: '_formData.bqGCSBucket',
-      documentation: (
-        <>
-          Name of GCS Bucket. The bucket should be accessible with the same
-          Access Key as dataset
-        </>
-      ),
-      displayName: 'GCS Bucket',
+      id: "_formData.bqGCSBucket",
+      documentation: <>Name of GCS Bucket. The bucket should be accessible with the same Access Key as dataset</>,
+      displayName: "GCS Bucket",
       required: true,
       type: stringType,
-      constant: hiddenValue('', (cfg) => {
-        return cfg?.['_formData']?.mode !== 'batch';
-      })
-    }
-  ]
-} as const;
+      constant: hiddenValue("", cfg => {
+        return cfg?.["_formData"]?.mode !== "batch"
+      }),
+    },
+  ],
+} as const
 
-export default bigQueryDestination;
+export default bigQueryDestination

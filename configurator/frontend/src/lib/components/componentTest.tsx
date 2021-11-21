@@ -1,7 +1,6 @@
 /* eslint-disable */
-import React, { ReactElement, ReactNode } from 'react';
-import TagsInput from './TagsInput/TagsInput';
+import React, { ReactElement, ReactNode } from "react"
 
 export default function ComponentTest() {
-  return <TagsInput />;
+  return <></>
 }

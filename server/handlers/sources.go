@@ -11,10 +11,13 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/oauth"
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/sources"
+	"github.com/spf13/viper"
 	"net/http"
+	"strings"
 )
 
 //ClearCacheRequest is a dto for ClearCache endpoint
@@ -152,14 +155,8 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 	}
 	err := testSourceConnection(sourceConfig)
 	if err != nil {
-		notReadyErr, ok := err.(*runner.NotReadyError)
-		if ok {
-			if notReadyErr.PreviousError() == "" {
-				c.JSON(http.StatusOK, middleware.PendingResponse())
-				return
-			}
-
-			c.JSON(http.StatusOK, middleware.PendingResponseWithMessage(notReadyErr.PreviousError()))
+		if err == runner.ErrNotReady {
+			c.JSON(http.StatusOK, middleware.PendingResponse())
 			return
 		}
 
@@ -168,6 +165,22 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, middleware.OKResponse())
+}
+
+//OauthFields returns object with source config field that can be preconfigured on server side.
+//Along with info what env pr yaml path need to configure field and current status (provided on server side or not)
+func (sh *SourcesHandler) OauthFields(c *gin.Context) {
+	sourceType := c.Param("sourceType")
+	oathFields := oauth.Fields[sourceType]
+	res := make(map[string]interface{})
+	for k,v := range oathFields {
+		fieldObject := make(map[string]interface{})
+		fieldObject["env_name"] = strings.ReplaceAll(strings.ToUpper(v), ".", "_")
+		fieldObject["yaml_path"] = v
+		fieldObject["provided"] = viper.GetString(v) != ""
+		res[k] = fieldObject
+	}
+	c.JSON(http.StatusOK, res)
 }
 
 func testSourceConnection(config *driversbase.SourceConfig) error {

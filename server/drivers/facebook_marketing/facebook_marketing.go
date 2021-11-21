@@ -6,6 +6,7 @@ import (
 	"fmt"
 	fb "github.com/huandu/facebook/v2"
 	"github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	"strings"
@@ -52,14 +53,14 @@ func init() {
 //NewFacebookMarketing returns configured Facebook Marketing driver instance
 func NewFacebookMarketing(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &FacebookMarketingConfig{}
-	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	reportConfig := &FacebookReportConfig{}
-	if err := base.UnmarshalConfig(collection.Parameters, reportConfig); err != nil {
+	if err := jsonutils.UnmarshalConfig(collection.Parameters, reportConfig); err != nil {
 		return nil, err
 	}
 	if reportConfig.Level == "" {
@@ -71,13 +72,18 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *base.SourceConfig, 
 	if collection.Type != AdsCollection && collection.Type != InsightsCollection {
 		return nil, fmt.Errorf("Unknown collection [%s]: Only [%s] and [%s] are supported now", collection.Type, AdsCollection, InsightsCollection)
 	}
-	return &FacebookMarketing{collection: collection, config: config, reportConfig: reportConfig}, nil
+	return &FacebookMarketing{
+		IntervalDriver: base.IntervalDriver{SourceType: sourceConfig.Type},
+		collection:     collection,
+		config:         config,
+		reportConfig:   reportConfig,
+	}, nil
 }
 
 //TestFacebookMarketingConnection tests connection to Facebook without creating Driver instance
 func TestFacebookMarketingConnection(sourceConfig *base.SourceConfig) error {
 	config := &FacebookMarketingConfig{}
-	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return err
 	}
 	if err := config.Validate(); err != nil {

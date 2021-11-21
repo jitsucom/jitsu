@@ -1,18 +1,12 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      height="100%"
-      width="100%"
-      viewBox="0 0 200 200"
-      {...props}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" height="100%" width="100%" viewBox="0 0 200 200" {...props}>
       <defs>
         <style>
           {
-            '.cls-1{fill:#5991f9;}.cls-2{fill:#e6553d;}.cls-3{fill:#56b663;}.cls-4{fill:#f7c70b;}.cls-5{fill:#6e7277;}.cls-6{fill:#6e7177;}.cls-7{fill:#707479;}.cls-8{fill:#6e7278;}'
+            ".cls-1{fill:#5991f9;}.cls-2{fill:#e6553d;}.cls-3{fill:#56b663;}.cls-4{fill:#f7c70b;}.cls-5{fill:#6e7277;}.cls-6{fill:#6e7177;}.cls-7{fill:#707479;}.cls-8{fill:#6e7278;}"
           }
         </style>
       </defs>
@@ -61,7 +55,7 @@ function Svg(props) {
         </g>
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

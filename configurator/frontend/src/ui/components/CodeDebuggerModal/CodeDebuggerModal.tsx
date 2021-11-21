@@ -1,20 +1,19 @@
 // @Libs
-import { Modal, ModalProps } from 'antd';
+import { Modal, ModalProps } from "antd"
 // @Component
-import { CodeDebugger, CodeDebuggerProps } from '../CodeDebugger/CodeDebugger';
+import { CodeDebugger, CodeDebuggerProps } from "../CodeDebugger/CodeDebugger"
 // @Styles
-import styles from './CodeDebuggerModal.module.less';
+import styles from "./CodeDebuggerModal.module.less"
 
 type DebuggerProps = {
-  [P in keyof CodeDebuggerProps &
-    string as `${P}Debugger`]: CodeDebuggerProps[P];
-};
+  [P in keyof CodeDebuggerProps & string as `${P}Debugger`]: CodeDebuggerProps[P]
+}
 
-type Props = Partial<DebuggerProps> & ModalProps;
+type Props = Partial<DebuggerProps> & ModalProps
 
 /**
  * Decorates code debugger with an antd almost-full-height/width modal.
- * Accepts native modal props, debugger props should be postfixed with `Debugger`.
+ * Accepts antd Modal props and CodeDebugger props if they are postfixed with `Debugger`.
  */
 export const CodeDebuggerModal: React.FC<Props> = ({
   classNameDebugger,
@@ -24,6 +23,7 @@ export const CodeDebuggerModal: React.FC<Props> = ({
   handleCodeChangeDebugger,
   runDebugger = () => {},
   handleSaveCodeDebugger,
+  extraSuggestionsDebugger,
   className: modalClassName,
   centered: modalCentered,
   width: modalWidth,
@@ -48,7 +48,8 @@ export const CodeDebuggerModal: React.FC<Props> = ({
         handleCodeChange={handleCodeChangeDebugger}
         handleSaveCode={handleSaveCodeDebugger}
         run={runDebugger}
+        extraSuggestions={extraSuggestionsDebugger}
       />
     </Modal>
-  );
-};
+  )
+}

@@ -1,23 +1,20 @@
-import { Card, Collapse, Typography } from 'antd';
-import { FC, ReactNode } from 'react';
+import { Button, Card, Collapse, Typography } from "antd"
+import { FC, Fragment, ReactNode } from "react"
 // @Icons
-import {
-  CheckOutlined,
-  CopyOutlined,
-  ExclamationCircleOutlined
-} from '@ant-design/icons';
+import { CheckOutlined, CopyOutlined, ExclamationCircleOutlined, ReloadOutlined } from "@ant-design/icons"
 // @Styles
-import styles from './ErrorCard.module.less';
+import styles from "./ErrorCard.module.less"
+import cn from "classnames"
 
 type ErrorCardProps = {
-  title?: string | ReactNode;
-  icon?: ReactNode;
-  description?: string | ReactNode;
-  descriptionWithContacts?: string | null;
-  stackTrace?: string;
-  className?: string;
-  onReload?: VoidFunction;
-};
+  title?: string | ReactNode
+  icon?: ReactNode
+  description?: string | ReactNode
+  descriptionWithContacts?: string | null
+  stackTrace?: string
+  className?: string
+  onReload?: VoidFunction
+}
 
 export const ErrorCard: FC<ErrorCardProps> = ({
   title,
@@ -25,16 +22,17 @@ export const ErrorCard: FC<ErrorCardProps> = ({
   description,
   descriptionWithContacts,
   stackTrace,
-  className
+  className,
+  onReload,
 }) => {
   return (
-    <Card bordered={false} className={className}>
+    <Card bordered={false} className={cn(className, "max-h-full")}>
       <Card.Meta
         avatar={icon || <ExclamationCircleOutlined className={styles.icon} />}
-        title={title || 'An Error Occured'}
+        title={title || "An Error Occured"}
         description={
           <>
-            <>
+            <Fragment key="description">
               {description !== undefined ? (
                 description
               ) : (
@@ -46,48 +44,43 @@ export const ErrorCard: FC<ErrorCardProps> = ({
                     </>
                   ) : (
                     <>
-                      {
-                        'The application component crashed because of an internal error.'
-                      }
+                      {"The application component crashed because of an internal error."}
                       <br />
                     </>
                   )}
-                  {
-                    'Please, try to reload the page first and if the problem is still present contact us at'
-                  }{' '}
-                  <Typography.Paragraph
-                    copyable={{ tooltips: false }}
-                    className="inline"
-                  >
-                    {'support@jitsu.com'}
-                  </Typography.Paragraph>{' '}
-                  {'and our engineers will fix the problem asap.'}
+                  {"Please, try to reload the page first and if the problem is still present contact us at"}{" "}
+                  <Typography.Paragraph copyable={{ tooltips: false }} className="inline">
+                    {"support@jitsu.com"}
+                  </Typography.Paragraph>{" "}
+                  {"and our engineers will fix the problem asap."}
                 </span>
               )}
-            </>
-            <>
-              {stackTrace && (
-                <Collapse
-                  bordered={false}
-                  className={`mt-2 ${styles.stackTraceCard}`}
-                >
-                  <Collapse.Panel key={1} header="Error Stack Trace">
+            </Fragment>
+            {stackTrace && (
+              <Collapse key="stack-trace" bordered={false} className={`mt-2 ${styles.stackTraceCard}`}>
+                <Collapse.Panel key={1} header="Error Stack Trace">
+                  <div className="overflow-y-auto">
                     <Typography.Paragraph
                       copyable={{
                         text: stackTrace,
-                        icon: [<CopyOutlined />, <CheckOutlined />]
+                        icon: [<CopyOutlined />, <CheckOutlined />],
                       }}
                       className={`flex flex-row ${styles.errorStackContainer}`}
                     >
                       <pre className="text-xs">{stackTrace}</pre>
                     </Typography.Paragraph>
-                  </Collapse.Panel>
-                </Collapse>
-              )}
-            </>
+                  </div>
+                </Collapse.Panel>
+              </Collapse>
+            )}
+            {onReload && (
+              <div key="reload-button" className="flex justify-center items-center mt-2">
+                <Button type="default" onClick={onReload} icon={<ReloadOutlined />}>{`Reload`}</Button>
+              </div>
+            )}
           </>
         }
       />
     </Card>
-  );
-};
+  )
+}

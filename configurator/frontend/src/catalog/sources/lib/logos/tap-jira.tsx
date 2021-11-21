@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -37,21 +37,18 @@ function Svg(props) {
           <stop
             offset={0.07}
             style={{
-              stopColor: '#FFFFFF',
-              stopOpacity: 0.4
+              stopColor: "#FFFFFF",
+              stopOpacity: 0.4,
             }}
           />
           <stop
             offset={1}
             style={{
-              stopColor: '#FFFFFF'
+              stopColor: "#FFFFFF",
             }}
           />
         </linearGradient>
-        <path
-          fill="url(#SVGID_1_)"
-          d="M100,77.1c-15-15-15.1-39.3-0.2-54.4L47.6,74.8l27.3,27.3L100,77.1z"
-        />
+        <path fill="url(#SVGID_1_)" d="M100,77.1c-15-15-15.1-39.3-0.2-54.4L47.6,74.8l27.3,27.3L100,77.1z" />
         <linearGradient
           id="SVGID_2_"
           gradientUnits="userSpaceOnUse"
@@ -64,14 +61,14 @@ function Svg(props) {
           <stop
             offset={0.07}
             style={{
-              stopColor: '#FFFFFF',
-              stopOpacity: 0.4
+              stopColor: "#FFFFFF",
+              stopOpacity: 0.4,
             }}
           />
           <stop
             offset={0.91}
             style={{
-              stopColor: '#FFFFFF'
+              stopColor: "#FFFFFF",
             }}
           />
         </linearGradient>
@@ -81,7 +78,7 @@ function Svg(props) {
         />
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

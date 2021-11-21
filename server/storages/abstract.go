@@ -67,8 +67,8 @@ func (a *Abstract) DryRun(payload events.Event) ([][]adapters.TableField, error)
 //ErrorEvent writes error to metrics/counters/telemetry/events cache
 func (a *Abstract) ErrorEvent(fallback bool, eventCtx *adapters.EventContext, err error) {
 	metrics.ErrorTokenEvent(eventCtx.TokenID, a.destinationID)
-	counters.ErrorEvents(a.destinationID, 1)
-	telemetry.Error(eventCtx.TokenID, a.destinationID, eventCtx.Src, 1)
+	counters.ErrorPushDestinationEvents(a.destinationID, 1)
+	telemetry.Error(eventCtx.TokenID, a.destinationID, eventCtx.Src, "", 1)
 
 	//cache
 	a.eventsCache.Error(eventCtx.CacheDisabled, a.destinationID, eventCtx.EventID, err.Error())
@@ -84,8 +84,8 @@ func (a *Abstract) ErrorEvent(fallback bool, eventCtx *adapters.EventContext, er
 
 //SuccessEvent writes success to metrics/counters/telemetry/events cache
 func (a *Abstract) SuccessEvent(eventCtx *adapters.EventContext) {
-	counters.SuccessEvents(a.destinationID, 1)
-	telemetry.Event(eventCtx.TokenID, a.destinationID, eventCtx.Src, 1)
+	counters.SuccessPushDestinationEvents(a.destinationID, 1)
+	telemetry.Event(eventCtx.TokenID, a.destinationID, eventCtx.Src, "", 1)
 	metrics.SuccessTokenEvent(eventCtx.TokenID, a.destinationID)
 
 	//cache
@@ -94,7 +94,7 @@ func (a *Abstract) SuccessEvent(eventCtx *adapters.EventContext) {
 
 //SkipEvent writes skip to metrics/counters/telemetry and error to events cache
 func (a *Abstract) SkipEvent(eventCtx *adapters.EventContext, err error) {
-	counters.SkipEvents(a.destinationID, 1)
+	counters.SkipPushDestinationEvents(a.destinationID, 1)
 	metrics.SkipTokenEvent(eventCtx.TokenID, a.destinationID)
 
 	//cache
@@ -161,7 +161,7 @@ func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error)
 //AccountResult checks input error and calls ErrorEvent or SuccessEvent
 func (a *Abstract) AccountResult(eventContext *adapters.EventContext, err error) {
 	if err != nil {
-		if isConnectionError(err) {
+		if IsConnectionError(err) {
 			a.ErrorEvent(false, eventContext, err)
 		} else {
 			a.ErrorEvent(true, eventContext, err)

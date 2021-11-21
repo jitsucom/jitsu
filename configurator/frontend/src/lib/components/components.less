@@ -1,26 +1,4 @@
-@import '../../theme.less';
-
-.closable-message {
-  display: inline-flex;
-  align-items: center;
-  position: relative;
-}
-
-.closable-message_content {
-  @apply max-h-52 max-w-full md:max-w-md overflow-y-auto overflow-x-hidden;
-}
-
-.close-message-icon {
-  display: inline-block;
-  color: @text-color-secondary !important;
-  position: static !important;
-  margin: -16px -8px 0 8px !important;
-
-  svg {
-    width: 10px;
-    height: 10px;
-  }
-}
+@import "../../theme.less";
 
 .error-image {
   height: 300px;
@@ -38,7 +16,6 @@
   padding-top: 30px;
   text-align: center;
 }
-
 
 .common-component-fadein {
   -webkit-animation: fadein 1.5s; /* Safari, Chrome and Opera > 12.1 */
@@ -101,7 +78,7 @@
   font-family: @font-monospace;
   line-height: normal;
   background: rgba(135, 131, 120, 0.15);
-  color: #EB5757;
+  color: #eb5757;
   border-radius: 3px;
   font-size: 85%;
   padding: 0.2em 0.4em;
@@ -160,7 +137,7 @@
   font-family: @font-monospace;
   line-height: normal;
   background: rgba(135, 131, 120, 0.15);
-  color: #EB5757;
+  color: #eb5757;
   border-radius: 3px;
   font-size: 85%;
   padding: 0.2em 0.4em;
@@ -184,4 +161,3 @@
   height: 10vh;
   min-height: 300px;
 }
-

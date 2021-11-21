@@ -71,10 +71,10 @@ func kafkaTestTable(name string) *Table {
 		Name: name,
 		//Name: fmt.Sprintf("test_kafka_bulk_update_%d", rand.Int()),
 		Columns: Columns{
-			"field1": Column{SchemaToMySQL[typing.STRING]},
-			"field2": Column{SchemaToMySQL[typing.STRING]},
-			"field3": Column{SchemaToMySQL[typing.BOOL]},
-			"user":   Column{SchemaToMySQL[typing.STRING]},
+			"field1": typing.SQLColumn{Type: "str"},
+			"field2": typing.SQLColumn{Type: "str"},
+			"field3": typing.SQLColumn{Type: "bool"},
+			"user":   typing.SQLColumn{Type: "str"},
 		},
 	}
 }

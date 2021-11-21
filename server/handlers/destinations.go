@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,7 +42,7 @@ func DestinationsHandler(c *gin.Context) {
 	err := testDestinationConnection(destinationConfig)
 	if err != nil {
 		msg := err.Error()
-		if strings.Contains(err.Error(), "i/o timeout") {
+		if strings.Contains(err.Error(), "i/o timeout") || storages.IsConnectionError(err) {
 			msg = fmt.Sprintf(connectionErrMsg, err)
 		}
 
@@ -70,32 +73,32 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 	switch config.Type {
 	case storages.PostgresType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: adapters.Column{SQLType: "text"},
-			timestamp.Key: adapters.Column{SQLType: "timestamp"},
+			uniqueIDField: typing.SQLColumn{Type: "text"},
+			timestamp.Key: typing.SQLColumn{Type: "timestamp"},
 		}
 		return testPostgres(config, eventContext)
 	case storages.ClickHouseType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: adapters.Column{SQLType: "String"},
-			timestamp.Key: adapters.Column{SQLType: "DateTime"},
+			uniqueIDField: typing.SQLColumn{Type: "String"},
+			timestamp.Key: typing.SQLColumn{Type: "DateTime"},
 		}
 		return testClickHouse(config, eventContext)
 	case storages.RedshiftType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: adapters.Column{SQLType: "text"},
-			timestamp.Key: adapters.Column{SQLType: "timestamp"},
+			uniqueIDField: typing.SQLColumn{Type: "text"},
+			timestamp.Key: typing.SQLColumn{Type: "timestamp"},
 		}
 		return testRedshift(config, eventContext)
 	case storages.BigQueryType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: adapters.Column{SQLType: string(bigquery.StringFieldType)},
-			timestamp.Key: adapters.Column{SQLType: string(bigquery.TimestampFieldType)},
+			uniqueIDField: typing.SQLColumn{Type: string(bigquery.StringFieldType)},
+			timestamp.Key: typing.SQLColumn{Type: string(bigquery.TimestampFieldType)},
 		}
 		return testBigQuery(config, eventContext)
 	case storages.SnowflakeType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: adapters.Column{SQLType: "text"},
-			timestamp.Key: adapters.Column{SQLType: "timestamp(6)"},
+			uniqueIDField: typing.SQLColumn{Type: "text"},
+			timestamp.Key: typing.SQLColumn{Type: "timestamp(6)"},
 		}
 		return testSnowflake(config, eventContext)
 	case storages.GoogleAnalyticsType:
@@ -140,8 +143,8 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		return dbtCloudAdapter.TestAccess()
 	case storages.MySQLType:
 		eventContext.Table.Columns = adapters.Columns{
-			uniqueIDField: adapters.Column{SQLType: "text"},
-			timestamp.Key: adapters.Column{SQLType: "DATETIME"},
+			uniqueIDField: typing.SQLColumn{Type: "text"},
+			timestamp.Key: typing.SQLColumn{Type: "DATETIME"},
 		}
 		return testMySQL(config, eventContext)
 	case storages.S3Type:
@@ -178,6 +181,19 @@ func testPostgres(config *storages.DestinationConfig, eventContext *adapters.Eve
 	}
 
 	config.DataSource.Parameters["connect_timeout"] = "6"
+
+	hash := resources.GetStringHash(config.DataSource.Host + config.DataSource.Username)
+	dir := adapters.SSLDir(appconfig.Instance.ConfigPath, hash)
+	if err := adapters.ProcessSSL(dir, config.DataSource); err != nil {
+		return err
+	}
+
+	//delete dir with SSL
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			logging.SystemErrorf("Error deleting generated ssl config dir [%s]: %v", dir, err)
+		}
+	}()
 
 	postgres, err := adapters.NewPostgres(context.Background(), config.DataSource, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
@@ -237,7 +253,10 @@ func testClickHouse(config *storages.DestinationConfig, eventContext *adapters.E
 		return multiErr
 	}
 
-	for _, dsn := range config.ClickHouse.Dsns {
+	for i, dsn := range config.ClickHouse.Dsns {
+		//create N tables where N=len(dsns). For testing each dsn
+		eventContext.Table.Name += strconv.Itoa(i)
+
 		dsnURL, err := url.Parse(strings.TrimSpace(dsn))
 		if err != nil {
 			return err
@@ -252,6 +271,11 @@ func testClickHouse(config *storages.DestinationConfig, eventContext *adapters.E
 			config.ClickHouse.Database, config.ClickHouse.Cluster, config.ClickHouse.TLS, tableStatementFactory,
 			map[string]bool{}, &logging.QueryLogger{}, typing.SQLTypes{})
 		if err != nil {
+			return err
+		}
+
+		if err := ch.CreateDB(config.ClickHouse.Database); err != nil {
+			ch.Close()
 			return err
 		}
 
@@ -293,6 +317,19 @@ func testRedshift(config *storages.DestinationConfig, eventContext *adapters.Eve
 	}
 
 	config.DataSource.Parameters["connect_timeout"] = "6"
+
+	hash := resources.GetStringHash(config.DataSource.Host + config.DataSource.Username)
+	dir := adapters.SSLDir(appconfig.Instance.ConfigPath, hash)
+	if err := adapters.ProcessSSL(dir, config.DataSource); err != nil {
+		return err
+	}
+
+	//delete dir with SSL
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			logging.SystemErrorf("Error deleting generated ssl config dir [%s]: %v", dir, err)
+		}
+	}()
 
 	redshift, err := adapters.NewAwsRedshift(context.Background(), config.DataSource, config.S3, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {

@@ -121,6 +121,7 @@ docker run -p <local_port>:8000 \
   -e UI_AUTH_REFRESH_SECRET=<your_generated_refresh_secret> \
   -v $PWD/server_logs/:/home/eventnative/data/logs/ \
   -v $PWD/configurator_logs/:/home/configurator/data/logs/ \
+  -v jitsu_workspace:/home/eventnative/data/airbyte \
   -v /var/run/docker.sock:/var/run/docker.sock \
   jitsucom/jitsu:latest
 ```

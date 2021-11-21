@@ -3,64 +3,55 @@
  * Library of small components that are usefull for different purposes
  */
 
-import React, { ReactNode } from 'react';
-import './components.less';
-import { Col, message, Progress, Modal, Row, Spin, Typography } from 'antd';
-import CloseCircleOutlined from '@ant-design/icons/lib/icons/CloseCircleOutlined';
-import CopyOutlined from '@ant-design/icons/lib/icons/CopyOutlined';
-import CheckCircleOutlined from '@ant-design/icons/lib/icons/CheckCircleOutlined';
-import InfoCircleOutlined from '@ant-design/icons/lib/icons/InfoCircleOutlined';
-import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
-import plumber from '../../icons/plumber.png';
+import React, { ReactNode } from "react"
+import "./components.less"
+import { Col, message, Modal, Progress, Row, Spin } from "antd"
+import CopyOutlined from "@ant-design/icons/lib/icons/CopyOutlined"
+import plumber from "../../icons/plumber.png"
 
-import ApplicationServices from '../services/ApplicationServices';
-import {
-  copyToClipboard,
-  firstToLower,
-  sleep,
-  withDefaults
-} from '../commons/utils';
+import ApplicationServices from "../services/ApplicationServices"
+import { copyToClipboard, firstToLower, sleep, withDefaults } from "../commons/utils"
+import { ArgsProps } from "antd/es/message"
+import { MessageType } from "antd/lib/message"
+import cn from "classnames"
+import { SyntaxHighlighterAsync } from "./SyntaxHighlighter/SyntaxHighlighter"
+import { actionNotification } from "../../ui/components/ActionNotification/ActionNotification"
 
 type IPreloaderProps = {
-  text?: string;
-};
+  text?: string
+}
 
 /**
  * Loader component. A spinner and text positioned in the center of parent component, assuming
  * parent's component display = block
  */
 export function Preloader(props: IPreloaderProps) {
-  let text = props.text ? props.text : 'Loading user data...';
+  let text = props.text ? props.text : "Loading user data..."
   //do not change img src here. We need to make sure that the image url is the same as
   //in pre-react boot loader
   return (
     <div style={{}} className="preloader-wrapper">
-      <img
-        src="/boot/loading.gif"
-        alt="[loading]"
-        className="preloader-image"
-      />
+      <img src="/boot/loading.gif" alt="[loading]" className="preloader-image" />
       <div className="preloader-text">{text}</div>
     </div>
-  );
+  )
 }
 
 const DEFAULT_ERROR_TEXT = (
   <p>
-    The application has crashed :( We are making everything possible to fix the
-    situation ASAP. Please, contact us at support@jitsu.com. Useful information
-    may be found in developer console
+    The application has crashed :( We are making everything possible to fix the situation ASAP. Please, contact us at
+    support@jitsu.com. Useful information may be found in developer console
   </p>
-);
+)
 
 export function GlobalError(props) {
-  let text = props.children ? props.children : DEFAULT_ERROR_TEXT;
+  let text = props.children ? props.children : DEFAULT_ERROR_TEXT
   return (
     <div style={{}} className="error-wrapper">
       <img src={plumber} alt="[loading]" className="error-image" />
       <div className="error-text">{text}</div>
     </div>
-  );
+  )
 }
 
 export function CenteredSpin() {
@@ -68,132 +59,46 @@ export function CenteredSpin() {
     <div className="common-centered-spin">
       <Spin size="large" />
     </div>
-  );
+  )
 }
 
 export function CenteredError({ error }) {
-  return (
-    <div className="common-centered-spin">
-      Error: {error?.message ? error.message : 'Unknown error'}
-    </div>
-  );
+  return <div className="common-centered-spin">Error: {error?.message ? error.message : "Unknown error"}</div>
 }
 
 export function makeErrorHandler(errorDescription: string) {
-  return (error) => handleError(error, errorDescription);
+  return error => handleError(error, errorDescription)
 }
-
-export type CloseableMessageType =
-  | 'success'
-  | 'error'
-  | 'info'
-  | 'warn'
-  | 'loading';
-export type MessageContent = string | ReactNode | ArgsProps;
-export type MessageFunc = (args: MessageContent) => MessageType;
-
-function applyEllipsisToMessageIfNeeded(message: string): JSX.Element | string {
-  const SUFFIX_CHARS_COUNT: number = 50; // num of letters to show after the ellipsis
-  const needToApplyEllipsis: boolean = message.length > 2 * SUFFIX_CHARS_COUNT;
-
-  let messageWithEllipsis: JSX.Element | undefined;
-  if (needToApplyEllipsis) {
-    const start = message.slice(0, message.length - SUFFIX_CHARS_COUNT).trim();
-    const suffix = message.slice(-SUFFIX_CHARS_COUNT).trim();
-    messageWithEllipsis = (
-      <Typography.Paragraph ellipsis={{ suffix, rows: 2, expandable: true }}>
-        {start}
-      </Typography.Paragraph>
-    );
-  }
-
-  return messageWithEllipsis || message;
-}
-
-function messageFactory(type: CloseableMessageType): MessageFunc {
-  const iconsByType = {
-    success: <CheckCircleOutlined className="text-success" />,
-    error: <CloseCircleOutlined className="text-error" />,
-    info: <InfoCircleOutlined className="text-success" />,
-    warn: <WarningOutlined className="text-warning" />,
-    loading: <Spin className="text-loading mr-2" />
-  };
-  return (content: MessageContent) => {
-    const key = Math.random() + '';
-
-    if (typeof content === 'string')
-      content = applyEllipsisToMessageIfNeeded(content);
-
-    const customization = {
-      icon: (
-        <span
-          className="text-error hover:font-bold"
-          onClick={() => message.destroy(key)}
-        >
-          {iconsByType[type]}
-        </span>
-      ),
-      key,
-      duration: 100
-    };
-
-    const closeableContent = (
-      <span className="closable-message">
-        <span className="closable-message_content">{content}</span>
-        <CloseOutlined
-          className="close-message-icon"
-          onClick={() => message.destroy(key)}
-        />
-      </span>
-    );
-
-    return message[type]({
-      ...customization,
-      content: <>{closeableContent}</>
-    });
-  };
-}
-
-export const closeableMessage: Record<CloseableMessageType, MessageFunc> = {
-  success: messageFactory('success'),
-  error: messageFactory('error'),
-  info: messageFactory('info'),
-  warn: messageFactory('warn'),
-  loading: messageFactory('loading')
-};
 
 /**
  * Default handler for error: show message and log error to console
  */
-export function handleError(error: any, errorDescription?: string) {
+export function handleError(error: Error, errorDescription?: string) {
   if (errorDescription !== undefined) {
     if (error.message) {
-      closeableMessage.error(`${errorDescription}: ${error.message}`);
-      console.error(
-        `Error occurred - ${errorDescription} - ${error.message}`,
-        error
-      );
+      actionNotification.error(`${errorDescription}: ${error.message}`)
+      console.error(`Error occurred - ${errorDescription} - ${error.message}`, error)
     } else {
-      closeableMessage.error(`${errorDescription}`);
-      console.error(`Error occurred - ${errorDescription}`, error);
+      actionNotification.error(`${errorDescription}`)
+      console.error(`Error occurred - ${errorDescription}`, error)
     }
   } else {
     if (error.message) {
-      closeableMessage.error(`${error.message}`);
-      console.error(`Error occurred - ${error.message}`, error);
+      actionNotification.error(`${error.message}`)
+      console.error(`Error occurred - ${error.message}`, error)
     } else {
-      closeableMessage.error('Unknown error');
-      console.error(`Error occurred`, error);
+      actionNotification.error("Unknown error")
+      console.error(`Error occurred`, error)
     }
   }
-  let app = ApplicationServices.get();
-  app.analyticsService.onGlobalError(error, true);
+  let app = ApplicationServices.get()
+  app.analyticsService.onGlobalError(error, true)
 }
 
 enum ComponentLifecycle {
   LOADED,
   ERROR,
-  WAITING
+  WAITING,
 }
 
 /**
@@ -203,68 +108,60 @@ enum ComponentLifecycle {
  */
 export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
   protected constructor(props: P, context: any) {
-    super(props, context);
+    super(props, context)
     if (!this.state) {
-      this.state = this.emptyState();
+      this.state = this.emptyState()
     }
   }
 
   private getLifecycle(): ComponentLifecycle {
-    return this.state['__lifecycle'] === undefined
-      ? ComponentLifecycle.WAITING
-      : this.state['__lifecycle'];
+    return this.state["__lifecycle"] === undefined ? ComponentLifecycle.WAITING : this.state["__lifecycle"]
   }
 
   emptyState(): S {
-    return {} as S;
+    return {} as S
   }
 
   async componentDidMount() {
-    if (this.props['setExtraHeaderComponent']) {
-      this.props['setExtraHeaderComponent'](null);
+    if (this.props["setExtraHeaderComponent"]) {
+      this.props["setExtraHeaderComponent"](null)
     }
     try {
-      let newState = await this.load();
-      this.setState({ ...newState, __lifecycle: ComponentLifecycle.LOADED });
+      let newState = await this.load()
+      this.setState({ ...newState, __lifecycle: ComponentLifecycle.LOADED })
     } catch (e) {
-      this.setState(this.errorState(e));
+      this.setState(this.errorState(e))
     }
   }
 
   private errorState(e) {
-    let newState = {};
-    newState['__lifecycle'] = ComponentLifecycle.ERROR;
-    newState['__errorObject'] = e;
-    return newState;
+    let newState = {}
+    newState["__lifecycle"] = ComponentLifecycle.ERROR
+    newState["__errorObject"] = e
+    return newState
   }
 
   protected renderError(e: Error): ReactNode {
-    handleError(e, 'Failed to load data from server');
-    return LoadableComponent.error(e);
+    handleError(e, "Failed to load data from server")
+    return LoadableComponent.error(e)
   }
 
   render() {
-    let lifecycle = this.getLifecycle();
+    let lifecycle = this.getLifecycle()
     if (lifecycle === ComponentLifecycle.WAITING) {
-      return <CenteredSpin />;
+      return <CenteredSpin />
     } else if (lifecycle === ComponentLifecycle.ERROR) {
-      return this.renderError(this.state['__errorObject']);
+      return this.renderError(this.state["__errorObject"])
     } else {
       try {
         return (
-          <div
-            className={
-              this.state['__doNotFadeIn'] === true
-                ? ''
-                : 'common-component-fadein'
-            }
-          >
+          <div className={this.state["__doNotFadeIn"] === true ? "" : "common-component-fadein"}>
             {this.renderReady()}
           </div>
-        );
+        )
       } catch (e) {
-        console.error('Error rendering state', e);
-        return this.renderError(e);
+        console.error("Error rendering state", e)
+        return this.renderError(e)
       }
     }
   }
@@ -272,12 +169,12 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
   /**
    * Renders component assuming initial state is loaded
    */
-  protected abstract renderReady(): ReactNode;
+  protected abstract renderReady(): ReactNode
 
   /**
    * Loads initial state (usually from server)
    */
-  protected abstract load(): Promise<S>;
+  protected abstract load(): Promise<S>
 
   /**
    * Async state reload. Display loading indicator, wait for new state, display it. Callback can return undefined, in that
@@ -288,27 +185,27 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
   protected async reload(callback?: () => Promise<any | void>) {
     if (!callback) {
       callback = async () => {
-        return this.load();
-      };
+        return this.load()
+      }
     }
-    this.setState((state) => {
-      state['__lifecycle'] = ComponentLifecycle.WAITING;
-    });
-    this.forceUpdate();
+    this.setState(state => {
+      state["__lifecycle"] = ComponentLifecycle.WAITING
+    })
+    this.forceUpdate()
     try {
-      let result = await callback();
+      let result = await callback()
       if (result === undefined) {
-        this.setState((state) => {
-          state['__lifecycle'] = ComponentLifecycle.LOADED;
-          state['__doNotFadeIn'] = true;
-        });
+        this.setState(state => {
+          state["__lifecycle"] = ComponentLifecycle.LOADED
+          state["__doNotFadeIn"] = true
+        })
       } else {
-        result['__lifecycle'] = ComponentLifecycle.LOADED;
-        result['__doNotFadeIn'] = true;
-        this.setState(result as S);
+        result["__lifecycle"] = ComponentLifecycle.LOADED
+        result["__doNotFadeIn"] = true
+        this.setState(result as S)
       }
     } catch (e) {
-      this.setState(this.errorState(e));
+      this.setState(this.errorState(e))
     }
   }
 
@@ -316,112 +213,90 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
     return (
       <div className="common-error-wrapper">
         <div className="common-error-details">
-          <b>Error occurred</b>:{' '}
-          {firstToLower(error.message ? error.message : 'Unknown error')}
+          <b>Error occurred</b>: {firstToLower(error.message ? error.message : "Unknown error")}
           <br />
           See details in console log
         </div>
       </div>
-    );
+    )
   }
 }
 
-type HorizontalAlign = 'center' | 'right' | 'left';
-type VerticalAlign = 'top' | 'bottom' | 'center';
+type HorizontalAlign = "center" | "right" | "left"
+type VerticalAlign = "top" | "bottom" | "center"
 type IAlignProps = {
-  children: ReactNode;
+  children: ReactNode
   //vertical?: HorizontalAlign;
-  horizontal?: HorizontalAlign;
-};
+  horizontal?: HorizontalAlign
+}
 
 const HORIZONTAL_ALIGN_MAP: Record<HorizontalAlign, string> = {
-  center: 'center',
-  right: 'right',
-  left: 'left'
-};
+  center: "center",
+  right: "right",
+  left: "left",
+}
 
 /**
  * Component to align content within. See props type for configuration
  */
 export function Align(props: IAlignProps) {
   props = withDefaults(props, {
-    horizontal: 'left'
-  });
+    horizontal: "left",
+  })
 
   // @ts-ignore
-  return (
-    <div style={{ textAlign: HORIZONTAL_ALIGN_MAP[props.horizontal] as any }}>
-      {props.children}
-    </div>
-  );
+  return <div style={{ textAlign: HORIZONTAL_ALIGN_MAP[props.horizontal] as any }}>{props.children}</div>
 }
 
 export function lazyComponent(importFactory) {
-  let LazyComponent = React.lazy(importFactory);
-  return (props) => {
+  let LazyComponent = React.lazy(importFactory)
+  return props => {
     return (
       <React.Suspense fallback={<CenteredSpin />}>
         <LazyComponent {...props} />
       </React.Suspense>
-    );
-  };
+    )
+  }
 }
 
-export function ActionLink({
-  children,
-  onClick
-}: {
-  children: any;
-  onClick?: () => void;
-}) {
+export function ActionLink({ children, onClick }: { children: any; onClick?: () => void }) {
   let props = onClick
     ? {
         onClick: () => {
-          onClick();
-        }
+          onClick()
+        },
       }
-    : {};
+    : {}
   return (
     <div className="action-link" {...props}>
       <span>{children}</span>
     </div>
-  );
+  )
 }
 
-import { ArgsProps } from 'antd/es/message';
-import { MessageType } from 'antd/lib/message';
-import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
-import cn from 'classnames';
-import { SyntaxHighlighterAsync } from './SyntaxHighlighter/SyntaxHighlighter';
-
 type ICodeSnippetProps = {
-  children: ReactNode;
-  language: 'javascript' | 'bash' | 'yaml' | 'json' | 'html';
-  className?: string;
-  extra?: ReactNode;
-  size?: 'large' | 'small';
-  toolbarPosition?: 'top' | 'bottom';
-};
+  children: ReactNode
+  language: "javascript" | "bash" | "yaml" | "json" | "html"
+  className?: string
+  extra?: ReactNode
+  size?: "large" | "small"
+  toolbarPosition?: "top" | "bottom"
+}
 
 export function CodeSnippet(props: ICodeSnippetProps) {
-  const toolBarPos = props.toolbarPosition ? props.toolbarPosition : 'bottom';
+  const toolBarPos = props.toolbarPosition ? props.toolbarPosition : "bottom"
 
   const copy = () => {
-    copyToClipboard(props.children, true);
-    message.info('Code copied to clipboard');
-  };
+    copyToClipboard(props.children, true)
+    message.info("Code copied to clipboard")
+  }
 
   const toolbar = (
-    <Row
-      className={cn(
-        'code-snippet-toolbar',
-        'code-snippet-toolbar-' + toolBarPos
-      )}
-    >
+    <Row className={cn("code-snippet-toolbar", "code-snippet-toolbar-" + toolBarPos)}>
       <Col span={16}>{props.extra}</Col>
       <Col span={8}>
         <Align horizontal="right">
-          {toolBarPos === 'bottom' ? (
+          {toolBarPos === "bottom" ? (
             <ActionLink onClick={copy}>Copy To Clipboard</ActionLink>
           ) : (
             <a onClick={copy}>
@@ -431,76 +306,72 @@ export function CodeSnippet(props: ICodeSnippetProps) {
         </Align>
       </Col>
     </Row>
-  );
+  )
 
   const classes = [
-    'code-snippet-wrapper-' + toolBarPos,
-    'code-snippet-wrapper',
-    props.size === 'large' ? 'code-snippet-large' : 'code-snippet-small'
-  ];
+    "code-snippet-wrapper-" + toolBarPos,
+    "code-snippet-wrapper",
+    props.size === "large" ? "code-snippet-large" : "code-snippet-small",
+  ]
   if (props.className) {
-    classes.push(props.className);
+    classes.push(props.className)
   }
 
   return (
-    <div className={classes.join(' ')}>
-      {toolBarPos === 'top' ? toolbar : null}
-      <SyntaxHighlighterAsync language={props.language}>
-        {props.children}
-      </SyntaxHighlighterAsync>
-      {toolBarPos === 'bottom' ? toolbar : null}
+    <div className={classes.join(" ")}>
+      {toolBarPos === "top" ? toolbar : null}
+      <SyntaxHighlighterAsync language={props.language}>{props.children}</SyntaxHighlighterAsync>
+      {toolBarPos === "bottom" ? toolbar : null}
     </div>
-  );
+  )
 }
 
 export function CodeInline({ children }) {
-  return <span className="code-snippet-inline">{children}</span>;
+  return <span className="code-snippet-inline">{children}</span>
 }
 
-export type IEstimatedProgressBarProps = { estimatedMs: number; updateIntervalMs?: number };
+export type IEstimatedProgressBarProps = { estimatedMs: number; updateIntervalMs?: number }
 
-type IEstimatedProgressBarState = { progressPercents: number };
+type IEstimatedProgressBarState = { progressPercents: number }
 
 export class EstimatedProgressBar extends React.Component<IEstimatedProgressBarProps, IEstimatedProgressBarState> {
-  private readonly updateIntervalMs: any;
+  private readonly updateIntervalMs: any
 
   constructor(props: IEstimatedProgressBarProps) {
-    super(props);
-    this.updateIntervalMs = props.updateIntervalMs ?
-      props.updateIntervalMs :
-      200;
-    this.state = { progressPercents: 0 };
+    super(props)
+    this.updateIntervalMs = props.updateIntervalMs ? props.updateIntervalMs : 200
+    this.state = { progressPercents: 0 }
   }
 
-  private cancel: NodeJS.Timeout;
+  private cancel: NodeJS.Timeout
 
   componentDidMount() {
-    let cycleCounter = 0;
+    let cycleCounter = 0
     this.cancel = setInterval(() => {
-      let past = cycleCounter * this.updateIntervalMs;
-      cycleCounter++;
+      let past = cycleCounter * this.updateIntervalMs
+      cycleCounter++
       if (past >= this.props.estimatedMs) {
-        this.setState({ progressPercents: 100 });
+        this.setState({ progressPercents: 100 })
       } else {
-        this.setState({ progressPercents: Math.round((past / this.props.estimatedMs) * 100) });
+        this.setState({ progressPercents: Math.round((past / this.props.estimatedMs) * 100) })
       }
-    }, this.updateIntervalMs);
+    }, this.updateIntervalMs)
   }
 
   componentWillUnmount() {
     if (this.cancel) {
-      clearInterval(this.cancel);
+      clearInterval(this.cancel)
     }
   }
 
   render() {
-    return <Progress type="circle" percent={this.state.progressPercents}/>;
+    return <Progress type="circle" percent={this.state.progressPercents} />
   }
 }
 
 export type IWithProgressProps<T> = {
   estimatedMs: number
-  callback: () => Promise<T>,
+  callback: () => Promise<T>
   /**
    * If not set, no retries. Otherwise retry pause
    */
@@ -509,59 +380,59 @@ export type IWithProgressProps<T> = {
    * Number of retries
    */
   maxRetries?: number
-};
+}
 
 export async function withProgressBar<T>(props: IWithProgressProps<T>): Promise<T> {
   let modal = Modal.info({
-    className: 'estimated-progress-bar',
+    className: "estimated-progress-bar",
     icon: null,
     title: null,
     content: (
       <Align horizontal="center">
         <h2>Please, wait...</h2>
-        <EstimatedProgressBar estimatedMs={props.estimatedMs}/>
+        <EstimatedProgressBar estimatedMs={props.estimatedMs} />
       </Align>
     ),
-    okText: 'Cancel'
-  });
-  let attempts = 0;
-  let maxAttempts = props.maxRetries || 1;
+    okText: "Cancel",
+  })
+  let attempts = 0
+  let maxAttempts = props.maxRetries || 1
   while (true) {
     try {
-      const res = await props.callback();
-      modal.destroy();
-      message.info('Completed successfully!');
-      return res;
+      const res = await props.callback()
+      modal.destroy()
+      message.info("Completed successfully!")
+      return res
     } catch (e) {
-      attempts++;
+      attempts++
       console.log(`Progress bar op failed. Attempts (${attempts} / ${maxAttempts})`, e)
       if (attempts >= maxAttempts) {
         modal.update({
-          className: 'estimated-progress-bar',
+          className: "estimated-progress-bar",
           icon: null,
           content: (
             <Align horizontal="center">
               <h2 className="estimated-progress-bar-op-failed">Operation failed :(</h2>
-              <h3>{e.message ?
-                e.message :
-                'Unknown error'}</h3>
+              <h3>{e.message ? e.message : "Unknown error"}</h3>
             </Align>
           ),
-          okText: 'Close'
-        });
-        break;
+          okText: "Close",
+        })
+        break
       } else {
-        const sleepMs = props.retryDelayMs || 1000;
+        const sleepMs = props.retryDelayMs || 1000
         modal.update({
-          className: 'estimated-progress-bar',
+          className: "estimated-progress-bar",
           icon: null,
-          content: <Align horizontal="center">
-            <h2>Hang out, it takes a little longer than we expected</h2>
-            <EstimatedProgressBar estimatedMs={props.estimatedMs + sleepMs}/>
-          </Align>,
-          okText: 'Close'
-        });
-        await sleep(sleepMs);
+          content: (
+            <Align horizontal="center">
+              <h2>Hang out, it takes a little longer than we expected</h2>
+              <EstimatedProgressBar estimatedMs={props.estimatedMs + sleepMs} />
+            </Align>
+          ),
+          okText: "Close",
+        })
+        await sleep(sleepMs)
       }
     }
   }

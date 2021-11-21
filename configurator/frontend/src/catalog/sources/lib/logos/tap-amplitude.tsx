@@ -1,4 +1,4 @@
-import * as React from "react";
+import * as React from "react"
 
 function Svg(props) {
   return (
@@ -16,14 +16,8 @@ function Svg(props) {
       {...props}
     >
       <g id="Random-Assignments_2_">
-        <g
-          id="Amplitude-logomark"
-          transform="translate(-10.000000, -10.000000)"
-        >
-          <g
-            id="Amplitude_logomark"
-            transform="translate(10.000000, 10.000000)"
-          >
+        <g id="Amplitude-logomark" transform="translate(-10.000000, -10.000000)">
+          <g id="Amplitude_logomark" transform="translate(10.000000, 10.000000)">
             <path
               id="Shape"
               fill="#00A7CF"
@@ -38,7 +32,7 @@ function Svg(props) {
         </g>
       </g>
     </svg>
-  );
+  )
 }
 
-export default Svg;
+export default Svg

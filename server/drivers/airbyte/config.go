@@ -2,13 +2,14 @@ package airbyte
 
 import (
 	"errors"
-	"github.com/jitsucom/jitsu/server/airbyte"
-	"strings"
+	"github.com/jitsucom/jitsu/server/oauth"
+	"github.com/spf13/viper"
 )
 
 //Config is a dto for airbyte configuration serialization
 type Config struct {
 	DockerImage            string            `mapstructure:"docker_image" json:"docker_image,omitempty" yaml:"docker_image,omitempty"`
+	ImageVersion           string            `mapstructure:"image_version" json:"image_version,omitempty" yaml:"image_version,omitempty"`
 	Config                 interface{}       `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
 	Catalog                interface{}       `mapstructure:"catalog" json:"catalog,omitempty" yaml:"catalog,omitempty"`
 	InitialState           interface{}       `mapstructure:"initial_state" json:"initial_state,omitempty" yaml:"initial_state,omitempty"`
@@ -19,7 +20,7 @@ type Config struct {
 //Validate returns err if configuration is invalid
 func (ac *Config) Validate() error {
 	if ac == nil {
-		return errors.New("Airbyte config is required")
+		return errors.New("Airbyte config is required. Please read docs https://jitsu.com/docs/sources-configuration/airbyte")
 	}
 
 	if ac.DockerImage == "" {
@@ -27,14 +28,25 @@ func (ac *Config) Validate() error {
 	}
 
 	if ac.Config == nil {
-		return errors.New("Airbyte config is required")
+		return errors.New("Airbyte config is required. Please read docs https://jitsu.com/docs/sources-configuration/airbyte")
 	}
 
 	if ac.StreamTableNames == nil {
 		ac.StreamTableNames = map[string]string{}
 	}
 
-	ac.DockerImage = strings.TrimPrefix(ac.DockerImage, airbyte.DockerImageRepositoryPrefix)
-
 	return nil
+}
+
+func FillPreconfiguredOauth(sourceType string, config interface{}) {
+	oathFields, ok := oauth.Fields[sourceType]
+	if ok {
+		sourceConnectorConfig := config.(map[string]interface{})
+		for k,v := range oathFields {
+			cf , ok := sourceConnectorConfig[k]
+			if (!ok || cf == "") && viper.GetString(v) != "" {
+				sourceConnectorConfig[k] = viper.GetString(v)
+			}
+		}
+	}
 }

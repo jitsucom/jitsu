@@ -1,19 +1,17 @@
 // @Libs
-import cn from 'classnames';
+import cn from "classnames"
 // @Styles
-import styles from './TabDescription.module.less';
+import styles from "./TabDescription.module.less"
 
 interface Props {
-  children: React.ReactNode;
-  className?: string;
+  children: React.ReactNode
+  className?: string
 }
 
 const TabDescription = ({ children, className }: Props) => {
-  return (
-    <div className={cn(styles.description, className)}>{children}</div>
-  );
-};
+  return <div className={cn(styles.description, className)}>{children}</div>
+}
 
-TabDescription.displayName = 'TabDescription';
+TabDescription.displayName = "TabDescription"
 
-export { TabDescription };
+export { TabDescription }

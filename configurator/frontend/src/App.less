@@ -69,7 +69,9 @@ ul {
   background: @text;
 }
 
-::-webkit-scrollbar-corner {background-color: transparent;}
+::-webkit-scrollbar-corner {
+  background-color: transparent;
+}
 
 // Antd
 
@@ -144,21 +146,34 @@ ul {
 
 .form-field_fixed-label {
   .ant-form-item-label {
-    label {
-      align-items: unset;
-      padding: 5px 10px 0 0;
+    @apply mr-2;
 
-      span {
-        white-space: normal;
-      }
+    label {
+      width: 100%;
+      justify-content: flex-end;
 
       &::after {
         content: "";
+        @apply w-2;
         display: inline-block;
-        position: static;
-        margin: 0 0 0 2px;
+        position: initial;
+        margin: 0;
+        align-self: flex-start;
       }
     }
+  }
+
+  & .label-with-tooltip {
+    @apply flex min-w-0 w-full items-center;
+    display: flex;
+  }
+
+  & .label-with-tooltip_label {
+    @apply flex-grow flex-shrink truncate;
+  }
+
+  & .label-with-tooltip_question-mark {
+    @apply flex-shrink-0 flex-grow-0;
   }
 
   .ant-form-item-required {
@@ -212,4 +227,36 @@ ul {
 
 .ant-form-item-has-error .react-monaco-editor-container {
   border-color: @error-color;
+}
+
+.form-fields-card {
+  @apply max-w-3xl;
+  margin-left: 0.5rem !important;
+}
+
+// input.ant-input:disabled {
+//   color: #415969;
+//   background-color: rgba(255, 255, 255, 0.08);
+//   cursor: not-allowed;
+//   opacity: 1;
+// }
+
+fieldset:disabled {
+  .ant-input-affix-wrapper,
+  .ant-input-number,
+  textarea.ant-input,
+  .ant-select-selector,
+  button.ant-switch {
+    pointer-events: none;
+    color: #415969;
+    background-color: rgba(255, 255, 255, 0.08);
+    cursor: not-allowed;
+    opacity: 1;
+    border-color: #415969;
+    border-right-width: 1px !important;
+  }
+
+  .ant-input-affix-wrapper .ant-input {
+    color: #415969;
+  }
 }

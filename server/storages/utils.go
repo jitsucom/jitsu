@@ -26,14 +26,14 @@ func dryRun(payload events.Event, processor *schema.Processor, tableHelper *Tabl
 		var tableFields []adapters.TableField
 
 		for name, column := range tableSchema.Columns {
-			tableFields = append(tableFields, adapters.TableField{Field: name, Type: column.SQLType, Value: event[name]})
+			tableFields = append(tableFields, adapters.TableField{Field: name, Type: column.Type, Value: event[name]})
 		}
 		res = append(res, tableFields)
 	}
 	return res, nil
 }
 
-func isConnectionError(err error) bool {
+func IsConnectionError(err error) bool {
 	return strings.Contains(err.Error(), "connection refused") ||
 		strings.Contains(err.Error(), "EOF") ||
 		strings.Contains(err.Error(), "write: broken pipe") ||

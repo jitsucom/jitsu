@@ -1,34 +1,32 @@
-import { User } from './model';
+import { User } from "./model"
 
 /**
  * User Service
  */
 
 export type UserLoginStatus = {
-  user?: User;
-  loggedIn: boolean;
-};
-
-export interface LoginFeatures {
-  oauth: boolean;
-  password: boolean;
-  signupEnabled: boolean;
+  user?: User
+  loggedIn: boolean
 }
 
-type UserEmailStatus =
-  | { needsConfirmation: true; isConfirmed: boolean }
-  | { needsConfirmation: false };
+export interface LoginFeatures {
+  oauth: boolean
+  password: boolean
+  signupEnabled: boolean
+}
+
+type UserEmailStatus = { needsConfirmation: true; isConfirmed: boolean } | { needsConfirmation: false }
 
 export type TelemetrySettings = {
-  isTelemetryEnabled: boolean;
-};
+  isTelemetryEnabled: boolean
+}
 
 export interface SetupUserProps {
-  email: string;
-  password: string;
-  name?: string;
-  company?: string;
-  emailOptout?: boolean;
+  email: string
+  password: string
+  name?: string
+  company?: string
+  emailOptout?: boolean
 }
 
 export interface UserService {
@@ -38,84 +36,86 @@ export interface UserService {
    * @param password password
    * @returns a promise
    */
-  login(email: string, password: string): Promise<void>;
+  login(email: string, password: string): Promise<void>
 
-  getLoginFeatures(): LoginFeatures;
+  getLoginFeatures(): LoginFeatures
 
   /**
    * Initiates google login. Returns promise on email of the user . On success user must reload
    * page.
    */
-  initiateGoogleLogin(redirect?: string): Promise<string>;
+  initiateGoogleLogin(redirect?: string): Promise<string>
 
   /**
    * Initiates google login
    */
-  initiateGithubLogin(redirect?: string);
+  initiateGithubLogin(redirect?: string)
 
   /**
    * Get (wait for) logged in user (or null if user is not logged in).
    */
-  waitForUser(): Promise<UserLoginStatus>;
+  waitForUser(): Promise<UserLoginStatus>
 
   /**
    * Get current logged in user. Throws exception if user is not available
    */
-  getUser(): User;
+  getUser(): User
 
   /**
    * Checks if current user's email needs confirmation and if it is confirmed.
    * @returns an object with the corresponding fields
    */
-  getUserEmailStatus(): Promise<UserEmailStatus>;
+  getUserEmailStatus(): Promise<UserEmailStatus>
 
   /**
    * Checks if any valid user is logged in.
    */
-  hasUser(): boolean;
+  hasUser(): boolean
 
   /**
    * Sends user a reset password link via email
    * @param email - email to send the link to
    */
-  sendPasswordReset(email?: string);
+  sendPasswordReset(email?: string)
 
-  sendConfirmationEmail(): Promise<void>;
+  sendConfirmationEmail(): Promise<void>
 
   /**
    * Changes account password if signed up with email and password.
    * @param value new password
    * @param resetId token from the password reset link; Needed if user is not logged in.
    */
-  changePassword(value: string, resetId?: string): Promise<void>;
+  changePassword(value: string, resetId?: string): Promise<void>
 
   /**
    * Changes account email.
    * @param value - new email
    */
-  changeEmail(value: string): Promise<void>;
+  changeEmail(value: string): Promise<void>
 
   /**
    * Changes user's telemetry preferences.
    * @param newSettings - telemetry settings
    */
-  changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void>;
+  changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void>
 
-  update(user: User);
+  update(user: User)
 
-  removeAuth(callback: () => void);
+  removeAuth(callback: () => void)
 
-  createUser(email: string, password: string): Promise<void>;
+  createUser(email: string, password: string): Promise<void>
 
-  setupUser(userProps: SetupUserProps): Promise<void>;
+  setupUser(userProps: SetupUserProps): Promise<void>
 
-  becomeUser(email: string): Promise<void>;
+  becomeUser(email: string): Promise<void>
 
-  supportsLoginViaLink(): boolean;
+  supportsLoginViaLink(): boolean
 
-  sendLoginLink(email: string): Promise<void>;
+  sendLoginLink(email: string): Promise<void>
 
-  isEmailLoginLink(href: string): boolean;
+  isEmailLoginLink(href: string): boolean
 
-  loginWithLink(email: string, href: string): Promise<void>;
+  loginWithLink(email: string, href: string): Promise<void>
+
+  getIdToken(): Promise<string>
 }

@@ -1,3 +1,3 @@
 export const editor = {
-  defineTheme: jest.fn()
-};
+  defineTheme: jest.fn(),
+}

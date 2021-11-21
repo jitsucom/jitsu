@@ -1,11 +1,11 @@
-import { ApiKeyReferenceData } from '../types';
+import { ApiKeyReferenceData } from "../types"
 
 export const jsApiKey: ApiKeyReferenceData = {
-  type: 'js',
+  type: "js",
   icon: (
     <svg
       id="Capa_1"
-      enable-background="new 0 0 510 510"
+      enableBackground="new 0 0 510 510"
       height="100%"
       width="100%"
       viewBox="0 0 510 510"
@@ -13,8 +13,8 @@ export const jsApiKey: ApiKeyReferenceData = {
       xmlnsXlink="http://www.w3.org/1999/xlink"
     >
       <linearGradient id="lg1">
-        <stop offset="0" stop-color="#ffda2d" />
-        <stop offset="1" stop-color="#fdbf00" />
+        <stop offset="0" stopColor="#ffda2d" />
+        <stop offset="1" stopColor="#fdbf00" />
       </linearGradient>
       <linearGradient
         id="SVGID_1_"
@@ -37,8 +37,8 @@ export const jsApiKey: ApiKeyReferenceData = {
         y2="828.819"
       />
       <linearGradient id="lg2">
-        <stop offset="0" stop-color="#ff9100" stop-opacity="0" />
-        <stop offset="1" stop-color="#ff9100" />
+        <stop offset="0" stopColor="#ff9100" stopOpacity="0" />
+        <stop offset="1" stopColor="#ff9100" />
       </linearGradient>
       <linearGradient
         id="SVGID_3_"
@@ -128,8 +128,8 @@ export const jsApiKey: ApiKeyReferenceData = {
         y2="186.82"
       />
       <linearGradient id="lg3">
-        <stop offset="0" stop-color="#0b799d" />
-        <stop offset="1" stop-color="#07485e" />
+        <stop offset="0" stopColor="#0b799d" />
+        <stop offset="1" stopColor="#07485e" />
       </linearGradient>
       <linearGradient
         id="SVGID_12_"
@@ -210,5 +210,5 @@ export const jsApiKey: ApiKeyReferenceData = {
         />
       </g>
     </svg>
-  )
-} as const;
+  ),
+} as const

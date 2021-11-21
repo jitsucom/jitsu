@@ -34,6 +34,10 @@
   }
 }
 
+:global .ant-tabs-content {
+  padding: 0 1.5rem;
+}
+
 .tabCard :global .ant-tabs-content-holder {
   overflow: auto;
 }
@@ -99,12 +103,16 @@
 }
 
 .documentation code {
-@apply bg-bgTableHeader rounded px-1;
-
+  @apply bg-bgTableHeader rounded px-1;
 }
 
 .documentation pre {
   padding-bottom: 14px !important;
+  background-color: @bgPrimary !important;
+}
+
+.documentation :global .ant-collapse-content-box {
+  background-color: unset !important;
 }
 
 .documentation pre code {
@@ -115,7 +123,6 @@
   padding-top: 0.125rem;
 }
 
-
 .documentation ul {
-@apply list-disc list-outside my-1 ml-6 text-sm leading-6;
+  @apply list-disc list-outside my-1 ml-6 text-sm leading-6;
 }

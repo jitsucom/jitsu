@@ -1,21 +1,8 @@
-import { modeParameter, s3Credentials, tableName } from './common';
-import {
-  hiddenValue,
-  Function,
-  jsonType,
-  passwordType,
-  singleSelectionType,
-  stringType
-} from '../../sources/types';
+import { modeParameter, s3Credentials, tableName } from "./common"
+import { hiddenValue, Function, jsonType, passwordType, singleSelectionType, stringType } from "../../sources/types"
 
 const icon = (
-  <svg
-    viewBox="0 0 44 44"
-    height="100%"
-    width="100%"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-  >
+  <svg viewBox="0 0 44 44" height="100%" width="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M37.2617 33.6602L28.086 28.3594C26.7969 27.6172 25.1485 28.0586 24.4024 29.3477C24.1133 29.8555 24 30.4141 24.0547 30.957V41.3164C24.0547 42.7969 25.2578 44 26.7422 44C28.2227 44 29.4258 42.7969 29.4258 41.3164V35.3594L34.5664 38.3281C35.8555 39.0742 37.5078 38.6289 38.25 37.3398C38.9961 36.0508 38.5547 34.4023 37.2617 33.6602Z"
       fill="#29B5E8"
@@ -45,105 +32,99 @@ const icon = (
       fill="#29B5E8"
     />
   </svg>
-);
+)
 
 function isBatch(cfg) {
-  return cfg._formData?.mode === 'batch';
+  return cfg._formData?.mode === "batch"
 }
 
 function displayForBatchOnly<T>(defaultValue: T): Function<any, T> {
-  return (cfg) => {
-    return cfg._formData?.mode === 'batch'
+  return cfg => {
+    return cfg._formData?.mode === "batch"
       ? undefined //display the option
-      : defaultValue; //hide the option, display default value
-  };
+      : defaultValue //hide the option, display default value
+  }
 }
 
 const destination = {
   description: (
     <>
-      Snowflake is a fast and scalable data warehouse. Jitsu can works with
-      Snowflake both in stream and batch modes. For batching, you'll need to
-      provide an access either to Amazon S3 or to Google's Cloud storage bucket
+      Snowflake is a fast and scalable data warehouse. Jitsu can works with Snowflake both in stream and batch modes.
+      For batching, you'll need to provide an access either to Amazon S3 or to Google's Cloud storage bucket
     </>
   ),
-  syncFromSourcesStatus: 'supported',
-  id: 'snowflake',
-  type: 'database',
-  displayName: 'Snowflake',
-  defaultTransform: 'return $',
+  syncFromSourcesStatus: "supported",
+  id: "snowflake",
+  type: "database",
+  displayName: "Snowflake",
+  defaultTransform: "",
   hidden: false,
   ui: {
     icon,
-    title: (cfg) => cfg._formData?.snowflakeDB,
-    connectCmd: (cfg: object) => null
+    title: cfg => cfg._formData?.snowflakeDB,
+    connectCmd: (cfg: object) => null,
   },
   parameters: [
     modeParameter(),
     tableName(),
     {
-      id: '_formData.snowflakeAccount',
-      displayName: 'Account',
+      id: "_formData.snowflakeAccount",
+      displayName: "Account",
       required: true,
       type: stringType,
-      documentation: (
-        <>
-          Snowflake Account from URL
-          https://"SNOWFLAKE_ACCOUNT".snowflakecomputing.com/
-        </>
-      )
+      documentation: <>Snowflake Account from URL https://"SNOWFLAKE_ACCOUNT".snowflakecomputing.com/</>,
     },
     {
-      id: '_formData.snowflakeWarehouse',
-      displayName: 'Warehouse',
-      required: true,
-      type: stringType
-    },
-    {
-      id: '_formData.snowflakeDB',
-      displayName: 'DB',
-      required: true,
-      type: stringType
-    },
-    {
-      id: '_formData.snowflakeSchema',
-      displayName: 'Schema',
+      id: "_formData.snowflakeWarehouse",
+      displayName: "Warehouse",
       required: true,
       type: stringType,
-      defaultValue: 'PUBLIC'
     },
     {
-      id: '_formData.snowflakeUsername',
-      displayName: 'Username',
+      id: "_formData.snowflakeDB",
+      displayName: "DB",
       required: true,
-      type: stringType
+      type: stringType,
     },
     {
-      id: '_formData.snowflakePassword',
-      displayName: 'Password',
+      id: "_formData.snowflakeSchema",
+      displayName: "Schema",
       required: true,
-      type: passwordType
+      type: stringType,
+      defaultValue: "PUBLIC",
     },
     {
-      id: '_formData.snowflakeStageName',
-      displayName: 'Stage name',
-      constant: displayForBatchOnly(''),
-      required: (cfg) => cfg._formData?.snowflakeStageType === 'gcs',
-      type: stringType
+      id: "_formData.snowflakeUsername",
+      displayName: "Username",
+      required: true,
+      type: stringType,
     },
     {
-      id: '_formData.snowflakeStageType',
-      displayName: 'Stage type',
-      defaultValue: 's3',
-      constant: displayForBatchOnly('s3'),
-      type: singleSelectionType(['s3', 'gcs'])
+      id: "_formData.snowflakePassword",
+      displayName: "Password",
+      required: true,
+      type: passwordType,
     },
     {
-      id: '_formData.snowflakeJSONKey',
-      displayName: 'Access Key',
+      id: "_formData.snowflakeStageName",
+      displayName: "Stage name",
+      constant: displayForBatchOnly(""),
+      required: cfg => cfg._formData?.snowflakeStageType === "gcs",
+      type: stringType,
+    },
+    {
+      id: "_formData.snowflakeStageType",
+      displayName: "Stage type",
+      defaultValue: "s3",
+      constant: displayForBatchOnly("s3"),
+      type: singleSelectionType(["s3", "gcs"]),
+    },
+    {
+      id: "_formData.snowflakeJSONKey",
+      displayName: "Access Key",
       documentation: (
         <>
-          Google Service Account JSON credentials for GCS Bucket.{' '}
+          Google Service Account JSON credentials for GCS Bucket.{" "}
           <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">
             Read more about Google Authorization
           </a>
@@ -151,44 +132,36 @@ const destination = {
       ),
       required: true,
       type: jsonType,
-      constant: hiddenValue('', (cfg) => {
+      constant: hiddenValue("", cfg => {
         return (
-          cfg?.['_formData']?.mode !== 'batch' ||
-          (cfg?.['_formData']?.mode === 'batch' &&
-            cfg?.['_formData']?.snowflakeStageType !== 'gcs')
-        );
-      })
+          cfg?.["_formData"]?.mode !== "batch" ||
+          (cfg?.["_formData"]?.mode === "batch" && cfg?.["_formData"]?.snowflakeStageType !== "gcs")
+        )
+      }),
     },
     {
-      id: '_formData.snowflakeGCSBucket',
-      documentation: (
-        <>
-          Name of GCS Bucket. The bucket should be accessible with the same
-          Access Key as dataset
-        </>
-      ),
-      displayName: 'GCS Bucket',
+      id: "_formData.snowflakeGCSBucket",
+      documentation: <>Name of GCS Bucket. The bucket should be accessible with the same Access Key as dataset</>,
+      displayName: "GCS Bucket",
       required: true,
       type: stringType,
-      constant: hiddenValue('', (cfg) => {
+      constant: hiddenValue("", cfg => {
         return (
-          cfg?.['_formData']?.mode !== 'batch' ||
-          (cfg?.['_formData']?.mode === 'batch' &&
-            cfg?.['_formData']?.snowflakeStageType !== 'gcs')
-        );
-      })
+          cfg?.["_formData"]?.mode !== "batch" ||
+          (cfg?.["_formData"]?.mode === "batch" && cfg?.["_formData"]?.snowflakeStageType !== "gcs")
+        )
+      }),
     },
     ...s3Credentials(
-      '_formData.snowflakeS3Region',
-      '_formData.snowflakeS3Bucket',
-      '_formData.snowflakeS3AccessKey',
-      '_formData.snowflakeS3SecretKey',
-      (cfg) =>
-        cfg._formData?.mode !== 'batch' ||
-        (cfg._formData?.mode === 'batch' &&
-          cfg._formData?.snowflakeStageType !== 's3')
-    )
-  ]
-} as const;
+      "_formData.snowflakeS3Region",
+      "_formData.snowflakeS3Bucket",
+      "_formData.snowflakeS3AccessKey",
+      "_formData.snowflakeS3SecretKey",
+      cfg =>
+        cfg._formData?.mode !== "batch" ||
+        (cfg._formData?.mode === "batch" && cfg._formData?.snowflakeStageType !== "s3")
+    ),
+  ],
+} as const
 
-export default destination;
+export default destination

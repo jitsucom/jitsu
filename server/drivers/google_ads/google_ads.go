@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/httputils"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"golang.org/x/oauth2/google"
 	"io"
 	"net/http"
@@ -19,19 +20,20 @@ import (
 )
 
 const (
-	dayLayout         = "2006-01-02"
-	dateLayoutFull    = "2006-01-02 15:04:05"
-	serviceEndpoint   = "https://googleads.googleapis.com"
+	dayLayout       = "2006-01-02"
+	dateLayoutFull  = "2006-01-02 15:04:05"
+	serviceEndpoint = "https://googleads.googleapis.com"
 )
 
 //go:embed reports.csv
 var availableReportsCsv string
-var availableReports =  make(map[string]bool)
+var availableReports = make(map[string]bool)
+
 //go:embed fields.csv
 var fieldsCsv string
-var fieldTypes =  make(map[string]string)
+var fieldTypes = make(map[string]string)
 
-var intervalFields   =  [...]GoogleAdsFieldGranularity{
+var intervalFields = [...]GoogleAdsFieldGranularity{
 	{"segments.hour", base.DAY}, //intended
 	{"segments.date", base.DAY},
 	{"segments.day_of_week", base.DAY},
@@ -55,15 +57,17 @@ func init() {
 }
 
 type GoogleAdsFieldGranularity struct {
-	name 		string
+	name        string
 	granularity base.Granularity
 }
 type GoogleAds struct {
-	collection         *base.Collection
-	config             *GoogleAdsConfig
-	fields 			   []string
-	httpClient 		   *http.Client
-	granularity		   base.Granularity
+	base.IntervalDriver
+
+	collection  *base.Collection
+	config      *GoogleAdsConfig
+	fields      []string
+	httpClient  *http.Client
+	granularity base.Granularity
 }
 
 //NewGoogleAds returns configured Google Ads driver instance
@@ -76,14 +80,14 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 		},
 	}
 	config := &GoogleAdsConfig{}
-	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	reportConfig := &GoogleAdsCollectionConfig{}
-	if err := base.UnmarshalConfig(collection.Parameters, reportConfig); err != nil {
+	if err := jsonutils.UnmarshalConfig(collection.Parameters, reportConfig); err != nil {
 		return nil, err
 	}
 	if len(reportConfig.Fields) == 0 {
@@ -99,7 +103,7 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 		return nil, fmt.Errorf("Unknown collection [%s]", collection.Type)
 	}
 
-	fields := strings.Split(strings.ReplaceAll(reportConfig.Fields, " ",""), ",")
+	fields := strings.Split(strings.ReplaceAll(reportConfig.Fields, " ", ""), ",")
 
 	granularity := base.ALL
 	//for binary search we make a sorted copy of fields
@@ -114,7 +118,14 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 			break
 		}
 	}
-	return &GoogleAds{collection: collection, config: config, fields: fields, httpClient: httpClient, granularity: granularity}, nil
+	return &GoogleAds{
+		IntervalDriver: base.IntervalDriver{SourceType: sourceConfig.Type},
+		collection:     collection,
+		config:         config,
+		fields:         fields,
+		httpClient:     httpClient,
+		granularity:    granularity,
+	}, nil
 }
 
 func (g *GoogleAds) GetRefreshWindow() (time.Duration, error) {
@@ -136,8 +147,8 @@ func (g *GoogleAds) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	}
 
 	date := time.Now().UTC()
-	backDay := date.Truncate(time.Hour*24).AddDate(0,0, -daysBackToLoad)
-	for ;date.Unix() >= backDay.Unix();  {
+	backDay := date.Truncate(time.Hour*24).AddDate(0, 0, -daysBackToLoad)
+	for date.Unix() >= backDay.Unix() {
 		interval := base.NewTimeInterval(g.granularity, date)
 		intervals = append(intervals, interval)
 		date = interval.LowerEndpoint().AddDate(0, 0, -1)
@@ -146,7 +157,7 @@ func (g *GoogleAds) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 }
 
 func (g *GoogleAds) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
-	gaql := "SELECT " + strings.Join(g.fields, ",")  + " FROM " + g.collection.Type
+	gaql := "SELECT " + strings.Join(g.fields, ",") + " FROM " + g.collection.Type
 	if !interval.IsAll() {
 		gaql += fmt.Sprintf(" WHERE segments.date BETWEEN '%s' AND '%s'", interval.LowerEndpoint().Format(dayLayout), interval.UpperEndpoint().Format(dayLayout))
 	}
@@ -156,7 +167,7 @@ func (g *GoogleAds) GetObjectsFor(interval *base.TimeInterval) ([]map[string]int
 //TestGoogleAds tests connection to Google Ads without creating Driver instance
 func TestGoogleAds(sourceConfig *base.SourceConfig) error {
 	config := &GoogleAdsConfig{}
-	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return err
 	}
 	if err := config.Validate(); err != nil {
@@ -202,7 +213,6 @@ func (g *GoogleAds) GetCollectionMetaKey() string {
 	return g.collection.Name + "_" + g.GetCollectionTable()
 }
 
-
 func getDeveloperToken(config *GoogleAdsConfig) string {
 	developerToken := config.DeveloperToken
 	if developerToken == "" {
@@ -217,20 +227,20 @@ func query(config *GoogleAdsConfig, httpClient *http.Client, query string) ([]ma
 		return nil, fmt.Errorf("Google Ads developer token was not provided")
 	}
 
-	accessToken, err :=  acquireAccessToken(config, httpClient)
+	accessToken, err := acquireAccessToken(config, httpClient)
 	if err != nil {
 		return nil, err
 	}
 
-	reqBody, err :=  json.Marshal(map[string]string{"query": query})
+	reqBody, err := json.Marshal(map[string]string{"query": query})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal query request body: %s", err)
 	}
 
 	urlStr := serviceEndpoint + "/v8/customers/" + config.CustomerId + "/googleAds:searchStream"
 	headers := map[string]string{
-		"Content-Type": "application/json",
-		"Authorization": "Bearer " + accessToken,
+		"Content-Type":    "application/json",
+		"Authorization":   "Bearer " + accessToken,
 		"developer-token": developerToken}
 	if config.ManagerCustomerId != "" {
 		headers["login-customer-id"] = config.ManagerCustomerId
@@ -238,7 +248,7 @@ func query(config *GoogleAdsConfig, httpClient *http.Client, query string) ([]ma
 
 	parseResponse := func(status int, body io.Reader, header http.Header) (interface{}, error) {
 		jsonDecoder := json.NewDecoder(body)
-		var bodyObject = make([]map[string]interface{},0,1)
+		var bodyObject = make([]map[string]interface{}, 0, 1)
 		if err := jsonDecoder.Decode(&bodyObject); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal response: %s", err)
 		}
@@ -269,7 +279,7 @@ func query(config *GoogleAdsConfig, httpClient *http.Client, query string) ([]ma
 		return transformedArray, nil
 	}
 
-	req :=  httputils.Request{URL: urlStr, Method: http.MethodPost,
+	req := httputils.Request{URL: urlStr, Method: http.MethodPost,
 		Body: reqBody, Headers: headers,
 		ParseReader: parseResponse}
 
@@ -288,7 +298,7 @@ func acquireAccessToken(config *GoogleAdsConfig, httpClient *http.Client) (strin
 	if err != nil {
 		return "", err
 	}
-	cred, err := google.CredentialsFromJSONWithParams(context.Background(), jsonBytes, google.CredentialsParams{Scopes: []string{"https://www.googleapis.com/auth/adwords"}, Subject: config.AuthConfig.Subject })
+	cred, err := google.CredentialsFromJSONWithParams(context.Background(), jsonBytes, google.CredentialsParams{Scopes: []string{"https://www.googleapis.com/auth/adwords"}, Subject: config.AuthConfig.Subject})
 	if err != nil {
 		return "", err
 	}
@@ -303,7 +313,7 @@ func acquireAccessToken(config *GoogleAdsConfig, httpClient *http.Client) (strin
 //fields that Google Ads API returns as strings converted to appropriate types.
 func transformResult(input map[string]interface{}, prefix string, res map[string]interface{}) error {
 	for name, field := range input {
-		fullSnakeName := strcase.ToSnakeWithIgnore(strings.TrimLeft(prefix + "." + name, "."), ".")
+		fullSnakeName := strcase.ToSnakeWithIgnore(strings.TrimLeft(prefix+"."+name, "."), ".")
 		var err error
 		switch f := field.(type) {
 		case map[string]interface{}:
@@ -326,7 +336,6 @@ func transformResult(input map[string]interface{}, prefix string, res map[string
 	}
 	return nil
 }
-
 
 func parseDate(input string) (time.Time, error) {
 	date, err := time.Parse(dayLayout, input)

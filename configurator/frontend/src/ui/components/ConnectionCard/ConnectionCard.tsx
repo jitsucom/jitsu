@@ -16,20 +16,34 @@ import SyncOutlined from "@ant-design/icons/lib/icons/SyncOutlined"
 /**
  * Action - link or onClick handler
  */
-export type ConnectionCardAction = string | (() => void)
+export type ConnectionCardAction = string | (() => void) | undefined
 
 /**
  * Returns link (if action is string, meaning URL), or Button
  */
-function ActionLink({ action, children }: { action: ConnectionCardAction; children: ReactNode }) {
-  if (typeof action === "string") {
+function ActionLink({
+  action,
+  children,
+  ...rest
+}: {
+  action: ConnectionCardAction
+  children: ReactNode
+  [key: string]: any
+}) {
+  if (!action) {
+    return <span {...rest}>{children}</span>
+  } else if (typeof action === "string") {
     return (
-      <NavLink to={action}>
-        <a className="text-text">{children}</a>
+      <NavLink to={action} {...rest} style={{ color: "unset" }}>
+        {children}
       </NavLink>
     )
   } else {
-    return <Button onClick={action} icon={children} type="link" />
+    return (
+      <a className="text-text" onClick={action} {...rest}>
+        {children}
+      </a>
+    )
   }
 }
 
@@ -39,7 +53,7 @@ export type ConnectionCardProps = {
 
   deleteAction: ConnectionCardAction
   editAction: ConnectionCardAction
-  menuOverlay: ReactElement
+  menuOverlay: ReactElement | undefined
 
   title: string
   rename: (newName: string) => Promise<any>
@@ -47,36 +61,41 @@ export type ConnectionCardProps = {
   subtitle: ReactNode
 
   status: ReactNode
+
+  //If connection card is loading - we're waiting something from the
+  //server which changes the state of the card
+  loading?: boolean
 }
 
 export function ConnectionCard(props: ConnectionCardProps) {
   return (
-    <div className={styles.connectionCard}>
+    <div className={`${styles.connectionCard} ${props.loading && styles.connectionCardLoading}`}>
       <div className="w-full flex justify-between items-start">
         <div className="flex items-center">
-          <div className="h-12">{props.icon}</div>
+          <div className="h-12 w-12">
+            <ActionLink action={props.editAction}>{props.icon}</ActionLink>
+          </div>
           <div className="pl-4 h-12 h-full flex flex-col justify-between ">
-            <div>
+            <ActionLink action={props.editAction}>
               <EditableName className="text-base font-bold" name={props.title} update={props.rename} />
-            </div>
+            </ActionLink>
             <div className="text-secondaryText">{props.subtitle}</div>
           </div>
         </div>
-        <Dropdown trigger={["click"]} overlay={props.menuOverlay}>
-          <Button type="ghost" size="small">
-            ···
-          </Button>
-        </Dropdown>
+        {props.menuOverlay && (
+          <Dropdown trigger={["click"]} overlay={props.menuOverlay}>
+            <div className="text-lg px-3 hover:bg-splitBorder cursor-pointer rounded-full text-center">⋮</div>
+          </Dropdown>
+        )}
       </div>
-      <div className="pt-6 flex items-center">
-        <div>{props.status}</div>
-        <div className="flex justify-end flex-grow items-center">
-          <ActionLink action={props.editAction}>
-            <EditOutlined />
-          </ActionLink>
-          <ActionLink action={props.deleteAction}>
-            <DeleteOutlined />
-          </ActionLink>
+      <div className="pt-6 flex items-end">
+        <div className="flex-grow">{props.status}</div>
+        <div className="flex justify-end flex-grow items-end space-x-2 pr-2">
+          {props.editAction && (
+            <ActionLink action={props.editAction}>
+              <EditOutlined />
+            </ActionLink>
+          )}
         </div>
       </div>
     </div>

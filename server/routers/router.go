@@ -1,6 +1,7 @@
 package routers
 
 import (
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/wal"
 	"net/http"
@@ -27,7 +28,7 @@ import (
 func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *destinations.Service, sourcesService *sources.Service, taskService *synchronization.TaskService,
 	fallbackService *fallback.Service, clusterManager cluster.Manager, eventsCache *caching.EventsCache, systemService *system.Service,
 	segmentEndpointFieldMapper, segmentCompatEndpointFieldMapper events.Mapper, processorHolder *events.ProcessorHolder,
-	multiplexingService *multiplexing.Service, walService *wal.Service) *gin.Engine {
+	multiplexingService *multiplexing.Service, walService *wal.Service, geoService *geo.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -48,20 +49,23 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
-	jsEventHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewJitsuParser(), processorHolder.GetJSPreprocessor())
-	apiEventHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewJitsuParser(), processorHolder.GetAPIPreprocessor())
-	segmentHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewSegmentParser(segmentEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), processorHolder.GetSegmentPreprocessor())
-	segmentCompatHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewSegmentCompatParser(segmentCompatEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), processorHolder.GetSegmentPreprocessor())
+	jsEventHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewJitsuParser(), processorHolder.GetJSPreprocessor(), destinations, geoService)
+	apiEventHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewJitsuParser(), processorHolder.GetAPIPreprocessor(), destinations, geoService)
+	segmentHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewSegmentParser(segmentEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), processorHolder.GetSegmentPreprocessor(), destinations, geoService)
+	segmentCompatHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewSegmentCompatParser(segmentCompatEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), processorHolder.GetSegmentPreprocessor(), destinations, geoService)
 
 	taskHandler := handlers.NewTaskHandler(taskService, sourcesService)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
-	dryRunHandler := handlers.NewDryRunHandler(destinations, processorHolder.GetJSPreprocessor())
+	dryRunHandler := handlers.NewDryRunHandler(destinations, processorHolder.GetJSPreprocessor(), geoService)
 	statisticsHandler := handlers.NewStatisticsHandler(metaStorage)
 
+	airbyteHandler := handlers.NewAirbyteHandler()
 	sourcesHandler := handlers.NewSourcesHandler(sourcesService, metaStorage, destinations)
-	pixelHandler := handlers.NewPixelHandler(multiplexingService, processorHolder.GetPixelPreprocessor())
+	pixelHandler := handlers.NewPixelHandler(multiplexingService, processorHolder.GetPixelPreprocessor(), destinations, geoService)
 
 	bulkHandler := handlers.NewBulkHandler(destinations, processorHolder.GetBulkPreprocessor())
+
+	geoDataResolverHandler := handlers.NewGeoDataResolverHandler(geoService)
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
@@ -86,6 +90,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		//Dry run
 		apiV1.POST("/events/dry-run", middleware.TokenTwoFuncAuth(dryRunHandler.Handle, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
+		apiV1.GET("/geo_data_resolvers/editions", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.EditionsHandler))
+		apiV1.POST("/geo_data_resolvers/test", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.TestHandler))
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler))
 		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.EventTemplateHandler))
 
@@ -93,14 +99,19 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		{
 			sourcesRoute.POST("/test", adminTokenMiddleware.AdminAuth(sourcesHandler.TestSourcesHandler))
 			sourcesRoute.POST("/clear_cache", adminTokenMiddleware.AdminAuth(sourcesHandler.ClearCacheHandler))
+			sourcesRoute.GET("/oauth_fields/:sourceType", adminTokenMiddleware.AdminAuth(sourcesHandler.OauthFields))
 		}
 
-		apiV1.GET("/statistics", adminTokenMiddleware.AdminAuth(statisticsHandler.GetHandler))
+		//536-issue DEPRECATED
+		apiV1.GET("/statistics", adminTokenMiddleware.AdminAuth(statisticsHandler.DeprecatedGetHandler))
+
+		apiV1.GET("/statistics/detailed", adminTokenMiddleware.AdminAuth(statisticsHandler.GetHandler))
 
 		apiV1.GET("/tasks", adminTokenMiddleware.AdminAuth(taskHandler.GetAllHandler))
 		apiV1.GET("/tasks/:taskID", adminTokenMiddleware.AdminAuth(taskHandler.GetByIDHandler))
 		apiV1.POST("/tasks", adminTokenMiddleware.AdminAuth(taskHandler.SyncHandler))
 		apiV1.GET("/tasks/:taskID/logs", adminTokenMiddleware.AdminAuth(taskHandler.TaskLogsHandler))
+		apiV1.POST("/tasks/:taskID/cancel", adminTokenMiddleware.AdminAuth(taskHandler.TaskCancelHandler))
 
 		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler))
 		apiV1.GET("/events/cache", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler))
@@ -108,8 +119,11 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.GET("/fallback", adminTokenMiddleware.AdminAuth(fallbackHandler.GetHandler))
 		apiV1.POST("/replay", adminTokenMiddleware.AdminAuth(fallbackHandler.ReplayHandler))
 
-		apiV1.GET("/airbyte/:dockerImageName/spec", adminTokenMiddleware.AdminAuth(handlers.NewAirbyteHandler().SpecHandler))
-		apiV1.POST("/airbyte/:dockerImageName/catalog", adminTokenMiddleware.AdminAuth(handlers.NewAirbyteHandler().CatalogHandler))
+		apiV1.GET("/airbyte/:dockerImageName/spec", adminTokenMiddleware.AdminAuth(airbyteHandler.SpecHandler))
+		apiV1.GET("/airbyte/:dockerImageName/versions", adminTokenMiddleware.AdminAuth(airbyteHandler.VersionsHandler))
+		apiV1.POST("/airbyte/:dockerImageName/catalog", adminTokenMiddleware.AdminAuth(airbyteHandler.CatalogHandler))
+
+		apiV1.POST("/singer/:tap/catalog", adminTokenMiddleware.AdminAuth(handlers.NewSingerHandler().CatalogHandler))
 	}
 
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))

@@ -20,7 +20,7 @@ var (
 )
 
 //SmartParse is a factory method that returns TemplateExecutor implementation based on provided expression language
-func SmartParse(name string, expression string, extraFunctions template.FuncMap) (TemplateExecutor, error) {
+func SmartParse(name string, expression string, extraFunctions template.FuncMap, transformIds ... string) (TemplateExecutor, error) {
 	var multiErr error
 	goTmpl, err := newGoTemplateExecutor(name, expression, extraFunctions)
 	if err != nil || goTmpl.isPlainText() {
@@ -34,7 +34,7 @@ func SmartParse(name string, expression string, extraFunctions template.FuncMap)
 			return newConstTemplateExecutor(expression)
 		}
 		//Try parse template as JavaScript
-		jsTmpl, err := NewJsTemplateExecutor(expression, extraFunctions)
+		jsTmpl, err := NewJsTemplateExecutor(expression, extraFunctions, transformIds...)
 		if err != nil {
 			if multiErr != nil {
 				err = multierror.Append(multiErr, fmt.Errorf("error while parsing as Javascript: %v", err))
@@ -46,7 +46,7 @@ func SmartParse(name string, expression string, extraFunctions template.FuncMap)
 	return goTmpl, nil
 }
 
-func ToJSON(responseObject interface{}) ([]byte, error) {
+func ToJSONorStringBytes(responseObject interface{}) ([]byte, error) {
 	switch raw := responseObject.(type) {
 	case string:
 		return []byte(strings.TrimSpace(raw)), nil

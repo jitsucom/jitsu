@@ -30,9 +30,6 @@ func (whc *WebHookConfig) Validate() error {
 	if whc == nil {
 		return errors.New("webHook config is required")
 	}
-	if whc.URL == "" {
-		return errors.New("'url' is required parameter")
-	}
 
 	return nil
 }
@@ -44,7 +41,8 @@ type WebHook struct {
 
 //NewWebHook returns configured WebHook adapter instance
 func NewWebHook(config *WebHookConfig, httpAdapterConfiguration *HTTPAdapterConfiguration) (*WebHook, error) {
-	httpReqFactory, err := NewWebhookRequestFactory(config.Method, config.URL, config.Body, config.Headers)
+
+	httpReqFactory, err := NewWebhookRequestFactory(httpAdapterConfiguration.DestinationID, "webhook", config.Method, config.URL, config.Body, config.Headers)
 	if err != nil {
 		return nil, err
 	}

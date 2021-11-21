@@ -152,3 +152,24 @@ func TypeFromValue(v interface{}) (DataType, error) {
 		return UNKNOWN, fmt.Errorf("Unknown DataType for value: %v type: %t", v, v)
 	}
 }
+
+func DataTypePtr(dt DataType) *DataType {
+	return &dt
+}
+
+func ParseTimestamp(rawTimestamp interface{}) (time.Time, error) {
+	switch t := rawTimestamp.(type) {
+	case time.Time:
+		return t, nil
+	case *time.Time:
+		return *t, nil
+	case string:
+		parsed, err := time.Parse(time.RFC3339Nano, t)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("error parsing string value using time.RFC3339Nano template: %v", err)
+		}
+		return parsed, nil
+	default:
+		return time.Time{}, fmt.Errorf("timestamp value has unparsable type")
+	}
+}

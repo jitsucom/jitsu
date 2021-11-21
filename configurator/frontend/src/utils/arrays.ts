@@ -1,13 +1,13 @@
-import { isArray } from './typeCheck';
+import { isArray } from "./typeCheck"
 
 export const naturalSort = (array: string[]): string[] => {
   const collator = new Intl.Collator(undefined, {
     numeric: true,
-    sensitivity: 'base'
-  });
+    sensitivity: "base",
+  })
 
-  return array.sort(collator.compare);
-};
+  return array.sort(collator.compare)
+}
 
 /**
  * Converts argument to array of a single value if it is not already an array
@@ -15,18 +15,39 @@ export const naturalSort = (array: string[]): string[] => {
  * @returns array
  */
 export const toArrayIfNot = <T>(arg: T | T[]): T[] => {
-  return isArray(arg) ? arg : [arg];
-};
+  return isArray(arg) ? arg : [arg]
+}
 
 /**
  * Adds value to array if it is not already there. Uses SameValueZero comparison.
  * @param array array to add value to
  * @param value value to add
+ * @param comparator custom comparison function that should accept two values and return
+ * boolean that is true if elements are equal.
  * @returns a copy of initial array with an added value, or an array without modification
  */
-export const addToArrayIfNotDuplicate = <T>(array: T[], value: T): T[] => {
-  return array.some((item) => item === value) ? [...array] : [...array, value];
-};
+export const addToArrayIfNotDuplicate = <T>(array: T[], value: T, comparator?: (a: T, b: T) => boolean): T[] => {
+  const isEqual = comparator ?? ((a: T, b: T) => a === b)
+  return array.some(item => isEqual(item, value)) ? [...array] : [...array, value]
+}
+
+/**
+ * Returns a new array without the passed `value`
+ * @param array an original array
+ * @param value value to delete
+ * @param comparator custom comparison function that should accept two values and return
+ * boolean that is true if elements are equal
+ * @returns new array without the `value`
+ */
+export const removeFromArrayIfFound = <T>(array: T[], value: T, comparator?: (a: T, b: T) => boolean): T[] => {
+  const isEqual = comparator ?? ((a: T, b: T) => a === b)
+  return array.filter(item => !isEqual(value, item))
+}
+
+export const substituteArrayValueIfFound = <T>(array: T[], value: T, comparator?: (a: T, b: T) => boolean): T[] => {
+  const isEqual = comparator ?? ((a: T, b: T) => a === b)
+  return array.map(item => (isEqual(value, item) ? value : item))
+}
 
 // /**
 //  * Deletes all occurences of values from an array.

@@ -104,18 +104,19 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 				errMsg := fmt.Sprintf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
 				metrics.ErrorSourceEvents(rs.task.Source, storage.ID(), rowsCount)
 				metrics.ErrorObjects(rs.task.Source, rowsCount)
-				telemetry.Error(rs.task.Source, storage.ID(), srcSource, rowsCount)
-				counters.ErrorEvents(storage.ID(), rowsCount)
+				telemetry.Error(rs.task.Source, storage.ID(), srcSource, rs.tap, rowsCount)
+				counters.ErrorPullDestinationEvents(storage.ID(), rowsCount)
+				counters.ErrorPullSourceEvents(rs.task.Source, rowsCount)
 				return errors.New(errMsg)
 			}
 
 			metrics.SuccessSourceEvents(rs.task.Source, storage.ID(), rowsCount)
 			metrics.SuccessObjects(rs.task.Source, rowsCount)
-			telemetry.Event(rs.task.Source, storage.ID(), srcSource, rowsCount)
-			counters.SuccessEvents(storage.ID(), rowsCount)
+			telemetry.Event(rs.task.Source, storage.ID(), srcSource, rs.tap, rowsCount)
+			counters.SuccessPullDestinationEvents(storage.ID(), rowsCount)
 		}
 
-		counters.SuccessPullSourceEvents(rs.task.Source, len(stream.Objects))
+		counters.SuccessPullSourceEvents(rs.task.Source, rowsCount)
 
 		rs.taskLogger.INFO("Synchronized successfully Table [%s] key fields [%s] objects [%d]", tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
 	}

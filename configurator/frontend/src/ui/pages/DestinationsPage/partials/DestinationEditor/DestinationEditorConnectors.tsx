@@ -1,132 +1,96 @@
 // @Libs
-import { useCallback, useMemo } from 'react';
-import { Link, NavLink } from 'react-router-dom';
-import { Collapse, Form } from 'antd';
-import snakeCase from 'lodash/snakeCase';
+import { useCallback, useMemo } from "react"
+import { Link, NavLink } from "react-router-dom"
+import { Collapse, Form } from "antd"
+import snakeCase from "lodash/snakeCase"
 // @Store
-import { sourcesStore } from 'stores/sources';
+import { sourcesStore } from "stores/sources"
 // @Hooks
-import useLoader from 'hooks/useLoader';
+import useLoader from "hooks/useLoader"
 // @Services
-import ApplicationServices from 'lib/services/ApplicationServices';
+import ApplicationServices from "lib/services/ApplicationServices"
 // @Utils
-import { sourcePageUtils } from 'ui/pages/SourcesPage/SourcePage.utils';
-import { destinationEditorUtils } from 'ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
+import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
+import { destinationEditorUtils } from "ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils"
 // @Components
-import {
-  NameWithPicture,
-  ConnectedItems,
-  ConnectedItem
-} from 'ui/components/ConnectedItems/ConnectedItems';
-import { CenteredError, CenteredSpin } from 'lib/components/components';
-import { TabDescription } from 'ui/components/Tabs/TabDescription';
+import { NameWithPicture, ConnectedItems, ConnectedItem } from "ui/components/ConnectedItems/ConnectedItems"
+import { CenteredError, CenteredSpin } from "lib/components/components"
+import { TabDescription } from "ui/components/Tabs/TabDescription"
 // @Types
-import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import { Destination } from 'catalog/destinations/types';
+import { FormInstance } from "antd/lib/form/hooks/useForm"
+import { Destination } from "catalog/destinations/types"
 // @Catalog sources
-import { allSources } from 'catalog/sources/lib';
+import { allSources } from "catalog/sources/lib"
 // @Constants
-import { DESTINATIONS_CONNECTED_SOURCES } from 'embeddedDocs/destinationsConnectedItems';
-import { observer } from 'mobx-react-lite';
+import { DESTINATIONS_CONNECTED_SOURCES } from "embeddedDocs/destinationsConnectedItems"
+import { observer } from "mobx-react-lite"
+import { APIKeyUtil } from "../../../../../utils/apiKeys.utils"
+import { SourcesUtils } from "../../../../../utils/sources.utils"
 
 export interface Props {
-  form: FormInstance;
-  destination: Destination;
-  initialValues: DestinationData;
-  handleTouchAnyField: (...args: any) => void;
+  form: FormInstance
+  destination: Destination
+  initialValues: DestinationData
+  handleTouchAnyField: (...args: any) => void
 }
 
-const DestinationEditorConnectorsComponent = ({
-  form,
-  initialValues,
-  destination,
-  handleTouchAnyField
-}: Props) => {
-  const service = ApplicationServices.get();
+const DestinationEditorConnectorsComponent = ({ form, initialValues, destination, handleTouchAnyField }: Props) => {
+  const service = ApplicationServices.get()
 
-  const sources = sourcesStore.sources;
-  const sourcesError = sourcesStore.error;
+  const sources = sourcesStore.sources
+  const sourcesError = sourcesStore.error
 
   const [apiKeysError, apiKeysData] = useLoader(
-    async () =>
-      await service.storageService.get('api_keys', service.activeProject.id)
-  );
+    async () => await service.storageService.get("api_keys", service.activeProject.id)
+  )
 
   const sourcesList = useMemo<ConnectedItem[]>(
     () =>
       sources
         ? sources?.map((src: SourceData) => {
-            const proto = allSources.find(
-              (s) => snakeCase(s.id) === snakeCase(src.sourceProtoType)
-            );
+            const proto = allSources.find(s => snakeCase(s.id) === snakeCase(src.sourceProtoType))
 
             return {
               id: src.sourceId,
-              title: (
-                <>
-                  <NameWithPicture icon={proto?.pic}>
-                    <b>{proto?.displayName}: </b>{' '}
-                    {src.displayName || src.sourceId}
-                  </NameWithPicture>
-                </>
-              ),
-              description: null
-            };
+              title: <NameWithPicture icon={proto?.pic}>{SourcesUtils.getDisplayName(src)}</NameWithPicture>,
+              description: null,
+            }
           })
         : [],
     [sources]
-  );
+  )
 
   const apiKeysList = useMemo<ConnectedItem[]>(
     () =>
       apiKeysData?.keys
         ? apiKeysData.keys.map((key: APIKey) => ({
-            title: (
-              <>
-                <code>{key.uid}</code>
-                {key.comment && (
-                  <span className="pl-2 text-secondaryText">
-                    (<b>Note:</b> {key.comment})
-                  </span>
-                )}
-              </>
-            ),
+            title: <span>{APIKeyUtil.getDisplayName(key)}</span>,
             id: key.uid,
-            description: (
-              <div className="align-middle">
-                Server secret: <code>{key.serverAuth}</code> / Client secret:{' '}
-                <code>{key.jsAuth}</code>
-              </div>
-            )
           }))
         : [],
     [apiKeysData?.keys]
-  );
+  )
 
   const handleItemChange = useCallback(
     (name: string) => (items: string[]) => {
-      const beenTouched =
-        JSON.stringify(items) !== JSON.stringify(initialValues?.[name]);
+      const beenTouched = JSON.stringify(items) !== JSON.stringify(initialValues?.[name])
 
-      handleTouchAnyField(beenTouched);
+      handleTouchAnyField(beenTouched)
     },
     [initialValues, handleTouchAnyField]
-  );
+  )
 
   if (apiKeysError || sourcesError) {
-    return <CenteredError error={apiKeysError || sourcesError} />;
+    return <CenteredError error={apiKeysError || sourcesError} />
   } else if (!apiKeysData) {
-    return <CenteredSpin />;
+    return <CenteredSpin />
   }
 
-  let activeKey;
-  if (
-    apiKeysList?.length > 0 ||
-    (sources?.length === 0 && apiKeysList?.length === 0)
-  ) {
-    activeKey = 'keys';
+  let activeKey
+  if (apiKeysList?.length > 0 || (sources?.length === 0 && apiKeysList?.length === 0)) {
+    activeKey = "keys"
   } else {
-    activeKey = 'connectors';
+    activeKey = "connectors"
   }
 
   return (
@@ -138,8 +102,7 @@ const DestinationEditorConnectorsComponent = ({
           <Collapse.Panel
             header={
               <b>
-                Linked API Keys (<NavLink to="/api_keys">edit API keys</NavLink>
-                )
+                Linked API Keys (<NavLink to="/api_keys">edit API keys</NavLink>)
               </b>
             }
             key="keys"
@@ -152,51 +115,46 @@ const DestinationEditorConnectorsComponent = ({
                 itemsList={apiKeysList}
                 warningMessage={<p>Please, choose at least one API key.</p>}
                 initialValues={initialValues?._onlyKeys}
-                handleItemChange={handleItemChange('_onlyKeys')}
+                handleItemChange={handleItemChange("_onlyKeys")}
               />
             </div>
           </Collapse.Panel>
           <Collapse.Panel
             header={
               <b>
-                Linked Connectors (
-                <NavLink to="/sources">edit connectors</NavLink>)
+                Linked Connectors (<NavLink to="/sources">edit connectors</NavLink>)
               </b>
             }
             key="connectors"
             forceRender
           >
             <div className="pl-6">
-              {destination.syncFromSourcesStatus === 'supported' &&
-                sources?.length === 0 && (
-                  <p className="text-sm text-secondaryText">
-                    You don't have any connectors you can link to the
-                    destination. You can add them{' '}
-                    <Link to="/sources">here</Link>.
-                  </p>
-                )}
-              {destination.syncFromSourcesStatus === 'supported' && (
+              {destination.syncFromSourcesStatus === "supported" && sources?.length === 0 && (
+                <p className="text-sm text-secondaryText">
+                  You don't have any connectors you can link to the destination. You can add them{" "}
+                  <Link to="/sources">here</Link>.
+                </p>
+              )}
+              {destination.syncFromSourcesStatus === "supported" && (
                 <ConnectedItems
                   form={form}
                   fieldName="_sources"
                   itemsList={sourcesList}
                   warningMessage={<p>Please, choose at least one source.</p>}
                   initialValues={initialValues?._sources}
-                  handleItemChange={handleItemChange('_sources')}
+                  handleItemChange={handleItemChange("_sources")}
                 />
               )}
-              {destination.syncFromSourcesStatus === 'coming_soon' && (
+              {destination.syncFromSourcesStatus === "coming_soon" && (
                 <div className="text-secondaryText">
-                  <b>{destination.displayName}</b> support is{' '}
-                  <i>coming soon!</i>. At the moment, Jitsu can't send data from
-                  connectors to {destination.displayName}. However, you can
-                  event streaming is available!
+                  <b>{destination.displayName}</b> support is <i>coming soon!</i>. At the moment, Jitsu can't send data
+                  from connectors to {destination.displayName}. However, you can event streaming is available!
                 </div>
               )}
-              {destination.syncFromSourcesStatus === 'not_supported' && (
+              {destination.syncFromSourcesStatus === "not_supported" && (
                 <div className="text-secondaryText">
-                  Jitsu can't send data from connectors to{' '}
-                  <b>{destination.displayName}</b> due to limitations of the API
+                  Jitsu can't send data from connectors to <b>{destination.displayName}</b> due to limitations of the
+                  API
                 </div>
               )}
             </div>
@@ -204,13 +162,11 @@ const DestinationEditorConnectorsComponent = ({
         </Collapse>
       </Form>
     </>
-  );
-};
+  )
+}
 
-const DestinationEditorConnectors = observer(
-  DestinationEditorConnectorsComponent
-);
+const DestinationEditorConnectors = observer(DestinationEditorConnectorsComponent)
 
-DestinationEditorConnectors.displayName = 'DestinationEditorConnectors';
+DestinationEditorConnectors.displayName = "DestinationEditorConnectors"
 
-export { DestinationEditorConnectors };
+export { DestinationEditorConnectors }

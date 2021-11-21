@@ -7,6 +7,8 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/utils"
+	"go.uber.org/atomic"
 	"math/rand"
 	"time"
 )
@@ -26,22 +28,23 @@ type StreamingStorage interface {
 
 //StreamingWorker reads events from queue and using events.StreamingStorage writes them
 type StreamingWorker struct {
-	eventQueue       *events.PersistentQueue
+	eventQueue       events.PersistentQueue
 	processor        *schema.Processor
 	streamingStorage StreamingStorage
 	tableHelper      []*TableHelper
 
-	closed bool
+	closed *atomic.Bool
 }
 
 //newStreamingWorker returns configured streaming worker
-func newStreamingWorker(eventQueue *events.PersistentQueue, processor *schema.Processor, streamingStorage StreamingStorage,
+func newStreamingWorker(eventQueue events.PersistentQueue, processor *schema.Processor, streamingStorage StreamingStorage,
 	tableHelper ...*TableHelper) *StreamingWorker {
 	return &StreamingWorker{
 		eventQueue:       eventQueue,
 		processor:        processor,
 		streamingStorage: streamingStorage,
 		tableHelper:      tableHelper,
+		closed:           atomic.NewBool(false),
 	}
 }
 
@@ -54,13 +57,13 @@ func (sw *StreamingWorker) start() {
 			if sw.streamingStorage.IsStaging() {
 				break
 			}
-			if sw.closed {
+			if sw.closed.Load() {
 				break
 			}
 
 			fact, dequeuedTime, tokenID, err := sw.eventQueue.DequeueBlock()
 			if err != nil {
-				if err == events.ErrQueueClosed && sw.closed {
+				if err == events.ErrQueueClosed && sw.closed.Load() {
 					continue
 				}
 				logging.SystemErrorf("[%s] Error reading event from queue: %v", sw.streamingStorage.ID(), err)
@@ -107,13 +110,21 @@ func (sw *StreamingWorker) start() {
 				}
 
 				table := sw.getTableHelper().MapTableSchema(batchHeader)
-
-				eventContext.ProcessedEvent = flattenObject
-				eventContext.Table = table
+				eventContext := &adapters.EventContext{
+					CacheDisabled: sw.streamingStorage.IsCachingDisabled(),
+					DestinationID: sw.streamingStorage.ID(),
+					EventID: utils.NvlString(sw.streamingStorage.GetUniqueIDField().Extract(flattenObject),
+						sw.streamingStorage.GetUniqueIDField().Extract(fact)),
+					TokenID:        tokenID,
+					Src:            events.ExtractSrc(fact),
+					RawEvent:       fact,
+					ProcessedEvent: flattenObject,
+					Table:          table,
+				}
 
 				if err := sw.streamingStorage.Insert(eventContext); err != nil {
 					logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.Serialize(), table.Name, err)
-					if isConnectionError(err) {
+					if IsConnectionError(err) {
 						//retry
 						sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenID)
 					}
@@ -126,7 +137,7 @@ func (sw *StreamingWorker) start() {
 }
 
 func (sw *StreamingWorker) Close() error {
-	sw.closed = true
+	sw.closed.Store(true)
 
 	return nil
 }

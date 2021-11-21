@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/jitsucom/jitsu/server/authorization"
-	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/useragent"
 	"github.com/spf13/viper"
@@ -20,12 +19,12 @@ const emptyGIFOnexOne = "R0lGODlhAQABAIAAAAAAAP8AACH5BAEAAAEALAAAAAABAAEAAAICTAE
 type AppConfig struct {
 	ServerName string
 	Authority  string
+	ConfigPath string
 
 	DisableSkipEventsWarn bool
 
 	EmptyGIFPixelOnexOne []byte
 
-	GeoResolver          geo.Resolver
 	UaResolver           useragent.Resolver
 	AuthorizationService *authorization.Service
 
@@ -48,7 +47,7 @@ var (
 	Instance     *AppConfig
 	RawVersion   string
 	MajorVersion string
-	BuiltAt 	 string
+	BuiltAt      string
 	MinorVersion string
 	Beta         bool
 )
@@ -62,7 +61,11 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.api_keys_reload_sec", 1)
 	viper.SetDefault("server.destinations_reload_sec", 1)
 	viper.SetDefault("server.sources_reload_sec", 1)
+	viper.SetDefault("server.geo_resolvers_reload_sec", 1)
 	viper.SetDefault("server.sync_tasks.pool.size", 16)
+	viper.SetDefault("server.sync_tasks.stalled.last_heartbeat_threshold_seconds", 15)
+	viper.SetDefault("server.sync_tasks.stalled.last_activity_threshold_minutes", 10)
+	viper.SetDefault("server.sync_tasks.stalled.observe_stalled_every_seconds", 20)
 	viper.SetDefault("server.sync_tasks.store_logs.last_runs", -1)
 	viper.SetDefault("server.disable_version_reminder", false)
 	viper.SetDefault("server.disable_skip_events_warn", false)
@@ -94,8 +97,11 @@ func setDefaultParams(containerized bool) {
 
 	viper.SetDefault("server.volumes.workspace", "jitsu_workspace")
 
+	//User Recognition anonymous events default TTL 10080 min - 7 days
+	viper.SetDefault("meta.storage.redis.ttl_minutes.anonymous_events", 10080)
+
 	//MaxMind URL
-	viper.SetDefault("maxmind.download_url", "https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-City&license_key=%s&suffix=tar.gz")
+	viper.SetDefault("maxmind.official_url", "https://download.maxmind.com/app/geoip_download?license_key=%s&edition_id=%s&suffix=tar.gz")
 
 	//Segment API mappings
 	//uses remove type mappings (e.g. "/page->") because we have root path mapping "/context -> /"
@@ -185,11 +191,13 @@ func setDefaultParams(containerized bool) {
 	if containerized {
 		viper.SetDefault("log.path", "/home/eventnative/data/logs/events")
 		viper.SetDefault("server.log.path", "/home/eventnative/data/logs")
+		viper.SetDefault("server.config.path", "/home/eventnative/data/config")
 		viper.SetDefault("singer-bridge.venv_dir", "/home/eventnative/data/venv")
 		viper.SetDefault("airbyte-bridge.config_dir", "/home/eventnative/data/airbyte")
 	} else {
 		viper.SetDefault("log.path", "./logs/events")
 		viper.SetDefault("server.log.path", "./logs")
+		viper.SetDefault("server.config.path", "/config")
 		viper.SetDefault("singer-bridge.venv_dir", "./venv")
 		viper.SetDefault("airbyte-bridge.config_dir", "./airbyte_config")
 	}
@@ -241,6 +249,7 @@ func Init(containerized bool, dockerHubID string) error {
 
 	var appConfig AppConfig
 	appConfig.ServerName = serverName
+	appConfig.ConfigPath = viper.GetString("server.config.path")
 
 	emptyGIF, err := base64.StdEncoding.DecodeString(emptyGIFOnexOne)
 	if err != nil {
@@ -307,7 +316,6 @@ func Init(containerized bool, dockerHubID string) error {
 
 	appConfig.AuthorizationService = authService
 	appConfig.UaResolver = useragent.NewResolver()
-	appConfig.GeoResolver = loadGeoResolver()
 	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
 	appConfig.GlobalUniqueIDField = identifiers.NewUniqueID(uniqueIDField)
 
@@ -354,21 +362,4 @@ func (a *AppConfig) CloseWriteAheadLog() {
 	if err := a.writeAheadLog.Close(); err != nil {
 		logging.Errorf("[WriteAheadLog] %v", err)
 	}
-}
-
-func loadGeoResolver() geo.Resolver {
-	geoPath := viper.GetString("geo.maxmind_path")
-	if geoPath != "" {
-		geoResolver, err := geo.CreateResolver(viper.GetString("maxmind.download_url"), geoPath)
-		if err != nil {
-			logging.Warnf("❌ Failed to load MaxMind DB from %s: %v. Geo resolution won't be available", geoPath, err)
-		} else {
-			logging.Info("✅ Loaded MaxMind db:", geoPath)
-			return geoResolver
-		}
-	} else {
-		logging.Info("❌ Geo resolution won't be available as geo.maxmind_path is not set")
-	}
-
-	return &geo.DummyResolver{}
 }

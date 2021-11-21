@@ -1,5 +1,5 @@
-import { filteringExpressionDocumentation, modeParameter, tableName } from './common';
-import { arrayOf, jsType, selectionType, stringType } from '../../sources/types';
+import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
+import { arrayOf, jsType, selectionType, stringType } from "../../sources/types"
 
 const icon = (
   <svg
@@ -25,68 +25,84 @@ const icon = (
       ></path>
     </g>
   </svg>
-);
+)
 
 const webhookDestination = {
-  description: <>
-    Jitsu can send events from JS SDK or Events API to Google Analytics API to any HTTP(s) endpoint. Data format
-    is fully configurable with an easy template language
-  </>,
-  syncFromSourcesStatus: 'not_supported',
-  id: 'webhook',
-  type: 'other',
-  displayName: 'WebHook',
-  defaultTransform: 'return $',
+  description: (
+    <>
+      Jitsu can send events from JS SDK or Events API to Google Analytics API to any HTTP(s) endpoint. Data format is
+      fully configurable with an easy template language
+    </>
+  ),
+  syncFromSourcesStatus: "not_supported",
+  id: "webhook",
+  type: "other",
+  displayName: "WebHook",
+  defaultTransform: "",
   hidden: false,
   parameters: [
-    modeParameter('stream'),
+    modeParameter("stream"),
     tableName(filteringExpressionDocumentation),
     {
-      id: '_formData.url',
-      displayName: 'HTTP URL',
+      id: "_formData.url",
+      displayName: "HTTP URL",
       required: true,
       type: stringType,
-      jsDebugger: 'object',
-      documentation:
-          <>HTTP URL constant string or <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a> e.g.:<br></br><i>"https://mydomain/" + $.event_type</i><br></br> will get <b>event_type</b> field from event and use it as a part of URL path.</>
+      jsDebugger: "object",
+      codeSuggestions: `declare let destinationId = "";
+declare let destinationType = "";`,
+      documentation: (
+        <>
+          HTTP URL constant string or{" "}
+          <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a> e.g.:<br></br>
+          <i>"https://mydomain/" + $.event_type</i>
+          <br></br> will get <b>event_type</b> field from event and use it as a part of URL path.
+        </>
+      ),
     },
     {
-      id: '_formData.method',
-      displayName: 'HTTP Method',
+      id: "_formData.method",
+      displayName: "HTTP Method",
       required: true,
-      type: selectionType(['GET', 'POST', 'PUT'], 1),
-      defaultValue: 'GET'
+      type: selectionType(["GET", "POST", "PUT"], 1),
+      defaultValue: "GET",
     },
     {
-      id: '_formData.body',
-      displayName: 'HTTP JSON Body',
+      id: "_formData.body",
+      displayName: "HTTP JSON Body",
       required: false,
       type: jsType,
-      jsDebugger: 'object',
-      documentation:
-        <>HTTP body JSON constant, or <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a> e.g.:
+      jsDebugger: "object",
+      codeSuggestions: `declare let destinationId = "";
+declare let destinationType = "";`,
+      documentation: (
+        <>
+          HTTP body JSON constant, or{" "}
+          <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a> e.g.:
           <pre>
             {`{
   "action": _.event_name,
   "message": \`User \${_.user.email} has been logged in.\`
 }`}
           </pre>
-           will get <b>event_name</b> and <b>user email</b> fields from every event and use it as a part of request body JSON.</>
+          will get <b>event_name</b> and <b>user email</b> fields from every event and use it as a part of request body
+          JSON.
+        </>
+      ),
     },
     {
-      id: '_formData.headers',
-      displayName: 'HTTP Headers',
+      id: "_formData.headers",
+      displayName: "HTTP Headers",
       required: false,
       type: arrayOf(stringType),
-      documentation:
-        <>HTTP headers strings in format: 'header_name:header_value'</>
-    }
+      documentation: <>HTTP headers strings in format: 'header_name:header_value'</>,
+    },
   ],
   ui: {
     icon,
     connectCmd: null,
-    title: cfg => cfg['_formData']['method'] + ' ' + cfg['_formData']['url']
-  }
-} as const;
+    title: cfg => cfg["_formData"]["method"] + " " + cfg["_formData"]["url"],
+  },
+} as const
 
-export default webhookDestination;
+export default webhookDestination

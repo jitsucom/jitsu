@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/typing"
 	"google.golang.org/api/iterator"
@@ -17,7 +18,8 @@ import (
 )
 
 const (
-	bucketPrefix = "pubsite_prod_rev_"
+	bucketPrefixLegacy = "pubsite_prod_rev_"
+	bucketPrefix = "pubsite_prod_"
 
 	SalesCollection    = "sales"
 	EarningsCollection = "earnings"
@@ -41,6 +43,8 @@ var (
 )
 
 type GooglePlay struct {
+	base.IntervalDriver
+
 	config *GooglePlayConfig
 	client *storage.Client
 	ctx    context.Context
@@ -56,7 +60,7 @@ func init() {
 //NewGooglePlay returns configured Google Play driver instance
 func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &GooglePlayConfig{}
-	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
@@ -68,18 +72,25 @@ func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collect
 	if err != nil {
 		return nil, err
 	}
-	client, err := storage.NewClient(ctx, option.WithCredentialsJSON(credentialsJSON))
+	client, err := storage.NewClient(ctx, option.WithCredentialsJSON(credentialsJSON),
+		option.WithScopes("https://www.googleapis.com/auth/devstorage.read_only"))
 	if err != nil {
 		return nil, fmt.Errorf("GooglePlay error creating google cloud storage client: %v", err)
 	}
 
-	return &GooglePlay{client: client, config: config, ctx: ctx, collection: collection}, nil
+	return &GooglePlay{
+		IntervalDriver: base.IntervalDriver{SourceType: sourceConfig.Type},
+		client:         client,
+		config:         config,
+		ctx:            ctx,
+		collection:     collection,
+	}, nil
 }
 
 //TestGooglePlay tests connection to Google Play without creating Driver instance
 func TestGooglePlay(sourceConfig *base.SourceConfig) error {
 	config := &GooglePlayConfig{}
-	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return err
 	}
@@ -92,14 +103,14 @@ func TestGooglePlay(sourceConfig *base.SourceConfig) error {
 		return err
 	}
 
-	client, err := storage.NewClient(context.Background(), option.WithCredentialsJSON(credentialsJSON))
+	client, err := storage.NewClient(context.Background(),
+		option.WithCredentialsJSON(credentialsJSON),
+		option.WithScopes("https://www.googleapis.com/auth/devstorage.read_only"))
 	if err != nil {
 		return fmt.Errorf("GooglePlay error creating google cloud storage client: %v", err)
 	}
 	defer client.Close()
-
-	bucketName := bucketPrefix + config.AccountID
-	bucket := client.Bucket(bucketName)
+	bucket := client.Bucket(getBucketName(config.AccountID))
 
 	it := bucket.Objects(context.Background(), &storage.Query{})
 	_, err = it.Next()
@@ -123,7 +134,7 @@ func (gp *GooglePlay) GetRefreshWindow() (time.Duration, error) {
 }
 
 func (gp *GooglePlay) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
-	bucketName := bucketPrefix + gp.config.AccountID
+	bucketName := getBucketName(gp.config.AccountID)
 	bucket := gp.client.Bucket(bucketName)
 
 	it := bucket.Objects(gp.ctx, &storage.Query{Prefix: gp.collection.Name})
@@ -166,7 +177,7 @@ func (gp *GooglePlay) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 }
 
 func (gp *GooglePlay) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
-	bucketName := bucketPrefix + gp.config.AccountID
+	bucketName := getBucketName(gp.config.AccountID)
 	bucket := gp.client.Bucket(bucketName)
 
 	var objects []map[string]interface{}
@@ -261,4 +272,12 @@ func (gp *GooglePlay) Type() string {
 
 func (gp *GooglePlay) Close() error {
 	return gp.client.Close()
+}
+
+
+func getBucketName(accountId string) string {
+	if !strings.HasPrefix(accountId, bucketPrefix) {
+		return bucketPrefixLegacy + accountId
+	}
+	return accountId
 }

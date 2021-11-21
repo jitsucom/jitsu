@@ -22,13 +22,14 @@ type Storage interface {
 
 	//** Counters **
 	//events counters
-	SuccessEvents(id, namespace string, now time.Time, value int) error
-	ErrorEvents(id, namespace string, now time.Time, value int) error
-	SkipEvents(id, namespace string, now time.Time, value int) error
+	SuccessEvents(id, namespace, eventType string, now time.Time, value int) error
+	ErrorEvents(id, namespace, eventType string, now time.Time, value int) error
+	SkipEvents(id, namespace, eventType string, now time.Time, value int) error
 	GetProjectSourceIDs(projectID string) ([]string, error)
-	GetProjectPushSourceIDs(projectID string) ([]string, error)
 	GetProjectDestinationIDs(projectID string) ([]string, error)
-	GetEventsWithGranularity(namespace, status string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error)
+	//536-issue DEPRECATED instead of it all project sources will be selected
+	GetProjectPushSourceIDs(projectID string) ([]string, error)
+	GetEventsWithGranularity(namespace, status, eventType string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error)
 
 	//** Cache **
 	//events caching
@@ -46,14 +47,21 @@ type Storage interface {
 	GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error)
 	DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error
 
-	//sync tasks
+	// ** Sync Tasks **
 	CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error
-	UpsertTask(task *Task) error
 	GetAllTasks(sourceID, collection string, start, end time.Time, limit int) ([]Task, error)
 	GetLastTask(sourceID, collection string) (*Task, error)
 	GetTask(taskID string) (*Task, error)
 	GetAllTaskIDs(sourceID, collection string, descendingOrder bool) ([]string, error)
 	RemoveTasks(sourceID, collection string, taskIDs ...string) (int, error)
+	UpdateStartedTask(taskID, status string) error
+	UpdateFinishedTask(taskID, status string) error
+
+	//heartbeat
+	TaskHeartBeat(taskID string) error
+	RemoveTaskFromHeartBeat(taskID string) error
+	GetAllTasksHeartBeat() (map[string]string, error)
+	GetAllTasksForInitialHeartbeat(runningStatus, scheduledStatus string, lastActivityThreshold time.Duration) ([]string, error)
 
 	//task logs
 	AppendTaskLog(taskID string, now time.Time, system, message, level string) error
@@ -62,6 +70,9 @@ type Storage interface {
 	//task queue
 	PushTask(task *Task) error
 	PollTask() (*Task, error)
+
+	//system
+	GetOrCreateClusterID(generatedClusterID string) string
 
 	Type() string
 }
@@ -72,6 +83,10 @@ func NewStorage(meta *viper.Viper) (Storage, error) {
 	}
 
 	host := meta.GetString("redis.host")
+	if host == "" {
+		return &Dummy{}, nil
+	}
+
 	port := meta.GetInt("redis.port")
 	password := meta.GetString("redis.password")
 	sentinelMaster := meta.GetString("redis.sentinel_master_name")

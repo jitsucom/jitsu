@@ -7,9 +7,11 @@ import (
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/system"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/jitsucom/jitsu/server/wal"
 	"math/rand"
 	"net/http"
@@ -147,7 +149,13 @@ func main() {
 		logging.Fatal(err)
 	}
 
-	airbyte.Init(viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), appconfig.Instance.AirbyteLogsWriter)
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := airbyte.Init(ctx, viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), appconfig.Instance.AirbyteLogsWriter); err != nil {
+		logging.Errorf("❌ Airbyte integration is disabled: %v. For using Airbyte run Jitsu with: -v /var/run/docker.sock:/var/run/docker.sock", err)
+	}
+
+	geoService := geo.NewService(ctx, viper.GetString("geo_resolvers"), viper.GetString("geo.maxmind_path"), viper.GetString("maxmind.official_url"))
+	appconfig.Instance.ScheduleClosing(geoService)
 
 	enrichment.InitDefault(
 		viper.GetString("server.fields_configuration.src_source_ip"),
@@ -172,7 +180,6 @@ func main() {
 	}
 
 	//listen to shutdown signal to free up all resources
-	ctx, cancel := context.WithCancel(context.Background())
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP)
 	go func() {
@@ -216,6 +223,8 @@ func main() {
 	if err != nil {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
+	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
+	telemetry.EnrichSystemInfo(clusterID)
 
 	// ** Coordination Service **
 	var coordinationService coordination.Service
@@ -280,7 +289,7 @@ func main() {
 
 	maxColumns := viper.GetInt("server.max_columns")
 	logging.Infof("📝 Limit server.max_columns is %d", maxColumns)
-	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, maxColumns)
+	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, maxColumns)
 
 	//Create event destinations
 	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory, viper.GetBool("server.strict_auth_tokens"))
@@ -319,9 +328,12 @@ func main() {
 
 	//sources sync tasks pool size
 	poolSize := viper.GetInt("server.sync_tasks.pool.size")
+	stalledTasksThresholdSeconds := viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")
+	stalledLastLogThresholdMinutes := viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")
+	observeStalledTaskEverySeconds := viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")
 
 	//Create task executor
-	taskExecutor, err := synchronization.NewTaskExecutor(poolSize, sourceService, destinationsService, metaStorage, coordinationService)
+	taskExecutor, err := synchronization.NewTaskExecutor(poolSize, stalledTasksThresholdSeconds, stalledLastLogThresholdMinutes, observeStalledTaskEverySeconds, sourceService, destinationsService, metaStorage, coordinationService)
 	if err != nil {
 		logging.Fatal("Error creating sources sync task executor:", err)
 	}
@@ -394,7 +406,7 @@ func main() {
 
 	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, fallbackService,
 		coordinationService, eventsCache, systemService, segmentRequestFieldsMapper, segmentCompatRequestFieldsMapper, processorHolder,
-		multiplexingService, walService)
+		multiplexingService, walService, geoService)
 
 	telemetry.ServerStart()
 	notifications.ServerStart()

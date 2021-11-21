@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/utils"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -48,6 +50,7 @@ var (
 type DestinationConfig struct {
 	OnlyTokens             []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
 	Type                   string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
+	SubType                string                   `mapstructure:"subtype" json:"subtype,omitempty" yaml:"subtype,omitempty"`
 	Mode                   string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
 	DataLayout             *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
 	UsersRecognition       *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
@@ -57,6 +60,10 @@ type DestinationConfig struct {
 	Staged                 bool                     `mapstructure:"staged" json:"staged,omitempty" yaml:"staged,omitempty"`
 	CachingConfiguration   *CachingConfiguration    `mapstructure:"caching" json:"caching,omitempty" yaml:"caching,omitempty"`
 	PostHandleDestinations []string                 `mapstructure:"post_handle_destinations" json:"post_handle_destinations,omitempty" yaml:"post_handle_destinations,omitempty"`
+	GeoDataResolverID      string                   `mapstructure:"geo_data_resolver_id" json:"geo_data_resolver_id,omitempty" yaml:"geo_data_resolver_id,omitempty"`
+
+	//variables that can be used from javascript
+	TemplateVariables map[string]interface{} `mapstructure:"template_variables" json:"template_variables,omitempty" yaml:"template_variables,omitempty"`
 
 	DataSource      *adapters.DataSourceConfig            `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
 	S3              *adapters.S3Config                    `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
@@ -79,7 +86,9 @@ type DataLayout struct {
 	//Deprecated
 	Mapping []string `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
 
-	Transform         string          `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
+	TransformEnabled bool   `mapstructure:"transform_enabled" json:"transform_enabled" yaml:"transform_enabled"`
+	Transform        string `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
+	//Deprecated
 	Mappings          *schema.Mapping `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
 	MaxColumns        int             `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
 	TableNameTemplate string          `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
@@ -133,7 +142,7 @@ type Config struct {
 	streamMode             bool
 	maxColumns             int
 	monitorKeeper          MonitorKeeper
-	eventQueue             *events.PersistentQueue
+	eventQueue             events.PersistentQueue
 	eventsCache            *caching.EventsCache
 	loggerFactory          *logging.Factory
 	pkFields               map[string]bool
@@ -151,7 +160,7 @@ func RegisterStorage(storageType StorageType) {
 
 //Factory is a destinations factory for creation
 type Factory interface {
-	Create(name string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error)
+	Create(name string, destination DestinationConfig) (StorageProxy, events.PersistentQueue, error)
 }
 
 type StorageType struct {
@@ -160,10 +169,11 @@ type StorageType struct {
 	defaultTableName string
 }
 
-//FactoryImpl is a destinations factory implementation
+//FactoryImpl is a destination's factory implementation
 type FactoryImpl struct {
 	ctx                 context.Context
 	logEventPath        string
+	geoService          *geo.Service
 	monitorKeeper       MonitorKeeper
 	eventsCache         *caching.EventsCache
 	globalLoggerFactory *logging.Factory
@@ -173,11 +183,12 @@ type FactoryImpl struct {
 }
 
 //NewFactory returns configured Factory
-func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
+func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
 	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, metaStorage meta.Storage, maxColumns int) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
+		geoService:          geoService,
 		monitorKeeper:       monitorKeeper,
 		eventsCache:         eventsCache,
 		globalLoggerFactory: globalLoggerFactory,
@@ -189,7 +200,7 @@ func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorK
 
 //Create builds event storage proxy and event consumer (logger or event-queue)
 //Enriches incoming configs with default values if needed
-func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error) {
+func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig) (StorageProxy, events.PersistentQueue, error) {
 	if destination.Type == "" {
 		destination.Type = destinationID
 	}
@@ -212,11 +223,16 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	maxColumns := f.maxColumns
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField
 	transform := ""
+	transformEnabled := false
 	if destination.DataLayout != nil {
-		mappingFieldType = destination.DataLayout.MappingType
-		oldStyleMappings = destination.DataLayout.Mapping
-		newStyleMapping = destination.DataLayout.Mappings
-		transform = destination.DataLayout.Transform
+		transformEnabled = destination.DataLayout.TransformEnabled
+		if transformEnabled {
+			transform = destination.DataLayout.Transform
+		} else {
+			mappingFieldType = destination.DataLayout.MappingType
+			oldStyleMappings = destination.DataLayout.Mapping
+			newStyleMapping = destination.DataLayout.Mappings
+		}
 		if destination.DataLayout.TableNameTemplate != "" {
 			tableName = destination.DataLayout.TableNameTemplate
 		}
@@ -263,7 +279,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 
 	//default enrichment rules
 	enrichmentRules := []enrichment.Rule{
-		enrichment.DefaultJsIPRule,
+		enrichment.CreateDefaultJsIPRule(f.geoService, destination.GeoDataResolverID),
 		enrichment.DefaultJsUaRule,
 	}
 
@@ -271,7 +287,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	for _, ruleConfig := range destination.Enrichment {
 		logging.Infof("[%s] %s", destinationID, ruleConfig.String())
 
-		rule, err := enrichment.NewRule(ruleConfig)
+		rule, err := enrichment.NewRule(ruleConfig, f.geoService, destination.GeoDataResolverID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("Error creating enrichment rule [%s]: %v", ruleConfig.String(), err)
 		}
@@ -312,9 +328,13 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	}
 
 	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
+	vars := make(map[string]interface{})
+	vars["destinationId"] = destinationID
+	vars["destinationType"] = destination.Type
+	utils.MapPutAll(vars, destination.TemplateVariables)
 
-	processor, err := schema.NewProcessor(destinationID, tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver,
-		destination.BreakOnError, uniqueIDField, maxColumnNameLength)
+	processor, err := schema.NewProcessor(destinationID, utils.NvlString(destination.SubType, destination.Type), tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver,
+		destination.BreakOnError, uniqueIDField, maxColumnNameLength, vars)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -1,21 +1,21 @@
-import { IProject } from 'lib/services/model';
-import { DatePoint, StatisticsService } from 'lib/services/stat';
-import { withQueryParams } from 'utils/queryParams';
-import { IDestinationsStore } from '../../stores/destinations';
-import { ISourcesStore } from '../../stores/sources';
-import ApplicationServices from './ApplicationServices';
-import { BackendApiClient } from './BackendApiClient';
-import firebase from 'firebase/app';
-import 'firebase/auth';
-import 'firebase/firestore';
-import { isObject } from 'utils/typeCheck';
-import { numberFormat } from '../commons/utils';
-import { Modal, Typography } from 'antd';
-import moment, { Moment } from 'moment';
-import { UpgradePlan } from '../../ui/components/CurrentPlan/CurrentPlan';
-import { ReactElement } from 'react';
+// @Libs
+import { ReactElement } from "react"
+import { Modal, Typography } from "antd"
+import moment, { Moment } from "moment"
+// @Services
+import ApplicationServices from "./ApplicationServices"
+import { BackendApiClient } from "./BackendApiClient"
+// @Types
+import { IDestinationsStore } from "../../stores/destinations"
+import { ISourcesStore } from "../../stores/sources"
+import { IProject } from "lib/services/model"
+import { DatePoint, StatisticsService } from "lib/services/stat"
+// @Utils
+import { withQueryParams } from "utils/queryParams"
+import { numberFormat } from "../commons/utils"
+import { UpgradePlan } from "../../ui/components/CurrentPlan/CurrentPlan"
 
-export type PricingPlanId = 'free' | 'growth' | 'premium' | 'enterprise';
+export type PricingPlanId = "opensource" | "free" | "growth" | "premium" | "enterprise"
 
 export interface Quota extends Usage {
   //allowed schedules (sync frequency), see schedule.ts for IDs
@@ -23,63 +23,77 @@ export interface Quota extends Usage {
 }
 
 export type PricingPlan = {
-  name: string;
-  id: PricingPlanId;
+  name: string
+  id: PricingPlanId
   quota: Quota
-  price?: number;
-};
+  price?: number
+}
 
-const free: PricingPlan = {
-  name: 'Startup',
-  id: 'free',
-  quota: {
-    destinations: 2,
-    sources: 1,
-    events: 250_000,
-    allowedSchedules: ['1d']
-  },
-  price: 0
-};
-const growth: PricingPlan = {
-  name: 'Growth',
-  id: 'growth',
-  quota: {
-    destinations: 10,
-    sources: 5,
-    events: 1_000_000,
-    allowedSchedules: ['1d', '1h', '5m']
-  },
-  price: 99
-};
-const premium: PricingPlan = {
-  name: 'Premium',
-  id: 'premium',
-  quota: {
-    destinations: 10,
-    sources: 15,
-    events: 10_000_000,
-    allowedSchedules: ['1d', '1h', '5m', '1m']
-  },
-  price: 299
-};
-const enterprise: PricingPlan = {
-  name: 'Enterprise',
-  id: 'enterprise',
+const opensource: PricingPlan = {
+  name: "Opensource",
+  id: "opensource",
   quota: {
     destinations: 100,
     sources: 150,
     events: 10_000_000,
-    allowedSchedules: ['1d', '1h', '5m', '1m']
-  }
-};
-export const paymentPlans: Record<PricingPlanId, PricingPlan> = { free, growth, premium, enterprise } as const;
-
-export const getFreePaymentPlan = () => paymentPlans.free;
+    allowedSchedules: ["1d", "1h", "5m", "1m"],
+  },
+}
+const free: PricingPlan = {
+  name: "Startup",
+  id: "free",
+  quota: {
+    destinations: 2,
+    sources: 1,
+    events: 250_000,
+    allowedSchedules: ["1d"],
+  },
+  price: 0,
+}
+const growth: PricingPlan = {
+  name: "Growth",
+  id: "growth",
+  quota: {
+    destinations: 10,
+    sources: 5,
+    events: 1_000_000,
+    allowedSchedules: ["1d", "1h", "5m"],
+  },
+  price: 99,
+}
+const premium: PricingPlan = {
+  name: "Premium",
+  id: "premium",
+  quota: {
+    destinations: 10,
+    sources: 15,
+    events: 10_000_000,
+    allowedSchedules: ["1d", "1h", "5m", "1m"],
+  },
+  price: 299,
+}
+const enterprise: PricingPlan = {
+  name: "Enterprise",
+  id: "enterprise",
+  quota: {
+    destinations: 100,
+    sources: 150,
+    events: 10_000_000,
+    allowedSchedules: ["1d", "1h", "5m", "1m"],
+  },
+}
+export const paymentPlans: Record<PricingPlanId, PricingPlan> = {
+  opensource,
+  free,
+  growth,
+  premium,
+  enterprise,
+} as const
 
 export type Usage = {
   events: number
-  sources: number;
-  destinations: number;
+  sources: number
+  destinations: number
 }
 
 /**
@@ -89,7 +103,7 @@ export type CurrentSubscription = {
   /**
    * Current plan. Might be 'free'
    */
-  currentPlan: PricingPlan;
+  currentPlan: PricingPlan
   /**
    * Customer id in stripe. May be undefined if user paid directly
    */
@@ -114,7 +128,7 @@ export type CurrentSubscription = {
    * If UI shouldn't be blocked
    */
   doNotBlock: boolean
-};
+}
 
 /**
  * Schema of the record in firebase
@@ -123,7 +137,7 @@ export type FirebaseSubscriptionEntry = {
   /**
    * Pricing plan
    */
-  planId: PricingPlanId;
+  planId: PricingPlanId
   /**
    * The start of current billing period. The date of last payment. Can be either last month (if customer pays
    * monthly), or any date if customer is billed annually
@@ -157,21 +171,21 @@ export type FirebaseSubscriptionEntry = {
  * @param subscriptionStart - can be undefined
  */
 function getQuotaPeriodStart(subscriptionStart?: string): Moment {
-  let quotaPeriodStart;
+  let quotaPeriodStart
   if (!subscriptionStart) {
-    quotaPeriodStart = moment().startOf('month'); //first
+    quotaPeriodStart = moment().startOf("month") //first
   } else {
-    quotaPeriodStart = moment(subscriptionStart);
+    quotaPeriodStart = moment(subscriptionStart)
     //TODO: if subscription way in the past (annual billing - rewind forward to current month)
   }
-  return quotaPeriodStart;
+  return quotaPeriodStart
 }
 
 function parseSubscription(fb: FirebaseSubscriptionEntry, usage: Usage): Readonly<CurrentSubscription> {
-  const quotaPeriodStart = getQuotaPeriodStart(fb.subscriptionStart);
-  const paymentPlan = paymentPlans[fb.planId];
+  const quotaPeriodStart = getQuotaPeriodStart(fb.subscriptionStart)
+  const paymentPlan = paymentPlans[fb.planId]
   if (!paymentPlan) {
-    throw new Error(`Unknown plan ${fb.planId}`);
+    throw new Error(`Unknown plan ${fb.planId}`)
   }
   return {
     currentPlan: paymentPlan,
@@ -179,8 +193,45 @@ function parseSubscription(fb: FirebaseSubscriptionEntry, usage: Usage): Readonl
     stripeCustomerId: fb.stripeCustomerId,
     usage,
     autorenew: !!fb.stripeCustomerId,
-    expiration: fb.subscriptionExpires ? moment(fb.subscriptionExpires) : moment(quotaPeriodStart).add(1, 'M'),
-    doNotBlock: !!fb.doNotBlock
+    expiration: fb.subscriptionExpires ? moment(fb.subscriptionExpires) : moment(quotaPeriodStart).add(1, "M"),
+    doNotBlock: !!fb.doNotBlock,
+  }
+}
+
+async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
+  const services = ApplicationServices.get()
+  const billingUrl = services.applicationConfiguration.billingUrl
+
+  if (!billingUrl) {
+    return { planId: "opensource", billingEmail: "none@none.com" }
+  }
+
+  const project_id = services.activeProject.id
+  const user_id = services.userService.getUser().uid
+  const id_token = await services.userService.getIdToken()
+
+  try {
+    const subscriptionResponse = await fetch(`${billingUrl}/api/get-current-subscription`, {
+      method: "POST",
+      body: JSON.stringify({ project_id, user_id, id_token }),
+    })
+    const subscription = (await subscriptionResponse.json()).subscription
+
+    if (!subscription) {
+      return { planId: "free", billingEmail: "none@none.com" }
+    }
+
+    return subscription
+  } catch (error) {
+    console.error(
+      "Failed to fetch subscription. User: ",
+      services.userService.getUser(),
+      "Project: ",
+      services.activeProject,
+      "Error: ",
+      error
+    )
+    return { planId: "free", billingEmail: "none@none.com" }
   }
 }
 
@@ -190,44 +241,29 @@ export async function getCurrentSubscription(
   destinationsStore: IDestinationsStore,
   sourcesStore: ISourcesStore
 ): Promise<CurrentSubscription> {
-  const statService = new StatisticsService(backendApiClient, project, true);
+  const statService = new StatisticsService(backendApiClient, project, true)
 
-  let subscription = (await firebase
-    .firestore()
-    .collection('subscriptions')
-    .doc(project.id)
-    .get()).data() as any as FirebaseSubscriptionEntry;
-  if (!subscription) {
-    subscription = { planId: 'free', billingEmail: 'none@none.com' }
-  }
+  const subscription = await fetchCurrentSubscription()
 
-  let stat: DatePoint[];
+  let stat: DatePoint[]
   try {
-    const quotaPeriodStart = getQuotaPeriodStart(subscription.subscriptionStart);
-    stat = await statService.get(
-      quotaPeriodStart.toDate(),
-      quotaPeriodStart.add(1, 'M').toDate(),
-      'day',
-      'push_source'
-    );
+    const quotaPeriodStart = getQuotaPeriodStart(subscription.subscriptionStart)
+    stat = await statService.get(quotaPeriodStart.toDate(), quotaPeriodStart.add(1, "M").toDate(), "day", "push_source")
   } catch (e) {
-    console.info(
-      "Failed to obtain stat, it could happen if Jitsu configurator isn't connected to jitsu server",
-      e
-    );
-    stat = [];
+    console.info("Failed to obtain stat, it could happen if Jitsu configurator isn't connected to jitsu server", e)
+    stat = []
   }
 
   let events = stat.reduce((res, item) => {
-    res += item.events;
-    return res;
-  }, 0);
+    res += item.events
+    return res
+  }, 0)
 
   return parseSubscription(subscription, {
     events,
     sources: sourcesStore.sources.length,
-    destinations: destinationsStore.destinations.length
-  });
+    destinations: destinationsStore.destinations.length,
+  })
 }
 
 /**
@@ -235,61 +271,66 @@ export async function getCurrentSubscription(
  */
 export function checkQuotas(status: CurrentSubscription): React.ReactElement {
   if (status.doNotBlock) {
-    return null;
+    return null
   }
   if (status.usage.sources > status.currentPlan.quota.sources) {
-    return <>
-      you currently using {status.usage.sources} sources which is above <b>{status.currentPlan.id}</b> plan limit{' '}
-      (maximum number of sources is {status.currentPlan.quota.sources})
-    </>
+    return (
+      <>
+        you currently using {status.usage.sources} sources which is above <b>{status.currentPlan.id}</b> plan limit{" "}
+        (maximum number of sources is {status.currentPlan.quota.sources})
+      </>
+    )
   }
   if (status.usage.destinations > status.currentPlan.quota.destinations) {
-    return <>
-      you currently using {status.usage.destinations} destinations which is above{' '}
-      <b>{status.currentPlan.id}</b> plan limit (maximum number of destinations is{' '}
-      {status.currentPlan.quota.destinations})
-    </>
+    return (
+      <>
+        you currently using {status.usage.destinations} destinations which is above <b>{status.currentPlan.id}</b> plan
+        limit (maximum number of destinations is {status.currentPlan.quota.destinations})
+      </>
+    )
   }
   if (status.usage.events > status.currentPlan.quota.events) {
-    return <>
-      you processed <Typography.Text code>{numberFormat(status.usage.events)}</Typography.Text> events per current month,{' '}
-      which is above your <b>{status.currentPlan.id}</b> plan{' '}
-      (<Typography.Text code>{numberFormat(status.currentPlan.quota.events)}</Typography.Text> events per month){' '}
-      The quota restarts on: {' '}
-      <b>{moment(status.quotaPeriodStart).add(1, 'M').format('MMM Do, YY')}</b>
-    </>
+    return (
+      <>
+        you processed <Typography.Text code>{numberFormat(status.usage.events)}</Typography.Text> events per current
+        month, which is above your <b>{status.currentPlan.id}</b> plan (
+        <Typography.Text code>{numberFormat(status.currentPlan.quota.events)}</Typography.Text> events per month) The
+        quota restarts on: <b>{moment(status.quotaPeriodStart).add(1, "M").format("MMM Do, YY")}</b>
+      </>
+    )
   }
-  return null;
+  return null
 }
 
 export function generateCheckoutLink(params: {
-  project_id: string;
-  user_email: string;
-  plan_id: string;
-  redirect_base: string;
+  project_id: string
+  user_email: string
+  plan_id: string
+  redirect_base: string
 }): string {
-  const billingUrl = ApplicationServices.get().applicationConfiguration.billingUrl;
-  return withQueryParams(`${billingUrl}/api/init-checkout`, params);
+  const billingUrl = ApplicationServices.get().applicationConfiguration.billingUrl
+  return withQueryParams(`${billingUrl}/api/init-checkout`, params)
 }
 
 export function generateCustomerPortalLink(params: {
-  project_id: string;
-  user_email: string;
-  return_url: string;
+  project_id: string
+  user_email: string
+  return_url: string
 }): string {
-  const billingUrl =
-    ApplicationServices.get().applicationConfiguration.billingUrl;
-  return withQueryParams(`${billingUrl}/api/to-customer-portal`, params);
+  const billingUrl = ApplicationServices.get().applicationConfiguration.billingUrl
+  return withQueryParams(`${billingUrl}/api/to-customer-portal`, params)
 }
 
 export function showQuotaLimitModal(subscription: CurrentSubscription, msg: ReactElement) {
   Modal.info({
-    content: <div>
-      <div className="text-lg text-center pt-4">{msg}</div>
-      <UpgradePlan planStatus={subscription} />
-    </div>,
+    content: (
+      <div>
+        <div className="text-lg text-center pt-4">{msg}</div>
+        <UpgradePlan planStatus={subscription} />
+      </div>
+    ),
     closable: true,
     width: 800,
-    title: 'Please, upgrade your subscription'
+    title: "Please, upgrade your subscription",
   })
 }

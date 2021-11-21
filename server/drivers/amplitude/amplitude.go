@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/drivers/base"
@@ -12,16 +13,18 @@ import (
 
 //amplitudeHTTPConfiguration contains default amplitude HTTP timeouts/retry/delays,etc
 var amplitudeHTTPConfiguration = &adapters.HTTPConfiguration{
-	GlobalClientTimeout:       1 * time.Minute,
+	GlobalClientTimeout:       10 * time.Minute,
 	RetryDelay:                10 * time.Second,
 	RetryCount:                5,
 	ClientMaxIdleConns:        1000,
 	ClientMaxIdleConnsPerHost: 1000,
 }
 
-// Amplitude is a Amplitude driver.
+// Amplitude is an Amplitude driver.
 // It is used in syncing data from Amplitude.
 type Amplitude struct {
+	base.IntervalDriver
+
 	adapter    *AmplitudeAdapter
 	config     *AmplitudeConfig
 	collection *base.Collection
@@ -35,7 +38,7 @@ func init() {
 // NewAmplitude returns configured Amplitude driver instance
 func NewAmplitude(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &AmplitudeConfig{}
-	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
 
@@ -64,16 +67,17 @@ func NewAmplitude(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	}
 
 	return &Amplitude{
-		adapter:    adapter,
-		config:     config,
-		collection: collection,
+		IntervalDriver: base.IntervalDriver{SourceType: sourceConfig.Type},
+		adapter:        adapter,
+		config:         config,
+		collection:     collection,
 	}, nil
 }
 
 // TestAmplitude tests connection to Amplitude without creating Driver instance
 func TestAmplitude(sourceConfig *base.SourceConfig) error {
 	config := &AmplitudeConfig{}
-	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return err
 	}
 

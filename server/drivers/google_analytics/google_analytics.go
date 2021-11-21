@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	ga "google.golang.org/api/analyticsreporting/v4"
@@ -48,6 +49,8 @@ var (
 )
 
 type GoogleAnalytics struct {
+	base.IntervalDriver
+
 	ctx                context.Context
 	config             *GoogleAnalyticsConfig
 	service            *ga.Service
@@ -63,7 +66,7 @@ func init() {
 //NewGoogleAnalytics returns configured Google Analytics driver instance
 func NewGoogleAnalytics(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &GoogleAnalyticsConfig{}
-	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +75,7 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *base.SourceConfig, co
 	}
 
 	var reportFieldsConfig GAReportFieldsConfig
-	err = base.UnmarshalConfig(collection.Parameters, &reportFieldsConfig)
+	err = jsonutils.UnmarshalConfig(collection.Parameters, &reportFieldsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -88,14 +91,20 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *base.SourceConfig, co
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GA service: %v", err)
 	}
-	return &GoogleAnalytics{ctx: ctx, config: config, collection: collection, service: service,
-		reportFieldsConfig: &reportFieldsConfig}, nil
+	return &GoogleAnalytics{
+		IntervalDriver:     base.IntervalDriver{SourceType: sourceConfig.Type},
+		ctx:                ctx,
+		config:             config,
+		collection:         collection,
+		service:            service,
+		reportFieldsConfig: &reportFieldsConfig,
+	}, nil
 }
 
 //TestGoogleAnalytics tests connection to Google Analytics without creating Driver instance
 func TestGoogleAnalytics(sourceConfig *base.SourceConfig) error {
 	config := &GoogleAnalyticsConfig{}
-	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return err
 	}
