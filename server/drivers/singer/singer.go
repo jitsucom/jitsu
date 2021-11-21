@@ -288,7 +288,9 @@ func (s *Singer) Load(config string, state string, taskLogger logging.TaskLogger
 
 	if config != "" {
 		_, err = parsers.ParseJSONAsFile(s.GetConfigPath(), config)
-		return fmt.Errorf("Failed to write config loaded from meta storage: %v", err)
+		if err != nil {
+			return fmt.Errorf("Failed to write config loaded from meta storage: %v", err)
+		}
 	}
 
 	args := []string{"-c", s.GetConfigPath()}
