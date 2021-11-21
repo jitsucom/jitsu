@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/Shopify/sarama"
 	"github.com/jitsucom/jitsu/server/schema"
+	"time"
 )
 
 //Kafka is a Kafka adapter for producing messages
@@ -43,7 +44,8 @@ func NewKafka(kc *KafkaConfig) (*Kafka, error) {
 
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Producer.RequiredAcks = sarama.WaitForAll
-	saramaConfig.Producer.Retry.Max = 10
+	saramaConfig.Producer.Retry.Max = 20
+	saramaConfig.Producer.Retry.Backoff = 500 * time.Millisecond
 	saramaConfig.Producer.Return.Successes = true
 	producer, err := sarama.NewSyncProducer(kc.BootstrapServers, saramaConfig)
 	if err != nil {
