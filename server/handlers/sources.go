@@ -15,7 +15,6 @@ import (
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/sources"
-	"github.com/jitsucom/jitsu/server/synchronization"
 	"github.com/spf13/viper"
 	"net/http"
 	"strings"
@@ -74,7 +73,6 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 		}
 
 		err := sh.metaStorage.DeleteSignature(req.Source, driver.GetCollectionMetaKey())
-		_ = sh.metaStorage.DeleteSignature(req.Source, driver.GetCollectionMetaKey() + synchronization.ConfigSignatureSuffix)
 		if err != nil {
 			msg := fmt.Sprintf("Error clearing cache for source: [%s] collection: [%s]: %v", req.Source, collection, err)
 			logging.Error(msg)
