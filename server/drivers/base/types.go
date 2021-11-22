@@ -147,7 +147,7 @@ type CLIDriver interface {
 	//IsClosed returns true if the driver is already closed
 	IsClosed() bool
 	//Load runs CLI command and consumes output
-	Load(state string, taskLogger logging.TaskLogger, dataConsumer CLIDataConsumer, taskCloser CLITaskCloser) error
+	Load(config string, state string, taskLogger logging.TaskLogger, dataConsumer CLIDataConsumer, taskCloser CLITaskCloser) error
 	//Ready returns true if the driver is ready otherwise returns ErrNotReady
 	Ready() (bool, error)
 	//GetTap returns Singer tap or airbyte docker image (without prefix 'airbyte/': source-mixpanel)
@@ -156,6 +156,8 @@ type CLIDriver interface {
 	GetTableNamePrefix() string
 	//GetStreamTableNameMapping returns stream - table name mappings from configuration
 	GetStreamTableNameMapping() map[string]string
+	//GetTap returns path to config file
+	GetConfigPath() string
 }
 
 //CLIDataConsumer is used for consuming CLI drivers output

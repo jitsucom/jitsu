@@ -13,7 +13,6 @@ import (
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/singer"
-	"github.com/jitsucom/jitsu/server/uuid"
 	"go.uber.org/atomic"
 	"io"
 	"os"
@@ -80,12 +79,17 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 		return nil, fmt.Errorf("Error creating singer venv config dir: %v", err)
 	}
 
-	//parse singer config as file path
-	configPath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, base.ConfigFileName), config.Config)
+	configPath := path.Join(pathToConfigs, base.ConfigFileName)
+	//check whether config already exist. Should always be there
+	_, err = os.Stat(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing singer config [%v]: %v", config.Config, err)
+		logging.Errorf("couldn't find singer tap config: %s err: %v", configPath, err)
+		//parse singer config as file path
+		_, err := parsers.ParseJSONAsFile(configPath, config.Config)
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing singer config [%v]: %v", config.Config, err)
+		}
 	}
-
 	//parse singer catalog as file path
 	catalogPath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, base.CatalogFileName), config.Catalog)
 	if err != nil {
@@ -183,34 +187,6 @@ func TestSinger(sourceConfig *base.SourceConfig) error {
 		return runner.ErrNotReady
 	}
 
-	//save config
-	pathToConfigs := path.Join(singer.Instance.VenvDir, sourceConfig.SourceID, config.Tap, "test")
-	if err := logging.EnsureDir(pathToConfigs); err != nil {
-		return fmt.Errorf("Error creating singer venv config dir: %v", err)
-	}
-	fileName := uuid.NewLettersNumbers() + ".json"
-	//parse singer config as file path
-	configPath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, fileName), config.Config)
-	if err != nil {
-		return fmt.Errorf("Error parsing singer config [%v]: %v", config.Config, err)
-	}
-	defer func() {
-		if err := os.RemoveAll(configPath); err != nil {
-			logging.SystemErrorf("Error deleting generated singer config dir [%s]: %v", configPath, err)
-		}
-	}()
-
-	outWriter := logging.NewStringWriter()
-	errWriter := logging.NewStringWriter()
-
-	command := path.Join(singer.Instance.VenvDir, config.Tap, "bin", config.Tap)
-	args := []string{"-c", configPath, "--discover"}
-
-	err = runner.ExecCmd(base.SingerType, command, outWriter, errWriter, time.Second*50, args...)
-	if err != nil {
-		return fmt.Errorf("Error singer --discover: %v. %s", err, errWriter.String())
-	}
-
 	return nil
 }
 
@@ -289,7 +265,7 @@ func (s *Singer) Ready() (bool, error) {
 	return false, runner.NewCompositeNotReadyError(msg)
 }
 
-func (s *Singer) Load(state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
+func (s *Singer) Load(config string, state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
 	if s.IsClosed() {
 		return fmt.Errorf("%s has already been closed", s.Type())
 	}
@@ -308,6 +284,13 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, dataConsumer 
 	statePath, err := s.GetStateFilePath(state)
 	if err != nil {
 		return err
+	}
+
+	if config != "" {
+		_, err = parsers.ParseJSONAsFile(s.GetConfigPath(), config)
+		if err != nil {
+			return fmt.Errorf("Failed to write config loaded from meta storage: %v", err)
+		}
 	}
 
 	args := []string{"-c", s.GetConfigPath()}
@@ -499,7 +482,7 @@ func (s *Singer) IsClosed() bool {
 //doDiscover discovers tap catalog and returns catalog and properties paths
 //applies blacklist streams to taps and make other streams {"selected": true}
 func doDiscover(tap, pathToConfigs, configFilePath string) (string, string, []string, error) {
-	catalog, err := singer.Instance.Discover(tap, configFilePath, nil)
+	catalog, err := singer.Instance.Discover(tap, configFilePath)
 	if err != nil {
 		return "", "", nil, err
 	}
