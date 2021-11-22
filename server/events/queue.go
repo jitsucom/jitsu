@@ -56,7 +56,6 @@ func (ldq *LevelDBQueue) DequeueBlock() (Event, time.Time, string, error) {
 		if err == goque.ErrDBClosed {
 			return nil, time.Time{}, "", ErrQueueClosed
 		}
-
 		return nil, time.Time{}, "", err
 	}
 
