@@ -6,6 +6,8 @@ import { Parameter } from "catalog/sources/types"
 import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 // @Components
 import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
+import { useLoaderAsObject } from "hooks/useLoader"
+import ApplicationServices from "lib/services/ApplicationServices"
 
 type Props = {
   initialValues: Partial<SourceData>

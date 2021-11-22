@@ -16,6 +16,7 @@ import { LoadableFieldsForm } from "ui/components/LoadableFieldsForm/LoadableFie
 import { useServices } from "../../../../../../hooks/useServices"
 import { OauthButton } from "../../OauthButton/OauthButton"
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
+import { useLoaderAsObject } from "hooks/useLoader"
 
 export interface Props {
   form: FormInstance
@@ -40,6 +41,28 @@ const SourceEditorConfigComponent = ({
 }: Props) => {
   const services = useServices()
   const subscription = services.currentSubscription?.currentPlan
+
+  const {
+    data: oauthFieldsAvailable,
+    isLoading: isLoadingOauthFieldsStatus,
+    error: oauthFieldsError,
+  } = useLoaderAsObject(async () => {
+    const secretsStatus = await services.backendApiClient.get(
+      `sources/oauth_fields/${initialValues.sourceType}?project_id=${services.activeProject.id}`,
+      {
+        proxy: true,
+      }
+    )
+    console.log("secrets status:", secretsStatus)
+    const atLeastOneSecretUnavailable = Object.values(secretsStatus).some(secret => !secret["provided"])
+    return !atLeastOneSecretUnavailable
+  }, [initialValues])
+
+  const oauthStatus = isLoadingOauthFieldsStatus ? "loading" : oauthFieldsAvailable ? "secrets_set" : "secrets_not_set"
+  if (oauthFieldsAvailable || isLoadingOauthFieldsStatus) {
+    console.log(`isLoading: ${isLoadingOauthFieldsStatus}`, "available: ", oauthFieldsAvailable)
+  }
+
   const validateUniqueSourceId = useCallback(
     (rule: RuleObject, value: string) =>
       sources?.find((source: SourceData) => source.sourceId === value)
@@ -139,6 +162,7 @@ const SourceEditorConfigComponent = ({
         fieldsParamsList={sourceReference.configParameters}
         form={form}
         handleTouchAnyField={handleTouchAnyField}
+        oauthStatus={oauthStatus}
       />
 
       {sourceReference.hasLoadableConfigParameters && (
