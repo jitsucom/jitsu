@@ -45,7 +45,7 @@ func NewKafkaCluster(ctx context.Context) (*KafkaCluster, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &KafkaCluster{context: context.Background(), BootstrapServer: fmt.Sprintf("127.0.0.1:%d", port)}, nil
+		return &KafkaCluster{context: context.Background(), BootstrapServer: fmt.Sprintf("0.0.0.0:%d", port)}, nil
 	}
 	kafkaCluster := &KafkaCluster{context: ctx}
 	// creates a network, so kafka and zookeeper can communicate directly
