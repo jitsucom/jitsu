@@ -113,7 +113,6 @@ export class FirebaseUserService implements UserService {
       )
     })
     return fbUserPromise.then((user: FirebaseUser) => {
-      debugger
       if (user != null) {
         return this.restoreUser(user).then(user => {
           return { user: user, loggedIn: true, loginErrorMessage: null }
@@ -130,7 +129,6 @@ export class FirebaseUserService implements UserService {
     this.user = new User(fbUser.uid, () => this.apiAccess, {} as SuggestedUserInfo)
 
     const userInfo = await this.storageService.getUserInfo()
-    debugger
     const suggestedInfo = {
       email: fbUser.email,
       name: fbUser.displayName,
