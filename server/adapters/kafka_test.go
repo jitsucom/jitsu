@@ -3,12 +3,21 @@ package adapters
 import (
 	"context"
 	"fmt"
+	"github.com/Shopify/sarama"
 	"github.com/jitsucom/jitsu/server/test"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/stretchr/testify/require"
+	"log"
 	"math/rand"
+	"os"
 	"testing"
 )
+
+func init() {
+	fmt.Println("overriding sarama logger")
+	sarama.Logger = log.New(os.Stdout, "[Sarama] ", log.LstdFlags)
+
+}
 
 func TestKafkaBulkInsert(t *testing.T) {
 	kafkaCluster, err := test.NewKafkaCluster(context.Background())
