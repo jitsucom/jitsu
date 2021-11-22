@@ -63,9 +63,15 @@ SEMVER_EXPRESSION='^([0-9]+\.){0,2}(\*|[0-9]+)$'
 echo "Release tool running..."
 echo ""
 
-read -r -p "What version would you like to release? ['beta' or release as semver, e. g. '1.30.1' ] " version
+if [ $# -eq 2 ]
+  then
+    version=$1
+    subsystem=$2
+  else
+    read -r -p "What version would you like to release? ['beta' or release as semver, e. g. '1.30.1' ] " version
+fi
 
-echo "Release version: $version"
+echo "=== Release version: $version ==="
 echo "Using git reset --hard"
 git reset --hard
 
@@ -79,11 +85,16 @@ elif [[ $version == "beta" ]]; then
   echo "Checkouting beta ..."
   git checkout beta
   git pull
-  read -r -p "What service would you like to release? ['server', 'configurator', 'jitsu']: " subsystem
+  if [ -z "$subsystem" ]
+  then
+    read -r -p "What service would you like to release? ['server', 'configurator', 'jitsu']: " subsystem
+  fi
 else
   echo "Invalid version: $version. Only 'beta' or certain version e.g. '1.30.1' are supported"
   exit 1
 fi
+
+echo "=== Release subsystem: $subsystem ==="
 
 case $subsystem in
     [s][e][r][v][e][r])

@@ -16,6 +16,7 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/jitsucom/jitsu/server/uuid"
+	"io/ioutil"
 	"strings"
 )
 
@@ -30,12 +31,12 @@ type ResultSaver struct {
 	destinations      []storages.Storage
 	metaStorage       meta.Storage
 	//mapping stream name -> table name
-	streamTableNames map[string]string
+	streamTableNames  map[string]string
+	configPath 			  string
 }
 
 //NewResultSaver returns configured ResultSaver instance
-func NewResultSaver(task *meta.Task, tap, collectionMetaKey, tableNamePrefix string, taskLogger *TaskLogger, destinations []storages.Storage, metaStorage meta.Storage,
-	streamTableNames map[string]string) *ResultSaver {
+func NewResultSaver(task *meta.Task, tap, collectionMetaKey, tableNamePrefix string, taskLogger *TaskLogger, destinations []storages.Storage, metaStorage meta.Storage, streamTableNames map[string]string, configPath string) *ResultSaver {
 	return &ResultSaver{
 		task:              task,
 		tap:               tap,
@@ -45,6 +46,7 @@ func NewResultSaver(task *meta.Task, tap, collectionMetaKey, tableNamePrefix str
 		destinations:      destinations,
 		metaStorage:       metaStorage,
 		streamTableNames:  streamTableNames,
+		configPath:        configPath,
 	}
 }
 
@@ -133,6 +135,18 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey, driversbase.ALL.String(), string(stateJSON))
 		if err != nil {
 			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] signature [%s]: %v", rs.task.Source, rs.tap, string(stateJSON), err)
+			logging.SystemError(errMsg)
+			return errors.New(errMsg)
+		}
+
+		//Config file might be updated by cli program after successful run.
+		//We need to write it to persistent storage so other cluster nodes will read actual config
+		configBytes, err := ioutil.ReadFile(rs.configPath)
+		if configBytes != nil {
+			err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey + ConfigSignatureSuffix, driversbase.ALL.String(), string(configBytes))
+		}
+		if err != nil {
+			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] config [%s]: %v", rs.task.Source, rs.tap, string(configBytes), err)
 			logging.SystemError(errMsg)
 			return errors.New(errMsg)
 		}
