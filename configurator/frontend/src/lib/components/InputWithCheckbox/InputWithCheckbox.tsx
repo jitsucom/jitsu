@@ -67,7 +67,7 @@ export const InputWithCheckbox: React.FC<InputWithCheckboxProps> = ({
   }
 
   return (
-    <div className="flex flex-col items-stretch w-full">
+    <div className={`${styles.wrapper}`}>
       <Checkbox
         checked={controlledShowInputChecked ?? showInput}
         className={`mt-1 mb-1 ${styles.checkbox}`}
@@ -77,7 +77,7 @@ export const InputWithCheckbox: React.FC<InputWithCheckboxProps> = ({
       </Checkbox>
       {_showInput ? (
         <InputWrapper>
-          <Input className={`pr`} {...inputProps} onChange={onInputChange} />
+          <Input {...inputProps} onChange={onInputChange} />
         </InputWrapper>
       ) : (
         <span

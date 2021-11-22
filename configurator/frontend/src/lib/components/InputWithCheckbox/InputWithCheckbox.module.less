@@ -1,5 +1,13 @@
 @import "theme.less";
 
+.wrapper {
+  @apply flex flex-col items-stretch w-full;
+
+  & > div {
+    margin-bottom: 0 !important;
+  }
+}
+
 .staticTitle {
   color: @secondaryText;
   margin-top: 7px;
