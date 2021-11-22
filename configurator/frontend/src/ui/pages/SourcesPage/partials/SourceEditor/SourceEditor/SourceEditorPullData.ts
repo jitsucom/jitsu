@@ -114,15 +114,19 @@ export const pullAllSingerStreams = async (
   )
 
   const services = ApplicationServices.get()
-
-  const config = (await handleBringSourceData()).config.config
+  const sourceData = await handleBringSourceData()
+  const config = sourceData.config.config
   const project_id = services.userService.getUser().projects[0].id
   const tap = sourceDataFromCatalog.id.replace("singer-", "")
   const baseUrl = `/singer/${tap}/catalog`
 
-  const response = await services.backendApiClient.post(withQueryParams(baseUrl, { project_id }), config, {
-    proxy: true,
-  })
+  const response = await services.backendApiClient.post(
+    withQueryParams(baseUrl, { project_id, source_id: project_id + "." + sourceData.sourceId }),
+    config,
+    {
+      proxy: true,
+    }
+  )
 
   if (response.message) throw new Error(response.message)
 

@@ -9,10 +9,8 @@ import (
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/safego"
-	"github.com/jitsucom/jitsu/server/uuid"
 	"io"
 	"io/ioutil"
-	"os"
 	"path"
 	"strings"
 	"sync"
@@ -181,24 +179,10 @@ func (b *Bridge) UpdateTap(tap string) error {
 }
 
 //Discover discovers tap catalog, marks all streams as "enabled" and returns catalog
-func (b *Bridge) Discover(tap, singerConfigPath string, singerConfig interface{}) (*RawCatalog, error) {
+func (b *Bridge) Discover(tap, singerConfigPath string) (*RawCatalog, error) {
 	outWriter := logging.NewStringWriter()
 	errStrWriter := logging.NewStringWriter()
 	dualStdErrWriter := logging.Dual{FileWriter: errStrWriter, Stdout: logging.NewPrefixDateTimeProxy("[discover]", b.LogWriter)}
-
-	//write singer config
-	if singerConfigPath == "" {
-		configPath, err := saveConfig(singerConfig)
-		if err != nil {
-			return nil, err
-		}
-		defer func() {
-			if err := os.Remove(configPath); err != nil {
-				logging.SystemErrorf("Error deleting generated singer config [%s]: %v", configPath, err)
-			}
-		}()
-		singerConfigPath = configPath
-	}
 
 	command := path.Join(b.VenvDir, tap, "bin", tap)
 	args := []string{"-c", singerConfigPath, "--discover"}
@@ -251,14 +235,14 @@ func (b *Bridge) Discover(tap, singerConfigPath string, singerConfig interface{}
 
 //saveConfig saves config as file for using
 //returns absolute file path to generated file
-func saveConfig(singerConfig interface{}) (string, error) {
-	fileName := uuid.NewLettersNumbers() + ".json"
+func SaveConfig(sourceId string, tap string, singerConfig interface{}) (string, error) {
+	configDir := path.Join(Instance.VenvDir, sourceId, tap)
 
-	if err := logging.EnsureDir(Instance.TmpDir); err != nil {
+	if err := logging.EnsureDir(configDir); err != nil {
 		return "", fmt.Errorf("Error creating singer tmp dir: %v", err)
 	}
 
-	absoluteFilePath := path.Join(Instance.TmpDir, fileName)
+	absoluteFilePath := path.Join(configDir, base.ConfigFileName)
 	//write singer config as file path
 	_, err := parsers.ParseJSONAsFile(absoluteFilePath, singerConfig)
 	if err != nil {
