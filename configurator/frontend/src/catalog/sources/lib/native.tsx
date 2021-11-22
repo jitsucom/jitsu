@@ -1,4 +1,12 @@
-import { intType, isoUtcDateType, passwordType, selectionType, SourceConnector, stringType } from "../types"
+import {
+  intType,
+  isoUtcDateType,
+  oauthSecretType,
+  passwordType,
+  selectionType,
+  SourceConnector,
+  stringType,
+} from "../types"
 import { googleServiceAuthDocumentation } from "../lib/documentation"
 
 import { googleAuthConfigParameters } from "../lib/commonParams"
@@ -789,7 +797,7 @@ export const googleAnalytics: SourceConnector = {
     {
       displayName: "View ID",
       id: "config.view_id",
-      type: stringType,
+      type: oauthSecretType,
       required: true,
       documentation: (
         <>

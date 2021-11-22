@@ -154,6 +154,10 @@ const ConfigurableFieldsFormComponent = ({
       form.getFieldValue(id) ?? getInitialValue(id, defaultValue, constantValue, type?.typeName)
     form.setFieldsValue({ id: defaultValueToDisplay })
 
+    const FormItemWoStylesTuned: React.FC = ({ children }) => {
+      return <FormItemWrapperWoStyles id={id}>{children}</FormItemWrapperWoStyles>
+    }
+
     const FormItemWrapperTuned: React.FC = ({ children }) => {
       return (
         <FormItemWrapper
@@ -285,7 +289,7 @@ const ConfigurableFieldsFormComponent = ({
       case "oauthSecret":
         return (
           <NonFormItemWrapperTuned>
-            <InputOauthSecret status={oauthStatus ?? "secrets_not_set"} />
+            <InputOauthSecret status={oauthStatus ?? "secrets_not_set"} inputWrapper={FormItemWoStylesTuned} />
           </NonFormItemWrapperTuned>
         )
 
@@ -510,6 +514,18 @@ const ConfigurableFieldsForm = ConfigurableFieldsFormComponent
 
 export { ConfigurableFieldsForm }
 
+type FormItemWrapperWoStylesProps = {
+  id: string
+} & FormItemProps
+
+const FormItemWrapperWoStyles: React.FC<FormItemWrapperWoStylesProps> = ({ id, children, ...props }) => {
+  return (
+    <Form.Item key={id} name={id} {...props}>
+      {children}
+    </Form.Item>
+  )
+}
+
 type FormItemWrapperProps = {
   type: ParameterType<any>
   id: string
@@ -529,14 +545,14 @@ const FormItemWrapper: React.FC<FormItemWrapperProps> = ({
   children,
 }) => {
   return (
-    <Form.Item
+    <FormItemWrapperWoStyles
+      id={id}
       className={cn(
         "form-field_fixed-label",
         styles.field,
         (type?.typeName === "json" || type?.typeName === "javascript") && styles.jsonField,
         (type?.typeName === "json" || type?.typeName === "javascript") && bigField && styles.bigField
       )}
-      name={id}
       label={
         !bigField ? (
           documentation ? (
@@ -553,7 +569,7 @@ const FormItemWrapper: React.FC<FormItemWrapperProps> = ({
       rules={validationRules}
     >
       {children}
-    </Form.Item>
+    </FormItemWrapperWoStyles>
   )
 }
 
