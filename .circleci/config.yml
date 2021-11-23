@@ -41,7 +41,6 @@ jobs:
           ZOOKEEPER_TICK_TIME: 2000
       - image: confluentinc/cp-kafka:6.2.1
         environment:
-          KAFKA_BROKER_ID: 1
           KAFKA_ZOOKEEPER_CONNECT: 127.0.0.1:2181
           KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CLIENT:PLAINTEXT
           KAFKA_ADVERTISED_LISTENERS: CLIENT://127.0.0.1:9092
