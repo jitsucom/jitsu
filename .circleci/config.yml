@@ -40,7 +40,7 @@ jobs:
           ZOOKEEPER_CLIENT_PORT: 2181
           ZOOKEEPER_TICK_TIME: 2000
       - image: confluentinc/cp-kafka:6.1.1
-        container_name: kafka_test
+        name: kafka_test
         environment:
           KAFKA_BROKER_ID: 1
           KAFKA_ZOOKEEPER_CONNECT: 127.0.0.1:2181
