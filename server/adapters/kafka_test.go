@@ -29,7 +29,7 @@ func TestKafkaBulkInsert(t *testing.T) {
 	kafkaAdapter, err := NewKafka(kafkaConfig)
 	require.NoError(t, err)
 	defer kafkaAdapter.Close()
-	table := kafkaTestTable(fmt.Sprintf("test_kafka_bulk_insert_%d", rand.Int()))
+	table := kafkaTestTable("test_kafka_bulk_insert")
 	inputObjects := createObjectsForKafka(5, kafkaTestTableRecord)
 	err = kafkaAdapter.BulkInsert(table, inputObjects)
 	require.NoError(t, err, "could not send messages to topic "+table.Name)
@@ -47,7 +47,7 @@ func TestKafkaBulkUpdate(t *testing.T) {
 	kafkaAdapter, err := NewKafka(kafkaConfig)
 	require.NoError(t, err)
 	defer kafkaAdapter.Close()
-	table := kafkaTestTable(fmt.Sprintf("test_kafka_bulk_update_%d", rand.Int()))
+	table := kafkaTestTable("test_kafka_bulk_update")
 	inputObjects := createObjectsForKafka(5, kafkaTestTableRecord)
 	err = kafkaAdapter.BulkUpdate(table, inputObjects, nil)
 	require.NoError(t, err, "could not send messages to topic "+table.Name)
@@ -66,7 +66,7 @@ func TestKafkaInsert(t *testing.T) {
 	require.NoError(t, err)
 	defer kafkaAdapter.Close()
 	event := &EventContext{
-		Table:          kafkaTestTable(fmt.Sprintf("test_kafka_insert_%d", rand.Int())),
+		Table:          kafkaTestTable("test_kafka_insert"),
 		ProcessedEvent: kafkaTestTableRecord(0),
 	}
 	err = kafkaAdapter.Insert(event)
