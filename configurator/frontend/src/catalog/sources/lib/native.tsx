@@ -797,7 +797,7 @@ export const googleAnalytics: SourceConnector = {
     {
       displayName: "View ID",
       id: "config.view_id",
-      type: oauthSecretType,
+      type: stringType,
       required: true,
       documentation: (
         <>

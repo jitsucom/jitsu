@@ -5,6 +5,11 @@ import styles from "./InputWithCheckbox.module.less"
 
 export type InputWithCheckboxProps = AntdInputProps & {
   /**
+   * Allows to hide the checkbox.
+   * @default false
+   */
+  hideCheckbox?: boolean
+  /**
    * Allows to implement a controlled component
    * */
   checked?: boolean
@@ -42,6 +47,7 @@ export type InputWithCheckboxProps = AntdInputProps & {
 }
 
 export const InputWithCheckbox: React.FC<InputWithCheckboxProps> = ({
+  hideCheckbox = false,
   checked: controlledShowInputChecked,
   defaultChecked,
   checkboxTitle,
@@ -54,7 +60,6 @@ export const InputWithCheckbox: React.FC<InputWithCheckboxProps> = ({
   onInputChange,
   ...inputProps
 }) => {
-  const isControlled = controlledShowInputChecked ?? false
   const [showInput, setShowInput] = useState<boolean>(defaultChecked ?? false)
 
   const needShowInput = controlledShowInputChecked ?? showInput
@@ -68,13 +73,6 @@ export const InputWithCheckbox: React.FC<InputWithCheckboxProps> = ({
 
   return (
     <div className={`${styles.wrapper}`}>
-      <Checkbox
-        checked={controlledShowInputChecked ?? showInput}
-        className={`mt-1 mb-1 ${styles.checkbox}`}
-        onChange={onCheckboxChange ?? handleCheck}
-      >
-        {checkboxTitle && <span>{checkboxTitle}</span>}
-      </Checkbox>
       {_showInput ? (
         <InputWrapper>
           <Input {...inputProps} onChange={onInputChange} />
@@ -86,6 +84,15 @@ export const InputWithCheckbox: React.FC<InputWithCheckboxProps> = ({
         >
           {invertCheckBehaviour ? checkedFixedTitle : uncheckedFixedTitle}
         </span>
+      )}
+      {!hideCheckbox && (
+        <Checkbox
+          checked={controlledShowInputChecked ?? showInput}
+          className={`mt-1 mb-1 ${styles.checkbox}`}
+          onChange={onCheckboxChange ?? handleCheck}
+        >
+          {checkboxTitle && <span>{checkboxTitle}</span>}
+        </Checkbox>
       )}
     </div>
   )
