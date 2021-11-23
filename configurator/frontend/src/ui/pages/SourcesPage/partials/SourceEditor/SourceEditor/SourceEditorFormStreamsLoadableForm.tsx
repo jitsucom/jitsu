@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useEffect, useState } from "react"
-import { Collapse, Empty, Select, Switch, Input } from "antd"
+import { Collapse, Empty, Input, Select, Switch } from "antd"
 import { cloneDeep } from "lodash"
 // @Components
 import { Code } from "lib/components/Code/Code"
@@ -13,16 +13,19 @@ import { isArray } from "utils/typeCheck"
 import { addToArrayIfNotDuplicate, removeFromArrayIfFound, substituteArrayValueIfFound } from "utils/arrays"
 // @Styles
 import styles from "./SourceEditorFormStreamsLoadableForm.module.less"
+import { sourceEditorUtils } from "./SourceEditor.utils"
 
 type Props = {
   allStreams: StreamData[]
-  initiallySelectedStreams: StreamData[] | null
+  initiallySelectedStreams: SelectedStreams | null
   selectAllFieldsByDefault?: boolean
   hide?: boolean
   setSourceEditorState: SetSourceEditorState
 }
 
+//deprecated
 const STREAMS_SOURCE_DATA_PATH = "config.catalog.streams"
+const SELECTED_STREAMS_SOURCE_DATA_PATH = "config.catalog.selected_streams"
 
 const SourceEditorFormStreamsLoadableForm = ({
   allStreams,
@@ -34,44 +37,44 @@ const SourceEditorFormStreamsLoadableForm = ({
   const disableAllAnimations: boolean = allStreams.length > 30
   const disableToggelAllAnimations: boolean = allStreams.length > 10
 
-  const initiallyCheckedStreams = selectAllFieldsByDefault ? allStreams : initiallySelectedStreams ?? []
+ // const initiallyCheckedStreams = selectAllFieldsByDefault ? allStreams : initiallySelectedStreams ?? {} as SelectedStreams
 
   const [streamsToDisplay, setStreamsToDisplay] = useState<StreamData[]>(allStreams)
 
   const [allChecked, setAllChecked] = useState<boolean>(selectAllFieldsByDefault || undefined)
 
   const handleAddStream = (stream: StreamData) => {
-    addStream(setSourceEditorState, STREAMS_SOURCE_DATA_PATH, stream)
+    addStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, stream)
   }
 
   const handleRemoveStream = (stream: StreamData) => {
-    removeStream(setSourceEditorState, STREAMS_SOURCE_DATA_PATH, stream)
+    removeStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, stream)
   }
 
-  const handleSetStreams = (
-    streams: StreamData[],
+  const handleSetSelectedStreams = (
+    selectedStreams: SelectedStreams,
     options?: {
       doNotSetStateChanged?: boolean
     }
   ) => {
-    setStreams(setSourceEditorState, STREAMS_SOURCE_DATA_PATH, streams, options)
+    setSelectedStreams(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, selectedStreams, options)
   }
 
   const handleToggleStream = useCallback((checked: boolean, streamUid: string): void => {
     debugger
-    const stream = allStreams.find(stream => getStreamUid(stream) === streamUid)
+    const stream = allStreams.find(stream => sourceEditorUtils.getStreamUid(stream) === streamUid)
     checked ? handleAddStream(stream) : handleRemoveStream(stream)
   }, [])
 
   const handleToggleAllStreams = async (checked: boolean) => {
     requestAnimationFrame(() => {
       setAllChecked(checked)
-      checked ? handleSetStreams(allStreams) : handleSetStreams([])
+      checked ? handleSetSelectedStreams(allStreams.map(sourceEditorUtils.streamDataToSelectedStreamsMapper, {})) : handleSetSelectedStreams([])
     })
   }
 
   const handleSearch = (query: string) => {
-    setStreamsToDisplay(streams => streams.filter(streamData => getStreamUid(streamData).includes(query)))
+    setStreamsToDisplay(streams => streams.filter(streamData => sourceEditorUtils.getStreamUid(streamData).includes(query)))
   }
 
   const handleSearchValueClear = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,7 +82,7 @@ const SourceEditorFormStreamsLoadableForm = ({
   }
 
   useEffect(() => {
-    handleSetStreams(initiallyCheckedStreams, { doNotSetStateChanged: true })
+    handleSetSelectedStreams(initiallySelectedStreams, { doNotSetStateChanged: true })
   }, [])
 
   return (
@@ -128,38 +131,11 @@ SourceEditorFormStreamsLoadableForm.displayName = "SourceEditorFormStreamsLoadab
 
 export { SourceEditorFormStreamsLoadableForm }
 
-// @Utils
-const getStreamUid = (stream: StreamData): string => {
-  if (isAirbyteStream(stream)) {
-    return getAirbyteStreamUniqueId(stream)
-  } else if (isSingerStream(stream)) {
-    return getSingerStreamUniqueId(stream)
-  }
-}
-
-const streamsAreEqual = (streamA: StreamData, streamB: StreamData) => getStreamUid(streamA) === getStreamUid(streamB)
-
-const isAirbyteStream = (stream: StreamData): stream is AirbyteStreamData => {
-  return "stream" in stream && typeof stream.stream === "object"
-}
-
-const isSingerStream = (stream: StreamData): stream is SingerStreamData => {
-  return "tap_stream_id" in stream
-}
-
-function getAirbyteStreamUniqueId(data: AirbyteStreamData): string {
-  return `${data.stream?.name}__${data.stream.namespace}`
-}
-
-function getSingerStreamUniqueId(data: SingerStreamData): string {
-  return `${data.stream}__${data.tap_stream_id}`
-}
-
 // @Components
 
 type StreamsCollapsibleListProps = {
   streamsToDisplay: StreamData[]
-  initiallySelectedStreams: StreamData[]
+  initiallySelectedStreams: SelectedStreams
   allStreamsChecked?: boolean
   setSourceEditorState: SetSourceEditorState
   handleToggleStream: (checked: boolean, streamUid: string) => void
@@ -171,11 +147,11 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
      * Creates source-type-specific methods and components
      */
     const getStreamUiComponents = (streamData: StreamData) => {
-      if (isAirbyteStream(streamData)) {
+      if (sourceEditorUtils.isAirbyteStream(streamData)) {
         const handleChangeStreamSyncMode = (mode: string, stream: AirbyteStreamData): void => {
           const newStream = { ...stream }
           newStream.sync_mode = mode
-          updateStream(setSourceEditorState, STREAMS_SOURCE_DATA_PATH, newStream)
+          updateStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, newStream)
         }
         return {
           header: (
@@ -189,7 +165,7 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
             />
           ),
         }
-      } else if (isSingerStream(streamData)) {
+      } else if (sourceEditorUtils.isSingerStream(streamData)) {
         return {
           header: <SingerStreamHeader streamUid={streamData.tap_stream_id} streamName={streamData.stream} />,
           content: <SingerStreamParameters streamData={streamData} />,
@@ -204,7 +180,7 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
         expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
       >
         {streamsToDisplay.map((streamData, idx) => {
-          const streamUid = getStreamUid(streamData)
+          const streamUid = sourceEditorUtils.getStreamUid(streamData)
           const { header, content } = getStreamUiComponents(streamData)
           return (
             <StreamPanel
@@ -227,7 +203,7 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
 type StreamPanelProps = {
   streamUid: string
   header: JSX.Element
-  initiallySelectedStreams: StreamData[]
+  initiallySelectedStreams: SelectedStreams
   checked?: boolean
   handleToggleStream: (checked: boolean, streamUid: string) => void
 } & { [key: string]: any }
@@ -242,7 +218,7 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
   ...rest
 }) => {
   const [checked, setChecked] = useState<boolean>(
-    _checked || initiallySelectedStreams.some(selected => getStreamUid(selected) === streamUid)
+    _checked || initiallySelectedStreams[streamUid] !== undefined //TODO check
   )
 
   const toggle = (checked: boolean, event: MouseEvent) => {
@@ -393,17 +369,24 @@ const StreamParameter: React.FC<StreamParameterProps> = ({ title, children }) =>
 export const addStream = (setSourceEditorState: SetSourceEditorState, sourceDataPath: string, stream: StreamData) => {
   setSourceEditorState(state => {
     const newState = cloneDeep(state)
-    const oldStreams = newState.streams.streams[sourceDataPath]
+    const oldStreams = newState.streams.selectedStreams[sourceDataPath]
 
     let newStreams = oldStreams
     if (isArray(oldStreams)) {
-      newStreams = addToArrayIfNotDuplicate(oldStreams, stream, streamsAreEqual)
+      newStreams = addToArrayIfNotDuplicate(oldStreams, sourceEditorUtils.streamDataToSelectedStreamsMapper(stream), sourceEditorUtils.streamsAreEqual)
     }
 
     newState.streams.streams[sourceDataPath] = newStreams
     newState.stateChanged = true
 
-    return newState
+    /*const newState = cloneDeep(state)
+    let newStreams = newState.streams.selectedStreams[sourceDataPath]
+    newStreams[sourceEditorUtils.getStreamUid(stream)] = sourceEditorUtils.createStreamConfig(stream)
+
+    newState.streams.selectedStreams[sourceDataPath] = newStreams
+    newState.stateChanged = true
+
+    return newState*/
   })
 }
 
@@ -414,14 +397,11 @@ export const removeStream = (
 ) => {
   setSourceEditorState(state => {
     const newState = cloneDeep(state)
-    const oldStreams = newState.streams.streams[sourceDataPath]
+    let newStreams = newState.streams.selectedStreams[sourceDataPath]
 
-    let newStreams = oldStreams
-    if (isArray(oldStreams)) {
-      newStreams = removeFromArrayIfFound(oldStreams, stream, streamsAreEqual)
-    }
+    delete newStreams[sourceEditorUtils.getStreamUid(stream)]
 
-    newState.streams.streams[sourceDataPath] = newStreams
+    newState.streams.selectedStreams[sourceDataPath] = newStreams
     newState.stateChanged = true
 
     return newState
@@ -435,31 +415,31 @@ export const updateStream = (
 ) => {
   setSourceEditorState(state => {
     const newState = cloneDeep(state)
-    const oldStreams = newState.streams.streams[sourceDataPath]
+    let newStreams = newState.streams.selectedStreams[sourceDataPath]
+    const streamIdentifier = sourceEditorUtils.getStreamUid(stream)
 
-    let newStreams = oldStreams
-    if (isArray(oldStreams)) {
-      newStreams = substituteArrayValueIfFound(oldStreams, stream, streamsAreEqual)
-    }
+    const payload = newStreams[streamIdentifier] ?? {} as StreamConfig
+    payload.sync_mode = sourceEditorUtils.getStreamSyncMode(stream)
+    newStreams[streamIdentifier] = payload
 
-    newState.streams.streams[sourceDataPath] = newStreams
+    newState.streams.selectedStreams[sourceDataPath] = newStreams
     newState.stateChanged = true
 
     return newState
   })
 }
 
-export const setStreams = (
+export const setSelectedStreams = (
   setSourceEditorState: SetSourceEditorState,
   sourceDataPath: string,
-  streams: StreamData[],
+  selectedStreams: SelectedStreams,
   options?: {
     doNotSetStateChanged?: boolean
   }
 ) => {
   setSourceEditorState(state => {
     const newState = cloneDeep(state)
-    newState.streams.streams[sourceDataPath] = streams
+    newState.streams.selectedStreams[sourceDataPath] = selectedStreams
     if (!options?.doNotSetStateChanged) newState.stateChanged = true
     return newState
   })
