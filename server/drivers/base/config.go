@@ -84,11 +84,13 @@ func getDaysBackToLoad(t *time.Time) int {
 func FillPreconfiguredOauth(sourceType string, config interface{}) {
 	oathFields, ok := oauth.Fields[sourceType]
 	if ok {
-		sourceConnectorConfig := config.(map[string]interface{})
-		for k, v := range oathFields {
-			cf, ok := sourceConnectorConfig[k]
-			if (!ok || cf == "") && viper.GetString(v) != "" {
-				sourceConnectorConfig[k] = viper.GetString(v)
+		sourceConnectorConfig, ok := config.(map[string]interface{})
+		if ok {
+			for k, v := range oathFields {
+				cf, ok := sourceConnectorConfig[k]
+				if (!ok || cf == "") && viper.GetString(v) != "" {
+					sourceConnectorConfig[k] = viper.GetString(v)
+				}
 			}
 		}
 	}
