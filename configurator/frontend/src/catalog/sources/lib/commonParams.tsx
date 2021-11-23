@@ -76,7 +76,7 @@ export const googleAuthConfigParameters = ({
     !disableOauth && {
       displayName: "OAuth Client ID",
       id: clientId,
-      type: stringType,
+      type: oauthSecretType,
       omitFieldRule: config => {
         //hack to make it work for singer based sources (which prefixes all fields with config. later on)
         let typeResolved = resolve(config, type) || resolve(config, "config.config." + type)
@@ -88,7 +88,7 @@ export const googleAuthConfigParameters = ({
     !disableOauth && {
       displayName: "OAuth Client Secret",
       id: clientSecret,
-      type: stringType,
+      type: oauthSecretType,
       omitFieldRule: config => {
         //hack to make it work for singer based sources (which prefixes all fields with config. later on)
         let typeResolved = resolve(config, type) || resolve(config, "config.config." + type)
@@ -100,7 +100,7 @@ export const googleAuthConfigParameters = ({
     !disableOauth && {
       displayName: "Refresh Token",
       id: refreshToken,
-      type: oauthSecretType,
+      type: stringType,
       omitFieldRule: config => {
         //hack to make it work for singer based sources (which prefixes all fields with config. later on)
         let typeResolved = resolve(config, type) || resolve(config, "config.config." + type)

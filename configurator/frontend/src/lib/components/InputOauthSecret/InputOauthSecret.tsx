@@ -6,6 +6,7 @@ type Props = {
 } & InputWithCheckboxProps
 
 export const InputOauthSecret: React.FC<Props> = ({ status, ...props }) => {
+  const hideCheckbox = status === "secrets_not_set" || status === "loading"
   const message = useMemo<string>(() => {
     switch (status) {
       case "loading":
@@ -13,7 +14,6 @@ export const InputOauthSecret: React.FC<Props> = ({ status, ...props }) => {
       case "secrets_set":
         return "Jitsu will use the value stored on backend"
       case "secrets_not_set":
-        return "Value not found. Please, use One-click auth button to authorize Jitsu to get the value for you."
       default:
         return "Internal Error. Please, use the support button or file an issue."
     }
@@ -21,7 +21,8 @@ export const InputOauthSecret: React.FC<Props> = ({ status, ...props }) => {
 
   return (
     <InputWithCheckbox
-      checkboxTitle={`Use server-stored secret`}
+      hideCheckbox={hideCheckbox}
+      checkboxTitle={`Use server-stored Jitsu App secret`}
       checkedFixedTitle={message}
       invertCheckBehaviour
       {...props}
