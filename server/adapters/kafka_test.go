@@ -49,7 +49,12 @@ func TestKafkaBulkUpdate(t *testing.T) {
 	defer kafkaAdapter.Close()
 	table := kafkaTestTable("test_kafka_bulk_update")
 	inputObjects := createObjectsForKafka(5, kafkaTestTableRecord)
-	err = kafkaAdapter.BulkUpdate(table, inputObjects, nil)
+	for i := 0; i < 10; i+=1 {
+		err = kafkaAdapter.BulkUpdate(table, inputObjects, nil)
+		if err == nil {
+			break
+		}
+	}
 	require.NoError(t, err, "could not send messages to topic "+table.Name)
 	err = kafkaCluster.Contains(t, table.Name, inputObjects)
 	require.NoError(t, err, "could not fetch messages from topic "+table.Name)

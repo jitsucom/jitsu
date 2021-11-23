@@ -97,7 +97,7 @@ func (kc *KafkaCluster) Contains(t *testing.T, topic string, objs []map[string]i
 		return err
 	}
 	defer client.Close()
-	ctx, stop := context.WithTimeout(context.Background(), time.Duration(50_000)*time.Millisecond)
+	ctx, stop := context.WithTimeout(context.Background(), time.Duration(20_000)*time.Millisecond)
 	consumer := &testKafkaConsumer{
 		message: make(chan map[string]interface{}),
 	}
