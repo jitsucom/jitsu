@@ -54,6 +54,7 @@ const SourceEditorConfigComponent = ({
       }
     )
     console.log("secrets status:", secretsStatus)
+    if (Object.values(secretsStatus).length === 0) return false
     const atLeastOneSecretUnavailable = Object.values(secretsStatus).some(secret => !secret["provided"])
     return !atLeastOneSecretUnavailable
   }, [initialValues])
