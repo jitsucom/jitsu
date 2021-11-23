@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/oauth"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/spf13/viper"
 	"time"
 )
 
@@ -77,4 +79,17 @@ func getDaysBackToLoad(t *time.Time) int {
 	now := time.Now().UTC()
 	currentDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	return int(currentDay.Sub(*t).Hours()/24) + 1
+}
+
+func FillPreconfiguredOauth(sourceType string, config interface{}) {
+	oathFields, ok := oauth.Fields[sourceType]
+	if ok {
+		sourceConnectorConfig := config.(map[string]interface{})
+		for k, v := range oathFields {
+			cf, ok := sourceConnectorConfig[k]
+			if (!ok || cf == "") && viper.GetString(v) != "" {
+				sourceConnectorConfig[k] = viper.GetString(v)
+			}
+		}
+	}
 }
