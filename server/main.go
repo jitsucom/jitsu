@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"flag"
 	"github.com/jitsucom/jitsu/server/airbyte"
@@ -105,6 +107,9 @@ func main() {
 	}
 
 	flag.Parse()
+
+	//Configure gob
+	gob.Register(json.Number(""))
 
 	//Setup seed for globalRand
 	rand.Seed(time.Now().Unix())
