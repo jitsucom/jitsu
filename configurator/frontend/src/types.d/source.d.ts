@@ -40,6 +40,19 @@ declare type SingerStreamData = {
   }[]
 }
 
+declare type SelectedStreams = Array<StreamConfig>
+
+declare type SelectedStreams1 = {
+  [key: string]: StreamConfig
+}
+
+declare type StreamConfig = {
+  name?: string
+  namespace?: string
+  sync_mode?: string
+  [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
+}
+
 declare type SourceData = NativeSourceData & AirbyteSourceData & SingerSourceData
 declare interface NativeSourceData {
   //name displayed on a source. Used only in UI
@@ -74,9 +87,15 @@ declare interface AirbyteSourceData {
   }
   config: {
     config: PlainObjectWithPrimitiveValues
+    /**
+     * @deprecated as of November 2021.
+     * Catalog isn't stored into sources anymore. Now only selectedStreams are saved
+     */
     catalog?: {
       streams: Array<AirbyteStreamData>
     }
+    selectedStreams?: SelectedStreams
+    //selected_streams?: Array<StreamConfig>
     [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
   }
 }
@@ -84,9 +103,15 @@ declare interface AirbyteSourceData {
 declare interface SingerSourceData {
   config: {
     config: PlainObjectWithPrimitiveValues
+    /**
+     * @deprecated as of November 2021.
+     * Catalog isn't stored into sources anymore. Now only selectedStreams are saved
+     */
     catalog?: {
       streams: Array<SingerStreamData>
     }
+    selectedStreams?: SelectedStreams
+    selected_streams?: Array<StreamConfig> //TODO
     [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
   }
 }
