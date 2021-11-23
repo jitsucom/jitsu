@@ -19,23 +19,28 @@ func init() {
 
 }
 
-//func TestKafkaBulkInsert(t *testing.T) {
-//	kafkaCluster, err := test.NewKafkaCluster(context.Background())
-//	require.NoError(t, err)
-//	defer kafkaCluster.Close()
-//	kafkaConfig := &KafkaConfig{
-//		BootstrapServers: []string{kafkaCluster.BootstrapServer},
-//	}
-//	kafkaAdapter, err := NewKafka(kafkaConfig)
-//	require.NoError(t, err)
-//	defer kafkaAdapter.Close()
-//	table := kafkaTestTable("test_kafka_bulk_insert")
-//	inputObjects := createObjectsForKafka(5, kafkaTestTableRecord)
-//	err = kafkaAdapter.BulkInsert(table, inputObjects)
-//	require.NoError(t, err, "could not send messages to topic "+table.Name)
-//	err = kafkaCluster.Contains(t, table.Name, inputObjects)
-//	require.NoError(t, err, "could not fetch messages from topic "+table.Name)
-//}
+func TestKafkaBulkInsert(t *testing.T) {
+	kafkaCluster, err := test.NewKafkaCluster(context.Background())
+	require.NoError(t, err)
+	defer kafkaCluster.Close()
+	kafkaConfig := &KafkaConfig{
+		BootstrapServers: []string{kafkaCluster.BootstrapServer},
+	}
+	kafkaAdapter, err := NewKafka(kafkaConfig)
+	require.NoError(t, err)
+	defer kafkaAdapter.Close()
+	table := kafkaTestTable("test_kafka_bulk_insert")
+	inputObjects := createObjectsForKafka(5, kafkaTestTableRecord)
+	for i := 0; i < 10; i += 1 {
+		err = kafkaAdapter.BulkInsert(table, inputObjects)
+		if err == nil {
+			break
+		}
+	}
+	require.NoError(t, err, "could not send messages to topic "+table.Name)
+	err = kafkaCluster.Contains(t, table.Name, inputObjects)
+	require.NoError(t, err, "could not fetch messages from topic "+table.Name)
+}
 
 func TestKafkaBulkUpdate(t *testing.T) {
 	kafkaCluster, err := test.NewKafkaCluster(context.Background())
@@ -49,7 +54,7 @@ func TestKafkaBulkUpdate(t *testing.T) {
 	defer kafkaAdapter.Close()
 	table := kafkaTestTable("test_kafka_bulk_update")
 	inputObjects := createObjectsForKafka(5, kafkaTestTableRecord)
-	for i := 0; i < 10; i+=1 {
+	for i := 0; i < 10; i += 1 {
 		err = kafkaAdapter.BulkUpdate(table, inputObjects, nil)
 		if err == nil {
 			break
@@ -74,7 +79,12 @@ func TestKafkaInsert(t *testing.T) {
 		Table:          kafkaTestTable("test_kafka_insert"),
 		ProcessedEvent: kafkaTestTableRecord(0),
 	}
-	err = kafkaAdapter.Insert(event)
+	for i := 0; i < 10; i += 1 {
+		err = kafkaAdapter.Insert(event)
+		if err == nil {
+			break
+		}
+	}
 	require.NoError(t, err, "could not send messages to topic "+event.Table.Name)
 	err = kafkaCluster.Contains(t, event.Table.Name, []map[string]interface{}{event.ProcessedEvent})
 	require.NoError(t, err, "could not fetch messages from topic "+event.Table.Name)
