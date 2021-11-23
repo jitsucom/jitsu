@@ -40,11 +40,12 @@ jobs:
           ZOOKEEPER_CLIENT_PORT: 2181
           ZOOKEEPER_TICK_TIME: 2000
       - image: confluentinc/cp-kafka:6.1.1
+        container_name: kafka_test
         environment:
           KAFKA_BROKER_ID: 1
-          KAFKA_ZOOKEEPER_CONNECT: localhost:2181
+          KAFKA_ZOOKEEPER_CONNECT: 127.0.0.1:2181
           KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CLIENT:PLAINTEXT
-          KAFKA_ADVERTISED_LISTENERS: CLIENT://localhost:9092
+          KAFKA_ADVERTISED_LISTENERS: CLIENT://127.0.0.1:9092
           KAFKA_INTER_BROKER_LISTENER_NAME: CLIENT
           KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
           KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -65,6 +66,10 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "./server/go.sum" }}
+      - run:  docker container ls
+      - run: docker exec -d kafka_test /usr/bin/kafka-topics --create --zookeeper localhost:2181 --topic "test_kafka_bulk_insert" --partitions 1 --replication-factor 1
+      - run: docker exec -d kafka_test /usr/bin/kafka-topics --create --zookeeper localhost:2181 --topic "test_kafka_bulk_update" --partitions 1 --replication-factor 1
+      - run: docker exec -d kafka_test /usr/bin/kafka-topics --create --zookeeper localhost:2181 --topic "test_kafka_insert" --partitions 1 --replication-factor 1
       - run: mkdir -p $TEST_RESULTS
       - run: go get github.com/jstemmer/go-junit-report
       - run:
