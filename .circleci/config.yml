@@ -67,6 +67,9 @@ jobs:
           keys:
             - go-mod-v1-{{ checksum "./server/go.sum" }}
       - run:  docker container ls
+      - run: ls /usr/bin
+      - run: ls /bin
+      - run: ls /
       - run: docker exec -d confluentinc/cp-kafka:6.1.1 /usr/bin/kafka-topics --create --zookeeper localhost:2181 --topic "test_kafka_bulk_insert" --partitions 1 --replication-factor 1
       - run: docker exec -d confluentinc/cp-kafka:6.1.1 /usr/bin/kafka-topics --create --zookeeper localhost:2181 --topic "test_kafka_bulk_update" --partitions 1 --replication-factor 1
       - run: docker exec -d confluentinc/cp-kafka:6.1.1 /usr/bin/kafka-topics --create --zookeeper localhost:2181 --topic "test_kafka_insert" --partitions 1 --replication-factor 1
