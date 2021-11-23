@@ -170,8 +170,6 @@ const sourcePageUtils = {
       oauthFieldsSuccessfullySet.push(oauthFieldKey)
     })
 
-    debugger
-
     if (oauthFieldsSuccessfullySet.length > 0) {
       const secretsNamesSeparator = oauthFieldsSuccessfullySet.length === 2 ? " and " : ", "
       actionNotification.success(
