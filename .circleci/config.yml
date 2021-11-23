@@ -65,10 +65,6 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "./server/go.sum" }}
-      - run:  docker container ls
-      - run: /usr/bin/kafka-topics --create --zookeeper localhost:2181 --topic "test_kafka_bulk_insert" --partitions 1 --replication-factor 1
-      - run: /usr/bin/kafka-topics --create --zookeeper localhost:2181 --topic "test_kafka_bulk_update" --partitions 1 --replication-factor 1
-      - run: /usr/bin/kafka-topics --create --zookeeper localhost:2181 --topic "test_kafka_insert" --partitions 1 --replication-factor 1
       - run: mkdir -p $TEST_RESULTS
       - run: go get github.com/jstemmer/go-junit-report
       - run:
