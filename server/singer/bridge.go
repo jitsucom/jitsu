@@ -246,7 +246,7 @@ func SaveConfig(sourceId string, tap string, singerConfig interface{}) (string, 
 	//write singer config as file path
 	_, err := parsers.ParseJSONAsFile(absoluteFilePath, singerConfig)
 	if err != nil {
-		return "", fmt.Errorf("Error writing singer config [%v] to %s: %v", singerConfig, absoluteFilePath, err)
+		return "", fmt.Errorf("Error writing singer to %s: %v", absoluteFilePath, err)
 	}
 
 	return absoluteFilePath, nil
