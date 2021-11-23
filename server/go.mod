@@ -10,7 +10,6 @@ require (
 	firebase.google.com/go/v4 v4.1.0
 	github.com/FZambia/sentinel v1.1.0
 	github.com/Shopify/sarama v1.30.0
-	github.com/Shopify/toxiproxy v2.1.4+incompatible // indirect
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/beeker1121/goque v2.1.0+incompatible // indirect
 	github.com/charmbracelet/lipgloss v0.2.1
@@ -20,7 +19,6 @@ require (
 	github.com/gin-gonic/gin v1.7.3
 	github.com/go-redsync/redsync/v4 v4.3.0
 	github.com/go-sql-driver/mysql v1.6.0
-	github.com/golang/snappy v0.0.4 // indirect
 	github.com/gomodule/redigo v1.8.2
 	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v32 v32.1.0
@@ -40,7 +38,6 @@ require (
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/oschwald/geoip2-golang v1.4.0
 	github.com/panjf2000/ants/v2 v2.4.6
-	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/prometheus/client_golang v1.7.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/satori/go.uuid v1.2.0
@@ -54,8 +51,6 @@ require (
 	github.com/testcontainers/testcontainers-go v0.11.1
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
 	github.com/vbauerster/mpb/v7 v7.1.3
-	github.com/xdg/scram v1.0.3 // indirect
-	github.com/xdg/stringprep v1.0.3 // indirect
 	github.com/xitongsys/parquet-go v1.6.1
 	github.com/xitongsys/parquet-go-source v0.0.0-20211010230925-397910c5e371
 	github.com/xtgo/uuid v0.0.0-20140804021211-a0b114877d4c // indirect
