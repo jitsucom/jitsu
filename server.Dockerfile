@@ -97,7 +97,7 @@ COPY --from=builder /app .
 COPY --from=jsbuilder /app .
 COPY --from=jsSdkbuilder /app/lib.js ./web/lib.js
 
-COPY docker/eventnative.yaml /home/$$EVENTNATIVE_USER/data/config/
+COPY docker/eventnative.yaml /home/$EVENTNATIVE_USER/data/config/
 
 RUN chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER/app
 
