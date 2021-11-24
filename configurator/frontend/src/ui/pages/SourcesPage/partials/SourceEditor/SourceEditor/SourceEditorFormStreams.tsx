@@ -18,6 +18,8 @@ import {
   pullAllSingerStreams,
   PullAllStreams,
 } from "./SourceEditorPullData"
+import { sourcePageUtils } from "../../../SourcePage.utils"
+import { sourceEditorUtils } from "./SourceEditor.utils"
 
 type Props = {
   initialSourceData: Optional<Partial<SourceData>>
@@ -38,8 +40,8 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
   setConfigIsValidatedByStreams,
   handleBringSourceData,
 }) => {
-  const previouslyCheckedStreams = useMemo<StreamData[]>(
-    () => initialSourceData?.config?.catalog?.streams ?? initialSourceData?.catalog?.streams ?? [],
+  const previouslyCheckedStreams = useMemo<Array<StreamConfig>>(
+    () => initialSourceData?.config?.selected_streams ?? [],
     [initialSourceData]
   )
 
@@ -59,7 +61,7 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
     reload: restartPolling,
   } = usePolling<StreamData[]>((end, fail) => async () => {
     try {
-      const result = await pullAllStreams(previouslyCheckedStreams, sourceDataFromCatalog, handleBringSourceData)
+      const result = await pullAllStreams(sourceDataFromCatalog, handleBringSourceData)
       if (result !== undefined) end(result)
     } catch (error) {
       fail(error)
@@ -69,10 +71,14 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
     }
   })
 
-  const selectAllFieldsByDefault: boolean = !previouslyCheckedStreams.length
+  const selectAllFieldsByDefault: boolean = !Object.entries(previouslyCheckedStreams).length
 
-  const initallySelectedFields = useMemo<StreamData[]>(() => {
-    return selectAllFieldsByDefault ? data : previouslyCheckedStreams
+  const initiallySelectedFields = useMemo<Array<StreamConfig>>(() => {
+    return selectAllFieldsByDefault
+      ? data
+        ? data.map(sourceEditorUtils.streamDataToSelectedStreamsMapper)
+        : []
+      : previouslyCheckedStreams
   }, [selectAllFieldsByDefault, previouslyCheckedStreams, data])
 
   useEffect(() => {
@@ -96,7 +102,7 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
       {data && !error && !isLoading && (
         <SourceEditorFormStreamsLoadableForm
           allStreams={data}
-          initiallySelectedStreams={initallySelectedFields}
+          initiallySelectedStreams={initiallySelectedFields}
           selectAllFieldsByDefault={selectAllFieldsByDefault}
           hide={isLoading || !!error}
           setSourceEditorState={setSourceEditorState}
