@@ -1,17 +1,18 @@
 // @Libs
 import { observer } from "mobx-react-lite"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { cloneDeep } from "lodash"
+import { Col, FormInstance, Row } from "antd"
 // @Types
-import { SourceConnector as CatalogSourceConnector, SourceConnector } from "catalog/sources/types"
+import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
 import { SetSourceEditorState } from "./SourceEditor"
 // @Components
 import { SourceEditorFormConfigurationStaticFields } from "./SourceEditorFormConfigurationStaticFields"
 import { SourceEditorFormConfigurationConfigurableLoadableFields } from "./SourceEditorFormConfigurationConfigurableLoadableFields"
-import { cloneDeep } from "lodash"
-// @Styles
-import styles from "./SourceEditorFormConfiguration.module.less"
-import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 import { SourceEditorFormConfigurationConfigurableFields } from "./SourceEditorFormConfigurationConfigurableFields"
+import { OauthButton } from "../../OauthButton/OauthButton"
+// @Utils
+import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 
 type Props = {
   editorMode: "add" | "edit"
@@ -33,6 +34,12 @@ export type PatchConfig = (
   }
 ) => void
 
+export type SetFormReference = (key: string, form: FormInstance) => void
+
+type Forms = {
+  [key: string]: FormInstance<PlainObjectWithPrimitiveValues>
+}
+
 const initialValidator: () => ValidateGetErrorsCount = () => async () => 0
 
 const SourceEditorFormConfiguration: React.FC<Props> = ({
@@ -45,11 +52,24 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
   setTabErrorsVisible,
   setConfigIsValidatedByStreams,
 }) => {
+  const [forms, setForms] = useState<Forms>({})
+
   const [staticFieldsValidator, setStaticFieldsValidator] = useState<ValidateGetErrorsCount>(initialValidator)
   const [configurableFieldsValidator, setConfigurableFieldsValidator] =
     useState<ValidateGetErrorsCount>(initialValidator)
   const [configurableLoadableFieldsValidator, setConfigurableLoadableFieldsValidator] =
     useState<ValidateGetErrorsCount>(initialValidator)
+
+  const setFormReference = useCallback<SetFormReference>((key, form) => {
+    setForms(forms => ({ ...forms, [key]: form }))
+  }, [])
+
+  const setOauthSecretsToForms = useCallback<(secrets: PlainObjectWithPrimitiveValues) => void>(
+    secrets => {
+      sourcePageUtils.applyOauthValuesToAntdForms(forms, secrets)
+    },
+    [forms]
+  )
 
   const sourceConfigurationSchema = useMemo(() => {
     switch (sourceDataFromCatalog.protoType) {
@@ -111,13 +131,30 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
   }, [])
 
   return (
-    <div className={styles.sourceEditorFormConfiguration}>
-      <fieldset disabled={disabled}>
+    <div>
+      <Row key="oauth-button" className="h-8 mb-5">
+        <Col span={4} />
+        <Col span={20} className="pl-2">
+          <OauthButton
+            key="oauth-button"
+            service={sourceDataFromCatalog.id}
+            forceNotSupported={sourceDataFromCatalog.expertMode}
+            className="mr-2"
+            disabled={disabled}
+            icon={<span className="align-middle h-5 w-7 pr-2 ">{sourceDataFromCatalog.pic}</span>}
+            setAuthSecrets={setOauthSecretsToForms}
+          >
+            <span className="align-top">{`Log In to Fill OAuth Credentials`}</span>
+          </OauthButton>
+        </Col>
+      </Row>
+      <fieldset key="fields" disabled={disabled}>
         <SourceEditorFormConfigurationStaticFields
           editorMode={editorMode}
           initialValues={initialSourceData}
           patchConfig={patchConfig}
           setValidator={setStaticFieldsValidator}
+          setFormReference={setFormReference}
         />
         {sourceConfigurationSchema.configurableFields && (
           <SourceEditorFormConfigurationConfigurableFields
@@ -125,6 +162,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
             configParameters={sourceConfigurationSchema.configurableFields}
             patchConfig={patchConfig}
             setValidator={setConfigurableFieldsValidator}
+            setFormReference={setFormReference}
           />
         )}
         {sourceConfigurationSchema.loadableFieldsEndpoint && (
@@ -134,6 +172,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
             patchConfig={patchConfig}
             setControlsDisabled={setControlsDisabled}
             setValidator={setConfigurableLoadableFieldsValidator}
+            setFormReference={setFormReference}
           />
         )}
       </fieldset>

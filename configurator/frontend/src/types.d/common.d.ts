@@ -9,6 +9,8 @@ declare type Optional<T> = T | null | undefined
 // @Functions
 declare type GenericFunction<A, R> = (...args: A) => R | Promise<R>
 declare type VoidFunction = () => void
+declare type UnknownArgsVoidFunction = (args: unknown) => void
+declare type UnknownFunction = () => unknown
 declare type AsyncVoidFunction = () => Promise<void>
 declare type AsyncUnknownFunction = () => Promise<unknown>
 declare type NotFunction<T> = T extends Function ? never : T

@@ -70,6 +70,7 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *base.SourceConfig, co
 	if err != nil {
 		return nil, err
 	}
+	config.AuthConfig.FillPreconfiguredOauth(base.GoogleAnalyticsType)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -108,6 +109,7 @@ func TestGoogleAnalytics(sourceConfig *base.SourceConfig) error {
 	if err != nil {
 		return err
 	}
+	config.AuthConfig.FillPreconfiguredOauth(base.GoogleAnalyticsType)
 	if err := config.Validate(); err != nil {
 		return err
 	}

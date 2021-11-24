@@ -24,7 +24,7 @@ export interface CommonDestinationPageProps {
   editorMode?: "edit" | "add"
 }
 
-const DbtCloudPageComponent = ({ setBreadcrumbs }: PageProps) => {
+const DbtCloudPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   const [dbtCloudData, setDbtCloudData] = useState(
     destinationsStore.hiddenDestinations.find(value => value._type == "dbtcloud")
   )

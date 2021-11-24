@@ -2,7 +2,7 @@ ARG SRC_VERSION=latest
 
 FROM nginx:alpine as main
 
-RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata bash sudo docker
+RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata bash sudo docker curl
 
 ENV EVENTNATIVE_USER=eventnative
 

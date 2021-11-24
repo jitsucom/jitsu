@@ -450,7 +450,7 @@ const DestinationsFilter: React.FC<{
               </Button>
             </div>
           </div>
-          <div className="flex flex-col h-96 overflow-y-auto pr-2">
+          <div className="flex flex-col h-80 overflow-y-auto pr-2">
             {allDestinations.map(dst => {
               const toggleCheckBox = () => {
                 let newIds

@@ -117,6 +117,10 @@ export class User {
     this._uid = uid
   }
 
+  get created() {
+    return new Date(this._created)
+  }
+
   set created(value: Date) {
     this._created = value.toISOString()
   }

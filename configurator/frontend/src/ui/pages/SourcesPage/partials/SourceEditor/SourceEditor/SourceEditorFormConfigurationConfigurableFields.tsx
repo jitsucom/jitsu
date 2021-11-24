@@ -5,22 +5,25 @@ import { Form, FormProps } from "antd"
 import { Parameter } from "catalog/sources/types"
 import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 // @Components
-import { PatchConfig, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
+import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
 
 type Props = {
   initialValues: Partial<SourceData>
   configParameters: Parameter[]
   patchConfig: PatchConfig
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
+  setFormReference: SetFormReference
 }
 
 const CONFIG_INTERNAL_STATE_KEY = "configurableParameters"
+const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 
 export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = ({
   initialValues,
   configParameters,
   patchConfig,
   setValidator,
+  setFormReference,
 }) => {
   const [form] = Form.useForm()
 
@@ -39,7 +42,7 @@ export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = 
   }
 
   /**
-   * set validator on first render
+   * set validator and form reference on first render
    */
   useEffect(() => {
     const validateGetErrorsCount: ValidateGetErrorsCount = async () => {
@@ -53,6 +56,7 @@ export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = 
     }
 
     setValidator(() => validateGetErrorsCount)
+    setFormReference(CONFIG_FORM_KEY, form)
   }, [])
 
   return (

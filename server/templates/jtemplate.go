@@ -47,7 +47,7 @@ func SmartParse(name string, expression string, extraFunctions template.FuncMap,
 	return goTmpl, nil
 }
 
-func ToJSON(responseObject interface{}) ([]byte, error) {
+func ToJSONorStringBytes(responseObject interface{}) ([]byte, error) {
 	switch raw := responseObject.(type) {
 	case string:
 		return []byte(strings.TrimSpace(raw)), nil

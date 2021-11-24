@@ -1,5 +1,5 @@
-jest.unmock("firebase/app")
-import firebase from "firebase/app"
+jest.unmock("firebase/auth")
+import firebase from "firebase/auth"
 
 export type UserInfo = firebase.UserInfo
 

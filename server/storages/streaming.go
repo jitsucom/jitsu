@@ -28,7 +28,7 @@ type StreamingStorage interface {
 
 //StreamingWorker reads events from queue and using events.StreamingStorage writes them
 type StreamingWorker struct {
-	eventQueue       *events.PersistentQueue
+	eventQueue       events.PersistentQueue
 	processor        *schema.Processor
 	streamingStorage StreamingStorage
 	tableHelper      []*TableHelper
@@ -37,7 +37,7 @@ type StreamingWorker struct {
 }
 
 //newStreamingWorker returns configured streaming worker
-func newStreamingWorker(eventQueue *events.PersistentQueue, processor *schema.Processor, streamingStorage StreamingStorage,
+func newStreamingWorker(eventQueue events.PersistentQueue, processor *schema.Processor, streamingStorage StreamingStorage,
 	tableHelper ...*TableHelper) *StreamingWorker {
 	return &StreamingWorker{
 		eventQueue:       eventQueue,
@@ -124,7 +124,7 @@ func (sw *StreamingWorker) start() {
 
 				if err := sw.streamingStorage.Insert(eventContext); err != nil {
 					logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.Serialize(), table.Name, err)
-					if isConnectionError(err) {
+					if IsConnectionError(err) {
 						//retry
 						sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenID)
 					}

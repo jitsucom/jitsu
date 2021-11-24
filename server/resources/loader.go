@@ -40,7 +40,7 @@ func LoadFromFile(filePath, lastModified string) (*ResponsePayload, error) {
 	}
 
 	var contentType ContentType
-	if strings.HasSuffix(filePath, ".yaml") {
+	if strings.HasSuffix(filePath, ".yaml") || strings.HasSuffix(filePath, ".yml") {
 		contentType = YamlContentType
 	} else if strings.HasSuffix(filePath, ".json") {
 		contentType = JSONContentType

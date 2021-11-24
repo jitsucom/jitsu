@@ -32,7 +32,7 @@ func NewService(balancerAPIURL, adminToken string) *Service {
 	return &Service{
 		balancerAPIURL: strings.TrimSuffix(balancerAPIURL, "/"),
 		adminToken:     adminToken,
-		client:         &http.Client{Timeout: 1 * time.Minute},
+		client:         &http.Client{Timeout: 3 * time.Minute},
 	}
 }
 

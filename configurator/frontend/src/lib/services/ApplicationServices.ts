@@ -3,7 +3,7 @@ import { IProject, JSON_FORMAT, PgDatabaseCredentials } from "./model"
 import axios, { AxiosRequestConfig } from "axios"
 import * as uuid from "uuid"
 import AnalyticsService from "./analytics"
-import { firebaseInit, FirebaseUserService } from "./UserServiceFirebase"
+import { FirebaseUserService } from "./UserServiceFirebase"
 import { BackendUserService } from "./UserServiceBackend"
 import { randomId } from "utils/numbers"
 import { concatenateURLs } from "lib/commons/utils"
@@ -59,8 +59,11 @@ export default class ApplicationServices implements IApplicationServices {
     if (configuration.authorization == "redis" || !this._applicationConfiguration.firebaseConfig) {
       this._userService = new BackendUserService(this._backendApiClient, this._storageService, configuration.smtp)
     } else if (configuration.authorization == "firebase") {
-      firebaseInit(this._applicationConfiguration.firebaseConfig)
-      this._userService = new FirebaseUserService(this._backendApiClient, this._storageService)
+      this._userService = new FirebaseUserService(
+        this._applicationConfiguration.firebaseConfig,
+        this._backendApiClient,
+        this._storageService
+      )
     } else {
       throw new Error(`Unknown backend configuration authorization type: ${configuration.authorization}`)
     }
