@@ -312,13 +312,16 @@ export function generateCheckoutLink(params: {
   return withQueryParams(`${billingUrl}/api/init-checkout`, params)
 }
 
+
 export function generateCustomerPortalLink(params: {
   project_id: string
   user_email: string
   return_url: string
-}): string {
+}, signToken?: string): string {
   const billingUrl = ApplicationServices.get().applicationConfiguration.billingUrl
-  return withQueryParams(`${billingUrl}/api/to-customer-portal`, params)
+  return withQueryParams(`${billingUrl}/api/to-customer-portal`, !signToken ? params : {
+    ...params
+  })
 }
 
 export function showQuotaLimitModal(subscription: CurrentSubscription, msg: ReactElement) {

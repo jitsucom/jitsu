@@ -6,6 +6,7 @@ import { useServices } from "hooks/useServices"
 import { handleError } from "lib/components/components"
 import styles from "./CurrentPlan.module.less"
 import { numberFormat } from "../../../lib/commons/utils"
+import { useLocation } from "react-router-dom"
 
 export type CurrentPlanProps = {
   planStatus: CurrentSubscription
@@ -13,9 +14,15 @@ export type CurrentPlanProps = {
 }
 
 export const CurrentPlan: React.FC<CurrentPlanProps> = ({ planStatus, onPlanChangeModalOpen }) => {
-  const [upgradeDialogVisible, setUpgradeDialogVisible] = useState(false)
+  const location = useLocation();
+  const [upgradeDialogVisible, setUpgradeDialogVisible] = useState(location.search && !!(new URLSearchParams(location.search).get("planUpgrade")))
   const services = useServices()
   const usagaPct = (planStatus.usage.events / planStatus.currentPlan.quota.events) * 100
+  let customerPortalLink = generateCustomerPortalLink({
+    project_id: services.activeProject.id,
+    user_email: services.userService.getUser().email,
+    return_url: window.location.href,
+  })
   return (
     <>
       <div>
@@ -71,11 +78,7 @@ export const CurrentPlan: React.FC<CurrentPlanProps> = ({ planStatus, onPlanChan
           ) : (
             planStatus.stripeCustomerId && (
               <a
-                href={generateCustomerPortalLink({
-                  project_id: services.activeProject.id,
-                  user_email: services.userService.getUser().email,
-                  return_url: window.location.href,
-                })}
+                href={customerPortalLink}
               >
                 Manage Subscription
               </a>
@@ -88,7 +91,7 @@ export const CurrentPlan: React.FC<CurrentPlanProps> = ({ planStatus, onPlanChan
       <Modal
         destroyOnClose={true}
         width={800}
-        title={<h1 className="text-xl m-0 p-0">Updgrade subscription</h1>}
+        title={<h1 className="text-xl m-0 p-0">Upgrade subscription</h1>}
         visible={upgradeDialogVisible}
         onCancel={() => {
           setUpgradeDialogVisible(false)
