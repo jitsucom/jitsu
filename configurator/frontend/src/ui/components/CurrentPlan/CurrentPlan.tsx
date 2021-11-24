@@ -14,8 +14,10 @@ export type CurrentPlanProps = {
 }
 
 export const CurrentPlan: React.FC<CurrentPlanProps> = ({ planStatus, onPlanChangeModalOpen }) => {
-  const location = useLocation();
-  const [upgradeDialogVisible, setUpgradeDialogVisible] = useState(location.search && !!(new URLSearchParams(location.search).get("planUpgrade")))
+  const location = useLocation()
+  const [upgradeDialogVisible, setUpgradeDialogVisible] = useState(
+    location.search && !!new URLSearchParams(location.search).get("planUpgrade")
+  )
   const services = useServices()
   const usagaPct = (planStatus.usage.events / planStatus.currentPlan.quota.events) * 100
   let customerPortalLink = generateCustomerPortalLink({
@@ -76,13 +78,7 @@ export const CurrentPlan: React.FC<CurrentPlanProps> = ({ planStatus, onPlanChan
               <b>Upgrade</b>
             </a>
           ) : (
-            planStatus.stripeCustomerId && (
-              <a
-                href={customerPortalLink}
-              >
-                Manage Subscription
-              </a>
-            )
+            planStatus.stripeCustomerId && <a href={customerPortalLink}>Manage Subscription</a>
           )}
 
           <a href="https://jitsu.com/pricing">Pricing Info</a>
