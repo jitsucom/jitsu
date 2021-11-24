@@ -28,7 +28,7 @@ type Airbyte struct {
 	activeCommands map[string]*base.SyncCommand
 
 	config                       *Config
-	selectedStreamsWithNamespace map[string]StreamConfiguration
+	selectedStreamsWithNamespace map[string]base.StreamConfiguration
 	pathToConfigs                string
 	streamsRepresentation        map[string]*base.StreamRepresentation
 	catalogDiscovered            *atomic.Bool
@@ -113,11 +113,11 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 		}
 	}
 
-	var selectedStreamsWithNamespace map[string]StreamConfiguration
+	var selectedStreamsWithNamespace map[string]base.StreamConfiguration
 	if len(config.SelectedStreams) > 0 {
-		selectedStreamsWithNamespace = map[string]StreamConfiguration{}
+		selectedStreamsWithNamespace = map[string]base.StreamConfiguration{}
 		for _, sc := range config.SelectedStreams {
-			selectedStreamsWithNamespace[streamIdentifier(sc.Namespace, sc.Name)] = sc
+			selectedStreamsWithNamespace[base.StreamIdentifier(sc.Namespace, sc.Name)] = sc
 		}
 	}
 
@@ -341,7 +341,7 @@ func (a *Airbyte) loadCatalog() (string, map[string]*base.StreamRepresentation, 
 	if len(a.selectedStreamsWithNamespace) > 0 {
 		var selectedStreams []*airbyte.Stream
 		for _, stream := range rawCatalog.Streams {
-			if streamConfig, selected := a.selectedStreamsWithNamespace[streamIdentifier(stream.Namespace, stream.Name)]; selected {
+			if streamConfig, selected := a.selectedStreamsWithNamespace[base.StreamIdentifier(stream.Namespace, stream.Name)]; selected {
 				if streamConfig.SyncMode != "" {
 					stream.SyncMode = streamConfig.SyncMode
 				}
@@ -373,8 +373,4 @@ func (a *Airbyte) IsClosed() bool {
 	default:
 		return false
 	}
-}
-
-func streamIdentifier(namespace, name string) string {
-	return namespace + name
 }
