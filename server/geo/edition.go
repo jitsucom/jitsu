@@ -2,16 +2,17 @@ package geo
 
 import (
 	"fmt"
+	"strings"
 )
 
 const (
-	//paid databases
+	//paid editions
+	GeoIP2CountryEdition Edition = "GeoIP2-Country"
 	GeoIP2CityEdition    Edition = "GeoIP2-City"
 	GeoIP2ISPEdition     Edition = "GeoIP2-ISP"
 	GeoIP2DomainEdition  Edition = "GeoIP2-Domain"
-	GeoIP2CountryEdition Edition = "GeoIP2-Country"
 
-	//free databases
+	//free editions
 	GeoLite2CityEdition    Edition = "GeoLite2-City"
 	GeoLite2CountryEdition Edition = "GeoLite2-Country"
 	GeoLite2ASNEdition     Edition = "GeoLite2-ASN"
@@ -19,9 +20,12 @@ const (
 	Unknown Edition = ""
 )
 
+var paidEditions = []Edition{GeoIP2CountryEdition, GeoIP2CityEdition, GeoIP2ISPEdition, GeoIP2DomainEdition}
+
 type Edition string
 
 //FreeAnalog returns free database analog of the current
+//add this to EditionRules as well
 func (e Edition) FreeAnalog() Edition {
 	switch e {
 	case GeoIP2CityEdition:
@@ -40,22 +44,23 @@ func (e Edition) String() string {
 }
 
 func fromString(value string) (Edition, error) {
-	switch value {
-	case GeoIP2CityEdition.String():
+	formattedValue := strings.ToLower(strings.TrimSpace(value))
+	switch formattedValue {
+	case strings.ToLower(GeoIP2CityEdition.String()):
 		return GeoIP2CityEdition, nil
-	case GeoIP2ISPEdition.String():
+	case strings.ToLower(GeoIP2ISPEdition.String()):
 		return GeoIP2ISPEdition, nil
-	case GeoIP2DomainEdition.String():
+	case strings.ToLower(GeoIP2DomainEdition.String()):
 		return GeoIP2DomainEdition, nil
-	case GeoIP2CountryEdition.String():
+	case strings.ToLower(GeoIP2CountryEdition.String()):
 		return GeoIP2CountryEdition, nil
-	case GeoLite2CityEdition.String():
+	case strings.ToLower(GeoLite2CityEdition.String()):
 		return GeoLite2CityEdition, nil
-	case GeoLite2ASNEdition.String():
+	case strings.ToLower(GeoLite2ASNEdition.String()):
 		return GeoLite2ASNEdition, nil
-	case GeoLite2CountryEdition.String():
+	case strings.ToLower(GeoLite2CountryEdition.String()):
 		return GeoLite2CountryEdition, nil
 	default:
-		return Unknown, fmt.Errorf("unknown maxmind edition: '%s'", value)
+		return Unknown, fmt.Errorf("unknown maxmind edition: '%s' (formatted: '%s'", value, formattedValue)
 	}
 }

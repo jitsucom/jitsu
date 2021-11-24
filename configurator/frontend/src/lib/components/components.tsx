@@ -73,7 +73,7 @@ export function makeErrorHandler(errorDescription: string) {
 /**
  * Default handler for error: show message and log error to console
  */
-export function handleError(error: any, errorDescription?: string) {
+export function handleError(error: Error, errorDescription?: string) {
   if (errorDescription !== undefined) {
     if (error.message) {
       actionNotification.error(`${errorDescription}: ${error.message}`)

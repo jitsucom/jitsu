@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/templates"
+	"github.com/jitsucom/jitsu/server/utils"
 	"net/http"
 	"text/template"
 )
@@ -20,6 +21,8 @@ type EvaluateTemplateRequest struct {
 	Type   	   string                 `json:"type,omitempty"`
 	Uid   	   string                 `json:"uid,omitempty"`
 	Field      string                 `json:"field,omitempty"`
+	TemplateVariables      map[string]interface{}                 `json:"template_variables,omitempty"`
+
 
 }
 
@@ -45,7 +48,9 @@ func (etr *EvaluateTemplateRequest) Validate() error {
 
 //TemplateFunctions fills temlate functions with destination data from request
 func (etr *EvaluateTemplateRequest) TemplateFunctions() template.FuncMap {
-	return templates.EnrichedFuncMap(map[string]string{"destinationId": etr.Uid, "destinationType": etr.Type})
+	vars := map[string]interface{}{"destinationId": etr.Uid, "destinationType": etr.Type}
+	utils.MapPutAll(vars, etr.TemplateVariables)
+	return templates.EnrichedFuncMap(vars)
 }
 
 //EventTemplateHandler is a handler for testing text/template expression with income object
@@ -100,7 +105,7 @@ func evaluate(req *EvaluateTemplateRequest) (result string, format string, err e
 	if err != nil {
 		return "", tmpl.Format(), fmt.Errorf("error executing template: %v", err)
 	}
-	jsonBytes, err := templates.ToJSON(resultObject)
+	jsonBytes, err := templates.ToJSONorStringBytes(resultObject)
 	if err != nil {
 		return "", tmpl.Format(), err
 	}

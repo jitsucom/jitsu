@@ -1,6 +1,7 @@
 // @Libs
+import * as React from "react"
 import { ReactNode, useCallback, useEffect, useState } from "react"
-import { Button, Col, Form, FormItemProps, Input, Row, Select, Spin, Switch, Tooltip, InputNumber } from "antd"
+import { Button, Col, Form, FormItemProps, Input, InputNumber, Row, Select, Spin, Switch, Tooltip } from "antd"
 import debounce from "lodash/debounce"
 import get from "lodash/get"
 import cn from "classnames"
@@ -27,6 +28,8 @@ import styles from "./ConfigurableFieldsForm.module.less"
 import { CodeDebuggerModal } from "../CodeDebuggerModal/CodeDebuggerModal"
 import { InputWithDebug } from "./InputWithDebug"
 import { SwitchWithLabel } from "./SwitchWithLabel"
+import set from "lodash/set"
+import { InputWithUpload } from "./InputWithUpload"
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -35,6 +38,7 @@ import { SwitchWithLabel } from "./SwitchWithLabel"
 export interface Props {
   fieldsParamsList: readonly Parameter[]
   form: FormInstance
+  configForm?: FormInstance
   initialValues: any
   namePrefix?: string
   loading?: boolean | ReactNode
@@ -54,6 +58,7 @@ const services = ApplicationServices.get()
 const ConfigurableFieldsFormComponent = ({
   fieldsParamsList,
   form,
+  configForm,
   initialValues,
   loading,
   handleTouchAnyField,
@@ -70,6 +75,13 @@ const ConfigurableFieldsFormComponent = ({
 
   const handleChangeIntInput = useCallback(
     (id: string) => (value: number) => {
+      form.setFieldsValue({ [id]: value })
+    },
+    [form]
+  )
+
+  const handleChangeTextInput = useCallback(
+    (id: string) => (value: string) => {
       form.setFieldsValue({ [id]: value })
     },
     [form]
@@ -139,8 +151,6 @@ const ConfigurableFieldsFormComponent = ({
     form.setFieldsValue({ id: defaultValueToDisplay })
 
     switch (type?.typeName) {
-      case "description":
-        return <div className="pt-1.5">{defaultValue}</div>
       case "password":
         return (
           <Input.Password
@@ -222,6 +232,9 @@ const ConfigurableFieldsFormComponent = ({
           <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
         )
 
+      case "file":
+        return <InputWithUpload onChange={handleChangeTextInput(id)} value={defaultValueToDisplay} />
+
       case "string":
       default: {
         return <InputWithDebug id={id} jsDebugger={jsDebugger} onButtonClick={() => handleOpenDebugger(id)} />
@@ -237,6 +250,12 @@ const ConfigurableFieldsFormComponent = ({
       field: field,
       expression: values.code,
       object: JSON.parse(values.object),
+      template_variables: Object.entries((configForm || form).getFieldsValue())
+        .filter(v => v[0].startsWith("_formData._"))
+        .reduce((accumulator: any, currentValue: [string, unknown]) => {
+          set(accumulator, currentValue[0].replace("_formData._", ""), currentValue[1])
+          return accumulator
+        }, {}),
     }
 
     return services.backendApiClient.post(`/templates/evaluate?project_id=${services.activeProject.id}`, data, {
@@ -397,40 +416,49 @@ const ConfigurableFieldsFormComponent = ({
                     handleSaveCodeDebugger={value => handleSaveDebugger(id, value)}
                   />
                 ) : null}
-                <Form.Item
-                  className={cn(
-                    "form-field_fixed-label",
-                    styles.field,
-                    (type?.typeName === "json" || type?.typeName === "javascript") && styles.jsonField,
-                    (type?.typeName === "json" || type?.typeName === "javascript") && bigField && styles.bigField
-                  )}
-                  name={formItemName}
-                  label={
-                    !bigField ? (
-                      documentation ? (
-                        <LabelWithTooltip documentation={documentation} render={displayName} />
+                {type?.typeName !== "description" ? (
+                  <Form.Item
+                    className={cn(
+                      "form-field_fixed-label",
+                      styles.field,
+                      (type?.typeName === "json" || type?.typeName === "javascript") && styles.jsonField,
+                      (type?.typeName === "json" || type?.typeName === "javascript") && bigField && styles.bigField
+                    )}
+                    name={formItemName}
+                    label={
+                      !bigField ? (
+                        documentation ? (
+                          <LabelWithTooltip documentation={documentation} render={displayName} />
+                        ) : (
+                          <span>{displayName}:</span>
+                        )
                       ) : (
-                        <span>{displayName}:</span>
+                        <span></span>
                       )
-                    ) : (
-                      <span></span>
-                    )
-                  }
-                  labelCol={{ span: bigField ? 0 : 4 }}
-                  wrapperCol={{ span: bigField ? 24 : 20 }}
-                  rules={validationRules}
-                >
-                  {getFieldComponent(
-                    type,
-                    id,
-                    defaultValue,
-                    constantValue,
-                    jsDebugger,
-                    bigField,
-                    displayName,
-                    codeSuggestions
-                  )}
-                </Form.Item>
+                    }
+                    labelCol={{ span: bigField ? 0 : 4 }}
+                    wrapperCol={{ span: bigField ? 24 : 20 }}
+                    rules={validationRules}
+                  >
+                    {getFieldComponent(
+                      type,
+                      id,
+                      defaultValue,
+                      constantValue,
+                      jsDebugger,
+                      bigField,
+                      displayName,
+                      codeSuggestions
+                    )}
+                  </Form.Item>
+                ) : (
+                  <div className="ant-row ant-form-item form-field_fixed-label">
+                    <div className="ant-col ant-col-4 ant-form-item-label">
+                      <label>{displayName}:</label>
+                    </div>
+                    <div className="ant-col ant-col-20 ant-form-item-control pt-1.5">{defaultValue}</div>
+                  </div>
+                )}
               </Col>
             </Row>
           ) : (

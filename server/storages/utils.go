@@ -33,7 +33,7 @@ func dryRun(payload events.Event, processor *schema.Processor, tableHelper *Tabl
 	return res, nil
 }
 
-func isConnectionError(err error) bool {
+func IsConnectionError(err error) bool {
 	return strings.Contains(err.Error(), "connection refused") ||
 		strings.Contains(err.Error(), "EOF") ||
 		strings.Contains(err.Error(), "write: broken pipe") ||

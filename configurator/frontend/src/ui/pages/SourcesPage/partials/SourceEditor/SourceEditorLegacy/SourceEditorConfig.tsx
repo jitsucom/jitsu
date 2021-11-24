@@ -14,6 +14,8 @@ import { COLLECTIONS_SCHEDULES } from "constants/schedule"
 import editorStyles from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less"
 import { LoadableFieldsForm } from "ui/components/LoadableFieldsForm/LoadableFieldsForm"
 import { useServices } from "../../../../../../hooks/useServices"
+import { OauthButton } from "../../OauthButton/OauthButton"
+import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 
 export interface Props {
   form: FormInstance
@@ -68,8 +70,28 @@ const SourceEditorConfigComponent = ({
     return COLLECTIONS_SCHEDULES[0].value
   }, [initialValues])
 
+  const handleSetSecrets = useCallback((secrets: PlainObjectWithPrimitiveValues) => {
+    sourcePageUtils.applyOauthValuesToAntdForms({ "config-form": form }, secrets)
+  }, [])
+
   return (
     <Form name="source-config" form={form} autoComplete="off" onChange={handleChange}>
+      <Row key="oauth-button" className="h-8 mb-5">
+        <Col span={4} />
+        <Col span={20} className="pl-2">
+          <OauthButton
+            key="oauth-button"
+            service={sourceReference.id}
+            forceNotSupported={sourceReference.expertMode}
+            className="mr-2"
+            icon={<span className="align-middle h-5 w-7 pr-2 ">{sourceReference.pic}</span>}
+            setAuthSecrets={handleSetSecrets}
+          >
+            <span className="align-top">{`Log In to Fill OAuth Credentials`}</span>
+          </OauthButton>
+        </Col>
+      </Row>
+
       <Row>
         <Col span={24}>
           <Form.Item

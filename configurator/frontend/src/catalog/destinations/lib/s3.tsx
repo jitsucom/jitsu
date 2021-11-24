@@ -1,7 +1,7 @@
-import { filteringExpressionDocumentation, modeParameter, s3Credentials, tableName } from "./common"
-import { arrayOf, booleanType, selectionType, stringType } from "../../sources/types"
-import { ReactNode } from "react"
+import { filteringExpressionDocumentation, s3Credentials, tableName } from "./common"
+import { booleanType, selectionType, stringType } from "../../sources/types"
 import * as React from "react"
+import { ReactNode } from "react"
 
 let icon: ReactNode = (
   <svg
@@ -74,7 +74,7 @@ const destination = {
       displayName: "Format",
       required: true,
       defaultValue: "json",
-      type: selectionType(["json", "flat_json", "csv"], 1),
+      type: selectionType(["json", "flat_json", "csv", "parquet"], 1),
       documentation: (
         <>
           <b>json</b> - not flattened json objects with \n delimiter
@@ -82,6 +82,8 @@ const destination = {
           <b>flat_json</b> - flattened json objects with \n delimiter
           <br />
           <b>csv</b> - flattened csv objects with \n delimiter
+          <br />
+          <b>parquet</b> - flattened objects which are stored as apache parquet file
           <br />
         </>
       ),

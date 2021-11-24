@@ -14,7 +14,9 @@ import SignupPage from "./ui/pages/GetStartedPage/SignupPage"
 import LoginPage from "./ui/pages/GetStartedPage/LoginPage"
 import { StatusPage } from "./lib/components/StatusPage/StatusPage"
 import { apiKeysRoutes, ApiKeyEditor } from "./lib/components/ApiKeys/ApiKeyEditor"
+
 // @Components
+
 const ApiKeys = React.lazy(() => import("./lib/components/ApiKeys/ApiKeys"))
 const CustomDomains = React.lazy(() => import("./lib/components/CustomDomains/CustomDomains"))
 const DestinationsPage = React.lazy(() => import("ui/pages/DestinationsPage/DestinationsPage"))
@@ -27,6 +29,31 @@ const SourcesPage = React.lazy(() => import("ui/pages/SourcesPage/SourcesPage"))
 const ConnectionsPage = React.lazy(() => import("ui/pages/ConnectionsPage/ConnectionsPage"))
 const PasswordForm = React.lazy(() => import("./lib/components/PasswordForm/PasswordForm"))
 const DownloadConfig = React.lazy(() => import("./lib/components/DownloadConfig/DownloadConfig"))
+
+// const ApiKeys = null
+// const CustomDomains = null
+// const DestinationsPage = null
+// const DbtCloudPage = null
+// const GeoDataResolver = null
+
+// const EventsStream = null
+// const SetupForm = null
+// const SourcesPage = null
+// const ConnectionsPage = null
+// const PasswordForm = null
+// const DownloadConfig = null
+
+// import ApiKeys from "./lib/components/ApiKeys/ApiKeys"
+// import CustomDomains from "./lib/components/CustomDomains/CustomDomains"
+// import DestinationsPage from "ui/pages/DestinationsPage/DestinationsPage"
+// import DbtCloudPage from "ui/pages/DbtCloud/DbtCloudPage"
+
+// import EventsStream from "./lib/components/EventsStream/EventsStream"
+// import SetupForm from "ui/pages/SetupPage/SetupForm"
+// import SourcesPage from "ui/pages/SourcesPage/SourcesPage"
+// import ConnectionsPage from "ui/pages/ConnectionsPage/ConnectionsPage"
+// import PasswordForm from "./lib/components/PasswordForm/PasswordForm"
+// import DownloadConfig from "./lib/components/DownloadConfig/DownloadConfig"
 
 export type PageLocation = {
   canonicalPath: string
@@ -51,7 +78,7 @@ export type PageProps = {
   [propName: string]: any
 }
 
-type PageComponent = ExoticComponent | React.FC
+type PageComponent = ExoticComponent | React.FC | React.Component
 export class Page {
   readonly _component: PageComponent
 

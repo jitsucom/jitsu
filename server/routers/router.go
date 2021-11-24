@@ -65,6 +65,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 
 	bulkHandler := handlers.NewBulkHandler(destinations, processorHolder.GetBulkPreprocessor())
 
+	geoDataResolverHandler := handlers.NewGeoDataResolverHandler(geoService)
+
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
@@ -88,6 +90,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		//Dry run
 		apiV1.POST("/events/dry-run", middleware.TokenTwoFuncAuth(dryRunHandler.Handle, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
+		apiV1.GET("/geo_data_resolvers/editions", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.EditionsHandler))
+		apiV1.POST("/geo_data_resolvers/test", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.TestHandler))
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler))
 		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.EventTemplateHandler))
 
@@ -95,6 +99,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		{
 			sourcesRoute.POST("/test", adminTokenMiddleware.AdminAuth(sourcesHandler.TestSourcesHandler))
 			sourcesRoute.POST("/clear_cache", adminTokenMiddleware.AdminAuth(sourcesHandler.ClearCacheHandler))
+			sourcesRoute.GET("/oauth_fields/:sourceType", adminTokenMiddleware.AdminAuth(sourcesHandler.OauthFields))
 		}
 
 		//536-issue DEPRECATED
@@ -118,7 +123,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.GET("/airbyte/:dockerImageName/versions", adminTokenMiddleware.AdminAuth(airbyteHandler.VersionsHandler))
 		apiV1.POST("/airbyte/:dockerImageName/catalog", adminTokenMiddleware.AdminAuth(airbyteHandler.CatalogHandler))
 
-		apiV1.POST("/singer/:tap/catalog", adminTokenMiddleware.AdminAuth(handlers.NewSingerHandler().CatalogHandler))
+		apiV1.POST("/singer/:tap/catalog", adminTokenMiddleware.AdminAuth(handlers.NewSingerHandler(metaStorage).CatalogHandler))
 	}
 
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))

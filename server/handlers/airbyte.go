@@ -7,12 +7,17 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/airbyte"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/oauth"
 	"github.com/jitsucom/jitsu/server/runner"
+	"github.com/jitsucom/jitsu/server/utils"
+	"github.com/spf13/viper"
 	"io/ioutil"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -105,11 +110,63 @@ func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
 		return
 	}
-
+	row, ok := spec.(*airbyte.Row)
+	if !ok {
+		logging.Errorf("spec of unexpected type %T for: %s:%s", spec, dockerImage, imageVersion)
+	} else {
+		enrichOathFields(dockerImage, row.Spec)
+	}
 	c.JSON(http.StatusOK, SpecResponse{
 		StatusResponse: middleware.OKResponse(),
 		Spec:           spec,
 	})
+}
+
+func enrichOathFields(dockerImage string, spec interface{} ) {
+	oathFields, ok := oauth.Fields[dockerImage]
+	if ok {
+		props, err := utils.ExtractObject(spec, "connectionSpecification", "properties")
+		if err != nil {
+			logging.Errorf("failed to extract properties from spec for %s : %v", dockerImage, err)
+			return
+		}
+		propsMap, ok := props.(map[string]interface{})
+		if !ok {
+			logging.Errorf("cannot convert properties to map[string]interface{} from: %T", props)
+			return
+		}
+		specsRaw, _ := utils.ExtractObject(spec, "connectionSpecification")
+		specs := specsRaw.(map[string]interface{})
+		required, ok := specs["required"].([]interface{})
+		if !ok {
+			logging.Errorf("cannot get required properties of []interface{}. found: %T", specs["required"])
+			return
+		}
+		provided := make(map[string]bool)
+		for k,v := range oathFields {
+			pr, ok := propsMap[k]
+			if !ok {
+				continue
+			}
+			prMap, ok := pr.(map[string]interface{})
+			if !ok {
+				logging.Errorf("cannot convert property %s to map[string]interface{} from: %T", k, pr)
+				continue
+			}
+			prov := viper.GetString(v) != ""
+			prMap["env_name"] = strings.ReplaceAll(strings.ToUpper(v), ".", "_")
+			prMap["yaml_path"] = v
+			prMap["provided"] = prov
+			provided[k] = prov
+		}
+		newReq := make([]interface{}, 0, len(required) - len(provided))
+		for _,v := range required {
+			if !provided[v.(string)] {
+				newReq = append(newReq, v)
+			}
+		}
+		specs["required"] = newReq
+	}
 }
 
 //CatalogHandler returns airbyte catalog by docker name and config
@@ -126,6 +183,7 @@ func (ah *AirbyteHandler) CatalogHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
 		return
 	}
+	base.FillPreconfiguredOauth(dockerImage, airbyteSourceConnectorConfig)
 
 	imageVersion := c.Query("image_version")
 	if imageVersion == "" {
@@ -133,7 +191,7 @@ func (ah *AirbyteHandler) CatalogHandler(c *gin.Context) {
 	}
 
 	airbyteRunner := airbyte.NewRunner(dockerImage, imageVersion, "")
-	catalogRow, err := airbyteRunner.Discover(airbyteSourceConnectorConfig, time.Minute)
+	catalogRow, err := airbyteRunner.Discover(airbyteSourceConnectorConfig, time.Minute * 3)
 	if err != nil {
 		if err == runner.ErrNotReady {
 			c.JSON(http.StatusOK, middleware.PendingResponse())

@@ -13,12 +13,12 @@ import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES } from "./navigation"
 
 import { ApplicationPage, emailIsNotConfirmedMessageConfig, SlackChatWidget } from "./Layout"
 import { checkQuotas, getCurrentSubscription, CurrentSubscription, paymentPlans } from "lib/services/billing"
-import { OnboardingTour } from "lib/components/OnboardingTour/OnboardingTour"
 import { initializeAllStores } from "stores/_initializeAllStores"
 import { destinationsStore } from "./stores/destinations"
 import { sourcesStore } from "./stores/sources"
 import BillingBlockingModal from "./lib/components/BillingModal/BillingBlockingModal"
 import moment, { Moment } from "moment"
+import { OnboardingSwitch } from "lib/components/Onboarding/OnboardingSwitch"
 
 enum AppLifecycle {
   LOADING, //Application is loading
@@ -192,7 +192,7 @@ export default class App extends React.Component<{}, AppState> {
   }
 
   appLayout() {
-    const extraForms = [<OnboardingTour key="onboardingTour" />]
+    const extraForms = [<OnboardingSwitch key="onboardingTour" />]
     if (this.services.userService.getUser().forcePasswordChange) {
       return (
         <SetNewPassword

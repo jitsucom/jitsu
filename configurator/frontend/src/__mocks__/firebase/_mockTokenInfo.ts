@@ -14,13 +14,13 @@ export const mockTokenInfo = {
     picture: "https://lh3.googleusercontent.com/a/AATXAJxCklWrcDqBA3QcjveWM_15uj5-hhXmPrxZ9M0=s96-c",
     iss: "https://securetoken.google.com/tracker-285220",
     aud: "tracker-285220",
-    auth_time: Date.now(),
+    auth_time: `${Date.now()}`,
     user_id: "ZMsokTbfoQN85RG2UEh4dFG5Yvr2",
     sub: "ZMsokTbfoQN85RG2UEh4dFG5Yvr2",
-    iat: now,
-    exp: plusHour,
+    iat: `${now}`,
+    exp: `${plusHour}`,
     email: "taletski@jitsu.com",
-    email_verified: true,
+    email_verified: `${true}`,
     firebase: {
       identities: {
         "google.com": ["104795045673176107819"],

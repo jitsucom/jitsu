@@ -6,7 +6,7 @@ import { sourcesStore } from "stores/sources"
 // @Constants
 import { COLLECTIONS_SCHEDULES } from "constants/schedule"
 // @Types
-import { PatchConfig, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
+import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
 import { Rule as AntdFormItemValidationRule } from "rc-field-form/lib/interface"
 // @Services
 import { useServices } from "hooks/useServices"
@@ -24,15 +24,18 @@ type Props = {
   initialValues: Optional<Partial<SourceData>>
   patchConfig: PatchConfig
   setValidator: ReactSetState<(validator: ValidateGetErrorsCount) => void>
+  setFormReference: SetFormReference
 }
 
-const CONFIG_KEY = "staticParameters"
+const CONFIG_INTERNAL_STATE_KEY = "staticParameters"
+const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 
 const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
   editorMode,
   initialValues,
   patchConfig,
   setValidator,
+  setFormReference,
 }) => {
   const [form] = AntdForm.useForm<FormFields>()
   const services = useServices()
@@ -50,11 +53,11 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
   )
 
   const handleFormValuesChange: FormProps<PlainObjectWithPrimitiveValues>["onValuesChange"] = (_, values) => {
-    patchConfig(CONFIG_KEY, values)
+    patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
   }
 
   /**
-   * set initial state and validator on first render
+   * set initial state, validator and form reference on first render
    */
   useEffect(() => {
     const validateGetErrorsCount: ValidateGetErrorsCount = async () => {
@@ -67,16 +70,14 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
       return errorsCount
     }
 
-    // onChange(form.getFieldsValue());
-    patchConfig(CONFIG_KEY, form.getFieldsValue(), { doNotSetStateChanged: true })
+    patchConfig(CONFIG_INTERNAL_STATE_KEY, form.getFieldsValue(), { doNotSetStateChanged: true })
     setValidator(() => validateGetErrorsCount)
-
-    // handleFormValuesChange({}, form.getFieldsValue());
+    setFormReference(CONFIG_FORM_KEY, form)
   }, [])
 
   return (
     <AntdForm name="source-config" form={form} autoComplete="off" onValuesChange={handleFormValuesChange}>
-      <Row>
+      <Row key="sourceId">
         <Col span={24}>
           <AntdForm.Item
             initialValue={initialValues?.sourceId}
@@ -92,7 +93,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
         </Col>
       </Row>
 
-      <Row>
+      <Row key="schedule">
         <Col span={24}>
           <AntdForm.Item
             initialValue={initialValues?.schedule}

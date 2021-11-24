@@ -29,7 +29,7 @@ export interface CommonSourcePageProps {
   editorMode?: "edit" | "add"
 }
 
-const SourcesPageComponent = ({ setBreadcrumbs }: PageProps) => {
+const SourcesPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   const params = useParams<unknown>()
 
   if (sourcesStore.state === SourcesStoreState.GLOBAL_ERROR) {
