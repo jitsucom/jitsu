@@ -40,8 +40,8 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
   setConfigIsValidatedByStreams,
   handleBringSourceData,
 }) => {
-  const previouslyCheckedStreams = useMemo<SelectedStreams>(
-    () => initialSourceData?.config?.selectedStreams ?? [],
+  const previouslyCheckedStreams = useMemo<Array<StreamConfig>>(
+    () => initialSourceData?.config?.selected_streams ?? [],
     [initialSourceData]
   )
 
@@ -71,11 +71,11 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
     }
   })
 
-  const selectAllFieldsByDefault: boolean = !Object.entries(previouslyCheckedStreams).length
+  const selectAllFieldsByDefault = !Object.entries(previouslyCheckedStreams).length
 
-  const initiallySelectedFields = useMemo<SelectedStreams>(() => {
+  const initiallySelectedFields = useMemo<Array<StreamConfig>>(() => {
     return selectAllFieldsByDefault ?
-      data.map(sourceEditorUtils.streamDataToSelectedStreamsMapper)
+      (data ? data.map(sourceEditorUtils.streamDataToSelectedStreamsMapper): [])
       :
       previouslyCheckedStreams
   }, [selectAllFieldsByDefault, previouslyCheckedStreams, data])

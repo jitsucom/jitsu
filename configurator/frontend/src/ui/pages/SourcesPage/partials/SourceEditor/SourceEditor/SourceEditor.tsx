@@ -68,7 +68,7 @@ export type SourceStreamsData = {
   [pathToStreamsInSourceData: string]: StreamData[]
 }
 export type SourceSelectedStreams = {
-  [pathToSelectedStreamsInSourceData: string]: SelectedStreams
+  [pathToSelectedStreamsInSourceData: string]: StreamConfig[]
 }
 export type SourceConnectionsData = {
   [pathToConnectionsInSourceData: string]: string[]

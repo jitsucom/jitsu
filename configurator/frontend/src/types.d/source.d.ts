@@ -40,12 +40,6 @@ declare type SingerStreamData = {
   }[]
 }
 
-declare type SelectedStreams = Array<StreamConfig>
-
-declare type SelectedStreams1 = {
-  [key: string]: StreamConfig
-}
-
 declare type StreamConfig = {
   name?: string
   namespace?: string
@@ -94,8 +88,8 @@ declare interface AirbyteSourceData {
     catalog?: {
       streams: Array<AirbyteStreamData>
     }
-    selectedStreams?: SelectedStreams
-    //selected_streams?: Array<StreamConfig>
+    selected_streams?: Array<StreamConfig>
+
     [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
   }
 }
@@ -110,8 +104,7 @@ declare interface SingerSourceData {
     catalog?: {
       streams: Array<SingerStreamData>
     }
-    selectedStreams?: SelectedStreams
-    selected_streams?: Array<StreamConfig> //TODO
+    selected_streams?: Array<StreamConfig>
     [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
   }
 }
