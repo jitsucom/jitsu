@@ -105,7 +105,8 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 
 	rp := &RecognitionPayload{EventBytes: []byte(event.Serialize()), DestinationsIdentifiers: destinationIdentifiers}
 	if err := rs.queue.Enqueue(rp); err != nil {
-		logging.SystemErrorf("Error saving recognition payload into the queue: %v", err)
+		identifiersBytes, _ := json.Marshal(rp.DestinationsIdentifiers)
+		logging.SystemErrorf("Error saving recognition payload with identifiers [%s] from event [%s] into the queue: %v", string(identifiersBytes), string(rp.EventBytes), err)
 		return
 	}
 }

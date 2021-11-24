@@ -73,7 +73,7 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 	if singer.Instance == nil {
 		return nil, errors.New("singer-bridge must be configured")
 	}
-
+	base.FillPreconfiguredOauth(config.Tap, config.Config)
 	pathToConfigs := path.Join(singer.Instance.VenvDir, sourceConfig.SourceID, config.Tap)
 	if err := logging.EnsureDir(pathToConfigs); err != nil {
 		return nil, fmt.Errorf("Error creating singer venv config dir: %v", err)

@@ -35,6 +35,7 @@ func test(t *testing.T, data intervalTestData) {
 	var sourceConfig = base.SourceConfig{SourceID: "GoogleAds", Type: "google_ads"}
 	sourceConfig.Config = make(map[string]interface{})
 	sourceConfig.Config["customer_id"] = "1234567"
+	sourceConfig.Config["developer_token"] = "1234567"
 	mp := make(map[string]interface{})
 	sourceConfig.Config["auth"] = mp
 	mp["type"] = "Service Account"

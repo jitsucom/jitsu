@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/oauth"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/spf13/viper"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -66,6 +68,21 @@ func (gac *GoogleAuthConfig) Marshal() ([]byte, error) {
 		}
 	default:
 		return nil, errAccountKeyConfiguration
+	}
+}
+
+func (gac *GoogleAuthConfig) FillPreconfiguredOauth(sourceType string) {
+	if gac == nil || gac.Type != GoogleOAuthAuthorizationType {
+		return
+	}
+	oathFields, ok := oauth.Fields[sourceType]
+	if ok {
+		if clientId, ok := oathFields["client_id"]; gac.ClientID == "" && ok {
+			gac.ClientID = viper.GetString(clientId)
+		}
+		if clientSecret, ok := oathFields["client_secret"]; gac.ClientSecret == "" && ok {
+			gac.ClientSecret = viper.GetString(clientSecret)
+		}
 	}
 }
 
