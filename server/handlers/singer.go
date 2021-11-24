@@ -37,6 +37,7 @@ func (sh *SingerHandler) CatalogHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
 		return
 	}
+	driversbase.FillPreconfiguredOauth(tap, singerSourceConnectorConfig)
 
 	ready, err := waitReadiness(tap)
 	if err != nil {
