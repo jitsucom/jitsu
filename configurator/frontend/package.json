@@ -46,8 +46,11 @@
     "analyze": "source-map-explorer 'build/static/js/*.js' --no-border-checks",
     "test": "craco test",
     "test:debug": "craco --inspect-brk test --runInBand --no-cache",
+    "prettier:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore .",
+    "prettier:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore .",
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/",
-    "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/ --fix"
+    "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/ --fix",
+    "all:check": "yarn run prettier:check && yarn run eslint:check"
   },
   "browserslist": {
     "production": [
