@@ -19,8 +19,6 @@ export const sourceEditorUtils = {
   ): SourceData => {
     const { configuration, streams, connections } = sourceEditorState ?? {}
 
-    streams.selectedStreams
-
     let updatedSourceData: SourceData = merge(
       makeObjectFromFieldsValues(merge({}, ...Object.values(configuration.config))),
       makeObjectFromFieldsValues(streams.selectedStreams),
@@ -34,8 +32,8 @@ export const sourceEditorUtils = {
 
     updatedSourceData = { ...(initialSourceData ?? {}), ...catalogSourceData, ...updatedSourceData }
     //TODO check maybe remove it
-    if (!updatedSourceData?.config?.selectedStreams && initialSourceData?.config?.selectedStreams) {
-      updatedSourceData["config"]["selectedStreams"] = initialSourceData.config.selectedStreams
+    if (!updatedSourceData?.config?.selected_streams && initialSourceData?.config?.selected_streams) {
+      updatedSourceData["config"]["selected_streams"] = initialSourceData.config.selected_streams
     }
 
     return updatedSourceData
@@ -52,14 +50,14 @@ export const sourceEditorUtils = {
   },*/
 
   streamDataToSelectedStreamsMapper: (streamData: StreamData): StreamConfig => {
-    if (this.isAirbyteStream(streamData)) {
+    if (sourceEditorUtils.isAirbyteStream(streamData)) {
       streamData = (streamData as AirbyteStreamData)
       return {
         name: streamData.stream.name,
         namespace: streamData.stream.namespace,
         sync_mode: streamData.sync_mode,
       }
-    } else if (this.isSingerStream(streamData)) {
+    } else if (sourceEditorUtils.isSingerStream(streamData)) {
       streamData = (streamData as SingerStreamData)
       return {
         name: streamData.stream,
@@ -69,11 +67,11 @@ export const sourceEditorUtils = {
     }
   },
 
-  /** Reformat old catalog (full schema JSON) into SelectedStreams or backend representation StreamConfig[] -> SelectedStreams */
+  /** Reformat old catalog (full schema JSON) into SelectedStreams */
   reformatCatalogIntoSelectedStreams: (sourceData: SourceData): SourceData => {
-    if (!sourceData?.config?.selectedStreams?.length){
+    if (!sourceData?.config?.selected_streams?.length){
       if (sourceData?.config?.catalog){
-        sourceData.config.selectedStreams = sourceData.config.catalog.streams.map(this.streamDataToSelectedStreamsMapper)
+        sourceData.config.selected_streams = sourceData.config.catalog.streams.map(sourceEditorUtils.streamDataToSelectedStreamsMapper)
         return sourceData
         /*switch (sourceData.sourceType) {
         case "airbyte":
@@ -97,7 +95,7 @@ export const sourceEditorUtils = {
           return sourceData
         }*/
       }else if (sourceData?.catalog){
-        sourceData.config.selectedStreams = sourceData.catalog.streams.map(this.streamDataToSelectedStreamsMapper)
+        sourceData.config.selected_streams = sourceData.catalog.streams.map(sourceEditorUtils.streamDataToSelectedStreamsMapper)
         /*
         sourceData.config.selectedStreams = (sourceData as AirbyteSourceData).catalog.streams.map(streamData => {
           return {
@@ -114,22 +112,22 @@ export const sourceEditorUtils = {
   },
 
   createStreamConfig: (stream: StreamData): StreamConfig => {
-    return { sync_mode: this.getStreamSyncMode(stream) }
+    return { sync_mode: sourceEditorUtils.getStreamSyncMode(stream) }
   },
 
   getStreamUid: (stream: StreamData): string => {
-    if (this.isAirbyteStream(stream)) {
-      return this.getAirbyteStreamUniqueId(stream)
-    } else if (this.isSingerStream(stream)) {
-      return this.getSingerStreamUniqueId(stream)
+    if (sourceEditorUtils.isAirbyteStream(stream)) {
+      return sourceEditorUtils.getAirbyteStreamUniqueId(stream as AirbyteStreamData)
+    } else if (sourceEditorUtils.isSingerStream(stream)) {
+      return sourceEditorUtils.getSingerStreamUniqueId(stream as SingerStreamData)
     }
   },
 
   getStreamSyncMode: (data: StreamData): string => {
-    if (this.isAirbyteStream(data)) {
+    if (sourceEditorUtils.isAirbyteStream(data)) {
       const airbyteData = (data as AirbyteStreamData)
       return airbyteData.sync_mode
-    } else if (this.isSingerStream(data)) {
+    } else if (sourceEditorUtils.isSingerStream(data)) {
       return ""
     }
   },
@@ -150,12 +148,12 @@ export const sourceEditorUtils = {
     return `${data.stream}${STREAM_UID_DELIMITER}${data.tap_stream_id}`
   },
 
-  getSelectedStreamKey: (streamConfig: StreamConfig): string => {
+  getSelectedStreamUid: (streamConfig: StreamConfig): string => {
     return `${streamConfig.name}${STREAM_UID_DELIMITER}${streamConfig.namespace}`
   },
 
   streamsAreEqual: (streamA: StreamConfig, streamB: StreamConfig) => {
-    `${streamA.name}${STREAM_UID_DELIMITER}${streamA.namespace}` === `${streamB.name}${STREAM_UID_DELIMITER}${streamB.namespace}`
+    return streamA.name == streamB.name && streamA.namespace == streamB.namespace
   }
 }
 

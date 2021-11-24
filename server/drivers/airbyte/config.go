@@ -6,9 +6,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+//StreamConfiguration is a dto for serialization selected streams configuration
 type StreamConfiguration struct {
 	Name      string `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
 	Namespace string `mapstructure:"namespace" json:"namespace,omitempty" yaml:"namespace,omitempty"`
+	SyncMode  string `mapstructure:"sync_mode" json:"sync_mode,omitempty" yaml:"sync_mode,omitempty"`
 }
 
 //Config is a dto for airbyte configuration serialization

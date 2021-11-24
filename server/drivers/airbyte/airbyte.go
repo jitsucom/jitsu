@@ -28,7 +28,7 @@ type Airbyte struct {
 	activeCommands map[string]*base.SyncCommand
 
 	config                       *Config
-	selectedStreamsWithNamespace map[string]bool
+	selectedStreamsWithNamespace map[string]StreamConfiguration
 	pathToConfigs                string
 	streamsRepresentation        map[string]*base.StreamRepresentation
 	catalogDiscovered            *atomic.Bool
@@ -113,11 +113,11 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 		}
 	}
 
-	var selectedStreamsWithNamespace map[string]bool
+	var selectedStreamsWithNamespace map[string]StreamConfiguration
 	if len(config.SelectedStreams) > 0 {
-		selectedStreamsWithNamespace = map[string]bool{}
+		selectedStreamsWithNamespace = map[string]StreamConfiguration{}
 		for _, sc := range config.SelectedStreams {
-			selectedStreamsWithNamespace[streamIdentifier(sc.Namespace, sc.Name)] = true
+			selectedStreamsWithNamespace[streamIdentifier(sc.Namespace, sc.Name)] = sc
 		}
 	}
 
@@ -341,7 +341,10 @@ func (a *Airbyte) loadCatalog() (string, map[string]*base.StreamRepresentation, 
 	if len(a.selectedStreamsWithNamespace) > 0 {
 		var selectedStreams []*airbyte.Stream
 		for _, stream := range rawCatalog.Streams {
-			if _, selected := a.selectedStreamsWithNamespace[streamIdentifier(stream.Namespace, stream.Name)]; selected {
+			if streamConfig, selected := a.selectedStreamsWithNamespace[streamIdentifier(stream.Namespace, stream.Name)]; selected {
+				if streamConfig.SyncMode != "" {
+					stream.SyncMode = streamConfig.SyncMode
+				}
 				selectedStreams = append(selectedStreams, stream)
 			}
 		}
