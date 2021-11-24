@@ -1,7 +1,7 @@
 // @Libs
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { Link, generatePath, useHistory } from "react-router-dom"
-import { Badge, Input, Modal } from "antd"
+import { Badge, Input, Modal, Switch } from "antd"
 import cn from "classnames"
 import debounce from "lodash/debounce"
 // @Catalog sources
@@ -17,6 +17,7 @@ import { StarOutlined, StarFilled, ExclamationCircleOutlined } from "@ant-design
 // @Routes
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { useServices } from "hooks/useServices"
+import Checkbox from "antd/es/checkbox/Checkbox"
 
 /**
  * All sources which are available for adding. Some filtering & sorting is applied
@@ -55,6 +56,7 @@ const AddSourceDialogComponent = () => {
 
   const [filterParam, setFilterParam] = useState<string>()
   const services = useServices()
+  const [showDeprecatedSources, setShowDeprecatedSources] = useState(false)
 
   const handleClick = (src: SourceConnector) => (e: React.MouseEvent) => {
     if (src.expertMode) {
@@ -145,12 +147,19 @@ const AddSourceDialogComponent = () => {
   return (
     <div className={styles.dialog}>
       <div className={styles.filter}>
-        <Input placeholder="Filter by source name or id" onChange={handleChange} className={styles.filterInput} />
+        <div className="flex-grow">
+          <Input placeholder="Filter by source name or id" onChange={handleChange} className={styles.filterInput} />
+        </div>
+        <div className="pl-3 pt-2 flex items-center justify-end">
+          <Switch size="small" onChange={checked => setShowDeprecatedSources(checked)} />
+          <div className="px-3 font-sm text-secondaryText">Show deprecated sources</div>
+        </div>
       </div>
 
       <div className={styles.list}>
-        {filteredSourcesList.map((src: SourceConnector) =>
-          src.deprecated ? null : (
+        {filteredSourcesList
+          .filter(src => showDeprecatedSources || !src.deprecated)
+          .map((src: SourceConnector) => (
             <Link
               to={generatePath(sourcesPageRoutes.addExact, { source: src.id })}
               key={src.id}
@@ -160,6 +169,7 @@ const AddSourceDialogComponent = () => {
               <span className={styles.pic}>{src.pic}</span>
               <span className={styles.title}>{src.displayName}</span>
               {src.protoType === "airbyte" && <span className={styles.airbyteLabel}>{"powered by Airbyte"}</span>}
+              {src.protoType === "singer" && <span className={styles.airbyteLabel}>{"powered by Singer"}</span>}
 
               {src.expertMode ? (
                 <Badge.Ribbon text="Expert mode" className={styles.expertLabel} />
@@ -172,8 +182,7 @@ const AddSourceDialogComponent = () => {
                 <></>
               )}
             </Link>
-          )
-        )}
+          ))}
       </div>
     </div>
   )
