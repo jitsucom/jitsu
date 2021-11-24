@@ -25,5 +25,11 @@ jobs:
         with:
           node-version: '14'
       - run: yarn install
+        name: '[Configurator Front] installing packages (yarn install)'
+        working-directory: ./configurator/frontend
       - run: yarn build
+        name: '[Configurator Front] building'
+        working-directory: ./configurator/frontend
       - run: yarn check:all
+        name: '[Configurator Front] running prettier & eslint checks'
+        working-directory: ./configurator/frontend
