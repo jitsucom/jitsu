@@ -31,6 +31,10 @@ export const sourceEditorUtils = {
     }
 
     updatedSourceData = { ...(initialSourceData ?? {}), ...catalogSourceData, ...updatedSourceData }
+    //backward compatibility: when catalog exists this code will take into account enabled streams from catalog
+    if (!updatedSourceData?.config?.selected_streams && initialSourceData?.config?.selected_streams) {
+      updatedSourceData["config"]["selected_streams"] = initialSourceData.config.selected_streams
+    }
 
     return updatedSourceData
   },
