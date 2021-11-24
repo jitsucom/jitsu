@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/iancoleman/strcase"
-	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/httputils"
 	"github.com/jitsucom/jitsu/server/jsonutils"
@@ -83,6 +82,7 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
+	config.FillPreconfiguredOauth(base.GoogleAdsType)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -170,6 +170,7 @@ func TestGoogleAds(sourceConfig *base.SourceConfig) error {
 	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return err
 	}
+	config.FillPreconfiguredOauth(base.GoogleAdsType)
 	if err := config.Validate(); err != nil {
 		return err
 	}
@@ -213,16 +214,8 @@ func (g *GoogleAds) GetCollectionMetaKey() string {
 	return g.collection.Name + "_" + g.GetCollectionTable()
 }
 
-func getDeveloperToken(config *GoogleAdsConfig) string {
-	developerToken := config.DeveloperToken
-	if developerToken == "" {
-		developerToken = appconfig.Instance.GoogleAdsDeveloperToken
-	}
-	return developerToken
-}
-
 func query(config *GoogleAdsConfig, httpClient *http.Client, query string) ([]map[string]interface{}, error) {
-	developerToken := getDeveloperToken(config)
+	developerToken := config.DeveloperToken
 	if developerToken == "" {
 		return nil, fmt.Errorf("Google Ads developer token was not provided")
 	}

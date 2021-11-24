@@ -39,8 +39,6 @@ type AppConfig struct {
 
 	eventsConsumers []io.Closer
 	writeAheadLog   io.Closer
-
-	GoogleAdsDeveloperToken string
 }
 
 var (
@@ -318,8 +316,6 @@ func Init(containerized bool, dockerHubID string) error {
 	appConfig.UaResolver = useragent.NewResolver()
 	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
 	appConfig.GlobalUniqueIDField = identifiers.NewUniqueID(uniqueIDField)
-
-	appConfig.GoogleAdsDeveloperToken = viper.GetString("google-ads.developer-token")
 
 	Instance = &appConfig
 	return nil

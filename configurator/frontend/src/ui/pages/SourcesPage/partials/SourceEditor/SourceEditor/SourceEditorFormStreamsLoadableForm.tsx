@@ -57,7 +57,6 @@ const SourceEditorFormStreamsLoadableForm = ({
   }
 
   const handleToggleStream = useCallback((checked: boolean, streamUid: string): void => {
-    debugger
     const stream = allStreams.find(stream => sourceEditorUtils.getStreamUid(stream) === streamUid)
     checked ? handleAddStream(stream) : handleRemoveStream(stream)
   }, [])
@@ -386,19 +385,6 @@ export const removeStream = (
   stream: StreamData
 ) => {
   setSourceEditorState(state => {
-    //const newState = cloneDeep(state)
-    //     const oldStreams = newState.streams.streams[sourceDataPath]
-    //
-    //     let newStreams = oldStreams
-    //     if (isArray(oldStreams)) {
-    //       newStreams = removeFromArrayIfFound(oldStreams, stream, streamsAreEqual)
-    //     }
-    //
-    //     newState.streams.streams[sourceDataPath] = newStreams
-    //     newState.stateChanged = true
-    //
-    //     return newState
-
     const newState = cloneDeep(state)
     const oldStreams = newState.streams.selectedStreams[sourceDataPath]
     const streamConfig = sourceEditorUtils.streamDataToSelectedStreamsMapper(stream)

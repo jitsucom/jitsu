@@ -467,7 +467,7 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 		taskLogger.INFO("Running synchronization")
 	}
 	if config != "" {
-		taskLogger.INFO("Loaded persisted config from meta storage: %s", config)
+		taskLogger.INFO("Loaded persisted config from meta storage.",)
 	}
 
 

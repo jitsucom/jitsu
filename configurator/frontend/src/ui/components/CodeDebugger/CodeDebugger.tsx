@@ -134,7 +134,6 @@ const CodeDebugger = ({
     (name: "object" | "code") => (value: string | object, options?: { doNotSetCodeNotSaved?: boolean }) => {
       form.setFieldsValue({ [name]: value ? value : "" })
       if (name === "code") {
-        debugger
         handleCodeChange?.(value)
         // if (!options.doNotSetCodeNotSaved) {
         if (!isCodeSavedStateBlocked.current) {
@@ -194,7 +193,6 @@ const CodeDebugger = ({
 
   useEffect(() => {
     if (defaultCodeValue) {
-      debugger
       isCodeSavedStateBlocked.current = true
       form.setFieldsValue({ code: defaultCodeValue })
       setCodeValue(defaultCodeValue, () => {

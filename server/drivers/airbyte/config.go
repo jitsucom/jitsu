@@ -2,8 +2,6 @@ package airbyte
 
 import (
 	"errors"
-	"github.com/jitsucom/jitsu/server/oauth"
-	"github.com/spf13/viper"
 )
 
 //StreamConfiguration is a dto for serialization selected streams configuration
@@ -44,17 +42,4 @@ func (ac *Config) Validate() error {
 	}
 
 	return nil
-}
-
-func FillPreconfiguredOauth(sourceType string, config interface{}) {
-	oathFields, ok := oauth.Fields[sourceType]
-	if ok {
-		sourceConnectorConfig := config.(map[string]interface{})
-		for k, v := range oathFields {
-			cf, ok := sourceConnectorConfig[k]
-			if (!ok || cf == "") && viper.GetString(v) != "" {
-				sourceConnectorConfig[k] = viper.GetString(v)
-			}
-		}
-	}
 }
