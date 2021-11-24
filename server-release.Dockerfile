@@ -58,7 +58,7 @@ COPY --from=builder /app/eventnative /home/$EVENTNATIVE_USER/app/
 
 WORKDIR /home/$EVENTNATIVE_USER/app
 
-COPY docker/eventnative.yaml /home/$$EVENTNATIVE_USER/data/config/
+COPY docker/eventnative.yaml /home/$EVENTNATIVE_USER/data/config/
 
 RUN chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER/app
 

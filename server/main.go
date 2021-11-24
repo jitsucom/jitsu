@@ -441,8 +441,9 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 	redisShortcut := viper.GetString("coordination.type")
 	if redisShortcut == "redis" {
 		coordinationRedisConfiguration = metaStorageConfiguration.Sub("redis")
-		if coordinationRedisConfiguration == nil {
-			return nil, errors.New("'meta.storage.redis' is required when Redis coordination shortcut is used")
+		if coordinationRedisConfiguration == nil || coordinationRedisConfiguration.GetString("host") == "" {
+			//coordination.type is set but no Redis provided (e.g. in case of solo jitsucom/server without Redis)
+			return nil, nil
 		}
 	} else {
 		//plain redis configuration
