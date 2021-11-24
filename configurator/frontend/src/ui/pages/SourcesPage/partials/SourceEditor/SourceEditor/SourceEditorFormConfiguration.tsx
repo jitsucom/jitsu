@@ -144,6 +144,10 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
             className="mr-2"
             disabled={disabled}
             icon={<span className="align-middle h-5 w-7 pr-2 ">{sourceDataFromCatalog.pic}</span>}
+            isGoogle={
+              sourceDataFromCatalog.id.toLowerCase().includes("google") ||
+              sourceDataFromCatalog.id.toLowerCase().includes("firebase")
+            }
             setAuthSecrets={setOauthSecretsToForms}
           >
             <span className="align-top">{`Log In to Fill OAuth Credentials`}</span>

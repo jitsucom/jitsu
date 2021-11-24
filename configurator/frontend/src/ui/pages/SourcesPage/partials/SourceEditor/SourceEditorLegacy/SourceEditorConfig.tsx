@@ -109,6 +109,10 @@ const SourceEditorConfigComponent = ({
             forceNotSupported={sourceReference.expertMode}
             className="mr-2"
             icon={<span className="align-middle h-5 w-7 pr-2 ">{sourceReference.pic}</span>}
+            isGoogle={
+              sourceReference.id.toLowerCase().includes("google") ||
+              sourceReference.id.toLowerCase().includes("firebase")
+            }
             setAuthSecrets={handleSetSecrets}
           >
             <span className="align-top">{`Log In to Fill OAuth Credentials`}</span>
