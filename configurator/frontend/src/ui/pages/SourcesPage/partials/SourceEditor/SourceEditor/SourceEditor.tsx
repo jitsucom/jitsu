@@ -19,6 +19,7 @@ import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 import { firstToLower } from "lib/commons/utils"
 import { SourceEditorViewSteps } from "./SourceEditorViewSteps"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+import { pullAllAirbyteStreams, pullAllSingerStreams } from "./SourceEditorPullData"
 // @Utils
 
 export type SourceEditorState = {
@@ -49,7 +50,9 @@ type ConfigurationState = {
 }
 
 type StreamsState = {
+  //deprecated
   streams: SourceStreamsData
+  selectedStreams: SourceSelectedStreams
   errorsCount: number
 }
 
@@ -63,6 +66,9 @@ export type SourceConfigurationData = {
 }
 export type SourceStreamsData = {
   [pathToStreamsInSourceData: string]: StreamData[]
+}
+export type SourceSelectedStreams = {
+  [pathToSelectedStreamsInSourceData: string]: StreamConfig[]
 }
 export type SourceConnectionsData = {
   [pathToConnectionsInSourceData: string]: string[]
@@ -78,6 +84,7 @@ const initialState: SourceEditorState = {
   },
   streams: {
     streams: {},
+    selectedStreams: {},
     errorsCount: 0,
   },
   connections: {
@@ -105,7 +112,9 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   }, [sourceId, allSourcesList])
 
   const [initialSourceData, setInitialSourceData] = useState<Optional<Partial<SourceData>>>(
-    () => allSourcesList.find(src => src.sourceId === sourceId) ?? createInitialSourceData(sourceDataFromCatalog)
+    () =>
+      sourceEditorUtils.reformatCatalogIntoSelectedStreams(allSourcesList.find(src => src.sourceId === sourceId)) ??
+      createInitialSourceData(sourceDataFromCatalog)
   )
 
   const [state, setState] = useState<SourceEditorState>(initialState)

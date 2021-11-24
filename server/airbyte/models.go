@@ -73,6 +73,8 @@ type Stream struct {
 	DefaultCursorField      []string   `json:"default_cursor_field,omitempty"`
 
 	Namespace string `json:"namespace,omitempty"`
+
+	SyncMode string `json:"-" yaml:"-"` //without serialization
 }
 
 //Schema is a dto for Airbyte catalog Schema object serialization
