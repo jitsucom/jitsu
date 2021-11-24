@@ -10,16 +10,23 @@ import (
 	"time"
 )
 
+//StreamConfiguration is a dto for serialization selected streams configuration
+type StreamConfiguration struct {
+	Name      string `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
+	Namespace string `mapstructure:"namespace" json:"namespace,omitempty" yaml:"namespace,omitempty"`
+	SyncMode  string `mapstructure:"sync_mode" json:"sync_mode,omitempty" yaml:"sync_mode,omitempty"`
+}
+
 //SourceConfig is a dto for api connector source config serialization
 type SourceConfig struct {
 	SourceID string `json:"source_id" yaml:"-"`
 
-	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
-	PostHandleDestinations []string      `mapstructure:"post_handle_destinations" json:"post_handle_destinations,omitempty" yaml:"post_handle_destinations,omitempty"`
+	Type                   string   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
+	Destinations           []string `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
+	PostHandleDestinations []string `mapstructure:"post_handle_destinations" json:"post_handle_destinations,omitempty" yaml:"post_handle_destinations,omitempty"`
 
-	Collections  []interface{} `mapstructure:"collections" json:"collections,omitempty" yaml:"collections,omitempty"`
-	Schedule     string        `mapstructure:"schedule" json:"schedule,omitempty" yaml:"schedule,omitempty"`
+	Collections []interface{} `mapstructure:"collections" json:"collections,omitempty" yaml:"collections,omitempty"`
+	Schedule    string        `mapstructure:"schedule" json:"schedule,omitempty" yaml:"schedule,omitempty"`
 
 	Config map[string]interface{} `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
 }
@@ -37,7 +44,7 @@ type Collection struct {
 	Parameters   map[string]interface{} `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
 }
 
-func (c *Collection) Init() error  {
+func (c *Collection) Init() error {
 	if c.StartDateStr != "" {
 		startDate, err := time.Parse(timestamp.DashDayLayout, c.StartDateStr)
 		if err != nil {
@@ -79,6 +86,10 @@ func getDaysBackToLoad(t *time.Time) int {
 	now := time.Now().UTC()
 	currentDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	return int(currentDay.Sub(*t).Hours()/24) + 1
+}
+
+func StreamIdentifier(namespace, name string) string {
+	return namespace + name
 }
 
 func FillPreconfiguredOauth(sourceType string, config interface{}) {
