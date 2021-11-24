@@ -41,14 +41,14 @@ export const sourceEditorUtils = {
 
   streamDataToSelectedStreamsMapper: (streamData: StreamData): StreamConfig => {
     if (sourceEditorUtils.isAirbyteStream(streamData)) {
-      streamData = (streamData as AirbyteStreamData)
+      streamData = streamData as AirbyteStreamData
       return {
         name: streamData.stream.name,
         namespace: streamData.stream.namespace,
         sync_mode: streamData.sync_mode,
       }
     } else if (sourceEditorUtils.isSingerStream(streamData)) {
-      streamData = (streamData as SingerStreamData)
+      streamData = streamData as SingerStreamData
       return {
         name: streamData.stream,
         namespace: streamData.tap_stream_id,
@@ -59,12 +59,16 @@ export const sourceEditorUtils = {
 
   /** Reformat old catalog (full schema JSON) into SelectedStreams */
   reformatCatalogIntoSelectedStreams: (sourceData: SourceData): SourceData => {
-    if (!sourceData?.config?.selected_streams?.length){
-      if (sourceData?.config?.catalog){
-        sourceData.config.selected_streams = sourceData.config.catalog.streams.map(sourceEditorUtils.streamDataToSelectedStreamsMapper)
+    if (!sourceData?.config?.selected_streams?.length) {
+      if (sourceData?.config?.catalog) {
+        sourceData.config.selected_streams = sourceData.config.catalog.streams.map(
+          sourceEditorUtils.streamDataToSelectedStreamsMapper
+        )
         return sourceData
-      }else if (sourceData?.catalog){
-        sourceData.config.selected_streams = sourceData.catalog.streams.map(sourceEditorUtils.streamDataToSelectedStreamsMapper)
+      } else if (sourceData?.catalog) {
+        sourceData.config.selected_streams = sourceData.catalog.streams.map(
+          sourceEditorUtils.streamDataToSelectedStreamsMapper
+        )
         return sourceData
       }
     }
@@ -86,7 +90,7 @@ export const sourceEditorUtils = {
 
   getStreamSyncMode: (data: StreamData): string => {
     if (sourceEditorUtils.isAirbyteStream(data)) {
-      const airbyteData = (data as AirbyteStreamData)
+      const airbyteData = data as AirbyteStreamData
       return airbyteData.sync_mode
     } else if (sourceEditorUtils.isSingerStream(data)) {
       return ""
@@ -115,7 +119,7 @@ export const sourceEditorUtils = {
 
   streamsAreEqual: (streamA: StreamConfig, streamB: StreamConfig) => {
     return streamA.name == streamB.name && streamA.namespace == streamB.namespace
-  }
+  },
 }
 
 export const createInitialSourceData = (sourceCatalogData: SourceConnector) =>
