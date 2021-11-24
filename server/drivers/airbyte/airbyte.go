@@ -64,7 +64,7 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 	if config.ImageVersion == "" {
 		config.ImageVersion = airbyte.LatestVersion
 	}
-	FillPreconfiguredOauth(config.DockerImage, config.Config)
+	base.FillPreconfiguredOauth(config.DockerImage, config.Config)
 
 	pathToConfigs := path.Join(airbyte.Instance.ConfigDir, sourceConfig.SourceID, config.DockerImage)
 
@@ -156,7 +156,7 @@ func TestAirbyte(sourceConfig *base.SourceConfig) error {
 	if config.ImageVersion == "" {
 		config.ImageVersion = airbyte.LatestVersion
 	}
-	FillPreconfiguredOauth(config.DockerImage, config.Config)
+	base.FillPreconfiguredOauth(config.DockerImage, config.Config)
 	airbyteRunner := airbyte.NewRunner(config.DockerImage, config.ImageVersion, "")
 	return airbyteRunner.Check(config.Config)
 }

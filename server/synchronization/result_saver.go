@@ -146,7 +146,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 			err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey + ConfigSignatureSuffix, driversbase.ALL.String(), string(configBytes))
 		}
 		if err != nil {
-			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] config [%s]: %v", rs.task.Source, rs.tap, string(configBytes), err)
+			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] config: %v", rs.task.Source, rs.tap, err)
 			logging.SystemError(errMsg)
 			return errors.New(errMsg)
 		}

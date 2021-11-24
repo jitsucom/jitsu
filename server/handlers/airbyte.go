@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/airbyte"
-	airbyte2 "github.com/jitsucom/jitsu/server/drivers/airbyte"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/oauth"
@@ -183,7 +183,7 @@ func (ah *AirbyteHandler) CatalogHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
 		return
 	}
-	airbyte2.FillPreconfiguredOauth(dockerImage, airbyteSourceConnectorConfig)
+	base.FillPreconfiguredOauth(dockerImage, airbyteSourceConnectorConfig)
 
 	imageVersion := c.Query("image_version")
 	if imageVersion == "" {
