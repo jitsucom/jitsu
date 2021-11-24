@@ -31,10 +31,6 @@ export const sourceEditorUtils = {
     }
 
     updatedSourceData = { ...(initialSourceData ?? {}), ...catalogSourceData, ...updatedSourceData }
-    //TODO check maybe remove it
-    if (!updatedSourceData?.config?.selected_streams && initialSourceData?.config?.selected_streams) {
-      updatedSourceData["config"]["selected_streams"] = initialSourceData.config.selected_streams
-    }
 
     return updatedSourceData
   },
