@@ -30,6 +30,6 @@ jobs:
       - run: yarn build
         name: '[Configurator Front] building'
         working-directory: ./configurator/frontend
-      - run: yarn check:all
+      - run: yarn run check:all
         name: '[Configurator Front] running prettier & eslint checks'
         working-directory: ./configurator/frontend
