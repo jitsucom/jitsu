@@ -39,16 +39,6 @@ export const sourceEditorUtils = {
     return updatedSourceData
   },
 
-  /*streamConfigArrayReducer: (selectedStreams: SelectedStreams, streamConfig: StreamConfig): SelectedStreams => {
-    selectedStreams[this.getSelectedStreamKey(streamConfig)] = streamConfig;
-    return selectedStreams;
-  },*/
-
-  /*streamDataToSelectedStreamsReducer: (selectedStreams: SelectedStreams, streamData: StreamData): SelectedStreams => {
-    selectedStreams[this.getStreamUid(streamData)] = this.createStreamConfig(streamData);
-    return selectedStreams;
-  },*/
-
   streamDataToSelectedStreamsMapper: (streamData: StreamData): StreamConfig => {
     if (sourceEditorUtils.isAirbyteStream(streamData)) {
       streamData = (streamData as AirbyteStreamData)
@@ -73,37 +63,8 @@ export const sourceEditorUtils = {
       if (sourceData?.config?.catalog){
         sourceData.config.selected_streams = sourceData.config.catalog.streams.map(sourceEditorUtils.streamDataToSelectedStreamsMapper)
         return sourceData
-        /*switch (sourceData.sourceType) {
-        case "airbyte":
-
-          sourceData.config.selectedStreams = (sourceData as AirbyteSourceData).config.catalog.streams.map(streamData => {
-           return {
-             name: streamData.stream.name,
-             namespace: streamData.stream.namespace,
-             sync_mode: streamData.sync_mode,
-           }
-          });
-          return sourceData
-        case "singer":
-          sourceData.config.selectedStreams = (sourceData as SingerSourceData).config.catalog.streams.map(streamData => {
-            return {
-              name: streamData.stream,
-              namespace: streamData.tap_stream_id,
-              sync_mode: "",
-            }
-          })
-          return sourceData
-        }*/
       }else if (sourceData?.catalog){
         sourceData.config.selected_streams = sourceData.catalog.streams.map(sourceEditorUtils.streamDataToSelectedStreamsMapper)
-        /*
-        sourceData.config.selectedStreams = (sourceData as AirbyteSourceData).catalog.streams.map(streamData => {
-          return {
-            name: streamData.stream.name,
-            namespace: streamData.stream.namespace,
-            sync_mode: streamData.sync_mode,
-          }
-        });*/
         return sourceData
       }
     }
