@@ -64,12 +64,16 @@ const SourceEditorFormStreamsLoadableForm = ({
   const handleToggleAllStreams = async (checked: boolean) => {
     requestAnimationFrame(() => {
       setAllChecked(checked)
-      checked ? handleSetSelectedStreams(allStreams.map(sourceEditorUtils.streamDataToSelectedStreamsMapper)) : handleSetSelectedStreams([])
+      checked
+        ? handleSetSelectedStreams(allStreams.map(sourceEditorUtils.streamDataToSelectedStreamsMapper))
+        : handleSetSelectedStreams([])
     })
   }
 
   const handleSearch = (query: string) => {
-    setStreamsToDisplay(streams => streams.filter(streamData => sourceEditorUtils.getStreamUid(streamData).includes(query)))
+    setStreamsToDisplay(streams =>
+      streams.filter(streamData => sourceEditorUtils.getStreamUid(streamData).includes(query))
+    )
   }
 
   const handleSearchValueClear = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -213,7 +217,8 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
   ...rest
 }) => {
   const [checked, setChecked] = useState<boolean>(
-    _checked || initiallySelectedStreams.some(selected => sourceEditorUtils.getSelectedStreamUid(selected) === streamUid)
+    _checked ||
+      initiallySelectedStreams.some(selected => sourceEditorUtils.getSelectedStreamUid(selected) === streamUid)
   )
 
   const toggle = (checked: boolean, event: MouseEvent) => {

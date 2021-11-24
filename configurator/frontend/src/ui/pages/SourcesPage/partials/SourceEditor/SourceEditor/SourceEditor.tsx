@@ -112,7 +112,9 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   }, [sourceId, allSourcesList])
 
   const [initialSourceData, setInitialSourceData] = useState<Optional<Partial<SourceData>>>(
-    () => sourceEditorUtils.reformatCatalogIntoSelectedStreams(allSourcesList.find(src => src.sourceId === sourceId)) ?? createInitialSourceData(sourceDataFromCatalog)
+    () =>
+      sourceEditorUtils.reformatCatalogIntoSelectedStreams(allSourcesList.find(src => src.sourceId === sourceId)) ??
+      createInitialSourceData(sourceDataFromCatalog)
   )
 
   const [state, setState] = useState<SourceEditorState>(initialState)
