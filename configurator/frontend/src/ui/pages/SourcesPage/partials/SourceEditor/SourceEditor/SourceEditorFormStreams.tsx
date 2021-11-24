@@ -71,7 +71,7 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
     }
   })
 
-  const selectAllFieldsByDefault = !Object.entries(previouslyCheckedStreams).length
+  const selectAllFieldsByDefault: boolean = !Object.entries(previouslyCheckedStreams).length
 
   const initiallySelectedFields = useMemo<Array<StreamConfig>>(() => {
     return selectAllFieldsByDefault ?
