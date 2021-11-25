@@ -88,7 +88,6 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
           disabled={currentStepIsLoading}
           setSourceEditorState={setSourceEditorState}
           setControlsDisabled={setControlsDisabled}
-          setTabErrorsVisible={() => {}}
           setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
         />
       ),
