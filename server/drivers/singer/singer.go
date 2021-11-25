@@ -81,10 +81,9 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 	}
 
 	configPath := path.Join(pathToConfigs, base.ConfigFileName)
-	//check whether config already exist. Should always be there
+
 	_, err = os.Stat(configPath)
 	if err != nil {
-		logging.Errorf("couldn't find singer tap config: %s err: %v", configPath, err)
 		//parse singer config as file path
 		_, err := parsers.ParseJSONAsFile(configPath, config.Config)
 		if err != nil {

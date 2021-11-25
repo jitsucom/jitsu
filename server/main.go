@@ -359,7 +359,7 @@ func main() {
 
 	adminToken := viper.GetString("server.admin_token")
 	if strings.HasPrefix(adminToken, "demo") {
-		logging.Errorf("\n\t*** ⚠️  Please replace server.admin_token (SERVER_ADMIN_TOKEN env variable) with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
+		logging.Error("\t⚠️ Please replace server.admin_token (CLUSTER_ADMIN_TOKEN env variable) with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
 	}
 
 	fallbackService, err := fallback.NewService(logEventPath, destinationsService, usersRecognitionService)
@@ -441,8 +441,9 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 	redisShortcut := viper.GetString("coordination.type")
 	if redisShortcut == "redis" {
 		coordinationRedisConfiguration = metaStorageConfiguration.Sub("redis")
-		if coordinationRedisConfiguration == nil {
-			return nil, errors.New("'meta.storage.redis' is required when Redis coordination shortcut is used")
+		if coordinationRedisConfiguration == nil || coordinationRedisConfiguration.GetString("host") == "" {
+			//coordination.type is set but no Redis provided (e.g. in case of solo jitsucom/server without Redis)
+			return nil, nil
 		}
 	} else {
 		//plain redis configuration
