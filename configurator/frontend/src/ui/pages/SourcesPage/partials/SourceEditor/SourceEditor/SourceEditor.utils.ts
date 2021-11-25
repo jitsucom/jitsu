@@ -72,8 +72,10 @@ export const sourceEditorUtils = {
     }
 
     //remove massive catalog from config
-    delete sourceData["catalog"]
-    if (sourceData.config) {
+    if (sourceData?.["catalog"]) {
+      delete sourceData["catalog"]
+    }
+    if (sourceData?.config?.["catalog"]) {
       delete sourceData.config["catalog"]
     }
 
