@@ -13,6 +13,7 @@ import (
 )
 
 const notsetDefaultValue = "__NOTSET_DEFAULT_VALUE__"
+
 var templateVariablePattern = regexp.MustCompile(`\$\{env\.[\w_]+(?:\|[^\}]*)?\}`)
 
 //Read reads config from configSourceStr that might be (HTTP URL or path to YAML/JSON file or plain JSON string)
@@ -68,35 +69,7 @@ func Read(configSourceStr string, containerizedRun bool, configNotFoundErrMsg st
 	envPlaceholderValues := map[string]interface{}{}
 	for _, k := range viper.AllKeys() {
 		value := viper.GetString(k)
-		if templateVariablePattern.MatchString(value) {
-			res := templateVariablePattern.ReplaceAllStringFunc(value, func(value string) string {
-				envExpression := strings.TrimSuffix(strings.TrimPrefix(value, "${env."), "}")
-				defaultValue := notsetDefaultValue
-				envName := envExpression
-				//check if default value provided
-				if strings.Contains(envName, "|") {
-					envNameParts := strings.Split(envName, "|")
-					if len(envNameParts) != 2 {
-						logging.Fatalf("Malformed ${env.VAR|default_value} placeholder in config value: %s = %s", k, value)
-					}
-					envName = envNameParts[0]
-					defaultValue = envNameParts[1]
-				}
-				res := os.Getenv(envName)
-				if res == "" {
-					if defaultValue == notsetDefaultValue {
-						logging.Fatalf("Mandatory env variable was not found: %s", envName)
-					}
-					res = defaultValue
-				}
-				return res
-			})
-			valuePath := jsonutils.NewJSONPath(strings.ReplaceAll(k, ".", "/"))
-			err := valuePath.Set(envPlaceholderValues, res)
-			if err != nil {
-				logging.Fatalf("Unable to set value in %s config path", k)
-			}
-		}
+		enrichWithResolvedPlaceholders(k, value, envPlaceholderValues)
 	}
 
 	//merge back into viper
@@ -107,6 +80,49 @@ func Read(configSourceStr string, containerizedRun bool, configNotFoundErrMsg st
 	}
 
 	return nil
+}
+
+func enrichWithResolvedPlaceholders(key string, value string, result map[string]interface{}) {
+	if templateVariablePattern.MatchString(value) {
+		res := templateVariablePattern.ReplaceAllStringFunc(value, func(value string) string {
+			envExpression := strings.TrimSuffix(strings.TrimPrefix(value, "${"), "}")
+
+			var varsNotFound []string
+			//alternatives in case of ${env.VAR1|env.VAR2|default_value}
+			expressionValues := strings.Split(envExpression, "|")
+			for _, expressionValue := range expressionValues {
+				if strings.HasPrefix(expressionValue, "env.") {
+					//from env
+					envVarName := strings.TrimPrefix(expressionValue, "env.")
+					if envVarValue := os.Getenv(envVarName); envVarValue != "" {
+						return envVarValue
+					}
+
+					//not found
+					varsNotFound = append(varsNotFound, envVarName)
+				} else {
+					//constant
+					return expressionValue
+				}
+			}
+
+			//not found
+			if len(varsNotFound) == 1 {
+				logging.Fatalf("Mandatory env variable was not found: %s", varsNotFound[0])
+			} else {
+				logging.Fatalf("No one of env variables [%s] were not found. Please set any", strings.Join(varsNotFound, " or "))
+			}
+
+			return ""
+		})
+
+		//set value
+		valuePath := jsonutils.NewJSONPath(strings.ReplaceAll(key, ".", "/"))
+		err := valuePath.Set(result, res)
+		if err != nil {
+			logging.Fatalf("Unable to set value in %s config path", key)
+		}
+	}
 }
 
 //handleConfigErr returns err only if application can't start without config
