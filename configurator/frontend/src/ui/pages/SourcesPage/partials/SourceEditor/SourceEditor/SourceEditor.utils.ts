@@ -9,6 +9,8 @@ import { makeObjectFromFieldsValues } from "utils/forms/marshalling"
 import { sourcesStore } from "stores/sources"
 import { COLLECTIONS_SCHEDULES } from "constants/schedule"
 
+const STREAM_UID_DELIMITER = "__"
+
 export const sourceEditorUtils = {
   getSourceDataFromState: (
     sourceEditorState: SourceEditorState,
@@ -19,7 +21,7 @@ export const sourceEditorUtils = {
 
     let updatedSourceData: SourceData = merge(
       makeObjectFromFieldsValues(merge({}, ...Object.values(configuration.config))),
-      makeObjectFromFieldsValues(streams.streams),
+      makeObjectFromFieldsValues(streams.selectedStreams),
       makeObjectFromFieldsValues(connections.connections)
     )
 
@@ -29,11 +31,98 @@ export const sourceEditorUtils = {
     }
 
     updatedSourceData = { ...(initialSourceData ?? {}), ...catalogSourceData, ...updatedSourceData }
-    if (!updatedSourceData?.config?.catalog && initialSourceData?.config?.catalog) {
-      updatedSourceData["config"]["catalog"] = initialSourceData.config.catalog
+    //backward compatibility: when catalog exists this code will take into account enabled streams from catalog
+    if (!updatedSourceData?.config?.selected_streams && initialSourceData?.config?.selected_streams) {
+      updatedSourceData["config"]["selected_streams"] = initialSourceData.config.selected_streams
     }
 
     return updatedSourceData
+  },
+
+  streamDataToSelectedStreamsMapper: (streamData: StreamData): StreamConfig => {
+    if (sourceEditorUtils.isAirbyteStream(streamData)) {
+      streamData = streamData as AirbyteStreamData
+      return {
+        name: streamData.stream.name,
+        namespace: streamData.stream.namespace,
+        sync_mode: streamData.sync_mode,
+      }
+    } else if (sourceEditorUtils.isSingerStream(streamData)) {
+      streamData = streamData as SingerStreamData
+      return {
+        name: streamData.stream,
+        namespace: streamData.tap_stream_id,
+        sync_mode: "",
+      }
+    }
+  },
+
+  /** Reformat old catalog (full schema JSON) into SelectedStreams and always remove old format*/
+  reformatCatalogIntoSelectedStreams: (sourceData: SourceData): SourceData => {
+    if (!sourceData?.config?.selected_streams?.length) {
+      if (sourceData?.config?.catalog) {
+        sourceData.config.selected_streams = sourceData.config.catalog.streams.map(
+          sourceEditorUtils.streamDataToSelectedStreamsMapper
+        )
+      } else if (sourceData?.catalog) {
+        sourceData.config.selected_streams = sourceData.catalog.streams.map(
+          sourceEditorUtils.streamDataToSelectedStreamsMapper
+        )
+      }
+    }
+
+    //remove massive catalog from config
+    delete sourceData["catalog"]
+    if (sourceData.config) {
+      delete sourceData.config["catalog"]
+    }
+
+    return sourceData
+  },
+
+  createStreamConfig: (stream: StreamData): StreamConfig => {
+    return { sync_mode: sourceEditorUtils.getStreamSyncMode(stream) }
+  },
+
+  getStreamUid: (stream: StreamData): string => {
+    if (sourceEditorUtils.isAirbyteStream(stream)) {
+      return sourceEditorUtils.getAirbyteStreamUniqueId(stream as AirbyteStreamData)
+    } else if (sourceEditorUtils.isSingerStream(stream)) {
+      return sourceEditorUtils.getSingerStreamUniqueId(stream as SingerStreamData)
+    }
+  },
+
+  getStreamSyncMode: (data: StreamData): string => {
+    if (sourceEditorUtils.isAirbyteStream(data)) {
+      const airbyteData = data as AirbyteStreamData
+      return airbyteData.sync_mode
+    } else if (sourceEditorUtils.isSingerStream(data)) {
+      return ""
+    }
+  },
+
+  isAirbyteStream: (stream: StreamData): stream is AirbyteStreamData => {
+    return "stream" in stream && typeof stream.stream === "object"
+  },
+
+  isSingerStream: (stream: StreamData): stream is SingerStreamData => {
+    return "tap_stream_id" in stream
+  },
+
+  getAirbyteStreamUniqueId: (data: AirbyteStreamData): string => {
+    return `${data.stream?.name}${STREAM_UID_DELIMITER}${data.stream.namespace}`
+  },
+
+  getSingerStreamUniqueId: (data: SingerStreamData): string => {
+    return `${data.stream}${STREAM_UID_DELIMITER}${data.tap_stream_id}`
+  },
+
+  getSelectedStreamUid: (streamConfig: StreamConfig): string => {
+    return `${streamConfig.name}${STREAM_UID_DELIMITER}${streamConfig.namespace}`
+  },
+
+  streamsAreEqual: (streamA: StreamConfig, streamB: StreamConfig) => {
+    return streamA.name == streamB.name && streamA.namespace == streamB.namespace
   },
 }
 

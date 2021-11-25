@@ -23,7 +23,7 @@ type Props = {
   disabled?: boolean
   setSourceEditorState: SetSourceEditorState
   setControlsDisabled: ReactSetState<boolean>
-  setTabErrorsVisible: (value: boolean) => void
+  setTabErrorsVisible?: (value: boolean) => void
   setConfigIsValidatedByStreams: (value: boolean) => void
 }
 
@@ -100,7 +100,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
 
       if (!options?.doNotSetStateChanged) newState.stateChanged = true
 
-      setTabErrorsVisible(false)
+      setTabErrorsVisible?.(false)
       setConfigIsValidatedByStreams(false)
 
       return newState

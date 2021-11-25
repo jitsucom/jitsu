@@ -42,17 +42,23 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     isLoading: isLoadingParameters,
     data: fieldsParameters,
     error: loadingParametersError,
-  } = usePolling<Parameter[]>((end, fail) => async () => {
-    setControlsDisabled(true)
-    try {
-      const result = await pullAirbyteSpec(sourceDataFromCatalog.id)
-      end(result)
-    } catch (error) {
-      fail(error)
-    } finally {
-      setControlsDisabled(false)
-    }
-  })
+  } = usePolling<Parameter[]>(
+    (end, fail) => async () => {
+      try {
+        const response = await pullAirbyteSpec(sourceDataFromCatalog.id)
+        if (response?.message) throw new Error(response?.message)
+        if (response?.status && response?.status !== "pending") {
+          const result = transformAirbyteSpecResponse(response)
+          end(result)
+        }
+      } catch (error) {
+        fail(error)
+      } finally {
+        setControlsDisabled(false)
+      }
+    },
+    { interval_ms: 2000 }
+  )
 
   const handleFormValuesChange = (values: PlainObjectWithPrimitiveValues): void => {
     patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
@@ -65,6 +71,10 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   const handleSetInitialFormValues = (values: PlainObjectWithPrimitiveValues): void => {
     patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { doNotSetStateChanged: true })
   }
+
+  useEffect(() => {
+    setControlsDisabled(isLoadingParameters)
+  }, [isLoadingParameters])
 
   /**
    * set validator and form reference to parent component after the first render
@@ -127,20 +137,19 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   )
 }
 
-const pullAirbyteSpec = async (sourceId: string): Promise<Parameter[]> => {
+const pullAirbyteSpec = async (sourceId: string): Promise<any> => {
   const services = ApplicationServices.get()
-  const response = await services.backendApiClient.get(
+  return await services.backendApiClient.get(
     `/airbyte/${sourceId.replace("airbyte-", "")}/spec?project_id=${services.activeProject.id}`,
     { proxy: true }
   )
+}
 
-  if (response?.message) throw new Error(response?.message)
-  if (response?.status && response?.status !== "pending") {
-    return mapAirbyteSpecToSourceConnectorConfig(
-      response?.["spec"]?.["spec"]?.["connectionSpecification"]
-    ).map<Parameter>(parameter => ({
-      ...parameter,
-      displayName: toTitleCase(parameter.displayName, { separator: "_" }),
-    }))
-  }
+const transformAirbyteSpecResponse = (response: any) => {
+  return mapAirbyteSpecToSourceConnectorConfig(
+    response?.["spec"]?.["spec"]?.["connectionSpecification"]
+  ).map<Parameter>(parameter => ({
+    ...parameter,
+    displayName: toTitleCase(parameter.displayName, { separator: "_" }),
+  }))
 }
