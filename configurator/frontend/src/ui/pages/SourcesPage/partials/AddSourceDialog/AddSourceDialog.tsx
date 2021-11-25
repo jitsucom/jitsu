@@ -148,7 +148,12 @@ const AddSourceDialogComponent = () => {
     <div className={styles.dialog}>
       <div className={styles.filter}>
         <div className="flex-grow">
-          <Input placeholder="Filter by source name or id" onChange={handleChange} className={styles.filterInput} />
+          <Input
+            autoFocus
+            placeholder="Filter by source name or id"
+            onChange={handleChange}
+            className={styles.filterInput}
+          />
         </div>
         <div className="pl-3 pt-2 flex items-center justify-end">
           <Switch size="small" onChange={checked => setShowDeprecatedSources(checked)} />
