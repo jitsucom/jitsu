@@ -41,9 +41,10 @@ type Singer struct {
 	mutex              *sync.RWMutex
 	activeSyncCommands map[string]*base.SyncCommand
 
-	pathToConfigs     string
-	streamReplication map[string]string
-	catalogDiscovered *atomic.Bool
+	pathToConfigs                string
+	selectedStreamsWithNamespace map[string]base.StreamConfiguration
+	streamReplication            map[string]string
+	catalogDiscovered            *atomic.Bool
 
 	discoverCatalogLastError error
 
@@ -130,8 +131,10 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 	if err != nil {
 		logging.Errorf("[%s] Error extracting replication method for each stream: %v", sourceConfig.SourceID, err)
 	} else {
-		b, _ := json.MarshalIndent(streamReplicationMappings, "", "    ")
-		logging.Infof("[%s] configured Singer stream - replication method mappings: %s", sourceConfig.SourceID, string(b))
+		if len(streamReplicationMappings) > 0 {
+			b, _ := json.MarshalIndent(streamReplicationMappings, "", "    ")
+			logging.Infof("[%s] configured Singer stream - replication method mappings: %s", sourceConfig.SourceID, string(b))
+		}
 	}
 
 	//parse singer state as file path
@@ -148,13 +151,22 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, config.Tap, configPath, catalogPath, propertiesPath, statePath,
 		config.StreamTableNamesPrefix, pathToConfigs, config.StreamTableNames)
 
+	var selectedStreamsWithNamespace map[string]base.StreamConfiguration
+	if len(config.SelectedStreams) > 0 {
+		selectedStreamsWithNamespace = map[string]base.StreamConfiguration{}
+		for _, sc := range config.SelectedStreams {
+			selectedStreamsWithNamespace[base.StreamIdentifier(sc.Namespace, sc.Name)] = sc
+		}
+	}
+
 	s := &Singer{
 		mutex:              &sync.RWMutex{},
 		activeSyncCommands: map[string]*base.SyncCommand{},
 
-		pathToConfigs:     pathToConfigs,
-		streamReplication: streamReplicationMappings,
-		catalogDiscovered: catalogDiscovered,
+		pathToConfigs:                pathToConfigs,
+		selectedStreamsWithNamespace: selectedStreamsWithNamespace,
+		streamReplication:            streamReplicationMappings,
+		catalogDiscovered:            catalogDiscovered,
 
 		closed: make(chan struct{}),
 	}
@@ -208,7 +220,7 @@ func (s *Singer) EnsureTapAndCatalog() {
 			continue
 		}
 
-		catalogPath, propertiesPath, streamNames, err := doDiscover(s.GetTap(), s.pathToConfigs, s.GetConfigPath())
+		catalogPath, propertiesPath, streamNames, err := s.doDiscover(s.GetTap(), s.pathToConfigs, s.GetConfigPath())
 		if err != nil {
 			s.mutex.Lock()
 			s.discoverCatalogLastError = err
@@ -480,7 +492,7 @@ func (s *Singer) IsClosed() bool {
 
 //doDiscover discovers tap catalog and returns catalog and properties paths
 //applies blacklist streams to taps and make other streams {"selected": true}
-func doDiscover(tap, pathToConfigs, configFilePath string) (string, string, []string, error) {
+func (s *Singer) doDiscover(tap, pathToConfigs, configFilePath string) (string, string, []string, error) {
 	catalog, err := singer.Instance.Discover(tap, configFilePath)
 	if err != nil {
 		return "", "", nil, err
@@ -491,16 +503,20 @@ func doDiscover(tap, pathToConfigs, configFilePath string) (string, string, []st
 		blackListStreams = map[string]bool{}
 	}
 
-	//filter blackList streams
+	//filter not blackList and selected streams
 	var filteredStreams []map[string]interface{}
 	var streamNames []string
 	for _, stream := range catalog.Streams {
-		streamName, ok := stream["stream"]
-		if ok {
+		if streamName, ok := stream["stream"]; ok {
 			streamNameStr := fmt.Sprint(streamName)
 			streamNames = append(streamNames, streamNameStr)
+
 			if _, ok := blackListStreams[streamNameStr]; !ok {
-				filteredStreams = append(filteredStreams, stream)
+				tapStreamID, _ := stream["tap_stream_id"]
+				if _, ok := s.selectedStreamsWithNamespace[base.StreamIdentifier(fmt.Sprint(tapStreamID), streamNameStr)]; ok {
+					filteredStreams = append(filteredStreams, stream)
+				}
+
 			}
 		} else {
 			logging.Warnf("Stream [%v] doesn't have 'stream' name", stream)

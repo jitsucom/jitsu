@@ -19,6 +19,8 @@ import { sourcesStore } from "./stores/sources"
 import BillingBlockingModal from "./lib/components/BillingModal/BillingBlockingModal"
 import moment, { Moment } from "moment"
 import { OnboardingSwitch } from "lib/components/Onboarding/OnboardingSwitch"
+import { URLSearchParams } from "url"
+import { UpgradePlan } from "./ui/components/CurrentPlan/CurrentPlan"
 
 enum AppLifecycle {
   LOADING, //Application is loading
@@ -211,6 +213,8 @@ export default class App extends React.Component<{}, AppState> {
             subscription={this.state.paymentPlanStatus}
           />
         )
+      } else if (this.state.paymentPlanStatus && window.location.search.indexOf("upgradeDialog=true") >= 0) {
+        extraForms.push(<UpgradePlanDialog subscription={this.state.paymentPlanStatus} />)
       }
     }
     return (
@@ -223,6 +227,22 @@ export default class App extends React.Component<{}, AppState> {
       />
     )
   }
+}
+
+function UpgradePlanDialog({ subscription }) {
+  const [visible, setVisible] = useState(true)
+  return (
+    <Modal
+      destroyOnClose={true}
+      visible={visible}
+      width={800}
+      onCancel={() => setVisible(false)}
+      title={<h1 className="text-xl m-0 p-0">Upgrade subscription</h1>}
+      footer={null}
+    >
+      <UpgradePlan planStatus={subscription} />
+    </Modal>
+  )
 }
 
 function SetNewPassword({ onCompleted }: { onCompleted: () => Promise<void> }) {
