@@ -2,7 +2,7 @@ server:
   name: jitsu
   disable_welcome_page: true
   strict_auth_tokens: true
-  admin_token: '${env.CLUSTER_ADMIN_TOKEN||env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+  admin_token: '${env.CLUSTER_ADMIN_TOKEN|env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
   telemetry: '${env.TELEMETRY_URL|}'
 
 geo:
