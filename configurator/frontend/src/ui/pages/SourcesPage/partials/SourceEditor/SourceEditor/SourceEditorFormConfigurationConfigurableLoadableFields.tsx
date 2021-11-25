@@ -41,7 +41,6 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     error: loadingParametersError,
   } = usePolling<Parameter[]>(
     (end, fail) => async () => {
-      setControlsDisabled(true)
       try {
         const response = await pullAirbyteSpec(sourceDataFromCatalog.id)
         if (response?.message) throw new Error(response?.message)
@@ -69,6 +68,10 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   const handleSetInitialFormValues = (values: PlainObjectWithPrimitiveValues): void => {
     patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { doNotSetStateChanged: true })
   }
+
+  useEffect(() => {
+    setControlsDisabled(isLoadingParameters)
+  }, [isLoadingParameters])
 
   /**
    * set validator on first render

@@ -58,7 +58,6 @@ const SourceEditorFormStreamsLoadableForm = ({
   }
 
   const handleToggleStream = useCallback((checked: boolean, streamUid: string): void => {
-    debugger
     const stream = allStreams.find(stream => getStreamUid(stream) === streamUid)
     checked ? handleAddStream(stream) : handleRemoveStream(stream)
   }, [])
