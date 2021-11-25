@@ -3,7 +3,7 @@ server:
     - '{{APP_TLD}}'
     - 'localhost'
   name: jitsu
-  auth: '${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+  auth: '${env.CLUSTER_ADMIN_TOKEN|env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
 
 storage:
   redis:
@@ -12,7 +12,7 @@ storage:
 
 jitsu:
   base_url: '${env.JITSU_SERVER_URL|}'
-  admin_token: '${env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+  admin_token: '${env.CLUSTER_ADMIN_TOKEN|env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
 
 auth:
   redis:

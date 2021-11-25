@@ -2,21 +2,21 @@ server:
   name: jitsu
   disable_welcome_page: true
   strict_auth_tokens: true
-  admin_token: '${env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
-  telemetry: '${env.JITSU_CONFIGURATOR_URL}/api/v1/telemetry?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+  admin_token: '${env.CLUSTER_ADMIN_TOKEN|env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+  telemetry: '${env.TELEMETRY_URL|}'
 
 geo:
   maxmind_path: '${env.MAX_MIND_PATH|}'
 
-geo_resolvers: '${env.JITSU_CONFIGURATOR_URL}/api/v1/geo_data_resolvers?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+geo_resolvers: '${env.GEO_RESOLVERS_URL|}'
 
-api_keys: '${env.JITSU_CONFIGURATOR_URL}/api/v1/apikeys?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+api_keys: '${env.API_KEYS_URL|}'
 
-destinations: '${env.JITSU_CONFIGURATOR_URL}/api/v1/destinations?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+destinations: '${env.DESTINATIONS_URL|}'
 
-sources: '${env.JITSU_CONFIGURATOR_URL}/api/v1/sources?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+sources: '${env.SOURCES_URL|}'
 
-system: '${env.JITSU_CONFIGURATOR_URL}/api/v1/system/configuration'
+system: '${env.SYSTEM_URL|}'
 
 notifications:
   slack:
@@ -28,7 +28,7 @@ users_recognition:
 meta:
   storage:
     redis:
-      host: '${env.REDIS_URL}'
+      host: '${env.REDIS_URL|}'
       tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
 
 coordination:
