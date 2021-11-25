@@ -17,7 +17,7 @@ import (
 const (
 	recognitionPayloadPerFile = 2000
 	queueName                 = "queue.users_recognition"
-	lockFile                  = "lock.lock"
+    lockFile = "lock.lock"
 )
 
 //RecognitionService has a thread pool under the hood

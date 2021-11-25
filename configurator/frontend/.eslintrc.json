@@ -4,8 +4,6 @@
     "es6": true
   },
   "extends": [
-    "react-app",
-    "react-app/jest"
   ],
   "globals": {
     "Atomics": "readonly",
@@ -24,18 +22,9 @@
     "@typescript-eslint"
   ],
   "rules": {
-    "comma-dangle": ["error", "never"],
-    "indent": ["error", 2],
-    "lines-between-class-members": ["error", "always"],
-    "jsx-quotes": ["error", "prefer-double"],
-    //"multiline-ternary": ["error", ""],
-//    "no-extra-parens": ["error", "all", { "ignoreJSX": "multi-line" }],
-    "no-multiple-empty-lines": ["error", { "max":  1 }],
-    "no-trailing-spaces": ["error"],
-    "object-curly-spacing": ["error", "always"],
-    "quote-props": ["error", "as-needed"],
-    "quotes": ["error", "single", { "allowTemplateLiterals": true, "avoidEscape": true }],
-    "semi-spacing": ["error", {"before": false, "after": true}],
-    "space-before-function-paren": ["error", "never"]
+    "no-debugger": "error"
+    //this rule fails on prompt usage as well. We have a few legitimate cases
+    //where we use promt, so we can't really use it
+    //"no-alert": "error"
   }
 }
