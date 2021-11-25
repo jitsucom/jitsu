@@ -60,7 +60,12 @@ export default class ApplicationServices implements IApplicationServices {
       this._userService = new BackendUserService(this._backendApiClient, this._storageService, configuration.smtp)
     } else if (configuration.authorization == "firebase") {
       firebaseInit(this._applicationConfiguration.firebaseConfig)
-      this._userService = new FirebaseUserService(this._backendApiClient, this._storageService)
+      this._userService = new FirebaseUserService(
+        this._backendApiClient,
+        this._storageService,
+        this._analyticsService,
+        this._features
+      )
     } else {
       throw new Error(`Unknown backend configuration authorization type: ${configuration.authorization}`)
     }

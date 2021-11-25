@@ -122,7 +122,7 @@ export function assertIsArrayOfTypes<T>(
   errMsg: string,
   errorName?: string
 ): asserts value is Array<T> {
-  assertIsArray(value)
+  assertIsArray(value, `Array assertion failed. ${errMsg}`)
   if (value.length === 0) return
   const actualTypes = Array.from(new Set(value.map(element => typeof element))) // filtering duplicates
   const whitelistedTypes = new Set(toArrayIfNot(typeReferenceValues).map(element => typeof element))
