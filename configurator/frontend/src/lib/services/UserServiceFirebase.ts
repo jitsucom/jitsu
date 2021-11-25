@@ -47,7 +47,7 @@ export class FirebaseUserService implements UserService {
         .signInWithPopup(new firebase.auth.GithubAuthProvider())
         .then(a => {
           resolve(a.user.email)
-          return a.additionalUserInfo.isNewUser && this.trackSignup(a.user.email, "github")
+          return a.additionalUserInfo?.isNewUser && this.trackSignup(a.user.email, "github")
         })
         .catch(error => {
           reject(error)
@@ -62,7 +62,7 @@ export class FirebaseUserService implements UserService {
         .signInWithPopup(new firebase.auth.GoogleAuthProvider())
         .then(a => {
           resolve(a.user.email)
-          return a.additionalUserInfo.isNewUser && this.trackSignup(a.user.email, "google")
+          return a.additionalUserInfo?.isNewUser && this.trackSignup(a.user.email, "google")
         })
         .catch(error => {
           reject(error)
