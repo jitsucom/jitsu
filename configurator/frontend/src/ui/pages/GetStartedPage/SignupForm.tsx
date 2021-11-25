@@ -1,4 +1,3 @@
-import * as React from "react"
 import { useState } from "react"
 import { useServices } from "../../../hooks/useServices"
 import { Button, Checkbox, Form, message } from "antd"
@@ -18,13 +17,6 @@ export function SignupForm({ supportOauth }) {
   const [loading, setLoading] = useState(false)
   const services = useServices()
 
-  const trackSignup = async (email, signupType?) => {
-    return services.analyticsService.track("saas_signup", {
-      app: services.features.appName,
-      user: { email: email, signup_type: signupType },
-    })
-  }
-
   const googleSignup = async () => {
     try {
       if (!tosAgree) {
@@ -32,8 +24,7 @@ export function SignupForm({ supportOauth }) {
         setTosHighlight(true)
         return
       }
-      const email = await services.userService.initiateGoogleLogin()
-      await trackSignup(email, "google")
+      await services.userService.initiateGoogleLogin()
       message.destroy()
       reloadPage()
     } catch (error) {
@@ -50,8 +41,7 @@ export function SignupForm({ supportOauth }) {
         setTosHighlight(true)
         return
       }
-      const email = await services.userService.initiateGithubLogin()
-      await trackSignup(email, "github")
+      await services.userService.initiateGithubLogin()
       message.destroy()
       reloadPage()
     } catch (error) {
@@ -70,7 +60,6 @@ export function SignupForm({ supportOauth }) {
     setLoading(true)
     try {
       await services.userService.createUser(values["email"], values["password"])
-      await trackSignup(values["email"])
       reloadPage()
     } catch (error) {
       handleError(error)
