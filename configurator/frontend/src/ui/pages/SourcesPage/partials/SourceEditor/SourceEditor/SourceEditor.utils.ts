@@ -57,20 +57,24 @@ export const sourceEditorUtils = {
     }
   },
 
-  /** Reformat old catalog (full schema JSON) into SelectedStreams */
+  /** Reformat old catalog (full schema JSON) into SelectedStreams and always remove old format*/
   reformatCatalogIntoSelectedStreams: (sourceData: SourceData): SourceData => {
     if (!sourceData?.config?.selected_streams?.length) {
       if (sourceData?.config?.catalog) {
         sourceData.config.selected_streams = sourceData.config.catalog.streams.map(
           sourceEditorUtils.streamDataToSelectedStreamsMapper
         )
-        return sourceData
       } else if (sourceData?.catalog) {
         sourceData.config.selected_streams = sourceData.catalog.streams.map(
           sourceEditorUtils.streamDataToSelectedStreamsMapper
         )
-        return sourceData
       }
+    }
+
+    //remove massive catalog from config
+    delete sourceData["catalog"]
+    if (sourceData.config) {
+      delete sourceData.config["catalog"]
     }
 
     return sourceData
