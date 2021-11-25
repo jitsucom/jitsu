@@ -21,8 +21,8 @@ const icon = (
 const mixpanelDestination = {
   description: (
     <>
-      Jitsu can send events from JS SDK or Events API to Google Analytics API to any HTTP(s) endpoint. Data format is
-      fully configurable with an easy template language
+      Jitsu can send events from JS SDK or Events API to Mixpanel Ingestion API filling as much Mixpanel Events
+      Properties as possible from original event data.
     </>
   ),
   syncFromSourcesStatus: "not_supported",
