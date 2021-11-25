@@ -62,7 +62,9 @@ export default class ApplicationServices implements IApplicationServices {
       this._userService = new FirebaseUserService(
         this._applicationConfiguration.firebaseConfig,
         this._backendApiClient,
-        this._storageService
+        this._storageService,
+        this._analyticsService,
+        this._features
       )
     } else {
       throw new Error(`Unknown backend configuration authorization type: ${configuration.authorization}`)
