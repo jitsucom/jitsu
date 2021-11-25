@@ -27,6 +27,8 @@ import { randomId } from "utils/numbers"
 import { LoginFeatures, TelemetrySettings, UserLoginStatus, UserService } from "./UserService"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
+import AnalyticsService from "./analytics"
+import { FeatureSettings } from "./ApplicationServices"
 
 export class FirebaseUserService implements UserService {
   private firebaseApp: FirebaseApp
@@ -35,11 +37,28 @@ export class FirebaseUserService implements UserService {
   private firebaseUser: FirebaseUser
   private backendApi: BackendApiClient
   private readonly storageService: ServerStorage
+  private readonly analyticsService: AnalyticsService
+  private readonly appFeatures: FeatureSettings
 
-  constructor(config: any, backendApi: BackendApiClient, storageService: ServerStorage) {
+  constructor(
+    config: any,
+    backendApi: BackendApiClient,
+    storageService: ServerStorage,
+    analyticsService: AnalyticsService,
+    appFeatures: FeatureSettings
+  ) {
     this.firebaseApp = initializeApp(config)
     this.backendApi = backendApi
     this.storageService = storageService
+    this.analyticsService = analyticsService
+    this.appFeatures = appFeatures
+  }
+
+  private async trackSignup(email: string, signupType: "google" | "github" | "email") {
+    return this.analyticsService.track("saas_signup", {
+      app: this.appFeatures.appName,
+      user: { email: email, signup_type: signupType },
+    })
   }
 
   initiateGithubLogin(): Promise<string> {
@@ -47,6 +66,7 @@ export class FirebaseUserService implements UserService {
       signInWithPopup(getAuth(), new GithubAuthProvider())
         .then(a => {
           resolve(a.user.email)
+          return a["additionalUserInfo"].isNewUser && this.trackSignup(a.user.email, "github")
         })
         .catch(error => {
           reject(error)
@@ -59,6 +79,7 @@ export class FirebaseUserService implements UserService {
       signInWithPopup(getAuth(), new GoogleAuthProvider())
         .then(a => {
           resolve(a.user.email)
+          return a["additionalUserInfo"].isNewUser && this.trackSignup(a.user.email, "google")
         })
         .catch(error => {
           reject(error)
@@ -219,6 +240,8 @@ export class FirebaseUserService implements UserService {
     this.user = user
 
     await this.update(user)
+
+    await this.trackSignup(email, "email")
   }
 
   setupUser(_): Promise<void> {
