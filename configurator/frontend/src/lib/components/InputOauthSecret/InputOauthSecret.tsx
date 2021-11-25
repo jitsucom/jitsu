@@ -12,7 +12,7 @@ export const InputOauthSecret: React.FC<Props> = ({ status, ...props }) => {
       case "loading":
         return "Loading..."
       case "secrets_set":
-        return "Jitsu will use the value stored on backend"
+        return "Jitsu will use a secret stored on back-end"
       case "secrets_not_set":
       default:
         return "Internal Error. Please, use the support button or file an issue."

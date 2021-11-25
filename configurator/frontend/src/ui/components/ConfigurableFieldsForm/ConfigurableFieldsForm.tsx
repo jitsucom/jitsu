@@ -289,7 +289,11 @@ const ConfigurableFieldsFormComponent = ({
       case "oauthSecret":
         return (
           <NonFormItemWrapperTuned>
-            <InputOauthSecret status={oauthStatus ?? "secrets_not_set"} inputWrapper={FormItemWoStylesTuned} />
+            <InputOauthSecret
+              status={oauthStatus ?? "secrets_not_set"}
+              defaultChecked={!defaultValueToDisplay}
+              inputWrapper={FormItemWoStylesTuned}
+            />
           </NonFormItemWrapperTuned>
         )
 
