@@ -30,6 +30,7 @@ import { InputWithDebug } from "./InputWithDebug"
 import { SwitchWithLabel } from "./SwitchWithLabel"
 import set from "lodash/set"
 import { InputWithUpload } from "./InputWithUpload"
+import { InputOauthSecret } from "lib/components/InputOauthSecret/InputOauthSecret"
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -40,8 +41,8 @@ export interface Props {
   form: FormInstance
   configForm?: FormInstance
   initialValues: any
-  namePrefix?: string
   loading?: boolean | ReactNode
+  oauthStatus?: "loading" | "secrets_set" | "secrets_not_set"
   handleTouchAnyField?: (...args: any) => void
   setFormValues?: (values: PlainObjectWithPrimitiveValues) => void
   setInitialFormValues?: (values: PlainObjectWithPrimitiveValues) => void
@@ -61,6 +62,7 @@ const ConfigurableFieldsFormComponent = ({
   configForm,
   initialValues,
   loading,
+  oauthStatus,
   handleTouchAnyField,
   setFormValues,
   setInitialFormValues,
@@ -144,40 +146,81 @@ const ConfigurableFieldsFormComponent = ({
     jsDebugger?: "object" | "string" | null,
     bigField?: boolean,
     displayName?: string,
-    codeSuggestions?: string
+    codeSuggestions?: string,
+    documentation?: React.ReactNode,
+    validationRules?: FormItemProps["rules"]
   ) => {
     const defaultValueToDisplay =
       form.getFieldValue(id) ?? getInitialValue(id, defaultValue, constantValue, type?.typeName)
     form.setFieldsValue({ id: defaultValueToDisplay })
 
+    const FormItemWoStylesTuned: React.FC = ({ children }) => {
+      return <FormItemWrapperWoStyles id={id}>{children}</FormItemWrapperWoStyles>
+    }
+
+    const FormItemWrapperTuned: React.FC = ({ children }) => {
+      return (
+        <FormItemWrapper
+          type={type}
+          id={id}
+          displayName={displayName}
+          documentation={documentation}
+          validationRules={validationRules}
+        >
+          {children}
+        </FormItemWrapper>
+      )
+    }
+
+    const NonFormItemWrapperTuned: React.FC = ({ children }) => {
+      return (
+        <NonFormItemWrapper
+          id={id}
+          displayName={displayName}
+          documentation={documentation}
+          validationRules={validationRules}
+        >
+          {children}
+        </NonFormItemWrapper>
+      )
+    }
+
     switch (type?.typeName) {
       case "password":
         return (
-          <Input.Password
-            autoComplete="off"
-            iconRender={visible => (visible ? <EyeOutlined /> : <EyeInvisibleOutlined />)}
-          />
+          <FormItemWrapperTuned>
+            <Input.Password
+              autoComplete="off"
+              iconRender={visible => (visible ? <EyeOutlined /> : <EyeInvisibleOutlined />)}
+            />
+          </FormItemWrapperTuned>
         )
 
       case "int": {
-        return <InputNumber autoComplete="off" inputMode="numeric" onChange={handleChangeIntInput(id)} />
+        return (
+          <FormItemWrapperTuned>
+            <InputNumber autoComplete="off" inputMode="numeric" onChange={handleChangeIntInput(id)} />
+          </FormItemWrapperTuned>
+        )
       }
       // ToDo: check if it can be <select> in some cases
       case "selection": {
         return (
-          <Select
-            allowClear
-            mode={type.data.maxOptions > 1 ? "multiple" : undefined}
-            onChange={() => forceUpdateTheTarget("select")}
-          >
-            {type.data.options.map(({ id, displayName }: Option) => {
-              return (
-                <Select.Option value={id} key={id}>
-                  {displayName}
-                </Select.Option>
-              )
-            })}
-          </Select>
+          <FormItemWrapperTuned>
+            <Select
+              allowClear
+              mode={type.data.maxOptions > 1 ? "multiple" : undefined}
+              onChange={() => forceUpdateTheTarget("select")}
+            >
+              {type.data.options.map(({ id, displayName }: Option) => {
+                return (
+                  <Select.Option value={id} key={id}>
+                    {displayName}
+                  </Select.Option>
+                )
+              })}
+            </Select>
+          </FormItemWrapperTuned>
         )
       }
       case "array/string":
@@ -185,7 +228,7 @@ const ConfigurableFieldsFormComponent = ({
       case "javascript":
       case "json": {
         return (
-          <>
+          <FormItemWrapperTuned>
             <CodeEditor
               initialValue={defaultValueToDisplay}
               className={styles.codeEditor}
@@ -216,28 +259,61 @@ const ConfigurableFieldsFormComponent = ({
                 </>
               )}
             </span>
-          </>
+          </FormItemWrapperTuned>
         )
       }
 
       case "boolean":
-        return bigField ? (
-          <SwitchWithLabel
-            label={displayName}
-            id={id}
-            onChange={handleChangeSwitch(id)}
-            defaultChecked={!!defaultValueToDisplay}
-          />
-        ) : (
-          <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
+        return (
+          <FormItemWrapperTuned>
+            {bigField ? (
+              <SwitchWithLabel
+                label={displayName}
+                id={id}
+                onChange={handleChangeSwitch(id)}
+                defaultChecked={!!defaultValueToDisplay}
+              />
+            ) : (
+              <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
+            )}
+          </FormItemWrapperTuned>
         )
 
       case "file":
-        return <InputWithUpload onChange={handleChangeTextInput(id)} value={defaultValueToDisplay} />
+        return (
+          <FormItemWrapperTuned>
+            <InputWithUpload onChange={handleChangeTextInput(id)} value={defaultValueToDisplay} />
+          </FormItemWrapperTuned>
+        )
+
+      case "oauthSecret":
+        return (
+          <NonFormItemWrapperTuned>
+            <InputOauthSecret
+              status={oauthStatus ?? "secrets_not_set"}
+              defaultChecked={!defaultValueToDisplay}
+              inputWrapper={FormItemWoStylesTuned}
+            />
+          </NonFormItemWrapperTuned>
+        )
+
+      case "description":
+        return (
+          <div className="ant-row ant-form-item form-field_fixed-label">
+            <div className="ant-col ant-col-4 ant-form-item-label">
+              <label>{displayName}:</label>
+            </div>
+            <div className="ant-col ant-col-20 ant-form-item-control pt-1.5">{defaultValue}</div>
+          </div>
+        )
 
       case "string":
       default: {
-        return <InputWithDebug id={id} jsDebugger={jsDebugger} onButtonClick={() => handleOpenDebugger(id)} />
+        return (
+          <FormItemWrapperTuned>
+            <InputWithDebug id={id} jsDebugger={jsDebugger} onButtonClick={() => handleOpenDebugger(id)} />
+          </FormItemWrapperTuned>
+        )
       }
     }
   }
@@ -416,48 +492,16 @@ const ConfigurableFieldsFormComponent = ({
                     handleSaveCodeDebugger={value => handleSaveDebugger(id, value)}
                   />
                 ) : null}
-                {type?.typeName !== "description" ? (
-                  <Form.Item
-                    className={cn(
-                      "form-field_fixed-label",
-                      styles.field,
-                      (type?.typeName === "json" || type?.typeName === "javascript") && styles.jsonField,
-                      (type?.typeName === "json" || type?.typeName === "javascript") && bigField && styles.bigField
-                    )}
-                    name={formItemName}
-                    label={
-                      !bigField ? (
-                        documentation ? (
-                          <LabelWithTooltip documentation={documentation} render={displayName} />
-                        ) : (
-                          <span>{displayName}:</span>
-                        )
-                      ) : (
-                        <span></span>
-                      )
-                    }
-                    labelCol={{ span: bigField ? 0 : 4 }}
-                    wrapperCol={{ span: bigField ? 24 : 20 }}
-                    rules={validationRules}
-                  >
-                    {getFieldComponent(
-                      type,
-                      id,
-                      defaultValue,
-                      constantValue,
-                      jsDebugger,
-                      bigField,
-                      displayName,
-                      codeSuggestions
-                    )}
-                  </Form.Item>
-                ) : (
-                  <div className="ant-row ant-form-item form-field_fixed-label">
-                    <div className="ant-col ant-col-4 ant-form-item-label">
-                      <label>{displayName}:</label>
-                    </div>
-                    <div className="ant-col ant-col-20 ant-form-item-control pt-1.5">{defaultValue}</div>
-                  </div>
+                {getFieldComponent(
+                  type,
+                  id,
+                  defaultValue,
+                  constantValue,
+                  jsDebugger,
+                  bigField,
+                  displayName,
+                  codeSuggestions,
+                  documentation
                 )}
               </Col>
             </Row>
@@ -473,3 +517,100 @@ const ConfigurableFieldsFormComponent = ({
 const ConfigurableFieldsForm = ConfigurableFieldsFormComponent
 
 export { ConfigurableFieldsForm }
+
+type FormItemWrapperWoStylesProps = {
+  id: string
+} & FormItemProps
+
+const FormItemWrapperWoStyles: React.FC<FormItemWrapperWoStylesProps> = ({ id, children, ...props }) => {
+  return (
+    <Form.Item key={id} name={id} {...props}>
+      {children}
+    </Form.Item>
+  )
+}
+
+type FormItemWrapperProps = {
+  type: ParameterType<any>
+  id: string
+  bigField?: boolean
+  displayName?: string
+  documentation?: React.ReactNode
+  validationRules?: FormItemProps["rules"]
+}
+
+const FormItemWrapper: React.FC<FormItemWrapperProps> = ({
+  type,
+  id,
+  bigField,
+  displayName,
+  documentation,
+  validationRules,
+  children,
+}) => {
+  return (
+    <FormItemWrapperWoStyles
+      id={id}
+      className={cn(
+        "form-field_fixed-label",
+        styles.field,
+        (type?.typeName === "json" || type?.typeName === "javascript") && styles.jsonField,
+        (type?.typeName === "json" || type?.typeName === "javascript") && bigField && styles.bigField
+      )}
+      label={
+        !bigField ? (
+          documentation ? (
+            <LabelWithTooltip documentation={documentation} render={displayName} />
+          ) : (
+            <span>{displayName}:</span>
+          )
+        ) : (
+          <span></span>
+        )
+      }
+      labelCol={{ span: bigField ? 0 : 4 }}
+      wrapperCol={{ span: bigField ? 24 : 20 }}
+      rules={validationRules}
+    >
+      {children}
+    </FormItemWrapperWoStyles>
+  )
+}
+
+type NonFormItemWrapperProps = {
+  id: string
+  bigField?: boolean
+  displayName?: string
+  documentation?: React.ReactNode
+  validationRules?: FormItemProps["rules"]
+}
+
+const NonFormItemWrapper: React.FC<NonFormItemWrapperProps> = ({
+  id,
+  bigField,
+  displayName,
+  documentation,
+  validationRules,
+  children,
+}) => {
+  return (
+    <Row key={id} className={cn("form-field_fixed-label", "ant-form-item", styles.field)}>
+      <Col key="label-col" span={bigField ? 0 : 4} className={`ant-form-item-label`}>
+        <label>
+          {!bigField ? (
+            documentation ? (
+              <LabelWithTooltip documentation={documentation} render={displayName} />
+            ) : (
+              <span>{displayName}:</span>
+            )
+          ) : (
+            <span></span>
+          )}
+        </label>
+      </Col>
+      <Col key="field-col" span={bigField ? 24 : 20} className={`ant-form-item-control`}>
+        {children}
+      </Col>
+    </Row>
+  )
+}

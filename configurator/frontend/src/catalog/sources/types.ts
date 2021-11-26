@@ -13,6 +13,7 @@ type PrimitiveParameterTypeName =
   | "isoUtcDate"
   | "selection"
   | "file"
+  | "oauthSecret"
 
 type ArrayParameterTypeName = `array/${PrimitiveParameterTypeName}`
 
@@ -144,6 +145,10 @@ export const booleanType: ParameterType<boolean, "boolean"> = {
 
 export const fileType: ParameterType<string, "file"> = {
   typeName: "file" as const,
+}
+
+export const oauthSecretType: ParameterType<string, "oauthSecret"> = {
+  typeName: "oauthSecret" as const,
 }
 
 export const arrayOf = <T>(param: ParameterType<T>): ParameterType<T[]> => {
