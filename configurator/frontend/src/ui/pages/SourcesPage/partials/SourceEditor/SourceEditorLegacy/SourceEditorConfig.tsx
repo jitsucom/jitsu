@@ -48,7 +48,7 @@ const SourceEditorConfigComponent = ({
     error: oauthFieldsError,
   } = useLoaderAsObject(async () => {
     const secretsStatus = await services.backendApiClient.get(
-      `sources/oauth_fields/${initialValues.sourceType}?project_id=${services.activeProject.id}`,
+      `sources/oauth_fields/${sourceReference.id}?project_id=${services.activeProject.id}`,
       {
         proxy: true,
       }
@@ -57,7 +57,7 @@ const SourceEditorConfigComponent = ({
     if (Object.values(secretsStatus).length === 0) return false
     const atLeastOneSecretUnavailable = Object.values(secretsStatus).some(secret => !secret["provided"])
     return !atLeastOneSecretUnavailable
-  }, [initialValues])
+  }, [])
 
   const oauthStatus = isLoadingOauthFieldsStatus ? "loading" : oauthFieldsAvailable ? "secrets_set" : "secrets_not_set"
   if (oauthFieldsAvailable || isLoadingOauthFieldsStatus) {
