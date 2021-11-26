@@ -74,12 +74,13 @@ export const InputWithCheckbox: React.FC<InputWithCheckboxProps> = ({
   return (
     <div className={`${styles.wrapper}`}>
       {_showInput ? (
-        <InputWrapper>
+        <InputWrapper key="input">
           <Input {...inputProps} onChange={onInputChange} />
         </InputWrapper>
       ) : (
         <span
-          className={`${styles.staticTitle}`}
+          key="status"
+          className={`${styles.status}`}
           title={invertCheckBehaviour ? checkedFixedTitle : uncheckedFixedTitle}
         >
           {invertCheckBehaviour ? checkedFixedTitle : uncheckedFixedTitle}
@@ -87,6 +88,7 @@ export const InputWithCheckbox: React.FC<InputWithCheckboxProps> = ({
       )}
       {!hideCheckbox && (
         <Checkbox
+          key="checkbox"
           checked={controlledShowInputChecked ?? showInput}
           className={`mt-1 mb-1 ${styles.checkbox}`}
           onChange={onCheckboxChange ?? handleCheck}
