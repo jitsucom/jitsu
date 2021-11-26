@@ -1,11 +1,14 @@
 // @Libs
 import { Button } from "antd"
-// @Icons
-import { KeyOutlined } from "@ant-design/icons"
 import { useEffect, useState } from "react"
-import { OauthService } from "lib/services/oauth"
+// @Components
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { handleError } from "lib/components/components"
+// @Services
+import { OauthService } from "lib/services/oauth"
+// @Icons
+import { KeyOutlined } from "@ant-design/icons"
+import { ReactComponent as GoogleLogo } from "icons/google.svg"
 
 type Props = {
   service: string
@@ -13,6 +16,7 @@ type Props = {
   className?: string
   disabled?: boolean
   icon?: React.ReactNode
+  isGoogle?: boolean
   setAuthSecrets: (data: any) => void
 }
 
@@ -22,11 +26,13 @@ export const OauthButton: React.FC<Props> = ({
   className,
   disabled,
   icon,
+  isGoogle,
   children,
   setAuthSecrets,
 }) => {
   const [isOauthSupported, setIsOauthSupported] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  // const [oauthResult, setOauthResult] = useState<string | null>(null)
 
   const handleClick = async (): Promise<void> => {
     setIsLoading(true)
@@ -34,10 +40,12 @@ export const OauthButton: React.FC<Props> = ({
       const oauthResult = await new OauthService().getCredentialsInSeparateWindow(service)
       if (oauthResult.status === "error") {
         actionNotification.error(oauthResult.errorMessage)
+        // setOauthResult(`❌ ${oauthResult.errorMessage}`)
         return
       }
       if (oauthResult.status === "warning") {
         actionNotification.warn(oauthResult.message)
+        // setOauthResult(`⚠️ ${oauthResult.message}`)
         return
       }
       setAuthSecrets(oauthResult.secrets)
@@ -58,12 +66,20 @@ export const OauthButton: React.FC<Props> = ({
       <Button
         type="default"
         loading={isLoading}
-        className={`transition-opacity duration-700 ${className} ${isOauthSupported ? "" : "opacity-0"}`}
+        className={`transition-opacity duration-700 ${className} ${isOauthSupported ? "" : "hidden opacity-0"}`}
         disabled={disabled}
-        icon={icon ?? <KeyOutlined />}
+        icon={
+          isGoogle ? (
+            <span className="h-5 w-5 mr-2">
+              <GoogleLogo />
+            </span>
+          ) : (
+            icon ?? <KeyOutlined />
+          )
+        }
         onClick={handleClick}
       >
-        {children}
+        {isGoogle ? <span className="align-top">{`Sign In With Google (OAuth Only)`}</span> : children}
       </Button>
     </div>
   )

@@ -13,6 +13,8 @@ import { SourceEditorFormConfigurationConfigurableFields } from "./SourceEditorF
 import { OauthButton } from "../../OauthButton/OauthButton"
 // @Utils
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
+import ApplicationServices from "lib/services/ApplicationServices"
+import { useLoaderAsObject } from "hooks/useLoader"
 
 type Props = {
   editorMode: "add" | "edit"
@@ -142,6 +144,10 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
             className="mr-2"
             disabled={disabled}
             icon={<span className="align-middle h-5 w-7 pr-2 ">{sourceDataFromCatalog.pic}</span>}
+            isGoogle={
+              sourceDataFromCatalog.id.toLowerCase().includes("google") ||
+              sourceDataFromCatalog.id.toLowerCase().includes("firebase")
+            }
             setAuthSecrets={setOauthSecretsToForms}
           >
             <span className="align-top">{`Log In to Fill OAuth Credentials`}</span>
