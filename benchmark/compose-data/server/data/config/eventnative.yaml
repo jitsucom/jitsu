@@ -1,0 +1,68 @@
+server:
+  name: jitsu-benchmark
+  disable_welcome_page: true
+  strict_auth_tokens: true
+  admin_token: '${CLUSTER_ADMIN_TOKEN}'
+
+api_keys:
+  - id: stream_api_key
+    client_secret: stream_client_secret
+    server_secret: stream_server_secret
+  - id: batch_api_key
+    client_secret: batch_client_secret
+    server_secret: batch_server_secret
+
+destinations:
+  pg_stream:
+    only_tokens:
+      - stream_api_key
+    type: postgres
+    mode: stream
+    data_layout:
+      table_name_template: stream_events
+      primary_key_fields:
+        - eventn_ctx_event_id
+    datasource:
+      host: pg_destination
+      port: "5432"
+      db: jitsu
+      schema: public
+      username: jitsu
+      password: jitsu
+      parameters:
+        sslmode: disable
+  pg_batch:
+    only_tokens:
+      - batch_api_key
+    type: postgres
+    mode: batch
+    data_layout:
+      table_name_template: batch_events
+      primary_key_fields:
+        - eventn_ctx_event_id
+    datasource:
+      host: pg_destination
+      port: "5432"
+      db: jitsu
+      schema: public
+      username: jitsu
+      password: jitsu
+      parameters:
+        sslmode: disable
+
+geo:
+  maxmind_path: '${env.MAX_MIND_PATH|}'
+
+meta:
+  storage:
+    redis:
+      host: '${env.REDIS_URL|}'
+      tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+
+sql_debug_log:
+  ddl:
+    path: /home/eventnative/data/logs
+    rotation_min: 1440
+  queries:
+    path: /home/eventnative/data/logs
+    rotation_min: 60

@@ -1,0 +1,48 @@
+version: "2.3"
+networks:
+  main:
+
+services:
+  pg_destination:
+    container_name: pg
+    environment:
+      POSTGRES_DB: jitsu
+      POSTGRES_PASSWORD: jitsu
+      POSTGRES_USER: jitsu
+    image: postgres:13-alpine
+    #volumes:
+    #  - ./postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - main
+  jitsu:
+    container_name: jitsu-benchmark
+    image: jitsucom/jitsu
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - CLUSTER_ADMIN_TOKEN=admin_token
+      - TERM=xterm-256color
+    depends_on:
+      - redis
+      - pg_destination
+    volumes:
+      - ./compose-data/configurator/data/logs:/home/configurator/data/logs
+      - ./compose-data/server/data/logs:/home/eventnative/data/logs
+      - ./compose-data/server/data/logs/events:/home/eventnative/data/logs/events
+      - ./compose-data/server/data/config/eventnative.yaml:/home/eventnative/data/config/eventnative.yaml
+    ports:
+      - "8000:8000"
+    networks:
+      - main
+  redis:
+    container_name: jitsu_redis
+    image: redis:6.2.4-alpine
+    #volumes:
+    #  - ./compose-data/redis/data:/data
+    restart: always
+    networks:
+      - main
+
+volumes:
+  postgres-data:
