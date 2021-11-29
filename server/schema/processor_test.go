@@ -142,7 +142,7 @@ func TestProcessFilePayload(t *testing.T) {
 			[]events.SkippedEvent{},
 		},
 	}
-	p, err := NewProcessor("test", "google_analytics", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, "", &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 0, map[string]interface{}{})
+	p, err := NewProcessor("test", "google_analytics", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, "", &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 0, map[string]interface{}{}, nil)
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -320,7 +320,7 @@ func TestProcessFact(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	p, err := NewProcessor("test", "google_analytics",`events_{{._timestamp.Format "2006_01"}}`, "", fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, map[string]interface{}{})
+	p, err := NewProcessor("test", "google_analytics", `events_{{._timestamp.Format "2006_01"}}`, "", fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, map[string]interface{}{}, nil)
 
 	require.NoError(t, err)
 	for _, tt := range tests {
@@ -433,7 +433,7 @@ switch ($.event_type) {
         return {...$, [TABLE_NAME]: $.event_type}
 }
 `
-	p, err := NewProcessor("test", "google_analytics",`events`, transormExpression, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, map[string]interface{}{})
+	p, err := NewProcessor("test", "google_analytics", `events`, transormExpression, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, map[string]interface{}{}, nil)
 
 	require.NoError(t, err)
 	for _, tt := range tests {

@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/utils"
@@ -54,7 +55,17 @@ func (etr *EvaluateTemplateRequest) TemplateFunctions() template.FuncMap {
 }
 
 //EventTemplateHandler is a handler for testing text/template expression with income object
-func EventTemplateHandler(c *gin.Context) {
+type EventTemplateHandler struct {
+	pluginsRepository plugins.PluginsRepository
+}
+
+func NewEventTemplateHandler(pluginsRepository plugins.PluginsRepository) *EventTemplateHandler {
+	return &EventTemplateHandler{
+		pluginsRepository: pluginsRepository,
+	}
+}
+
+func (h *EventTemplateHandler) Handler(c *gin.Context) {
 	req := &EvaluateTemplateRequest{}
 	if err := c.BindJSON(req); err != nil {
 		logging.Errorf("Error parsing evaluate template body: %v", err)
@@ -74,7 +85,7 @@ func EventTemplateHandler(c *gin.Context) {
 	if req.Reformat {
 		result, format, err = evaluateReformatted(req)
 	} else {
-		result, format, err = evaluate(req)
+		result, format, err = h.evaluate(req)
 	}
 
 	if err != nil {
@@ -85,7 +96,7 @@ func EventTemplateHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, EvaluateTemplateResponse{Result: result, Format: format})
 }
 
-func evaluate(req *EvaluateTemplateRequest) (result string, format string, err error) {
+func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (result string, format string, err error) {
 	//panic handler
 	defer func() {
 		if r := recover(); r != nil {
@@ -94,10 +105,13 @@ func evaluate(req *EvaluateTemplateRequest) (result string, format string, err e
 		}
 	}()
 	var transformIds []string
+	var tmpl templates.TemplateExecutor
 	if req.Field == "_transform" {
 		transformIds = []string{req.Type, "segment"}
+		tmpl, err = templates.NewJsTemplateExecutor(req.Expression, req.TemplateFunctions(), h.pluginsRepository, transformIds...)
+	} else {
+		tmpl, err = templates.SmartParse("template evaluating", req.Expression, req.TemplateFunctions(), transformIds...)
 	}
-	tmpl, err := templates.SmartParse("template evaluating", req.Expression, req.TemplateFunctions(), transformIds...)
 	if err != nil {
 		return "", "", fmt.Errorf("error parsing template: %v", err)
 	}

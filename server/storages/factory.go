@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/utils"
 	"strings"
 
@@ -179,11 +180,11 @@ type FactoryImpl struct {
 	globalConfiguration *UsersRecognition
 	metaStorage         meta.Storage
 	maxColumns          int
+	pluginsRepository   plugins.PluginsRepository
 }
 
 //NewFactory returns configured Factory
-func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
-	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, metaStorage meta.Storage, maxColumns int) Factory {
+func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache, globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, metaStorage meta.Storage, maxColumns int, pluginsRepository plugins.PluginsRepository) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
@@ -194,6 +195,7 @@ func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Servic
 		globalConfiguration: globalConfiguration,
 		metaStorage:         metaStorage,
 		maxColumns:          maxColumns,
+		pluginsRepository:   pluginsRepository,
 	}
 }
 
@@ -332,8 +334,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	vars["destinationType"] = destination.Type
 	utils.MapPutAll(vars, destination.TemplateVariables)
 
-	processor, err := schema.NewProcessor(destinationID, utils.NvlString(destination.SubType, destination.Type), tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver,
-		destination.BreakOnError, uniqueIDField, maxColumnNameLength, vars)
+	processor, err := schema.NewProcessor(destinationID, utils.NvlString(destination.SubType, destination.Type), tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver, destination.BreakOnError, uniqueIDField, maxColumnNameLength, vars, f.pluginsRepository)
 	if err != nil {
 		return nil, nil, err
 	}

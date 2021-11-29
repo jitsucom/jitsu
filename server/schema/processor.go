@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/maputils"
+	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/templates"
 	"strings"
 )
@@ -35,8 +36,7 @@ type Processor struct {
 	maxColumnNameLen        int
 }
 
-func NewProcessor(destinationID, destinationType, tableNameFuncExpression string, transform string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule,
-	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int, templateVariables map[string]interface{}) (*Processor, error) {
+func NewProcessor(destinationID, destinationType, tableNameFuncExpression, transform string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule, flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int, templateVariables map[string]interface{}, pluginsRepository plugins.PluginsRepository) (*Processor, error) {
 	var templateFunctions = templates.EnrichedFuncMap(templateVariables)
 	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression, templateFunctions)
 	if err != nil {
@@ -44,7 +44,7 @@ func NewProcessor(destinationID, destinationType, tableNameFuncExpression string
 	}
 	var transformer	*templates.JsTemplateExecutor
 	if transform != "" && transform != templates.TransformDefaultTemplate {
-		transformer, err = templates.NewJsTemplateExecutor(transform, templateFunctions, []string{destinationType, "segment"}...)
+		transformer, err = templates.NewJsTemplateExecutor(transform, templateFunctions, pluginsRepository, []string{destinationType, "segment"}...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to init transform javascript: %v", err)
 		}

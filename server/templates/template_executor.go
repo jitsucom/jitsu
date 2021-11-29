@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/iancoleman/strcase"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/safego"
 	"reflect"
 	"strings"
@@ -85,7 +86,7 @@ type JsTemplateExecutor struct {
 	loadingError error
 }
 
-func NewJsTemplateExecutor(expression string, extraFunctions template.FuncMap, transformIds ... string) (*JsTemplateExecutor, error) {
+func NewJsTemplateExecutor(expression string, extraFunctions template.FuncMap, pluginsRepository plugins.PluginsRepository, transformIds ...string) (*JsTemplateExecutor, error) {
 	//First we need to transform js template to ES5 compatible code
 	script, err := BabelizeProcessEvent(expression)
 	if err != nil {
@@ -100,16 +101,21 @@ func NewJsTemplateExecutor(expression string, extraFunctions template.FuncMap, t
 	//loading transform scripts for destinations
 	extraScripts := make([]string, 0, len(transformIds))
 	for _, transformId := range transformIds {
-		filename :=  "js/transform/" + transformId + ".js"
-		bytes, err := transforms.ReadFile(filename)
-		if err == nil {
-			es5script, err := Babelize(strings.ReplaceAll(string(bytes), "JitsuTransformFunction", strcase.ToLowerCamel("to_" + transformId)))
-			if err != nil {
-				return nil, fmt.Errorf("failed to transform %s to ES5 script: %v", filename, err)
-			}
-			extraScripts = append(extraScripts, es5script)
+		if plugin := pluginsRepository.Get(transformId); plugin != nil {
+			extraScripts = append(extraScripts, plugin.Code)
+			extraScripts = append(extraScripts, `function ` + strcase.ToLowerCamel("to_" + transformId) + `($) { return exports.adapter($, globalThis) }`)
 		} else {
-			extraScripts = append(extraScripts, `function ` + strcase.ToLowerCamel("to_" + transformId) + `($) { return $ }`)
+			filename := "js/transform/" + transformId + ".js"
+			bytes, err := transforms.ReadFile(filename)
+			if err == nil {
+				es5script, err := Babelize(strings.ReplaceAll(string(bytes), "JitsuTransformFunction", strcase.ToLowerCamel("to_"+transformId)))
+				if err != nil {
+					return nil, fmt.Errorf("failed to transform %s to ES5 script: %v", filename, err)
+				}
+				extraScripts = append(extraScripts, es5script)
+			} else {
+				extraScripts = append(extraScripts, `function `+strcase.ToLowerCamel("to_"+transformId)+`($) { return $ }`)
+			}
 		}
 	}
 
