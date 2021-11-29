@@ -10,12 +10,12 @@ import (
 const errCreateQueueTemplate = "error opening/creating users queue in dir [%s]: %v"
 
 type LevelDBQueue struct {
-	queue *leveldb.Queue
+	queue *leveldb.WLQueue
 }
 
 func NewLevelDBQueue(queueName, logEventPath string) (*LevelDBQueue, error) {
 	queueDir := path.Join(logEventPath, queueName)
-	queue, err := leveldb.NewQueue(queueDir)
+	queue, err := leveldb.NewWLQueue(queueDir)
 	if err != nil {
 		return nil, fmt.Errorf(errCreateQueueTemplate, queueDir, err)
 	}
