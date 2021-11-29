@@ -10,11 +10,13 @@ import (
 	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
+	"github.com/jitsucom/jitsu/server/leveldb"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/jitsucom/jitsu/server/wal"
+	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -22,6 +24,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -100,7 +103,36 @@ func setAppWorkDir() {
 	}
 }
 
+func enqueue(iq *leveldb.IQueue, i int) {
+	m := map[string]interface{}{strconv.Itoa(i): i}
+	if err := iq.Enqueue(m); err != nil {
+		log.Fatal(err)
+	}
+}
+
 func main() {
+	iq, err := leveldb.Open("/tmp/queue")
+	if err != nil {
+		logging.Fatal(err)
+	}
+
+	for i := 0; i < 100; i++ {
+		enqueue(iq, i)
+	}
+
+	for i := 0; i < 100; i++ {
+		obj, err := iq.DequeueBlock()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		log.Println(obj)
+	}
+
+	log.Println()
+	log.Println(iq.Close())
+	log.Println()
+
 	if len(os.Args) >= 2 && os.Args[1] == "replay" {
 		cmd.Execute(tag)
 		return
