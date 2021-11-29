@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/multiplexing"
+	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/uuid"
@@ -292,9 +293,14 @@ func main() {
 		logging.Fatalf("Invalid global users recognition configuration: %v", err)
 	}
 
+	pluginsMap := viper.GetStringMapString("server.plugins")
+	pluginsRepository, err := plugins.NewPluginsRepository(pluginsMap, viper.GetString("server.plugins_cache"))
+	if err != nil {
+		logging.Fatalf("failed to init plugin repository: %v", err)
+	}
 	maxColumns := viper.GetInt("server.max_columns")
 	logging.Infof("📝 Limit server.max_columns is %d", maxColumns)
-	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, maxColumns)
+	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, maxColumns, pluginsRepository)
 
 	//Create event destinations
 	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory, viper.GetBool("server.strict_auth_tokens"))
@@ -411,7 +417,7 @@ func main() {
 
 	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, fallbackService,
 		coordinationService, eventsCache, systemService, segmentRequestFieldsMapper, segmentCompatRequestFieldsMapper, processorHolder,
-		multiplexingService, walService, geoService)
+		multiplexingService, walService, geoService, pluginsRepository)
 
 	telemetry.ServerStart()
 	notifications.ServerStart()

@@ -180,7 +180,7 @@ func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig s
 	monitor := coordination.NewInMemoryService([]string{})
 	tempDir := os.TempDir()
 	loggerFactory := logging.NewFactory(tempDir, 5, false, nil, nil)
-	destinationsFactory := storages.NewFactory(context.Background(), tempDir, sb.geoService, monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, 0)
+	destinationsFactory := storages.NewFactory(context.Background(), tempDir, sb.geoService, monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, 0, nil)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)

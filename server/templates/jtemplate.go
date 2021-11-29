@@ -35,7 +35,7 @@ func SmartParse(name string, expression string, extraFunctions template.FuncMap,
 			return newConstTemplateExecutor(expression)
 		}
 		//Try parse template as JavaScript
-		jsTmpl, err := NewJsTemplateExecutor(expression, extraFunctions, transformIds...)
+		jsTmpl, err := NewJsTemplateExecutor(expression, extraFunctions,nil, transformIds...)
 		if err != nil {
 			if multiErr != nil {
 				err = multierror.Append(multiErr, fmt.Errorf("error while parsing as Javascript: %v", err))

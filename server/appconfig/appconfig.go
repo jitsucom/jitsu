@@ -190,12 +190,14 @@ func setDefaultParams(containerized bool) {
 		viper.SetDefault("log.path", "/home/eventnative/data/logs/events")
 		viper.SetDefault("server.log.path", "/home/eventnative/data/logs")
 		viper.SetDefault("server.config.path", "/home/eventnative/data/config")
+		viper.SetDefault("server.plugins_cache", "/home/eventnative/data/cache")
 		viper.SetDefault("singer-bridge.venv_dir", "/home/eventnative/data/venv")
 		viper.SetDefault("airbyte-bridge.config_dir", "/home/eventnative/data/airbyte")
 	} else {
 		viper.SetDefault("log.path", "./logs/events")
 		viper.SetDefault("server.log.path", "./logs")
 		viper.SetDefault("server.config.path", "/config")
+		viper.SetDefault("server.plugins_cache", "./cache")
 		viper.SetDefault("singer-bridge.venv_dir", "./venv")
 		viper.SetDefault("airbyte-bridge.config_dir", "./airbyte_config")
 	}
