@@ -24,6 +24,9 @@ type Segment struct {
 	file  *os.File
 }
 
+//newSegment creates new segment:
+// 1. creates new file (or open existing one)
+// 2. put provided objects to the queue channel
 func newSegment(dir string, fileID uint64, objects []map[string]interface{}, opts *Options) (*Segment, error) {
 	f, err := os.OpenFile(path.Join(dir, fileName(fileID)), os.O_RDWR|os.O_CREATE, opts.FilePerms)
 	if err != nil {
@@ -82,4 +85,5 @@ func (s *Segment) pop() (map[string]interface{}, error) {
 
 func fileName(fileID uint64) string {
 	return fmt.Sprintf("%06d%s", fileID, walSuffix)
+	//return fmt.Sprintf("%d%s", fileID, walSuffix)
 }

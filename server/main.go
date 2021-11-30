@@ -116,21 +116,34 @@ func main() {
 		logging.Fatal(err)
 	}
 
-	for i := 0; i < 100; i++ {
-		enqueue(iq, i)
-	}
-
-	for i := 0; i < 100; i++ {
-		obj, err := iq.DequeueBlock()
-		if err != nil {
-			log.Fatal(err)
+	go func() {
+		for i := 0; i < 100; i++ {
+			enqueue(iq, i)
 		}
+	}()
 
-		log.Println(obj)
-	}
+	go func() {
+		for i := 0; i < 100; i++ {
+			obj, err := iq.DequeueBlock()
+			if err != nil {
+				log.Fatal(err)
+			}
 
+			log.Println(obj)
+		}
+	}()
+
+	time.Sleep(time.Second)
 	log.Println()
 	log.Println(iq.Close())
+	log.Println()
+
+	obj, err := iq.DequeueBlock()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println(obj)
 	log.Println()
 
 	if len(os.Args) >= 2 && os.Args[1] == "replay" {
