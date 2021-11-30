@@ -16,8 +16,7 @@ import (
 
 const (
 	recognitionPayloadPerFile = 2000
-	queueName                 = "queue.users_recognition"
-    lockFile = "lock.lock"
+	lockFile                  = "lock.lock"
 )
 
 //RecognitionService has a thread pool under the hood
@@ -27,7 +26,7 @@ type RecognitionService struct {
 	metaStorage        meta.Storage
 	destinationService *destinations.Service
 
-	queue  *LevelDBQueue
+	queue  *Queue
 	closed *atomic.Bool
 }
 
@@ -41,15 +40,10 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		return &RecognitionService{closed: atomic.NewBool(true)}, nil
 	}
 
-	queue, err := NewLevelDBQueue(queueName, logEventPath)
-	if err != nil {
-		return nil, fmt.Errorf("Error opening/creating recognized events queue [%s] in dir [%s]: %v", queueName, logEventPath, err)
-	}
-
 	rs := &RecognitionService{
 		destinationService: destinationService,
 		metaStorage:        metaStorage,
-		queue:              queue,
+		queue:              newQueue(),
 		closed:             atomic.NewBool(false),
 	}
 
