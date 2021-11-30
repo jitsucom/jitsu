@@ -141,7 +141,7 @@ type Config struct {
 	streamMode             bool
 	maxColumns             int
 	monitorKeeper          MonitorKeeper
-	eventQueue             events.PersistentQueue
+	eventQueue             events.Queue
 	eventsCache            *caching.EventsCache
 	loggerFactory          *logging.Factory
 	pkFields               map[string]bool
@@ -159,7 +159,7 @@ func RegisterStorage(storageType StorageType) {
 
 //Factory is a destinations factory for creation
 type Factory interface {
-	Create(name string, destination DestinationConfig) (StorageProxy, events.PersistentQueue, error)
+	Create(name string, destination DestinationConfig) (StorageProxy, events.Queue, error)
 }
 
 type StorageType struct {
@@ -199,7 +199,7 @@ func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Servic
 
 //Create builds event storage proxy and event consumer (logger or event-queue)
 //Enriches incoming configs with default values if needed
-func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig) (StorageProxy, events.PersistentQueue, error) {
+func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig) (StorageProxy, events.Queue, error) {
 	if destination.Type == "" {
 		destination.Type = destinationID
 	}
@@ -338,7 +338,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		return nil, nil, err
 	}
 
-	eventQueue, err := events.NewPersistentQueue(destinationID, "queue.dst="+destinationID, f.logEventPath)
+	eventQueue, err := events.NewQueue(destinationID, "queue.dst="+destinationID, f.logEventPath)
 	if err != nil {
 		return nil, nil, err
 	}

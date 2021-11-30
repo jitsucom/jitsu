@@ -42,10 +42,10 @@ type MockFactory struct{}
 func NewMockFactory() Factory { return &MockFactory{} }
 
 //Create returns proxy Mock and events queue
-func (mf *MockFactory) Create(id string, destination DestinationConfig) (StorageProxy, events.PersistentQueue, error) {
-	var eventQueue events.PersistentQueue
+func (mf *MockFactory) Create(id string, destination DestinationConfig) (StorageProxy, events.Queue, error) {
+	var eventQueue events.Queue
 	if destination.Mode == StreamMode {
-		eventQueue, _ = events.NewPersistentQueue(id, id, "/tmp")
+		eventQueue, _ = events.NewQueue(id, id, "/tmp")
 	}
 	return &testProxyMock{}, eventQueue, nil
 }
