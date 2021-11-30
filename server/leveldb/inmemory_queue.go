@@ -27,12 +27,13 @@ const (
 var (
 	errSegmentFull  = errors.New("Segment is full")
 	errSegmentEmpty = errors.New("Segment is empty")
+	errQueueClosed  = errors.New("Queue is closed")
 )
 
 //MetaInfo is used for keeping state between queue reloads
 type MetaInfo struct {
-	CurrentSegment uint64 `json:"current_segment"`
-	CurrentElement uint64 `json:"current_element"`
+	HeadSegment *uint64 `json:"head_segment,omitempty"`
+	HeadPointer *uint64 `json:"head_pointer,omitempty"`
 }
 
 // Options for Segment
@@ -94,14 +95,55 @@ func Open(dir string) (*IQueue, error) {
 		q.tail = segment
 		q.segments = []*Segment{segment}
 	} else {
+		meta, err := loadMeta(dir)
+		if err != nil {
+			return nil, err
+		}
+
 		q.head = segments[0]
+		if meta.HeadSegment != nil {
+			var head *Segment
+			headSegment := *meta.HeadSegment
+			//find head
+			for _, s := range segments {
+				if s.fileID == headSegment {
+					head = s
+					break
+				}
+			}
+
+			if head != nil {
+				if meta.HeadPointer != nil {
+					headPointer := *meta.HeadPointer
+					head.head = headPointer
+				}
+
+				q.head = head
+			}
+		}
+
 		q.tail = segments[len(segments)-1]
 		q.segments = segments
 	}
 
-	safego.Run(q.PersistMetaInfo)
+	safego.Run(q.startPersistingMetaInfo)
 
 	return q, nil
+}
+
+func loadMeta(dir string) (*MetaInfo, error) {
+	metaFile := path.Join(dir, metaInfoFileName)
+	b, err := ioutil.ReadFile(metaFile)
+	if err != nil {
+		return nil, fmt.Errorf("error reading meta file [%s]: %v", metaFile, err)
+	}
+
+	mi := &MetaInfo{}
+	if err := json.Unmarshal(b, mi); err != nil {
+		return nil, fmt.Errorf("error unmarshalling meta file [%s] paylod [%s]: %v", metaFile, string(b), err)
+	}
+
+	return mi, nil
 }
 
 func loadSegments(dir string, opts *Options) ([]*Segment, uint64, error) {
@@ -155,26 +197,33 @@ func loadSegments(dir string, opts *Options) ([]*Segment, uint64, error) {
 	return segments, lastFileID, nil
 }
 
-func (q *IQueue) PersistMetaInfo() {
-	ticker := time.NewTicker(time.Second)
+func (q *IQueue) startPersistingMetaInfo() {
+	ticker := time.NewTicker(time.Millisecond * 10)
 	for {
 		select {
 		case <-q.closed:
+			q.persistMetaInfo()
 			ticker.Stop()
 			return
 		case <-ticker.C:
-			q.mutex.RLock()
-
-			b, _ := json.Marshal(MetaInfo{
-				CurrentSegment: q.head.fileID,
-				CurrentElement: atomic.LoadUint64(&q.head.head),
-			})
-			f := path.Join(q.dir, metaInfoFileName)
-			if err := ioutil.WriteFile(f, b, q.opts.FilePerms); err != nil {
-				logging.SystemErrorf("error writing meta info file to %s: %v", f, err)
-			}
-			q.mutex.RUnlock()
+			q.persistMetaInfo()
 		}
+	}
+}
+
+func (q *IQueue) persistMetaInfo() {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	headSegment := q.head.fileID
+	headPointer := atomic.LoadUint64(&q.head.head)
+	b, _ := json.Marshal(MetaInfo{
+		HeadSegment: &headSegment,
+		HeadPointer: &headPointer,
+	})
+	f := path.Join(q.dir, metaInfoFileName)
+	if err := ioutil.WriteFile(f, b, q.opts.FilePerms); err != nil {
+		logging.SystemErrorf("error writing meta info file to %s: %v", f, err)
 	}
 }
 
@@ -202,7 +251,7 @@ func (q *IQueue) createSegment(object map[string]interface{}) error {
 	}
 
 	fileID := atomic.AddUint64(&q.fileIDSequence, 1)
-	segment, err := newSegment(q.dir, fileID, []map[string]interface{}{object}, q.opts)
+	segment, err := newSegment(q.dir, fileID, nil, q.opts)
 	if err != nil {
 		return err
 	}
@@ -210,7 +259,7 @@ func (q *IQueue) createSegment(object map[string]interface{}) error {
 	q.segments = append(q.segments, segment)
 	q.tail = segment
 
-	return nil
+	return q.tail.push(object)
 }
 
 //DequeueBlock accepts only pointers
@@ -221,37 +270,41 @@ func (q *IQueue) DequeueBlock() (interface{}, error) {
 
 func (q *IQueue) nextSegment() {
 	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	for i, segment := range q.segments {
 		if q.head.fileID != segment.fileID {
 			q.head = segment
 			//TODO archive or delete head in another goroutine
 			q.segments = q.segments[i+1:]
+			break
 		}
 	}
-
-	q.mutex.Unlock()
 }
 
 func (q *IQueue) dequeueBlock() (interface{}, error) {
 	for {
-		obj, err := q.head.pop()
-		if err != nil {
-			if err == errSegmentEmpty {
-				q.nextSegment()
-				continue
+		select {
+		case <-q.closed:
+			return nil, errQueueClosed
+		default:
+			obj, err := q.head.pop()
+			if err != nil {
+				if err == errSegmentEmpty {
+					q.nextSegment()
+					continue
+				}
+
+				return nil, err
 			}
 
-			return nil, err
+			return obj, nil
 		}
-
-		return obj, nil
 	}
 }
 
 func (q *IQueue) Close() error {
-
-	q.closed <- struct{}{}
+	close(q.closed)
 
 	//TODO
 	return nil
