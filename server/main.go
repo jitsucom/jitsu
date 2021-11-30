@@ -111,41 +111,6 @@ func enqueue(iq *leveldb.IQueue, i int) {
 }
 
 func main() {
-	iq, err := leveldb.Open("/tmp/queue")
-	if err != nil {
-		logging.Fatal(err)
-	}
-
-	go func() {
-		for i := 0; i < 100; i++ {
-			enqueue(iq, i)
-		}
-	}()
-
-	go func() {
-		for i := 0; i < 100; i++ {
-			obj, err := iq.DequeueBlock()
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			log.Println(obj)
-		}
-	}()
-
-	time.Sleep(time.Second)
-	log.Println()
-	log.Println(iq.Close())
-	log.Println()
-
-	obj, err := iq.DequeueBlock()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Println(obj)
-	log.Println()
-
 	if len(os.Args) >= 2 && os.Args[1] == "replay" {
 		cmd.Execute(tag)
 		return
