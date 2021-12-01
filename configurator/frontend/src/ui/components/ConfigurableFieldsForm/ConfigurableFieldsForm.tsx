@@ -224,7 +224,11 @@ const ConfigurableFieldsFormComponent = ({
         )
       }
       case "array/string":
-        return <EditableList initialValue={defaultValueToDisplay} />
+        return (
+          <FormItemWrapperTuned>
+            <EditableList initialValue={defaultValueToDisplay} />
+          </FormItemWrapperTuned>
+        )
       case "javascript":
       case "json": {
         return (
