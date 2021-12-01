@@ -13,6 +13,7 @@ import { HttpServerStorage, ServerStorage } from "./ServerStorage"
 import { UserService } from "./UserService"
 import { ApplicationConfiguration } from "./ApplicationConfiguration"
 import { CurrentSubscription } from "./billing"
+import { ISlackApiService, SlackApiService } from "./slack"
 
 export interface IApplicationServices {
   init(): Promise<void>
@@ -23,6 +24,7 @@ export interface IApplicationServices {
   backendApiClient: BackendApiClient
   features: FeatureSettings
   applicationConfiguration: ApplicationConfiguration
+  slackApiSercice: ISlackApiService
   showSelfHostedSignUp(): boolean
 }
 export default class ApplicationServices implements IApplicationServices {
@@ -30,6 +32,7 @@ export default class ApplicationServices implements IApplicationServices {
   private readonly _analyticsService: AnalyticsService
   private readonly _backendApiClient: BackendApiClient
   private readonly _storageService: ServerStorage
+  private readonly _slackApiService: ISlackApiService
 
   private _userService: UserService
   private _features: FeatureSettings
@@ -48,6 +51,7 @@ export default class ApplicationServices implements IApplicationServices {
       this._analyticsService
     )
     this._storageService = new HttpServerStorage(this._backendApiClient)
+    this._slackApiService = new SlackApiService(() => this._userService.getUser().apiAccess)
   }
 
   //load backend configuration and create user service depend on authorization type
@@ -95,6 +99,18 @@ export default class ApplicationServices implements IApplicationServices {
     this._currentSubscription = value
   }
 
+  get backendApiClient(): BackendApiClient {
+    return this._backendApiClient
+  }
+
+  get features(): FeatureSettings {
+    return this._features
+  }
+
+  get slackApiSercice(): ISlackApiService {
+    return this._slackApiService
+  }
+
   static get(): ApplicationServices {
     if (window["_en_instance"] === undefined) {
       try {
@@ -109,14 +125,6 @@ export default class ApplicationServices implements IApplicationServices {
       }
     }
     return window["_en_instance"]
-  }
-
-  get backendApiClient(): BackendApiClient {
-    return this._backendApiClient
-  }
-
-  get features(): FeatureSettings {
-    return this._features
   }
   private async loadBackendConfiguration(): Promise<FeatureSettings> {
     let fullUrl = concatenateURLs(this._applicationConfiguration.backendApiBase, "/system/configuration")
