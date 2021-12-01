@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/events"
@@ -502,7 +503,7 @@ func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*event
 		factory.CheckAndSetDefaultPort()
 		eventsQueueRedisPool, err = factory.Create()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error creating events queue redis pool: %v", err)
 		}
 	}
 
