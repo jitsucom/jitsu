@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/utils"
+	"github.com/mitchellh/mapstructure"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -47,11 +48,14 @@ var (
 	}
 )
 
+type Validatable interface {
+	Validate() error
+}
+
 //DestinationConfig is a destination configuration for serialization
 type DestinationConfig struct {
 	OnlyTokens             []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
 	Type                   string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	SubType                string                   `mapstructure:"subtype" json:"subtype,omitempty" yaml:"subtype,omitempty"`
 	Mode                   string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
 	DataLayout             *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
 	UsersRecognition       *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
@@ -66,17 +70,55 @@ type DestinationConfig struct {
 	//variables that can be used from javascript
 	TemplateVariables map[string]interface{} `mapstructure:"template_variables" json:"template_variables,omitempty" yaml:"template_variables,omitempty"`
 
+	//Deprecated
 	DataSource      *adapters.DataSourceConfig            `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
+	//Deprecated
 	S3              *adapters.S3Config                    `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
+	//Deprecated
 	Google          *adapters.GoogleConfig                `mapstructure:"google" json:"google,omitempty" yaml:"google,omitempty"`
+	//Deprecated
 	GoogleAnalytics *adapters.GoogleAnalyticsConfig       `mapstructure:"google_analytics" json:"google_analytics,omitempty" yaml:"google_analytics,omitempty"`
+	//Deprecated
 	ClickHouse      *adapters.ClickHouseConfig            `mapstructure:"clickhouse" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
+	//Deprecated
 	Snowflake       *adapters.SnowflakeConfig             `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
+	//Deprecated
 	Facebook        *adapters.FacebookConversionAPIConfig `mapstructure:"facebook" json:"facebook,omitempty" yaml:"facebook,omitempty"`
+	//Deprecated
 	WebHook         *adapters.WebHookConfig               `mapstructure:"webhook" json:"webhook,omitempty" yaml:"webhook,omitempty"`
+	//Deprecated
 	Amplitude       *adapters.AmplitudeConfig             `mapstructure:"amplitude" json:"amplitude,omitempty" yaml:"amplitude,omitempty"`
+	//Deprecated
 	HubSpot         *adapters.HubSpotConfig               `mapstructure:"hubspot" json:"hubspot,omitempty" yaml:"hubspot,omitempty"`
+	//Deprecated
 	DbtCloud        *adapters.DbtCloudConfig              `mapstructure:"dbtcloud" json:"dbtcloud,omitempty" yaml:"dbtcloud,omitempty"`
+
+	Config     		Validatable           `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
+}
+
+func (config *DestinationConfig) GetConfig(compatibilityValue Validatable) Validatable {
+	return utils.Nvl(config.Config, compatibilityValue).(Validatable)
+}
+
+func (config *DestinationConfig) Validate() error {
+	if config.Config != nil {
+		if err := config.Config.Validate(); err != nil {
+			return err
+		}
+	}
+
+	deprecatedConfigs := []Validatable{config.DbtCloud,
+		config.HubSpot, config.Amplitude, config.WebHook, config.Facebook, config.Google,
+		config.Snowflake, config.ClickHouse, config.GoogleAnalytics, config.S3, config.DataSource}
+
+	for _, validatable := range deprecatedConfigs {
+		if validatable != nil {
+			if err := validatable.Validate(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 //DataLayout is used for configure mappings/table names and other data layout parameters
@@ -332,9 +374,16 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	vars := make(map[string]interface{})
 	vars["destinationId"] = destinationID
 	vars["destinationType"] = destination.Type
-	utils.MapPutAll(vars, destination.TemplateVariables)
 
-	processor, err := schema.NewProcessor(destinationID, utils.NvlString(destination.SubType, destination.Type), tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver, destination.BreakOnError, uniqueIDField, maxColumnNameLength, vars, f.pluginsRepository)
+	if destination.Type == NpmType {
+		jsVariables := map[string]interface{}{}
+		if err := mapstructure.Decode(destination.Config, &jsVariables); err != nil {
+			return nil, nil, fmt.Errorf("failed to map config parameters to js variables: %v", err)
+		}
+		utils.MapPutAll(vars, jsVariables)
+	}
+
+	processor, err := schema.NewProcessor(destinationID, destination.Type, tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver, destination.BreakOnError, uniqueIDField, maxColumnNameLength, vars, f.pluginsRepository)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -403,7 +452,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 
 func needDummy(destCfg *DestinationConfig) bool {
 	if destCfg.Type == S3Type {
-		return destCfg.S3.Format == adapters.S3FormatJSON
+		return destCfg.GetConfig(destCfg.S3).(*adapters.S3Config).Format == adapters.S3FormatJSON
 	}
 	return destCfg.Type == FacebookType || destCfg.Type == DbtCloudType || destCfg.Type == WebHookType ||
 		destCfg.Type == AmplitudeType || destCfg.Type == HubSpotType

@@ -5,6 +5,7 @@ import (
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/utils"
 )
 
 const (
@@ -32,7 +33,7 @@ func NewDbtCloud(config *Config) (Storage, error) {
 		return nil, fmt.Errorf("DbtCloud destination doesn't support %s mode", BatchMode)
 	}
 
-	dbtCloudConfig := config.destination.DbtCloud
+	dbtCloudConfig := utils.Nvl(config.destination.Config, config.destination.DbtCloud).(*adapters.DbtCloudConfig)
 	if err := dbtCloudConfig.Validate(); err != nil {
 		return nil, err
 	}

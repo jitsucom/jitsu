@@ -31,11 +31,15 @@ func init() {
 
 //NewBigQuery returns BigQuery configured instance
 func NewBigQuery(config *Config) (Storage, error) {
-	gConfig := config.destination.Google
-	if err := gConfig.Validate(config.streamMode); err != nil {
+	gConfig := config.destination.GetConfig(config.destination.Google).(*adapters.GoogleConfig)
+	if err := gConfig.Validate(); err != nil {
 		return nil, err
 	}
-
+	if !config.streamMode {
+		if err := gConfig.ValidateBatchMode(); err != nil {
+			return nil, err
+		}
+	}
 	if gConfig.Project == "" {
 		return nil, errors.New("BigQuery project(bq_project) is required parameter")
 	}

@@ -2,7 +2,6 @@ package storages
 
 import (
 	"fmt"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
@@ -27,7 +26,7 @@ func init() {
 
 //NewClickHouse returns configured ClickHouse instance
 func NewClickHouse(config *Config) (Storage, error) {
-	chConfig := config.destination.ClickHouse
+	chConfig := config.destination.GetConfig(config.destination.ClickHouse).(*adapters.ClickHouseConfig)
 	if err := chConfig.Validate(); err != nil {
 		return nil, err
 	}

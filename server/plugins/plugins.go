@@ -173,9 +173,15 @@ func downloadPlugin(name, tarballUrl string) (*Plugin, error) {
 }
 
 func (rep *PluginsRepositoryImp) GetPlugins() map[string]*Plugin {
+	if rep == nil {
+		return nil
+	}
 	return rep.plugins
 }
 
 func (rep *PluginsRepositoryImp) Get(name string) *Plugin {
+	if rep == nil {
+		return nil
+	}
 	return rep.plugins[name]
 }

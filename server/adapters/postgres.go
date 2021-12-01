@@ -85,6 +85,7 @@ type DataSourceConfig struct {
 	Password         string            `mapstructure:"password" json:"password,omitempty" yaml:"password,omitempty"`
 	Parameters       map[string]string `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
 	SSLConfiguration *SSLConfig        `mapstructure:"ssl" json:"ssl,omitempty" yaml:"ssl,omitempty"`
+	S3               *S3Config         `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
 }
 
 //Validate required fields in DataSourceConfig

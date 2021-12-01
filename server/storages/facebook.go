@@ -2,7 +2,6 @@ package storages
 
 import (
 	"fmt"
-
 	"github.com/jitsucom/jitsu/server/adapters"
 )
 
@@ -21,7 +20,7 @@ func NewFacebook(config *Config) (Storage, error) {
 		return nil, fmt.Errorf("Facebook destination doesn't support %s mode", BatchMode)
 	}
 
-	fbConfig := config.destination.Facebook
+	fbConfig := config.destination.GetConfig(config.destination.Facebook).(*adapters.FacebookConversionAPIConfig)
 	if err := fbConfig.Validate(); err != nil {
 		return nil, err
 	}

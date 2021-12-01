@@ -31,7 +31,7 @@ func init() {
 
 //NewMySQL returns configured MySQL Destination
 func NewMySQL(config *Config) (Storage, error) {
-	mConfig := config.destination.DataSource
+	mConfig := config.destination.GetConfig(config.destination.DataSource).(*adapters.DataSourceConfig)
 	if err := mConfig.Validate(); err != nil {
 		return nil, err
 	}

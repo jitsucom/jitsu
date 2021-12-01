@@ -58,6 +58,8 @@ type SnowflakeConfig struct {
 	Warehouse  string             `mapstructure:"warehouse" json:"warehouse,omitempty" yaml:"warehouse,omitempty"`
 	Stage      string             `mapstructure:"stage" json:"stage,omitempty" yaml:"stage,omitempty"`
 	Parameters map[string]*string `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
+	S3         *S3Config          `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
+	Google	   *GoogleConfig      `mapstructure:"google" json:"google,omitempty" yaml:"google,omitempty"`
 }
 
 //Validate required fields in SnowflakeConfig

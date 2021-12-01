@@ -2,7 +2,6 @@ package storages
 
 import (
 	"fmt"
-
 	"github.com/jitsucom/jitsu/server/adapters"
 )
 
@@ -22,7 +21,7 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 		return nil, fmt.Errorf("Google Analytics destination doesn't support %s mode", BatchMode)
 	}
 
-	gaConfig := config.destination.GoogleAnalytics
+	gaConfig := config.destination.GetConfig(config.destination.GoogleAnalytics).(*adapters.GoogleAnalyticsConfig)
 	if err := gaConfig.Validate(); err != nil {
 		return nil, err
 	}
