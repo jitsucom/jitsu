@@ -38,8 +38,10 @@ func (qf *QueueFactory) Create(identifier, queueName, logEventPath string) (Queu
 
 	var underlyingQueue queue.Queue
 	if qf.redisPool != nil {
+		logging.Infof("[%s] initializing redis events queue")
 		underlyingQueue = queue.NewRedis(identifier, qf.redisPool, TimedEventBuilder)
 	} else {
+		logging.Infof("[%s] initializing inmemory events queue")
 		underlyingQueue = queue.NewInMemory()
 	}
 	return NewNativeQueue(identifier, underlyingQueue)
