@@ -26,6 +26,20 @@ var (
 	errMalformedURL = errors.New("Accepted format - sentinel://master_name:password@node1:port,node2:port")
 )
 
+// Options for Redis Pool
+type Options struct {
+	MaxIdle     int
+	MaxActive   int
+	IdleTimeout time.Duration
+}
+
+// DefaultOptions for Redis Pool
+var DefaultOptions = &Options{
+	MaxIdle:     100,
+	MaxActive:   600,
+	IdleTimeout: 240 * time.Second,
+}
+
 //RedisPoolFactory is a factory for creating RedisPool
 //supports creating RedisPool from URLs: redis://, rediss://, sentinel://
 //and from config parameters like host,port, etc
@@ -35,6 +49,8 @@ type RedisPoolFactory struct {
 	password           string
 	sentinelMasterName string
 	tlsSkipVerify      bool
+
+	options *Options
 }
 
 //NewRedisPoolFactory returns filled RedisPoolFactory and removes quotes in host
@@ -50,7 +66,14 @@ func NewRedisPoolFactory(host string, port int, password string, tlsSkipVerify b
 		password:           password,
 		tlsSkipVerify:      tlsSkipVerify,
 		sentinelMasterName: sentinelMasterMame,
+		options:            DefaultOptions,
 	}
+}
+
+//WithOptions overrides options
+func (rpf *RedisPoolFactory) WithOptions(options *Options) *RedisPoolFactory {
+	rpf.options = options
+	return rpf
 }
 
 //Create returns configured RedisPool or err if ping failed
@@ -66,9 +89,9 @@ func (rpf *RedisPoolFactory) Create() (*RedisPool, error) {
 	}
 
 	poolToRedis := &redis.Pool{
-		MaxIdle:     100,
-		MaxActive:   600,
-		IdleTimeout: 240 * time.Second,
+		MaxIdle:     rpf.options.MaxIdle,
+		MaxActive:   rpf.options.MaxActive,
+		IdleTimeout: rpf.options.IdleTimeout,
 
 		Wait: false,
 		Dial: dialFunc,

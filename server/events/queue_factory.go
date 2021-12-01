@@ -2,6 +2,8 @@ package events
 
 import (
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/queue"
 	"io"
 	"time"
 )
@@ -21,11 +23,26 @@ type Queue interface {
 	DequeueBlock() (Event, time.Time, string, error)
 }
 
-func NewQueue(identifier, queueName, logEventPath string) (Queue, error) {
+type QueueFactory struct {
+	redisPool *meta.RedisPool
+}
+
+func NewQueueFactory(redisPool *meta.RedisPool) *QueueFactory {
+	return &QueueFactory{redisPool: redisPool}
+}
+
+func (qf *QueueFactory) Create(identifier, queueName, logEventPath string) (Queue, error) {
 	//DEPRECATED
 	//return NewDQueBasedQueue(identifier, queueName, logEventPath)
 	//return NewLevelDBQueue(identifier, queueName, logEventPath)
-	return NewNativeQueue(identifier)
+
+	var underlyingQueue queue.Queue
+	if qf.redisPool != nil {
+		underlyingQueue = queue.NewRedis(identifier, qf.redisPool, TimedEventBuilder)
+	} else {
+		underlyingQueue = queue.NewInMemory()
+	}
+	return NewNativeQueue(identifier, underlyingQueue)
 }
 
 func logSkippedEvent(event Event, err error) {

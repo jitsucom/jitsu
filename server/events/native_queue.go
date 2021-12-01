@@ -9,12 +9,13 @@ import (
 	"time"
 )
 
-const (
-	defaultQueueCapacity       = 20_000_000
-	debugElementCountThreshold = 20
-)
+// TimedEventBuilder creates and returns a new *events.TimedEvent (must be pointer).
+// This is used on deserialization
+func TimedEventBuilder() interface{} {
+	return &TimedEvent{}
+}
 
-//NativeQueue is a Jitsu created queue
+//NativeQueue is a event queue implementation by Jitsu
 type NativeQueue struct {
 	identifier string
 	queue      queue.Queue
@@ -22,13 +23,11 @@ type NativeQueue struct {
 	closed chan struct{}
 }
 
-func NewNativeQueue(identifier string) (Queue, error) {
-	inmemoryQueue := queue.NewInMemory(defaultQueueCapacity)
-
-	metrics.InitialStreamEventsQueueSize(identifier, int(inmemoryQueue.Size()))
+func NewNativeQueue(identifier string, queue queue.Queue) (Queue, error) {
+	metrics.InitialStreamEventsQueueSize(identifier, int(queue.Size()))
 
 	nq := &NativeQueue{
-		queue:      inmemoryQueue,
+		queue:      queue,
 		identifier: identifier,
 		closed:     make(chan struct{}, 1),
 	}
@@ -38,22 +37,14 @@ func NewNativeQueue(identifier string) (Queue, error) {
 }
 
 func (q *NativeQueue) startMonitor() {
-	percentTicker := time.NewTicker(time.Minute)
 	debugTicker := time.NewTicker(time.Minute * 10)
 	for {
 		select {
 		case <-q.closed:
 			return
-		case <-percentTicker.C:
-			size := q.queue.Size()
-			if size > int64(defaultQueueCapacity*0.6) {
-				logging.Warnf("[queue: %s] 60% of queue capacity has been taken! Current: %d capacity: %d (%0.2f %%)", q.identifier, size, defaultQueueCapacity, size/defaultQueueCapacity*100)
-			}
 		case <-debugTicker.C:
 			size := q.queue.Size()
-			if size > debugElementCountThreshold {
-				logging.Infof("[queue: %s] current size: %d", q.identifier, size)
-			}
+			logging.Infof("[queue: %s] current size: %d", q.identifier, size)
 		}
 	}
 }

@@ -178,12 +178,14 @@ type FactoryImpl struct {
 	globalLoggerFactory *logging.Factory
 	globalConfiguration *UsersRecognition
 	metaStorage         meta.Storage
+	eventsQueueFactory  *events.QueueFactory
 	maxColumns          int
 }
 
 //NewFactory returns configured Factory
-func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
-	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, metaStorage meta.Storage, maxColumns int) Factory {
+func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper,
+	eventsCache *caching.EventsCache, globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition,
+	metaStorage meta.Storage, eventsQueueFactory *events.QueueFactory, maxColumns int) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
@@ -193,6 +195,7 @@ func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Servic
 		globalLoggerFactory: globalLoggerFactory,
 		globalConfiguration: globalConfiguration,
 		metaStorage:         metaStorage,
+		eventsQueueFactory:  eventsQueueFactory,
 		maxColumns:          maxColumns,
 	}
 }
@@ -338,7 +341,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		return nil, nil, err
 	}
 
-	eventQueue, err := events.NewQueue(destinationID, "queue.dst="+destinationID, f.logEventPath)
+	eventQueue, err := f.eventsQueueFactory.Create(destinationID, "queue.dst="+destinationID, f.logEventPath)
 	if err != nil {
 		return nil, nil, err
 	}

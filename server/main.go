@@ -272,6 +272,15 @@ func main() {
 	}()
 
 	// ** Destinations **
+	//events queue
+	//Redis based if events.queue.redis or meta.storage configured
+	//or
+	//inmemory
+	eventsQueueFactory, err := initializeEventsQueueFactory(metaStorageConfiguration)
+	if err != nil {
+		logging.Fatal(err)
+	}
+
 	//events counters
 	counters.InitEvents(metaStorage)
 
@@ -294,7 +303,8 @@ func main() {
 
 	maxColumns := viper.GetInt("server.max_columns")
 	logging.Infof("📝 Limit server.max_columns is %d", maxColumns)
-	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, maxColumns)
+	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory,
+		globalRecognitionConfiguration, metaStorage, eventsQueueFactory, maxColumns)
 
 	//Create event destinations
 	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory, viper.GetBool("server.strict_auth_tokens"))
@@ -469,4 +479,32 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 
 	return nil, errors.New("Unknown coordination configuration. Currently only [redis, etcd] are supported. " +
 		"\n\tRead more about coordination service configuration: https://jitsu.com/docs/other-features/scaling-eventnative#coordination")
+}
+
+//initializeEventsQueueFactory returns configured events.QueueFactory (redis or inmemory)
+func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*events.QueueFactory, error) {
+	//redis config from meta.storage section
+	redisConfigurationSource := metaStorageConfiguration.Sub("redis")
+
+	//get redis configuration from separated config section if configured
+	if viper.GetString("events.queue.redis.host") != "" {
+		redisConfigurationSource = viper.Sub("events.queue.redis")
+	}
+
+	var eventsQueueRedisPool *meta.RedisPool
+	var err error
+	if redisConfigurationSource != nil {
+		factory := meta.NewRedisPoolFactory(redisConfigurationSource.GetString("host"),
+			redisConfigurationSource.GetInt("port"),
+			redisConfigurationSource.GetString("password"),
+			redisConfigurationSource.GetBool("tls_skip_verify"),
+			redisConfigurationSource.GetString("sentinel_master_name"))
+		factory.CheckAndSetDefaultPort()
+		eventsQueueRedisPool, err = factory.Create()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return events.NewQueueFactory(eventsQueueRedisPool), nil
 }
