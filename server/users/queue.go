@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	defaultQueueCapacity       = 20_000_000
-	debugElementCountThreshold = 20
+	debugElementCountThreshold = 50
 	queueIdentifier            = "users_recognition"
 )
 
@@ -22,7 +21,7 @@ type Queue struct {
 }
 
 func newQueue() *Queue {
-	inmemoryQueue := queue.NewInMemory(defaultQueueCapacity)
+	inmemoryQueue := queue.NewInMemory()
 
 	metrics.InitialUsersRecognitionQueueSize(int(inmemoryQueue.Size()))
 
@@ -30,17 +29,11 @@ func newQueue() *Queue {
 }
 
 func (q *Queue) startMonitor() {
-	percentTicker := time.NewTicker(time.Minute)
 	debugTicker := time.NewTicker(time.Minute * 10)
 	for {
 		select {
 		case <-q.closed:
 			return
-		case <-percentTicker.C:
-			size := q.queue.Size()
-			if size > int64(defaultQueueCapacity*0.6) {
-				logging.Warnf("[queue: %s] 60% of queue capacity has been taken! Current: %d capacity: %d (%0.2f %%)", q.identifier, size, defaultQueueCapacity, size/defaultQueueCapacity*100)
-			}
 		case <-debugTicker.C:
 			size := q.queue.Size()
 			if size > debugElementCountThreshold {

@@ -16,6 +16,7 @@ func Init(enabled bool) {
 		initSourceObjects()
 		initMetaRedis()
 		initCoordinationRedis()
+		initEventsRedis()
 		initUsersRecognitionQueue()
 		initStreamEventsQueue()
 	} else {
