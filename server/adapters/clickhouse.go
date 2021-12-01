@@ -121,7 +121,11 @@ func (chc *ClickHouseConfig) Validate() error {
 	}
 
 	for _, dsn := range chc.Dsns {
-		if !strings.HasPrefix(dsn, "http") {
+		if dsn == "" {
+			return errors.New("DSNs values can't be empty")
+		}
+
+		if !strings.HasPrefix(strings.TrimSpace(dsn), "http") {
 			return errors.New("DSNs must have http:// or https:// prefix")
 		}
 	}
