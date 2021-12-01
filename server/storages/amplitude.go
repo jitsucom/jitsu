@@ -20,7 +20,7 @@ func NewAmplitude(config *Config) (Storage, error) {
 		return nil, fmt.Errorf("Amplitude destination doesn't support %s mode", BatchMode)
 	}
 
-	amplitudeConfig := config.destination.Amplitude
+	amplitudeConfig := config.destination.GetConfig(config.destination.Amplitude).(*adapters.AmplitudeConfig)
 	if err := amplitudeConfig.Validate(); err != nil {
 		return nil, err
 	}

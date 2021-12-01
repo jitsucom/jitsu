@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/utils"
 
 	"github.com/jitsucom/jitsu/server/typing"
 
@@ -33,7 +34,7 @@ func init() {
 
 //NewSnowflake returns Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
 func NewSnowflake(config *Config) (Storage, error) {
-	snowflakeConfig := config.destination.Snowflake
+	snowflakeConfig := config.destination.GetConfig(config.destination.Snowflake).(*adapters.SnowflakeConfig)
 	if err := snowflakeConfig.Validate(); err != nil {
 		return nil, err
 	}
@@ -48,10 +49,17 @@ func NewSnowflake(config *Config) (Storage, error) {
 		snowflakeConfig.Parameters["client_session_keep_alive"] = &t
 	}
 
-	if config.destination.Google != nil {
-		if err := config.destination.Google.Validate(config.streamMode); err != nil {
+	googleConfig := utils.Nvl(snowflakeConfig.Google, config.destination.Google).(*adapters.GoogleConfig)
+	if googleConfig != nil {
+		if err := googleConfig.Validate(); err != nil {
 			return nil, err
 		}
+		if !config.streamMode {
+			if err := googleConfig.ValidateBatchMode(); err != nil {
+				return nil, err
+			}
+		}
+
 		//stage is required when gcp integration
 		if snowflakeConfig.Stage == "" {
 			return nil, errors.New("Snowflake stage is required parameter in GCP integration")
@@ -59,15 +67,16 @@ func NewSnowflake(config *Config) (Storage, error) {
 	}
 
 	var stageAdapter adapters.Stage
+	s3config := utils.Nvl(snowflakeConfig.S3, config.destination.S3).(*adapters.S3Config)
 	if !config.streamMode {
 		var err error
-		if config.destination.S3 != nil {
-			stageAdapter, err = adapters.NewS3(config.destination.S3)
+		if s3config != nil {
+			stageAdapter, err = adapters.NewS3(s3config)
 			if err != nil {
 				return nil, err
 			}
 		} else {
-			stageAdapter, err = adapters.NewGoogleCloudStorage(config.ctx, config.destination.Google)
+			stageAdapter, err = adapters.NewGoogleCloudStorage(config.ctx, googleConfig)
 			if err != nil {
 				return nil, err
 			}
@@ -75,7 +84,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	snowflakeAdapter, err := CreateSnowflakeAdapter(config.ctx, config.destination.S3, *snowflakeConfig, queryLogger, config.sqlTypes)
+	snowflakeAdapter, err := CreateSnowflakeAdapter(config.ctx, s3config, *snowflakeConfig, queryLogger, config.sqlTypes)
 	if err != nil {
 		if stageAdapter != nil {
 			stageAdapter.Close()

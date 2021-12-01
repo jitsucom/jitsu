@@ -17,3 +17,15 @@ func ExtractObject(object interface{}, path ... string) (interface{}, error) {
 	}
 	return ExtractObject(val, path[1:]...)
 }
+
+//Nvl returns first not null object or pointer from varargs
+//
+//return nil if all passed arguments are nil
+func Nvl(args ... interface{}) interface{} {
+	for _, str := range args {
+		if str != nil {
+			return str
+		}
+	}
+	return nil
+}

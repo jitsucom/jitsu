@@ -8,7 +8,6 @@ import (
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/schema"
 	enstorages "github.com/jitsucom/jitsu/server/storages"
-	"github.com/jitsucom/jitsu/server/utils"
 	"strings"
 )
 
@@ -17,7 +16,7 @@ const defaultPrimaryKey = "eventn_ctx_event_id"
 func MapConfig(destinationID string, destination *entities.Destination, defaultS3 *enadapters.S3Config, postHandleDestinations []string) (*enstorages.DestinationConfig, error) {
 	var config *enstorages.DestinationConfig
 	var err error
-	switch utils.NvlString(destination.SuperType, destination.Type) {
+	switch destination.Type {
 	case enstorages.PostgresType:
 		config, err = mapPostgres(destination)
 	case enstorages.ClickHouseType:
@@ -126,7 +125,7 @@ func mapS3(dest *entities.Destination) (*enstorages.DestinationConfig, error) {
 		DataLayout: &enstorages.DataLayout{
 			TableNameTemplate: s3FormData.TableName,
 		},
-		S3: &enadapters.S3Config{
+		Config: &enadapters.S3Config{
 			AccessKeyID: s3FormData.AccessKeyID,
 			SecretKey:   s3FormData.SecretKey,
 			Bucket:      s3FormData.Bucket,
@@ -158,7 +157,7 @@ func mapBigQuery(bqDestination *entities.Destination) (*enstorages.DestinationCo
 		DataLayout: &enstorages.DataLayout{
 			TableNameTemplate: bqFormData.TableName,
 		},
-		Google: gcs,
+		Config: gcs,
 	}, nil
 }
 
@@ -196,7 +195,7 @@ func mapPostgres(pgDestinations *entities.Destination) (*enstorages.DestinationC
 			TableNameTemplate: pgFormData.TableName,
 			PrimaryKeyFields:  pgFormData.PKFields,
 		},
-		DataSource: &enadapters.DataSourceConfig{
+		Config: &enadapters.DataSourceConfig{
 			Host:             pgFormData.Host,
 			Port:             pgFormData.Port,
 			Db:               pgFormData.Db,
@@ -233,7 +232,7 @@ func mapMySQL(md *entities.Destination) (*enstorages.DestinationConfig, error) {
 			TableNameTemplate: mySQLFormData.TableName,
 			PrimaryKeyFields:  mySQLFormData.PKFields,
 		},
-		DataSource: &enadapters.DataSourceConfig{
+		Config: &enadapters.DataSourceConfig{
 			Host:       mySQLFormData.Host,
 			Port:       mySQLFormData.Port,
 			Db:         mySQLFormData.Db,
@@ -267,7 +266,7 @@ func mapClickhouse(chDestinations *entities.Destination) (*enstorages.Destinatio
 		DataLayout: &enstorages.DataLayout{
 			TableNameTemplate: chFormData.TableName,
 		},
-		ClickHouse: &enadapters.ClickHouseConfig{
+		Config: &enadapters.ClickHouseConfig{
 			Dsns:     dsns,
 			Database: chFormData.ChDb,
 			Cluster:  chFormData.ChCluster,
@@ -318,15 +317,15 @@ func mapRedshift(destinationID string, rsDestinations *entities.Destination, def
 		DataLayout: &enstorages.DataLayout{
 			TableNameTemplate: rsFormData.TableName,
 		},
-		DataSource: &enadapters.DataSourceConfig{
+		Config: &enadapters.DataSourceConfig{
 			Host:     rsFormData.Host,
 			Port:     json.Number("5439"),
 			Db:       rsFormData.Db,
 			Schema:   rsFormData.Schema,
 			Username: rsFormData.Username,
 			Password: rsFormData.Password,
+			S3: s3,
 		},
-		S3: s3,
 	}
 	return &config, nil
 }
@@ -355,9 +354,17 @@ func mapSnowflake(snowflakeDestination *entities.Destination) (*enstorages.Desti
 		DataLayout: &enstorages.DataLayout{
 			TableNameTemplate: snowflakeFormData.TableName,
 		},
-		Snowflake: &enadapters.SnowflakeConfig{Account: snowflakeFormData.Account, Warehouse: snowflakeFormData.Warehouse, Db: snowflakeFormData.DB, Schema: snowflakeFormData.Schema, Username: snowflakeFormData.Username, Password: snowflakeFormData.Password, Stage: snowflakeFormData.StageName},
-		S3:        s3,
-		Google:    gcs,
+		Config: &enadapters.SnowflakeConfig{
+			Account: snowflakeFormData.Account,
+			Warehouse: snowflakeFormData.Warehouse,
+			Db: snowflakeFormData.DB,
+			Schema: snowflakeFormData.Schema,
+			Username: snowflakeFormData.Username,
+			Password: snowflakeFormData.Password,
+			Stage: snowflakeFormData.StageName,
+			S3:        s3,
+			Google:    gcs,
+		},
 	}, nil
 }
 
@@ -376,7 +383,7 @@ func mapGoogleAnalytics(gaDestination *entities.Destination) (*enstorages.Destin
 	return &enstorages.DestinationConfig{
 		Type: enstorages.GoogleAnalyticsType,
 		Mode: gaFormData.Mode,
-		GoogleAnalytics: &enadapters.GoogleAnalyticsConfig{
+		Config: &enadapters.GoogleAnalyticsConfig{
 			TrackingID: gaFormData.TrackingID,
 		},
 		DataLayout: &enstorages.DataLayout{
@@ -400,7 +407,7 @@ func mapFacebook(fbDestination *entities.Destination) (*enstorages.DestinationCo
 	return &enstorages.DestinationConfig{
 		Type: enstorages.FacebookType,
 		Mode: fbFormData.Mode,
-		Facebook: &enadapters.FacebookConversionAPIConfig{
+		Config: &enadapters.FacebookConversionAPIConfig{
 			PixelID:     fbFormData.PixelID,
 			AccessToken: fbFormData.AccessToken,
 		},
@@ -433,9 +440,8 @@ func mapWebhook(whDestination *entities.Destination) (*enstorages.DestinationCon
 
 	return &enstorages.DestinationConfig{
 		Type:    enstorages.WebHookType,
-		SubType: whDestination.Type,
 		Mode:    whFormData.Mode,
-		WebHook: &enadapters.WebHookConfig{
+		Config: &enadapters.WebHookConfig{
 			URL:     whFormData.URL,
 			Method:  whFormData.Method,
 			Body:    whFormData.Body,
@@ -462,7 +468,7 @@ func mapAmplitude(aDestination *entities.Destination) (*enstorages.DestinationCo
 	return &enstorages.DestinationConfig{
 		Type: enstorages.AmplitudeType,
 		Mode: aFormData.Mode,
-		Amplitude: &enadapters.AmplitudeConfig{
+		Config: &enadapters.AmplitudeConfig{
 			APIKey: aFormData.APIKey,
 		},
 		DataLayout: &enstorages.DataLayout{
@@ -486,7 +492,7 @@ func mapHubSpot(hDestination *entities.Destination) (*enstorages.DestinationConf
 	return &enstorages.DestinationConfig{
 		Type: enstorages.HubSpotType,
 		Mode: hFormData.Mode,
-		HubSpot: &enadapters.HubSpotConfig{
+		Config: &enadapters.HubSpotConfig{
 			APIKey: hFormData.APIKey,
 			HubID:  hFormData.HubID,
 		},
@@ -518,7 +524,7 @@ func mapDbtCloud(hDestination *entities.Destination) (*enstorages.DestinationCon
 	return &enstorages.DestinationConfig{
 		Type: enstorages.DbtCloudType,
 		Mode: enstorages.StreamMode,
-		DbtCloud: &enadapters.DbtCloudConfig{
+		Config: &enadapters.DbtCloudConfig{
 			AccountId: int(accountId),
 			JobId:     int(jobId),
 			Cause:     dbtFormData.Cause,

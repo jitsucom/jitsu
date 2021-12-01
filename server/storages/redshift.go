@@ -3,6 +3,7 @@ package storages
 import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/utils"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -30,7 +31,7 @@ func init() {
 
 //NewAwsRedshift returns AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(config *Config) (Storage, error) {
-	redshiftConfig := config.destination.DataSource
+	redshiftConfig := config.destination.GetConfig(config.destination.DataSource).(*adapters.DataSourceConfig)
 	if err := redshiftConfig.Validate(); err != nil {
 		return nil, err
 	}
@@ -54,16 +55,17 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	}
 
 	var s3Adapter *adapters.S3
+	s3config := utils.Nvl(redshiftConfig.S3, config.destination.S3).(*adapters.S3Config)
 	if !config.streamMode {
 		var err error
-		s3Adapter, err = adapters.NewS3(config.destination.S3)
+		s3Adapter, err = adapters.NewS3(s3config)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	redshiftAdapter, err := adapters.NewAwsRedshift(config.ctx, redshiftConfig, config.destination.S3, queryLogger, config.sqlTypes)
+	redshiftAdapter, err := adapters.NewAwsRedshift(config.ctx, redshiftConfig, s3config, queryLogger, config.sqlTypes)
 	if err != nil {
 		return nil, err
 	}

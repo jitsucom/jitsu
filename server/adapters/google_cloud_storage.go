@@ -32,13 +32,16 @@ type GoogleConfig struct {
 	credentials option.ClientOption
 }
 
-func (gc *GoogleConfig) Validate(streamMode bool) error {
+//ValidateBatchMode checks that google cloud storage is set
+func (gc *GoogleConfig) ValidateBatchMode() error {
+	if gc.Bucket == "" {
+		return errors.New("Google cloud storage bucket(gcs_bucket) is required parameter")
+	}
+	return nil
+}
+func (gc *GoogleConfig) Validate() error {
 	if gc == nil {
 		return errors.New("Google config is required")
-	}
-	//batch mode works via google cloud storage
-	if !streamMode && gc.Bucket == "" {
-		return errors.New("Google cloud storage bucket(gcs_bucket) is required parameter")
 	}
 
 	if gc.Dataset != "" {

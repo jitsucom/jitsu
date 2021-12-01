@@ -20,7 +20,7 @@ func NewHubSpot(config *Config) (Storage, error) {
 		return nil, fmt.Errorf("HubSpot destination doesn't support %s mode", BatchMode)
 	}
 
-	hubspotConfig := config.destination.HubSpot
+	hubspotConfig := config.destination.GetConfig(config.destination.HubSpot).(*adapters.HubSpotConfig)
 	if err := hubspotConfig.Validate(); err != nil {
 		return nil, err
 	}
