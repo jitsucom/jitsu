@@ -15,12 +15,12 @@ const errCreateQueueTemplate = "error opening/creating event queue in dir [%s]: 
 
 type LevelDBQueue struct {
 	identifier string
-	queue      *leveldb.WLQueue
+	queue      *leveldb.Queue
 }
 
 func NewLevelDBQueue(identifier, queueName, logEventPath string) (PersistentQueue, error) {
 	queueDir := path.Join(logEventPath, queueName)
-	queue, err := leveldb.NewWLQueue(queueDir)
+	queue, err := leveldb.NewQueue(queueDir)
 	if err != nil {
 		return nil, fmt.Errorf(errCreateQueueTemplate, queueDir, err)
 	}
