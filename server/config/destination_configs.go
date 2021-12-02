@@ -54,6 +54,7 @@ type DestinationConfig struct {
 }
 
 func (config *DestinationConfig) GetDestConfig(compatibilityValue map[string]interface{}, dest Validatable) error {
+	logging.Infof("compat: %s\nconfig: %s\n", compatibilityValue, config.Config)
 	mp := utils.Nvl(config.Config, compatibilityValue)
 	if err := mapstructure.Decode(mp, dest); err != nil {
 		return err
