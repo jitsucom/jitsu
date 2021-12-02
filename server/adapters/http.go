@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/panjf2000/ants/v2"
@@ -20,6 +21,7 @@ type HTTPAdapterConfiguration struct {
 	Dir            string
 	HTTPConfig     *HTTPConfiguration
 	HTTPReqFactory HTTPRequestFactory
+	QueueFactory   *events.QueueFactory
 	PoolWorkers    int
 	DebugLogger    *logging.QueryLogger
 	ErrorHandler   func(fallback bool, eventContext *EventContext, err error)
@@ -43,7 +45,7 @@ type HTTPConfiguration struct {
 type HTTPAdapter struct {
 	client         *http.Client
 	workersPool    *ants.PoolWithFunc
-	queue          *PersistentQueue
+	queue          *HTTPRequestQueue
 	debugLogger    *logging.QueryLogger
 	httpReqFactory HTTPRequestFactory
 
@@ -82,11 +84,7 @@ func NewHTTPAdapter(config *HTTPAdapterConfiguration) (*HTTPAdapter, error) {
 		closed:                 atomic.NewBool(false),
 	}
 
-	reqQueue, err := NewPersistentQueue("http_queue.dst="+config.DestinationID, config.Dir)
-	if err != nil {
-		httpAdapter.client.CloseIdleConnections()
-		return nil, err
-	}
+	reqQueue := NewHTTPRequestQueue(config.DestinationID, config.QueueFactory)
 
 	pool, err := ants.NewPoolWithFunc(config.PoolWorkers, httpAdapter.sendRequestWithRetry)
 	if err != nil {
@@ -173,6 +171,7 @@ func (h *HTTPAdapter) sendRequestWithRetry(i interface{}) {
 
 	err := h.doRequest(retryableRequest.Request)
 	if err != nil {
+		logging.Errorf("[%s] HTTP request URL: [%s] Method: [%s] Body: [%s] Headers: [%s] will be retried [retry count=%d] after err: %v", h.destinationID, retryableRequest.Request.URL, retryableRequest.Request.Method, string(retryableRequest.Request.Body), retryableRequest.Request.Headers, retryableRequest.Retry, err)
 		h.doRetry(retryableRequest, err)
 	} else {
 		retryableRequest.EventContext.HTTPRequest = retryableRequest.Request

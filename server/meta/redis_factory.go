@@ -20,14 +20,14 @@ const (
 )
 
 var (
-	defaultDialConnectTimeout = redis.DialConnectTimeout(10 * time.Second)
-	defaultDialReadTimeout    = redis.DialReadTimeout(10 * time.Second)
-
 	errMalformedURL = errors.New("Accepted format - sentinel://master_name:password@node1:port,node2:port")
 )
 
 // Options for Redis Pool
 type Options struct {
+	DefaultDialConnectTimeout time.Duration
+	DefaultDialReadTimeout    time.Duration
+
 	MaxIdle     int
 	MaxActive   int
 	IdleTimeout time.Duration
@@ -35,9 +35,11 @@ type Options struct {
 
 // DefaultOptions for Redis Pool
 var DefaultOptions = &Options{
-	MaxIdle:     100,
-	MaxActive:   600,
-	IdleTimeout: 240 * time.Second,
+	DefaultDialConnectTimeout: 10 * time.Second,
+	DefaultDialReadTimeout:    10 * time.Second,
+	MaxIdle:                   100,
+	MaxActive:                 600,
+	IdleTimeout:               240 * time.Second,
 }
 
 //RedisPoolFactory is a factory for creating RedisPool
@@ -71,9 +73,13 @@ func NewRedisPoolFactory(host string, port int, password string, tlsSkipVerify b
 }
 
 //WithOptions overrides options
-func (rpf *RedisPoolFactory) WithOptions(options *Options) *RedisPoolFactory {
-	rpf.options = options
+func (rpf *RedisPoolFactory) WithOptions(options Options) *RedisPoolFactory {
+	rpf.options = &options
 	return rpf
+}
+
+func (rpf *RedisPoolFactory) GetOptions() Options {
+	return *rpf.options
 }
 
 //Create returns configured RedisPool or err if ping failed
@@ -117,6 +123,9 @@ func (rpf *RedisPoolFactory) Create() (*RedisPool, error) {
 }
 
 func (rpf *RedisPoolFactory) getSentinelAndDialFunc() (*sentinel.Sentinel, func() (redis.Conn, error), error) {
+	defaultDialConnectTimeout := redis.DialConnectTimeout(rpf.options.DefaultDialConnectTimeout)
+	defaultDialReadTimeout := redis.DialReadTimeout(rpf.options.DefaultDialReadTimeout)
+
 	options := []redis.DialOption{defaultDialConnectTimeout, defaultDialReadTimeout}
 
 	// 1. redis:// redis://

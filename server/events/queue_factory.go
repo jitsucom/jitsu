@@ -24,27 +24,45 @@ type Queue interface {
 }
 
 type QueueFactory struct {
-	redisPool *meta.RedisPool
+	redisPool        *meta.RedisPool
+	redisReadTimeout time.Duration
 }
 
-func NewQueueFactory(redisPool *meta.RedisPool) *QueueFactory {
-	return &QueueFactory{redisPool: redisPool}
+func NewQueueFactory(redisPool *meta.RedisPool, redisReadTimeout time.Duration) *QueueFactory {
+	return &QueueFactory{redisPool: redisPool, redisReadTimeout: redisReadTimeout}
 }
 
-func (qf *QueueFactory) Create(identifier, queueName, logEventPath string) (Queue, error) {
+func (qf *QueueFactory) CreateEventsQueue(identifier string) (Queue, error) {
 	//DEPRECATED
+	//queueName = "queue.dst="+destinationID,  logEventPath = f.logEventPath
 	//return NewDQueBasedQueue(identifier, queueName, logEventPath)
 	//return NewLevelDBQueue(identifier, queueName, logEventPath)
 
 	var underlyingQueue queue.Queue
 	if qf.redisPool != nil {
-		logging.Infof("[%s] initializing redis events queue")
-		underlyingQueue = queue.NewRedis(identifier, qf.redisPool, TimedEventBuilder)
+		logging.Infof("[%s] initializing redis events queue", identifier)
+		underlyingQueue = queue.NewRedis(queue.DestinationNamespace, identifier, qf.redisPool, TimedEventBuilder, qf.redisReadTimeout)
 	} else {
-		logging.Infof("[%s] initializing inmemory events queue")
+		logging.Infof("[%s] initializing inmemory events queue", identifier)
 		underlyingQueue = queue.NewInMemory()
 	}
-	return NewNativeQueue(identifier, underlyingQueue)
+	return NewNativeQueue(queue.DestinationNamespace, identifier, underlyingQueue)
+}
+
+func (qf *QueueFactory) CreateHTTPQueue(identifier string, serializationModelBuilder func() interface{}) queue.Queue {
+	if qf.redisPool != nil {
+		return queue.NewRedis(queue.HTTPAdapterNamespace, identifier, qf.redisPool, serializationModelBuilder, qf.redisReadTimeout)
+	} else {
+		return queue.NewInMemory()
+	}
+}
+
+func (qf *QueueFactory) Close() error {
+	if qf.redisPool != nil {
+		return qf.redisPool.Close()
+	}
+
+	return nil
 }
 
 func logSkippedEvent(event Event, err error) {

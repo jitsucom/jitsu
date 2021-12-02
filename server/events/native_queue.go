@@ -17,17 +17,19 @@ func TimedEventBuilder() interface{} {
 
 //NativeQueue is a event queue implementation by Jitsu
 type NativeQueue struct {
+	namespace  string
 	identifier string
 	queue      queue.Queue
 
 	closed chan struct{}
 }
 
-func NewNativeQueue(identifier string, queue queue.Queue) (Queue, error) {
+func NewNativeQueue(namespace, identifier string, queue queue.Queue) (Queue, error) {
 	metrics.InitialStreamEventsQueueSize(identifier, int(queue.Size()))
 
 	nq := &NativeQueue{
 		queue:      queue,
+		namespace:  namespace,
 		identifier: identifier,
 		closed:     make(chan struct{}, 1),
 	}
@@ -44,7 +46,7 @@ func (q *NativeQueue) startMonitor() {
 			return
 		case <-debugTicker.C:
 			size := q.queue.Size()
-			logging.Infof("[queue: %s] current size: %d", q.identifier, size)
+			logging.Infof("[queue: %s_%s] current size: %d", q.namespace, q.identifier, size)
 		}
 	}
 }

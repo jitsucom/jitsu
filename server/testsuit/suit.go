@@ -180,7 +180,7 @@ func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig s
 	monitor := coordination.NewInMemoryService([]string{})
 	tempDir := os.TempDir()
 	loggerFactory := logging.NewFactory(tempDir, 5, false, nil, nil)
-	queueFactory := events.NewQueueFactory(nil)
+	queueFactory := events.NewQueueFactory(nil, 0)
 	destinationsFactory := storages.NewFactory(context.Background(), tempDir, sb.geoService, monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, queueFactory, 0)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
 	require.NoError(t, err)
