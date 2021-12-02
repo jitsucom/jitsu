@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/config"
 	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"strings"
 )
 
 const defaultPrimaryKey = "eventn_ctx_event_id"
 
-func MapConfig(destinationID string, destination *entities.Destination, defaultS3 *enadapters.S3Config, postHandleDestinations []string) (*enstorages.DestinationConfig, error) {
-	var config *enstorages.DestinationConfig
+func MapConfig(destinationID string, destination *entities.Destination, defaultS3 *enadapters.S3Config, postHandleDestinations []string) (*config.DestinationConfig, error) {
+	var config *config.DestinationConfig
 	var err error
 	switch destination.Type {
 	case enstorages.PostgresType:
@@ -59,13 +59,13 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 	config.TemplateVariables = templateVars
 
 	enrichMappingRules(destination, config)
-	config.DataLayout.TransformEnabled = destination.TransformEnabled
+	config.DataLayout.TransformEnabled = &destination.TransformEnabled
 	config.DataLayout.Transform = destination.Transform
 	setEnrichmentRules(destination, config)
 
 	if len(destination.PrimaryKeyFields) > 0 {
 		if config.DataLayout == nil {
-			config.DataLayout = &enstorages.DataLayout{}
+			config.DataLayout = &config.DataLayout{}
 		}
 
 		config.DataLayout.PrimaryKeyFields = destination.PrimaryKeyFields
@@ -75,7 +75,7 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		if !destination.DisableDefaultPrimaryKeyFields &&
 			(destination.Type == enstorages.PostgresType || destination.Type == enstorages.MySQLType || destination.Type == enstorages.RedshiftType || destination.Type == enstorages.SnowflakeType) {
 			if config.DataLayout == nil {
-				config.DataLayout = &enstorages.DataLayout{}
+				config.DataLayout = &config.DataLayout{}
 			}
 
 			config.DataLayout.PrimaryKeyFields = []string{defaultPrimaryKey}
@@ -84,7 +84,7 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 
 	//overriding user recognition settings
 	if destination.UsersRecognition != nil {
-		config.UsersRecognition = &enstorages.UsersRecognition{
+		config.UsersRecognition = &config.UsersRecognition{
 			Enabled:         destination.UsersRecognition.Enabled,
 			AnonymousIDNode: destination.UsersRecognition.AnonymousIDNode,
 			UserIDNode:      destination.UsersRecognition.UserIDJSONNode,
@@ -93,18 +93,18 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 
 	//disabling destination's events caching
 	if destination.CachingConfiguration != nil {
-		config.CachingConfiguration = &enstorages.CachingConfiguration{Disabled: destination.CachingConfiguration.Disabled}
+		config.CachingConfiguration = &config.CachingConfiguration{Disabled: destination.CachingConfiguration.Disabled}
 	}
 
 	//only keys
 	config.OnlyTokens = destination.OnlyKeys
-
+	config.Package = destination.Package
 	config.PostHandleDestinations = postHandleDestinations
 
 	return config, nil
 }
 
-func mapS3(dest *entities.Destination) (*enstorages.DestinationConfig, error) {
+func mapS3(dest *entities.Destination) (*config.DestinationConfig, error) {
 	b, err := json.Marshal(dest.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling s3 config destination: %v", err)
@@ -119,10 +119,10 @@ func mapS3(dest *entities.Destination) (*enstorages.DestinationConfig, error) {
 	if s3FormData.CompressionEnabled {
 		compression = enadapters.S3CompressionGZIP
 	}
-	return &enstorages.DestinationConfig{
+	return &config.DestinationConfig{
 		Type: enstorages.S3Type,
 		Mode: "batch",
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &config.DataLayout{
 			TableNameTemplate: s3FormData.TableName,
 		},
 		Config: &enadapters.S3Config{
@@ -138,7 +138,7 @@ func mapS3(dest *entities.Destination) (*enstorages.DestinationConfig, error) {
 	}, nil
 }
 
-func mapBigQuery(bqDestination *entities.Destination) (*enstorages.DestinationConfig, error) {
+func mapBigQuery(bqDestination *entities.Destination) (*config.DestinationConfig, error) {
 	b, err := json.Marshal(bqDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling BigQuery config destination: %v", err)
@@ -151,17 +151,17 @@ func mapBigQuery(bqDestination *entities.Destination) (*enstorages.DestinationCo
 	}
 	gcs := &enadapters.GoogleConfig{Project: bqFormData.ProjectID, Bucket: bqFormData.GCSBucket,
 		KeyFile: bqFormData.JSONKey, Dataset: bqFormData.Dataset}
-	return &enstorages.DestinationConfig{
+	return &config.DestinationConfig{
 		Type: enstorages.BigQueryType,
 		Mode: bqFormData.Mode,
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &config.DataLayout{
 			TableNameTemplate: bqFormData.TableName,
 		},
 		Config: gcs,
 	}, nil
 }
 
-func mapPostgres(pgDestinations *entities.Destination) (*enstorages.DestinationConfig, error) {
+func mapPostgres(pgDestinations *entities.Destination) (*config.DestinationConfig, error) {
 	b, err := json.Marshal(pgDestinations.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling postgres config destination: %v", err)
@@ -188,10 +188,10 @@ func mapPostgres(pgDestinations *entities.Destination) (*enstorages.DestinationC
 		sslConfig.Mode = enadapters.FromString(pgFormData.SSLMode)
 	}
 
-	return &enstorages.DestinationConfig{
+	return &config.DestinationConfig{
 		Type: enstorages.PostgresType,
 		Mode: pgFormData.Mode,
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &config.DataLayout{
 			TableNameTemplate: pgFormData.TableName,
 			PrimaryKeyFields:  pgFormData.PKFields,
 		},
@@ -208,7 +208,7 @@ func mapPostgres(pgDestinations *entities.Destination) (*enstorages.DestinationC
 	}, nil
 }
 
-func mapMySQL(md *entities.Destination) (*enstorages.DestinationConfig, error) {
+func mapMySQL(md *entities.Destination) (*config.DestinationConfig, error) {
 	b, err := json.Marshal(md.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling MySQL config destination: %v", err)
@@ -225,10 +225,10 @@ func mapMySQL(md *entities.Destination) (*enstorages.DestinationConfig, error) {
 		parameters = map[string]string{"tls": "false"}
 	}
 
-	return &enstorages.DestinationConfig{
+	return &config.DestinationConfig{
 		Type: enstorages.MySQLType,
 		Mode: mySQLFormData.Mode,
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &config.DataLayout{
 			TableNameTemplate: mySQLFormData.TableName,
 			PrimaryKeyFields:  mySQLFormData.PKFields,
 		},
@@ -244,7 +244,7 @@ func mapMySQL(md *entities.Destination) (*enstorages.DestinationConfig, error) {
 	}, nil
 }
 
-func mapClickhouse(chDestinations *entities.Destination) (*enstorages.DestinationConfig, error) {
+func mapClickhouse(chDestinations *entities.Destination) (*config.DestinationConfig, error) {
 	b, err := json.Marshal(chDestinations.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling clickhouse config destination: %v", err)
@@ -260,10 +260,10 @@ func mapClickhouse(chDestinations *entities.Destination) (*enstorages.Destinatio
 	if len(dsns) == 0 {
 		dsns = strings.Split(chFormData.ChDsns, ",")
 	}
-	return &enstorages.DestinationConfig{
+	return &config.DestinationConfig{
 		Type: enstorages.ClickHouseType,
 		Mode: chFormData.Mode,
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &config.DataLayout{
 			TableNameTemplate: chFormData.TableName,
 		},
 		Config: &enadapters.ClickHouseConfig{
@@ -274,7 +274,7 @@ func mapClickhouse(chDestinations *entities.Destination) (*enstorages.Destinatio
 	}, nil
 }
 
-func mapRedshift(destinationID string, rsDestinations *entities.Destination, defaultS3 *enadapters.S3Config) (*enstorages.DestinationConfig, error) {
+func mapRedshift(destinationID string, rsDestinations *entities.Destination, defaultS3 *enadapters.S3Config) (*config.DestinationConfig, error) {
 	b, err := json.Marshal(rsDestinations.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling redshift config destination: %v", err)
@@ -311,10 +311,10 @@ func mapRedshift(destinationID string, rsDestinations *entities.Destination, def
 		}
 	}
 
-	config := enstorages.DestinationConfig{
+	config := config.DestinationConfig{
 		Type: enstorages.RedshiftType,
 		Mode: rsFormData.Mode,
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &config.DataLayout{
 			TableNameTemplate: rsFormData.TableName,
 		},
 		Config: &enadapters.DataSourceConfig{
@@ -330,7 +330,7 @@ func mapRedshift(destinationID string, rsDestinations *entities.Destination, def
 	return &config, nil
 }
 
-func mapSnowflake(snowflakeDestination *entities.Destination) (*enstorages.DestinationConfig, error) {
+func mapSnowflake(snowflakeDestination *entities.Destination) (*config.DestinationConfig, error) {
 	b, err := json.Marshal(snowflakeDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling Snowflake config destination: %v", err)
@@ -348,10 +348,10 @@ func mapSnowflake(snowflakeDestination *entities.Destination) (*enstorages.Desti
 	} else if snowflakeFormData.GCSBucket != "" {
 		gcs = &enadapters.GoogleConfig{Bucket: snowflakeFormData.GCSBucket, KeyFile: snowflakeFormData.GCSKey}
 	}
-	return &enstorages.DestinationConfig{
+	return &config.DestinationConfig{
 		Type: enstorages.SnowflakeType,
 		Mode: snowflakeFormData.Mode,
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &config.DataLayout{
 			TableNameTemplate: snowflakeFormData.TableName,
 		},
 		Config: &enadapters.SnowflakeConfig{
@@ -368,7 +368,7 @@ func mapSnowflake(snowflakeDestination *entities.Destination) (*enstorages.Desti
 	}, nil
 }
 
-func mapGoogleAnalytics(gaDestination *entities.Destination) (*enstorages.DestinationConfig, error) {
+func mapGoogleAnalytics(gaDestination *entities.Destination) (*config.DestinationConfig, error) {
 	b, err := json.Marshal(gaDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling google analytics config destination: %v", err)
@@ -380,19 +380,19 @@ func mapGoogleAnalytics(gaDestination *entities.Destination) (*enstorages.Destin
 		return nil, fmt.Errorf("Error unmarshaling google analytics form data: %v", err)
 	}
 
-	return &enstorages.DestinationConfig{
+	return &config.DestinationConfig{
 		Type: enstorages.GoogleAnalyticsType,
 		Mode: gaFormData.Mode,
 		Config: &enadapters.GoogleAnalyticsConfig{
 			TrackingID: gaFormData.TrackingID,
 		},
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &config.DataLayout{
 			TableNameTemplate: gaFormData.TableName,
 		},
 	}, nil
 }
 
-func mapFacebook(fbDestination *entities.Destination) (*enstorages.DestinationConfig, error) {
+func mapFacebook(fbDestination *entities.Destination) (*config.DestinationConfig, error) {
 	b, err := json.Marshal(fbDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling facebook config destination: %v", err)
@@ -404,20 +404,20 @@ func mapFacebook(fbDestination *entities.Destination) (*enstorages.DestinationCo
 		return nil, fmt.Errorf("Error unmarshaling facebook form data: %v", err)
 	}
 
-	return &enstorages.DestinationConfig{
+	return &config.DestinationConfig{
 		Type: enstorages.FacebookType,
 		Mode: fbFormData.Mode,
 		Config: &enadapters.FacebookConversionAPIConfig{
 			PixelID:     fbFormData.PixelID,
 			AccessToken: fbFormData.AccessToken,
 		},
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &config.DataLayout{
 			TableNameTemplate: fbFormData.TableName,
 		},
 	}, nil
 }
 
-func mapWebhook(whDestination *entities.Destination) (*enstorages.DestinationConfig, error) {
+func mapWebhook(whDestination *entities.Destination) (*config.DestinationConfig, error) {
 	b, err := json.Marshal(whDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling webhook config destination: %v", err)
@@ -438,7 +438,7 @@ func mapWebhook(whDestination *entities.Destination) (*enstorages.DestinationCon
 		headers[strings.TrimSpace(nameValue[0])] = strings.TrimSpace(nameValue[1])
 	}
 
-	return &enstorages.DestinationConfig{
+	return &config.DestinationConfig{
 		Type:    enstorages.WebHookType,
 		Mode:    whFormData.Mode,
 		Config: &enadapters.WebHookConfig{
@@ -447,13 +447,13 @@ func mapWebhook(whDestination *entities.Destination) (*enstorages.DestinationCon
 			Body:    whFormData.Body,
 			Headers: headers,
 		},
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &config.DataLayout{
 			TableNameTemplate: whFormData.TableName,
 		},
 	}, nil
 }
 
-func mapAmplitude(aDestination *entities.Destination) (*enstorages.DestinationConfig, error) {
+func mapAmplitude(aDestination *entities.Destination) (*config.DestinationConfig, error) {
 	b, err := json.Marshal(aDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling amplitude config destination: %v", err)
@@ -465,19 +465,19 @@ func mapAmplitude(aDestination *entities.Destination) (*enstorages.DestinationCo
 		return nil, fmt.Errorf("Error unmarshaling amplitude form data: %v", err)
 	}
 
-	return &enstorages.DestinationConfig{
+	return &config.DestinationConfig{
 		Type: enstorages.AmplitudeType,
 		Mode: aFormData.Mode,
 		Config: &enadapters.AmplitudeConfig{
 			APIKey: aFormData.APIKey,
 		},
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &config.DataLayout{
 			TableNameTemplate: aFormData.TableName,
 		},
 	}, nil
 }
 
-func mapHubSpot(hDestination *entities.Destination) (*enstorages.DestinationConfig, error) {
+func mapHubSpot(hDestination *entities.Destination) (*config.DestinationConfig, error) {
 	b, err := json.Marshal(hDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling hubspot config destination: %v", err)
@@ -489,20 +489,20 @@ func mapHubSpot(hDestination *entities.Destination) (*enstorages.DestinationConf
 		return nil, fmt.Errorf("Error unmarshaling hubspot form data: %v", err)
 	}
 
-	return &enstorages.DestinationConfig{
+	return &config.DestinationConfig{
 		Type: enstorages.HubSpotType,
 		Mode: hFormData.Mode,
 		Config: &enadapters.HubSpotConfig{
 			APIKey: hFormData.APIKey,
 			HubID:  hFormData.HubID,
 		},
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &config.DataLayout{
 			TableNameTemplate: hFormData.TableName,
 		},
 	}, nil
 }
 
-func mapDbtCloud(hDestination *entities.Destination) (*enstorages.DestinationConfig, error) {
+func mapDbtCloud(hDestination *entities.Destination) (*config.DestinationConfig, error) {
 	b, err := json.Marshal(hDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling dbtcloud config destination: %v", err)
@@ -521,7 +521,7 @@ func mapDbtCloud(hDestination *entities.Destination) (*enstorages.DestinationCon
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshaling dbtcloud form data: %v", err)
 	}
-	return &enstorages.DestinationConfig{
+	return &config.DestinationConfig{
 		Type: enstorages.DbtCloudType,
 		Mode: enstorages.StreamMode,
 		Config: &enadapters.DbtCloudConfig{
@@ -531,17 +531,17 @@ func mapDbtCloud(hDestination *entities.Destination) (*enstorages.DestinationCon
 			Token:     dbtFormData.Token,
 			Enabled:   dbtFormData.Enabled,
 		},
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &config.DataLayout{
 			TableNameTemplate: "",
 		},
 	}, nil
 }
 
-func enrichMappingRules(destination *entities.Destination, enDestinationConfig *enstorages.DestinationConfig) {
+func enrichMappingRules(destination *entities.Destination, enDestinationConfig *config.DestinationConfig) {
 	if !destination.Mappings.IsEmpty() {
-		var mappingFields []schema.MappingField
+		var mappingFields []config.MappingField
 		for _, rule := range destination.Mappings.Rules {
-			mappingFields = append(mappingFields, schema.MappingField{
+			mappingFields = append(mappingFields, config.MappingField{
 				Src:        rule.SourceField,
 				Dst:        rule.DestinationField,
 				Action:     rule.Action,
@@ -552,17 +552,17 @@ func enrichMappingRules(destination *entities.Destination, enDestinationConfig *
 		}
 
 		if enDestinationConfig.DataLayout == nil {
-			enDestinationConfig.DataLayout = &enstorages.DataLayout{}
+			enDestinationConfig.DataLayout = &config.DataLayout{}
 		}
 
-		enDestinationConfig.DataLayout.Mappings = &schema.Mapping{
+		enDestinationConfig.DataLayout.Mappings = &config.Mapping{
 			KeepUnmapped: &destination.Mappings.KeepFields,
 			Fields:       mappingFields,
 		}
 	}
 }
 
-func setEnrichmentRules(destination *entities.Destination, config *enstorages.DestinationConfig) {
+func setEnrichmentRules(destination *entities.Destination, config *config.DestinationConfig) {
 	if len(destination.Enrichment) > 0 {
 		config.Enrichment = destination.Enrichment
 	}

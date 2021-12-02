@@ -3,6 +3,7 @@ package schema
 import (
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -25,7 +26,7 @@ type MappingRule struct {
 }
 
 //NewFieldMapper return FieldMapper, sql typecast and err
-func NewFieldMapper(newStyleMappings *Mapping) (events.Mapper, typing.SQLTypes, error) {
+func NewFieldMapper(newStyleMappings *config.Mapping) (events.Mapper, typing.SQLTypes, error) {
 	if newStyleMappings == nil || len(newStyleMappings.Fields) == 0 {
 		return &DummyMapper{}, typing.SQLTypes{}, nil
 	}
@@ -114,9 +115,9 @@ func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*Map
 	var fieldsToRemove []jsonutils.JSONPath
 	for _, rule := range rules {
 		switch rule.action {
-		case REMOVE:
+		case config.REMOVE:
 			fieldsToRemove = append(fieldsToRemove, rule.source)
-		case MOVE:
+		case config.MOVE:
 			value, ok := rule.source.Get(sourceObj)
 			if ok {
 				err := rule.destination.Set(destinationObj, value)
@@ -126,9 +127,9 @@ func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*Map
 
 				fieldsToRemoveAfterMove = append(fieldsToRemoveAfterMove, rule.source)
 			}
-		case CAST:
+		case config.CAST:
 			//will be handled in adapters
-		case CONSTANT:
+		case config.CONSTANT:
 			err := rule.destination.Set(destinationObj, rule.value)
 			if err != nil {
 				return nil, err
@@ -149,8 +150,8 @@ func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*Map
 
 //ConvertOldMappings converts old style mappings into new style
 //return new style mappings or error
-func ConvertOldMappings(mappingType FieldMappingType, oldStyleMappings []string) (*Mapping, error) {
-	var mappingFields []MappingField
+func ConvertOldMappings(mappingType config.FieldMappingType, oldStyleMappings []string) (*config.Mapping, error) {
+	var mappingFields []config.MappingField
 	for _, mapping := range oldStyleMappings {
 		mappingWithoutSpaces := strings.ReplaceAll(mapping, " ", "")
 		parts := strings.Split(mappingWithoutSpaces, "->")
@@ -166,11 +167,11 @@ func ConvertOldMappings(mappingType FieldMappingType, oldStyleMappings []string)
 			return nil, fmt.Errorf("Malformed data mapping [%s]. Source part before '->' can't be empty", mapping)
 		}
 
-		mf := MappingField{Src: source}
+		mf := config.MappingField{Src: source}
 		if destination == "" {
-			mf.Action = REMOVE
+			mf.Action = config.REMOVE
 		} else {
-			mf.Action = MOVE
+			mf.Action = config.MOVE
 
 			//with type casting
 			if strings.Contains(destination, ")") {
@@ -193,9 +194,9 @@ func ConvertOldMappings(mappingType FieldMappingType, oldStyleMappings []string)
 		mappingFields = append(mappingFields, mf)
 	}
 
-	keepUnmapped := mappingType == Default
+	keepUnmapped := mappingType == config.Default
 
-	return &Mapping{
+	return &config.Mapping{
 		KeepUnmapped: &keepUnmapped,
 		Fields:       mappingFields,
 	}, nil

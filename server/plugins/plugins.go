@@ -38,36 +38,7 @@ func NewPluginsRepository(pluginsMap map[string]string, cacheDir string) (Plugin
 	plugins := map[string]*Plugin{}
 
 	for name, version := range pluginsMap {
-		var tarballUrl string
-		logging.Infof("Loading plugin: %s", name)
-		if tarballUrlRegex.MatchString(version) {
-			//full tarball url was provided instead of version
-			tarballUrl = version
-			logging.Infof("Provided tarball URL: %s", tarballUrl)
-		} else {
-			//use npm view to detect tarball ur
-			logging.Infof("Running npm view for: %s", version)
-			command := exec.Command("npm", "view", version, "--json")
-			command.Stderr = os.Stderr
-			outputBuf, err := command.Output()
-			if err != nil {
-				return nil, fmt.Errorf("cannot install plugin %s: npm view failed on %s : %v", name, version, err)
-			}
-			if len(outputBuf) == 0 {
-				return nil, fmt.Errorf("cannot install plugin %s: no version found: %s", name, version)
-			}
-			npmView := map[string]interface{}{}
-			if err := json.Unmarshal(outputBuf, &npmView); err != nil {
-				return nil, fmt.Errorf("cannot install plugin %s: failed to parse npm view result: %v", name, err)
-			}
-			tbRaw, ok := tarballJsonPath.Get(npmView)
-			if !ok {
-				return nil, fmt.Errorf("cannot install plugin %s: cannot find tarball url in npmv view for: %v", name, version)
-			}
-			tarballUrl = tbRaw.(string)
-			logging.Infof("Tarball URL from npm: %s", tarballUrl)
-		}
-		plugin, err := downloadPlugin(name, tarballUrl)
+		plugin, err := DownloadPlugin(version)
 		if err != nil {
 			return nil, err
 		}
@@ -75,23 +46,57 @@ func NewPluginsRepository(pluginsMap map[string]string, cacheDir string) (Plugin
 	}
 	return &PluginsRepositoryImp{plugins: plugins},nil
 }
+func DownloadPlugin(packageString string) (*Plugin, error) {
+	var tarballUrl string
+	logging.Infof("Loading plugin: %s", packageString)
+	if tarballUrlRegex.MatchString(packageString) {
+		//full tarball url was provided instead of version
+		tarballUrl = packageString
+		logging.Infof("Provided tarball URL: %s", tarballUrl)
+	} else {
+		//use npm view to detect tarball ur
+		logging.Infof("Running npm view for: %s", packageString)
+		command := exec.Command("npm", "view", packageString, "--json")
+		command.Stderr = os.Stderr
+		outputBuf, err := command.Output()
+		if err != nil {
+			return nil, fmt.Errorf("cannot install plugin %s: npm view failed: %v", packageString, err)
+		}
+		if len(outputBuf) == 0 {
+			return nil, fmt.Errorf("cannot install plugin %s: no version found.", packageString)
+		}
+		npmView := map[string]interface{}{}
+		if err := json.Unmarshal(outputBuf, &npmView); err != nil {
+			return nil, fmt.Errorf("cannot install plugin %s: failed to parse npm view result: %v", packageString, err)
+		}
+		tbRaw, ok := tarballJsonPath.Get(npmView)
+		if !ok {
+			return nil, fmt.Errorf("cannot install plugin %s: cannot find tarball url in npmv view for: %v", packageString, packageString)
+		}
+		tarballUrl = tbRaw.(string)
+		logging.Infof("Tarball URL from npm: %s", tarballUrl)
+	}
+	return downloadPlugin(packageString, tarballUrl)
+}
 
-func downloadPlugin(name, tarballUrl string) (*Plugin, error) {
+func downloadPlugin(packageString, tarballUrl string) (*Plugin, error) {
 	logging.Infof("Downloading: %s", tarballUrl)
 
 	resp, err := http.Get(tarballUrl)
 	if err != nil {
-		return nil, fmt.Errorf("cannot install plugin %s: failed to download tarball: %s : %v", name, tarballUrl, err)
+		return nil, fmt.Errorf("cannot install plugin %s: failed to download tarball: %s : %v", packageString, tarballUrl, err)
 	}
 	defer resp.Body.Close()
-
 	contentDisposition := resp.Header.Get("content-disposition")
 	contentDisposition = strings.ReplaceAll(contentDisposition, "attachment; filename=", "")
-	var filename = name + ".tar.gz"
+	var filename = ""
 	if contentDisposition != "" {
 		filename = contentDisposition
+	} else {
+		urlParts := strings.Split(resp.Request.URL.String(), "/")
+		filename = urlParts[len(urlParts)-1]
 	}
-	dir, err := os.MkdirTemp("", name)
+	dir, err := os.MkdirTemp("", "plugin")
 	logging.Infof("Created tmp dir: %s", dir)
 	if err != nil {
 		return nil, err
@@ -122,17 +127,17 @@ func downloadPlugin(name, tarballUrl string) (*Plugin, error) {
 	logging.Infof("Opening package.json")
 	pckgBytes, err :=  os.ReadFile(path.Join(dir, "package.json"))
 	if err != nil {
-		return nil, fmt.Errorf("cannot install plugin %s: failed to open package.json: %v", name, err)
+		return nil, fmt.Errorf("cannot install plugin %s: failed to open package.json: %v", packageString, err)
 	}
 	pckgMap := map[string]interface{}{}
 	err = json.Unmarshal(pckgBytes, &pckgMap)
 	if err != nil {
-		return nil, fmt.Errorf("cannot install plugin %s: failed to unmarshal package.json: %v", name, err)
+		return nil, fmt.Errorf("cannot install plugin %s: failed to unmarshal package.json: %v", packageString, err)
 	}
 	mainRaw, ok := pckgMap["main"]
 	logging.Infof("package.json main: %s", mainRaw)
 	if !ok {
-		return nil, fmt.Errorf("cannot install plugin %s: main node is required in package.json: %v", name, err)
+		return nil, fmt.Errorf("cannot install plugin %s: main node is required in package.json: %v", packageString, err)
 	}
 	var mainFile string
 	switch main := mainRaw.(type) {
@@ -140,16 +145,16 @@ func downloadPlugin(name, tarballUrl string) (*Plugin, error) {
 		mainFile = path.Join(dir, main)
 	case []string:
 		if len(main) != 1 {
-			return nil, fmt.Errorf("cannot install plugin %s: main node must contain one file. Found: %s", name, mainRaw)
+			return nil, fmt.Errorf("cannot install plugin %s: main node must contain one file. Found: %s", packageString, mainRaw)
 		}
 		mainFile = path.Join(dir, main[0])
 	default:
-		return nil, fmt.Errorf("cannot install plugin %s: main node must contain one file. Found: %s", name, mainRaw)
+		return nil, fmt.Errorf("cannot install plugin %s: main node must contain one file. Found: %s", packageString, mainRaw)
 	}
 	logging.Infof("Opening main file: %s", mainFile)
 	dist, err := os.ReadFile(mainFile)
 	if !ok {
-		return nil, fmt.Errorf("cannot install plugin %s: cannot open main file: %s : %v", name, mainFile, err)
+		return nil, fmt.Errorf("cannot install plugin %s: cannot open main file: %s : %v", packageString, mainFile, err)
 	}
 	code := string(dist)
 	logging.Debug("Main File: %s", code)
@@ -158,18 +163,18 @@ func downloadPlugin(name, tarballUrl string) (*Plugin, error) {
 	_ = vm.Set("exports", exports)
 	_, err = vm.RunString(code)
 	if err != nil {
-		return nil, fmt.Errorf("cannot install plugin %s: error running main script: %v", name, err)
+		return nil, fmt.Errorf("cannot install plugin %s: error running main script: %v", packageString, err)
 	}
 	descriptorValue, ok := exports["descriptor"]
 	if !ok {
-		return nil, fmt.Errorf("cannot install plugin %s: descriptor is not exported: %v", name, err)
+		return nil, fmt.Errorf("cannot install plugin %s: descriptor is not exported: %v", packageString, err)
 	}
 	descriptor, ok := descriptorValue.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("cannot install plugin %s: failed to convert desriptor object to go map[string]interface{}. Actual type: %T", name, descriptorValue)
+		return nil, fmt.Errorf("cannot install plugin %s: failed to convert desriptor object to go map[string]interface{}. Actual type: %T", packageString, descriptorValue)
 	}
 	logging.Infof("Descriptor:  %s", descriptor)
-	return &Plugin{Name: name, Code: code, Descriptor: descriptor}, nil
+	return &Plugin{Name: descriptor["type"].(string), Code: code, Descriptor: descriptor}, nil
 }
 
 func (rep *PluginsRepositoryImp) GetPlugins() map[string]*Plugin {

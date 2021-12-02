@@ -2,6 +2,7 @@ package storages
 
 import (
 	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
@@ -91,7 +92,7 @@ func TestProcessTransformWithTypesOverride(t *testing.T) {
 	appconfig.Init(false, "")
 
 	fieldMapper := schema.DummyMapper{}
-	transormExpression := `
+	transformExpression := `
 if ($.event_type == "simple") {
     return {...$,
     __sql_type_dter: ["timestamp", "timestamp with timezone"],
@@ -103,8 +104,11 @@ if ($.event_type == "simple") {
 }
 return $
 `
-	p, err := schema.NewProcessor("test", "google_analytics", `events`, transormExpression, fieldMapper, []enrichment.Rule{}, schema.NewFlattener(), schema.NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, map[string]interface{}{}, nil)
-
+	destination := &config.DestinationConfig{Type: "google_analytics", BreakOnError: false,
+		DataLayout: &config.DataLayout{Transform: transformExpression}}
+	p, err := schema.NewProcessor("test", destination, `events`, fieldMapper, []enrichment.Rule{}, schema.NewFlattener(), schema.NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+	require.NoError(t, err)
+	err = p.InitJavaScriptTemplates()
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

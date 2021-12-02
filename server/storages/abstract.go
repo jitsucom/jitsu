@@ -2,6 +2,7 @@ package storages
 
 import (
 	"fmt"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"math/rand"
 
@@ -30,7 +31,7 @@ type Abstract struct {
 
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
-	cachingConfiguration *CachingConfiguration
+	cachingConfiguration *config.CachingConfiguration
 
 	archiveLogger *logging.AsyncLogger
 }

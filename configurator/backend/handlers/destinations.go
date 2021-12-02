@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/config"
 	endestinations "github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/logging"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
@@ -50,7 +51,7 @@ func (dh *DestinationsHandler) GetHandler(c *gin.Context) {
 		geoResolvers = map[string]*entities.GeoDataResolver{}
 	}
 
-	idConfig := map[string]enstorages.DestinationConfig{}
+	idConfig := map[string]config.DestinationConfig{}
 	for projectID, destinationsEntity := range destinationsMap {
 		if len(destinationsEntity.Destinations) == 0 {
 			continue
