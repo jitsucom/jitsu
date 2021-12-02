@@ -2,7 +2,7 @@ server:
   name: jitsu-benchmark
   disable_welcome_page: true
   strict_auth_tokens: true
-  admin_token: '${CLUSTER_ADMIN_TOKEN}'
+  admin_token: '${env.CLUSTER_ADMIN_TOKEN}'
 
 api_keys:
   - id: stream_api_key
