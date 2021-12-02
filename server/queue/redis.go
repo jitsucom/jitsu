@@ -6,16 +6,21 @@ import (
 	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
+	"time"
 )
 
 const (
-	eventsQueueKeyPrefix      = "events_queue:destination#"
-	defaultWaitTimeoutSeconds = 30
+	DestinationNamespace = "destination"
+	HTTPAdapterNamespace = "http"
+
+	eventsQueueKeyPrefix      = "events_queue:%s#%s"
+	defaultWaitTimeoutSeconds = 10
 )
 
 //redis key [variables] - description
 //** Events queue**
-//events_queue:destination#$destinationID - list with event JSON's
+//events_queue:destination#$destinationID - list with destination event JSON's
+//events_queue:http#$destinationID - list with destinations adapters http requests
 
 //Redis is a queue implementation based on Redis
 //it is used blocking pop (BLPOP) command for getting elements from queue
@@ -24,18 +29,26 @@ type Redis struct {
 	queueKey                  string
 	serializationModelBuilder func() interface{}
 
-	pool         *meta.RedisPool
+	waitTimeoutSeconds int
+
+	sharedPool   *meta.RedisPool
 	errorMetrics *meta.ErrorMetrics
 
 	closed chan struct{}
 }
 
-func NewRedis(identifier string, redisPool *meta.RedisPool, serializationModelBuilder func() interface{}) Queue {
+func NewRedis(namespace, identifier string, redisPool *meta.RedisPool, serializationModelBuilder func() interface{},
+	redisReadTimeout time.Duration) Queue {
+	waitTimeoutSeconds := int(redisReadTimeout.Seconds() * 0.9)
+	if waitTimeoutSeconds == 0 {
+		waitTimeoutSeconds = defaultWaitTimeoutSeconds
+	}
 	return &Redis{
 		identifier:                identifier,
-		queueKey:                  eventsQueueKeyPrefix + identifier,
+		queueKey:                  fmt.Sprintf(eventsQueueKeyPrefix, namespace, identifier),
 		serializationModelBuilder: serializationModelBuilder,
-		pool:                      redisPool,
+		waitTimeoutSeconds:        waitTimeoutSeconds,
+		sharedPool:                redisPool,
 		errorMetrics:              meta.NewErrorMetrics(metrics.EventsRedisErrors),
 		closed:                    make(chan struct{}),
 	}
@@ -80,7 +93,7 @@ func (r *Redis) Pop() (interface{}, error) {
 }
 
 func (r *Redis) Size() int64 {
-	conn := r.pool.Get()
+	conn := r.sharedPool.Get()
 	defer conn.Close()
 
 	size, err := redis.Int64(conn.Do("LLEN", r.queueKey))
@@ -96,16 +109,17 @@ func (r *Redis) Size() int64 {
 	return size
 }
 
+//Close doesn't close sharedPool
 func (r *Redis) Close() error {
 	close(r.closed)
-	return r.pool.Close()
+	return nil
 }
 
 func (r *Redis) blpop() (string, error) {
-	conn := r.pool.Get()
+	conn := r.sharedPool.Get()
 	defer conn.Close()
 
-	v, err := redis.Values(conn.Do("BLPOP", r.queueKey, defaultWaitTimeoutSeconds))
+	v, err := redis.Values(conn.Do("BLPOP", r.queueKey, r.waitTimeoutSeconds))
 	if err != nil {
 		if err == redis.ErrNil {
 			return "", ErrQueueEmpty
@@ -123,7 +137,7 @@ func (r *Redis) blpop() (string, error) {
 }
 
 func (r *Redis) rpush(value string) error {
-	conn := r.pool.Get()
+	conn := r.sharedPool.Get()
 	defer conn.Close()
 
 	_, err := conn.Do("RPUSH", r.queueKey, value)

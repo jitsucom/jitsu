@@ -144,6 +144,7 @@ type Config struct {
 	eventQueue             events.Queue
 	eventsCache            *caching.EventsCache
 	loggerFactory          *logging.Factory
+	queueFactory           *events.QueueFactory
 	pkFields               map[string]bool
 	sqlTypes               typing.SQLTypes
 	uniqueIDField          *identifiers.UniqueID
@@ -341,7 +342,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		return nil, nil, err
 	}
 
-	eventQueue, err := f.eventsQueueFactory.Create(destinationID, "queue.dst="+destinationID, f.logEventPath)
+	eventQueue, err := f.eventsQueueFactory.CreateEventsQueue(destinationID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -390,6 +391,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		eventQueue:             eventQueue,
 		eventsCache:            f.eventsCache,
 		loggerFactory:          destinationLoggerFactory,
+		queueFactory:           f.eventsQueueFactory,
 		pkFields:               pkFields,
 		sqlTypes:               sqlTypes,
 		uniqueIDField:          uniqueIDField,

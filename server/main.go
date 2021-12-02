@@ -261,17 +261,6 @@ func main() {
 		}
 	}
 
-	// ** Closing Meta Storage and Coordination Service
-	// Close after all for saving last task statuses
-	defer func() {
-		if err := coordinationService.Close(); err != nil {
-			logging.Errorf("Error closing coordination service: %v", err)
-		}
-		if err := metaStorage.Close(); err != nil {
-			logging.Errorf("Error closing meta storage: %v", err)
-		}
-	}()
-
 	// ** Destinations **
 	//events queue
 	//Redis based if events.queue.redis or meta.storage configured
@@ -281,6 +270,20 @@ func main() {
 	if err != nil {
 		logging.Fatal(err)
 	}
+
+	// ** Closing Meta Storage and Coordination Service
+	// Close after all for saving last task statuses
+	defer func() {
+		if err := eventsQueueFactory.Close(); err != nil {
+			logging.Errorf("Error closing events queue factory: %v", err)
+		}
+		if err := coordinationService.Close(); err != nil {
+			logging.Errorf("Error closing coordination service: %v", err)
+		}
+		if err := metaStorage.Close(); err != nil {
+			logging.Errorf("Error closing meta storage: %v", err)
+		}
+	}()
 
 	//events counters
 	counters.InitEvents(metaStorage)
@@ -492,6 +495,7 @@ func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*event
 		redisConfigurationSource = viper.Sub("events.queue.redis")
 	}
 
+	var pollTimeout time.Duration
 	var eventsQueueRedisPool *meta.RedisPool
 	var err error
 	if redisConfigurationSource != nil {
@@ -500,6 +504,7 @@ func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*event
 			redisConfigurationSource.GetString("password"),
 			redisConfigurationSource.GetBool("tls_skip_verify"),
 			redisConfigurationSource.GetString("sentinel_master_name"))
+		pollTimeout = factory.GetOptions().DefaultDialReadTimeout
 		factory.CheckAndSetDefaultPort()
 		eventsQueueRedisPool, err = factory.Create()
 		if err != nil {
@@ -507,5 +512,5 @@ func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*event
 		}
 	}
 
-	return events.NewQueueFactory(eventsQueueRedisPool), nil
+	return events.NewQueueFactory(eventsQueueRedisPool, pollTimeout), nil
 }
