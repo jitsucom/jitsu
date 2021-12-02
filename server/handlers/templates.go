@@ -104,10 +104,10 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (result st
 			err = fmt.Errorf("Error: %v", r)
 		}
 	}()
-	var transformIds []string
+	//var transformIds []string
 	var tmpl templates.TemplateExecutor
 	if req.Field == "_transform" {
-		transformIds = []string{req.Type, "segment"}
+		//transformIds = []string{req.Type, "segment"}
 		tmpl, err = templates.NewJsTemplateExecutor(req.Expression, req.TemplateFunctions())
 	} else {
 		tmpl, err = templates.SmartParse("template evaluating", req.Expression, req.TemplateFunctions())
