@@ -4,15 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/utils"
-
-	"github.com/jitsucom/jitsu/server/typing"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/typing"
 	sf "github.com/snowflakedb/gosnowflake"
 )
 
@@ -34,8 +31,8 @@ func init() {
 
 //NewSnowflake returns Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
 func NewSnowflake(config *Config) (Storage, error) {
-	snowflakeConfig := config.destination.GetConfig(config.destination.Snowflake).(*adapters.SnowflakeConfig)
-	if err := snowflakeConfig.Validate(); err != nil {
+	snowflakeConfig := &adapters.SnowflakeConfig{}
+	if err := config.destination.GetDestConfig(config.destination.Snowflake, snowflakeConfig); err != nil {
 		return nil, err
 	}
 	if snowflakeConfig.Schema == "" {
@@ -48,9 +45,13 @@ func NewSnowflake(config *Config) (Storage, error) {
 		t := "true"
 		snowflakeConfig.Parameters["client_session_keep_alive"] = &t
 	}
-
-	googleConfig := utils.Nvl(snowflakeConfig.Google, config.destination.Google).(*adapters.GoogleConfig)
-	if googleConfig != nil {
+	var googleConfig *adapters.GoogleConfig
+	gc, err := config.destination.GetConfig(snowflakeConfig.Google, config.destination.Google, &adapters.GoogleConfig{})
+	if err != nil {
+		return nil, err
+	}
+	if gc != nil {
+		googleConfig = gc.(*adapters.GoogleConfig)
 		if err := googleConfig.Validate(); err != nil {
 			return nil, err
 		}
@@ -67,7 +68,12 @@ func NewSnowflake(config *Config) (Storage, error) {
 	}
 
 	var stageAdapter adapters.Stage
-	s3config := utils.Nvl(snowflakeConfig.S3, config.destination.S3).(*adapters.S3Config)
+	var s3config *adapters.S3Config
+	s3c, err := config.destination.GetConfig(snowflakeConfig.S3, config.destination.S3, &adapters.S3Config{})
+	if err != nil {
+		return nil, err
+	}
+	s3config = s3c.(*adapters.S3Config)
 	if !config.streamMode {
 		var err error
 		if s3config != nil {

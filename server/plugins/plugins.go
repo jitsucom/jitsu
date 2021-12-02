@@ -13,11 +13,13 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var tarballUrlRegex = regexp.MustCompile(`^http.*\.(?:tar|tar\.gz|tgz)$`)
 var tarballJsonPath = jsonutils.NewJSONPath("/dist/tarball")
-
+var pluginsCache = map[string]CachedPlugin{}
+var cacheTTL = time.Duration(1)*time.Hour
 
 type PluginsRepository interface {
 	GetPlugins() map[string]*Plugin
@@ -27,6 +29,12 @@ type PluginsRepository interface {
 type PluginsRepositoryImp struct {
 	plugins map[string]*Plugin
 }
+
+type CachedPlugin struct {
+	Added time.Time
+	Plugin *Plugin
+}
+
 
 type Plugin struct {
 	Name string
@@ -47,8 +55,11 @@ func NewPluginsRepository(pluginsMap map[string]string, cacheDir string) (Plugin
 	return &PluginsRepositoryImp{plugins: plugins},nil
 }
 func DownloadPlugin(packageString string) (*Plugin, error) {
-	var tarballUrl string
 	logging.Infof("Loading plugin: %s", packageString)
+	if plugin := GetCached(packageString); plugin != nil {
+		return plugin, nil
+	}
+	var tarballUrl string
 	if tarballUrlRegex.MatchString(packageString) {
 		//full tarball url was provided instead of version
 		tarballUrl = packageString
@@ -175,6 +186,20 @@ func downloadPlugin(packageString, tarballUrl string) (*Plugin, error) {
 	}
 	logging.Infof("Descriptor:  %s", descriptor)
 	return &Plugin{Name: descriptor["type"].(string), Code: code, Descriptor: descriptor}, nil
+}
+
+func GetCached(packageString string) *Plugin {
+	cached, ok := pluginsCache[packageString]
+	if !ok {
+		return nil
+	}
+	if time.Now().Sub(cached.Added) > cacheTTL {
+		logging.Infof("Cache expired. Plugin: %s time added: %s", packageString, cached.Added)
+		delete(pluginsCache, packageString)
+		return nil
+	}
+	logging.Infof("Cache hit. Plugin: %s time added: %s", packageString, cached.Added)
+	return cached.Plugin
 }
 
 func (rep *PluginsRepositoryImp) GetPlugins() map[string]*Plugin {

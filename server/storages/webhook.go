@@ -35,8 +35,9 @@ func NewWebHook(config *Config) (Storage, error) {
 		return nil, fmt.Errorf("WebHook destination doesn't support %s mode", BatchMode)
 	}
 
-	webHookConfig := config.destination.GetConfig(config.destination.WebHook).(*adapters.WebHookConfig)
-	if err := webHookConfig.Validate(); err != nil {
+
+	webHookConfig := &adapters.WebHookConfig{}
+	if err := config.destination.GetDestConfig(config.destination.WebHook, webHookConfig); err != nil {
 		return nil, err
 	}
 

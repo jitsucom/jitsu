@@ -21,8 +21,8 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 		return nil, fmt.Errorf("Google Analytics destination doesn't support %s mode", BatchMode)
 	}
 
-	gaConfig := config.destination.GetConfig(config.destination.GoogleAnalytics).(*adapters.GoogleAnalyticsConfig)
-	if err := gaConfig.Validate(); err != nil {
+	gaConfig := &adapters.GoogleAnalyticsConfig{}
+	if err := config.destination.GetDestConfig(config.destination.GoogleAnalytics, gaConfig); err != nil {
 		return nil, err
 	}
 

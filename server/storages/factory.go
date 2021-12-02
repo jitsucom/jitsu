@@ -304,7 +304,9 @@ func (f *FactoryImpl) Create(destinationID string, destination config.Destinatio
 
 func needDummy(destCfg *config.DestinationConfig) bool {
 	if destCfg.Type == S3Type {
-		return destCfg.GetConfig(destCfg.S3).(*adapters.S3Config).Format == adapters.S3FormatJSON
+		fbConfig := &adapters.S3Config{}
+		_ = destCfg.GetDestConfig(destCfg.S3, fbConfig)
+		return fbConfig.Format == adapters.S3FormatJSON
 	}
 	return destCfg.Type == FacebookType || destCfg.Type == DbtCloudType || destCfg.Type == WebHookType ||
 		destCfg.Type == AmplitudeType || destCfg.Type == HubSpotType
