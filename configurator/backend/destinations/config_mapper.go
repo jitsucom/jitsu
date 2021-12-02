@@ -6,15 +6,16 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/config"
+	enconfig "github.com/jitsucom/jitsu/server/config"
 	enstorages "github.com/jitsucom/jitsu/server/storages"
+	"github.com/mitchellh/mapstructure"
 	"strings"
 )
 
 const defaultPrimaryKey = "eventn_ctx_event_id"
 
-func MapConfig(destinationID string, destination *entities.Destination, defaultS3 *enadapters.S3Config, postHandleDestinations []string) (*config.DestinationConfig, error) {
-	var config *config.DestinationConfig
+func MapConfig(destinationID string, destination *entities.Destination, defaultS3 *enadapters.S3Config, postHandleDestinations []string) (*enconfig.DestinationConfig, error) {
+	var config *enconfig.DestinationConfig
 	var err error
 	switch destination.Type {
 	case enstorages.PostgresType:
@@ -65,7 +66,7 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 
 	if len(destination.PrimaryKeyFields) > 0 {
 		if config.DataLayout == nil {
-			config.DataLayout = &config.DataLayout{}
+			config.DataLayout = &enconfig.DataLayout{}
 		}
 
 		config.DataLayout.PrimaryKeyFields = destination.PrimaryKeyFields
@@ -75,7 +76,7 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		if !destination.DisableDefaultPrimaryKeyFields &&
 			(destination.Type == enstorages.PostgresType || destination.Type == enstorages.MySQLType || destination.Type == enstorages.RedshiftType || destination.Type == enstorages.SnowflakeType) {
 			if config.DataLayout == nil {
-				config.DataLayout = &config.DataLayout{}
+				config.DataLayout = &enconfig.DataLayout{}
 			}
 
 			config.DataLayout.PrimaryKeyFields = []string{defaultPrimaryKey}
@@ -84,7 +85,7 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 
 	//overriding user recognition settings
 	if destination.UsersRecognition != nil {
-		config.UsersRecognition = &config.UsersRecognition{
+		config.UsersRecognition = &enconfig.UsersRecognition{
 			Enabled:         destination.UsersRecognition.Enabled,
 			AnonymousIDNode: destination.UsersRecognition.AnonymousIDNode,
 			UserIDNode:      destination.UsersRecognition.UserIDJSONNode,
@@ -93,7 +94,7 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 
 	//disabling destination's events caching
 	if destination.CachingConfiguration != nil {
-		config.CachingConfiguration = &config.CachingConfiguration{Disabled: destination.CachingConfiguration.Disabled}
+		config.CachingConfiguration = &enconfig.CachingConfiguration{Disabled: destination.CachingConfiguration.Disabled}
 	}
 
 	//only keys
@@ -104,7 +105,7 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 	return config, nil
 }
 
-func mapS3(dest *entities.Destination) (*config.DestinationConfig, error) {
+func mapS3(dest *entities.Destination) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(dest.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling s3 config destination: %v", err)
@@ -119,26 +120,32 @@ func mapS3(dest *entities.Destination) (*config.DestinationConfig, error) {
 	if s3FormData.CompressionEnabled {
 		compression = enadapters.S3CompressionGZIP
 	}
-	return &config.DestinationConfig{
+	cfg := &enadapters.S3Config{
+		AccessKeyID: s3FormData.AccessKeyID,
+		SecretKey:   s3FormData.SecretKey,
+		Bucket:      s3FormData.Bucket,
+		Region:      s3FormData.Region,
+		Endpoint:    s3FormData.Endpoint,
+		Folder:      s3FormData.Folder,
+		Format:      s3FormData.Format,
+		Compression: compression,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
 		Type: enstorages.S3Type,
 		Mode: "batch",
-		DataLayout: &config.DataLayout{
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: s3FormData.TableName,
 		},
-		Config: &enadapters.S3Config{
-			AccessKeyID: s3FormData.AccessKeyID,
-			SecretKey:   s3FormData.SecretKey,
-			Bucket:      s3FormData.Bucket,
-			Region:      s3FormData.Region,
-			Endpoint:    s3FormData.Endpoint,
-			Folder:      s3FormData.Folder,
-			Format:      s3FormData.Format,
-			Compression: compression,
-		},
+		Config: cfgMap,
 	}, nil
 }
 
-func mapBigQuery(bqDestination *entities.Destination) (*config.DestinationConfig, error) {
+func mapBigQuery(bqDestination *entities.Destination) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(bqDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling BigQuery config destination: %v", err)
@@ -151,17 +158,22 @@ func mapBigQuery(bqDestination *entities.Destination) (*config.DestinationConfig
 	}
 	gcs := &enadapters.GoogleConfig{Project: bqFormData.ProjectID, Bucket: bqFormData.GCSBucket,
 		KeyFile: bqFormData.JSONKey, Dataset: bqFormData.Dataset}
-	return &config.DestinationConfig{
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(gcs, cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
 		Type: enstorages.BigQueryType,
 		Mode: bqFormData.Mode,
-		DataLayout: &config.DataLayout{
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: bqFormData.TableName,
 		},
-		Config: gcs,
+		Config: cfgMap,
 	}, nil
 }
 
-func mapPostgres(pgDestinations *entities.Destination) (*config.DestinationConfig, error) {
+func mapPostgres(pgDestinations *entities.Destination) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(pgDestinations.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling postgres config destination: %v", err)
@@ -187,28 +199,33 @@ func mapPostgres(pgDestinations *entities.Destination) (*config.DestinationConfi
 		}
 		sslConfig.Mode = enadapters.FromString(pgFormData.SSLMode)
 	}
-
-	return &config.DestinationConfig{
+	cfg := &enadapters.DataSourceConfig{
+		Host:             pgFormData.Host,
+		Port:             pgFormData.Port,
+		Db:               pgFormData.Db,
+		Schema:           pgFormData.Schema,
+		Username:         pgFormData.Username,
+		Password:         pgFormData.Password,
+		Parameters:       map[string]string{},
+		SSLConfiguration: sslConfig,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
 		Type: enstorages.PostgresType,
 		Mode: pgFormData.Mode,
-		DataLayout: &config.DataLayout{
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: pgFormData.TableName,
 			PrimaryKeyFields:  pgFormData.PKFields,
 		},
-		Config: &enadapters.DataSourceConfig{
-			Host:             pgFormData.Host,
-			Port:             pgFormData.Port,
-			Db:               pgFormData.Db,
-			Schema:           pgFormData.Schema,
-			Username:         pgFormData.Username,
-			Password:         pgFormData.Password,
-			Parameters:       map[string]string{},
-			SSLConfiguration: sslConfig,
-		},
+		Config: cfgMap,
 	}, nil
 }
 
-func mapMySQL(md *entities.Destination) (*config.DestinationConfig, error) {
+func mapMySQL(md *entities.Destination) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(md.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling MySQL config destination: %v", err)
@@ -224,27 +241,32 @@ func mapMySQL(md *entities.Destination) (*config.DestinationConfig, error) {
 	if mySQLFormData.DisableTLS {
 		parameters = map[string]string{"tls": "false"}
 	}
-
-	return &config.DestinationConfig{
+	cfg := &enadapters.DataSourceConfig{
+		Host:       mySQLFormData.Host,
+		Port:       mySQLFormData.Port,
+		Db:         mySQLFormData.Db,
+		Schema:     mySQLFormData.Db,
+		Username:   mySQLFormData.Username,
+		Password:   mySQLFormData.Password,
+		Parameters: parameters,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
 		Type: enstorages.MySQLType,
 		Mode: mySQLFormData.Mode,
-		DataLayout: &config.DataLayout{
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: mySQLFormData.TableName,
 			PrimaryKeyFields:  mySQLFormData.PKFields,
 		},
-		Config: &enadapters.DataSourceConfig{
-			Host:       mySQLFormData.Host,
-			Port:       mySQLFormData.Port,
-			Db:         mySQLFormData.Db,
-			Schema:     mySQLFormData.Db,
-			Username:   mySQLFormData.Username,
-			Password:   mySQLFormData.Password,
-			Parameters: parameters,
-		},
+		Config: cfgMap,
 	}, nil
 }
 
-func mapClickhouse(chDestinations *entities.Destination) (*config.DestinationConfig, error) {
+func mapClickhouse(chDestinations *entities.Destination) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(chDestinations.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling clickhouse config destination: %v", err)
@@ -260,21 +282,27 @@ func mapClickhouse(chDestinations *entities.Destination) (*config.DestinationCon
 	if len(dsns) == 0 {
 		dsns = strings.Split(chFormData.ChDsns, ",")
 	}
-	return &config.DestinationConfig{
+	cfg := &enadapters.ClickHouseConfig{
+		Dsns:     dsns,
+		Database: chFormData.ChDb,
+		Cluster:  chFormData.ChCluster,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
 		Type: enstorages.ClickHouseType,
 		Mode: chFormData.Mode,
-		DataLayout: &config.DataLayout{
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: chFormData.TableName,
 		},
-		Config: &enadapters.ClickHouseConfig{
-			Dsns:     dsns,
-			Database: chFormData.ChDb,
-			Cluster:  chFormData.ChCluster,
-		},
+		Config: cfgMap,
 	}, nil
 }
 
-func mapRedshift(destinationID string, rsDestinations *entities.Destination, defaultS3 *enadapters.S3Config) (*config.DestinationConfig, error) {
+func mapRedshift(destinationID string, rsDestinations *entities.Destination, defaultS3 *enadapters.S3Config) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(rsDestinations.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling redshift config destination: %v", err)
@@ -310,27 +338,32 @@ func mapRedshift(destinationID string, rsDestinations *entities.Destination, def
 			}
 		}
 	}
-
-	config := config.DestinationConfig{
+	cfg := &enadapters.DataSourceConfig{
+		Host:     rsFormData.Host,
+		Port:     json.Number("5439"),
+		Db:       rsFormData.Db,
+		Schema:   rsFormData.Schema,
+		Username: rsFormData.Username,
+		Password: rsFormData.Password,
+		S3: s3,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	config := enconfig.DestinationConfig{
 		Type: enstorages.RedshiftType,
 		Mode: rsFormData.Mode,
-		DataLayout: &config.DataLayout{
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: rsFormData.TableName,
 		},
-		Config: &enadapters.DataSourceConfig{
-			Host:     rsFormData.Host,
-			Port:     json.Number("5439"),
-			Db:       rsFormData.Db,
-			Schema:   rsFormData.Schema,
-			Username: rsFormData.Username,
-			Password: rsFormData.Password,
-			S3: s3,
-		},
+		Config: cfgMap,
 	}
 	return &config, nil
 }
 
-func mapSnowflake(snowflakeDestination *entities.Destination) (*config.DestinationConfig, error) {
+func mapSnowflake(snowflakeDestination *entities.Destination) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(snowflakeDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling Snowflake config destination: %v", err)
@@ -348,27 +381,33 @@ func mapSnowflake(snowflakeDestination *entities.Destination) (*config.Destinati
 	} else if snowflakeFormData.GCSBucket != "" {
 		gcs = &enadapters.GoogleConfig{Bucket: snowflakeFormData.GCSBucket, KeyFile: snowflakeFormData.GCSKey}
 	}
-	return &config.DestinationConfig{
+	cfg := &enadapters.SnowflakeConfig{
+		Account: snowflakeFormData.Account,
+		Warehouse: snowflakeFormData.Warehouse,
+		Db: snowflakeFormData.DB,
+		Schema: snowflakeFormData.Schema,
+		Username: snowflakeFormData.Username,
+		Password: snowflakeFormData.Password,
+		Stage: snowflakeFormData.StageName,
+		S3:        s3,
+		Google:    gcs,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
 		Type: enstorages.SnowflakeType,
 		Mode: snowflakeFormData.Mode,
-		DataLayout: &config.DataLayout{
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: snowflakeFormData.TableName,
 		},
-		Config: &enadapters.SnowflakeConfig{
-			Account: snowflakeFormData.Account,
-			Warehouse: snowflakeFormData.Warehouse,
-			Db: snowflakeFormData.DB,
-			Schema: snowflakeFormData.Schema,
-			Username: snowflakeFormData.Username,
-			Password: snowflakeFormData.Password,
-			Stage: snowflakeFormData.StageName,
-			S3:        s3,
-			Google:    gcs,
-		},
+		Config: cfgMap,
 	}, nil
 }
 
-func mapGoogleAnalytics(gaDestination *entities.Destination) (*config.DestinationConfig, error) {
+func mapGoogleAnalytics(gaDestination *entities.Destination) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(gaDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling google analytics config destination: %v", err)
@@ -380,19 +419,25 @@ func mapGoogleAnalytics(gaDestination *entities.Destination) (*config.Destinatio
 		return nil, fmt.Errorf("Error unmarshaling google analytics form data: %v", err)
 	}
 
-	return &config.DestinationConfig{
+	cfg := &enadapters.GoogleAnalyticsConfig{
+		TrackingID: gaFormData.TrackingID,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
 		Type: enstorages.GoogleAnalyticsType,
 		Mode: gaFormData.Mode,
-		Config: &enadapters.GoogleAnalyticsConfig{
-			TrackingID: gaFormData.TrackingID,
-		},
-		DataLayout: &config.DataLayout{
+		Config: cfgMap,
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: gaFormData.TableName,
 		},
 	}, nil
 }
 
-func mapFacebook(fbDestination *entities.Destination) (*config.DestinationConfig, error) {
+func mapFacebook(fbDestination *entities.Destination) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(fbDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling facebook config destination: %v", err)
@@ -404,20 +449,26 @@ func mapFacebook(fbDestination *entities.Destination) (*config.DestinationConfig
 		return nil, fmt.Errorf("Error unmarshaling facebook form data: %v", err)
 	}
 
-	return &config.DestinationConfig{
+	cfg := &enadapters.FacebookConversionAPIConfig{
+		PixelID:     fbFormData.PixelID,
+		AccessToken: fbFormData.AccessToken,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
 		Type: enstorages.FacebookType,
 		Mode: fbFormData.Mode,
-		Config: &enadapters.FacebookConversionAPIConfig{
-			PixelID:     fbFormData.PixelID,
-			AccessToken: fbFormData.AccessToken,
-		},
-		DataLayout: &config.DataLayout{
+		Config: cfgMap,
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: fbFormData.TableName,
 		},
 	}, nil
 }
 
-func mapWebhook(whDestination *entities.Destination) (*config.DestinationConfig, error) {
+func mapWebhook(whDestination *entities.Destination) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(whDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling webhook config destination: %v", err)
@@ -437,23 +488,28 @@ func mapWebhook(whDestination *entities.Destination) (*config.DestinationConfig,
 		}
 		headers[strings.TrimSpace(nameValue[0])] = strings.TrimSpace(nameValue[1])
 	}
-
-	return &config.DestinationConfig{
+	cfg := &enadapters.WebHookConfig{
+		URL:     whFormData.URL,
+		Method:  whFormData.Method,
+		Body:    whFormData.Body,
+		Headers: headers,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
 		Type:    enstorages.WebHookType,
 		Mode:    whFormData.Mode,
-		Config: &enadapters.WebHookConfig{
-			URL:     whFormData.URL,
-			Method:  whFormData.Method,
-			Body:    whFormData.Body,
-			Headers: headers,
-		},
-		DataLayout: &config.DataLayout{
+		Config: cfgMap,
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: whFormData.TableName,
 		},
 	}, nil
 }
 
-func mapAmplitude(aDestination *entities.Destination) (*config.DestinationConfig, error) {
+func mapAmplitude(aDestination *entities.Destination) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(aDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling amplitude config destination: %v", err)
@@ -465,19 +521,25 @@ func mapAmplitude(aDestination *entities.Destination) (*config.DestinationConfig
 		return nil, fmt.Errorf("Error unmarshaling amplitude form data: %v", err)
 	}
 
-	return &config.DestinationConfig{
+	cfg := &enadapters.AmplitudeConfig{
+		APIKey: aFormData.APIKey,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
 		Type: enstorages.AmplitudeType,
 		Mode: aFormData.Mode,
-		Config: &enadapters.AmplitudeConfig{
-			APIKey: aFormData.APIKey,
-		},
-		DataLayout: &config.DataLayout{
+		Config: cfgMap,
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: aFormData.TableName,
 		},
 	}, nil
 }
 
-func mapHubSpot(hDestination *entities.Destination) (*config.DestinationConfig, error) {
+func mapHubSpot(hDestination *entities.Destination) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(hDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling hubspot config destination: %v", err)
@@ -489,20 +551,26 @@ func mapHubSpot(hDestination *entities.Destination) (*config.DestinationConfig, 
 		return nil, fmt.Errorf("Error unmarshaling hubspot form data: %v", err)
 	}
 
-	return &config.DestinationConfig{
+	cfg := &enadapters.HubSpotConfig{
+		APIKey: hFormData.APIKey,
+		HubID:  hFormData.HubID,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
 		Type: enstorages.HubSpotType,
 		Mode: hFormData.Mode,
-		Config: &enadapters.HubSpotConfig{
-			APIKey: hFormData.APIKey,
-			HubID:  hFormData.HubID,
-		},
-		DataLayout: &config.DataLayout{
+		Config: cfgMap,
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: hFormData.TableName,
 		},
 	}, nil
 }
 
-func mapDbtCloud(hDestination *entities.Destination) (*config.DestinationConfig, error) {
+func mapDbtCloud(hDestination *entities.Destination) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(hDestination.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling dbtcloud config destination: %v", err)
@@ -521,27 +589,33 @@ func mapDbtCloud(hDestination *entities.Destination) (*config.DestinationConfig,
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshaling dbtcloud form data: %v", err)
 	}
-	return &config.DestinationConfig{
+	cfg := &enadapters.DbtCloudConfig{
+		AccountId: int(accountId),
+		JobId:     int(jobId),
+		Cause:     dbtFormData.Cause,
+		Token:     dbtFormData.Token,
+		Enabled:   dbtFormData.Enabled,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
 		Type: enstorages.DbtCloudType,
 		Mode: enstorages.StreamMode,
-		Config: &enadapters.DbtCloudConfig{
-			AccountId: int(accountId),
-			JobId:     int(jobId),
-			Cause:     dbtFormData.Cause,
-			Token:     dbtFormData.Token,
-			Enabled:   dbtFormData.Enabled,
-		},
-		DataLayout: &config.DataLayout{
+		Config: cfgMap,
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: "",
 		},
 	}, nil
 }
 
-func enrichMappingRules(destination *entities.Destination, enDestinationConfig *config.DestinationConfig) {
+func enrichMappingRules(destination *entities.Destination, enDestinationConfig *enconfig.DestinationConfig) {
 	if !destination.Mappings.IsEmpty() {
-		var mappingFields []config.MappingField
+		var mappingFields []enconfig.MappingField
 		for _, rule := range destination.Mappings.Rules {
-			mappingFields = append(mappingFields, config.MappingField{
+			mappingFields = append(mappingFields, enconfig.MappingField{
 				Src:        rule.SourceField,
 				Dst:        rule.DestinationField,
 				Action:     rule.Action,
@@ -552,17 +626,17 @@ func enrichMappingRules(destination *entities.Destination, enDestinationConfig *
 		}
 
 		if enDestinationConfig.DataLayout == nil {
-			enDestinationConfig.DataLayout = &config.DataLayout{}
+			enDestinationConfig.DataLayout = &enconfig.DataLayout{}
 		}
 
-		enDestinationConfig.DataLayout.Mappings = &config.Mapping{
+		enDestinationConfig.DataLayout.Mappings = &enconfig.Mapping{
 			KeepUnmapped: &destination.Mappings.KeepFields,
 			Fields:       mappingFields,
 		}
 	}
 }
 
-func setEnrichmentRules(destination *entities.Destination, config *config.DestinationConfig) {
+func setEnrichmentRules(destination *entities.Destination, config *enconfig.DestinationConfig) {
 	if len(destination.Enrichment) > 0 {
 		config.Enrichment = destination.Enrichment
 	}
