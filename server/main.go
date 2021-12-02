@@ -12,6 +12,7 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/multiplexing"
+	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/uuid"
@@ -230,7 +231,8 @@ func main() {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
 	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
-	telemetry.EnrichSystemInfo(clusterID)
+	systemInfo := runtime.GetInfo()
+	telemetry.EnrichSystemInfo(clusterID, systemInfo)
 
 	// ** Coordination Service **
 	var coordinationService coordination.Service
@@ -428,7 +430,7 @@ func main() {
 		multiplexingService, walService, geoService)
 
 	telemetry.ServerStart()
-	notifications.ServerStart()
+	notifications.ServerStart(systemInfo)
 	logging.Info("🚀 Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
@@ -504,6 +506,9 @@ func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*event
 			redisConfigurationSource.GetString("password"),
 			redisConfigurationSource.GetBool("tls_skip_verify"),
 			redisConfigurationSource.GetString("sentinel_master_name"))
+		opts := meta.DefaultOptions
+		opts.MaxActive = 1000
+		factory.WithOptions(opts)
 		pollTimeout = factory.GetOptions().DefaultDialReadTimeout
 		factory.CheckAndSetDefaultPort()
 		eventsQueueRedisPool, err = factory.Create()

@@ -34,7 +34,7 @@ type Options struct {
 }
 
 // DefaultOptions for Redis Pool
-var DefaultOptions = &Options{
+var DefaultOptions = Options{
 	DefaultDialConnectTimeout: 10 * time.Second,
 	DefaultDialReadTimeout:    10 * time.Second,
 	MaxIdle:                   100,
@@ -52,7 +52,7 @@ type RedisPoolFactory struct {
 	sentinelMasterName string
 	tlsSkipVerify      bool
 
-	options *Options
+	options Options
 }
 
 //NewRedisPoolFactory returns filled RedisPoolFactory and removes quotes in host
@@ -74,12 +74,12 @@ func NewRedisPoolFactory(host string, port int, password string, tlsSkipVerify b
 
 //WithOptions overrides options
 func (rpf *RedisPoolFactory) WithOptions(options Options) *RedisPoolFactory {
-	rpf.options = &options
+	rpf.options = options
 	return rpf
 }
 
 func (rpf *RedisPoolFactory) GetOptions() Options {
-	return *rpf.options
+	return rpf.options
 }
 
 //Create returns configured RedisPool or err if ping failed

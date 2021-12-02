@@ -39,7 +39,8 @@ type Redis struct {
 
 func NewRedis(namespace, identifier string, redisPool *meta.RedisPool, serializationModelBuilder func() interface{},
 	redisReadTimeout time.Duration) Queue {
-	waitTimeoutSeconds := int(redisReadTimeout.Seconds() * 0.9)
+	//wait timeout should be less than read timeout
+	waitTimeoutSeconds := int(redisReadTimeout.Seconds() * 0.7)
 	if waitTimeoutSeconds == 0 {
 		waitTimeoutSeconds = defaultWaitTimeoutSeconds
 	}
