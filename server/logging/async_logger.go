@@ -22,7 +22,7 @@ type AsyncLogger struct {
 func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) *AsyncLogger {
 	logger := &AsyncLogger{
 		writer:             writer,
-		logCh:              make(chan interface{}, 2000000),
+		logCh:              make(chan interface{}, 20000),
 		showInGlobalLogger: showInGlobalLogger,
 		closed:             atomic.NewBool(false),
 	}

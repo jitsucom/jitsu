@@ -10,13 +10,11 @@ import (
 	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
-	"github.com/jitsucom/jitsu/server/leveldb"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/jitsucom/jitsu/server/wal"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -24,7 +22,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -100,13 +97,6 @@ func setAppWorkDir() {
 
 	if err = os.Chdir(directory); err != nil {
 		logging.Errorf("Cannot setup working directory %v: %v", directory, err)
-	}
-}
-
-func enqueue(iq *leveldb.IQueue, i int) {
-	m := map[string]interface{}{strconv.Itoa(i): i}
-	if err := iq.Enqueue(m); err != nil {
-		log.Fatal(err)
 	}
 }
 
