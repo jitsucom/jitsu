@@ -15,7 +15,7 @@ import (
 const (
 	ServiceName         = "Jitsu-Server"
 	serverStartTemplate = `{
-    "text": "*%s* [%s] from (%s %s): Start",
+    "text": "*%s* [%s] from (%s): Start",
 	"attachments": [
 		{
 			"color": "#5cb85c",
@@ -167,13 +167,9 @@ func ServerStart(systemInfo *runtime.Info) {
 	if instance != nil {
 		ipInfo := getIP()
 		ip := "unknown"
-		country := "unknown"
 		if ipInfo != nil {
 			if ipInfo.IP != "" {
 				ip = ipInfo.IP
-			}
-			if ipInfo.Country != "" {
-				country = ipInfo.Country
 			}
 		}
 
@@ -183,7 +179,7 @@ func ServerStart(systemInfo *runtime.Info) {
 		}
 
 		body := fmt.Sprintf("Service [%s] has been started!", systemInfoStr)
-		instance.messagesCh <- fmt.Sprintf(serverStartTemplate, instance.serviceName, instance.serverName, ip, country, body)
+		instance.messagesCh <- fmt.Sprintf(serverStartTemplate, instance.serviceName, instance.serverName, ip, body)
 	}
 }
 

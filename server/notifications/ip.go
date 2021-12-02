@@ -8,9 +8,7 @@ import (
 )
 
 type IPInfo struct {
-	IP      string `json:"ip"`
-	Country string `json:"country"`
-	CC      string `json:"cc"`
+	IP string `json:"ip"`
 }
 
 func getIP() *IPInfo {
@@ -18,7 +16,8 @@ func getIP() *IPInfo {
 		Timeout: 2 * time.Second,
 	}
 
-	r, err := client.Get("https://api.myip.com/")
+	//https://api.myip.com
+	r, err := client.Get("https://api.ipify.org?format=json")
 	if err != nil {
 		return nil
 	}
