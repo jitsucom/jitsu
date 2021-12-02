@@ -17,7 +17,7 @@ services:
     networks:
       - main
   jitsu:
-    container_name: jitsu-benchmark
+    container_name: jitsu_benchmark
     image: jitsucom/jitsu
     environment:
       - REDIS_URL=redis://redis:6379
@@ -36,7 +36,7 @@ services:
     networks:
       - main
   redis:
-    container_name: jitsu_redis
+    container_name: jitsu_redis_benchmark
     image: redis:6.2.4-alpine
     #volumes:
     #  - ./compose-data/redis/data:/data
