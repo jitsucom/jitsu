@@ -2,15 +2,11 @@ package adapters
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/queue"
 	"time"
 )
-
-//ErrQueueClosed is an error in case when queue has been already closed
-var ErrQueueClosed = errors.New("queue is closed")
 
 //QueuedRequest is a dto for serialization in persistent queue
 type QueuedRequest struct {
@@ -64,9 +60,6 @@ func (pq *HTTPRequestQueue) AddRequest(req *RetryableRequest) error {
 func (pq *HTTPRequestQueue) DequeueBlock() (*RetryableRequest, error) {
 	iface, err := pq.queue.Pop()
 	if err != nil {
-		if err == queue.ErrQueueClosed {
-			err = ErrQueueClosed
-		}
 		return nil, err
 	}
 

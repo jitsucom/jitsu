@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/queue"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
@@ -109,7 +110,7 @@ func (h *HTTPAdapter) startObserver() {
 			if h.workersPool.Free() > 0 {
 				retryableRequest, err := h.queue.DequeueBlock()
 				if err != nil {
-					if err == ErrQueueClosed && h.closed.Load() {
+					if err == queue.ErrQueueClosed && h.closed.Load() {
 						continue
 					}
 
