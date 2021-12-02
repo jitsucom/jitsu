@@ -10,8 +10,6 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/storages"
 	"go.uber.org/atomic"
-	"os"
-	"path"
 )
 
 const (
@@ -220,14 +218,5 @@ func (rs *RecognitionService) Close() error {
 		}
 	}
 
-	return nil
-}
-
-//unlockDQue workaround for github.com/joncrlsn/dque forgetting to release file lock
-func unlockDQue(dirPath string, name string) error {
-	l := path.Join(dirPath, name, lockFile)
-	if err := os.Remove(l); err != nil {
-		return fmt.Errorf("Failed to remove lock file %s: %v", l, err)
-	}
 	return nil
 }

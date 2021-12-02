@@ -25,7 +25,7 @@ func newQueue() *Queue {
 
 	metrics.InitialUsersRecognitionQueueSize(int(inmemoryQueue.Size()))
 
-	return &Queue{identifier: queueIdentifier, queue: inmemoryQueue}
+	return &Queue{identifier: queueIdentifier, queue: inmemoryQueue, closed: make(chan struct{}, 1)}
 }
 
 func (q *Queue) startMonitor() {
