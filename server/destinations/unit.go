@@ -9,7 +9,7 @@ import (
 
 //Unit holds storage bundle for closing at once
 type Unit struct {
-	eventQueue events.PersistentQueue
+	eventQueue events.Queue
 	storage    storages.StorageProxy
 
 	tokenIDs []string

@@ -18,7 +18,7 @@ type LevelDBQueue struct {
 	queue      *leveldb.Queue
 }
 
-func NewLevelDBQueue(identifier, queueName, logEventPath string) (PersistentQueue, error) {
+func NewLevelDBQueue(identifier, queueName, logEventPath string) (Queue, error) {
 	queueDir := path.Join(logEventPath, queueName)
 	queue, err := leveldb.NewQueue(queueDir)
 	if err != nil {

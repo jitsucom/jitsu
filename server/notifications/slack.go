@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/safego"
 	"io/ioutil"
 	"net/http"
@@ -14,7 +15,7 @@ import (
 const (
 	ServiceName         = "Jitsu-Server"
 	serverStartTemplate = `{
-    "text": "*%s* [%s]: Start",
+    "text": "*%s* [%s] from (%s %s): Start",
 	"attachments": [
 		{
 			"color": "#5cb85c",
@@ -162,9 +163,27 @@ func Custom(payload string) {
 	}
 }
 
-func ServerStart() {
+func ServerStart(systemInfo *runtime.Info) {
 	if instance != nil {
-		instance.messagesCh <- fmt.Sprintf(serverStartTemplate, instance.serviceName, instance.serverName, "Service has been started!")
+		ipInfo := getIP()
+		ip := "unknown"
+		country := "unknown"
+		if ipInfo != nil {
+			if ipInfo.IP != "" {
+				ip = ipInfo.IP
+			}
+			if ipInfo.Country != "" {
+				country = ipInfo.Country
+			}
+		}
+
+		systemInfoStr := "unknown system info"
+		if systemInfo != nil {
+			systemInfoStr = fmt.Sprintf("RAM used: %s | RAM total: %.2f GB | CPU cores: %d", systemInfo.RAMUsage, systemInfo.RAMTotalGB, systemInfo.CPUCores)
+		}
+
+		body := fmt.Sprintf("Service [%s] has been started!", systemInfoStr)
+		instance.messagesCh <- fmt.Sprintf(serverStartTemplate, instance.serviceName, instance.serverName, ip, country, body)
 	}
 }
 
