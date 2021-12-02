@@ -29,3 +29,15 @@ func Nvl(args ... interface{}) interface{} {
 	}
 	return nil
 }
+
+//NvlMap returns first not empty map from varargs
+//
+//return nil if all passed maps are empty
+func NvlMap(args ... map[string]interface{}) map[string]interface{} {
+	for _, str := range args {
+		if len(args) > 0 {
+			return str
+		}
+	}
+	return nil
+}

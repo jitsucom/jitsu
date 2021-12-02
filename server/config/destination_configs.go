@@ -28,34 +28,34 @@ type DestinationConfig struct {
 	TemplateVariables map[string]interface{} `mapstructure:"template_variables" json:"template_variables,omitempty" yaml:"template_variables,omitempty"`
 
 	//Deprecated
-	DataSource map[string]interface{} `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
+	DataSource map[string]interface{} `mapstructure:"datasource,omitempty" json:"datasource,omitempty" yaml:"datasource,omitempty"`
 	//Deprecated
-	S3 map[string]interface{} `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
+	S3 map[string]interface{} `mapstructure:"s3,omitempty" json:"s3,omitempty" yaml:"s3,omitempty"`
 	//Deprecated
-	Google map[string]interface{} `mapstructure:"google" json:"google,omitempty" yaml:"google,omitempty"`
+	Google map[string]interface{} `mapstructure:"google,omitempty" json:"google,omitempty" yaml:"google,omitempty"`
 	//Deprecated
-	GoogleAnalytics map[string]interface{} `mapstructure:"google_analytics" json:"google_analytics,omitempty" yaml:"google_analytics,omitempty"`
+	GoogleAnalytics map[string]interface{} `mapstructure:"google_analytics,omitempty" json:"google_analytics,omitempty" yaml:"google_analytics,omitempty"`
 	//Deprecated
-	ClickHouse map[string]interface{} `mapstructure:"clickhouse" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
+	ClickHouse map[string]interface{} `mapstructure:"clickhouse,omitempty" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
 	//Deprecated
-	Snowflake map[string]interface{} `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
+	Snowflake map[string]interface{} `mapstructure:"snowflake,omitempty" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
 	//Deprecated
-	Facebook map[string]interface{} `mapstructure:"facebook" json:"facebook,omitempty" yaml:"facebook,omitempty"`
+	Facebook map[string]interface{} `mapstructure:"facebook,omitempty" json:"facebook,omitempty" yaml:"facebook,omitempty"`
 	//Deprecated
-	WebHook map[string]interface{} `mapstructure:"webhook" json:"webhook,omitempty" yaml:"webhook,omitempty"`
+	WebHook map[string]interface{} `mapstructure:"webhook,omitempty" json:"webhook,omitempty" yaml:"webhook,omitempty"`
 	//Deprecated
-	Amplitude map[string]interface{} `mapstructure:"amplitude" json:"amplitude,omitempty" yaml:"amplitude,omitempty"`
+	Amplitude map[string]interface{} `mapstructure:"amplitude,omitempty" json:"amplitude,omitempty" yaml:"amplitude,omitempty"`
 	//Deprecated
-	HubSpot map[string]interface{} `mapstructure:"hubspot" json:"hubspot,omitempty" yaml:"hubspot,omitempty"`
+	HubSpot map[string]interface{} `mapstructure:"hubspot,omitempty" json:"hubspot,omitempty" yaml:"hubspot,omitempty"`
 	//Deprecated
-	DbtCloud map[string]interface{} `mapstructure:"dbtcloud" json:"dbtcloud,omitempty" yaml:"dbtcloud,omitempty"`
+	DbtCloud map[string]interface{} `mapstructure:"dbtcloud,omitempty" json:"dbtcloud,omitempty" yaml:"dbtcloud,omitempty"`
 
-	Config map[string]interface{} `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
+	Config map[string]interface{} `mapstructure:"config,omitempty" json:"config,omitempty" yaml:"config,omitempty"`
 }
 
 func (config *DestinationConfig) GetDestConfig(compatibilityValue map[string]interface{}, dest Validatable) error {
 	logging.Infof("compat: %s\nconfig: %s\n", compatibilityValue, config.Config)
-	mp := utils.Nvl(config.Config, compatibilityValue)
+	mp := utils.NvlMap(config.Config, compatibilityValue)
 	if err := mapstructure.Decode(mp, dest); err != nil {
 		return err
 	}
