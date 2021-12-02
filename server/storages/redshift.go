@@ -34,9 +34,6 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	if err := config.destination.GetDestConfig(config.destination.DataSource, redshiftConfig); err != nil {
 		return nil, err
 	}
-	if err := redshiftConfig.Validate(); err != nil {
-		return nil, err
-	}
 	//enrich with default parameters
 	if redshiftConfig.Port.String() == "" {
 		redshiftConfig.Port = "5439"

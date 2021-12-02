@@ -12,7 +12,6 @@ import (
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
-	"github.com/jitsucom/jitsu/server/utils"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"net/http"
 	"net/url"
@@ -104,44 +103,45 @@ func testDestinationConnection(config *config.DestinationConfig) error {
 		}
 		return testSnowflake(config, eventContext)
 	case storages.GoogleAnalyticsType:
-		if err := config.Validate(); err != nil {
+		cfg := &adapters.GoogleAnalyticsConfig{}
+		if err := config.GetDestConfig(config.GoogleAnalytics, cfg); err != nil {
 			return err
 		}
-
 		return nil
 	case storages.FacebookType:
-		if err := config.Validate(); err != nil {
+		cfg := &adapters.FacebookConversionAPIConfig{}
+		if err := config.GetDestConfig(config.Facebook, cfg); err != nil {
 			return err
 		}
-
-		fbAdapter := adapters.NewTestFacebookConversion(config.GetDestConfig(config.Facebook).(*adapters.FacebookConversionAPIConfig))
+		fbAdapter := adapters.NewTestFacebookConversion(cfg)
 
 		return fbAdapter.TestAccess()
 	case storages.WebHookType:
-		if err := config.Validate(); err != nil {
+		cfg := &adapters.WebHookConfig{}
+		if err := config.GetDestConfig(config.WebHook, cfg); err != nil {
 			return err
 		}
-
 		return nil
 	case storages.AmplitudeType:
-		if err := config.Validate(); err != nil {
+		cfg := &adapters.AmplitudeConfig{}
+		if err := config.GetDestConfig(config.Amplitude, cfg); err != nil {
 			return err
 		}
-
-		amplitudeAdapter := adapters.NewTestAmplitude(config.GetDestConfig(config.Amplitude).(*adapters.AmplitudeConfig))
+		amplitudeAdapter := adapters.NewTestAmplitude(cfg)
 		return amplitudeAdapter.TestAccess()
 	case storages.HubSpotType:
-		if err := config.Validate(); err != nil {
+		cfg := &adapters.HubSpotConfig{}
+		if err := config.GetDestConfig(config.HubSpot, cfg); err != nil {
 			return err
 		}
-
-		hubspotAdapter := adapters.NewTestHubSpot(config.GetDestConfig(config.HubSpot).(*adapters.HubSpotConfig))
+		hubspotAdapter := adapters.NewTestHubSpot(cfg)
 		return hubspotAdapter.TestAccess()
 	case storages.DbtCloudType:
-		if err := config.Validate(); err != nil {
+		cfg := &adapters.DbtCloudConfig{}
+		if err := config.GetDestConfig(config.DbtCloud, cfg); err != nil {
 			return err
 		}
-		dbtCloudAdapter := adapters.NewTestDbtCloud(config.GetDestConfig(config.DbtCloud).(*adapters.DbtCloudConfig))
+		dbtCloudAdapter := adapters.NewTestDbtCloud(cfg)
 		return dbtCloudAdapter.TestAccess()
 	case storages.MySQLType:
 		eventContext.Table.Columns = adapters.Columns{
@@ -150,7 +150,11 @@ func testDestinationConnection(config *config.DestinationConfig) error {
 		}
 		return testMySQL(config, eventContext)
 	case storages.S3Type:
-		s3Adapter, err := adapters.NewS3(config.GetDestConfig(config.S3).(*adapters.S3Config))
+		s3config := &adapters.S3Config{}
+		if err := config.GetDestConfig(config.S3, s3config); err != nil {
+			return err
+		}
+		s3Adapter, err := adapters.NewS3(s3config)
 		if err != nil {
 			return err
 		}
@@ -164,8 +168,8 @@ func testDestinationConnection(config *config.DestinationConfig) error {
 //testPostgres connects to Postgres, creates table, write 1 test record, deletes table
 //returns err if has occurred
 func testPostgres(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
-	dataSourceConfig := config.GetDestConfig(config.DataSource).(*adapters.DataSourceConfig)
-	if err := dataSourceConfig.Validate(); err != nil {
+	dataSourceConfig := &adapters.DataSourceConfig{}
+	if err := config.GetDestConfig(config.DataSource, dataSourceConfig); err != nil {
 		return err
 	}
 
@@ -226,8 +230,8 @@ func testPostgres(config *config.DestinationConfig, eventContext *adapters.Event
 //testClickHouse connects to all provided ClickHouse dsns, creates table, write 1 test record, deletes table
 //returns err if has occurred
 func testClickHouse(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
-	clickHouseConfig := config.GetDestConfig(config.ClickHouse).(*adapters.ClickHouseConfig)
-	if err := clickHouseConfig.Validate(); err != nil {
+	clickHouseConfig := &adapters.ClickHouseConfig{}
+	if err := config.GetDestConfig(config.ClickHouse, clickHouseConfig); err != nil {
 		return err
 	}
 
@@ -302,8 +306,8 @@ func testClickHouse(config *config.DestinationConfig, eventContext *adapters.Eve
 // batch: connects to Redshift, S3, creates table, writes 1 test file with 1 test record, copies it to Redshift, deletes table
 //returns err if has occurred
 func testRedshift(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
-	dataSourceConfig := config.GetDestConfig(config.DataSource).(*adapters.DataSourceConfig)
-	if err := dataSourceConfig.Validate(); err != nil {
+	dataSourceConfig := &adapters.DataSourceConfig{}
+	if err := config.GetDestConfig(config.DataSource, dataSourceConfig); err != nil {
 		return err
 	}
 
@@ -392,8 +396,8 @@ func testRedshift(config *config.DestinationConfig, eventContext *adapters.Event
 // batch: connects to BigQuery, Google Cloud Storage, creates table, writes 1 test file with 1 test record, copies it to BigQuery, deletes table
 //returns err if has occurred
 func testBigQuery(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
-	google := config.GetDestConfig(config.Google).(*adapters.GoogleConfig)
-	if err := google.Validate(); err != nil {
+	google := &adapters.GoogleConfig{}
+	if err := config.GetDestConfig(config.Google, google); err != nil {
 		return err
 	}
  	if config.Mode == storages.BatchMode {
@@ -464,8 +468,8 @@ func testBigQuery(config *config.DestinationConfig, eventContext *adapters.Event
 // batch: connects to Snowflake, S3 or Google Cloud Storage, creates table, writes 1 test file with 1 test record, copies it to Snowflake, deletes table
 //returns err if has occurred
 func testSnowflake(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
-	snowflakeConfig := config.GetDestConfig(config.Snowflake).(*adapters.SnowflakeConfig)
-	if err := snowflakeConfig.Validate(); err != nil {
+	snowflakeConfig := &adapters.SnowflakeConfig{}
+	if err := config.GetDestConfig(config.Snowflake, snowflakeConfig); err != nil {
 		return err
 	}
 
@@ -561,8 +565,8 @@ func testSnowflake(config *config.DestinationConfig, eventContext *adapters.Even
 //testMySQL connects to MySQL, creates table, write 1 test record, deletes table
 //returns err if has occurred
 func testMySQL(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
-	dataSourceConfig := config.GetDestConfig(config.DataSource).(*adapters.DataSourceConfig)
-	if err := dataSourceConfig.Validate(); err != nil {
+	dataSourceConfig := &adapters.DataSourceConfig{}
+	if err := config.GetDestConfig(config.DataSource, dataSourceConfig); err != nil {
 		return err
 	}
 
