@@ -114,7 +114,7 @@ func testDestinationConnection(config *config.DestinationConfig) error {
 			return err
 		}
 
-		fbAdapter := adapters.NewTestFacebookConversion(config.GetConfig(config.Facebook).(*adapters.FacebookConversionAPIConfig))
+		fbAdapter := adapters.NewTestFacebookConversion(config.GetDestConfig(config.Facebook).(*adapters.FacebookConversionAPIConfig))
 
 		return fbAdapter.TestAccess()
 	case storages.WebHookType:
@@ -128,20 +128,20 @@ func testDestinationConnection(config *config.DestinationConfig) error {
 			return err
 		}
 
-		amplitudeAdapter := adapters.NewTestAmplitude(config.GetConfig(config.Amplitude).(*adapters.AmplitudeConfig))
+		amplitudeAdapter := adapters.NewTestAmplitude(config.GetDestConfig(config.Amplitude).(*adapters.AmplitudeConfig))
 		return amplitudeAdapter.TestAccess()
 	case storages.HubSpotType:
 		if err := config.Validate(); err != nil {
 			return err
 		}
 
-		hubspotAdapter := adapters.NewTestHubSpot(config.GetConfig(config.HubSpot).(*adapters.HubSpotConfig))
+		hubspotAdapter := adapters.NewTestHubSpot(config.GetDestConfig(config.HubSpot).(*adapters.HubSpotConfig))
 		return hubspotAdapter.TestAccess()
 	case storages.DbtCloudType:
 		if err := config.Validate(); err != nil {
 			return err
 		}
-		dbtCloudAdapter := adapters.NewTestDbtCloud(config.GetConfig(config.DbtCloud).(*adapters.DbtCloudConfig))
+		dbtCloudAdapter := adapters.NewTestDbtCloud(config.GetDestConfig(config.DbtCloud).(*adapters.DbtCloudConfig))
 		return dbtCloudAdapter.TestAccess()
 	case storages.MySQLType:
 		eventContext.Table.Columns = adapters.Columns{
@@ -150,7 +150,7 @@ func testDestinationConnection(config *config.DestinationConfig) error {
 		}
 		return testMySQL(config, eventContext)
 	case storages.S3Type:
-		s3Adapter, err := adapters.NewS3(config.GetConfig(config.S3).(*adapters.S3Config))
+		s3Adapter, err := adapters.NewS3(config.GetDestConfig(config.S3).(*adapters.S3Config))
 		if err != nil {
 			return err
 		}
@@ -164,7 +164,7 @@ func testDestinationConnection(config *config.DestinationConfig) error {
 //testPostgres connects to Postgres, creates table, write 1 test record, deletes table
 //returns err if has occurred
 func testPostgres(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
-	dataSourceConfig := config.GetConfig(config.DataSource).(*adapters.DataSourceConfig)
+	dataSourceConfig := config.GetDestConfig(config.DataSource).(*adapters.DataSourceConfig)
 	if err := dataSourceConfig.Validate(); err != nil {
 		return err
 	}
@@ -226,7 +226,7 @@ func testPostgres(config *config.DestinationConfig, eventContext *adapters.Event
 //testClickHouse connects to all provided ClickHouse dsns, creates table, write 1 test record, deletes table
 //returns err if has occurred
 func testClickHouse(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
-	clickHouseConfig := config.GetConfig(config.ClickHouse).(*adapters.ClickHouseConfig)
+	clickHouseConfig := config.GetDestConfig(config.ClickHouse).(*adapters.ClickHouseConfig)
 	if err := clickHouseConfig.Validate(); err != nil {
 		return err
 	}
@@ -302,7 +302,7 @@ func testClickHouse(config *config.DestinationConfig, eventContext *adapters.Eve
 // batch: connects to Redshift, S3, creates table, writes 1 test file with 1 test record, copies it to Redshift, deletes table
 //returns err if has occurred
 func testRedshift(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
-	dataSourceConfig := config.GetConfig(config.DataSource).(*adapters.DataSourceConfig)
+	dataSourceConfig := config.GetDestConfig(config.DataSource).(*adapters.DataSourceConfig)
 	if err := dataSourceConfig.Validate(); err != nil {
 		return err
 	}
@@ -328,7 +328,12 @@ func testRedshift(config *config.DestinationConfig, eventContext *adapters.Event
 			logging.SystemErrorf("Error deleting generated ssl config dir [%s]: %v", dir, err)
 		}
 	}()
-	s3config := utils.Nvl(dataSourceConfig.S3, config.S3).(*adapters.S3Config)
+	var s3config *adapters.S3Config
+	s3c, err := config.GetConfig(dataSourceConfig.S3, config.S3, &adapters.S3Config{})
+	if err != nil {
+		return  err
+	}
+	s3config = s3c.(*adapters.S3Config)
 	redshift, err := adapters.NewAwsRedshift(context.Background(), dataSourceConfig, s3config, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
 		return err
@@ -387,7 +392,7 @@ func testRedshift(config *config.DestinationConfig, eventContext *adapters.Event
 // batch: connects to BigQuery, Google Cloud Storage, creates table, writes 1 test file with 1 test record, copies it to BigQuery, deletes table
 //returns err if has occurred
 func testBigQuery(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
-	google := config.GetConfig(config.Google).(*adapters.GoogleConfig)
+	google := config.GetDestConfig(config.Google).(*adapters.GoogleConfig)
 	if err := google.Validate(); err != nil {
 		return err
 	}
@@ -459,7 +464,7 @@ func testBigQuery(config *config.DestinationConfig, eventContext *adapters.Event
 // batch: connects to Snowflake, S3 or Google Cloud Storage, creates table, writes 1 test file with 1 test record, copies it to Snowflake, deletes table
 //returns err if has occurred
 func testSnowflake(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
-	snowflakeConfig := config.GetConfig(config.Snowflake).(*adapters.SnowflakeConfig)
+	snowflakeConfig := config.GetDestConfig(config.Snowflake).(*adapters.SnowflakeConfig)
 	if err := snowflakeConfig.Validate(); err != nil {
 		return err
 	}
@@ -470,8 +475,20 @@ func testSnowflake(config *config.DestinationConfig, eventContext *adapters.Even
 
 	timeout := "6"
 	snowflakeConfig.Parameters["statement_timeout_in_seconds"] = &timeout
-	s3config := utils.Nvl(snowflakeConfig.S3, config.S3).(*adapters.S3Config)
-	googleConfig := utils.Nvl(snowflakeConfig.Google, config.Google).(*adapters.GoogleConfig)
+
+	var s3config *adapters.S3Config
+	s3c, err := config.GetConfig(snowflakeConfig.S3, config.S3, &adapters.S3Config{})
+	if err != nil {
+		return  err
+	}
+	s3config = s3c.(*adapters.S3Config)
+
+	var googleConfig *adapters.GoogleConfig
+	gc, err := config.GetConfig(snowflakeConfig.Google, config.Google, &adapters.GoogleConfig{})
+	if err != nil {
+		return  err
+	}
+	googleConfig = gc.(*adapters.GoogleConfig)
 
 	snowflake, err := storages.CreateSnowflakeAdapter(context.Background(), s3config, *snowflakeConfig, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
@@ -544,7 +561,7 @@ func testSnowflake(config *config.DestinationConfig, eventContext *adapters.Even
 //testMySQL connects to MySQL, creates table, write 1 test record, deletes table
 //returns err if has occurred
 func testMySQL(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
-	dataSourceConfig := config.GetConfig(config.DataSource).(*adapters.DataSourceConfig)
+	dataSourceConfig := config.GetDestConfig(config.DataSource).(*adapters.DataSourceConfig)
 	if err := dataSourceConfig.Validate(); err != nil {
 		return err
 	}

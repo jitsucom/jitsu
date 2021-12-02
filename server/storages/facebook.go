@@ -19,9 +19,8 @@ func NewFacebook(config *Config) (Storage, error) {
 	if !config.streamMode {
 		return nil, fmt.Errorf("Facebook destination doesn't support %s mode", BatchMode)
 	}
-
-	fbConfig := config.destination.GetConfig(config.destination.Facebook).(*adapters.FacebookConversionAPIConfig)
-	if err := fbConfig.Validate(); err != nil {
+	fbConfig := &adapters.FacebookConversionAPIConfig{}
+	if err := config.destination.GetDestConfig(config.destination.Facebook, fbConfig); err != nil {
 		return nil, err
 	}
 

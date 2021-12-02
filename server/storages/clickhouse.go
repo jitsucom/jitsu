@@ -26,8 +26,8 @@ func init() {
 
 //NewClickHouse returns configured ClickHouse instance
 func NewClickHouse(config *Config) (Storage, error) {
-	chConfig := config.destination.GetConfig(config.destination.ClickHouse).(*adapters.ClickHouseConfig)
-	if err := chConfig.Validate(); err != nil {
+	chConfig := &adapters.ClickHouseConfig{}
+	if err := config.destination.GetDestConfig(config.destination.ClickHouse, chConfig); err != nil {
 		return nil, err
 	}
 

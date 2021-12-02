@@ -5,6 +5,7 @@ import (
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/utils"
+	"github.com/mitchellh/mapstructure"
 )
 
 //DestinationConfig is a destination configuration for serialization
@@ -27,53 +28,70 @@ type DestinationConfig struct {
 	TemplateVariables map[string]interface{} `mapstructure:"template_variables" json:"template_variables,omitempty" yaml:"template_variables,omitempty"`
 
 	//Deprecated
-	DataSource Validatable `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
+	DataSource map[string]interface{} `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
 	//Deprecated
-	S3 Validatable `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
+	S3 map[string]interface{} `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
 	//Deprecated
-	Google Validatable `mapstructure:"google" json:"google,omitempty" yaml:"google,omitempty"`
+	Google map[string]interface{} `mapstructure:"google" json:"google,omitempty" yaml:"google,omitempty"`
 	//Deprecated
-	GoogleAnalytics Validatable `mapstructure:"google_analytics" json:"google_analytics,omitempty" yaml:"google_analytics,omitempty"`
+	GoogleAnalytics map[string]interface{} `mapstructure:"google_analytics" json:"google_analytics,omitempty" yaml:"google_analytics,omitempty"`
 	//Deprecated
-	ClickHouse Validatable `mapstructure:"clickhouse" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
+	ClickHouse map[string]interface{} `mapstructure:"clickhouse" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
 	//Deprecated
-	Snowflake Validatable `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
+	Snowflake map[string]interface{} `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
 	//Deprecated
-	Facebook Validatable `mapstructure:"facebook" json:"facebook,omitempty" yaml:"facebook,omitempty"`
+	Facebook map[string]interface{} `mapstructure:"facebook" json:"facebook,omitempty" yaml:"facebook,omitempty"`
 	//Deprecated
-	WebHook Validatable `mapstructure:"webhook" json:"webhook,omitempty" yaml:"webhook,omitempty"`
+	WebHook map[string]interface{} `mapstructure:"webhook" json:"webhook,omitempty" yaml:"webhook,omitempty"`
 	//Deprecated
-	Amplitude Validatable `mapstructure:"amplitude" json:"amplitude,omitempty" yaml:"amplitude,omitempty"`
+	Amplitude map[string]interface{} `mapstructure:"amplitude" json:"amplitude,omitempty" yaml:"amplitude,omitempty"`
 	//Deprecated
-	HubSpot Validatable `mapstructure:"hubspot" json:"hubspot,omitempty" yaml:"hubspot,omitempty"`
+	HubSpot map[string]interface{} `mapstructure:"hubspot" json:"hubspot,omitempty" yaml:"hubspot,omitempty"`
 	//Deprecated
-	DbtCloud Validatable `mapstructure:"dbtcloud" json:"dbtcloud,omitempty" yaml:"dbtcloud,omitempty"`
+	DbtCloud map[string]interface{} `mapstructure:"dbtcloud" json:"dbtcloud,omitempty" yaml:"dbtcloud,omitempty"`
 
-	Config Validatable `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
+	Config map[string]interface{} `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
 }
 
-func (config *DestinationConfig) GetConfig(compatibilityValue Validatable) Validatable {
-	return utils.Nvl(config.Config, compatibilityValue).(Validatable)
+func (config *DestinationConfig) GetDestConfig(compatibilityValue map[string]interface{}, dest Validatable) error {
+	mp := utils.Nvl(config.Config, compatibilityValue)
+	if err := mapstructure.Decode(mp, dest); err != nil {
+		return err
+	}
+	return dest.Validate()
+}
+
+func (config *DestinationConfig) GetConfig(value Validatable, compatibilityValue map[string]interface{}, dest Validatable) (Validatable, error) {
+	if value != nil {
+		return value, nil
+	}
+	if compatibilityValue == nil {
+		return nil, nil
+	}
+	if err := mapstructure.Decode(compatibilityValue, dest); err != nil {
+		return nil, err
+	}
+	return dest, nil
 }
 
 func (config *DestinationConfig) Validate() error {
-	if config.Config != nil {
-		if err := config.Config.Validate(); err != nil {
-			return err
-		}
-	}
-
-	deprecatedConfigs := []Validatable{config.DbtCloud,
-		config.HubSpot, config.Amplitude, config.WebHook, config.Facebook, config.Google,
-		config.Snowflake, config.ClickHouse, config.GoogleAnalytics, config.S3, config.DataSource}
-
-	for _, validatable := range deprecatedConfigs {
-		if validatable != nil {
-			if err := validatable.Validate(); err != nil {
-				return err
-			}
-		}
-	}
+	//if config.Config != nil {
+	//	if err := config.Config.Validate(); err != nil {
+	//		return err
+	//	}
+	//}
+	//
+	//deprecatedConfigs := []Validatable{config.DbtCloud,
+	//	config.HubSpot, config.Amplitude, config.WebHook, config.Facebook, config.Google,
+	//	config.Snowflake, config.ClickHouse, config.GoogleAnalytics, config.S3, config.DataSource}
+	//
+	//for _, validatable := range deprecatedConfigs {
+	//	if validatable != nil {
+	//		if err := validatable.Validate(); err != nil {
+	//			return err
+	//		}
+	//	}
+	//}
 	return nil
 }
 

@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
-	"github.com/jitsucom/jitsu/server/utils"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -33,8 +32,8 @@ func NewS3(config *Config) (Storage, error) {
 		}
 		return nil, fmt.Errorf("S3 destination doesn't support %s mode", StreamMode)
 	}
-	s3Config := utils.Nvl(config.destination.Config, config.destination.S3).(*adapters.S3Config)
-	if err := s3Config.Validate(); err != nil {
+	s3Config := &adapters.S3Config{}
+	if err := config.destination.GetDestConfig(config.destination.S3, s3Config); err != nil {
 		return nil, err
 	}
 

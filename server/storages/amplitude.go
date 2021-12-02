@@ -19,9 +19,8 @@ func NewAmplitude(config *Config) (Storage, error) {
 	if !config.streamMode {
 		return nil, fmt.Errorf("Amplitude destination doesn't support %s mode", BatchMode)
 	}
-
-	amplitudeConfig := config.destination.GetConfig(config.destination.Amplitude).(*adapters.AmplitudeConfig)
-	if err := amplitudeConfig.Validate(); err != nil {
+	amplitudeConfig := &adapters.AmplitudeConfig{}
+	if err := config.destination.GetDestConfig(config.destination.Amplitude, amplitudeConfig); err != nil {
 		return nil, err
 	}
 

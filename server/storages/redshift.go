@@ -3,7 +3,6 @@ package storages
 import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/utils"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -31,7 +30,10 @@ func init() {
 
 //NewAwsRedshift returns AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(config *Config) (Storage, error) {
-	redshiftConfig := config.destination.GetConfig(config.destination.DataSource).(*adapters.DataSourceConfig)
+	redshiftConfig := &adapters.DataSourceConfig{}
+	if err := config.destination.GetDestConfig(config.destination.DataSource, redshiftConfig); err != nil {
+		return nil, err
+	}
 	if err := redshiftConfig.Validate(); err != nil {
 		return nil, err
 	}
@@ -55,7 +57,12 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	}
 
 	var s3Adapter *adapters.S3
-	s3config := utils.Nvl(redshiftConfig.S3, config.destination.S3).(*adapters.S3Config)
+	var s3config *adapters.S3Config
+	s3c, err := config.destination.GetConfig(redshiftConfig.S3, config.destination.S3, &adapters.S3Config{})
+	if err != nil {
+		return nil, err
+	}
+	s3config = s3c.(*adapters.S3Config)
 	if !config.streamMode {
 		var err error
 		s3Adapter, err = adapters.NewS3(s3config)

@@ -29,8 +29,8 @@ func init() {
 
 //NewPostgres returns configured Postgres Destination
 func NewPostgres(config *Config) (Storage, error) {
-	pgConfig := config.destination.GetConfig(config.destination.DataSource).(*adapters.DataSourceConfig)
-	if err := pgConfig.Validate(); err != nil {
+	pgConfig := &adapters.DataSourceConfig{}
+	if err := config.destination.GetDestConfig(config.destination.DataSource, pgConfig); err != nil {
 		return nil, err
 	}
 	//enrich with default parameters
