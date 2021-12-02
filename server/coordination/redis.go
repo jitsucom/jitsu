@@ -7,7 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/timestamp"
-	"strings"
+	"go.uber.org/atomic"
 	"sync"
 	"time"
 
@@ -40,10 +40,11 @@ type RedisService struct {
 	selfmutex  sync.RWMutex
 	unlockMe   map[string]*storages.RetryableLock
 
-	pool    *meta.RedisPool
-	redsync *redsync.Redsync
+	pool         *meta.RedisPool
+	redsync      *redsync.Redsync
+	errorMetrics *meta.ErrorMetrics
 
-	closed bool
+	closed *atomic.Bool
 }
 
 //MutexProxy is used as a ResourceLock
@@ -69,12 +70,14 @@ func NewRedisService(ctx context.Context, serverName string, factory *meta.Redis
 	redisSync := redsync.New(rsyncpool.NewPool(redisPool.GetPool()))
 
 	rs := &RedisService{
-		ctx:        ctx,
-		selfmutex:  sync.RWMutex{},
-		serverName: serverName,
-		unlockMe:   map[string]*storages.RetryableLock{},
-		pool:       redisPool,
-		redsync:    redisSync,
+		ctx:          ctx,
+		selfmutex:    sync.RWMutex{},
+		serverName:   serverName,
+		unlockMe:     map[string]*storages.RetryableLock{},
+		pool:         redisPool,
+		redsync:      redisSync,
+		errorMetrics: meta.NewErrorMetrics(metrics.CoordinationRedisErrors),
+		closed:       atomic.NewBool(false),
 	}
 	rs.startHeartBeating()
 
@@ -87,8 +90,8 @@ func (rs *RedisService) GetInstances() ([]string, error) {
 	defer connection.Close()
 
 	instancesMap, err := redis.StringMap(connection.Do("HGETALL", heartbeatKey))
-	noticeError(err)
 	if err != nil && err != redis.ErrNil {
+		rs.errorMetrics.NoticeError(err)
 		return nil, err
 	}
 
@@ -116,12 +119,12 @@ func (rs *RedisService) GetVersion(system string, collection string) (int64, err
 
 	field := system + "_" + collection
 	version, err := redis.Int64(connection.Do("HGET", systemsCollectionVersionsKey, field))
-	noticeError(err)
 	if err != nil {
 		if err == redis.ErrNil {
 			return 0, nil
 		}
 
+		rs.errorMetrics.NoticeError(err)
 		return 0, err
 	}
 
@@ -136,8 +139,8 @@ func (rs *RedisService) IncrementVersion(system string, collection string) (int6
 
 	field := system + "_" + collection
 	newVersion, err := redis.Int64(conn.Do("HINCRBY", systemsCollectionVersionsKey, field, 1))
-	noticeError(err)
 	if err != nil && err != redis.ErrNil {
+		rs.errorMetrics.NoticeError(err)
 		return 0, err
 	}
 
@@ -199,6 +202,7 @@ func (rs *RedisService) UnlockCleanUp(system string, collection string) error {
 
 	_, err := conn.Do("DEL", identifier)
 	if err != nil && err != redis.ErrNil {
+		rs.errorMetrics.NoticeError(err)
 		return err
 	}
 
@@ -211,7 +215,7 @@ func (rs *RedisService) UnlockCleanUp(system string, collection string) error {
 
 //Close closes connection to Redis and unlocks all locks
 func (rs *RedisService) Close() error {
-	rs.closed = true
+	rs.closed.Store(true)
 
 	rs.selfmutex.Lock()
 	for identifier, lock := range rs.unlockMe {
@@ -251,7 +255,7 @@ func (rs *RedisService) getMutexName(system string, collection string) string {
 func (rs *RedisService) startHeartBeating() {
 	safego.RunWithRestart(func() {
 		for {
-			if rs.closed {
+			if rs.closed.Load() {
 				break
 			}
 
@@ -275,25 +279,10 @@ func (rs *RedisService) heartBeat() error {
 	defer connection.Close()
 
 	_, err := connection.Do("HSET", heartbeatKey, field, timestamp.NowUTC())
-	noticeError(err)
 	if err != nil && err != redis.ErrNil {
+		rs.errorMetrics.NoticeError(err)
 		return err
 	}
 
 	return nil
-}
-
-func noticeError(err error) {
-	if err != nil {
-		if err == redis.ErrPoolExhausted {
-			metrics.CoordinationRedisErrors("ERR_POOL_EXHAUSTED")
-		} else if err == redis.ErrNil {
-			metrics.CoordinationRedisErrors("ERR_NIL")
-		} else if strings.Contains(strings.ToLower(err.Error()), "timeout") {
-			metrics.CoordinationRedisErrors("ERR_TIMEOUT")
-		} else {
-			metrics.CoordinationRedisErrors("UNKNOWN")
-			logging.Error("Unknown redis error:", err)
-		}
-	}
 }
