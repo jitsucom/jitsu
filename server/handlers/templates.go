@@ -108,9 +108,9 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (result st
 	var tmpl templates.TemplateExecutor
 	if req.Field == "_transform" {
 		transformIds = []string{req.Type, "segment"}
-		tmpl, err = templates.NewJsTemplateExecutor(req.Expression, req.TemplateFunctions(), h.pluginsRepository, transformIds...)
+		tmpl, err = templates.NewJsTemplateExecutor(req.Expression, req.TemplateFunctions())
 	} else {
-		tmpl, err = templates.SmartParse("template evaluating", req.Expression, req.TemplateFunctions(), transformIds...)
+		tmpl, err = templates.SmartParse("template evaluating", req.Expression, req.TemplateFunctions())
 	}
 	if err != nil {
 		return "", "", fmt.Errorf("error parsing template: %v", err)

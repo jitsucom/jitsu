@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/timestamp"
@@ -34,7 +35,7 @@ const (
 )
 
 func DestinationsHandler(c *gin.Context) {
-	destinationConfig := &storages.DestinationConfig{}
+	destinationConfig := &config.DestinationConfig{}
 	if err := c.BindJSON(destinationConfig); err != nil {
 		logging.Errorf("Error parsing destinations body: %v", err)
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
@@ -56,7 +57,7 @@ func DestinationsHandler(c *gin.Context) {
 //testDestinationConnection creates default table with 2 fields (eventn_ctx key and timestamp)
 //depends on the destination type calls destination test connection func
 //returns err if has occurred
-func testDestinationConnection(config *storages.DestinationConfig) error {
+func testDestinationConnection(config *config.DestinationConfig) error {
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField.GetFlatFieldName()
 	eventID := uuid.New()
 	event := events.Event{uniqueIDField: eventID, timestamp.Key: time.Now().UTC()}
@@ -162,7 +163,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 
 //testPostgres connects to Postgres, creates table, write 1 test record, deletes table
 //returns err if has occurred
-func testPostgres(config *storages.DestinationConfig, eventContext *adapters.EventContext) error {
+func testPostgres(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
 	dataSourceConfig := config.GetConfig(config.DataSource).(*adapters.DataSourceConfig)
 	if err := dataSourceConfig.Validate(); err != nil {
 		return err
@@ -224,7 +225,7 @@ func testPostgres(config *storages.DestinationConfig, eventContext *adapters.Eve
 
 //testClickHouse connects to all provided ClickHouse dsns, creates table, write 1 test record, deletes table
 //returns err if has occurred
-func testClickHouse(config *storages.DestinationConfig, eventContext *adapters.EventContext) error {
+func testClickHouse(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
 	clickHouseConfig := config.GetConfig(config.ClickHouse).(*adapters.ClickHouseConfig)
 	if err := clickHouseConfig.Validate(); err != nil {
 		return err
@@ -300,7 +301,7 @@ func testClickHouse(config *storages.DestinationConfig, eventContext *adapters.E
 // stream: connects to Redshift, creates table, writes 1 test record, deletes table
 // batch: connects to Redshift, S3, creates table, writes 1 test file with 1 test record, copies it to Redshift, deletes table
 //returns err if has occurred
-func testRedshift(config *storages.DestinationConfig, eventContext *adapters.EventContext) error {
+func testRedshift(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
 	dataSourceConfig := config.GetConfig(config.DataSource).(*adapters.DataSourceConfig)
 	if err := dataSourceConfig.Validate(); err != nil {
 		return err
@@ -385,7 +386,7 @@ func testRedshift(config *storages.DestinationConfig, eventContext *adapters.Eve
 // stream: connects to BigQuery, creates table, writes 1 test record, deletes table
 // batch: connects to BigQuery, Google Cloud Storage, creates table, writes 1 test file with 1 test record, copies it to BigQuery, deletes table
 //returns err if has occurred
-func testBigQuery(config *storages.DestinationConfig, eventContext *adapters.EventContext) error {
+func testBigQuery(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
 	google := config.GetConfig(config.Google).(*adapters.GoogleConfig)
 	if err := google.Validate(); err != nil {
 		return err
@@ -457,7 +458,7 @@ func testBigQuery(config *storages.DestinationConfig, eventContext *adapters.Eve
 // stream: connects to Snowflake, creates table, writes 1 test record, deletes table
 // batch: connects to Snowflake, S3 or Google Cloud Storage, creates table, writes 1 test file with 1 test record, copies it to Snowflake, deletes table
 //returns err if has occurred
-func testSnowflake(config *storages.DestinationConfig, eventContext *adapters.EventContext) error {
+func testSnowflake(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
 	snowflakeConfig := config.GetConfig(config.Snowflake).(*adapters.SnowflakeConfig)
 	if err := snowflakeConfig.Validate(); err != nil {
 		return err
@@ -542,7 +543,7 @@ func testSnowflake(config *storages.DestinationConfig, eventContext *adapters.Ev
 
 //testMySQL connects to MySQL, creates table, write 1 test record, deletes table
 //returns err if has occurred
-func testMySQL(config *storages.DestinationConfig, eventContext *adapters.EventContext) error {
+func testMySQL(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
 	dataSourceConfig := config.GetConfig(config.DataSource).(*adapters.DataSourceConfig)
 	if err := dataSourceConfig.Validate(); err != nil {
 		return err

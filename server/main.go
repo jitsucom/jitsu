@@ -8,6 +8,7 @@ import (
 	"flag"
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/cmd"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/multiplexing"
@@ -31,7 +32,6 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/caching"
-	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
@@ -124,7 +124,7 @@ func main() {
 	// Setup application directory as working directory
 	setAppWorkDir()
 
-	if err := config.Read(*configSource, *containerizedRun, configNotFound, "Jitsu Server"); err != nil {
+	if err := appconfig.Read(*configSource, *containerizedRun, configNotFound, "Jitsu Server"); err != nil {
 		logging.Fatal("Error while reading application config:", err)
 	}
 
@@ -282,7 +282,7 @@ func main() {
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
 	// ** Retroactive users recognition
-	globalRecognitionConfiguration := &storages.UsersRecognition{
+	globalRecognitionConfiguration := &config.UsersRecognition{
 		Enabled:             viper.GetBool("users_recognition.enabled"),
 		AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
 		IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
@@ -300,7 +300,7 @@ func main() {
 	}
 	maxColumns := viper.GetInt("server.max_columns")
 	logging.Infof("📝 Limit server.max_columns is %d", maxColumns)
-	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, maxColumns, pluginsRepository)
+	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, maxColumns)
 
 	//Create event destinations
 	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory, viper.GetBool("server.strict_auth_tokens"))
@@ -375,7 +375,7 @@ func main() {
 
 	//** Segment API
 	//field mapper
-	mappings, err := schema.ConvertOldMappings(schema.Default, viper.GetStringSlice("compatibility.segment.endpoint"))
+	mappings, err := schema.ConvertOldMappings(config.Default, viper.GetStringSlice("compatibility.segment.endpoint"))
 	if err != nil {
 		logging.Fatal("Error converting Segment endpoint mappings:", err)
 	}
@@ -385,7 +385,7 @@ func main() {
 	}
 
 	//compat mode field mapper
-	compatMappings, err := schema.ConvertOldMappings(schema.Default, viper.GetStringSlice("compatibility.segment_compat.endpoint"))
+	compatMappings, err := schema.ConvertOldMappings(config.Default, viper.GetStringSlice("compatibility.segment_compat.endpoint"))
 	if err != nil {
 		logging.Fatal("Error converting Segment compat endpoint mappings:", err)
 	}

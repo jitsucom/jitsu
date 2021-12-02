@@ -18,7 +18,7 @@ import (
 	"github.com/jitsucom/jitsu/configurator/ssl"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/config"
+	config "github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/logging"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/notifications"
