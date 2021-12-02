@@ -14,6 +14,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/jitsucom/jitsu/server v1.37.3
 	github.com/lib/pq v1.10.2
+	github.com/mitchellh/mapstructure v1.4.1
 	github.com/prometheus/common v0.15.0 // indirect
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/viper v1.8.1
