@@ -6,6 +6,13 @@ compose-data/server/data/events
 compose-data/server/data/logs
 compose-data/server/data/venv
 
+benchmark/compose-data/configurator/data/logs
+benchmark/compose-data/redis/data/*
+!benchmark/compose-data/redis/data/.gitkeep
+benchmark/compose-data/server/data/events
+benchmark/compose-data/server/data/logs
+benchmark/compose-data/server/data/venv
+
 ui-dev-compose/redis/data/*
 !ui-dev-compose/redis/data/.gitkeep
 ui-dev-compose/redis-insights
