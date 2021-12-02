@@ -219,7 +219,7 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		fallback.NewTestService(), coordination.NewInMemoryService([]string{}), sb.eventsCache, sb.systemService,
-		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService)
+		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService, nil)
 
 	server := &http.Server{
 		Addr:              sb.httpAuthority,
