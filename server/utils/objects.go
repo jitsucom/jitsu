@@ -35,7 +35,7 @@ func Nvl(args ... interface{}) interface{} {
 //return nil if all passed maps are empty
 func NvlMap(args ... map[string]interface{}) map[string]interface{} {
 	for _, str := range args {
-		if len(args) > 0 {
+		if len(str) > 0 {
 			return str
 		}
 	}
