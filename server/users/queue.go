@@ -5,6 +5,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/queue"
+	"github.com/jitsucom/jitsu/server/safego"
 	"time"
 )
 
@@ -25,7 +26,9 @@ func newQueue() *Queue {
 
 	metrics.InitialUsersRecognitionQueueSize(int(inmemoryQueue.Size()))
 
-	return &Queue{identifier: queueIdentifier, queue: inmemoryQueue, closed: make(chan struct{}, 1)}
+	q := &Queue{identifier: queueIdentifier, queue: inmemoryQueue, closed: make(chan struct{}, 1)}
+	safego.Run(q.startMonitor)
+	return q
 }
 
 func (q *Queue) startMonitor() {
