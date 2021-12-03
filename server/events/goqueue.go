@@ -43,7 +43,7 @@ func (ldq *LevelDBQueue) ConsumeTimed(f map[string]interface{}, t time.Time, tok
 
 	// or
 	if err := ldq.queue.Enqueue(QueuedEvent{FactBytes: factBytes, DequeuedTime: t, TokenID: tokenID}); err != nil {
-		logSkippedEvent(f, fmt.Errorf("Error putting event event bytes to the persistent queue: %v", err))
+		logSkippedEvent(f, fmt.Errorf("Error pushing event bytes to the persistent queue: %v", err))
 		return
 	}
 

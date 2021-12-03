@@ -203,6 +203,7 @@ func main() {
 		//we should close it in the end
 		appconfig.Instance.CloseEventsConsumers()
 		appconfig.Instance.CloseWriteAheadLog()
+		counters.Close()
 		time.Sleep(time.Second)
 		os.Exit(0)
 	}()
@@ -507,7 +508,7 @@ func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*event
 			redisConfigurationSource.GetBool("tls_skip_verify"),
 			redisConfigurationSource.GetString("sentinel_master_name"))
 		opts := meta.DefaultOptions
-		opts.MaxActive = 1000
+		opts.MaxActive = 5000
 		factory.WithOptions(opts)
 		pollTimeout = factory.GetOptions().DefaultDialReadTimeout
 		factory.CheckAndSetDefaultPort()
