@@ -168,6 +168,7 @@ const ConfigurableFieldsFormComponent = ({
           key={id}
           type={type}
           id={id}
+          bigField={bigField}
           displayName={displayName}
           documentation={documentation}
           validationRules={validationRules}
@@ -182,6 +183,7 @@ const ConfigurableFieldsFormComponent = ({
         <NonFormItemWrapper
           key={id}
           id={id}
+          bigField={bigField}
           displayName={displayName}
           documentation={documentation}
           validationRules={validationRules}
