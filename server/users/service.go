@@ -94,12 +94,10 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 		return
 	}
 
-	destinationIdentifiers := rs.getDestinationsForRecognition(event, eventID, destinationIDs)
-
-	rp := &RecognitionPayload{Event: event, DestinationsIdentifiers: destinationIdentifiers}
+	rp := &RecognitionPayload{Event: event, EventID: eventID, DestinationIDs: destinationIDs}
 	if err := rs.queue.Enqueue(rp); err != nil {
-		identifiersBytes, _ := json.Marshal(rp.DestinationsIdentifiers)
-		logging.SystemErrorf("Error saving recognition payload with identifiers [%s] from event [%s] into the queue: %v", string(identifiersBytes), rp.Event.Serialize(), err)
+		rpBytes, _ := json.Marshal(rp)
+		logging.SystemErrorf("Error saving recognition payload [%s] from event [%s] into the queue: %v", string(rpBytes), rp.Event.Serialize(), err)
 		return
 	}
 }
@@ -223,7 +221,9 @@ func (rs *RecognitionService) execute(i interface{}) {
 		return
 	}
 
-	for destinationID, identifiers := range rp.DestinationsIdentifiers {
+	destinationIdentifiers := rs.getDestinationsForRecognition(rp.Event, rp.EventID, rp.DestinationIDs)
+
+	for destinationID, identifiers := range destinationIdentifiers {
 		if identifiers.IsAllIdentificationValuesFilled() {
 			// Run pipeline only if all identification values were recognized,
 			// it is needed to update all other anonymous events

@@ -60,7 +60,7 @@ func (f *Factory) CreateIncomingLogger(tokenID string) *AsyncLogger {
 		RotateOnClose: true,
 	})
 
-	return NewAsyncLogger(eventLogWriter, f.showInServer)
+	return NewAsyncLogger(eventLogWriter, f.showInServer, 1_000_000)
 }
 
 func (f *Factory) CreateFailedLogger(destinationName string) *AsyncLogger {
@@ -69,7 +69,7 @@ func (f *Factory) CreateFailedLogger(destinationName string) *AsyncLogger {
 		FileDir:       path.Join(f.logEventPath, FailedDir),
 		RotationMin:   f.logRotationMin,
 		RotateOnClose: true,
-	}), false)
+	}), false, 5_000)
 }
 
 func (f *Factory) CreateSQLQueryLogger(destinationName string) *QueryLogger {
@@ -82,7 +82,7 @@ func (f *Factory) CreateStreamingArchiveLogger(destinationName string) *AsyncLog
 		FileDir:       path.Join(f.logEventPath, ArchiveDir),
 		RotationMin:   f.logRotationMin,
 		RotateOnClose: true,
-	}), false)
+	}), false, 1_000)
 }
 
 func (f *Factory) CreateWriteAheadLogger() *AsyncLogger {
@@ -93,5 +93,5 @@ func (f *Factory) CreateWriteAheadLogger() *AsyncLogger {
 		RotateOnClose: true,
 	})
 
-	return NewAsyncLogger(eventLogWriter, false)
+	return NewAsyncLogger(eventLogWriter, false, 1_000_000)
 }

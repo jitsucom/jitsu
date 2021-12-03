@@ -19,10 +19,10 @@ type AsyncLogger struct {
 }
 
 //NewAsyncLogger creates AsyncLogger and run goroutine that's read from channel and write to file
-func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) *AsyncLogger {
+func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool, channelSize int) *AsyncLogger {
 	logger := &AsyncLogger{
 		writer:             writer,
-		logCh:              make(chan interface{}, 20000),
+		logCh:              make(chan interface{}, channelSize),
 		showInGlobalLogger: showInGlobalLogger,
 		closed:             atomic.NewBool(false),
 	}
@@ -58,7 +58,7 @@ func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) *AsyncLogger
 	return logger
 }
 
-//Consume event event and put it to channel
+//Consume gets event and puts it to channel
 func (al *AsyncLogger) Consume(event map[string]interface{}, tokenID string) {
 	al.logCh <- event
 }

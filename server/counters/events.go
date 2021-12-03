@@ -3,6 +3,8 @@ package counters
 import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/safego"
+	"sync"
 	"time"
 )
 
@@ -10,12 +12,77 @@ var (
 	eventsInstance *Events
 )
 
+type Key struct {
+	namespace, id, eventType, status string
+}
+
 type Events struct {
 	storage meta.Storage
+
+	mutex  *sync.RWMutex
+	buffer map[Key]int
+
+	closed chan struct{}
 }
 
 func InitEvents(storage meta.Storage) {
-	eventsInstance = &Events{storage: storage}
+	eventsInstance = &Events{
+		storage: storage,
+		mutex:   &sync.RWMutex{},
+		buffer:  map[Key]int{},
+		closed:  make(chan struct{}),
+	}
+	safego.Run(eventsInstance.startPersisting)
+}
+
+func (e *Events) startPersisting() {
+	ticker := time.NewTicker(5 * time.Second)
+	for {
+		select {
+		case <-e.closed:
+			e.persist()
+			return
+		case <-ticker.C:
+			e.persist()
+		}
+	}
+}
+
+//persist extract values from the buffer and persist them. Leave buffer empty
+func (e *Events) persist() {
+	bufCopy := map[Key]int{}
+
+	//extract
+	e.mutex.Lock()
+	for k, v := range e.buffer {
+		bufCopy[k] = v
+	}
+	e.buffer = map[Key]int{}
+	e.mutex.Unlock()
+
+	//persist
+	for key, value := range bufCopy {
+		if err := e.storage.IncrementEventsCount(key.id, key.namespace, key.eventType, key.status, time.Now().UTC(), value); err != nil {
+			logging.SystemErrorf("Error updating %s [%s] events [%s] counter id=[%s] value [%d]: %v", key.status, key.eventType, key.namespace, key.id, value, err)
+		}
+	}
+}
+
+func (e *Events) event(id, namespace, eventType, status string, value int) {
+	if e == nil {
+		return
+	}
+
+	k := Key{
+		namespace: namespace,
+		id:        id,
+		eventType: eventType,
+		status:    status,
+	}
+
+	e.mutex.Lock()
+	e.buffer[k] += value
+	e.mutex.Unlock()
 }
 
 //SuccessPushSourceEvents increments:
@@ -61,14 +128,7 @@ func SuccessPullDestinationEvents(destinationID string, value int) {
 }
 
 func successEvents(id, namespace, eventType string, value int) {
-	if eventsInstance == nil {
-		return
-	}
-
-	err := eventsInstance.storage.SuccessEvents(id, namespace, eventType, time.Now().UTC(), value)
-	if err != nil {
-		logging.SystemErrorf("Error updating success [%s] events [%s] counter id=[%s] value [%d]: %v", eventType, namespace, id, value, err)
-	}
+	eventsInstance.event(id, namespace, eventType, meta.SuccessStatus, value)
 }
 
 //ErrorPullSourceEvents increments:
@@ -98,13 +158,7 @@ func ErrorPushDestinationEvents(destinationID string, value int) {
 }
 
 func errorEvents(id, namespace, eventType string, value int) {
-	if eventsInstance == nil {
-		return
-	}
-
-	if err := eventsInstance.storage.ErrorEvents(id, namespace, eventType, time.Now().UTC(), value); err != nil {
-		logging.SystemErrorf("Error updating error [%s] events [%s] counter id=[%s] value [%d]: %v", eventType, namespace, id, value, err)
-	}
+	eventsInstance.event(id, namespace, eventType, meta.ErrorStatus, value)
 }
 
 //SkipPushSourceEvents increments:
@@ -127,11 +181,11 @@ func SkipPushDestinationEvents(destinationID string, value int) {
 }
 
 func skipEvents(id, namespace, eventType string, value int) {
-	if eventsInstance == nil {
-		return
-	}
+	eventsInstance.event(id, namespace, eventType, meta.SkipStatus, value)
+}
 
-	if err := eventsInstance.storage.SkipEvents(id, namespace, eventType, time.Now().UTC(), value); err != nil {
-		logging.SystemErrorf("Error updating skip [%s] events [%s] counter id=[%s] value [%d]: %v", eventType, namespace, id, value, err)
+func Close() {
+	if eventsInstance != nil {
+		close(eventsInstance.closed)
 	}
 }
