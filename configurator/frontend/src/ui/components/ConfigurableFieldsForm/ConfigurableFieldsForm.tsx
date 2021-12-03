@@ -42,7 +42,7 @@ export interface Props {
   configForm?: FormInstance
   initialValues: any
   loading?: boolean | ReactNode
-  oauthStatus?: "loading" | "secrets_set" | "secrets_not_set"
+  oauthBackendSecretsStatus?: "loading" | "secrets_set" | "secrets_not_set"
   handleTouchAnyField?: (...args: any) => void
   setFormValues?: (values: PlainObjectWithPrimitiveValues) => void
   setInitialFormValues?: (values: PlainObjectWithPrimitiveValues) => void
@@ -62,7 +62,7 @@ const ConfigurableFieldsFormComponent = ({
   configForm,
   initialValues,
   loading,
-  oauthStatus,
+  oauthBackendSecretsStatus,
   handleTouchAnyField,
   setFormValues,
   setInitialFormValues,
@@ -294,7 +294,7 @@ const ConfigurableFieldsFormComponent = ({
         return (
           <NonFormItemWrapperTuned>
             <InputOauthSecret
-              status={oauthStatus ?? "secrets_not_set"}
+              status={oauthBackendSecretsStatus ?? "secrets_not_set"}
               defaultChecked={!defaultValueToDisplay}
               inputWrapper={FormItemWoStylesTuned}
             />
