@@ -14,7 +14,7 @@ import { usePolling } from "hooks/usePolling"
 // @Utils
 import { toTitleCase } from "utils/strings"
 import { mapAirbyteSpecToSourceConnectorConfig } from "catalog/sources/lib/airbyte.helper"
-import { useEffect } from "react"
+import { memo, useCallback, useEffect } from "react"
 
 type Props = {
   initialValues: Partial<SourceData>
@@ -29,116 +29,127 @@ type Props = {
 const CONFIG_INTERNAL_STATE_KEY = "loadableParameters"
 const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 
-export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> = ({
-  initialValues,
-  sourceDataFromCatalog,
-  oauthBackendSecretsStatus,
-  patchConfig,
-  setControlsDisabled,
-  setValidator,
-  setFormReference,
-}) => {
-  const [form] = Form.useForm()
+export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> = memo(
+  ({
+    initialValues,
+    sourceDataFromCatalog,
+    oauthBackendSecretsStatus,
+    patchConfig,
+    setControlsDisabled,
+    setValidator,
+    setFormReference,
+  }) => {
+    const [form] = Form.useForm()
 
-  const {
-    isLoading: isLoadingParameters,
-    data: fieldsParameters,
-    error: loadingParametersError,
-  } = usePolling<Parameter[]>(
-    (end, fail) => async () => {
-      try {
-        const response = await pullAirbyteSpec(sourceDataFromCatalog.id)
-        if (response?.message) throw new Error(response?.message)
-        if (response?.status && response?.status !== "pending") {
-          const result = transformAirbyteSpecResponse(response)
-          end(result)
+    const {
+      isLoading: isLoadingParameters,
+      data: fieldsParameters,
+      error: loadingParametersError,
+    } = usePolling<Parameter[]>(
+      (end, fail) => async () => {
+        try {
+          const response = await pullAirbyteSpec(sourceDataFromCatalog.id)
+          if (response?.message) throw new Error(response?.message)
+          if (response?.status && response?.status !== "pending") {
+            const result = transformAirbyteSpecResponse(response)
+            end(result)
+          }
+        } catch (error) {
+          fail(error)
+        } finally {
+          setControlsDisabled(false)
         }
-      } catch (error) {
-        fail(error)
-      } finally {
-        setControlsDisabled(false)
-      }
-    },
-    { interval_ms: 2000 }
-  )
+      },
+      { interval_ms: 2000 }
+    )
 
-  const handleFormValuesChange = (values: PlainObjectWithPrimitiveValues): void => {
-    patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
-  }
+    const handleFormValuesChange = useCallback(
+      (values: PlainObjectWithPrimitiveValues): void => {
+        patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
+      },
+      [patchConfig]
+    )
 
-  const handleFormValuesChangeForm: FormProps<PlainObjectWithPrimitiveValues>["onValuesChange"] = (_, values) => {
-    patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
-  }
+    const handleFormValuesChangeForm = useCallback<FormProps<PlainObjectWithPrimitiveValues>["onValuesChange"]>(
+      (_, values) => {
+        patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
+      },
+      [patchConfig]
+    )
 
-  const handleSetInitialFormValues = (values: PlainObjectWithPrimitiveValues): void => {
-    patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { doNotSetStateChanged: true })
-  }
+    const handleSetInitialFormValues = useCallback(
+      (values: PlainObjectWithPrimitiveValues): void => {
+        patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { doNotSetStateChanged: true })
+      },
+      [patchConfig]
+    )
 
-  useEffect(() => {
-    setControlsDisabled(isLoadingParameters)
-  }, [isLoadingParameters])
+    useEffect(() => {
+      setControlsDisabled(isLoadingParameters)
+    }, [isLoadingParameters])
 
-  /**
-   * set validator and form reference to parent component after the first render
-   */
-  useEffect(() => {
-    const validateGetErrorsCount: ValidateGetErrorsCount = async () => {
-      let errorsCount = 0
-      try {
-        await form.validateFields()
-      } catch (error) {
-        errorsCount = +error?.errorFields?.length
-      }
-      return errorsCount
-    }
-
-    setValidator(() => validateGetErrorsCount)
-    setFormReference(CONFIG_FORM_KEY, form)
-  }, [])
-
-  return loadingParametersError ? (
-    <Row>
-      <Col span={4} />
-      <Col span={20}>
-        <ErrorCard
-          title={`Failed to load the source specification data`}
-          descriptionWithContacts={null}
-          stackTrace={loadingParametersError.stack}
-          className={`form-fields-card`}
-        />
-      </Col>
-    </Row>
-  ) : isLoadingParameters ? (
-    <Row>
-      <Col span={4} />
-      <Col span={20}>
-        <LoadableFieldsLoadingMessageCard
-          title="Loading the source configuration"
-          longLoadingMessage="Loading the spec takes longer than usual. This might happen if you are configuring such source for the first time - Jitsu will need some time to pull a docker image with the connector code"
-          showLongLoadingMessageAfterMs={5000}
-          className={`form-fields-card`}
-        />
-      </Col>
-    </Row>
-  ) : (
     /**
-     * Possible refactor -- use component for configurable fields
-     * e.g. <SourceEditorFormConfigurationConfigurableFields />
-     *
-     * make sure that their functionality won't diverge
+     * set validator and form reference to parent component after the first render
      */
-    <Form form={form} onValuesChange={handleFormValuesChangeForm}>
-      <ConfigurableFieldsForm
-        fieldsParamsList={fieldsParameters || []}
-        form={form}
-        initialValues={initialValues}
-        oauthBackendSecretsStatus={oauthBackendSecretsStatus}
-        setFormValues={handleFormValuesChange}
-        setInitialFormValues={handleSetInitialFormValues}
-      />
-    </Form>
-  )
-}
+    useEffect(() => {
+      const validateGetErrorsCount: ValidateGetErrorsCount = async () => {
+        let errorsCount = 0
+        try {
+          await form.validateFields()
+        } catch (error) {
+          errorsCount = +error?.errorFields?.length
+        }
+        return errorsCount
+      }
+
+      setValidator(() => validateGetErrorsCount)
+      setFormReference(CONFIG_FORM_KEY, form)
+    }, [])
+
+    return loadingParametersError ? (
+      <Row>
+        <Col span={4} />
+        <Col span={20}>
+          <ErrorCard
+            title={`Failed to load the source specification data`}
+            descriptionWithContacts={null}
+            stackTrace={loadingParametersError.stack}
+            className={`form-fields-card`}
+          />
+        </Col>
+      </Row>
+    ) : isLoadingParameters ? (
+      <Row>
+        <Col span={4} />
+        <Col span={20}>
+          <LoadableFieldsLoadingMessageCard
+            title="Loading the source configuration"
+            longLoadingMessage="Loading the spec takes longer than usual. This might happen if you are configuring such source for the first time - Jitsu will need some time to pull a docker image with the connector code"
+            showLongLoadingMessageAfterMs={5000}
+            className={`form-fields-card`}
+          />
+        </Col>
+      </Row>
+    ) : (
+      /**
+       * Possible refactor -- use component for configurable fields
+       * e.g. <SourceEditorFormConfigurationConfigurableFields />
+       *
+       * make sure that their functionality won't diverge
+       */
+      <Form form={form} onValuesChange={handleFormValuesChangeForm}>
+        <ConfigurableFieldsForm
+          fieldsParamsList={fieldsParameters || []}
+          form={form}
+          initialValues={initialValues}
+          oauthBackendSecretsStatus={oauthBackendSecretsStatus}
+          setFormValues={handleFormValuesChange}
+          setInitialFormValues={handleSetInitialFormValues}
+        />
+      </Form>
+    )
+  }
+)
 
 const pullAirbyteSpec = async (sourceId: string): Promise<any> => {
   const services = ApplicationServices.get()

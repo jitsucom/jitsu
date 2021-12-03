@@ -155,12 +155,17 @@ const ConfigurableFieldsFormComponent = ({
     form.setFieldsValue({ id: defaultValueToDisplay })
 
     const FormItemWoStylesTuned: React.FC = ({ children }) => {
-      return <FormItemWrapperWoStyles id={id}>{children}</FormItemWrapperWoStyles>
+      return (
+        <FormItemWrapperWoStyles key={id} id={id}>
+          {children}
+        </FormItemWrapperWoStyles>
+      )
     }
 
     const FormItemWrapperTuned: React.FC = ({ children }) => {
       return (
         <FormItemWrapper
+          key={id}
           type={type}
           id={id}
           displayName={displayName}
@@ -175,6 +180,7 @@ const ConfigurableFieldsFormComponent = ({
     const NonFormItemWrapperTuned: React.FC = ({ children }) => {
       return (
         <NonFormItemWrapper
+          key={id}
           id={id}
           displayName={displayName}
           documentation={documentation}
