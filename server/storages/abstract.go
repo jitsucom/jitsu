@@ -3,8 +3,9 @@ package storages
 import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/config"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"math/rand"
+
+	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"

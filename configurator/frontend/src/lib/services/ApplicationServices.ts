@@ -13,6 +13,7 @@ import { HttpServerStorage, ServerStorage } from "./ServerStorage"
 import { UserService } from "./UserService"
 import { ApplicationConfiguration } from "./ApplicationConfiguration"
 import { CurrentSubscription } from "./billing"
+import { IOauthService, OauthService } from "./oauth"
 
 export interface IApplicationServices {
   init(): Promise<void>
@@ -23,6 +24,7 @@ export interface IApplicationServices {
   backendApiClient: BackendApiClient
   features: FeatureSettings
   applicationConfiguration: ApplicationConfiguration
+  oauthService: IOauthService
   showSelfHostedSignUp(): boolean
 }
 export default class ApplicationServices implements IApplicationServices {
@@ -30,6 +32,7 @@ export default class ApplicationServices implements IApplicationServices {
   private readonly _analyticsService: AnalyticsService
   private readonly _backendApiClient: BackendApiClient
   private readonly _storageService: ServerStorage
+  private readonly _oauthService: IOauthService
 
   private _userService: UserService
   private _features: FeatureSettings
@@ -48,6 +51,7 @@ export default class ApplicationServices implements IApplicationServices {
       this._analyticsService
     )
     this._storageService = new HttpServerStorage(this._backendApiClient)
+    this._oauthService = new OauthService(this._applicationConfiguration.oauthApiBase, this._backendApiClient)
   }
 
   //load backend configuration and create user service depend on authorization type
@@ -118,6 +122,11 @@ export default class ApplicationServices implements IApplicationServices {
   get features(): FeatureSettings {
     return this._features
   }
+
+  get oauthService(): IOauthService {
+    return this._oauthService
+  }
+
   private async loadBackendConfiguration(): Promise<FeatureSettings> {
     let fullUrl = concatenateURLs(this._applicationConfiguration.backendApiBase, "/system/configuration")
     let request: AxiosRequestConfig = {

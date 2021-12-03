@@ -283,9 +283,9 @@ const DestinationEditor = ({
 
     try {
       const config = await validateTabForm(tab)
-
-      destinationData.current._formData = makeObjectFromFieldsValues<DestinationData>(config)._formData
-
+      const values = makeObjectFromFieldsValues<DestinationData>(config)
+      destinationData.current._formData = values._formData
+      destinationData.current._package = values._package
       await destinationEditorUtils.testConnection(destinationData.current)
     } catch (error) {
       switchTestConnectingPopover(true)

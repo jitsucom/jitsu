@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/utils"
@@ -23,9 +24,6 @@ type DestinationConfig struct {
 	CachingConfiguration   *CachingConfiguration    `mapstructure:"caching" json:"caching,omitempty" yaml:"caching,omitempty"`
 	PostHandleDestinations []string                 `mapstructure:"post_handle_destinations" json:"post_handle_destinations,omitempty" yaml:"post_handle_destinations,omitempty"`
 	GeoDataResolverID      string                   `mapstructure:"geo_data_resolver_id" json:"geo_data_resolver_id,omitempty" yaml:"geo_data_resolver_id,omitempty"`
-
-	//variables that can be used from javascript
-	TemplateVariables map[string]interface{} `mapstructure:"template_variables" json:"template_variables,omitempty" yaml:"template_variables,omitempty"`
 
 	//Deprecated
 	DataSource map[string]interface{} `mapstructure:"datasource,omitempty" json:"datasource,omitempty" yaml:"datasource,omitempty"`
@@ -54,7 +52,6 @@ type DestinationConfig struct {
 }
 
 func (config *DestinationConfig) GetDestConfig(compatibilityValue map[string]interface{}, dest Validatable) error {
-	logging.Infof("compat: %s\nconfig: %s\n", compatibilityValue, config.Config)
 	mp := utils.NvlMap(config.Config, compatibilityValue)
 	if err := mapstructure.Decode(mp, dest); err != nil {
 		return err
@@ -108,9 +105,9 @@ type DataLayout struct {
 	//Deprecated
 	Mappings          *Mapping `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
 	MaxColumns        int      `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
-	TableNameTemplate string          `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
-	PrimaryKeyFields  []string        `mapstructure:"primary_key_fields" json:"primary_key_fields,omitempty" yaml:"primary_key_fields,omitempty"`
-	UniqueIDField     string          `mapstructure:"unique_id_field" json:"unique_id_field,omitempty" yaml:"unique_id_field,omitempty"`
+	TableNameTemplate string   `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
+	PrimaryKeyFields  []string `mapstructure:"primary_key_fields" json:"primary_key_fields,omitempty" yaml:"primary_key_fields,omitempty"`
+	UniqueIDField     string   `mapstructure:"unique_id_field" json:"unique_id_field,omitempty" yaml:"unique_id_field,omitempty"`
 }
 
 //UsersRecognition is a model for Users recognition module configuration
@@ -152,4 +149,3 @@ func (ur *UsersRecognition) Validate() error {
 type Validatable interface {
 	Validate() error
 }
-

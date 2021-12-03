@@ -23,28 +23,28 @@ var segmentTransform string
 
 type Envelope struct {
 	Header *BatchHeader
-	Event events.Event
+	Event  events.Event
 }
 
 type Processor struct {
 	identifier              string
-	destinationConfig 		*config.DestinationConfig
+	destinationConfig       *config.DestinationConfig
 	tableNameExtractor      *TableNameExtractor
 	lookupEnrichmentStep    *enrichment.LookupEnrichmentStep
-	transformer				*templates.JsTemplateExecutor
-	fieldMapper  			events.Mapper
+	transformer             *templates.JsTemplateExecutor
+	fieldMapper             events.Mapper
 	pulledEventsfieldMapper events.Mapper
-	typeResolver 			TypeResolver
-	flattener    			Flattener
+	typeResolver            TypeResolver
+	flattener               Flattener
 	breakOnError            bool
 	uniqueIDField           *identifiers.UniqueID
 	maxColumnNameLen        int
 	tableNameFuncExpression string
-	defaultTransform	    string
+	defaultTransform        string
 	javaScripts             []string
-	jsVariables				map[string]interface{}
+	jsVariables             map[string]interface{}
 	//indicate that we didn't forget to init JavaScript transform
-	transformInitialized    bool
+	transformInitialized bool
 }
 
 func NewProcessor(destinationID string, destinationConfig *config.DestinationConfig, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule, flattener Flattener, typeResolver TypeResolver, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int) (*Processor, error) {
@@ -265,7 +265,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		if err != nil {
 			return nil, fmt.Errorf("failed to process long fields: %v", err)
 		}
-		envelops = append(envelops, Envelope{bh, obj} )
+		envelops = append(envelops, Envelope{bh, obj})
 	}
 
 	return envelops, nil
@@ -309,7 +309,7 @@ func (p *Processor) AddJavaScript(js string) {
 
 //AddJavaScriptVariables loads variable to globalThis object of transformation template's vm
 func (p *Processor) AddJavaScriptVariables(jsVar map[string]interface{}) {
-	for k,v := range jsVar {
+	for k, v := range jsVar {
 		p.jsVariables[k] = v
 	}
 }
@@ -344,8 +344,8 @@ func (p *Processor) InitJavaScriptTemplates() (err error) {
 	var transform string
 	mappingDisabled := false
 	switch p.fieldMapper.(type) {
-		case DummyMapper, *DummyMapper, nil:
-			mappingDisabled = true
+	case DummyMapper, *DummyMapper, nil:
+		mappingDisabled = true
 	}
 	if dataLayout := p.destinationConfig.DataLayout; dataLayout != nil {
 		transformDisabled = dataLayout.TransformEnabled != nil && !*dataLayout.TransformEnabled
@@ -397,6 +397,10 @@ func (p *Processor) CloseJavaScriptTemplates() {
 	}
 }
 
+func (p *Processor) GetTransformer() *templates.JsTemplateExecutor {
+	return p.transformer
+}
+
 func (p *Processor) Close() {
 	p.CloseJavaScriptTemplates()
 }
@@ -438,7 +442,7 @@ func cutName(name string, maxLen int) string {
 	return cutName(name, maxLen)
 }
 
-func ClearTypeMetaFields(object map[string]interface{})  {
+func ClearTypeMetaFields(object map[string]interface{}) {
 	for k, v := range object {
 		if strings.Contains(k, SqlTypeKeyword) {
 			delete(object, k)

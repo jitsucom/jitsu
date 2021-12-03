@@ -42,7 +42,7 @@ export interface Props {
   configForm?: FormInstance
   initialValues: any
   loading?: boolean | ReactNode
-  oauthStatus?: "loading" | "secrets_set" | "secrets_not_set"
+  oauthBackendSecretsStatus?: "loading" | "secrets_set" | "secrets_not_set"
   handleTouchAnyField?: (...args: any) => void
   setFormValues?: (values: PlainObjectWithPrimitiveValues) => void
   setInitialFormValues?: (values: PlainObjectWithPrimitiveValues) => void
@@ -62,7 +62,7 @@ const ConfigurableFieldsFormComponent = ({
   configForm,
   initialValues,
   loading,
-  oauthStatus,
+  oauthBackendSecretsStatus,
   handleTouchAnyField,
   setFormValues,
   setInitialFormValues,
@@ -155,12 +155,17 @@ const ConfigurableFieldsFormComponent = ({
     form.setFieldsValue({ id: defaultValueToDisplay })
 
     const FormItemWoStylesTuned: React.FC = ({ children }) => {
-      return <FormItemWrapperWoStyles id={id}>{children}</FormItemWrapperWoStyles>
+      return (
+        <FormItemWrapperWoStyles key={id} id={id}>
+          {children}
+        </FormItemWrapperWoStyles>
+      )
     }
 
     const FormItemWrapperTuned: React.FC = ({ children }) => {
       return (
         <FormItemWrapper
+          key={id}
           type={type}
           id={id}
           displayName={displayName}
@@ -175,6 +180,7 @@ const ConfigurableFieldsFormComponent = ({
     const NonFormItemWrapperTuned: React.FC = ({ children }) => {
       return (
         <NonFormItemWrapper
+          key={id}
           id={id}
           displayName={displayName}
           documentation={documentation}
@@ -224,7 +230,11 @@ const ConfigurableFieldsFormComponent = ({
         )
       }
       case "array/string":
-        return <EditableList initialValue={defaultValueToDisplay} />
+        return (
+          <FormItemWrapperTuned>
+            <EditableList initialValue={defaultValueToDisplay} />
+          </FormItemWrapperTuned>
+        )
       case "javascript":
       case "json": {
         return (
@@ -290,7 +300,7 @@ const ConfigurableFieldsFormComponent = ({
         return (
           <NonFormItemWrapperTuned>
             <InputOauthSecret
-              status={oauthStatus ?? "secrets_not_set"}
+              status={oauthBackendSecretsStatus ?? "secrets_not_set"}
               defaultChecked={!defaultValueToDisplay}
               inputWrapper={FormItemWoStylesTuned}
             />
@@ -319,6 +329,13 @@ const ConfigurableFieldsFormComponent = ({
   }
 
   const handleDebuggerRun = async (field: string, debuggerType: "object" | "string", values: DebuggerFormValues) => {
+    let transform = {}
+    if (field === "_transform") {
+      transform = {
+        _transform_enabled: true,
+        _transform: values.code,
+      }
+    }
     const data = {
       reformat: debuggerType == "string",
       uid: initialValues._uid,
@@ -326,6 +343,7 @@ const ConfigurableFieldsFormComponent = ({
       field: field,
       expression: values.code,
       object: JSON.parse(values.object),
+      config: { ...initialValues, ...configForm.getFieldsValue(), ...transform },
       template_variables: Object.entries((configForm || form).getFieldsValue())
         .filter(v => v[0].startsWith("_formData._"))
         .reduce((accumulator: any, currentValue: [string, unknown]) => {
@@ -334,9 +352,7 @@ const ConfigurableFieldsFormComponent = ({
         }, {}),
     }
 
-    return services.backendApiClient.post(`/templates/evaluate?project_id=${services.activeProject.id}`, data, {
-      proxy: true,
-    })
+    return services.backendApiClient.post(`/destinations/evaluate?project_id=${services.activeProject.id}`, data)
   }
 
   const handleCloseDebugger = id => setDebugModalsStates({ ...debugModalsStates, [id]: false })

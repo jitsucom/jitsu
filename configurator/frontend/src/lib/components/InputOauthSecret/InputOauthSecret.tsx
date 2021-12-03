@@ -6,7 +6,7 @@ type Props = {
 } & InputWithCheckboxProps
 
 export const InputOauthSecret: React.FC<Props> = ({ status, ...props }) => {
-  const hideCheckbox = status === "secrets_not_set" || status === "loading"
+  const hideCheckbox = status !== "secrets_set"
   const message = useMemo<string>(() => {
     switch (status) {
       case "loading":
@@ -22,6 +22,7 @@ export const InputOauthSecret: React.FC<Props> = ({ status, ...props }) => {
   return (
     <InputWithCheckbox
       hideCheckbox={hideCheckbox}
+      checked={hideCheckbox ? false : undefined}
       checkboxTitle={`Use server-stored Jitsu App secret`}
       checkedFixedTitle={message}
       invertCheckBehaviour

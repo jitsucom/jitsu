@@ -94,7 +94,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.GET("/geo_data_resolvers/editions", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.EditionsHandler))
 		apiV1.POST("/geo_data_resolvers/test", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.TestHandler))
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler))
-		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.NewEventTemplateHandler(pluginsRepository).Handler))
+		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.NewEventTemplateHandler(pluginsRepository, destinations.GetFactory()).Handler))
 
 		sourcesRoute := apiV1.Group("/sources")
 		{

@@ -4,21 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/config"
-	"github.com/jitsucom/jitsu/server/geo"
-	"github.com/jitsucom/jitsu/server/jsonutils"
-	"github.com/jitsucom/jitsu/server/meta"
-	"strings"
-
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/identifiers"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/typing"
+	"strings"
 )
 
 const (
@@ -56,9 +55,10 @@ type Config struct {
 	streamMode             bool
 	maxColumns             int
 	monitorKeeper          MonitorKeeper
-	eventQueue             events.PersistentQueue
+	eventQueue             events.Queue
 	eventsCache            *caching.EventsCache
 	loggerFactory          *logging.Factory
+	queueFactory           *events.QueueFactory
 	pkFields               map[string]bool
 	sqlTypes               typing.SQLTypes
 	uniqueIDField          *identifiers.UniqueID
@@ -74,7 +74,8 @@ func RegisterStorage(storageType StorageType) {
 
 //Factory is a destinations factory for creation
 type Factory interface {
-	Create(name string, destination config.DestinationConfig) (StorageProxy, events.PersistentQueue, error)
+	Create(name string, destination config.DestinationConfig) (StorageProxy, events.Queue, error)
+	Configure(destinationID string, destination config.DestinationConfig) (func(config *Config) (Storage, error), *Config, error)
 }
 
 type StorageType struct {
@@ -93,11 +94,12 @@ type FactoryImpl struct {
 	globalLoggerFactory *logging.Factory
 	globalConfiguration *config.UsersRecognition
 	metaStorage         meta.Storage
+	eventsQueueFactory  *events.QueueFactory
 	maxColumns          int
 }
 
 //NewFactory returns configured Factory
-func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache, globalLoggerFactory *logging.Factory, globalConfiguration *config.UsersRecognition, metaStorage meta.Storage, maxColumns int) Factory {
+func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache, globalLoggerFactory *logging.Factory, globalConfiguration *config.UsersRecognition, metaStorage meta.Storage, eventsQueueFactory *events.QueueFactory, maxColumns int) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
@@ -107,113 +109,56 @@ func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Servic
 		globalLoggerFactory: globalLoggerFactory,
 		globalConfiguration: globalConfiguration,
 		metaStorage:         metaStorage,
+		eventsQueueFactory:  eventsQueueFactory,
 		maxColumns:          maxColumns,
 	}
 }
 
 //Create builds event storage proxy and event consumer (logger or event-queue)
 //Enriches incoming configs with default values if needed
-func (f *FactoryImpl) Create(destinationID string, destination config.DestinationConfig) (StorageProxy, events.PersistentQueue, error) {
+func (f *FactoryImpl) Create(destinationID string, destination config.DestinationConfig) (StorageProxy, events.Queue, error) {
+	createFunc, config, err := f.Configure(destinationID, destination)
+	if err != nil {
+		return nil, nil, err
+	}
+	storageProxy := newProxy(createFunc, config)
+	return storageProxy, config.eventQueue, nil
+}
+
+func (f *FactoryImpl) Configure(destinationID string, destination config.DestinationConfig) (func(config *Config) (Storage, error), *Config, error) {
 	if destination.Type == "" {
 		destination.Type = destinationID
 	}
 	if destination.Mode == "" {
 		destination.Mode = BatchMode
 	}
-
+	if destination.Mode != BatchMode && destination.Mode != StreamMode {
+		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, BatchMode, StreamMode)
+	}
 	logging.Infof("[%s] initializing destination of type: %s in mode: %s", destinationID, destination.Type, destination.Mode)
-
 	storageType, ok := StorageTypes[destination.Type]
 	if !ok {
 		return nil, nil, ErrUnknownDestination
 	}
-
-	var tableName string
-	var oldStyleMappings []string
-	var newStyleMapping *config.Mapping
 	pkFields := map[string]bool{}
-	mappingFieldType := config.Default
 	maxColumns := f.maxColumns
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField
 	if destination.DataLayout != nil {
-		mappingFieldType = destination.DataLayout.MappingType
-		oldStyleMappings = destination.DataLayout.Mapping
-		newStyleMapping = destination.DataLayout.Mappings
-		if destination.DataLayout.TableNameTemplate != "" {
-			tableName = destination.DataLayout.TableNameTemplate
-		}
-
 		for _, field := range destination.DataLayout.PrimaryKeyFields {
 			pkFields[field] = true
 		}
-
 		if destination.DataLayout.MaxColumns > 0 {
 			maxColumns = destination.DataLayout.MaxColumns
-
 			logging.Infof("[%s] uses max_columns setting: %d", destinationID, maxColumns)
 		}
-
 		if destination.DataLayout.UniqueIDField != "" {
 			uniqueIDField = identifiers.NewUniqueID(destination.DataLayout.UniqueIDField)
 		}
 	}
-
-	if tableName == "" {
-		tableName = storageType.defaultTableName
-	}
-	if tableName == "" {
-		tableName = defaultTableName
-		logging.Infof("[%s] uses default table: %s", destinationID, tableName)
-
-	}
-
 	if len(pkFields) > 0 {
 		logging.Infof("[%s] has primary key fields: [%s]", destinationID, strings.Join(destination.DataLayout.PrimaryKeyFields, ", "))
 	} else {
 		logging.Infof("[%s] doesn't have primary key fields", destinationID)
-	}
-
-	if destination.Mode != BatchMode && destination.Mode != StreamMode {
-		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, BatchMode, StreamMode)
-	}
-
-	if len(destination.Enrichment) == 0 {
-		logging.Warnf("[%s] doesn't have enrichment rules", destinationID)
-	} else {
-		logging.Infof("[%s] configured enrichment rules:", destinationID)
-	}
-
-	//default enrichment rules
-	enrichmentRules := []enrichment.Rule{
-		enrichment.CreateDefaultJsIPRule(f.geoService, destination.GeoDataResolverID),
-		enrichment.DefaultJsUaRule,
-	}
-
-	// ** Enrichment rules **
-	for _, ruleConfig := range destination.Enrichment {
-		logging.Infof("[%s] %s", destinationID, ruleConfig.String())
-
-		rule, err := enrichment.NewRule(ruleConfig, f.geoService, destination.GeoDataResolverID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("Error creating enrichment rule [%s]: %v", ruleConfig.String(), err)
-		}
-
-		enrichmentRules = append(enrichmentRules, rule)
-	}
-
-	// ** Mapping rules **
-	if len(oldStyleMappings) > 0 {
-		logging.Warnf("\n\t ** [%s] DEPRECATED mapping configuration. Read more about new configuration schema: https://jitsu.com/docs/configuration/schema-and-mappings **\n", destinationID)
-		var convertErr error
-		newStyleMapping, convertErr = schema.ConvertOldMappings(mappingFieldType, oldStyleMappings)
-		if convertErr != nil {
-			return nil, nil, convertErr
-		}
-	}
-	enrichAndLogMappings(destinationID, destination.Type, uniqueIDField, newStyleMapping)
-	fieldMapper, sqlTypes, err := schema.NewFieldMapper(newStyleMapping)
-	if err != nil {
-		return nil, nil, err
 	}
 
 	//** Retroactive users recognition **
@@ -222,25 +167,7 @@ func (f *FactoryImpl) Create(destinationID string, destination config.Destinatio
 		return nil, nil, err
 	}
 
-	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
-	var flattener schema.Flattener
-	var typeResolver schema.TypeResolver
-	if needDummy(&destination) {
-		flattener = schema.NewDummyFlattener()
-		typeResolver = schema.NewDummyTypeResolver()
-	} else {
-		flattener = schema.NewFlattener()
-		typeResolver = schema.NewTypeResolver()
-	}
-
-	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
-
-	processor, err := schema.NewProcessor(destinationID, &destination, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, uniqueIDField, maxColumnNameLength)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	eventQueue, err := events.NewPersistentQueue(destinationID, "queue.dst="+destinationID, f.logEventPath)
+	eventQueue, err := f.eventsQueueFactory.CreateEventsQueue(destinationID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -269,12 +196,9 @@ func (f *FactoryImpl) Create(destinationID string, destination config.Destinatio
 		logging.Infof("[%s] events caching is disabled", destinationID)
 	}
 
-	//for telemetry
-	var mappingsStyle string
-	if len(oldStyleMappings) > 0 {
-		mappingsStyle = "old"
-	} else if newStyleMapping != nil {
-		mappingsStyle = "new"
+	processor, sqlTypes, mappingsStyle, err := f.SetupProcessor(destinationID, destination)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	storageConfig := &Config{
@@ -289,6 +213,7 @@ func (f *FactoryImpl) Create(destinationID string, destination config.Destinatio
 		eventQueue:             eventQueue,
 		eventsCache:            f.eventsCache,
 		loggerFactory:          destinationLoggerFactory,
+		queueFactory:           f.eventsQueueFactory,
 		pkFields:               pkFields,
 		sqlTypes:               sqlTypes,
 		uniqueIDField:          uniqueIDField,
@@ -296,10 +221,99 @@ func (f *FactoryImpl) Create(destinationID string, destination config.Destinatio
 		logEventPath:           f.logEventPath,
 		PostHandleDestinations: destination.PostHandleDestinations,
 	}
+	return storageType.createFunc, storageConfig, nil
+}
 
-	storageProxy := newProxy(storageType.createFunc, storageConfig)
+func (f *FactoryImpl) SetupProcessor(destinationID string, destination config.DestinationConfig) (processor *schema.Processor, sqlTypes typing.SQLTypes, mappingsStyle string, err error) {
+	storageType, ok := StorageTypes[destination.Type]
+	if !ok {
+		return nil, nil, "", ErrUnknownDestination
+	}
+	var tableName string
+	var oldStyleMappings []string
+	var newStyleMapping *config.Mapping
+	mappingFieldType := config.Default
+	uniqueIDField := appconfig.Instance.GlobalUniqueIDField
+	if destination.DataLayout != nil {
+		mappingFieldType = destination.DataLayout.MappingType
+		oldStyleMappings = destination.DataLayout.Mapping
+		newStyleMapping = destination.DataLayout.Mappings
+		if destination.DataLayout.TableNameTemplate != "" {
+			tableName = destination.DataLayout.TableNameTemplate
+		}
+	}
 
-	return storageProxy, eventQueue, nil
+	if tableName == "" {
+		tableName = storageType.defaultTableName
+	}
+	if tableName == "" {
+		tableName = defaultTableName
+		logging.Infof("[%s] uses default table: %s", destinationID, tableName)
+	}
+
+	if len(destination.Enrichment) == 0 {
+		logging.Warnf("[%s] doesn't have enrichment rules", destinationID)
+	} else {
+		logging.Infof("[%s] configured enrichment rules:", destinationID)
+	}
+
+	//default enrichment rules
+	enrichmentRules := []enrichment.Rule{
+		enrichment.CreateDefaultJsIPRule(f.geoService, destination.GeoDataResolverID),
+		enrichment.DefaultJsUaRule,
+	}
+
+	// ** Enrichment rules **
+	for _, ruleConfig := range destination.Enrichment {
+		logging.Infof("[%s] %s", destinationID, ruleConfig.String())
+
+		rule, err := enrichment.NewRule(ruleConfig, f.geoService, destination.GeoDataResolverID)
+		if err != nil {
+			return nil, nil, "", fmt.Errorf("Error creating enrichment rule [%s]: %v", ruleConfig.String(), err)
+		}
+
+		enrichmentRules = append(enrichmentRules, rule)
+	}
+
+	// ** Mapping rules **
+	if len(oldStyleMappings) > 0 {
+		logging.Warnf("\n\t ** [%s] DEPRECATED mapping configuration. Read more about new configuration schema: https://jitsu.com/docs/configuration/schema-and-mappings **\n", destinationID)
+		var convertErr error
+		newStyleMapping, convertErr = schema.ConvertOldMappings(mappingFieldType, oldStyleMappings)
+		if convertErr != nil {
+			return nil, nil, "", convertErr
+		}
+	}
+	enrichAndLogMappings(destinationID, destination.Type, uniqueIDField, newStyleMapping)
+	fieldMapper, sqlTypes, err := schema.NewFieldMapper(newStyleMapping)
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
+	var flattener schema.Flattener
+	var typeResolver schema.TypeResolver
+	if needDummy(&destination) {
+		flattener = schema.NewDummyFlattener()
+		typeResolver = schema.NewDummyTypeResolver()
+	} else {
+		flattener = schema.NewFlattener()
+		typeResolver = schema.NewTypeResolver()
+	}
+
+	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
+
+	processor, err = schema.NewProcessor(destinationID, &destination, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, uniqueIDField, maxColumnNameLength)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	//for telemetry
+	if len(oldStyleMappings) > 0 {
+		mappingsStyle = "old"
+	} else if newStyleMapping != nil {
+		mappingsStyle = "new"
+	}
+	return processor, sqlTypes, mappingsStyle, nil
 }
 
 func needDummy(destCfg *config.DestinationConfig) bool {

@@ -9,7 +9,7 @@ type Destination struct {
 	Type                           string                   `firestore:"_type"  json:"_type"`
 	Package                        string                   `firestore:"_package"  json:"_package"`
 	Data                           interface{}              `firestore:"_formData" json:"_formData"`
-	TransformEnabled               bool                   	`firestore:"_transform_enabled"  json:"_transform_enabled"`
+	TransformEnabled               bool                     `firestore:"_transform_enabled"  json:"_transform_enabled"`
 	Transform                      string                   `firestore:"_transform"  json:"_transform"`
 	Mappings                       *Mappings                `firestore:"_mappings" json:"_mappings"`
 	Enrichment                     []*enrichment.RuleConfig `firestore:"_enrichment" json:"_enrichment"`
