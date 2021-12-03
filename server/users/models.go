@@ -1,8 +1,10 @@
 package users
 
+import "github.com/jitsucom/jitsu/server/events"
+
 //RecognitionPayload is a queue dto
 type RecognitionPayload struct {
-	EventBytes []byte
+	Event events.Event
 	//map[destinationID]EventIdentifiers
 	DestinationsIdentifiers map[string]EventIdentifiers
 }

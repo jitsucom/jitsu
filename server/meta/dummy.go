@@ -44,7 +44,9 @@ func (d *Dummy) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload 
 func (d *Dummy) GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error) {
 	return map[string]string{}, nil
 }
-func (d *Dummy) DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error { return nil }
+func (d *Dummy) DeleteAnonymousEvents(destinationID, anonymousID string, eventIDs []string) error {
+	return nil
+}
 
 func (d *Dummy) CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error {
 	return nil
