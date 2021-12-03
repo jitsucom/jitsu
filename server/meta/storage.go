@@ -45,7 +45,7 @@ type Storage interface {
 	//** Users recognition **
 	SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error
 	GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error)
-	DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error
+	DeleteAnonymousEvents(destinationID, anonymousID string, eventIDs []string) error
 
 	// ** Sync Tasks **
 	CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error
