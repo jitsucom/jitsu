@@ -19,7 +19,7 @@ import (
 var tarballUrlRegex = regexp.MustCompile(`^http.*\.(?:tar|tar\.gz|tgz)$`)
 var tarballJsonPath = jsonutils.NewJSONPath("/dist/tarball")
 var pluginsCache = map[string]CachedPlugin{}
-var cacheTTL = time.Duration(1)*time.Hour
+var cacheTTL = time.Duration(1) * time.Hour
 
 type PluginsRepository interface {
 	GetPlugins() map[string]*Plugin
@@ -31,14 +31,13 @@ type PluginsRepositoryImp struct {
 }
 
 type CachedPlugin struct {
-	Added time.Time
+	Added  time.Time
 	Plugin *Plugin
 }
 
-
 type Plugin struct {
-	Name string
-	Code string
+	Name       string
+	Code       string
 	Descriptor map[string]interface{}
 }
 
@@ -52,7 +51,7 @@ func NewPluginsRepository(pluginsMap map[string]string, cacheDir string) (Plugin
 		}
 		plugins[name] = plugin
 	}
-	return &PluginsRepositoryImp{plugins: plugins},nil
+	return &PluginsRepositoryImp{plugins: plugins}, nil
 }
 func DownloadPlugin(packageString string) (*Plugin, error) {
 	logging.Infof("Loading plugin: %s", packageString)
@@ -127,7 +126,7 @@ func downloadPlugin(packageString, tarballUrl string) (*Plugin, error) {
 		return nil, err
 	}
 	logging.Infof("Extracting: %s", filename)
-	command := exec.Command("tar", "--strip-components","1","-xf", filename)
+	command := exec.Command("tar", "--strip-components", "1", "-xf", filename)
 	command.Dir = dir
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
@@ -136,7 +135,7 @@ func downloadPlugin(packageString, tarballUrl string) (*Plugin, error) {
 		return nil, err
 	}
 	logging.Infof("Opening package.json")
-	pckgBytes, err :=  os.ReadFile(path.Join(dir, "package.json"))
+	pckgBytes, err := os.ReadFile(path.Join(dir, "package.json"))
 	if err != nil {
 		return nil, fmt.Errorf("cannot install plugin %s: failed to open package.json: %v", packageString, err)
 	}
@@ -185,7 +184,12 @@ func downloadPlugin(packageString, tarballUrl string) (*Plugin, error) {
 		return nil, fmt.Errorf("cannot install plugin %s: failed to convert desriptor object to go map[string]interface{}. Actual type: %T", packageString, descriptorValue)
 	}
 	logging.Infof("Descriptor:  %s", descriptor)
-	return &Plugin{Name: descriptor["type"].(string), Code: code, Descriptor: descriptor}, nil
+	plugin := &Plugin{Name: descriptor["type"].(string), Code: code, Descriptor: descriptor}
+	pluginsCache[packageString] = CachedPlugin{
+		Plugin: plugin,
+		Added:  time.Now(),
+	}
+	return plugin, nil
 }
 
 func GetCached(packageString string) *Plugin {

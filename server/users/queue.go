@@ -2,31 +2,52 @@ package users
 
 import (
 	"fmt"
-	"github.com/jitsucom/jitsu/server/leveldb"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
-	"path"
+	"github.com/jitsucom/jitsu/server/queue"
+	"github.com/jitsucom/jitsu/server/safego"
+	"time"
 )
 
-const errCreateQueueTemplate = "error opening/creating users queue in dir [%s]: %v"
+const (
+	debugElementCountThreshold = 50
+	queueIdentifier            = "users_recognition"
+)
 
-type LevelDBQueue struct {
-	queue *leveldb.Queue
+type Queue struct {
+	identifier string
+	queue      queue.Queue
+
+	closed chan struct{}
 }
 
-func NewLevelDBQueue(queueName, logEventPath string) (*LevelDBQueue, error) {
-	queueDir := path.Join(logEventPath, queueName)
-	queue, err := leveldb.NewQueue(queueDir)
-	if err != nil {
-		return nil, fmt.Errorf(errCreateQueueTemplate, queueDir, err)
+func newQueue() *Queue {
+	inmemoryQueue := queue.NewInMemory()
+
+	metrics.InitialUsersRecognitionQueueSize(int(inmemoryQueue.Size()))
+
+	q := &Queue{identifier: queueIdentifier, queue: inmemoryQueue, closed: make(chan struct{}, 1)}
+	safego.Run(q.startMonitor)
+	return q
+}
+
+func (q *Queue) startMonitor() {
+	debugTicker := time.NewTicker(time.Minute * 10)
+	for {
+		select {
+		case <-q.closed:
+			return
+		case <-debugTicker.C:
+			size := q.queue.Size()
+			if size > debugElementCountThreshold {
+				logging.Infof("[queue: %s] current size: %d", q.identifier, size)
+			}
+		}
 	}
-
-	metrics.InitialUsersRecognitionQueueSize(queue.Size())
-
-	return &LevelDBQueue{queue: queue}, nil
 }
 
-func (ldq *LevelDBQueue) Enqueue(rp *RecognitionPayload) error {
-	if err := ldq.queue.Enqueue(rp); err != nil {
+func (q *Queue) Enqueue(rp *RecognitionPayload) error {
+	if err := q.queue.Push(rp); err != nil {
 		return err
 	}
 
@@ -35,11 +56,15 @@ func (ldq *LevelDBQueue) Enqueue(rp *RecognitionPayload) error {
 	return nil
 }
 
-func (ldq *LevelDBQueue) DequeueBlock() (*RecognitionPayload, error) {
-	rp := &RecognitionPayload{}
-
-	if err := ldq.queue.DequeueBlock(rp); err != nil {
+func (q *Queue) DequeueBlock() (*RecognitionPayload, error) {
+	rpi, err := q.queue.Pop()
+	if err != nil {
 		return nil, err
+	}
+
+	rp, ok := rpi.(*RecognitionPayload)
+	if !ok {
+		return nil, fmt.Errorf("wrong type of recognition payload dto in queue. Expected: *RecognitionPayload, actual: %T (%s)", rpi, rpi)
 	}
 
 	metrics.DequeuedRecognitionEvent()
@@ -48,6 +73,7 @@ func (ldq *LevelDBQueue) DequeueBlock() (*RecognitionPayload, error) {
 }
 
 //Close closes underlying queue
-func (ldq *LevelDBQueue) Close() error {
-	return ldq.queue.Close()
+func (q *Queue) Close() error {
+	close(q.closed)
+	return q.queue.Close()
 }

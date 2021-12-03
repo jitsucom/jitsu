@@ -14,6 +14,8 @@ const eventsPerPersistedFile = 2000
 
 var ErrQueueClosed = errors.New("queue is closed")
 
+//QueuedEvent is a dto for persisting in goque or dque
+//DEPRECATED
 type QueuedEvent struct {
 	FactBytes    []byte
 	DequeuedTime time.Time
@@ -34,7 +36,7 @@ type DQueBasedQueue struct {
 }
 
 //NewDQueBasedQueue returns configured DQueBasedQueue
-func NewDQueBasedQueue(identifier, queueName, logEventPath string) (PersistentQueue, error) {
+func NewDQueBasedQueue(identifier, queueName, logEventPath string) (Queue, error) {
 	queue, err := dque.NewOrOpen(queueName, logEventPath, eventsPerPersistedFile, QueuedFactBuilder)
 	if err != nil {
 		return nil, fmt.Errorf("Error opening/creating event queue [%s] in dir [%s]: %v", queueName, logEventPath, err)

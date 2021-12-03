@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/config"
@@ -13,6 +14,7 @@ import (
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/plugins"
+	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/uuid"
@@ -230,7 +232,8 @@ func main() {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
 	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
-	telemetry.EnrichSystemInfo(clusterID)
+	systemInfo := runtime.GetInfo()
+	telemetry.EnrichSystemInfo(clusterID, systemInfo)
 
 	// ** Coordination Service **
 	var coordinationService coordination.Service
@@ -261,9 +264,22 @@ func main() {
 		}
 	}
 
+	// ** Destinations **
+	//events queue
+	//Redis based if events.queue.redis or meta.storage configured
+	//or
+	//inmemory
+	eventsQueueFactory, err := initializeEventsQueueFactory(metaStorageConfiguration)
+	if err != nil {
+		logging.Fatal(err)
+	}
+
 	// ** Closing Meta Storage and Coordination Service
 	// Close after all for saving last task statuses
 	defer func() {
+		if err := eventsQueueFactory.Close(); err != nil {
+			logging.Errorf("Error closing events queue factory: %v", err)
+		}
 		if err := coordinationService.Close(); err != nil {
 			logging.Errorf("Error closing coordination service: %v", err)
 		}
@@ -272,7 +288,6 @@ func main() {
 		}
 	}()
 
-	// ** Destinations **
 	//events counters
 	counters.InitEvents(metaStorage)
 
@@ -300,7 +315,8 @@ func main() {
 	}
 	maxColumns := viper.GetInt("server.max_columns")
 	logging.Infof("📝 Limit server.max_columns is %d", maxColumns)
-	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, maxColumns)
+	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory,
+		globalRecognitionConfiguration, metaStorage, eventsQueueFactory, maxColumns)
 
 	//Create event destinations
 	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory, viper.GetBool("server.strict_auth_tokens"))
@@ -420,7 +436,7 @@ func main() {
 		multiplexingService, walService, geoService, pluginsRepository)
 
 	telemetry.ServerStart()
-	notifications.ServerStart()
+	notifications.ServerStart(systemInfo)
 	logging.Info("🚀 Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
@@ -475,4 +491,37 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 
 	return nil, errors.New("Unknown coordination configuration. Currently only [redis, etcd] are supported. " +
 		"\n\tRead more about coordination service configuration: https://jitsu.com/docs/other-features/scaling-eventnative#coordination")
+}
+
+//initializeEventsQueueFactory returns configured events.QueueFactory (redis or inmemory)
+func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*events.QueueFactory, error) {
+	//redis config from meta.storage section
+	redisConfigurationSource := metaStorageConfiguration.Sub("redis")
+
+	//get redis configuration from separated config section if configured
+	if viper.GetString("events.queue.redis.host") != "" {
+		redisConfigurationSource = viper.Sub("events.queue.redis")
+	}
+
+	var pollTimeout time.Duration
+	var eventsQueueRedisPool *meta.RedisPool
+	var err error
+	if redisConfigurationSource != nil {
+		factory := meta.NewRedisPoolFactory(redisConfigurationSource.GetString("host"),
+			redisConfigurationSource.GetInt("port"),
+			redisConfigurationSource.GetString("password"),
+			redisConfigurationSource.GetBool("tls_skip_verify"),
+			redisConfigurationSource.GetString("sentinel_master_name"))
+		opts := meta.DefaultOptions
+		opts.MaxActive = 1000
+		factory.WithOptions(opts)
+		pollTimeout = factory.GetOptions().DefaultDialReadTimeout
+		factory.CheckAndSetDefaultPort()
+		eventsQueueRedisPool, err = factory.Create()
+		if err != nil {
+			return nil, fmt.Errorf("error creating events queue redis pool: %v", err)
+		}
+	}
+
+	return events.NewQueueFactory(eventsQueueRedisPool, pollTimeout), nil
 }

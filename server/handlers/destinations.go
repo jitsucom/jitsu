@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
@@ -160,6 +161,9 @@ func testDestinationConnection(config *config.DestinationConfig) error {
 		}
 		defer s3Adapter.Close()
 		return s3Adapter.ValidateWritePermission()
+	case storages.NpmType:
+		_, err := plugins.DownloadPlugin(config.Package)
+		return err
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}
@@ -335,7 +339,7 @@ func testRedshift(config *config.DestinationConfig, eventContext *adapters.Event
 	var s3config *adapters.S3Config
 	s3c, err := config.GetConfig(dataSourceConfig.S3, config.S3, &adapters.S3Config{})
 	if err != nil {
-		return  err
+		return err
 	}
 	s3config = s3c.(*adapters.S3Config)
 	redshift, err := adapters.NewAwsRedshift(context.Background(), dataSourceConfig, s3config, &logging.QueryLogger{}, typing.SQLTypes{})
@@ -400,7 +404,7 @@ func testBigQuery(config *config.DestinationConfig, eventContext *adapters.Event
 	if err := config.GetDestConfig(config.Google, google); err != nil {
 		return err
 	}
- 	if config.Mode == storages.BatchMode {
+	if config.Mode == storages.BatchMode {
 		if err := google.ValidateBatchMode(); err != nil {
 			return err
 		}
@@ -483,14 +487,14 @@ func testSnowflake(config *config.DestinationConfig, eventContext *adapters.Even
 	var s3config *adapters.S3Config
 	s3c, err := config.GetConfig(snowflakeConfig.S3, config.S3, &adapters.S3Config{})
 	if err != nil {
-		return  err
+		return err
 	}
 	s3config = s3c.(*adapters.S3Config)
 
 	var googleConfig *adapters.GoogleConfig
 	gc, err := config.GetConfig(snowflakeConfig.Google, config.Google, &adapters.GoogleConfig{})
 	if err != nil {
-		return  err
+		return err
 	}
 	googleConfig = gc.(*adapters.GoogleConfig)
 

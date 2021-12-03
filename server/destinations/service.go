@@ -389,6 +389,10 @@ func (s *Service) removeAndClose(destinationID string, unit *Unit) {
 	logging.Infof("[%s] destination has been removed!", destinationID)
 }
 
+func (s *Service) GetFactory() storages.Factory {
+	return s.storageFactory
+}
+
 //Close closes destination storages
 func (s *Service) Close() (multiErr error) {
 	for id, unit := range s.unitsByID {

@@ -15,6 +15,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	enstorages "github.com/jitsucom/jitsu/server/storages"
+	"github.com/mitchellh/mapstructure"
 	"net/http"
 	"time"
 )
@@ -122,4 +123,45 @@ func (dh *DestinationsHandler) TestHandler(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to write response", err))
 	}
+}
+
+func (dh *DestinationsHandler) EvaluateHandler(c *gin.Context) {
+	requestBody := map[string]interface{}{}
+	err := c.BindJSON(&requestBody)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to parse request body", err))
+		return
+	}
+	if requestBody["field"] == "_transform" && requestBody["type"] == enstorages.NpmType {
+		destinationEntity := &entities.Destination{}
+		bytes, _ := json.Marshal(requestBody["config"])
+		err = json.Unmarshal(bytes, destinationEntity)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to unmarshal destination config", err))
+			return
+		}
+		enDestinationConfig, err := destinations.MapConfig("evaluate", destinationEntity, dh.defaultS3, nil)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse(fmt.Sprintf("Failed to map [%s] firebase config to eventnative format", destinationEntity.Type), err))
+			return
+		}
+		enDestinationConfigMap := map[string]interface{}{}
+		err = mapstructure.Decode(enDestinationConfig, &enDestinationConfigMap)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse(fmt.Sprintf("Failed to map [%s] enDestinationConfigMap to map", destinationEntity.Type), err))
+			return
+		}
+		requestBody["config"] = enDestinationConfigMap
+	}
+	requestBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse(fmt.Sprintf("Failed to marshal request body to json"), err))
+		return
+	}
+	code, content, err := dh.jitsuService.EvaluateExpression(requestBytes)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to get response from jitsu server", err))
+		return
+	}
+	c.Data(code, jsonContentType, content)
 }

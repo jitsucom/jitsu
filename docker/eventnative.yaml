@@ -31,6 +31,12 @@ meta:
       host: '${env.REDIS_URL|}'
       tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
 
+events:
+  queue:
+    redis:
+      host: '${env.EVENTS_QUEUE_REDIS_URL|}'
+      tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+
 coordination:
   type: redis
 

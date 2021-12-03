@@ -3,12 +3,13 @@ package schema
 import (
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
-	"strings"
 )
 
 type FieldMapper struct {
