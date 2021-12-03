@@ -199,9 +199,16 @@ func mapPostgres(pgDestinations *entities.Destination) (*enconfig.DestinationCon
 		}
 		sslConfig.Mode = enadapters.FromString(pgFormData.SSLMode)
 	}
+	var port int64
+	if pgFormData.Port != "" {
+		port, err = pgFormData.Port.Int64()
+		if err != nil {
+			return nil, fmt.Errorf("Error unmarshaling postgres port: %v", err)
+		}
+	}
 	cfg := &enadapters.DataSourceConfig{
 		Host:             pgFormData.Host,
-		Port:             pgFormData.Port,
+		Port:             int(port),
 		Db:               pgFormData.Db,
 		Schema:           pgFormData.Schema,
 		Username:         pgFormData.Username,
@@ -241,9 +248,16 @@ func mapMySQL(md *entities.Destination) (*enconfig.DestinationConfig, error) {
 	if mySQLFormData.DisableTLS {
 		parameters = map[string]string{"tls": "false"}
 	}
+	var port int64
+	if mySQLFormData.Port != "" {
+		port, err = mySQLFormData.Port.Int64()
+		if err != nil {
+			return nil, fmt.Errorf("Error unmarshaling postgres port: %v", err)
+		}
+	}
 	cfg := &enadapters.DataSourceConfig{
 		Host:       mySQLFormData.Host,
-		Port:       mySQLFormData.Port,
+		Port:       int(port),
 		Db:         mySQLFormData.Db,
 		Schema:     mySQLFormData.Db,
 		Username:   mySQLFormData.Username,
@@ -340,7 +354,7 @@ func mapRedshift(destinationID string, rsDestinations *entities.Destination, def
 	}
 	cfg := &enadapters.DataSourceConfig{
 		Host:     rsFormData.Host,
-		Port:     json.Number("5439"),
+		Port:     5439,
 		Db:       rsFormData.Db,
 		Schema:   rsFormData.Schema,
 		Username: rsFormData.Username,

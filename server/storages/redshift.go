@@ -35,9 +35,9 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		return nil, err
 	}
 	//enrich with default parameters
-	if redshiftConfig.Port.String() == "" {
-		redshiftConfig.Port = "5439"
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.destinationID, redshiftConfig.Port)
+	if redshiftConfig.Port == 0 {
+		redshiftConfig.Port = 5439
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.destinationID, redshiftConfig.Port)
 	}
 	if redshiftConfig.Schema == "" {
 		redshiftConfig.Schema = "public"

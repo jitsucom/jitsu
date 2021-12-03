@@ -173,8 +173,8 @@ func testPostgres(config *config.DestinationConfig, eventContext *adapters.Event
 		return err
 	}
 
-	if dataSourceConfig.Port.String() == "" {
-		dataSourceConfig.Port = "5432"
+	if dataSourceConfig.Port == 0 {
+		dataSourceConfig.Port = 5432
 	}
 	if dataSourceConfig.Schema == "" {
 		dataSourceConfig.Schema = "public"
@@ -311,8 +311,8 @@ func testRedshift(config *config.DestinationConfig, eventContext *adapters.Event
 		return err
 	}
 
-	if dataSourceConfig.Port.String() == "" {
-		dataSourceConfig.Port = "5439"
+	if dataSourceConfig.Port == 0 {
+		dataSourceConfig.Port = 5439
 	}
 	if dataSourceConfig.Schema == "" {
 		dataSourceConfig.Schema = "public"
@@ -570,8 +570,8 @@ func testMySQL(config *config.DestinationConfig, eventContext *adapters.EventCon
 		return err
 	}
 
-	if dataSourceConfig.Port.String() == "" {
-		dataSourceConfig.Port = "3306"
+	if dataSourceConfig.Port == 0 {
+		dataSourceConfig.Port = 3306
 	}
 
 	dataSourceConfig.Parameters["timeout"] = "6s"
