@@ -19,6 +19,7 @@ import { useEffect } from "react"
 type Props = {
   initialValues: Partial<SourceData>
   sourceDataFromCatalog: SourceConnector
+  oauthBackendSecretsStatus: "loading" | "secrets_set" | "secrets_not_set"
   patchConfig: PatchConfig
   setControlsDisabled: ReactSetState<boolean>
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
@@ -31,6 +32,7 @@ const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> = ({
   initialValues,
   sourceDataFromCatalog,
+  oauthBackendSecretsStatus,
   patchConfig,
   setControlsDisabled,
   setValidator,
@@ -130,6 +132,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
         fieldsParamsList={fieldsParameters || []}
         form={form}
         initialValues={initialValues}
+        oauthBackendSecretsStatus={oauthBackendSecretsStatus}
         setFormValues={handleFormValuesChange}
         setInitialFormValues={handleSetInitialFormValues}
       />

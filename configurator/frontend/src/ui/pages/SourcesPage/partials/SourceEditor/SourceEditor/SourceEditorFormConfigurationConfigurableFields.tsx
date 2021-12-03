@@ -6,12 +6,11 @@ import { Parameter } from "catalog/sources/types"
 import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 // @Components
 import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
-import { useLoaderAsObject } from "hooks/useLoader"
-import ApplicationServices from "lib/services/ApplicationServices"
 
 type Props = {
   initialValues: Partial<SourceData>
   configParameters: Parameter[]
+  oauthBackendSecretsStatus: "loading" | "secrets_set" | "secrets_not_set"
   patchConfig: PatchConfig
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
   setFormReference: SetFormReference
@@ -23,6 +22,7 @@ const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = ({
   initialValues,
   configParameters,
+  oauthBackendSecretsStatus,
   patchConfig,
   setValidator,
   setFormReference,
@@ -67,6 +67,7 @@ export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = 
         form={form}
         initialValues={initialValues}
         fieldsParamsList={configParameters}
+        oauthBackendSecretsStatus={oauthBackendSecretsStatus}
         setFormValues={handleFormValuesChange}
         setInitialFormValues={handleSetInitialFormValues}
       />
