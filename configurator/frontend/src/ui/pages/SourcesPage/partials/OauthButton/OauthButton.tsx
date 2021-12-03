@@ -4,11 +4,10 @@ import { useEffect, useState } from "react"
 // @Components
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { handleError } from "lib/components/components"
-// @Services
-import { OauthService } from "lib/services/oauth"
 // @Icons
 import { KeyOutlined } from "@ant-design/icons"
 import { ReactComponent as GoogleLogo } from "icons/google.svg"
+import { useServices } from "hooks/useServices"
 
 type Props = {
   service: string
@@ -30,14 +29,15 @@ export const OauthButton: React.FC<Props> = ({
   children,
   setAuthSecrets,
 }) => {
-  const [isOauthSupported, setIsOauthSupported] = useState<boolean>(false)
+  const services = useServices()
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [isOauthSupported, setIsOauthSupported] = useState<boolean>(false)
   // const [oauthResult, setOauthResult] = useState<string | null>(null)
 
   const handleClick = async (): Promise<void> => {
     setIsLoading(true)
     try {
-      const oauthResult = await new OauthService().getCredentialsInSeparateWindow(service)
+      const oauthResult = await services.oauthService.getCredentialsInSeparateWindow(service)
       if (oauthResult.status === "error") {
         actionNotification.error(oauthResult.errorMessage)
         // setOauthResult(`❌ ${oauthResult.errorMessage}`)
@@ -58,7 +58,7 @@ export const OauthButton: React.FC<Props> = ({
 
   useEffect(() => {
     !forceNotSupported &&
-      new OauthService().checkIfOauthSupported(service).then(result => result && setIsOauthSupported(result)) // only change state if oauth is supported
+      services.oauthService.checkIfOauthSupported(service).then(result => result && setIsOauthSupported(result)) // only change state if oauth is supported
   }, [])
 
   return (

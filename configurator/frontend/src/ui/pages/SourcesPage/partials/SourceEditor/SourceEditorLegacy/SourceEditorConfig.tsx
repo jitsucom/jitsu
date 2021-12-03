@@ -59,7 +59,11 @@ const SourceEditorConfigComponent = ({
     return !atLeastOneSecretUnavailable
   }, [])
 
-  const oauthStatus = isLoadingOauthFieldsStatus ? "loading" : oauthFieldsAvailable ? "secrets_set" : "secrets_not_set"
+  const oauthBackendSecretsStatus = isLoadingOauthFieldsStatus
+    ? "loading"
+    : oauthFieldsAvailable
+    ? "secrets_set"
+    : "secrets_not_set"
   if (oauthFieldsAvailable || isLoadingOauthFieldsStatus) {
     console.log(`isLoading: ${isLoadingOauthFieldsStatus}`, "available: ", oauthFieldsAvailable)
   }
@@ -167,7 +171,7 @@ const SourceEditorConfigComponent = ({
         fieldsParamsList={sourceReference.configParameters}
         form={form}
         handleTouchAnyField={handleTouchAnyField}
-        oauthStatus={oauthStatus}
+        oauthBackendSecretsStatus={oauthBackendSecretsStatus}
       />
 
       {sourceReference.hasLoadableConfigParameters && (
