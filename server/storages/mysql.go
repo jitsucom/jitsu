@@ -36,9 +36,9 @@ func NewMySQL(config *Config) (Storage, error) {
 		return nil, err
 	}
 	//enrich with default parameters
-	if mConfig.Port.String() == "" {
-		mConfig.Port = "3306"
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.destinationID, mConfig.Port.String())
+	if mConfig.Port == 0 {
+		mConfig.Port = 3306
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.destinationID, mConfig.Port)
 	}
 	//schema and database are synonyms in MySQL
 	//default connect timeout seconds

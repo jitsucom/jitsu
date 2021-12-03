@@ -2,8 +2,6 @@ package integration_tests
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"github.com/jitsucom/jitsu/server/test"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -38,7 +36,7 @@ func TestMySQLPrimaryKeyRemoval(t *testing.T) {
 	enrichment.InitDefault("", "", "", "")
 	dsConfig := &adapters.DataSourceConfig{
 		Host:       container.Host,
-		Port:       json.Number(fmt.Sprint(container.Port)),
+		Port:       container.Port,
 		Db:         container.Database,
 		Username:   container.Username,
 		Password:   container.Password,

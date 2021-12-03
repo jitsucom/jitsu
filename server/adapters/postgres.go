@@ -3,7 +3,6 @@ package adapters
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/uuid"
@@ -127,8 +126,8 @@ type Postgres struct {
 
 //NewPostgresUnderRedshift returns configured Postgres adapter instance without mapping old types
 func NewPostgresUnderRedshift(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*Postgres, error) {
-	connectionString := fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s ",
-		config.Host, config.Port.String(), config.Db, config.Username, config.Password)
+	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s ",
+		config.Host, config.Port, config.Db, config.Username, config.Password)
 	//concat provided connection parameters
 	for k, v := range config.Parameters {
 		connectionString += k + "=" + v + " "
@@ -151,8 +150,8 @@ func NewPostgresUnderRedshift(ctx context.Context, config *DataSourceConfig, que
 
 //NewPostgres return configured Postgres adapter instance
 func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*Postgres, error) {
-	connectionString := fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s ",
-		config.Host, config.Port.String(), config.Db, config.Username, config.Password)
+	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s ",
+		config.Host, config.Port, config.Db, config.Username, config.Password)
 	//concat provided connection parameters
 	for k, v := range config.Parameters {
 		connectionString += k + "=" + v + " "

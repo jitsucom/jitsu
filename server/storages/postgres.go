@@ -34,9 +34,9 @@ func NewPostgres(config *Config) (Storage, error) {
 		return nil, err
 	}
 	//enrich with default parameters
-	if pgConfig.Port.String() == "" {
-		pgConfig.Port = "5432"
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.destinationID, pgConfig.Port.String())
+	if pgConfig.Port == 0 {
+		pgConfig.Port = 5432
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.destinationID, pgConfig.Port)
 	}
 	if pgConfig.Schema == "" {
 		pgConfig.Schema = "public"
