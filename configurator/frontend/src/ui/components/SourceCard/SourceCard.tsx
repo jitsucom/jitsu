@@ -9,7 +9,7 @@ import { Badge, Button, Dropdown, Menu, Modal, Skeleton, Spin, Tag, Tooltip } fr
 import SubMenu from "antd/lib/menu/SubMenu"
 import CodeOutlined from "@ant-design/icons/lib/icons/CodeOutlined"
 import SyncOutlined from "@ant-design/icons/lib/icons/SyncOutlined"
-import { generatePath, useHistory, NavLink } from "react-router-dom"
+import { generatePath, useHistory, NavLink, Link } from "react-router-dom"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { taskLogsPageRoute } from "../../pages/TaskLogs/TaskLogsPage"
 import { sourcesStore } from "../../../stores/sources"
@@ -27,6 +27,7 @@ import { flowResult } from "mobx"
 import { destinationsStore } from "../../../stores/destinations"
 import { actionNotification } from "../ActionNotification/ActionNotification"
 import { SourcesUtils } from "../../../utils/sources.utils"
+import { isAtLeastOneStreamSelected } from "utils/sources/sourcesUtils"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator, current) => ({
@@ -51,10 +52,36 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
   }
 
   const history = useHistory()
-
   const services = useServices()
+  const editLink = generatePath(sourcesPageRoutes.editExact, { sourceId: src.sourceId })
+  const viewLogsLink = generatePath(taskLogsPageRoute, { sourceId: src.sourceId })
+
+  const rename = async (sourceId: string, newName: string) => {
+    await services.storageService.table("sources").patch(sourceId, { displayName: newName })
+    await flowResult(sourcesStore.pullSources())
+  }
 
   const scheduleTasks = async (src: SourceData, full = false) => {
+    if (true) {
+      actionNotification.error(
+        <div className={`flex flex-col`}>
+          <span className="mb-1">
+            Can't perform sync because no data streams were selected for this source. Please, select at least one stream
+            in the <b>Streams</b> section of source configuration.
+          </span>
+          <Button
+            className="self-center"
+            onClick={() => {
+              history.push(editLink)
+            }}
+          >
+            {/* Add Streams In Configuration Editor */}
+            Edit Source
+          </Button>
+        </div>
+      )
+      return
+    }
     await withProgressBar({
       estimatedMs: 200,
       maxRetries: 2,
@@ -98,15 +125,6 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
       },
     })
   }
-
-  const rename = async (sourceId: string, newName: string) => {
-    await services.storageService.table("sources").patch(sourceId, { displayName: newName })
-    await flowResult(sourcesStore.pullSources())
-  }
-
-  const editLink = generatePath(sourcesPageRoutes.editExact, { sourceId: src.sourceId })
-
-  const viewLogsLink = generatePath(taskLogsPageRoute, { sourceId: src.sourceId })
 
   const deleteSrc = (src: SourceData) => {
     Modal.confirm({
