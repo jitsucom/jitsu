@@ -62,7 +62,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
   }
 
   const scheduleTasks = async (src: SourceData, full = false) => {
-    if (true) {
+    if (!isAtLeastOneStreamSelected(src)) {
       actionNotification.error(
         <div className={`flex flex-col`}>
           <span className="mb-1">
