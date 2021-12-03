@@ -28,6 +28,7 @@ import { destinationsStore } from "../../../stores/destinations"
 import { actionNotification } from "../ActionNotification/ActionNotification"
 import { SourcesUtils } from "../../../utils/sources.utils"
 import { isAtLeastOneStreamSelected } from "utils/sources/sourcesUtils"
+import { NoStreamsSelectedMessage } from "../NoStreamsSelectedMessage/NoStreamsSelectedMessage"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator, current) => ({
@@ -63,23 +64,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
 
   const scheduleTasks = async (src: SourceData, full = false) => {
     if (!isAtLeastOneStreamSelected(src)) {
-      actionNotification.error(
-        <div className={`flex flex-col`}>
-          <span className="mb-1">
-            Can't perform sync because no data streams were selected for this source. Please, select at least one stream
-            in the <b>Streams</b> section of source configuration.
-          </span>
-          <Button
-            className="self-center"
-            onClick={() => {
-              history.push(editLink)
-            }}
-          >
-            {/* Add Streams In Configuration Editor */}
-            Edit Source
-          </Button>
-        </div>
-      )
+      actionNotification.error(<NoStreamsSelectedMessage editSourceLink={editLink} />)
       return
     }
     await withProgressBar({
