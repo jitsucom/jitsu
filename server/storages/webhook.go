@@ -56,6 +56,7 @@ func NewWebHook(config *Config) (Storage, error) {
 		DestinationID:  config.destinationID,
 		Dir:            config.logEventPath,
 		HTTPConfig:     DefaultHTTPConfiguration,
+		QueueFactory:   config.queueFactory,
 		PoolWorkers:    defaultWorkersPoolSize,
 		DebugLogger:    requestDebugLogger,
 		ErrorHandler:   wh.ErrorEvent,

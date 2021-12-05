@@ -22,6 +22,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/notifications"
+	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/viper"
@@ -216,7 +217,8 @@ func main() {
 
 	router := SetupRouter(jitsuService, configurationsStorage, configurationsService,
 		authService, s3Config, sslUpdateExecutor, emailsService)
-	notifications.ServerStart()
+
+	notifications.ServerStart(runtime.GetInfo())
 	logging.Info("⚙️  Started configurator: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
