@@ -1,7 +1,7 @@
 name: Continuous Integration
 
 on:
-  pull_request:
+  # pull_request:
   push:
     branches: [master, beta]
 
@@ -11,7 +11,6 @@ jobs:
 
     env:
       working-directory: ./configurator/frontend
-
 
     steps:
       - name: Checkout
@@ -33,19 +32,13 @@ jobs:
       - run: yarn all:check
         name: '[Configurator Front] running prettier & eslint checks'
         working-directory: ./configurator/frontend
-  # send-error-to-slack:
-  #   steps:
-      - name: Send Error to Slack
+      - name: Notify to Slack on Errors
         uses: rtCamp/action-slack-notify@v2.2.0
         if: ${{ failure() }}
-        # needs: frontend-check
         env:
           SLACK_CHANNEL: code-guard
           SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
           SLACK_ICON: https://github.com/rtCamp.png?size=48
-          SLACK_MESSAGE: 'Post Content'
-          SLACK_TITLE: Fontend Code Check Warning
-          SLACK_USERNAME: Code Guard Bot
           SLACK_WEBHOOK: ${{ secrets.SLACK_CODEGUARD_WEBHOOK }}
           SLACK_FOOTER: ''
 
