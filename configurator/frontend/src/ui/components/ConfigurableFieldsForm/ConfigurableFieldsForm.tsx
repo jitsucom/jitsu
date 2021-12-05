@@ -42,7 +42,7 @@ export interface Props {
   configForm?: FormInstance
   initialValues: any
   loading?: boolean | ReactNode
-  oauthStatus?: "loading" | "secrets_set" | "secrets_not_set"
+  oauthBackendSecretsStatus?: "loading" | "secrets_set" | "secrets_not_set"
   handleTouchAnyField?: (...args: any) => void
   setFormValues?: (values: PlainObjectWithPrimitiveValues) => void
   setInitialFormValues?: (values: PlainObjectWithPrimitiveValues) => void
@@ -62,7 +62,7 @@ const ConfigurableFieldsFormComponent = ({
   configForm,
   initialValues,
   loading,
-  oauthStatus,
+  oauthBackendSecretsStatus,
   handleTouchAnyField,
   setFormValues,
   setInitialFormValues,
@@ -155,12 +155,17 @@ const ConfigurableFieldsFormComponent = ({
     form.setFieldsValue({ id: defaultValueToDisplay })
 
     const FormItemWoStylesTuned: React.FC = ({ children }) => {
-      return <FormItemWrapperWoStyles id={id}>{children}</FormItemWrapperWoStyles>
+      return (
+        <FormItemWrapperWoStyles key={id} id={id}>
+          {children}
+        </FormItemWrapperWoStyles>
+      )
     }
 
     const FormItemWrapperTuned: React.FC = ({ children }) => {
       return (
         <FormItemWrapper
+          key={id}
           type={type}
           id={id}
           displayName={displayName}
@@ -175,6 +180,7 @@ const ConfigurableFieldsFormComponent = ({
     const NonFormItemWrapperTuned: React.FC = ({ children }) => {
       return (
         <NonFormItemWrapper
+          key={id}
           id={id}
           displayName={displayName}
           documentation={documentation}
@@ -294,7 +300,7 @@ const ConfigurableFieldsFormComponent = ({
         return (
           <NonFormItemWrapperTuned>
             <InputOauthSecret
-              status={oauthStatus ?? "secrets_not_set"}
+              status={oauthBackendSecretsStatus ?? "secrets_not_set"}
               defaultChecked={!defaultValueToDisplay}
               inputWrapper={FormItemWoStylesTuned}
             />
