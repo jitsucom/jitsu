@@ -6,23 +6,46 @@ on:
     branches: [master, beta]
 
 jobs:
-  prettier-formatting-check-frontend:
+  frontend-check:
     runs-on: ubuntu-latest
 
     env:
       working-directory: ./configurator/frontend
 
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-        ref: ${{ github.head_ref }}
-        # Make sure the value of GITHUB_TOKEN will not be persisted in repo's config
-        persist-credentials: false
-    - name: Formatting check
-      uses: creyD/prettier_action@v4.0
-      with:
-        dry: True
-        prettier_options: --check --config ${{ env.working-directory }}/.prettierrc.json --ignore-path ${{ env.working-directory }}/.prettierignore ${{ env.working-directory }}
-        github_token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+          # Make sure the value of GITHUB_TOKEN will not be persisted in repo's config
+          persist-credentials: false
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+      - run: yarn install
+        name: '[Configurator Front] installing packages (yarn install)'
+        working-directory: ./configurator/frontend
+      - run: yarn build
+        name: '[Configurator Front] building'
+        working-directory: ./configurator/frontend
+      - run: yarn all:check
+        name: '[Configurator Front] running prettier & eslint checks'
+        working-directory: ./configurator/frontend
+  # send-error-to-slack:
+  #   steps:
+      - name: Send Error to Slack
+        uses: rtCamp/action-slack-notify@v2.2.0
+        if: ${{ failure() }}
+        # needs: frontend-check
+        env:
+          SLACK_CHANNEL: code-guard
+          SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
+          SLACK_ICON: https://github.com/rtCamp.png?size=48
+          SLACK_MESSAGE: 'Post Content'
+          SLACK_TITLE: Fontend Code Check Warning
+          SLACK_USERNAME: Code Guard Bot
+          SLACK_WEBHOOK: ${{ secrets.SLACK_CODEGUARD_WEBHOOK }}
+          SLACK_FOOTER: ''
+
