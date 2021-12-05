@@ -22,6 +22,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/notifications"
+	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/viper"
@@ -216,7 +217,8 @@ func main() {
 
 	router := SetupRouter(jitsuService, configurationsStorage, configurationsService,
 		authService, s3Config, sslUpdateExecutor, emailsService)
-	notifications.ServerStart()
+
+	notifications.ServerStart(runtime.GetInfo())
 	logging.Info("⚙️  Started configurator: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
@@ -252,7 +254,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 
 	serverToken := viper.GetString("server.auth")
 	if strings.HasPrefix(serverToken, "demo") {
-		logging.Errorf("\n\t*** ⚠️  Please replace server.auth (CONFIGURATOR_ADMIN_TOKEN env variable) with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
+		logging.Error("\t⚠️ Please replace server.auth (CLUSTER_ADMIN_TOKEN env variable) with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
 	}
 
 	apiKeysHandler := handlers.NewAPIKeysHandler(configurationsService)

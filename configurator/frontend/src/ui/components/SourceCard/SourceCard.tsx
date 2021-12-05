@@ -9,7 +9,7 @@ import { Badge, Button, Dropdown, Menu, Modal, Skeleton, Spin, Tag, Tooltip } fr
 import SubMenu from "antd/lib/menu/SubMenu"
 import CodeOutlined from "@ant-design/icons/lib/icons/CodeOutlined"
 import SyncOutlined from "@ant-design/icons/lib/icons/SyncOutlined"
-import { generatePath, useHistory, NavLink } from "react-router-dom"
+import { generatePath, useHistory, NavLink, Link } from "react-router-dom"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { taskLogsPageRoute } from "../../pages/TaskLogs/TaskLogsPage"
 import { sourcesStore } from "../../../stores/sources"
@@ -27,6 +27,8 @@ import { flowResult } from "mobx"
 import { destinationsStore } from "../../../stores/destinations"
 import { actionNotification } from "../ActionNotification/ActionNotification"
 import { SourcesUtils } from "../../../utils/sources.utils"
+import { isAtLeastOneStreamSelected } from "utils/sources/sourcesUtils"
+import { NoStreamsSelectedMessage } from "../NoStreamsSelectedMessage/NoStreamsSelectedMessage"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator, current) => ({
@@ -51,10 +53,20 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
   }
 
   const history = useHistory()
-
   const services = useServices()
+  const editLink = generatePath(sourcesPageRoutes.editExact, { sourceId: src.sourceId })
+  const viewLogsLink = generatePath(taskLogsPageRoute, { sourceId: src.sourceId })
+
+  const rename = async (sourceId: string, newName: string) => {
+    await services.storageService.table("sources").patch(sourceId, { displayName: newName })
+    await flowResult(sourcesStore.pullSources())
+  }
 
   const scheduleTasks = async (src: SourceData, full = false) => {
+    if (!isAtLeastOneStreamSelected(src)) {
+      actionNotification.error(<NoStreamsSelectedMessage editSourceLink={editLink} />)
+      return
+    }
     await withProgressBar({
       estimatedMs: 200,
       maxRetries: 2,
@@ -98,15 +110,6 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
       },
     })
   }
-
-  const rename = async (sourceId: string, newName: string) => {
-    await services.storageService.table("sources").patch(sourceId, { displayName: newName })
-    await flowResult(sourcesStore.pullSources())
-  }
-
-  const editLink = generatePath(sourcesPageRoutes.editExact, { sourceId: src.sourceId })
-
-  const viewLogsLink = generatePath(taskLogsPageRoute, { sourceId: src.sourceId })
 
   const deleteSrc = (src: SourceData) => {
     Modal.confirm({

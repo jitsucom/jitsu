@@ -10,13 +10,10 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/storages"
 	"go.uber.org/atomic"
-	"os"
-	"path"
 )
 
 const (
 	recognitionPayloadPerFile = 2000
-	queueName                 = "queue.users_recognition"
 	lockFile                  = "lock.lock"
 )
 
@@ -27,7 +24,7 @@ type RecognitionService struct {
 	metaStorage        meta.Storage
 	destinationService *destinations.Service
 
-	queue  *LevelDBQueue
+	queue  *Queue
 	closed *atomic.Bool
 }
 
@@ -41,15 +38,10 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		return &RecognitionService{closed: atomic.NewBool(true)}, nil
 	}
 
-	queue, err := NewLevelDBQueue(queueName, logEventPath)
-	if err != nil {
-		return nil, fmt.Errorf("Error opening/creating recognized events queue [%s] in dir [%s]: %v", queueName, logEventPath, err)
-	}
-
 	rs := &RecognitionService{
 		destinationService: destinationService,
 		metaStorage:        metaStorage,
-		queue:              queue,
+		queue:              newQueue(),
 		closed:             atomic.NewBool(false),
 	}
 
@@ -226,14 +218,5 @@ func (rs *RecognitionService) Close() error {
 		}
 	}
 
-	return nil
-}
-
-//unlockDQue workaround for github.com/joncrlsn/dque forgetting to release file lock
-func unlockDQue(dirPath string, name string) error {
-	l := path.Join(dirPath, name, lockFile)
-	if err := os.Remove(l); err != nil {
-		return fmt.Errorf("Failed to remove lock file %s: %v", l, err)
-	}
 	return nil
 }

@@ -13,6 +13,9 @@ import { SourceEditorFormConfigurationConfigurableFields } from "./SourceEditorF
 import { OauthButton } from "../../OauthButton/OauthButton"
 // @Utils
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
+import ApplicationServices from "lib/services/ApplicationServices"
+import { useLoaderAsObject } from "hooks/useLoader"
+import { useServices } from "hooks/useServices"
 
 type Props = {
   editorMode: "add" | "edit"
@@ -21,7 +24,7 @@ type Props = {
   disabled?: boolean
   setSourceEditorState: SetSourceEditorState
   setControlsDisabled: ReactSetState<boolean>
-  setTabErrorsVisible: (value: boolean) => void
+  setTabErrorsVisible?: (value: boolean) => void
   setConfigIsValidatedByStreams: (value: boolean) => void
 }
 
@@ -52,7 +55,17 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
   setTabErrorsVisible,
   setConfigIsValidatedByStreams,
 }) => {
+  const services = useServices()
   const [forms, setForms] = useState<Forms>({})
+
+  const [isLoadingBackendSecretsStatus, setIsLoadingBackendSecretsStatus] = useState<boolean>(false)
+  const [oauthBackendSecretsAvailable, setOauthBackendSecretsAvailable] = useState<boolean>(false)
+
+  const backendSecretsStatus: "loading" | "secrets_set" | "secrets_not_set" = isLoadingBackendSecretsStatus
+    ? "loading"
+    : oauthBackendSecretsAvailable
+    ? "secrets_set"
+    : "secrets_not_set"
 
   const [staticFieldsValidator, setStaticFieldsValidator] = useState<ValidateGetErrorsCount>(initialValidator)
   const [configurableFieldsValidator, setConfigurableFieldsValidator] =
@@ -64,13 +77,6 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
     setForms(forms => ({ ...forms, [key]: form }))
   }, [])
 
-  const setOauthSecretsToForms = useCallback<(secrets: PlainObjectWithPrimitiveValues) => void>(
-    secrets => {
-      sourcePageUtils.applyOauthValuesToAntdForms(forms, secrets)
-    },
-    [forms]
-  )
-
   const sourceConfigurationSchema = useMemo(() => {
     switch (sourceDataFromCatalog.protoType) {
       case "airbyte":
@@ -79,6 +85,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
           invisibleStaticFields: {
             "config.docker_image": sourceDataFromCatalog.id.replace("airbyte-", ""),
           },
+          oauthBackendSecretsStatusCheck: () => true,
         }
       case "singer":
         return {
@@ -86,9 +93,18 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
           invisibleStaticFields: {
             "config.tap": sourceDataFromCatalog.id.replace("singer-", ""),
           },
+          oauthBackendSecretsStatusCheck: () =>
+            services.oauthService.isOauthBackendSecretsAvailable(sourceDataFromCatalog.id, services.activeProject.id),
         }
     }
   }, [])
+
+  const setOauthSecretsToForms = useCallback<(secrets: PlainObjectWithPrimitiveValues) => void>(
+    secrets => {
+      sourcePageUtils.applyOauthValuesToAntdForms(forms, secrets)
+    },
+    [forms]
+  )
 
   const patchConfig = useCallback<PatchConfig>((key, allValues, options) => {
     setSourceEditorState(state => {
@@ -98,7 +114,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
 
       if (!options?.doNotSetStateChanged) newState.stateChanged = true
 
-      setTabErrorsVisible(false)
+      setTabErrorsVisible?.(false)
       setConfigIsValidatedByStreams(false)
 
       return newState
@@ -124,10 +140,21 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
    * Sets source type specific fields that are not configurable by user
    */
   useEffect(() => {
-    sourceConfigurationSchema.invisibleStaticFields &&
-      patchConfig("invisibleStaticFields", sourceConfigurationSchema.invisibleStaticFields, {
+    const { invisibleStaticFields, oauthBackendSecretsStatusCheck } = sourceConfigurationSchema
+
+    if (invisibleStaticFields)
+      patchConfig("invisibleStaticFields", invisibleStaticFields, {
         doNotSetStateChanged: true,
       })
+    ;(async () => {
+      setIsLoadingBackendSecretsStatus(true)
+      try {
+        const isBackendSecretsAvailable = await oauthBackendSecretsStatusCheck()
+        isBackendSecretsAvailable && setOauthBackendSecretsAvailable(true)
+      } finally {
+        setIsLoadingBackendSecretsStatus(false)
+      }
+    })()
   }, [])
 
   return (
@@ -142,6 +169,10 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
             className="mr-2"
             disabled={disabled}
             icon={<span className="align-middle h-5 w-7 pr-2 ">{sourceDataFromCatalog.pic}</span>}
+            isGoogle={
+              sourceDataFromCatalog.id.toLowerCase().includes("google") ||
+              sourceDataFromCatalog.id.toLowerCase().includes("firebase")
+            }
             setAuthSecrets={setOauthSecretsToForms}
           >
             <span className="align-top">{`Log In to Fill OAuth Credentials`}</span>
@@ -160,6 +191,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
           <SourceEditorFormConfigurationConfigurableFields
             initialValues={initialSourceData}
             configParameters={sourceConfigurationSchema.configurableFields}
+            oauthBackendSecretsStatus={backendSecretsStatus}
             patchConfig={patchConfig}
             setValidator={setConfigurableFieldsValidator}
             setFormReference={setFormReference}
@@ -169,6 +201,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
           <SourceEditorFormConfigurationConfigurableLoadableFields
             initialValues={initialSourceData}
             sourceDataFromCatalog={sourceDataFromCatalog}
+            oauthBackendSecretsStatus={backendSecretsStatus}
             patchConfig={patchConfig}
             setControlsDisabled={setControlsDisabled}
             setValidator={setConfigurableLoadableFieldsValidator}

@@ -59,7 +59,7 @@ func NewService(ctx context.Context, geoURL, globalGeoMaxmindPath, officialDownl
 	}
 
 	if geoURL == "" && globalGeoMaxmindPath == "" {
-		logging.Info("❌ Geo resolution won't be available as 'geo.maxmind_path' (or 'geo_resolvers_reload_sec' section) are not set")
+		logging.Info("❌ Geo resolution won't be available as 'geo.maxmind_path' (or 'geo_resolvers' section) are not set")
 		return service
 	}
 

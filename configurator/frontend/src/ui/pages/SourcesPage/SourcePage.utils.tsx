@@ -179,16 +179,15 @@ const sourcePageUtils = {
       )
     }
 
-    if (oauthFieldsNotSet.length > 0) {
-      const isPossiblyInternalError: boolean = oauthFieldsSuccessfullySet.length > 0
-      const messagePostfix = isPossiblyInternalError
-        ? "If you believe that this is an error, please, contact us at support@jitsu.com or file an issue to our github."
-        : "Did you forget to select OAuth authorization type?"
+    /* handles the case when failed to set all fields */
+    if (oauthFieldsNotSet.length > 0 && oauthFieldsSuccessfullySet.length === 0) {
+      const messagePostfix =
+        "Did you forget to select OAuth authorization type in the form below? If you believe that this is an error, please, contact us at support@jitsu.com or file an issue to our github."
       const secretsNamesSeparator = oauthFieldsNotSet.length === 2 ? " and " : ", "
       const message = `Failed to paste ${oauthFieldsNotSet
         .map(key => toTitleCase(key, { separator: "_" }))
         .join(secretsNamesSeparator)} secret${oauthFieldsNotSet.length > 1 ? "s" : ""}. ${messagePostfix}`
-      isPossiblyInternalError ? handleError(new Error(message)) : actionNotification.warn(message)
+      actionNotification.warn(message)
     }
   },
 }

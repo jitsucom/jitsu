@@ -142,9 +142,10 @@ type Config struct {
 	streamMode             bool
 	maxColumns             int
 	monitorKeeper          MonitorKeeper
-	eventQueue             events.PersistentQueue
+	eventQueue             events.Queue
 	eventsCache            *caching.EventsCache
 	loggerFactory          *logging.Factory
+	queueFactory           *events.QueueFactory
 	pkFields               map[string]bool
 	sqlTypes               typing.SQLTypes
 	uniqueIDField          *identifiers.UniqueID
@@ -160,7 +161,7 @@ func RegisterStorage(storageType StorageType) {
 
 //Factory is a destinations factory for creation
 type Factory interface {
-	Create(name string, destination DestinationConfig) (StorageProxy, events.PersistentQueue, error)
+	Create(name string, destination DestinationConfig) (StorageProxy, events.Queue, error)
 }
 
 type StorageType struct {
@@ -179,12 +180,14 @@ type FactoryImpl struct {
 	globalLoggerFactory *logging.Factory
 	globalConfiguration *UsersRecognition
 	metaStorage         meta.Storage
+	eventsQueueFactory  *events.QueueFactory
 	maxColumns          int
 }
 
 //NewFactory returns configured Factory
-func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
-	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, metaStorage meta.Storage, maxColumns int) Factory {
+func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper,
+	eventsCache *caching.EventsCache, globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition,
+	metaStorage meta.Storage, eventsQueueFactory *events.QueueFactory, maxColumns int) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
@@ -194,13 +197,14 @@ func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Servic
 		globalLoggerFactory: globalLoggerFactory,
 		globalConfiguration: globalConfiguration,
 		metaStorage:         metaStorage,
+		eventsQueueFactory:  eventsQueueFactory,
 		maxColumns:          maxColumns,
 	}
 }
 
 //Create builds event storage proxy and event consumer (logger or event-queue)
 //Enriches incoming configs with default values if needed
-func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig) (StorageProxy, events.PersistentQueue, error) {
+func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig) (StorageProxy, events.Queue, error) {
 	if destination.Type == "" {
 		destination.Type = destinationID
 	}
@@ -339,7 +343,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		return nil, nil, err
 	}
 
-	eventQueue, err := events.NewPersistentQueue(destinationID, "queue.dst="+destinationID, f.logEventPath)
+	eventQueue, err := f.eventsQueueFactory.CreateEventsQueue(destinationID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -388,6 +392,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		eventQueue:             eventQueue,
 		eventsCache:            f.eventsCache,
 		loggerFactory:          destinationLoggerFactory,
+		queueFactory:           f.eventsQueueFactory,
 		pkFields:               pkFields,
 		sqlTypes:               sqlTypes,
 		uniqueIDField:          uniqueIDField,
