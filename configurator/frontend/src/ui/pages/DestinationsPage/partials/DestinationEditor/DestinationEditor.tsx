@@ -213,7 +213,10 @@ const DestinationEditor = ({
       ),
       form: Form.useForm()[0],
       touched: false,
-      isHidden: params.standalone == "true" || isOnboarding,
+      isHidden:
+        params.standalone == "true" ||
+        isOnboarding ||
+        destinationsReferenceMap[destinationReference.id].defaultTransform.length > 0,
     },
     {
       key: "sources",

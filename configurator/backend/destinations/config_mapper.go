@@ -8,6 +8,7 @@ import (
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
 	enconfig "github.com/jitsucom/jitsu/server/config"
 	enstorages "github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/utils"
 	"github.com/mitchellh/mapstructure"
 	"strings"
 )
@@ -17,7 +18,7 @@ const defaultPrimaryKey = "eventn_ctx_event_id"
 func MapConfig(destinationID string, destination *entities.Destination, defaultS3 *enadapters.S3Config, postHandleDestinations []string) (*enconfig.DestinationConfig, error) {
 	var config *enconfig.DestinationConfig
 	var err error
-	switch destination.Type {
+	switch utils.NvlString(destination.SuperType, destination.Type) {
 	case enstorages.PostgresType:
 		config, err = mapPostgres(destination)
 	case enstorages.ClickHouseType:

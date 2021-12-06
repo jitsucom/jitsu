@@ -125,6 +125,9 @@ func (dh *DestinationsHandler) TestHandler(c *gin.Context) {
 	}
 }
 
+// EvaluateHandler transform template evaluation now may require fully configured instance
+// since some destinations load js during initialization. This handler map configurator config to server
+// so server may init instance
 func (dh *DestinationsHandler) EvaluateHandler(c *gin.Context) {
 	requestBody := map[string]interface{}{}
 	err := c.BindJSON(&requestBody)
@@ -132,7 +135,7 @@ func (dh *DestinationsHandler) EvaluateHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to parse request body", err))
 		return
 	}
-	if requestBody["field"] == "_transform" && requestBody["type"] == enstorages.NpmType {
+	if requestBody["field"] == "_transform" {
 		destinationEntity := &entities.Destination{}
 		bytes, _ := json.Marshal(requestBody["config"])
 		err = json.Unmarshal(bytes, destinationEntity)

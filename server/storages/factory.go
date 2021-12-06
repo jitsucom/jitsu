@@ -323,7 +323,7 @@ func needDummy(destCfg *config.DestinationConfig) bool {
 		return fbConfig.Format == adapters.S3FormatJSON
 	}
 	return destCfg.Type == FacebookType || destCfg.Type == DbtCloudType || destCfg.Type == WebHookType ||
-		destCfg.Type == AmplitudeType || destCfg.Type == HubSpotType
+		destCfg.Type == AmplitudeType || destCfg.Type == HubSpotType || destCfg.Type == NpmType
 }
 
 //initializeRetroactiveUsersRecognition initializes recognition configuration (overrides global one with destination layer)

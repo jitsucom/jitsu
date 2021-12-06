@@ -345,7 +345,7 @@ const ConfigurableFieldsFormComponent = ({
       field: field,
       expression: values.code,
       object: JSON.parse(values.object),
-      config: { ...initialValues, ...configForm.getFieldsValue(), ...transform },
+      config: makeObjectFromFieldsValues({ ...initialValues, ...configForm.getFieldsValue(), ...transform }),
       template_variables: Object.entries((configForm || form).getFieldsValue())
         .filter(v => v[0].startsWith("_formData._"))
         .reduce((accumulator: any, currentValue: [string, unknown]) => {

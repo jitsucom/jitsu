@@ -1,9 +1,14 @@
 package storages
 
 import (
+	_ "embed"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/templates"
 )
+
+//go:embed transform/google_analytics.js
+var googleAnalyticsTransform string
 
 //GoogleAnalytics stores events to Google Analytics in stream mode
 type GoogleAnalytics struct {
@@ -20,6 +25,13 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 	if !config.streamMode {
 		return nil, fmt.Errorf("Google Analytics destination doesn't support %s mode", BatchMode)
 	}
+
+	es5transform, err := templates.Babelize(googleAnalyticsTransform)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert transformation code to es5: %v", err)
+	}
+	config.processor.AddJavaScript(es5transform)
+	config.processor.SetDefaultTransform(`return toGoogleAnalytics($)`)
 
 	gaConfig := &adapters.GoogleAnalyticsConfig{}
 	if err := config.destination.GetDestConfig(config.destination.GoogleAnalytics, gaConfig); err != nil {
