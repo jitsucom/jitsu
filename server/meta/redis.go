@@ -169,7 +169,7 @@ func (r *Redis) DeleteSignature(sourceID, collection string) error {
 //namespaces: [destination, source]
 //eventType: [push, pull]
 //status: [success, error, skip]
-func (r *Redis) IncrementEventsCount(id, namespace, eventType, status string, now time.Time, value int) error {
+func (r *Redis) IncrementEventsCount(id, namespace, eventType, status string, now time.Time, value int64) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 

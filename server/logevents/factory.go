@@ -1,6 +1,7 @@
-package logging
+package logevents
 
 import (
+	"github.com/jitsucom/jitsu/server/logging"
 	"io"
 	"path"
 )
@@ -53,7 +54,7 @@ func (f *Factory) NewFactoryWithQueryLogsWriter(overriddenQueryLogsWriter io.Wri
 }
 
 func (f *Factory) CreateIncomingLogger(tokenID string) *AsyncLogger {
-	eventLogWriter := NewRollingWriter(&Config{
+	eventLogWriter := logging.NewRollingWriter(&logging.Config{
 		FileName:      "incoming.tok=" + tokenID,
 		FileDir:       path.Join(f.logEventPath, IncomingDir),
 		RotationMin:   f.logRotationMin,
@@ -64,7 +65,7 @@ func (f *Factory) CreateIncomingLogger(tokenID string) *AsyncLogger {
 }
 
 func (f *Factory) CreateFailedLogger(destinationName string) *AsyncLogger {
-	return NewAsyncLogger(NewRollingWriter(&Config{
+	return NewAsyncLogger(logging.NewRollingWriter(&logging.Config{
 		FileName:      "failed.dst=" + destinationName,
 		FileDir:       path.Join(f.logEventPath, FailedDir),
 		RotationMin:   f.logRotationMin,
@@ -72,12 +73,12 @@ func (f *Factory) CreateFailedLogger(destinationName string) *AsyncLogger {
 	}), false)
 }
 
-func (f *Factory) CreateSQLQueryLogger(destinationName string) *QueryLogger {
-	return NewQueryLogger(destinationName, f.ddlLogsWriter, f.queryLogsWriter)
+func (f *Factory) CreateSQLQueryLogger(destinationName string) *logging.QueryLogger {
+	return logging.NewQueryLogger(destinationName, f.ddlLogsWriter, f.queryLogsWriter)
 }
 
 func (f *Factory) CreateStreamingArchiveLogger(destinationName string) *AsyncLogger {
-	return NewAsyncLogger(NewRollingWriter(&Config{
+	return NewAsyncLogger(logging.NewRollingWriter(&logging.Config{
 		FileName:      "streaming-archive.dst=" + destinationName,
 		FileDir:       path.Join(f.logEventPath, ArchiveDir),
 		RotationMin:   f.logRotationMin,
@@ -86,7 +87,7 @@ func (f *Factory) CreateStreamingArchiveLogger(destinationName string) *AsyncLog
 }
 
 func (f *Factory) CreateWriteAheadLogger() *AsyncLogger {
-	eventLogWriter := NewRollingWriter(&Config{
+	eventLogWriter := logging.NewRollingWriter(&logging.Config{
 		FileName:      "write-ahead-log",
 		FileDir:       path.Join(f.logEventPath, IncomingDir),
 		RotationMin:   f.logRotationMin,

@@ -2,6 +2,7 @@ package testsuit
 
 import (
 	"context"
+	"github.com/jitsucom/jitsu/server/logevents"
 	"net/http"
 	"os"
 	"testing"
@@ -95,7 +96,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	metaStorage := &meta.Dummy{}
 	//mock destinations
 	inmemWriter := logging.InitInMemoryWriter()
-	consumer := logging.NewAsyncLogger(inmemWriter, false)
+	consumer := logevents.NewAsyncLogger(inmemWriter, false)
 
 	mockStorageFactory := storages.NewMockFactory()
 	mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
@@ -179,7 +180,7 @@ func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
 func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig string) SuiteBuilder {
 	monitor := coordination.NewInMemoryService([]string{})
 	tempDir := os.TempDir()
-	loggerFactory := logging.NewFactory(tempDir, 5, false, nil, nil)
+	loggerFactory := logevents.NewFactory(tempDir, 5, false, nil, nil)
 	queueFactory := events.NewQueueFactory(nil, 0)
 	destinationsFactory := storages.NewFactory(context.Background(), tempDir, sb.geoService, monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, queueFactory, 0)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
@@ -214,7 +215,7 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor, bulkProcessor)
 
 	multiplexingService := multiplexing.NewService(sb.destinationService, sb.eventsCache)
-	walService := wal.NewService("/tmp", &logging.AsyncLogger{}, multiplexingService, processorHolder)
+	walService := wal.NewService("/tmp", &logevents.AsyncLogger{}, multiplexingService, processorHolder)
 	appconfig.Instance.ScheduleWriteAheadLogClosing(walService)
 
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),

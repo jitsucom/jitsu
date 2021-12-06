@@ -5,6 +5,7 @@ import (
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/parsers"
@@ -34,8 +35,8 @@ type PeriodicUploader struct {
 
 //NewUploader returns new configured PeriodicUploader instance
 func NewUploader(logEventPath, fileMask string, uploadEveryMin int, destinationService *destinations.Service) (*PeriodicUploader, error) {
-	logIncomingEventPath := path.Join(logEventPath, logging.IncomingDir)
-	logArchiveEventPath := path.Join(logEventPath, logging.ArchiveDir)
+	logIncomingEventPath := path.Join(logEventPath, logevents.IncomingDir)
+	logArchiveEventPath := path.Join(logEventPath, logevents.ArchiveDir)
 	statusManager, err := NewStatusManager(logIncomingEventPath)
 	if err != nil {
 		return nil, err
@@ -125,7 +126,7 @@ func (u *PeriodicUploader) Start() {
 
 					if !skippedEvents.IsEmpty() {
 						metrics.SkipTokenEvents(tokenID, storage.ID(), len(skippedEvents.Events))
-						counters.SkipPushDestinationEvents(storage.ID(), len(skippedEvents.Events))
+						counters.SkipPushDestinationEvents(storage.ID(), int64(len(skippedEvents.Events)))
 					}
 
 					if err != nil {
@@ -140,7 +141,7 @@ func (u *PeriodicUploader) Start() {
 
 						errRowsCount := len(objects)
 						metrics.ErrorTokenEvents(tokenID, storage.ID(), errRowsCount)
-						counters.ErrorPushDestinationEvents(storage.ID(), errRowsCount)
+						counters.ErrorPushDestinationEvents(storage.ID(), int64(errRowsCount))
 
 						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), eventsSrc)
 
@@ -159,7 +160,7 @@ func (u *PeriodicUploader) Start() {
 							archiveFile = false
 							logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.ID(), tableName, filePath, result.Err)
 							metrics.ErrorTokenEvents(tokenID, storage.ID(), result.RowsCount)
-							counters.ErrorPushDestinationEvents(storage.ID(), result.RowsCount)
+							counters.ErrorPushDestinationEvents(storage.ID(), int64(result.RowsCount))
 
 							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
 						} else {
@@ -175,7 +176,7 @@ func (u *PeriodicUploader) Start() {
 								}
 							}
 							metrics.SuccessTokenEvents(tokenID, storage.ID(), result.RowsCount)
-							counters.SuccessPushDestinationEvents(storage.ID(), result.RowsCount)
+							counters.SuccessPushDestinationEvents(storage.ID(), int64(result.RowsCount))
 
 							telemetry.PushedEventsPerSrc(tokenID, storage.ID(), result.EventsSrc)
 						}
