@@ -72,27 +72,6 @@ func (config *DestinationConfig) GetConfig(value Validatable, compatibilityValue
 	return dest, nil
 }
 
-func (config *DestinationConfig) Validate() error {
-	//if config.Config != nil {
-	//	if err := config.Config.Validate(); err != nil {
-	//		return err
-	//	}
-	//}
-	//
-	//deprecatedConfigs := []Validatable{config.DbtCloud,
-	//	config.HubSpot, config.Amplitude, config.WebHook, config.Facebook, config.Google,
-	//	config.Snowflake, config.ClickHouse, config.GoogleAnalytics, config.S3, config.DataSource}
-	//
-	//for _, validatable := range deprecatedConfigs {
-	//	if validatable != nil {
-	//		if err := validatable.Validate(); err != nil {
-	//			return err
-	//		}
-	//	}
-	//}
-	return nil
-}
-
 //DataLayout is used for configure mappings/table names and other data layout parameters
 type DataLayout struct {
 	//Deprecated
