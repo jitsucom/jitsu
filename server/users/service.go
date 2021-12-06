@@ -199,8 +199,7 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 		return nil
 	}
 
-	//Update all events in one batch
-	if err = storage.SyncStore(nil, eventsArr, "", false); err != nil {
+	if err := storage.Update(eventsArr); err != nil {
 		return err
 	}
 

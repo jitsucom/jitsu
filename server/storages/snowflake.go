@@ -237,8 +237,8 @@ func (s *Snowflake) Clean(tableName string) error {
 }
 
 //Update uses SyncStore under the hood
-func (s *Snowflake) Update(object map[string]interface{}) error {
-	return s.SyncStore(nil, []map[string]interface{}{object}, "", true)
+func (s *Snowflake) Update(objects []map[string]interface{}) error {
+	return s.SyncStore(nil, objects, "", true)
 }
 
 //Type returns Snowflake type

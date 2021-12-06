@@ -182,7 +182,7 @@ func (s3 *S3) SyncStore(*schema.BatchHeader, []map[string]interface{}, string, b
 }
 
 //Update isn't suported
-func (s3 *S3) Update(map[string]interface{}) error {
+func (s3 *S3) Update([]map[string]interface{}) error {
 	return errors.New("S3 doesn't support updates")
 }
 
