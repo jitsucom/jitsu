@@ -2,7 +2,6 @@ package templates
 
 import (
 	"bytes"
-	"embed"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/safego"
@@ -17,9 +16,6 @@ const (
 	jsLoadingErrorText = "JS LOADING ERROR"
 )
 
-//go:embed js/transform/*
-var transforms embed.FS
-
 type TemplateExecutor interface {
 	ProcessEvent(events.Event) (interface{}, error)
 	Format() string
@@ -28,7 +24,7 @@ type TemplateExecutor interface {
 }
 
 type goTemplateExecutor struct {
-	template *template.Template
+	template   *template.Template
 	expression string
 }
 
@@ -77,11 +73,11 @@ func (gte *goTemplateExecutor) Close() {
 
 type JsTemplateExecutor struct {
 	sync.Mutex
-	incoming chan events.Event
-	closed chan struct{}
-	results chan interface{}
+	incoming              chan events.Event
+	closed                chan struct{}
+	results               chan interface{}
 	transformedExpression string
-	loadingError error
+	loadingError          error
 }
 
 func NewJsTemplateExecutor(expression string, extraFunctions template.FuncMap, extraScripts ...string) (*JsTemplateExecutor, error) {
@@ -96,26 +92,6 @@ func NewJsTemplateExecutor(expression string, extraFunctions template.FuncMap, e
 			return nil, resError
 		}
 	}
-	////loading transform scripts for destinations
-	//extraScripts := make([]string, 0, len(transformIds))
-	//for _, transformId := range transformIds {
-	//	if plugin := pluginsRepository.Get(transformId); plugin != nil {
-	//		extraScripts = append(extraScripts, plugin.Code)
-	//		extraScripts = append(extraScripts, `function ` + strcase.ToLowerCamel("to_" + transformId) + `($) { return exports.adapter($, globalThis) }`)
-	//	} else {
-	//		filename := "js/transform/" + transformId + ".js"
-	//		bytes, err := transforms.ReadFile(filename)
-	//		if err == nil {
-	//			es5script, err := Babelize(strings.ReplaceAll(string(bytes), "JitsuTransformFunction", strcase.ToLowerCamel("to_"+transformId)))
-	//			if err != nil {
-	//				return nil, fmt.Errorf("failed to transform %s to ES5 script: %v", filename, err)
-	//			}
-	//			extraScripts = append(extraScripts, es5script)
-	//		} else {
-	//			extraScripts = append(extraScripts, `function `+strcase.ToLowerCamel("to_"+transformId)+`($) { return $ }`)
-	//		}
-	//	}
-	//}
 
 	jte := &JsTemplateExecutor{sync.Mutex{}, make(chan events.Event), make(chan struct{}), make(chan interface{}), script, nil}
 	safego.RunWithRestart(func() { jte.start(extraFunctions, extraScripts...) })
@@ -127,19 +103,18 @@ func NewJsTemplateExecutor(expression string, extraFunctions template.FuncMap, e
 	return jte, nil
 }
 
-
-func (jte *JsTemplateExecutor) start(extraFunctions template.FuncMap, extraScripts ... string) {
+func (jte *JsTemplateExecutor) start(extraFunctions template.FuncMap, extraScripts ...string) {
 	//loads javascript into new vm instance
 	function, err := LoadTemplateScript(jte.transformedExpression, extraFunctions, extraScripts...)
 	if err != nil {
-		jte.loadingError =  fmt.Errorf("%s: %v\ntransformed function:\n%v\n",jsLoadingErrorText, err, jte.transformedExpression)
+		jte.loadingError = fmt.Errorf("%s: %v\ntransformed function:\n%v\n", jsLoadingErrorText, err, jte.transformedExpression)
 	}
 	for {
 		var event events.Event
 		select {
 		case <-jte.closed:
 			return
-		case event = <- jte.incoming:
+		case event = <-jte.incoming:
 		}
 		if jte.loadingError != nil {
 			jte.results <- jte.loadingError
@@ -196,6 +171,7 @@ func (jte *JsTemplateExecutor) Close() {
 type constTemplateExecutor struct {
 	template string
 }
+
 func newConstTemplateExecutor(expression string) (*constTemplateExecutor, error) {
 	return &constTemplateExecutor{expression}, nil
 }

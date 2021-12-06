@@ -1,4 +1,4 @@
-function JitsuTransformFunction($) {
+function toFacebook($) {
   const context = $.eventn_ctx || $;
   const user = context.user || {};
   const conversion = context.conversion || {};

@@ -111,27 +111,23 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (result st
 	//var transformIds []string
 	var tmpl templates.TemplateExecutor
 	if req.Field == "_transform" {
-		if req.Type == storages.NpmType {
-			cfg := config.DestinationConfig{}
-			_ = mapstructure.Decode(req.Config, &cfg)
-			createFunc, dConfig, err := h.factory.Configure(req.Type, cfg)
-			if err != nil {
-				return "", "", fmt.Errorf("cannot setup npm destination: %v", err)
-			}
-			storage, err := createFunc(dConfig)
-			if err != nil {
-				return "", "", fmt.Errorf("cannot instantiate instance of npm destination: %v", err)
-			}
-			err = storage.Processor().InitJavaScriptTemplates()
-			if err != nil {
-				return "", "", fmt.Errorf("failed to init javascript template: %v", err)
-			}
-			tmpl = storage.Processor().GetTransformer()
-			if tmpl == nil {
-				return "", "", fmt.Errorf("javascript template was not initialized")
-			}
-		} else {
-			tmpl, err = templates.NewJsTemplateExecutor(req.Expression, req.TemplateFunctions())
+		cfg := config.DestinationConfig{}
+		_ = mapstructure.Decode(req.Config, &cfg)
+		createFunc, dConfig, err := h.factory.Configure(req.Type, cfg)
+		if err != nil {
+			return "", "", fmt.Errorf("cannot setup npm destination: %v", err)
+		}
+		storage, err := createFunc(dConfig)
+		if err != nil {
+			return "", "", fmt.Errorf("cannot instantiate instance of npm destination: %v", err)
+		}
+		err = storage.Processor().InitJavaScriptTemplates()
+		if err != nil {
+			return "", "", fmt.Errorf("failed to init javascript template: %v", err)
+		}
+		tmpl = storage.Processor().GetTransformer()
+		if tmpl == nil {
+			return "", "", fmt.Errorf("javascript template was not initialized")
 		}
 	} else {
 		tmpl, err = templates.SmartParse("template evaluating", req.Expression, req.TemplateFunctions())

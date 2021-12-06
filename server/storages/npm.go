@@ -32,10 +32,9 @@ func NewNpmDestination(config *Config) (Storage, error) {
 	config.processor.AddJavaScriptVariables(config.destination.Config)
 	config.processor.SetDefaultTransform(`return ` + transformFuncName + `($)`)
 
-	//based on webhook inside
 	wh := WebHook{}
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	wbAdapter, err := adapters.NewWebHook(&adapters.WebHookConfig{}, &adapters.HTTPAdapterConfiguration{
+	wbAdapter, err := adapters.NewNpm(&adapters.HTTPAdapterConfiguration{
 		DestinationID:  config.destinationID,
 		Dir:            config.logEventPath,
 		HTTPConfig:     DefaultHTTPConfiguration,

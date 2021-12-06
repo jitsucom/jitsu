@@ -10,12 +10,11 @@ import (
 const JitsuEnvelopParameter = "JITSU_ENVELOP"
 
 type Envelop struct {
-	URL     string
-	Method  string
-	Headers map[string]string
-	Body	string
+	URL     string            `mapstructure:"url"`
+	Method  string            `mapstructure:"method"`
+	Headers map[string]string `mapstructure:"headers"`
+	Body    string            `mapstructure:"body"`
 }
-
 
 //HTTPRequestFactory is a factory for creating http.Request from input event object
 type HTTPRequestFactory interface {
@@ -67,7 +66,7 @@ func (wrf *WebhookRequestFactory) Create(object map[string]interface{}) (req *Re
 	if ok {
 		delete(object, JitsuEnvelopParameter)
 		if err := mapstructure.Decode(envl, &envelop); err != nil {
-			return nil, fmt.Errorf("cannot parse %s: %v", JitsuEnvelopParameter,  err)
+			return nil, fmt.Errorf("cannot parse %s: %v", JitsuEnvelopParameter, err)
 		}
 	}
 	if envelop.URL == "" {

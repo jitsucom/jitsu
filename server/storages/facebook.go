@@ -1,9 +1,14 @@
 package storages
 
 import (
+	_ "embed"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/templates"
 )
+
+//go:embed transform/facebook.js
+var facebookTransform string
 
 //Facebook stores events to Facebook Conversion API in stream mode
 type Facebook struct {
@@ -25,6 +30,13 @@ func NewFacebook(config *Config) (Storage, error) {
 	}
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
+
+	es5transform, err := templates.Babelize(facebookTransform)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert transformation code to es5: %v", err)
+	}
+	config.processor.AddJavaScript(es5transform)
+	config.processor.SetDefaultTransform(`return toFacebook($)`)
 
 	fb := &Facebook{}
 
