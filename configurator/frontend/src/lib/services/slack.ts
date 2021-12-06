@@ -82,7 +82,7 @@ export class SlackApiService implements ISlackApiService {
       project_name,
     })
     if (!response.ok) throw new Error(response.error ?? "Slack API Service failed to create a channel")
-    return response.url
+    return response.channel?.url
   }
 
   public get supportApiAvailable(): boolean {

@@ -373,6 +373,7 @@ export const SlackChatWidget: React.FC<{}> = () => {
         services.activeProject.id,
         services.activeProject.name
       )
+      debugger
       window.open(invitationUrl, "_blank")
     } catch (_error) {
       const error = _error instanceof Error ? _error : new Error(_error)
@@ -430,7 +431,7 @@ export const SlackChatWidget: React.FC<{}> = () => {
               popoverVisible ? "opacity-100 scale-100" : "opacity-0 scale-50"
             }`}
           >
-            <span className="block h-4 w-4">
+            <span className="block h-4 w-4 transform-gpu -translate-y-1/2">
               <Cross />
             </span>
           </span>
