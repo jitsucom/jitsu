@@ -502,7 +502,7 @@ func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*event
 	var pollTimeout time.Duration
 	var eventsQueueRedisPool *meta.RedisPool
 	var err error
-	if redisConfigurationSource != nil {
+	if redisConfigurationSource != nil && redisConfigurationSource.GetString("host") != "" {
 		factory := meta.NewRedisPoolFactory(redisConfigurationSource.GetString("host"),
 			redisConfigurationSource.GetInt("port"),
 			redisConfigurationSource.GetString("password"),
