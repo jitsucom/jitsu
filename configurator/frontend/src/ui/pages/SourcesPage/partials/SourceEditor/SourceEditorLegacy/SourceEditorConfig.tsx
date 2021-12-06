@@ -48,7 +48,7 @@ const SourceEditorConfigComponent = ({
     error: oauthFieldsError,
   } = useLoaderAsObject(async () => {
     const secretsStatus = await services.backendApiClient.get(
-      `sources/oauth_fields/${sourceReference.id}?project_id=${services.activeProject.id}`,
+      `sources/oauth_fields/${sourceReference?.id}?project_id=${services.activeProject.id}`,
       {
         proxy: true,
       }
