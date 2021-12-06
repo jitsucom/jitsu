@@ -171,8 +171,8 @@ func (p *Postgres) Clean(tableName string) error {
 }
 
 //Update uses SyncStore under the hood
-func (p *Postgres) Update(object map[string]interface{}) error {
-	return p.SyncStore(nil, []map[string]interface{}{object}, "", true)
+func (p *Postgres) Update(objects []map[string]interface{}) error {
+	return p.SyncStore(nil, objects, "", true)
 }
 
 //GetUsersRecognition returns users recognition configuration

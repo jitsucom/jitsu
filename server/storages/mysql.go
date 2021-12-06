@@ -198,8 +198,8 @@ func (m *MySQL) Clean(tableName string) error {
 }
 
 //Update uses SyncStore under the hood
-func (m *MySQL) Update(object map[string]interface{}) error {
-	return m.SyncStore(nil, []map[string]interface{}{object}, "", true)
+func (m *MySQL) Update(objects []map[string]interface{}) error {
+	return m.SyncStore(nil, objects, "", true)
 }
 
 //GetUsersRecognition returns users recognition configuration

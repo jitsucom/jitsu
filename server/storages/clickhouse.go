@@ -184,8 +184,8 @@ func (ch *ClickHouse) Clean(tableName string) error {
 }
 
 //Update uses SyncStore under the hood
-func (ch *ClickHouse) Update(object map[string]interface{}) error {
-	return ch.SyncStore(nil, []map[string]interface{}{object}, "", true)
+func (ch *ClickHouse) Update(objects []map[string]interface{}) error {
+	return ch.SyncStore(nil, objects, "", true)
 }
 
 //GetUsersRecognition returns users recognition configuration
