@@ -355,6 +355,8 @@ export const SlackChatWidget: React.FC<{}> = () => {
   const [upgradeDialogVisible, setUpgradeDialogVisible] = useState<boolean>(false)
 
   const disablePrivateChannelButton: boolean = services.currentSubscription?.currentPlan?.id === "free"
+  const isJitsuCloud: boolean = services.features.environment === "jitsu_cloud"
+  const isPrivateSupportAvailable: boolean = services.slackApiSercice?.supportApiAvailable
 
   const handleUpgradeClick = () => {
     setPopoverVisible(false)
@@ -373,7 +375,6 @@ export const SlackChatWidget: React.FC<{}> = () => {
         services.activeProject.id,
         services.activeProject.name
       )
-      debugger
       window.open(invitationUrl, "_blank")
     } catch (_error) {
       const error = _error instanceof Error ? _error : new Error(_error)
@@ -396,16 +397,13 @@ export const SlackChatWidget: React.FC<{}> = () => {
         visible={popoverVisible}
         content={
           <SupportOptions
+            showEmailOption={isJitsuCloud}
+            showPrivateChannelOption={isJitsuCloud && isPrivateSupportAvailable}
             disablePrivateChannelButton={disablePrivateChannelButton}
             privateChannelButtonDescription={
               disablePrivateChannelButton ? (
                 <span className="text-xs text-secondaryText mb-3">
-                  <a
-                    role="button"
-                    // size="small"
-                    className="text-xs"
-                    onClick={handleUpgradeClick}
-                  >
+                  <a role="button" className="text-xs" onClick={handleUpgradeClick}>
                     Upgrade
                   </a>
                   {" to use this feature"}
@@ -413,7 +411,7 @@ export const SlackChatWidget: React.FC<{}> = () => {
               ) : null
             }
             onPublicChannelClick={handleJoinPublicChannel}
-            onPrivateChannelClick={services.slackApiSercice?.supportApiAvailable ? handleJoinPrivateChannel : null}
+            onPrivateChannelClick={handleJoinPrivateChannel}
             onEmailCopyClick={handleSupportEmailCopy}
           />
         }

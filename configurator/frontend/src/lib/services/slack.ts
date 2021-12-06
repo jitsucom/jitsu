@@ -1,5 +1,4 @@
 import { withQueryParams } from "utils/queryParams"
-import axios, { AxiosInstance } from "axios"
 import { ApiAccess } from "./model"
 
 export interface ISlackApiService {
@@ -18,12 +17,9 @@ type RequestOptions = {
 }
 
 export class SlackApiService implements ISlackApiService {
-  // private readonly baseURL: string = "https://billing.jitsu.com/api/slack"
-  // private readonly baseURL: string = "https://billing-dev.vercel.app/api/slack"
-  private readonly baseURL: string = "http://localhost:3000/api/slack"
-  private readonly request: AxiosInstance = axios.create()
+  private readonly baseUrl: string = process.env.SLACK_API_URL
+
   private readonly apiAccess: () => ApiAccess
-  // private readonly supportSingningSecret: string = process.env.SLACK_SUPPORT_SIGNING_SECRET
 
   constructor(apiAccess: () => ApiAccess) {
     this.apiAccess = apiAccess
@@ -47,33 +43,15 @@ export class SlackApiService implements ISlackApiService {
 
   private async get(api: string, params?: { [key: string]: string }, options?: RequestOptions) {
     const fetchOptions = this.createFetchOptions(options)
-    const response = await fetch(withQueryParams(`${this.baseURL}/${api}`, params), fetchOptions)
+    const response = await fetch(withQueryParams(`${this.baseUrl}/${api}`, params), fetchOptions)
     return await response.json()
   }
 
   private async post(api: string, _body?: UnknownObject, options?: RequestOptions) {
     const fetchOptions = this.createFetchOptions(options)
     const body = _body ? JSON.stringify(_body) : null
-    const response = await fetch(`${this.baseURL}/${api}`, { ...fetchOptions, method: "POST", body })
+    const response = await fetch(`${this.baseUrl}/${api}`, { ...fetchOptions, method: "POST", body })
     return await response.json()
-  }
-
-  /** Creates support channel and returns a channel id string */
-  private async createSupportChannel(name: string): Promise<string> {
-    const response = await this.post("conversations.create", { name })
-    if (!response.ok)
-      throw new Error(`SlackAPI createSupportChannel method failed to create ${name} channel. ${response.error ?? ""}`)
-    return response.channel.id
-  }
-
-  /** Creates a shareable invite link to a channel */
-  private async createSharedInvitationToChannelUrl(channelId: string): Promise<string> {
-    const response = await this.get("conversations.inviteShared", { channel: channelId })
-    if (!response.ok)
-      throw new Error(
-        `SlackAPI createSharedInviteLinkToChannel method failed to create a link. ${response.error ?? ""}`
-      )
-    return response.url
   }
 
   public async createPrivateSupportChannel(project_id: string, project_name: string): Promise<string> {
@@ -86,6 +64,6 @@ export class SlackApiService implements ISlackApiService {
   }
 
   public get supportApiAvailable(): boolean {
-    return !!this.baseURL
+    return !!this.baseUrl
   }
 }
