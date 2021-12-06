@@ -80,6 +80,8 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
   ) : undefined
 
   switch (specNode["type"]) {
+    case "array":
+    //TODO: very limited implementation that works correctly for comma separated string arrays
     case "string": {
       const pattern = specNode["pattern"]
       const isMultiline = !!specNode["multiline"]
