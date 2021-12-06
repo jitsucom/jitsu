@@ -32,7 +32,6 @@ export {
   dbtcloudDestination,
   s3Destination,
   mixpanelDestination,
-  npmDestination,
 }
 
 export const destinationsReferenceMap = {
@@ -50,7 +49,6 @@ export const destinationsReferenceMap = {
   dbtcloud: dbtcloudDestination,
   s3: s3Destination,
   mixpanel: mixpanelDestination,
-  npm: npmDestination,
 } as const
 
 export type DestinationReference = typeof destinationsReferenceMap[keyof typeof destinationsReferenceMap]
