@@ -41,7 +41,10 @@ const DestinationsListComponent = ({ setBreadcrumbs }: CommonDestinationPageProp
             id: dst.id,
             icon: dst.ui.icon,
             handleClick: () => {
-              if (destinationsStore.allDestinations.length >= subscription.currentPlan.quota.destinations) {
+              if (
+                destinationsStore.allDestinations.length >= subscription.currentPlan.quota.destinations &&
+                !subscription.doNotBlock
+              ) {
                 showQuotaLimitModal(
                   subscription,
                   <>You current plan allows to have only {subscription.currentPlan.quota.destinations} destinations</>

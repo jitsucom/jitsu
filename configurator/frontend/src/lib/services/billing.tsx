@@ -215,6 +215,9 @@ async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
       method: "POST",
       body: JSON.stringify({ project_id, user_id, id_token }),
     })
+
+    if (subscriptionResponse.status === 500) return { planId: "free", billingEmail: "", doNotBlock: true }
+
     const subscription = (await subscriptionResponse.json()).subscription
 
     if (!subscription) {
@@ -231,7 +234,7 @@ async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
       "Error: ",
       error
     )
-    return { planId: "free", billingEmail: "none@none.com" }
+    return { planId: "free", billingEmail: "none@none.com", doNotBlock: true }
   }
 }
 
