@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/queue"
 	"github.com/jitsucom/jitsu/server/safego"
 	"go.uber.org/atomic"
 	"io"
@@ -12,17 +13,17 @@ import (
 //AsyncLogger write json logs to file system in different goroutine
 type AsyncLogger struct {
 	writer             io.WriteCloser
-	logCh              chan interface{}
+	queue              queue.Queue
 	showInGlobalLogger bool
 
 	closed *atomic.Bool
 }
 
 //NewAsyncLogger creates AsyncLogger and run goroutine that's read from channel and write to file
-func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool, channelSize int) *AsyncLogger {
+func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) *AsyncLogger {
 	logger := &AsyncLogger{
 		writer:             writer,
-		logCh:              make(chan interface{}, channelSize),
+		queue:              queue.NewInMemory(),
 		showInGlobalLogger: showInGlobalLogger,
 		closed:             atomic.NewBool(false),
 	}
@@ -33,10 +34,15 @@ func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool, channelSize 
 				break
 			}
 
-			event := <-logger.logCh
+			event, err := logger.queue.Pop()
+			if err != nil {
+				Errorf("Error reading event from queue in async logger: %v", err)
+				continue
+			}
+
 			bts, err := json.Marshal(event)
 			if err != nil {
-				Errorf("Error marshaling event to json: %v", err)
+				Errorf("Error marshaling event to json in async logger: %v", err)
 				continue
 			}
 
@@ -60,12 +66,18 @@ func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool, channelSize 
 
 //Consume gets event and puts it to channel
 func (al *AsyncLogger) Consume(event map[string]interface{}, tokenID string) {
-	al.logCh <- event
+	if err := al.queue.Push(event); err != nil {
+		b, _ := json.Marshal(event)
+		SystemErrorf("error pushing event [%s] into the queue in async logger.Consume: %v", string(b), err)
+	}
 }
 
 //ConsumeAny put interface{} to the channel
 func (al *AsyncLogger) ConsumeAny(object interface{}) {
-	al.logCh <- object
+	if err := al.queue.Push(object); err != nil {
+		b, _ := json.Marshal(object)
+		SystemErrorf("error pushing event [%s] into the queue in async logger.ConsumeAny: %v", string(b), err)
+	}
 }
 
 //Close underlying log file writer
