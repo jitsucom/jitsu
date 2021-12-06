@@ -1,5 +1,5 @@
 import * as logos from "./logos"
-import { booleanType, dashDateType, intType, isoUtcDateType, passwordType, stringType } from "../types"
+import { booleanType, dashDateType, intType, isoUtcDateType, oauthSecretType, passwordType, stringType } from "../types"
 import { customParameters } from "./helper"
 import { SingerTap } from "../types"
 import {
@@ -32,7 +32,7 @@ export const allSingerTaps: SingerTap[] = [
         {
           displayName: "Cient ID",
           id: "client_id",
-          type: stringType,
+          type: oauthSecretType,
           required: true,
           documentation: (
             <>
@@ -43,7 +43,7 @@ export const allSingerTaps: SingerTap[] = [
         {
           displayName: "Cient Secret",
           id: "client_secret",
-          type: stringType,
+          type: oauthSecretType,
           required: true,
           documentation: (
             <>
