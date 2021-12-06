@@ -44,11 +44,11 @@ export const TasksTable: React.FC<TasksTableProps> = props => {
   }, [props.projectId, props.start, props.end, props.collection, props.status, taskRuns])
 
   const runTask = (source: string, collection: string) => {
-    if (!isAtLeastOneStreamSelected(props.source)) {
-      actionNotification.error(<NoStreamsSelectedMessage editSourceLink={editSourceLink} />)
-      return
-    }
     return async () => {
+      if (!isAtLeastOneStreamSelected(props.source)) {
+        actionNotification.error(<NoStreamsSelectedMessage editSourceLink={editSourceLink} />)
+        return
+      }
       return await withProgressBar({
         estimatedMs: 100,
         callback: async () => {
