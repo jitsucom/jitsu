@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
+	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -222,7 +223,7 @@ func main() {
 	}
 	logRotationMin := viper.GetInt64("log.rotation_min")
 
-	loggerFactory := logging.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
+	loggerFactory := logevents.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
 		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter)
 
 	// ** Meta storage **
@@ -371,7 +372,7 @@ func main() {
 	uploader.Start()
 
 	//Streaming events archiver
-	periodicArchiver := logfiles.NewPeriodicArchiver(streamArchiveFileMask, path.Join(logEventPath, logging.ArchiveDir), time.Duration(streamArchiveEveryS)*time.Second)
+	periodicArchiver := logfiles.NewPeriodicArchiver(streamArchiveFileMask, path.Join(logEventPath, logevents.ArchiveDir), time.Duration(streamArchiveEveryS)*time.Second)
 	appconfig.Instance.ScheduleClosing(periodicArchiver)
 
 	adminToken := viper.GetString("server.admin_token")

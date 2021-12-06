@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/safego"
@@ -37,7 +38,7 @@ type Record struct {
 type Service struct {
 	walFileMask string
 
-	logger              *logging.AsyncLogger
+	logger              *logevents.AsyncLogger
 	multiplexingService *multiplexing.Service
 	processorHolder     *events.ProcessorHolder
 
@@ -45,9 +46,9 @@ type Service struct {
 }
 
 //NewService returns configured Service and starts goroutine for handling write-ahead-log
-func NewService(logEventPath string, logger *logging.AsyncLogger, multiplexingService *multiplexing.Service, processorHolder *events.ProcessorHolder) *Service {
+func NewService(logEventPath string, logger *logevents.AsyncLogger, multiplexingService *multiplexing.Service, processorHolder *events.ProcessorHolder) *Service {
 	s := &Service{
-		walFileMask:         path.Join(logEventPath, logging.IncomingDir, walFileMask),
+		walFileMask:         path.Join(logEventPath, logevents.IncomingDir, walFileMask),
 		logger:              logger,
 		multiplexingService: multiplexingService,
 		processorHolder:     processorHolder,

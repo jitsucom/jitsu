@@ -20,7 +20,7 @@ type Events struct {
 	storage meta.Storage
 
 	mutex  *sync.RWMutex
-	buffer map[Key]int
+	buffer map[Key]int64
 
 	closed chan struct{}
 }
@@ -29,7 +29,7 @@ func InitEvents(storage meta.Storage) {
 	eventsInstance = &Events{
 		storage: storage,
 		mutex:   &sync.RWMutex{},
-		buffer:  map[Key]int{},
+		buffer:  map[Key]int64{},
 		closed:  make(chan struct{}),
 	}
 	safego.Run(eventsInstance.startPersisting)
@@ -50,14 +50,14 @@ func (e *Events) startPersisting() {
 
 //persist extract values from the buffer and persist them. Leave buffer empty
 func (e *Events) persist() {
-	bufCopy := map[Key]int{}
+	bufCopy := map[Key]int64{}
 
 	//extract
 	e.mutex.Lock()
 	for k, v := range e.buffer {
 		bufCopy[k] = v
 	}
-	e.buffer = map[Key]int{}
+	e.buffer = map[Key]int64{}
 	e.mutex.Unlock()
 
 	//persist
@@ -68,7 +68,7 @@ func (e *Events) persist() {
 	}
 }
 
-func (e *Events) event(id, namespace, eventType, status string, value int) {
+func (e *Events) event(id, namespace, eventType, status string, value int64) {
 	if e == nil {
 		return
 	}
@@ -88,7 +88,7 @@ func (e *Events) event(id, namespace, eventType, status string, value int) {
 //SuccessPushSourceEvents increments:
 // deprecated source events deprecated push source events
 // new push source counters
-func SuccessPushSourceEvents(sourceID string, value int) {
+func SuccessPushSourceEvents(sourceID string, value int64) {
 	//536-issue DEPRECATED
 	successEvents(sourceID, meta.SourceNamespace, "", value)
 	//536-issue DEPRECATED
@@ -100,7 +100,7 @@ func SuccessPushSourceEvents(sourceID string, value int) {
 //SuccessPullSourceEvents increments:
 // deprecated source events
 // new pull source counters
-func SuccessPullSourceEvents(sourceID string, value int) {
+func SuccessPullSourceEvents(sourceID string, value int64) {
 	//536-issue DEPRECATED
 	successEvents(sourceID, meta.SourceNamespace, "", value)
 
@@ -110,7 +110,7 @@ func SuccessPullSourceEvents(sourceID string, value int) {
 //SuccessPushDestinationEvents increments:
 // deprecated destination events
 // new push destination counters
-func SuccessPushDestinationEvents(destinationID string, value int) {
+func SuccessPushDestinationEvents(destinationID string, value int64) {
 	//536-issue DEPRECATED
 	successEvents(destinationID, meta.DestinationNamespace, "", value)
 
@@ -120,27 +120,27 @@ func SuccessPushDestinationEvents(destinationID string, value int) {
 //SuccessPullDestinationEvents increments:
 // deprecated destination events
 // new pull destination counters
-func SuccessPullDestinationEvents(destinationID string, value int) {
+func SuccessPullDestinationEvents(destinationID string, value int64) {
 	//536-issue DEPRECATED
 	successEvents(destinationID, meta.DestinationNamespace, "", value)
 
 	successEvents(destinationID, meta.DestinationNamespace, meta.PullEventType, value)
 }
 
-func successEvents(id, namespace, eventType string, value int) {
+func successEvents(id, namespace, eventType string, value int64) {
 	eventsInstance.event(id, namespace, eventType, meta.SuccessStatus, value)
 }
 
 //ErrorPullSourceEvents increments:
 // new pull sources counters
-func ErrorPullSourceEvents(sourceID string, value int) {
+func ErrorPullSourceEvents(sourceID string, value int64) {
 	errorEvents(sourceID, meta.SourceNamespace, meta.PullEventType, value)
 }
 
 //ErrorPullDestinationEvents increments:
 // deprecated destination events
 // new pull destination counters
-func ErrorPullDestinationEvents(destinationID string, value int) {
+func ErrorPullDestinationEvents(destinationID string, value int64) {
 	//536-issue DEPRECATED
 	errorEvents(destinationID, meta.DestinationNamespace, "", value)
 
@@ -150,21 +150,21 @@ func ErrorPullDestinationEvents(destinationID string, value int) {
 //ErrorPushDestinationEvents increments:
 // deprecated destination events
 // new pull destination counters
-func ErrorPushDestinationEvents(destinationID string, value int) {
+func ErrorPushDestinationEvents(destinationID string, value int64) {
 	//536-issue DEPRECATED
 	errorEvents(destinationID, meta.DestinationNamespace, "", value)
 
 	errorEvents(destinationID, meta.DestinationNamespace, meta.PushEventType, value)
 }
 
-func errorEvents(id, namespace, eventType string, value int) {
+func errorEvents(id, namespace, eventType string, value int64) {
 	eventsInstance.event(id, namespace, eventType, meta.ErrorStatus, value)
 }
 
 //SkipPushSourceEvents increments:
 // deprecated source events
 // new push source counters
-func SkipPushSourceEvents(sourceID string, value int) {
+func SkipPushSourceEvents(sourceID string, value int64) {
 	//536-issue DEPRECATED
 	skipEvents(sourceID, meta.SourceNamespace, "", value)
 	//536-issue DEPRECATED
@@ -173,14 +173,14 @@ func SkipPushSourceEvents(sourceID string, value int) {
 	skipEvents(sourceID, meta.SourceNamespace, meta.PushEventType, value)
 }
 
-func SkipPushDestinationEvents(destinationID string, value int) {
+func SkipPushDestinationEvents(destinationID string, value int64) {
 	//536-issue DEPRECATED
 	skipEvents(destinationID, meta.DestinationNamespace, "", value)
 
 	skipEvents(destinationID, meta.DestinationNamespace, meta.PushEventType, value)
 }
 
-func skipEvents(id, namespace, eventType string, value int) {
+func skipEvents(id, namespace, eventType string, value int64) {
 	eventsInstance.event(id, namespace, eventType, meta.SkipStatus, value)
 }
 

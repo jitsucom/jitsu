@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/utils"
 	"strings"
@@ -143,7 +144,7 @@ type Config struct {
 	monitorKeeper          MonitorKeeper
 	eventQueue             events.Queue
 	eventsCache            *caching.EventsCache
-	loggerFactory          *logging.Factory
+	loggerFactory          *logevents.Factory
 	queueFactory           *events.QueueFactory
 	pkFields               map[string]bool
 	sqlTypes               typing.SQLTypes
@@ -176,7 +177,7 @@ type FactoryImpl struct {
 	geoService          *geo.Service
 	monitorKeeper       MonitorKeeper
 	eventsCache         *caching.EventsCache
-	globalLoggerFactory *logging.Factory
+	globalLoggerFactory *logevents.Factory
 	globalConfiguration *UsersRecognition
 	metaStorage         meta.Storage
 	eventsQueueFactory  *events.QueueFactory
@@ -185,7 +186,7 @@ type FactoryImpl struct {
 
 //NewFactory returns configured Factory
 func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper,
-	eventsCache *caching.EventsCache, globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition,
+	eventsCache *caching.EventsCache, globalLoggerFactory *logevents.Factory, globalConfiguration *UsersRecognition,
 	metaStorage meta.Storage, eventsQueueFactory *events.QueueFactory, maxColumns int) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,

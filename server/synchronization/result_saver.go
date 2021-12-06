@@ -31,8 +31,8 @@ type ResultSaver struct {
 	destinations      []storages.Storage
 	metaStorage       meta.Storage
 	//mapping stream name -> table name
-	streamTableNames  map[string]string
-	configPath 			  string
+	streamTableNames map[string]string
+	configPath       string
 }
 
 //NewResultSaver returns configured ResultSaver instance
@@ -107,18 +107,18 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 				metrics.ErrorSourceEvents(rs.task.Source, storage.ID(), rowsCount)
 				metrics.ErrorObjects(rs.task.Source, rowsCount)
 				telemetry.Error(rs.task.Source, storage.ID(), srcSource, rs.tap, rowsCount)
-				counters.ErrorPullDestinationEvents(storage.ID(), rowsCount)
-				counters.ErrorPullSourceEvents(rs.task.Source, rowsCount)
+				counters.ErrorPullDestinationEvents(storage.ID(), int64(rowsCount))
+				counters.ErrorPullSourceEvents(rs.task.Source, int64(rowsCount))
 				return errors.New(errMsg)
 			}
 
 			metrics.SuccessSourceEvents(rs.task.Source, storage.ID(), rowsCount)
 			metrics.SuccessObjects(rs.task.Source, rowsCount)
 			telemetry.Event(rs.task.Source, storage.ID(), srcSource, rs.tap, rowsCount)
-			counters.SuccessPullDestinationEvents(storage.ID(), rowsCount)
+			counters.SuccessPullDestinationEvents(storage.ID(), int64(rowsCount))
 		}
 
-		counters.SuccessPullSourceEvents(rs.task.Source, rowsCount)
+		counters.SuccessPullSourceEvents(rs.task.Source, int64(rowsCount))
 
 		rs.taskLogger.INFO("Synchronized successfully Table [%s] key fields [%s] objects [%d]", tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
 	}
@@ -143,7 +143,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		//We need to write it to persistent storage so other cluster nodes will read actual config
 		configBytes, err := ioutil.ReadFile(rs.configPath)
 		if configBytes != nil {
-			err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey + ConfigSignatureSuffix, driversbase.ALL.String(), string(configBytes))
+			err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey+ConfigSignatureSuffix, driversbase.ALL.String(), string(configBytes))
 		}
 		if err != nil {
 			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] config: %v", rs.task.Source, rs.tap, err)
