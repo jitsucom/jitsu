@@ -169,6 +169,10 @@ type S3FormData struct {
 
 //KafkaFormData entity is stored in main storage (Firebase/Redis)
 type KafkaFormData struct {
-	TableName        string   `firestore:"tableName" json:"tableName"` // field is used as topic name
-	BootstrapServers []string `firestore:"kafkaBootstrapServers" json:"kafkaBootstrapServers"`
+	BootstrapServers []string           `firestore:"kafkaBootstrapServers" json:"kafkaBootstrapServers"`
+	Topic            string             `firestore:"kafkaTopic" json:"kafkaTopic"`
+	DisableTLS       bool               `firestore:"kafkaDisableTLS" json:"kafkaDisableTLS"`
+	AuthType         adapters.KafkaAuth `firestore:"kafkaAuthType" json:"kafkaAuthType"`
+	Username         string             `firestore:"kafkaUsername" json:"kafkaUsername"`
+	Password         string             `firestore:"kafkaPassword" json:"kafkaPassword"`
 }
