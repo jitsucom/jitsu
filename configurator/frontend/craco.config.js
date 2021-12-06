@@ -50,7 +50,7 @@ module.exports = {
           FIREBASE_CONFIG: JSON.stringify(process.env.FIREBASE_CONFIG || null),
           BILLING_API_BASE_URL: JSON.stringify(process.env.BILLING_API_BASE_URL || null),
           OAUTH_BACKEND_API_BASE: JSON.stringify(process.env.OAUTH_BACKEND_API_BASE || null),
-          SLACK_SUPPORT_BOT_TOKEN: JSON.stringify(process.env.SLACK_SUPPORT_BOT_TOKEN || null),
+          SLACK_API_URL: JSON.stringify(process.env.SLACK_API_URL || null),
         },
       }),
       new BundleAnalyzerPlugin({
