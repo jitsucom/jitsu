@@ -29,7 +29,10 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
 
   const handleAddClick = useCallback(() => {
     services.features.billingEnabled
-    if (sourcesStore.sources.length >= services.currentSubscription?.currentPlan.quota.sources ?? 999) {
+    if (
+      sourcesStore.sources.length >= (services.currentSubscription?.currentPlan.quota.sources ?? 999) &&
+      !services.currentSubscription.doNotBlock
+    ) {
       showQuotaLimitModal(
         services.currentSubscription,
         <>You current plan allows to have only {services.currentSubscription.currentPlan.quota.sources} sources</>
