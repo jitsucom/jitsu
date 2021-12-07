@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/config"
@@ -323,16 +322,6 @@ func (f *FactoryImpl) SetupProcessor(destinationID string, destination config.De
 		mappingsStyle = "new"
 	}
 	return processor, sqlTypes, mappingsStyle, nil
-}
-
-func needDummy(destCfg *config.DestinationConfig) bool {
-	if destCfg.Type == S3Type {
-		fbConfig := &adapters.S3Config{}
-		_ = destCfg.GetDestConfig(destCfg.S3, fbConfig)
-		return fbConfig.Format == adapters.S3FormatJSON
-	}
-	return destCfg.Type == FacebookType || destCfg.Type == DbtCloudType || destCfg.Type == WebHookType ||
-		destCfg.Type == AmplitudeType || destCfg.Type == HubSpotType || destCfg.Type == NpmType
 }
 
 //initializeRetroactiveUsersRecognition initializes recognition configuration (overrides global one with destination layer)
