@@ -26,7 +26,7 @@ type Snowflake struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: SnowflakeType, createFunc: NewSnowflake})
+	RegisterStorage(StorageType{typeName: SnowflakeType, createFunc: NewSnowflake, isSQL: true})
 }
 
 //NewSnowflake returns Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode

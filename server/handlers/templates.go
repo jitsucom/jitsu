@@ -125,26 +125,50 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (result st
 		if err != nil {
 			return "", "", fmt.Errorf("failed to init javascript template: %v", err)
 		}
-		tmpl = storage.Processor().GetTransformer()
-		if tmpl == nil {
-			return "", "", fmt.Errorf("javascript template was not initialized")
+		format = "javascript"
+		tmpl := storage.Processor().GetTransformer()
+		if tmpl != nil {
+			format = tmpl.Format()
 		}
+		envls, err := storage.Processor().ProcessEvent(req.Object)
+		if err != nil {
+			if err == schema.ErrSkipObject {
+				return "SKIPPED", format, nil
+			} else {
+				return "", "", fmt.Errorf("failed to process event: %v", err)
+			}
+		}
+		objects := make([]map[string]interface{}, 0, len(envls))
+		for _, envl := range envls {
+			objects = append(objects, envl.Event)
+		}
+		var resObj interface{}
+		if len(objects) == 1 {
+			resObj = objects[0]
+		} else {
+			resObj = objects
+		}
+		jsonBytes, err := templates.ToJSONorStringBytes(resObj)
+		if err != nil {
+			return "", format, err
+		}
+		result = string(jsonBytes)
 	} else {
 		tmpl, err = templates.SmartParse("template evaluating", req.Expression, req.TemplateFunctions())
+		if err != nil {
+			return "", "", fmt.Errorf("error parsing template: %v", err)
+		}
+		resultObject, err := tmpl.ProcessEvent(req.Object)
+		if err != nil {
+			return "", tmpl.Format(), fmt.Errorf("error executing template: %v", err)
+		}
+		jsonBytes, err := templates.ToJSONorStringBytes(resultObject)
+		if err != nil {
+			return "", tmpl.Format(), err
+		}
+		result = string(jsonBytes)
+		format = tmpl.Format()
 	}
-	if err != nil {
-		return "", "", fmt.Errorf("error parsing template: %v", err)
-	}
-	resultObject, err := tmpl.ProcessEvent(req.Object)
-	if err != nil {
-		return "", tmpl.Format(), fmt.Errorf("error executing template: %v", err)
-	}
-	jsonBytes, err := templates.ToJSONorStringBytes(resultObject)
-	if err != nil {
-		return "", tmpl.Format(), err
-	}
-	result = string(jsonBytes)
-	format = tmpl.Format()
 	return
 }
 

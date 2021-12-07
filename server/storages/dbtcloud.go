@@ -23,7 +23,7 @@ type DbtCloud struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: DbtCloudType, createFunc: NewDbtCloud, defaultTableName: dbtCloudTableNameFilter})
+	RegisterStorage(StorageType{typeName: DbtCloudType, createFunc: NewDbtCloud, defaultTableName: dbtCloudTableNameFilter, isSQL: false})
 }
 
 //NewDbtCloud returns configured DbtCloud destination

@@ -14,7 +14,7 @@ const icon = (
 )
 
 const npmDestination = {
-  description: <>TODO:</>,
+  description: <></>,
   syncFromSourcesStatus: "not_supported",
   id: "npm",
   type: "other",

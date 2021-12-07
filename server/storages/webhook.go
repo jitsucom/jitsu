@@ -26,7 +26,7 @@ type WebHook struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: WebHookType, createFunc: NewWebHook})
+	RegisterStorage(StorageType{typeName: WebHookType, createFunc: NewWebHook, isSQL: false})
 }
 
 //NewWebHook returns configured WebHook destination
@@ -34,7 +34,6 @@ func NewWebHook(config *Config) (Storage, error) {
 	if !config.streamMode {
 		return nil, fmt.Errorf("WebHook destination doesn't support %s mode", BatchMode)
 	}
-
 
 	webHookConfig := &adapters.WebHookConfig{}
 	if err := config.destination.GetDestConfig(config.destination.WebHook, webHookConfig); err != nil {

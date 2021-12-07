@@ -24,7 +24,7 @@ type Postgres struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: PostgresType, createFunc: NewPostgres})
+	RegisterStorage(StorageType{typeName: PostgresType, createFunc: NewPostgres, isSQL: true})
 }
 
 //NewPostgres returns configured Postgres Destination

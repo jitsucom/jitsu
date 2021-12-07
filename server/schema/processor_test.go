@@ -145,7 +145,7 @@ func TestProcessFilePayload(t *testing.T) {
 	}
 	destination := &config.DestinationConfig{Type: "google_analytics", BreakOnError: false,
 		DataLayout: &config.DataLayout{Transform: ""}}
-	p, err := NewProcessor("test", destination, `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 0)
+	p, err := NewProcessor("test", destination, false, `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 0)
 	require.NoError(t, err)
 	err = p.InitJavaScriptTemplates()
 	require.NoError(t, err)
@@ -327,7 +327,7 @@ func TestProcessFact(t *testing.T) {
 
 	destination := &config.DestinationConfig{Type: "google_analytics", BreakOnError: false,
 		DataLayout: &config.DataLayout{Transform: ""}}
-	p, err := NewProcessor("test", destination, `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+	p, err := NewProcessor("test", destination, false, `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
 	require.NoError(t, err)
 	err = p.InitJavaScriptTemplates()
 	require.NoError(t, err)
@@ -443,7 +443,7 @@ switch ($.event_type) {
 `
 	destination := &config.DestinationConfig{Type: "google_analytics", BreakOnError: false,
 		DataLayout: &config.DataLayout{Transform: transformExpression}}
-	p, err := NewProcessor("test", destination, `events`, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+	p, err := NewProcessor("test", destination, false, `events`, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
 	require.NoError(t, err)
 	err = p.InitJavaScriptTemplates()
 	require.NoError(t, err)

@@ -13,6 +13,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/templates"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"strings"
 )
 
@@ -29,6 +30,7 @@ type Envelope struct {
 type Processor struct {
 	identifier              string
 	destinationConfig       *config.DestinationConfig
+	isSQLType               bool
 	tableNameExtractor      *TableNameExtractor
 	lookupEnrichmentStep    *enrichment.LookupEnrichmentStep
 	transformer             *templates.JsTemplateExecutor
@@ -47,10 +49,11 @@ type Processor struct {
 	transformInitialized bool
 }
 
-func NewProcessor(destinationID string, destinationConfig *config.DestinationConfig, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule, flattener Flattener, typeResolver TypeResolver, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int) (*Processor, error) {
+func NewProcessor(destinationID string, destinationConfig *config.DestinationConfig, isSQLType bool, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule, flattener Flattener, typeResolver TypeResolver, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int) (*Processor, error) {
 	return &Processor{
 		identifier:              destinationID,
 		destinationConfig:       destinationConfig,
+		isSQLType:               isSQLType,
 		lookupEnrichmentStep:    enrichment.NewLookupEnrichmentStep(enrichmentRules),
 		fieldMapper:             fieldMapper,
 		pulledEventsfieldMapper: &DummyMapper{},
@@ -68,7 +71,8 @@ func NewProcessor(destinationID string, destinationConfig *config.DestinationCon
 //ProcessEvent returns table representation, processed flatten object
 func (p *Processor) ProcessEvent(event map[string]interface{}) ([]Envelope, error) {
 	if !p.transformInitialized {
-		panic("Attempt to use processor without running InitJavaScriptTemplates first")
+		err := fmt.Errorf("Destination: %s Attempt to use processor without running InitJavaScriptTemplates first", p.identifier)
+		return nil, err
 	}
 	return p.processObject(event, map[string]bool{})
 }
@@ -78,7 +82,8 @@ func (p *Processor) ProcessEvent(event map[string]interface{}) ([]Envelope, erro
 //All failed events are moved to separate collection for sending to fallback
 func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*ProcessedFile, *events.FailedEvents, *events.SkippedEvents, error) {
 	if !p.transformInitialized {
-		panic("Attempt to use processor without running InitJavaScriptTemplates first")
+		err := fmt.Errorf("Destination: %s Attempt to use processor without running InitJavaScriptTemplates first", p.identifier)
+		return nil, nil, nil, err
 	}
 	skippedEvents := &events.SkippedEvents{}
 	failedEvents := events.NewFailedEvents()
@@ -140,7 +145,8 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 //or error if at least 1 was occurred
 func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]interface{}) (map[string]*ProcessedFile, error) {
 	if !p.transformInitialized {
-		panic("Attempt to use processor without running InitJavaScriptTemplates first")
+		err := fmt.Errorf("Destination: %s Attempt to use processor without running InitJavaScriptTemplates first", p.identifier)
+		return nil, err
 	}
 	var pf *ProcessedFile
 	for _, event := range objects {
@@ -225,14 +231,10 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	case map[string]interface{}:
 		toProcess = append(toProcess, obj)
 	case []interface{}:
-		for i, o := range obj {
+		for _, o := range obj {
 			casted, ok := o.(map[string]interface{})
 			if !ok {
 				return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", o)
-			}
-			if i > 0 {
-				newUniqueId := fmt.Sprintf("%s_%d", appconfig.Instance.GlobalUniqueIDField.Extract(object), i)
-				appconfig.Instance.GlobalUniqueIDField.Set(casted, newUniqueId)
 			}
 			toProcess = append(toProcess, casted)
 		}
@@ -241,18 +243,28 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	}
 	envelops := make([]Envelope, 0, len(toProcess))
 
-	for _, object := range toProcess {
-		newTableName, ok := object[templates.TableNameParameter].(string)
+	for i, prObject := range toProcess {
+		newUniqueId := p.uniqueIDField.Extract(object)
+		if i > 0 {
+			//for event cache one to many mapping
+			newUniqueId = fmt.Sprintf("%s_%d", newUniqueId, i)
+			prObject[p.uniqueIDField.GetFlatFieldName()] = newUniqueId
+		}
+		if p.isSQLType {
+			prObject[p.uniqueIDField.GetFlatFieldName()] = newUniqueId
+			prObject[timestamp.Key] = object[timestamp.Key]
+		}
+		newTableName, ok := prObject[templates.TableNameParameter].(string)
 		if !ok {
 			newTableName = tableName
 		}
-		delete(object, templates.TableNameParameter)
+		delete(prObject, templates.TableNameParameter)
 		//object has been already processed (storage:table pair might be already processed)
 		_, ok = alreadyUploadedTables[newTableName]
 		if ok {
 			continue
 		}
-		flatObject, err := p.flattener.FlattenObject(object)
+		flatObject, err := p.flattener.FlattenObject(prObject)
 		if err != nil {
 			return nil, err
 		}

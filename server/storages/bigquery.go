@@ -26,7 +26,7 @@ type BigQuery struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: BigQueryType, createFunc: NewBigQuery})
+	RegisterStorage(StorageType{typeName: BigQueryType, createFunc: NewBigQuery, isSQL: true})
 }
 
 //NewBigQuery returns BigQuery configured instance
