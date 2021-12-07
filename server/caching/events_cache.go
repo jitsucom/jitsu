@@ -69,10 +69,12 @@ func (ec *EventsCache) start() {
 //Put puts value into channel which will be read and written to storage
 func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, value events.Event) {
 	if !disabled && ec.isActive() {
+		//clone payload for preventing concurrent changes after storing into the channel
+		cachingEvent := value.Clone()
 		select {
-		case ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: value}:
+		case ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: cachingEvent}:
 		default:
-			logging.SystemErrorf("[events cache] original event hasn't been put: %s", value.Serialize())
+			logging.SystemErrorf("[events cache] original event hasn't been put: %s", cachingEvent.Serialize())
 		}
 	}
 }

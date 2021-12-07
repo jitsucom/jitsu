@@ -7,14 +7,18 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/queue"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
 	"io"
 )
+
+const defaultPoolSize = 50
 
 //AsyncLogger write json logs to file system in different goroutine
 type AsyncLogger struct {
 	writer             io.WriteCloser
 	queue              queue.Queue
+	workersPool        *ants.PoolWithFunc
 	showInGlobalLogger bool
 
 	closed *atomic.Bool
@@ -29,40 +33,54 @@ func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) *AsyncLogger
 		closed:             atomic.NewBool(false),
 	}
 
-	safego.RunWithRestart(func() {
-		for {
-			if logger.closed.Load() {
-				break
-			}
+	pool, _ := ants.NewPoolWithFunc(defaultPoolSize, logger.write)
+	logger.workersPool = pool
 
-			event, err := logger.queue.Pop()
+	safego.RunWithRestart(logger.startObserver)
+
+	return logger
+}
+
+func (al *AsyncLogger) startObserver() {
+	for {
+		if al.closed.Load() {
+			break
+		}
+
+		if al.workersPool.Free() > 0 {
+			event, err := al.queue.Pop()
 			if err != nil {
 				logging.Errorf("Error reading event from queue in async logger: %v", err)
 				continue
 			}
 
-			bts, err := json.Marshal(event)
-			if err != nil {
-				logging.Errorf("Error marshaling event to json in async logger: %v", err)
-				continue
-			}
-
-			if logger.showInGlobalLogger {
-				prettyJSONBytes, _ := json.MarshalIndent(&event, " ", " ")
-				logging.Info(string(prettyJSONBytes))
-			}
-
-			buf := bytes.NewBuffer(bts)
-			buf.Write([]byte("\n"))
-
-			if _, err := logger.writer.Write(buf.Bytes()); err != nil {
-				logging.Errorf("Error writing event to log file: %v", err)
-				continue
+			if err := al.workersPool.Invoke(event); err != nil {
+				if err != ants.ErrPoolClosed {
+					logging.SystemErrorf("Error writing event to the log file: %v", err)
+				}
 			}
 		}
-	})
+	}
+}
 
-	return logger
+func (al *AsyncLogger) write(event interface{}) {
+	bts, err := json.Marshal(event)
+	if err != nil {
+		logging.Errorf("Error marshaling event to json in async logger: %v", err)
+		return
+	}
+
+	if al.showInGlobalLogger {
+		prettyJSONBytes, _ := json.MarshalIndent(&event, " ", " ")
+		logging.Info(string(prettyJSONBytes))
+	}
+
+	buf := bytes.NewBuffer(bts)
+	buf.Write([]byte("\n"))
+
+	if _, err := al.writer.Write(buf.Bytes()); err != nil {
+		logging.Errorf("Error writing event to log file: %v", err)
+	}
 }
 
 //Consume gets event and puts it to channel
