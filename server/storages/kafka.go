@@ -167,10 +167,13 @@ func (k *Kafka) Type() string {
 	return KafkaType
 }
 
-//Close closes adapter and abstract storage
+// Close closes adapter and abstract storage
 func (k *Kafka) Close() (multiErr error) {
 	if err := k.adapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing kafka adapter: %v", k.ID(), err))
+	}
+	if err := k.streamingWorker.Close(); err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", k.ID(), err))
 	}
 	if err := k.close(); err != nil {
 		multiErr = multierror.Append(multiErr, err)
