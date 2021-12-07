@@ -16,3 +16,5 @@ package-lock.json
 package.json
 server/server
 server/logs
+
+configurator/build/*
