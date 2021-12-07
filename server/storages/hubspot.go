@@ -11,7 +11,7 @@ type HubSpot struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: HubSpotType, createFunc: NewHubSpot, defaultTableName: "$.user?.email"})
+	RegisterStorage(StorageType{typeName: HubSpotType, createFunc: NewHubSpot, defaultTableName: "$.user?.email", isSQL: false})
 }
 
 //NewHubSpot returns configured HubSpot destination

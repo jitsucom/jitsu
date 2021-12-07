@@ -16,7 +16,7 @@ type Facebook struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: FacebookType, createFunc: NewFacebook})
+	RegisterStorage(StorageType{typeName: FacebookType, createFunc: NewFacebook, isSQL: false})
 }
 
 //NewFacebook returns configured Facebook destination

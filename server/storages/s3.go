@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
+	"github.com/jitsucom/jitsu/server/utils"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -22,7 +24,14 @@ type S3 struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: S3Type, createFunc: NewS3})
+	RegisterStorage(StorageType{
+		typeName:   S3Type,
+		createFunc: NewS3,
+		//S3 can store SQL data it depends on "format".
+		isSQLFunc: func(config *config.DestinationConfig) bool {
+			mp := utils.NvlMap(config.Config, config.S3)
+			return mp["format"] != adapters.S3FormatJSON
+		}})
 }
 
 func NewS3(config *Config) (Storage, error) {

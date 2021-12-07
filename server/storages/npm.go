@@ -12,7 +12,7 @@ type NpmDestination struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: NpmType, createFunc: NewNpmDestination})
+	RegisterStorage(StorageType{typeName: NpmType, createFunc: NewNpmDestination, isSQL: false})
 }
 
 //NewNpmDestination returns configured NpmDestination

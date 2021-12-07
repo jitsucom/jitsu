@@ -82,6 +82,15 @@ type StorageType struct {
 	typeName         string
 	createFunc       func(config *Config) (Storage, error)
 	defaultTableName string
+	isSQL            bool
+	isSQLFunc        func(config *config.DestinationConfig) bool
+}
+
+func (storageType StorageType) isSQLType(destCfg *config.DestinationConfig) bool {
+	if storageType.isSQLFunc != nil {
+		return storageType.isSQLFunc(destCfg)
+	}
+	return storageType.isSQL
 }
 
 //FactoryImpl is a destination's factory implementation
@@ -284,26 +293,26 @@ func (f *FactoryImpl) SetupProcessor(destinationID string, destination config.De
 			return nil, nil, "", convertErr
 		}
 	}
-	enrichAndLogMappings(destinationID, destination.Type, uniqueIDField, newStyleMapping)
+	isSQLType := storageType.isSQLType(&destination)
+	enrichAndLogMappings(destinationID, isSQLType, uniqueIDField, newStyleMapping)
 	fieldMapper, sqlTypes, err := schema.NewFieldMapper(newStyleMapping)
 	if err != nil {
 		return nil, nil, "", err
 	}
 
-	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
 	var flattener schema.Flattener
 	var typeResolver schema.TypeResolver
-	if needDummy(&destination) {
-		flattener = schema.NewDummyFlattener()
-		typeResolver = schema.NewDummyTypeResolver()
-	} else {
+	if isSQLType {
 		flattener = schema.NewFlattener()
 		typeResolver = schema.NewTypeResolver()
+	} else {
+		flattener = schema.NewDummyFlattener()
+		typeResolver = schema.NewDummyTypeResolver()
 	}
 
 	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
 
-	processor, err = schema.NewProcessor(destinationID, &destination, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, uniqueIDField, maxColumnNameLength)
+	processor, err = schema.NewProcessor(destinationID, &destination, isSQLType, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, uniqueIDField, maxColumnNameLength)
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -385,7 +394,7 @@ func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string
 
 //Add system fields as default mappings
 //write current mapping configuration to logs
-func enrichAndLogMappings(destinationID, destinationType string, uniqueIDField *identifiers.UniqueID, mapping *config.Mapping) {
+func enrichAndLogMappings(destinationID string, isSQL bool, uniqueIDField *identifiers.UniqueID, mapping *config.Mapping) {
 	if mapping == nil || len(mapping.Fields) == 0 {
 		logging.Warnf("[%s] doesn't have mapping rules", destinationID)
 		return
@@ -401,7 +410,7 @@ func enrichAndLogMappings(destinationID, destinationType string, uniqueIDField *
 
 	//check system fields and add default mappings
 	//if destination is SQL and not keep unmapped
-	if isSQLType(destinationType) && !keepUnmapped {
+	if isSQL && !keepUnmapped {
 		var configuredEventId, configuredTimestamp bool
 		for _, f := range mapping.Fields {
 			if f.Src == uniqueIDFieldName && (f.Dst == uniqueIDFieldName || f.Dst == uniqueIDFieldFlatName) {
@@ -437,14 +446,4 @@ func enrichAndLogMappings(destinationID, destinationType string, uniqueIDField *
 	for _, mappingRule := range mapping.Fields {
 		logging.Infof("[%s] %s", destinationID, mappingRule.String())
 	}
-}
-
-func isSQLType(destinationType string) bool {
-	return destinationType == RedshiftType ||
-		destinationType == BigQueryType ||
-		destinationType == PostgresType ||
-		destinationType == ClickHouseType ||
-		destinationType == SnowflakeType ||
-		//S3 can be SQL (S3 as intermediate layer)
-		destinationType == S3Type
 }
