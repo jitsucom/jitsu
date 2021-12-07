@@ -88,13 +88,14 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
           oauthBackendSecretsStatusCheck: () => true,
         }
       case "singer":
+        const tapId = sourceDataFromCatalog.id.replace("singer-", "")
         return {
           configurableFields: sourceDataFromCatalog.configParameters,
           invisibleStaticFields: {
-            "config.tap": sourceDataFromCatalog.id.replace("singer-", ""),
+            "config.tap": tapId,
           },
           oauthBackendSecretsStatusCheck: () =>
-            services.oauthService.isOauthBackendSecretsAvailable(sourceDataFromCatalog.id, services.activeProject.id),
+            services.oauthService.isOauthBackendSecretsAvailable(tapId, services.activeProject.id),
         }
     }
   }, [])
