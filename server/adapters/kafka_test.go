@@ -27,6 +27,7 @@ func TestKafkaBulkInsert(t *testing.T) {
 		BootstrapServers: []string{kafkaCluster.BootstrapServer},
 		Topic:            "test_kafka_bulk_insert",
 		AuthType:         KafkaAuthNone,
+		DisableTLS:       true,
 	}
 	kafkaAdapter, err := NewKafka(kafkaConfig)
 	require.NoError(t, err)
@@ -52,6 +53,7 @@ func TestKafkaBulkUpdate(t *testing.T) {
 		BootstrapServers: []string{kafkaCluster.BootstrapServer},
 		Topic:            "test_kafka_bulk_update",
 		AuthType:         KafkaAuthNone,
+		DisableTLS:       true,
 	}
 	kafkaAdapter, err := NewKafka(kafkaConfig)
 	require.NoError(t, err)
@@ -77,6 +79,7 @@ func TestKafkaInsert(t *testing.T) {
 		BootstrapServers: []string{kafkaCluster.BootstrapServer},
 		Topic:            "test_kafka_insert",
 		AuthType:         KafkaAuthNone,
+		DisableTLS:       true,
 	}
 	kafkaAdapter, err := NewKafka(kafkaConfig)
 	require.NoError(t, err)

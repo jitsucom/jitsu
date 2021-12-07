@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	kafkaClusterName     = "test-kafka-cluster"
-	zookeeperPort        = 2181
-	kafkaBrokerPort      = 9092
-	confluentPlatformVer = "6.1.1"
+	kafkaClusterName = "test-kafka-cluster"
+	zookeeperPort    = 2181
+	kafkaBrokerPort  = 9092
+	//confluentPlatformVer = "6.1.1"
+	confluentPlatformVer = "7.0.0"
 	zookeeperImage       = "confluentinc/cp-zookeeper:" + confluentPlatformVer
 	kafkaImage           = "confluentinc/cp-kafka:" + confluentPlatformVer
 
@@ -115,6 +116,7 @@ loop:
 	for !contains {
 		select {
 		case <-ctx.Done():
+			logging.Warnf("waiting timeout exceeds")
 			break loop
 		case msg := <-consumer.message:
 			messages = append(messages, msg)
