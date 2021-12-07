@@ -39,7 +39,6 @@ func NewKafka(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(kafkaAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.maxColumns, KafkaType)
 
 	kafka.adapter = kafkaAdapter
-	kafka.tableHelper = tableHelper
 
 	//Abstract (SQLAdapters and tableHelpers are omitted)
 	kafka.destinationID = config.destinationID
@@ -56,6 +55,29 @@ func NewKafka(config *Config) (Storage, error) {
 	kafka.streamingWorker.start()
 
 	return kafka, nil
+}
+
+// Insert passes event to kafka adapter
+func (k *Kafka) Insert(eventContext *adapters.EventContext) (insertErr error) {
+	//metrics/counters/cache/fallback
+	defer func() {
+		k.AccountResult(eventContext, insertErr)
+	}()
+
+	if err := k.adapter.Insert(eventContext); err != nil {
+		insertErr = err
+		return err
+	}
+
+	//archive
+	k.archiveLogger.Consume(eventContext.RawEvent, eventContext.TokenID)
+
+	return nil
+}
+
+// DryRun empty implementation
+func (k *Kafka) DryRun(events.Event) ([][]adapters.TableField, error) {
+	return nil, nil
 }
 
 //SyncStore produces messages to broker
