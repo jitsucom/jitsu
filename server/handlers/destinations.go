@@ -489,14 +489,14 @@ func testSnowflake(config *config.DestinationConfig, eventContext *adapters.Even
 	if err != nil {
 		return err
 	}
-	s3config = s3c.(*adapters.S3Config)
+	s3config, _ = s3c.(*adapters.S3Config)
 
 	var googleConfig *adapters.GoogleConfig
 	gc, err := config.GetConfig(snowflakeConfig.Google, config.Google, &adapters.GoogleConfig{})
 	if err != nil {
 		return err
 	}
-	googleConfig = gc.(*adapters.GoogleConfig)
+	googleConfig, googleOk := gc.(*adapters.GoogleConfig)
 
 	snowflake, err := storages.CreateSnowflakeAdapter(context.Background(), s3config, *snowflakeConfig, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
@@ -523,7 +523,7 @@ func testSnowflake(config *config.DestinationConfig, eventContext *adapters.Even
 
 	if config.Mode == storages.BatchMode {
 		var stageAdapter adapters.Stage
-		if googleConfig != nil {
+		if googleOk {
 			//with google stage
 			if err := googleConfig.Validate(); err != nil {
 				return err

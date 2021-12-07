@@ -2,6 +2,8 @@ package config
 
 import (
 	"errors"
+	"reflect"
+	"strconv"
 
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -53,6 +55,18 @@ type DestinationConfig struct {
 
 func (config *DestinationConfig) GetDestConfig(compatibilityValue map[string]interface{}, dest Validatable) error {
 	mp := utils.NvlMap(config.Config, compatibilityValue)
+	//backward compatibility with port number as string
+	sPort, ok := mp["port"].(string)
+	if ok {
+		if len(sPort) > 0 {
+			iPort, err := strconv.Atoi(sPort)
+			if err == nil {
+				mp["port"] = iPort
+			}
+		} else {
+			mp["port"] = 0
+		}
+	}
 	if err := mapstructure.Decode(mp, dest); err != nil {
 		return err
 	}
@@ -60,7 +74,7 @@ func (config *DestinationConfig) GetDestConfig(compatibilityValue map[string]int
 }
 
 func (config *DestinationConfig) GetConfig(value Validatable, compatibilityValue map[string]interface{}, dest Validatable) (Validatable, error) {
-	if value != nil {
+	if !reflect.ValueOf(value).IsNil() {
 		return value, nil
 	}
 	if compatibilityValue == nil {

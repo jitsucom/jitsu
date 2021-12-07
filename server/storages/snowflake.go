@@ -50,8 +50,8 @@ func NewSnowflake(config *Config) (Storage, error) {
 	if err != nil {
 		return nil, err
 	}
-	if gc != nil {
-		googleConfig = gc.(*adapters.GoogleConfig)
+	googleConfig, googleOk := gc.(*adapters.GoogleConfig)
+	if googleOk {
 		if err := googleConfig.Validate(); err != nil {
 			return nil, err
 		}
@@ -73,10 +73,10 @@ func NewSnowflake(config *Config) (Storage, error) {
 	if err != nil {
 		return nil, err
 	}
-	s3config = s3c.(*adapters.S3Config)
+	s3config, s3ok := s3c.(*adapters.S3Config)
 	if !config.streamMode {
 		var err error
-		if s3config != nil {
+		if s3ok {
 			stageAdapter, err = adapters.NewS3(s3config)
 			if err != nil {
 				return nil, err
