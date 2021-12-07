@@ -195,7 +195,7 @@ func setDefaultParams(containerized bool) {
 	} else {
 		viper.SetDefault("log.path", "./logs/events")
 		viper.SetDefault("server.log.path", "./logs")
-		viper.SetDefault("server.config.path", "/config")
+		viper.SetDefault("server.config.path", "./config")
 		viper.SetDefault("singer-bridge.venv_dir", "./venv")
 		viper.SetDefault("airbyte-bridge.config_dir", "./airbyte_config")
 	}
