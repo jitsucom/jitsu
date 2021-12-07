@@ -41,8 +41,10 @@ chmod +x local-build-jitsu.sh && \
 Building **Jitsu Server** is simple, just run:
 
 ```bash
-./local-build-server.sh
+./local-build-server.sh -d false
 ```
+
+`-d false` skips docker image build.
 
 If build is successful, all artifacts will be placed inside the `./server/build/dist` directory:
 
@@ -77,8 +79,10 @@ The configuration might be one of the [described formats](/docs/deployment/confi
 For building **Jitsu Configurator** just run:
 
 ```bash
-./local-build-configurator.sh
+./local-build-configurator.sh -d false
 ```
+
+`-d false` skips docker image build.
 
 If build is successful, all artifacts will be placed inside the `./configurator/build/dist` directory:
 
@@ -91,18 +95,10 @@ drwxr-xr-x  5 vklmn  staff       608 Aug  6 15:58 web
 ### Run Jitsu Configurator
 
 `./configurator` is the configurator UI backend application binary; `web` contains static Configurator UI files \(JS and HTML\).
-Application requires config file. You can create one according to [Configuration documentation](/docs/configuration).
-
-Run the application with the following:
+Application requires config file. You can create one according to [Configuration documentation](/docs/configurator-configuration).
 
 Run the application with configuration file using `-cfg` parameter:
 
 ```bash
-./eventnative -cfg /path/to/eventnative.yaml
-```
-
-The configuration might be one of the [described formats](/docs/deployment/configuration-source). For example, run with [Raw JSON configuration source](/docs/deployment/configuration-source#raw-json):
-
-```json
-./eventnative -cfg '{"server":{"name":"test_instance", "auth":"token1"}}'
+./configurator -cfg /path/to/configurator.yaml
 ```
