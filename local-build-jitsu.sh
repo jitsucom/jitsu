@@ -1,17 +1,56 @@
-TAG=local
+#!/usr/bin/env bash
 
-echo "Building Server lib JS locally.."
-rm -rf server/build && rm -rf javascript/dist && rm -rf server/web/dist && \
-cd javascript-sdk/ && yarn clean && yarn install --prefer-offline && yarn build && cd ../server && \
-make js_release && cd ../ || { echo 'Server build failed' ; exit 1; }
-docker buildx build --platform linux/amd64 -t jitsucom/server:"$TAG" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || { echo 'Server dockerx build failed' ; exit 1; }
+only_jitsu_flag='false'
 
-echo "Building Configurator UI locally.."
-rm -f configurator/backend/build/dist/configurator && rm -rf configurator/frontend/build && \
-cd configurator/frontend/ && yarn clean && yarn install --prefer-offline && CI=false NODE_ENV=production ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build && \
-cd ../../ || { echo 'Configurator build failed' ; exit 1; }
-docker buildx build --platform linux/amd64 -t jitsucom/configurator:"$TAG" --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || { echo 'Configurator dockerx build failed' ; exit 1; }
+print_usage() {
+  echo "Jitsu Building CLI usage:"
+  echo "./local-build-jitsu.sh --only_jitsu [true, false]"
+  echo " "
+  echo "options:"
+  echo "-h, --help                show brief help"
+  echo "-oj, --only_jitsu         specify should CLI build only jitsucom/jitsu docker. By default CLI builds jitsucom/server, jitsucom/configurator and jitsucom/jitsu images"
+  echo "                          -oj true: build only jitsucom/jitsu"
+  echo "                          -oj false: (default) build all 3 docker images: jitsucom/server, jitsucom/configurator, jitsucom/jitsu"
+}
 
-cd docker
-docker buildx build --platform linux/amd64 -t jitsucom/jitsu:latest -t jitsucom/jitsu:$TAG --build-arg dhid=jitsu --build-arg SRC_VERSION=$TAG . || { echo 'Jitsu dockerx build failed' ; exit 1; }
-cd ../
+while test $# -gt 0; do
+  case "$1" in
+    -h|--help)
+      print_usage
+      exit 0
+      ;;
+    -oj|--only_jitsu)
+      shift
+      if test $# -gt 0; then
+        export only_jitsu_flag=$1
+      else
+        echo "default only_jitsu: $only_jitsu_flag"
+      fi
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+
+if [ "$only_jitsu_flag" == 'false' ]
+then
+  ./local-build-server.sh || { echo './local-build-server failed' ; exit 1; }
+  ./local-build-configurator.sh || { echo './local-build-configurator failed' ; exit 1; }
+fi
+
+echo ""
+echo "============================================"
+echo "=    Building jitsucom/jitsu docker...     ="
+echo "============================================"
+echo ""
+
+(cd docker; docker build -t jitsucom/jitsu .) || { echo 'Building jitsucom/jitsu docker failed' ; exit 1; }
+
+echo ""
+echo "============================================"
+echo "=            SUCCESSFUL BUILD              ="
+echo "============================================"
+echo ""
