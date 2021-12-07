@@ -218,9 +218,9 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	server := &http.Server{
 		Addr:              sb.httpAuthority,
 		Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
-		ReadTimeout:       time.Second * 60,
-		ReadHeaderTimeout: time.Second * 60,
-		IdleTimeout:       time.Second * 65,
+		ReadTimeout:       time.Second * 5,
+		ReadHeaderTimeout: time.Second * 5,
+		IdleTimeout:       time.Second * 5,
 	}
 	go func() {
 		logging.Fatal(server.ListenAndServe())
