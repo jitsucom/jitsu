@@ -35,7 +35,7 @@
     "jest-fetch-mock": "^3.0.3",
     "jest-playwright-preset": "^1.5.1",
     "nodemon": "^2.0.7",
-    "playwright": "^1.10.0",
+    "playwright": "^1.17.1",
     "rollup": "^2.44.0",
     "rollup-plugin-copy": "^3.4.0",
     "rollup-plugin-terser": "^7.0.2",
