@@ -128,12 +128,12 @@ func (k *Kafka) Insert(event *EventContext) error {
 	return k.sendEvent(event)
 }
 
-func (k *Kafka) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	return k.sendObjects(table.Name, objects)
+func (k *Kafka) BulkInsert(_ *Table, objects []map[string]interface{}) error {
+	return k.sendObjects(k.config.Topic, objects)
 }
 
-func (k *Kafka) BulkUpdate(table *Table, objects []map[string]interface{}, _ *DeleteConditions) error {
-	return k.sendObjects(table.Name, objects)
+func (k *Kafka) BulkUpdate(_ *Table, objects []map[string]interface{}, _ *DeleteConditions) error {
+	return k.sendObjects(k.config.Topic, objects)
 }
 
 //GetTableSchema always returns empty table
@@ -159,7 +159,7 @@ func (k *Kafka) PatchTableSchema(*Table) error {
 
 func (k *Kafka) sendEvent(event *EventContext) error {
 	msg := &sarama.ProducerMessage{
-		Topic: event.Table.Name,
+		Topic: k.config.Topic,
 		Value: sarama.StringEncoder(event.ProcessedEvent.Serialize()),
 	}
 	if _, _, err := k.producer.SendMessage(msg); err != nil {
@@ -170,6 +170,7 @@ func (k *Kafka) sendEvent(event *EventContext) error {
 
 func (k *Kafka) sendObjects(topic string, objects []map[string]interface{}) error {
 	var noFields []string
+	kafkaMsgs := make([]*sarama.ProducerMessage, 0, len(objects))
 	for _, obj := range objects {
 		bytes, err := k.jsonMarshaller.Marshal(noFields, obj)
 		if err != nil {
@@ -179,9 +180,10 @@ func (k *Kafka) sendObjects(topic string, objects []map[string]interface{}) erro
 			Topic: topic,
 			Value: sarama.ByteEncoder(bytes),
 		}
-		if _, _, err := k.producer.SendMessage(msg); err != nil {
-			return err
-		}
+		kafkaMsgs = append(kafkaMsgs, msg)
+	}
+	if err := k.producer.SendMessages(kafkaMsgs); err != nil {
+		return err
 	}
 	return nil
 }

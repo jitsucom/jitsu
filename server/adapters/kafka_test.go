@@ -25,11 +25,13 @@ func TestKafkaBulkInsert(t *testing.T) {
 	defer kafkaCluster.Close()
 	kafkaConfig := &KafkaConfig{
 		BootstrapServers: []string{kafkaCluster.BootstrapServer},
+		Topic:            "test_kafka_bulk_insert",
+		AuthType:         KafkaAuthNone,
 	}
 	kafkaAdapter, err := NewKafka(kafkaConfig)
 	require.NoError(t, err)
 	defer kafkaAdapter.Close()
-	table := kafkaTestTable("test_kafka_bulk_insert")
+	table := kafkaTestTable(kafkaConfig.Topic)
 	inputObjects := createObjectsForKafka(5, kafkaTestTableRecord)
 	for i := 0; i < 10; i += 1 {
 		err = kafkaAdapter.BulkInsert(table, inputObjects)
@@ -48,11 +50,13 @@ func TestKafkaBulkUpdate(t *testing.T) {
 	defer kafkaCluster.Close()
 	kafkaConfig := &KafkaConfig{
 		BootstrapServers: []string{kafkaCluster.BootstrapServer},
+		Topic:            "test_kafka_bulk_update",
+		AuthType:         KafkaAuthNone,
 	}
 	kafkaAdapter, err := NewKafka(kafkaConfig)
 	require.NoError(t, err)
 	defer kafkaAdapter.Close()
-	table := kafkaTestTable("test_kafka_bulk_update")
+	table := kafkaTestTable(kafkaConfig.Topic)
 	inputObjects := createObjectsForKafka(5, kafkaTestTableRecord)
 	for i := 0; i < 10; i += 1 {
 		err = kafkaAdapter.BulkUpdate(table, inputObjects, nil)
@@ -71,12 +75,14 @@ func TestKafkaInsert(t *testing.T) {
 	defer kafkaCluster.Close()
 	kafkaConfig := &KafkaConfig{
 		BootstrapServers: []string{kafkaCluster.BootstrapServer},
+		Topic:            "test_kafka_insert",
+		AuthType:         KafkaAuthNone,
 	}
 	kafkaAdapter, err := NewKafka(kafkaConfig)
 	require.NoError(t, err)
 	defer kafkaAdapter.Close()
 	event := &EventContext{
-		Table:          kafkaTestTable("test_kafka_insert"),
+		Table:          kafkaTestTable(kafkaConfig.Topic),
 		ProcessedEvent: kafkaTestTableRecord(0),
 	}
 	for i := 0; i < 10; i += 1 {
