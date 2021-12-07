@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/docker/go-connections/nat"
+	"github.com/google/uuid"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -51,7 +52,7 @@ func NewKafkaCluster(ctx context.Context) (*KafkaCluster, error) {
 	kafkaCluster := &KafkaCluster{context: ctx}
 	// creates a network, so kafka and zookeeper can communicate directly
 	network, err := testcontainers.GenericNetwork(ctx, testcontainers.GenericNetworkRequest{
-		NetworkRequest: testcontainers.NetworkRequest{Name: kafkaClusterName},
+		NetworkRequest: testcontainers.NetworkRequest{Name: fmt.Sprintf("%s-%s", kafkaClusterName, uuid.NewString())},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create kafka cluster network: %v", err)

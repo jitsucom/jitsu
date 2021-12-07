@@ -4,14 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net/http"
-	"testing"
-	"time"
-
 	"github.com/jitsucom/jitsu/server/test"
 	"github.com/jitsucom/jitsu/server/testsuit"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
+	"net/http"
+	"testing"
+	"time"
 )
 
 // TestKafkaStreamInsert stores two events into kafka (without/with parsed ua and geo)
@@ -20,7 +19,7 @@ func TestKafkaStreamInsert(t *testing.T) {
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken"}]}`)
 
-	//create kafka cluster
+	// create kafka cluster
 	kafkaCluster, err := test.NewKafkaCluster(context.Background())
 	require.NoError(t, err)
 	defer kafkaCluster.Close()
