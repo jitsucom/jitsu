@@ -13,8 +13,6 @@ tracker
 server
 
 node_modules/
-/web/build/
-/web/dist/
 
 eventnative
 build/*
