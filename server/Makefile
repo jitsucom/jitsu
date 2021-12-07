@@ -15,11 +15,11 @@ tag = $$( \
 
 all: clean assemble
 
-js_release: js assemble_js copy_new_jitsu_sdk
+js_release: assemble_js copy_new_jitsu_sdk
 
 docker_assemble: clean build_backend assemble_backend
 
-assemble: backend assemble_backend js copy_new_jitsu_sdk assemble_js
+assemble: backend assemble_backend copy_new_jitsu_sdk assemble_js
 
 assemble_backend:
 	mkdir -p ./build/dist/web
@@ -33,9 +33,6 @@ assemble_js:
 copy_new_jitsu_sdk:
 	test -e $(LIB_JS) && cp $(LIB_JS) ./build/dist/web/ || echo "\n\033[31m!!! WARNING:\033[m lib.js wasn't found at $(LIB_JS). Please build JS SDK first, or embedded tracking will not work!\n"
 
-js:
-	npm i --prefix ./web && npm run build --prefix ./web
-
 backend: deps_backend build_backend
 
 deps_backend:
@@ -48,11 +45,8 @@ build_backend:
 test_backend:
 	go test -failfast -v -parallel=1 ./...
 
-clean: clean_js clean_backend
+clean: clean_backend
 	rm -rf build/dist
-
-clean_js:
-	rm -rf ./web/build
 
 clean_backend:
 	rm -f $(APPLICATION)
