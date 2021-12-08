@@ -341,7 +341,10 @@ func testRedshift(config *config.DestinationConfig, eventContext *adapters.Event
 	if err != nil {
 		return err
 	}
-	s3config = s3c.(*adapters.S3Config)
+	s3config, ok := s3c.(*adapters.S3Config)
+	if !ok {
+		s3config = &adapters.S3Config{}
+	}
 	redshift, err := adapters.NewAwsRedshift(context.Background(), dataSourceConfig, s3config, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
 		return err
@@ -489,8 +492,10 @@ func testSnowflake(config *config.DestinationConfig, eventContext *adapters.Even
 	if err != nil {
 		return err
 	}
-	s3config, _ = s3c.(*adapters.S3Config)
-
+	s3config, ok := s3c.(*adapters.S3Config)
+	if !ok {
+		s3config = &adapters.S3Config{}
+	}
 	var googleConfig *adapters.GoogleConfig
 	gc, err := config.GetConfig(snowflakeConfig.Google, config.Google, &adapters.GoogleConfig{})
 	if err != nil {
