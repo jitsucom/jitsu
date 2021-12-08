@@ -38,7 +38,7 @@ type Record struct {
 type Service struct {
 	walFileMask string
 
-	logger              *logevents.AsyncLogger
+	logger              logging.ObjectLogger
 	multiplexingService *multiplexing.Service
 	processorHolder     *events.ProcessorHolder
 
@@ -46,7 +46,7 @@ type Service struct {
 }
 
 //NewService returns configured Service and starts goroutine for handling write-ahead-log
-func NewService(logEventPath string, logger *logevents.AsyncLogger, multiplexingService *multiplexing.Service, processorHolder *events.ProcessorHolder) *Service {
+func NewService(logEventPath string, logger logging.ObjectLogger, multiplexingService *multiplexing.Service, processorHolder *events.ProcessorHolder) *Service {
 	s := &Service{
 		walFileMask:         path.Join(logEventPath, logevents.IncomingDir, walFileMask),
 		logger:              logger,

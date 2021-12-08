@@ -224,7 +224,8 @@ func main() {
 	logRotationMin := viper.GetInt64("log.rotation_min")
 
 	loggerFactory := logevents.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
-		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter)
+		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter, viper.GetBool("log.async_writers"),
+		viper.GetInt("log.pool.size"))
 
 	// ** Meta storage **
 	metaStorageConfiguration := viper.Sub("meta.storage")
@@ -294,7 +295,13 @@ func main() {
 
 	//events cache
 	eventsCacheSize := viper.GetInt("server.cache.events.size")
-	eventsCache := caching.NewEventsCache(metaStorage, eventsCacheSize)
+	eventsCachePoolSize := viper.GetInt("server.cache.pool.size")
+	if eventsCachePoolSize == 0 {
+		eventsCachePoolSize = 1
+		logging.Infof("server.cache.pool.size can't be 0. Using default value=1 instead")
+
+	}
+	eventsCache := caching.NewEventsCache(metaStorage, eventsCacheSize, eventsCachePoolSize)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
 	// ** Retroactive users recognition
@@ -303,10 +310,16 @@ func main() {
 		AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
 		IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
 		UserIDNode:          viper.GetString("users_recognition.user_id_node"),
+		PoolSize:            viper.GetInt("users_recognition.pool.size"),
 	}
 
 	if err := globalRecognitionConfiguration.Validate(); err != nil {
 		logging.Fatalf("Invalid global users recognition configuration: %v", err)
+	}
+
+	if globalRecognitionConfiguration.PoolSize == 0 {
+		globalRecognitionConfiguration.PoolSize = 1
+		logging.Infof("users_recognition.pool.size can't be 0. Using default value=1 instead")
 	}
 
 	maxColumns := viper.GetInt("server.max_columns")

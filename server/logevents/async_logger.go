@@ -11,8 +11,6 @@ import (
 	"io"
 )
 
-const defaultPoolSize = 50
-
 //AsyncLogger write json logs to file system in different goroutine
 type AsyncLogger struct {
 	writer io.WriteCloser
@@ -24,7 +22,7 @@ type AsyncLogger struct {
 }
 
 //NewAsyncLogger creates AsyncLogger and run goroutine that's read from channel and write to file
-func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) *AsyncLogger {
+func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool, poolSize int) *AsyncLogger {
 	logger := &AsyncLogger{
 		writer:             writer,
 		queue:              queue.NewInMemory(),
@@ -32,10 +30,7 @@ func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) *AsyncLogger
 		closed:             atomic.NewBool(false),
 	}
 
-	/*pool, _ := ants.NewPoolWithFunc(defaultPoolSize, logger.write)
-	logger.workersPool = pool*/
-
-	for i := 0; i < defaultPoolSize; i++ {
+	for i := 0; i < poolSize; i++ {
 		safego.RunWithRestart(logger.startObserver)
 	}
 
@@ -55,14 +50,6 @@ func (al *AsyncLogger) startObserver() {
 		}
 
 		al.write(event)
-		/*if al.workersPool.Free() > 0 {
-
-			if err := al.workersPool.Invoke(event); err != nil {
-				if err != ants.ErrPoolClosed {
-					logging.SystemErrorf("Error writing event to the log file: %v", err)
-				}
-			}
-		}*/
 	}
 }
 

@@ -9,12 +9,9 @@ import (
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/storages"
-	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
 	"strings"
 )
-
-const defaultWorkersPoolSize = 10
 
 //RecognitionService has a thread pool under the hood
 //saves anonymous events in meta storage
@@ -24,16 +21,15 @@ type RecognitionService struct {
 	destinationService *destinations.Service
 	compressor         *GZIPCompressor
 
-	queue       *Queue
-	workersPool *ants.PoolWithFunc
-	closed      *atomic.Bool
+	queue  *Queue
+	closed *atomic.Bool
 }
 
 //NewRecognitionService creates a new RecognitionService if metaStorage configuration exists
 func NewRecognitionService(metaStorage meta.Storage, destinationService *destinations.Service, configuration *storages.UsersRecognition, logEventPath string) (*RecognitionService, error) {
 	if metaStorage.Type() == meta.DummyType {
 		if configuration.IsEnabled() {
-			logging.Errorf("Users recognition requires 'meta.storage' configuration")
+			logging.Errorf("Users recognition is switched off since it requires 'meta.storage' configuration")
 		}
 		//return closed
 		return &RecognitionService{closed: atomic.NewBool(true)}, nil
@@ -43,49 +39,40 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		destinationService: destinationService,
 		metaStorage:        metaStorage,
 		compressor:         &GZIPCompressor{},
+		queue:              newQueue(),
 		closed:             atomic.NewBool(false),
 	}
-	pool, err := ants.NewPoolWithFunc(defaultWorkersPoolSize, service.execute)
-	if err != nil {
-		return nil, err
+
+	for i := 0; i < configuration.PoolSize; i++ {
+		safego.RunWithRestart(service.startObserver)
 	}
-
-	service.workersPool = pool
-	service.queue = newQueue()
-
-	service.startObserver()
 
 	return service, nil
 }
 
 func (rs *RecognitionService) startObserver() {
-	safego.RunWithRestart(func() {
-		for {
+	for {
+		if rs.closed.Load() {
+			break
+		}
+
+		rp, err := rs.queue.DequeueBlock()
+		if err != nil {
 			if rs.closed.Load() {
-				break
+				continue
 			}
 
-			if rs.workersPool.Free() > 0 {
-				rp, err := rs.queue.DequeueBlock()
-				if err != nil {
-					if rs.closed.Load() {
-						continue
-					}
+			logging.SystemErrorf("Error reading recognition payload from queue: %v", err)
+			continue
+		}
 
-					logging.SystemErrorf("Error reading recognition payload from queue: %v", err)
-					continue
-				}
-
-				if err := rs.workersPool.Invoke(rp); err != nil {
-
-					logging.SystemErrorf("Error running recognition [%v]: %v", rp, err)
-					if err := rs.queue.Enqueue(rp); err != nil {
-						logging.SystemErrorf("Error writing recognition payload [%v]: %v", rp, err)
-					}
-				}
+		if err := rs.processRecognitionPayload(rp); err != nil {
+			logging.SystemError(err)
+			if err := rs.queue.Enqueue(rp); err != nil {
+				logging.SystemErrorf("Error writing recognition payload [%v]: %v", rp, err)
 			}
 		}
-	})
+	}
 }
 
 //Event consumes events.Event and put it to the recognition queue
@@ -212,14 +199,7 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 	return nil
 }
 
-func (rs *RecognitionService) execute(i interface{}) {
-	rp, ok := i.(*RecognitionPayload)
-	if !ok {
-		rpBytes, _ := json.Marshal(i)
-		logging.SystemErrorf("Recognition payload [%s] has unknown type: %T", string(rpBytes), i)
-		return
-	}
-
+func (rs *RecognitionService) processRecognitionPayload(rp *RecognitionPayload) error {
 	destinationIdentifiers := rs.getDestinationsForRecognition(rp.Event, rp.EventID, rp.DestinationIDs)
 
 	for destinationID, identifiers := range destinationIdentifiers {
@@ -227,16 +207,18 @@ func (rs *RecognitionService) execute(i interface{}) {
 			// Run pipeline only if all identification values were recognized,
 			// it is needed to update all other anonymous events
 			if err := rs.reprocessAnonymousEvents(destinationID, identifiers); err != nil {
-				logging.SystemErrorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
+				return fmt.Errorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
 			}
 		} else {
 			// If some identification value is missing - event is still anonymous
 			compressedEvent := rs.compressor.Compress(rp.Event)
 			if err := rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(compressedEvent)); err != nil {
-				logging.SystemErrorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
+				return fmt.Errorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
 			}
 		}
 	}
+
+	return nil
 }
 
 //Close sets closed flag = true (stop goroutines)
@@ -248,10 +230,6 @@ func (rs *RecognitionService) Close() error {
 		if err := rs.queue.Close(); err != nil {
 			return fmt.Errorf("Error closing users recognition queue: %v", err)
 		}
-	}
-
-	if rs.workersPool != nil {
-		rs.workersPool.Release()
 	}
 
 	return nil
