@@ -395,6 +395,7 @@ export const SlackChatWidget: React.FC<{}> = () => {
         trigger="click"
         placement="leftBottom"
         visible={popoverVisible}
+        className={"max-w-min"}
         content={
           <SupportOptions
             showEmailOption={isJitsuCloud}
