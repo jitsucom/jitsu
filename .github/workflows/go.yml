@@ -18,9 +18,15 @@ jobs:
       uses: actions/setup-go@v2
       with:
         go-version: 1.17
+        
+    - name: pwd
+      run: pwd
+      
+    - name: ls
+      run: ls -al
 
     - name: Build
-      run: go build -v ./server/...
+      run: go build -v ./jitsu/server/...
 
     - name: Test
-      run: go test -v ./server/...
+      run: go test -v ./jitsu/server/...
