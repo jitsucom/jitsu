@@ -64,7 +64,10 @@ func NewNpmDestination(config *Config) (Storage, error) {
 	wh.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	wh.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, &wh, tableHelper)
+	wh.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, &wh, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	wh.streamingWorker.start()
 
 	return &NpmDestination{wh}, nil

@@ -38,14 +38,18 @@ type StreamingWorker struct {
 
 //newStreamingWorker returns configured streaming worker
 func newStreamingWorker(eventQueue events.Queue, processor *schema.Processor, streamingStorage StreamingStorage,
-	tableHelper ...*TableHelper) *StreamingWorker {
+	tableHelper ...*TableHelper) (*StreamingWorker, error) {
+	err := processor.InitJavaScriptTemplates()
+	if err != nil {
+		return nil, err
+	}
 	return &StreamingWorker{
 		eventQueue:       eventQueue,
 		processor:        processor,
 		streamingStorage: streamingStorage,
 		tableHelper:      tableHelper,
 		closed:           atomic.NewBool(false),
-	}
+	}, nil
 }
 
 //Run goroutine to:

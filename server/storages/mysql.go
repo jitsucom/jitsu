@@ -72,7 +72,10 @@ func NewMySQL(config *Config) (Storage, error) {
 	m.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	m.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, m, tableHelper)
+	m.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, m, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	m.streamingWorker.start()
 
 	return m, nil

@@ -119,7 +119,10 @@ func NewSnowflake(config *Config) (Storage, error) {
 	snowflake.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	snowflake.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, snowflake, tableHelper)
+	snowflake.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, snowflake, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	snowflake.streamingWorker.start()
 
 	return snowflake, nil

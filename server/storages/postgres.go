@@ -85,7 +85,10 @@ func NewPostgres(config *Config) (Storage, error) {
 	p.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	p.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, p, tableHelper)
+	p.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, p, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	p.streamingWorker.start()
 
 	return p, nil

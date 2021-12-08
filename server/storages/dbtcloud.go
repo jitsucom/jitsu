@@ -69,7 +69,10 @@ func NewDbtCloud(config *Config) (Storage, error) {
 	dbt.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	dbt.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, dbt, tableHelper)
+	dbt.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, dbt, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	dbt.streamingWorker.start()
 
 	return dbt, nil
