@@ -24,9 +24,9 @@ const (
 
 var (
 	//command flags
-	state, start, end, host, apiKey string
-	chunkSize                       int64
-	disableProgressBars             string
+	state, start, end, host, apiKey, fallback string
+	chunkSize                                 int64
+	disableProgressBars                       string
 	//command args
 	files []string
 )
@@ -64,6 +64,7 @@ func init() {
 	replayCmd.Flags().StringVar(&host, "host", "http://localhost:8000", "(optional) Jitsu host")
 	replayCmd.Flags().Int64Var(&chunkSize, "chunk-size", maxChunkSize, "(optional) max data chunk size in bytes (default 20 MB). If file size is greater then the file will be split into N chunks with max size and sent to Jitsu")
 	replayCmd.Flags().StringVar(&disableProgressBars, "disable-progress-bars", "false", "(optional) if true then progress bars won't be displayed")
+	replayCmd.Flags().StringVar(&fallback, "fallback", "false", "(optional) If you would like to process failed events (from vents/failed directory) then use --fallback true")
 
 	replayCmd.Flags().StringVar(&apiKey, "api-key", "", "(required) Jitsu API Server secret. Data will be loaded into all destinations linked to this API Key.")
 	replayCmd.MarkFlagRequired("api-key")
@@ -133,7 +134,7 @@ func replay(inputFiles []string) error {
 		globalBar = NewParentMultiProgressBar(capacity)
 	}
 
-	client := newBulkClient(host, apiKey)
+	client := newBulkClient(host, apiKey, fallback == "true")
 
 	var processedFiles int64
 	for _, absFilePath := range filesToUpload {
@@ -340,7 +341,7 @@ func filterFiles(absoluteFileNames []string, startStr string, endStr string) ([]
 		if err != nil {
 			return nil, fmt.Errorf("error parsing 'end': %v", err)
 		}
-		endDate = t.AddDate(0,0,1)
+		endDate = t.AddDate(0, 0, 1)
 	}
 
 	var result []string
