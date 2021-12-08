@@ -17,6 +17,7 @@ import (
 	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/system"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/jitsucom/jitsu/server/wal"
 	"math/rand"
@@ -115,12 +116,12 @@ func main() {
 	gob.Register(json.Number(""))
 
 	//Setup seed for globalRand
-	rand.Seed(time.Now().Unix())
+	rand.Seed(timestamp.Now().Unix())
 
 	//Setup handlers binding for json parsing numbers into json.Number (not only in float64)
 	binding.EnableDecoderUseNumber = true
 
-	//Setup default timezone for time.Now() calls
+	//Setup default timezone for timestamp.Now() calls
 	time.Local = time.UTC
 
 	// Setup application directory as working directory

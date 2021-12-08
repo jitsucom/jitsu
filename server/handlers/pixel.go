@@ -4,22 +4,21 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/cors"
 	"github.com/jitsucom/jitsu/server/destinations"
+	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
+	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/multiplexing"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
-
-	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/jsonutils"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/middleware"
 )
 
 const (
@@ -161,7 +160,7 @@ func (ph *PixelHandler) extractOrSetAnonymIDCookie(c *gin.Context, event events.
 			http.SetCookie(c.Writer, &http.Cookie{
 				Name:     middleware.JitsuAnonymIDCookie,
 				Value:    url.QueryEscape(anonymID),
-				Expires:  time.Now().AddDate(1000, 12, 31),
+				Expires:  timestamp.Now().AddDate(1000, 12, 31),
 				Path:     "/",
 				Domain:   fmt.Sprint(topLevelDomain),
 				SameSite: http.SameSiteNoneMode,

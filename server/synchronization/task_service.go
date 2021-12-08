@@ -178,7 +178,7 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 
 	generatedTaskID := schema.Reformat(fmt.Sprintf("%s_%s_%s", sourceID, collection, uuid.NewV4().String()))
 
-	now := time.Now().UTC()
+	now := timestamp.Now().UTC()
 	task := meta.Task{
 		ID:         generatedTaskID,
 		Source:     sourceID,
