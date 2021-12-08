@@ -2,7 +2,7 @@
 
 function build_server() {
   echo "Building Server lib JS locally.."
-  rm -rf server/build && rm -rf javascript/dist && rm -rf server/web/dist && \
+  rm -rf server/build && rm -rf javascript-sdk/dist && \
   cd javascript-sdk/ && yarn clean && yarn install --prefer-offline && yarn build && cd ../server && \
   make js_release && cd ../ || { echo 'Server build failed' ; exit 1; }
 }

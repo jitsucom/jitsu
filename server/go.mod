@@ -3,7 +3,6 @@ module github.com/jitsucom/jitsu/server
 go 1.16
 
 require (
-	bou.ke/monkey v1.0.2
 	cloud.google.com/go/bigquery v1.8.0
 	cloud.google.com/go/firestore v1.1.1
 	cloud.google.com/go/storage v1.10.0
@@ -12,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/beeker1121/goque v2.1.0+incompatible // indirect
 	github.com/charmbracelet/lipgloss v0.2.1
-	github.com/docker/docker v20.10.7+incompatible
+	github.com/docker/docker v20.10.11+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dop251/goja v0.0.0-20211022113120-dc8c55024d06
 	github.com/gin-gonic/gin v1.7.3
@@ -22,7 +21,7 @@ require (
 	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v32 v32.1.0
 	github.com/google/martian v2.1.0+incompatible
-	github.com/google/uuid v1.2.0
+	github.com/google/uuid v1.3.0
 	github.com/gookit/color v1.3.1
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/huandu/facebook/v2 v2.5.3
@@ -47,7 +46,7 @@ require (
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
-	github.com/testcontainers/testcontainers-go v0.11.1
+	github.com/testcontainers/testcontainers-go v0.12.0
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
 	github.com/vbauerster/mpb/v7 v7.1.3
 	github.com/xitongsys/parquet-go v1.6.1
@@ -55,7 +54,7 @@ require (
 	github.com/xtgo/uuid v0.0.0-20140804021211-a0b114877d4c // indirect
 	go.etcd.io/etcd/client/v3 v3.5.0-alpha.0
 	go.uber.org/atomic v1.7.0
-	golang.org/x/net v0.0.0-20210503060351-7fd8e65b6420
+	golang.org/x/net v0.0.0-20211108170745-6635138e15ea
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
 	google.golang.org/api v0.56.0

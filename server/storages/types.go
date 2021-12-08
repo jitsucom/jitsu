@@ -21,6 +21,7 @@ const (
 	GoogleAnalyticsType = "google_analytics"
 	FacebookType        = "facebook"
 	WebHookType         = "webhook"
+	NpmType             = "npm"
 	AmplitudeType       = "amplitude"
 	HubSpotType         = "hubspot"
 	DbtCloudType        = "dbtcloud"

@@ -9,6 +9,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcWait "github.com/testcontainers/testcontainers-go/wait"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -82,7 +83,7 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 			Image:        "postgres:12-alpine",
 			ExposedPorts: []string{pgDefaultPort},
 			Env:          dbSettings,
-			WaitingFor:   tcWait.ForSQL(pgDefaultPort, "postgres", dbURL).Timeout(time.Second * 15),
+			WaitingFor:   tcWait.ForSQL(pgDefaultPort, "postgres", dbURL).Timeout(time.Second * 60),
 		},
 		Started: true,
 	})
@@ -120,10 +121,10 @@ func NewMySQLContainer(ctx context.Context) (*MySQLContainer, error) {
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "mysql:8.0.25",
+			Image:        "mysql/mysql-server:8.0",
 			ExposedPorts: []string{mySQLDefaultPort},
 			Env:          dbSettings,
-			WaitingFor:   tcWait.ForLog("port: 3306  MySQL Community Server - GPL"),
+			WaitingFor:   tcWait.ForLog("port: 3306  MySQL Community Server - GPL").WithStartupTimeout(time.Second * 180),
 		},
 		Started: true,
 	})
@@ -323,12 +324,16 @@ func NewClickhouseContainer(ctx context.Context) (*ClickHouseContainer, error) {
 	dbURL := func(port nat.Port) string {
 		return fmt.Sprintf(chDatasourceTemplate, port.Int())
 	}
+	image := "yandex/clickhouse-server:20.3"
+	if runtime.GOARCH == "arm64" {
+		image = "altinity/clickhouse-server:20.10.1.4844-testing-arm"
+	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "yandex/clickhouse-server:20.3",
+			Image:        image,
 			ExposedPorts: []string{"8123/tcp", "9000/tcp"},
-			WaitingFor:   tcWait.ForSQL("8123/tcp", "clickhouse", dbURL).Timeout(time.Second * 15),
+			WaitingFor:   tcWait.ForSQL("8123/tcp", "clickhouse", dbURL).Timeout(time.Second * 60),
 		},
 		Started: true,
 	})

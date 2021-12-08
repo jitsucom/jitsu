@@ -6,6 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/queue"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"time"
 )
 
@@ -52,7 +53,7 @@ func (q *NativeQueue) startMonitor() {
 }
 
 func (q *NativeQueue) Consume(f map[string]interface{}, tokenID string) {
-	q.ConsumeTimed(f, time.Now().UTC(), tokenID)
+	q.ConsumeTimed(f, timestamp.Now().UTC(), tokenID)
 }
 
 func (q *NativeQueue) ConsumeTimed(payload map[string]interface{}, t time.Time, tokenID string) {

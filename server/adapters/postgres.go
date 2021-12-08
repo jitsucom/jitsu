@@ -3,7 +3,6 @@ package adapters
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/uuid"
@@ -78,14 +77,15 @@ var (
 
 //DataSourceConfig dto for deserialized datasource config (e.g. in Postgres or AwsRedshift destination)
 type DataSourceConfig struct {
-	Host             string            `mapstructure:"host" json:"host,omitempty" yaml:"host,omitempty"`
-	Port             json.Number       `mapstructure:"port" json:"port,omitempty" yaml:"port,omitempty"`
-	Db               string            `mapstructure:"db" json:"db,omitempty" yaml:"db,omitempty"`
-	Schema           string            `mapstructure:"schema" json:"schema,omitempty" yaml:"schema,omitempty"`
-	Username         string            `mapstructure:"username" json:"username,omitempty" yaml:"username,omitempty"`
-	Password         string            `mapstructure:"password" json:"password,omitempty" yaml:"password,omitempty"`
-	Parameters       map[string]string `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
-	SSLConfiguration *SSLConfig        `mapstructure:"ssl" json:"ssl,omitempty" yaml:"ssl,omitempty"`
+	Host             string            `mapstructure:"host,omitempty" json:"host,omitempty" yaml:"host,omitempty"`
+	Port             int               `mapstructure:"port,omitempty" json:"port,omitempty" yaml:"port,omitempty"`
+	Db               string            `mapstructure:"db,omitempty" json:"db,omitempty" yaml:"db,omitempty"`
+	Schema           string            `mapstructure:"schema,omitempty" json:"schema,omitempty" yaml:"schema,omitempty"`
+	Username         string            `mapstructure:"username,omitempty" json:"username,omitempty" yaml:"username,omitempty"`
+	Password         string            `mapstructure:"password,omitempty" json:"password,omitempty" yaml:"password,omitempty"`
+	Parameters       map[string]string `mapstructure:"parameters,omitempty" json:"parameters,omitempty" yaml:"parameters,omitempty"`
+	SSLConfiguration *SSLConfig        `mapstructure:"ssl,omitempty" json:"ssl,omitempty" yaml:"ssl,omitempty"`
+	S3               *S3Config         `mapstructure:"s3,omitempty" json:"s3,omitempty" yaml:"s3,omitempty"`
 }
 
 //Validate required fields in DataSourceConfig
@@ -127,8 +127,8 @@ type Postgres struct {
 
 //NewPostgresUnderRedshift returns configured Postgres adapter instance without mapping old types
 func NewPostgresUnderRedshift(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*Postgres, error) {
-	connectionString := fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s ",
-		config.Host, config.Port.String(), config.Db, config.Username, config.Password)
+	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s ",
+		config.Host, config.Port, config.Db, config.Username, config.Password)
 	//concat provided connection parameters
 	for k, v := range config.Parameters {
 		connectionString += k + "=" + v + " "
@@ -151,8 +151,8 @@ func NewPostgresUnderRedshift(ctx context.Context, config *DataSourceConfig, que
 
 //NewPostgres return configured Postgres adapter instance
 func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*Postgres, error) {
-	connectionString := fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s ",
-		config.Host, config.Port.String(), config.Db, config.Username, config.Password)
+	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s ",
+		config.Host, config.Port, config.Db, config.Username, config.Password)
 	//concat provided connection parameters
 	for k, v := range config.Parameters {
 		connectionString += k + "=" + v + " "

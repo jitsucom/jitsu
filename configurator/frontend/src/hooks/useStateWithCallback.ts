@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react"
-import ReactDOM from "react-dom"
 
 type NewStateOrLazySetState<T> = T | ((prevState: T) => T)
 type Callback = () => unknown | Promise<unknown>

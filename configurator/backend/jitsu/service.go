@@ -52,6 +52,14 @@ func (s *Service) TestSource(reqB []byte) (int, []byte, error) {
 	})
 }
 
+func (s *Service) EvaluateExpression(reqB []byte) (int, []byte, error) {
+	return s.ProxySend(&Request{
+		Method: http.MethodPost,
+		URN:    "/api/v1/templates/evaluate",
+		Body:   bytes.NewBuffer(reqB),
+	})
+}
+
 //ProxySend sends HTTP request to balancerAPIURL with input parameters
 func (s *Service) ProxySend(req *Request) (int, []byte, error) {
 	return s.sendReq(req.Method, s.balancerAPIURL+"/"+strings.TrimPrefix(req.URN, "/"), req.Body)

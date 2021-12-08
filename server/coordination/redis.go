@@ -104,7 +104,7 @@ func (rs *RedisService) GetInstances() ([]string, error) {
 		}
 
 		//account only instances with last heartbeat less than 2 minutes ago
-		if time.Now().UTC().Sub(t).Seconds() <= 120 {
+		if timestamp.Now().UTC().Sub(t).Seconds() <= 120 {
 			instances = append(instances, instance)
 		}
 	}

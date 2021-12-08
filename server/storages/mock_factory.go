@@ -1,7 +1,9 @@
 package storages
 
 import (
+	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
 )
@@ -42,11 +44,15 @@ type MockFactory struct{}
 func NewMockFactory() Factory { return &MockFactory{} }
 
 //Create returns proxy Mock and events queue
-func (mf *MockFactory) Create(id string, destination DestinationConfig) (StorageProxy, events.Queue, error) {
+func (mf *MockFactory) Create(id string, destination config.DestinationConfig) (StorageProxy, events.Queue, error) {
 	var eventQueue events.Queue
 	if destination.Mode == StreamMode {
 		qf := events.NewQueueFactory(nil, 0)
 		eventQueue, _ = qf.CreateEventsQueue(id)
 	}
 	return &testProxyMock{}, eventQueue, nil
+}
+
+func (mf *MockFactory) Configure(_ string, _ config.DestinationConfig) (func(config *Config) (Storage, error), *Config, error) {
+	return nil, nil, fmt.Errorf("Configure method is not implemented for MockFactory")
 }

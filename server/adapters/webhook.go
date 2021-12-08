@@ -19,10 +19,10 @@ var (
 
 //WebHookConfig is a dto for parsing Webhook configuration
 type WebHookConfig struct {
-	URL     string            `mapstructure:"url" json:"url,omitempty" yaml:"url,omitempty"`
-	Method  string            `mapstructure:"method" json:"method,omitempty" yaml:"method,omitempty"`
-	Body    string            `mapstructure:"body" json:"body,omitempty" yaml:"body,omitempty"`
-	Headers map[string]string `mapstructure:"headers" json:"headers,omitempty" yaml:"headers,omitempty"`
+	URL     string            `mapstructure:"url,omitempty" json:"url,omitempty" yaml:"url,omitempty"`
+	Method  string            `mapstructure:"method,omitempty" json:"method,omitempty" yaml:"method,omitempty"`
+	Body    string            `mapstructure:"body,omitempty" json:"body,omitempty" yaml:"body,omitempty"`
+	Headers map[string]string `mapstructure:"headers,omitempty" json:"headers,omitempty" yaml:"headers,omitempty"`
 }
 
 //Validate returns err if invalid

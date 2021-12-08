@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/parsers"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/joncrlsn/dque"
 	"time"
 )
@@ -48,7 +49,7 @@ func NewDQueBasedQueue(identifier, queueName, logEventPath string) (Queue, error
 }
 
 func (dbq *DQueBasedQueue) Consume(f map[string]interface{}, tokenID string) {
-	dbq.ConsumeTimed(f, time.Now(), tokenID)
+	dbq.ConsumeTimed(f, timestamp.Now(), tokenID)
 }
 
 func (dbq *DQueBasedQueue) ConsumeTimed(f map[string]interface{}, t time.Time, tokenID string) {

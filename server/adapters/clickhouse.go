@@ -88,26 +88,26 @@ var (
 
 //ClickHouseConfig dto for deserialized clickhouse config
 type ClickHouseConfig struct {
-	Dsns     []string          `mapstructure:"dsns" json:"dsns,omitempty" yaml:"dsns,omitempty"`
-	Database string            `mapstructure:"db" json:"db,omitempty" yaml:"db,omitempty"`
-	TLS      map[string]string `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
-	Cluster  string            `mapstructure:"cluster" json:"cluster,omitempty" yaml:"cluster,omitempty"`
-	Engine   *EngineConfig     `mapstructure:"engine" json:"engine,omitempty" yaml:"engine,omitempty"`
+	Dsns     []string          `mapstructure:"dsns,omitempty" json:"dsns,omitempty" yaml:"dsns,omitempty"`
+	Database string            `mapstructure:"db,omitempty" json:"db,omitempty" yaml:"db,omitempty"`
+	TLS      map[string]string `mapstructure:"tls,omitempty" json:"tls,omitempty" yaml:"tls,omitempty"`
+	Cluster  string            `mapstructure:"cluster,omitempty" json:"cluster,omitempty" yaml:"cluster,omitempty"`
+	Engine   *EngineConfig     `mapstructure:"engine,omitempty" json:"engine,omitempty" yaml:"engine,omitempty"`
 }
 
 //EngineConfig dto for deserialized clickhouse engine config
 type EngineConfig struct {
-	RawStatement    string        `mapstructure:"raw_statement" json:"raw_statement,omitempty" yaml:"raw_statement,omitempty"`
-	NullableFields  []string      `mapstructure:"nullable_fields" json:"nullable_fields,omitempty" yaml:"nullable_fields,omitempty"`
-	PartitionFields []FieldConfig `mapstructure:"partition_fields" json:"partition_fields,omitempty" yaml:"partition_fields,omitempty"`
-	OrderFields     []FieldConfig `mapstructure:"order_fields" json:"order_fields,omitempty" yaml:"order_fields,omitempty"`
-	PrimaryKeys     []string      `mapstructure:"primary_keys" json:"primary_keys,omitempty" yaml:"primary_keys,omitempty"`
+	RawStatement    string        `mapstructure:"raw_statement,omitempty" json:"raw_statement,omitempty" yaml:"raw_statement,omitempty"`
+	NullableFields  []string      `mapstructure:"nullable_fields,omitempty" json:"nullable_fields,omitempty" yaml:"nullable_fields,omitempty"`
+	PartitionFields []FieldConfig `mapstructure:"partition_fields,omitempty" json:"partition_fields,omitempty" yaml:"partition_fields,omitempty"`
+	OrderFields     []FieldConfig `mapstructure:"order_fields,omitempty" json:"order_fields,omitempty" yaml:"order_fields,omitempty"`
+	PrimaryKeys     []string      `mapstructure:"primary_keys,omitempty" json:"primary_keys,omitempty" yaml:"primary_keys,omitempty"`
 }
 
 //FieldConfig dto for deserialized clickhouse engine fields
 type FieldConfig struct {
-	Function string `mapstructure:"function" json:"function,omitempty" yaml:"function,omitempty"`
-	Field    string `mapstructure:"field" json:"field,omitempty" yaml:"field,omitempty"`
+	Function string `mapstructure:"function,omitempty" json:"function,omitempty" yaml:"function,omitempty"`
+	Field    string `mapstructure:"field,omitempty" json:"field,omitempty" yaml:"field,omitempty"`
 }
 
 //Validate required fields in ClickHouseConfig

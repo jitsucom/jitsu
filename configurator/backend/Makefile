@@ -1,6 +1,7 @@
 # Go parameters
 export GOBUILD_PREFIX=
 export PATH := $(shell go env GOPATH)/bin:$(PATH)
+export DIST_DIR := ./build/dist/
 
 commit=`git rev-parse --short HEAD`
 built_at=`date -u +%FT%T.000000Z`
@@ -19,8 +20,8 @@ docker_assemble: clean build_backend assemble_backend
 assemble: backend assemble_backend
 
 assemble_backend:
-	mkdir -p ./build/dist/
-	mv configurator ./build/dist/
+	mkdir -p $(DIST_DIR)
+	mv configurator $(DIST_DIR)
 
 backend: deps_backend build_backend
 
