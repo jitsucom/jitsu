@@ -93,10 +93,12 @@ func (kc *KafkaCluster) Close() {
 }
 
 func (kc *KafkaCluster) Contains(t *testing.T, topic string, objs []map[string]interface{}) error {
+	id := uuid.NewString()
 	cfg := sarama.NewConfig()
+	cfg.ClientID = "sarama-consumer-" + id
 	cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
 	cfg.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
-	client, err := sarama.NewConsumerGroup([]string{kc.BootstrapServer}, "test", cfg)
+	client, err := sarama.NewConsumerGroup([]string{kc.BootstrapServer}, "test-"+id, cfg)
 	if err != nil {
 		return err
 	}
