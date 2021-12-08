@@ -207,7 +207,7 @@ func (frf *FacebookRequestFactory) Create(object map[string]interface{}) (*Reque
 }
 
 func (frf *FacebookRequestFactory) enrichWithEventTime(object map[string]interface{}) {
-	eventTime := time.Now().UTC()
+	eventTime := timestamp.Now().UTC()
 	// * event_time
 	t, ok := object[timestamp.Key]
 	if ok {

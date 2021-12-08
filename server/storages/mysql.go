@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
-	"github.com/jitsucom/jitsu/server/typing"
-	"time"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/typing"
 )
 
 //MySQL stores files to MySQL in two modes:
@@ -182,11 +181,11 @@ func (m *MySQL) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) e
 		return err
 	}
 
-	start := time.Now()
+	start := timestamp.Now()
 	if err := m.adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
 		return err
 	}
-	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", m.ID(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
+	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", m.ID(), len(fdata.GetPayload()), timestamp.Now().Sub(start).Seconds())
 
 	return nil
 }

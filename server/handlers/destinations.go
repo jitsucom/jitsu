@@ -6,11 +6,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gin-gonic/gin"
+	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/resources"
+	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/jitsucom/jitsu/server/uuid"
@@ -19,14 +25,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/gin-gonic/gin"
-	"github.com/hashicorp/go-multierror"
-	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/middleware"
-	"github.com/jitsucom/jitsu/server/storages"
 )
 
 const (
@@ -60,7 +58,7 @@ func DestinationsHandler(c *gin.Context) {
 func testDestinationConnection(config *config.DestinationConfig) error {
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField.GetFlatFieldName()
 	eventID := uuid.New()
-	event := events.Event{uniqueIDField: eventID, timestamp.Key: time.Now().UTC()}
+	event := events.Event{uniqueIDField: eventID, timestamp.Key: timestamp.Now().UTC()}
 	eventContext := &adapters.EventContext{
 		DestinationID:  identifier,
 		EventID:        eventID,

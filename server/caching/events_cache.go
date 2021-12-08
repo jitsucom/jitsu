@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"time"
 )
 
@@ -123,7 +124,7 @@ func (ec *EventsCache) put(destinationID, eventID string, value events.Event) {
 		return
 	}
 
-	eventsInCache, err := ec.storage.AddEvent(destinationID, eventID, string(b), time.Now().UTC())
+	eventsInCache, err := ec.storage.AddEvent(destinationID, eventID, string(b), timestamp.Now().UTC())
 	if err != nil {
 		logging.SystemErrorf("[%s] Error saving event %v in cache: %v", destinationID, value.Serialize(), err)
 		return

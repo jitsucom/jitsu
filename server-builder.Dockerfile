@@ -49,7 +49,7 @@ require ( \n\
 	github.com/spf13/cast v1.3.0 \n\
 	github.com/spf13/viper v1.7.1 \n\
 	github.com/stretchr/testify v1.7.0 \n\
-	github.com/testcontainers/testcontainers-go v0.10.0 \n\
+	github.com/testcontainers/testcontainers-go v0.12.0 \n\
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe \n\
 	go.etcd.io/etcd/client/v3 v3.5.0-alpha.0 \n\
 	go.opencensus.io v0.22.4 // indirect \n\
