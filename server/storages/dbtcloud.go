@@ -23,7 +23,7 @@ type DbtCloud struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: DbtCloudType, createFunc: NewDbtCloud, defaultTableName: dbtCloudTableNameFilter})
+	RegisterStorage(StorageType{typeName: DbtCloudType, createFunc: NewDbtCloud, defaultTableName: dbtCloudTableNameFilter, isSQL: false})
 }
 
 //NewDbtCloud returns configured DbtCloud destination
@@ -32,8 +32,8 @@ func NewDbtCloud(config *Config) (Storage, error) {
 		return nil, fmt.Errorf("DbtCloud destination doesn't support %s mode", BatchMode)
 	}
 
-	dbtCloudConfig := config.destination.DbtCloud
-	if err := dbtCloudConfig.Validate(); err != nil {
+	dbtCloudConfig := &adapters.DbtCloudConfig{}
+	if err := config.destination.GetDestConfig(config.destination.DbtCloud, dbtCloudConfig); err != nil {
 		return nil, err
 	}
 

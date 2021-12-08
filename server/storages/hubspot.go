@@ -11,7 +11,7 @@ type HubSpot struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: HubSpotType, createFunc: NewHubSpot, defaultTableName: "$.user?.email"})
+	RegisterStorage(StorageType{typeName: HubSpotType, createFunc: NewHubSpot, defaultTableName: "$.user?.email", isSQL: false})
 }
 
 //NewHubSpot returns configured HubSpot destination
@@ -20,8 +20,8 @@ func NewHubSpot(config *Config) (Storage, error) {
 		return nil, fmt.Errorf("HubSpot destination doesn't support %s mode", BatchMode)
 	}
 
-	hubspotConfig := config.destination.HubSpot
-	if err := hubspotConfig.Validate(); err != nil {
+	hubspotConfig := &adapters.HubSpotConfig{}
+	if err := config.destination.GetDestConfig(config.destination.HubSpot, hubspotConfig); err != nil {
 		return nil, err
 	}
 

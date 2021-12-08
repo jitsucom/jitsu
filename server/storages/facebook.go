@@ -1,10 +1,14 @@
 package storages
 
 import (
+	_ "embed"
 	"fmt"
-
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/templates"
 )
+
+//go:embed transform/facebook.js
+var facebookTransform string
 
 //Facebook stores events to Facebook Conversion API in stream mode
 type Facebook struct {
@@ -12,7 +16,7 @@ type Facebook struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: FacebookType, createFunc: NewFacebook})
+	RegisterStorage(StorageType{typeName: FacebookType, createFunc: NewFacebook, isSQL: false})
 }
 
 //NewFacebook returns configured Facebook destination
@@ -20,13 +24,19 @@ func NewFacebook(config *Config) (Storage, error) {
 	if !config.streamMode {
 		return nil, fmt.Errorf("Facebook destination doesn't support %s mode", BatchMode)
 	}
-
-	fbConfig := config.destination.Facebook
-	if err := fbConfig.Validate(); err != nil {
+	fbConfig := &adapters.FacebookConversionAPIConfig{}
+	if err := config.destination.GetDestConfig(config.destination.Facebook, fbConfig); err != nil {
 		return nil, err
 	}
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
+
+	es5transform, err := templates.Babelize(facebookTransform)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert transformation code to es5: %v", err)
+	}
+	config.processor.AddJavaScript(es5transform)
+	config.processor.SetDefaultTransform(`return toFacebook($)`)
 
 	fb := &Facebook{}
 

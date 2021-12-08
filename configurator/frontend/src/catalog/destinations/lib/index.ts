@@ -13,6 +13,7 @@ import hubspotDestination from "./hubspot"
 import dbtcloudDestination from "./dbtcloud"
 import s3Destination from "./s3"
 import mixpanelDestination from "./mixpanel"
+import npmDestination from "./npm"
 
 import { Destination } from "../types"
 

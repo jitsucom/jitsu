@@ -18,7 +18,7 @@ import (
 	"github.com/jitsucom/jitsu/configurator/ssl"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/config"
+	config "github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/logging"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/notifications"
@@ -286,6 +286,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 		destinationsHandler := handlers.NewDestinationsHandler(configurationsService, defaultS3, jitsuService)
 		apiV1.GET("/destinations", middleware.ServerAuth(middleware.IfModifiedSince(destinationsHandler.GetHandler, configurationsService.GetDestinationsLastUpdated), serverToken))
 		apiV1.POST("/destinations/test", authenticatorMiddleware.ClientProjectAuth(destinationsHandler.TestHandler))
+		apiV1.POST("/destinations/evaluate", authenticatorMiddleware.ClientProjectAuth(destinationsHandler.EvaluateHandler))
 
 		sourcesHandler := handlers.NewSourcesHandler(configurationsService, jitsuService)
 		apiV1.GET("/sources", middleware.ServerAuth(middleware.IfModifiedSince(sourcesHandler.GetHandler, configurationsService.GetSourcesLastUpdated), serverToken))

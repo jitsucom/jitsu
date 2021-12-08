@@ -1,9 +1,14 @@
 package storages
 
 import (
+	_ "embed"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/templates"
 )
+
+//go:embed transform/amplitude.js
+var amplitudeTransform string
 
 //Amplitude is a destination that can send data into Amplitude
 type Amplitude struct {
@@ -11,7 +16,7 @@ type Amplitude struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: AmplitudeType, createFunc: NewAmplitude})
+	RegisterStorage(StorageType{typeName: AmplitudeType, createFunc: NewAmplitude, isSQL: false})
 }
 
 //NewAmplitude returns configured Amplitude destination
@@ -19,11 +24,17 @@ func NewAmplitude(config *Config) (Storage, error) {
 	if !config.streamMode {
 		return nil, fmt.Errorf("Amplitude destination doesn't support %s mode", BatchMode)
 	}
-
-	amplitudeConfig := config.destination.Amplitude
-	if err := amplitudeConfig.Validate(); err != nil {
+	amplitudeConfig := &adapters.AmplitudeConfig{}
+	if err := config.destination.GetDestConfig(config.destination.Amplitude, amplitudeConfig); err != nil {
 		return nil, err
 	}
+
+	es5transform, err := templates.Babelize(amplitudeTransform)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert transformation code to es5: %v", err)
+	}
+	config.processor.AddJavaScript(es5transform)
+	config.processor.SetDefaultTransform(`return toAmplitude($)`)
 
 	a := &Amplitude{}
 

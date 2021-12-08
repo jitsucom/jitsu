@@ -1,4 +1,4 @@
-function JitsuTransformFunction($) {
+function toSegment($) {
   function tableName($) {
     switch ($.event_type) {
       case "user_identify":
