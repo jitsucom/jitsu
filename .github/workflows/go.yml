@@ -19,17 +19,17 @@ jobs:
       with:
         go-version: 1.17
 
-    - name: Build
+    - name: Build Server
       run: |
         go mod tidy
         go build -v ./...
       working-directory: ./server
 
-    - name: Test
-      run: go test -v ./jitsu/server/...
+    - name: Test Server
+      run: go test -v ./...
       working-directory: ./server
       
-    - name: Build backend
+    - name: Build Backend
       run: |
         go mod tidy
         go build -v ./...
