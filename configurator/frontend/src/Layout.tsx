@@ -3,17 +3,16 @@
 import * as React from "react"
 import { useState } from "react"
 import { NavLink, Redirect, Route, useHistory, useLocation, Switch } from "react-router-dom"
-import { Button, Dropdown, message, Modal, MessageArgsProps, Tooltip, notification } from "antd"
+import { Button, Dropdown, message, Modal, MessageArgsProps, Tooltip, notification, Popover } from "antd"
 // @Components
 import { BreadcrumbsProps, withHome, Breadcrumbs } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { NotificationsWidget } from "lib/components/NotificationsWidget/NotificationsWidget"
-import { CurrentPlan } from "ui/components/CurrentPlan/CurrentPlan"
+import { CurrentPlan, UpgradePlan } from "ui/components/CurrentPlan/CurrentPlan"
 import { CenteredSpin, handleError } from "lib/components/components"
 // @Icons
 import Icon, {
   SettingOutlined,
   AreaChartOutlined,
-  UnlockOutlined,
   ApiOutlined,
   NotificationOutlined,
   CloudOutlined,
@@ -24,9 +23,11 @@ import Icon, {
   PartitionOutlined,
   ThunderboltOutlined,
   GlobalOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons"
 import logo from "icons/logo.svg"
 import logoMini from "icons/logo-square.svg"
+import { ReactComponent as Cross } from "icons/cross.svg"
 import { ReactComponent as DbtCloudIcon } from "icons/dbtCloud.svg"
 import { ReactComponent as KeyIcon } from "icons/key.svg"
 import classNames from "classnames"
@@ -46,6 +47,10 @@ import { settingsPageRoutes } from "./ui/pages/SettingsPage/SettingsPage"
 import { FeatureSettings } from "./lib/services/ApplicationServices"
 import { usePersistentState } from "./hooks/usePersistentState"
 import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
+import { SupportOptions } from "lib/components/SupportOptions/SupportOptions"
+import { SlackApiService } from "lib/services/slack"
+import { isEmpty } from "lodash"
+import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 
 type MenuItem = {
   icon: React.ReactNode
@@ -346,76 +351,112 @@ export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, p
 
 export const SlackChatWidget: React.FC<{}> = () => {
   const services = useServices()
-  const [modalVisible, setModalVisible] = useState(false)
+  const [popoverVisible, setPopoverVisible] = useState<boolean>(false)
+  const [upgradeDialogVisible, setUpgradeDialogVisible] = useState<boolean>(false)
+
+  const disablePrivateChannelButton: boolean = services.currentSubscription?.currentPlan?.id === "free"
+  const isJitsuCloud: boolean = services.features.environment === "jitsu_cloud"
+  const isPrivateSupportAvailable: boolean = services.slackApiSercice?.supportApiAvailable
+
+  const handleUpgradeClick = () => {
+    setPopoverVisible(false)
+    setUpgradeDialogVisible(true)
+  }
+
+  const handleJoinPublicChannel = React.useCallback(() => {
+    services.analyticsService.track("support_slack_public")
+    window.open("https://jitsu.com/slack", "_blank")
+  }, [])
+
+  const handleJoinPrivateChannel = React.useCallback(async () => {
+    services.analyticsService.track("support_slack_private")
+    try {
+      const invitationUrl = await services.slackApiSercice?.createPrivateSupportChannel(
+        services.activeProject.id,
+        services.activeProject.name
+      )
+      window.open(invitationUrl, "_blank")
+    } catch (_error) {
+      const error = _error instanceof Error ? _error : new Error(_error)
+      actionNotification.error(
+        `Failed to join a private channel due to internal error. Please, contact support via email or file an issue. Description:\n${error}`
+      )
+      services.analyticsService.track("support_slack_private_error", error)
+    }
+  }, [])
+
+  const handleSupportEmailCopy = React.useCallback(() => {
+    services.analyticsService.track("support_email_copied")
+  }, [])
+
   return (
     <>
-      <div
-        id="jitsuSlackWidget"
-        onClick={() => {
-          services.analyticsService.track("slack_invitation_open")
-          setModalVisible(true)
-        }}
-        className="fixed bottom-5 right-5 rounded-full bg-primary text-text w-12 h-12 flex justify-center items-center cursor-pointer hover:bg-primaryHover"
+      <Popover
+        trigger="click"
+        placement="leftBottom"
+        visible={popoverVisible}
+        content={
+          <SupportOptions
+            showEmailOption={isJitsuCloud}
+            showPrivateChannelOption={isJitsuCloud && isPrivateSupportAvailable}
+            disablePrivateChannelButton={disablePrivateChannelButton}
+            privateChannelButtonDescription={
+              disablePrivateChannelButton ? (
+                <span className="text-xs text-secondaryText mb-3">
+                  <a role="button" className="text-xs" onClick={handleUpgradeClick}>
+                    Upgrade
+                  </a>
+                  {" to use this feature"}
+                </span>
+              ) : null
+            }
+            onPublicChannelClick={handleJoinPublicChannel}
+            onPrivateChannelClick={handleJoinPrivateChannel}
+            onEmailCopyClick={handleSupportEmailCopy}
+          />
+        }
       >
-        <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M 4 3 C 2.9 3 2 3.9 2 5 L 2 15.792969 C 2 16.237969 2.5385156 16.461484 2.8535156 16.146484 L 5 14 L 14 14 C 15.1 14 16 13.1 16 12 L 16 5 C 16 3.9 15.1 3 14 3 L 4 3 z M 18 8 L 18 12 C 18 14.209 16.209 16 14 16 L 8 16 L 8 17 C 8 18.1 8.9 19 10 19 L 19 19 L 21.146484 21.146484 C 21.461484 21.461484 22 21.237969 22 20.792969 L 22 10 C 22 8.9 21.1 8 20 8 L 18 8 z" />
-        </svg>
-      </div>
-      <SlackInvitationModal
-        visible={modalVisible}
-        hide={() => {
-          setModalVisible(false)
-        }}
-      />
-    </>
-  )
-}
-
-export const SlackInvitationModal: React.FC<{ visible: boolean; hide: () => void }> = ({ visible, hide }) => {
-  return (
-    <Modal
-      title="Join Jitsu Slack"
-      visible={visible}
-      onCancel={() => {
-        hide()
-      }}
-      footer={null}
-    >
-      <div className="text-lg">
-        We'd be delighted to assist you with any issues in our <b>public Slack</b>! 100+ members already received help
-        from our community
-      </div>
-      <div className="flex justify-center pt-6">
-        <Button
+        <div
+          id="jitsuSlackWidget"
           onClick={() => {
-            window.open("https://jitsu.com/slack", "_blank")
-            hide()
+            services.analyticsService.track("slack_invitation_open")
+            setPopoverVisible(visible => !visible)
           }}
-          size="large"
-          type="primary"
-          icon={
-            <Icon
-              component={() => (
-                <svg className="fill-current" viewBox="0 0 24 24" height="1em" width="1em">
-                  <path d="m8.843 12.651c-1.392 0-2.521 1.129-2.521 2.521v6.306c0 1.392 1.129 2.521 2.521 2.521s2.521-1.129 2.521-2.521v-6.306c-.001-1.392-1.13-2.521-2.521-2.521z" />
-                  <path d="m.019 15.172c0 1.393 1.13 2.523 2.523 2.523s2.523-1.13 2.523-2.523v-2.523h-2.521c-.001 0-.001 0-.002 0-1.393 0-2.523 1.13-2.523 2.523z" />
-                  <path d="m8.846-.001c-.001 0-.002 0-.003 0-1.393 0-2.523 1.13-2.523 2.523s1.13 2.523 2.523 2.523h2.521v-2.523c0-.001 0-.003 0-.005-.001-1.391-1.128-2.518-2.518-2.518z" />
-                  <path d="m2.525 11.37h6.318c1.393 0 2.523-1.13 2.523-2.523s-1.13-2.523-2.523-2.523h-6.318c-1.393 0-2.523 1.13-2.523 2.523s1.13 2.523 2.523 2.523z" />
-                  <path d="m21.457 6.323c-1.391 0-2.518 1.127-2.518 2.518v.005 2.523h2.521c1.393 0 2.523-1.13 2.523-2.523s-1.13-2.523-2.523-2.523c-.001 0-.002 0-.003 0z" />
-                  <path d="m12.641 2.522v6.325c0 1.392 1.129 2.521 2.521 2.521s2.521-1.129 2.521-2.521v-6.325c0-1.392-1.129-2.521-2.521-2.521-1.392 0-2.521 1.129-2.521 2.521z" />
-                  <g>
-                    <path d="m17.682 21.476c0-1.392-1.129-2.521-2.521-2.521h-2.521v2.523c.001 1.391 1.129 2.519 2.521 2.519s2.521-1.129 2.521-2.521z" />
-                    <path d="m21.479 12.649h-6.318c-1.393 0-2.523 1.13-2.523 2.523s1.13 2.523 2.523 2.523h6.318c1.393 0 2.523-1.13 2.523-2.523s-1.13-2.523-2.523-2.523z" />
-                  </g>
-                </svg>
-              )}
-            />
-          }
+          className="fixed bottom-5 right-5 rounded-full bg-primary text-text w-12 h-12 flex justify-center items-center cursor-pointer hover:bg-primaryHover"
         >
-          Join Jitsu Slack
-        </Button>
-      </div>
-    </Modal>
+          <span
+            className={`absolute top-0 left-0 h-full w-full flex justify-center items-center text-xl transition-all duration-300 transform-gpu ${
+              popoverVisible ? "opacity-100 scale-100" : "opacity-0 scale-50"
+            }`}
+          >
+            <span className="block h-4 w-4 transform-gpu -translate-y-1/2">
+              <Cross />
+            </span>
+          </span>
+          <span
+            className={`absolute top-3 left-3 transition-all duration-300 transform-gpu ${
+              popoverVisible ? "opacity-0 scale-50" : "opacity-100 scale-100"
+            }`}
+          >
+            <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M 4 3 C 2.9 3 2 3.9 2 5 L 2 15.792969 C 2 16.237969 2.5385156 16.461484 2.8535156 16.146484 L 5 14 L 14 14 C 15.1 14 16 13.1 16 12 L 16 5 C 16 3.9 15.1 3 14 3 L 4 3 z M 18 8 L 18 12 C 18 14.209 16.209 16 14 16 L 8 16 L 8 17 C 8 18.1 8.9 19 10 19 L 19 19 L 21.146484 21.146484 C 21.461484 21.461484 22 21.237969 22 20.792969 L 22 10 C 22 8.9 21.1 8 20 8 L 18 8 z" />
+            </svg>
+          </span>
+        </div>
+      </Popover>
+      <Modal
+        destroyOnClose={true}
+        width={800}
+        title={<h1 className="text-xl m-0 p-0">Upgrade subscription</h1>}
+        visible={upgradeDialogVisible}
+        onCancel={() => {
+          setUpgradeDialogVisible(false)
+        }}
+        footer={null}
+      >
+        <UpgradePlan planStatus={services.currentSubscription} />
+      </Modal>
+    </>
   )
 }
 
