@@ -128,7 +128,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	err = globalRecognitionConfiguration.Validate()
 	require.NoError(t, err)
 
-	dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
+	dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil)
 
 	systemService := system.NewService("")
 
@@ -194,7 +194,7 @@ func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig s
 
 //WithUserRecognition overrides users.RecognitionService with configured one
 func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
-	usersRecognitionService, err := users.NewRecognitionService(sb.metaStorage, sb.destinationService, sb.globalUsersRecognitionConfig, os.TempDir())
+	usersRecognitionService, err := users.NewRecognitionService(sb.metaStorage, sb.destinationService, sb.globalUsersRecognitionConfig)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(usersRecognitionService)
 
