@@ -70,7 +70,10 @@ func NewFacebook(config *Config) (Storage, error) {
 	fb.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	fb.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, fb, tableHelper)
+	fb.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, fb, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	fb.streamingWorker.start()
 
 	return fb, nil

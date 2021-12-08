@@ -105,7 +105,10 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	ar.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	ar.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ar, tableHelper)
+	ar.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, ar, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	ar.streamingWorker.start()
 
 	return ar, nil

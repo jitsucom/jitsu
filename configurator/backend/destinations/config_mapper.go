@@ -153,7 +153,7 @@ func mapBigQuery(bqDestination *entities.Destination) (*enconfig.DestinationConf
 	gcs := &enadapters.GoogleConfig{Project: bqFormData.ProjectID, Bucket: bqFormData.GCSBucket,
 		KeyFile: bqFormData.JSONKey, Dataset: bqFormData.Dataset}
 	cfgMap := map[string]interface{}{}
-	err = mapstructure.Decode(gcs, cfgMap)
+	err = mapstructure.Decode(gcs, &cfgMap)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
 	}

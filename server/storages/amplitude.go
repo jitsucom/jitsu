@@ -70,7 +70,10 @@ func NewAmplitude(config *Config) (Storage, error) {
 	a.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	a.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, a, tableHelper)
+	a.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, a, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	a.streamingWorker.start()
 
 	return a, nil

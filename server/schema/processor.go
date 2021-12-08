@@ -334,6 +334,9 @@ func (p *Processor) SetDefaultTransform(defaultTransform string) {
 //InitJavaScriptTemplates loads destination transform javascript, inits context variables.
 //and sets up template executor
 func (p *Processor) InitJavaScriptTemplates() (err error) {
+	if p.transformInitialized {
+		return nil
+	}
 	defer func() {
 		if err == nil {
 			p.transformInitialized = true

@@ -71,7 +71,10 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 	ga.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	ga.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ga, tableHelper)
+	ga.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, ga, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	ga.streamingWorker.start()
 
 	return ga, nil

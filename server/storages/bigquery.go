@@ -95,7 +95,10 @@ func NewBigQuery(config *Config) (Storage, error) {
 	bq.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	bq.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, bq, tableHelper)
+	bq.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, bq, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	bq.streamingWorker.start()
 
 	return bq, nil
