@@ -22,6 +22,7 @@ declare interface DestinationData {
   _connectionTestOk: boolean
   _connectionErrorMessage?: string
   _package?: string
+  _super_type?: string
   _formData: {
     mode: "batch" | "stream"
     [key: string]: any
