@@ -172,7 +172,32 @@ func (p *Postgres) Clean(tableName string) error {
 
 //Update uses SyncStore under the hood
 func (p *Postgres) Update(objects []map[string]interface{}) error {
-	return p.SyncStore(nil, objects, "", true)
+	_, tableHelper := p.getAdapters()
+	for _, object := range objects {
+		envelops, err := p.processor.ProcessEvent(object)
+		if err != nil {
+			return err
+		}
+
+		for _, envelop := range envelops {
+			batchHeader := envelop.Header
+			processedObject := envelop.Event
+			table := tableHelper.MapTableSchema(batchHeader)
+
+			dbSchema, err := tableHelper.EnsureTableWithCaching(p.ID(), table)
+			if err != nil {
+				return err
+			}
+
+			start := time.Now()
+			if err = p.adapter.Update(dbSchema, processedObject, p.uniqueIDField.GetFlatFieldName(), p.uniqueIDField.Extract(object)); err != nil {
+				return err
+			}
+			logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", p.ID(), time.Now().Sub(start).Seconds())
+		}
+	}
+
+	return nil
 }
 
 //GetUsersRecognition returns users recognition configuration
