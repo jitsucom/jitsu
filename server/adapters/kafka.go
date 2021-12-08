@@ -170,7 +170,6 @@ func (k *Kafka) sendEvent(event *EventContext) error {
 
 func (k *Kafka) sendObjects(topic string, objects []map[string]interface{}) error {
 	var noFields []string
-	kafkaMsgs := make([]*sarama.ProducerMessage, 0, len(objects))
 	for _, obj := range objects {
 		bytes, err := k.jsonMarshaller.Marshal(noFields, obj)
 		if err != nil {
@@ -180,10 +179,9 @@ func (k *Kafka) sendObjects(topic string, objects []map[string]interface{}) erro
 			Topic: topic,
 			Value: sarama.ByteEncoder(bytes),
 		}
-		kafkaMsgs = append(kafkaMsgs, msg)
-	}
-	if err := k.producer.SendMessages(kafkaMsgs); err != nil {
-		return err
+		if _, _, err := k.producer.SendMessage(msg); err != nil {
+			return err
+		}
 	}
 	return nil
 }
