@@ -36,18 +36,14 @@ jobs:
           ${{ runner.os }}-go-
           
     - name: Build Server
-      run: |
-        go mod tidy
-        go build -v ./...
+      run: go build
       working-directory: ./server
 
     - name: Test Server
-      run: go test -v ./...
+      run: go test
       working-directory: ./server
       
     - name: Build Backend
-      run: |
-        go mod tidy
-        go build -v ./...
+      run: go build
       working-directory: ./configurator/backend
 
