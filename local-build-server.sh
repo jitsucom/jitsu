@@ -64,7 +64,7 @@ echo "=      Building javascript sdk...   ="
 echo "====================================="
 echo ""
 
-(cd javascript-sdk; yarn clean && yarn install && yarn build) || { echo 'Building javascript sdk failed' ; exit 1; }
+(cd javascript-sdk; rm -rf dist && yarn clean && yarn install && yarn build) || { echo 'Building javascript sdk failed' ; exit 1; }
 
 echo ""
 echo "====================================="
