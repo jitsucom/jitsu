@@ -96,7 +96,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	metaStorage := &meta.Dummy{}
 	//mock destinations
 	inmemWriter := logging.InitInMemoryWriter()
-	consumer := logevents.NewAsyncLogger(inmemWriter, false)
+	consumer := logevents.NewSyncLogger(inmemWriter, false)
 
 	mockStorageFactory := storages.NewMockFactory()
 	mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
@@ -143,7 +143,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		recognitionService:               dummyRecognitionService,
 		destinationService:               destinationService,
 		systemService:                    systemService,
-		eventsCache:                      caching.NewEventsCache(metaStorage, 100),
+		eventsCache:                      caching.NewEventsCache(metaStorage, 100, 1),
 		geoService:                       geo.NewTestService(nil),
 	}
 }
@@ -180,7 +180,7 @@ func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
 func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig string) SuiteBuilder {
 	monitor := coordination.NewInMemoryService([]string{})
 	tempDir := os.TempDir()
-	loggerFactory := logevents.NewFactory(tempDir, 5, false, nil, nil)
+	loggerFactory := logevents.NewFactory(tempDir, 5, false, nil, nil, false, 1)
 	queueFactory := events.NewQueueFactory(nil, 0)
 	destinationsFactory := storages.NewFactory(context.Background(), tempDir, sb.geoService, monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, queueFactory, 0)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
@@ -215,7 +215,7 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor, bulkProcessor)
 
 	multiplexingService := multiplexing.NewService(sb.destinationService, sb.eventsCache)
-	walService := wal.NewService("/tmp", &logevents.AsyncLogger{}, multiplexingService, processorHolder)
+	walService := wal.NewService("/tmp", &logevents.SyncLogger{}, multiplexingService, processorHolder)
 	appconfig.Instance.ScheduleWriteAheadLogClosing(walService)
 
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),

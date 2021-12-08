@@ -24,7 +24,16 @@ type EventsCache struct {
 }
 
 //NewEventsCache returns EventsCache and start goroutine for async operations
-func NewEventsCache(storage meta.Storage, capacityPerDestination int) *EventsCache {
+func NewEventsCache(storage meta.Storage, capacityPerDestination, poolSize int) *EventsCache {
+	if storage.Type() == meta.DummyType {
+		logging.Warnf("Events cache is disabled. Since 'meta.storage' configuration is required.")
+
+		done := make(chan struct{})
+		close(done)
+		//return closed
+		return &EventsCache{done: done}
+	}
+
 	c := &EventsCache{
 		storage:                storage,
 		originalCh:             make(chan *originalEvent, 1_000_000),
@@ -35,7 +44,11 @@ func NewEventsCache(storage meta.Storage, capacityPerDestination int) *EventsCac
 
 		done: make(chan struct{}),
 	}
-	c.start()
+
+	for i := 0; i < poolSize; i++ {
+		c.start()
+	}
+
 	return c
 }
 
@@ -69,12 +82,10 @@ func (ec *EventsCache) start() {
 //Put puts value into channel which will be read and written to storage
 func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, value events.Event) {
 	if !disabled && ec.isActive() {
-		//clone payload for preventing concurrent changes after storing into the channel
-		cachingEvent := value.Clone()
 		select {
-		case ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: cachingEvent}:
+		case ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: value}:
 		default:
-			logging.SystemErrorf("[events cache] original event hasn't been put: %s", cachingEvent.Serialize())
+			logging.SystemErrorf("[events cache] original event hasn't been put: %s", value.Serialize())
 		}
 	}
 }
@@ -85,7 +96,7 @@ func (ec *EventsCache) Succeed(eventContext *adapters.EventContext) {
 		select {
 		case ec.succeedCh <- &succeedEvent{eventContext: eventContext}:
 		default:
-			logging.SystemErrorf("[events cache] succeed event hasn't been put: %s", eventContext.RawEvent.Serialize())
+			logging.Errorf("[events cache] succeed event hasn't been put: %s", eventContext.RawEvent.Serialize())
 		}
 	}
 }
@@ -96,7 +107,7 @@ func (ec *EventsCache) Error(disabled bool, destinationID, eventID string, errMs
 		select {
 		case ec.failedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
 		default:
-			logging.SystemErrorf("[events cache] error event hasn't been put: %s", eventID)
+			logging.Errorf("[events cache] error event hasn't been put: %s", eventID)
 		}
 	}
 }
@@ -107,7 +118,7 @@ func (ec *EventsCache) Skip(disabled bool, destinationID, eventID string, errMsg
 		select {
 		case ec.skippedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
 		default:
-			logging.SystemErrorf("[events cache] skipped event hasn't been put: %s", eventID)
+			logging.Errorf("[events cache] skipped event hasn't been put: %s", eventID)
 		}
 	}
 }
@@ -265,10 +276,13 @@ func (ec *EventsCache) GetTotal(destinationID string) int {
 
 //Close stops all underlying goroutines
 func (ec *EventsCache) Close() error {
-	close(ec.done)
-	close(ec.originalCh)
-	close(ec.succeedCh)
-	close(ec.failedCh)
+	if ec.isActive() {
+		close(ec.done)
+		close(ec.originalCh)
+		close(ec.succeedCh)
+		close(ec.failedCh)
+	}
+
 	return nil
 }
 
