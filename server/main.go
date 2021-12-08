@@ -334,7 +334,7 @@ func main() {
 	}
 	appconfig.Instance.ScheduleClosing(destinationsService)
 
-	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationsService, globalRecognitionConfiguration, logEventPath)
+	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationsService, globalRecognitionConfiguration)
 	if err != nil {
 		logging.Fatal(err)
 	}

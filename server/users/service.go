@@ -19,14 +19,14 @@ import (
 type RecognitionService struct {
 	metaStorage        meta.Storage
 	destinationService *destinations.Service
-	compressor         *GZIPCompressor
 
 	queue  *Queue
 	closed *atomic.Bool
 }
 
 //NewRecognitionService creates a new RecognitionService if metaStorage configuration exists
-func NewRecognitionService(metaStorage meta.Storage, destinationService *destinations.Service, configuration *storages.UsersRecognition, logEventPath string) (*RecognitionService, error) {
+func NewRecognitionService(metaStorage meta.Storage, destinationService *destinations.Service,
+	configuration *storages.UsersRecognition) (*RecognitionService, error) {
 	if metaStorage.Type() == meta.DummyType {
 		if configuration.IsEnabled() {
 			logging.Errorf("Users recognition is switched off since it requires 'meta.storage' configuration")
@@ -38,7 +38,6 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 	service := &RecognitionService{
 		destinationService: destinationService,
 		metaStorage:        metaStorage,
-		compressor:         &GZIPCompressor{},
 		queue:              newQueue(),
 		closed:             atomic.NewBool(false),
 	}
@@ -166,9 +165,9 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 	eventIDs := make([]string, 0, len(eventsMap))
 	eventsArr := make([]map[string]interface{}, 0, len(eventsMap))
 	for storedEventID, storedSerializedEvent := range eventsMap {
-		event, err := rs.deserialize(storedSerializedEvent)
-		if err != nil {
-			logging.SystemErrorf("[%s] %s", destinationID, err)
+		event := events.Event{}
+		if err := json.Unmarshal([]byte(storedSerializedEvent), &event); err != nil {
+			logging.SystemErrorf("[%s] error deserializing event [%s]: %v", destinationID, storedSerializedEvent, err)
 			continue
 		}
 
@@ -210,9 +209,8 @@ func (rs *RecognitionService) processRecognitionPayload(rp *RecognitionPayload) 
 				return fmt.Errorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
 			}
 		} else {
-			// If some identification value is missing - event is still anonymous
-			compressedEvent := rs.compressor.Compress(rp.Event)
-			if err := rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(compressedEvent)); err != nil {
+			b, _ := json.Marshal(rp.Event)
+			if err := rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(b)); err != nil {
 				return fmt.Errorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
 			}
 		}
@@ -233,19 +231,4 @@ func (rs *RecognitionService) Close() error {
 	}
 
 	return nil
-}
-
-func (rs *RecognitionService) deserialize(payload string) (events.Event, error) {
-	decompressed, compressErr := rs.compressor.Decompress([]byte(payload))
-	if compressErr != nil {
-		//try without compression (old event)
-		event := events.Event{}
-		if marshalErr := json.Unmarshal([]byte(payload), &event); marshalErr != nil {
-			return nil, fmt.Errorf("unable to decompress event [%s]: %v", payload, compressErr)
-		}
-
-		return event, nil
-	}
-
-	return decompressed, nil
 }
