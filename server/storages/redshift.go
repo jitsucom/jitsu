@@ -59,7 +59,10 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	if err != nil {
 		return nil, err
 	}
-	s3config = s3c.(*adapters.S3Config)
+	s3config, ok := s3c.(*adapters.S3Config)
+	if !ok {
+		s3config = &adapters.S3Config{}
+	}
 	if !config.streamMode {
 		var err error
 		s3Adapter, err = adapters.NewS3(s3config)
