@@ -242,7 +242,7 @@ func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "success", success, "error", "", "destination_id", destinationID, lastEventsIndexKey, time.Now().UTC().Unix(), eventID, originalEventKey)
+	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "success", success, "error", "", "destination_id", destinationID, lastEventsIndexKey, timestamp.Now().UTC().Unix(), eventID, originalEventKey)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return err
@@ -260,7 +260,7 @@ func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "error", error, "destination_id", destinationID, lastEventsIndexKey, time.Now().UTC().Unix(), eventID, originalEventKey)
+	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "error", error, "destination_id", destinationID, lastEventsIndexKey, timestamp.Now().UTC().Unix(), eventID, originalEventKey)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return err
@@ -277,7 +277,7 @@ func (r *Redis) UpdateSkipEvent(destinationID, eventID, error string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "skip", error, "error", "", "destination_id", destinationID, lastEventsIndexKey, time.Now().UTC().Unix(), eventID, originalEventKey)
+	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "skip", error, "error", "", "destination_id", destinationID, lastEventsIndexKey, timestamp.Now().UTC().Unix(), eventID, originalEventKey)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return err
@@ -618,7 +618,7 @@ func (r *Redis) GetAllTasksForInitialHeartbeat(runningStatus, scheduledStatus st
 	defer conn.Close()
 
 	//the task is stalled if last activity was before current time - lastActivityThreshold
-	stalledTime := time.Now().UTC().Truncate(lastActivityThreshold)
+	stalledTime := timestamp.Now().UTC().Truncate(lastActivityThreshold)
 
 	var taskIDs []string
 	cursor := 0
@@ -686,7 +686,7 @@ func (r *Redis) GetAllTasksForInitialHeartbeat(runningStatus, scheduledStatus st
 //filterStalledTaskInRunningStatus gets last logs and compares with stalledTime. If there is no logs, compare task creation time
 //returns true if task is stalled
 func (r *Redis) filterStalledTaskInRunningStatus(conn redis.Conn, task *Task, stalledTime time.Time) (bool, error) {
-	lastLogArr, err := redis.Values(conn.Do("ZREVRANGEBYSCORE", syncTasksPrefix+task.ID+":logs", time.Now().Unix(), 0, "LIMIT", 0, 1, "WITHSCORES"))
+	lastLogArr, err := redis.Values(conn.Do("ZREVRANGEBYSCORE", syncTasksPrefix+task.ID+":logs", timestamp.Now().Unix(), 0, "LIMIT", 0, 1, "WITHSCORES"))
 	if err != nil {
 		if err != nil && err != redis.ErrNil {
 			r.errorMetrics.NoticeError(err)

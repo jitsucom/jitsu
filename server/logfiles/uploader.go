@@ -65,7 +65,7 @@ func (u *PeriodicUploader) Start() {
 				time.Sleep(2 * time.Second)
 				continue
 			}
-			startTime := time.Now()
+			startTime := timestamp.Now()
 			postHandlesMap := make(map[string]map[string]bool) //multimap postHandleDestinationId:destinationIds
 			files, err := filepath.Glob(u.fileMask)
 			if err != nil {
@@ -194,7 +194,7 @@ func (u *PeriodicUploader) Start() {
 					}
 				}
 			}
-			u.postHandle(startTime, time.Now(), postHandlesMap)
+			u.postHandle(startTime, timestamp.Now(), postHandlesMap)
 			time.Sleep(u.uploadEvery - time.Since(startTime))
 
 		}

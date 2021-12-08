@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/leveldb"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/parsers"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"path"
 	"time"
 )
@@ -31,7 +32,7 @@ func NewLevelDBQueue(identifier, queueName, logEventPath string) (Queue, error) 
 }
 
 func (ldq *LevelDBQueue) Consume(f map[string]interface{}, tokenID string) {
-	ldq.ConsumeTimed(f, time.Now().UTC(), tokenID)
+	ldq.ConsumeTimed(f, timestamp.Now().UTC(), tokenID)
 }
 
 func (ldq *LevelDBQueue) ConsumeTimed(f map[string]interface{}, t time.Time, tokenID string) {

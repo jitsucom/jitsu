@@ -3,6 +3,7 @@ package counters
 import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/safego"
 	"sync"
 	"time"
@@ -62,7 +63,7 @@ func (e *Events) persist() {
 
 	//persist
 	for key, value := range bufCopy {
-		if err := e.storage.IncrementEventsCount(key.id, key.namespace, key.eventType, key.status, time.Now().UTC(), value); err != nil {
+		if err := e.storage.IncrementEventsCount(key.id, key.namespace, key.eventType, key.status, timestamp.Now().UTC(), value); err != nil {
 			logging.SystemErrorf("Error updating %s [%s] events [%s] counter id=[%s] value [%d]: %v", key.status, key.eventType, key.namespace, key.id, value, err)
 		}
 	}

@@ -1,71 +1,79 @@
 package schema
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/templates"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"strings"
 )
 
 var ErrSkipObject = errors.New("Transform or table name filter marked object to be skipped. This object will be skipped.")
 
+//go:embed segment.js
+var segmentTransform string
+
 type Envelope struct {
 	Header *BatchHeader
-	Event events.Event
+	Event  events.Event
 }
 
 type Processor struct {
 	identifier              string
+	destinationConfig       *config.DestinationConfig
+	isSQLType               bool
 	tableNameExtractor      *TableNameExtractor
 	lookupEnrichmentStep    *enrichment.LookupEnrichmentStep
-	transformer				*templates.JsTemplateExecutor
-	fieldMapper  			events.Mapper
+	transformer             *templates.JsTemplateExecutor
+	fieldMapper             events.Mapper
 	pulledEventsfieldMapper events.Mapper
-	typeResolver 			TypeResolver
-	flattener    			Flattener
+	typeResolver            TypeResolver
+	flattener               Flattener
 	breakOnError            bool
 	uniqueIDField           *identifiers.UniqueID
 	maxColumnNameLen        int
+	tableNameFuncExpression string
+	defaultTransform        string
+	javaScripts             []string
+	jsVariables             map[string]interface{}
+	//indicate that we didn't forget to init JavaScript transform
+	transformInitialized bool
 }
 
-func NewProcessor(destinationID, destinationType, tableNameFuncExpression string, transform string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule,
-	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int, templateVariables map[string]interface{}) (*Processor, error) {
-	var templateFunctions = templates.EnrichedFuncMap(templateVariables)
-	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression, templateFunctions)
-	if err != nil {
-		return nil, err
-	}
-	var transformer	*templates.JsTemplateExecutor
-	if transform != "" && transform != templates.TransformDefaultTemplate {
-		transformer, err = templates.NewJsTemplateExecutor(transform, templateFunctions, []string{destinationType, "segment"}...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to init transform javascript: %v", err)
-		}
-	}
+func NewProcessor(destinationID string, destinationConfig *config.DestinationConfig, isSQLType bool, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule, flattener Flattener, typeResolver TypeResolver, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int) (*Processor, error) {
 	return &Processor{
 		identifier:              destinationID,
-		tableNameExtractor:      tableNameExtractor,
+		destinationConfig:       destinationConfig,
+		isSQLType:               isSQLType,
 		lookupEnrichmentStep:    enrichment.NewLookupEnrichmentStep(enrichmentRules),
-		transformer: 			 transformer,
 		fieldMapper:             fieldMapper,
 		pulledEventsfieldMapper: &DummyMapper{},
-		typeResolver: 			 typeResolver,
-		flattener: 				 flattener,
-		breakOnError:            breakOnError,
+		typeResolver:            typeResolver,
+		flattener:               flattener,
+		breakOnError:            destinationConfig.BreakOnError,
 		uniqueIDField:           uniqueIDField,
 		maxColumnNameLen:        maxColumnNameLen,
+		tableNameFuncExpression: tableNameFuncExpression,
+		javaScripts:             []string{},
+		jsVariables:             map[string]interface{}{},
 	}, nil
 }
 
 //ProcessEvent returns table representation, processed flatten object
 func (p *Processor) ProcessEvent(event map[string]interface{}) ([]Envelope, error) {
+	if !p.transformInitialized {
+		err := fmt.Errorf("Destination: %s Attempt to use processor without running InitJavaScriptTemplates first", p.identifier)
+		return nil, err
+	}
 	return p.processObject(event, map[string]bool{})
 }
 
@@ -73,6 +81,10 @@ func (p *Processor) ProcessEvent(event map[string]interface{}) ([]Envelope, erro
 //returns array of processed objects per table like {"table1": []objects, "table2": []objects},
 //All failed events are moved to separate collection for sending to fallback
 func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*ProcessedFile, *events.FailedEvents, *events.SkippedEvents, error) {
+	if !p.transformInitialized {
+		err := fmt.Errorf("Destination: %s Attempt to use processor without running InitJavaScriptTemplates first", p.identifier)
+		return nil, nil, nil, err
+	}
 	skippedEvents := &events.SkippedEvents{}
 	failedEvents := events.NewFailedEvents()
 	filePerTable := map[string]*ProcessedFile{}
@@ -132,6 +144,10 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 //returns array of processed objects under tablename
 //or error if at least 1 was occurred
 func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]interface{}) (map[string]*ProcessedFile, error) {
+	if !p.transformInitialized {
+		err := fmt.Errorf("Destination: %s Attempt to use processor without running InitJavaScriptTemplates first", p.identifier)
+		return nil, err
+	}
 	var pf *ProcessedFile
 	for _, event := range objects {
 		processedObject, err := p.pulledEventsfieldMapper.Map(event)
@@ -215,14 +231,10 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	case map[string]interface{}:
 		toProcess = append(toProcess, obj)
 	case []interface{}:
-		for i, o := range obj {
+		for _, o := range obj {
 			casted, ok := o.(map[string]interface{})
 			if !ok {
 				return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", o)
-			}
-			if i > 0 {
-				newUniqueId := fmt.Sprintf("%s_%d", appconfig.Instance.GlobalUniqueIDField.Extract(object), i)
-				appconfig.Instance.GlobalUniqueIDField.Set(casted, newUniqueId)
 			}
 			toProcess = append(toProcess, casted)
 		}
@@ -231,18 +243,28 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	}
 	envelops := make([]Envelope, 0, len(toProcess))
 
-	for _, object := range toProcess {
-		newTableName, ok := object[templates.TableNameParameter].(string)
+	for i, prObject := range toProcess {
+		newUniqueId := p.uniqueIDField.Extract(object)
+		if i > 0 {
+			//for event cache one to many mapping
+			newUniqueId = fmt.Sprintf("%s_%d", newUniqueId, i)
+			prObject[p.uniqueIDField.GetFlatFieldName()] = newUniqueId
+		}
+		if p.isSQLType {
+			prObject[p.uniqueIDField.GetFlatFieldName()] = newUniqueId
+			prObject[timestamp.Key] = object[timestamp.Key]
+		}
+		newTableName, ok := prObject[templates.TableNameParameter].(string)
 		if !ok {
 			newTableName = tableName
 		}
-		delete(object, templates.TableNameParameter)
+		delete(prObject, templates.TableNameParameter)
 		//object has been already processed (storage:table pair might be already processed)
 		_, ok = alreadyUploadedTables[newTableName]
 		if ok {
 			continue
 		}
-		flatObject, err := p.flattener.FlattenObject(object)
+		flatObject, err := p.flattener.FlattenObject(prObject)
 		if err != nil {
 			return nil, err
 		}
@@ -255,7 +277,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		if err != nil {
 			return nil, fmt.Errorf("failed to process long fields: %v", err)
 		}
-		envelops = append(envelops, Envelope{bh, obj} )
+		envelops = append(envelops, Envelope{bh, obj})
 	}
 
 	return envelops, nil
@@ -292,11 +314,110 @@ func (p *Processor) foldLongFields(header *BatchHeader, object map[string]interf
 	return header, object, nil
 }
 
-func (p *Processor) Close() {
-	p.tableNameExtractor.Close()
+//AddJavaScript loads javascript to transformation template's vm
+func (p *Processor) AddJavaScript(js string) {
+	p.javaScripts = append(p.javaScripts, js)
+}
+
+//AddJavaScriptVariables loads variable to globalThis object of transformation template's vm
+func (p *Processor) AddJavaScriptVariables(jsVar map[string]interface{}) {
+	for k, v := range jsVar {
+		p.jsVariables[k] = v
+	}
+}
+
+//SetDefaultTransform set default transformation code that will be used if no transform or mapping settings provided
+func (p *Processor) SetDefaultTransform(defaultTransform string) {
+	p.defaultTransform = defaultTransform
+}
+
+//InitJavaScriptTemplates loads destination transform javascript, inits context variables.
+//and sets up template executor
+func (p *Processor) InitJavaScriptTemplates() (err error) {
+	if p.transformInitialized {
+		return nil
+	}
+	defer func() {
+		if err == nil {
+			p.transformInitialized = true
+		} else {
+			p.CloseJavaScriptTemplates()
+		}
+	}()
+	templateVariables := make(map[string]interface{})
+	templateVariables["destinationId"] = p.identifier
+	templateVariables["destinationType"] = p.destinationConfig.Type
+	templateVariables = templates.EnrichedFuncMap(templateVariables)
+	tableNameExtractor, err := NewTableNameExtractor(p.tableNameFuncExpression, templateVariables)
+	if err != nil {
+		return err
+	}
+	p.tableNameExtractor = tableNameExtractor
+	p.AddJavaScriptVariables(templateVariables)
+
+	transformDisabled := false
+	var transform string
+	mappingDisabled := false
+	switch p.fieldMapper.(type) {
+	case DummyMapper, *DummyMapper, nil:
+		mappingDisabled = true
+	}
+	if dataLayout := p.destinationConfig.DataLayout; dataLayout != nil {
+		transformDisabled = dataLayout.TransformEnabled != nil && !*dataLayout.TransformEnabled
+		transform = dataLayout.Transform
+	}
+	if transformDisabled {
+		//transform is explicitly disabled
+		return nil
+	}
+	if transform != "" && !mappingDisabled {
+		return fmt.Errorf("mapping and javascript transform cannot be enabled at the same time.")
+	}
+	//some destinations have built-in javascript transformation that must be used
+	//even if no explicit transform settings were provided. Only exception is enabled mapping –
+	//if mapping is set for destination - javascript transformation cannot be used
+	if transform == "" && p.defaultTransform != "" {
+		if !mappingDisabled {
+			logging.Warnf(`%s destination supports data mapping via builtin javascript transformation but mapping feature is enabled via config.\n
+Mapping feature is deprecated. It is recommended to migrate to javascript data transformation.`, p.destinationConfig.Type)
+			return nil
+		} else {
+			transform = p.defaultTransform
+		}
+	}
+	if transform != "" && transform != templates.TransformDefaultTemplate {
+		if strings.Contains(transform, "toSegment") {
+			//seems like built-in to segment transformation is used. We need to load script
+			segment, err := templates.Babelize(segmentTransform)
+			if err != nil {
+				return fmt.Errorf("failed to init transform segment.js: %v", err)
+			}
+			p.AddJavaScript(segment)
+		}
+		transformer, err := templates.NewJsTemplateExecutor(transform, p.jsVariables, p.javaScripts...)
+		if err != nil {
+			return fmt.Errorf("failed to init transform javascript: %v", err)
+		}
+		p.transformer = transformer
+	}
+	return nil
+}
+
+func (p *Processor) CloseJavaScriptTemplates() {
+	if p.tableNameExtractor != nil {
+		p.tableNameExtractor.Close()
+	}
 	if p.transformer != nil {
 		p.transformer.Close()
 	}
+}
+
+func (p *Processor) GetTransformer() *templates.JsTemplateExecutor {
+	return p.transformer
+}
+
+func (p *Processor) Close() {
+	p.CloseJavaScriptTemplates()
 }
 
 //cutName converts input name that exceeds maxLen to lower length string by cutting parts between '_' to 2 symbols.
@@ -336,7 +457,7 @@ func cutName(name string, maxLen int) string {
 	return cutName(name, maxLen)
 }
 
-func ClearTypeMetaFields(object map[string]interface{})  {
+func ClearTypeMetaFields(object map[string]interface{}) {
 	for k, v := range object {
 		if strings.Contains(k, SqlTypeKeyword) {
 			delete(object, k)

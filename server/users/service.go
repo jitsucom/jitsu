@@ -3,12 +3,12 @@ package users
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/safego"
-	"github.com/jitsucom/jitsu/server/storages"
 	"go.uber.org/atomic"
 	"strings"
 )
@@ -26,7 +26,7 @@ type RecognitionService struct {
 
 //NewRecognitionService creates a new RecognitionService if metaStorage configuration exists
 func NewRecognitionService(metaStorage meta.Storage, destinationService *destinations.Service,
-	configuration *storages.UsersRecognition) (*RecognitionService, error) {
+	configuration *config.UsersRecognition) (*RecognitionService, error) {
 	if metaStorage.Type() == meta.DummyType {
 		if configuration.IsEnabled() {
 			logging.Errorf("Users recognition is switched off since it requires 'meta.storage' configuration")

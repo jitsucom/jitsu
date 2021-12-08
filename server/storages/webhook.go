@@ -26,7 +26,7 @@ type WebHook struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: WebHookType, createFunc: NewWebHook})
+	RegisterStorage(StorageType{typeName: WebHookType, createFunc: NewWebHook, isSQL: false})
 }
 
 //NewWebHook returns configured WebHook destination
@@ -35,8 +35,8 @@ func NewWebHook(config *Config) (Storage, error) {
 		return nil, fmt.Errorf("WebHook destination doesn't support %s mode", BatchMode)
 	}
 
-	webHookConfig := config.destination.WebHook
-	if err := webHookConfig.Validate(); err != nil {
+	webHookConfig := &adapters.WebHookConfig{}
+	if err := config.destination.GetDestConfig(config.destination.WebHook, webHookConfig); err != nil {
 		return nil, err
 	}
 
@@ -82,7 +82,10 @@ func NewWebHook(config *Config) (Storage, error) {
 	wh.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	wh.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, wh, tableHelper)
+	wh.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, wh, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	wh.streamingWorker.start()
 
 	return wh, nil

@@ -2,9 +2,11 @@ package storages
 
 import (
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/logging"
 	"math/rand"
+
+	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -30,7 +32,7 @@ type Abstract struct {
 
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
-	cachingConfiguration *CachingConfiguration
+	cachingConfiguration *config.CachingConfiguration
 
 	archiveLogger logging.ObjectLogger
 }

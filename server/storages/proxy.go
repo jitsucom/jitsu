@@ -42,6 +42,9 @@ func (rsp *RetryableProxy) start() {
 			}
 
 			storage, err := rsp.factoryMethod(rsp.config)
+			if err == nil {
+				err = storage.Processor().InitJavaScriptTemplates()
+			}
 			if err != nil {
 				logging.Errorf("[%s] Error initializing destination of type %s: %v. Retry after 1 minute", rsp.config.destinationID, rsp.config.destination.Type, err)
 				time.Sleep(1 * time.Minute)

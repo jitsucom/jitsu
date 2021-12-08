@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/drivers/base"
@@ -142,7 +143,7 @@ func (a *Amplitude) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 		daysBackToLoad = a.collection.DaysBackToLoad
 	}
 
-	now := time.Now().UTC()
+	now := timestamp.Now().UTC()
 	for i := 0; i < daysBackToLoad; i++ {
 		date := now.AddDate(0, 0, -i)
 		intervals = append(intervals, base.NewTimeInterval(base.DAY, date))

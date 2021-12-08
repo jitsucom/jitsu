@@ -63,6 +63,7 @@ const DestinationEditorTransform = ({
                 !!destinationsReferenceMap[destinationData._type].defaultTransform &&
                 !destinationData._mappings?._mappings,
               required: false,
+              omitFieldRule: cfg => destinationsReferenceMap[destinationData._type].defaultTransform.length > 0,
               type: booleanType,
               bigField: true,
             },

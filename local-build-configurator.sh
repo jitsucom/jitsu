@@ -81,7 +81,7 @@ echo "=         Packaging Configurator UI...     ="
 echo "============================================"
 echo ""
 
-(cd configurator; rm -rf build/dist/web && cp -r frontend/build build/dist/web; cp backend/build/dist/* build/dist) || { echo 'Packaging UI failed' ; exit 1; }
+(cd configurator; rm -rf build/dist && mkdir -p build/dist/web; cp -r frontend/build/* build/dist/web/; cp backend/build/dist/* build/dist/) || { echo 'Packaging UI failed' ; exit 1; }
 
 
 if [ "$docker_flag" == 'true' ]

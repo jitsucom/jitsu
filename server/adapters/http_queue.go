@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/queue"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"time"
 )
 
@@ -47,7 +48,7 @@ func NewHTTPRequestQueue(identifier string, queueFactory *events.QueueFactory) *
 
 //Add puts HTTP request and error callback to the queue
 func (pq *HTTPRequestQueue) Add(req *Request, eventContext *EventContext) error {
-	return pq.AddRequest(&RetryableRequest{Request: req, DequeuedTime: time.Now().UTC(), Retry: 0, EventContext: eventContext})
+	return pq.AddRequest(&RetryableRequest{Request: req, DequeuedTime: timestamp.Now().UTC(), Retry: 0, EventContext: eventContext})
 }
 
 //AddRequest puts request to the queue with retryCount

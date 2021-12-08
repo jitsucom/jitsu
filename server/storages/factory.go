@@ -4,22 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/geo"
-	"github.com/jitsucom/jitsu/server/jsonutils"
-	"github.com/jitsucom/jitsu/server/logevents"
-	"github.com/jitsucom/jitsu/server/meta"
-	"github.com/jitsucom/jitsu/server/utils"
-	"strings"
-
-	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/identifiers"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/typing"
+	"strings"
 )
 
 const (
@@ -47,97 +44,11 @@ var (
 	}
 )
 
-//DestinationConfig is a destination configuration for serialization
-type DestinationConfig struct {
-	OnlyTokens             []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
-	Type                   string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	SubType                string                   `mapstructure:"subtype" json:"subtype,omitempty" yaml:"subtype,omitempty"`
-	Mode                   string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
-	DataLayout             *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
-	UsersRecognition       *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
-	Enrichment             []*enrichment.RuleConfig `mapstructure:"enrichment" json:"enrichment,omitempty" yaml:"enrichment,omitempty"`
-	Log                    *logging.SQLDebugConfig  `mapstructure:"log" json:"log,omitempty" yaml:"log,omitempty"`
-	BreakOnError           bool                     `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
-	Staged                 bool                     `mapstructure:"staged" json:"staged,omitempty" yaml:"staged,omitempty"`
-	CachingConfiguration   *CachingConfiguration    `mapstructure:"caching" json:"caching,omitempty" yaml:"caching,omitempty"`
-	PostHandleDestinations []string                 `mapstructure:"post_handle_destinations" json:"post_handle_destinations,omitempty" yaml:"post_handle_destinations,omitempty"`
-	GeoDataResolverID      string                   `mapstructure:"geo_data_resolver_id" json:"geo_data_resolver_id,omitempty" yaml:"geo_data_resolver_id,omitempty"`
-
-	//variables that can be used from javascript
-	TemplateVariables map[string]interface{} `mapstructure:"template_variables" json:"template_variables,omitempty" yaml:"template_variables,omitempty"`
-
-	DataSource      *adapters.DataSourceConfig            `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
-	S3              *adapters.S3Config                    `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
-	Google          *adapters.GoogleConfig                `mapstructure:"google" json:"google,omitempty" yaml:"google,omitempty"`
-	GoogleAnalytics *adapters.GoogleAnalyticsConfig       `mapstructure:"google_analytics" json:"google_analytics,omitempty" yaml:"google_analytics,omitempty"`
-	ClickHouse      *adapters.ClickHouseConfig            `mapstructure:"clickhouse" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
-	Snowflake       *adapters.SnowflakeConfig             `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
-	Facebook        *adapters.FacebookConversionAPIConfig `mapstructure:"facebook" json:"facebook,omitempty" yaml:"facebook,omitempty"`
-	WebHook         *adapters.WebHookConfig               `mapstructure:"webhook" json:"webhook,omitempty" yaml:"webhook,omitempty"`
-	Amplitude       *adapters.AmplitudeConfig             `mapstructure:"amplitude" json:"amplitude,omitempty" yaml:"amplitude,omitempty"`
-	HubSpot         *adapters.HubSpotConfig               `mapstructure:"hubspot" json:"hubspot,omitempty" yaml:"hubspot,omitempty"`
-	DbtCloud        *adapters.DbtCloudConfig              `mapstructure:"dbtcloud" json:"dbtcloud,omitempty" yaml:"dbtcloud,omitempty"`
-}
-
-//DataLayout is used for configure mappings/table names and other data layout parameters
-type DataLayout struct {
-	//Deprecated
-	MappingType schema.FieldMappingType `mapstructure:"mapping_type" json:"mapping_type,omitempty" yaml:"mapping_type,omitempty"`
-	//Deprecated
-	Mapping []string `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
-
-	TransformEnabled bool   `mapstructure:"transform_enabled" json:"transform_enabled" yaml:"transform_enabled"`
-	Transform        string `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
-	//Deprecated
-	Mappings          *schema.Mapping `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
-	MaxColumns        int             `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
-	TableNameTemplate string          `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
-	PrimaryKeyFields  []string        `mapstructure:"primary_key_fields" json:"primary_key_fields,omitempty" yaml:"primary_key_fields,omitempty"`
-	UniqueIDField     string          `mapstructure:"unique_id_field" json:"unique_id_field,omitempty" yaml:"unique_id_field,omitempty"`
-}
-
-//UsersRecognition is a model for Users recognition module configuration
-type UsersRecognition struct {
-	Enabled             bool     `mapstructure:"enabled" json:"enabled,omitempty" yaml:"enabled,omitempty"`
-	AnonymousIDNode     string   `mapstructure:"anonymous_id_node" json:"anonymous_id_node,omitempty" yaml:"anonymous_id_node,omitempty"`
-	IdentificationNodes []string `mapstructure:"identification_nodes" json:"identification_nodes,omitempty" yaml:"identification_nodes,omitempty"`
-	UserIDNode          string   `mapstructure:"user_id_node" json:"user_id_node,omitempty" yaml:"user_id_node,omitempty"`
-	PoolSize            int      `mapstructure:"pool_size" json:"pool_size,omitempty" yaml:"pool_size,omitempty"`
-}
-
-//CachingConfiguration is a configuration for disabling caching
-type CachingConfiguration struct {
-	Disabled bool `mapstructure:"disabled" json:"disabled" yaml:"disabled"`
-}
-
-//IsEnabled returns true if enabled
-func (ur *UsersRecognition) IsEnabled() bool {
-	return ur != nil && ur.Enabled
-}
-
-//Validate returns err if invalid
-func (ur *UsersRecognition) Validate() error {
-	if ur.IsEnabled() {
-		if ur.AnonymousIDNode == "" {
-			return errors.New("users_recognition.anonymous_id_node is required")
-		}
-
-		if len(ur.IdentificationNodes) == 0 {
-			//DEPRECATED node check (backward compatibility)
-			if ur.UserIDNode == "" {
-				return errors.New("users_recognition.identification_nodes is required")
-			}
-		}
-	}
-
-	return nil
-}
-
 //Config is a model for passing to destinations creator funcs
 type Config struct {
 	ctx                    context.Context
 	destinationID          string
-	destination            *DestinationConfig
+	destination            *config.DestinationConfig
 	usersRecognition       *UserRecognitionConfiguration
 	processor              *schema.Processor
 	streamMode             bool
@@ -145,7 +56,7 @@ type Config struct {
 	monitorKeeper          MonitorKeeper
 	eventQueue             events.Queue
 	eventsCache            *caching.EventsCache
-	loggerFactory          *logevents.Factory
+	loggerFactory          *logging.Factory
 	queueFactory           *events.QueueFactory
 	pkFields               map[string]bool
 	sqlTypes               typing.SQLTypes
@@ -162,13 +73,23 @@ func RegisterStorage(storageType StorageType) {
 
 //Factory is a destinations factory for creation
 type Factory interface {
-	Create(name string, destination DestinationConfig) (StorageProxy, events.Queue, error)
+	Create(name string, destination config.DestinationConfig) (StorageProxy, events.Queue, error)
+	Configure(destinationID string, destination config.DestinationConfig) (func(config *Config) (Storage, error), *Config, error)
 }
 
 type StorageType struct {
 	typeName         string
 	createFunc       func(config *Config) (Storage, error)
 	defaultTableName string
+	isSQL            bool
+	isSQLFunc        func(config *config.DestinationConfig) bool
+}
+
+func (storageType StorageType) isSQLType(destCfg *config.DestinationConfig) bool {
+	if storageType.isSQLFunc != nil {
+		return storageType.isSQLFunc(destCfg)
+	}
+	return storageType.isSQL
 }
 
 //FactoryImpl is a destination's factory implementation
@@ -178,17 +99,15 @@ type FactoryImpl struct {
 	geoService          *geo.Service
 	monitorKeeper       MonitorKeeper
 	eventsCache         *caching.EventsCache
-	globalLoggerFactory *logevents.Factory
-	globalConfiguration *UsersRecognition
+	globalLoggerFactory *logging.Factory
+	globalConfiguration *config.UsersRecognition
 	metaStorage         meta.Storage
 	eventsQueueFactory  *events.QueueFactory
 	maxColumns          int
 }
 
 //NewFactory returns configured Factory
-func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper,
-	eventsCache *caching.EventsCache, globalLoggerFactory *logevents.Factory, globalConfiguration *UsersRecognition,
-	metaStorage meta.Storage, eventsQueueFactory *events.QueueFactory, maxColumns int) Factory {
+func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache, globalLoggerFactory *logging.Factory, globalConfiguration *config.UsersRecognition, metaStorage meta.Storage, eventsQueueFactory *events.QueueFactory, maxColumns int) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
@@ -205,141 +124,53 @@ func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Servic
 
 //Create builds event storage proxy and event consumer (logger or event-queue)
 //Enriches incoming configs with default values if needed
-func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig) (StorageProxy, events.Queue, error) {
+func (f *FactoryImpl) Create(destinationID string, destination config.DestinationConfig) (StorageProxy, events.Queue, error) {
+	createFunc, config, err := f.Configure(destinationID, destination)
+	if err != nil {
+		return nil, nil, err
+	}
+	storageProxy := newProxy(createFunc, config)
+	return storageProxy, config.eventQueue, nil
+}
+
+func (f *FactoryImpl) Configure(destinationID string, destination config.DestinationConfig) (func(config *Config) (Storage, error), *Config, error) {
 	if destination.Type == "" {
 		destination.Type = destinationID
 	}
 	if destination.Mode == "" {
 		destination.Mode = BatchMode
 	}
-
+	if destination.Mode != BatchMode && destination.Mode != StreamMode {
+		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, BatchMode, StreamMode)
+	}
 	logging.Infof("[%s] initializing destination of type: %s in mode: %s", destinationID, destination.Type, destination.Mode)
-
 	storageType, ok := StorageTypes[destination.Type]
 	if !ok {
 		return nil, nil, ErrUnknownDestination
 	}
-
-	var tableName string
-	var oldStyleMappings []string
-	var newStyleMapping *schema.Mapping
 	pkFields := map[string]bool{}
-	mappingFieldType := schema.Default
 	maxColumns := f.maxColumns
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField
-	transform := ""
-	transformEnabled := false
 	if destination.DataLayout != nil {
-		transformEnabled = destination.DataLayout.TransformEnabled
-		if transformEnabled {
-			transform = destination.DataLayout.Transform
-		} else {
-			mappingFieldType = destination.DataLayout.MappingType
-			oldStyleMappings = destination.DataLayout.Mapping
-			newStyleMapping = destination.DataLayout.Mappings
-		}
-		if destination.DataLayout.TableNameTemplate != "" {
-			tableName = destination.DataLayout.TableNameTemplate
-		}
-
 		for _, field := range destination.DataLayout.PrimaryKeyFields {
 			pkFields[field] = true
 		}
-
 		if destination.DataLayout.MaxColumns > 0 {
 			maxColumns = destination.DataLayout.MaxColumns
-
 			logging.Infof("[%s] uses max_columns setting: %d", destinationID, maxColumns)
 		}
-
 		if destination.DataLayout.UniqueIDField != "" {
 			uniqueIDField = identifiers.NewUniqueID(destination.DataLayout.UniqueIDField)
 		}
 	}
-
-	if tableName == "" {
-		tableName = storageType.defaultTableName
-	}
-	if tableName == "" {
-		tableName = defaultTableName
-		logging.Infof("[%s] uses default table: %s", destinationID, tableName)
-
-	}
-
 	if len(pkFields) > 0 {
 		logging.Infof("[%s] has primary key fields: [%s]", destinationID, strings.Join(destination.DataLayout.PrimaryKeyFields, ", "))
 	} else {
 		logging.Infof("[%s] doesn't have primary key fields", destinationID)
 	}
 
-	if destination.Mode != BatchMode && destination.Mode != StreamMode {
-		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, BatchMode, StreamMode)
-	}
-
-	if len(destination.Enrichment) == 0 {
-		logging.Warnf("[%s] doesn't have enrichment rules", destinationID)
-	} else {
-		logging.Infof("[%s] configured enrichment rules:", destinationID)
-	}
-
-	//default enrichment rules
-	enrichmentRules := []enrichment.Rule{
-		enrichment.CreateDefaultJsIPRule(f.geoService, destination.GeoDataResolverID),
-		enrichment.DefaultJsUaRule,
-	}
-
-	// ** Enrichment rules **
-	for _, ruleConfig := range destination.Enrichment {
-		logging.Infof("[%s] %s", destinationID, ruleConfig.String())
-
-		rule, err := enrichment.NewRule(ruleConfig, f.geoService, destination.GeoDataResolverID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("Error creating enrichment rule [%s]: %v", ruleConfig.String(), err)
-		}
-
-		enrichmentRules = append(enrichmentRules, rule)
-	}
-
-	// ** Mapping rules **
-	if len(oldStyleMappings) > 0 {
-		logging.Warnf("\n\t ** [%s] DEPRECATED mapping configuration. Read more about new configuration schema: https://jitsu.com/docs/configuration/schema-and-mappings **\n", destinationID)
-		var convertErr error
-		newStyleMapping, convertErr = schema.ConvertOldMappings(mappingFieldType, oldStyleMappings)
-		if convertErr != nil {
-			return nil, nil, convertErr
-		}
-	}
-	enrichAndLogMappings(destinationID, destination.Type, uniqueIDField, newStyleMapping)
-	fieldMapper, sqlTypes, err := schema.NewFieldMapper(newStyleMapping)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	//** Retroactive users recognition **
 	usersRecognition, err := f.initializeRetroactiveUsersRecognition(destinationID, &destination, pkFields)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
-	var flattener schema.Flattener
-	var typeResolver schema.TypeResolver
-	if needDummy(&destination) {
-		flattener = schema.NewDummyFlattener()
-		typeResolver = schema.NewDummyTypeResolver()
-	} else {
-		flattener = schema.NewFlattener()
-		typeResolver = schema.NewTypeResolver()
-	}
-
-	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
-	vars := make(map[string]interface{})
-	vars["destinationId"] = destinationID
-	vars["destinationType"] = destination.Type
-	utils.MapPutAll(vars, destination.TemplateVariables)
-
-	processor, err := schema.NewProcessor(destinationID, utils.NvlString(destination.SubType, destination.Type), tableName, transform, fieldMapper, enrichmentRules, flattener, typeResolver,
-		destination.BreakOnError, uniqueIDField, maxColumnNameLength, vars)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -373,12 +204,9 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		logging.Infof("[%s] events caching is disabled", destinationID)
 	}
 
-	//for telemetry
-	var mappingsStyle string
-	if len(oldStyleMappings) > 0 {
-		mappingsStyle = "old"
-	} else if newStyleMapping != nil {
-		mappingsStyle = "new"
+	processor, sqlTypes, mappingsStyle, err := f.SetupProcessor(destinationID, destination)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	storageConfig := &Config{
@@ -401,24 +229,105 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		logEventPath:           f.logEventPath,
 		PostHandleDestinations: destination.PostHandleDestinations,
 	}
-
-	storageProxy := newProxy(storageType.createFunc, storageConfig)
-
-	return storageProxy, eventQueue, nil
+	return storageType.createFunc, storageConfig, nil
 }
 
-func needDummy(destCfg *DestinationConfig) bool {
-	if destCfg.Type == S3Type {
-		return destCfg.S3.Format == adapters.S3FormatJSON
+func (f *FactoryImpl) SetupProcessor(destinationID string, destination config.DestinationConfig) (processor *schema.Processor, sqlTypes typing.SQLTypes, mappingsStyle string, err error) {
+	storageType, ok := StorageTypes[destination.Type]
+	if !ok {
+		return nil, nil, "", ErrUnknownDestination
 	}
-	return destCfg.Type == FacebookType || destCfg.Type == DbtCloudType || destCfg.Type == WebHookType ||
-		destCfg.Type == AmplitudeType || destCfg.Type == HubSpotType
+	var tableName string
+	var oldStyleMappings []string
+	var newStyleMapping *config.Mapping
+	mappingFieldType := config.Default
+	uniqueIDField := appconfig.Instance.GlobalUniqueIDField
+	if destination.DataLayout != nil {
+		mappingFieldType = destination.DataLayout.MappingType
+		oldStyleMappings = destination.DataLayout.Mapping
+		newStyleMapping = destination.DataLayout.Mappings
+		if destination.DataLayout.TableNameTemplate != "" {
+			tableName = destination.DataLayout.TableNameTemplate
+		}
+	}
+
+	if tableName == "" {
+		tableName = storageType.defaultTableName
+	}
+	if tableName == "" {
+		tableName = defaultTableName
+		logging.Infof("[%s] uses default table: %s", destinationID, tableName)
+	}
+
+	if len(destination.Enrichment) == 0 {
+		logging.Warnf("[%s] doesn't have enrichment rules", destinationID)
+	} else {
+		logging.Infof("[%s] configured enrichment rules:", destinationID)
+	}
+
+	//default enrichment rules
+	enrichmentRules := []enrichment.Rule{
+		enrichment.CreateDefaultJsIPRule(f.geoService, destination.GeoDataResolverID),
+		enrichment.DefaultJsUaRule,
+	}
+
+	// ** Enrichment rules **
+	for _, ruleConfig := range destination.Enrichment {
+		logging.Infof("[%s] %s", destinationID, ruleConfig.String())
+
+		rule, err := enrichment.NewRule(ruleConfig, f.geoService, destination.GeoDataResolverID)
+		if err != nil {
+			return nil, nil, "", fmt.Errorf("Error creating enrichment rule [%s]: %v", ruleConfig.String(), err)
+		}
+
+		enrichmentRules = append(enrichmentRules, rule)
+	}
+
+	// ** Mapping rules **
+	if len(oldStyleMappings) > 0 {
+		logging.Warnf("\n\t ** [%s] DEPRECATED mapping configuration. Read more about new configuration schema: https://jitsu.com/docs/configuration/schema-and-mappings **\n", destinationID)
+		var convertErr error
+		newStyleMapping, convertErr = schema.ConvertOldMappings(mappingFieldType, oldStyleMappings)
+		if convertErr != nil {
+			return nil, nil, "", convertErr
+		}
+	}
+	isSQLType := storageType.isSQLType(&destination)
+	enrichAndLogMappings(destinationID, isSQLType, uniqueIDField, newStyleMapping)
+	fieldMapper, sqlTypes, err := schema.NewFieldMapper(newStyleMapping)
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	var flattener schema.Flattener
+	var typeResolver schema.TypeResolver
+	if isSQLType {
+		flattener = schema.NewFlattener()
+		typeResolver = schema.NewTypeResolver()
+	} else {
+		flattener = schema.NewDummyFlattener()
+		typeResolver = schema.NewDummyTypeResolver()
+	}
+
+	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
+
+	processor, err = schema.NewProcessor(destinationID, &destination, isSQLType, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, uniqueIDField, maxColumnNameLength)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	//for telemetry
+	if len(oldStyleMappings) > 0 {
+		mappingsStyle = "old"
+	} else if newStyleMapping != nil {
+		mappingsStyle = "new"
+	}
+	return processor, sqlTypes, mappingsStyle, nil
 }
 
 //initializeRetroactiveUsersRecognition initializes recognition configuration (overrides global one with destination layer)
 //skip initialization if dummy meta storage
 //disable destination configuration if Postgres or Redshift without primary keys
-func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string, destination *DestinationConfig, pkFields map[string]bool) (*UserRecognitionConfiguration, error) {
+func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string, destination *config.DestinationConfig, pkFields map[string]bool) (*UserRecognitionConfiguration, error) {
 	if f.metaStorage.Type() == meta.DummyType {
 		if destination.UsersRecognition != nil {
 			logging.Errorf("[%s] Users recognition requires 'meta.storage' configuration", destinationID)
@@ -474,7 +383,7 @@ func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string
 
 //Add system fields as default mappings
 //write current mapping configuration to logs
-func enrichAndLogMappings(destinationID, destinationType string, uniqueIDField *identifiers.UniqueID, mapping *schema.Mapping) {
+func enrichAndLogMappings(destinationID string, isSQL bool, uniqueIDField *identifiers.UniqueID, mapping *config.Mapping) {
 	if mapping == nil || len(mapping.Fields) == 0 {
 		logging.Warnf("[%s] doesn't have mapping rules", destinationID)
 		return
@@ -490,7 +399,7 @@ func enrichAndLogMappings(destinationID, destinationType string, uniqueIDField *
 
 	//check system fields and add default mappings
 	//if destination is SQL and not keep unmapped
-	if isSQLType(destinationType) && !keepUnmapped {
+	if isSQL && !keepUnmapped {
 		var configuredEventId, configuredTimestamp bool
 		for _, f := range mapping.Fields {
 			if f.Src == uniqueIDFieldName && (f.Dst == uniqueIDFieldName || f.Dst == uniqueIDFieldFlatName) {
@@ -503,15 +412,15 @@ func enrichAndLogMappings(destinationID, destinationType string, uniqueIDField *
 		}
 
 		if !configuredEventId {
-			eventIdMapping := schema.MappingField{Src: uniqueIDFieldName, Dst: uniqueIDFieldName, Action: schema.MOVE}
-			flatEventIdMapping := schema.MappingField{Src: uniqueIDFieldFlatName, Dst: uniqueIDFieldFlatName, Action: schema.MOVE}
+			eventIdMapping := config.MappingField{Src: uniqueIDFieldName, Dst: uniqueIDFieldName, Action: config.MOVE}
+			flatEventIdMapping := config.MappingField{Src: uniqueIDFieldFlatName, Dst: uniqueIDFieldFlatName, Action: config.MOVE}
 			mapping.Fields = append(mapping.Fields, eventIdMapping, flatEventIdMapping)
 			logging.Warnf("[%s] Added default system field mapping: %s", destinationID, eventIdMapping.String())
 			logging.Warnf("[%s] Added default system field mapping: %s", destinationID, flatEventIdMapping.String())
 		}
 
 		if !configuredTimestamp {
-			eventIdMapping := schema.MappingField{Src: "/_timestamp", Dst: "/_timestamp", Action: schema.MOVE}
+			eventIdMapping := config.MappingField{Src: "/_timestamp", Dst: "/_timestamp", Action: config.MOVE}
 			mapping.Fields = append(mapping.Fields, eventIdMapping)
 			logging.Warnf("[%s] Added default system field mapping: %s", destinationID, eventIdMapping.String())
 		}
@@ -526,14 +435,4 @@ func enrichAndLogMappings(destinationID, destinationType string, uniqueIDField *
 	for _, mappingRule := range mapping.Fields {
 		logging.Infof("[%s] %s", destinationID, mappingRule.String())
 	}
-}
-
-func isSQLType(destinationType string) bool {
-	return destinationType == RedshiftType ||
-		destinationType == BigQueryType ||
-		destinationType == PostgresType ||
-		destinationType == ClickHouseType ||
-		destinationType == SnowflakeType ||
-		//S3 can be SQL (S3 as intermediate layer)
-		destinationType == S3Type
 }
