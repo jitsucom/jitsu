@@ -8,12 +8,14 @@ import (
 	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/smartystreets/assertions"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	tcWait "github.com/testcontainers/testcontainers-go/wait"
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -100,7 +102,7 @@ func (kc *KafkaCluster) Contains(t *testing.T, topic string, objs []map[string]i
 	}
 	defer client.Close()
 	ctx, stop := context.WithTimeout(context.Background(), time.Duration(20_000)*time.Millisecond)
-	consumer := &testKafkaConsumer{
+	consumer := &testKafkaGenericMapConsumer{
 		message: make(chan map[string]interface{}),
 	}
 	wg := &sync.WaitGroup{}
@@ -128,6 +130,50 @@ loop:
 	wg.Wait()
 	if !contains {
 		require.Failf(t, "", "%v doesn't contain %v", messages, objs)
+	}
+	return nil
+}
+
+func (kc *KafkaCluster) ContainsJSON(t *testing.T, topic string, expected ...string) error {
+	cfg := sarama.NewConfig()
+	cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
+	cfg.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
+	client, err := sarama.NewConsumerGroup([]string{kc.BootstrapServer}, "test", cfg)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	ctx, stop := context.WithTimeout(context.Background(), time.Duration(20_000)*time.Millisecond)
+	consumer := &testKafkaStringConsumer{
+		message: make(chan string),
+	}
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := client.Consume(ctx, []string{topic}, consumer); err != nil {
+			logging.Warnf("could not fetch some messages: %v", err)
+		}
+	}()
+	messages := make([]string, 0, len(expected))
+	contains := false
+	diff := ""
+loop:
+	for !contains {
+		select {
+		case <-ctx.Done():
+			logging.Warnf("waiting timeout exceeds")
+			break loop
+		case msg := <-consumer.message:
+			messages = append(messages, msg)
+			diff = sliceOfJSONContainsSliceOfJSON(messages, expected)
+			contains = diff == ""
+		}
+	}
+	stop()
+	wg.Wait()
+	if !contains {
+		require.Failf(t, "", diff)
 	}
 	return nil
 }
@@ -225,22 +271,22 @@ func findFreePort() (int, error) {
 }
 
 // Consumer represents a Sarama consumer group consumer
-type testKafkaConsumer struct {
+type testKafkaGenericMapConsumer struct {
 	message chan map[string]interface{}
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
-func (consumer *testKafkaConsumer) Setup(sarama.ConsumerGroupSession) error {
+func (consumer *testKafkaGenericMapConsumer) Setup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
 // Cleanup is run at the end of a session, once all ConsumeClaim goroutines have exited
-func (consumer *testKafkaConsumer) Cleanup(sarama.ConsumerGroupSession) error {
+func (consumer *testKafkaGenericMapConsumer) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
 // ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
-func (consumer *testKafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+func (consumer *testKafkaGenericMapConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	defer func() { close(consumer.message) }()
 
 	for kafkaMsg := range claim.Messages() {
@@ -255,8 +301,34 @@ func (consumer *testKafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSess
 	return nil
 }
 
-//sliceOfMapContainsSliceOfMap checks if all items of listB are contained by listA
-//this method works with flatten maps
+// Consumer represents a Sarama consumer group consumer
+type testKafkaStringConsumer struct {
+	message chan string
+}
+
+// Setup is run at the beginning of a new session, before ConsumeClaim
+func (consumer *testKafkaStringConsumer) Setup(sarama.ConsumerGroupSession) error {
+	return nil
+}
+
+// Cleanup is run at the end of a session, once all ConsumeClaim goroutines have exited
+func (consumer *testKafkaStringConsumer) Cleanup(sarama.ConsumerGroupSession) error {
+	return nil
+}
+
+// ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
+func (consumer *testKafkaStringConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	defer func() { close(consumer.message) }()
+
+	for kafkaMsg := range claim.Messages() {
+		consumer.message <- string(kafkaMsg.Value)
+		session.MarkMessage(kafkaMsg, "")
+	}
+	return nil
+}
+
+// sliceOfMapContainsSliceOfMap checks if all items of listB are contained by listA
+// this method works with flatten maps
 func sliceOfMapContainsSliceOfMap(listA []map[string]interface{}, listB []map[string]interface{}) bool {
 	sliceContainsSlice := true
 	for _, obj := range listB {
@@ -273,4 +345,12 @@ func sliceOfMapContainsSliceOfMap(listA []map[string]interface{}, listB []map[st
 		sliceContainsSlice = sliceContainsSlice && isObjContained
 	}
 	return sliceContainsSlice
+}
+
+// sliceOfJSONContainsSliceOfJSON checks if all items of listB are contained by listA
+// this method works with JSON strings
+func sliceOfJSONContainsSliceOfJSON(listA []string, listB []string) string {
+	jsonA := "[" + strings.Join(listA, ",") + "]"
+	jsonB := "[" + strings.Join(listB, ",") + "]"
+	return assertions.ShouldEqualJSON(jsonA, jsonB)
 }

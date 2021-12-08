@@ -102,7 +102,6 @@ func TestKafkaInsert(t *testing.T) {
 func kafkaTestTable(name string) *Table {
 	return &Table{
 		Name: name,
-		//Name: fmt.Sprintf("test_kafka_bulk_update_%d", rand.Int()),
 		Columns: Columns{
 			"field1": typing.SQLColumn{Type: "str"},
 			"field2": typing.SQLColumn{Type: "str"},

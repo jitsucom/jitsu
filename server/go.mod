@@ -43,6 +43,7 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/segmentio/backo-go v0.0.0-20200129164019-23eae7c10bd3 // indirect
 	github.com/shirou/gopsutil/v3 v3.21.9
+	github.com/smartystreets/assertions v1.2.1
 	github.com/snowflakedb/gosnowflake v1.3.8
 	github.com/spf13/cast v1.3.1
 	github.com/spf13/cobra v1.2.1
