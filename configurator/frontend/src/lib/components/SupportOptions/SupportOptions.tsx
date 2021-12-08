@@ -1,5 +1,5 @@
 // @Libs
-import { Fragment, SVGProps, useState } from "react"
+import { forwardRef, Fragment, SVGProps, useState } from "react"
 import { Button } from "antd"
 // @Icons
 import Icon from "@ant-design/icons"
@@ -15,91 +15,96 @@ type Props = {
   onEmailCopyClick?: VoidFunction | null
 }
 
-export const SupportOptions: React.FC<Props> = ({
-  disablePrivateChannelButton,
-  privateChannelButtonDescription,
-  showEmailOption,
-  showPrivateChannelOption,
-  onPrivateChannelClick,
-  onPublicChannelClick,
-  onEmailCopyClick,
-}) => {
-  const [isPrivateChannelLoading, setIsPrivateChannelLoading] = useState<boolean>(false)
+export const SupportOptions = forwardRef<HTMLDivElement, Props>(
+  (
+    {
+      disablePrivateChannelButton,
+      privateChannelButtonDescription,
+      showEmailOption,
+      showPrivateChannelOption,
+      onPrivateChannelClick,
+      onPublicChannelClick,
+      onEmailCopyClick,
+    },
+    ref
+  ) => {
+    const [isPrivateChannelLoading, setIsPrivateChannelLoading] = useState<boolean>(false)
 
-  const handlePrivateChannelClick = async () => {
-    setIsPrivateChannelLoading(true)
-    try {
-      await onPrivateChannelClick()
-    } finally {
-      setIsPrivateChannelLoading(false)
+    const handlePrivateChannelClick = async () => {
+      setIsPrivateChannelLoading(true)
+      try {
+        await onPrivateChannelClick()
+      } finally {
+        setIsPrivateChannelLoading(false)
+      }
     }
-  }
-  return (
-    <div className="w-full h-full max-w-min">
-      <div className="flex flex-col justify-center items-center">
-        {showPrivateChannelOption && (
-          <Fragment key="private-slack">
-            <div className="text-md mb-2">
-              Create a private Slack channel for a real-time conversations with our team. The channel will appear in a
-              Slack workspace of your choice
+    return (
+      <div ref={ref} className="w-full h-full max-w-xs">
+        <div className="flex flex-col justify-center items-center">
+          {showPrivateChannelOption && (
+            <Fragment key="private-slack">
+              <div className="text-md mb-2">
+                Create a private Slack channel for a real-time conversations with our team. The channel will appear in a
+                Slack workspace of your choice
+              </div>
+              <Button
+                size="large"
+                type="primary"
+                disabled={!!disablePrivateChannelButton}
+                loading={isPrivateChannelLoading}
+                icon={<Icon component={SlackIcon} />}
+                className={`w-full mb-${privateChannelButtonDescription ? "1" : "3"}`}
+                onClick={handlePrivateChannelClick}
+              >
+                Create a Private Support Channel
+              </Button>
+              {typeof privateChannelButtonDescription === "string" ? (
+                <span className="text-xs text-secondaryText mb-3">{privateChannelButtonDescription}</span>
+              ) : privateChannelButtonDescription ? (
+                privateChannelButtonDescription
+              ) : null}
+            </Fragment>
+          )}
+          {showEmailOption && (
+            <div key="email" className="flex flex-col items-center mb-3">
+              <div className="text-md mb-2">Don't want to use Slack? Feel free to contact us via email</div>
+              <CopyToClipboardButton
+                type="primary"
+                size="large"
+                icon={<Icon component={MailIcon} className={`transform translate-y-px`} />}
+                copyText="support@jitsu.com"
+                className="w-full"
+                onAfterCopy={onEmailCopyClick}
+              >
+                support@jitsu.com
+              </CopyToClipboardButton>
             </div>
-            <Button
-              size="large"
-              type="primary"
-              disabled={!!disablePrivateChannelButton}
-              loading={isPrivateChannelLoading}
-              icon={<Icon component={SlackIcon} />}
-              className={`w-full mb-${privateChannelButtonDescription ? "1" : "3"}`}
-              onClick={handlePrivateChannelClick}
-            >
-              Create a Private Support Channel
-            </Button>
-            {typeof privateChannelButtonDescription === "string" ? (
-              <span className="text-xs text-secondaryText mb-3">{privateChannelButtonDescription}</span>
-            ) : privateChannelButtonDescription ? (
-              privateChannelButtonDescription
-            ) : null}
-          </Fragment>
-        )}
-        {showEmailOption && (
-          <div key="email" className="flex flex-col items-center mb-3">
-            <div className="text-md mb-2">Don't want to use Slack? Feel free to contact us via email</div>
-            <CopyToClipboardButton
-              type="primary"
-              size="large"
-              icon={<Icon component={MailIcon} className={`transform translate-y-px`} />}
-              copyText="support@jitsu.com"
-              className="w-full"
-              onAfterCopy={onEmailCopyClick}
-            >
-              support@jitsu.com
-            </CopyToClipboardButton>
-          </div>
-        )}
-        {onPublicChannelClick && (
-          <Fragment key="public-slack">
-            <div className="text-md mb-2">
-              {`${
-                showPrivateChannelOption || showEmailOption
-                  ? "We also have a public Slack channel!"
-                  : "We'd be delighted to assist you with any issues in our Slack!"
-              } 100+ members already received help from our community`}
-            </div>
-            <Button
-              size="large"
-              type="primary"
-              icon={<Icon component={ChatIcon} />}
-              className="w-full mb-4"
-              onClick={onPublicChannelClick}
-            >
-              Join Public Slack Channel
-            </Button>
-          </Fragment>
-        )}
+          )}
+          {onPublicChannelClick && (
+            <Fragment key="public-slack">
+              <div className="text-md mb-2">
+                {`${
+                  showPrivateChannelOption || showEmailOption
+                    ? "We also have a public Slack channel!"
+                    : "We'd be delighted to assist you with any issues in our Slack!"
+                } 100+ members already received help from our community`}
+              </div>
+              <Button
+                size="large"
+                type="primary"
+                icon={<Icon component={ChatIcon} />}
+                className="w-full mb-4"
+                onClick={onPublicChannelClick}
+              >
+                Join Public Slack Channel
+              </Button>
+            </Fragment>
+          )}
+        </div>
       </div>
-    </div>
-  )
-}
+    )
+  }
+)
 
 const SlackIcon: React.FC<SVGProps<SVGSVGElement>> = props => (
   <svg className="fill-current" viewBox="0 0 24 24" height="1em" width="1em" {...props}>

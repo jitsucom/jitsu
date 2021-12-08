@@ -23,7 +23,6 @@ import Icon, {
   PartitionOutlined,
   ThunderboltOutlined,
   GlobalOutlined,
-  CloseCircleOutlined,
 } from "@ant-design/icons"
 import logo from "icons/logo.svg"
 import logoMini from "icons/logo-square.svg"
@@ -48,9 +47,8 @@ import { FeatureSettings } from "./lib/services/ApplicationServices"
 import { usePersistentState } from "./hooks/usePersistentState"
 import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
 import { SupportOptions } from "lib/components/SupportOptions/SupportOptions"
-import { SlackApiService } from "lib/services/slack"
-import { isEmpty } from "lodash"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+import { useClickOutsideRef } from "hooks/useClickOutsideRef"
 
 type MenuItem = {
   icon: React.ReactNode
@@ -297,6 +295,7 @@ export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, p
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbsProps>(
     withHome({ elements: [{ title: pages[0].pageHeader }] })
   )
+
   const routes = pages.map(page => {
     const Component = page.component as React.ExoticComponent
     return (
@@ -354,6 +353,10 @@ export const SlackChatWidget: React.FC<{}> = () => {
   const [popoverVisible, setPopoverVisible] = useState<boolean>(false)
   const [upgradeDialogVisible, setUpgradeDialogVisible] = useState<boolean>(false)
 
+  const [popoverContentRef, buttonRef] = useClickOutsideRef<HTMLDivElement, HTMLDivElement>(() => {
+    setPopoverVisible(false)
+  })
+
   const disablePrivateChannelButton: boolean = services.currentSubscription?.currentPlan?.id === "free"
   const isJitsuCloud: boolean = services.features.environment === "jitsu_cloud"
   const isPrivateSupportAvailable: boolean = services.slackApiSercice?.supportApiAvailable
@@ -392,11 +395,14 @@ export const SlackChatWidget: React.FC<{}> = () => {
   return (
     <>
       <Popover
+        // ref={ref}
         trigger="click"
         placement="leftBottom"
+        // destroyTooltipOnHide={{ keepParent: false }}
         visible={popoverVisible}
         content={
           <SupportOptions
+            ref={popoverContentRef}
             showEmailOption={isJitsuCloud}
             showPrivateChannelOption={isJitsuCloud && isPrivateSupportAvailable}
             disablePrivateChannelButton={disablePrivateChannelButton}
@@ -417,6 +423,7 @@ export const SlackChatWidget: React.FC<{}> = () => {
         }
       >
         <div
+          ref={buttonRef}
           id="jitsuSlackWidget"
           onClick={() => {
             services.analyticsService.track("slack_invitation_open")
