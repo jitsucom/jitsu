@@ -35,8 +35,8 @@ var (
 
 //FacebookConversionAPIConfig dto for deserialized datasource config (e.g. in Facebook destination)
 type FacebookConversionAPIConfig struct {
-	PixelID     string `mapstructure:"pixel_id" json:"pixel_id,omitempty" yaml:"pixel_id,omitempty"`
-	AccessToken string `mapstructure:"access_token" json:"access_token,omitempty" yaml:"access_token,omitempty"`
+	PixelID     string `mapstructure:"pixel_id,omitempty" json:"pixel_id,omitempty" yaml:"pixel_id,omitempty"`
+	AccessToken string `mapstructure:"access_token,omitempty" json:"access_token,omitempty" yaml:"access_token,omitempty"`
 }
 
 //Validate required fields in FacebookConversionAPIConfig
