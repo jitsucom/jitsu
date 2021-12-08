@@ -49,17 +49,17 @@ var (
 
 //SnowflakeConfig dto for deserialized datasource config for Snowflake
 type SnowflakeConfig struct {
-	Account    string             `mapstructure:"account" json:"account,omitempty" yaml:"account,omitempty"`
-	Port       int                `mapstructure:"port" json:"port,omitempty" yaml:"port,omitempty"`
-	Db         string             `mapstructure:"db" json:"db,omitempty" yaml:"db,omitempty"`
-	Schema     string             `mapstructure:"schema" json:"schema,omitempty" yaml:"schema,omitempty"`
-	Username   string             `mapstructure:"username" json:"username,omitempty" yaml:"username,omitempty"`
-	Password   string             `mapstructure:"password" json:"password,omitempty" yaml:"password,omitempty"`
-	Warehouse  string             `mapstructure:"warehouse" json:"warehouse,omitempty" yaml:"warehouse,omitempty"`
-	Stage      string             `mapstructure:"stage" json:"stage,omitempty" yaml:"stage,omitempty"`
-	Parameters map[string]*string `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
-	S3         *S3Config          `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
-	Google	   *GoogleConfig      `mapstructure:"google" json:"google,omitempty" yaml:"google,omitempty"`
+	Account    string             `mapstructure:"account,omitempty" json:"account,omitempty" yaml:"account,omitempty"`
+	Port       int                `mapstructure:"port,omitempty" json:"port,omitempty" yaml:"port,omitempty"`
+	Db         string             `mapstructure:"db,omitempty" json:"db,omitempty" yaml:"db,omitempty"`
+	Schema     string             `mapstructure:"schema,omitempty" json:"schema,omitempty" yaml:"schema,omitempty"`
+	Username   string             `mapstructure:"username,omitempty" json:"username,omitempty" yaml:"username,omitempty"`
+	Password   string             `mapstructure:"password,omitempty" json:"password,omitempty" yaml:"password,omitempty"`
+	Warehouse  string             `mapstructure:"warehouse,omitempty" json:"warehouse,omitempty" yaml:"warehouse,omitempty"`
+	Stage      string             `mapstructure:"stage,omitempty" json:"stage,omitempty" yaml:"stage,omitempty"`
+	Parameters map[string]*string `mapstructure:"parameters,omitempty" json:"parameters,omitempty" yaml:"parameters,omitempty"`
+	S3         *S3Config          `mapstructure:"s3,omitempty" json:"s3,omitempty" yaml:"s3,omitempty"`
+	Google     *GoogleConfig      `mapstructure:"google,omitempty" json:"google,omitempty" yaml:"google,omitempty"`
 }
 
 //Validate required fields in SnowflakeConfig
