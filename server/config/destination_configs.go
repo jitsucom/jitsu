@@ -109,6 +109,7 @@ type UsersRecognition struct {
 	AnonymousIDNode     string   `mapstructure:"anonymous_id_node" json:"anonymous_id_node,omitempty" yaml:"anonymous_id_node,omitempty"`
 	IdentificationNodes []string `mapstructure:"identification_nodes" json:"identification_nodes,omitempty" yaml:"identification_nodes,omitempty"`
 	UserIDNode          string   `mapstructure:"user_id_node" json:"user_id_node,omitempty" yaml:"user_id_node,omitempty"`
+	PoolSize            int      `mapstructure:"pool_size" json:"pool_size,omitempty" yaml:"pool_size,omitempty"`
 }
 
 //CachingConfiguration is a configuration for disabling caching

@@ -191,11 +191,11 @@ func (p *Postgres) Update(objects []map[string]interface{}) error {
 				return err
 			}
 
-			start := time.Now()
+			start := timestamp.Now()
 			if err = p.adapter.Update(dbSchema, processedObject, p.uniqueIDField.GetFlatFieldName(), p.uniqueIDField.Extract(object)); err != nil {
 				return err
 			}
-			logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", p.ID(), time.Now().Sub(start).Seconds())
+			logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", p.ID(), timestamp.Now().Sub(start).Seconds())
 		}
 	}
 
