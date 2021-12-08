@@ -35,11 +35,11 @@ jobs:
           MYSQL_USER: test_user
           MYSQL_PASSWORD: test_password
           MYSQL_DATABASE: test_database
-      - image: confluentinc/cp-zookeeper:6.2.1
+      - image: confluentinc/cp-zookeeper:7.0.0
         environment:
           ZOOKEEPER_CLIENT_PORT: 2181
           ZOOKEEPER_TICK_TIME: 2000
-      - image: confluentinc/cp-kafka:6.2.1
+      - image: confluentinc/cp-kafka:7.0.0
         environment:
           KAFKA_ZOOKEEPER_CONNECT: 127.0.0.1:2181
           KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CLIENT:PLAINTEXT
