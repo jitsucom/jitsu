@@ -6,6 +6,7 @@ import (
 	"github.com/dop251/goja"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"io"
 	"net/http"
 	"os"
@@ -187,7 +188,7 @@ func downloadPlugin(packageString, tarballUrl string) (*Plugin, error) {
 	plugin := &Plugin{Name: descriptor["type"].(string), Code: code, Descriptor: descriptor}
 	pluginsCache[packageString] = CachedPlugin{
 		Plugin: plugin,
-		Added:  time.Now(),
+		Added:  timestamp.Now(),
 	}
 	return plugin, nil
 }
@@ -197,7 +198,7 @@ func GetCached(packageString string) *Plugin {
 	if !ok {
 		return nil
 	}
-	if time.Now().Sub(cached.Added) > cacheTTL {
+	if timestamp.Now().Sub(cached.Added) > cacheTTL {
 		logging.Infof("Cache expired. Plugin: %s time added: %s", packageString, cached.Added)
 		delete(pluginsCache, packageString)
 		return nil

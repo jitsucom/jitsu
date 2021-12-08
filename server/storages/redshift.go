@@ -2,14 +2,13 @@ package storages
 
 import (
 	"fmt"
-	"github.com/jitsucom/jitsu/server/appconfig"
-	"time"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 //AwsRedshift stores files to aws RedShift in two modes:
@@ -217,11 +216,11 @@ func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 			return err
 		}
 
-		start := time.Now()
+		start := timestamp.Now()
 		if err = ar.redshiftAdapter.Update(dbSchema, processedObject, ar.uniqueIDField.GetFlatFieldName(), ar.uniqueIDField.Extract(object)); err != nil {
 			return err
 		}
-		logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.ID(), time.Now().Sub(start).Seconds())
+		logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.ID(), timestamp.Now().Sub(start).Seconds())
 	}
 	return nil
 }

@@ -1,22 +1,20 @@
 package enrichment
 
 import (
-	"bou.ke/monkey"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"testing"
-	"time"
 )
 
 func TestWithJsPreprocess(t *testing.T) {
 	SetTestDefaultParams()
 	uuid.InitMock()
-	freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
-	patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
-	defer patch.Unpatch()
+	timestamp.FreezeTime()
+	defer timestamp.UnfreezeTime()
 
 	require.NoError(t, appconfig.Init(false, ""))
 	defer appconfig.Instance.Close()
@@ -84,9 +82,8 @@ func TestWithJsPreprocess(t *testing.T) {
 func TestWithAPIPreprocess(t *testing.T) {
 	SetTestDefaultParams()
 	uuid.InitMock()
-	freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
-	patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
-	defer patch.Unpatch()
+	timestamp.FreezeTime()
+	defer timestamp.UnfreezeTime()
 
 	tests := []struct {
 		name     string

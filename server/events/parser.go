@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/maputils"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"io"
 	"io/ioutil"
 	"time"
@@ -182,7 +183,7 @@ func (sp *segmentParser) ParseEventsBody(c *gin.Context) ([]Event, error) {
 		if ok {
 			l, err := time.LoadLocation(fmt.Sprint(tz))
 			if err == nil {
-				_, offsetSeconds := time.Now().In(l).Zone()
+				_, offsetSeconds := timestamp.Now().In(l).Zone()
 				sp.localTzOffset.Set(mapped, (time.Second * time.Duration(offsetSeconds)).Minutes())
 			}
 		}
