@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/utils"
 	"go.uber.org/atomic"
 	"math/rand"
@@ -75,7 +76,7 @@ func (sw *StreamingWorker) start() {
 			}
 
 			//dequeued event was from retry call and retry timeout hasn't come
-			if time.Now().Before(dequeuedTime) {
+			if timestamp.Now().Before(dequeuedTime) {
 				sw.eventQueue.ConsumeTimed(fact, dequeuedTime, tokenID)
 				continue
 			}
@@ -130,7 +131,7 @@ func (sw *StreamingWorker) start() {
 					logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.Serialize(), table.Name, err)
 					if IsConnectionError(err) {
 						//retry
-						sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenID)
+						sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(20*time.Second), tokenID)
 					}
 
 					continue

@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/queue"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
 	"io/ioutil"
@@ -118,7 +119,7 @@ func (h *HTTPAdapter) startObserver() {
 					continue
 				}
 				//dequeued request was from retry call and retry timeout hasn't come
-				if time.Now().UTC().Before(retryableRequest.DequeuedTime) {
+				if timestamp.Now().UTC().Before(retryableRequest.DequeuedTime) {
 					if err := h.queue.AddRequest(retryableRequest); err != nil {
 						logging.SystemErrorf("[%s] Error enqueueing HTTP request after dequeuing: %v", h.destinationID, err)
 						h.errorHandler(true, retryableRequest.EventContext, err)
@@ -192,7 +193,7 @@ func (h *HTTPAdapter) doRetry(retryableRequest *RetryableRequest, sendErr error)
 		if retryableRequest.Retry < h.retryCount {
 			delay := time.Duration(math.Pow(2, float64(retryableRequest.Retry))) * h.retryDelay
 			retryableRequest.Retry += 1
-			retryableRequest.DequeuedTime = time.Now().UTC().Add(delay)
+			retryableRequest.DequeuedTime = timestamp.Now().UTC().Add(delay)
 			if err := h.queue.AddRequest(retryableRequest); err != nil {
 				logging.SystemErrorf("[%s] Error enqueueing HTTP request after sending: %v", h.destinationID, err)
 				h.errorHandler(true, retryableRequest.EventContext, sendErr)

@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/httputils"
 	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"golang.org/x/oauth2/google"
 	"io"
 	"net/http"
@@ -146,7 +147,7 @@ func (g *GoogleAds) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 		daysBackToLoad = g.collection.DaysBackToLoad
 	}
 
-	date := time.Now().UTC()
+	date := timestamp.Now().UTC()
 	backDay := date.Truncate(time.Hour*24).AddDate(0, 0, -daysBackToLoad)
 	for date.Unix() >= backDay.Unix() {
 		interval := base.NewTimeInterval(g.granularity, date)

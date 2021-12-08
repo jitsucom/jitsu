@@ -152,7 +152,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 		}
 	}
 
-	end := time.Now().UTC()
+	end := timestamp.Now().UTC()
 	endStr := c.Query("end")
 	if endStr != "" {
 		end, err = time.Parse(time.RFC3339Nano, endStr)
