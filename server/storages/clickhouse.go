@@ -2,7 +2,6 @@ package storages
 
 import (
 	"fmt"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
@@ -22,13 +21,13 @@ type ClickHouse struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: ClickHouseType, createFunc: NewClickHouse})
+	RegisterStorage(StorageType{typeName: ClickHouseType, createFunc: NewClickHouse, isSQL: true})
 }
 
 //NewClickHouse returns configured ClickHouse instance
 func NewClickHouse(config *Config) (Storage, error) {
-	chConfig := config.destination.ClickHouse
-	if err := chConfig.Validate(); err != nil {
+	chConfig := &adapters.ClickHouseConfig{}
+	if err := config.destination.GetDestConfig(config.destination.ClickHouse, chConfig); err != nil {
 		return nil, err
 	}
 

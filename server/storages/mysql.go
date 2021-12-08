@@ -26,19 +26,19 @@ type MySQL struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: MySQLType, createFunc: NewMySQL})
+	RegisterStorage(StorageType{typeName: MySQLType, createFunc: NewMySQL, isSQL: true})
 }
 
 //NewMySQL returns configured MySQL Destination
 func NewMySQL(config *Config) (Storage, error) {
-	mConfig := config.destination.DataSource
-	if err := mConfig.Validate(); err != nil {
+	mConfig := &adapters.DataSourceConfig{}
+	if err := config.destination.GetDestConfig(config.destination.DataSource, mConfig); err != nil {
 		return nil, err
 	}
 	//enrich with default parameters
-	if mConfig.Port.String() == "" {
-		mConfig.Port = "3306"
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.destinationID, mConfig.Port.String())
+	if mConfig.Port == 0 {
+		mConfig.Port = 3306
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.destinationID, mConfig.Port)
 	}
 	//schema and database are synonyms in MySQL
 	//default connect timeout seconds

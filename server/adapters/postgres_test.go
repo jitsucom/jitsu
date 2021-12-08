@@ -2,7 +2,6 @@ package adapters
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/test"
@@ -114,7 +113,7 @@ func setupDatabase(t *testing.T, table *Table) (*test.PostgresContainer, *Postgr
 	if err != nil {
 		t.Fatalf("failed to initialize container: %v", err)
 	}
-	dsConfig := &DataSourceConfig{Host: container.Host, Port: json.Number(fmt.Sprint(container.Port)), Username: container.Username, Password: container.Password, Db: container.Database, Schema: container.Schema, Parameters: map[string]string{"sslmode": "disable"}}
+	dsConfig := &DataSourceConfig{Host: container.Host, Port: container.Port, Username: container.Username, Password: container.Password, Db: container.Database, Schema: container.Schema, Parameters: map[string]string{"sslmode": "disable"}}
 	pg, err := NewPostgres(ctx, dsConfig, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
 		t.Fatalf("Failed to create Postgres adapter: %v", err)

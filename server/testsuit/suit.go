@@ -2,6 +2,7 @@ package testsuit
 
 import (
 	"context"
+	"github.com/jitsucom/jitsu/server/config"
 	"net/http"
 	"os"
 	"testing"
@@ -64,7 +65,7 @@ type suiteBuilder struct {
 	httpAuthority                    string
 	segmentRequestFieldsMapper       events.Mapper
 	segmentCompatRequestFieldsMapper events.Mapper
-	globalUsersRecognitionConfig     *storages.UsersRecognition
+	globalUsersRecognitionConfig     *config.UsersRecognition
 	systemService                    *system.Service
 	eventsCache                      *caching.EventsCache
 	geoService                       *geo.Service
@@ -98,7 +99,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	consumer := logging.NewAsyncLogger(inmemWriter, false)
 
 	mockStorageFactory := storages.NewMockFactory()
-	mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
+	mockStorage, _, _ := mockStorageFactory.Create("test", config.DestinationConfig{})
 	destinationService := destinations.NewTestService(map[string]*destinations.Unit{"dest1": destinations.NewTestUnit(mockStorage)},
 		destinations.TokenizedConsumers{"id1": {"id1": consumer}},
 		destinations.TokenizedStorages{},
@@ -106,18 +107,18 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		map[string]events.Consumer{"dest1": consumer})
 
 	//** Segment API
-	mappings, err := schema.ConvertOldMappings(schema.Default, viper.GetStringSlice("compatibility.segment.endpoint"))
+	mappings, err := schema.ConvertOldMappings(config.Default, viper.GetStringSlice("compatibility.segment.endpoint"))
 	require.NoError(t, err)
 	segmentRequestFieldsMapper, _, err := schema.NewFieldMapper(mappings)
 	require.NoError(t, err)
 
 	//Segment compat API
-	compatMappings, err := schema.ConvertOldMappings(schema.Default, viper.GetStringSlice("compatibility.segment_compat.endpoint"))
+	compatMappings, err := schema.ConvertOldMappings(config.Default, viper.GetStringSlice("compatibility.segment_compat.endpoint"))
 	require.NoError(t, err)
 	segmentRequestCompatFieldsMapper, _, err := schema.NewFieldMapper(compatMappings)
 	require.NoError(t, err)
 
-	globalRecognitionConfiguration := &storages.UsersRecognition{
+	globalRecognitionConfiguration := &config.UsersRecognition{
 		Enabled:             viper.GetBool("users_recognition.enabled"),
 		AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
 		IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
@@ -219,7 +220,7 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		fallback.NewTestService(), coordination.NewInMemoryService([]string{}), sb.eventsCache, sb.systemService,
-		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService)
+		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService, nil)
 
 	server := &http.Server{
 		Addr:              sb.httpAuthority,

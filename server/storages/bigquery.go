@@ -26,16 +26,20 @@ type BigQuery struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: BigQueryType, createFunc: NewBigQuery})
+	RegisterStorage(StorageType{typeName: BigQueryType, createFunc: NewBigQuery, isSQL: true})
 }
 
 //NewBigQuery returns BigQuery configured instance
 func NewBigQuery(config *Config) (Storage, error) {
-	gConfig := config.destination.Google
-	if err := gConfig.Validate(config.streamMode); err != nil {
+	gConfig := &adapters.GoogleConfig{}
+	if err := config.destination.GetDestConfig(config.destination.Google, gConfig); err != nil {
 		return nil, err
 	}
-
+	if !config.streamMode {
+		if err := gConfig.ValidateBatchMode(); err != nil {
+			return nil, err
+		}
+	}
 	if gConfig.Project == "" {
 		return nil, errors.New("BigQuery project(bq_project) is required parameter")
 	}

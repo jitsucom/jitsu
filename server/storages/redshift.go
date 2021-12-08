@@ -25,19 +25,19 @@ type AwsRedshift struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: RedshiftType, createFunc: NewAwsRedshift})
+	RegisterStorage(StorageType{typeName: RedshiftType, createFunc: NewAwsRedshift, isSQL: true})
 }
 
 //NewAwsRedshift returns AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(config *Config) (Storage, error) {
-	redshiftConfig := config.destination.DataSource
-	if err := redshiftConfig.Validate(); err != nil {
+	redshiftConfig := &adapters.DataSourceConfig{}
+	if err := config.destination.GetDestConfig(config.destination.DataSource, redshiftConfig); err != nil {
 		return nil, err
 	}
 	//enrich with default parameters
-	if redshiftConfig.Port.String() == "" {
-		redshiftConfig.Port = "5439"
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.destinationID, redshiftConfig.Port)
+	if redshiftConfig.Port == 0 {
+		redshiftConfig.Port = 5439
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.destinationID, redshiftConfig.Port)
 	}
 	if redshiftConfig.Schema == "" {
 		redshiftConfig.Schema = "public"
@@ -54,16 +54,22 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	}
 
 	var s3Adapter *adapters.S3
+	var s3config *adapters.S3Config
+	s3c, err := config.destination.GetConfig(redshiftConfig.S3, config.destination.S3, &adapters.S3Config{})
+	if err != nil {
+		return nil, err
+	}
+	s3config = s3c.(*adapters.S3Config)
 	if !config.streamMode {
 		var err error
-		s3Adapter, err = adapters.NewS3(config.destination.S3)
+		s3Adapter, err = adapters.NewS3(s3config)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	redshiftAdapter, err := adapters.NewAwsRedshift(config.ctx, redshiftConfig, config.destination.S3, queryLogger, config.sqlTypes)
+	redshiftAdapter, err := adapters.NewAwsRedshift(config.ctx, redshiftConfig, s3config, queryLogger, config.sqlTypes)
 	if err != nil {
 		return nil, err
 	}

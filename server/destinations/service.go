@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/resources"
@@ -93,7 +94,7 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 	}
 
 	if destinations != nil {
-		dc := map[string]storages.DestinationConfig{}
+		dc := map[string]config.DestinationConfig{}
 		if err := destinations.Unmarshal(&dc); err != nil {
 			logging.Error(marshallingErrorMsg, err)
 			return service, nil
@@ -205,7 +206,7 @@ func (s *Service) updateDestinations(payload []byte) {
 
 //1. close and remove all destinations which don't exist in new config
 //2. recreate/create changed/new destinations
-func (s *Service) init(dc map[string]storages.DestinationConfig) {
+func (s *Service) init(dc map[string]config.DestinationConfig) {
 	StatusInstance.Reloading = true
 
 	//close and remove non-existent (in new config)
@@ -386,6 +387,10 @@ func (s *Service) removeAndClose(destinationID string, unit *Unit) {
 
 	delete(s.unitsByID, destinationID)
 	logging.Infof("[%s] destination has been removed!", destinationID)
+}
+
+func (s *Service) GetFactory() storages.Factory {
+	return s.storageFactory
 }
 
 //Close closes destination storages

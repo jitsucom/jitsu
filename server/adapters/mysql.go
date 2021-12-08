@@ -328,8 +328,8 @@ func (m *MySQL) getPrimaryKeys(tableName string) (map[string]bool, error) {
 
 func mySQLDriverConnectionString(config *DataSourceConfig) string {
 	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
-	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
-		config.Username, config.Password, config.Host, config.Port.String(), config.Db)
+	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+		config.Username, config.Password, config.Host, config.Port, config.Db)
 	if len(config.Parameters) > 0 {
 		connectionString += "?"
 		paramList := make([]string, 10)

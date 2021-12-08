@@ -29,14 +29,17 @@ const mixpanelDestination = {
   id: "mixpanel",
   type: "other",
   displayName: "Mixpanel",
-  defaultTransform: "return toMixpanel($, {userProfileUpdates: {}, additionalProperties: {}, overriddenEventName: ''})",
+  defaultTransform: "return toMixpanel($, globalThis)",
   hidden: false,
   parameters: [
     {
       id: "_super_type",
-      constant: "webhook",
+      constant: "npm",
     },
-    modeParameter("stream"),
+    {
+      id: "_package",
+      constant: "mixpanel-destination",
+    },
     {
       id: "_formData.description",
       displayName: "Description",
@@ -58,7 +61,7 @@ const mixpanelDestination = {
       ),
     },
     {
-      id: "_formData._token",
+      id: "_formData.token",
       displayName: "Project Token",
       required: true,
       type: stringType,
@@ -71,7 +74,7 @@ const mixpanelDestination = {
       ),
     },
     {
-      id: "_formData._users_enabled",
+      id: "_formData.users_enabled",
       displayName: "Enable User Profiles",
       required: false,
       type: booleanType,
@@ -84,7 +87,7 @@ const mixpanelDestination = {
       ),
     },
     {
-      id: "_formData._anonymous_users_enabled",
+      id: "_formData.anonymous_users_enabled",
       displayName: "User Profiles for anonymous users",
       required: false,
       type: booleanType,

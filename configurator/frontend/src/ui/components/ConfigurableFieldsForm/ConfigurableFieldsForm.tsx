@@ -168,6 +168,7 @@ const ConfigurableFieldsFormComponent = ({
           key={id}
           type={type}
           id={id}
+          bigField={bigField}
           displayName={displayName}
           documentation={documentation}
           validationRules={validationRules}
@@ -182,6 +183,7 @@ const ConfigurableFieldsFormComponent = ({
         <NonFormItemWrapper
           key={id}
           id={id}
+          bigField={bigField}
           displayName={displayName}
           documentation={documentation}
           validationRules={validationRules}
@@ -329,6 +331,13 @@ const ConfigurableFieldsFormComponent = ({
   }
 
   const handleDebuggerRun = async (field: string, debuggerType: "object" | "string", values: DebuggerFormValues) => {
+    let transform = {}
+    if (field === "_transform") {
+      transform = {
+        _transform_enabled: true,
+        _transform: values.code,
+      }
+    }
     const data = {
       reformat: debuggerType == "string",
       uid: initialValues._uid,
@@ -336,6 +345,7 @@ const ConfigurableFieldsFormComponent = ({
       field: field,
       expression: values.code,
       object: JSON.parse(values.object),
+      config: makeObjectFromFieldsValues({ ...initialValues, ...configForm.getFieldsValue(), ...transform }),
       template_variables: Object.entries((configForm || form).getFieldsValue())
         .filter(v => v[0].startsWith("_formData._"))
         .reduce((accumulator: any, currentValue: [string, unknown]) => {
@@ -344,9 +354,7 @@ const ConfigurableFieldsFormComponent = ({
         }, {}),
     }
 
-    return services.backendApiClient.post(`/templates/evaluate?project_id=${services.activeProject.id}`, data, {
-      proxy: true,
-    })
+    return services.backendApiClient.post(`/destinations/evaluate?project_id=${services.activeProject.id}`, data)
   }
 
   const handleCloseDebugger = id => setDebugModalsStates({ ...debugModalsStates, [id]: false })
