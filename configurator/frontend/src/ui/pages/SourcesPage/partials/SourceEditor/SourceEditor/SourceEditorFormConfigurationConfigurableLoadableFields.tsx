@@ -14,12 +14,13 @@ import { usePolling } from "hooks/usePolling"
 // @Utils
 import { toTitleCase } from "utils/strings"
 import { mapAirbyteSpecToSourceConnectorConfig } from "catalog/sources/lib/airbyte.helper"
-import { memo, useCallback, useEffect } from "react"
+import { memo, useCallback, useEffect, useMemo } from "react"
 
 type Props = {
   initialValues: Partial<SourceData>
   sourceDataFromCatalog: SourceConnector
-  oauthBackendSecretsStatus: "loading" | "secrets_set" | "secrets_not_set"
+  availableOauthBackendSecrets?: string[]
+  hideFields?: string[]
   patchConfig: PatchConfig
   setControlsDisabled: ReactSetState<boolean>
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
@@ -32,7 +33,8 @@ const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> = ({
   initialValues,
   sourceDataFromCatalog,
-  oauthBackendSecretsStatus,
+  availableOauthBackendSecrets,
+  hideFields: _hideFields,
   patchConfig,
   setControlsDisabled,
   setValidator,
@@ -61,6 +63,15 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     },
     { interval_ms: 2000 }
   )
+
+  const hideFields = useMemo<string[]>(() => {
+    if (!fieldsParameters) return _hideFields
+    const oauthFieldsParametersNames = fieldsParameters.reduce<string[]>((result, current) => {
+      if (current.type.typeName === "oauthSecret") result.push(current.id)
+      return result
+    }, [])
+    return [..._hideFields, ...oauthFieldsParametersNames]
+  }, [_hideFields, fieldsParameters])
 
   const handleFormValuesChange = useCallback(
     (values: PlainObjectWithPrimitiveValues): void => {
@@ -141,7 +152,8 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
         fieldsParamsList={fieldsParameters || []}
         form={form}
         initialValues={initialValues}
-        oauthBackendSecretsStatus={oauthBackendSecretsStatus}
+        availableOauthBackendSecrets={"all_from_config"}
+        hideFields={hideFields}
         setFormValues={handleFormValuesChange}
         setInitialFormValues={handleSetInitialFormValues}
       />

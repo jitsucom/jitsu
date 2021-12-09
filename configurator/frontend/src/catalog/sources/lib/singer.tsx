@@ -86,6 +86,7 @@ export const allSingerTaps: SingerTap[] = [
           displayName: "Strat Date",
           id: "start_date",
           type: isoUtcDateType,
+          defaultValue: "2020-01-01T00:00:00.000Z",
           required: true,
         },
       ],

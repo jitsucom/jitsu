@@ -17,6 +17,7 @@ type Props = {
   icon?: React.ReactNode
   isGoogle?: boolean
   setAuthSecrets: (data: any) => void
+  onIsOauthSuppotedStatusUpdate?: (isSupported: boolean) => void
 }
 
 export const OauthButton: React.FC<Props> = ({
@@ -28,11 +29,11 @@ export const OauthButton: React.FC<Props> = ({
   isGoogle,
   children,
   setAuthSecrets,
+  onIsOauthSuppotedStatusUpdate,
 }) => {
   const services = useServices()
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isOauthSupported, setIsOauthSupported] = useState<boolean>(false)
-  // const [oauthResult, setOauthResult] = useState<string | null>(null)
 
   const handleClick = async (): Promise<void> => {
     setIsLoading(true)
@@ -40,12 +41,10 @@ export const OauthButton: React.FC<Props> = ({
       const oauthResult = await services.oauthService.getCredentialsInSeparateWindow(service)
       if (oauthResult.status === "error") {
         actionNotification.error(oauthResult.errorMessage)
-        // setOauthResult(`❌ ${oauthResult.errorMessage}`)
         return
       }
       if (oauthResult.status === "warning") {
         actionNotification.warn(oauthResult.message)
-        // setOauthResult(`⚠️ ${oauthResult.message}`)
         return
       }
       setAuthSecrets(oauthResult.secrets)
@@ -58,7 +57,13 @@ export const OauthButton: React.FC<Props> = ({
 
   useEffect(() => {
     !forceNotSupported &&
-      services.oauthService.checkIfOauthSupported(service).then(result => result && setIsOauthSupported(result)) // only change state if oauth is supported
+      services.oauthService.checkIfOauthSupported(service).then(result => {
+        if (result) {
+          // only change state if oauth is supported
+          setIsOauthSupported(result)
+          onIsOauthSuppotedStatusUpdate?.(result)
+        }
+      })
   }, [])
 
   return (
@@ -79,7 +84,7 @@ export const OauthButton: React.FC<Props> = ({
         }
         onClick={handleClick}
       >
-        {isGoogle ? <span className="align-top">{`Sign In With Google (OAuth Only)`}</span> : children}
+        {isGoogle ? <span className="align-top">{`Sign In With Google`}</span> : children}
       </Button>
     </div>
   )

@@ -1,10 +1,7 @@
 // @Libs
 import { Button } from "antd"
-// @Types
-import { SourceConnector } from "catalog/sources/types"
 // @Icons
 import { useState } from "react"
-import { OauthButton } from "../../OauthButton/OauthButton"
 
 interface ButtonProps {
   title?: string

@@ -12,7 +12,7 @@ export type OauthSupportResponse = {
 }
 
 export interface IOauthService {
-  isOauthBackendSecretsAvailable(sourceType: string, projectId: string): Promise<boolean>
+  getAvailableBackendSecrets(sourceType: string, projectId: string): Promise<string[]>
   checkIfOauthSupported(service: string): Promise<boolean>
   getCredentialsInSeparateWindow(service: string): Promise<OauthResult>
 }
@@ -26,16 +26,19 @@ export class OauthService implements IOauthService {
     this._backendApiClient = backendApiClient
   }
 
-  public async isOauthBackendSecretsAvailable(sourceType: string, projectId: string): Promise<boolean> {
+  public async getAvailableBackendSecrets(sourceType: string, projectId: string): Promise<string[]> {
     const secretsStatus = await this._backendApiClient.get(
       `sources/oauth_fields/${sourceType}?project_id=${projectId}`,
       {
         proxy: true,
       }
     )
-    if (Object.values(secretsStatus).length === 0) return false
-    const atLeastOneSecretUnavailable = Object.values(secretsStatus).some(secret => !secret["provided"])
-    return !atLeastOneSecretUnavailable
+
+    return Object.entries(secretsStatus).reduce<string[]>((result, [key, status]) => {
+      if (!status["provided"]) return result
+      result.push(key)
+      return result
+    }, [])
   }
 
   public async checkIfOauthSupported(service: string): Promise<boolean> {

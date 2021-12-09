@@ -10,7 +10,8 @@ import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceE
 type Props = {
   initialValues: Partial<SourceData>
   configParameters: Parameter[]
-  oauthBackendSecretsStatus: "loading" | "secrets_set" | "secrets_not_set"
+  availableOauthBackendSecrets?: string[]
+  hideFields?: string[]
   patchConfig: PatchConfig
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
   setFormReference: SetFormReference
@@ -22,7 +23,8 @@ const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = ({
   initialValues,
   configParameters,
-  oauthBackendSecretsStatus,
+  availableOauthBackendSecrets,
+  hideFields,
   patchConfig,
   setValidator,
   setFormReference,
@@ -67,7 +69,8 @@ export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = 
         form={form}
         initialValues={initialValues}
         fieldsParamsList={configParameters}
-        oauthBackendSecretsStatus={oauthBackendSecretsStatus}
+        availableOauthBackendSecrets={availableOauthBackendSecrets}
+        hideFields={hideFields}
         setFormValues={handleFormValuesChange}
         setInitialFormValues={handleSetInitialFormValues}
       />
