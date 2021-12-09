@@ -38,19 +38,19 @@ func NewUserAgentParseRule(source, destination jsonutils.JSONPath) (*UserAgentPa
 }
 
 //Execute sets parsed ua from cache or resolves with useragent.Resolver. Also returns set value to destination path
-func (uap *UserAgentParseRule) Execute(event map[string]interface{}) map[string]interface{} {
+func (uap *UserAgentParseRule) Execute(event map[string]interface{}) {
 	if !uap.enrichmentConditionFunc(event) {
-		return nil
+		return
 	}
 
 	uaIface, ok := uap.source.Get(event)
 	if !ok {
-		return nil
+		return
 	}
 
 	ua, ok := uaIface.(string)
 	if !ok {
-		return nil
+		return
 	}
 
 	uap.mutex.RLock()
@@ -64,20 +64,18 @@ func (uap *UserAgentParseRule) Execute(event map[string]interface{}) map[string]
 		parsedUAMap, err = parsers.ParseInterface(parsedUa)
 		if err != nil {
 			logging.SystemErrorf("Error converting ua parse node: %v", err)
-			return nil
+			return
 		}
 		uap.mutex.Lock()
 		uap.cache[ua] = parsedUAMap
 		uap.mutex.Unlock()
 	}
 
-	result := maputils.CopyMap(parsedUAMap)
 	//don't overwrite existent
-	err := uap.destination.SetIfNotExist(event, result)
+	err := uap.destination.SetIfNotExist(event, maputils.CopyMap(parsedUAMap))
 	if err != nil {
 		logging.SystemErrorf("Resolved useragent data wasn't set: %v", err)
 	}
-	return result
 }
 
 func (uap *UserAgentParseRule) Name() string {
