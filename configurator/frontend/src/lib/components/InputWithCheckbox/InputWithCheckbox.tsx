@@ -41,6 +41,11 @@ export type InputWithCheckboxProps = AntdInputProps & {
    * This primarily enables to use Input as a form item
    * */
   inputWrapper?: React.FC
+  /**
+   * Allows to wrap Checkbox into another element.
+   * This primarily enables to use Checkbox as a form item
+   * */
+  checkboxWrapper?: React.FC<any>
   /**  */
   onCheckboxChange?: (e: CheckboxChangeEvent) => void
   onInputChange?: React.ChangeEventHandler<HTMLInputElement>
@@ -55,6 +60,7 @@ export const InputWithCheckbox: React.FC<InputWithCheckboxProps> = ({
   uncheckedFixedTitle,
   invertCheckBehaviour = false,
   inputWrapper,
+  checkboxWrapper,
   children,
   onCheckboxChange,
   onInputChange,
@@ -66,6 +72,7 @@ export const InputWithCheckbox: React.FC<InputWithCheckboxProps> = ({
   const _showInput = invertCheckBehaviour ? !needShowInput : needShowInput
 
   const InputWrapper: React.FC = inputWrapper ?? (({ children }) => <>{children}</>)
+  const CheckboxWrapper: React.FC = checkboxWrapper ?? (({ children }) => <>{children}</>)
 
   const handleCheck = (event: CheckboxChangeEvent) => {
     controlledShowInputChecked ?? setShowInput(event.target.checked)
@@ -87,14 +94,15 @@ export const InputWithCheckbox: React.FC<InputWithCheckboxProps> = ({
         </span>
       )}
       {!hideCheckbox && (
-        <Checkbox
-          key="checkbox"
-          checked={controlledShowInputChecked ?? showInput}
-          className={`mt-1 mb-1 ${styles.checkbox}`}
-          onChange={onCheckboxChange ?? handleCheck}
-        >
-          {checkboxTitle && <span>{checkboxTitle}</span>}
-        </Checkbox>
+        <CheckboxWrapper key="checkbox">
+          <Checkbox
+            checked={controlledShowInputChecked ?? showInput}
+            className={`mt-1 mb-1 ${styles.checkbox}`}
+            onChange={onCheckboxChange ?? handleCheck}
+          >
+            {checkboxTitle && <span>{checkboxTitle}</span>}
+          </Checkbox>
+        </CheckboxWrapper>
       )}
     </div>
   )

@@ -49,10 +49,10 @@ export interface Props {
 }
 
 export const FormItemName = {
-  serialize: id => {
-    return id
-  },
+  serialize: id => id,
 }
+
+export const UI_ONLY_FIELD_PREFIX = "$ui_"
 
 const services = ApplicationServices.get()
 
@@ -152,7 +152,7 @@ const ConfigurableFieldsFormComponent = ({
   ) => {
     const defaultValueToDisplay =
       form.getFieldValue(id) ?? getInitialValue(id, defaultValue, constantValue, type?.typeName)
-    form.setFieldsValue({ id: defaultValueToDisplay })
+    form.setFieldsValue({ ...form.getFieldsValue(), [id]: defaultValueToDisplay })
 
     const FormItemWoStylesTuned: React.FC = ({ children }) => {
       return (
@@ -299,12 +299,31 @@ const ConfigurableFieldsFormComponent = ({
         )
 
       case "oauthSecret":
+        const prefixedId = `${UI_ONLY_FIELD_PREFIX}${id}`
+        const defaultInputValueToDisplay = defaultValueToDisplay
+        const defaultCheckboxValueToDisplay =
+          form.getFieldValue(prefixedId) ?? getInitialValue(prefixedId, defaultValue, constantValue, type?.typeName)
+        form.setFieldsValue({ ...form.getFieldsValue(), [prefixedId]: defaultCheckboxValueToDisplay })
+        const UiOnlyFormCheckboxWoStyles: React.FC = ({ children }) => {
+          return (
+            <FormItemWrapperWoStyles
+              key={prefixedId}
+              id={prefixedId}
+              initialValue={defaultCheckboxValueToDisplay ?? !defaultInputValueToDisplay}
+              valuePropName={"checked"}
+            >
+              {children}
+            </FormItemWrapperWoStyles>
+          )
+        }
         return (
           <NonFormItemWrapperTuned>
             <InputOauthSecret
               status={oauthBackendSecretsStatus ?? "secrets_not_set"}
-              defaultChecked={!defaultValueToDisplay}
+              // defaultChecked={!defaultValueToDisplay}
+              defaultChecked={defaultCheckboxValueToDisplay ?? !defaultInputValueToDisplay}
               inputWrapper={FormItemWoStylesTuned}
+              checkboxWrapper={UiOnlyFormCheckboxWoStyles}
             />
           </NonFormItemWrapperTuned>
         )
