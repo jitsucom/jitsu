@@ -4,8 +4,8 @@ on:
   push:
     branches: 
       - '**'
-  pull_request:
-    branches: [ master, beta ]
+#  pull_request:
+#    branches: [ master, beta ]
 
 jobs:
 
