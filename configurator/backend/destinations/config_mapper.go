@@ -637,7 +637,7 @@ func mapDbtCloud(hDestination *entities.Destination) (*enconfig.DestinationConfi
 	}, nil
 }
 
-func mapKafka(dest *entities.Destination) (*enstorages.DestinationConfig, error) {
+func mapKafka(dest *entities.Destination) (*enconfig.DestinationConfig, error) {
 	b, err := json.Marshal(dest.Data)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling kafka config destination: %v", err)
@@ -652,21 +652,23 @@ func mapKafka(dest *entities.Destination) (*enstorages.DestinationConfig, error)
 	if authType == "" {
 		authType = enadapters.KafkaAuthNone
 	}
-
-	return &enstorages.DestinationConfig{
+	cfg := &enadapters.KafkaConfig{
+		BootstrapServers: formData.BootstrapServers,
+		Topic:            formData.Topic,
+		DisableTLS:       formData.DisableTLS,
+		AuthType:         authType,
+		Username:         formData.Username,
+		Password:         formData.Password,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, &cfgMap)
+	return &enconfig.DestinationConfig{
 		Type: enstorages.KafkaType,
 		Mode: enstorages.StreamMode,
-		DataLayout: &enstorages.DataLayout{
+		DataLayout: &enconfig.DataLayout{
 			TableNameTemplate: formData.Topic,
 		},
-		Kafka: &enadapters.KafkaConfig{
-			BootstrapServers: formData.BootstrapServers,
-			Topic:            formData.Topic,
-			DisableTLS:       formData.DisableTLS,
-			AuthType:         authType,
-			Username:         formData.Username,
-			Password:         formData.Password,
-		},
+		Config: cfgMap,
 	}, nil
 }
 

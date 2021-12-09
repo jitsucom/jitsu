@@ -16,6 +16,7 @@ const destination = {
   syncFromSourcesStatus: 'supported',
   id: 'kafka',
   type: 'other',
+  defaultTransform: "",
   displayName: 'Kafka',
   hidden: false,
   ui: {
