@@ -110,8 +110,10 @@ const sourcePageUtils = {
                 "/sources/test",
                 Marshal.toPureJson(src)
               )
-
-              if (response["status"] !== "pending") end()
+              const status = response["status"]
+              if (status !== "pending") end()
+              else if (status !== "ok")
+                fail(new Error(`Tap connection test returned an error. ${response["error"] ?? "Unknown error."}`))
             } catch (error) {
               fail(error)
             }
