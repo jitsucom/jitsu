@@ -13,6 +13,7 @@ import { HttpServerStorage, ServerStorage } from "./ServerStorage"
 import { UserService } from "./UserService"
 import { ApplicationConfiguration } from "./ApplicationConfiguration"
 import { CurrentSubscription } from "./billing"
+import { ISlackApiService, SlackApiService } from "./slack"
 import { IOauthService, OauthService } from "./oauth"
 
 export interface IApplicationServices {
@@ -24,6 +25,7 @@ export interface IApplicationServices {
   backendApiClient: BackendApiClient
   features: FeatureSettings
   applicationConfiguration: ApplicationConfiguration
+  slackApiSercice: ISlackApiService
   oauthService: IOauthService
   showSelfHostedSignUp(): boolean
 }
@@ -32,6 +34,7 @@ export default class ApplicationServices implements IApplicationServices {
   private readonly _analyticsService: AnalyticsService
   private readonly _backendApiClient: BackendApiClient
   private readonly _storageService: ServerStorage
+  private readonly _slackApiService: ISlackApiService
   private readonly _oauthService: IOauthService
 
   private _userService: UserService
@@ -51,6 +54,7 @@ export default class ApplicationServices implements IApplicationServices {
       this._analyticsService
     )
     this._storageService = new HttpServerStorage(this._backendApiClient)
+    this._slackApiService = new SlackApiService(() => this._userService.getUser().apiAccess)
     this._oauthService = new OauthService(this._applicationConfiguration.oauthApiBase, this._backendApiClient)
   }
 
@@ -99,6 +103,22 @@ export default class ApplicationServices implements IApplicationServices {
     this._currentSubscription = value
   }
 
+  get backendApiClient(): BackendApiClient {
+    return this._backendApiClient
+  }
+
+  get features(): FeatureSettings {
+    return this._features
+  }
+
+  get slackApiSercice(): ISlackApiService {
+    return this._slackApiService
+  }
+
+  get oauthService(): IOauthService {
+    return this._oauthService
+  }
+
   static get(): ApplicationServices {
     if (window["_en_instance"] === undefined) {
       try {
@@ -113,18 +133,6 @@ export default class ApplicationServices implements IApplicationServices {
       }
     }
     return window["_en_instance"]
-  }
-
-  get backendApiClient(): BackendApiClient {
-    return this._backendApiClient
-  }
-
-  get features(): FeatureSettings {
-    return this._features
-  }
-
-  get oauthService(): IOauthService {
-    return this._oauthService
   }
 
   private async loadBackendConfiguration(): Promise<FeatureSettings> {

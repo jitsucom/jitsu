@@ -24,8 +24,8 @@ func init() {
 }
 
 func NewKafka(config *Config) (Storage, error) {
-	kafkaConfig := config.destination.Kafka
-	if err := kafkaConfig.Validate(); err != nil {
+	kafkaConfig := &adapters.KafkaConfig{}
+	if err := config.destination.GetDestConfig(config.destination.Kafka, kafkaConfig); err != nil {
 		return nil, err
 	}
 
@@ -51,7 +51,10 @@ func NewKafka(config *Config) (Storage, error) {
 	kafka.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	kafka.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, kafka, tableHelper)
+	kafka.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, kafka, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	kafka.streamingWorker.start()
 
 	return kafka, nil

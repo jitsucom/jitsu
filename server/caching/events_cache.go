@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"time"
 )
 
@@ -123,7 +124,7 @@ func (ec *EventsCache) put(destinationID, eventID string, value events.Event) {
 		return
 	}
 
-	eventsInCache, err := ec.storage.AddEvent(destinationID, eventID, string(b), time.Now().UTC())
+	eventsInCache, err := ec.storage.AddEvent(destinationID, eventID, string(b), timestamp.Now().UTC())
 	if err != nil {
 		logging.SystemErrorf("[%s] Error saving event %v in cache: %v", destinationID, value.Serialize(), err)
 		return
@@ -133,7 +134,7 @@ func (ec *EventsCache) put(destinationID, eventID string, value events.Event) {
 	if eventsInCache > ec.capacityPerDestination {
 		toDelete := eventsInCache - ec.capacityPerDestination
 		if toDelete > 2 {
-			logging.Infof("[%s] Events cache size: [%d] capacity: [%d] elements to delete: [%d]", destinationID, eventsInCache, ec.capacityPerDestination, toDelete)
+			logging.Debugf("[%s] Events cache size: [%d] capacity: [%d] elements to delete: [%d]", destinationID, eventsInCache, ec.capacityPerDestination, toDelete)
 		}
 		for i := 0; i < toDelete; i++ {
 			err := ec.storage.RemoveLastEvent(destinationID)

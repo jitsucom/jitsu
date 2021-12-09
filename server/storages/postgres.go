@@ -2,14 +2,13 @@ package storages
 
 import (
 	"fmt"
-	"github.com/jitsucom/jitsu/server/appconfig"
-	"time"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 //Postgres stores files to Postgres in two modes:
@@ -24,19 +23,19 @@ type Postgres struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: PostgresType, createFunc: NewPostgres})
+	RegisterStorage(StorageType{typeName: PostgresType, createFunc: NewPostgres, isSQL: true})
 }
 
 //NewPostgres returns configured Postgres Destination
 func NewPostgres(config *Config) (Storage, error) {
-	pgConfig := config.destination.DataSource
-	if err := pgConfig.Validate(); err != nil {
+	pgConfig := &adapters.DataSourceConfig{}
+	if err := config.destination.GetDestConfig(config.destination.DataSource, pgConfig); err != nil {
 		return nil, err
 	}
 	//enrich with default parameters
-	if pgConfig.Port.String() == "" {
-		pgConfig.Port = "5432"
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.destinationID, pgConfig.Port.String())
+	if pgConfig.Port == 0 {
+		pgConfig.Port = 5432
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.destinationID, pgConfig.Port)
 	}
 	if pgConfig.Schema == "" {
 		pgConfig.Schema = "public"
@@ -85,7 +84,10 @@ func NewPostgres(config *Config) (Storage, error) {
 	p.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	p.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, p, tableHelper)
+	p.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, p, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	p.streamingWorker.start()
 
 	return p, nil
@@ -152,11 +154,11 @@ func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table
 		return err
 	}
 
-	start := time.Now()
+	start := timestamp.Now()
 	if err := p.adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
 		return err
 	}
-	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.ID(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
+	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.ID(), len(fdata.GetPayload()), timestamp.Now().Sub(start).Seconds())
 
 	return nil
 }

@@ -2,12 +2,13 @@ package testsuit
 
 import (
 	"context"
+	"github.com/jitsucom/jitsu/server/config"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"net/http"
 	"os"
 	"testing"
 	"time"
 
-	"bou.ke/monkey"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/coordination"
@@ -42,9 +43,6 @@ type Suit interface {
 
 //suit is an immutable test suit implementation of Suit
 type suit struct {
-	freezeTime time.Time
-	patchTime  *monkey.PatchGuard
-
 	httpAuthority string
 }
 
@@ -59,12 +57,10 @@ type SuiteBuilder interface {
 
 //suiteBuilder is a test Suit builder implementation
 type suiteBuilder struct {
-	freezeTime                       time.Time
-	patchTime                        *monkey.PatchGuard
 	httpAuthority                    string
 	segmentRequestFieldsMapper       events.Mapper
 	segmentCompatRequestFieldsMapper events.Mapper
-	globalUsersRecognitionConfig     *storages.UsersRecognition
+	globalUsersRecognitionConfig     *config.UsersRecognition
 	systemService                    *system.Service
 	eventsCache                      *caching.EventsCache
 	geoService                       *geo.Service
@@ -76,8 +72,7 @@ type suiteBuilder struct {
 
 //NewSuiteBuilder returns configured SuiteBuilder
 func NewSuiteBuilder(t *testing.T) SuiteBuilder {
-	freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
-	patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
+	timestamp.FreezeTime()
 
 	telemetry.InitTest()
 	httpAuthority, _ := test.GetLocalAuthority()
@@ -98,7 +93,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	consumer := logging.NewAsyncLogger(inmemWriter, false)
 
 	mockStorageFactory := storages.NewMockFactory()
-	mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
+	mockStorage, _, _ := mockStorageFactory.Create("test", config.DestinationConfig{})
 	destinationService := destinations.NewTestService(map[string]*destinations.Unit{"dest1": destinations.NewTestUnit(mockStorage)},
 		destinations.TokenizedConsumers{"id1": {"id1": consumer}},
 		destinations.TokenizedStorages{},
@@ -106,18 +101,18 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		map[string]events.Consumer{"dest1": consumer})
 
 	//** Segment API
-	mappings, err := schema.ConvertOldMappings(schema.Default, viper.GetStringSlice("compatibility.segment.endpoint"))
+	mappings, err := schema.ConvertOldMappings(config.Default, viper.GetStringSlice("compatibility.segment.endpoint"))
 	require.NoError(t, err)
 	segmentRequestFieldsMapper, _, err := schema.NewFieldMapper(mappings)
 	require.NoError(t, err)
 
 	//Segment compat API
-	compatMappings, err := schema.ConvertOldMappings(schema.Default, viper.GetStringSlice("compatibility.segment_compat.endpoint"))
+	compatMappings, err := schema.ConvertOldMappings(config.Default, viper.GetStringSlice("compatibility.segment_compat.endpoint"))
 	require.NoError(t, err)
 	segmentRequestCompatFieldsMapper, _, err := schema.NewFieldMapper(compatMappings)
 	require.NoError(t, err)
 
-	globalRecognitionConfiguration := &storages.UsersRecognition{
+	globalRecognitionConfiguration := &config.UsersRecognition{
 		Enabled:             viper.GetBool("users_recognition.enabled"),
 		AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
 		IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
@@ -132,8 +127,6 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	systemService := system.NewService("")
 
 	return &suiteBuilder{
-		freezeTime:                       freezeTime,
-		patchTime:                        patch,
 		httpAuthority:                    httpAuthority,
 		segmentRequestFieldsMapper:       segmentRequestFieldsMapper,
 		segmentCompatRequestFieldsMapper: segmentRequestCompatFieldsMapper,
@@ -219,14 +212,14 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		fallback.NewTestService(), coordination.NewInMemoryService([]string{}), sb.eventsCache, sb.systemService,
-		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService)
+		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService, nil)
 
 	server := &http.Server{
 		Addr:              sb.httpAuthority,
 		Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
-		ReadTimeout:       time.Second * 60,
-		ReadHeaderTimeout: time.Second * 60,
-		IdleTimeout:       time.Second * 65,
+		ReadTimeout:       time.Second * 5,
+		ReadHeaderTimeout: time.Second * 5,
+		IdleTimeout:       time.Second * 5,
 	}
 	go func() {
 		logging.Fatal(server.ListenAndServe())
@@ -239,8 +232,6 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	require.NoError(t, err)
 
 	return &suit{
-		freezeTime:    sb.freezeTime,
-		patchTime:     sb.patchTime,
 		httpAuthority: sb.httpAuthority,
 	}
 }
@@ -251,7 +242,7 @@ func (s *suit) HTTPAuthority() string {
 
 //Close releases all resources
 func (s *suit) Close() {
-	s.patchTime.Unpatch()
+	timestamp.UnfreezeTime()
 	appconfig.Instance.Close()
 	appconfig.Instance.CloseEventsConsumers()
 }

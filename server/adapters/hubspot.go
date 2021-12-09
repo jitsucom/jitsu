@@ -199,8 +199,8 @@ func (hf *HubSpotRequestFactory) extractUserProperties(object map[string]interfa
 
 //HubSpotConfig is a dto for parsing HubSpot configuration
 type HubSpotConfig struct {
-	APIKey string `mapstructure:"api_key" json:"api_key,omitempty" yaml:"api_key,omitempty"`
-	HubID  string `mapstructure:"hub_id" json:"hub_id,omitempty" yaml:"hub_id,omitempty"`
+	APIKey string `mapstructure:"api_key,omitempty" json:"api_key,omitempty" yaml:"api_key,omitempty"`
+	HubID  string `mapstructure:"hub_id,omitempty" json:"hub_id,omitempty" yaml:"hub_id,omitempty"`
 }
 
 //Validate returns err if invalid
@@ -222,7 +222,7 @@ func (hc *HubSpotConfig) Validate() error {
 type HubSpot struct {
 	AbstractHTTP
 
-	config  *HubSpotConfig
+	config *HubSpotConfig
 }
 
 //NewHubSpot returns configured HubSpot adapter instance

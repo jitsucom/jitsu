@@ -1,4 +1,4 @@
-function JitsuTransformFunction($) {
+function toAmplitude($) {
   const context = $.eventn_ctx || $;
   const user = context.user || {};
   const utm = context.utm || {};

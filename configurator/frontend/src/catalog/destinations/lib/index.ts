@@ -13,7 +13,9 @@ import hubspotDestination from "./hubspot"
 import dbtcloudDestination from "./dbtcloud"
 import s3Destination from "./s3"
 import mixpanelDestination from "./mixpanel"
-import kafkaDestination from './kafka';
+import npmDestination from "./npm"
+import kafkaDestination from './kafka'
+
 import { Destination } from "../types"
 
 export {
