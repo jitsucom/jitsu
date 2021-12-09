@@ -52,10 +52,12 @@ server:
 ### Logs can be written to main logger as well as to separate files
 #sql_debug_log:
 #  queries:
+#    enabled: false #default value.
 #    path: global #'/tmp/logs' or 'global' constant to write logs to a file or to main logger
 #    rotation_min: 10 #Optional. Applied to log files. Default  value is 5 minutes. If set 0, 24 hours would be kept
 #    max_backups: 20  #Optional. Applied to log files. Log files won't be deleted if not set
 #  ddl:
+#    enabled: true #default value
 #    path: global #'/tmp/logs' or 'global' constant to write logs to a file or to main logger
 #    rotation_min: 10 #Optional. Default  value is 5 minutes. If set 0, 24 hours would be kept
 #    max_backups: 20  #Optional. Log files won't be deleted if not set
