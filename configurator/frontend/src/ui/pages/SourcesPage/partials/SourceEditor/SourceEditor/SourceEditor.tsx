@@ -144,7 +144,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
 
     setTabErrorsVisible(true)
 
-    return configurationErrorsCount + state.streams.errorsCount + state.connections.errorsCount
+    return configurationErrorsCount
   }
 
   const handleValidateAndTestConfig = async () => {

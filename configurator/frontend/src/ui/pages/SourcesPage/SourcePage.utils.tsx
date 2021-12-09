@@ -171,11 +171,12 @@ const sourcePageUtils = {
     })
 
     if (oauthFieldsSuccessfullySet.length > 0) {
-      const secretsNamesSeparator = oauthFieldsSuccessfullySet.length === 2 ? " and " : ", "
+      // const secretsNamesSeparator = oauthFieldsSuccessfullySet.length === 2 ? " and " : ", "
       actionNotification.success(
-        `Successfully pasted ${oauthFieldsSuccessfullySet
-          .map(key => toTitleCase(key, { separator: "_" }))
-          .join(secretsNamesSeparator)}`
+        // `Successfully pasted ${oauthFieldsSuccessfullySet
+        //   .map(key => toTitleCase(key, { separator: "_" }))
+        //   .join(secretsNamesSeparator)}`
+        `Authorization Successful`
       )
     }
 
