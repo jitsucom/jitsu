@@ -161,7 +161,7 @@ func TestPostgresRetroactiveUsersRecognition(t *testing.T) {
 
 			time.Sleep(2 * time.Second)
 
-			objects, err := postgresContainer.GetAllSortedRows("recognition_events", "user_anonymous_id="+testData.anonymousId, "order by eventn_ctx_utc_time")
+			objects, err := postgresContainer.GetAllSortedRows("recognition_events", "eventn_ctx_user_anonymous_id="+testData.anonymousId, "order by eventn_ctx_utc_time")
 			require.NoError(t, err, "Error selecting all events")
 			require.Equal(t, testData.expCount, len(objects), "Rows count must be %d", testData.expCount)
 
