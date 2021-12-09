@@ -18,3 +18,4 @@ server/server
 server/logs
 
 configurator/build/*
+server/venv
