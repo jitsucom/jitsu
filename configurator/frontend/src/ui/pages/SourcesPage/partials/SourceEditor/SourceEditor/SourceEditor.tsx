@@ -218,6 +218,10 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     )
   }, [editorMode, sourceDataFromCatalog, setBreadcrumbs])
 
+  useEffect(() => {
+    console.log(state.configuration.config)
+  }, [state])
+
   return (
     <SourceEditorViewSteps
       state={state}
