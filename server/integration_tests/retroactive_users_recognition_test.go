@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/testsuit"
 	"net/http"
 	"testing"
@@ -86,12 +87,13 @@ func TestPostgresRetroactiveUsersRecognition(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	for _, testData := range recogTest {
+		t.Run(testData.userAgent, func(t *testing.T) {
+			logging.Info("TestPostgresRetroactiveUsersRecognition with User-Agent: %s", testData.userAgent)
+			//** Requests **
+			//1. anonymous[anonym1] pageview
+			//2. recognized[anonym1] identify
 
-		//** Requests **
-		//1. anonymous[anonym1] pageview
-		//2. recognized[anonym1] identify
-
-		pageviewReqPayload := []byte(`{
+			pageviewReqPayload := []byte(`{
   "event_type": "pageview",
   "eventn_ctx": {
     "event_id": "1",
@@ -114,16 +116,16 @@ func TestPostgresRetroactiveUsersRecognition(t *testing.T) {
     "click_id": {}
   }
 }`)
-		pageviewReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+"/api/v1/event?token=c2stoken_ur", bytes.NewBuffer(pageviewReqPayload))
-		pageviewReq.Header.Add("User-Agent", testData.userAgent)
-		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(pageviewReq)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
-		resp.Body.Close()
-		time.Sleep(1 * time.Second)
+			pageviewReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+"/api/v1/event?token=c2stoken_ur", bytes.NewBuffer(pageviewReqPayload))
+			pageviewReq.Header.Add("User-Agent", testData.userAgent)
+			require.NoError(t, err)
+			resp, err := http.DefaultClient.Do(pageviewReq)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
+			resp.Body.Close()
+			time.Sleep(1 * time.Second)
 
-		identifyReqPayload := []byte(`{
+			identifyReqPayload := []byte(`{
   "event_type": "identify",
   "eventn_ctx": {
     "event_id": "2",
@@ -148,23 +150,24 @@ func TestPostgresRetroactiveUsersRecognition(t *testing.T) {
   }
 }`)
 
-		identifyReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+"/api/v1/event?token=c2stoken_ur", bytes.NewBuffer(identifyReqPayload))
-		identifyReq.Header.Add("User-Agent", testData.userAgent)
+			identifyReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+"/api/v1/event?token=c2stoken_ur", bytes.NewBuffer(identifyReqPayload))
+			identifyReq.Header.Add("User-Agent", testData.userAgent)
 
-		require.NoError(t, err)
-		resp, err = http.DefaultClient.Do(identifyReq)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
-		resp.Body.Close()
+			require.NoError(t, err)
+			resp, err = http.DefaultClient.Do(identifyReq)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
+			resp.Body.Close()
 
-		time.Sleep(2 * time.Second)
+			time.Sleep(2 * time.Second)
 
-		objects, err := postgresContainer.GetAllSortedRows("recognition_events", "order by eventn_ctx_utc_time")
-		require.NoError(t, err, "Error selecting all events")
-		require.Equal(t, testData.expCount, len(objects), "Rows count must be 2")
+			objects, err := postgresContainer.GetAllSortedRows("recognition_events", "order by eventn_ctx_utc_time")
+			require.NoError(t, err, "Error selecting all events")
+			require.Equal(t, testData.expCount, len(objects), "Rows count must be %d", testData.expCount)
 
-		actual, _ := json.Marshal(objects)
+			actual, _ := json.Marshal(objects)
 
-		require.Equal(t, testData.expJson, string(actual), "Objects in DWH and expected objects aren't equal")
+			require.Equal(t, testData.expJson, string(actual), "Objects in DWH and expected objects aren't equal")
+		})
 	}
 }
