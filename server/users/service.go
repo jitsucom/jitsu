@@ -161,10 +161,9 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 		return
 	}
 	var isBot bool
-	parsedUaRaw, ok := event["parsed_ua"]
+	parsedUaRaw, ok := enrichment.DefaultJsUaRule.DstPath().Get(event)
 	if !ok {
-		enrichment.DefaultJsUaRule.Execute(event)
-		parsedUaRaw = event["parsed_ua"]
+		parsedUaRaw = enrichment.DefaultJsUaRule.Execute(event)
 	}
 	parsedUaMap, ok := parsedUaRaw.(map[string]interface{})
 	if ok {
