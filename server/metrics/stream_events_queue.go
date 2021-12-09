@@ -19,7 +19,7 @@ func initStreamEventsQueue() {
 	}, streamEventsQueueLabels)
 }
 
-func InitialStreamEventsQueueSize(destinationName string, value int) {
+func SetStreamEventsQueueSize(destinationName string, value int) {
 	if Enabled {
 		projectID, destinationID := extractLabels(destinationName)
 		streamEventsQueueSize.WithLabelValues(projectID, destinationID).Set(float64(value))

@@ -24,6 +24,9 @@ notifications:
 
 users_recognition:
   enabled: '${env.USER_RECOGNITION_ENABLED|false}'
+  redis:
+    host: '${env.USER_RECOGNITION_REDIS_URL|}'
+    tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
 
 meta:
   storage:

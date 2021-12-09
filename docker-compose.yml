@@ -8,6 +8,8 @@ services:
     image: jitsucom/jitsu
     environment:
       - REDIS_URL=redis://redis:6379
+      - USER_RECOGNITION_ENABLED=true
+      - USER_RECOGNITION_REDIS_URL=redis://redis_users_recognition:6379
       - TERM=xterm-256color
     depends_on:
       - redis
@@ -27,6 +29,14 @@ services:
     image: redis:6.2.4-alpine
     volumes:
       - ./compose-data/redis/data:/data
+    restart: always
+    networks:
+      - main
+  redis_users_recognition:
+    container_name: jitsu_redis_users_recognition
+    image: redis:6.2.4-alpine
+    volumes:
+      - ./compose-data/redis_users_recognition/data:/data
     restart: always
     networks:
       - main
