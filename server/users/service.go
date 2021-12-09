@@ -3,6 +3,7 @@ package users
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/events"
@@ -21,7 +22,7 @@ const (
 //saves anonymous events in meta storage
 //rewrites recognized events
 type RecognitionService struct {
-	metaStorage        meta.Storage
+	storage            Storage
 	destinationService *destinations.Service
 
 	queue  *Queue
@@ -29,10 +30,16 @@ type RecognitionService struct {
 }
 
 //NewRecognitionService creates a new RecognitionService if metaStorage configuration exists
-func NewRecognitionService(metaStorage meta.Storage, destinationService *destinations.Service, configuration *config.UsersRecognition, logEventPath string) (*RecognitionService, error) {
-	if metaStorage.Type() == meta.DummyType {
+func NewRecognitionService(storage Storage, destinationService *destinations.Service, configuration *config.UsersRecognition, logEventPath string) (*RecognitionService, error) {
+	if !configuration.IsEnabled() {
+		logging.Info("❌ Users recognition is not enabled. Read how to enable them: https://jitsu.com/docs/other-features/retroactive-user-recognition")
+		//return closed
+		return &RecognitionService{closed: atomic.NewBool(true)}, nil
+	}
+
+	if storage.Type() == meta.DummyType {
 		if configuration.IsEnabled() {
-			logging.Errorf("Users recognition requires 'meta.storage' configuration")
+			logging.Errorf("Users recognition requires 'users_recognition.redis' or 'meta.storage' configuration")
 		}
 		//return closed
 		return &RecognitionService{closed: atomic.NewBool(true)}, nil
@@ -40,7 +47,7 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 
 	rs := &RecognitionService{
 		destinationService: destinationService,
-		metaStorage:        metaStorage,
+		storage:            storage,
 		queue:              newQueue(),
 		closed:             atomic.NewBool(false),
 	}
@@ -77,7 +84,7 @@ func (rs *RecognitionService) start() {
 					}
 				} else {
 					// If some identification value is missing - event is still anonymous
-					err = rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(rp.EventBytes))
+					err = rs.storage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(rp.EventBytes))
 					if err != nil {
 						logging.SystemErrorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
 					}
@@ -151,7 +158,7 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 }
 
 func (rs *RecognitionService) runPipeline(destinationID string, identifiers EventIdentifiers) error {
-	eventsMap, err := rs.metaStorage.GetAnonymousEvents(destinationID, identifiers.AnonymousID)
+	eventsMap, err := rs.storage.GetAnonymousEvents(destinationID, identifiers.AnonymousID)
 	if err != nil {
 		return fmt.Errorf("Error getting anonymous events by destinationID: [%s] and anonymousID: [%s] from storage: %v", destinationID, identifiers.AnonymousID, err)
 	}
@@ -198,7 +205,7 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 
 		// Pipeline goes only when event contains full identifiers according to settings,
 		// so all saved events will be recognized and should be removed from storage.
-		err = rs.metaStorage.DeleteAnonymousEvent(destinationID, identifiers.AnonymousID, storedEventID)
+		err = rs.storage.DeleteAnonymousEvent(destinationID, identifiers.AnonymousID, storedEventID)
 		if err != nil {
 			logging.SystemErrorf("[%s] Error deleting stored recognized event [%s]: %v", destinationID, storedEventID, err)
 		}
@@ -209,14 +216,20 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 
 //Close sets closed flag = true (stop goroutines)
 //closes the queue
-func (rs *RecognitionService) Close() error {
+func (rs *RecognitionService) Close() (multiErr error) {
 	rs.closed.Store(true)
 
 	if rs.queue != nil {
 		if err := rs.queue.Close(); err != nil {
-			return fmt.Errorf("Error closing users recognition queue: %v", err)
+			multiErr = multierror.Append(multiErr, fmt.Errorf("error closing users recognition queue: %v", err))
 		}
 	}
 
-	return nil
+	if rs.storage != nil {
+		if err := rs.storage.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("error closing users recognition storage: %v", err))
+		}
+	}
+
+	return
 }
