@@ -26,3 +26,4 @@ server/logs
 server/venv
 
 configurator/build/*
+server/venv
