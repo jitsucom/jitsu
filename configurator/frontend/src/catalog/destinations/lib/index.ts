@@ -33,6 +33,7 @@ export {
   dbtcloudDestination,
   s3Destination,
   mixpanelDestination,
+  npmDestination,
   kafkaDestination,
 }
 
