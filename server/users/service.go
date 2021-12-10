@@ -26,7 +26,7 @@ type RecognitionService struct {
 }
 
 //NewRecognitionService creates a new RecognitionService if metaStorage configuration exists
-func NewRecognitionService(storage Storage, destinationService *destinations.Service, configuration *config.UsersRecognition, logEventPath string) (*RecognitionService, error) {
+func NewRecognitionService(storage Storage, destinationService *destinations.Service, configuration *config.UsersRecognition) (*RecognitionService, error) {
 	if !configuration.IsEnabled() {
 		logging.Info("❌ Users recognition is not enabled. Read how to enable them: https://jitsu.com/docs/other-features/retroactive-user-recognition")
 		//return closed
@@ -99,7 +99,6 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 	if isBot {
 		return
 	}
-
 
 	rp := &RecognitionPayload{Event: event, EventID: eventID, DestinationIDs: destinationIDs}
 	if err := rs.queue.Enqueue(rp); err != nil {
@@ -174,7 +173,7 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 		return nil
 	}
 
-	eventsMap, err := rs.metaStorage.GetAnonymousEvents(destinationID, identifiers.AnonymousID)
+	eventsMap, err := rs.storage.GetAnonymousEvents(destinationID, identifiers.AnonymousID)
 	if err != nil {
 		return fmt.Errorf("Error getting anonymous events by destinationID: [%s] and anonymousID: [%s] from storage: %v", destinationID, identifiers.AnonymousID, err)
 	}
@@ -212,7 +211,7 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 
 	// Pipeline goes only when event contains full identifiers according to settings,
 	// so all saved events will be recognized and should be removed from storage.
-	if err = rs.metaStorage.DeleteAnonymousEvents(destinationID, identifiers.AnonymousID, eventIDs); err != nil {
+	if err = rs.storage.DeleteAnonymousEvents(destinationID, identifiers.AnonymousID, eventIDs); err != nil {
 		return fmt.Errorf("error deleting anonymous events ids [%s]: %v", strings.Join(eventIDs, ", "), err)
 	}
 
@@ -231,7 +230,7 @@ func (rs *RecognitionService) processRecognitionPayload(rp *RecognitionPayload) 
 			}
 		} else {
 			b, _ := json.Marshal(rp.Event)
-			if err := rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(b)); err != nil {
+			if err := rs.storage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(b)); err != nil {
 				return fmt.Errorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
 			}
 		}

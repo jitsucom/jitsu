@@ -347,7 +347,7 @@ func main() {
 		logging.Fatalf("Error initializing users recognition storage: %v", err)
 	}
 
-	usersRecognitionService, err := users.NewRecognitionService(userRecognitionStorage, destinationsService, globalRecognitionConfiguration, logEventPath)
+	usersRecognitionService, err := users.NewRecognitionService(userRecognitionStorage, destinationsService, globalRecognitionConfiguration)
 	if err != nil {
 		logging.Fatal(err)
 	}
