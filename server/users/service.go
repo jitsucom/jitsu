@@ -8,7 +8,6 @@ import (
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/safego"
 	"go.uber.org/atomic"
 )
@@ -37,7 +36,7 @@ func NewRecognitionService(storage Storage, destinationService *destinations.Ser
 		return &RecognitionService{closed: atomic.NewBool(true)}, nil
 	}
 
-	if storage.Type() == meta.DummyType {
+	if storage.Type() == DummyStorageType {
 		if configuration.IsEnabled() {
 			logging.Errorf("Users recognition requires 'users_recognition.redis' or 'meta.storage' configuration")
 		}
