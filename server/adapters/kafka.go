@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Shopify/sarama"
+	"github.com/google/uuid"
 	"github.com/jitsucom/jitsu/server/schema"
 	"time"
 )
@@ -160,6 +161,7 @@ func (k *Kafka) PatchTableSchema(*Table) error {
 func (k *Kafka) sendEvent(event *EventContext) error {
 	msg := &sarama.ProducerMessage{
 		Topic: k.config.Topic,
+		Key:   sarama.StringEncoder(event.EventID),
 		Value: sarama.StringEncoder(event.ProcessedEvent.Serialize()),
 	}
 	if _, _, err := k.producer.SendMessage(msg); err != nil {
@@ -177,6 +179,7 @@ func (k *Kafka) sendObjects(topic string, objects []map[string]interface{}) erro
 		}
 		msg := &sarama.ProducerMessage{
 			Topic: topic,
+			Key:   sarama.StringEncoder(uuid.NewString()),
 			Value: sarama.ByteEncoder(bytes),
 		}
 		if _, _, err := k.producer.SendMessage(msg); err != nil {
