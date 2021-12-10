@@ -123,7 +123,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	err = globalRecognitionConfiguration.Validate()
 	require.NoError(t, err)
 
-	dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil)
+	dummyRecognitionService, _ := users.NewRecognitionService(&users.Dummy{}, nil, nil)
 
 	systemService := system.NewService("")
 
@@ -161,7 +161,7 @@ func (sb *suiteBuilder) WithGeoDataMock(geoDataMock *geo.Data) SuiteBuilder {
 
 //WithMetaStorage overrides meta.Storage with configured from viper
 func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
-	metaStorage, err := meta.NewStorage(viper.Sub("meta.storage"))
+	metaStorage, err := meta.InitializeStorage(viper.Sub("meta.storage"))
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(metaStorage)
 
@@ -187,7 +187,10 @@ func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig s
 
 //WithUserRecognition overrides users.RecognitionService with configured one
 func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
-	usersRecognitionService, err := users.NewRecognitionService(sb.metaStorage, sb.destinationService, sb.globalUsersRecognitionConfig)
+	storage, err := users.InitializeStorage(true, viper.Sub("meta.storage"))
+	require.NoError(t, err)
+
+	usersRecognitionService, err := users.NewRecognitionService(storage, sb.destinationService, sb.globalUsersRecognitionConfig, os.TempDir())
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(usersRecognitionService)
 

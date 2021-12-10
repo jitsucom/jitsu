@@ -43,7 +43,7 @@ func NewDQueBasedQueue(identifier, queueName, logEventPath string) (Queue, error
 		return nil, fmt.Errorf("Error opening/creating event queue [%s] in dir [%s]: %v", queueName, logEventPath, err)
 	}
 
-	metrics.InitialStreamEventsQueueSize(identifier, queue.Size())
+	metrics.SetStreamEventsQueueSize(identifier, queue.Size())
 
 	return &DQueBasedQueue{queue: queue, identifier: identifier}, nil
 }

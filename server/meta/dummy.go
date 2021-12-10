@@ -32,16 +32,6 @@ func (d *Dummy) GetEvents(destinationID string, start, end time.Time, n int) ([]
 }
 func (d *Dummy) GetTotalEvents(destinationID string) (int, error) { return 0, nil }
 
-func (d *Dummy) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error {
-	return nil
-}
-func (d *Dummy) GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error) {
-	return map[string]string{}, nil
-}
-func (d *Dummy) DeleteAnonymousEvents(destinationID, anonymousID string, eventIDs []string) error {
-	return nil
-}
-
 func (d *Dummy) CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error {
 	return nil
 }

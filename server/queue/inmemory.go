@@ -159,6 +159,10 @@ func (im *InMemory) Size() int64 {
 	return int64(len(im.slice))
 }
 
+func (im *InMemory) Type() string {
+	return InMemoryType
+}
+
 func (im *InMemory) Close() error {
 	close(im.closed)
 	return nil
