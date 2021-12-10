@@ -147,7 +147,7 @@ func (ec *EventsCache) put(destinationID, eventID string, value events.Event) {
 	if eventsInCache > ec.capacityPerDestination {
 		toDelete := eventsInCache - ec.capacityPerDestination
 		if toDelete > 2 {
-			logging.Infof("[%s] Events cache size: [%d] capacity: [%d] elements to delete: [%d]", destinationID, eventsInCache, ec.capacityPerDestination, toDelete)
+			logging.Debugf("[%s] Events cache size: [%d] capacity: [%d] elements to delete: [%d]", destinationID, eventsInCache, ec.capacityPerDestination, toDelete)
 		}
 		for i := 0; i < toDelete; i++ {
 			err := ec.storage.RemoveLastEvent(destinationID)

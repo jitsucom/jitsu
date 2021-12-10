@@ -1,12 +1,12 @@
 package enrichment
 
 import (
+	"github.com/jitsucom/jitsu/server/parsers"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/parsers"
 )
 
 const IPLookup = "ip_lookup"

@@ -120,7 +120,6 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   const [state, setState] = useState<SourceEditorState>(initialState)
 
   const [controlsDisabled, setControlsDisabled] = useState<boolean>(false)
-  const [tabErrorsVisible, setTabErrorsVisible] = useState<boolean>(false)
   const [showDocumentation, setShowDocumentation] = useState<boolean>(false)
   const [configIsValidatedByStreams, setConfigIsValidatedByStreams] = useState<boolean>(false)
 
@@ -133,26 +132,9 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     return sourceEditorUtils.getSourceDataFromState(sourceEditorState, sourceDataFromCatalog, initialSourceData)
   }
 
-  const validateCountErrors = async (): Promise<number> => {
-    const configurationErrorsCount = await state.configuration.getErrorsCount()
-
-    setState(state => {
-      const newState = cloneDeep(state)
-      newState.configuration.errorsCount = configurationErrorsCount
-      return newState
-    })
-
-    setTabErrorsVisible(true)
-
-    return configurationErrorsCount + state.streams.errorsCount + state.connections.errorsCount
-  }
-
   const handleValidateAndTestConfig = async () => {
     setControlsDisabled(true)
     try {
-      const fieldsErrored = !!(await validateCountErrors())
-      if (fieldsErrored) throw new Error("Some fields are empty")
-
       const sourceData = handleBringSourceData()
       const testResult = await sourcePageUtils.testConnection(sourceData)
       if (!testResult.connected) throw new Error(testResult.connectedErrorMessage)

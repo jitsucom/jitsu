@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/safego"
 	"io"
+	"io/ioutil"
 	"strings"
 	"sync"
 	"time"
@@ -40,6 +41,9 @@ type Bridge struct {
 
 //Init initializes airbyte Bridge
 func Init(ctx context.Context, configDir, workspaceVolume string, logWriter io.Writer) error {
+	if logWriter == nil {
+		logWriter = ioutil.Discard
+	}
 	Instance = &Bridge{
 		LogWriter:       logWriter,
 		ConfigDir:       configDir,

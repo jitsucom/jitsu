@@ -231,10 +231,11 @@ func main() {
 
 	// ** Meta storage **
 	metaStorageConfiguration := viper.Sub("meta.storage")
-	metaStorage, err := meta.NewStorage(metaStorageConfiguration)
+	metaStorage, err := meta.InitializeStorage(metaStorageConfiguration)
 	if err != nil {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
+
 	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
 	systemInfo := runtime.GetInfo()
 	telemetry.EnrichSystemInfo(clusterID, systemInfo)
@@ -341,7 +342,12 @@ func main() {
 	}
 	appconfig.Instance.ScheduleClosing(destinationsService)
 
-	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationsService, globalRecognitionConfiguration)
+	userRecognitionStorage, err := users.InitializeStorage(globalRecognitionConfiguration.Enabled, metaStorageConfiguration)
+	if err != nil {
+		logging.Fatalf("Error initializing users recognition storage: %v", err)
+	}
+
+	usersRecognitionService, err := users.NewRecognitionService(userRecognitionStorage, destinationsService, globalRecognitionConfiguration, logEventPath)
 	if err != nil {
 		logging.Fatal(err)
 	}
@@ -478,7 +484,10 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 	var coordinationRedisConfiguration *viper.Viper
 	redisShortcut := viper.GetString("coordination.type")
 	if redisShortcut == "redis" {
-		coordinationRedisConfiguration = metaStorageConfiguration.Sub("redis")
+		if metaStorageConfiguration != nil {
+			coordinationRedisConfiguration = metaStorageConfiguration.Sub("redis")
+		}
+
 		if coordinationRedisConfiguration == nil || coordinationRedisConfiguration.GetString("host") == "" {
 			//coordination.type is set but no Redis provided (e.g. in case of solo jitsucom/server without Redis)
 			return nil, nil
@@ -511,8 +520,12 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 
 //initializeEventsQueueFactory returns configured events.QueueFactory (redis or inmemory)
 func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*events.QueueFactory, error) {
-	//redis config from meta.storage section
-	redisConfigurationSource := metaStorageConfiguration.Sub("redis")
+	var redisConfigurationSource *viper.Viper
+
+	if metaStorageConfiguration != nil {
+		//redis config from meta.storage section
+		redisConfigurationSource = metaStorageConfiguration.Sub("redis")
+	}
 
 	//get redis configuration from separated config section if configured
 	if viper.GetString("events.queue.redis.host") != "" {

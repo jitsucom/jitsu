@@ -85,17 +85,29 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("log.async_writers", false)
 	viper.SetDefault("log.pool.size", 10)
 	viper.SetDefault("log.rotation_min", 5)
-	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")
+
+	viper.SetDefault("sql_debug_log.ddl.enabled", true)
 	viper.SetDefault("sql_debug_log.ddl.rotation_min", "1440")
+	viper.SetDefault("sql_debug_log.ddl.max_backups", "365") //1 year = 1440 min * 365
+	viper.SetDefault("sql_debug_log.queries.enabled", false)
+	viper.SetDefault("sql_debug_log.queries.rotation_min", "60")
+	viper.SetDefault("sql_debug_log.queries.max_backups", "7320") //30 days = 60 min * 7320
+
 	viper.SetDefault("users_recognition.enabled", false)
 	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id||/user/anonymous_id||/eventn_ctx/user/hashed_anonymous_id||/user/hashed_anonymous_id")
 	viper.SetDefault("users_recognition.identification_nodes", []string{"/eventn_ctx/user/internal_id||/user/internal_id"})
 	viper.SetDefault("users_recognition.pool.size", 10)
+
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.install_taps", true)
 	viper.SetDefault("singer-bridge.update_taps", false)
+	viper.SetDefault("singer-bridge.log.enabled", false)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
+	viper.SetDefault("singer-bridge.log.max_backups", "30") //30 days = 1440 min * 30
+
+	viper.SetDefault("airbyte-bridge.log.enabled", false)
 	viper.SetDefault("airbyte-bridge.log.rotation_min", "1440")
+	viper.SetDefault("airbyte-bridge.log.max_backups", "30") //30 days = 1440 min * 30
 
 	viper.SetDefault("server.volumes.workspace", "jitsu_workspace")
 
@@ -196,13 +208,21 @@ func setDefaultParams(containerized bool) {
 		viper.SetDefault("server.config.path", "/home/eventnative/data/config")
 		viper.SetDefault("server.plugins_cache", "/home/eventnative/data/cache")
 		viper.SetDefault("singer-bridge.venv_dir", "/home/eventnative/data/venv")
+		viper.SetDefault("singer-bridge.log.path", "/home/eventnative/data/logs")
+		viper.SetDefault("airbyte-bridge.log.path", "/home/eventnative/data/logs")
 		viper.SetDefault("airbyte-bridge.config_dir", "/home/eventnative/data/airbyte")
+		viper.SetDefault("sql_debug_log.ddl.path", "/home/eventnative/data/logs")
+		viper.SetDefault("sql_debug_log.queries.path", "/home/eventnative/data/logs")
 	} else {
 		viper.SetDefault("log.path", "./logs/events")
 		viper.SetDefault("server.log.path", "./logs")
+		viper.SetDefault("sql_debug_log.ddl.path", "./logs")
+		viper.SetDefault("sql_debug_log.queries.path", "./logs")
 		viper.SetDefault("server.config.path", "./config")
 		viper.SetDefault("server.plugins_cache", "./cache")
 		viper.SetDefault("singer-bridge.venv_dir", "./venv")
+		viper.SetDefault("singer-bridge.log.path", "./logs")
+		viper.SetDefault("airbyte-bridge.log.path", "./logs")
 		viper.SetDefault("airbyte-bridge.config_dir", "./airbyte_config")
 	}
 }
@@ -262,47 +282,48 @@ func Init(containerized bool, dockerHubID string) error {
 	appConfig.EmptyGIFPixelOnexOne = emptyGIF
 
 	// SQL DDL debug writer
-	if viper.IsSet("sql_debug_log.ddl.path") {
-		ddlLoggerViper := viper.Sub("sql_debug_log.ddl")
+	if viper.GetBool("sql_debug_log.ddl.enabled") {
 		appConfig.GlobalDDLLogsWriter = logging.CreateLogWriter(&logging.Config{
 			FileName:    serverName + "-" + logging.DDLLogerType,
-			FileDir:     ddlLoggerViper.GetString("path"),
-			RotationMin: ddlLoggerViper.GetInt64("rotation_min"),
-			MaxBackups:  ddlLoggerViper.GetInt("max_backups")})
+			FileDir:     viper.GetString("sql_debug_log.ddl.path"),
+			RotationMin: viper.GetInt64("sql_debug_log.ddl.rotation_min"),
+			MaxBackups:  viper.GetInt("sql_debug_log.ddl.max_backups")})
 	}
 
 	// SQL queries debug writer
-	if viper.IsSet("sql_debug_log.queries.path") {
-		queriesLoggerViper := viper.Sub("sql_debug_log.queries")
+	if viper.GetBool("sql_debug_log.queries.enabled") {
 		appConfig.GlobalQueryLogsWriter = logging.CreateLogWriter(&logging.Config{
 			FileName:    serverName + "-" + logging.QueriesLoggerType,
-			FileDir:     queriesLoggerViper.GetString("path"),
-			RotationMin: queriesLoggerViper.GetInt64("rotation_min"),
-			MaxBackups:  queriesLoggerViper.GetInt("max_backups")})
+			FileDir:     viper.GetString("sql_debug_log.queries.path"),
+			RotationMin: viper.GetInt64("sql_debug_log.queries.rotation_min"),
+			MaxBackups:  viper.GetInt("sql_debug_log.queries.max_backups")})
 	}
 
 	// Singer logger
-	if viper.IsSet("singer-bridge.log.path") {
-		singerLoggerViper := viper.Sub("singer-bridge.log")
-		appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{
-			FileName:    serverName + "-" + "singer",
-			FileDir:     singerLoggerViper.GetString("path"),
-			RotationMin: singerLoggerViper.GetInt64("rotation_min"),
-			MaxBackups:  singerLoggerViper.GetInt("max_backups")})
-	} else {
-		appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: logging.GlobalType})
+	if viper.GetBool("singer-bridge.log.enabled") {
+		if viper.GetString("singer-bridge.log.path") == logging.GlobalType {
+			appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: logging.GlobalType})
+		} else {
+			appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{
+				FileName:    serverName + "-" + "singer",
+				FileDir:     viper.GetString("singer-bridge.log.path"),
+				RotationMin: viper.GetInt64("singer-bridge.log.rotation_min"),
+				MaxBackups:  viper.GetInt("singer-bridge.log.max_backups")})
+		}
 	}
 
 	//Airbyte logger
-	if viper.IsSet("airbyte-bridge.log.path") {
-		singerLoggerViper := viper.Sub("airbyte-bridge.log")
-		appConfig.AirbyteLogsWriter = logging.CreateLogWriter(&logging.Config{
-			FileName:    serverName + "-" + "airbyte",
-			FileDir:     singerLoggerViper.GetString("path"),
-			RotationMin: singerLoggerViper.GetInt64("rotation_min"),
-			MaxBackups:  singerLoggerViper.GetInt("max_backups")})
-	} else {
-		appConfig.AirbyteLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: logging.GlobalType})
+	if viper.GetBool("airbyte-bridge.log.enabled") {
+		if viper.GetString("airbyte-bridge.log.path") == logging.GlobalType {
+			appConfig.AirbyteLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: logging.GlobalType})
+		} else {
+
+			appConfig.AirbyteLogsWriter = logging.CreateLogWriter(&logging.Config{
+				FileName:    serverName + "-" + "airbyte",
+				FileDir:     viper.GetString("airbyte-bridge.log.path"),
+				RotationMin: viper.GetInt64("airbyte-bridge.log.rotation_min"),
+				MaxBackups:  viper.GetInt("airbyte-bridge.log.max_backups")})
+		}
 	}
 
 	port := viper.GetString("server.port")

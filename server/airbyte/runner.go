@@ -199,9 +199,13 @@ func (r *Runner) Close() error {
 
 	close(r.closed)
 
-	exec.Command("docker", "stop", r.identifier, "&").Start()
-
-	return r.command.Process.Kill()
+	err := exec.Command("docker", "stop", r.identifier, "&").Run()
+	if err != nil {
+		logging.Errorf("%s airbyte runner closing failed. Killing. Closing error: %v", r.identifier, err)
+		_ = r.command.Process.Kill()
+		return err
+	}
+	return nil
 }
 
 func (r *Runner) terminated() bool {

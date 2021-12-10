@@ -52,9 +52,8 @@ var (
 )
 
 type Redis struct {
-	pool                      *RedisPool
-	anonymousEventsSecondsTTL int
-	errorMetrics              *ErrorMetrics
+	pool         *RedisPool
+	errorMetrics *ErrorMetrics
 }
 
 //redis key [variables] - description
@@ -85,9 +84,6 @@ type Redis struct {
 //last_events:destination#destinationID:id#unique_id_field [original, success, error] - hashtable with original event json, processed with schema json, error json
 //last_events_index:destination#destinationID [timestamp_long unique_id_field] - sorted set of eventIDs and timestamps
 //
-//** Retroactive user recognition **
-//anonymous_events:destination_id#${destination_id}:anonymous_id#${cookies_anonymous_id} [event_id] {event JSON} - hashtable with all anonymous events
-//
 //** Sources Synchronization **
 // - task_id = $source_$collection_$UUID
 //sync_tasks_heartbeat [task_id] last_timestamp - hashtable with hash=task_id and value = last_timestamp.
@@ -100,19 +96,8 @@ type Redis struct {
 //sync_tasks#taskID hash with fields [id, source, collection, priority, created_at, started_at, finished_at, status]
 
 //NewRedis returns configured Redis struct with connection pool
-func NewRedis(factory *RedisPoolFactory, anonymousEventsMinutesTTL int) (*Redis, error) {
-	if anonymousEventsMinutesTTL > 0 {
-		logging.Infof("🏪 Initializing meta storage redis [%s] with anonymous events ttl: %d...", factory.Details(), anonymousEventsMinutesTTL)
-	} else {
-		logging.Infof("🏪 Initializing meta storage redis [%s]...", factory.Details())
-	}
-
-	pool, err := factory.Create()
-	if err != nil {
-		return nil, err
-	}
-
-	return &Redis{pool: pool, anonymousEventsSecondsTTL: anonymousEventsMinutesTTL * 60, errorMetrics: NewErrorMetrics(metrics.MetaRedisErrors)}, nil
+func NewRedis(pool *RedisPool) *Redis {
+	return &Redis{pool: pool, errorMetrics: NewErrorMetrics(metrics.MetaRedisErrors)}
 }
 
 //GetSignature returns sync interval signature from Redis
@@ -363,67 +348,6 @@ func (r *Redis) GetTotalEvents(destinationID string) (int, error) {
 	}
 
 	return count, nil
-}
-
-//SaveAnonymousEvent saves event JSON by destination ID and user anonymous ID key
-func (r *Redis) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error {
-	conn := r.pool.Get()
-	defer conn.Close()
-	//add event
-	anonymousEventKey := "anonymous_events:destination_id#" + destinationID + ":anonymous_id#" + anonymousID
-	_, err := conn.Do("HSET", anonymousEventKey, eventID, payload)
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
-	}
-
-	if r.anonymousEventsSecondsTTL > 0 {
-		_, err := conn.Do("EXPIRE", anonymousEventKey, r.anonymousEventsSecondsTTL)
-		if err != nil && err != redis.ErrNil {
-			r.errorMetrics.NoticeError(err)
-			logging.SystemErrorf("Error EXPIRE anonymous event %s %s: %v", anonymousEventKey, eventID, err)
-		}
-	}
-
-	return nil
-}
-
-//GetAnonymousEvents returns events JSON per event ID map
-func (r *Redis) GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error) {
-	conn := r.pool.Get()
-	defer conn.Close()
-	//get events
-	anonymousEventKey := "anonymous_events:destination_id#" + destinationID + ":anonymous_id#" + anonymousID
-
-	eventsMap, err := redis.StringMap(conn.Do("HGETALL", anonymousEventKey))
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return nil, err
-	}
-
-	return eventsMap, nil
-}
-
-//DeleteAnonymousEvents deletes event with eventID
-func (r *Redis) DeleteAnonymousEvents(destinationID, anonymousID string, eventIDs []string) error {
-	conn := r.pool.Get()
-	defer conn.Close()
-
-	//remove event
-	anonymousEventKey := "anonymous_events:destination_id#" + destinationID + ":anonymous_id#" + anonymousID
-	args := make([]interface{}, 0, len(eventIDs)+1)
-	args = append(args, anonymousEventKey)
-	for _, eventID := range eventIDs {
-		args = append(args, eventID)
-	}
-
-	_, err := conn.Do("HDEL", args...)
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
-	}
-
-	return nil
 }
 
 //CreateTask saves task into Redis and add Task ID in index
