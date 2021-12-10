@@ -1,6 +1,7 @@
-import { tableName } from './common';
-import { arrayOf, stringType } from '../../sources/types';
+import {modeParameter, tableName} from './common';
+import {arrayOf, booleanType, passwordType, selectionType, stringType} from '../../sources/types';
 import { ReactNode } from 'react';
+import * as React from "react";
 
 let icon: ReactNode = (
     <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 32 32" preserveAspectRatio="xMidYMid">
@@ -22,18 +23,69 @@ const destination = {
   ui: {
     icon,
     title: cfg => cfg?._formData?.kafkaBootstrapServers?.length
-      ? cfg._formData.kafkaBootstrapServers[0]
+      ? `${cfg._formData.kafkaTopic} on ${cfg._formData.kafkaBootstrapServers[0]}`
       : 'Unknown',
     connectCmd: (_: object) => null
   },
   parameters: [
-    tableName(),
+    modeParameter("stream"),
     {
-      id: '_formData.kafkaBootstrapServers',
-      displayName: 'Bootstrap servers',
+      id: `_formData.kafkaTopic`,
+      displayName: "Topic",
+      documentation: <>Kafka topic name.</>,
       required: true,
-      type: arrayOf(stringType)
-    }
+      defaultValue: "events",
+      type: stringType,
+    },
+    {
+      id: "_formData.kafkaBootstrapServers",
+      displayName: "Bootstrap servers",
+      required: true,
+      type: arrayOf(stringType),
+      documentation: (
+          <>
+            A list of host/port pairs to use for establishing the initial connection to the Kafka cluster.
+          </>
+      ),
+    },
+    {
+      id: "_formData.kafkaDisableTLS",
+      displayName: "Disable TLS",
+      defaultValue: false,
+      required: true,
+      type: booleanType,
+    },
+    {
+      id: "_formData.kafkaAuthType",
+      displayName: "Authentication Method",
+      required: true,
+      defaultValue: "saml_scram_512",
+      type: selectionType(["saml_plain", "saml_scram_256", "saml_scram_512", "none"], 1),
+      documentation: (
+          <>
+            <b>saml_plain</b> - SASL/PLAIN uses a simple username and password for authentication
+            <br />
+            <b>saml_scram_256</b> - SASL/SCRAM uses usernames and passwords stored in ZooKeeper, SHA-256
+            <br />
+            <b>saml_scram_512</b> - SASL/SCRAM uses usernames and passwords stored in ZooKeeper, SHA-512
+            <br />
+            <b>none</b> - without authentication
+            <br />
+          </>
+      ),
+    },
+    {
+      id: "_formData.kafkaUsername",
+      displayName: "Username",
+      required: false,
+      type: stringType,
+    },
+    {
+      id: "_formData.kafkaPassword",
+      displayName: "Password",
+      required: false,
+      type: passwordType,
+    },
   ]
 } as const;
 
