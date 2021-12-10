@@ -18,6 +18,7 @@ func Init(enabled bool) {
 		initCoordinationRedis()
 		initEventsRedis()
 		initUsersRecognitionQueue()
+		initUsersRecognitionRedis()
 		initStreamEventsQueue()
 	} else {
 		logging.Info("❌ Prometheus metrics reporting is not enabled. Read how to enable them: https://jitsu.com/docs/other-features/application-metrics")

@@ -1,10 +1,12 @@
 # Test binary, build with `go test -c`
 compose-data/configurator/data/logs
-compose-data/redis/data/*
-!compose-data/redis/data/.gitkeep
 compose-data/server/data/events
 compose-data/server/data/logs
 compose-data/server/data/venv
+compose-data/redis/data/*
+!compose-data/redis/data/.gitkeep
+compose-data/redis_users_recognition/data/*
+!compose-data/redis_users_recognition/data/.gitkeep
 
 benchmark/compose-data/configurator/data/logs
 benchmark/compose-data/redis/data/*
