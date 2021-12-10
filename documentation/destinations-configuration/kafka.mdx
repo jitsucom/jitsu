@@ -1,0 +1,30 @@
+# Kafka 
+
+**Jitsu** supports [Kafka](https://kafka.apache.org) as a destination.
+For more information about Kafka [see docs](https://kafka.apache.org/documentation).
+
+### Configuration
+
+Kafka destination config consists of the following schema:
+
+```yaml
+destinations:
+  my_kafka:
+    type: kafka 
+    kafka:
+      bootstrap_servers: localhost:9092
+      topic: testtopic
+      disable_tls: true
+      auth_type: none
+```
+
+### datasource
+
+| Field \(\*required\)    | Type            | Description                                                                                    | Default value |
+| ----------------------- | --------------- | ---------------------------------------------------------------------------------------------- | ------------- |
+| **bootstrap_servers\*** | list of strings | A list of host/port pairs to use for establishing the initial connection to the Kafka cluster. | -             |
+| **topic\***             | string          | Topic name.                                                                                    | -             |
+| **disable_tls**         | bool            | TLS disabling.                                                                                 | false         |
+| **auth_type**           | enum            | \(`saml_plain`, `saml_scram_256`, `saml_scram_512`, `none`\) Authentication type.              | `none`        |
+| **username**            | string          | Username for authentication in a destination.                                                  | -             |
+| **password**            | string          | Password for authentication in a destination.                                                  | -             |
