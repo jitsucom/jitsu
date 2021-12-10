@@ -82,7 +82,7 @@ func NewKafka(kc *KafkaConfig) (*Kafka, error) {
 	if !kc.DisableTLS {
 		saramaConfig.Net.TLS.Enable = true
 		saramaConfig.Net.TLS.Config = &tls.Config{
-			InsecureSkipVerify: false,
+			InsecureSkipVerify: true,
 			//TODO load real certs
 			//RootCAs:            certs,
 		}
