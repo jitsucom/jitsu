@@ -4,8 +4,8 @@ on:
   push:
     branches: 
       - '**'
-  pull_request:
-    branches: [ master, beta ]
+#  pull_request:
+#    branches: [ master, beta ]
 
 jobs:
 
@@ -36,14 +36,18 @@ jobs:
           ${{ runner.os }}-go-
           
     - name: Build Server
-      run: go build
+      run: |
+        go mod tidy
+        go build
       working-directory: ./server
 
     - name: Test Server
-      run: go test
+      run: go test -failfast -v -parallel=1 ./...
       working-directory: ./server
       
     - name: Build Backend
-      run: go build
+      run: |
+        go mod tidy
+        go build
       working-directory: ./configurator/backend
 

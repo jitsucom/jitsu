@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/destinations"
+	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -92,7 +93,19 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 	if rs.closed.Load() {
 		return
 	}
-
+	var isBot bool
+	parsedUaRaw, ok := enrichment.DefaultJsUaRule.DstPath().Get(event)
+	if !ok {
+		enrichment.DefaultJsUaRule.Execute(event)
+		parsedUaRaw, _ = enrichment.DefaultJsUaRule.DstPath().Get(event)
+	}
+	parsedUaMap, ok := parsedUaRaw.(map[string]interface{})
+	if ok {
+		isBot, _ = parsedUaMap["bot"].(bool)
+	}
+	if isBot {
+		return
+	}
 	destinationIdentifiers := rs.getDestinationsForRecognition(event, eventID, destinationIDs)
 
 	rp := &RecognitionPayload{EventBytes: []byte(event.Serialize()), DestinationsIdentifiers: destinationIdentifiers}
