@@ -63,6 +63,7 @@ trap graceful_exit SIGQUIT SIGTERM SIGINT SIGHUP
 
 export JITSU_CONFIGURATOR_URL=http://localhost:7000
 export JITSU_SERVER_URL=http://localhost:8001
+export USER_RECOGNITION_ENABLED=${USER_RECOGNITION_ENABLED:=true}
 ### Start services
 # Start Jitsu Configurator process
 /home/configurator/app/configurator -cfg=/home/configurator/data/config/configurator.yaml -cr=true -dhid=jitsu &
