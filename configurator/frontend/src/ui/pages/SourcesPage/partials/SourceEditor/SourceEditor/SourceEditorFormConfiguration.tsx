@@ -18,6 +18,7 @@ import { SourceEditorOauthButtons } from "../Common/SourceEditorOauthButtons/Sou
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 import { useForceUpdate } from "hooks/useForceUpdate"
 import { useUniqueKeyState } from "hooks/useUniqueKeyState"
+import { FormSkeleton } from "ui/components/FormSkeleton/FormSkeleton"
 
 export type SourceEditorFormConfigurationProps = {
   editorMode: "add" | "edit"
@@ -176,11 +177,12 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   }, [])
 
   const isLoadingOauth = !isOauthStatusReady || isLoadingBackendSecrets
+  // const isLoadingOauth = true
 
   return (
     <>
-      <div className={`flex justify-center items-center w-full h-full ${isLoadingOauth ? "" : "hidden"}`}>
-        <Spin />
+      <div className={`flex justify-center items-start w-full h-full ${isLoadingOauth ? "" : "hidden"}`}>
+        <FormSkeleton />
       </div>
       <div key={key} className={isLoadingOauth ? "hidden" : ""}>
         <SourceEditorOauthButtons

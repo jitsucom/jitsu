@@ -19,6 +19,7 @@ import { SourceEditorOauthButtons } from "../Common/SourceEditorOauthButtons/Sou
 import { OAUTH_FIELDS_NAMES } from "constants/oauth"
 import { useUniqueKeyState } from "hooks/useUniqueKeyState"
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
+import { FormSkeleton } from "ui/components/FormSkeleton/FormSkeleton"
 
 export interface Props {
   form: FormInstance
@@ -48,9 +49,13 @@ const SourceEditorConfigComponent = ({
   const [isOauthStatusReady, setIsOauthStatusReady] = useState<boolean>(false)
   const [key, resetFormUi] = useUniqueKeyState() // pass a key to a component, then re-mount component by calling `resetFormUi`
 
-  const { data: availableOauthBackendSecrets } = useLoaderAsObject<string[]>(async () => {
-    return await services.oauthService.getAvailableBackendSecrets(sourceReference?.id, services.activeProject.id)
-  }, [])
+  const { data: availableOauthBackendSecrets } = useLoaderAsObject<string[]>(
+    async () => {
+      return await services.oauthService.getAvailableBackendSecrets(sourceReference?.id, services.activeProject.id)
+    },
+    [],
+    { initialValue: [] }
+  )
 
   const validateUniqueSourceId = useCallback(
     (rule: RuleObject, value: string) =>
@@ -98,84 +103,91 @@ const SourceEditorConfigComponent = ({
 
   const setOauthSecretsToForms = useCallback<(secrets: PlainObjectWithPrimitiveValues) => void>(
     secrets => {
-      sourcePageUtils.applyOauthValuesToAntdForms({form}, secrets)
+      sourcePageUtils.applyOauthValuesToAntdForms({ form }, secrets)
     },
     [form]
   )
 
+  const isLoadingOauth = !isOauthStatusReady
+
   return (
     <Form name="source-config" form={form} autoComplete="off" onChange={handleChange}>
-      <SourceEditorOauthButtons
-        key={"oauth button"}
-        sourceDataFromCatalog={sourceReference}
-        onIsOauthSupportedChange={handleOauthSupportedStatusChange}
-        onFillAuthDataManuallyChange={handleFillOuthDataManuallyChange}
-        setOauthSecretsToForms={setOauthSecretsToForms}
-      />
-      <div key={key}>
-        <Row key="id">
-          <Col span={24}>
-            <Form.Item
-              initialValue={initialValues.sourceId}
-              className={`form-field_fixed-label ${editorStyles.field}`}
-              label={<span>SourceId:</span>}
-              name="sourceId"
-              rules={sourceIdValidators}
-              labelCol={{ span: 4 }}
-              wrapperCol={{ span: 20 }}
-            >
-              <Input autoComplete="off" disabled={!isCreateForm} />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        <Row key="schedule">
-          <Col span={24}>
-            <Form.Item
-              initialValue={initialSchedule}
-              name="schedule"
-              className={`form-field_fixed-label ${editorStyles.field}`}
-              label="Schedule:"
-              labelCol={{ span: 4 }}
-              wrapperCol={{ span: 20 }}
-              rules={[{ required: true, message: "You have to choose schedule" }]}
-            >
-              <Select>
-                {COLLECTIONS_SCHEDULES.map(option => {
-                  const available = subscription ? subscription.quota.allowedSchedules.includes(option.id) : true
-                  return (
-                    <Select.Option value={option.value} key={option.value} disabled={!available}>
-                      {option.label}
-                      {!available && " - n/a, upgrade plan"}
-                    </Select.Option>
-                  )
-                })}
-              </Select>
-            </Form.Item>
-          </Col>
-        </Row>
-
-        <ConfigurableFieldsForm
-          key="configurable-form"
-          initialValues={initialValues}
-          fieldsParamsList={sourceReference.configParameters}
-          form={form}
-          hideFields={hideFields}
-          handleTouchAnyField={handleTouchAnyField}
-          availableOauthBackendSecrets={availableOauthBackendSecrets}
+      <div className={`flex justify-center items-start w-full h-full ${isLoadingOauth ? "" : "hidden"}`}>
+        <FormSkeleton />
+      </div>
+      <div className={`${isLoadingOauth ? "hidden" : ""}`}>
+        <SourceEditorOauthButtons
+          key={"oauth button"}
+          sourceDataFromCatalog={sourceReference}
+          onIsOauthSupportedChange={handleOauthSupportedStatusChange}
+          onFillAuthDataManuallyChange={handleFillOuthDataManuallyChange}
+          setOauthSecretsToForms={setOauthSecretsToForms}
         />
+        <div key={key}>
+          <Row key="id">
+            <Col span={24}>
+              <Form.Item
+                initialValue={initialValues.sourceId}
+                className={`form-field_fixed-label ${editorStyles.field}`}
+                label={<span>SourceId:</span>}
+                name="sourceId"
+                rules={sourceIdValidators}
+                labelCol={{ span: 4 }}
+                wrapperCol={{ span: 20 }}
+              >
+                <Input autoComplete="off" disabled={!isCreateForm} />
+              </Form.Item>
+            </Col>
+          </Row>
 
-        {sourceReference.hasLoadableConfigParameters && (
-          <LoadableFieldsForm
-            key="configurable-form-loadable"
-            sourceReference={sourceReference}
+          <Row key="schedule">
+            <Col span={24}>
+              <Form.Item
+                initialValue={initialSchedule}
+                name="schedule"
+                className={`form-field_fixed-label ${editorStyles.field}`}
+                label="Schedule:"
+                labelCol={{ span: 4 }}
+                wrapperCol={{ span: 20 }}
+                rules={[{ required: true, message: "You have to choose schedule" }]}
+              >
+                <Select>
+                  {COLLECTIONS_SCHEDULES.map(option => {
+                    const available = subscription ? subscription.quota.allowedSchedules.includes(option.id) : true
+                    return (
+                      <Select.Option value={option.value} key={option.value} disabled={!available}>
+                        {option.label}
+                        {!available && " - n/a, upgrade plan"}
+                      </Select.Option>
+                    )
+                  })}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <ConfigurableFieldsForm
+            key="configurable-form"
             initialValues={initialValues}
+            fieldsParamsList={sourceReference.configParameters}
             form={form}
+            hideFields={hideFields}
             handleTouchAnyField={handleTouchAnyField}
-            disableFormControls={disableFormControls}
-            enableFormControls={enableFormControls}
+            availableOauthBackendSecrets={availableOauthBackendSecrets}
           />
-        )}
+
+          {sourceReference.hasLoadableConfigParameters && (
+            <LoadableFieldsForm
+              key="configurable-form-loadable"
+              sourceReference={sourceReference}
+              initialValues={initialValues}
+              form={form}
+              handleTouchAnyField={handleTouchAnyField}
+              disableFormControls={disableFormControls}
+              enableFormControls={enableFormControls}
+            />
+          )}
+        </div>
       </div>
     </Form>
   )
