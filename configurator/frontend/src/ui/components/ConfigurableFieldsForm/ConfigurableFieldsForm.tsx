@@ -202,7 +202,7 @@ const ConfigurableFieldsFormComponent = ({
     switch (type?.typeName) {
       case "password":
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapperTuned key={id}>
             <Input.Password
               autoComplete="off"
               iconRender={visible => (visible ? <EyeOutlined /> : <EyeInvisibleOutlined />)}
@@ -212,7 +212,7 @@ const ConfigurableFieldsFormComponent = ({
 
       case "int": {
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapperTuned key={id}>
             <InputNumber autoComplete="off" inputMode="numeric" onChange={handleChangeIntInput(id)} />
           </FormItemWrapperTuned>
         )
@@ -220,7 +220,7 @@ const ConfigurableFieldsFormComponent = ({
       // ToDo: check if it can be <select> in some cases
       case "selection": {
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapperTuned key={id}>
             <Select
               allowClear
               mode={type.data.maxOptions > 1 ? "multiple" : undefined}
@@ -239,14 +239,14 @@ const ConfigurableFieldsFormComponent = ({
       }
       case "array/string":
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapperTuned key={id}>
             <EditableList initialValue={defaultValueToDisplay} />
           </FormItemWrapperTuned>
         )
       case "javascript":
       case "json": {
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapperTuned key={id}>
             <CodeEditor
               initialValue={defaultValueToDisplay}
               className={styles.codeEditor}
@@ -283,7 +283,7 @@ const ConfigurableFieldsFormComponent = ({
 
       case "boolean":
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapperTuned key={id}>
             {bigField ? (
               <SwitchWithLabel
                 label={displayName}
@@ -299,7 +299,7 @@ const ConfigurableFieldsFormComponent = ({
 
       case "file":
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapperTuned key={id}>
             <InputWithUpload onChange={handleChangeTextInput(id)} value={defaultValueToDisplay} />
           </FormItemWrapperTuned>
         )
@@ -327,7 +327,7 @@ const ConfigurableFieldsFormComponent = ({
           )
         }
         return (
-          <NonFormItemWrapperTuned>
+          <NonFormItemWrapperTuned key={id}>
             <InputOauthSecret
               backendSecretAvailable={backendSecretAvailable}
               defaultChecked={defaultCheckboxValueToDisplay ?? !defaultInputValueToDisplay}
@@ -339,7 +339,7 @@ const ConfigurableFieldsFormComponent = ({
 
       case "description":
         return (
-          <div className="ant-row ant-form-item form-field_fixed-label">
+          <div key={id} className="ant-row ant-form-item form-field_fixed-label">
             <div className="ant-col ant-col-4 ant-form-item-label">
               <label>{displayName}:</label>
             </div>
@@ -350,7 +350,7 @@ const ConfigurableFieldsFormComponent = ({
       case "string":
       default: {
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapperTuned key={id}>
             <InputWithDebug id={id} jsDebugger={jsDebugger} onButtonClick={() => handleOpenDebugger(id)} />
           </FormItemWrapperTuned>
         )

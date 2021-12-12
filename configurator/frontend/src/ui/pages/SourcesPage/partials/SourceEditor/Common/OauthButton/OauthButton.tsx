@@ -34,6 +34,7 @@ export const OauthButton: React.FC<Props> = ({
   const services = useServices()
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isOauthSupported, setIsOauthSupported] = useState<boolean>(false)
+  const [isOauthCompleted, setIsOauthCompleted] = useState<boolean>(false)
 
   const handleClick = async (): Promise<void> => {
     setIsLoading(true)
@@ -48,8 +49,10 @@ export const OauthButton: React.FC<Props> = ({
         return
       }
       setAuthSecrets(oauthResult.secrets)
+      setIsOauthCompleted(true)
     } catch (error) {
       handleError(new Error(error.message ?? "Oauth failed due to internal error. Please, file an issue."))
+      setIsOauthCompleted(false)
     } finally {
       setIsLoading(false)
     }

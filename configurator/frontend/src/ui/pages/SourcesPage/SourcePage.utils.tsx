@@ -151,7 +151,12 @@ const sourcePageUtils = {
     }
   },
   applyOauthValuesToAntdForms: (
-    forms: { [key: string]: FormInstance<PlainObjectWithPrimitiveValues> },
+    forms: {
+      [key: string]: {
+        form: FormInstance<PlainObjectWithPrimitiveValues>
+        patchConfigOnFormValuesChange?: (values: PlainObjectWithPrimitiveValues) => void
+      }
+    },
     oauthValues: PlainObjectWithPrimitiveValues
   ): boolean => {
     const oauthFieldsSuccessfullySet: string[] = []
@@ -164,9 +169,10 @@ const sourcePageUtils = {
         return
       }
 
-      const newValues = { ...formToApplyValue.getFieldsValue() }
+      const newValues = { ...formToApplyValue.form.getFieldsValue() }
       newValues[fieldKeyToApplyValue] = oauthFieldValue
-      formToApplyValue.setFieldsValue(newValues)
+      formToApplyValue.form.setFieldsValue(newValues)
+      formToApplyValue.patchConfigOnFormValuesChange?.(newValues)
       oauthFieldsSuccessfullySet.push(oauthFieldKey)
     })
 
@@ -196,22 +202,36 @@ const sourcePageUtils = {
 }
 
 const getAntdFormAndKeyByOauthFieldKey = (
-  forms: { [key: string]: FormInstance<PlainObjectWithPrimitiveValues> },
+  forms: {
+    [key: string]: {
+      form: FormInstance<PlainObjectWithPrimitiveValues>
+      patchConfigOnFormValuesChange?: (values: PlainObjectWithPrimitiveValues) => void
+    }
+  },
   oauthFieldKey: string
-): [FormInstance<PlainObjectWithPrimitiveValues> | null, string | null] => {
+): [
+  {
+    form: FormInstance<PlainObjectWithPrimitiveValues>
+    patchConfigOnFormValuesChange?: (values: PlainObjectWithPrimitiveValues) => void
+  } | null,
+  string | null
+] => {
   let allFormsKeys: string[] = []
   const allFormsWithValues: {
     [key: string]: {
-      form: FormInstance<PlainObjectWithPrimitiveValues>
+      form: {
+        form: FormInstance<PlainObjectWithPrimitiveValues>
+        patchConfigOnFormValuesChange?: (values: PlainObjectWithPrimitiveValues) => void
+      }
       values: PlainObjectWithPrimitiveValues
     }
-  } = Object.entries(forms).reduce((result, [formKey, form]) => {
-    const values = form.getFieldsValue()
+  } = Object.entries(forms).reduce((result, [formKey, formData]) => {
+    const values = formData.form.getFieldsValue()
     allFormsKeys = [...allFormsKeys, ...Object.keys(values)]
     return {
       ...result,
       [formKey]: {
-        form,
+        form: formData,
         values,
       },
     }

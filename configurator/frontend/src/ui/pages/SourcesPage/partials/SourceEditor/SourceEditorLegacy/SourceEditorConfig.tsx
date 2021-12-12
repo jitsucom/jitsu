@@ -106,7 +106,7 @@ const SourceEditorConfigComponent = ({
 
   const setOauthSecretsToForms = useCallback<(secrets: PlainObjectWithPrimitiveValues) => void>(
     secrets => {
-      const successful = sourcePageUtils.applyOauthValuesToAntdForms({ form }, secrets)
+      const successful = sourcePageUtils.applyOauthValuesToAntdForms({ "config-form": { form } }, secrets)
       successful && setIsOauthFlowCompleted(true)
     },
     [form]
@@ -118,7 +118,8 @@ const SourceEditorConfigComponent = ({
     if (isLoadingOauth) disableFormControls()
     else if (fillAuthDataManually) enableFormControls()
     else if (editorMode === "edit") enableFormControls()
-    else if (!isOauthFlowCompleted) disableFormControls("Please, either authorize Jitsu App or fill auth data manually")
+    else if (!isOauthFlowCompleted)
+      disableFormControls("Please, either grant Jitsu access or fill auth credentials manually")
     else enableFormControls()
   }, [isLoadingOauth, fillAuthDataManually, isOauthFlowCompleted])
 

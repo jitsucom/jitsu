@@ -5,8 +5,6 @@ import { Button, Col, FormInstance, Popconfirm, Row } from "antd"
 import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
 // @Components
 import { OauthButton } from "../OauthButton/OauthButton"
-// @Utils
-import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 
 type Props = {
   sourceDataFromCatalog: CatalogSourceConnector
@@ -57,7 +55,6 @@ export const SourceEditorOauthButtons: React.FC<Props> = ({
             key="oauth-button"
             service={sourceDataFromCatalog.id}
             forceNotSupported={sourceDataFromCatalog.expertMode}
-            className="mr-3"
             disabled={disabled}
             icon={<span className="align-middle h-5 w-7 pr-3 ">{sourceDataFromCatalog.pic}</span>}
             isGoogle={
@@ -67,19 +64,18 @@ export const SourceEditorOauthButtons: React.FC<Props> = ({
             setAuthSecrets={setOauthSecretsToForms}
             onIsOauthSuppotedStatusChecked={handleOauthSupportCheckStatus}
           >
-            <span className="align-top">{`Authorize Jitsu`}</span>
+            <span className="align-top">{`Grant Jitsu Access to ${sourceDataFromCatalog.displayName}`}</span>
           </OauthButton>
         </div>
         {!onlyManualAuth && isOauthSupported && (
           <>
-            <span className="pr-3 text-secondaryText">or</span>
             <Popconfirm
               title="This will reset all manual inputs. Are you sure you want to exit?"
               onConfirm={handleFillAuthDataManuallyToggle}
               disabled={fillAuthDataManually}
             >
-              <Button onClick={fillAuthDataManually ? handleFillAuthDataManuallyToggle : undefined}>
-                {fillAuthDataManually ? "Fill Auth Data Manually" : "Hide Manual Settings"}
+              <Button type="link" onClick={fillAuthDataManually ? handleFillAuthDataManuallyToggle : undefined}>
+                {fillAuthDataManually ? "Fill Auth Credentials Manually" : "Exit Manual Mode"}
               </Button>
             </Popconfirm>
           </>

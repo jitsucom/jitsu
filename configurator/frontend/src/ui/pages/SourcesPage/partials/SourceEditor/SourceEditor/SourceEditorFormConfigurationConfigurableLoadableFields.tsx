@@ -125,7 +125,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     }
 
     setValidator(() => validateGetErrorsCount)
-    setFormReference(CONFIG_FORM_KEY, form)
+    setFormReference(CONFIG_FORM_KEY, form, handleFormValuesChange)
   }, [])
 
   return loadingParametersError ? (

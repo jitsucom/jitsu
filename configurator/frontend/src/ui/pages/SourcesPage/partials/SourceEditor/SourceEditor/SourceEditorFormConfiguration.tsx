@@ -2,10 +2,10 @@
 import { observer } from "mobx-react-lite"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { cloneDeep } from "lodash"
-import { FormInstance, Spin } from "antd"
+import { FormInstance } from "antd"
 // @Types
 import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
-import { SetSourceEditorState } from "./SourceEditor"
+import { SetSourceEditorState, SourceEditorState } from "./SourceEditor"
 // @Components
 import { SourceEditorFormConfigurationStaticFields } from "./SourceEditorFormConfigurationStaticFields"
 import { SourceEditorFormConfigurationConfigurableLoadableFields } from "./SourceEditorFormConfigurationConfigurableLoadableFields"
@@ -40,10 +40,17 @@ export type PatchConfig = (
   }
 ) => void
 
-export type SetFormReference = (key: string, form: FormInstance) => void
+export type SetFormReference = (
+  key: string,
+  form: FormInstance,
+  patchConfigOnFormValuesChange?: (values: PlainObjectWithPrimitiveValues) => void
+) => void
 
 type Forms = {
-  [key: string]: FormInstance<PlainObjectWithPrimitiveValues>
+  [key: string]: {
+    form: FormInstance<PlainObjectWithPrimitiveValues>
+    patchConfigOnFormValuesChange?: (values: PlainObjectWithPrimitiveValues) => void
+  }
 }
 
 const initialValidator: () => ValidateGetErrorsCount = () => async () => 0
@@ -74,8 +81,8 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
 
   const [key, resetFormUi] = useUniqueKeyState() // pass a key to a component, then re-mount component by calling `resetFormUi`
 
-  const setFormReference = useCallback<SetFormReference>((key, form) => {
-    setForms(forms => ({ ...forms, [key]: form }))
+  const setFormReference = useCallback<SetFormReference>((key, form, patchConfigOnFormValuesChange) => {
+    setForms(forms => ({ ...forms, [key]: { form, patchConfigOnFormValuesChange } }))
   }, [])
 
   const sourceConfigurationSchema = useMemo(() => {
@@ -133,19 +140,18 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
 
   const setOauthSecretsToForms = useCallback<(secrets: PlainObjectWithPrimitiveValues) => void>(
     secrets => {
-      const allSecretsSet = sourcePageUtils.applyOauthValuesToAntdForms(forms, secrets)
-      allSecretsSet && setIsOauthFlowCompleted(true)
-      // forceUpdate()
+      const success = sourcePageUtils.applyOauthValuesToAntdForms(forms, secrets)
+      success && setIsOauthFlowCompleted(true)
     },
     [forms]
   )
 
   const patchConfig = useCallback<PatchConfig>((key, allValues, options) => {
     setSourceEditorState(state => {
-      const newState = cloneDeep(state)
-
-      newState.configuration.config[key] = allValues
-
+      const newState: SourceEditorState = {
+        ...state,
+        configuration: { ...state.configuration, config: { ...state.configuration.config, [key]: allValues } },
+      }
       if (!options?.doNotSetStateChanged) newState.stateChanged = true
 
       setTabErrorsVisible?.(false)
@@ -189,7 +195,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
     else if (fillAuthDataManually) handleSetControlsDisabled(false, "oauth")
     else if (editorMode === "edit") handleSetControlsDisabled(false, "oauth")
     else if (!isOauthFlowCompleted)
-      handleSetControlsDisabled("Please, either authorize Jitsu App or fill auth data manually", "oauth")
+      handleSetControlsDisabled("Please, either grant Jitsu access or fill auth credentials manually", "oauth")
     else handleSetControlsDisabled(false, "oauth")
   }, [isLoadingOauth, fillAuthDataManually, isOauthFlowCompleted])
 
@@ -198,7 +204,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
       <div className={`flex justify-center items-start w-full h-full ${isLoadingOauth ? "" : "hidden"}`}>
         <FormSkeleton />
       </div>
-      <div key={key} className={isLoadingOauth ? "hidden" : ""}>
+      <div className={isLoadingOauth ? "hidden" : ""}>
         <SourceEditorOauthButtons
           key="oauth"
           sourceDataFromCatalog={sourceDataFromCatalog}
@@ -208,7 +214,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           onFillAuthDataManuallyChange={handleFillAuthDataManuallyChange}
           setOauthSecretsToForms={setOauthSecretsToForms}
         />
-        <fieldset key="fields" disabled={disabled}>
+        <fieldset key={key} disabled={disabled}>
           <SourceEditorFormConfigurationStaticFields
             editorMode={editorMode}
             initialValues={initialSourceData}
