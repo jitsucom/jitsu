@@ -23,22 +23,25 @@ type GoogleCloudStorage struct {
 }
 
 type GoogleConfig struct {
-	Bucket  string      `mapstructure:"gcs_bucket" json:"gcs_bucket,omitempty" yaml:"gcs_bucket,omitempty"`
-	Project string      `mapstructure:"bq_project" json:"bq_project,omitempty" yaml:"bq_project,omitempty"`
-	Dataset string      `mapstructure:"bq_dataset" json:"bq_dataset,omitempty" yaml:"bq_dataset,omitempty"`
-	KeyFile interface{} `mapstructure:"key_file" json:"key_file,omitempty" yaml:"key_file,omitempty"`
+	Bucket  string      `mapstructure:"gcs_bucket,omitempty" json:"gcs_bucket,omitempty" yaml:"gcs_bucket,omitempty"`
+	Project string      `mapstructure:"bq_project,omitempty" json:"bq_project,omitempty" yaml:"bq_project,omitempty"`
+	Dataset string      `mapstructure:"bq_dataset,omitempty" json:"bq_dataset,omitempty" yaml:"bq_dataset,omitempty"`
+	KeyFile interface{} `mapstructure:"key_file,omitempty" json:"key_file,omitempty" yaml:"key_file,omitempty"`
 
 	//will be set on validation
 	credentials option.ClientOption
 }
 
-func (gc *GoogleConfig) Validate(streamMode bool) error {
+//ValidateBatchMode checks that google cloud storage is set
+func (gc *GoogleConfig) ValidateBatchMode() error {
+	if gc.Bucket == "" {
+		return errors.New("Google cloud storage bucket(gcs_bucket) is required parameter")
+	}
+	return nil
+}
+func (gc *GoogleConfig) Validate() error {
 	if gc == nil {
 		return errors.New("Google config is required")
-	}
-	//batch mode works via google cloud storage
-	if !streamMode && gc.Bucket == "" {
-		return errors.New("Google cloud storage bucket(gcs_bucket) is required parameter")
 	}
 
 	if gc.Dataset != "" {

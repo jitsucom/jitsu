@@ -10,6 +10,7 @@ to `<head>` section of your page. Example:
 
 ```html
 <script src="https://t.jitsu.com/s/lib.js" data-key="JITSU_API_KEY" defer></script>
+<script>window.jitsu = window.jitsu || (function(){(window.jitsuQ = window.jitsuQ || []).push(arguments);})</script>
 ```
 
 The configuration parameters should be passed as `data-` attributes. The full list of attributes
@@ -30,7 +31,7 @@ If you don't want to send pageviews automatically, set `data-init-only` to "true
         data-key="JITSU_API_KEY"
         data-init-only="true"
         defer></script>
-<script>
+<script>window.jitsu = window.jitsu || (function(){(window.jitsuQ = window.jitsuQ || []).push(arguments);})</script>
 ```
 
 Also, you can send data with `jitsu(methodName, eventType, optionalData?)` calls. Such as:

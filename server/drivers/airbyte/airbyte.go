@@ -27,11 +27,12 @@ type Airbyte struct {
 
 	activeCommands map[string]*base.SyncCommand
 
-	config                   *Config
-	pathToConfigs            string
-	streamsRepresentation    map[string]*base.StreamRepresentation
-	catalogDiscovered        *atomic.Bool
-	discoverCatalogLastError error
+	config                       *Config
+	selectedStreamsWithNamespace map[string]base.StreamConfiguration
+	pathToConfigs                string
+	streamsRepresentation        map[string]*base.StreamRepresentation
+	catalogDiscovered            *atomic.Bool
+	discoverCatalogLastError     error
 
 	closed chan struct{}
 }
@@ -63,6 +64,7 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 	if config.ImageVersion == "" {
 		config.ImageVersion = airbyte.LatestVersion
 	}
+	base.FillPreconfiguredOauth(config.DockerImage, config.Config)
 
 	pathToConfigs := path.Join(airbyte.Instance.ConfigDir, sourceConfig.SourceID, config.DockerImage)
 
@@ -111,16 +113,25 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 		}
 	}
 
+	var selectedStreamsWithNamespace map[string]base.StreamConfiguration
+	if len(config.SelectedStreams) > 0 {
+		selectedStreamsWithNamespace = map[string]base.StreamConfiguration{}
+		for _, sc := range config.SelectedStreams {
+			selectedStreamsWithNamespace[base.StreamIdentifier(sc.Namespace, sc.Name)] = sc
+		}
+	}
+
 	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, config.DockerImage, configPath, catalogPath, "", statePath,
 		config.StreamTableNamesPrefix, pathToConfigs, config.StreamTableNames)
 	s := &Airbyte{
-		mutex:                 &sync.RWMutex{},
-		activeCommands:        map[string]*base.SyncCommand{},
-		config:                config,
-		pathToConfigs:         pathToConfigs,
-		catalogDiscovered:     catalogDiscovered,
-		streamsRepresentation: streamsRepresentation,
-		closed:                make(chan struct{}),
+		mutex:                        &sync.RWMutex{},
+		activeCommands:               map[string]*base.SyncCommand{},
+		config:                       config,
+		selectedStreamsWithNamespace: selectedStreamsWithNamespace,
+		pathToConfigs:                pathToConfigs,
+		catalogDiscovered:            catalogDiscovered,
+		streamsRepresentation:        streamsRepresentation,
+		closed:                       make(chan struct{}),
 	}
 	s.AbstractCLIDriver = *abstract
 	s.AbstractCLIDriver.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
@@ -145,7 +156,7 @@ func TestAirbyte(sourceConfig *base.SourceConfig) error {
 	if config.ImageVersion == "" {
 		config.ImageVersion = airbyte.LatestVersion
 	}
-
+	base.FillPreconfiguredOauth(config.DockerImage, config.Config)
 	airbyteRunner := airbyte.NewRunner(config.DockerImage, config.ImageVersion, "")
 	return airbyteRunner.Check(config.Config)
 }
@@ -220,7 +231,7 @@ func (a *Airbyte) Ready() (bool, error) {
 	return false, runner.NewCompositeNotReadyError(msg)
 }
 
-func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
+func (a *Airbyte) Load(config string, state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
 	if a.IsClosed() {
 		return fmt.Errorf("%s has already been closed", a.Type())
 	}
@@ -314,14 +325,31 @@ func (a *Airbyte) Close() (multiErr error) {
 	return multiErr
 }
 
-//loadCatalog discovers source catalog
-//reformat catalog to airbyte format and writes it to the file system
+//loadCatalog:
+//1. discovers source catalog
+//2. applies selected streams
+//3. reformat catalog to airbyte format and writes it to the file system
 //returns catalog
 func (a *Airbyte) loadCatalog() (string, map[string]*base.StreamRepresentation, error) {
 	airbyteRunner := airbyte.NewRunner(a.GetTap(), a.config.ImageVersion, "")
 	rawCatalog, err := airbyteRunner.Discover(a.config.Config, 5*time.Minute)
 	if err != nil {
 		return "", nil, err
+	}
+
+	//apply only selected streams
+	if len(a.selectedStreamsWithNamespace) > 0 {
+		var selectedStreams []*airbyte.Stream
+		for _, stream := range rawCatalog.Streams {
+			if streamConfig, selected := a.selectedStreamsWithNamespace[base.StreamIdentifier(stream.Namespace, stream.Name)]; selected {
+				if streamConfig.SyncMode != "" {
+					stream.SyncMode = streamConfig.SyncMode
+				}
+				selectedStreams = append(selectedStreams, stream)
+			}
+		}
+
+		rawCatalog.Streams = selectedStreams
 	}
 
 	catalog, streamsRepresentation, err := reformatCatalog(a.GetTap(), rawCatalog)

@@ -64,6 +64,7 @@ func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collect
 	if err != nil {
 		return nil, err
 	}
+	config.AccountKey.FillPreconfiguredOauth(base.GooglePlayType)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -94,6 +95,7 @@ func TestGooglePlay(sourceConfig *base.SourceConfig) error {
 	if err != nil {
 		return err
 	}
+	config.AccountKey.FillPreconfiguredOauth(base.GooglePlayType)
 	if err := config.Validate(); err != nil {
 		return err
 	}

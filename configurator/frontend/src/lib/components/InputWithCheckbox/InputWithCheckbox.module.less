@@ -1,0 +1,15 @@
+@import "theme.less";
+
+.wrapper {
+  @apply flex flex-col items-stretch w-full;
+
+  & > div {
+    margin-bottom: 0 !important;
+  }
+}
+
+.status {
+  color: @secondaryText;
+  margin-top: 5px;
+  margin-bottom: 5px; // needed to make it the same size as antd-input
+}

@@ -28,29 +28,22 @@ Right after **event3** **Jitsu** amends **event1** and **event2** and adds email
 
 ### Resources
 
-In case if Retroactive Users Recognition feature is enabled - all incoming anonymous events (events JSON without filled `identification_nodes`) are saved in `meta.storage` (Redis).
+In case if Retroactive Users Recognition feature is enabled - all incoming anonymous events (events JSON without filled `identification_nodes`) are saved in the users recognition storage (Currently only Redis is supported).
 Events are saved under Redis key that contains user anonymous ID. Once any event with filled `identification_nodes` is received (identification event) - Jitsu updates these events in Data Warehouse and removes them from Redis.
 
 <Hint>
-    Redis can take up a significant amount of RAM. It can be reduced by adding <code inline="true">ttl_minutes.anonymous_events</code> to <code inline="true">meta.storage</code> configuration (see below).
-    TTL (time to live) is applied to Redis keys. It means that events from anonymous users that no longer visit your web pages will be deleted from Redis at the expiration time.
+    Redis can take up a significant amount of RAM. Read how to optimize Redis size in <code inline="true">Redis storage memory optimization</code> section below.
 </Hint>
-
-There is an approximate formula for RAM size prediction:
-
-```text
-REDIS RAM = 1 Event Size * Events per month
-
-1 event ~= 2 Kbyte
-10 000 000 events per month ~= 20GB RAM per month
-```
 
 ### Configuration
 
-For enabling this feature, a global `users_recognition` must present in the configuration. The global configuration is applied to all destinations. It means that all events which are supposed to be stored into destinations of Postgres, Redshift and ClickHouse types will be sent through the users recognition pipeline and all anonymous events will be stored into meta storage. Configuration per destination overrides the global one.
+For enabling this feature, a global `users_recognition` must present in the configuration. The global configuration is applied to all destinations. It means that all events which are supposed to be stored into destinations of Postgres, Redshift, Snowflake, MySQL and ClickHouse types will be sent through the users recognition pipeline and all anonymous events will be stored into the users recognition storage. Configuration per destination overrides the global one.
+For anonymous events storage Jitsu uses `meta.storage` by default, but you can specify separate redis in `users_recognition.redis` section. If you have high load then we highly recommend using separate Redis with [keys eviction](https://redis.io/topics/lru-cache). Otherwise Redis can take up a significant amount of RAM. Read more in `Redis storage memory optimization` section below.
 
 <Hint>
-    This feature requires: <code inline="true">meta.storage</code> and <code inline="true">primary_key_fields</code> configuration in Postgres or Redshift destination.
+    This feature requires:
+    1. <code inline="true">users_recognition.redis</code> or <code inline="true">meta.storage.redis</code> configuration
+    2. <code inline="true">primary_key_fields</code> configuration in Postgres, Redshift, MySQL destination.
     Read more about those settings on <a href="/docs/configuration/">General Configuration</a>
 </Hint>
 
@@ -79,26 +72,36 @@ destinations:
         - /user/internal_id
         - /user/email
 
-meta:
-  storage:
-    redis:
-      host: redis_host
-      port: 6379
-      password: secret_password
-      ttl_minutes: #Optional. Anonymous events TTL in minutes. Default value: no TTL
-        anonymous_events: 10080 #7 days
-
 #Global configuration is applied to all destinations
 #Example of compatible JS SDK 2.0 format
 #For using with old format - just configure enabled flag:
 #users_recognition:
 #  enabled: true
+
 users_recognition:
   enabled: true #Disabled by default.
   anonymous_id_node: /user/anonymous_id #Optional. Default value: /eventn_ctx/user/anonymous_id||/user/anonymous_id
   identification_nodes: #Optional. Default value: /eventn_ctx/user/internal_id||/user/internal_id
     - /user/internal_id
     - /user/email
+  ## storage configuration (if not configured meta.storage will be used)
+  redis:
+    host: redis_host
+    port: 6379
+    password: secret_password
+    ttl_minutes: #Optional. Anonymous events TTL in minutes. Default value: 10080 (7 days)
+      anonymous_events: 10080 #7 days
+
+
+## Meta storage configuration
+meta:
+  storage:
+    redis:
+      host: redis_host
+      port: 6379
+      password: secret_password
+      ttl_minutes: #Optional. Anonymous events TTL in minutes. Default value: 10080 (7 days)
+        anonymous_events: 10080 #7 days
 ```
 
 <table>
@@ -139,8 +142,149 @@ users_recognition:
         anonymous.
       </td>
     </tr>
+    <tr>
+      <td>
+        <b>redis</b>
+        <br />
+        <em>(required if meta.storage isn't configured)</em>
+      </td>
+      <td>Object with Redis config</td>
+      <td>Anonymous events storage. Can be omitted if meta.storage is configured and only one Redis will be used for both features. But for high load instances we highly recommend using separate Redis instance with key eviction. <code inline="true">Read more in Redis storage memory optimization</code> section.
+      </td>
+    </tr>
   </tbody>
 </table>
 
 
+### Redis storage memory optimization
 
+Usually more then 50% of incoming traffic is from anonymous users (devices that haven't signed in yet). Jitsu uses Redis as a fast read/write storage.
+Since Redis keeps all data in RAM even in slightly loaded projects storage can take up a significant amount of RAM and server memory may run out.
+
+Approximately size of 1 anonymous event in Redis is `1KB`. So if your project has 10 requests per second and let's say 80% of them are anonymous - without user identifiers then:
+
+`8 events * multiplying by 24 hours = 691 200 per day`. It is nearly 700MB of RAM per day.
+
+Jitsu writes anonymous events into Redis using [hash](https://redis.io/topics/data-types) records type. Redis key example:
+
+format:
+
+```
+anonymous_events:destination_id#${destinationID}:anonymous_id#${userAnonymousID}
+```
+
+example:
+
+```
+anonymous_events:destination_id#my_postgres:anonymous_id#bqsyuwusxh
+```
+
+There will be stored anonymous events JSON with field = ${eventID} and value will be raw event JSON string:
+
+```
+key: anonymous_events:destination_id#my_postgres:anonymous_id#bqsyuwusxh
+field: d2a1f74b-f87e-4bd2-92ac-4672e41c03ff
+value: "{...}"
+```
+
+The most reliable way to handle the RAM problem is having a separate Redis instance for user recognition with finite memory and [keys eviction](https://redis.io/topics/lru-cache) configuration.
+You can configure it with the following steps:
+
+1. Configure separate Redis in Jitsu Server configuration file (eventnative.yaml) with anonymous events TTL (default value is 7 days):
+
+```yaml
+users_recognition:
+  enabled: true
+  identification_nodes:
+    - /user/internal_id
+    - /user/email
+  redis:
+    host: redis_host
+    port: 6379
+    password: secret_password
+    ttl_minutes: #Optional. Anonymous events TTL in minutes. Default value: 10080 (7 days)
+      anonymous_events: 10080 #7 days
+```
+
+or with env variable `USER_RECOGNITION_REDIS_URL=redis://:password@host:port`.
+
+TTL (time to live) is applied to Redis keys. It means that events from anonymous users that no longer visit your web pages will be deleted from Redis at the expiration time.
+Under the hood Jitsu uses Jitsu use [expire command](https://redis.io/commands/expire) after saving every anonymous event JSON.
+Since Redis anonymous events key contains user anonymous ID, Redis will automatically delete key if there was no events from a certain anonymous user 7 days (TTL value).
+
+
+2. Specify Redis finite memory, eviction policy by adding the following configuration into the `redis.conf` file:
+
+```
+maxmemory 25gb
+maxmemory-policy allkeys-lru
+maxmemory-samples 5
+```
+
+Or use command `CONFIG SET` with `redis-cli`:
+
+```
+CONFIG SET maxmemory 25gb
+CONFIG SET maxmemory-policy allkeys-lru
+CONFIG SET maxmemory-samples 5
+```
+
+<Hint>
+    <code inline="true">CONFIG SET</code> command change current Redis configuration, but doesn't change the config file and after restart Redis will get configuration from file. Make sure that you have added new values to the configuration file after using <code inline="true">CONFIG SET</code> command.
+</Hint>
+
+After this configuration, user recognition Redis will automatically rewrite old keys when RAM is almost full.
+
+3. Add Redis compression configuration, so all Redis hash tables with length > 1 (anonymous with more than 1 event inside 1 key) will be converted to the [Redis ziplists](https://redis.com/ebook/part-2-core-concepts/01chapter-9-reducing-memory-use/9-1-short-structures/9-1-1-the-ziplist-representation/)
+and compressed. Compression rate is about 8x-10x. It saves about 800-1000% of RAM.
+
+<Hint>
+    1. <code inline="true">Compression isn't applied to old data</code>. Compression applies only to Redis hash tables which have been created after this configuration.
+    2. <code inline="true">Compression applies only to hash tables with length > 1</code>. It means that size of a hash table with 1 event =~ 1KB, and size with hash table with 2 events =~1.08KB, 3 events =~1.16KB.
+</Hint>
+
+Configuration:
+
+```
+list-compress-depth 1
+hash-max-ziplist-value 2000
+```
+
+Or use command `CONFIG SET` with `redis-cli`:
+
+```
+CONFIG SET list-compress-depth 1
+CONFIG SET hash-max-ziplist-value 2000
+```
+
+<Hint>
+    <code inline="true">CONFIG SET</code> command change current Redis configuration, but doesn't change the config file and after restart Redis will get configuration from file. Make sure that you have added new values to the configuration file after using <code inline="true">CONFIG SET</code> command.
+</Hint>
+
+You can check how much memory any key consumes with `redis-cli` command:
+
+```
+DEBUG OBJECT <REDIS KEY>
+```
+
+4. If you can't change the redis configuration, you can enable GZIP compression on the Jitsu side. It will approximately reduce Redis memory consumption by 30%.
+Just add `users_recognition.compression: 'gzip'` to the Jitsu Server configuration (eventnative.yaml):
+
+```yaml
+users_recognition:
+  enabled: true
+  compression: 'gzip'
+  identification_nodes:
+    - /user/internal_id
+    - /user/email
+  redis:
+    host: redis_host
+    port: 6379
+    password: secret_password
+    ttl_minutes: #Optional. Anonymous events TTL in minutes. Default value: 10080 (7 days)
+      anonymous_events: 10080 #7 days
+```
+
+<Hint>
+    We do not recommend use both Redis ziplist compression and Jitsu GZIP compression. The effectiveness can be very low.
+</Hint>

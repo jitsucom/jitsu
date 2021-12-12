@@ -11,7 +11,9 @@ import useLoader from "hooks/useLoader"
 import { useServices } from "hooks/useServices"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { comparator } from "../../../lib/commons/utils"
-import { DeleteOutlined, EditOutlined } from "@ant-design/icons"
+import { isAtLeastOneStreamSelected } from "utils/sources/sourcesUtils"
+import { NoStreamsSelectedMessage } from "ui/components/NoStreamsSelectedMessage/NoStreamsSelectedMessage"
+import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 
 export type TasksTableProps = {
   source: SourceData
@@ -23,6 +25,8 @@ export type TasksTableProps = {
 }
 export const TasksTable: React.FC<TasksTableProps> = props => {
   const appServices = useServices()
+  const editSourceLink = generatePath(sourcesPageRoutes.editExact, { sourceId: props.source.sourceId })
+
   const [taskRuns, setTaskRuns] = useState(0) //to trigger reload on manual task run
   const [loadingError, tasksSorted] = useLoader<Task[]>(async () => {
     const tasks = await appServices.backendApiClient.get("/tasks", {
@@ -41,6 +45,10 @@ export const TasksTable: React.FC<TasksTableProps> = props => {
 
   const runTask = (source: string, collection: string) => {
     return async () => {
+      if (!isAtLeastOneStreamSelected(props.source)) {
+        actionNotification.error(<NoStreamsSelectedMessage editSourceLink={editSourceLink} />)
+        return
+      }
       return await withProgressBar({
         estimatedMs: 100,
         callback: async () => {

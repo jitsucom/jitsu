@@ -13,17 +13,30 @@ import styles from "./DestinationEditor.module.less"
 import { destinationsReferenceMap } from "../../../../../catalog/destinations/lib"
 import { CodeSnippet } from "../../../../../lib/components/components"
 import { camelCase } from "lodash"
+import set from "lodash/set"
 
 export interface Props {
   destinationData: DestinationData
   destinationReference: Destination
   form: FormInstance
+  configForm: FormInstance
   handleTouchAnyField: (...args: any) => void
 }
 
-const DestinationEditorTransform = ({ destinationData, destinationReference, form, handleTouchAnyField }: Props) => {
+const DestinationEditorTransform = ({
+  destinationData,
+  destinationReference,
+  form,
+  configForm,
+  handleTouchAnyField,
+}: Props) => {
   const handleChange = debounce(handleTouchAnyField, 500)
   const [documentationVisible, setDocumentationVisible] = useState(false)
+  const templateVarsSuggestions = Object.entries(configForm.getFieldsValue())
+    .filter(v => v[0].startsWith("_formData._"))
+    .map(v => [v[0].replace("_formData._", ""), v[1]])
+    .map(v => `declare const ${v[0]} = "${v[1]}"\n`)
+    .join()
 
   return (
     <>
@@ -50,12 +63,13 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
                 !!destinationsReferenceMap[destinationData._type].defaultTransform &&
                 !destinationData._mappings?._mappings,
               required: false,
+              omitFieldRule: cfg => destinationsReferenceMap[destinationData._type].defaultTransform.length > 0,
               type: booleanType,
               bigField: true,
             },
             {
               id: "_transform",
-              codeSuggestions: `declare const destinationId = "${destinationData._uid}";
+              codeSuggestions: `${templateVarsSuggestions}declare const destinationId = "${destinationData._uid}";
 declare const destinationType = "${destinationData._type}";
 ${[destinationData._type, "segment"]
   .map(type => `declare function ${camelCase("to_" + type)}(event: object): object`)
@@ -69,6 +83,7 @@ ${[destinationData._type, "segment"]
             },
           ]}
           form={form}
+          configForm={configForm}
           initialValues={destinationData}
         />
       </Form>

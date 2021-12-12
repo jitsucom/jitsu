@@ -10,11 +10,12 @@ import { SetSourceEditorState } from "./SourceEditor"
 import { SourceEditorFormConfigurationStaticFields } from "./SourceEditorFormConfigurationStaticFields"
 import { SourceEditorFormConfigurationConfigurableLoadableFields } from "./SourceEditorFormConfigurationConfigurableLoadableFields"
 import { SourceEditorFormConfigurationConfigurableFields } from "./SourceEditorFormConfigurationConfigurableFields"
-import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { OauthButton } from "../../OauthButton/OauthButton"
-import { handleError } from "lib/components/components"
 // @Utils
-import { toTitleCase } from "utils/strings"
+import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
+import ApplicationServices from "lib/services/ApplicationServices"
+import { useLoaderAsObject } from "hooks/useLoader"
+import { useServices } from "hooks/useServices"
 
 type Props = {
   editorMode: "add" | "edit"
@@ -23,7 +24,7 @@ type Props = {
   disabled?: boolean
   setSourceEditorState: SetSourceEditorState
   setControlsDisabled: ReactSetState<boolean>
-  setTabErrorsVisible: (value: boolean) => void
+  setTabErrorsVisible?: (value: boolean) => void
   setConfigIsValidatedByStreams: (value: boolean) => void
 }
 
@@ -54,7 +55,17 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
   setTabErrorsVisible,
   setConfigIsValidatedByStreams,
 }) => {
+  const services = useServices()
   const [forms, setForms] = useState<Forms>({})
+
+  const [isLoadingBackendSecretsStatus, setIsLoadingBackendSecretsStatus] = useState<boolean>(false)
+  const [oauthBackendSecretsAvailable, setOauthBackendSecretsAvailable] = useState<boolean>(false)
+
+  const backendSecretsStatus: "loading" | "secrets_set" | "secrets_not_set" = isLoadingBackendSecretsStatus
+    ? "loading"
+    : oauthBackendSecretsAvailable
+    ? "secrets_set"
+    : "secrets_not_set"
 
   const [staticFieldsValidator, setStaticFieldsValidator] = useState<ValidateGetErrorsCount>(initialValidator)
   const [configurableFieldsValidator, setConfigurableFieldsValidator] =
@@ -66,13 +77,6 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
     setForms(forms => ({ ...forms, [key]: form }))
   }, [])
 
-  const setOauthSecretsToForms = useCallback<(secrets: PlainObjectWithPrimitiveValues) => void>(
-    secrets => {
-      applyOauthValuesToForms(forms, secrets)
-    },
-    [forms]
-  )
-
   const sourceConfigurationSchema = useMemo(() => {
     switch (sourceDataFromCatalog.protoType) {
       case "airbyte":
@@ -81,16 +85,27 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
           invisibleStaticFields: {
             "config.docker_image": sourceDataFromCatalog.id.replace("airbyte-", ""),
           },
+          oauthBackendSecretsStatusCheck: () => true,
         }
       case "singer":
+        const tapId = sourceDataFromCatalog.id.replace("singer-", "")
         return {
           configurableFields: sourceDataFromCatalog.configParameters,
           invisibleStaticFields: {
-            "config.tap": sourceDataFromCatalog.id.replace("singer-", ""),
+            "config.tap": tapId,
           },
+          oauthBackendSecretsStatusCheck: () =>
+            services.oauthService.isOauthBackendSecretsAvailable(tapId, services.activeProject.id),
         }
     }
   }, [])
+
+  const setOauthSecretsToForms = useCallback<(secrets: PlainObjectWithPrimitiveValues) => void>(
+    secrets => {
+      sourcePageUtils.applyOauthValuesToAntdForms(forms, secrets)
+    },
+    [forms]
+  )
 
   const patchConfig = useCallback<PatchConfig>((key, allValues, options) => {
     setSourceEditorState(state => {
@@ -100,7 +115,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
 
       if (!options?.doNotSetStateChanged) newState.stateChanged = true
 
-      setTabErrorsVisible(false)
+      setTabErrorsVisible?.(false)
       setConfigIsValidatedByStreams(false)
 
       return newState
@@ -126,10 +141,21 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
    * Sets source type specific fields that are not configurable by user
    */
   useEffect(() => {
-    sourceConfigurationSchema.invisibleStaticFields &&
-      patchConfig("invisibleStaticFields", sourceConfigurationSchema.invisibleStaticFields, {
+    const { invisibleStaticFields, oauthBackendSecretsStatusCheck } = sourceConfigurationSchema
+
+    if (invisibleStaticFields)
+      patchConfig("invisibleStaticFields", invisibleStaticFields, {
         doNotSetStateChanged: true,
       })
+    ;(async () => {
+      setIsLoadingBackendSecretsStatus(true)
+      try {
+        const isBackendSecretsAvailable = await oauthBackendSecretsStatusCheck()
+        isBackendSecretsAvailable && setOauthBackendSecretsAvailable(true)
+      } finally {
+        setIsLoadingBackendSecretsStatus(false)
+      }
+    })()
   }, [])
 
   return (
@@ -144,6 +170,10 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
             className="mr-2"
             disabled={disabled}
             icon={<span className="align-middle h-5 w-7 pr-2 ">{sourceDataFromCatalog.pic}</span>}
+            isGoogle={
+              sourceDataFromCatalog.id.toLowerCase().includes("google") ||
+              sourceDataFromCatalog.id.toLowerCase().includes("firebase")
+            }
             setAuthSecrets={setOauthSecretsToForms}
           >
             <span className="align-top">{`Log In to Fill OAuth Credentials`}</span>
@@ -162,6 +192,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
           <SourceEditorFormConfigurationConfigurableFields
             initialValues={initialSourceData}
             configParameters={sourceConfigurationSchema.configurableFields}
+            oauthBackendSecretsStatus={backendSecretsStatus}
             patchConfig={patchConfig}
             setValidator={setConfigurableFieldsValidator}
             setFormReference={setFormReference}
@@ -171,6 +202,7 @@ const SourceEditorFormConfiguration: React.FC<Props> = ({
           <SourceEditorFormConfigurationConfigurableLoadableFields
             initialValues={initialSourceData}
             sourceDataFromCatalog={sourceDataFromCatalog}
+            oauthBackendSecretsStatus={backendSecretsStatus}
             patchConfig={patchConfig}
             setControlsDisabled={setControlsDisabled}
             setValidator={setConfigurableLoadableFieldsValidator}
@@ -187,77 +219,3 @@ const Wrapped = observer(SourceEditorFormConfiguration)
 Wrapped.displayName = "SourceEditorFormConfiguration"
 
 export { Wrapped as SourceEditorFormConfiguration }
-
-// @Helpers
-
-const applyOauthValuesToForms = (forms: Forms, oauthValues: PlainObjectWithPrimitiveValues): void => {
-  const oauthFieldsSuccessfullySet: string[] = []
-  const oauthFieldsNotSet: string[] = []
-  Object.entries(oauthValues).forEach(([oauthFieldKey, oauthFieldValue]) => {
-    const [formToApplyValue, fieldKeyToApplyValue] = getFormAndKeyByOauthFieldKey(forms, oauthFieldKey)
-
-    if (!formToApplyValue || !fieldKeyToApplyValue) {
-      oauthFieldsNotSet.push(oauthFieldKey)
-      return
-    }
-
-    const newValues = { ...formToApplyValue.getFieldsValue() }
-    newValues[fieldKeyToApplyValue] = oauthFieldValue
-    formToApplyValue.setFieldsValue(newValues)
-    oauthFieldsSuccessfullySet.push(oauthFieldKey)
-  })
-
-  if (oauthFieldsSuccessfullySet.length > 0) {
-    const secretsNamesSeparator = oauthFieldsSuccessfullySet.length === 2 ? " and " : ", "
-    actionNotification.success(
-      `Successfully pasted ${oauthFieldsSuccessfullySet
-        .map(key => toTitleCase(key, { separator: "_" }))
-        .join(secretsNamesSeparator)}`
-    )
-  }
-
-  if (oauthFieldsNotSet.length > 0) {
-    const isPossiblyInternalError: boolean = oauthFieldsSuccessfullySet.length > 0
-    const messagePostfix = isPossiblyInternalError
-      ? "If you believe that this is an error, please, contact us at support@jitsu.com or file an issue to our github."
-      : "Did you forget to select OAuth authorization type?"
-    const secretsNamesSeparator = oauthFieldsNotSet.length === 2 ? " and " : ", "
-    const message = `Failed to paste ${oauthFieldsSuccessfullySet
-      .map(key => toTitleCase(key, { separator: "_" }))
-      .join(secretsNamesSeparator)} secret${oauthFieldsSuccessfullySet.length > 1 ? "s" : ""}. ${messagePostfix}`
-    isPossiblyInternalError ? handleError(new Error(message)) : actionNotification.warn(message)
-  }
-}
-
-const getFormAndKeyByOauthFieldKey = (
-  forms: Forms,
-  oauthFieldKey: string
-): [FormInstance<PlainObjectWithPrimitiveValues> | null, string | null] => {
-  let allFormsKeys: string[] = []
-  const allFormsWithValues: {
-    [key: string]: {
-      form: FormInstance<PlainObjectWithPrimitiveValues>
-      values: PlainObjectWithPrimitiveValues
-    }
-  } = Object.entries(forms).reduce((result, [formKey, form]) => {
-    const values = form.getFieldsValue()
-    allFormsKeys = [...allFormsKeys, ...Object.keys(values)]
-    return {
-      ...result,
-      [formKey]: {
-        form,
-        values,
-      },
-    }
-  }, {})
-
-  const formKey =
-    allFormsKeys.find(key => {
-      const keyName = key.split(".").pop() // gets access_token from config.config.access_token
-      return keyName === oauthFieldKey
-    }) ?? null
-
-  const { form } = formKey ? Object.values(allFormsWithValues).find(({ values }) => formKey in values) : { form: null }
-
-  return [form, formKey]
-}

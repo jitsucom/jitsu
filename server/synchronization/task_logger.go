@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
-	"time"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 const (
@@ -48,7 +48,7 @@ func (tl *TaskLogger) LOG(format, system string, level logging.Level, v ...inter
 	msg := "[" + tl.taskID + "] " + fmt.Sprintf(format, v...)
 	logging.Debug(msg)
 
-	err := tl.metaStorage.AppendTaskLog(tl.taskID, time.Now().UTC(), system, msg, level.String())
+	err := tl.metaStorage.AppendTaskLog(tl.taskID, timestamp.Now().UTC(), system, msg, level.String())
 	if err != nil {
 		logging.SystemErrorf("Error appending logs [%s] system [%s] level [%s]: %v", msg, system, level.String(), err)
 	}

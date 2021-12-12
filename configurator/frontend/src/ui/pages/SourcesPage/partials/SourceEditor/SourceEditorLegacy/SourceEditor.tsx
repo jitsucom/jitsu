@@ -185,15 +185,8 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
   const handleTestConnection = () => {
     setTestConnecting(true)
     handleBringSourceData()
-      .then(async (response: SourceData) => {
-        sourceData.current = response
-
-        const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current)
-
-        sourceData.current = {
-          ...sourceData.current,
-          ...testConnectionResults,
-        }
+      .then(async (sourceData: SourceData) => {
+        await sourcePageUtils.testConnection(sourceData)
       })
       .finally(() => {
         setTestConnecting(false)
@@ -223,7 +216,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
           history.push(sourcesPageRoutes.root)
 
           if (sourceData.current.connected) {
-            actionNotification.success("New source has been added!")
+            actionNotification.success(editorMode === "add" ? "New source has been added!" : "Source has been saved")
           } else {
             actionNotification.warn(
               `Source has been saved, but test has failed with '${firstToLower(

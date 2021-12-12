@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/iancoleman/strcase"
-	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/httputils"
 	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"golang.org/x/oauth2/google"
 	"io"
 	"net/http"
@@ -83,6 +83,7 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
+	config.FillPreconfiguredOauth(base.GoogleAdsType)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -146,7 +147,7 @@ func (g *GoogleAds) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 		daysBackToLoad = g.collection.DaysBackToLoad
 	}
 
-	date := time.Now().UTC()
+	date := timestamp.Now().UTC()
 	backDay := date.Truncate(time.Hour*24).AddDate(0, 0, -daysBackToLoad)
 	for date.Unix() >= backDay.Unix() {
 		interval := base.NewTimeInterval(g.granularity, date)
@@ -170,6 +171,7 @@ func TestGoogleAds(sourceConfig *base.SourceConfig) error {
 	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return err
 	}
+	config.FillPreconfiguredOauth(base.GoogleAdsType)
 	if err := config.Validate(); err != nil {
 		return err
 	}
@@ -213,16 +215,8 @@ func (g *GoogleAds) GetCollectionMetaKey() string {
 	return g.collection.Name + "_" + g.GetCollectionTable()
 }
 
-func getDeveloperToken(config *GoogleAdsConfig) string {
-	developerToken := config.DeveloperToken
-	if developerToken == "" {
-		developerToken = appconfig.Instance.GoogleAdsDeveloperToken
-	}
-	return developerToken
-}
-
 func query(config *GoogleAdsConfig, httpClient *http.Client, query string) ([]map[string]interface{}, error) {
-	developerToken := getDeveloperToken(config)
+	developerToken := config.DeveloperToken
 	if developerToken == "" {
 		return nil, fmt.Errorf("Google Ads developer token was not provided")
 	}

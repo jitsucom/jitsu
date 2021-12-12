@@ -21,7 +21,8 @@ type Unit struct {
 
 //Service keep up-to-date geo data resolvers
 type Service struct {
-	mutex *sync.RWMutex
+	resolversMutex *sync.RWMutex
+	globalMutex    *sync.RWMutex
 
 	ctx     context.Context
 	factory *MaxMindFactory
@@ -37,7 +38,8 @@ func NewTestService(globalResolver Resolver) *Service {
 		globalResolver = &DummyResolver{}
 	}
 	return &Service{
-		mutex:             &sync.RWMutex{},
+		resolversMutex:    &sync.RWMutex{},
+		globalMutex:       &sync.RWMutex{},
 		ctx:               context.Background(),
 		factory:           nil,
 		geoResolversByID:  map[string]*Unit{},
@@ -48,7 +50,8 @@ func NewTestService(globalResolver Resolver) *Service {
 //NewService returns initialized Service instance
 func NewService(ctx context.Context, geoURL, globalGeoMaxmindPath, officialDownloadURLTemplate string) *Service {
 	service := &Service{
-		mutex:             &sync.RWMutex{},
+		resolversMutex:    &sync.RWMutex{},
+		globalMutex:       &sync.RWMutex{},
 		ctx:               ctx,
 		factory:           NewMaxmindFactory(officialDownloadURLTemplate),
 		geoResolversByID:  map[string]*Unit{},
@@ -56,7 +59,7 @@ func NewService(ctx context.Context, geoURL, globalGeoMaxmindPath, officialDownl
 	}
 
 	if geoURL == "" && globalGeoMaxmindPath == "" {
-		logging.Info("❌ Geo resolution won't be available as 'geo.maxmind_path' (or 'geo_resolvers_reload_sec' section) are not set")
+		logging.Info("❌ Geo resolution won't be available as 'geo.maxmind_path' (or 'geo_resolvers' section) are not set")
 		return service
 	}
 
@@ -68,19 +71,24 @@ func NewService(ctx context.Context, geoURL, globalGeoMaxmindPath, officialDownl
 
 	//global geo resolver
 	if globalGeoMaxmindPath != "" {
-		defaultResolverProxy, err := newResolverProxy(globalGeoMaxmindPath, service.factory.Create)
-		if err != nil {
-			logging.Warnf("❌ Failed to load global MaxMind DB from %s: %v. Global geo resolution won't be available. You can configure custom one in Configurator UI", globalGeoMaxmindPath, err)
-		} else {
-			logging.Info("✅ Loaded MaxMind db:", globalGeoMaxmindPath)
-			service.globalGeoResolver = defaultResolverProxy
-		}
+		//global geo resolver takes a long time for download all databases
+		safego.Run(func() {
+			defaultResolverProxy, err := newResolverProxy(globalGeoMaxmindPath, service.factory.Create)
+			if err != nil {
+				logging.Warnf("❌ Failed to load global MaxMind DB from %s: %v. Global geo resolution won't be available. You can configure custom one in Configurator UI", globalGeoMaxmindPath, err)
+			} else {
+				logging.Info("✅ Loaded MaxMind db:", globalGeoMaxmindPath)
+				service.globalMutex.Lock()
+				service.globalGeoResolver = defaultResolverProxy
+				service.globalMutex.Unlock()
+			}
+		})
 	}
 
 	//per project
 	if geoURL != "" {
 		if strings.HasPrefix(geoURL, "http://") || strings.HasPrefix(geoURL, "https://") {
-			//all dbs load takes a long time
+			//all dbs load takes a long time for download databases
 			safego.Run(func() {
 				resources.Watch(serviceName, geoURL, resources.LoadFromHTTP, service.updateResolvers, time.Duration(reloadSec)*time.Second)
 			})
@@ -109,21 +117,21 @@ func (s *Service) updateResolvers(payload []byte) {
 func (s *Service) init(rc map[string]*ResolverConfig) {
 	//close and remove non-existent (in new config)
 	toDelete := map[string]*Unit{}
-	s.mutex.RLock()
+	s.resolversMutex.RLock()
 	for id, unit := range s.geoResolversByID {
 		_, ok := rc[id]
 		if !ok {
 			toDelete[id] = unit
 		}
 	}
-	s.mutex.RUnlock()
+	s.resolversMutex.RUnlock()
 
 	if len(toDelete) > 0 {
-		s.mutex.Lock()
+		s.resolversMutex.Lock()
 		for resolverIDToDel, unit := range toDelete {
 			s.remove(resolverIDToDel, unit)
 		}
-		s.mutex.Unlock()
+		s.resolversMutex.Unlock()
 	}
 
 	for identifier, resolverConfig := range rc {
@@ -137,9 +145,9 @@ func (s *Service) init(rc map[string]*ResolverConfig) {
 			continue
 		}
 
-		s.mutex.RLock()
+		s.resolversMutex.RLock()
 		unit, ok := s.geoResolversByID[id]
-		s.mutex.RUnlock()
+		s.resolversMutex.RUnlock()
 
 		if ok {
 			if unit.hash == hash {
@@ -147,9 +155,9 @@ func (s *Service) init(rc map[string]*ResolverConfig) {
 				continue
 			}
 			//remove old (for recreation)
-			s.mutex.Lock()
+			s.resolversMutex.Lock()
 			s.remove(id, unit)
-			s.mutex.Unlock()
+			s.resolversMutex.Unlock()
 		}
 
 		maxmindlink, err := ParseConfigAsLink(config)
@@ -164,30 +172,34 @@ func (s *Service) init(rc map[string]*ResolverConfig) {
 			continue
 		}
 
-		s.mutex.Lock()
+		s.resolversMutex.Lock()
 		s.geoResolversByID[id] = &Unit{
 			resolver: resolverProxy,
 			hash:     hash,
 		}
-		s.mutex.Unlock()
+		s.resolversMutex.Unlock()
 
 		logging.Infof("📍 [%s] geo resolver has been initialized!", id)
 	}
 }
 
 func (s *Service) GetGeoResolver(id string) Resolver {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
+	s.resolversMutex.RLock()
+	defer s.resolversMutex.RUnlock()
 
 	geoResolver, ok := s.geoResolversByID[id]
 	if ok {
 		return geoResolver.resolver
 	}
 
+	s.globalMutex.RLock()
+	defer s.globalMutex.RUnlock()
 	return s.globalGeoResolver
 }
 
 func (s *Service) GetGlobalGeoResolver() Resolver {
+	s.globalMutex.RLock()
+	defer s.globalMutex.RUnlock()
 	return s.globalGeoResolver
 }
 
@@ -213,14 +225,20 @@ func (s *Service) remove(id string, unit *Unit) {
 }
 
 func (s *Service) Close() (multiErr error) {
-	s.mutex.RLock()
+	s.resolversMutex.RLock()
 	for _, unit := range s.geoResolversByID {
 		err := unit.resolver.Close()
 		if err != nil {
 			multiErr = multierror.Append(multiErr, err)
 		}
 	}
-	s.mutex.RUnlock()
+	s.resolversMutex.RUnlock()
+
+	s.globalMutex.RLock()
+	if err := s.globalGeoResolver.Close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	}
+	s.globalMutex.RUnlock()
 
 	return
 }

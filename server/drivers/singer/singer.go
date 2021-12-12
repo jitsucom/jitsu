@@ -13,7 +13,6 @@ import (
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/singer"
-	"github.com/jitsucom/jitsu/server/uuid"
 	"go.uber.org/atomic"
 	"io"
 	"os"
@@ -42,9 +41,10 @@ type Singer struct {
 	mutex              *sync.RWMutex
 	activeSyncCommands map[string]*base.SyncCommand
 
-	pathToConfigs     string
-	streamReplication map[string]string
-	catalogDiscovered *atomic.Bool
+	pathToConfigs                string
+	selectedStreamsWithNamespace map[string]base.StreamConfiguration
+	streamReplication            map[string]string
+	catalogDiscovered            *atomic.Bool
 
 	discoverCatalogLastError error
 
@@ -74,18 +74,22 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 	if singer.Instance == nil {
 		return nil, errors.New("singer-bridge must be configured")
 	}
-
+	base.FillPreconfiguredOauth(config.Tap, config.Config)
 	pathToConfigs := path.Join(singer.Instance.VenvDir, sourceConfig.SourceID, config.Tap)
 	if err := logging.EnsureDir(pathToConfigs); err != nil {
 		return nil, fmt.Errorf("Error creating singer venv config dir: %v", err)
 	}
 
-	//parse singer config as file path
-	configPath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, base.ConfigFileName), config.Config)
-	if err != nil {
-		return nil, fmt.Errorf("Error parsing singer config [%v]: %v", config.Config, err)
-	}
+	configPath := path.Join(pathToConfigs, base.ConfigFileName)
 
+	_, err = os.Stat(configPath)
+	if err != nil {
+		//parse singer config as file path
+		_, err := parsers.ParseJSONAsFile(configPath, config.Config)
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing singer config [%v]: %v", config.Config, err)
+		}
+	}
 	//parse singer catalog as file path
 	catalogPath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, base.CatalogFileName), config.Catalog)
 	if err != nil {
@@ -127,8 +131,10 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 	if err != nil {
 		logging.Errorf("[%s] Error extracting replication method for each stream: %v", sourceConfig.SourceID, err)
 	} else {
-		b, _ := json.MarshalIndent(streamReplicationMappings, "", "    ")
-		logging.Infof("[%s] configured Singer stream - replication method mappings: %s", sourceConfig.SourceID, string(b))
+		if len(streamReplicationMappings) > 0 {
+			b, _ := json.MarshalIndent(streamReplicationMappings, "", "    ")
+			logging.Infof("[%s] configured Singer stream - replication method mappings: %s", sourceConfig.SourceID, string(b))
+		}
 	}
 
 	//parse singer state as file path
@@ -145,13 +151,22 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, config.Tap, configPath, catalogPath, propertiesPath, statePath,
 		config.StreamTableNamesPrefix, pathToConfigs, config.StreamTableNames)
 
+	var selectedStreamsWithNamespace map[string]base.StreamConfiguration
+	if len(config.SelectedStreams) > 0 {
+		selectedStreamsWithNamespace = map[string]base.StreamConfiguration{}
+		for _, sc := range config.SelectedStreams {
+			selectedStreamsWithNamespace[base.StreamIdentifier(sc.Namespace, sc.Name)] = sc
+		}
+	}
+
 	s := &Singer{
 		mutex:              &sync.RWMutex{},
 		activeSyncCommands: map[string]*base.SyncCommand{},
 
-		pathToConfigs:     pathToConfigs,
-		streamReplication: streamReplicationMappings,
-		catalogDiscovered: catalogDiscovered,
+		pathToConfigs:                pathToConfigs,
+		selectedStreamsWithNamespace: selectedStreamsWithNamespace,
+		streamReplication:            streamReplicationMappings,
+		catalogDiscovered:            catalogDiscovered,
 
 		closed: make(chan struct{}),
 	}
@@ -183,34 +198,6 @@ func TestSinger(sourceConfig *base.SourceConfig) error {
 		return runner.ErrNotReady
 	}
 
-	//save config
-	pathToConfigs := path.Join(singer.Instance.VenvDir, sourceConfig.SourceID, config.Tap, "test")
-	if err := logging.EnsureDir(pathToConfigs); err != nil {
-		return fmt.Errorf("Error creating singer venv config dir: %v", err)
-	}
-	fileName := uuid.NewLettersNumbers() + ".json"
-	//parse singer config as file path
-	configPath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, fileName), config.Config)
-	if err != nil {
-		return fmt.Errorf("Error parsing singer config [%v]: %v", config.Config, err)
-	}
-	defer func() {
-		if err := os.RemoveAll(configPath); err != nil {
-			logging.SystemErrorf("Error deleting generated singer config dir [%s]: %v", configPath, err)
-		}
-	}()
-
-	outWriter := logging.NewStringWriter()
-	errWriter := logging.NewStringWriter()
-
-	command := path.Join(singer.Instance.VenvDir, config.Tap, "bin", config.Tap)
-	args := []string{"-c", configPath, "--discover"}
-
-	err = runner.ExecCmd(base.SingerType, command, outWriter, errWriter, time.Second*50, args...)
-	if err != nil {
-		return fmt.Errorf("Error singer --discover: %v. %s", err, errWriter.String())
-	}
-
 	return nil
 }
 
@@ -233,7 +220,7 @@ func (s *Singer) EnsureTapAndCatalog() {
 			continue
 		}
 
-		catalogPath, propertiesPath, streamNames, err := doDiscover(s.GetTap(), s.pathToConfigs, s.GetConfigPath())
+		catalogPath, propertiesPath, streamNames, err := s.doDiscover(s.GetTap(), s.pathToConfigs, s.GetConfigPath())
 		if err != nil {
 			s.mutex.Lock()
 			s.discoverCatalogLastError = err
@@ -289,7 +276,7 @@ func (s *Singer) Ready() (bool, error) {
 	return false, runner.NewCompositeNotReadyError(msg)
 }
 
-func (s *Singer) Load(state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
+func (s *Singer) Load(config string, state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
 	if s.IsClosed() {
 		return fmt.Errorf("%s has already been closed", s.Type())
 	}
@@ -308,6 +295,13 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, dataConsumer 
 	statePath, err := s.GetStateFilePath(state)
 	if err != nil {
 		return err
+	}
+
+	if config != "" {
+		_, err = parsers.ParseJSONAsFile(s.GetConfigPath(), config)
+		if err != nil {
+			return fmt.Errorf("Failed to write config loaded from meta storage: %v", err)
+		}
 	}
 
 	args := []string{"-c", s.GetConfigPath()}
@@ -498,8 +492,8 @@ func (s *Singer) IsClosed() bool {
 
 //doDiscover discovers tap catalog and returns catalog and properties paths
 //applies blacklist streams to taps and make other streams {"selected": true}
-func doDiscover(tap, pathToConfigs, configFilePath string) (string, string, []string, error) {
-	catalog, err := singer.Instance.Discover(tap, configFilePath, nil)
+func (s *Singer) doDiscover(tap, pathToConfigs, configFilePath string) (string, string, []string, error) {
+	catalog, err := singer.Instance.Discover(tap, configFilePath)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -509,16 +503,20 @@ func doDiscover(tap, pathToConfigs, configFilePath string) (string, string, []st
 		blackListStreams = map[string]bool{}
 	}
 
-	//filter blackList streams
+	//filter not blackList and selected streams
 	var filteredStreams []map[string]interface{}
 	var streamNames []string
 	for _, stream := range catalog.Streams {
-		streamName, ok := stream["stream"]
-		if ok {
+		if streamName, ok := stream["stream"]; ok {
 			streamNameStr := fmt.Sprint(streamName)
 			streamNames = append(streamNames, streamNameStr)
+
 			if _, ok := blackListStreams[streamNameStr]; !ok {
-				filteredStreams = append(filteredStreams, stream)
+				tapStreamID, _ := stream["tap_stream_id"]
+				if _, ok := s.selectedStreamsWithNamespace[base.StreamIdentifier(fmt.Sprint(tapStreamID), streamNameStr)]; ok {
+					filteredStreams = append(filteredStreams, stream)
+				}
+
 			}
 		} else {
 			logging.Warnf("Stream [%v] doesn't have 'stream' name", stream)

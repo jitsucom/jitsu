@@ -25,6 +25,7 @@ export class ApplicationConfiguration {
     this._backendApiProxyBase = concatenateURLs(backendApi, "/proxy/api/v1")
     this._billingUrl = this._rawConfig.env.BILLING_API_BASE_URL
     this._billingApiBase = this._billingUrl ? concatenateURLs(this._billingUrl, "/api") : null
+
     this._oauthApiBase = this._rawConfig.env.OAUTH_BACKEND_API_BASE
       ? concatenateURLs(this._rawConfig.env.OAUTH_BACKEND_API_BASE, "/api")
       : null
