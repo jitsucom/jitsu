@@ -17,7 +17,7 @@ type Props = {
   icon?: React.ReactNode
   isGoogle?: boolean
   setAuthSecrets: (data: any) => void
-  onIsOauthSuppotedStatusUpdate?: (isSupported: boolean) => void
+  onIsOauthSuppotedStatusChecked?: (isSupported: boolean) => void
 }
 
 export const OauthButton: React.FC<Props> = ({
@@ -29,7 +29,7 @@ export const OauthButton: React.FC<Props> = ({
   isGoogle,
   children,
   setAuthSecrets,
-  onIsOauthSuppotedStatusUpdate,
+  onIsOauthSuppotedStatusChecked,
 }) => {
   const services = useServices()
   const [isLoading, setIsLoading] = useState<boolean>(false)
@@ -57,12 +57,12 @@ export const OauthButton: React.FC<Props> = ({
 
   useEffect(() => {
     !forceNotSupported &&
-      services.oauthService.checkIfOauthSupported(service).then(result => {
-        if (result) {
+      services.oauthService.checkIfOauthSupported(service).then(supported => {
+        if (supported) {
           // only change state if oauth is supported
-          setIsOauthSupported(result)
-          onIsOauthSuppotedStatusUpdate?.(result)
+          setIsOauthSupported(supported)
         }
+        onIsOauthSuppotedStatusChecked(supported)
       })
   }, [])
 

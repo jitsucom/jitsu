@@ -26,7 +26,7 @@ export type SourceEditorFormConfigurationProps = {
   sourceDataFromCatalog: CatalogSourceConnector
   disabled?: boolean
   setSourceEditorState: SetSourceEditorState
-  setControlsDisabled: ReactSetState<boolean>
+  handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
   setTabErrorsVisible?: (value: boolean) => void
   setConfigIsValidatedByStreams: (value: boolean) => void
 }
@@ -54,7 +54,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   sourceDataFromCatalog,
   disabled,
   setSourceEditorState,
-  setControlsDisabled,
+  handleSetControlsDisabled,
   setTabErrorsVisible,
   setConfigIsValidatedByStreams,
 }) => {
@@ -64,6 +64,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
 
   const [fillAuthDataManually, setFillAuthDataManually] = useState<boolean>(true)
   const [isOauthStatusReady, setIsOauthStatusReady] = useState<boolean>(false)
+  const [isOauthFlowCompleted, setIsOauthFlowCompleted] = useState<boolean>(false)
 
   const [staticFieldsValidator, setStaticFieldsValidator] = useState<ValidateGetErrorsCount>(initialValidator)
   const [configurableFieldsValidator, setConfigurableFieldsValidator] =
@@ -124,13 +125,17 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
 
   const handleFillAuthDataManuallyChange = (fillManually: boolean) => {
     setFillAuthDataManually(fillManually)
-    if (!fillManually) resetFormUi() // reset form if user switched from manual auth back to oauth
+    if (!fillManually) {
+      resetFormUi() // reset form if user switched from manual auth back to oauth
+      setIsOauthFlowCompleted(false) // force user to push the 'Authorize' button one more time
+    }
   }
 
   const setOauthSecretsToForms = useCallback<(secrets: PlainObjectWithPrimitiveValues) => void>(
     secrets => {
-      sourcePageUtils.applyOauthValuesToAntdForms(forms, secrets)
-      forceUpdate()
+      const allSecretsSet = sourcePageUtils.applyOauthValuesToAntdForms(forms, secrets)
+      allSecretsSet && setIsOauthFlowCompleted(true)
+      // forceUpdate()
     },
     [forms]
   )
@@ -179,6 +184,15 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   const isLoadingOauth = !isOauthStatusReady || isLoadingBackendSecrets
   // const isLoadingOauth = true
 
+  useEffect(() => {
+    if (isLoadingOauth) handleSetControlsDisabled(true, "oauth")
+    else if (fillAuthDataManually) handleSetControlsDisabled(false, "oauth")
+    else if (editorMode === "edit") handleSetControlsDisabled(false, "oauth")
+    else if (!isOauthFlowCompleted)
+      handleSetControlsDisabled("Please, either authorize Jitsu App or fill auth data manually", "oauth")
+    else handleSetControlsDisabled(false, "oauth")
+  }, [isLoadingOauth, fillAuthDataManually, isOauthFlowCompleted])
+
   return (
     <>
       <div className={`flex justify-center items-start w-full h-full ${isLoadingOauth ? "" : "hidden"}`}>
@@ -190,7 +204,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           sourceDataFromCatalog={sourceDataFromCatalog}
           disabled={disabled}
           onlyManualAuth={sourceConfigurationSchema.onlyManualAuth}
-          onIsOauthSupportedChange={handleOauthSupportedStatusChange}
+          onIsOauthSupportedCheckSuccess={handleOauthSupportedStatusChange}
           onFillAuthDataManuallyChange={handleFillAuthDataManuallyChange}
           setOauthSecretsToForms={setOauthSecretsToForms}
         />
@@ -220,7 +234,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
               availableOauthBackendSecrets={availableBackendSecrets}
               hideFields={hideFields}
               patchConfig={patchConfig}
-              setControlsDisabled={setControlsDisabled}
+              handleSetControlsDisabled={handleSetControlsDisabled}
               setValidator={setConfigurableLoadableFieldsValidator}
               setFormReference={setFormReference}
             />

@@ -15,6 +15,7 @@ import { usePolling } from "hooks/usePolling"
 import { toTitleCase } from "utils/strings"
 import { mapAirbyteSpecToSourceConnectorConfig } from "catalog/sources/lib/airbyte.helper"
 import { memo, useCallback, useEffect, useMemo } from "react"
+import { uniqueId } from "lodash"
 
 type Props = {
   initialValues: Partial<SourceData>
@@ -22,7 +23,7 @@ type Props = {
   availableOauthBackendSecrets?: string[]
   hideFields?: string[]
   patchConfig: PatchConfig
-  setControlsDisabled: ReactSetState<boolean>
+  handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
   setFormReference: SetFormReference
 }
@@ -36,7 +37,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   availableOauthBackendSecrets,
   hideFields: _hideFields,
   patchConfig,
-  setControlsDisabled,
+  handleSetControlsDisabled,
   setValidator,
   setFormReference,
 }) => {
@@ -47,19 +48,30 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     data: fieldsParameters,
     error: loadingParametersError,
   } = usePolling<Parameter[]>(
-    (end, fail) => async () => {
-      try {
-        const response = await pullAirbyteSpec(sourceDataFromCatalog.id)
-        if (response?.message) throw new Error(response?.message)
-        if (response?.status && response?.status !== "pending") {
-          const result = transformAirbyteSpecResponse(response)
-          end(result)
+    {
+      configure: () => {
+        const controlsDisableRequestId = uniqueId("configurableLoadableFields-")
+        return {
+          onBeforePollingStart: () => {
+            handleSetControlsDisabled(true, controlsDisableRequestId)
+          },
+          onAfterPollingEnd: () => {
+            handleSetControlsDisabled(false, controlsDisableRequestId)
+          },
+          pollingCallback: (end, fail) => async () => {
+            try {
+              const response = await pullAirbyteSpec(sourceDataFromCatalog.id)
+              if (response?.message) throw new Error(response?.message)
+              if (response?.status && response?.status !== "pending") {
+                const result = transformAirbyteSpecResponse(response)
+                end(result)
+              }
+            } catch (error) {
+              fail(error)
+            }
+          },
         }
-      } catch (error) {
-        fail(error)
-      } finally {
-        setControlsDisabled(false)
-      }
+      },
     },
     { interval_ms: 2000 }
   )
@@ -94,9 +106,9 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     [patchConfig]
   )
 
-  useEffect(() => {
-    setControlsDisabled(isLoadingParameters)
-  }, [isLoadingParameters])
+  // useEffect(() => {
+  //   handleSetControlsDisabled(isLoadingParameters, controlsDisableRequestId)
+  // }, [isLoadingParameters])
 
   /**
    * set validator and form reference to parent component after the first render

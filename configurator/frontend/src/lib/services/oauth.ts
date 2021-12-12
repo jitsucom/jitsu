@@ -34,11 +34,13 @@ export class OauthService implements IOauthService {
       }
     )
 
-    return Object.entries(secretsStatus).reduce<string[]>((result, [key, status]) => {
-      if (!status["provided"]) return result
-      result.push(key)
-      return result
-    }, [])
+    return (
+      Object.entries(secretsStatus).reduce<string[]>((result, [key, status]) => {
+        if (!status["provided"]) return result
+        result.push(key)
+        return result
+      }, []) ?? []
+    )
   }
 
   public async checkIfOauthSupported(service: string): Promise<boolean> {

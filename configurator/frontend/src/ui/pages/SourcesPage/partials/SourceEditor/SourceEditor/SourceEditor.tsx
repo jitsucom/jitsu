@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { useHistory, useParams } from "react-router"
-import { cloneDeep, snakeCase } from "lodash"
+import { cloneDeep, snakeCase, uniqueId } from "lodash"
 // @Types
 import { CommonSourcePageProps } from "ui/pages/SourcesPage/SourcesPage"
 import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
@@ -19,20 +19,19 @@ import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 import { firstToLower } from "lib/commons/utils"
 import { SourceEditorViewSteps } from "./SourceEditorViewSteps"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
-import { pullAllAirbyteStreams, pullAllSingerStreams } from "./SourceEditorPullData"
 // @Utils
 
 export type SourceEditorState = {
   /**
-   * Source configuration tab
+   * Source configuration step/tab
    */
   configuration: ConfigurationState
   /**
-   * Source streams tab
+   * Source streams step/tab
    */
   streams: StreamsState
   /**
-   * Source connected destinations tab
+   * Source connected destinations step/tab
    */
   connections: ConnectionsState
   /**
@@ -50,7 +49,7 @@ type ConfigurationState = {
 }
 
 type StreamsState = {
-  //deprecated
+  // deprecated
   streams: SourceStreamsData
   selectedStreams: SourceSelectedStreams
   errorsCount: number
@@ -94,6 +93,8 @@ const initialState: SourceEditorState = {
   stateChanged: false,
 }
 
+const disableControlsRequestsRegistry = new Map<string, { tooltipMessage?: string }>()
+
 const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcrumbs }) => {
   const history = useHistory()
   const allSourcesList = sourcesStore.sources
@@ -119,10 +120,31 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
 
   const [state, setState] = useState<SourceEditorState>(initialState)
 
-  const [controlsDisabled, setControlsDisabled] = useState<boolean>(false)
+  const [controlsDisabled, setControlsDisabled] = useState<boolean | string>(false)
   const [tabErrorsVisible, setTabErrorsVisible] = useState<boolean>(false)
   const [showDocumentation, setShowDocumentation] = useState<boolean>(false)
   const [configIsValidatedByStreams, setConfigIsValidatedByStreams] = useState<boolean>(false)
+
+  const handleSetControlsDisabled = useCallback((disabled: boolean | string, disableRequestId: string): void => {
+    const tooltipMessage: string | undefined = typeof disabled === "string" ? disabled : undefined
+    if (disabled) {
+      setControlsDisabled(disabled)
+      disableControlsRequestsRegistry.set(disableRequestId, { tooltipMessage })
+    } else {
+      disableControlsRequestsRegistry.delete(disableRequestId)
+      // enable back only if controls are not disabled by any other callers
+      if (disableControlsRequestsRegistry.size === 0) {
+        setControlsDisabled(disabled)
+      } else {
+        // set the tooltip message by a last `disable` caller
+        let disabled: boolean | string = true
+        disableControlsRequestsRegistry.forEach(({ tooltipMessage }) => {
+          if (tooltipMessage) disabled = tooltipMessage
+        })
+        setControlsDisabled(disabled)
+      }
+    }
+  }, [])
 
   const handleBringSourceData = () => {
     let sourceEditorState = state
@@ -148,7 +170,8 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   }
 
   const handleValidateAndTestConfig = async () => {
-    setControlsDisabled(true)
+    const controlsDisableRequestId = uniqueId("validateAndTest-")
+    handleSetControlsDisabled("Validating source configuration", controlsDisableRequestId)
     try {
       const fieldsErrored = !!(await validateCountErrors())
       if (fieldsErrored) throw new Error("Some fields are empty")
@@ -157,7 +180,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       const testResult = await sourcePageUtils.testConnection(sourceData)
       if (!testResult.connected) throw new Error(testResult.connectedErrorMessage)
     } finally {
-      setControlsDisabled(false)
+      handleSetControlsDisabled(false, controlsDisableRequestId)
     }
   }
 
@@ -218,10 +241,6 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     )
   }, [editorMode, sourceDataFromCatalog, setBreadcrumbs])
 
-  useEffect(() => {
-    console.log(state.configuration.config)
-  }, [state])
-
   return (
     <SourceEditorViewSteps
       state={state}
@@ -232,7 +251,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       sourceDataFromCatalog={sourceDataFromCatalog}
       configIsValidatedByStreams={configIsValidatedByStreams}
       setSourceEditorState={setState}
-      setControlsDisabled={setControlsDisabled}
+      handleSetControlsDisabled={handleSetControlsDisabled}
       setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
       setShowDocumentationDrawer={setShowDocumentation}
       handleBringSourceData={handleBringSourceData}
