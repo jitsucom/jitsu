@@ -1,5 +1,5 @@
 // @Libs
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Col, Form, Input, Row, Select } from "antd"
 import { observer } from "mobx-react-lite"
 import debounce from "lodash/debounce"
@@ -22,17 +22,19 @@ import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 import { FormSkeleton } from "ui/components/FormSkeleton/FormSkeleton"
 
 export interface Props {
+  editorMode: "add" | "edit"
   form: FormInstance
   sourceReference: SourceConnector
   isCreateForm: boolean
   sources: SourceData[]
   initialValues: SourceData
   handleTouchAnyField: (...args: any) => void
-  disableFormControls?: VoidFunction
+  disableFormControls?: (reason?: string) => void
   enableFormControls?: VoidFunction
 }
 
 const SourceEditorConfigComponent = ({
+  editorMode,
   form,
   sourceReference,
   isCreateForm,
@@ -47,6 +49,7 @@ const SourceEditorConfigComponent = ({
 
   const [fillAuthDataManually, setFillAuthDataManually] = useState<boolean>(true)
   const [isOauthStatusReady, setIsOauthStatusReady] = useState<boolean>(false)
+  const [isOauthFlowCompleted, setIsOauthFlowCompleted] = useState<boolean>(false)
   const [key, resetFormUi] = useUniqueKeyState() // pass a key to a component, then re-mount component by calling `resetFormUi`
 
   const { data: availableOauthBackendSecrets } = useLoaderAsObject<string[]>(
@@ -103,12 +106,21 @@ const SourceEditorConfigComponent = ({
 
   const setOauthSecretsToForms = useCallback<(secrets: PlainObjectWithPrimitiveValues) => void>(
     secrets => {
-      sourcePageUtils.applyOauthValuesToAntdForms({ form }, secrets)
+      const successful = sourcePageUtils.applyOauthValuesToAntdForms({ form }, secrets)
+      successful && setIsOauthFlowCompleted(true)
     },
     [form]
   )
 
   const isLoadingOauth = !isOauthStatusReady
+
+  useEffect(() => {
+    if (isLoadingOauth) disableFormControls()
+    else if (fillAuthDataManually) enableFormControls()
+    else if (editorMode === "edit") enableFormControls()
+    else if (!isOauthFlowCompleted) disableFormControls("Please, either authorize Jitsu App or fill auth data manually")
+    else enableFormControls()
+  }, [isLoadingOauth, fillAuthDataManually, isOauthFlowCompleted])
 
   return (
     <Form name="source-config" form={form} autoComplete="off" onChange={handleChange}>
@@ -117,9 +129,9 @@ const SourceEditorConfigComponent = ({
       </div>
       <div className={`${isLoadingOauth ? "hidden" : ""}`}>
         <SourceEditorOauthButtons
-          key={"oauth button"}
+          key={"oauth-buttons"}
           sourceDataFromCatalog={sourceReference}
-          onIsOauthSupportedChange={handleOauthSupportedStatusChange}
+          onIsOauthSupportedCheckSuccess={handleOauthSupportedStatusChange}
           onFillAuthDataManuallyChange={handleFillOuthDataManuallyChange}
           setOauthSecretsToForms={setOauthSecretsToForms}
         />

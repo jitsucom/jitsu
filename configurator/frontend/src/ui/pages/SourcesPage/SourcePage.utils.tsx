@@ -153,7 +153,7 @@ const sourcePageUtils = {
   applyOauthValuesToAntdForms: (
     forms: { [key: string]: FormInstance<PlainObjectWithPrimitiveValues> },
     oauthValues: PlainObjectWithPrimitiveValues
-  ): void => {
+  ): boolean => {
     const oauthFieldsSuccessfullySet: string[] = []
     const oauthFieldsNotSet: string[] = []
     Object.entries(oauthValues).forEach(([oauthFieldKey, oauthFieldValue]) => {
@@ -178,6 +178,7 @@ const sourcePageUtils = {
         //   .join(secretsNamesSeparator)}`
         `Authorization Successful`
       )
+      return true
     }
 
     /* handles the case when failed to set all fields */
@@ -189,6 +190,7 @@ const sourcePageUtils = {
         .map(key => toTitleCase(key, { separator: "_" }))
         .join(secretsNamesSeparator)} secret${oauthFieldsNotSet.length > 1 ? "s" : ""}. ${messagePostfix}`
       actionNotification.warn(message)
+      return false
     }
   },
 }

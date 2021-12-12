@@ -12,7 +12,7 @@ type Props = {
   sourceDataFromCatalog: CatalogSourceConnector
   disabled?: boolean
   onlyManualAuth?: boolean
-  onIsOauthSupportedChange?: (supported: boolean) => void
+  onIsOauthSupportedCheckSuccess?: (supported: boolean) => void
   onFillAuthDataManuallyChange?: (setManually: boolean) => void
   setOauthSecretsToForms?: (secrets: PlainObjectWithPrimitiveValues) => void
 }
@@ -25,17 +25,12 @@ export const SourceEditorOauthButtons: React.FC<Props> = ({
   sourceDataFromCatalog,
   disabled,
   onlyManualAuth,
-  onIsOauthSupportedChange,
+  onIsOauthSupportedCheckSuccess,
   onFillAuthDataManuallyChange,
   setOauthSecretsToForms,
 }) => {
-  const [isOauthSupported, setIsOauthSupported] = useState<boolean>(false)
   const [fillAuthDataManually, setFillAuthDataManually] = useState<boolean>(true)
-
-  const handleIsOauthSupportedStatusChange = useCallback<(isSupported: boolean) => void>(isSupported => {
-    setIsOauthSupported(isSupported)
-    onIsOauthSupportedChange?.(isSupported)
-  }, [])
+  const [isOauthSupported, setIsOauthSupported] = useState<boolean>(false)
 
   const handleFillAuthDataManuallyToggle = useCallback<() => void>(() => {
     setFillAuthDataManually(fillManually => {
@@ -44,6 +39,14 @@ export const SourceEditorOauthButtons: React.FC<Props> = ({
       return newValue
     })
   }, [onlyManualAuth])
+
+  const handleOauthSupportCheckStatus = useCallback<(supported: boolean) => void>(
+    supported => {
+      onIsOauthSupportedCheckSuccess(supported)
+      setIsOauthSupported(supported)
+    },
+    [onIsOauthSupportedCheckSuccess]
+  )
 
   return (
     <Row key="oauth-button" className="h-8 mb-5">
@@ -62,12 +65,12 @@ export const SourceEditorOauthButtons: React.FC<Props> = ({
               sourceDataFromCatalog.id.toLowerCase().includes("firebase")
             }
             setAuthSecrets={setOauthSecretsToForms}
-            onIsOauthSuppotedStatusUpdate={handleIsOauthSupportedStatusChange}
+            onIsOauthSuppotedStatusChecked={handleOauthSupportCheckStatus}
           >
             <span className="align-top">{`Authorize Jitsu`}</span>
           </OauthButton>
         </div>
-        {!onlyManualAuth && (
+        {!onlyManualAuth && isOauthSupported && (
           <>
             <span className="pr-3 text-secondaryText">or</span>
             <Popconfirm

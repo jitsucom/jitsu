@@ -48,7 +48,7 @@ function useLoader<T>(loader: Loader<T>, deps?: DependencyList, options?: {initi
   const loaderWrapper = async () => {
     setError(null)
     setIsLoading(true)
-    setData(null)
+    setData(options?.initialValue ?? null)
     try {
       setData(await loader())
     } catch (e) {
