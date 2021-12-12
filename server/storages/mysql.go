@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
-	"github.com/jitsucom/jitsu/server/typing"
-	"time"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/typing"
 )
 
 //MySQL stores files to MySQL in two modes:
@@ -26,19 +25,19 @@ type MySQL struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: MySQLType, createFunc: NewMySQL})
+	RegisterStorage(StorageType{typeName: MySQLType, createFunc: NewMySQL, isSQL: true})
 }
 
 //NewMySQL returns configured MySQL Destination
 func NewMySQL(config *Config) (Storage, error) {
-	mConfig := config.destination.DataSource
-	if err := mConfig.Validate(); err != nil {
+	mConfig := &adapters.DataSourceConfig{}
+	if err := config.destination.GetDestConfig(config.destination.DataSource, mConfig); err != nil {
 		return nil, err
 	}
 	//enrich with default parameters
-	if mConfig.Port.String() == "" {
-		mConfig.Port = "3306"
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.destinationID, mConfig.Port.String())
+	if mConfig.Port == 0 {
+		mConfig.Port = 3306
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.destinationID, mConfig.Port)
 	}
 	//schema and database are synonyms in MySQL
 	//default connect timeout seconds
@@ -72,7 +71,10 @@ func NewMySQL(config *Config) (Storage, error) {
 	m.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	m.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, m, tableHelper)
+	m.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, m, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	m.streamingWorker.start()
 
 	return m, nil
@@ -179,11 +181,11 @@ func (m *MySQL) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) e
 		return err
 	}
 
-	start := time.Now()
+	start := timestamp.Now()
 	if err := m.adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
 		return err
 	}
-	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", m.ID(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
+	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", m.ID(), len(fdata.GetPayload()), timestamp.Now().Sub(start).Seconds())
 
 	return nil
 }

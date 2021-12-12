@@ -2,7 +2,6 @@ package adapters
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/test"
@@ -117,7 +116,7 @@ func setupMySQLDatabase(t *testing.T, table *Table) (*test.MySQLContainer, *MySQ
 	}
 	dsConfig := &DataSourceConfig{
 		Host:       container.Host,
-		Port:       json.Number(fmt.Sprint(container.Port)),
+		Port:       container.Port,
 		Username:   container.Username,
 		Password:   container.Password,
 		Db:         container.Database,

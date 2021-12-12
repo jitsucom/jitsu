@@ -12,6 +12,8 @@ type PrimitiveParameterTypeName =
   | "dashDate"
   | "isoUtcDate"
   | "selection"
+  | "file"
+  | "oauthSecret"
 
 type ArrayParameterTypeName = `array/${PrimitiveParameterTypeName}`
 
@@ -141,6 +143,14 @@ export const booleanType: ParameterType<boolean, "boolean"> = {
   typeName: "boolean" as const,
 }
 
+export const fileType: ParameterType<string, "file"> = {
+  typeName: "file" as const,
+}
+
+export const oauthSecretType: ParameterType<string, "oauthSecret"> = {
+  typeName: "oauthSecret" as const,
+}
+
 export const arrayOf = <T>(param: ParameterType<T>): ParameterType<T[]> => {
   const typeName: ParameterTypeName = param.typeName
   assertIsPrimitiveParameterTypeName(typeName)
@@ -177,18 +187,28 @@ export interface SelectOptionCollection {
   maxOptions?: number
 }
 
+export const singleSelectionType = (options: string[]): ParameterType<SelectOptionCollection> => {
+  return selectionType(options, 1)
+}
+
 export const selectionType = (options: string[], maxOptions?: number): ParameterType<SelectOptionCollection> => {
+  return selectionTypeWithOptions(
+    options.map(id => ({ displayName: id, id: id })),
+    maxOptions
+  )
+}
+
+export const selectionTypeWithOptions = (
+  options: SelectOption[],
+  maxOptions?: number
+): ParameterType<SelectOptionCollection> => {
   return {
     data: {
-      options: options.map(id => ({ displayName: id, id: id })),
+      options: options,
       maxOptions,
     },
     typeName: "selection" as const,
   }
-}
-
-export const singleSelectionType = (options: string[]): ParameterType<SelectOptionCollection> => {
-  return selectionType(options, 1)
 }
 
 export type Function<P, V> = (param: P) => V

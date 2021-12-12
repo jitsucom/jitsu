@@ -2,11 +2,10 @@ package typing
 
 import (
 	"encoding/json"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestDataTypeValues(t *testing.T) {
@@ -304,7 +303,7 @@ func TestReformatTimeValue(t *testing.T) {
 		},
 		{
 			"Current time",
-			time.Now(),
+			timestamp.Now(),
 			"time.Time",
 		},
 		{

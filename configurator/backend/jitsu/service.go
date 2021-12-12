@@ -32,7 +32,7 @@ func NewService(balancerAPIURL, adminToken string) *Service {
 	return &Service{
 		balancerAPIURL: strings.TrimSuffix(balancerAPIURL, "/"),
 		adminToken:     adminToken,
-		client:         &http.Client{Timeout: 1 * time.Minute},
+		client:         &http.Client{Timeout: 3 * time.Minute},
 	}
 }
 
@@ -48,6 +48,14 @@ func (s *Service) TestSource(reqB []byte) (int, []byte, error) {
 	return s.ProxySend(&Request{
 		Method: http.MethodPost,
 		URN:    "/api/v1/sources/test",
+		Body:   bytes.NewBuffer(reqB),
+	})
+}
+
+func (s *Service) EvaluateExpression(reqB []byte) (int, []byte, error) {
+	return s.ProxySend(&Request{
+		Method: http.MethodPost,
+		URN:    "/api/v1/templates/evaluate",
 		Body:   bytes.NewBuffer(reqB),
 	})
 }

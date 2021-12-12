@@ -37,6 +37,12 @@
       ]
     },
     {
+      "name": "Configurator UI",
+      "pages": [
+        "configurator-configuration"
+      ]
+    },
+    {
       "name": "❤️ Features",
       "pages": [
         "other-features/segment-compatibility",

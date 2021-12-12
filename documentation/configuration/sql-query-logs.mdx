@@ -6,10 +6,12 @@ This feature is disabled by default. For enabling it - fill `sql_debug_log` sect
 ```yaml
 sql_debug_log:
   ddl:
+    enabled: true #default value
     path: <sql_debug_log_path_directory> or "global" constant
     rotation_min: 10 # optional, default is 5 minutes. If set 0, 24 hours would be kept
     max_backups: 20  # optional, log files won't be deleted if not set
   queries:
+    enabled: false #default value
     path: <sql_debug_log_path_directory> or "global" constant
     rotation_min: 10 # optional, default is 5 minutes. If set 0, 24 hours would be kept
     max_backups: 20  # optional, log files won't be deleted if not set
@@ -36,6 +38,11 @@ There are two sections with the same parameters - _ddl_ and _queries._ Depending
           For writing SQL debug logs to global application logs use the constant: <b>global</b>.
           For writing to separate files use a path to the dir
       </td>
+    </tr>
+    <tr>
+      <td><b>enabled</b>
+      </td>
+      <td>Enable or disable logger. SQL Queries log which contains all SQL insert statements can consume a lot of disk space, So it is disabled by default.</td>
     </tr>
     <tr>
       <td><b>rotation_min</b>

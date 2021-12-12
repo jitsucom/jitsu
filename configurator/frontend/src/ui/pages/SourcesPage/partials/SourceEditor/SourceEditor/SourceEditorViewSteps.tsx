@@ -70,6 +70,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
       await handleValidateAndTestConfig()
       await handleGoToNextStep()
     } catch {
+      // handleValidateAndTestConfig shows a message in case of an error
     } finally {
       setCurrentStepIsLoading(false)
       setControlsDisabled(false)
@@ -88,7 +89,6 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
           disabled={currentStepIsLoading}
           setSourceEditorState={setSourceEditorState}
           setControlsDisabled={setControlsDisabled}
-          setTabErrorsVisible={() => {}}
           setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
         />
       ),

@@ -4,6 +4,7 @@ import {
   CollectionParameter,
   makeIntType,
   makeStringType,
+  oauthSecretType,
   Parameter,
   passwordType,
   singleSelectionType,
@@ -79,11 +80,16 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
   ) : undefined
 
   switch (specNode["type"]) {
+    case "array":
+    //TODO: very limited implementation that works correctly for comma separated string arrays
     case "string": {
       const pattern = specNode["pattern"]
-      const multiline = specNode["multiline"]
-      const fieldType = multiline
-        ? makeStringType({ multiline })
+      const isMultiline = !!specNode["multiline"]
+      const isBackendStoredOauth = !!specNode["env_name"]
+      const fieldType = isBackendStoredOauth
+        ? oauthSecretType
+        : isMultiline
+        ? makeStringType({ multiline: true })
         : specNode["airbyte_secret"]
         ? passwordType
         : specNode["enum"]

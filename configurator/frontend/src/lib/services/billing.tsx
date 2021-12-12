@@ -1,19 +1,19 @@
-import { IProject } from "lib/services/model"
-import { DatePoint, StatisticsService } from "lib/services/stat"
-import { withQueryParams } from "utils/queryParams"
-import { IDestinationsStore } from "../../stores/destinations"
-import { ISourcesStore } from "../../stores/sources"
-import ApplicationServices from "./ApplicationServices"
-import { BackendApiClient } from "./BackendApiClient"
-import firebase from "firebase/app"
-import "firebase/auth"
-import "firebase/firestore"
-import { isObject } from "utils/typeCheck"
-import { numberFormat } from "../commons/utils"
+// @Libs
+import { ReactElement } from "react"
 import { Modal, Typography } from "antd"
 import moment, { Moment } from "moment"
+// @Services
+import ApplicationServices from "./ApplicationServices"
+import { BackendApiClient } from "./BackendApiClient"
+// @Types
+import { IDestinationsStore } from "../../stores/destinations"
+import { ISourcesStore } from "../../stores/sources"
+import { IProject } from "lib/services/model"
+import { DatePoint, StatisticsService } from "lib/services/stat"
+// @Utils
+import { withQueryParams } from "utils/queryParams"
+import { numberFormat } from "../commons/utils"
 import { UpgradePlan } from "../../ui/components/CurrentPlan/CurrentPlan"
-import { ReactElement } from "react"
 
 export type PricingPlanId = "opensource" | "free" | "growth" | "premium" | "enterprise"
 
@@ -198,6 +198,46 @@ function parseSubscription(fb: FirebaseSubscriptionEntry, usage: Usage): Readonl
   }
 }
 
+async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
+  const services = ApplicationServices.get()
+  const billingUrl = services.applicationConfiguration.billingUrl
+
+  if (!billingUrl) {
+    return { planId: "opensource", billingEmail: "none@none.com" }
+  }
+
+  const project_id = services.activeProject.id
+  const user_id = services.userService.getUser().uid
+  const id_token = await services.userService.getIdToken()
+
+  try {
+    const subscriptionResponse = await fetch(`${billingUrl}/api/get-current-subscription`, {
+      method: "POST",
+      body: JSON.stringify({ project_id, user_id, id_token }),
+    })
+
+    if (subscriptionResponse.status === 500) return { planId: "free", billingEmail: "", doNotBlock: true }
+
+    const subscription = (await subscriptionResponse.json()).subscription
+
+    if (!subscription) {
+      return { planId: "free", billingEmail: "none@none.com" }
+    }
+
+    return subscription
+  } catch (error) {
+    console.error(
+      "Failed to fetch subscription. User: ",
+      services.userService.getUser(),
+      "Project: ",
+      services.activeProject,
+      "Error: ",
+      error
+    )
+    return { planId: "free", billingEmail: "none@none.com", doNotBlock: true }
+  }
+}
+
 export async function getCurrentSubscription(
   project: IProject,
   backendApiClient: BackendApiClient,
@@ -206,12 +246,7 @@ export async function getCurrentSubscription(
 ): Promise<CurrentSubscription> {
   const statService = new StatisticsService(backendApiClient, project, true)
 
-  let subscription = (
-    await firebase.firestore().collection("subscriptions").doc(project.id).get()
-  ).data() as any as FirebaseSubscriptionEntry
-  if (!subscription) {
-    subscription = { planId: "free", billingEmail: "none@none.com" }
-  }
+  const subscription = await fetchCurrentSubscription()
 
   let stat: DatePoint[]
   try {
@@ -280,13 +315,23 @@ export function generateCheckoutLink(params: {
   return withQueryParams(`${billingUrl}/api/init-checkout`, params)
 }
 
-export function generateCustomerPortalLink(params: {
-  project_id: string
-  user_email: string
-  return_url: string
-}): string {
+export function generateCustomerPortalLink(
+  params: {
+    project_id: string
+    user_email: string
+    return_url: string
+  },
+  signToken?: string
+): string {
   const billingUrl = ApplicationServices.get().applicationConfiguration.billingUrl
-  return withQueryParams(`${billingUrl}/api/to-customer-portal`, params)
+  return withQueryParams(
+    `${billingUrl}/api/to-customer-portal`,
+    !signToken
+      ? params
+      : {
+          ...params,
+        }
+  )
 }
 
 export function showQuotaLimitModal(subscription: CurrentSubscription, msg: ReactElement) {

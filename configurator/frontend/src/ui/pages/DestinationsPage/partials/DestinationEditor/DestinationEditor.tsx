@@ -166,6 +166,7 @@ const DestinationEditor = ({
     },
     [forceUpdate]
   )
+  const configForm = Form.useForm()[0]
 
   const tabsInitialData: Tab<DestinationTabKey>[] = [
     {
@@ -179,7 +180,7 @@ const DestinationEditor = ({
           handleTouchAnyField={validateAndTouchField(0)}
         />
       ),
-      form: Form.useForm()[0],
+      form: configForm,
       touched: false,
     },
     {
@@ -188,6 +189,7 @@ const DestinationEditor = ({
       getComponent: (form: FormInstance) => (
         <DestinationEditorTransform
           form={form}
+          configForm={configForm}
           destinationReference={destinationReference}
           destinationData={destinationData.current}
           handleTouchAnyField={validateAndTouchField(1)}
@@ -211,7 +213,10 @@ const DestinationEditor = ({
       ),
       form: Form.useForm()[0],
       touched: false,
-      isHidden: params.standalone == "true" || isOnboarding,
+      isHidden:
+        params.standalone == "true" ||
+        isOnboarding ||
+        destinationsReferenceMap[destinationReference.id].defaultTransform.length > 0,
     },
     {
       key: "sources",
@@ -281,9 +286,10 @@ const DestinationEditor = ({
 
     try {
       const config = await validateTabForm(tab)
-
-      destinationData.current._formData = makeObjectFromFieldsValues<DestinationData>(config)._formData
-
+      const values = makeObjectFromFieldsValues<DestinationData>(config)
+      destinationData.current._formData = values._formData
+      destinationData.current._package = values._package
+      destinationData.current._super_type = values._super_type
       await destinationEditorUtils.testConnection(destinationData.current)
     } catch (error) {
       switchTestConnectingPopover(true)

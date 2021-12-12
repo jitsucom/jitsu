@@ -3,7 +3,7 @@ package counters
 import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
-	"time"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 var (
@@ -65,7 +65,7 @@ func successEvents(id, namespace, eventType string, value int) {
 		return
 	}
 
-	err := eventsInstance.storage.SuccessEvents(id, namespace, eventType, time.Now().UTC(), value)
+	err := eventsInstance.storage.SuccessEvents(id, namespace, eventType, timestamp.Now().UTC(), value)
 	if err != nil {
 		logging.SystemErrorf("Error updating success [%s] events [%s] counter id=[%s] value [%d]: %v", eventType, namespace, id, value, err)
 	}
@@ -102,7 +102,7 @@ func errorEvents(id, namespace, eventType string, value int) {
 		return
 	}
 
-	if err := eventsInstance.storage.ErrorEvents(id, namespace, eventType, time.Now().UTC(), value); err != nil {
+	if err := eventsInstance.storage.ErrorEvents(id, namespace, eventType, timestamp.Now().UTC(), value); err != nil {
 		logging.SystemErrorf("Error updating error [%s] events [%s] counter id=[%s] value [%d]: %v", eventType, namespace, id, value, err)
 	}
 }
@@ -131,7 +131,7 @@ func skipEvents(id, namespace, eventType string, value int) {
 		return
 	}
 
-	if err := eventsInstance.storage.SkipEvents(id, namespace, eventType, time.Now().UTC(), value); err != nil {
+	if err := eventsInstance.storage.SkipEvents(id, namespace, eventType, timestamp.Now().UTC(), value); err != nil {
 		logging.SystemErrorf("Error updating skip [%s] events [%s] counter id=[%s] value [%d]: %v", eventType, namespace, id, value, err)
 	}
 }

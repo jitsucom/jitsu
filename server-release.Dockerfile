@@ -1,7 +1,7 @@
 # BASE STAGE
 FROM alpine:3.13 as main
 
-RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata docker bash sudo
+RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata docker bash sudo curl npm
 
 ARG dhid
 ENV DOCKER_HUB_ID=$dhid
@@ -57,6 +57,8 @@ ADD server/build/dist/ /home/$EVENTNATIVE_USER/app/
 COPY --from=builder /app/eventnative /home/$EVENTNATIVE_USER/app/
 
 WORKDIR /home/$EVENTNATIVE_USER/app
+
+COPY docker/eventnative.yaml /home/$EVENTNATIVE_USER/data/config/
 
 RUN chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER/app
 

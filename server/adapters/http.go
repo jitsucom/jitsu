@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/queue"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
 	"io/ioutil"
@@ -20,6 +23,7 @@ type HTTPAdapterConfiguration struct {
 	Dir            string
 	HTTPConfig     *HTTPConfiguration
 	HTTPReqFactory HTTPRequestFactory
+	QueueFactory   *events.QueueFactory
 	PoolWorkers    int
 	DebugLogger    *logging.QueryLogger
 	ErrorHandler   func(fallback bool, eventContext *EventContext, err error)
@@ -43,7 +47,7 @@ type HTTPConfiguration struct {
 type HTTPAdapter struct {
 	client         *http.Client
 	workersPool    *ants.PoolWithFunc
-	queue          *PersistentQueue
+	queue          *HTTPRequestQueue
 	debugLogger    *logging.QueryLogger
 	httpReqFactory HTTPRequestFactory
 
@@ -82,11 +86,7 @@ func NewHTTPAdapter(config *HTTPAdapterConfiguration) (*HTTPAdapter, error) {
 		closed:                 atomic.NewBool(false),
 	}
 
-	reqQueue, err := NewPersistentQueue("http_queue.dst="+config.DestinationID, config.Dir)
-	if err != nil {
-		httpAdapter.client.CloseIdleConnections()
-		return nil, err
-	}
+	reqQueue := NewHTTPRequestQueue(config.DestinationID, config.QueueFactory)
 
 	pool, err := ants.NewPoolWithFunc(config.PoolWorkers, httpAdapter.sendRequestWithRetry)
 	if err != nil {
@@ -111,7 +111,7 @@ func (h *HTTPAdapter) startObserver() {
 			if h.workersPool.Free() > 0 {
 				retryableRequest, err := h.queue.DequeueBlock()
 				if err != nil {
-					if err == ErrQueueClosed && h.closed.Load() {
+					if err == queue.ErrQueueClosed && h.closed.Load() {
 						continue
 					}
 
@@ -119,7 +119,7 @@ func (h *HTTPAdapter) startObserver() {
 					continue
 				}
 				//dequeued request was from retry call and retry timeout hasn't come
-				if time.Now().UTC().Before(retryableRequest.DequeuedTime) {
+				if timestamp.Now().UTC().Before(retryableRequest.DequeuedTime) {
 					if err := h.queue.AddRequest(retryableRequest); err != nil {
 						logging.SystemErrorf("[%s] Error enqueueing HTTP request after dequeuing: %v", h.destinationID, err)
 						h.errorHandler(true, retryableRequest.EventContext, err)
@@ -173,6 +173,7 @@ func (h *HTTPAdapter) sendRequestWithRetry(i interface{}) {
 
 	err := h.doRequest(retryableRequest.Request)
 	if err != nil {
+		logging.Errorf("[%s] HTTP request URL: [%s] Method: [%s] Body: [%s] Headers: [%s] will be retried [retry count=%d] after err: %v", h.destinationID, retryableRequest.Request.URL, retryableRequest.Request.Method, string(retryableRequest.Request.Body), retryableRequest.Request.Headers, retryableRequest.Retry, err)
 		h.doRetry(retryableRequest, err)
 	} else {
 		retryableRequest.EventContext.HTTPRequest = retryableRequest.Request
@@ -192,7 +193,7 @@ func (h *HTTPAdapter) doRetry(retryableRequest *RetryableRequest, sendErr error)
 		if retryableRequest.Retry < h.retryCount {
 			delay := time.Duration(math.Pow(2, float64(retryableRequest.Retry))) * h.retryDelay
 			retryableRequest.Retry += 1
-			retryableRequest.DequeuedTime = time.Now().UTC().Add(delay)
+			retryableRequest.DequeuedTime = timestamp.Now().UTC().Add(delay)
 			if err := h.queue.AddRequest(retryableRequest); err != nil {
 				logging.SystemErrorf("[%s] Error enqueueing HTTP request after sending: %v", h.destinationID, err)
 				h.errorHandler(true, retryableRequest.EventContext, sendErr)

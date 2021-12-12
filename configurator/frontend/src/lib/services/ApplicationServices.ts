@@ -3,7 +3,7 @@ import { IProject, JSON_FORMAT, PgDatabaseCredentials } from "./model"
 import axios, { AxiosRequestConfig } from "axios"
 import * as uuid from "uuid"
 import AnalyticsService from "./analytics"
-import { firebaseInit, FirebaseUserService } from "./UserServiceFirebase"
+import { FirebaseUserService } from "./UserServiceFirebase"
 import { BackendUserService } from "./UserServiceBackend"
 import { randomId } from "utils/numbers"
 import { concatenateURLs } from "lib/commons/utils"
@@ -13,6 +13,8 @@ import { HttpServerStorage, ServerStorage } from "./ServerStorage"
 import { UserService } from "./UserService"
 import { ApplicationConfiguration } from "./ApplicationConfiguration"
 import { CurrentSubscription } from "./billing"
+import { ISlackApiService, SlackApiService } from "./slack"
+import { IOauthService, OauthService } from "./oauth"
 
 export interface IApplicationServices {
   init(): Promise<void>
@@ -23,6 +25,8 @@ export interface IApplicationServices {
   backendApiClient: BackendApiClient
   features: FeatureSettings
   applicationConfiguration: ApplicationConfiguration
+  slackApiSercice: ISlackApiService
+  oauthService: IOauthService
   showSelfHostedSignUp(): boolean
 }
 export default class ApplicationServices implements IApplicationServices {
@@ -30,6 +34,8 @@ export default class ApplicationServices implements IApplicationServices {
   private readonly _analyticsService: AnalyticsService
   private readonly _backendApiClient: BackendApiClient
   private readonly _storageService: ServerStorage
+  private readonly _slackApiService: ISlackApiService
+  private readonly _oauthService: IOauthService
 
   private _userService: UserService
   private _features: FeatureSettings
@@ -48,6 +54,8 @@ export default class ApplicationServices implements IApplicationServices {
       this._analyticsService
     )
     this._storageService = new HttpServerStorage(this._backendApiClient)
+    this._slackApiService = new SlackApiService(() => this._userService.getUser().apiAccess)
+    this._oauthService = new OauthService(this._applicationConfiguration.oauthApiBase, this._backendApiClient)
   }
 
   //load backend configuration and create user service depend on authorization type
@@ -59,8 +67,13 @@ export default class ApplicationServices implements IApplicationServices {
     if (configuration.authorization == "redis" || !this._applicationConfiguration.firebaseConfig) {
       this._userService = new BackendUserService(this._backendApiClient, this._storageService, configuration.smtp)
     } else if (configuration.authorization == "firebase") {
-      firebaseInit(this._applicationConfiguration.firebaseConfig)
-      this._userService = new FirebaseUserService(this._backendApiClient, this._storageService)
+      this._userService = new FirebaseUserService(
+        this._applicationConfiguration.firebaseConfig,
+        this._backendApiClient,
+        this._storageService,
+        this._analyticsService,
+        this._features
+      )
     } else {
       throw new Error(`Unknown backend configuration authorization type: ${configuration.authorization}`)
     }
@@ -90,6 +103,22 @@ export default class ApplicationServices implements IApplicationServices {
     this._currentSubscription = value
   }
 
+  get backendApiClient(): BackendApiClient {
+    return this._backendApiClient
+  }
+
+  get features(): FeatureSettings {
+    return this._features
+  }
+
+  get slackApiSercice(): ISlackApiService {
+    return this._slackApiService
+  }
+
+  get oauthService(): IOauthService {
+    return this._oauthService
+  }
+
   static get(): ApplicationServices {
     if (window["_en_instance"] === undefined) {
       try {
@@ -106,13 +135,6 @@ export default class ApplicationServices implements IApplicationServices {
     return window["_en_instance"]
   }
 
-  get backendApiClient(): BackendApiClient {
-    return this._backendApiClient
-  }
-
-  get features(): FeatureSettings {
-    return this._features
-  }
   private async loadBackendConfiguration(): Promise<FeatureSettings> {
     let fullUrl = concatenateURLs(this._applicationConfiguration.backendApiBase, "/system/configuration")
     let request: AxiosRequestConfig = {

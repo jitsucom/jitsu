@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	ga "google.golang.org/api/analyticsreporting/v4"
 	"google.golang.org/api/option"
@@ -70,6 +71,7 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *base.SourceConfig, co
 	if err != nil {
 		return nil, err
 	}
+	config.AuthConfig.FillPreconfiguredOauth(base.GoogleAnalyticsType)
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -108,6 +110,7 @@ func TestGoogleAnalytics(sourceConfig *base.SourceConfig) error {
 	if err != nil {
 		return err
 	}
+	config.AuthConfig.FillPreconfiguredOauth(base.GoogleAnalyticsType)
 	if err := config.Validate(); err != nil {
 		return err
 	}
@@ -121,7 +124,7 @@ func TestGoogleAnalytics(sourceConfig *base.SourceConfig) error {
 		return fmt.Errorf("failed to create GA service: %v", err)
 	}
 
-	now := time.Now().UTC()
+	now := timestamp.Now().UTC()
 	startDate := now.AddDate(0, 0, -1)
 	req := &ga.GetReportsRequest{
 		ReportRequests: []*ga.ReportRequest{
@@ -152,7 +155,7 @@ func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*base.TimeInterval, erro
 		daysBackToLoad = g.collection.DaysBackToLoad
 	}
 
-	now := time.Now().UTC()
+	now := timestamp.Now().UTC()
 	for i := 0; i < daysBackToLoad; i++ {
 		date := now.AddDate(0, 0, -i)
 		intervals = append(intervals, base.NewTimeInterval(base.DAY, date))

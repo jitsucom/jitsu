@@ -13,8 +13,11 @@ func TestValidate_WorkloadIdentity_ServiceAccountKey_pass_dont_set_credentials(t
 		KeyFile:     "workload_identity",
 	}
 
-	err := uut.Validate(false)
+	err := uut.Validate()
 
 	assert.Nilf(t, err, "err %v", err)
+	err = uut.ValidateBatchMode()
+	assert.Nilf(t, err, "err %v", err)
+
 	assert.Nil(t, uut.credentials)
 }

@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/spf13/viper"
 	"io/ioutil"
@@ -142,7 +143,11 @@ func TestProcessFilePayload(t *testing.T) {
 			[]events.SkippedEvent{},
 		},
 	}
-	p, err := NewProcessor("test", "google_analytics", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, "", &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 0)
+	destination := &config.DestinationConfig{Type: "google_analytics", BreakOnError: false,
+		DataLayout: &config.DataLayout{Transform: ""}}
+	p, err := NewProcessor("test", destination, false, `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 0)
+	require.NoError(t, err)
+	err = p.InitJavaScriptTemplates()
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -314,14 +319,17 @@ func TestProcessFact(t *testing.T) {
 	require.NoError(t, err)
 
 	keepUnmapped := true
-	fieldMapper, _, err := NewFieldMapper(&Mapping{
+	fieldMapper, _, err := NewFieldMapper(&config.Mapping{
 		KeepUnmapped: &keepUnmapped,
-		Fields:       []MappingField{{Src: "/field1", Dst: "/field2", Action: MOVE}},
+		Fields:       []config.MappingField{{Src: "/field1", Dst: "/field2", Action: config.MOVE}},
 	})
 	require.NoError(t, err)
 
-	p, err := NewProcessor("test", "google_analytics",`events_{{._timestamp.Format "2006_01"}}`, "", fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
-
+	destination := &config.DestinationConfig{Type: "google_analytics", BreakOnError: false,
+		DataLayout: &config.DataLayout{Transform: ""}}
+	p, err := NewProcessor("test", destination, false, `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+	require.NoError(t, err)
+	err = p.InitJavaScriptTemplates()
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -401,7 +409,7 @@ func TestProcessTransform(t *testing.T) {
 	appconfig.Init(false, "")
 
 	fieldMapper := DummyMapper{}
-	transormExpression := `
+	transformExpression := `
 switch ($.event_type) {
     case "site_page":
         return {
@@ -433,8 +441,11 @@ switch ($.event_type) {
         return {...$, [TABLE_NAME]: $.event_type}
 }
 `
-	p, err := NewProcessor("test", "google_analytics",`events`, transormExpression, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
-
+	destination := &config.DestinationConfig{Type: "google_analytics", BreakOnError: false,
+		DataLayout: &config.DataLayout{Transform: transformExpression}}
+	p, err := NewProcessor("test", destination, false, `events`, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+	require.NoError(t, err)
+	err = p.InitJavaScriptTemplates()
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

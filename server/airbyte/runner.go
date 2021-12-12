@@ -65,7 +65,7 @@ func (r *Runner) Spec() (interface{}, error) {
 	resultParser := &synchronousParser{desiredRowType: SpecType}
 	errWriter := logging.NewStringWriter()
 
-	err := r.run(resultParser.parse, copyTo(errWriter), time.Minute, "run", "--rm", "-i", "--name", r.identifier, fmt.Sprintf("%s:%s", Instance.AddAirbytePrefix(r.DockerImage), r.Version), "spec")
+	err := r.run(resultParser.parse, copyTo(errWriter), time.Minute*3, "run", "--rm", "-i", "--name", r.identifier, fmt.Sprintf("%s:%s", Instance.AddAirbytePrefix(r.DockerImage), r.Version), "spec")
 	if err != nil {
 		if err == runner.ErrNotReady {
 			return nil, err
@@ -93,7 +93,7 @@ func (r *Runner) Check(airbyteSourceConfig interface{}) error {
 		}
 	}()
 
-	err = r.run(resultParser.parse, copyTo(errWriter), time.Minute,
+	err = r.run(resultParser.parse, copyTo(errWriter), time.Minute * 3,
 		"run", "--rm", "-i", "--name", r.identifier, "-v", fmt.Sprintf("%s:%s", Instance.WorkspaceVolume, VolumeAlias), fmt.Sprintf("%s:%s", Instance.AddAirbytePrefix(r.DockerImage), r.Version), "check", "--config", path.Join(VolumeAlias, relatedFilePath))
 	if err != nil {
 		if err == runner.ErrNotReady {
@@ -199,9 +199,13 @@ func (r *Runner) Close() error {
 
 	close(r.closed)
 
-	exec.Command("docker", "stop", r.identifier, "&").Start()
-
-	return r.command.Process.Kill()
+	err := exec.Command("docker", "stop", r.identifier, "&").Run()
+	if err != nil {
+		logging.Errorf("%s airbyte runner closing failed. Killing. Closing error: %v", r.identifier, err)
+		_ = r.command.Process.Kill()
+		return err
+	}
+	return nil
 }
 
 func (r *Runner) terminated() bool {

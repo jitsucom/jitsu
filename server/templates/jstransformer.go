@@ -53,6 +53,7 @@ func Babelize(src string) (string, error) {
 //Returns func that is mapped to javascript function inside vm instance
 func LoadTemplateScript(script string, extraFunctions template.FuncMap, extraScripts ... string) (func(map[string]interface{}) (interface{}, error), error) {
 	vm := goja.New()
+	vm.Set("exports", map[string]interface{}{})
 	//limit call stack size to prevent endless recurison
 	vm.SetMaxCallStackSize(42)
 	for _, sc := range extraScripts {

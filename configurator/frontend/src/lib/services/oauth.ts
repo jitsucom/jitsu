@@ -1,8 +1,9 @@
-import ApplicationServices from "./ApplicationServices"
+import { BackendApiClient } from "./BackendApiClient"
 
 type OauthCredentials = { status: "success"; secrets: any }
 type OauthError = { status: "error"; errorMessage: string; errorDetails?: any }
-type OauthResult = OauthCredentials | OauthError
+type OauthWarning = { status: "warning"; message: string }
+type OauthResult = OauthCredentials | OauthWarning | OauthError
 
 export type OauthSupportResponse = {
   status: "ok"
@@ -10,16 +11,31 @@ export type OauthSupportResponse = {
   message: string
 }
 
-interface IOauthService {
-  checkIfOauthSupported(service: string): Promise<Boolean>
+export interface IOauthService {
+  isOauthBackendSecretsAvailable(sourceType: string, projectId: string): Promise<boolean>
+  checkIfOauthSupported(service: string): Promise<boolean>
   getCredentialsInSeparateWindow(service: string): Promise<OauthResult>
 }
 
 export class OauthService implements IOauthService {
   private readonly _oauthApiBase: string
+  private readonly _backendApiClient: BackendApiClient
 
-  constructor() {
-    this._oauthApiBase = ApplicationServices.get().applicationConfiguration.oauthApiBase
+  constructor(oauthApiBase: string, backendApiClient: BackendApiClient) {
+    this._oauthApiBase = oauthApiBase
+    this._backendApiClient = backendApiClient
+  }
+
+  public async isOauthBackendSecretsAvailable(sourceType: string, projectId: string): Promise<boolean> {
+    const secretsStatus = await this._backendApiClient.get(
+      `sources/oauth_fields/${sourceType}?project_id=${projectId}`,
+      {
+        proxy: true,
+      }
+    )
+    if (Object.values(secretsStatus).length === 0) return false
+    const atLeastOneSecretUnavailable = Object.values(secretsStatus).some(secret => !secret["provided"])
+    return !atLeastOneSecretUnavailable
   }
 
   public async checkIfOauthSupported(service: string): Promise<boolean> {
@@ -72,7 +88,7 @@ export class OauthService implements IOauthService {
     const timer = setInterval(() => {
       if (oauthWindow.closed && !result) {
         clearInterval(timer)
-        endOauthFlow({ status: "error", errorMessage: "Popup window has been closed" })
+        endOauthFlow({ status: "warning", message: "Oauth did not complete because popup window has been closed" })
         window.removeEventListener("message", messageListener)
       }
     }, 400)

@@ -27,7 +27,7 @@ func reformatCatalog(dockerImage string, rawCatalog *airbyte.CatalogRow) ([]byte
 	formattedCatalog := &airbyte.Catalog{}
 	streamsRepresentation := map[string]*base.StreamRepresentation{}
 	for _, stream := range rawCatalog.Streams {
-		syncMode := getSyncMode(dockerImage, stream.SupportedSyncModes)
+		syncMode := getSyncMode(dockerImage, stream)
 
 		//formatted catalog
 		formattedCatalog.Streams = append(formattedCatalog.Streams, &airbyte.WrappedStream{
@@ -108,20 +108,24 @@ func parseFormattedCatalog(catalogIface interface{}) (map[string]*base.StreamRep
 //getSyncMode returns incremental if supported
 //otherwise returns first
 //for DB source returns not incremental
-func getSyncMode(dockerImage string, supportedSyncModes []string) string {
+func getSyncMode(dockerImage string, stream *airbyte.Stream) string {
+	if stream.SyncMode != "" {
+		return stream.SyncMode
+	}
+
 	if _, ok := dbDockerImages[dockerImage]; ok {
 		return syncModeFullRefresh
 	}
 
-	if len(supportedSyncModes) == 0 {
+	if len(stream.SupportedSyncModes) == 0 {
 		return syncModeIncremental
 	}
 
-	for _, supportedSyncMode := range supportedSyncModes {
+	for _, supportedSyncMode := range stream.SupportedSyncModes {
 		if supportedSyncMode == syncModeIncremental {
 			return syncModeIncremental
 		}
 	}
 
-	return supportedSyncModes[0]
+	return stream.SupportedSyncModes[0]
 }

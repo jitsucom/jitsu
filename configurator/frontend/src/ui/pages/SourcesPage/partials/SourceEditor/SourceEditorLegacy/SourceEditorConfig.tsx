@@ -14,6 +14,9 @@ import { COLLECTIONS_SCHEDULES } from "constants/schedule"
 import editorStyles from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less"
 import { LoadableFieldsForm } from "ui/components/LoadableFieldsForm/LoadableFieldsForm"
 import { useServices } from "../../../../../../hooks/useServices"
+import { OauthButton } from "../../OauthButton/OauthButton"
+import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
+import { useLoaderAsObject } from "hooks/useLoader"
 
 export interface Props {
   form: FormInstance
@@ -38,6 +41,33 @@ const SourceEditorConfigComponent = ({
 }: Props) => {
   const services = useServices()
   const subscription = services.currentSubscription?.currentPlan
+
+  const {
+    data: oauthFieldsAvailable,
+    isLoading: isLoadingOauthFieldsStatus,
+    error: oauthFieldsError,
+  } = useLoaderAsObject(async () => {
+    const secretsStatus = await services.backendApiClient.get(
+      `sources/oauth_fields/${sourceReference?.id}?project_id=${services.activeProject.id}`,
+      {
+        proxy: true,
+      }
+    )
+    console.log("secrets status:", secretsStatus)
+    if (Object.values(secretsStatus).length === 0) return false
+    const atLeastOneSecretUnavailable = Object.values(secretsStatus).some(secret => !secret["provided"])
+    return !atLeastOneSecretUnavailable
+  }, [])
+
+  const oauthBackendSecretsStatus = isLoadingOauthFieldsStatus
+    ? "loading"
+    : oauthFieldsAvailable
+    ? "secrets_set"
+    : "secrets_not_set"
+  if (oauthFieldsAvailable || isLoadingOauthFieldsStatus) {
+    console.log(`isLoading: ${isLoadingOauthFieldsStatus}`, "available: ", oauthFieldsAvailable)
+  }
+
   const validateUniqueSourceId = useCallback(
     (rule: RuleObject, value: string) =>
       sources?.find((source: SourceData) => source.sourceId === value)
@@ -68,8 +98,32 @@ const SourceEditorConfigComponent = ({
     return COLLECTIONS_SCHEDULES[0].value
   }, [initialValues])
 
+  const handleSetSecrets = useCallback((secrets: PlainObjectWithPrimitiveValues) => {
+    sourcePageUtils.applyOauthValuesToAntdForms({ "config-form": form }, secrets)
+  }, [])
+
   return (
     <Form name="source-config" form={form} autoComplete="off" onChange={handleChange}>
+      <Row key="oauth-button" className="h-8 mb-5">
+        <Col span={4} />
+        <Col span={20} className="pl-2">
+          <OauthButton
+            key="oauth-button"
+            service={sourceReference.id}
+            forceNotSupported={sourceReference.expertMode}
+            className="mr-2"
+            icon={<span className="align-middle h-5 w-7 pr-2 ">{sourceReference.pic}</span>}
+            isGoogle={
+              sourceReference.id.toLowerCase().includes("google") ||
+              sourceReference.id.toLowerCase().includes("firebase")
+            }
+            setAuthSecrets={handleSetSecrets}
+          >
+            <span className="align-top">{`Log In to Fill OAuth Credentials`}</span>
+          </OauthButton>
+        </Col>
+      </Row>
+
       <Row>
         <Col span={24}>
           <Form.Item
@@ -117,6 +171,7 @@ const SourceEditorConfigComponent = ({
         fieldsParamsList={sourceReference.configParameters}
         form={form}
         handleTouchAnyField={handleTouchAnyField}
+        oauthBackendSecretsStatus={oauthBackendSecretsStatus}
       />
 
       {sourceReference.hasLoadableConfigParameters && (

@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/spf13/viper"
 	"io"
 	"time"
@@ -42,11 +43,6 @@ type Storage interface {
 	GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error)
 	GetTotalEvents(destinationID string) (int, error)
 
-	//** Users recognition **
-	SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error
-	GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error)
-	DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error
-
 	// ** Sync Tasks **
 	CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error
 	GetAllTasks(sourceID, collection string, start, end time.Time, limit int) ([]Task, error)
@@ -77,20 +73,25 @@ type Storage interface {
 	Type() string
 }
 
-func NewStorage(meta *viper.Viper) (Storage, error) {
-	if meta == nil {
+func InitializeStorage(metaStorageConfiguration *viper.Viper) (Storage, error) {
+	if metaStorageConfiguration == nil || metaStorageConfiguration.GetString("redis.host") == "" {
 		return &Dummy{}, nil
 	}
 
-	host := meta.GetString("redis.host")
-	port := meta.GetInt("redis.port")
-	password := meta.GetString("redis.password")
-	sentinelMaster := meta.GetString("redis.sentinel_master_name")
-	anonymousEventsTTL := meta.GetInt("redis.ttl_minutes.anonymous_events")
-	tlsSkipVerify := meta.GetBool("redis.tls_skip_verify")
-
+	host := metaStorageConfiguration.GetString("redis.host")
+	port := metaStorageConfiguration.GetInt("redis.port")
+	password := metaStorageConfiguration.GetString("redis.password")
+	sentinelMaster := metaStorageConfiguration.GetString("redis.sentinel_master_name")
+	tlsSkipVerify := metaStorageConfiguration.GetBool("redis.tls_skip_verify")
 	factory := NewRedisPoolFactory(host, port, password, tlsSkipVerify, sentinelMaster)
 	factory.CheckAndSetDefaultPort()
 
-	return NewRedis(factory, anonymousEventsTTL)
+	logging.Infof("🏪 Initializing meta storage redis [%s]...", factory.Details())
+
+	pool, err := factory.Create()
+	if err != nil {
+		logging.Fatalf("Error initializing meta storage: %v", err)
+	}
+
+	return NewRedis(pool), nil
 }
