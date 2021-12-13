@@ -27,17 +27,17 @@ func NewResolver() Resolver {
 
 //ResolvedUa model for keeping resolved user-agent data
 type ResolvedUa struct {
-	UaFamily  string `json:"ua_family,omitempty"`
-	UaVersion string `json:"ua_version,omitempty"`
+	UaFamily  string `mapstructure:"ua_family,omitempty" json:"ua_family,omitempty"`
+	UaVersion string `mapstructure:"ua_version,omitempty" json:"ua_version,omitempty"`
 
-	OsFamily  string `json:"os_family,omitempty"`
-	OsVersion string `json:"os_version,omitempty"`
+	OsFamily  string `mapstructure:"os_family,omitempty" json:"os_family,omitempty"`
+	OsVersion string `mapstructure:"os_version,omitempty" json:"os_version,omitempty"`
 
-	DeviceFamily string `json:"device_family,omitempty"`
-	DeviceBrand  string `json:"device_brand,omitempty"`
-	DeviceModel  string `json:"device_model,omitempty"`
+	DeviceFamily string `mapstructure:"device_family,omitempty" json:"device_family,omitempty"`
+	DeviceBrand  string `mapstructure:"device_brand,omitempty" json:"device_brand,omitempty"`
+	DeviceModel  string `mapstructure:"device_model,omitempty" json:"device_model,omitempty"`
 
-	Bot bool `json:"bot,omitempty"`
+	Bot bool `mapstructure:"bot,omitempty" json:"bot,omitempty"`
 }
 
 //IsEmpty returns true if all values in ResolvedUa is empty

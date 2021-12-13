@@ -17,9 +17,8 @@ import { initializeAllStores } from "stores/_initializeAllStores"
 import { destinationsStore } from "./stores/destinations"
 import { sourcesStore } from "./stores/sources"
 import BillingBlockingModal from "./lib/components/BillingModal/BillingBlockingModal"
-import moment, { Moment } from "moment"
+import moment from "moment"
 import { OnboardingSwitch } from "lib/components/Onboarding/OnboardingSwitch"
-import { URLSearchParams } from "url"
 import { UpgradePlan } from "./ui/components/CurrentPlan/CurrentPlan"
 
 enum AppLifecycle {
@@ -50,47 +49,50 @@ export const initializeApplication = async (
     services.analyticsService.onUserKnown(user)
   }
 
-  await initializeAllStores()
-
   let paymentPlanStatus: CurrentSubscription
-  if (user && services.features.billingEnabled) {
-    if (services.activeProject) {
-      paymentPlanStatus = await getCurrentSubscription(
-        services.activeProject,
-        services.backendApiClient,
-        destinationsStore,
-        sourcesStore
-      )
-    } else {
-      /** project is not initialized yet, return mock result */
-      paymentPlanStatus = {
-        autorenew: false,
-        expiration: moment().add(1, "M"),
-        usage: {
-          events: 0,
-          sources: 0,
-          destinations: 0,
-        },
-        currentPlan: paymentPlans.free,
-        quotaPeriodStart: moment(),
-        doNotBlock: true,
+  await Promise.all([
+    initializeAllStores(),
+    (async () => {
+      if (user && services.features.billingEnabled) {
+        if (services.activeProject) {
+          paymentPlanStatus = await getCurrentSubscription(
+            services.activeProject,
+            services.backendApiClient,
+            destinationsStore,
+            sourcesStore
+          )
+        } else {
+          /** project is not initialized yet, return mock result */
+          paymentPlanStatus = {
+            autorenew: false,
+            expiration: moment().add(1, "M"),
+            usage: {
+              events: 0,
+              sources: 0,
+              destinations: 0,
+            },
+            currentPlan: paymentPlans.free,
+            quotaPeriodStart: moment(),
+            doNotBlock: true,
+          }
+        }
+      } else {
+        /** for opensource (self-hosted) only */
+        paymentPlanStatus = {
+          autorenew: false,
+          expiration: moment().add(1, "M"),
+          usage: {
+            events: 0,
+            sources: 0,
+            destinations: 0,
+          },
+          currentPlan: paymentPlans.opensource,
+          quotaPeriodStart: moment(),
+          doNotBlock: true,
+        }
       }
-    }
-  } else {
-    /** for opensource (self-hosted) only */
-    paymentPlanStatus = {
-      autorenew: false,
-      expiration: moment().add(1, "M"),
-      usage: {
-        events: 0,
-        sources: 0,
-        destinations: 0,
-      },
-      currentPlan: paymentPlans.opensource,
-      quotaPeriodStart: moment(),
-      doNotBlock: true,
-    }
-  }
+    })(),
+  ])
   services.currentSubscription = paymentPlanStatus
 
   return { user, paymentPlanStatus }

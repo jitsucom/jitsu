@@ -115,7 +115,7 @@ func TestPostgresStreamInsert(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	objects, err := postgresContainer.GetAllSortedRows("events", "order by utc_time")
+	objects, err := postgresContainer.GetAllSortedRows("events", "", "order by utc_time")
 	require.NoError(t, err, "Error selecting all events")
 	require.Equal(t, 2, len(objects), "Rows count must be 2")
 
