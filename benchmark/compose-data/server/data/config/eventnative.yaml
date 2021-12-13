@@ -3,6 +3,8 @@ server:
   disable_welcome_page: true
   strict_auth_tokens: true
   admin_token: '${env.CLUSTER_ADMIN_TOKEN}'
+  log:
+    level: debug
 
 api_keys:
   - id: stream_api_key

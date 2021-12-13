@@ -3,6 +3,7 @@ package storages
 import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/config"
+	"github.com/jitsucom/jitsu/server/logging"
 	"math/rand"
 
 	"github.com/jitsucom/jitsu/server/identifiers"
@@ -12,7 +13,6 @@ import (
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/telemetry"
@@ -23,7 +23,7 @@ import (
 //aka abstract class
 type Abstract struct {
 	destinationID  string
-	fallbackLogger *logging.AsyncLogger
+	fallbackLogger logging.ObjectLogger
 	eventsCache    *caching.EventsCache
 	processor      *schema.Processor
 
@@ -34,7 +34,7 @@ type Abstract struct {
 	staged               bool
 	cachingConfiguration *config.CachingConfiguration
 
-	archiveLogger *logging.AsyncLogger
+	archiveLogger logging.ObjectLogger
 }
 
 //ID returns destination ID

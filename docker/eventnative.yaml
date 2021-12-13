@@ -1,9 +1,12 @@
 server:
   name: jitsu
+  port: '${env.SERVER_PORT|8001}'
   disable_welcome_page: true
   strict_auth_tokens: true
   admin_token: '${env.CLUSTER_ADMIN_TOKEN|env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
   telemetry: '${env.TELEMETRY_URL|}'
+  cache:
+    enabled: '${env.EVENTS_CACHE_ENABLED|true}'
 
 geo:
   maxmind_path: '${env.MAX_MIND_PATH|}'
@@ -52,6 +55,10 @@ sql_debug_log:
 singer-bridge:
   log:
     enabled: '${env.SINGER_LOG_ENABLED|false}'
+  batch_size: '${env.SOURCES_SYNC_BATCH_SIZE|10000}'
+
+airbyte-bridge:
+  batch_size: '${env.SOURCES_SYNC_BATCH_SIZE|10000}'
 
 google-ads:
   developer-token: '${env.GOOGLE_ADS_DEVELOPER_TOKEN|}'

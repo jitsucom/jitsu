@@ -43,10 +43,6 @@ func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.R
 		//Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
 		enrichment.ContextEnrichmentStep(payload, token, reqContext, processor, destinationStorages[0].GetUniqueIDField())
 
-		//** Caching **
-		//clone payload for preventing concurrent changes while serialization
-		cachingEvent := payload.Clone()
-
 		//Persisted cache
 		//extract unique identifier
 		eventID := destinationStorages[0].GetUniqueIDField().Extract(payload)
@@ -56,7 +52,7 @@ func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.R
 		var destinationIDs []string
 		for _, destinationProxy := range destinationStorages {
 			destinationIDs = append(destinationIDs, destinationProxy.ID())
-			s.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, cachingEvent)
+			s.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, payload)
 		}
 
 		//** Multiplexing **

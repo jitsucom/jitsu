@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/storages"
@@ -37,7 +38,7 @@ type Service struct {
 	mutex *sync.RWMutex
 
 	storageFactory storages.Factory
-	loggerFactory  *logging.Factory
+	loggerFactory  *logevents.Factory
 
 	//map for holding all destinations for closing
 	unitsByID map[string]*Unit
@@ -69,7 +70,7 @@ func NewTestService(unitsByID map[string]*Unit, consumersByTokenID TokenizedCons
 }
 
 //NewService returns loaded Service instance and call resources.Watcher() if destinations source is http url or file path
-func NewService(destinations *viper.Viper, destinationsSource string, storageFactory storages.Factory, loggerFactory *logging.Factory, strictAuth bool) (*Service, error) {
+func NewService(destinations *viper.Viper, destinationsSource string, storageFactory storages.Factory, loggerFactory *logevents.Factory, strictAuth bool) (*Service, error) {
 	service := &Service{
 		mutex: &sync.RWMutex{},
 

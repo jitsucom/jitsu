@@ -67,7 +67,7 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 			metrics.ErrorSourceEvents(tokenID, storageProxy.ID(), rowsCount)
 			metrics.ErrorObjects(tokenID, rowsCount)
 			telemetry.Error(tokenID, storageProxy.ID(), events.SrcBulk, "", rowsCount)
-			counters.ErrorPushDestinationEvents(storageProxy.ID(), rowsCount)
+			counters.ErrorPushDestinationEvents(storageProxy.ID(), int64(rowsCount))
 
 			c.JSON(http.StatusBadRequest, middleware.ErrResponse("failed to process file payload", err))
 			return
@@ -76,10 +76,10 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 		metrics.SuccessSourceEvents(tokenID, storageProxy.ID(), rowsCount)
 		metrics.SuccessObjects(tokenID, rowsCount)
 		telemetry.Event(tokenID, storageProxy.ID(), events.SrcBulk, "", rowsCount)
-		counters.SuccessPushDestinationEvents(storageProxy.ID(), rowsCount)
+		counters.SuccessPushDestinationEvents(storageProxy.ID(), int64(rowsCount))
 	}
 
-	counters.SuccessPushSourceEvents(tokenID, rowsCount)
+	counters.SuccessPushSourceEvents(tokenID, int64(rowsCount))
 
 	c.JSON(http.StatusOK, middleware.OKResponse())
 }
