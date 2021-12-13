@@ -13,9 +13,8 @@ import (
 
 //AsyncLogger write json logs to file system in different goroutine
 type AsyncLogger struct {
-	writer io.WriteCloser
-	queue  queue.Queue
-	//workersPool        *ants.PoolWithFunc
+	writer             io.WriteCloser
+	queue              queue.Queue
 	showInGlobalLogger bool
 
 	closed *atomic.Bool

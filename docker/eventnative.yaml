@@ -4,6 +4,8 @@ server:
   strict_auth_tokens: true
   admin_token: '${env.CLUSTER_ADMIN_TOKEN|env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
   telemetry: '${env.TELEMETRY_URL|}'
+  cache:
+    enabled: '${env.EVENTS_CACHE_ENABLED|true}'
 
 geo:
   maxmind_path: '${env.MAX_MIND_PATH|}'

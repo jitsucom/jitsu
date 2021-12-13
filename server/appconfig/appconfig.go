@@ -67,6 +67,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.sync_tasks.store_logs.last_runs", -1)
 	viper.SetDefault("server.disable_version_reminder", false)
 	viper.SetDefault("server.disable_skip_events_warn", false)
+	viper.SetDefault("server.cache.enabled", true)
 	viper.SetDefault("server.cache.events.size", 100)
 	viper.SetDefault("server.cache.pool.size", 10)
 	viper.SetDefault("server.strict_auth_tokens", false)
