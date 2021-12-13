@@ -29,7 +29,7 @@ const mixpanelDestination = {
   id: "mixpanel",
   type: "other",
   displayName: "Mixpanel",
-  defaultTransform: "return toMixpanel($, globalThis)",
+  defaultTransform: "",
   hidden: false,
   parameters: [
     {
