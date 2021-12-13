@@ -314,6 +314,7 @@ func main() {
 		IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
 		UserIDNode:          viper.GetString("users_recognition.user_id_node"),
 		PoolSize:            viper.GetInt("users_recognition.pool.size"),
+		Compression:         viper.GetString("users_recognition.compression"),
 	}
 
 	if err := globalRecognitionConfiguration.Validate(); err != nil {

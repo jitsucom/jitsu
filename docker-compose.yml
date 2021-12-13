@@ -38,6 +38,8 @@ services:
     image: redis:6.2.4-alpine
     volumes:
       - ./compose-data/redis_users_recognition/data:/data
+      - ./compose-data/redis_users_recognition/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
     restart: always
     networks:
       - main
