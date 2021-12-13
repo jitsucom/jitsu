@@ -62,8 +62,11 @@ export const usePolling = <T>(
    */
   options: UsePollingOptions = {}
 ): UsePollingReturnType<T> => {
-  const pollingHookConfigurator: PollingHookConfigurator<T> = 'configure' in callbackOrConfigurator ? callbackOrConfigurator : {configure: () => ({pollingCallback: callbackOrConfigurator})}
-  const {pollingCallback, onBeforePollingStart, onAfterPollingEnd} = pollingHookConfigurator.configure()
+  const pollingHookConfigurator: PollingHookConfigurator<T> =
+    "configure" in callbackOrConfigurator
+      ? callbackOrConfigurator
+      : { configure: () => ({ pollingCallback: callbackOrConfigurator }) }
+  const { pollingCallback, onBeforePollingStart, onAfterPollingEnd } = pollingHookConfigurator.configure()
   const { interval_ms, timeout_ms } = { ...defaultOptions, ...(options ?? {}) }
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [data, setData] = useState<T | null>(null)
