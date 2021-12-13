@@ -9,8 +9,8 @@ import (
 type object = map[string]interface{}
 
 var JSTemplateTest = []struct {
-	filename  string
-	input map[string]interface{}
+	filename string
+	input    map[string]interface{}
 	expected interface{}
 }{
 	{"test_data/table_name_expression.js", object{}, nil},
@@ -18,12 +18,10 @@ var JSTemplateTest = []struct {
 	{"test_data/table_name_expression.js", object{"event_type": "important", "user": object{"email": "reg@ksense.io"}}, "app"},
 	{"test_data/table_name_expression.js", object{"event_type": "important", "user": object{"email": "test@test.com"}}, "important"},
 
-
 	{"test_data/table_name_expression2.js", object{}, "undefinedweb_test"},
 	{"test_data/table_name_expression2.js", object{"metric_type": "good_metric"}, "good_metric"},
 	{"test_data/table_name_expression2.js", object{"app": "some_app"}, "some_appweb_test"},
 	{"test_data/table_name_expression2.js", object{"metric_type": "important", "app": "some_app"}, "important"},
-
 
 	{"test_data/table_name_logic.js", object{}, false},
 	{"test_data/table_name_logic.js", object{"event_type": "app_page"}, "app"},
@@ -49,7 +47,6 @@ var JSTemplateTest = []struct {
 
 	{"test_data/arrow_function.js", object{"event_type": "app_page"}, "APP_PAGE"},
 
-
 	//TODO: babels plugin transform-template-literals ruins emoji characters 😢 disable test for now
 	//{"test_data/template_literal_emoji.js", object{"event_type": "app_page"}, "🤘 app_page"},
 
@@ -62,7 +59,7 @@ func TestTransform(t *testing.T) {
 			if err != nil {
 				panic(err)
 			}
-			script, err := BabelizeProcessEvent(string(file))
+			script, err := BabelizeAndWrap(string(file), functionName)
 			if err != nil {
 				t.Errorf("%s Transforming failed: %v", tt.filename, err)
 				return
@@ -73,7 +70,7 @@ func TestTransform(t *testing.T) {
 				t.Errorf("%s Failed loading script into vm: %v", tt.filename, err)
 			}
 			var input = make(map[string]interface{})
-			for k,v := range tt.input {
+			for k, v := range tt.input {
 				input[k] = v
 			}
 			res, err := ProcessEvent(function, input)

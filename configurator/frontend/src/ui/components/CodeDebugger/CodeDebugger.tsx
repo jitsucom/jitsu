@@ -74,7 +74,10 @@ export interface FormValues {
 interface CalculationResult {
   code: "error" | "success"
   format: string | null
-  message: string
+  result: string
+  error?: string
+  userResult?: string
+  userError?: string
 }
 
 const CodeDebugger = ({
@@ -162,13 +165,17 @@ const CodeDebugger = ({
       setCalcResult({
         code: "success",
         format: response.format,
-        message: response.result,
+        result: response.result,
+        userResult: response.user_result,
+        userError: response.user_error,
       })
     } catch (error) {
       setCalcResult({
         code: "error",
         format: error?._response?.format,
-        message: error?.message ?? "Error",
+        result: error?._response?.result ?? error?.message ?? "Error",
+        userResult: error?._response?.user_result,
+        userError: error?._response?.user_error,
       })
     } finally {
       setRunIsLoading(false)
@@ -293,38 +300,78 @@ const CodeDebugger = ({
 
           {showOutput && (
             <ReflexElement>
-              <SectionWithLabel label="Result">
-                <div className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
-                  <div
-                    className={cn("flex flex-col w-full h-full m-0", {
-                      [styles.itemError]: calcResult?.code === "error",
-                      [styles.itemSuccess]: calcResult?.code === "success",
-                    })}
-                  >
-                    <strong className={cn(`absolute top-1 right-2 flex-shrink-0 text-xs`)}>
-                      {runIsLoading ? (
-                        <Spin indicator={<LoadingOutlined style={{ fontSize: 15 }} spin />} />
-                      ) : (
-                        `${calcResult?.code ?? ""}`
-                      )}
-                    </strong>
-                    {calcResult && (
-                      <span className={`flex-auto min-w-0 text-xs`}>
-                        {calcResult.code === "error" ? (
-                          calcResult.message
-                        ) : (
-                          <SyntaxHighlighterAsync
-                            language="json"
-                            className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
+              {runIsLoading ? (
+                <Spin indicator={<LoadingOutlined style={{ fontSize: 15 }} spin />} />
+              ) : (
+                <ReflexContainer orientation="horizontal">
+                  {((calcResult?.userResult && calcResult?.userResult !== calcResult?.result) ||
+                    (calcResult?.userError && calcResult?.userError !== calcResult?.error)) && (
+                    <ReflexElement>
+                      <SectionWithLabel label="User Transformation Result">
+                        <div
+                          className={`h-1/2 box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}
+                        >
+                          <div
+                            className={cn("flex flex-col w-full m-0", {
+                              [styles.itemError]: !!calcResult?.userError,
+                              [styles.itemSuccess]: !!calcResult?.userResult,
+                            })}
                           >
-                            {calcResult.message}
-                          </SyntaxHighlighterAsync>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </SectionWithLabel>
+                            <strong className={cn(`absolute top-1 right-2 flex-shrink-0 text-xs`)}>
+                              {calcResult?.userResult ? "success" : calcResult?.userError ? "error" : ""}
+                            </strong>
+                            {calcResult && (
+                              <span className={`flex-auto min-w-0 text-xs`}>
+                                {calcResult.userError ? (
+                                  calcResult.userError
+                                ) : (
+                                  <SyntaxHighlighterAsync
+                                    language="json"
+                                    className={`w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
+                                  >
+                                    {calcResult.userResult}
+                                  </SyntaxHighlighterAsync>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </SectionWithLabel>
+                    </ReflexElement>
+                  )}
+                  <ReflexSplitter propagate className={`${styles.splitterHorizontal}`} />
+                  <ReflexElement>
+                    <SectionWithLabel label="Full Data Transformation">
+                      <div className={`box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
+                        <div
+                          className={cn("flex flex-col w-full h-full m-0", {
+                            [styles.itemError]: !!calcResult?.error,
+                            [styles.itemSuccess]: !!calcResult?.result,
+                          })}
+                        >
+                          <strong className={cn(`absolute top-1 right-2 flex-shrink-0 text-xs`)}>
+                            {calcResult?.result ? "success" : calcResult?.error ? "error" : ""}
+                          </strong>
+                          {calcResult && (
+                            <span className={`flex-auto min-w-0 text-xs`}>
+                              {calcResult.error ? (
+                                calcResult.error
+                              ) : (
+                                <SyntaxHighlighterAsync
+                                  language="json"
+                                  className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
+                                >
+                                  {calcResult.result}
+                                </SyntaxHighlighterAsync>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </SectionWithLabel>
+                  </ReflexElement>
+                </ReflexContainer>
+              )}
             </ReflexElement>
           )}
         </ReflexContainer>
