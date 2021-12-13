@@ -146,9 +146,6 @@ func (ec *EventsCache) put(destinationID, eventID string, value events.Event) {
 	//delete old if overflow
 	if eventsInCache > ec.capacityPerDestination {
 		toDelete := eventsInCache - ec.capacityPerDestination
-		if toDelete > 2 {
-			logging.Debugf("[%s] Events cache size: [%d] capacity: [%d] elements to delete: [%d]", destinationID, eventsInCache, ec.capacityPerDestination, toDelete)
-		}
 		for i := 0; i < toDelete; i++ {
 			err := ec.storage.RemoveLastEvent(destinationID)
 			if err != nil {

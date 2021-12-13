@@ -10,7 +10,7 @@ services:
       - REDIS_URL=redis://redis:6379
       #Retroactive users recognition can affect RAM significant. Read more about the solution https://jitsu.com/docs/other-features/retroactive-user-recognition
       - USER_RECOGNITION_ENABLED=true
-      - USER_RECOGNITION_REDIS_URL=redis://redis_users_recognition:6379
+      - USER_RECOGNITION_REDIS_URL=redis://redis_users_recognition:6380
       - TERM=xterm-256color
     depends_on:
       - redis
