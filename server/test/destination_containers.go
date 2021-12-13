@@ -187,16 +187,16 @@ func (mc *MySQLContainer) CountRows(table string) (int, error) {
 	return count, err
 }
 
-//GetAllSortedRows returns all selected row from table ordered according to orderClause
+//GetSortedRows returns all selected row from table ordered according to orderClause
 //or error if occurred
-func (pgc *PostgresContainer) GetAllSortedRows(table, whereClause, orderClause string) ([]map[string]interface{}, error) {
+func (pgc *PostgresContainer) GetSortedRows(table, selectClause, whereClause, orderClause string) ([]map[string]interface{}, error) {
 	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable",
 		pgc.Host, pgc.Port, pgc.Database, pgc.Username, pgc.Password)
 	dataSource, err := sql.Open("postgres", connectionString)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := dataSource.Query(fmt.Sprintf("SELECT * from %s where %s %s", table, utils.NvlString(whereClause, "1=1"), orderClause))
+	rows, err := dataSource.Query(fmt.Sprintf("SELECT %s from %s where %s %s", selectClause, table, utils.NvlString(whereClause, "1=1"), orderClause))
 	if err != nil {
 		return nil, err
 	}
