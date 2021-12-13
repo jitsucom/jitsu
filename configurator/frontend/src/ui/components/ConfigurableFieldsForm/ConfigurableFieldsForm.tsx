@@ -157,7 +157,7 @@ const ConfigurableFieldsFormComponent = ({
       form.getFieldValue(id) ?? getInitialValue(id, defaultValue, constantValue, type?.typeName)
     form.setFieldsValue({ ...form.getFieldsValue(), [id]: defaultValueToDisplay })
 
-    const className = hideFields.some(field => field === getFieldNameById(id)) ? "hidden" : ""
+    const className = hideFields?.some(field => field === getFieldNameById(id)) ? "hidden" : ""
 
     const FormItemWoStylesTuned: React.FC = ({ children }) => {
       return (
