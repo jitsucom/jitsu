@@ -4,12 +4,10 @@ on:
   push:
     branches: 
       - '**'
-#  pull_request:
-#    branches: [ master, beta ]
 
 jobs:
 
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -34,12 +32,6 @@ jobs:
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
-
-    - name: Build Backend
-      run: |
-        go mod tidy
-        go build
-      working-directory: ./configurator/backend
           
     - name: Build Server
       run: |
@@ -49,9 +41,14 @@ jobs:
 
     - name: Test Server
       run: |
-        go install github.com/vakenbolt/go-test-report@latest
         go test -parallel=1 -json ./... > test_report.json
       working-directory: ./server
+
+    - name: Build Backend
+      run: |
+        go mod tidy
+        go build
+      working-directory: ./configurator/backend
 
     - name: Test Report
       if: always()
