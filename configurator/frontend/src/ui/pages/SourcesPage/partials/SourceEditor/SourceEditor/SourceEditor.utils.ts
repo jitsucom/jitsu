@@ -8,6 +8,7 @@ import { SourceConnector } from "catalog/sources/types"
 import { makeObjectFromFieldsValues } from "utils/forms/marshalling"
 import { sourcesStore } from "stores/sources"
 import { COLLECTIONS_SCHEDULES } from "constants/schedule"
+import { UI_ONLY_FIELD_PREFIX } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 
 const STREAM_UID_DELIMITER = "__"
 
@@ -18,11 +19,12 @@ export const sourceEditorUtils = {
     initialSourceData: Partial<SourceData>
   ): SourceData => {
     const { configuration, streams, connections } = sourceEditorState ?? {}
+    const omitFieldsWithPrefix = UI_ONLY_FIELD_PREFIX
 
     let updatedSourceData: SourceData = merge(
-      makeObjectFromFieldsValues(merge({}, ...Object.values(configuration.config))),
-      makeObjectFromFieldsValues(streams.selectedStreams),
-      makeObjectFromFieldsValues(connections.connections)
+      makeObjectFromFieldsValues(merge({}, ...Object.values(configuration.config)), { omitFieldsWithPrefix }),
+      makeObjectFromFieldsValues(streams.selectedStreams, { omitFieldsWithPrefix }),
+      makeObjectFromFieldsValues(connections.connections, { omitFieldsWithPrefix })
     )
 
     const catalogSourceData: Pick<SourceData, "sourceType" | "sourceProtoType"> = {
