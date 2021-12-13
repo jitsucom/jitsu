@@ -23,7 +23,10 @@ notifications:
     url: '${env.SLACK_NOTIFICATIONS_WEBHOOK|}'
 
 users_recognition:
-  enabled: '${env.USER_RECOGNITION_ENABLED|true}'
+  enabled: '${env.USER_RECOGNITION_ENABLED|false}'
+  redis:
+    host: '${env.USER_RECOGNITION_REDIS_URL|}'
+    tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
 
 meta:
   storage:
@@ -42,11 +45,13 @@ coordination:
 
 sql_debug_log:
   ddl:
-    path: /home/eventnative/data/logs
-    rotation_min: 1440
+    enabled: '${env.SQL_DDL_LOG_ENABLED|true}'
   queries:
-    path: /home/eventnative/data/logs
-    rotation_min: 60
+    enabled: '${env.SQL_QUERIES_LOG_ENABLED|false}'
+
+singer-bridge:
+  log:
+    enabled: '${env.SINGER_LOG_ENABLED|false}'
 
 google-ads:
   developer-token: '${env.GOOGLE_ADS_DEVELOPER_TOKEN|}'

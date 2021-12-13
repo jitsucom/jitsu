@@ -110,6 +110,10 @@ func (r *Redis) Size() int64 {
 	return size
 }
 
+func (r *Redis) Type() string {
+	return RedisType
+}
+
 //Close doesn't close sharedPool
 func (r *Redis) Close() error {
 	close(r.closed)

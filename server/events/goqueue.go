@@ -26,7 +26,7 @@ func NewLevelDBQueue(identifier, queueName, logEventPath string) (Queue, error) 
 		return nil, fmt.Errorf(errCreateQueueTemplate, queueDir, err)
 	}
 
-	metrics.InitialStreamEventsQueueSize(identifier, queue.Size())
+	metrics.SetStreamEventsQueueSize(identifier, queue.Size())
 
 	return &LevelDBQueue{queue: queue, identifier: identifier}, nil
 }

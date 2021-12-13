@@ -70,6 +70,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
       await handleValidateAndTestConfig()
       await handleGoToNextStep()
     } catch {
+      // handleValidateAndTestConfig shows a message in case of an error
     } finally {
       setCurrentStepIsLoading(false)
     }

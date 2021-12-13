@@ -37,7 +37,7 @@ func NewUserAgentParseRule(source, destination jsonutils.JSONPath) (*UserAgentPa
 	}, nil
 }
 
-//Execute returns parsed ua from cache or resolves with useragent.Resolver
+//Execute sets parsed ua from cache or resolves with useragent.Resolver. Also returns set value to destination path
 func (uap *UserAgentParseRule) Execute(event map[string]interface{}) {
 	if !uap.enrichmentConditionFunc(event) {
 		return
@@ -80,4 +80,8 @@ func (uap *UserAgentParseRule) Execute(event map[string]interface{}) {
 
 func (uap *UserAgentParseRule) Name() string {
 	return UserAgentParse
+}
+
+func (uap *UserAgentParseRule) DstPath() jsonutils.JSONPath {
+	return uap.destination
 }

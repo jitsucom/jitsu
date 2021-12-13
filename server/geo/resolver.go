@@ -52,20 +52,20 @@ type Resolver interface {
 
 //Data is a geo location data dto
 type Data struct {
-	Continent   string  `json:"continent,omitempty"`
-	Country     string  `json:"country,omitempty"`
-	CountryName string  `json:"country_name,omitempty"`
-	City        string  `json:"city,omitempty"`
-	Lat         float64 `json:"latitude,omitempty"`
-	Lon         float64 `json:"longitude,omitempty"`
-	Zip         string  `json:"zip,omitempty"`
-	Region      string  `json:"region,omitempty"`
+	Continent   string  `mapstructure:"continent,omitempty" json:"continent,omitempty"`
+	Country     string  `mapstructure:"country,omitempty" json:"country,omitempty"`
+	CountryName string  `mapstructure:"country_name,omitempty" json:"country_name,omitempty"`
+	City        string  `mapstructure:"city,omitempty" json:"city,omitempty"`
+	Lat         float64 `mapstructure:"latitude,omitempty" json:"latitude,omitempty"`
+	Lon         float64 `mapstructure:"longitude,omitempty" json:"longitude,omitempty"`
+	Zip         string  `mapstructure:"zip,omitempty" json:"zip,omitempty"`
+	Region      string  `mapstructure:"region,omitempty" json:"region,omitempty"`
 
-	ASN          uint   `json:"autonomous_system_number,omitempty"`
-	ASO          string `json:"autonomous_system_organization,omitempty"`
-	ISP          string `json:"isp,omitempty"`
-	Organization string `json:"organization,omitempty"`
-	Domain       string `json:"domain,omitempty"`
+	ASN          uint   `mapstructure:"autonomous_system_number,omitempty" json:"autonomous_system_number,omitempty"`
+	ASO          string `mapstructure:"autonomous_system_organization,omitempty" json:"autonomous_system_organization,omitempty"`
+	ISP          string `mapstructure:"isp,omitempty" json:"isp,omitempty"`
+	Organization string `mapstructure:"organization,omitempty" json:"organization,omitempty"`
+	Domain       string `mapstructure:"domain,omitempty" json:"domain,omitempty"`
 }
 
 //ResolverConfig is a dto for geo data resolver config serialization
