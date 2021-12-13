@@ -33,6 +33,7 @@ type Bridge struct {
 	ConfigDir       string
 	WorkspaceVolume string
 
+	batchSize int
 	//spec loading
 	imageMutex    *sync.RWMutex
 	pullingImages *sync.Map
@@ -40,7 +41,9 @@ type Bridge struct {
 }
 
 //Init initializes airbyte Bridge
-func Init(ctx context.Context, configDir, workspaceVolume string, logWriter io.Writer) error {
+func Init(ctx context.Context, configDir, workspaceVolume string, batchSize int, logWriter io.Writer) error {
+	logging.Infof("Initializing Airbyte bridge. Batch size: %d", batchSize)
+
 	if logWriter == nil {
 		logWriter = ioutil.Discard
 	}
@@ -49,6 +52,7 @@ func Init(ctx context.Context, configDir, workspaceVolume string, logWriter io.W
 		ConfigDir:       configDir,
 		WorkspaceVolume: workspaceVolume,
 
+		batchSize:     batchSize,
 		imageMutex:    &sync.RWMutex{},
 		pullingImages: &sync.Map{},
 		pulledImages:  map[string]bool{},
