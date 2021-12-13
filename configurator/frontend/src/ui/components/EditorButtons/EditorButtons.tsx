@@ -1,6 +1,6 @@
 // @Libs
 import React from "react"
-import { Button, Popover } from "antd"
+import { Button, Popover, Tooltip } from "antd"
 // @Components
 import { PopoverTitle } from "ui/components/Popover/PopoverTitle"
 import { PopoverErrorsContent } from "ui/components/Popover/PopoverErrorsContent"
@@ -16,7 +16,7 @@ interface ButtonProps {
   handlePopoverClose: () => void
   titleText: string
   tabsList: Tab[]
-  disabled?: boolean
+  disabled?: boolean | string
 }
 
 export interface Props {
@@ -28,43 +28,47 @@ export interface Props {
 const EditorButtons = ({ test, save, handleCancel }: Props) => {
   return (
     <>
-      <Popover
-        content={<PopoverErrorsContent tabsList={save.tabsList} />}
-        title={<PopoverTitle title={save.titleText} handleClose={save.handlePopoverClose} />}
-        trigger="click"
-        visible={save.isPopoverVisible}
-      >
-        <Button
-          type="primary"
-          size="large"
-          className="mr-3"
-          htmlType="button"
-          loading={save.isRequestPending}
-          onClick={save.handlePress}
-          disabled={save.disabled}
+      <Tooltip title={typeof save.disabled === "string" ? save.disabled : undefined}>
+        <Popover
+          content={<PopoverErrorsContent tabsList={save.tabsList} />}
+          title={<PopoverTitle title={save.titleText} handleClose={save.handlePopoverClose} />}
+          trigger="click"
+          visible={save.isPopoverVisible}
         >
-          Save
-        </Button>
-      </Popover>
+          <Button
+            type="primary"
+            size="large"
+            className="mr-3"
+            htmlType="button"
+            loading={save.isRequestPending}
+            onClick={save.handlePress}
+            disabled={!!save.disabled}
+          >
+            Save
+          </Button>
+        </Popover>
+      </Tooltip>
 
-      <Popover
-        content={<PopoverErrorsContent tabsList={test.tabsList} />}
-        title={<PopoverTitle title={test.titleText} handleClose={test.handlePopoverClose} />}
-        trigger="click"
-        visible={test.isPopoverVisible}
-      >
-        <Button
-          size="large"
-          className="mr-3"
-          type="dashed"
-          loading={test.isRequestPending}
-          onClick={test.handlePress}
-          icon={<ApiOutlined />}
-          disabled={test.disabled}
+      <Tooltip title={typeof save.disabled === "string" ? test.disabled : undefined}>
+        <Popover
+          content={<PopoverErrorsContent tabsList={test.tabsList} />}
+          title={<PopoverTitle title={test.titleText} handleClose={test.handlePopoverClose} />}
+          trigger="click"
+          visible={test.isPopoverVisible}
         >
-          Test connection
-        </Button>
-      </Popover>
+          <Button
+            size="large"
+            className="mr-3"
+            type="dashed"
+            loading={test.isRequestPending}
+            onClick={test.handlePress}
+            icon={<ApiOutlined />}
+            disabled={!!test.disabled}
+          >
+            Test connection
+          </Button>
+        </Popover>
+      </Tooltip>
 
       {handleCancel && (
         <Button type="default" size="large" onClick={handleCancel} danger>
