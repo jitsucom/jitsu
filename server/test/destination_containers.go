@@ -196,7 +196,7 @@ func (pgc *PostgresContainer) GetSortedRows(table, selectClause, whereClause, or
 	if err != nil {
 		return nil, err
 	}
-	rows, err := dataSource.Query(fmt.Sprintf("SELECT %s from %s where %s %s", table, selectClause, utils.NvlString(whereClause, "1=1"), orderClause))
+	rows, err := dataSource.Query(fmt.Sprintf("SELECT %s from %s where %s %s", selectClause, table, utils.NvlString(whereClause, "1=1"), orderClause))
 	if err != nil {
 		return nil, err
 	}
