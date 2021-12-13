@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/uuid"
-	"strconv"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/logging"
@@ -21,8 +20,6 @@ const (
     				json 'auto'
                     dateformat 'auto'
                     timeformat 'auto'`
-
-	updateStatement = `UPDATE "%s"."%s" SET %s WHERE %s=$%d`
 
 	deleteBeforeBulkMergeUsing     = `DELETE FROM "%s"."%s" using "%s"."%s" where %s`
 	deleteBeforeBulkMergeCondition = `"%s"."%s".%s = "%s"."%s".%s`
@@ -217,25 +214,7 @@ func (ar *AwsRedshift) CreateTable(tableSchema *Table) error {
 
 //Update one record in Redshift
 func (ar *AwsRedshift) Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error {
-	columns := make([]string, len(object), len(object))
-	values := make([]interface{}, len(object)+1, len(object)+1)
-	i := 0
-	for name, value := range object {
-		columns[i] = name + "= $" + strconv.Itoa(i+1) //$0 - wrong
-		values[i] = value
-		i++
-	}
-	values[i] = whereValue
-
-	statement := fmt.Sprintf(updateStatement, ar.dataSourceProxy.config.Schema, table.Name, strings.Join(columns, ", "), whereKey, i+1)
-	ar.dataSourceProxy.queryLogger.LogQueryWithValues(statement, values)
-	_, err := ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, statement, values...)
-	if err != nil {
-		err = checkErr(err)
-		return fmt.Errorf("Error updating %s table with statement: %s values: %v: %v", table.Name, statement, values, err)
-	}
-
-	return nil
+	return ar.dataSourceProxy.Update(table, object, whereKey, whereValue)
 }
 
 func (ar *AwsRedshift) getPrimaryKeys(tableName string) (map[string]bool, error) {

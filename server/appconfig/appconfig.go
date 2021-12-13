@@ -67,7 +67,9 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.sync_tasks.store_logs.last_runs", -1)
 	viper.SetDefault("server.disable_version_reminder", false)
 	viper.SetDefault("server.disable_skip_events_warn", false)
+	viper.SetDefault("server.cache.enabled", true)
 	viper.SetDefault("server.cache.events.size", 100)
+	viper.SetDefault("server.cache.pool.size", 10)
 	viper.SetDefault("server.strict_auth_tokens", false)
 	viper.SetDefault("server.max_columns", 100)
 	viper.SetDefault("server.configurator_url", "/configurator")
@@ -81,6 +83,8 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.fields_configuration.dst_ua", "/eventn_ctx/parsed_ua||/parsed_ua")
 
 	viper.SetDefault("log.show_in_server", false)
+	viper.SetDefault("log.async_writers", false)
+	viper.SetDefault("log.pool.size", 10)
 	viper.SetDefault("log.rotation_min", 5)
 
 	viper.SetDefault("sql_debug_log.ddl.enabled", true)
@@ -91,8 +95,9 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("sql_debug_log.queries.max_backups", "7320") //30 days = 60 min * 7320
 
 	viper.SetDefault("users_recognition.enabled", false)
-	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id||/user/anonymous_id")
+	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id||/user/anonymous_id||/eventn_ctx/user/hashed_anonymous_id||/user/hashed_anonymous_id")
 	viper.SetDefault("users_recognition.identification_nodes", []string{"/eventn_ctx/user/internal_id||/user/internal_id"})
+	viper.SetDefault("users_recognition.pool.size", 10)
 
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.install_taps", true)
@@ -100,10 +105,12 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("singer-bridge.log.enabled", false)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
 	viper.SetDefault("singer-bridge.log.max_backups", "30") //30 days = 1440 min * 30
+	viper.SetDefault("singer-bridge.batch_size", 10_000)
 
 	viper.SetDefault("airbyte-bridge.log.enabled", false)
 	viper.SetDefault("airbyte-bridge.log.rotation_min", "1440")
 	viper.SetDefault("airbyte-bridge.log.max_backups", "30") //30 days = 1440 min * 30
+	viper.SetDefault("airbyte-bridge.batch_size", 10_000)
 
 	viper.SetDefault("server.volumes.workspace", "jitsu_workspace")
 

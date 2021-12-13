@@ -76,7 +76,7 @@ func (q *NativeQueue) ConsumeTimed(payload map[string]interface{}, t time.Time, 
 	}
 
 	if err := q.queue.Push(te); err != nil {
-		logSkippedEvent(payload, fmt.Errorf("Error putting event event bytes to the queue: %v", err))
+		logSkippedEvent(payload, fmt.Errorf("Error pushing event to the queue: %v", err))
 		return
 	}
 

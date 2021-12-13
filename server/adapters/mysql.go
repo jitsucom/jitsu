@@ -26,6 +26,7 @@ const (
 	mySQLCreateDBIfNotExistsTemplate = "CREATE DATABASE IF NOT EXISTS `%s`"
 	mySQLCreateTableTemplate         = "CREATE TABLE `%s`.`%s` (%s)"
 	mySQLInsertTemplate              = "INSERT INTO `%s`.`%s` (%s) VALUES %s"
+	mySQLUpdateTemplate              = "UPDATE `%s`.`%s` SET %s WHERE %s=?"
 	mySQLAlterPrimaryKeyTemplate     = "ALTER TABLE `%s`.`%s` ADD CONSTRAINT %s PRIMARY KEY (%s)"
 	mySQLMergeTemplate               = "INSERT INTO `%s`.`%s` (%s) VALUES %s ON DUPLICATE KEY UPDATE %s"
 	mySQLBulkMergeTemplate           = "INSERT INTO `%s`.`%s` (%s) SELECT * FROM (SELECT %s FROM `%s`.`%s`) AS tmp ON DUPLICATE KEY UPDATE %s"
@@ -216,6 +217,28 @@ func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, delet
 	}
 
 	return wrappedTx.DirectCommit()
+}
+
+//Update one record in MySQL
+func (m *MySQL) Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error {
+	columns := make([]string, len(object), len(object))
+	values := make([]interface{}, len(object)+1, len(object)+1)
+	i := 0
+	for name, value := range object {
+		columns[i] = m.quote(name) + "= ?"
+		values[i] = value
+		i++
+	}
+	values[i] = whereValue
+
+	statement := fmt.Sprintf(mySQLUpdateTemplate, m.config.Db, table.Name, strings.Join(columns, ", "), whereKey)
+	m.queryLogger.LogQueryWithValues(statement, values)
+	_, err := m.dataSource.ExecContext(m.ctx, statement, values...)
+	if err != nil {
+		return fmt.Errorf("Error updating %s table with statement: %s values: %v: %v", table.Name, statement, values, err)
+	}
+
+	return nil
 }
 
 //DropTable drops table in transaction

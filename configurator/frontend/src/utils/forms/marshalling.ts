@@ -9,11 +9,17 @@ const mapFieldValueArray = (array: Array<unknown>) => {
   )
 }
 
-const makeObjectFromFieldsValues = <F = any>(fields: any, options?: { omitEmptyValues: boolean }): F =>
+const makeObjectFromFieldsValues = <F = any>(
+  fields: any,
+  options?: { omitEmptyValues?: boolean; omitFieldsWithPrefix?: string }
+): F =>
   Object.keys(fields).reduce((accumulator: any, current: string) => {
+    const { omitEmptyValues, omitFieldsWithPrefix } = options ?? {}
+    if (omitFieldsWithPrefix && current.startsWith(omitFieldsWithPrefix)) return accumulator
+
     const value = fields[current]
     if (["string", "number", "boolean"].includes(typeof value)) {
-      if (options?.omitEmptyValues && (value === "" || isNullOrUndef(value))) return accumulator
+      if (omitEmptyValues && (value === "" || isNullOrUndef(value))) return accumulator
       set(accumulator, current, value === "null" ? null : value)
     } else if (typeof value === "object") {
       if (isArray(value)) {

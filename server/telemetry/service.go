@@ -154,7 +154,7 @@ func Event(sourceID, destinationID, src, sourceType string, quantity int) {
 func PushedErrorsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
 	if !instance.usageOptOut.Load() {
 		for src, quantity := range quantityPerSrc {
-			Error(sourceID, destinationID, src, "", quantity)
+			Error(sourceID, destinationID, src, "", int(quantity))
 		}
 	}
 }

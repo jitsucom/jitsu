@@ -150,19 +150,40 @@ func (r *Redis) DeleteSignature(sourceID, collection string) error {
 	return nil
 }
 
-//SuccessEvents ensures that id is in the index and increments success events counter
-func (r *Redis) SuccessEvents(id, namespace, eventType string, now time.Time, value int) error {
-	return r.incrementEventsCount(id, namespace, eventType, SuccessStatus, now, value)
-}
+//IncrementEventsCount increment events counter
+//namespaces: [destination, source]
+//eventType: [push, pull]
+//status: [success, error, skip]
+func (r *Redis) IncrementEventsCount(id, namespace, eventType, status string, now time.Time, value int64) error {
+	conn := r.pool.Get()
+	defer conn.Close()
 
-//ErrorEvents increments error events counter
-func (r *Redis) ErrorEvents(id, namespace, eventType string, now time.Time, value int) error {
-	return r.incrementEventsCount(id, namespace, eventType, ErrorStatus, now, value)
-}
+	if err := r.ensureIDInIndex(conn, id, namespace); err != nil {
+		return fmt.Errorf("Error ensuring id in index: %v", err)
+	}
 
-//SkipEvents increments skipp events counter
-func (r *Redis) SkipEvents(id, namespace, eventType string, now time.Time, value int) error {
-	return r.incrementEventsCount(id, namespace, eventType, SkipStatus, now, value)
+	//increment hourly events
+	dayKey := now.Format(timestamp.DayLayout)
+
+	hourlyEventsKey := getHourlyEventsKey(id, namespace, eventType, dayKey, status)
+	fieldHour := strconv.Itoa(now.Hour())
+	_, err := conn.Do("HINCRBY", hourlyEventsKey, fieldHour, value)
+	if err != nil && err != redis.ErrNil {
+		r.errorMetrics.NoticeError(err)
+		return err
+	}
+
+	//increment daily events
+	monthKey := now.Format(timestamp.MonthLayout)
+	dailyEventsKey := getDailyEventsKey(id, namespace, eventType, monthKey, status)
+	fieldDay := strconv.Itoa(now.Day())
+	_, err = conn.Do("HINCRBY", dailyEventsKey, fieldDay, value)
+	if err != nil && err != redis.ErrNil {
+		r.errorMetrics.NoticeError(err)
+		return err
+	}
+
+	return nil
 }
 
 //AddEvent saves event JSON string into Redis and ensures that event ID is in index by destination ID
@@ -1052,42 +1073,6 @@ func (r *Redis) ensureIDInIndex(conn redis.Conn, id, namespace string) error {
 	key := indexName + ":project#" + projectID
 
 	_, err := conn.Do("SADD", key, id)
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
-	}
-
-	return nil
-}
-
-//incrementEventsCount increment events counter
-//namespaces: [destination, source]
-//eventType: [push, pull]
-//status: [success, error, skip]
-func (r *Redis) incrementEventsCount(id, namespace, eventType, status string, now time.Time, value int) error {
-	conn := r.pool.Get()
-	defer conn.Close()
-
-	if err := r.ensureIDInIndex(conn, id, namespace); err != nil {
-		return fmt.Errorf("Error ensuring id in index: %v", err)
-	}
-
-	//increment hourly events
-	dayKey := now.Format(timestamp.DayLayout)
-
-	hourlyEventsKey := getHourlyEventsKey(id, namespace, eventType, dayKey, status)
-	fieldHour := strconv.Itoa(now.Hour())
-	_, err := conn.Do("HINCRBY", hourlyEventsKey, fieldHour, value)
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
-	}
-
-	//increment daily events
-	monthKey := now.Format(timestamp.MonthLayout)
-	dailyEventsKey := getDailyEventsKey(id, namespace, eventType, monthKey, status)
-	fieldDay := strconv.Itoa(now.Day())
-	_, err = conn.Do("HINCRBY", dailyEventsKey, fieldDay, value)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return err
