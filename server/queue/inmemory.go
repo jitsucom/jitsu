@@ -32,11 +32,13 @@ type InMemory struct {
 }
 
 func NewInMemory() Queue {
-	return &InMemory{
-		slice:                  make([]interface{}, 0),
+	im := &InMemory{
+		slice:                  make([]interface{}, 0, 30),
 		waitForNextElementChan: make(chan chan interface{}, WaitForNextElementChanCapacity),
 		closed:                 make(chan struct{}, 1),
 	}
+
+	return im
 }
 
 //Push enqueues an element. Returns ErrQueueClosed if queue is closed

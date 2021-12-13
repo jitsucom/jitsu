@@ -19,18 +19,32 @@ under `/configurator` path
 ### Environment Variables
 
 <APIParam small={true}  name="REDIS_URL" dataType="string" required={true} type="Docker Env Var">
-    Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
+    Main Redis. Value in format of Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
     <code inline={true}>redis://host:port without password</code>
+</APIParam>
+<APIParam small={true}  name="CLUSTER_ADMIN_TOKEN" dataType="string" required={true} type="Docker Env Var">
+    Admin Token for authorizing requests from/to Configurator.
 </APIParam>
 <APIParam small={true}  name="UI_AUTH_ACCESS_SECRET" dataType="string" required={true} type="Docker Env Var">
     Secrets used to sign and refresh JWT Access Token. Use any random strings.{' '}
-    Feel free to rotate them, change in the settings
-    will force logout of of Configurator
+    Feel free to rotate them, change in the settings will force logout of of Configurator
 </APIParam>
 <APIParam small={true}  name="UI_AUTH_REFRESH_SECRET" dataType="string" required={true} type="Docker Env Var">
     Secrets used to sign and refresh JWT Access Token. Use any random strings.{' '}
-    Feel free to rotate them, change in the settings
-    will force logout of of Configurator
+    Feel free to rotate them, change in the settings will force logout of of Configurator
+</APIParam>
+<APIParam small={true} name="USER_RECOGNITION_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
+    If <a href="/docs/other-features/retroactive-user-recognition">Retroactive User Recognition</a> should be enabled.
+    <code inline={true}>true</code> by default
+</APIParam>
+<APIParam small={true}  name="USER_RECOGNITION_REDIS_URL" dataType="string" required={false} type="Docker Env Var">
+    Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
+    <code inline={true}>redis://host:port without password</code> for using separate Redis for anonymous events. Read more about {' '}
+    <a href="/docs/other-features/redis-storage-memory-optimization">Redis storage memory optimization</a>.
+</APIParam>
+<APIParam small={true}  name="EVENTS_QUEUE_REDIS_URL" dataType="string" required={false} type="Docker Env Var">
+    Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
+    <code inline={true}>redis://host:port without password</code> for using separate Redis for incoming events JSON queue. All destinations in <code inline="true">stream</code> mode uses Redis events queue (if REDIS_URL or EVENTS_QUEUE_REDIS_URL configured). Otherwise they use in-memory queue).
 </APIParam>
 <APIParam small={true}  name="TLS_SKIP_VERIFY" dataType="boolean" required={false} type="Docker Env Var">
     Redis: skip client certificate verification
@@ -41,9 +55,18 @@ under `/configurator` path
 <APIParam small={true}  name="SLACK_NOTIFICATIONS_WEBHOOK" dataType="string" required={false} type="Docker Env Var">
     Slack webhook URL. Server starts, system errors, and panics information will be sent there
 </APIParam>
-<APIParam small={true} name="USER_RECOGNITION_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
-    If <a href="/docs/other-features/retroactive-user-recognition">Retroactive User Recognition</a> should be enabled.
-    <code inline={true}>true</code> by default
+<APIParam small={true} name="GOOGLE_ADS_DEVELOPER_TOKEN" dataType="string" required={false} type="Docker Env Var">
+    Developer Token for <a href="/docs/sources/google-ads">Google Ads connector</a>
+</APIParam>
+<APIParam small={true} name="SQL_DDL_LOG_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
+    Enable SQL DDL debug logs (create, update table statements). Default value is <code inline="true">true</code>
+</APIParam>
+<APIParam small={true} name="SQL_QUERIES_LOG_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
+    Enable SQL inserts debug logs. Warning: this feature can take significant disk space: all SQL insert statements will be written into the log file. {' '}
+    Default value is <code inline="false">true</code>
+</APIParam>
+<APIParam small={true} name="SOURCES_SYNC_BATCH_SIZE" dataType="integer" required={false} type="Docker Env Var">
+    Synchronization data batch size for writing into destinations. Default value is <code inline="false">10 000</code>. If you server has enough RAM you can increase this value for speed up your sources synchronization.
 </APIParam>
 
 ### Volumes

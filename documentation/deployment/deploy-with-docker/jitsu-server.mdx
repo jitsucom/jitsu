@@ -6,8 +6,9 @@ sort: 3
 
 There' two options on how to deploy [Jitsu Server](/docs/deployment).
 
-* **Standalone Deployment** (without Configurator). In that case, the server will require a
-[dedicated configuration file](/docs/configuration). The file should be mounted as a docker volume (via
+* **Standalone Deployment** (without Configurator). In that case, you can configure server in two ways:
+- via [OS ENV variables](#environment-variable)
+- via [dedicated configuration file](/docs/configuration). The file should be mounted as a docker volume (via
 `<local file path>.yaml/:/home/eventnative/data/config/eventnative.yaml`)
 * **With Configurator**. In that case, Jitsu Server is configured from UI, and configuration is being
 pulled from Configurator with HTTP
@@ -23,28 +24,41 @@ Don't forget to map `/home/eventnative/data/config/eventnative.yaml` to locally 
 
 ## Exposed ports
 
-`@jitsucom/server` image exposes `8000` port
+`@jitsucom/server` image exposes `8001` port
 
 ## Environment Variable
 
-If you're configuring Jitsu in Standalone mode (with [configuration file]((/docs/configuration))) - skip this section,
+If you're configuring Jitsu in Standalone mode (with [configuration file](/docs/configuration)) - skip this section,
 those variables will not work!
 
+<APIParam small={true}  name="CLUSTER_ADMIN_TOKEN" dataType="string" required={true} type="Docker Env Var">
+    Admin Token for authorizing requests from/to Configurator.
+</APIParam>
 <APIParam small={true}  name="REDIS_URL" dataType="string" required={true} type="Docker Env Var">
     Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
     <code inline={true}>redis://host:port without password</code>
 </APIParam>
+<APIParam small={true}  name="SERVER_PORT" dataType="integer" required={false} type="Docker Env Var">
+    Jitsu Server listening port. Default value is <code inline={true}>8001</code>.
+</APIParam>
+<APIParam small={true}  name="JITSU_CONFIGURATOR_URL" dataType="string" required={false} type="Docker Env Var">
+    HTTP URL of Jitsu Configurator. Required if Jitsu Server is going to be configured with Configurator UI.
+</APIParam>
 <APIParam small={true} name="TLS_SKIP_VERIFY" dataType="boolean" required={false} type="Docker Env Var">
     Redis: skip client certificate verification
 </APIParam>
-<APIParam small={true}  name="JITSU_CONFIGURATOR_URL" dataType="string" required={true} type="Docker Env Var">
-    HTTP URL of Jitsu Configurator
+<APIParam small={true} name="USER_RECOGNITION_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
+    If <a href="/docs/other-features/retroactive-user-recognition">Retroactive User Recognition</a> should be enabled.
+    <code inline={true}>false</code> by default
 </APIParam>
-<APIParam small={true}  name="SERVER_ADMIN_TOKEN" dataType="string" required={true} type="Docker Env Var">
-    Admin Token for authorizing requests from Configurator (should be the same as configured for <a href="/docs/deployment/deploy-with-docker/jitsu-cofigurator">Configurator</a>
+<APIParam small={true}  name="USER_RECOGNITION_REDIS_URL" dataType="string" required={false} type="Docker Env Var">
+    Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
+    <code inline={true}>redis://host:port without password</code> for using separate Redis for anonymous events. Read more about {' '}
+    <a href="/docs/other-features/redis-storage-memory-optimization">Redis storage memory optimization</a>.
 </APIParam>
-<APIParam small={true}  name="CONFIGURATOR_ADMIN_TOKEN" dataType="string" required={true} type="Docker Env Var">
-    Admin Token for authorizing requests to Configurator (should be the same as configured for <a href="/docs/deployment/deploy-with-docker/jitsu-cofigurator">Configurator</a>
+<APIParam small={true}  name="EVENTS_QUEUE_REDIS_URL" dataType="string" required={false} type="Docker Env Var">
+    Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
+    <code inline={true}>redis://host:port without password</code> for using separate Redis for incoming events JSON queue. All destinations in <code inline="true">stream</code> mode uses Redis events queue (if REDIS_URL or EVENTS_QUEUE_REDIS_URL configured). Otherwise they use in-memory queue).
 </APIParam>
 <APIParam small={true}  name="MAX_MIND_PATH" dataType="boolean" required={false} type="Docker Env Var">
     Redis: skip client certificate verification
@@ -52,12 +66,27 @@ those variables will not work!
 <APIParam small={true}  name="SLACK_NOTIFICATIONS_WEBHOOK" dataType="string" required={false} type="Docker Env Var">
     Slack webhook URL. Server starts, system errors, and panics information will be sent there
 </APIParam>
-<APIParam small={true} name="USER_RECOGNITION_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
-    If <a href="/docs/other-features/retroactive-user-recognition">Retroactive User Recognition</a> should be enabled.
-    <code inline={true}>true</code> by default
-</APIParam>
 <APIParam small={true} name="GOOGLE_ADS_DEVELOPER_TOKEN" dataType="string" required={false} type="Docker Env Var">
     Developer Token for <a href="/docs/sources/google-ads">Google Ads connector</a>
+</APIParam>
+<APIParam small={true} name="SQL_DDL_LOG_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
+    Enable SQL DDL debug logs (create, update table statements). Default value is <code inline="true">true</code>
+</APIParam>
+<APIParam small={true} name="SQL_QUERIES_LOG_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
+    Enable SQL inserts debug logs. Warning: this feature can take significant disk space: all SQL insert statements will be written into the log file. {' '}
+    Default value is <code inline="false">true</code>
+</APIParam>
+<APIParam small={true} name="SOURCES_SYNC_BATCH_SIZE" dataType="integer" required={false} type="Docker Env Var">
+    Synchronization data batch size for writing into destinations. Default value is <code inline="false">10 000</code>. If you server has enough RAM you can increase this value for speed up your sources synchronization.
+</APIParam>
+<APIParam small={true} name="API_KEYS_URL" dataType="JSON object" required={false} type="Docker Env Var">
+    Can be an URL for getting API keys JSON or raw JSON. Read more about <a href="/docs/configuration/authorization#http-url">API keys configuration format</a>.
+</APIParam>
+<APIParam small={true} name="DESTINATIONS_URL" dataType="JSON object" required={false} type="Docker Env Var">
+    Can be an URL for getting Destinations configuration JSON or raw JSON. Read more about <a href="/docs/destinations-configuration#configuring-destinations-via-http--endpoint">Destinations configuration format</a>.
+</APIParam>
+<APIParam small={true} name="SOURCES_URL" dataType="JSON object" required={false} type="Docker Env Var">
+    Can be an URL for getting Sources configuration JSON or raw JSON. Read more about <a href="/docs/sources-configuration#configuring-sources-via-http--endpoint">Sources configuration format</a>.
 </APIParam>
 
 
