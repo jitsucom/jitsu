@@ -2,8 +2,8 @@ package testsuit
 
 import (
 	"context"
-	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/config"
+	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"net/http"
 	"os"
@@ -136,7 +136,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		recognitionService:               dummyRecognitionService,
 		destinationService:               destinationService,
 		systemService:                    systemService,
-		eventsCache:                      caching.NewEventsCache(metaStorage, 100, 1),
+		eventsCache:                      caching.NewEventsCache(true, metaStorage, 100, 1),
 		geoService:                       geo.NewTestService(nil),
 	}
 }
@@ -190,7 +190,7 @@ func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
 	storage, err := users.InitializeStorage(true, viper.Sub("meta.storage"))
 	require.NoError(t, err)
 
-	usersRecognitionService, err := users.NewRecognitionService(storage, sb.destinationService, sb.globalUsersRecognitionConfig, os.TempDir())
+	usersRecognitionService, err := users.NewRecognitionService(storage, sb.destinationService, sb.globalUsersRecognitionConfig)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(usersRecognitionService)
 

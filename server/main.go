@@ -297,6 +297,7 @@ func main() {
 	counters.InitEvents(metaStorage)
 
 	//events cache
+	eventsCacheEnabled := viper.GetBool("server.cache.enabled")
 	eventsCacheSize := viper.GetInt("server.cache.events.size")
 	eventsCachePoolSize := viper.GetInt("server.cache.pool.size")
 	if eventsCachePoolSize == 0 {
@@ -304,7 +305,7 @@ func main() {
 		logging.Infof("server.cache.pool.size can't be 0. Using default value=1 instead")
 
 	}
-	eventsCache := caching.NewEventsCache(metaStorage, eventsCacheSize, eventsCachePoolSize)
+	eventsCache := caching.NewEventsCache(eventsCacheEnabled, metaStorage, eventsCacheSize, eventsCachePoolSize)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
 	// ** Retroactive users recognition

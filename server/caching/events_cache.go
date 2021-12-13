@@ -25,7 +25,15 @@ type EventsCache struct {
 }
 
 //NewEventsCache returns EventsCache and start goroutine for async operations
-func NewEventsCache(storage meta.Storage, capacityPerDestination, poolSize int) *EventsCache {
+func NewEventsCache(enabled bool, storage meta.Storage, capacityPerDestination, poolSize int) *EventsCache {
+	if !enabled {
+		logging.Warnf("Events cache is disabled.")
+		done := make(chan struct{})
+		close(done)
+		//return closed
+		return &EventsCache{done: done}
+	}
+
 	if storage.Type() == meta.DummyType {
 		logging.Warnf("Events cache is disabled. Since 'meta.storage' configuration is required.")
 

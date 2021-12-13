@@ -235,7 +235,6 @@ func (m *MySQL) Update(table *Table, object map[string]interface{}, whereKey str
 	m.queryLogger.LogQueryWithValues(statement, values)
 	_, err := m.dataSource.ExecContext(m.ctx, statement, values...)
 	if err != nil {
-		err = checkErr(err)
 		return fmt.Errorf("Error updating %s table with statement: %s values: %v: %v", table.Name, statement, values, err)
 	}
 
