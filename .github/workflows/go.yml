@@ -4,12 +4,10 @@ on:
   push:
     branches: 
       - '**'
-#  pull_request:
-#    branches: [ master, beta ]
 
 jobs:
 
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -42,12 +40,27 @@ jobs:
       working-directory: ./server
 
     - name: Test Server
-      run: go test -failfast -v -parallel=1 ./...
+      run: |
+        go test -parallel=1 -json ./... > test_report.json
       working-directory: ./server
-      
+
     - name: Build Backend
       run: |
         go mod tidy
         go build
       working-directory: ./configurator/backend
+
+    - name: Test Report
+      if: always()
+      run: |
+        go install github.com/vakenbolt/go-test-report@latest
+        cat test_report.json | ~/go/bin/go-test-report
+      working-directory: ./server
+
+    - uses: actions/upload-artifact@v2
+      if: always()
+      with:
+        name: test-report
+        path: |
+          ./server/test_report.html
 
