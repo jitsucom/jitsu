@@ -104,10 +104,12 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("singer-bridge.log.enabled", false)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
 	viper.SetDefault("singer-bridge.log.max_backups", "30") //30 days = 1440 min * 30
+	viper.SetDefault("singer-bridge.batch_size", 10_000)
 
 	viper.SetDefault("airbyte-bridge.log.enabled", false)
 	viper.SetDefault("airbyte-bridge.log.rotation_min", "1440")
 	viper.SetDefault("airbyte-bridge.log.max_backups", "30") //30 days = 1440 min * 30
+	viper.SetDefault("airbyte-bridge.batch_size", 10_000)
 
 	viper.SetDefault("server.volumes.workspace", "jitsu_workspace")
 

@@ -52,6 +52,10 @@ sql_debug_log:
 singer-bridge:
   log:
     enabled: '${env.SINGER_LOG_ENABLED|false}'
+  batch_size: '${env.SINGER_BATCH_SIZE|10000}'
+
+airbyte-bridge:
+  batch_size: '${env.AIRBYTE_BATCH_SIZE|10000}'
 
 google-ads:
   developer-token: '${env.GOOGLE_ADS_DEVELOPER_TOKEN|}'
