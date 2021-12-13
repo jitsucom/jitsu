@@ -23,6 +23,14 @@ const mixpanelDestination = {
     <>
       Jitsu can send events from JS SDK or Events API to Mixpanel Ingestion API filling as much Mixpanel Events
       Properties as possible from original event data.
+      <br />
+      Implementation is based on npm-package:
+      <br />
+      https://www.npmjs.com/package/mixpanel-destination
+      <br />
+      Source code:
+      <br />
+      https://github.com/jitsucom/jitsu-mixpanel
     </>
   ),
   syncFromSourcesStatus: "not_supported",
@@ -53,9 +61,14 @@ const mixpanelDestination = {
           Mixpanel destination may also send User Profiles data to Mixpanel accounts that have User Profiles enabled.
           <br />
           <br />
-          For more on Mixpanel destination customization check{" "}
-          <a target="_blank" href="https://jitsu.com/docs/destinations-configuration/mixpanel">
-            Documentation
+          Implementation is based on <b>npm-package:</b>{" "}
+          <a target={"_blank"} href={"https://www.npmjs.com/package/mixpanel-destination"}>
+            mixpanel-destination
+          </a>
+          <br />
+          Source code on{" "}
+          <a target={"_blank"} href={"https://github.com/jitsucom/jitsu-mixpanel"}>
+            Jitsu Github
           </a>
         </span>
       ),
