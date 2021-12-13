@@ -7,8 +7,8 @@ sort: 3
 There' two options on how to deploy [Jitsu Server](/docs/deployment).
 
 * **Standalone Deployment** (without Configurator). In that case, you can configure server in two ways:
-- via [OS ENV variables](#environment-variable)
-- via [dedicated configuration file](/docs/configuration). The file should be mounted as a docker volume (via
+1. via [OS ENV variables](#environment-variable)
+2. via [dedicated configuration file](/docs/configuration). The file should be mounted as a docker volume (via
 `<local file path>.yaml/:/home/eventnative/data/config/eventnative.yaml`)
 * **With Configurator**. In that case, Jitsu Server is configured from UI, and configuration is being
 pulled from Configurator with HTTP
