@@ -172,7 +172,7 @@ func (p *Postgres) Clean(tableName string) error {
 	return cleanImpl(p, tableName)
 }
 
-//Update uses SyncStore under the hood
+//Update updates record in Postgres
 func (p *Postgres) Update(objects []map[string]interface{}) error {
 	_, tableHelper := p.getAdapters()
 	for _, object := range objects {
