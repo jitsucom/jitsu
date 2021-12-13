@@ -10,19 +10,20 @@ import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types
 import { SetSourceEditorState, SourceEditorState } from "./SourceEditor"
 import { useState } from "react"
 import { Steps } from "antd"
-import { SourceEditorViewStepsControls } from "./SourceEditorViewStepsControls"
+import { SourceEditorStepsControlsDisabled, SourceEditorViewStepsControls } from "./SourceEditorViewStepsControls"
 import { LoadingOutlined } from "@ant-design/icons"
+import { uniqueId } from "lodash"
 
 type SourceEditorTabsViewProps = {
   state: SourceEditorState
-  controlsDisabled: boolean
+  controlsDisabled: SourceEditorStepsControlsDisabled
   editorMode: "add" | "edit"
   showDocumentationDrawer: boolean
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
   configIsValidatedByStreams: boolean
   setSourceEditorState: SetSourceEditorState
-  setControlsDisabled: ReactSetState<boolean>
+  handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
   setConfigIsValidatedByStreams: (value: boolean) => void
   setShowDocumentationDrawer: (value: boolean) => void
   handleBringSourceData: () => SourceData
@@ -41,7 +42,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   sourceDataFromCatalog,
   configIsValidatedByStreams,
   setSourceEditorState,
-  setControlsDisabled,
+  handleSetControlsDisabled,
   setConfigIsValidatedByStreams,
   setShowDocumentationDrawer,
   handleBringSourceData,
@@ -64,7 +65,6 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   }
 
   const configurationProceedAction: AsyncUnknownFunction = async () => {
-    setControlsDisabled(true)
     setCurrentStepIsLoading(true)
     try {
       await handleValidateAndTestConfig()
@@ -73,7 +73,6 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
       // handleValidateAndTestConfig shows a message in case of an error
     } finally {
       setCurrentStepIsLoading(false)
-      setControlsDisabled(false)
     }
   }
 
@@ -88,7 +87,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
           sourceDataFromCatalog={sourceDataFromCatalog}
           disabled={currentStepIsLoading}
           setSourceEditorState={setSourceEditorState}
-          setControlsDisabled={setControlsDisabled}
+          handleSetControlsDisabled={handleSetControlsDisabled}
           setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
         />
       ),
@@ -103,7 +102,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
           sourceDataFromCatalog={sourceDataFromCatalog}
           sourceConfigValidatedByStreamsTab={configIsValidatedByStreams}
           setSourceEditorState={setSourceEditorState}
-          setControlsDisabled={setControlsDisabled}
+          handleSetControlsDisabled={handleSetControlsDisabled}
           setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
           handleBringSourceData={handleBringSourceData}
         />
@@ -148,7 +147,6 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
               title: steps[currentStep].proceedButtonTitle ?? "Next",
               handleClick: steps[currentStep].proceedAction,
             }}
-            hideOauthButton={currentStep !== 0}
             handleCancel={handleLeaveEditor}
             handleStepBack={currentStep === 0 ? undefined : handleStepBack}
             controlsDisabled={controlsDisabled}

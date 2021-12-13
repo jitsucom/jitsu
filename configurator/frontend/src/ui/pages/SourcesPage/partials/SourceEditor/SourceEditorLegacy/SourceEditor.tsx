@@ -50,7 +50,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
 
   const [sourceSaving, setSourceSaving] = useState<boolean>(false)
   const [savePopover, switchSavePopover] = useState<boolean>(false)
-  const [controlsDisabled, setControlsDisabled] = useState<boolean>(false)
+  const [controlsDisabled, setControlsDisabled] = useState<boolean | string>(false)
 
   const [testConnecting, setTestConnecting] = useState<boolean>(false)
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false)
@@ -90,6 +90,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
       name: "Connection Properties",
       getComponent: (form: FormInstance) => (
         <SourceEditorConfig
+          editorMode={editorMode}
           form={form}
           sourceReference={connectorSource}
           isCreateForm={editorMode === "add"}
@@ -157,8 +158,8 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
     tab.touched = value === undefined ? true : value
   }, [])
 
-  const handleDisableFormControls = useCallback(() => {
-    setControlsDisabled(true)
+  const handleDisableFormControls = useCallback((reason?: string) => {
+    setControlsDisabled(reason ?? true)
   }, [])
 
   const handleEnableFormControls = useCallback(() => {

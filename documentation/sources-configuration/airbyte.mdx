@@ -38,7 +38,7 @@ Airbyte configuration is a two of JSON objects (see [specification](https://docs
 | **[Catalog](https://docs.airbyte.io/understanding-airbyte/catalog)** | JSON object contains all streams (object types) and fields to download. If not provided, Jitsu will do discover and save catalog with all available streams. JSON structure is standardized, but stream and field names depend on the connector. |
 
 The connectors' configuration should be placed under the `sources` section of [configuration file](/docs/configuration). The structure is an extension
-of generic [source configuration](http://localhost:3000/docs/sources-configuration) - `type: airbyte` indicates that the source should be handled
+of generic [source configuration](/docs/sources-configuration) - `type: airbyte` indicates that the source should be handled
 by Airbyte executor
 
 ```yaml
