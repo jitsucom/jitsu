@@ -50,10 +50,18 @@ jobs:
     - name: Test Server
       run: |
         go install github.com/vakenbolt/go-test-report@latest
-        go test -failfast -v -parallel=1 -json ./... | ~/go/bin/go-test-report
+        go test -failfast -v -parallel=1 -json ./... > test_report.json
+      working-directory: ./server
+
+    - name: Test Report
+      if: always()
+      run: |
+        go install github.com/vakenbolt/go-test-report@latest
+        cat test_report.json | ~/go/bin/go-test-report -v
       working-directory: ./server
 
     - uses: actions/upload-artifact@v2
+      if: always()
       with:
         name: test-report
         path: |

@@ -36,7 +36,7 @@ var recogTest = []recogTestData{
 func TestPostgresRetroactiveUsersRecognition(t *testing.T) {
 	viper.Set("server.log.path", "")
 	viper.Set("log.path", "")
-	viper.Set("server.auth", `{"tokens":[{"id":"id1", "client_secret":"c2stoken_ur"}]}`)
+	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken_ur"}]}`)
 	viper.Set("users_recognition.enabled", true)
 
 	ctx := context.Background()
@@ -59,27 +59,27 @@ func TestPostgresRetroactiveUsersRecognition(t *testing.T) {
 	viper.Set("meta.storage.redis.port", redisContainer.Port)
 
 	configTemplate := `{"destinations": {
-	"test_postgres_user_recognition": {
-	"type": "postgres",
-	"mode": "stream",
-	"only_tokens": ["c2stoken_ur"],
-	"data_layout":{
-	"primary_key_fields":["eventn_ctx_event_id"],
-	"table_name_template": "recognition_events"
-	},
-	"datasource": {
-	"host": "%s",
-	"port": %d,
-	"db": "%s",
-	"schema": "%s",
-	"username": "%s",
-	"password": "%s",
-	"parameters": {
-	"sslmode": "disable"
-	}
-	}
-	}
-	}}`
+  			"test_postgres_user_recognition": {
+        		"type": "postgres",
+        		"mode": "stream",
+				"only_tokens": ["c2stoken_ur"],
+				"data_layout":{
+                    "primary_key_fields":["eventn_ctx_event_id"],
+                    "table_name_template": "recognition_events"
+                },
+        		"datasource": {
+          			"host": "%s",
+					"port": %d,
+          			"db": "%s",
+          			"schema": "%s",
+          			"username": "%s",
+          			"password": "%s",
+					"parameters": {
+						"sslmode": "disable"
+					}
+        		}
+      		}
+    	}}`
 
 	destinationConfig := fmt.Sprintf(configTemplate, postgresContainer.Host, postgresContainer.Port, postgresContainer.Database, postgresContainer.Schema, postgresContainer.Username, postgresContainer.Password)
 
@@ -96,28 +96,28 @@ func TestPostgresRetroactiveUsersRecognition(t *testing.T) {
 			//2. recognized[anonym1] identify
 
 			pageviewReqPayload := []byte(`{
-	"event_type": "pageview",
-	"eventn_ctx": {
-	"event_id": "` + testData.eventIds[0] + `",
-	"user": {
-	"anonymous_id": "` + testData.anonymousId + `"
-	},
-	"user_agent": "` + testData.userAgent + `",
-	"utc_time": "2020-12-23T17:55:54.900000Z",
-	"local_tz_offset": -180,
-	"referer": "",
-	"url": "https://jitsu.com/",
-	"page_title": "Jitsu: Open-source data integration and event collection",
-	"doc_path": "/",
-	"doc_host": "jitsu.com",
-	"screen_resolution": "1680x1050",
-	"vp_size": "1680x235",
-	"user_language": "ru-RU",
-	"doc_encoding": "UTF-8",
-	"utm": {},
-	"click_id": {}
-	}
-	}`)
+  "event_type": "pageview",
+  "eventn_ctx": {
+    "event_id": "` + testData.eventIds[0] + `",
+    "user": {
+      "anonymous_id": "` + testData.anonymousId + `"
+    },
+    "user_agent": "` + testData.userAgent + `",
+    "utc_time": "2020-12-23T17:55:54.900000Z",
+    "local_tz_offset": -180,
+    "referer": "",
+    "url": "https://jitsu.com/",
+    "page_title": "Jitsu: Open-source data integration and event collection",
+    "doc_path": "/",
+    "doc_host": "jitsu.com",
+    "screen_resolution": "1680x1050",
+    "vp_size": "1680x235",
+    "user_language": "ru-RU",
+    "doc_encoding": "UTF-8",
+    "utm": {},
+    "click_id": {}
+  }
+}`)
 			pageviewReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+"/api/v1/event?token=c2stoken_ur", bytes.NewBuffer(pageviewReqPayload))
 			pageviewReq.Header.Add("User-Agent", testData.userAgent)
 			require.NoError(t, err)
@@ -128,29 +128,29 @@ func TestPostgresRetroactiveUsersRecognition(t *testing.T) {
 			time.Sleep(1 * time.Second)
 
 			identifyReqPayload := []byte(`{
-	"event_type": "identify",
-	"eventn_ctx": {
-	"event_id": "` + testData.eventIds[1] + `",
-	"user": {
-	"anonymous_id": "` + testData.anonymousId + `",
-	"internal_id": "` + testData.internalId + `"
-	},
-	"user_agent": "` + testData.userAgent + `",
-	"utc_time": "2020-12-24T17:55:54.900000Z",
-	"local_tz_offset": -180,
-	"referer": "",
-	"url": "https://jitsu.com/",
-	"page_title": "Jitsu: Open-source data integration and event collection",
-	"doc_path": "/",
-	"doc_host": "jitsu.com",
-	"screen_resolution": "1680x1050",
-	"vp_size": "1680x235",
-	"user_language": "ru-RU",
-	"doc_encoding": "UTF-8",
-	"utm": {},
-	"click_id": {}
-	}
-	}`)
+  "event_type": "identify",
+  "eventn_ctx": {
+    "event_id": "` + testData.eventIds[1] + `",
+    "user": {
+      "anonymous_id": "` + testData.anonymousId + `",
+      "internal_id": "` + testData.internalId + `"
+    },
+    "user_agent": "` + testData.userAgent + `",
+    "utc_time": "2020-12-24T17:55:54.900000Z",
+    "local_tz_offset": -180,
+    "referer": "",
+    "url": "https://jitsu.com/",
+    "page_title": "Jitsu: Open-source data integration and event collection",
+    "doc_path": "/",
+    "doc_host": "jitsu.com",
+    "screen_resolution": "1680x1050",
+    "vp_size": "1680x235",
+    "user_language": "ru-RU",
+    "doc_encoding": "UTF-8",
+    "utm": {},
+    "click_id": {}
+  }
+}`)
 
 			identifyReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+"/api/v1/event?token=c2stoken_ur", bytes.NewBuffer(identifyReqPayload))
 			identifyReq.Header.Add("User-Agent", testData.userAgent)
