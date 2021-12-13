@@ -16,28 +16,18 @@ type SucceedDBEvent struct {
 type SucceedHTTPEvent struct {
 	DestinationID string `json:"destination_id,omitempty"`
 
-	URL     string                 `json:"url,omitempty"`
-	Method  string                 `json:"method,omitempty"`
-	Headers map[string]string      `json:"headers,omitempty"`
-	Body    string 				   `json:"body,omitempty"`
+	URL     string            `json:"url,omitempty"`
+	Method  string            `json:"method,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+	Body    string            `json:"body,omitempty"`
 }
 
 //channel dto
-type originalEvent struct {
+type statusEvent struct {
+	eventType     string
 	destinationID string
 	eventID       string
 	event         events.Event
-}
-
-//channel dto
-type succeedEvent struct {
-	eventContext *adapters.EventContext
-}
-
-//channel dto
-type failedEvent struct {
-	destinationID string
-	eventID       string
-
-	error string
+	eventContext  *adapters.EventContext
+	error         string
 }
