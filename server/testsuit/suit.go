@@ -118,6 +118,8 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
 		IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
 		UserIDNode:          viper.GetString("users_recognition.user_id_node"),
+		PoolSize:            viper.GetInt("users_recognition.pool.size"),
+		Compression:         viper.GetString("users_recognition.compression"),
 	}
 
 	err = globalRecognitionConfiguration.Validate()
@@ -166,6 +168,8 @@ func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
 	appconfig.Instance.ScheduleClosing(metaStorage)
 
 	sb.metaStorage = metaStorage
+
+	sb.eventsCache = caching.NewEventsCache(true, metaStorage, 100, 1)
 	return sb
 }
 
