@@ -60,7 +60,7 @@ func (dbq *DQueBasedQueue) ConsumeTimed(f map[string]interface{}, t time.Time, t
 	}
 
 	if err := dbq.queue.Enqueue(&QueuedEvent{FactBytes: factBytes, DequeuedTime: t, TokenID: tokenID}); err != nil {
-		logSkippedEvent(f, fmt.Errorf("Error putting event event bytes to the persistent queue: %v", err))
+		logSkippedEvent(f, fmt.Errorf("Error pushing event bytes to the persistent queue: %v", err))
 		return
 	}
 

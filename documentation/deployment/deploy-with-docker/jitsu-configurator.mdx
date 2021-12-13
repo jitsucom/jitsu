@@ -9,7 +9,7 @@ title: Configurator
 
 ## Exposed ports
 
-`@jitsucom/configurator` image exposes `8000` port
+`@jitsucom/configurator` image exposes `7000` port
 
 ## Environment Variable
 
@@ -23,14 +23,11 @@ title: Configurator
     Feel free to rotate them, change in the settings
     will force logout of of Configurator
 </APIParam>
-<APIParam small={true}  name="CONFIGURATOR_ADMIN_TOKEN" dataType="string" required={true} type="Docker Env Var">
+<APIParam small={true}  name="CLUSTER_ADMIN_TOKEN" dataType="string" required={true} type="Docker Env Var">
     Auth token for authorizing requests from Jitsu Server. Should match one configured in <a href="/docs/deployment/deploy-with-docker/jitsu-server">Jitsu Server</a>
 </APIParam>
 <APIParam small={true}  name="JITSU_SERVER_URL" dataType="string" required={true} type="Docker Env Var">
     URL of Jitsu Server
-</APIParam>
-<APIParam small={true}  name="SERVER_ADMIN_TOKEN" dataType="string" required={true} type="Docker Env Var">
-    Auth token for authorizing requests to Jitsu Server. Should match one configured in <a href="/docs/deployment/deploy-with-docker/jitsu-server">Jitsu Server</a>
 </APIParam>
 <APIParam small={true}  name="REDIS_URL" dataType="string" required={true} type="Docker Env Var">
     Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}

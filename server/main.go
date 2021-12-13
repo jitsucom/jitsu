@@ -12,6 +12,7 @@ import (
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
+	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/runtime"
@@ -154,12 +155,12 @@ func main() {
 	}
 
 	if err := singer.Init(viper.GetString("singer-bridge.python"), viper.GetString("singer-bridge.venv_dir"),
-		viper.GetBool("singer-bridge.install_taps"), viper.GetBool("singer-bridge.update_taps"), appconfig.Instance.SingerLogsWriter); err != nil {
+		viper.GetBool("singer-bridge.install_taps"), viper.GetBool("singer-bridge.update_taps"), viper.GetInt("singer-bridge.batch_size"), appconfig.Instance.SingerLogsWriter); err != nil {
 		logging.Fatal(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	if err := airbyte.Init(ctx, viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), appconfig.Instance.AirbyteLogsWriter); err != nil {
+	if err := airbyte.Init(ctx, viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), viper.GetInt("airbyte-bridge.batch_size"), appconfig.Instance.AirbyteLogsWriter); err != nil {
 		logging.Errorf("❌ Airbyte integration is disabled: %v. For using Airbyte run Jitsu with: -v /var/run/docker.sock:/var/run/docker.sock", err)
 	}
 
@@ -205,6 +206,7 @@ func main() {
 		//we should close it in the end
 		appconfig.Instance.CloseEventsConsumers()
 		appconfig.Instance.CloseWriteAheadLog()
+		counters.Close()
 		time.Sleep(time.Second)
 		os.Exit(0)
 	}()
@@ -223,8 +225,9 @@ func main() {
 	}
 	logRotationMin := viper.GetInt64("log.rotation_min")
 
-	loggerFactory := logging.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
-		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter)
+	loggerFactory := logevents.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
+		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter, viper.GetBool("log.async_writers"),
+		viper.GetInt("log.pool.size"))
 
 	// ** Meta storage **
 	metaStorageConfiguration := viper.Sub("meta.storage")
@@ -294,8 +297,15 @@ func main() {
 	counters.InitEvents(metaStorage)
 
 	//events cache
+	eventsCacheEnabled := viper.GetBool("server.cache.enabled")
 	eventsCacheSize := viper.GetInt("server.cache.events.size")
-	eventsCache := caching.NewEventsCache(metaStorage, eventsCacheSize)
+	eventsCachePoolSize := viper.GetInt("server.cache.pool.size")
+	if eventsCachePoolSize == 0 {
+		eventsCachePoolSize = 1
+		logging.Infof("server.cache.pool.size can't be 0. Using default value=1 instead")
+
+	}
+	eventsCache := caching.NewEventsCache(eventsCacheEnabled, metaStorage, eventsCacheSize, eventsCachePoolSize)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
 	// ** Retroactive users recognition
@@ -304,10 +314,17 @@ func main() {
 		AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
 		IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
 		UserIDNode:          viper.GetString("users_recognition.user_id_node"),
+		PoolSize:            viper.GetInt("users_recognition.pool.size"),
+		Compression:         viper.GetString("users_recognition.compression"),
 	}
 
 	if err := globalRecognitionConfiguration.Validate(); err != nil {
 		logging.Fatalf("Invalid global users recognition configuration: %v", err)
+	}
+
+	if globalRecognitionConfiguration.PoolSize == 0 {
+		globalRecognitionConfiguration.PoolSize = 1
+		logging.Infof("users_recognition.pool.size can't be 0. Using default value=1 instead")
 	}
 
 	pluginsMap := viper.GetStringMapString("server.plugins")
@@ -332,7 +349,7 @@ func main() {
 		logging.Fatalf("Error initializing users recognition storage: %v", err)
 	}
 
-	usersRecognitionService, err := users.NewRecognitionService(userRecognitionStorage, destinationsService, globalRecognitionConfiguration, logEventPath)
+	usersRecognitionService, err := users.NewRecognitionService(userRecognitionStorage, destinationsService, globalRecognitionConfiguration)
 	if err != nil {
 		logging.Fatal(err)
 	}
@@ -383,7 +400,7 @@ func main() {
 	uploader.Start()
 
 	//Streaming events archiver
-	periodicArchiver := logfiles.NewPeriodicArchiver(streamArchiveFileMask, path.Join(logEventPath, logging.ArchiveDir), time.Duration(streamArchiveEveryS)*time.Second)
+	periodicArchiver := logfiles.NewPeriodicArchiver(streamArchiveFileMask, path.Join(logEventPath, logevents.ArchiveDir), time.Duration(streamArchiveEveryS)*time.Second)
 	appconfig.Instance.ScheduleClosing(periodicArchiver)
 
 	adminToken := viper.GetString("server.admin_token")
@@ -520,14 +537,14 @@ func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*event
 	var pollTimeout time.Duration
 	var eventsQueueRedisPool *meta.RedisPool
 	var err error
-	if redisConfigurationSource != nil {
+	if redisConfigurationSource != nil && redisConfigurationSource.GetString("host") != "" {
 		factory := meta.NewRedisPoolFactory(redisConfigurationSource.GetString("host"),
 			redisConfigurationSource.GetInt("port"),
 			redisConfigurationSource.GetString("password"),
 			redisConfigurationSource.GetBool("tls_skip_verify"),
 			redisConfigurationSource.GetString("sentinel_master_name"))
 		opts := meta.DefaultOptions
-		opts.MaxActive = 1000
+		opts.MaxActive = 5000
 		factory.WithOptions(opts)
 		pollTimeout = factory.GetOptions().DefaultDialReadTimeout
 		factory.CheckAndSetDefaultPort()

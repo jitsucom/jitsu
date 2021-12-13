@@ -16,7 +16,7 @@ type Storage interface {
 	io.Closer
 	SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error
 	GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error)
-	DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error
+	DeleteAnonymousEvents(destinationID, anonymousID string, eventID []string) error
 	Type() string
 }
 
@@ -28,9 +28,11 @@ func (d *Dummy) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload 
 func (d *Dummy) GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error) {
 	return map[string]string{}, nil
 }
-func (d *Dummy) DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error { return nil }
-func (d *Dummy) Type() string                                                          { return DummyStorageType }
-func (d *Dummy) Close() error                                                          { return nil }
+func (d *Dummy) DeleteAnonymousEvents(destinationID, anonymousID string, eventID []string) error {
+	return nil
+}
+func (d *Dummy) Type() string { return DummyStorageType }
+func (d *Dummy) Close() error { return nil }
 
 //InitializeStorage returns configured users.Storage (redis or dummy)
 func InitializeStorage(enabled bool, metaStorageConfiguration *viper.Viper) (Storage, error) {

@@ -23,9 +23,7 @@ type Storage interface {
 
 	//** Counters **
 	//events counters
-	SuccessEvents(id, namespace, eventType string, now time.Time, value int) error
-	ErrorEvents(id, namespace, eventType string, now time.Time, value int) error
-	SkipEvents(id, namespace, eventType string, now time.Time, value int) error
+	IncrementEventsCount(id, namespace, eventType, status string, now time.Time, value int64) error
 	GetProjectSourceIDs(projectID string) ([]string, error)
 	GetProjectDestinationIDs(projectID string) ([]string, error)
 	//536-issue DEPRECATED instead of it all project sources will be selected
