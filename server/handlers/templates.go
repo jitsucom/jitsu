@@ -118,7 +118,7 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (response 
 		}
 		storage, err := createFunc(dConfig)
 		if err != nil {
-			response.Error = fmt.Errorf("cannot instantiate instance of npm destination: %v", err).Error()
+			response.Error = fmt.Errorf("cannot start destination instance: %v", err).Error()
 			return
 		}
 		err = storage.Processor().InitJavaScriptTemplates()
