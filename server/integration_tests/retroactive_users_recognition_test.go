@@ -28,7 +28,7 @@ var recogTest = []recogTestData{
 		[]map[string]interface{}{{"eventn_ctx_event_id": "1", "eventn_ctx_user_anonymous_id": "anonym1", "eventn_ctx_user_internal_id": "id1kk"}, {"eventn_ctx_event_id": "2", "eventn_ctx_user_anonymous_id": "anonym1", "eventn_ctx_user_internal_id": "id1kk"}}},
 	//expect for event with eventn_ctx_event_id=3 from Google bot eventn_ctx_user_internal_id still be null
 	{"GoogleBot", []string{"3", "4"}, "anonym2", "id2kk", "Googlebot/2.1 (+http://www.google.com/bot.html)",
-		[]map[string]interface{}{{"eventn_ctx_event_id": "3", "eventn_ctx_user_anonymous_id": "anonym2", "eventn_ctx_user_internal_id": nil}, {"eventn_ctx_event_id": "4", "eventn_ctx_user_anonymous_id": "anonym2", "eventn_ctx_user_internal_id": "id2kk"}}},
+		[]map[string]interface{}{{"eventn_ctx_event_id": "13", "eventn_ctx_user_anonymous_id": "anonym2", "eventn_ctx_user_internal_id": nil}, {"eventn_ctx_event_id": "4", "eventn_ctx_user_anonymous_id": "anonym2", "eventn_ctx_user_internal_id": "id2kk"}}},
 }
 
 //
