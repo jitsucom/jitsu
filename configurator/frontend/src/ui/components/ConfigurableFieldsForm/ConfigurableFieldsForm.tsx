@@ -428,7 +428,7 @@ const ConfigurableFieldsFormComponent = ({
         })
       }
 
-      if (param.type.typeName === "oauthSecret") {
+      if (param.type?.typeName === "oauthSecret") {
         const inputValue = initialValue
         const checkboxValue = !inputValue
         const checkboxId = `${UI_ONLY_FIELD_PREFIX}${id}`
