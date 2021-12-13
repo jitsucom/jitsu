@@ -166,14 +166,17 @@ const CodeDebugger = ({
         code: "success",
         format: response.format,
         result: response.result,
+        error: response.error,
         userResult: response.user_result,
         userError: response.user_error,
       })
     } catch (error) {
+      console.log(JSON.stringify(error))
       setCalcResult({
         code: "error",
         format: error?._response?.format,
-        result: error?._response?.result ?? error?.message ?? "Error",
+        result: error?._response?.result,
+        error: error?._response?.error ?? error?.message ?? "Error",
         userResult: error?._response?.user_result,
         userError: error?._response?.user_error,
       })
@@ -299,7 +302,7 @@ const CodeDebugger = ({
           {showCodeEditor && showOutput && <ReflexSplitter propagate className={`${styles.splitter}`} />}
 
           {showOutput && (
-            <ReflexElement>
+            <ReflexElement propagateDimensions={true}>
               {runIsLoading ? (
                 <Spin indicator={<LoadingOutlined style={{ fontSize: 15 }} spin />} />
               ) : (
@@ -309,10 +312,10 @@ const CodeDebugger = ({
                     <ReflexElement>
                       <SectionWithLabel label="User Transformation Result">
                         <div
-                          className={`h-1/2 box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}
+                          className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}
                         >
                           <div
-                            className={cn("flex flex-col w-full m-0", {
+                            className={cn("flex h-full overflow-auto flex-col w-full m-0", {
                               [styles.itemError]: !!calcResult?.userError,
                               [styles.itemSuccess]: !!calcResult?.userResult,
                             })}
@@ -342,15 +345,15 @@ const CodeDebugger = ({
                   <ReflexSplitter propagate className={`${styles.splitterHorizontal}`} />
                   <ReflexElement>
                     <SectionWithLabel label="Full Data Transformation">
-                      <div className={`box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
+                      <div className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
                         <div
-                          className={cn("flex flex-col w-full h-full m-0", {
-                            [styles.itemError]: !!calcResult?.error,
-                            [styles.itemSuccess]: !!calcResult?.result,
+                          className={cn("flex flex-col w-full h-full overflow-auto m-0", {
+                            [styles.itemError]: calcResult?.code === "error",
+                            [styles.itemSuccess]: calcResult?.code === "success",
                           })}
                         >
                           <strong className={cn(`absolute top-1 right-2 flex-shrink-0 text-xs`)}>
-                            {calcResult?.result ? "success" : calcResult?.error ? "error" : ""}
+                            {calcResult?.code ?? ""}
                           </strong>
                           {calcResult && (
                             <span className={`flex-auto min-w-0 text-xs`}>
