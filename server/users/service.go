@@ -20,6 +20,7 @@ import (
 type RecognitionService struct {
 	storage            Storage
 	destinationService *destinations.Service
+	compressor         Compressor
 
 	queue  *Queue
 	closed *atomic.Bool
@@ -41,9 +42,18 @@ func NewRecognitionService(storage Storage, destinationService *destinations.Ser
 		return &RecognitionService{closed: atomic.NewBool(true)}, nil
 	}
 
+	var compressor Compressor
+	if configuration.Compression == GZIPCompressorType {
+		compressor = &GZIPCompressor{}
+		logging.Infof("[users recognition] uses GZIP compression")
+	} else {
+		compressor = &DummyCompressor{}
+	}
+
 	service := &RecognitionService{
 		destinationService: destinationService,
 		storage:            storage,
+		compressor:         compressor,
 		queue:              newQueue(),
 		closed:             atomic.NewBool(false),
 	}
@@ -185,8 +195,8 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 	eventIDs := make([]string, 0, len(eventsMap))
 	eventsArr := make([]map[string]interface{}, 0, len(eventsMap))
 	for storedEventID, storedSerializedEvent := range eventsMap {
-		event := events.Event{}
-		if err := json.Unmarshal([]byte(storedSerializedEvent), &event); err != nil {
+		event, err := rs.deserialize(storedSerializedEvent)
+		if err != nil {
 			logging.SystemErrorf("[%s] error deserializing event [%s]: %v", destinationID, storedSerializedEvent, err)
 			continue
 		}
@@ -229,8 +239,8 @@ func (rs *RecognitionService) processRecognitionPayload(rp *RecognitionPayload) 
 				return fmt.Errorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
 			}
 		} else {
-			b, _ := json.Marshal(rp.Event)
-			if err := rs.storage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(b)); err != nil {
+			compressedEvent := rs.compressor.Compress(rp.Event)
+			if err := rs.storage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(compressedEvent)); err != nil {
 				return fmt.Errorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
 			}
 		}
@@ -257,4 +267,19 @@ func (rs *RecognitionService) Close() (multiErr error) {
 	}
 
 	return
+}
+
+func (rs *RecognitionService) deserialize(payload string) (events.Event, error) {
+	decompressed, compressErr := rs.compressor.Decompress([]byte(payload))
+	if compressErr != nil {
+		//try without compression (old event)
+		event := events.Event{}
+		if marshalErr := json.Unmarshal([]byte(payload), &event); marshalErr != nil {
+			return nil, fmt.Errorf("unable to decompress event [%s]: %v", payload, compressErr)
+		}
+
+		return event, nil
+	}
+
+	return decompressed, nil
 }
