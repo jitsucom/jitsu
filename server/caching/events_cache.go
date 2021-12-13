@@ -15,10 +15,7 @@ import (
 //EventsCache is an event cache based on meta.Storage(Redis)
 type EventsCache struct {
 	storage                meta.Storage
-	originalCh             chan *originalEvent
-	succeedCh              chan *succeedEvent
-	failedCh               chan *failedEvent
-	skippedCh              chan *failedEvent
+	eventsChannel          chan *statusEvent
 	capacityPerDestination int
 
 	done chan struct{}
@@ -45,10 +42,7 @@ func NewEventsCache(enabled bool, storage meta.Storage, capacityPerDestination, 
 
 	c := &EventsCache{
 		storage:                storage,
-		originalCh:             make(chan *originalEvent, 1_000_000),
-		succeedCh:              make(chan *succeedEvent, 1_000_000),
-		failedCh:               make(chan *failedEvent, 1_000_000),
-		skippedCh:              make(chan *failedEvent, 1_000_000),
+		eventsChannel:          make(chan *statusEvent, 1_000_000),
 		capacityPerDestination: capacityPerDestination,
 
 		done: make(chan struct{}),
@@ -64,26 +58,17 @@ func NewEventsCache(enabled bool, storage meta.Storage, capacityPerDestination, 
 //start goroutine for reading from newCh/succeedCh/errorCh and put/update cache (async)
 func (ec *EventsCache) start() {
 	safego.RunWithRestart(func() {
-		for cf := range ec.originalCh {
-			ec.put(cf.destinationID, cf.eventID, cf.event)
-		}
-	})
-
-	safego.RunWithRestart(func() {
-		for cf := range ec.succeedCh {
-			ec.succeed(cf.eventContext)
-		}
-	})
-
-	safego.RunWithRestart(func() {
-		for cf := range ec.failedCh {
-			ec.error(cf.destinationID, cf.eventID, cf.error)
-		}
-	})
-
-	safego.RunWithRestart(func() {
-		for cf := range ec.skippedCh {
-			ec.skip(cf.destinationID, cf.eventID, cf.error)
+		for cf := range ec.eventsChannel {
+			switch cf.eventType {
+			case "put":
+				ec.put(cf.destinationID, cf.eventID, cf.event)
+			case "succeed":
+				ec.succeed(cf.eventContext)
+			case "error":
+				ec.error(cf.destinationID, cf.eventID, cf.error)
+			case "skip":
+				ec.skip(cf.destinationID, cf.eventID, cf.error)
+			}
 		}
 	})
 }
@@ -92,7 +77,7 @@ func (ec *EventsCache) start() {
 func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, value events.Event) {
 	if !disabled && ec.isActive() {
 		select {
-		case ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: value}:
+		case ec.eventsChannel <- &statusEvent{eventType: "put", destinationID: destinationID, eventID: eventID, event: value}:
 		default:
 			logging.SystemErrorf("[events cache] original event hasn't been put: %s", value.Serialize())
 		}
@@ -103,7 +88,7 @@ func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, value e
 func (ec *EventsCache) Succeed(eventContext *adapters.EventContext) {
 	if !eventContext.CacheDisabled && ec.isActive() {
 		select {
-		case ec.succeedCh <- &succeedEvent{eventContext: eventContext}:
+		case ec.eventsChannel <- &statusEvent{eventType: "succeed", eventContext: eventContext}:
 		default:
 			logging.Errorf("[events cache] succeed event hasn't been put: %s", eventContext.RawEvent.Serialize())
 		}
@@ -114,7 +99,7 @@ func (ec *EventsCache) Succeed(eventContext *adapters.EventContext) {
 func (ec *EventsCache) Error(disabled bool, destinationID, eventID string, errMsg string) {
 	if !disabled && ec.isActive() {
 		select {
-		case ec.failedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
+		case ec.eventsChannel <- &statusEvent{eventType: "error", destinationID: destinationID, eventID: eventID, error: errMsg}:
 		default:
 			logging.Errorf("[events cache] error event hasn't been put: %s", eventID)
 		}
@@ -125,7 +110,7 @@ func (ec *EventsCache) Error(disabled bool, destinationID, eventID string, errMs
 func (ec *EventsCache) Skip(disabled bool, destinationID, eventID string, errMsg string) {
 	if !disabled && ec.isActive() {
 		select {
-		case ec.skippedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
+		case ec.eventsChannel <- &statusEvent{eventType: "skip", destinationID: destinationID, eventID: eventID, error: errMsg}:
 		default:
 			logging.Errorf("[events cache] skipped event hasn't been put: %s", eventID)
 		}
@@ -284,9 +269,7 @@ func (ec *EventsCache) GetTotal(destinationID string) int {
 func (ec *EventsCache) Close() error {
 	if ec.isActive() {
 		close(ec.done)
-		close(ec.originalCh)
-		close(ec.succeedCh)
-		close(ec.failedCh)
+		close(ec.eventsChannel)
 	}
 
 	return nil
