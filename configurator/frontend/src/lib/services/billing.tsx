@@ -251,7 +251,14 @@ export async function getCurrentSubscription(
   let stat: DatePoint[]
   try {
     const quotaPeriodStart = getQuotaPeriodStart(subscription.subscriptionStart)
-    stat = await statService.get(quotaPeriodStart.toDate(), quotaPeriodStart.add(1, "M").toDate(), "day", "push_source")
+    stat = await statService.get(
+      quotaPeriodStart.toDate(),
+      quotaPeriodStart.add(1, "M").toDate(),
+      "day",
+      "source",
+      "push",
+      "success"
+    )
   } catch (e) {
     console.info("Failed to obtain stat, it could happen if Jitsu configurator isn't connected to jitsu server", e)
     stat = []
