@@ -33,7 +33,7 @@ function monthlyDataLoader(
   type: "push" | "pull",
   statisticsService: IStatisticsService
 ) {
-  if (destination.syncFromSourcesStatus !== "supported" && type === "push") {
+  if (destination.syncFromSourcesStatus !== "supported" && type === "pull") {
     return async () => []
   }
   return async () => {
@@ -58,7 +58,7 @@ function hourlyDataLoader(
   type: "push" | "pull",
   statisticsService: IStatisticsService
 ) {
-  if (destination.syncFromSourcesStatus !== "supported" && type === "push") {
+  if (destination.syncFromSourcesStatus !== "supported" && type === "pull") {
     return async () => []
   }
   return async () => {
