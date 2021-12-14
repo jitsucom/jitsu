@@ -32,8 +32,9 @@ func GetInfo() *Info {
 	cpuInfo, _ := cpu.Info()
 	if len(cpuInfo) > 0 {
 		data := cpuInfo[0]
+		cores := len(cpuInfo) * int(data.Cores)
 		info.CPUInfoInstances = len(cpuInfo)
-		info.CPUCores = int(data.Cores)
+		info.CPUCores = cores
 		info.CPUModelName = data.ModelName
 		info.CPUModel = data.Model
 		info.CPUFamily = data.Family

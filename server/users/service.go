@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/safego"
 	"go.uber.org/atomic"
 	"strings"
@@ -96,11 +97,13 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 		return
 	}
 
+	copyEvent := maputils.CopyMap(event)
+
 	var isBot bool
-	parsedUaRaw, ok := enrichment.DefaultJsUaRule.DstPath().Get(event)
+	parsedUaRaw, ok := enrichment.DefaultJsUaRule.DstPath().Get(copyEvent)
 	if !ok {
-		enrichment.DefaultJsUaRule.Execute(event)
-		parsedUaRaw, _ = enrichment.DefaultJsUaRule.DstPath().Get(event)
+		enrichment.DefaultJsUaRule.Execute(copyEvent)
+		parsedUaRaw, _ = enrichment.DefaultJsUaRule.DstPath().Get(copyEvent)
 	}
 	parsedUaMap, ok := parsedUaRaw.(map[string]interface{})
 	if ok {
@@ -110,7 +113,7 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 		return
 	}
 
-	rp := &RecognitionPayload{Event: event, EventID: eventID, DestinationIDs: destinationIDs}
+	rp := &RecognitionPayload{Event: copyEvent, EventID: eventID, DestinationIDs: destinationIDs}
 	if err := rs.queue.Enqueue(rp); err != nil {
 		rpBytes, _ := json.Marshal(rp)
 		logging.SystemErrorf("Error saving recognition payload [%s] from event [%s] into the queue: %v", string(rpBytes), rp.Event.Serialize(), err)

@@ -39,7 +39,11 @@ type UsePollingReturnType<T> = {
 }
 
 type PollingHookConfigurator<T = unknown> = {
-  configure: () => ({pollingCallback: PollingSetupCallback<T>, onBeforePollingStart?: () => void, onAfterPollingEnd?: () => void})
+  configure: () => {
+    pollingCallback: PollingSetupCallback<T>
+    onBeforePollingStart?: () => void
+    onAfterPollingEnd?: () => void
+  }
 }
 
 const defaultOptions: UsePollingOptions = {
