@@ -5,8 +5,8 @@
 }
 
 .field {
-@apply flex flex-col h-full;
-@apply border-0 mb-0 !important;
+  @apply flex flex-col h-full;
+  @apply border-0 mb-0 !important;
 
   :global {
     .ant-form-item-control-input,
@@ -15,7 +15,7 @@
     }
 
     .react-monaco-editor-container {
-    @apply absolute top-0 left-0 w-full h-full max-h-full m-0 p-0 overflow-hidden;
+      @apply absolute top-0 left-0 w-full h-full max-h-full m-0 p-0 overflow-hidden;
     }
   }
 }
@@ -58,7 +58,7 @@
 .hideAntdCheckbox {
   :global {
     .ant-checkbox {
-    @apply invisible;
+      @apply invisible;
     }
 
     .ant-checkbox::after {
@@ -70,7 +70,7 @@
 .checkboxLabel {
   :global {
     .ant-checkbox + span {
-    @apply px-1 text-xs;
+      @apply px-1 text-xs;
     }
   }
 }
@@ -89,11 +89,11 @@
 }
 
 .syntaxHighlighter {
-@apply pt-0 !important;
+  @apply pt-0 !important;
 }
 
 .buttonsSuperlabel {
-@apply font-medium;
+  @apply font-medium;
   font-size: 8px;
   line-height: 8px;
   color: @text-color-secondary;
@@ -105,31 +105,31 @@
 }
 
 .adaptiveIcon {
-@apply md: hidden inline mr-0 !important;
+  @apply md:hidden inline mr-0 !important;
 }
 
 .adaptiveLabel {
-@apply md: inline hidden !important;
+  @apply md:inline hidden !important;
 }
 
 .noMargins {
-@apply m-0 !important;
+  @apply m-0 !important;
 }
 
 .splitter {
-@apply w-2 !important;
+  @apply w-2 !important;
   background-color: @component-background !important;
   border-color: @component-background !important;
 }
 
 .splitterHorizontal {
-@apply h-2 !important;
+  @apply h-2 !important;
   background-color: @component-background !important;
   border-color: @component-background !important;
 }
 
 .saveIndicator::after {
-@apply inline-block w-2 h-2 ml-1 rounded-md;
+  @apply inline-block w-2 h-2 ml-1 rounded-md;
   content: "";
   background-color: @text-color-secondary;
 }
@@ -137,30 +137,28 @@
 // Events List
 
 .events {
-@apply h-full w-full;
+  @apply h-full w-full;
   height: 50vh;
   max-width: 200px;
 
   :global {
     .ant-card-body {
-    @apply h-full box-border overflow-y-hidden p-2;
+      @apply h-full box-border overflow-y-hidden p-2;
     }
-
     .ant-list {
-    @apply pr-1;
+      @apply pr-1;
     }
-
     .ant-skeleton-content .ant-skeleton-paragraph > li + li {
-    @apply mt-2;
+      @apply mt-2;
     }
   }
 }
 
 .eventItem {
-@apply block w-full rounded-md p-1;
+  @apply block w-full rounded-md p-1;
 }
 
 .eventItem:hover {
-@apply cursor-pointer;
+  @apply cursor-pointer;
   background-color: @secondary-background;
 }
