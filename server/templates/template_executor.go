@@ -82,15 +82,9 @@ type JsTemplateExecutor struct {
 
 func NewJsTemplateExecutor(expression string, extraFunctions template.FuncMap, extraScripts ...string) (*JsTemplateExecutor, error) {
 	//First we need to transform js template to ES5 compatible code
-	script, err := BabelizeProcessEvent(expression)
+	script, err := BabelizeAndWrap(expression, functionName)
 	if err != nil {
-		resError := fmt.Errorf("ES5 transforming error: %v", err)
-		//hack to keep compatibility with JSON templating (which sadly can't be valid JS)
-		script, err = BabelizeProcessEvent("return " + expression)
-		if err != nil {
-			//we don't report resError instead of err here because we are not sure that adding "return" was the right thing to do
-			return nil, resError
-		}
+		return nil, err
 	}
 
 	jte := &JsTemplateExecutor{sync.Mutex{}, make(chan events.Event), make(chan struct{}), make(chan interface{}), script, nil}

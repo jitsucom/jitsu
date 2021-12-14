@@ -34,7 +34,7 @@ func NewAmplitude(config *Config) (Storage, error) {
 		return nil, fmt.Errorf("failed to convert transformation code to es5: %v", err)
 	}
 	config.processor.AddJavaScript(es5transform)
-	config.processor.SetDefaultTransform(`return toAmplitude($)`)
+	config.processor.SetDefaultUserTransform(`return toAmplitude($)`)
 
 	a := &Amplitude{}
 

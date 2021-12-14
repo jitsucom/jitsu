@@ -14,11 +14,17 @@ const functionName = "process"
 var jsObjectReflectType = reflect.TypeOf(make(map[string]interface{}))
 var mutex = sync.Mutex{}
 
-//BabelizeProcessEvent process transform event function to ES5 compatible code + adds few tweaks to loosen some rules
-func BabelizeProcessEvent(src string) (string, error) {
+//BabelizeAndWrap process transform event function to ES5 compatible code + adds few tweaks to loosen some rules
+func BabelizeAndWrap(src, functionName string) (string, error) {
 	res, err := Babelize(src)
 	if err != nil {
-		return "", err
+		resError := fmt.Errorf("ES5 transforming error: %v", err)
+		//hack to keep compatibility with JSON templating (which sadly can't be valid JS)
+		res, err = Babelize("return " + src)
+		if err != nil {
+			//we do report resError instead of err here because we are not sure that adding "return" was the right thing to do
+			return "", resError
+		}
 	}
 	return `function ` + functionName + `(event) { 
 var $ = event;
@@ -51,7 +57,7 @@ func Babelize(src string) (string, error) {
 
 //LoadTemplateScript loads script into newly created Javascript vm
 //Returns func that is mapped to javascript function inside vm instance
-func LoadTemplateScript(script string, extraFunctions template.FuncMap, extraScripts ... string) (func(map[string]interface{}) (interface{}, error), error) {
+func LoadTemplateScript(script string, extraFunctions template.FuncMap, extraScripts ...string) (func(map[string]interface{}) (interface{}, error), error) {
 	vm := goja.New()
 	vm.Set("exports", map[string]interface{}{})
 	//limit call stack size to prevent endless recurison
@@ -151,7 +157,7 @@ func exportValue(vp *goja.Value, vm *goja.Runtime) interface{} {
 
 func valuesToObjects(values []goja.Value) []interface{} {
 	objs := make([]interface{}, 0, len(values))
-	for _,o := range values {
+	for _, o := range values {
 		objs = append(objs, o.Export())
 	}
 	return objs

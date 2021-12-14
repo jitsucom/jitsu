@@ -31,19 +31,17 @@ type EvaluateTemplateRequest struct {
 
 //EvaluateTemplateResponse is a response dto for testing text/template expressions
 type EvaluateTemplateResponse struct {
-	Result string `json:"result"`
-	Error  string `json:"message"`
-	Format string `json:"format"`
+	Result     string `json:"result"`
+	Error      string `json:"error"`
+	UserResult string `json:"user_result"`
+	UserError  string `json:"user_error"`
+	Format     string `json:"format"`
 }
 
 //Validate returns err if invalid
 func (etr *EvaluateTemplateRequest) Validate() error {
 	if etr.Object == nil {
 		return errors.New("'object' is required field")
-	}
-
-	if etr.Expression == "" {
-		return errors.New("'expression' is required field")
 	}
 
 	return nil
@@ -82,60 +80,73 @@ func (h *EventTemplateHandler) Handler(c *gin.Context) {
 		return
 	}
 
-	var result string
-	var format string
-	var err error
-
+	var response EvaluateTemplateResponse
 	if req.Reformat {
-		result, format, err = evaluateReformatted(req)
+		response = evaluateReformatted(req)
 	} else {
-		result, format, err = h.evaluate(req)
+		response = h.evaluate(req)
 	}
 
-	if err != nil {
-		c.JSON(http.StatusBadRequest, EvaluateTemplateResponse{Result: result, Format: format, Error: err.Error()})
+	if response.UserError != "" || response.Error != "" {
+		c.JSON(http.StatusBadRequest, response)
 		return
 	}
 
-	c.JSON(http.StatusOK, EvaluateTemplateResponse{Result: result, Format: format})
+	c.JSON(http.StatusOK, response)
 }
 
-func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (result string, format string, err error) {
+func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (response EvaluateTemplateResponse) {
+	response = EvaluateTemplateResponse{}
 	//panic handler
 	defer func() {
 		if r := recover(); r != nil {
-			result = ""
-			err = fmt.Errorf("Error: %v", r)
+			response.Error = fmt.Errorf("Error: %v", r).Error()
 		}
 	}()
 	//var transformIds []string
-	var tmpl templates.TemplateExecutor
 	if req.Field == "_transform" {
 		cfg := config.DestinationConfig{}
 		_ = mapstructure.Decode(req.Config, &cfg)
 		createFunc, dConfig, err := h.factory.Configure(req.Type, cfg)
 		if err != nil {
-			return "", "", fmt.Errorf("cannot setup npm destination: %v", err)
+			response.Error = fmt.Errorf("cannot setup npm destination: %v", err).Error()
+			return
 		}
 		storage, err := createFunc(dConfig)
 		if err != nil {
-			return "", "", fmt.Errorf("cannot instantiate instance of npm destination: %v", err)
+			response.Error = fmt.Errorf("cannot start destination instance: %v", err).Error()
+			return
 		}
 		err = storage.Processor().InitJavaScriptTemplates()
 		if err != nil {
-			return "", "", fmt.Errorf("failed to init javascript template: %v", err)
+			response.Error = fmt.Errorf("failed to init javascript template: %v", err).Error()
+			return
 		}
-		format = "javascript"
+		response.Format = "javascript"
 		tmpl := storage.Processor().GetTransformer()
 		if tmpl != nil {
-			format = tmpl.Format()
+			response.Format = tmpl.Format()
+			resultObject, err := tmpl.ProcessEvent(req.Object)
+			if err != nil {
+				response.UserError = fmt.Errorf("error executing template: %v", err).Error()
+				return
+			}
+			jsonBytes, err := templates.ToJSONorStringBytes(resultObject)
+			if err != nil {
+				response.UserError = err.Error()
+				return
+			}
+			response.UserResult = string(jsonBytes)
 		}
+
 		envls, err := storage.Processor().ProcessEvent(req.Object)
 		if err != nil {
 			if err == schema.ErrSkipObject {
-				return "SKIPPED", format, nil
+				response.Result = "SKIPPED"
+				return
 			} else {
-				return "", "", fmt.Errorf("failed to process event: %v", err)
+				response.Error = fmt.Errorf("failed to process event: %v", err).Error()
+				return
 			}
 		}
 		objects := make([]map[string]interface{}, 0, len(envls))
@@ -150,36 +161,44 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (result st
 		}
 		jsonBytes, err := templates.ToJSONorStringBytes(resObj)
 		if err != nil {
-			return "", format, err
+			response.Error = err.Error()
+			return
 		}
-		result = string(jsonBytes)
+		response.Result = string(jsonBytes)
 	} else {
-		tmpl, err = templates.SmartParse("template evaluating", req.Expression, req.TemplateFunctions())
+		tmpl, err := templates.SmartParse("template evaluating", req.Expression, req.TemplateFunctions())
 		if err != nil {
-			return "", "", fmt.Errorf("error parsing template: %v", err)
+			response.Error = fmt.Errorf("error parsing template: %v", err).Error()
+			return
 		}
+		response.Format = tmpl.Format()
 		resultObject, err := tmpl.ProcessEvent(req.Object)
 		if err != nil {
-			return "", tmpl.Format(), fmt.Errorf("error executing template: %v", err)
+			response.Error = fmt.Errorf("error executing template: %v", err).Error()
+			return
 		}
 		jsonBytes, err := templates.ToJSONorStringBytes(resultObject)
 		if err != nil {
-			return "", tmpl.Format(), err
+			response.Error = err.Error()
+			return
 		}
-		result = string(jsonBytes)
-		format = tmpl.Format()
+		response.Result = string(jsonBytes)
 	}
 	return
 }
 
-func evaluateReformatted(req *EvaluateTemplateRequest) (string, string, error) {
+func evaluateReformatted(req *EvaluateTemplateRequest) (response EvaluateTemplateResponse) {
+	response = EvaluateTemplateResponse{}
 	tableNameExtractor, err := schema.NewTableNameExtractor(req.Expression, req.TemplateFunctions())
 	if err != nil {
-		return "", "", err
+		response.Error = err.Error()
+		return
 	}
+	response.Format = tableNameExtractor.Format()
 	res, err := tableNameExtractor.Extract(req.Object)
 	if err != nil {
-		err = fmt.Errorf("%v\ntemplate body:\n%v\n", err, tableNameExtractor.Expression)
+		response.Error = fmt.Errorf("%v\ntemplate body:\n%v\n", err, tableNameExtractor.Expression).Error()
 	}
-	return res, tableNameExtractor.Format(), err
+	response.Result = res
+	return
 }

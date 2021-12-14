@@ -289,10 +289,10 @@ const ConfigurableFieldsFormComponent = ({
                 label={displayName}
                 id={id}
                 onChange={handleChangeSwitch(id)}
-                defaultChecked={!!defaultValueToDisplay}
+                defaultChecked={defaultValueToDisplay}
               />
             ) : (
-              <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
+              <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={defaultValueToDisplay} />
             )}
           </FormItemWrapperTuned>
         )
