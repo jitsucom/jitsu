@@ -62,7 +62,9 @@ const DestinationEditorTransform = ({
               displayName: "Enable Javascript Transformation",
               defaultValue: !destinationData._mappings?._mappings,
               required: false,
-              omitFieldRule: cfg => destinationsReferenceMap[destinationData._type].defaultTransform.length > 0,
+              omitFieldRule: cfg =>
+                destinationsReferenceMap[destinationData._type].defaultTransform.length > 0 &&
+                !destinationData._mappings?._mappings,
               type: booleanType,
               bigField: true,
             },
