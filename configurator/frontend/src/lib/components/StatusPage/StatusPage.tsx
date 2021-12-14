@@ -10,30 +10,16 @@ import { StatisticsChart } from "ui/components/StatisticsChart/StatisticsChart"
 // @Icons
 import { ReloadOutlined, WarningOutlined, QuestionCircleOutlined, ThunderboltFilled } from "@ant-design/icons"
 // @Services
-import {
-  addSeconds,
-  DestinationsStatisticsDatePoint,
-  IStatisticsService,
-  SourcesStatisticsDatePoint,
-  StatisticsService,
-} from "lib/services/stat"
-import ApplicationServices from "lib/services/ApplicationServices"
-// @Store
-import { destinationsStore } from "stores/destinations"
-// @Utils
-import { numberFormat, withDefaultVal } from "lib/commons/utils"
-// @Styles
-import "./StatusPage.less"
-import { sourcesStore } from "../../../stores/sources"
-import useLoader, { useLoaderAsObject } from "../../../hooks/useLoader"
+import { addSeconds, CombinedStatisticsDatePoint, StatisticsService } from "lib/services/stat"
+import { useLoaderAsObject } from "../../../hooks/useLoader"
 import { useServices } from "../../../hooks/useServices"
 
 type State = {
   destinationsCount?: number
-  hourlyEventsBySources?: SourcesStatisticsDatePoint[]
-  dailyEventsBySources?: SourcesStatisticsDatePoint[]
-  hourlyRowsFromSources?: SourcesStatisticsDatePoint[]
-  dailyRowsFromSources?: SourcesStatisticsDatePoint[]
+  lastHourEventsBySources?: CombinedStatisticsDatePoint[]
+  lastDayEventsBySources?: CombinedStatisticsDatePoint[]
+  lastHourRowsFromSources?: CombinedStatisticsDatePoint[]
+  lastDayRowsFromSources?: CombinedStatisticsDatePoint[]
   totalEventsLastHour?: number
   totalEventsToday?: number
 }
@@ -45,24 +31,29 @@ interface Props {
 export const StatusPage: React.FC<{}> = () => {
   const services = useServices()
   const stats = new StatisticsService(services.backendApiClient, services.activeProject, true)
+  const isSelfHosted = services.features.environment !== "jitsu_cloud"
   const now = new Date()
   const dayAgo = addSeconds(now, -24 * 60 * 60)
   const monthAgo = addSeconds(now, -30 * 24 * 60 * 60)
-  const [error, data, , reload, loading] = useLoader(async () => {
+  const {
+    error,
+    data,
+    reloader: reload,
+    isLoading: loading,
+  } = useLoaderAsObject(async () => {
     return await Promise.all([
-      stats.getDetailedIncomingStatistics(dayAgo, now, "hour", "push_source"),
-      stats.getDetailedIncomingStatistics(monthAgo, now, "day", "push_source"),
-      stats.getDetailedIncomingStatistics(dayAgo, now, "hour", "source"),
-      stats.getDetailedIncomingStatistics(monthAgo, now, "day", "source"),
+      stats.getCombinedStatisticsBySources(dayAgo, now, "hour", "push"),
+      stats.getCombinedStatisticsBySources(monthAgo, now, "day", "push"),
+      stats.getCombinedStatisticsBySources(dayAgo, now, "hour", "pull"),
+      stats.getCombinedStatisticsBySources(monthAgo, now, "day", "pull"),
     ])
   })
-  const [hourlyIncomingEvents, dailyIncomingEvents, hourlyRowsFromSources, dailyRowsFromSources] = data || [
-    null,
-    null,
-    null,
-    null,
+  const [lastHourIncomingEvents, lastDayIncomingEvents, lastHourRowsFromSources, lastDayRowsFromSources] = data || [
+    [],
+    [],
+    [],
+    [],
   ]
-  let utcPostfix = "[UTC]"
   if (error) {
     return <StatisticsError />
   }
@@ -86,7 +77,15 @@ export const StatusPage: React.FC<{}> = () => {
         </Button>
       </div>
 
-      <Row gutter={16} className="status-page-cards-row">
+      {isSelfHosted && (
+        <Row>
+          <span className={`text-secondaryText mb-4`}>
+            Jitsu 1.37 brought an update that enables for serving more fine-grained statistics data. The new charts will
+            not show the events processed by the previous versions of Jitsu.
+          </span>
+        </Row>
+      )}
+      <Row gutter={16} className="status-page-cards-row mb-4g">
         <Col span={12}>
           <Card
             title={
@@ -98,7 +97,11 @@ export const StatusPage: React.FC<{}> = () => {
             loading={loading}
             extra={<SourcesEventsDocsTooltip />}
           >
-            <StatisticsChart data={dailyIncomingEvents || []} granularity={"day"} dataToDisplay={["success", "skip"]} />
+            <StatisticsChart
+              data={lastDayIncomingEvents || []}
+              granularity={"day"}
+              dataToDisplay={["success", "skip"]}
+            />
           </Card>
         </Col>
         <Col span={12}>
@@ -113,7 +116,7 @@ export const StatusPage: React.FC<{}> = () => {
             loading={loading}
           >
             <StatisticsChart
-              data={hourlyIncomingEvents || []}
+              data={lastHourIncomingEvents || []}
               granularity={"hour"}
               dataToDisplay={["success", "skip"]}
             />
@@ -129,7 +132,7 @@ export const StatusPage: React.FC<{}> = () => {
             loading={loading}
           >
             <StatisticsChart
-              data={dailyRowsFromSources || []}
+              data={lastDayRowsFromSources || []}
               granularity={"day"}
               dataToDisplay={["success", "skip", "errors"]}
             />
@@ -143,7 +146,7 @@ export const StatusPage: React.FC<{}> = () => {
             extra={<DestinationsEventsDocsTooltip />}
           >
             <StatisticsChart
-              data={hourlyRowsFromSources || []}
+              data={lastHourRowsFromSources || []}
               granularity={"hour"}
               dataToDisplay={["success", "skip", "errors"]}
             />
