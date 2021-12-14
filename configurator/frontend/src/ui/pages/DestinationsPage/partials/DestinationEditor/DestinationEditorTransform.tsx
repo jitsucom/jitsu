@@ -76,7 +76,9 @@ ${[destinationData._type, "segment"]
   .map(type => `declare function ${camelCase("to_" + type)}(event: object): object`)
   .join("\n")}`,
               displayName: "Javascript Transformation",
-              defaultValue: destinationsReferenceMap[destinationData._type].defaultTransform,
+              defaultValue: !destinationData._mappings?._mappings
+                ? destinationsReferenceMap[destinationData._type].defaultTransform
+                : undefined,
               required: false,
               jsDebugger: "object",
               type: jsType,
