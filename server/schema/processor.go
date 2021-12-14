@@ -397,8 +397,11 @@ func (p *Processor) InitJavaScriptTemplates() (err error) {
 		//transform is explicitly disabled
 		return nil
 	}
+	if userTransform == templates.TransformDefaultTemplate {
+		userTransform = ""
+	}
 	if userTransform != "" && !mappingDisabled {
-		return fmt.Errorf("mapping and javascript transform cannot be enabled at the same time.")
+		return fmt.Errorf("mapping and javascript transform cannot be enabled at the same time")
 	}
 	//some destinations have built-in javascript transformation that must be used
 	//even if no explicit transform settings were provided. Only exception is enabled mapping –
@@ -411,9 +414,6 @@ Mapping feature is deprecated. It is recommended to migrate to javascript data t
 		} else {
 			userTransform = p.defaultUserTransform
 		}
-	}
-	if userTransform == templates.TransformDefaultTemplate {
-		userTransform = ""
 	}
 	if userTransform != "" {
 		if strings.Contains(userTransform, "toSegment") {
