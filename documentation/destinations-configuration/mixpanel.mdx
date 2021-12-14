@@ -14,36 +14,13 @@ Jitsu sends events to Ingestion API filling as much Mixpanel [Events Properties]
 
 Mixpanel destination may also send User Profiles data to Mixpanel accounts that have User Profiles enabled.
 
-## Events Customization
+Implementation is based on **npm-package:** [mixpanel-destination](https://www.npmjs.com/package/mixpanel-destination)
 
-Mixpanel destination relies on JavaScript Transform.
-Default implementation passes incoming event to `toMixpanel` javascript method that does all transformations:
-```javascript
-return toMixpanel($, {userProfileUpdates: {}, additionalProperties: {}, overriddenEventName: ''})
-```
-`toMixpanel` source code may be found in [jitsu github repository](https://github.com/jitsucom/jitsu/blob/master/server/templates/js/transform/mixpanel.js). 
-
-You can extract additional properties from incoming event and pass it to `toMixpanel` – they will be added to Mixpanel event:
-```javascript
-const myProperties = {
-    "Title": $.page_title
-}
-return toMixpanel($, {additionalProperties: myProperties})
-```
-
-You can set your own event names based on incoming event data:
-```javascript
-let myEventName = ''
-if ($.doc_path?.startsWith("/shop/")) {
-    myEventName = "Shop Page"
-}
-return toMixpanel($, {overriddenEventName: myEventName})
-```
+Source code on [Jitsu Github](https://github.com/jitsucom/jitsu-mixpanel)
 
 ## Tracking Revenue
 
 In addition to Mixpanel Default properties, Jitsu automatically sets `Revenue` field for each event if original event has `revenue` field, e.g. `conversion`
-
 
 ## User Profiles
 
@@ -62,56 +39,24 @@ Jitsu automatically updates following User Profile properties on every event exc
   
 Jitsu automatically increments `Lifetime Revenue` User Profile property on events with `revenue` field like `conversion`
 
-### Revenue transactions
+## Events Customization
 
-If your Mixpanel pricing plan includes the Revenue report you may customize Javascript to track charges that will appear in the Revenue report:
+Use [JavaScript Transform](/docs/configuration/javascript-transform) to set your own event names based on incoming event data:
 ```javascript
-let userProfileUpdates = {
-  "$append": {
-    "$transactions": {
-      "$amount": $.conversion?.revenue || $.revenue
-    }
-  }
+if ($.doc_path?.startsWith("/shop/")) {
+    $.event_type = "Shop Page"
 }
-
-return toMixpanel($, {userProfileUpdates: userProfileUpdates})
-```
-
-### Other User Profile settings
-
-You can use `userProfileUpdates` object to trigger any method that is supported by [Ingestion API for User Profiles](https://developer.mixpanel.com/reference/profile-append-to-list-property).
-Just add corresponding block to  `userProfileUpdates` object that you pass to `toMixpanel` and jitsu will convert it to API call.
-
-E.g., to [Increment Numerical Property](https://developer.mixpanel.com/reference/profile-numerical-add):
-
-```javascript
-let userProfileUpdates = {
-  "$add": {
-    "Coins Gathered": 12
-  }
-}
-return toMixpanel($, {userProfileUpdates: userProfileUpdates})
-```
-
-[Union To List Property](https://developer.mixpanel.com/reference/user-profile-union):
-
-```javascript
-let userProfileUpdates = {
-  "$union": {
-    "Items purchased": ["socks", "shirts"]
-  }
-}
-return toMixpanel($, {userProfileUpdates: userProfileUpdates})
+return $
 ```
 
 ## Skipping events
 
-If not all event types are needed in Mixpanel – you can skip unnecessary evens using general skip logic by returning `null`:
+If not all event types are needed in Mixpanel – you can skip unnecessary evens using [JavaScript Transform](/docs/configuration/javascript-transform) general skip logic by returning `null`:
 ```javascript
 if ($.event_type === "not_interesting") {
   return null
 }
-return toMixpanel($)
+return $
 ```
 
 
@@ -122,13 +67,9 @@ Mixpanel destination config consists of the following schema:
 ```yaml
 destinations:
   my_mixpanel:
-    type: webhook
-    subtype: mixpanel
+    type: npm
+    package: mixpanel-destination
     mode: stream
-    data_layout:
-      transform_enabled: true
-      transform: |
-        return toMixpanel($, /* User Profile updates */ {},  /*Additional Event properties */ {}, /* Overridden event name*/ '')
     template_variables:
       token: abc123abc123abc123
       users_enabled: true

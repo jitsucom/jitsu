@@ -11,8 +11,8 @@ interface SwitchWithLabelProps {
   label?: string
 }
 
-const SwitchWithLabel: React.FC<SwitchWithLabelProps> = ({ id, defaultChecked = "", onChange, label }) => {
-  const [state, setState] = useState(!!defaultChecked)
+const SwitchWithLabel: React.FC<SwitchWithLabelProps> = ({ id, defaultChecked, onChange, label }) => {
+  const [state, setState] = useState(defaultChecked)
 
   const triggerChange = (changedValue: boolean) => {
     onChange?.(changedValue)
@@ -25,7 +25,7 @@ const SwitchWithLabel: React.FC<SwitchWithLabelProps> = ({ id, defaultChecked = 
 
   return (
     <div>
-      <Switch className={"mb-0.5"} onChange={onValueChange} checked={state} defaultChecked={!!defaultChecked} />
+      <Switch className={"mb-0.5"} onChange={onValueChange} checked={state} defaultChecked={defaultChecked} />
       {label && <span className={"pl-3"}>{label}</span>}
     </div>
   )
