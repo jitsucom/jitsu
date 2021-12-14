@@ -3,9 +3,9 @@
 import React from "react"
 import moment from "moment"
 import { NavLink } from "react-router-dom"
-import { Button, Card, CardProps, Col, Tooltip, Row } from "antd"
+import { Button, Card, Col, Tooltip, Row } from "antd"
 // @Components
-import { CodeInline, LoadableComponent } from "lib/components/components"
+import { CodeInline } from "lib/components/components"
 import { StatisticsChart } from "ui/components/StatisticsChart/StatisticsChart"
 // @Icons
 import { ReloadOutlined, WarningOutlined, QuestionCircleOutlined, ThunderboltFilled } from "@ant-design/icons"
