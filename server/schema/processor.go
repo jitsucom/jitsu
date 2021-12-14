@@ -408,7 +408,7 @@ func (p *Processor) InitJavaScriptTemplates() (err error) {
 	//if mapping is set for destination - javascript transformation cannot be used
 	if userTransform == "" && p.defaultUserTransform != "" {
 		if !mappingDisabled {
-			logging.Warnf(`%s %s destination supports data mapping via builtin javascript transformation but mapping feature is enabled via config.\n
+			logging.Warnf(`%s %s destination supports data mapping via builtin javascript transformation but mapping feature is enabled via config.
 Mapping feature is deprecated. It is recommended to migrate to javascript data transformation.`, p.identifier, p.destinationConfig.Type)
 			return nil
 		} else {
