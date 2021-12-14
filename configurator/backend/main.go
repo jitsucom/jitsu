@@ -262,9 +262,10 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 	enConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsService, configurationsStorage)
 
 	proxyHandler := handlers.NewProxyHandler(jitsuService, map[string]jitsu.APIDecorator{
-		//write here custom decorators for certain HTTP URN paths
-		"/proxy/api/v1/events/cache": jitsu.NewEventsCacheDecorator(configurationsService).Decorate,
-		"/proxy/api/v1/statistics":   jitsu.NewStatisticsDecorator().Decorate,
+		//write here custom decorators for a certain HTTP URN paths
+		"/proxy/api/v1/events/cache":        jitsu.NewEventsCacheDecorator(configurationsService).Decorate,
+		"/proxy/api/v1/statistics":          jitsu.NewStatisticsDecorator().Decorate,
+		"/proxy/api/v1/statistics/detailed": jitsu.NewStatisticsDecorator().Decorate,
 	})
 	router.Any("/proxy/*path", authenticatorMiddleware.ClientProjectAuth(proxyHandler.Handler))
 
