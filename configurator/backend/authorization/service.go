@@ -35,6 +35,10 @@ type Service struct {
 	configurationsStorage storages.ConfigurationsStorage
 }
 
+func NewConfiguredService(authProvider Provider, storage storages.ConfigurationsStorage) *Service {
+	return &Service{authProvider: authProvider, configurationsStorage: storage}
+}
+
 func NewService(ctx context.Context, vp *viper.Viper, storage storages.ConfigurationsStorage) (*Service, error) {
 	var authProvider Provider
 	var err error
