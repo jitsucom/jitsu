@@ -1,6 +1,7 @@
 package multiplexing
 
 import (
+	"encoding/json"
 	"errors"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
@@ -49,10 +50,12 @@ func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.R
 		if eventID == "" {
 			logging.SystemErrorf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), payload.Serialize())
 		}
+
+		serializedPayload, _ := json.Marshal(payload)
 		var destinationIDs []string
 		for _, destinationProxy := range destinationStorages {
 			destinationIDs = append(destinationIDs, destinationProxy.ID())
-			s.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, payload)
+			s.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, serializedPayload)
 		}
 
 		//** Multiplexing **
