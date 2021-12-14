@@ -11,6 +11,10 @@ server:
 geo:
   maxmind_path: '${env.MAX_MIND_PATH|}'
 
+configurator:
+  base_url: '${env.JITSU_CONFIGURATOR_URL|}'
+  admin_token: '${env.CLUSTER_ADMIN_TOKEN|env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+
 geo_resolvers: '${env.GEO_RESOLVERS_URL|}'
 
 api_keys: '${env.API_KEYS_URL|}'
@@ -30,12 +34,16 @@ users_recognition:
   redis:
     host: '${env.USER_RECOGNITION_REDIS_URL|}'
     tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+    ttl_minutes:
+      anonymous_events: '${env.USER_RECOGNITION_TTL_MINUTES|10080}'
 
 meta:
   storage:
     redis:
       host: '${env.REDIS_URL|}'
       tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+      ttl_minutes:
+        anonymous_events: '${env.USER_RECOGNITION_TTL_MINUTES|10080}'
 
 events:
   queue:

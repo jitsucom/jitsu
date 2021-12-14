@@ -2,6 +2,7 @@ package authorization
 
 import (
 	"errors"
+	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/uuid"
@@ -29,7 +30,7 @@ type Service struct {
 	DestinationsForceReload func()
 }
 
-func NewService() (*Service, error) {
+func NewService(configuratorURL, configuratorToken string) (*Service, error) {
 	service := &Service{}
 
 	reloadSec := viper.GetInt("server.api_keys_reload_sec")
@@ -71,6 +72,9 @@ func NewService() (*Service, error) {
 
 		if len(auth) == 1 {
 			authSource := auth[0]
+			if authSource == "" && configuratorURL != "" {
+				authSource = fmt.Sprintf("%s/api/v1/apikeys?token=%s", configuratorURL, configuratorToken)
+			}
 			if strings.HasPrefix(authSource, "http://") || strings.HasPrefix(authSource, "https://") {
 				resources.Watch(serviceName, authSource, resources.LoadFromHTTP, service.updateTokens, time.Duration(reloadSec)*time.Second)
 			} else if strings.HasPrefix(authSource, "file://") || strings.HasPrefix(authSource, "/") {

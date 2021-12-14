@@ -28,14 +28,14 @@ var blankPage = `<html><head><title>Jitsu edge server ver [VERSION]</title></hea
 // HTML Welcome page or blanc page
 type RootPathHandler struct {
 	service         *system.Service
-	configuratorURL string
+	configuratorURN string
 	welcome         *template.Template
 	redirectToHttps bool
 }
 
 //NewRootPathHandler reads sourceDir and returns RootPathHandler instance
-func NewRootPathHandler(service *system.Service, sourceDir, configuratorURL string, disableWelcomePage, redirectToHttps bool) *RootPathHandler {
-	rph := &RootPathHandler{service: service, configuratorURL: configuratorURL, redirectToHttps: redirectToHttps}
+func NewRootPathHandler(service *system.Service, sourceDir, configuratorURN string, disableWelcomePage, redirectToHttps bool) *RootPathHandler {
+	rph := &RootPathHandler{service: service, configuratorURN: configuratorURN, redirectToHttps: redirectToHttps}
 
 	if service.IsConfigured() {
 		return rph
@@ -80,7 +80,7 @@ func (rph *RootPathHandler) Handler(c *gin.Context) {
 			realHost = redirectHost
 		}
 
-		redirectURL := redirectSchema + "://" + realHost + viper.GetString("server.configurator_url")
+		redirectURL := redirectSchema + "://" + realHost + viper.GetString("server.configurator_urn")
 		c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 		return
 	}
@@ -88,13 +88,13 @@ func (rph *RootPathHandler) Handler(c *gin.Context) {
 	c.Header("Content-type", htmlContentType)
 
 	if rph.welcome == nil {
-		c.Writer.Write([]byte(strings.ReplaceAll(blankPage,"[VERSION]", appconfig.RawVersion + " / " + appconfig.BuiltAt)))
+		c.Writer.Write([]byte(strings.ReplaceAll(blankPage, "[VERSION]", appconfig.RawVersion+" / "+appconfig.BuiltAt)))
 		return
 	}
 
 	parameters := map[string]interface{}{configuratorPresentKey: false, configuratorURLKey: ""}
-	if rph.configuratorURL != "" {
-		parameters[configuratorURLKey] = rph.configuratorURL
+	if rph.configuratorURN != "" {
+		parameters[configuratorURLKey] = rph.configuratorURN
 		parameters[configuratorPresentKey] = true
 	}
 
