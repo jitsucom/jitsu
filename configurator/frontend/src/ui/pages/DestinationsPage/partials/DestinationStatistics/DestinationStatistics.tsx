@@ -16,14 +16,9 @@ import { destinationPageRoutes } from "../../DestinationsPage.routes"
 import { CommonDestinationPageProps } from "../../DestinationsPage"
 // @Services
 import { useServices } from "hooks/useServices"
-import {
-  DestinationsStatisticsDatePoint,
-  DetailedStatisticsDatePoint,
-  IStatisticsService,
-  StatisticsService,
-} from "lib/services/stat"
+import { CombinedStatisticsDatePoint, IStatisticsService, StatisticsService } from "lib/services/stat"
 // @Utils
-import useLoader, { useLoaderAsObject } from "hooks/useLoader"
+import { useLoaderAsObject } from "hooks/useLoader"
 import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 // @Styles
 import styles from "./DestinationStatistics.module.less"
@@ -36,10 +31,11 @@ type StatisticsPageParams = {
 function monthlyDataLoader(
   destinationUid: string,
   destination: Destination,
-  type: "source" | "push_source",
+  type: "push" | "pull",
   statisticsService: IStatisticsService
 ) {
-  if (destination.syncFromSourcesStatus !== "supported" && type === "source") {
+  debugger
+  if (destination.syncFromSourcesStatus !== "supported" && type === "push") {
     return async () => []
   }
   return async () => {
@@ -47,7 +43,7 @@ function monthlyDataLoader(
     const yesterday = new Date(+now - 24 * 60 * 60 * 1000)
     const monthAgo = new Date(+now - 30 * 24 * 60 * 60 * 1000)
     return destination
-      ? (await statisticsService.getDetailedStatisticsByDestinations(
+      ? (await statisticsService.getCombinedStatisticsByDestinations(
           monthAgo,
           yesterday,
           "day",
@@ -61,10 +57,10 @@ function monthlyDataLoader(
 function hourlyDataLoader(
   destinationUid: string,
   destination: Destination,
-  type: "source" | "push_source",
+  type: "push" | "pull",
   statisticsService: IStatisticsService
 ) {
-  if (destination.syncFromSourcesStatus !== "supported" && type === "source") {
+  if (destination.syncFromSourcesStatus !== "supported" && type === "push") {
     return async () => []
   }
   return async () => {
@@ -72,7 +68,7 @@ function hourlyDataLoader(
     const previousHour = new Date(+now - 60 * 60 * 1000)
     const dayAgo = new Date(+now - 24 * 60 * 60 * 1000)
     return destinationUid
-      ? (await statisticsService.getDetailedStatisticsByDestinations(
+      ? (await statisticsService.getCombinedStatisticsByDestinations(
           dayAgo,
           previousHour,
           "hour",
@@ -95,30 +91,33 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({ se
     []
   )
 
+  const isSelfHosted = services.features.environment !== "jitsu_cloud"
+
   // Events last 30 days
-  const monthlyPushEvents = useLoaderAsObject<DestinationsStatisticsDatePoint[]>(
-    monthlyDataLoader(destinationUid, destinationReference, "push_source", statisticsService),
+  const lastMonthPushEvents = useLoaderAsObject<CombinedStatisticsDatePoint[]>(
+    monthlyDataLoader(destinationUid, destinationReference, "push", statisticsService),
     [destinationUid]
   )
-  const monthlyPullEvents = useLoaderAsObject<DestinationsStatisticsDatePoint[]>(
-    monthlyDataLoader(destinationUid, destinationReference, "source", statisticsService),
-    [destinationUid]
-  )
-
-  // Last 24 hours
-  const dailyPushEvents = useLoaderAsObject<DetailedStatisticsDatePoint[]>(
-    hourlyDataLoader(destinationUid, destinationReference, "push_source", statisticsService),
+  const lastMonthPullEvents = useLoaderAsObject<CombinedStatisticsDatePoint[]>(
+    monthlyDataLoader(destinationUid, destinationReference, "pull", statisticsService),
     [destinationUid]
   )
 
   // Last 24 hours
-  const dailyPullEvents = useLoaderAsObject<DetailedStatisticsDatePoint[]>(
-    hourlyDataLoader(destinationUid, destinationReference, "source", statisticsService),
+  const lastDayPushEvents = useLoaderAsObject<CombinedStatisticsDatePoint[]>(
+    hourlyDataLoader(destinationUid, destinationReference, "push", statisticsService),
+    [destinationUid]
+  )
+  const lastDayPullEvents = useLoaderAsObject<CombinedStatisticsDatePoint[]>(
+    hourlyDataLoader(destinationUid, destinationReference, "pull", statisticsService),
     [destinationUid]
   )
 
   const somethingIsLoading =
-    monthlyPushEvents.isLoading || monthlyPullEvents.isLoading || dailyPushEvents.isLoading || dailyPullEvents.isLoading
+    lastMonthPushEvents.isLoading ||
+    lastMonthPullEvents.isLoading ||
+    lastDayPushEvents.isLoading ||
+    lastDayPullEvents.isLoading
 
   useEffect(() => {
     const breadcrumbs = [
@@ -162,10 +161,18 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({ se
           {"Destinations List"}
         </Button>
       </div>
-      <Row gutter={16}>
+      {isSelfHosted && (
+        <Row>
+          <span className={`text-secondaryText mb-4`}>
+            Jitsu 1.37 brought an update that enables for serving more fine-grained statistics data. The new charts will
+            not show the events processed by the previous versions of Jitsu.
+          </span>
+        </Row>
+      )}
+      <Row gutter={16} className={"mb-4"}>
         <Col span={12}>
           <Card title="Incoming events (last 30 days)" bordered={false} className="w-full" loading={somethingIsLoading}>
-            <StatisticsChart data={monthlyPushEvents.data || []} granularity={"day"} />
+            <StatisticsChart data={lastMonthPushEvents.data || []} granularity={"day"} />
           </Card>
         </Col>
         <Col span={12}>
@@ -175,7 +182,7 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({ se
             className="w-full"
             loading={somethingIsLoading}
           >
-            <StatisticsChart data={dailyPushEvents.data || []} granularity={"hour"} />
+            <StatisticsChart data={lastDayPushEvents.data || []} granularity={"hour"} />
           </Card>
         </Col>
       </Row>
@@ -188,7 +195,11 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({ se
               className="w-full"
               loading={somethingIsLoading}
             >
-              <StatisticsChart data={monthlyPullEvents.data || []} granularity={"day"} />
+              <StatisticsChart
+                data={lastMonthPullEvents.data || []}
+                granularity={"day"}
+                dataToDisplay={["success", "skip"]}
+              />
             </Card>
           </Col>
           <Col span={12}>
@@ -198,7 +209,11 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({ se
               className="w-full"
               loading={somethingIsLoading}
             >
-              <StatisticsChart data={monthlyPullEvents.data || []} granularity={"hour"} />
+              <StatisticsChart
+                data={lastDayPullEvents.data || []}
+                granularity={"hour"}
+                dataToDisplay={["success", "skip"]}
+              />
             </Card>
           </Col>
         </Row>
