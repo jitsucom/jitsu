@@ -13,6 +13,7 @@ import { Steps } from "antd"
 import { SourceEditorStepsControlsDisabled, SourceEditorViewStepsControls } from "./SourceEditorViewStepsControls"
 import { LoadingOutlined } from "@ant-design/icons"
 import { uniqueId } from "lodash"
+import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 
 type SourceEditorTabsViewProps = {
   state: SourceEditorState
@@ -69,8 +70,8 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
     try {
       await handleValidateAndTestConfig()
       await handleGoToNextStep()
-    } catch {
-      // handleValidateAndTestConfig shows a message in case of an error
+    } catch (error) {
+      actionNotification.error(`${error}`)
     } finally {
       setCurrentStepIsLoading(false)
     }

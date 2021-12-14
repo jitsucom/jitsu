@@ -153,10 +153,26 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     })
     return sourceEditorUtils.getSourceDataFromState(sourceEditorState, sourceDataFromCatalog, initialSourceData)
   }
+  
+  const validateCountErrors = async (): Promise<number> => {
+    const configurationErrorsCount = await state.configuration.getErrorsCount()
+    debugger
+    setState(state => {
+      const newState = cloneDeep(state)
+      newState.configuration.errorsCount = configurationErrorsCount
+      return newState
+    })
+
+    return configurationErrorsCount
+  }
 
   const handleValidateAndTestConfig = async () => {
+    const someFieldsErrored = !!(await validateCountErrors())
+    if (someFieldsErrored) throw new Error("Some configuration fields values are invalid")
+
     const controlsDisableRequestId = uniqueId("validateAndTest-")
     handleSetControlsDisabled("Validating source configuration", controlsDisableRequestId)
+
     try {
       const sourceData = handleBringSourceData()
       const testResult = await sourcePageUtils.testConnection(sourceData)

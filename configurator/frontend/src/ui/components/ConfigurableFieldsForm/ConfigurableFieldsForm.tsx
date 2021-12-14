@@ -503,34 +503,6 @@ const ConfigurableFieldsFormComponent = ({
               })
             if (type?.typeName === "isoUtcDate")
               validationRules.push(isoDateValidator(`${displayName} field is required.`))
-
-            /**
-             * Currently `antd` built in validations do not work as expected,
-             * therefore validations are currently omitted
-             *
-             */
-            if (type?.typeName === "string") {
-              // assertIsStringParameterType(type);
-              // type.pattern &&
-              //   validationRules.push({ pattern: new RegExp(type.pattern) });
-            }
-            if (type?.typeName === "int") {
-              // assertIsIntParameterType(type);
-              // (type.minimum || type.maximum) &&
-              //   validationRules.push({
-              //     validator: (_, value) => {
-              //       if (type.minimum && value < type.minimum)
-              //         return Promise.reject(
-              //           new Error(`value can't be lower than ${type.minimum}`)
-              //         );
-              //       if (type.maximum && value > type.maximum)
-              //         return Promise.reject(
-              //           new Error(`value can't be greater than ${type.maximum}`)
-              //         );
-              //       return Promise.resolve();
-              //     }
-              //   });
-            }
           }
 
           return isOmitted ? null : !isHidden ? (
