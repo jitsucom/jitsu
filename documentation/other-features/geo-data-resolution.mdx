@@ -72,28 +72,3 @@ The env var (or config param) can accept following values:
 Since several databases (aka editions) can be available, Jitsu will download all of them
  * `maxmind://<YOUR_MAXMIND_LICENSE_KEY>?edition_id=db1,db2` - Jitsu will download only listed editions (databases). Available editions are:
 `GeoIP2-Country`, `GeoLite2-Country`, `GeoIP2-City`, `GeoLite2-City`, `GeoLite2-ASN`, `GeoIP2-ISP`
-
-
-Configuration via env variable - add `MAX_MIND_PATH` env variable like: `MAX_MIND_PATH=maxmind://<your license key>` or add
-comma-separated certain edition ids `MAX_MIND_PATH=maxmind://<your license key>?edition_id=GeoIP2-City,GeoIP2-ISP`, or set your license key on Jitsu UI -> Geo data resolver section (available since 1.37.3 version).
-If you use jitsucom/server, you can configure geo resolver via yaml configuration:
-
-```yaml
-server:
-...
-
-destinations:
-...
-
-#local file
-geo.maxmind_path: path_to_file
-
-#Jitsu will download all available MaxMind DBs from official MaxMind URL with your licence key
-geo.maxmind_path: 'maxmind://<YOUR_MAXMIND_LICENSE_KEY>'
-
-#Jitsu will download only GeoIP2-City and GeoIP2-ISP
-geo.maxmind_path: 'maxmind://<YOUR_MAXMIND_LICENSE_KEY>?edition_id=GeoIP2-City,GeoIP2-ISP'
-
-#hosted file
-geo.maxmind_path: http://resource.url/path
-```
