@@ -2,7 +2,6 @@ package caching
 
 import (
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/events"
 )
 
 //SucceedDBEvent is an entity for cached events response for databases events
@@ -24,10 +23,10 @@ type SucceedHTTPEvent struct {
 
 //channel dto
 type statusEvent struct {
-	eventType     string
-	destinationID string
-	eventID       string
-	event         events.Event
-	eventContext  *adapters.EventContext
-	error         string
+	eventType         string
+	destinationID     string
+	eventID           string
+	serializedPayload []byte
+	eventContext      *adapters.EventContext
+	error             string
 }
