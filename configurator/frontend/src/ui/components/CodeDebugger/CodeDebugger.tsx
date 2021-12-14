@@ -73,8 +73,8 @@ export interface FormValues {
 
 interface CalculationResult {
   code: "error" | "success"
-  format: string | null
-  result: string
+  format?: string | null
+  result?: string
   error?: string
   userResult?: string
   userError?: string
@@ -171,14 +171,13 @@ const CodeDebugger = ({
         userError: response.user_error,
       })
     } catch (error) {
-      console.log(JSON.stringify(error))
       setCalcResult({
         code: "error",
-        format: error?._response?.format,
-        result: error?._response?.result,
-        error: error?._response?.error ?? error?.message ?? "Error",
-        userResult: error?._response?.user_result,
-        userError: error?._response?.user_error,
+        format: error?._response?.format ?? null,
+        result: error?._response?.result ?? "",
+        error: error?._response?.error || error?._response?.message || error?.message || "Error",
+        userResult: error?._response?.user_result ?? "",
+        userError: error?._response?.user_error ?? "",
       })
     } finally {
       setRunIsLoading(false)

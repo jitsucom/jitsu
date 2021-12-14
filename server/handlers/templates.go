@@ -44,10 +44,6 @@ func (etr *EvaluateTemplateRequest) Validate() error {
 		return errors.New("'object' is required field")
 	}
 
-	if etr.Expression == "" {
-		return errors.New("'expression' is required field")
-	}
-
 	return nil
 }
 
