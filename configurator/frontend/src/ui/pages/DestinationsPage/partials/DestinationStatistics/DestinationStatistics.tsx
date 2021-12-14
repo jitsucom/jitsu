@@ -21,7 +21,6 @@ import { CombinedStatisticsDatePoint, IStatisticsService, StatisticsService } fr
 import { useLoaderAsObject } from "hooks/useLoader"
 import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 // @Styles
-import styles from "./DestinationStatistics.module.less"
 import { Destination } from "../../../../../catalog/destinations/types"
 
 type StatisticsPageParams = {
@@ -34,7 +33,6 @@ function monthlyDataLoader(
   type: "push" | "pull",
   statisticsService: IStatisticsService
 ) {
-  debugger
   if (destination.syncFromSourcesStatus !== "supported" && type === "push") {
     return async () => []
   }
