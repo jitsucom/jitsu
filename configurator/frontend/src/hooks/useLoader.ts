@@ -41,7 +41,7 @@ type LoaderResultObject<T> = {
  *
  *
  */
-function useLoader<T>(loader: Loader<T>, deps?: DependencyList, options?: {initialValue?: T}): LoaderResult<T> {
+function useLoader<T>(loader: Loader<T>, deps?: DependencyList, options?: { initialValue?: T }): LoaderResult<T> {
   const [data, setData] = useState<T | undefined>(options?.initialValue)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<Error>(undefined)
@@ -66,7 +66,7 @@ function useLoader<T>(loader: Loader<T>, deps?: DependencyList, options?: {initi
 /**
  * Same as a `useLoader`, but returns an object instead of array
  */
-function useLoaderAsObject<T>(loader: Loader<T>, deps?: DependencyList, options?: {initialValue?: T}) {
+function useLoaderAsObject<T>(loader: Loader<T>, deps?: DependencyList, options?: { initialValue?: T }) {
   const [error, data, setData, reloader, isLoading] = useLoader(loader, deps, options)
   return { error, data, setData, reloader, isLoading }
 }

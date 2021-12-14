@@ -244,12 +244,12 @@ const EventsView: React.FC<{ event: Event; className?: string; allDestinations: 
 export function tryParseJson(str: any) {
   if (typeof str === "string") {
     try {
-      return JSON.parse(str);
+      return JSON.parse(str)
     } catch (e) {
-      return str;
+      return str
     }
   } else {
-    return str;
+    return str
   }
 }
 
@@ -261,7 +261,7 @@ export function preprocessJson(obj: any) {
   if (obj.body) {
     obj.body = tryParseJson(obj.body)
   }
-  return obj;
+  return obj
 }
 
 function getResultView(obj: any) {
