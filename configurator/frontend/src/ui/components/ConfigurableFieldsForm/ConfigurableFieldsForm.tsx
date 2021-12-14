@@ -556,7 +556,8 @@ const ConfigurableFieldsFormComponent = ({
                   bigField,
                   displayName,
                   codeSuggestions,
-                  documentation
+                  documentation,
+                  validationRules
                 )}
               </Col>
             </Row>
