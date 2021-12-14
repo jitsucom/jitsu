@@ -85,7 +85,7 @@ export const StatusPage: React.FC<{}> = () => {
           </span>
         </Row>
       )}
-      <Row gutter={16} className="status-page-cards-row mb-4">
+      <Row gutter={16} className="status-page-cards-row mb-4g">
         <Col span={12}>
           <Card
             title={

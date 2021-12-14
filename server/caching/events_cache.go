@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/safego"
@@ -61,7 +60,7 @@ func (ec *EventsCache) start() {
 		for cf := range ec.eventsChannel {
 			switch cf.eventType {
 			case "put":
-				ec.put(cf.destinationID, cf.eventID, cf.event)
+				ec.put(cf.destinationID, cf.eventID, cf.serializedPayload)
 			case "succeed":
 				ec.succeed(cf.eventContext)
 			case "error":
@@ -74,12 +73,12 @@ func (ec *EventsCache) start() {
 }
 
 //Put puts value into channel which will be read and written to storage
-func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, value events.Event) {
+func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, serializedPayload []byte) {
 	if !disabled && ec.isActive() {
 		select {
-		case ec.eventsChannel <- &statusEvent{eventType: "put", destinationID: destinationID, eventID: eventID, event: value}:
+		case ec.eventsChannel <- &statusEvent{eventType: "put", destinationID: destinationID, eventID: eventID, serializedPayload: serializedPayload}:
 		default:
-			logging.SystemErrorf("[events cache] original event hasn't been put: %s", value.Serialize())
+			logging.SystemErrorf("[events cache] original event hasn't been put: %s", string(serializedPayload))
 		}
 	}
 }
@@ -118,21 +117,15 @@ func (ec *EventsCache) Skip(disabled bool, destinationID, eventID string, errMsg
 }
 
 //put creates new event in storage
-func (ec *EventsCache) put(destinationID, eventID string, value events.Event) {
+func (ec *EventsCache) put(destinationID, eventID string, serializedPayload []byte) {
 	if eventID == "" {
-		logging.SystemErrorf("[%s] Event id can't be empty. Event: %s", destinationID, value.Serialize())
+		logging.SystemErrorf("[%s] Event id can't be empty. Event: %s", destinationID, string(serializedPayload))
 		return
 	}
 
-	b, err := json.Marshal(value)
+	eventsInCache, err := ec.storage.AddEvent(destinationID, eventID, string(serializedPayload), timestamp.Now().UTC())
 	if err != nil {
-		logging.SystemErrorf("[%s] Error marshalling event [%v] before caching: %v", destinationID, value, err)
-		return
-	}
-
-	eventsInCache, err := ec.storage.AddEvent(destinationID, eventID, string(b), timestamp.Now().UTC())
-	if err != nil {
-		logging.SystemErrorf("[%s] Error saving event %v in cache: %v", destinationID, value.Serialize(), err)
+		logging.SystemErrorf("[%s] Error saving event %v in cache: %v", destinationID, string(serializedPayload), err)
 		return
 	}
 
