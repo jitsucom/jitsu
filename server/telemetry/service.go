@@ -43,10 +43,9 @@ func InitTest() {
 
 //InitFromViper creates telemetry instance, starts goroutine
 //if configuration is provided as a url - starts another goroutine (see resources.Watch)
-func InitFromViper(serviceName, commit, tag, builtAt, dockerHubID string) {
+func InitFromViper(telemetrySourceURL, serviceName, commit, tag, builtAt, dockerHubID string) {
 	Init(serviceName, commit, tag, builtAt, dockerHubID)
 
-	telemetrySourceURL := viper.GetString("server.telemetry")
 	if telemetrySourceURL != "" {
 		resources.Watch(serviceName, telemetrySourceURL, resources.LoadFromHTTP, reInit, reloadEvery)
 	} else {

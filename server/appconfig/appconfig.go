@@ -6,6 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/jitsucom/jitsu/server/authorization"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -20,6 +21,9 @@ type AppConfig struct {
 	ServerName string
 	Authority  string
 	ConfigPath string
+
+	ConfiguratorURL   string
+	ConfiguratorToken string
 
 	DisableSkipEventsWarn bool
 
@@ -72,7 +76,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.cache.pool.size", 10)
 	viper.SetDefault("server.strict_auth_tokens", false)
 	viper.SetDefault("server.max_columns", 100)
-	viper.SetDefault("server.configurator_url", "/configurator")
+	viper.SetDefault("server.configurator_urn", "/configurator")
 	//unique IDs
 	viper.SetDefault("server.fields_configuration.unique_id_field", "/eventn_ctx/event_id||/eventn_ctx_event_id||/event_id")
 	viper.SetDefault("server.fields_configuration.user_agent_path", "/eventn_ctx/user_agent||/user_agent")
@@ -278,6 +282,9 @@ func Init(containerized bool, dockerHubID string) error {
 	appConfig.ServerName = serverName
 	appConfig.ConfigPath = viper.GetString("server.config.path")
 
+	appConfig.ConfiguratorURL = strings.TrimRight(viper.GetString("configurator.base_url"), "/")
+	appConfig.ConfiguratorToken = viper.GetString("configurator.admin_token")
+
 	emptyGIF, err := base64.StdEncoding.DecodeString(emptyGIFOnexOne)
 	if err != nil {
 		return fmt.Errorf("Error parsing empty GIF: %v", err)
@@ -332,7 +339,7 @@ func Init(containerized bool, dockerHubID string) error {
 	port := viper.GetString("server.port")
 	appConfig.Authority = "0.0.0.0:" + port
 
-	authService, err := authorization.NewService()
+	authService, err := authorization.NewService(appConfig.ConfiguratorURL, appConfig.ConfiguratorToken)
 	if err != nil {
 		return err
 	}

@@ -103,7 +103,8 @@ func main() {
 		dockerHubID = &environment
 	}
 
-	telemetry.InitFromViper(serviceName, commit, tag, builtAt, *dockerHubID)
+	telemetrySourceURL := viper.GetString("server.telemetry")
+	telemetry.InitFromViper(telemetrySourceURL, serviceName, commit, tag, builtAt, *dockerHubID)
 
 	safego.GlobalRecoverHandler = func(value interface{}) {
 		logging.Error("panic")
