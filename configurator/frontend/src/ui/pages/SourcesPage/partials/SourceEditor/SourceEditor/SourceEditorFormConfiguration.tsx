@@ -188,10 +188,10 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   }, [])
 
   const isLoadingOauth = !isOauthStatusReady || isLoadingBackendSecrets
-  // const isLoadingOauth = true
 
   useEffect(() => {
     if (isLoadingOauth) handleSetControlsDisabled(true, "oauth")
+    else if (sourceConfigurationSchema.onlyManualAuth) handleSetControlsDisabled(false, "oauth")
     else if (fillAuthDataManually) handleSetControlsDisabled(false, "oauth")
     else if (editorMode === "edit") handleSetControlsDisabled(false, "oauth")
     else if (!isOauthFlowCompleted)
