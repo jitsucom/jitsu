@@ -14,9 +14,9 @@ import (
 
 const (
 	defaultDatabaseCredentialsCollection = "default_database_credentials"
-	destinationsCollection               = "destinations"
+	DestinationsCollection               = "destinations"
 	sourcesCollection                    = "sources"
-	apiKeysCollection                    = "api_keys"
+	ApiKeysCollection                    = "api_keys"
 	customDomainsCollection              = "custom_domains"
 	geoDataResolversCollection           = "geo_data_resolvers"
 	lastUpdatedField                     = "_lastUpdated"
@@ -29,7 +29,7 @@ const (
 
 //collectionsDependencies is used for updating last_updated field in db. It leads Jitsu Server to reload configuration with new changes
 var collectionsDependencies = map[string]string{
-	geoDataResolversCollection: destinationsCollection,
+	geoDataResolversCollection: DestinationsCollection,
 }
 
 type ConfigurationsService struct {
@@ -75,12 +75,12 @@ func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*en
 }
 
 func (cs *ConfigurationsService) GetDestinationsLastUpdated() (*time.Time, error) {
-	return cs.storage.GetCollectionLastUpdated(destinationsCollection)
+	return cs.storage.GetCollectionLastUpdated(DestinationsCollection)
 }
 
 //GetDestinations return map with projectID:destinations
 func (cs ConfigurationsService) GetDestinations() (map[string]*entities.Destinations, error) {
-	allDestinations, err := cs.storage.GetAllGroupedByID(destinationsCollection)
+	allDestinations, err := cs.storage.GetAllGroupedByID(DestinationsCollection)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (cs ConfigurationsService) GetDestinations() (map[string]*entities.Destinat
 }
 
 func (cs *ConfigurationsService) GetDestinationsByProjectID(projectID string) ([]*entities.Destination, error) {
-	doc, err := cs.storage.Get(destinationsCollection, projectID)
+	doc, err := cs.storage.Get(DestinationsCollection, projectID)
 	if err != nil {
 		if err == ErrConfigurationNotFound {
 			return make([]*entities.Destination, 0), nil
@@ -111,7 +111,7 @@ func (cs *ConfigurationsService) GetDestinationsByProjectID(projectID string) ([
 }
 
 func (cs *ConfigurationsService) GetAPIKeysLastUpdated() (*time.Time, error) {
-	return cs.storage.GetCollectionLastUpdated(apiKeysCollection)
+	return cs.storage.GetCollectionLastUpdated(ApiKeysCollection)
 }
 
 func (cs *ConfigurationsService) GetAPIKeys() ([]*entities.APIKey, error) {
@@ -128,7 +128,7 @@ func (cs *ConfigurationsService) GetAPIKeys() ([]*entities.APIKey, error) {
 
 func (cs *ConfigurationsService) GetAPIKeysGroupByProjectID() (map[string][]*entities.APIKey, error) {
 	keys := make(map[string]*entities.APIKeys)
-	data, err := cs.storage.GetAllGroupedByID(apiKeysCollection)
+	data, err := cs.storage.GetAllGroupedByID(ApiKeysCollection)
 	err = json.Unmarshal(data, &keys)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse API keys: %v", err)
@@ -141,7 +141,7 @@ func (cs *ConfigurationsService) GetAPIKeysGroupByProjectID() (map[string][]*ent
 }
 
 func (cs *ConfigurationsService) GetAPIKeysByProjectID(projectID string) ([]*entities.APIKey, error) {
-	data, err := cs.storage.Get(apiKeysCollection, projectID)
+	data, err := cs.storage.Get(ApiKeysCollection, projectID)
 	if err != nil {
 		if err == ErrConfigurationNotFound {
 			return make([]*entities.APIKey, 0), nil
@@ -240,14 +240,14 @@ func (cs *ConfigurationsService) CreateDefaultAPIKey(projectID string) error {
 	if len(keys) > 0 {
 		return nil
 	}
-	_, err = cs.storage.Get(apiKeysCollection, projectID)
+	_, err = cs.storage.Get(ApiKeysCollection, projectID)
 	if err != nil {
 		if err != ErrConfigurationNotFound {
 			return fmt.Errorf("Error getting api keys by projectID [%s]: %v", projectID, err)
 		}
 	}
 	apiKeyRecord := cs.generateDefaultAPIToken(projectID)
-	err = cs.storage.Store(apiKeysCollection, projectID, apiKeyRecord)
+	err = cs.storage.Store(ApiKeysCollection, projectID, apiKeyRecord)
 	if err != nil {
 		return fmt.Errorf("Failed to store default key for project=[%s]: %v", projectID, err)
 	}
