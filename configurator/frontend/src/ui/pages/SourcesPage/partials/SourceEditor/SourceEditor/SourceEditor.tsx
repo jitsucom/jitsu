@@ -156,7 +156,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
 
   const validateCountErrors = async (): Promise<number> => {
     const configurationErrorsCount = await state.configuration.getErrorsCount()
-    debugger
+
     setState(state => {
       const newState = cloneDeep(state)
       newState.configuration.errorsCount = configurationErrorsCount
