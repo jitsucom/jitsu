@@ -5,6 +5,7 @@ import (
 	"github.com/iancoleman/strcase"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/plugins"
+	"github.com/jitsucom/jitsu/server/templates"
 )
 
 type NpmDestination struct {
@@ -27,10 +28,17 @@ func NewNpmDestination(config *Config) (Storage, error) {
 	}
 
 	transformFuncName := strcase.ToLowerCamel("to_" + plugin.Name)
-	config.processor.AddJavaScript(plugin.Code)
-	config.processor.AddJavaScript(`function ` + transformFuncName + `($) { return exports.adapter($, globalThis) }`)
-	config.processor.AddJavaScriptVariables(config.destination.Config)
-	config.processor.SetDefaultTransform(`return ` + transformFuncName + `($)`)
+	jsVariables := make(map[string]interface{})
+	jsVariables["destinationId"] = config.destinationID
+	jsVariables["destinationType"] = NpmType
+	for k, v := range config.destination.Config {
+		jsVariables[k] = v
+	}
+	jsTemplate, err := templates.NewJsTemplateExecutor(`return `+transformFuncName+`($)`, jsVariables, plugin.Code, `function `+transformFuncName+`($) { return exports.adapter($, globalThis) }`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init builtin javascript code: %v", err)
+	}
+	config.processor.SetBuiltinTransformer(jsTemplate)
 
 	wh := WebHook{}
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
