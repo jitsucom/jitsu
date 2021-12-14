@@ -153,7 +153,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     })
     return sourceEditorUtils.getSourceDataFromState(sourceEditorState, sourceDataFromCatalog, initialSourceData)
   }
-  
+
   const validateCountErrors = async (): Promise<number> => {
     const configurationErrorsCount = await state.configuration.getErrorsCount()
     debugger
