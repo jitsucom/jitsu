@@ -164,7 +164,13 @@ func main() {
 		logging.Errorf("❌ Airbyte integration is disabled: %v. For using Airbyte run Jitsu with: -v /var/run/docker.sock:/var/run/docker.sock", err)
 	}
 
-	geoService := geo.NewService(ctx, viper.GetString("geo_resolvers"), viper.GetString("geo.maxmind_path"), viper.GetString("maxmind.official_url"))
+	//GEO Resolvers
+	geoResolversURL := viper.GetString("geo_resolvers")
+	if geoResolversURL == "" && appconfig.Instance.ConfiguratorURL != "" {
+		geoResolversURL = fmt.Sprintf("%s/api/v1/geo_data_resolvers?token=%s", appconfig.Instance.ConfiguratorURL, appconfig.Instance.ConfiguratorToken)
+	}
+
+	geoService := geo.NewService(ctx, geoResolversURL, viper.GetString("geo.maxmind_path"), viper.GetString("maxmind.official_url"))
 	appconfig.Instance.ScheduleClosing(geoService)
 
 	enrichment.InitDefault(
@@ -181,7 +187,14 @@ func main() {
 		notifications.SystemErrorf("Panic:\n%s\n%s", value, string(debug.Stack()))
 	}
 
-	telemetry.InitFromViper(notifications.ServiceName, commit, tag, builtAt, *dockerHubID)
+	//TELEMETRY
+	telemetryURL := viper.GetString("server.telemetry")
+	if telemetryURL == "" && appconfig.Instance.ConfiguratorURL != "" {
+		telemetryURL = fmt.Sprintf("%s/api/v1/telemetry?token=%s", appconfig.Instance.ConfiguratorURL, appconfig.Instance.ConfiguratorToken)
+	}
+
+	telemetry.InitFromViper(telemetryURL, notifications.ServiceName, commit, tag, builtAt, *dockerHubID)
+
 	metrics.Init(viper.GetBool("server.metrics.prometheus.enabled"))
 
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")
@@ -337,8 +350,14 @@ func main() {
 	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory,
 		globalRecognitionConfiguration, metaStorage, eventsQueueFactory, maxColumns)
 
+	//DESTINATIONS
+	destinationsURL := viper.GetString(destinationsKey)
+	if destinationsURL == "" && appconfig.Instance.ConfiguratorURL != "" {
+		destinationsURL = fmt.Sprintf("%s/api/v1/destinations?token=%s", appconfig.Instance.ConfiguratorURL, appconfig.Instance.ConfiguratorToken)
+	}
+
 	//Create event destinations
-	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory, viper.GetBool("server.strict_auth_tokens"))
+	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), destinationsURL, destinationsFactory, loggerFactory, viper.GetBool("server.strict_auth_tokens"))
 	if err != nil {
 		logging.Fatal(err)
 	}
@@ -361,8 +380,14 @@ func main() {
 	cronScheduler := scheduling.NewCronScheduler()
 	appconfig.Instance.ScheduleClosing(cronScheduler)
 
+	//SOURCES
 	//Create sources
-	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), viper.GetString(sourcesKey), destinationsService, metaStorage, cronScheduler)
+	sourcesURL := viper.GetString(sourcesKey)
+	if sourcesURL == "" && appconfig.Instance.ConfiguratorURL != "" {
+		sourcesURL = fmt.Sprintf("%s/api/v1/sources?token=%s", appconfig.Instance.ConfiguratorURL, appconfig.Instance.ConfiguratorToken)
+	}
+
+	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), sourcesURL, destinationsService, metaStorage, cronScheduler)
 	if err != nil {
 		logging.Fatal("Error creating sources service:", err)
 	}
@@ -441,7 +466,12 @@ func main() {
 		appconfig.Instance.ScheduleClosing(vn)
 	}
 
-	systemService := system.NewService(viper.GetString("system"))
+	//SYSTEM
+	systemConfigurationURL := viper.GetString("system")
+	if systemConfigurationURL == "" && appconfig.Instance.ConfiguratorURL != "" {
+		systemConfigurationURL = fmt.Sprintf("%s/api/v1/system/configuration", appconfig.Instance.ConfiguratorURL)
+	}
+	systemService := system.NewService(systemConfigurationURL)
 
 	//event processors
 	apiProcessor := events.NewAPIProcessor()
