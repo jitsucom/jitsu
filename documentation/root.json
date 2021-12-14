@@ -54,8 +54,7 @@
         "other-features/typecast",
         "other-features/admin-endpoints",
         "other-features/application-metrics",
-        "other-features/cli",
-        "other-features/redis-storage-memory-optimization"
+        "other-features/cli"
       ]
     }
   ]
