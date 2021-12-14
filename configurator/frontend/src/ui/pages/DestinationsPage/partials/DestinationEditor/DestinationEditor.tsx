@@ -216,7 +216,8 @@ const DestinationEditor = ({
       isHidden:
         params.standalone == "true" ||
         isOnboarding ||
-        destinationsReferenceMap[destinationReference.id].defaultTransform.length > 0 ||
+        (destinationsReferenceMap[destinationReference.id].defaultTransform.length > 0 &&
+          !destinationData.current._mappings?._mappings) ||
         !destinationData.current._mappings?._mappings,
     },
     {
