@@ -505,6 +505,7 @@ const FormItemWrapper: React.FC<FormItemWrapperProps> = ({
   return (
     <Form.Item
       id={id}
+      name={id}
       className={cn(
         "form-field_fixed-label",
         styles.field,
