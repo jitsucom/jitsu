@@ -33,7 +33,7 @@ export const allSingerTaps: SingerTap[] = [
           displayName: "Cient ID",
           id: "client_id",
           type: oauthSecretType,
-          required: true,
+          required: false,
           documentation: (
             <>
               ID of the <a href="https://apidocs.nextroll.com/guides/get-started.html">NextRoll API</a> application
@@ -44,7 +44,7 @@ export const allSingerTaps: SingerTap[] = [
           displayName: "Cient Secret",
           id: "client_secret",
           type: oauthSecretType,
-          required: true,
+          required: false,
           documentation: (
             <>
               Secret of the API key generated using the{" "}

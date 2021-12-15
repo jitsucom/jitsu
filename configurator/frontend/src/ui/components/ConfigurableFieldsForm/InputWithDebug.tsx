@@ -7,11 +7,19 @@ interface InputWithDebugProps {
   id: string
   jsDebugger?: "object" | "string" | null
   value?: string
+  placeholder?: string
   onChange?: (value: string) => void
   onButtonClick?: () => void
 }
 
-const InputWithDebug: React.FC<InputWithDebugProps> = ({ id, jsDebugger, value = "", onChange, onButtonClick }) => {
+const InputWithDebug: React.FC<InputWithDebugProps> = ({
+  id,
+  placeholder,
+  jsDebugger,
+  value = "",
+  onChange,
+  onButtonClick,
+}) => {
   const [text, setText] = useState(value || "")
 
   const triggerChange = (changedValue: string) => {
@@ -29,6 +37,7 @@ const InputWithDebug: React.FC<InputWithDebugProps> = ({ id, jsDebugger, value =
         autoSize={{ minRows: 1, maxRows: 5 }}
         value={value || text}
         autoComplete="off"
+        placeholder={placeholder}
         onChange={onValueChange}
       />
       <span className="z-50 absolute top-1.5 right-3">
