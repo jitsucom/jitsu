@@ -38,16 +38,9 @@ function monthlyDataLoader(
   }
   return async () => {
     const now = new Date()
-    const yesterday = new Date(+now - 24 * 60 * 60 * 1000)
     const monthAgo = new Date(+now - 30 * 24 * 60 * 60 * 1000)
     return destination
-      ? (await statisticsService.getCombinedStatisticsByDestinations(
-          monthAgo,
-          yesterday,
-          "day",
-          type,
-          destinationUid
-        )) || []
+      ? (await statisticsService.getCombinedStatisticsByDestinations(monthAgo, now, "day", type, destinationUid)) || []
       : []
   }
 }
@@ -63,16 +56,9 @@ function hourlyDataLoader(
   }
   return async () => {
     const now = new Date()
-    const previousHour = new Date(+now - 60 * 60 * 1000)
     const dayAgo = new Date(+now - 24 * 60 * 60 * 1000)
     return destinationUid
-      ? (await statisticsService.getCombinedStatisticsByDestinations(
-          dayAgo,
-          previousHour,
-          "hour",
-          type,
-          destinationUid
-        )) || []
+      ? (await statisticsService.getCombinedStatisticsByDestinations(dayAgo, now, "hour", type, destinationUid)) || []
       : []
   }
 }
