@@ -82,6 +82,17 @@ const menuItems = [
 
 export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) => {
   const key = usePageLocation().mainMenuKey
+  const Wrapper = React.useMemo<React.FC<{ title?: string | React.ReactNode }>>(
+    () =>
+      expanded
+        ? ({ children }) => <>{children}</>
+        : ({ title, children }) => (
+            <Tooltip title={title} placement="right" mouseEnterDelay={0} mouseLeaveDelay={0}>
+              {children}
+            </Tooltip>
+          ),
+    [expanded]
+  )
 
   return (
     <div className={`max-h-full overflow-x-visible overflow-y-auto ${styles.sideBarContent_applicationMenu}`}>
@@ -89,25 +100,17 @@ export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) =
         const selected = item.link === "/" + key
         return (
           <NavLink to={item.link} key={item.link}>
-            <div
-              key={item.link}
-              className={`${
-                selected ? styles.selectedMenuItem : styles.sideBarContent_item__withRightBorder
-              } whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}
-            >
-              {!expanded && (
-                <Tooltip title={item.title} placement="right" mouseEnterDelay={0}>
-                  {item.icon}
-                </Tooltip>
-              )}
-
-              {expanded && (
-                <>
-                  {item.icon}
-                  <span className="pl-2 whitespace-nowrap">{item.title}</span>
-                </>
-              )}
-            </div>
+            <Wrapper title={item.title}>
+              <div
+                key={item.link}
+                className={`${
+                  selected ? styles.selectedMenuItem : styles.sideBarContent_item__withRightBorder
+                } whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}
+              >
+                {item.icon}
+                {expanded && <span className="pl-2 whitespace-nowrap">{item.title}</span>}
+              </div>
+            </Wrapper>
           </NavLink>
         )
       })}
