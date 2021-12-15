@@ -155,45 +155,38 @@ const ConfigurableFieldsFormComponent = ({
 
     const className = hideFields?.some(field => field === getFieldNameById(id)) ? "hidden" : ""
 
-    const FormItemWrapperTuned: React.FC = ({ children }) => {
-      return (
-        <FormItemWrapper
-          key={id}
-          type={type}
-          id={id}
-          bigField={bigField}
-          displayName={displayName}
-          documentation={documentation}
-          validationRules={validationRules}
-          className={className}
-        >
-          {children}
-        </FormItemWrapper>
-      )
+    const formItemWrapperProps: FormItemWrapperProps = {
+      type,
+      id,
+      bigField,
+      displayName,
+      documentation,
+      validationRules,
+      className,
     }
 
     switch (type?.typeName) {
       case "password":
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <Input.Password
               autoComplete="off"
               iconRender={visible => (visible ? <EyeOutlined /> : <EyeInvisibleOutlined />)}
             />
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
 
       case "int": {
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <InputNumber autoComplete="off" inputMode="numeric" onChange={handleChangeIntInput(id)} />
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
       }
 
       case "selection": {
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <Select
               allowClear
               mode={type.data.maxOptions > 1 ? "multiple" : undefined}
@@ -207,19 +200,19 @@ const ConfigurableFieldsFormComponent = ({
                 )
               })}
             </Select>
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
       }
       case "array/string":
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <EditableList initialValue={defaultValueToDisplay} />
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
       case "javascript":
       case "json": {
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <CodeEditor
               initialValue={defaultValueToDisplay}
               className={styles.codeEditor}
@@ -250,13 +243,13 @@ const ConfigurableFieldsFormComponent = ({
                 </>
               )}
             </span>
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
       }
 
       case "boolean":
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             {bigField ? (
               <SwitchWithLabel
                 label={displayName}
@@ -267,14 +260,14 @@ const ConfigurableFieldsFormComponent = ({
             ) : (
               <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={defaultValueToDisplay} />
             )}
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
 
       case "file":
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <InputWithUpload onChange={handleChangeTextInput(id)} value={defaultValueToDisplay} />
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
 
       case "description":
@@ -298,14 +291,14 @@ const ConfigurableFieldsFormComponent = ({
           ? "Leave this field empty to use a value provided by Jitsu"
           : undefined
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <InputWithDebug
               id={id}
               placeholder={placeholder}
               jsDebugger={jsDebugger}
               onButtonClick={() => handleOpenDebugger(id)}
             />
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
       }
     }
