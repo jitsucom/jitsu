@@ -122,7 +122,7 @@ const DestinationEditor = ({
 
     await mappingsForm.setFieldsValue({
       "_mappings._mappings": newMappings._mappings,
-      "_mappings._keepUnmappedFields": newMappings._keepUnmappedFields ? 1 : 0,
+      "_mappings._keepUnmappedFields": newMappings._keepUnmappedFields,
     })
 
     destinationsTabs[2].touched = true
@@ -167,6 +167,17 @@ const DestinationEditor = ({
     [forceUpdate]
   )
   const configForm = Form.useForm()[0]
+  const hideMapping =
+    params.standalone == "true" ||
+    isOnboarding ||
+    editorMode === "add" ||
+    (destinationsReferenceMap[destinationReference.id].defaultTransform.length > 0 &&
+      !destinationData.current._mappings?._mappings) ||
+    !destinationData.current._mappings?._mappings
+  let mappingForm = undefined
+  if (!hideMapping) {
+    mappingForm = Form.useForm()[0]
+  }
 
   const tabsInitialData: Tab<DestinationTabKey>[] = [
     {
@@ -190,6 +201,7 @@ const DestinationEditor = ({
         <DestinationEditorTransform
           form={form}
           configForm={configForm}
+          mappingForm={mappingForm}
           destinationReference={destinationReference}
           destinationData={destinationData.current}
           handleTouchAnyField={validateAndTouchField(1)}
@@ -211,14 +223,9 @@ const DestinationEditor = ({
           handleDataUpdate={handleUseLibrary}
         />
       ),
-      form: Form.useForm()[0],
+      form: mappingForm,
       touched: false,
-      isHidden:
-        params.standalone == "true" ||
-        isOnboarding ||
-        (destinationsReferenceMap[destinationReference.id].defaultTransform.length > 0 &&
-          !destinationData.current._mappings?._mappings) ||
-        !destinationData.current._mappings?._mappings,
+      isHidden: hideMapping,
     },
     {
       key: "sources",
@@ -244,24 +251,31 @@ const DestinationEditor = ({
     (index: number) => (value: boolean) => {
       destinationsTabs[index].touched = value === undefined ? true : value
 
-      if (index == 1) {
-        setDestinationsTabs(oldTabs => {
-          if (oldTabs[1].form.getFieldValue("_transform_enabled") !== oldTabs[2].isDisabled) {
-            const newTabs = [
-              ...oldTabs.slice(0, 2),
-              { ...oldTabs[2], isDisabled: oldTabs[1].form.getFieldValue("_transform_enabled") },
-              ...oldTabs.slice(3),
-            ]
-            return newTabs
-          } else {
-            return oldTabs
+      setDestinationsTabs(oldTabs => {
+        let tab = oldTabs[index]
+        let oldErrorsCount = tab.errorsCount
+        let newErrorsCount = tab.form.getFieldsError().filter(a => a.errors?.length > 0).length
+        if (newErrorsCount != oldErrorsCount) {
+          tab.errorsCount = newErrorsCount
+        }
+        console.log(newErrorsCount + " : " + oldErrorsCount + " : " + JSON.stringify(tab.form.getFieldsError()))
+        if (
+          oldTabs[1].form.getFieldValue("_transform_enabled") !== oldTabs[2].isDisabled ||
+          newErrorsCount != oldErrorsCount
+        ) {
+          const newTabs = [
+            ...oldTabs.slice(0, 2),
+            { ...oldTabs[2], isDisabled: oldTabs[1].form.getFieldValue("_transform_enabled") },
+            ...oldTabs.slice(3),
+          ]
+          if (newErrorsCount != oldErrorsCount) {
+            newTabs[index].errorsCount = newErrorsCount
           }
-        })
-      }
-
-      if (submittedOnce.current) {
-        validateTabForm(destinationsTabs[index])
-      }
+          return newTabs
+        } else {
+          return oldTabs
+        }
+      })
     },
     [validateTabForm, destinationsTabs, setDestinationsTabs]
   )
@@ -316,15 +330,6 @@ const DestinationEditor = ({
               ...makeObjectFromFieldsValues(current),
             }
           }, {}),
-        }
-
-        // ToDo: remove this code after _mappings refactoring
-        destinationData.current = {
-          ...destinationData.current,
-          _mappings: {
-            ...destinationData.current._mappings,
-            _keepUnmappedFields: Boolean(destinationData.current._mappings._keepUnmappedFields),
-          },
         }
 
         try {
