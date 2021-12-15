@@ -24,8 +24,9 @@ import Icon, {
   ThunderboltOutlined,
   GlobalOutlined,
 } from "@ant-design/icons"
-import logo from "icons/logo.svg"
-import logoMini from "icons/logo-square.svg"
+// import logo from "icons/logo.svg"
+// import logoMini from "icons/logo-square.svg"
+import { ReactComponent as JitsuLogo} from "icons/logo-responsive.svg"
 import { ReactComponent as Cross } from "icons/cross.svg"
 import { ReactComponent as DbtCloudIcon } from "icons/dbtCloud.svg"
 import { ReactComponent as KeyIcon } from "icons/key.svg"
@@ -121,8 +122,8 @@ export const ApplicationSidebar: React.FC<{}> = () => {
     <div className={`relative ${styles.sideBarContent}`}>
       <div className="flex flex-col items-stretch h-full">
         <div className={`pb-3 ${styles.sideBarContent_item__withRightBorder}`}>
-          <a href="https://jitsu.com" className={`text-center block pt-5 h-14`}>
-            <img src={expanded ? logo : logoMini} alt="[logo]" className="h-8 mx-auto" />
+          <a href="https://jitsu.com" className={`text-center block pt-5 h-14 overflow-hidden ${expanded ? '' : 'w-12 pl-3'}`}>
+            <JitsuLogo className={`h-8 w-40`}/>
           </a>
         </div>
         <div className={`flex-grow flex-shrink min-h-0 ${styles.sideBarContent_item__withRightBorder}`}>
