@@ -86,7 +86,7 @@
     "craco-less": "^1.17.1",
     "monaco-editor-webpack-plugin": "^4.2.0",
     "msw": "^0.35.0",
-    "prettier": "^2.4.1",
+    "prettier": "^2.5.1",
     "progress-bar-webpack-plugin": "^2.1.0",
     "react-scripts": "^4.0.3",
     "source-map-explorer": "^2.5.2",
