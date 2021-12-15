@@ -1,6 +1,6 @@
 // @Libs
 import * as React from "react"
-import { ReactNode, useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Button, Col, Form, FormItemProps, Input, InputNumber, Row, Select, Spin, Switch, Tooltip } from "antd"
 import debounce from "lodash/debounce"
 import get from "lodash/get"
@@ -30,7 +30,6 @@ import { InputWithDebug } from "./InputWithDebug"
 import { SwitchWithLabel } from "./SwitchWithLabel"
 import set from "lodash/set"
 import { InputWithUpload } from "./InputWithUpload"
-import { InputOauthSecret } from "lib/components/InputOauthSecret/InputOauthSecret"
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -41,7 +40,6 @@ export interface Props {
   form: FormInstance
   configForm?: FormInstance
   initialValues: any
-  loading?: boolean | ReactNode
   availableOauthBackendSecrets?: string[] | "all_from_config"
   hideFields?: string[]
   handleTouchAnyField?: (...args: any) => void
@@ -53,7 +51,6 @@ export const FormItemName = {
   serialize: id => id,
 }
 
-export const UI_ONLY_FIELD_PREFIX = "$ui_"
 const getFieldNameById = (id: string): string | undefined => id.split(".").slice(-1)[0]
 
 const services = ApplicationServices.get()
@@ -63,7 +60,6 @@ const ConfigurableFieldsFormComponent = ({
   form,
   configForm,
   initialValues,
-  loading,
   availableOauthBackendSecrets,
   hideFields,
   handleTouchAnyField,
@@ -159,68 +155,38 @@ const ConfigurableFieldsFormComponent = ({
 
     const className = hideFields?.some(field => field === getFieldNameById(id)) ? "hidden" : ""
 
-    const FormItemWoStylesTuned: React.FC = ({ children }) => {
-      return (
-        <FormItemWrapperWoStyles key={id} id={id} className={className}>
-          {children}
-        </FormItemWrapperWoStyles>
-      )
-    }
-
-    const FormItemWrapperTuned: React.FC = ({ children }) => {
-      return (
-        <FormItemWrapper
-          key={id}
-          type={type}
-          id={id}
-          bigField={bigField}
-          displayName={displayName}
-          documentation={documentation}
-          validationRules={validationRules}
-          className={className}
-        >
-          {children}
-        </FormItemWrapper>
-      )
-    }
-
-    const NonFormItemWrapperTuned: React.FC = ({ children }) => {
-      return (
-        <NonFormItemWrapper
-          key={id}
-          id={id}
-          bigField={bigField}
-          displayName={displayName}
-          documentation={documentation}
-          className={className}
-        >
-          {children}
-        </NonFormItemWrapper>
-      )
+    const formItemWrapperProps: FormItemWrapperProps = {
+      type,
+      id,
+      bigField,
+      displayName,
+      documentation,
+      validationRules,
+      className,
     }
 
     switch (type?.typeName) {
       case "password":
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <Input.Password
               autoComplete="off"
               iconRender={visible => (visible ? <EyeOutlined /> : <EyeInvisibleOutlined />)}
             />
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
 
       case "int": {
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <InputNumber autoComplete="off" inputMode="numeric" onChange={handleChangeIntInput(id)} />
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
       }
-      // ToDo: check if it can be <select> in some cases
+
       case "selection": {
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <Select
               allowClear
               mode={type.data.maxOptions > 1 ? "multiple" : undefined}
@@ -234,19 +200,19 @@ const ConfigurableFieldsFormComponent = ({
                 )
               })}
             </Select>
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
       }
       case "array/string":
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <EditableList initialValue={defaultValueToDisplay} />
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
       case "javascript":
       case "json": {
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <CodeEditor
               initialValue={defaultValueToDisplay}
               className={styles.codeEditor}
@@ -277,13 +243,13 @@ const ConfigurableFieldsFormComponent = ({
                 </>
               )}
             </span>
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
       }
 
       case "boolean":
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             {bigField ? (
               <SwitchWithLabel
                 label={displayName}
@@ -294,47 +260,14 @@ const ConfigurableFieldsFormComponent = ({
             ) : (
               <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={defaultValueToDisplay} />
             )}
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
 
       case "file":
         return (
-          <FormItemWrapperTuned key={id}>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <InputWithUpload onChange={handleChangeTextInput(id)} value={defaultValueToDisplay} />
-          </FormItemWrapperTuned>
-        )
-
-      case "oauthSecret":
-        const backendSecretAvailable =
-          type?.typeName === "oauthSecret" &&
-          (availableOauthBackendSecrets === "all_from_config" ||
-            availableOauthBackendSecrets?.some(name => getFieldNameById(id) === name))
-        const checkboxId = `${UI_ONLY_FIELD_PREFIX}${id}`
-        const defaultInputValueToDisplay = defaultValueToDisplay
-        const defaultCheckboxValueToDisplay =
-          form.getFieldValue(checkboxId) ?? getInitialValue(checkboxId, defaultValue, constantValue, type?.typeName)
-        form.setFieldsValue({ ...form.getFieldsValue(), [checkboxId]: defaultCheckboxValueToDisplay })
-        const UiOnlyFormCheckboxWoStyles: React.FC = ({ children }) => {
-          return (
-            <FormItemWrapperWoStyles
-              key={checkboxId}
-              id={checkboxId}
-              initialValue={defaultCheckboxValueToDisplay ?? !defaultInputValueToDisplay}
-              valuePropName={"checked"}
-            >
-              {children}
-            </FormItemWrapperWoStyles>
-          )
-        }
-        return (
-          <NonFormItemWrapperTuned key={id}>
-            <InputOauthSecret
-              backendSecretAvailable={backendSecretAvailable}
-              defaultChecked={defaultCheckboxValueToDisplay ?? !defaultInputValueToDisplay}
-              inputWrapper={FormItemWoStylesTuned}
-              checkboxWrapper={UiOnlyFormCheckboxWoStyles}
-            />
-          </NonFormItemWrapperTuned>
+          </FormItemWrapper>
         )
 
       case "description":
@@ -347,12 +280,25 @@ const ConfigurableFieldsFormComponent = ({
           </div>
         )
 
+      case "oauthSecret":
       case "string":
       default: {
+        const backendSecretAvailable =
+          type?.typeName === "oauthSecret" &&
+          (availableOauthBackendSecrets === "all_from_config" ||
+            availableOauthBackendSecrets?.some(name => getFieldNameById(id) === name))
+        const placeholder = backendSecretAvailable
+          ? "Leave this field empty to use a value provided by Jitsu"
+          : undefined
         return (
-          <FormItemWrapperTuned key={id}>
-            <InputWithDebug id={id} jsDebugger={jsDebugger} onButtonClick={() => handleOpenDebugger(id)} />
-          </FormItemWrapperTuned>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
+            <InputWithDebug
+              id={id}
+              placeholder={placeholder}
+              jsDebugger={jsDebugger}
+              onButtonClick={() => handleOpenDebugger(id)}
+            />
+          </FormItemWrapper>
         )
       }
     }
@@ -427,18 +373,6 @@ const ConfigurableFieldsFormComponent = ({
           touched: false,
         })
       }
-
-      if (param.type?.typeName === "oauthSecret") {
-        const inputValue = initialValue
-        const checkboxValue = !inputValue
-        const checkboxId = `${UI_ONLY_FIELD_PREFIX}${id}`
-        formValues[checkboxId] = checkboxValue
-        formFields.push({
-          name: checkboxId,
-          value: checkboxValue,
-          touched: false,
-        })
-      }
     })
 
     setInitialFormValues?.(formValues)
@@ -453,13 +387,7 @@ const ConfigurableFieldsFormComponent = ({
     forceUpdateAll()
   }, [])
 
-  return loading ? (
-    typeof loading === "boolean" ? (
-      <Spin />
-    ) : (
-      <>{loading}</>
-    )
-  ) : (
+  return (
     <>
       {fieldsParamsList.map(
         ({
@@ -540,23 +468,12 @@ const ConfigurableFieldsFormComponent = ({
       )}
     </>
   )
+  // )
 }
 
 const ConfigurableFieldsForm = ConfigurableFieldsFormComponent
 
 export { ConfigurableFieldsForm }
-
-type FormItemWrapperWoStylesProps = {
-  id: string
-} & FormItemProps
-
-const FormItemWrapperWoStyles: React.FC<FormItemWrapperWoStylesProps> = ({ id, children, ...props }) => {
-  return (
-    <Form.Item key={id} name={id} {...props}>
-      {children}
-    </Form.Item>
-  )
-}
 
 type FormItemWrapperProps = {
   type: ParameterType<any>
@@ -566,7 +483,7 @@ type FormItemWrapperProps = {
   documentation?: React.ReactNode
   validationRules?: FormItemProps["rules"]
   className?: string
-}
+} & FormItemProps
 
 const FormItemWrapper: React.FC<FormItemWrapperProps> = ({
   type,
@@ -579,8 +496,9 @@ const FormItemWrapper: React.FC<FormItemWrapperProps> = ({
   children,
 }) => {
   return (
-    <FormItemWrapperWoStyles
+    <Form.Item
       id={id}
+      name={id}
       className={cn(
         "form-field_fixed-label",
         styles.field,
@@ -604,44 +522,6 @@ const FormItemWrapper: React.FC<FormItemWrapperProps> = ({
       rules={validationRules}
     >
       {children}
-    </FormItemWrapperWoStyles>
-  )
-}
-
-type NonFormItemWrapperProps = {
-  id: string
-  bigField?: boolean
-  displayName?: string
-  documentation?: React.ReactNode
-  className?: string
-}
-
-const NonFormItemWrapper: React.FC<NonFormItemWrapperProps> = ({
-  id,
-  bigField,
-  displayName,
-  documentation,
-  className,
-  children,
-}) => {
-  return (
-    <Row key={id} className={cn("form-field_fixed-label", "ant-form-item", styles.field, className)}>
-      <Col key="label-col" span={bigField ? 0 : 4} className={`ant-form-item-label`}>
-        <label>
-          {!bigField ? (
-            documentation ? (
-              <LabelWithTooltip documentation={documentation} render={displayName} />
-            ) : (
-              <span>{displayName}:</span>
-            )
-          ) : (
-            <span></span>
-          )}
-        </label>
-      </Col>
-      <Col key="field-col" span={bigField ? 24 : 20} className={`ant-form-item-control`}>
-        {children}
-      </Col>
-    </Row>
+    </Form.Item>
   )
 }
