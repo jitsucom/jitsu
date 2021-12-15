@@ -21,6 +21,11 @@ export interface Props {
   handleDataUpdate: (newMappings: DestinationMapping, newTableName?: string) => Promise<void>
 }
 
+export const BooleanStatus = {
+  "Keep unnamed fields": true,
+  "Remove unmapped fields": false,
+} as const
+
 const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField, handleDataUpdate }: Props) => {
   const [actions, setActions] = useState<MappingAction[]>([])
   const [documentationVisible, setDocumentationVisible] = useState(false)
@@ -32,7 +37,7 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField, h
   const handleFieldsChange = useCallback(() => {
     const formFields = form.getFieldsValue()
     const mappings = formFields?.["_mappings._mappings"]
-    const keep = Boolean(formFields?.["_mappings._keepUnmappedFields"])
+    const keep = formFields?.["_mappings._keepUnmappedFields"]
 
     const notBeenTouched =
       JSON.stringify(initialValues?._mappings) === JSON.stringify(mappings) &&
@@ -132,7 +137,7 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField, h
           <Col span={12}>
             <Form.Item
               name="_mappings._keepUnmappedFields"
-              initialValue={Number(initialValues?._keepUnmappedFields) ?? 0}
+              initialValue={initialValues?._keepUnmappedFields}
               label={
                 <LabelWithTooltip
                   render="Unnamed fields mapping mode"
@@ -141,8 +146,11 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField, h
               }
             >
               <Select>
-                <Select.Option value={1}>Keep unnamed fields</Select.Option>
-                <Select.Option value={0}>Remove unmapped fields</Select.Option>
+                {Object.keys(BooleanStatus).map(key => (
+                  <Select.Option key={key} value={BooleanStatus[key]}>
+                    {key}
+                  </Select.Option>
+                ))}
               </Select>
             </Form.Item>
           </Col>

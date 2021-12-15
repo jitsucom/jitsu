@@ -38,7 +38,7 @@ import { InputWithUpload } from "./InputWithUpload"
 export interface Props {
   fieldsParamsList: readonly Parameter[]
   form: FormInstance
-  configForm?: FormInstance
+  extraForms?: FormInstance[]
   initialValues: any
   availableOauthBackendSecrets?: string[] | "all_from_config"
   hideFields?: string[]
@@ -58,7 +58,7 @@ const services = ApplicationServices.get()
 const ConfigurableFieldsFormComponent = ({
   fieldsParamsList,
   form,
-  configForm,
+  extraForms,
   initialValues,
   availableOauthBackendSecrets,
   hideFields,
@@ -93,6 +93,7 @@ const ConfigurableFieldsFormComponent = ({
       form.setFieldsValue({ [id]: value })
       handleTouchAnyField?.()
       forceUpdateAll()
+      handleTouchField()
     },
     [form, forceUpdateAll]
   )
@@ -312,6 +313,9 @@ const ConfigurableFieldsFormComponent = ({
         _transform: values.code,
       }
     }
+    const configForm = extraForms && extraForms[0]
+    const mappingForm = extraForms && extraForms[1]
+
     const data = {
       reformat: debuggerType == "string",
       uid: initialValues._uid,
@@ -319,7 +323,12 @@ const ConfigurableFieldsFormComponent = ({
       field: field,
       expression: values.code,
       object: JSON.parse(values.object),
-      config: makeObjectFromFieldsValues({ ...initialValues, ...configForm.getFieldsValue(), ...transform }),
+      config: makeObjectFromFieldsValues({
+        ...initialValues,
+        ...configForm?.getFieldsValue(),
+        ...mappingForm?.getFieldsValue(),
+        ...transform,
+      }),
       template_variables: Object.entries((configForm || form).getFieldsValue())
         .filter(v => v[0].startsWith("_formData._"))
         .reduce((accumulator: any, currentValue: [string, unknown]) => {
@@ -402,6 +411,7 @@ const ConfigurableFieldsFormComponent = ({
           jsDebugger,
           bigField,
           codeSuggestions,
+          validator,
         }: Parameter) => {
           const currentFormValues = form.getFieldsValue() ?? {}
           const defaultFormValues = fieldsParamsList.reduce(
@@ -431,6 +441,9 @@ const ConfigurableFieldsFormComponent = ({
               })
             if (type?.typeName === "isoUtcDate")
               validationRules.push(isoDateValidator(`${displayName} field is required.`))
+          }
+          if (validator) {
+            validationRules.push({ validator: validator })
           }
 
           return isOmitted ? null : !isHidden ? (
@@ -525,5 +538,3 @@ const FormItemWrapper: React.FC<FormItemWrapperProps> = ({
     </Form.Item>
   )
 }
-
-
