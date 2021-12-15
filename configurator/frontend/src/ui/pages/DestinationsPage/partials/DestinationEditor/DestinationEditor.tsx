@@ -258,7 +258,6 @@ const DestinationEditor = ({
         if (newErrorsCount != oldErrorsCount) {
           tab.errorsCount = newErrorsCount
         }
-        console.log(newErrorsCount + " : " + oldErrorsCount + " : " + JSON.stringify(tab.form.getFieldsError()))
         if (
           oldTabs[1].form.getFieldValue("_transform_enabled") !== oldTabs[2].isDisabled ||
           newErrorsCount != oldErrorsCount

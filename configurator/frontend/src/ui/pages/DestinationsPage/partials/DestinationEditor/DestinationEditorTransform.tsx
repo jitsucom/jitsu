@@ -69,9 +69,6 @@ const DestinationEditorTransform = ({
                 !destinationData._mappings?._mappings,
               type: booleanType,
               validator: (rule, value) => {
-                console.log(
-                  "value: " + value + " mappings: " + mappingForm?.getFieldValue("_mappings._mappings")?.length
-                )
                 if (value && mappingForm?.getFieldValue("_mappings._mappings")?.length > 0) {
                   return Promise.reject(
                     "Transform cannot work with configured mappings. Please remove all mappings first."
