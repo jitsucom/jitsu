@@ -171,7 +171,6 @@ func main() {
 	}
 
 	geoService := geo.NewService(ctx, geoResolversURL, viper.GetString("geo.maxmind_path"), viper.GetString("maxmind.official_url"))
-	appconfig.Instance.ScheduleClosing(geoService)
 
 	enrichment.InitDefault(
 		viper.GetString("server.fields_configuration.src_source_ip"),
@@ -220,6 +219,7 @@ func main() {
 		appconfig.Instance.CloseEventsConsumers()
 		appconfig.Instance.CloseWriteAheadLog()
 		counters.Close()
+		geoService.Close()
 		time.Sleep(time.Second)
 		os.Exit(0)
 	}()

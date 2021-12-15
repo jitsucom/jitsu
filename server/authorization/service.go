@@ -62,18 +62,21 @@ func NewService(configuratorURL, configuratorToken string) (*Service, error) {
 
 	var tokens []Token
 	err := viper.UnmarshalKey(viperKey, &tokens)
-	if err == nil {
+	if err == nil && len(tokens) > 0 {
 		for _, s2sauth := range deprecatedS2SAuth {
 			tokens = append(tokens, Token{ServerSecret: s2sauth})
 		}
 		service.tokensHolder = reformat(tokens)
 	} else {
 		auth := viper.GetStringSlice(viperKey)
+		if len(auth) == 0 && configuratorURL != "" {
+			auth = append(auth, buildAuthURL(configuratorURL, configuratorToken))
+		}
 
 		if len(auth) == 1 {
 			authSource := auth[0]
 			if authSource == "" && configuratorURL != "" {
-				authSource = fmt.Sprintf("%s/api/v1/apikeys?token=%s", configuratorURL, configuratorToken)
+				authSource = buildAuthURL(configuratorURL, configuratorToken)
 			}
 			if strings.HasPrefix(authSource, "http://") || strings.HasPrefix(authSource, "https://") {
 				resources.Watch(serviceName, authSource, resources.LoadFromHTTP, service.updateTokens, time.Duration(reloadSec)*time.Second)
@@ -186,4 +189,8 @@ func (s *Service) updateTokens(payload []byte) {
 			s.DestinationsForceReload()
 		}
 	}
+}
+
+func buildAuthURL(configuratorURL, configuratorToken string) string {
+	return fmt.Sprintf("%s/api/v1/apikeys?token=%s", configuratorURL, configuratorToken)
 }
