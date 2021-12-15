@@ -26,7 +26,27 @@
   margin-right: auto;
 }
 
+.coloredMenuItem {
+  i {
+    transform: scale3d(1.2, 1.2, 1);
+  }
+  svg {
+    fill: inherit !important;
+  }
+}
+
+.menuItem {
+  i {
+    transition: transform .1s ease-in-out;
+  }
+}
+
+.menuItem:hover {
+  .coloredMenuItem();
+}
+
 .selectedMenuItem {
+  .coloredMenuItem();
   border-left: 1px solid @splitBorder;
   border-top: 1px solid @splitBorder;
   border-bottom: 1px solid @splitBorder;
