@@ -117,6 +117,8 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (response 
 			response.Error = fmt.Errorf("cannot start destination instance: %v", err).Error()
 			return
 		}
+		defer storage.Close()
+
 		err = storage.Processor().InitJavaScriptTemplates()
 		if err != nil {
 			response.Error = fmt.Errorf("failed to init javascript template: %v", err).Error()

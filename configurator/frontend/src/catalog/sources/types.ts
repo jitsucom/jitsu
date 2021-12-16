@@ -287,6 +287,8 @@ export type Parameter = {
    * Code suggestions for CodeDebugger
    */
   codeSuggestions?: string
+
+  validator?: (rule, value) => Promise<void>
 }
 
 export interface CollectionParameter extends Parameter {
