@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 # This script defines if vercel should deploy the commit,
 # see https://vercel.com/support/articles/how-do-i-use-the-ignored-build-step-field-on-vercel
  
