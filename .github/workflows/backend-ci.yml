@@ -7,7 +7,7 @@ on:
 
 jobs:
 
-  build-and-test:
+  backend-build-and-test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -66,7 +66,7 @@ jobs:
  
     - name: Notify to Slack on Errors
       uses: rtCamp/action-slack-notify@v2.2.0
-      if: ${{ failure() && (env.GITHUB_REF == 'beta' || env.GITHUB_REF == 'master' ) }}
+      if: ${{ failure() && (env.GITHUB_REF_NAME == 'beta' || env.GITHUB_REF_NAME == 'master' ) }}
       env:
         SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
         SLACK_ICON_EMOJI: 👿
