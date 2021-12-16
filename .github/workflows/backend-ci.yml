@@ -63,4 +63,12 @@ jobs:
         name: test-report
         path: |
           ./server/test_report.html
-
+ 
+    - name: Notify to Slack on Errors
+      uses: rtCamp/action-slack-notify@v2.2.0
+      if: ${{ failure() && (env.GITHUB_REF == 'beta' || env.GITHUB_REF == 'master' ) }}
+      env:
+        SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
+        SLACK_ICON_EMOJI: 👿
+        SLACK_WEBHOOK: ${{ secrets.SLACK_CI_BACKEND_WEBHOOK }}
+        SLACK_FOOTER: ""
