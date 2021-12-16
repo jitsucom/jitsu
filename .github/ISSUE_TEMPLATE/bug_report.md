@@ -7,6 +7,13 @@ assignees: xtreding
 
 ---
 
+## Environment
+
+- **Deploy method**: for instance `jitsucom/server docker` or `jitsucom/jitsu docker` or `docker-compose.yml` or `built from sources`
+- **Jitsu version**:  for instance `1.37.5`
+- **OS**: for instance `Mac OS BigSur` or `Ubuntu 20.04` or `Windows 10`
+- **Cloud Provider**: for instance `AWS EC2` or `AWS Lightsail` or `GCP`
+
 ## Description
 A short description of the bug and its impact
 
