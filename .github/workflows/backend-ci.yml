@@ -2,7 +2,7 @@ name: Backend CI
 
 on:
   push:
-    branches: 
+    branches:
       - '**'
 
 jobs:
@@ -11,6 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        ref: ${{ github.head_ref }}
+        # Make sure the value of GITHUB_TOKEN will not be persisted in repo's config
+        persist-credentials: false
 
     - name: Set up Go
       uses: actions/setup-go@v2
@@ -32,33 +37,50 @@ jobs:
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
-          
+
+    - name: Check whether golang code was changed
+      id: go-change
+      run: |
+        git diff @~..@ --quiet server || echo ::set-output name=server::1
+        git diff @~..@ --quiet configurator/backend || echo ::set-output name=backend::1
+      working-directory: ./
+
+
+    - name: Golang code changed status
+      env:
+        SERVER_CHANGED: ${{ steps.go-change.outputs.server }}
+        BACKEND_CHANGED: ${{ steps.go-change.outputs.backend }}
+      run: echo Server changed - $SERVER_CHANGED Backend changed - $BACKEND_CHANGED
+
     - name: Build Server
+      if: ${{ success() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
       run: |
         go mod tidy
         go build
       working-directory: ./server
 
     - name: Test Server
+      if: ${{ success() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
       run: |
         go test -parallel=1 -json ./... > test_report.json
       working-directory: ./server
 
     - name: Build Backend
+      if: ${{ success() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
       run: |
         go mod tidy
         go build
       working-directory: ./configurator/backend
 
     - name: Test Report
-      if: always()
+      if: ${{ (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
       run: |
         go install github.com/vakenbolt/go-test-report@latest
         cat test_report.json | ~/go/bin/go-test-report
       working-directory: ./server
 
     - uses: actions/upload-artifact@v2
-      if: always()
+      if: ${{ (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
       with:
         name: test-report
         path: |
@@ -66,7 +88,7 @@ jobs:
  
     - name: Notify to Slack on Errors
       uses: rtCamp/action-slack-notify@v2.2.0
-      if: ${{ failure() && (env.GITHUB_REF_NAME == 'beta' || env.GITHUB_REF_NAME == 'master' ) }}
+      if: ${{ failure() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) && (env.GITHUB_REF_NAME == 'beta' || env.GITHUB_REF_NAME == 'master' ) }}
       env:
         SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
         SLACK_ICON_EMOJI: 👿
