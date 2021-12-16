@@ -46,7 +46,7 @@ jobs:
       working-directory: ./
 
 
-    - name: Golang code changed status
+    - name: Golang changed status
       env:
         SERVER_CHANGED: ${{ steps.go-change.outputs.server }}
         BACKEND_CHANGED: ${{ steps.go-change.outputs.backend }}
