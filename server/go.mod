@@ -1,6 +1,6 @@
 module github.com/jitsucom/jitsu/server
 
-go 1.16
+go 1.17
 
 require (
 	cloud.google.com/go/bigquery v1.8.0

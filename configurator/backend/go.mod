@@ -1,6 +1,6 @@
 module github.com/jitsucom/jitsu/configurator
 
-go 1.16
+go 1.17
 
 require (
 	cloud.google.com/go/firestore v1.3.0
