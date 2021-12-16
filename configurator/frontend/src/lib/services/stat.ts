@@ -285,7 +285,6 @@ export class StatisticsService implements IStatisticsService {
     granularity: Granularity,
     type: EventsType
   ): Promise<CombinedStatisticsDatePoint[]> {
-    console.log("type", type)
     const errorsDataAvailable = type === "pull"
     const requests = [
       this.get(start, end, granularity, "source", type, "success"),
