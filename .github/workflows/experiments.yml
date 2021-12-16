@@ -47,11 +47,11 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           workflow: experiments.yml
           event: push
-          branch: ${{ github.head_ref }}
+          branch: ${{ github.ref_name }}
 
       - name: Notify to Slack on Errors
         uses: rtCamp/action-slack-notify@v2.2.0
-        if: ${{ steps.frontend-change.outputs.status == 1 && failure() && (env.GITHUB_REF_NAME == 'beta' || env.GITHUB_REF_NAME == 'master' ) }}
+        if: ${{ failure() && (env.GITHUB_REF_NAME == 'beta' || env.GITHUB_REF_NAME == 'master' ) }}
         env:
           SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
           SLACK_ICON_EMOJI: 👿
@@ -60,7 +60,7 @@ jobs:
 
       - name: Notify to Slack on Success
         uses: rtCamp/action-slack-notify@v2.2.0
-        if: ${{ steps.frontend-change.outputs.status == 1 && success() && steps.check-ci.outputs.conclusion == 'failure' && (env.GITHUB_REF_NAME == 'beta' || env.GITHUB_REF_NAME == 'master' ) }}
+        if: ${{ success() && steps.check-ci.outputs.conclusion == 'failure' && (env.GITHUB_REF_NAME == 'beta' || env.GITHUB_REF_NAME == 'master' ) }}
         env:
           SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
           SLACK_ICON_EMOJI: ✅
