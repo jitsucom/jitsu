@@ -24,7 +24,7 @@
       "ContainerDirectory": "/var/run/docker.sock"
     },
     {
-      "HostDirectory": "workspace",
+      "HostDirectory": "jitsu_workspace",
       "ContainerDirectory": "/home/eventnative/data/airbyte"
     }
   ],
