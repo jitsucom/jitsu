@@ -11,6 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        ref: ${{ github.head_ref }}
+        # Make sure the value of GITHUB_TOKEN will not be persisted in repo's config
+        persist-credentials: false
 
     - name: Set up Go
       uses: actions/setup-go@v2
