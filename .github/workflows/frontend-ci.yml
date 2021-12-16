@@ -23,8 +23,7 @@ jobs:
           persist-credentials: false
       - name: Check that frontend files were changed
         id: frontend-change
-        continue-on-error: true
-        run: git diff HEAD^ HEAD --quiet ./
+        run: /usr/bin/git diff @~..@ --quiet ./ ; echo ::set-output name=status::$?
       - name: Status
         if:  ${{ always() }}
         env:
