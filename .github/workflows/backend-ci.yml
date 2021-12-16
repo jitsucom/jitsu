@@ -36,14 +36,16 @@ jobs:
     - name: Check whether golang code was changed
       id: go-change
       run: |
-        git diff @~..@ --quiet ./server || echo ::set-output name=server::1
-        git diff @~..@ --quiet ./configurator/backend || echo ::set-output name=backend::1
+        git diff @~..@ --quiet server || echo ::set-output name=server::1
+        git diff @~..@ --quiet configurator/backend || echo ::set-output name=backend::1
+      working-directory: ./
+
 
     - name: Golang changed status
       env:
         SERVER_CHANGED: ${{ steps.go-change.outputs.server }}
         BACKEND_CHANGED: ${{ steps.go-change.outputs.backend }}
-      run: echo Server changed - $FRONTEND_CHANGED Backend changed - $BACKEND_CHANGED
+      run: echo Server changed - $SERVER_CHANGED Backend changed - $BACKEND_CHANGED
 
     - name: Build Server
       if: ${{ success() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
