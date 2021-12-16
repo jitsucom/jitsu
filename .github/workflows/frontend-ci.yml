@@ -21,6 +21,13 @@ jobs:
           ref: ${{ github.head_ref }}
           # Make sure the value of GITHUB_TOKEN will not be persisted in repo's config
           persist-credentials: false
+      - name: Check that frontend files were changed
+        id: frontend-change
+        run: git diff HEAD^ HEAD --quiet ./ ; echo "::set-output name=status::$(echo $?)"
+      - name: Status
+        env:
+          FRONTEND_CHANGED: ${{ steps.frontend-change.outputs.status }}
+        run: echo $FRONTEND_CHANGED
       - uses: actions/setup-node@v2
         with:
           node-version: "14"
