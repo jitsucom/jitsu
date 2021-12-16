@@ -427,6 +427,7 @@ export const googleAds: SourceConnector = {
   configParameters: [
     ...googleAuthConfigParameters({
       requireSubject: true,
+      oauthSecretsRequired: false,
     }),
     {
       displayName: "Customer ID",
@@ -793,7 +794,9 @@ export const googleAnalytics: SourceConnector = {
   id: "google_analytics",
   collectionTypes: ["report"],
   configParameters: [
-    ...googleAuthConfigParameters({}),
+    ...googleAuthConfigParameters({
+      oauthSecretsRequired: false,
+    }),
     {
       displayName: "View ID",
       id: "config.view_id",
@@ -890,7 +893,9 @@ export const googlePlay: SourceConnector = {
         </>
       ),
     },
-    ...googleAuthConfigParameters({}),
+    ...googleAuthConfigParameters({
+      oauthSecretsRequired: false,
+    }),
   ],
 }
 
