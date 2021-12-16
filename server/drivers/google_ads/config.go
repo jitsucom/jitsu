@@ -4,6 +4,8 @@ import (
 	"errors"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/oauth"
+	"github.com/spf13/viper"
 	"strconv"
 	"time"
 )
@@ -29,6 +31,20 @@ type GoogleAdsCollectionConfig struct {
 	Fields       string `mapstructure:"fields" json:"fields,omitempty" yaml:"fields,omitempty"`
 }
 
+func (gac *GoogleAdsConfig) FillPreconfiguredOauth(sourceType string) {
+	oathFields, ok := oauth.Fields[sourceType]
+	if ok {
+		if developerToken, ok := oathFields["developer_token"]; gac.DeveloperToken == "" && ok {
+			gac.DeveloperToken = viper.GetString(developerToken)
+		}
+		//backward compatibility with previous versions config
+		if gac.DeveloperToken == "" && viper.GetString("google-ads.developer-token") != "" {
+			gac.DeveloperToken = viper.GetString("google-ads.developer-token")
+		}
+		gac.AuthConfig.FillPreconfiguredOauth(sourceType)
+	}
+}
+
 func (gac *GoogleAdsConfig) Validate() error {
 	if gac.CustomerId == "" {
 		return errors.New("'customer_id' is required.")
@@ -41,9 +57,9 @@ func (gac *GoogleAdsConfig) Validate() error {
 			return errors.New("'manager_customer_id' must an integer number.")
 		}
 	}
-	//if gac.DeveloperToken == "" {
-	//	return errors.New("'developer token' is required.")
-	//}
+	if gac.DeveloperToken == "" {
+		return errors.New("'developer token' is required.")
+	}
 
 	return gac.AuthConfig.Validate()
 }

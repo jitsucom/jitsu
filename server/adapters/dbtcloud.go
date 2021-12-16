@@ -19,11 +19,11 @@ const (
 
 //DbtCloudConfig is a dto for parsing DbtCloud configuration
 type DbtCloudConfig struct {
-	AccountId int    `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
-	JobId     int    `mapstructure:"job_id" json:"job_id,omitempty" yaml:"job_id,omitempty"`
-	Cause     string `mapstructure:"cause" json:"cause,omitempty" yaml:"cause,omitempty"`
-	Token     string `mapstructure:"token" json:"token,omitempty" yaml:"token,omitempty"`
-	Enabled   bool   `mapstructure:"enabled" json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	AccountId int    `mapstructure:"account_id,omitempty" json:"account_id,omitempty" yaml:"account_id,omitempty"`
+	JobId     int    `mapstructure:"job_id,omitempty" json:"job_id,omitempty" yaml:"job_id,omitempty"`
+	Cause     string `mapstructure:"cause,omitempty" json:"cause,omitempty" yaml:"cause,omitempty"`
+	Token     string `mapstructure:"token,omitempty" json:"token,omitempty" yaml:"token,omitempty"`
+	Enabled   bool   `mapstructure:"enabled,omitempty" json:"enabled,omitempty" yaml:"enabled,omitempty"`
 }
 
 //Validate returns err if invalid
@@ -81,7 +81,7 @@ func (dbt *DbtCloud) TestAccess() error {
 	if err != nil {
 		return fmt.Errorf("Error creating test request: %s : %v", url, err)
 	}
-	req.Header.Add("Authorization", "Token " + dbt.config.Token)
+	req.Header.Add("Authorization", "Token "+dbt.config.Token)
 	//send empty request and expect error
 	r, err := http.DefaultClient.Do(req)
 	if r != nil && r.Body != nil {
@@ -95,7 +95,7 @@ func (dbt *DbtCloud) TestAccess() error {
 		}
 		var body = make(map[string]interface{})
 		if err := json.Unmarshal(responseBody, &body); err != nil {
-			return fmt.Errorf("Failed to parse dbtcloud API response body: %s : %v",string(responseBody), err)
+			return fmt.Errorf("Failed to parse dbtcloud API response body: %s : %v", string(responseBody), err)
 		}
 		data, ok := body["data"].(map[string]interface{})
 		if !ok {

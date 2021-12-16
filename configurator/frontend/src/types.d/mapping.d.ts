@@ -11,5 +11,5 @@ declare interface DestinationMappingRow {
 
 declare interface DestinationMapping {
   _mappings?: DestinationMappingRow[]
-  _keepUnmappedFields: boolean | 0 | 1
+  _keepUnmappedFields: boolean
 }

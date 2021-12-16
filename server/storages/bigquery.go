@@ -3,13 +3,13 @@ package storages
 import (
 	"errors"
 	"fmt"
-	"time"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/uuid"
 )
 
 var disabledRecognitionConfiguration = &UserRecognitionConfiguration{enabled: false}
@@ -26,16 +26,20 @@ type BigQuery struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: BigQueryType, createFunc: NewBigQuery})
+	RegisterStorage(StorageType{typeName: BigQueryType, createFunc: NewBigQuery, isSQL: true})
 }
 
 //NewBigQuery returns BigQuery configured instance
 func NewBigQuery(config *Config) (Storage, error) {
-	gConfig := config.destination.Google
-	if err := gConfig.Validate(config.streamMode); err != nil {
+	gConfig := &adapters.GoogleConfig{}
+	if err := config.destination.GetDestConfig(config.destination.Google, gConfig); err != nil {
 		return nil, err
 	}
-
+	if !config.streamMode {
+		if err := gConfig.ValidateBatchMode(); err != nil {
+			return nil, err
+		}
+	}
 	if gConfig.Project == "" {
 		return nil, errors.New("BigQuery project(bq_project) is required parameter")
 	}
@@ -91,7 +95,10 @@ func NewBigQuery(config *Config) (Storage, error) {
 	bq.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	bq.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, bq, tableHelper)
+	bq.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, bq, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	bq.streamingWorker.start()
 
 	return bq, nil
@@ -160,17 +167,22 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 
 	//batch mode
 	if bq.gcsAdapter != nil {
+		fileName := fdata.FileName
+		//in case of empty filename just generate it
+		if fileName == "" {
+			fileName = dbTable.Name + "_" + uuid.NewLettersNumbers()
+		}
 		b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
-		if err := bq.gcsAdapter.UploadBytes(fdata.FileName, b); err != nil {
+		if err := bq.gcsAdapter.UploadBytes(fileName, b); err != nil {
 			return err
 		}
 
-		if err := bq.bqAdapter.Copy(fdata.FileName, dbTable.Name); err != nil {
-			return fmt.Errorf("Error copying file [%s] from gcp to bigquery: %v", fdata.FileName, err)
+		if err := bq.bqAdapter.Copy(fileName, dbTable.Name); err != nil {
+			return fmt.Errorf("Error copying file [%s] from gcp to bigquery: %v", fileName, err)
 		}
 
-		if err := bq.gcsAdapter.DeleteObject(fdata.FileName); err != nil {
-			logging.SystemErrorf("[%s] file %s wasn't deleted from gcs: %v", bq.ID(), fdata.FileName, err)
+		if err := bq.gcsAdapter.DeleteObject(fileName); err != nil {
+			logging.SystemErrorf("[%s] file %s wasn't deleted from gcs: %v", bq.ID(), fileName, err)
 		}
 
 		return nil
@@ -181,7 +193,7 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 }
 
 //Update isn't supported
-func (bq *BigQuery) Update(object map[string]interface{}) error {
+func (bq *BigQuery) Update(objects []map[string]interface{}) error {
 	return errors.New("BigQuery doesn't support updates")
 }
 
@@ -209,13 +221,13 @@ func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 			}
 		}
 
-		start := time.Now()
+		start := timestamp.Now()
 
 		if err := bq.storeTable(flatData, table); err != nil {
 			return err
 		}
 
-		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", bq.ID(), len(flatData.GetPayload()), time.Now().Sub(start).Seconds())
+		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", bq.ID(), len(flatData.GetPayload()), timestamp.Now().Sub(start).Seconds())
 	}
 
 	return nil

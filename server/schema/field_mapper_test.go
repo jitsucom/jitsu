@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/test"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/stretchr/testify/require"
@@ -123,7 +124,7 @@ func TestOldStyleMap(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappings, err := ConvertOldMappings(Default, tt.mappings)
+			mappings, err := ConvertOldMappings(config.Default, tt.mappings)
 			require.NoError(t, err)
 
 			mapper, _, err := NewFieldMapper(mappings)
@@ -249,7 +250,7 @@ func TestOldStyleStrictMap(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mappings, err := ConvertOldMappings(Strict, tt.mappings)
+			mappings, err := ConvertOldMappings(config.Strict, tt.mappings)
 			require.NoError(t, err)
 
 			mapper, _, err := NewFieldMapper(mappings)
@@ -265,7 +266,7 @@ func TestOldStyleStrictMap(t *testing.T) {
 func TestNewStyleMap(t *testing.T) {
 	tests := []struct {
 		name           string
-		mappings       []MappingField
+		mappings       []config.MappingField
 		keepUnmapped   bool
 		inputObject    map[string]interface{}
 		expectedObject map[string]interface{}
@@ -303,17 +304,17 @@ func TestNewStyleMap(t *testing.T) {
 		},
 		{
 			"Map unflatten object",
-			[]MappingField{
-				{Src: "/key1", Dst: "/key10", Action: MOVE},
-				{Src: "/key1", Dst: "/key20", Action: MOVE},
-				{Src: "/key2/subkey2", Dst: "/key11", Action: MOVE},
-				{Src: "/key4/subkey1", Action: REMOVE},
-				{Src: "/key4/subkey3", Action: REMOVE},
-				{Src: "/key4/subkey4", Dst: "/key4", Action: MOVE},
-				{Src: "/key5", Dst: "/key6/subkey1", Action: MOVE},
-				{Src: "/key3/subkey1", Dst: "/key7", Action: MOVE},
-				{Src: "/key3", Dst: "/key2_subkey1", Action: MOVE},
-				{Dst: "/key10/subkey1/subsubkey1", Action: CAST, Type: "date"},
+			[]config.MappingField{
+				{Src: "/key1", Dst: "/key10", Action: config.MOVE},
+				{Src: "/key1", Dst: "/key20", Action: config.MOVE},
+				{Src: "/key2/subkey2", Dst: "/key11", Action: config.MOVE},
+				{Src: "/key4/subkey1", Action: config.REMOVE},
+				{Src: "/key4/subkey3", Action: config.REMOVE},
+				{Src: "/key4/subkey4", Dst: "/key4", Action: config.MOVE},
+				{Src: "/key5", Dst: "/key6/subkey1", Action: config.MOVE},
+				{Src: "/key3/subkey1", Dst: "/key7", Action: config.MOVE},
+				{Src: "/key3", Dst: "/key2_subkey1", Action: config.MOVE},
+				{Dst: "/key10/subkey1/subsubkey1", Action: config.CAST, Type: "date"},
 			},
 			false,
 			map[string]interface{}{
@@ -355,12 +356,12 @@ func TestNewStyleMap(t *testing.T) {
 		},
 		{
 			"Map real event",
-			[]MappingField{
-				{Src: "/src", Dst: "/channel", Action: MOVE},
-				{Src: "/eventn_ctx/event_id", Dst: "/eventn_ctx/event_id", Action: MOVE},
-				{Src: "/eventn_ctx/event_id", Dst: "/id", Action: MOVE},
-				{Src: "/_timestamp", Dst: "/_timestamp", Action: MOVE},
-				{Src: "/_timestamp", Dst: "/timestamp", Action: MOVE},
+			[]config.MappingField{
+				{Src: "/src", Dst: "/channel", Action: config.MOVE},
+				{Src: "/eventn_ctx/event_id", Dst: "/eventn_ctx/event_id", Action: config.MOVE},
+				{Src: "/eventn_ctx/event_id", Dst: "/id", Action: config.MOVE},
+				{Src: "/_timestamp", Dst: "/_timestamp", Action: config.MOVE},
+				{Src: "/_timestamp", Dst: "/timestamp", Action: config.MOVE},
 			},
 			false,
 			map[string]interface{}{
@@ -387,10 +388,10 @@ func TestNewStyleMap(t *testing.T) {
 		},
 		{
 			"Map real event with keep unmapped true",
-			[]MappingField{
-				{Src: "/src", Dst: "/src", Action: MOVE},
-				{Src: "/_timestamp", Dst: "/_timestamp", Action: MOVE},
-				{Src: "/_timestamp", Dst: "/timestamp", Action: MOVE},
+			[]config.MappingField{
+				{Src: "/src", Dst: "/src", Action: config.MOVE},
+				{Src: "/_timestamp", Dst: "/_timestamp", Action: config.MOVE},
+				{Src: "/_timestamp", Dst: "/timestamp", Action: config.MOVE},
 			},
 			true,
 			map[string]interface{}{
@@ -413,7 +414,7 @@ func TestNewStyleMap(t *testing.T) {
 			for _, field := range tt.mappings {
 				require.NoError(t, field.Validate())
 			}
-			mapper, _, err := NewFieldMapper(&Mapping{KeepUnmapped: &tt.keepUnmapped, Fields: tt.mappings})
+			mapper, _, err := NewFieldMapper(&config.Mapping{KeepUnmapped: &tt.keepUnmapped, Fields: tt.mappings})
 			require.NoError(t, err)
 
 			actualObject, _ := mapper.Map(tt.inputObject)
@@ -426,7 +427,7 @@ func TestNewStyleMap(t *testing.T) {
 func TestTypecasts(t *testing.T) {
 	tests := []struct {
 		name     string
-		mappings []MappingField
+		mappings []config.MappingField
 		expected typing.SQLTypes
 	}{
 		{
@@ -436,11 +437,11 @@ func TestTypecasts(t *testing.T) {
 		},
 		{
 			"Typecasts present",
-			[]MappingField{
-				{Src: "/key1", Dst: "/key10", Action: MOVE, Type: "varchar(256)"},
-				{Src: "/key1", Dst: "/key11", Action: MOVE, Type: "varchar(256)", ColumnType: "varchar(256) encode zstd"},
-				{Src: "/key1", Dst: "/key12", Action: MOVE, ColumnType: "varchar(256) encode zstd"},
-				{Src: "/key1", Dst: "/key13", Action: MOVE},
+			[]config.MappingField{
+				{Src: "/key1", Dst: "/key10", Action: config.MOVE, Type: "varchar(256)"},
+				{Src: "/key1", Dst: "/key11", Action: config.MOVE, Type: "varchar(256)", ColumnType: "varchar(256) encode zstd"},
+				{Src: "/key1", Dst: "/key12", Action: config.MOVE, ColumnType: "varchar(256) encode zstd"},
+				{Src: "/key1", Dst: "/key13", Action: config.MOVE},
 			},
 			typing.SQLTypes{
 				"key10": typing.SQLColumn{
@@ -460,7 +461,7 @@ func TestTypecasts(t *testing.T) {
 				require.NoError(t, field.Validate())
 			}
 			f := false
-			_, sqlTypeCasts, err := NewFieldMapper(&Mapping{KeepUnmapped: &f, Fields: tt.mappings})
+			_, sqlTypeCasts, err := NewFieldMapper(&config.Mapping{KeepUnmapped: &f, Fields: tt.mappings})
 			require.NoError(t, err)
 
 			test.ObjectsEqual(t, tt.expected, sqlTypeCasts, "SQL typecasts aren't equal")

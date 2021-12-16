@@ -39,15 +39,7 @@ export const modeParameter = (constValue?: string): Parameter => {
   }
 }
 
-export const filteringExpressionDocumentation = (
-  <>
-    Table name (or table name template). The value is treated as{" "}
-    <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a>, if the expression
-    returns <b>null</b>, empty string <b>''</b> or <b>false</b>, the event will not be sent to API. Otherwise the event
-    will go through. Any non-empty will be treated the same way. If you do not intend to make any filtering, leave the
-    value as is.
-  </>
-)
+export const filteringExpressionDocumentation = <>Table name (or table name template).</>
 
 /**
  * Destination table name for DBS
@@ -56,15 +48,10 @@ export const tableName = (customDocs?: ReactNode): Parameter => {
   return {
     id: `_formData.tableName`,
     displayName: "Table Name",
-    documentation: customDocs ?? (
-      <>Table name (or table name template). You can test expression by clicking on the 'play' icon</>
-    ),
+    documentation: customDocs ?? <>Table name (or table name template).</>,
     required: true,
     defaultValue: "events",
     type: stringType,
-    jsDebugger: "string",
-    codeSuggestions: `declare let destinationId = "";
-declare let destinationType = "";`,
   }
 }
 

@@ -2,14 +2,13 @@ package storages
 
 import (
 	"fmt"
-	"github.com/jitsucom/jitsu/server/appconfig"
-	"time"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 //AwsRedshift stores files to aws RedShift in two modes:
@@ -25,19 +24,19 @@ type AwsRedshift struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: RedshiftType, createFunc: NewAwsRedshift})
+	RegisterStorage(StorageType{typeName: RedshiftType, createFunc: NewAwsRedshift, isSQL: true})
 }
 
 //NewAwsRedshift returns AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(config *Config) (Storage, error) {
-	redshiftConfig := config.destination.DataSource
-	if err := redshiftConfig.Validate(); err != nil {
+	redshiftConfig := &adapters.DataSourceConfig{}
+	if err := config.destination.GetDestConfig(config.destination.DataSource, redshiftConfig); err != nil {
 		return nil, err
 	}
 	//enrich with default parameters
-	if redshiftConfig.Port.String() == "" {
-		redshiftConfig.Port = "5439"
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.destinationID, redshiftConfig.Port)
+	if redshiftConfig.Port == 0 {
+		redshiftConfig.Port = 5439
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.destinationID, redshiftConfig.Port)
 	}
 	if redshiftConfig.Schema == "" {
 		redshiftConfig.Schema = "public"
@@ -54,16 +53,25 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	}
 
 	var s3Adapter *adapters.S3
+	var s3config *adapters.S3Config
+	s3c, err := config.destination.GetConfig(redshiftConfig.S3, config.destination.S3, &adapters.S3Config{})
+	if err != nil {
+		return nil, err
+	}
+	s3config, ok := s3c.(*adapters.S3Config)
+	if !ok {
+		s3config = &adapters.S3Config{}
+	}
 	if !config.streamMode {
 		var err error
-		s3Adapter, err = adapters.NewS3(config.destination.S3)
+		s3Adapter, err = adapters.NewS3(s3config)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	redshiftAdapter, err := adapters.NewAwsRedshift(config.ctx, redshiftConfig, config.destination.S3, queryLogger, config.sqlTypes)
+	redshiftAdapter, err := adapters.NewAwsRedshift(config.ctx, redshiftConfig, s3config, queryLogger, config.sqlTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +104,10 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	ar.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	ar.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ar, tableHelper)
+	ar.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, ar, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	ar.streamingWorker.start()
 
 	return ar, nil
@@ -189,28 +200,31 @@ func (ar *AwsRedshift) Clean(tableName string) error {
 }
 
 //Update updates record in Redshift
-func (ar *AwsRedshift) Update(object map[string]interface{}) error {
+func (ar *AwsRedshift) Update(objects []map[string]interface{}) error {
 	_, tableHelper := ar.getAdapters()
-	envelops, err := ar.processor.ProcessEvent(object)
-	if err != nil {
-		return err
-	}
-	for _, envelop := range envelops {
-		batchHeader := envelop.Header
-		processedObject := envelop.Event
-		table := tableHelper.MapTableSchema(batchHeader)
-
-		dbSchema, err := tableHelper.EnsureTableWithCaching(ar.ID(), table)
+	for _, object := range objects {
+		envelops, err := ar.processor.ProcessEvent(object)
 		if err != nil {
 			return err
 		}
+		for _, envelop := range envelops {
+			batchHeader := envelop.Header
+			processedObject := envelop.Event
+			table := tableHelper.MapTableSchema(batchHeader)
 
-		start := time.Now()
-		if err = ar.redshiftAdapter.Update(dbSchema, processedObject, ar.uniqueIDField.GetFlatFieldName(), ar.uniqueIDField.Extract(object)); err != nil {
-			return err
+			dbSchema, err := tableHelper.EnsureTableWithCaching(ar.ID(), table)
+			if err != nil {
+				return err
+			}
+
+			start := timestamp.Now()
+			if err = ar.redshiftAdapter.Update(dbSchema, processedObject, ar.uniqueIDField.GetFlatFieldName(), ar.uniqueIDField.Extract(object)); err != nil {
+				return err
+			}
+			logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.ID(), timestamp.Now().Sub(start).Seconds())
 		}
-		logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.ID(), time.Now().Sub(start).Seconds())
 	}
+
 	return nil
 }
 

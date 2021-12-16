@@ -1,7 +1,5 @@
 /* eslint-disable */
 import { ApiAccess, Project, User } from "./model"
-import "firebase/auth"
-import "firebase/firestore"
 import Marshal from "../commons/marshalling"
 import { randomId } from "utils/numbers"
 import { cleanAuthorizationLocalStorage, concatenateURLs } from "lib/commons/utils"
@@ -288,7 +286,7 @@ export class BackendUserService implements UserService {
   }
 
   sendLoginLink(email: string): Promise<void> {
-    throw new Error("sendLoginLink() is not implemented")
+    throw new Error("sendLoginLink is not supporteb by self-hosted user service")
   }
 
   supportsLoginViaLink(): boolean {
@@ -296,10 +294,14 @@ export class BackendUserService implements UserService {
   }
 
   isEmailLoginLink(href: string): boolean {
-    throw new Error("isEmailLoginLink() is not implemented")
+    throw new Error("isEmailLoginLink is not supporteb by self-hosted user service")
   }
 
   loginWithLink(email: string, href: string): Promise<void> {
-    throw new Error("loginWithLink() is not implemented")
+    throw new Error("loginWithLink is not supporteb by self-hosted user service")
+  }
+
+  async getIdToken(): Promise<string> {
+    throw new Error("getIdToken is not supporteb by self-hosted user service")
   }
 }

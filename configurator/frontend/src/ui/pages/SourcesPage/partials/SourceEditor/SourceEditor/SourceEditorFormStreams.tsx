@@ -1,7 +1,7 @@
 // @Libs
 import { useEffect, useMemo } from "react"
 import { Col, Row } from "antd"
-import { cloneDeep } from "lodash"
+import { cloneDeep, uniqueId } from "lodash"
 // @Components
 import { ErrorCard } from "lib/components/ErrorCard/ErrorCard"
 import { SourceEditorFormStreamsLoadableForm } from "./SourceEditorFormStreamsLoadableForm"
@@ -18,13 +18,15 @@ import {
   pullAllSingerStreams,
   PullAllStreams,
 } from "./SourceEditorPullData"
+import { sourcePageUtils } from "../../../SourcePage.utils"
+import { sourceEditorUtils } from "./SourceEditor.utils"
 
 type Props = {
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: SourceConnector
   sourceConfigValidatedByStreamsTab: boolean
   setSourceEditorState: SetSourceEditorState
-  setControlsDisabled: ReactSetState<boolean>
+  handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
   setConfigIsValidatedByStreams: (value: boolean) => void
   handleBringSourceData: () => SourceData
 }
@@ -34,12 +36,12 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
   sourceDataFromCatalog,
   sourceConfigValidatedByStreamsTab,
   setSourceEditorState,
-  setControlsDisabled,
+  handleSetControlsDisabled,
   setConfigIsValidatedByStreams,
   handleBringSourceData,
 }) => {
-  const previouslyCheckedStreams = useMemo<StreamData[]>(
-    () => initialSourceData?.config?.catalog?.streams ?? initialSourceData?.catalog?.streams ?? [],
+  const previouslyCheckedStreams = useMemo<Array<StreamConfig>>(
+    () => initialSourceData?.config?.selected_streams ?? [],
     [initialSourceData]
   )
 
@@ -52,36 +54,47 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
     }
   }, [])
 
+  const controlsDisableRequestId = uniqueId("streams-")
   const {
     isLoading,
     data,
     error,
     reload: restartPolling,
-  } = usePolling<StreamData[]>((end, fail) => async () => {
-    try {
-      const result = await pullAllStreams(previouslyCheckedStreams, sourceDataFromCatalog, handleBringSourceData)
-      if (result !== undefined) end(result)
-    } catch (error) {
-      fail(error)
-    } finally {
-      setConfigIsValidatedByStreams(true)
-      setControlsDisabled(false)
-    }
+  } = usePolling<StreamData[]>({
+    configure: () => {
+      return {
+        pollingCallback: (end, fail) => async () => {
+          try {
+            const result = await pullAllStreams(sourceDataFromCatalog, handleBringSourceData)
+            if (result !== undefined) end(result)
+          } catch (error) {
+            fail(error)
+          }
+        },
+        onBeforePollingStart: () => {
+          handleSetControlsDisabled("Loading streams list", controlsDisableRequestId)
+        },
+        onAfterPollingEnd: () => {
+          setConfigIsValidatedByStreams(true)
+          handleSetControlsDisabled(false, controlsDisableRequestId)
+        },
+      }
+    },
   })
 
-  const selectAllFieldsByDefault: boolean = !previouslyCheckedStreams.length
+  const selectAllFieldsByDefault: boolean = !Object.entries(previouslyCheckedStreams).length
 
-  const initallySelectedFields = useMemo<StreamData[]>(() => {
-    return selectAllFieldsByDefault ? data : previouslyCheckedStreams
+  const initiallySelectedFields = useMemo<Array<StreamConfig>>(() => {
+    return selectAllFieldsByDefault
+      ? data
+        ? data.map(sourceEditorUtils.streamDataToSelectedStreamsMapper)
+        : []
+      : previouslyCheckedStreams
   }, [selectAllFieldsByDefault, previouslyCheckedStreams, data])
 
-  useEffect(() => {
-    if (!sourceConfigValidatedByStreamsTab) restartPolling()
-  }, [sourceConfigValidatedByStreamsTab])
-
-  useEffect(() => {
-    if (!data && isLoading) setControlsDisabled(true)
-  }, [isLoading, data])
+  // useEffect(() => {
+  //   if (!sourceConfigValidatedByStreamsTab) restartPolling()
+  // }, [sourceConfigValidatedByStreamsTab])
 
   useEffect(() => {
     setSourceEditorState(state => {
@@ -96,7 +109,7 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
       {data && !error && !isLoading && (
         <SourceEditorFormStreamsLoadableForm
           allStreams={data}
-          initiallySelectedStreams={initallySelectedFields}
+          initiallySelectedStreams={initiallySelectedFields}
           selectAllFieldsByDefault={selectAllFieldsByDefault}
           hide={isLoading || !!error}
           setSourceEditorState={setSourceEditorState}
@@ -106,7 +119,7 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
         <Row>
           <Col span={24}>
             <LoadableFieldsLoadingMessageCard
-              title="Validating the source configuration"
+              title="Loading the list of streams"
               longLoadingMessage="This operation may take up to 3 minutes if you are configuring streams of this source type for the first time."
               showLongLoadingMessageAfterMs={10000}
             />

@@ -15,14 +15,6 @@ module.exports = {
   devServer: {
     host: DEV_HOST,
     port: DEV_PORT,
-    // proxy: process.env.PROXY_BACKEND ? ({
-    //   '/api': {
-    //     target: `${process.env.PROXY_BACKEND}/api`,
-    //     secure: false,
-    //     changeOrigin: true
-    //
-    //   }
-    // }) : [] ,
     hot: true,
     historyApiFallback: true,
     headers: {
@@ -36,6 +28,11 @@ module.exports = {
       errors: true,
     },
     contentBase: __dirname + "/public",
+  },
+  babel: {
+    loaderOptions: {
+      babelrc: true,
+    },
   },
   webpack: {
     plugins: [
@@ -52,6 +49,8 @@ module.exports = {
           APP_PATH: JSON.stringify(process.env.APP_PATH || ""),
           FIREBASE_CONFIG: JSON.stringify(process.env.FIREBASE_CONFIG || null),
           BILLING_API_BASE_URL: JSON.stringify(process.env.BILLING_API_BASE_URL || null),
+          OAUTH_BACKEND_API_BASE: JSON.stringify(process.env.OAUTH_BACKEND_API_BASE || null),
+          SLACK_API_URL: JSON.stringify(process.env.SLACK_API_URL || null),
         },
       }),
       new BundleAnalyzerPlugin({

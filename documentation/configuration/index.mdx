@@ -4,7 +4,14 @@ If **Jitsu Server** is deployed in a standlone mode, it should be configured via
 (read more about deployment options [here](/docs/deployment/)). We follow
 [convention over configuration](https://en.wikipedia.org/wiki/Convention_over_configuration) so the majority of
 parameters are optional. To get a base file, clone it from
-[GitHub](https://github.com/jitsucom/jitsu/blob/master/server/config/config.template.yaml).
+[GitHub](https://github.com/jitsucom/jitsu/blob/master/server/appconfig/config.template.yaml).
+**Jitsu Server** can be used either with [Redis](https://redis.io/) or not. Redis version 5 and higher is supported.
+Storage is required for some features (but if youwould like to work without them, then Redis configuration can be omitted):
+
+- Last events caching (see [Events Cache](/docs/other-features/events-cache))
+- Sources synchronization (see [Sources Configuration](/docs/sources-configuration/))
+- [Retroactive Users Recognition](/docs/other-features/retroactive-user-recognition)
+- [Coordination](/docs/other-features/scaling-eventnative).
 
 Our config file consists of the following sections:
 
@@ -18,7 +25,7 @@ Our config file consists of the following sections:
 * `users_recognition` — Jitsu can update past events with user identifiers on user's identification event! see [Retroactive Users Recognition](/docs/other-features/retroactive-user-recognition)
 * `coordination` — coordination service configuration. It is used in cluster Jitsu deployments. see [Scaling Jitsu](/docs/other-features/scaling-eventnative)
 * `notifications` — notifier configuration. Server starts, system errors, and panics information will be sent to it. Currently, only Slack notifications are supported.
-* `meta.storage` - meta storage configuration. At present Jitsu supports only [Redis](https://redis.io/). It is used for last events caching (see [Events Cache](/docs/other-features/events-cache)), sources synchronization (see [Sources Configuration](/docs/sources-configuration/)), and [Retroactive Users Recognition](/docs/other-features/retroactive-user-recognition) and can be used in [coordination](/docs/other-features/scaling-eventnative).
+* `meta.storage` - meta storage is the main application storage and it is required for some features. At present Jitsu supports only Redis version 5 and higher.
 
 **Example**:
 

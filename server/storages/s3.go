@@ -4,7 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/typing"
+	"github.com/jitsucom/jitsu/server/utils"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -21,7 +24,14 @@ type S3 struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: S3Type, createFunc: NewS3})
+	RegisterStorage(StorageType{
+		typeName:   S3Type,
+		createFunc: NewS3,
+		//S3 can store SQL data it depends on "format".
+		isSQLFunc: func(config *config.DestinationConfig) bool {
+			mp := utils.NvlMap(config.Config, config.S3)
+			return mp["format"] != adapters.S3FormatJSON
+		}})
 }
 
 func NewS3(config *Config) (Storage, error) {
@@ -31,8 +41,8 @@ func NewS3(config *Config) (Storage, error) {
 		}
 		return nil, fmt.Errorf("S3 destination doesn't support %s mode", StreamMode)
 	}
-	s3Config := config.destination.S3
-	if err := s3Config.Validate(); err != nil {
+	s3Config := &adapters.S3Config{}
+	if err := config.destination.GetDestConfig(config.destination.S3, s3Config); err != nil {
 		return nil, err
 	}
 
@@ -57,7 +67,7 @@ func NewS3(config *Config) (Storage, error) {
 	return s3, nil
 }
 
-func (s3 *S3) DryRun(payload events.Event) ([][]adapters.TableField, error) {
+func (s3 *S3) DryRun(events.Event) ([][]adapters.TableField, error) {
 	return nil, errors.New("s3 does not support dry run functionality")
 }
 
@@ -80,11 +90,8 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 
 	storeFailedEvents := true
 	tableResults := map[string]*StoreResult{}
-	marshaller := s3.marshaller()
 	for _, fdata := range processedFiles {
-		b := fdata.GetPayloadBytes(marshaller)
-		fileName := s3.fileName(fdata)
-		err := s3.s3Adapter.UploadBytes(fileName, b)
+		err := s3.uploadFile(fdata)
 
 		tableResults[fdata.BatchHeader.TableName] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
 		if err != nil {
@@ -116,17 +123,39 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 	return tableResults, nil, skippedEvents, nil
 }
 
-func (s3 *S3) marshaller() schema.Marshaller {
-	if s3.s3Adapter.Format() == adapters.S3FormatCSV {
-		return schema.CSVMarshallerInstance
-	} else {
-		return schema.JSONMarshallerInstance
+func (s3 *S3) uploadFile(f *schema.ProcessedFile) error {
+	b, err := s3.marshall(f)
+	if err != nil {
+		return fmt.Errorf("marshalling error: %v", err)
+	}
+	fileName := s3.fileName(f)
+	return s3.s3Adapter.UploadBytes(fileName, b)
+}
+
+func (s3 *S3) marshall(fdata *schema.ProcessedFile) ([]byte, error) {
+	encodingFormat := s3.s3Adapter.Format()
+	switch encodingFormat {
+	case adapters.S3FormatCSV:
+		return fdata.GetPayloadBytes(schema.CSVMarshallerInstance), nil
+	case adapters.S3FormatFlatJSON, adapters.S3FormatJSON:
+		return fdata.GetPayloadBytes(schema.JSONMarshallerInstance), nil
+	case adapters.S3FormatParquet:
+		pm := schema.NewParquetMarshaller(s3.s3Adapter.Compression() == adapters.S3CompressionGZIP)
+		return fdata.GetPayloadUsingStronglyTypedMarshaller(pm)
+	default:
+		return nil, fmt.Errorf("unsupported s3 encoding format %v", encodingFormat)
 	}
 }
 
 func (s3 *S3) fileName(fdata *schema.ProcessedFile) string {
 	start, end := findStartEndTimestamp(fdata.GetPayload())
-	return fmt.Sprintf("%s-start-%s-end-%s.log", fdata.BatchHeader.TableName, timestamp.ToISOFormat(start), timestamp.ToISOFormat(end))
+	var extension string
+	if s3.s3Adapter.Format() == adapters.S3FormatParquet {
+		extension = "parquet"
+	} else {
+		extension = "log"
+	}
+	return fmt.Sprintf("%s-start-%s-end-%s.%s", fdata.BatchHeader.TableName, timestamp.ToISOFormat(start), timestamp.ToISOFormat(end), extension)
 }
 
 func findStartEndTimestamp(fdata []map[string]interface{}) (time.Time, time.Time) {
@@ -134,19 +163,9 @@ func findStartEndTimestamp(fdata []map[string]interface{}) (time.Time, time.Time
 	for _, it := range fdata {
 		if objectTSValue, ok := it[timestamp.Key]; ok {
 			var datetime time.Time
-
-			switch objectTSValueInType := objectTSValue.(type) {
-			case time.Time:
-				datetime = objectTSValueInType
-			case *time.Time:
-				datetime = *objectTSValueInType
-			case string:
-				parsed, err := time.Parse(time.RFC3339Nano, objectTSValueInType)
-				if err != nil {
-					logging.SystemErrorf("Error parsing %s value under %s key with time.RFC3339Nano template: %v", objectTSValueInType, timestamp.Key, err)
-				} else {
-					datetime = parsed
-				}
+			datetime, err := typing.ParseTimestamp(objectTSValue)
+			if err != nil {
+				logging.SystemErrorf("Error parsing %v value under %s key: %v", objectTSValue, timestamp.Key, err)
 			}
 
 			if start.IsZero() || datetime.Before(start) {
@@ -158,7 +177,7 @@ func findStartEndTimestamp(fdata []map[string]interface{}) (time.Time, time.Time
 		}
 	}
 	if start.IsZero() || end.IsZero() {
-		now := time.Now()
+		now := timestamp.Now()
 		start = now
 		end = now
 	}
@@ -167,12 +186,12 @@ func findStartEndTimestamp(fdata []map[string]interface{}) (time.Time, time.Time
 }
 
 //SyncStore isn't supported
-func (s3 *S3) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
+func (s3 *S3) SyncStore(*schema.BatchHeader, []map[string]interface{}, string, bool) error {
 	return errors.New("S3 doesn't support sync store")
 }
 
 //Update isn't suported
-func (s3 *S3) Update(object map[string]interface{}) error {
+func (s3 *S3) Update([]map[string]interface{}) error {
 	return errors.New("S3 doesn't support updates")
 }
 

@@ -50,7 +50,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
 
   const [sourceSaving, setSourceSaving] = useState<boolean>(false)
   const [savePopover, switchSavePopover] = useState<boolean>(false)
-  const [controlsDisabled, setControlsDisabled] = useState<boolean>(false)
+  const [controlsDisabled, setControlsDisabled] = useState<boolean | string>(false)
 
   const [testConnecting, setTestConnecting] = useState<boolean>(false)
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false)
@@ -90,6 +90,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
       name: "Connection Properties",
       getComponent: (form: FormInstance) => (
         <SourceEditorConfig
+          editorMode={editorMode}
           form={form}
           sourceReference={connectorSource}
           isCreateForm={editorMode === "add"}
@@ -157,8 +158,8 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
     tab.touched = value === undefined ? true : value
   }, [])
 
-  const handleDisableFormControls = useCallback(() => {
-    setControlsDisabled(true)
+  const handleDisableFormControls = useCallback((reason?: string) => {
+    setControlsDisabled(reason ?? true)
   }, [])
 
   const handleEnableFormControls = useCallback(() => {
@@ -185,15 +186,8 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
   const handleTestConnection = () => {
     setTestConnecting(true)
     handleBringSourceData()
-      .then(async (response: SourceData) => {
-        sourceData.current = response
-
-        const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current)
-
-        sourceData.current = {
-          ...sourceData.current,
-          ...testConnectionResults,
-        }
+      .then(async (sourceData: SourceData) => {
+        await sourcePageUtils.testConnection(sourceData)
       })
       .finally(() => {
         setTestConnecting(false)
@@ -223,7 +217,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
           history.push(sourcesPageRoutes.root)
 
           if (sourceData.current.connected) {
-            actionNotification.success("New source has been added!")
+            actionNotification.success(editorMode === "add" ? "New source has been added!" : "Source has been saved")
           } else {
             actionNotification.warn(
               `Source has been saved, but test has failed with '${firstToLower(

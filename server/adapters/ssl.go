@@ -55,10 +55,10 @@ func FromString(sslMode string) SSLMode {
 
 //SSLConfig is a dto for deserialized SSL configuration for Postgres
 type SSLConfig struct {
-	Mode       SSLMode `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
-	ServerCA   string  `mapstructure:"server_ca" json:"server_ca,omitempty" yaml:"server_ca,omitempty"`
-	ClientCert string  `mapstructure:"client_cert" json:"client_cert,omitempty" yaml:"client_cert,omitempty"`
-	ClientKey  string  `mapstructure:"client_key" json:"client_key,omitempty" yaml:"client_key,omitempty"`
+	Mode       SSLMode `mapstructure:"mode,omitempty" json:"mode,omitempty" yaml:"mode,omitempty"`
+	ServerCA   string  `mapstructure:"server_ca,omitempty" json:"server_ca,omitempty" yaml:"server_ca,omitempty"`
+	ClientCert string  `mapstructure:"client_cert,omitempty" json:"client_cert,omitempty" yaml:"client_cert,omitempty"`
+	ClientKey  string  `mapstructure:"client_key,omitempty" json:"client_key,omitempty" yaml:"client_key,omitempty"`
 }
 
 //Validate returns err if the ssl configuration is invalid

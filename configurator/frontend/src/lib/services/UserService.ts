@@ -116,4 +116,6 @@ export interface UserService {
   isEmailLoginLink(href: string): boolean
 
   loginWithLink(email: string, href: string): Promise<void>
+
+  getIdToken(): Promise<string>
 }

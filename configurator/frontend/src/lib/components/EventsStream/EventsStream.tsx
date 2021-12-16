@@ -21,6 +21,7 @@ import classNames from "classnames"
 import cn from "classnames"
 import { reactElementToString } from "../../commons/utils"
 import { useForceUpdate } from "../../../hooks/useForceUpdate"
+import { body } from "msw/lib/types/context"
 
 type Event = {
   timestamp: Moment
@@ -236,6 +237,33 @@ const EventsView: React.FC<{ event: Event; className?: string; allDestinations: 
   )
 }
 
+/**
+ * Tries to turn string into JSON if possible (=string contains valid JSON)
+ * @param str
+ */
+export function tryParseJson(str: any) {
+  if (typeof str === "string") {
+    try {
+      return JSON.parse(str)
+    } catch (e) {
+      return str
+    }
+  } else {
+    return str
+  }
+}
+
+/**
+ * Attempts to make JSON look nicer
+ * @param obj
+ */
+export function preprocessJson(obj: any) {
+  if (obj.body) {
+    obj.body = tryParseJson(obj.body)
+  }
+  return obj
+}
+
 function getResultView(obj: any) {
   if (obj.table && obj.record && Array.isArray(obj.record)) {
     let data = [...obj.record]
@@ -271,7 +299,7 @@ function getResultView(obj: any) {
   }
   return (
     <Code className="bg-bgSecondary rounded-xl p-6 text-xs" language="json">
-      {JSON.stringify(obj, null, 2)}
+      {JSON.stringify(preprocessJson(obj), null, 2)}
     </Code>
   )
 }
@@ -450,7 +478,7 @@ const DestinationsFilter: React.FC<{
               </Button>
             </div>
           </div>
-          <div className="flex flex-col h-96 overflow-y-auto pr-2">
+          <div className="flex flex-col h-80 overflow-y-auto pr-2">
             {allDestinations.map(dst => {
               const toggleCheckBox = () => {
                 let newIds

@@ -3,6 +3,7 @@ package routers
 import (
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/multiplexing"
+	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/wal"
 	"net/http"
 	"net/http/pprof"
@@ -28,7 +29,7 @@ import (
 func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *destinations.Service, sourcesService *sources.Service, taskService *synchronization.TaskService,
 	fallbackService *fallback.Service, clusterManager cluster.Manager, eventsCache *caching.EventsCache, systemService *system.Service,
 	segmentEndpointFieldMapper, segmentCompatEndpointFieldMapper events.Mapper, processorHolder *events.ProcessorHolder,
-	multiplexingService *multiplexing.Service, walService *wal.Service, geoService *geo.Service) *gin.Engine {
+	multiplexingService *multiplexing.Service, walService *wal.Service, geoService *geo.Service, pluginsRepository plugins.PluginsRepository) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -39,9 +40,9 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	})
 
 	publicURL := viper.GetString("server.public_url")
-	configuratorURL := viper.GetString("server.configurator_url")
+	configuratorURN := viper.GetString("server.configurator_urn")
 
-	rootPathHandler := handlers.NewRootPathHandler(systemService, viper.GetString("server.static_files_dir"), configuratorURL,
+	rootPathHandler := handlers.NewRootPathHandler(systemService, viper.GetString("server.static_files_dir"), configuratorURN,
 		viper.GetBool("server.disable_welcome_page"), viper.GetBool("server.configurator_redirect_https"))
 	router.GET("/", rootPathHandler.Handler)
 
@@ -64,6 +65,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	pixelHandler := handlers.NewPixelHandler(multiplexingService, processorHolder.GetPixelPreprocessor(), destinations, geoService)
 
 	bulkHandler := handlers.NewBulkHandler(destinations, processorHolder.GetBulkPreprocessor())
+
+	geoDataResolverHandler := handlers.NewGeoDataResolverHandler(geoService)
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
@@ -88,13 +91,16 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		//Dry run
 		apiV1.POST("/events/dry-run", middleware.TokenTwoFuncAuth(dryRunHandler.Handle, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
+		apiV1.GET("/geo_data_resolvers/editions", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.EditionsHandler))
+		apiV1.POST("/geo_data_resolvers/test", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.TestHandler))
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler))
-		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.EventTemplateHandler))
+		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.NewEventTemplateHandler(pluginsRepository, destinations.GetFactory()).Handler))
 
 		sourcesRoute := apiV1.Group("/sources")
 		{
 			sourcesRoute.POST("/test", adminTokenMiddleware.AdminAuth(sourcesHandler.TestSourcesHandler))
 			sourcesRoute.POST("/clear_cache", adminTokenMiddleware.AdminAuth(sourcesHandler.ClearCacheHandler))
+			sourcesRoute.GET("/oauth_fields/:sourceType", adminTokenMiddleware.AdminAuth(sourcesHandler.OauthFields))
 		}
 
 		//536-issue DEPRECATED
@@ -118,7 +124,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.GET("/airbyte/:dockerImageName/versions", adminTokenMiddleware.AdminAuth(airbyteHandler.VersionsHandler))
 		apiV1.POST("/airbyte/:dockerImageName/catalog", adminTokenMiddleware.AdminAuth(airbyteHandler.CatalogHandler))
 
-		apiV1.POST("/singer/:tap/catalog", adminTokenMiddleware.AdminAuth(handlers.NewSingerHandler().CatalogHandler))
+		apiV1.POST("/singer/:tap/catalog", adminTokenMiddleware.AdminAuth(handlers.NewSingerHandler(metaStorage).CatalogHandler))
 	}
 
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
@@ -130,6 +136,12 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	//Setup profiler
 	statsPprof := router.Group("/stats/pprof")
 	{
+		statsPprof.GET("/", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Index)))
+		statsPprof.GET("/cmdline", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Cmdline)))
+		statsPprof.GET("/profile", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Profile)))
+		statsPprof.POST("/symbol", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Symbol)))
+		statsPprof.GET("/symbol", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Symbol)))
+		statsPprof.GET("/trace", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Trace)))
 		statsPprof.GET("/allocs", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("allocs").ServeHTTP)))
 		statsPprof.GET("/block", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("block").ServeHTTP)))
 		statsPprof.GET("/goroutine", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("goroutine").ServeHTTP)))

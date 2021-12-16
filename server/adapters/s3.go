@@ -5,14 +5,13 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
-	"net/http"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"net/http"
 )
 
 //S3 is a S3 adapter for uploading/deleting files
@@ -23,14 +22,14 @@ type S3 struct {
 
 //S3Config is a dto for config deserialization
 type S3Config struct {
-	AccessKeyID string           `mapstructure:"access_key_id" json:"access_key_id,omitempty" yaml:"access_key_id,omitempty"`
-	SecretKey   string           `mapstructure:"secret_access_key" json:"secret_access_key,omitempty" yaml:"secret_access_key,omitempty"`
-	Bucket      string           `mapstructure:"bucket" json:"bucket,omitempty" yaml:"bucket,omitempty"`
-	Region      string           `mapstructure:"region" json:"region,omitempty" yaml:"region,omitempty"`
-	Endpoint    string           `mapstructure:"endpoint" json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
-	Folder      string           `mapstructure:"folder" json:"folder,omitempty" yaml:"folder,omitempty"`
-	Format      S3EncodingFormat `mapstructure:"format" json:"format,omitempty" yaml:"format,omitempty"`
-	Compression S3Compression    `mapstructure:"compression" json:"compression,omitempty" yaml:"compression,omitempty"`
+	AccessKeyID string           `mapstructure:"access_key_id,omitempty" json:"access_key_id,omitempty" yaml:"access_key_id,omitempty"`
+	SecretKey   string           `mapstructure:"secret_access_key,omitempty" json:"secret_access_key,omitempty" yaml:"secret_access_key,omitempty"`
+	Bucket      string           `mapstructure:"bucket,omitempty" json:"bucket,omitempty" yaml:"bucket,omitempty"`
+	Region      string           `mapstructure:"region,omitempty" json:"region,omitempty" yaml:"region,omitempty"`
+	Endpoint    string           `mapstructure:"endpoint,omitempty" json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	Folder      string           `mapstructure:"folder,omitempty" json:"folder,omitempty" yaml:"folder,omitempty"`
+	Format      S3EncodingFormat `mapstructure:"format,omitempty" json:"format,omitempty" yaml:"format,omitempty"`
+	Compression S3Compression    `mapstructure:"compression,omitempty" json:"compression,omitempty" yaml:"compression,omitempty"`
 }
 
 type S3EncodingFormat string
@@ -40,6 +39,7 @@ const (
 	S3FormatFlatJSON  S3EncodingFormat = "flat_json" //flattened json objects with \n delimiter
 	S3FormatJSON      S3EncodingFormat = "json"      //file with json objects with \n delimiter (not flattened)
 	S3FormatCSV       S3EncodingFormat = "csv"       //flattened csv objects with \n delimiter
+	S3FormatParquet   S3EncodingFormat = "parquet"   //flattened objects which are marshalled in apache parquet file
 	S3CompressionGZIP S3Compression    = "gzip"      //gzip compression
 )
 
@@ -87,28 +87,35 @@ func (a *S3) Format() S3EncodingFormat {
 	return a.config.Format
 }
 
+func (a *S3) Compression() S3Compression {
+	return a.config.Compression
+}
+
 //UploadBytes creates named file on s3 with payload
 func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	if a.config.Folder != "" {
 		fileName = a.config.Folder + "/" + fileName
 	}
 
-	fileType := http.DetectContentType(fileBytes)
 	params := &s3.PutObjectInput{
-		Bucket:      aws.String(a.config.Bucket),
-		ContentType: aws.String(fileType),
+		Bucket: aws.String(a.config.Bucket),
 	}
 
+	var fileType string
 	if a.config.Compression == S3CompressionGZIP {
 		var err error
 		fileName = fileNameGZIP(fileName)
-		fileBytes, err = a.compressGZIP(fileBytes)
+		buf, err := a.compressGZIP(fileBytes)
 		if err != nil {
 			return fmt.Errorf("Error compressing file %v", err)
 		}
-		params.ContentEncoding = aws.String(string(a.config.Compression))
+		fileBytes = buf.Bytes()
+		fileType = "application/gzip"
+	} else {
+		fileType = http.DetectContentType(fileBytes)
 	}
 
+	params.ContentType = aws.String(fileType)
 	params.Key = aws.String(fileName)
 	params.Body = bytes.NewReader(fileBytes)
 	_, err := a.client.PutObject(params)
@@ -118,17 +125,14 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	return nil
 }
 
-func (a *S3) compressGZIP(b []byte) ([]byte, error) {
+func (a *S3) compressGZIP(b []byte) (*bytes.Buffer, error) {
 	buf := new(bytes.Buffer)
 	w := gzip.NewWriter(buf)
 	defer w.Close()
 	if _, err := w.Write(b); err != nil {
 		return nil, err
 	}
-	if err := w.Flush(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return buf, nil
 }
 
 //DeleteObject deletes object from s3 bucket by key

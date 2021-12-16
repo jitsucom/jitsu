@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/jitsucom/jitsu/server/typing"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/typing"
 	sf "github.com/snowflakedb/gosnowflake"
 )
 
@@ -28,13 +26,13 @@ type Snowflake struct {
 }
 
 func init() {
-	RegisterStorage(StorageType{typeName: SnowflakeType, createFunc: NewSnowflake})
+	RegisterStorage(StorageType{typeName: SnowflakeType, createFunc: NewSnowflake, isSQL: true})
 }
 
 //NewSnowflake returns Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
 func NewSnowflake(config *Config) (Storage, error) {
-	snowflakeConfig := config.destination.Snowflake
-	if err := snowflakeConfig.Validate(); err != nil {
+	snowflakeConfig := &adapters.SnowflakeConfig{}
+	if err := config.destination.GetDestConfig(config.destination.Snowflake, snowflakeConfig); err != nil {
 		return nil, err
 	}
 	if snowflakeConfig.Schema == "" {
@@ -47,11 +45,22 @@ func NewSnowflake(config *Config) (Storage, error) {
 		t := "true"
 		snowflakeConfig.Parameters["client_session_keep_alive"] = &t
 	}
-
-	if config.destination.Google != nil {
-		if err := config.destination.Google.Validate(config.streamMode); err != nil {
+	var googleConfig *adapters.GoogleConfig
+	gc, err := config.destination.GetConfig(snowflakeConfig.Google, config.destination.Google, &adapters.GoogleConfig{})
+	if err != nil {
+		return nil, err
+	}
+	googleConfig, googleOk := gc.(*adapters.GoogleConfig)
+	if googleOk {
+		if err := googleConfig.Validate(); err != nil {
 			return nil, err
 		}
+		if !config.streamMode {
+			if err := googleConfig.ValidateBatchMode(); err != nil {
+				return nil, err
+			}
+		}
+
 		//stage is required when gcp integration
 		if snowflakeConfig.Stage == "" {
 			return nil, errors.New("Snowflake stage is required parameter in GCP integration")
@@ -59,15 +68,21 @@ func NewSnowflake(config *Config) (Storage, error) {
 	}
 
 	var stageAdapter adapters.Stage
+	var s3config *adapters.S3Config
+	s3c, err := config.destination.GetConfig(snowflakeConfig.S3, config.destination.S3, &adapters.S3Config{})
+	if err != nil {
+		return nil, err
+	}
+	s3config, s3ok := s3c.(*adapters.S3Config)
 	if !config.streamMode {
 		var err error
-		if config.destination.S3 != nil {
-			stageAdapter, err = adapters.NewS3(config.destination.S3)
+		if s3ok {
+			stageAdapter, err = adapters.NewS3(s3config)
 			if err != nil {
 				return nil, err
 			}
 		} else {
-			stageAdapter, err = adapters.NewGoogleCloudStorage(config.ctx, config.destination.Google)
+			stageAdapter, err = adapters.NewGoogleCloudStorage(config.ctx, googleConfig)
 			if err != nil {
 				return nil, err
 			}
@@ -75,7 +90,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	snowflakeAdapter, err := CreateSnowflakeAdapter(config.ctx, config.destination.S3, *snowflakeConfig, queryLogger, config.sqlTypes)
+	snowflakeAdapter, err := CreateSnowflakeAdapter(config.ctx, s3config, *snowflakeConfig, queryLogger, config.sqlTypes)
 	if err != nil {
 		if stageAdapter != nil {
 			stageAdapter.Close()
@@ -104,7 +119,10 @@ func NewSnowflake(config *Config) (Storage, error) {
 	snowflake.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	snowflake.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, snowflake, tableHelper)
+	snowflake.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, snowflake, tableHelper)
+	if err != nil {
+		return nil, err
+	}
 	snowflake.streamingWorker.start()
 
 	return snowflake, nil
@@ -237,8 +255,8 @@ func (s *Snowflake) Clean(tableName string) error {
 }
 
 //Update uses SyncStore under the hood
-func (s *Snowflake) Update(object map[string]interface{}) error {
-	return s.SyncStore(nil, []map[string]interface{}{object}, "", true)
+func (s *Snowflake) Update(objects []map[string]interface{}) error {
+	return s.SyncStore(nil, objects, "", true)
 }
 
 //Type returns Snowflake type
