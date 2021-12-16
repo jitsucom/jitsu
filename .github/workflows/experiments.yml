@@ -1,4 +1,4 @@
-name: Backend CI
+name: Experiments
 
 on:
   push:
