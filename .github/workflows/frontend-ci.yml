@@ -1,9 +1,11 @@
 name: Frontend CI
 
+
 on:
   push:
+    branches: 
       - '**'
-
+      
 jobs:
   frontend-build-and-test:
     runs-on: ubuntu-latest
