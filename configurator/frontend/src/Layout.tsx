@@ -13,22 +13,21 @@ import { CenteredSpin, handleError } from "lib/components/components"
 import Icon, {
   SettingOutlined,
   AreaChartOutlined,
-  ApiOutlined,
-  NotificationOutlined,
-  CloudOutlined,
-  DownloadOutlined,
   UserOutlined,
   UserSwitchOutlined,
   LogoutOutlined,
-  PartitionOutlined,
-  ThunderboltOutlined,
-  GlobalOutlined,
+  CloudFilled,
+  NotificationFilled,
+  ApiFilled,
+  ThunderboltFilled,
+  HomeFilled,
 } from "@ant-design/icons"
-import logo from "icons/logo.svg"
-import logoMini from "icons/logo-square.svg"
+import { ReactComponent as JitsuLogo } from "icons/logo-responsive.svg"
 import { ReactComponent as Cross } from "icons/cross.svg"
 import { ReactComponent as DbtCloudIcon } from "icons/dbtCloud.svg"
 import { ReactComponent as KeyIcon } from "icons/key.svg"
+import { ReactComponent as DownloadIcon } from "icons/download.svg"
+import { ReactComponent as GlobeIcon } from "icons/globe.svg"
 import classNames from "classnames"
 // @Model
 import { Permission, User } from "lib/services/model"
@@ -54,6 +53,7 @@ type MenuItem = {
   icon: React.ReactNode
   title: React.ReactNode
   link: string
+  color: string
   enabled: (f: FeatureSettings) => boolean
 }
 
@@ -61,26 +61,44 @@ const makeItem = (
   icon: React.ReactNode,
   title: React.ReactNode,
   link: string,
+  color: string,
   enabled = (f: FeatureSettings) => true
 ): MenuItem => {
-  return { icon, title, link, enabled }
+  return { icon, title, link, color, enabled }
 }
 
 const menuItems = [
-  makeItem(<PartitionOutlined />, "Home", "/connections"),
-  makeItem(<ThunderboltOutlined />, "Live Events", "/events_stream"),
-  makeItem(<AreaChartOutlined />, "Statistics", "/dashboard"),
-  makeItem(<Icon component={KeyIcon} />, "API Keys", "/api-keys"),
-  makeItem(<ApiOutlined />, "Sources", "/sources"),
-  makeItem(<NotificationOutlined />, "Destinations", "/destinations"),
-  makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud"),
-  makeItem(<GlobalOutlined />, "Geo data resolver", "/geo_data_resolver"),
-  makeItem(<CloudOutlined />, "Custom Domains", "/domains", f => f.enableCustomDomains),
-  makeItem(<DownloadOutlined />, "Download Config", "/cfg_download", f => f.enableCustomDomains),
+  makeItem(<HomeFilled />, "Home", "/connections", "#77c593"),
+  makeItem(<ThunderboltFilled />, "Live Events", "/events_stream", "#fccd04"),
+  makeItem(<AreaChartOutlined />, "Statistics", "/dashboard", "#88bdbc"),
+  makeItem(<Icon component={KeyIcon} />, "API Keys", "/api-keys", "#d79922"),
+  makeItem(<ApiFilled />, "Sources", "/sources", "#d83f87"),
+  makeItem(<NotificationFilled />, "Destinations", "/destinations", "#4056a1"),
+  makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud", "#e76e52"),
+  makeItem(<Icon component={GlobeIcon} />, "Geo data resolver", "/geo_data_resolver", "#41b3a3"),
+  makeItem(<CloudFilled />, "Custom Domains", "/domains", "#5ab9ea", f => f.enableCustomDomains),
+  makeItem(
+    <Icon component={DownloadIcon} />,
+    "Download Config",
+    "/cfg_download",
+    "#14a76c",
+    f => f.enableCustomDomains
+  ),
 ]
 
 export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) => {
   const key = usePageLocation().mainMenuKey
+  const Wrapper = React.useMemo<React.FC<{ title?: string | React.ReactNode }>>(
+    () =>
+      expanded
+        ? ({ children }) => <>{children}</>
+        : ({ title, children }) => (
+            <Tooltip title={title} placement="right" mouseEnterDelay={0} mouseLeaveDelay={0}>
+              {children}
+            </Tooltip>
+          ),
+    [expanded]
+  )
 
   return (
     <div className={`max-h-full overflow-x-visible overflow-y-auto ${styles.sideBarContent_applicationMenu}`}>
@@ -88,25 +106,18 @@ export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) =
         const selected = item.link === "/" + key
         return (
           <NavLink to={item.link} key={item.link}>
-            <div
-              key={item.link}
-              className={`${
-                selected ? styles.selectedMenuItem : styles.sideBarContent_item__withRightBorder
-              } whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}
-            >
-              {!expanded && (
-                <Tooltip title={item.title} placement="right" mouseEnterDelay={0}>
-                  {item.icon}
-                </Tooltip>
-              )}
-
-              {expanded && (
-                <>
-                  {item.icon}
-                  <span className="pl-2 whitespace-nowrap">{item.title}</span>
-                </>
-              )}
-            </div>
+            <Wrapper title={item.title}>
+              <div
+                key={item.link}
+                className={`flex items-center ${
+                  selected ? styles.selectedMenuItem : styles.sideBarContent_item__withRightBorder
+                } ${styles.menuItem} whitespace-nowrap text-textPale py-3 ml-2 pl-4 pr-6 rounded-l-xl`}
+                style={{ fill: item.color }}
+              >
+                <i className="block">{item.icon}</i>
+                {expanded && <span className="pl-2 whitespace-nowrap">{item.title}</span>}
+              </div>
+            </Wrapper>
           </NavLink>
         )
       })}
@@ -121,8 +132,11 @@ export const ApplicationSidebar: React.FC<{}> = () => {
     <div className={`relative ${styles.sideBarContent}`}>
       <div className="flex flex-col items-stretch h-full">
         <div className={`pb-3 ${styles.sideBarContent_item__withRightBorder}`}>
-          <a href="https://jitsu.com" className={`text-center block pt-5 h-14`}>
-            <img src={expanded ? logo : logoMini} alt="[logo]" className="h-8 mx-auto" />
+          <a
+            href="https://jitsu.com"
+            className={`text-center block pt-5 h-14 overflow-hidden ${expanded ? "" : "w-12 pl-3"}`}
+          >
+            <JitsuLogo className={`h-8 w-40`} />
           </a>
         </div>
         <div className={`flex-grow flex-shrink min-h-0 ${styles.sideBarContent_item__withRightBorder}`}>
