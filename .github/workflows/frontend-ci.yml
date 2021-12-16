@@ -1,11 +1,11 @@
-name: Continuous Integration
+name: Frontend CI
 
 on:
   push:
-    branches: [master, beta]
+      - '**'
 
 jobs:
-  frontend-check:
+  frontend-build-and-test:
     runs-on: ubuntu-latest
 
     env:
@@ -23,20 +23,19 @@ jobs:
         with:
           node-version: "14"
       - run: yarn install
-        name: "[Configurator Front] installing packages (yarn install)"
+        name: "[Frontend CI] installing packages (yarn install)"
         working-directory: ./configurator/frontend
       - run: yarn build
-        name: "[Configurator Front] building"
+        name: "[Frontend CI] building"
         working-directory: ./configurator/frontend
       - run: yarn all:check
-        name: "[Configurator Front] running prettier & eslint checks"
+        name: "[Frontend CI] running prettier & eslint checks"
         working-directory: ./configurator/frontend
       - name: Notify to Slack on Errors
         uses: rtCamp/action-slack-notify@v2.2.0
-        if: ${{ failure() }}
+        if: ${{ failure() && (env.GITHUB_REF == 'beta' || env.GITHUB_REF == 'master' ) }}
         env:
-          SLACK_CHANNEL: code-guard
           SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
-          SLACK_ICON: https://github.com/rtCamp.png?size=48
-          SLACK_WEBHOOK: ${{ secrets.SLACK_CODEGUARD_WEBHOOK }}
+          SLACK_ICON_EMOJI: 👿
+          SLACK_WEBHOOK: ${{ secrets.SLACK_CI_FRONTEND_WEBHOOK }}
           SLACK_FOOTER: ""
