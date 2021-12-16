@@ -18,11 +18,11 @@ jobs:
           ref: ${{ github.head_ref }}
           # Make sure the value of GITHUB_TOKEN will not be persisted in repo's config
           persist-credentials: false
-      - name: Check wether frontend code was unchanged
+      - name: Check whether frontend code was unchanged
         continue-on-error: true
         id: frontend-change
         working-directory: ./configurator/frontend
-        run: git diff @~..@ --quiet ./ ; echo ::set-output name=status::$?
+        run: git diff @~..@ --quiet ./ || echo ::set-output name=status::1
       - name: Frontend changed status
         env:
           FRONTEND_CHANGED: ${{ steps.frontend-change.outputs.status }}
