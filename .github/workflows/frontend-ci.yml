@@ -27,7 +27,7 @@ jobs:
         if:  ${{ always() }}
         env:
           FRONTEND_CHANGED: ${{ steps.frontend-change.outputs.status }}
-        run: echo Frontend changed:: $FRONTEND_CHANGED
+        run: echo Frontend changed - $FRONTEND_CHANGED
       - uses: actions/setup-node@v2
         if: ${{ steps.frontend-change.outputs.status == 1 }}
         with:
