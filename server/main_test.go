@@ -34,6 +34,7 @@ func SetTestDefaultParams() {
 }
 
 func TestCors(t *testing.T) {
+
 	uuid.InitMock()
 	binding.EnableDecoderUseNumber = true
 
