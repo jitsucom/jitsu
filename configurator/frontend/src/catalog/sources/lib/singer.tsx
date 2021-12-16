@@ -400,6 +400,7 @@ export const allSingerTaps: SingerTap[] = [
           refreshToken: "refresh_token",
           clientSecret: "client_secret",
           disableServiceAccount: true,
+          oauthSecretsRequired: false,
         }),
         {
           displayName: "Google Spreadsheet ID",
