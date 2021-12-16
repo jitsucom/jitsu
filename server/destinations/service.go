@@ -6,7 +6,9 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/storages"
@@ -33,15 +35,15 @@ type LoggerUsage struct {
 
 //Service is a reloadable service of events destinations per token
 type Service struct {
+	mutex *sync.RWMutex
+
 	storageFactory storages.Factory
-	loggerFactory  *logging.Factory
+	loggerFactory  *logevents.Factory
 
 	//map for holding all destinations for closing
 	unitsByID map[string]*Unit
 	//map for holding all loggers for closing
 	loggersUsageByTokenID map[string]*LoggerUsage
-
-	sync.RWMutex
 
 	consumersByTokenID TokenizedConsumers
 	//batchStoragesByTokenID - only batch mode destinations by TokenID
@@ -58,6 +60,7 @@ type Service struct {
 func NewTestService(unitsByID map[string]*Unit, consumersByTokenID TokenizedConsumers, storagesByTokenID TokenizedStorages,
 	destinationsIDByTokenID TokenizedIDs, queueConsumerByDestinationID map[string]events.Consumer) *Service {
 	return &Service{
+		mutex:                        &sync.RWMutex{},
 		unitsByID:                    unitsByID,
 		consumersByTokenID:           consumersByTokenID,
 		batchStoragesByTokenID:       storagesByTokenID,
@@ -67,8 +70,10 @@ func NewTestService(unitsByID map[string]*Unit, consumersByTokenID TokenizedCons
 }
 
 //NewService returns loaded Service instance and call resources.Watcher() if destinations source is http url or file path
-func NewService(destinations *viper.Viper, destinationsSource string, storageFactory storages.Factory, loggerFactory *logging.Factory, strictAuth bool) (*Service, error) {
+func NewService(destinations *viper.Viper, destinationsSource string, storageFactory storages.Factory, loggerFactory *logevents.Factory, strictAuth bool) (*Service, error) {
 	service := &Service{
+		mutex: &sync.RWMutex{},
+
 		storageFactory: storageFactory,
 		loggerFactory:  loggerFactory,
 
@@ -90,7 +95,7 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 	}
 
 	if destinations != nil {
-		dc := map[string]storages.DestinationConfig{}
+		dc := map[string]config.DestinationConfig{}
 		if err := destinations.Unmarshal(&dc); err != nil {
 			logging.Error(marshallingErrorMsg, err)
 			return service, nil
@@ -120,8 +125,8 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 }
 
 func (s *Service) GetConsumers(tokenID string) (consumers []events.Consumer) {
-	s.RLock()
-	defer s.RUnlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 	for _, c := range s.consumersByTokenID[tokenID] {
 		consumers = append(consumers, c)
 	}
@@ -129,8 +134,8 @@ func (s *Service) GetConsumers(tokenID string) (consumers []events.Consumer) {
 }
 
 func (s *Service) GetDestinationByID(id string) (storages.StorageProxy, bool) {
-	s.RLock()
-	defer s.RUnlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	unit, ok := s.unitsByID[id]
 	if !ok {
@@ -141,8 +146,8 @@ func (s *Service) GetDestinationByID(id string) (storages.StorageProxy, bool) {
 }
 
 func (s *Service) GetDestinations(tokenID string) (storages []storages.StorageProxy) {
-	s.RLock()
-	defer s.RUnlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	for destinationID, _ := range s.destinationsIDByTokenID[tokenID] {
 		unit, ok := s.unitsByID[destinationID]
@@ -155,8 +160,8 @@ func (s *Service) GetDestinations(tokenID string) (storages []storages.StoragePr
 }
 
 func (s *Service) GetBatchStorages(tokenID string) (storages []storages.StorageProxy) {
-	s.RLock()
-	defer s.RUnlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 	for _, s := range s.batchStoragesByTokenID[tokenID] {
 		storages = append(storages, s)
 	}
@@ -165,8 +170,8 @@ func (s *Service) GetBatchStorages(tokenID string) (storages []storages.StorageP
 
 func (s *Service) GetDestinationIDs(tokenID string) map[string]bool {
 	ids := map[string]bool{}
-	s.RLock()
-	defer s.RUnlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 	for id := range s.destinationsIDByTokenID[tokenID] {
 		ids[id] = true
 	}
@@ -174,8 +179,8 @@ func (s *Service) GetDestinationIDs(tokenID string) map[string]bool {
 }
 
 func (s *Service) GetEventsConsumerByDestinationID(destinationID string) (events.Consumer, bool) {
-	s.RLock()
-	defer s.RUnlock()
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	eventsConsumer, ok := s.queueConsumerByDestinationID[destinationID]
 	if !ok {
@@ -202,7 +207,7 @@ func (s *Service) updateDestinations(payload []byte) {
 
 //1. close and remove all destinations which don't exist in new config
 //2. recreate/create changed/new destinations
-func (s *Service) init(dc map[string]storages.DestinationConfig) {
+func (s *Service) init(dc map[string]config.DestinationConfig) {
 	StatusInstance.Reloading = true
 
 	//close and remove non-existent (in new config)
@@ -214,11 +219,11 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		}
 	}
 	if len(toDelete) > 0 {
-		s.Lock()
+		s.mutex.Lock()
 		for unitID, unit := range toDelete {
 			s.removeAndClose(unitID, unit)
 		}
-		s.Unlock()
+		s.mutex.Unlock()
 	}
 
 	// create or recreate
@@ -253,9 +258,9 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 				continue
 			}
 			//remove old (for recreation)
-			s.Lock()
+			s.mutex.Lock()
 			s.removeAndClose(id, unit)
-			s.Unlock()
+			s.mutex.Unlock()
 		}
 
 		if !s.strictAuth && len(destinationConfig.OnlyTokens) == 0 {
@@ -319,7 +324,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		}
 	}
 
-	s.Lock()
+	s.mutex.Lock()
 	s.consumersByTokenID.AddAll(newConsumers)
 	s.batchStoragesByTokenID.AddAll(newStorages)
 	s.destinationsIDByTokenID.AddAll(newIDs)
@@ -327,7 +332,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 	for destinationID, eventsQueueConsumer := range queueConsumerByDestinationID {
 		s.queueConsumerByDestinationID[destinationID] = eventsQueueConsumer
 	}
-	s.Unlock()
+	s.mutex.Unlock()
 
 	StatusInstance.Reloading = false
 }
@@ -385,6 +390,10 @@ func (s *Service) removeAndClose(destinationID string, unit *Unit) {
 	logging.Infof("[%s] destination has been removed!", destinationID)
 }
 
+func (s *Service) GetFactory() storages.Factory {
+	return s.storageFactory
+}
+
 //Close closes destination storages
 func (s *Service) Close() (multiErr error) {
 	for id, unit := range s.unitsByID {
@@ -395,7 +404,6 @@ func (s *Service) Close() (multiErr error) {
 
 	return
 }
-
 
 func (s *Service) PostHandle(id string, event events.Event) error {
 	storageProxy, ok := s.GetDestinationByID(id)

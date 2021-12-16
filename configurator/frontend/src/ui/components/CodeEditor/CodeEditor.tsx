@@ -5,6 +5,7 @@ import { Props } from "./CodeEditor.types"
 const CodeEditorComponent = React.lazy(() => import("ui/components/CodeEditor/CodeEditorComponent"))
 
 export const CodeEditor = (props: Props) => (
+  // null
   <React.Suspense fallback={<CenteredSpin />}>
     <CodeEditorComponent {...props} />
   </React.Suspense>

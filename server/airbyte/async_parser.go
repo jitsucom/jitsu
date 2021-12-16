@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	batchSize     = 10_000
 	airbyteSystem = "Airbyte"
 )
 
@@ -27,7 +26,7 @@ type asynchronousParser struct {
 //  applies input schemas
 //  passes data as batches to dataConsumer
 func (ap *asynchronousParser) parse(stdout io.Reader) error {
-	ap.logger.INFO("Airbyte sync will store data as batches >= [%d] elements size", batchSize)
+	ap.logger.INFO("Airbyte sync will store data as batches >= [%d] elements size", Instance.batchSize)
 
 	output := &base.CLIOutputRepresentation{
 		Streams: map[string]*base.StreamRepresentation{},
@@ -97,7 +96,7 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 		}
 
 		//persist batch and recreate variables
-		if records >= batchSize {
+		if records >= Instance.batchSize {
 			err := ap.dataConsumer.Consume(output)
 			if err != nil {
 				return err

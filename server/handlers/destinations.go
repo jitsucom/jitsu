@@ -6,9 +6,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gin-gonic/gin"
+	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/resources"
+	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/jitsucom/jitsu/server/uuid"
@@ -17,14 +25,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/gin-gonic/gin"
-	"github.com/hashicorp/go-multierror"
-	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/middleware"
-	"github.com/jitsucom/jitsu/server/storages"
 )
 
 const (
@@ -33,7 +33,7 @@ const (
 )
 
 func DestinationsHandler(c *gin.Context) {
-	destinationConfig := &storages.DestinationConfig{}
+	destinationConfig := &config.DestinationConfig{}
 	if err := c.BindJSON(destinationConfig); err != nil {
 		logging.Errorf("Error parsing destinations body: %v", err)
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
@@ -42,7 +42,7 @@ func DestinationsHandler(c *gin.Context) {
 	err := testDestinationConnection(destinationConfig)
 	if err != nil {
 		msg := err.Error()
-		if strings.Contains(err.Error(), "i/o timeout") {
+		if strings.Contains(err.Error(), "i/o timeout") || storages.IsConnectionError(err) {
 			msg = fmt.Sprintf(connectionErrMsg, err)
 		}
 
@@ -55,10 +55,10 @@ func DestinationsHandler(c *gin.Context) {
 //testDestinationConnection creates default table with 2 fields (eventn_ctx key and timestamp)
 //depends on the destination type calls destination test connection func
 //returns err if has occurred
-func testDestinationConnection(config *storages.DestinationConfig) error {
+func testDestinationConnection(config *config.DestinationConfig) error {
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField.GetFlatFieldName()
 	eventID := uuid.New()
-	event := events.Event{uniqueIDField: eventID, timestamp.Key: time.Now().UTC()}
+	event := events.Event{uniqueIDField: eventID, timestamp.Key: timestamp.Now().UTC()}
 	eventContext := &adapters.EventContext{
 		DestinationID:  identifier,
 		EventID:        eventID,
@@ -102,44 +102,45 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		}
 		return testSnowflake(config, eventContext)
 	case storages.GoogleAnalyticsType:
-		if err := config.GoogleAnalytics.Validate(); err != nil {
+		cfg := &adapters.GoogleAnalyticsConfig{}
+		if err := config.GetDestConfig(config.GoogleAnalytics, cfg); err != nil {
 			return err
 		}
-
 		return nil
 	case storages.FacebookType:
-		if err := config.Facebook.Validate(); err != nil {
+		cfg := &adapters.FacebookConversionAPIConfig{}
+		if err := config.GetDestConfig(config.Facebook, cfg); err != nil {
 			return err
 		}
-
-		fbAdapter := adapters.NewTestFacebookConversion(config.Facebook)
+		fbAdapter := adapters.NewTestFacebookConversion(cfg)
 
 		return fbAdapter.TestAccess()
 	case storages.WebHookType:
-		if err := config.WebHook.Validate(); err != nil {
+		cfg := &adapters.WebHookConfig{}
+		if err := config.GetDestConfig(config.WebHook, cfg); err != nil {
 			return err
 		}
-
 		return nil
 	case storages.AmplitudeType:
-		if err := config.Amplitude.Validate(); err != nil {
+		cfg := &adapters.AmplitudeConfig{}
+		if err := config.GetDestConfig(config.Amplitude, cfg); err != nil {
 			return err
 		}
-
-		amplitudeAdapter := adapters.NewTestAmplitude(config.Amplitude)
+		amplitudeAdapter := adapters.NewTestAmplitude(cfg)
 		return amplitudeAdapter.TestAccess()
 	case storages.HubSpotType:
-		if err := config.HubSpot.Validate(); err != nil {
+		cfg := &adapters.HubSpotConfig{}
+		if err := config.GetDestConfig(config.HubSpot, cfg); err != nil {
 			return err
 		}
-
-		hubspotAdapter := adapters.NewTestHubSpot(config.HubSpot)
+		hubspotAdapter := adapters.NewTestHubSpot(cfg)
 		return hubspotAdapter.TestAccess()
 	case storages.DbtCloudType:
-		if err := config.DbtCloud.Validate(); err != nil {
+		cfg := &adapters.DbtCloudConfig{}
+		if err := config.GetDestConfig(config.DbtCloud, cfg); err != nil {
 			return err
 		}
-		dbtCloudAdapter := adapters.NewTestDbtCloud(config.DbtCloud)
+		dbtCloudAdapter := adapters.NewTestDbtCloud(cfg)
 		return dbtCloudAdapter.TestAccess()
 	case storages.MySQLType:
 		eventContext.Table.Columns = adapters.Columns{
@@ -148,12 +149,19 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		}
 		return testMySQL(config, eventContext)
 	case storages.S3Type:
-		s3Adapter, err := adapters.NewS3(config.S3)
+		s3config := &adapters.S3Config{}
+		if err := config.GetDestConfig(config.S3, s3config); err != nil {
+			return err
+		}
+		s3Adapter, err := adapters.NewS3(s3config)
 		if err != nil {
 			return err
 		}
 		defer s3Adapter.Close()
 		return s3Adapter.ValidateWritePermission()
+	case storages.NpmType:
+		_, err := plugins.DownloadPlugin(config.Package)
+		return err
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}
@@ -161,23 +169,24 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 
 //testPostgres connects to Postgres, creates table, write 1 test record, deletes table
 //returns err if has occurred
-func testPostgres(config *storages.DestinationConfig, eventContext *adapters.EventContext) error {
-	if err := config.DataSource.Validate(); err != nil {
+func testPostgres(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
+	dataSourceConfig := &adapters.DataSourceConfig{}
+	if err := config.GetDestConfig(config.DataSource, dataSourceConfig); err != nil {
 		return err
 	}
 
-	if config.DataSource.Port.String() == "" {
-		config.DataSource.Port = "5432"
+	if dataSourceConfig.Port == 0 {
+		dataSourceConfig.Port = 5432
 	}
-	if config.DataSource.Schema == "" {
-		config.DataSource.Schema = "public"
+	if dataSourceConfig.Schema == "" {
+		dataSourceConfig.Schema = "public"
 	}
 
-	config.DataSource.Parameters["connect_timeout"] = "6"
+	dataSourceConfig.Parameters["connect_timeout"] = "6"
 
-	hash := resources.GetStringHash(config.DataSource.Host + config.DataSource.Username)
+	hash := resources.GetStringHash(dataSourceConfig.Host + dataSourceConfig.Username)
 	dir := adapters.SSLDir(appconfig.Instance.ConfigPath, hash)
-	if err := adapters.ProcessSSL(dir, config.DataSource); err != nil {
+	if err := adapters.ProcessSSL(dir, dataSourceConfig); err != nil {
 		return err
 	}
 
@@ -188,13 +197,13 @@ func testPostgres(config *storages.DestinationConfig, eventContext *adapters.Eve
 		}
 	}()
 
-	postgres, err := adapters.NewPostgres(context.Background(), config.DataSource, &logging.QueryLogger{}, typing.SQLTypes{})
+	postgres, err := adapters.NewPostgres(context.Background(), dataSourceConfig, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
 		return err
 	}
 
 	//create db schema if doesn't exist
-	err = postgres.CreateDbSchema(config.DataSource.Schema)
+	err = postgres.CreateDbSchema(dataSourceConfig.Schema)
 	if err != nil {
 		postgres.Close()
 		return err
@@ -222,19 +231,20 @@ func testPostgres(config *storages.DestinationConfig, eventContext *adapters.Eve
 
 //testClickHouse connects to all provided ClickHouse dsns, creates table, write 1 test record, deletes table
 //returns err if has occurred
-func testClickHouse(config *storages.DestinationConfig, eventContext *adapters.EventContext) error {
-	if err := config.ClickHouse.Validate(); err != nil {
+func testClickHouse(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
+	clickHouseConfig := &adapters.ClickHouseConfig{}
+	if err := config.GetDestConfig(config.ClickHouse, clickHouseConfig); err != nil {
 		return err
 	}
 
-	tableStatementFactory, err := adapters.NewTableStatementFactory(config.ClickHouse)
+	tableStatementFactory, err := adapters.NewTableStatementFactory(clickHouseConfig)
 	if err != nil {
 		return err
 	}
 
 	//validate dsns
 	var multiErr error
-	for _, dsn := range config.ClickHouse.Dsns {
+	for _, dsn := range clickHouseConfig.Dsns {
 		_, err := url.Parse(strings.TrimSpace(dsn))
 		if err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("Error parsing ClickHouse DSN %s: %v", dsn, err))
@@ -246,7 +256,7 @@ func testClickHouse(config *storages.DestinationConfig, eventContext *adapters.E
 		return multiErr
 	}
 
-	for i, dsn := range config.ClickHouse.Dsns {
+	for i, dsn := range clickHouseConfig.Dsns {
 		//create N tables where N=len(dsns). For testing each dsn
 		eventContext.Table.Name += strconv.Itoa(i)
 
@@ -261,13 +271,13 @@ func testClickHouse(config *storages.DestinationConfig, eventContext *adapters.E
 		dsnURL.RawQuery = dsnQuery.Encode()
 
 		ch, err := adapters.NewClickHouse(context.Background(), dsnURL.String(),
-			config.ClickHouse.Database, config.ClickHouse.Cluster, config.ClickHouse.TLS, tableStatementFactory,
+			clickHouseConfig.Database, clickHouseConfig.Cluster, clickHouseConfig.TLS, tableStatementFactory,
 			map[string]bool{}, &logging.QueryLogger{}, typing.SQLTypes{})
 		if err != nil {
 			return err
 		}
 
-		if err := ch.CreateDB(config.ClickHouse.Database); err != nil {
+		if err := ch.CreateDB(clickHouseConfig.Database); err != nil {
 			ch.Close()
 			return err
 		}
@@ -297,23 +307,24 @@ func testClickHouse(config *storages.DestinationConfig, eventContext *adapters.E
 // stream: connects to Redshift, creates table, writes 1 test record, deletes table
 // batch: connects to Redshift, S3, creates table, writes 1 test file with 1 test record, copies it to Redshift, deletes table
 //returns err if has occurred
-func testRedshift(config *storages.DestinationConfig, eventContext *adapters.EventContext) error {
-	if err := config.DataSource.Validate(); err != nil {
+func testRedshift(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
+	dataSourceConfig := &adapters.DataSourceConfig{}
+	if err := config.GetDestConfig(config.DataSource, dataSourceConfig); err != nil {
 		return err
 	}
 
-	if config.DataSource.Port.String() == "" {
-		config.DataSource.Port = "5439"
+	if dataSourceConfig.Port == 0 {
+		dataSourceConfig.Port = 5439
 	}
-	if config.DataSource.Schema == "" {
-		config.DataSource.Schema = "public"
+	if dataSourceConfig.Schema == "" {
+		dataSourceConfig.Schema = "public"
 	}
 
-	config.DataSource.Parameters["connect_timeout"] = "6"
+	dataSourceConfig.Parameters["connect_timeout"] = "6"
 
-	hash := resources.GetStringHash(config.DataSource.Host + config.DataSource.Username)
+	hash := resources.GetStringHash(dataSourceConfig.Host + dataSourceConfig.Username)
 	dir := adapters.SSLDir(appconfig.Instance.ConfigPath, hash)
-	if err := adapters.ProcessSSL(dir, config.DataSource); err != nil {
+	if err := adapters.ProcessSSL(dir, dataSourceConfig); err != nil {
 		return err
 	}
 
@@ -323,14 +334,22 @@ func testRedshift(config *storages.DestinationConfig, eventContext *adapters.Eve
 			logging.SystemErrorf("Error deleting generated ssl config dir [%s]: %v", dir, err)
 		}
 	}()
-
-	redshift, err := adapters.NewAwsRedshift(context.Background(), config.DataSource, config.S3, &logging.QueryLogger{}, typing.SQLTypes{})
+	var s3config *adapters.S3Config
+	s3c, err := config.GetConfig(dataSourceConfig.S3, config.S3, &adapters.S3Config{})
+	if err != nil {
+		return err
+	}
+	s3config, ok := s3c.(*adapters.S3Config)
+	if !ok {
+		s3config = &adapters.S3Config{}
+	}
+	redshift, err := adapters.NewAwsRedshift(context.Background(), dataSourceConfig, s3config, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
 		return err
 	}
 
 	//create db schema if doesn't exist
-	err = redshift.CreateDbSchema(config.DataSource.Schema)
+	err = redshift.CreateDbSchema(dataSourceConfig.Schema)
 	if err != nil {
 		redshift.Close()
 		return err
@@ -350,11 +369,11 @@ func testRedshift(config *storages.DestinationConfig, eventContext *adapters.Eve
 	}()
 
 	if config.Mode == storages.BatchMode {
-		if err := config.S3.Validate(); err != nil {
+		if err := s3config.Validate(); err != nil {
 			return err
 		}
 
-		s3, err := adapters.NewS3(config.S3)
+		s3, err := adapters.NewS3(s3config)
 		if err != nil {
 			return err
 		}
@@ -381,26 +400,32 @@ func testRedshift(config *storages.DestinationConfig, eventContext *adapters.Eve
 // stream: connects to BigQuery, creates table, writes 1 test record, deletes table
 // batch: connects to BigQuery, Google Cloud Storage, creates table, writes 1 test file with 1 test record, copies it to BigQuery, deletes table
 //returns err if has occurred
-func testBigQuery(config *storages.DestinationConfig, eventContext *adapters.EventContext) error {
-	if err := config.Google.Validate(config.Mode != storages.BatchMode); err != nil {
+func testBigQuery(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
+	google := &adapters.GoogleConfig{}
+	if err := config.GetDestConfig(config.Google, google); err != nil {
 		return err
 	}
+	if config.Mode == storages.BatchMode {
+		if err := google.ValidateBatchMode(); err != nil {
+			return err
+		}
+	}
 
-	if config.Google.Project == "" {
+	if google.Project == "" {
 		return errors.New("BigQuery project 'bq_project' is required parameter")
 	}
 
-	if config.Google.Dataset == "" {
-		config.Google.Dataset = "default"
+	if google.Dataset == "" {
+		google.Dataset = "default"
 	}
 
-	bq, err := adapters.NewBigQuery(context.Background(), config.Google, &logging.QueryLogger{}, typing.SQLTypes{})
+	bq, err := adapters.NewBigQuery(context.Background(), google, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
 		return err
 	}
 
 	//create dataset if doesn't exist
-	err = bq.CreateDataset(config.Google.Dataset)
+	err = bq.CreateDataset(google.Dataset)
 	if err != nil {
 		bq.Close()
 		return err
@@ -420,7 +445,7 @@ func testBigQuery(config *storages.DestinationConfig, eventContext *adapters.Eve
 	}()
 
 	if config.Mode == storages.BatchMode {
-		googleStorage, err := adapters.NewGoogleCloudStorage(context.Background(), config.Google)
+		googleStorage, err := adapters.NewGoogleCloudStorage(context.Background(), google)
 		if err != nil {
 			return err
 		}
@@ -447,19 +472,36 @@ func testBigQuery(config *storages.DestinationConfig, eventContext *adapters.Eve
 // stream: connects to Snowflake, creates table, writes 1 test record, deletes table
 // batch: connects to Snowflake, S3 or Google Cloud Storage, creates table, writes 1 test file with 1 test record, copies it to Snowflake, deletes table
 //returns err if has occurred
-func testSnowflake(config *storages.DestinationConfig, eventContext *adapters.EventContext) error {
-	if err := config.Snowflake.Validate(); err != nil {
+func testSnowflake(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
+	snowflakeConfig := &adapters.SnowflakeConfig{}
+	if err := config.GetDestConfig(config.Snowflake, snowflakeConfig); err != nil {
 		return err
 	}
 
-	if config.Snowflake.Schema == "" {
-		config.Snowflake.Schema = "PUBLIC"
+	if snowflakeConfig.Schema == "" {
+		snowflakeConfig.Schema = "PUBLIC"
 	}
 
 	timeout := "6"
-	config.Snowflake.Parameters["statement_timeout_in_seconds"] = &timeout
+	snowflakeConfig.Parameters["statement_timeout_in_seconds"] = &timeout
 
-	snowflake, err := storages.CreateSnowflakeAdapter(context.Background(), config.S3, *config.Snowflake, &logging.QueryLogger{}, typing.SQLTypes{})
+	var s3config *adapters.S3Config
+	s3c, err := config.GetConfig(snowflakeConfig.S3, config.S3, &adapters.S3Config{})
+	if err != nil {
+		return err
+	}
+	s3config, ok := s3c.(*adapters.S3Config)
+	if !ok {
+		s3config = &adapters.S3Config{}
+	}
+	var googleConfig *adapters.GoogleConfig
+	gc, err := config.GetConfig(snowflakeConfig.Google, config.Google, &adapters.GoogleConfig{})
+	if err != nil {
+		return err
+	}
+	googleConfig, googleOk := gc.(*adapters.GoogleConfig)
+
+	snowflake, err := storages.CreateSnowflakeAdapter(context.Background(), s3config, *snowflakeConfig, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
 		return err
 	}
@@ -484,25 +526,25 @@ func testSnowflake(config *storages.DestinationConfig, eventContext *adapters.Ev
 
 	if config.Mode == storages.BatchMode {
 		var stageAdapter adapters.Stage
-		if config.Google != nil {
+		if googleOk {
 			//with google stage
-			if err := config.Google.Validate(config.Mode == storages.StreamMode); err != nil {
+			if err := googleConfig.Validate(); err != nil {
 				return err
 			}
 			//stage is required when gcp integration
-			if config.Snowflake.Stage == "" {
+			if snowflakeConfig.Stage == "" {
 				return errors.New("Snowflake stage is required parameter in GCP integration")
 			}
-			stageAdapter, err = adapters.NewGoogleCloudStorage(context.Background(), config.Google)
+			stageAdapter, err = adapters.NewGoogleCloudStorage(context.Background(), googleConfig)
 			if err != nil {
 				return err
 			}
 		} else {
-			if err := config.S3.Validate(); err != nil {
+			if err := s3config.Validate(); err != nil {
 				return err
 			}
 
-			stageAdapter, err = adapters.NewS3(config.S3)
+			stageAdapter, err = adapters.NewS3(s3config)
 			if err != nil {
 				return err
 			}
@@ -529,18 +571,19 @@ func testSnowflake(config *storages.DestinationConfig, eventContext *adapters.Ev
 
 //testMySQL connects to MySQL, creates table, write 1 test record, deletes table
 //returns err if has occurred
-func testMySQL(config *storages.DestinationConfig, eventContext *adapters.EventContext) error {
-	if err := config.DataSource.Validate(); err != nil {
+func testMySQL(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
+	dataSourceConfig := &adapters.DataSourceConfig{}
+	if err := config.GetDestConfig(config.DataSource, dataSourceConfig); err != nil {
 		return err
 	}
 
-	if config.DataSource.Port.String() == "" {
-		config.DataSource.Port = "3306"
+	if dataSourceConfig.Port == 0 {
+		dataSourceConfig.Port = 3306
 	}
 
-	config.DataSource.Parameters["timeout"] = "6s"
+	dataSourceConfig.Parameters["timeout"] = "6s"
 
-	mysql, err := storages.CreateMySQLAdapter(context.Background(), *config.DataSource, &logging.QueryLogger{}, typing.SQLTypes{})
+	mysql, err := storages.CreateMySQLAdapter(context.Background(), *dataSourceConfig, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
 		return err
 	}

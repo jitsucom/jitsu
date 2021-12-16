@@ -1,5 +1,5 @@
 // @Libs
-import React, { useState } from "react"
+import React, { SyntheticEvent, useCallback, useState } from "react"
 import { Collapse, Drawer, Form } from "antd"
 import debounce from "lodash/debounce"
 // @Components
@@ -13,17 +13,33 @@ import styles from "./DestinationEditor.module.less"
 import { destinationsReferenceMap } from "../../../../../catalog/destinations/lib"
 import { CodeSnippet } from "../../../../../lib/components/components"
 import { camelCase } from "lodash"
+import set from "lodash/set"
+import { FieldData } from "rc-field-form/lib/interface"
 
 export interface Props {
   destinationData: DestinationData
   destinationReference: Destination
   form: FormInstance
+  configForm: FormInstance
+  mappingForm: FormInstance
   handleTouchAnyField: (...args: any) => void
 }
 
-const DestinationEditorTransform = ({ destinationData, destinationReference, form, handleTouchAnyField }: Props) => {
+const DestinationEditorTransform = ({
+  destinationData,
+  destinationReference,
+  form,
+  configForm,
+  mappingForm,
+  handleTouchAnyField,
+}: Props) => {
   const handleChange = debounce(handleTouchAnyField, 500)
   const [documentationVisible, setDocumentationVisible] = useState(false)
+  const templateVarsSuggestions = Object.entries(configForm.getFieldsValue())
+    .filter(v => v[0].startsWith("_formData._"))
+    .map(v => [v[0].replace("_formData._", ""), v[1]])
+    .map(v => `declare const ${v[0]} = "${v[1]}"\n`)
+    .join()
 
   return (
     <>
@@ -46,22 +62,33 @@ const DestinationEditorTransform = ({ destinationData, destinationReference, for
             {
               id: "_transform_enabled",
               displayName: "Enable Javascript Transformation",
-              defaultValue:
-                !!destinationsReferenceMap[destinationData._type].defaultTransform &&
-                !destinationData._mappings?._mappings,
+              defaultValue: !destinationData._mappings?._mappings,
               required: false,
+              omitFieldRule: cfg =>
+                destinationsReferenceMap[destinationData._type].defaultTransform.length > 0 &&
+                !destinationData._mappings?._mappings,
               type: booleanType,
+              validator: (rule, value) => {
+                if (value && mappingForm?.getFieldValue("_mappings._mappings")?.length > 0) {
+                  return Promise.reject(
+                    "Transform cannot work with configured mappings. Please remove all mappings first."
+                  )
+                }
+                return Promise.resolve()
+              },
               bigField: true,
             },
             {
               id: "_transform",
-              codeSuggestions: `declare const destinationId = "${destinationData._uid}";
+              codeSuggestions: `${templateVarsSuggestions}declare const destinationId = "${destinationData._uid}";
 declare const destinationType = "${destinationData._type}";
 ${[destinationData._type, "segment"]
   .map(type => `declare function ${camelCase("to_" + type)}(event: object): object`)
   .join("\n")}`,
               displayName: "Javascript Transformation",
-              defaultValue: destinationsReferenceMap[destinationData._type].defaultTransform || "return $",
+              defaultValue: !destinationData._mappings?._mappings
+                ? destinationsReferenceMap[destinationData._type].defaultTransform
+                : "",
               required: false,
               jsDebugger: "object",
               type: jsType,
@@ -69,6 +96,7 @@ ${[destinationData._type, "segment"]
             },
           ]}
           form={form}
+          extraForms={[configForm, mappingForm]}
           initialValues={destinationData}
         />
       </Form>

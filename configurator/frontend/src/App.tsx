@@ -13,12 +13,13 @@ import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES } from "./navigation"
 
 import { ApplicationPage, emailIsNotConfirmedMessageConfig, SlackChatWidget } from "./Layout"
 import { checkQuotas, getCurrentSubscription, CurrentSubscription, paymentPlans } from "lib/services/billing"
-import { OnboardingTour } from "lib/components/OnboardingTour/OnboardingTour"
 import { initializeAllStores } from "stores/_initializeAllStores"
 import { destinationsStore } from "./stores/destinations"
 import { sourcesStore } from "./stores/sources"
 import BillingBlockingModal from "./lib/components/BillingModal/BillingBlockingModal"
-import moment, { Moment } from "moment"
+import moment from "moment"
+import { OnboardingSwitch } from "lib/components/Onboarding/OnboardingSwitch"
+import { UpgradePlan } from "./ui/components/CurrentPlan/CurrentPlan"
 
 enum AppLifecycle {
   LOADING, //Application is loading
@@ -48,47 +49,50 @@ export const initializeApplication = async (
     services.analyticsService.onUserKnown(user)
   }
 
-  await initializeAllStores()
-
   let paymentPlanStatus: CurrentSubscription
-  if (user && services.features.billingEnabled) {
-    if (services.activeProject) {
-      paymentPlanStatus = await getCurrentSubscription(
-        services.activeProject,
-        services.backendApiClient,
-        destinationsStore,
-        sourcesStore
-      )
-    } else {
-      /** project is not initialized yet, return mock result */
-      paymentPlanStatus = {
-        autorenew: false,
-        expiration: moment().add(1, "M"),
-        usage: {
-          events: 0,
-          sources: 0,
-          destinations: 0,
-        },
-        currentPlan: paymentPlans.free,
-        quotaPeriodStart: moment(),
-        doNotBlock: true,
+  await Promise.all([
+    initializeAllStores(),
+    (async () => {
+      if (user && services.features.billingEnabled) {
+        if (services.activeProject) {
+          paymentPlanStatus = await getCurrentSubscription(
+            services.activeProject,
+            services.backendApiClient,
+            destinationsStore,
+            sourcesStore
+          )
+        } else {
+          /** project is not initialized yet, return mock result */
+          paymentPlanStatus = {
+            autorenew: false,
+            expiration: moment().add(1, "M"),
+            usage: {
+              events: 0,
+              sources: 0,
+              destinations: 0,
+            },
+            currentPlan: paymentPlans.free,
+            quotaPeriodStart: moment(),
+            doNotBlock: true,
+          }
+        }
+      } else {
+        /** for opensource (self-hosted) only */
+        paymentPlanStatus = {
+          autorenew: false,
+          expiration: moment().add(1, "M"),
+          usage: {
+            events: 0,
+            sources: 0,
+            destinations: 0,
+          },
+          currentPlan: paymentPlans.opensource,
+          quotaPeriodStart: moment(),
+          doNotBlock: true,
+        }
       }
-    }
-  } else {
-    /** for opensource (self-hosted) only */
-    paymentPlanStatus = {
-      autorenew: false,
-      expiration: moment().add(1, "M"),
-      usage: {
-        events: 0,
-        sources: 0,
-        destinations: 0,
-      },
-      currentPlan: paymentPlans.opensource,
-      quotaPeriodStart: moment(),
-      doNotBlock: true,
-    }
-  }
+    })(),
+  ])
   services.currentSubscription = paymentPlanStatus
 
   return { user, paymentPlanStatus }
@@ -192,7 +196,7 @@ export default class App extends React.Component<{}, AppState> {
   }
 
   appLayout() {
-    const extraForms = [<OnboardingTour key="onboardingTour" />]
+    const extraForms = [<OnboardingSwitch key="onboardingTour" />]
     if (this.services.userService.getUser().forcePasswordChange) {
       return (
         <SetNewPassword
@@ -211,6 +215,8 @@ export default class App extends React.Component<{}, AppState> {
             subscription={this.state.paymentPlanStatus}
           />
         )
+      } else if (this.state.paymentPlanStatus && window.location.search.indexOf("upgradeDialog=true") >= 0) {
+        extraForms.push(<UpgradePlanDialog subscription={this.state.paymentPlanStatus} />)
       }
     }
     return (
@@ -223,6 +229,22 @@ export default class App extends React.Component<{}, AppState> {
       />
     )
   }
+}
+
+function UpgradePlanDialog({ subscription }) {
+  const [visible, setVisible] = useState(true)
+  return (
+    <Modal
+      destroyOnClose={true}
+      visible={visible}
+      width={800}
+      onCancel={() => setVisible(false)}
+      title={<h1 className="text-xl m-0 p-0">Upgrade subscription</h1>}
+      footer={null}
+    >
+      <UpgradePlan planStatus={subscription} />
+    </Modal>
+  )
 }
 
 function SetNewPassword({ onCompleted }: { onCompleted: () => Promise<void> }) {

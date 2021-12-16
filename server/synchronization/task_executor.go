@@ -24,6 +24,7 @@ import (
 )
 
 const srcSource = "source"
+const ConfigSignatureSuffix = "_JITSU_config"
 
 type TaskExecutor struct {
 	workersPool        *ants.PoolWithFunc
@@ -109,7 +110,7 @@ func (te *TaskExecutor) startTaskController() {
 					continue
 				}
 
-				if time.Now().UTC().Before(lastHeartBeatTime.Add(te.stalledThreshold)) {
+				if timestamp.Now().UTC().Before(lastHeartBeatTime.Add(te.stalledThreshold)) {
 					//not enough time
 					continue
 				}
@@ -124,7 +125,7 @@ func (te *TaskExecutor) startTaskController() {
 				if task.Status == RUNNING.String() || task.Status == SCHEDULED.String() {
 					taskLogger := NewTaskLogger(task.ID, te.metaStorage)
 					taskCloser := NewTaskCloser(task.ID, taskLogger, te.metaStorage)
-					stalledTimeAgo := time.Now().UTC().Sub(lastHeartBeatTime)
+					stalledTimeAgo := timestamp.Now().UTC().Sub(lastHeartBeatTime)
 
 					errMsg := fmt.Sprintf("The task is marked as Stalled. Jitsu has not received any updates from this task [%.2f] seconds (~ %.2f minutes). It might happen due to server restart. Sometimes out of memory errors might be a cause. You can check application logs and if so, please give Jitsu more RAM.", stalledTimeAgo.Seconds(), stalledTimeAgo.Minutes())
 					taskCloser.CloseWithError(errMsg, false)
@@ -288,7 +289,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	}
 
 	//** Task execution **
-	start := time.Now().UTC()
+	start := timestamp.Now().UTC()
 
 	var taskErr error
 	cliDriver, ok := driver.(driversbase.CLIDriver)
@@ -307,7 +308,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 		return
 	}
 
-	end := time.Now().UTC().Sub(start)
+	end := timestamp.Now().UTC().Sub(start)
 	taskLogger.INFO("FINISHED SUCCESSFULLY in [%.2f] seconds (~ %.2f minutes)", end.Seconds(), end.Minutes())
 	logging.Infof("[%s] FINISHED SUCCESSFULLY in [%.2f] seconds (~ %.2f minutes)", task.ID, end.Seconds(), end.Minutes())
 
@@ -344,7 +345,7 @@ func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLog
 //doesn't use task closer because there is no async tasks
 func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver driversbase.Driver,
 	destinationStorages []storages.Storage, taskCloser *TaskCloser) error {
-	now := time.Now().UTC()
+	now := timestamp.Now().UTC()
 
 	refreshWindow, err := driver.GetRefreshWindow()
 	if err != nil {
@@ -422,18 +423,18 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 				metrics.ErrorSourceEvents(task.Source, storage.ID(), rowsCount)
 				metrics.ErrorObjects(task.Source, rowsCount)
 				telemetry.Error(task.Source, storage.ID(), srcSource, driver.GetDriversInfo().SourceType, rowsCount)
-				counters.ErrorPullDestinationEvents(storage.ID(), rowsCount)
-				counters.ErrorPullSourceEvents(task.Source, rowsCount)
+				counters.ErrorPullDestinationEvents(storage.ID(), int64(rowsCount))
+				counters.ErrorPullSourceEvents(task.Source, int64(rowsCount))
 				return fmt.Errorf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
 			}
 
 			metrics.SuccessSourceEvents(task.Source, storage.ID(), rowsCount)
 			metrics.SuccessObjects(task.Source, rowsCount)
 			telemetry.Event(task.Source, storage.ID(), srcSource, driver.GetDriversInfo().SourceType, rowsCount)
-			counters.SuccessPullDestinationEvents(storage.ID(), rowsCount)
+			counters.SuccessPullDestinationEvents(storage.ID(), int64(rowsCount))
 		}
 
-		counters.SuccessPullSourceEvents(task.Source, rowsCount)
+		counters.SuccessPullSourceEvents(task.Source, int64(rowsCount))
 
 		if err := te.metaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now, refreshWindow)); err != nil {
 			logging.SystemErrorf("Unable to save source: [%s] collection: [%s] meta key: [%s] signature: %v", task.Source, task.Collection, collectionMetaKey, err)
@@ -449,8 +450,15 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver,
 	destinationStorages []storages.Storage, taskCloser *TaskCloser) error {
 	state, err := te.metaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey(), driversbase.ALL.String())
+
 	if err != nil {
 		return fmt.Errorf("Error getting state from meta storage: %v", err)
+	}
+
+	config, err := te.metaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey()+ConfigSignatureSuffix, driversbase.ALL.String())
+
+	if err != nil {
+		return fmt.Errorf("Error getting persisted config from meta storage: %v", err)
 	}
 
 	if state != "" {
@@ -458,10 +466,13 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 	} else {
 		taskLogger.INFO("Running synchronization")
 	}
+	if config != "" {
+		taskLogger.INFO("Loaded persisted config from meta storage.")
+	}
 
-	rs := NewResultSaver(task, cliDriver.GetTap(), cliDriver.GetCollectionMetaKey(), cliDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.metaStorage, cliDriver.GetStreamTableNameMapping())
+	rs := NewResultSaver(task, cliDriver.GetTap(), cliDriver.GetCollectionMetaKey(), cliDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.metaStorage, cliDriver.GetStreamTableNameMapping(), cliDriver.GetConfigPath())
 
-	err = cliDriver.Load(state, taskLogger, rs, taskCloser)
+	err = cliDriver.Load(config, state, taskLogger, rs, taskCloser)
 	if err != nil {
 		if err == ErrTaskHasBeenCanceled {
 			return err

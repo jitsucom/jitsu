@@ -15,6 +15,7 @@ type LoaderResultObject<T> = {
 }
 
 /**
+ * @deprecated use `useLoaderAsObject` instead
  * React hook for loading the data from remote component. Use it like this:
  * ```tsx
  * function TestComponent() {
@@ -40,14 +41,14 @@ type LoaderResultObject<T> = {
  *
  *
  */
-function useLoader<T>(loader: Loader<T>, deps?: DependencyList): LoaderResult<T> {
-  const [data, setData] = useState(undefined)
+function useLoader<T>(loader: Loader<T>, deps?: DependencyList, options?: { initialValue?: T }): LoaderResult<T> {
+  const [data, setData] = useState<T | undefined>(options?.initialValue)
   const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [error, setError] = useState(undefined)
+  const [error, setError] = useState<Error>(undefined)
   const loaderWrapper = async () => {
     setError(null)
     setIsLoading(true)
-    setData(null)
+    setData(options?.initialValue ?? null)
     try {
       setData(await loader())
     } catch (e) {
@@ -63,10 +64,10 @@ function useLoader<T>(loader: Loader<T>, deps?: DependencyList): LoaderResult<T>
 }
 
 /**
- * Same as asLoader, but returns an object instead of array
+ * Same as a `useLoader`, but returns an object instead of array
  */
-function useLoaderAsObject<T>(loader: Loader<T>, deps?: DependencyList) {
-  const [error, data, setData, reloader, isLoading] = useLoader(loader, deps)
+function useLoaderAsObject<T>(loader: Loader<T>, deps?: DependencyList, options?: { initialValue?: T }) {
+  const [error, data, setData, reloader, isLoading] = useLoader(loader, deps, options)
   return { error, data, setData, reloader, isLoading }
 }
 

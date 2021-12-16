@@ -4,7 +4,6 @@ import { withQueryParams } from "utils/queryParams"
 import { assert, assertIsArrayOfTypes, assertIsObject, assertIsString } from "utils/typeCheck"
 
 export type PullAllStreams = (
-  previouslyChecked: StreamData[],
   sourceDataFromCatalog: SourceConnector,
   handleBringSourceData: () => SourceData
 ) => Promise<StreamData[]>
@@ -12,7 +11,6 @@ export type PullAllStreams = (
 export const PARSING_STREAMS_ERROR_NAME = "PARSING_STREAMS_ERROR"
 
 export const pullAllAirbyteStreams = async (
-  previouslyCheckedStreams: AirbyteStreamData[],
   sourceDataFromCatalog: SourceConnector,
   handleBringSourceData: () => SourceData
 ): Promise<AirbyteStreamData[] | undefined> => {
@@ -79,13 +77,6 @@ export const pullAllAirbyteStreams = async (
         )
       }
 
-      const previouslyCheckedStreamData = previouslyCheckedStreams.find(
-        checkedStream =>
-          checkedStream.stream.name === stream.name && checkedStream.stream.namespace === stream.namespace
-      )
-
-      if (previouslyCheckedStreamData) return previouslyCheckedStreamData
-
       return {
         sync_mode: stream.supported_sync_modes[0],
         destination_sync_mode: "overwrite",
@@ -104,7 +95,6 @@ export const pullAllAirbyteStreams = async (
 }
 
 export const pullAllSingerStreams = async (
-  previouslyCheckedStreams: SingerStreamData[],
   sourceDataFromCatalog?: SourceConnector,
   handleBringSourceData?: () => SourceData
 ): Promise<SingerStreamData[] | undefined> => {
@@ -114,15 +104,19 @@ export const pullAllSingerStreams = async (
   )
 
   const services = ApplicationServices.get()
-
-  const config = (await handleBringSourceData()).config.config
+  const sourceData = await handleBringSourceData()
+  const config = sourceData.config.config
   const project_id = services.userService.getUser().projects[0].id
   const tap = sourceDataFromCatalog.id.replace("singer-", "")
   const baseUrl = `/singer/${tap}/catalog`
 
-  const response = await services.backendApiClient.post(withQueryParams(baseUrl, { project_id }), config, {
-    proxy: true,
-  })
+  const response = await services.backendApiClient.post(
+    withQueryParams(baseUrl, { project_id, source_id: project_id + "." + sourceData.sourceId }),
+    config,
+    {
+      proxy: true,
+    }
+  )
 
   if (response.message) throw new Error(response.message)
 
@@ -178,12 +172,6 @@ export const pullAllSingerStreams = async (
         `Singer streams parsing error: stream.metadata is not an array of objects`,
         PARSING_STREAMS_ERROR_NAME
       )
-
-      const previouslyCheckedStreamData = previouslyCheckedStreams.find(
-        checkedStream => checkedStream.tap_stream_id === stream.tap_stream_id
-      )
-
-      if (previouslyCheckedStreamData) return previouslyCheckedStreamData
 
       return {
         tap_stream_id: stream.tap_stream_id,

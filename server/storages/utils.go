@@ -4,13 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
-	"strings"
-	"time"
-
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"strings"
 )
 
 func dryRun(payload events.Event, processor *schema.Processor, tableHelper *TableHelper) ([][]adapters.TableField, error) {
@@ -33,7 +32,7 @@ func dryRun(payload events.Event, processor *schema.Processor, tableHelper *Tabl
 	return res, nil
 }
 
-func isConnectionError(err error) bool {
+func IsConnectionError(err error) bool {
 	return strings.Contains(err.Error(), "connection refused") ||
 		strings.Contains(err.Error(), "EOF") ||
 		strings.Contains(err.Error(), "write: broken pipe") ||
@@ -65,11 +64,11 @@ func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, ob
 			return err
 		}
 
-		start := time.Now()
+		start := timestamp.Now()
 		if err = adapter.BulkUpdate(dbSchema, flatData.GetPayload(), deleteConditions); err != nil {
 			return err
 		}
-		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", storage.ID(), flatData.GetPayloadLen(), time.Now().Sub(start).Seconds())
+		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", storage.ID(), flatData.GetPayloadLen(), timestamp.Now().Sub(start).Seconds())
 	}
 
 	return nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"io"
 	"strconv"
 	"sync"
@@ -70,7 +71,7 @@ func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTim
 //Lock try to get Etcd monitor with timeout (2 minutes)
 //wait if lock has been already acquired
 func (es *EtcdService) Lock(system string, collection string) (storages.Lock, error) {
-	ctx, cancel := context.WithDeadline(es.ctx, time.Now().Add(2*time.Minute))
+	ctx, cancel := context.WithDeadline(es.ctx, timestamp.Now().Add(2*time.Minute))
 
 	//the session depends on the context. We can't cancel() before unlock.
 	session, sessionError := concurrency.NewSession(es.client, concurrency.WithContext(ctx))
@@ -98,7 +99,7 @@ func (es *EtcdService) Lock(system string, collection string) (storages.Lock, er
 //TryLock try to get Etcd monitor with timeout (2 minutes)
 //err if locked immediately
 func (es *EtcdService) TryLock(system string, collection string) (storages.Lock, error) {
-	ctx, cancel := context.WithDeadline(es.ctx, time.Now().Add(2*time.Minute))
+	ctx, cancel := context.WithDeadline(es.ctx, timestamp.Now().Add(2*time.Minute))
 
 	//the session depends on the context. We can't cancel() before unlock.
 	session, sessionError := concurrency.NewSession(es.client, concurrency.WithContext(ctx))
@@ -138,7 +139,7 @@ func (es *EtcdService) Unlock(lock storages.Lock) error {
 }
 
 func (es *EtcdService) UnlockCleanUp(system string, collection string) error {
-	ctx, cancel := context.WithDeadline(es.ctx, time.Now().Add(2*time.Minute))
+	ctx, cancel := context.WithDeadline(es.ctx, timestamp.Now().Add(2*time.Minute))
 	defer cancel()
 
 	//the session depends on the context. We can't cancel() before unlock.

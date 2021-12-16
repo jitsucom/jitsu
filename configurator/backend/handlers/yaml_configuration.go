@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/configurator/random"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/config"
 	endriversbase "github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/middleware"
 	enstorages "github.com/jitsucom/jitsu/server/storages"
@@ -45,9 +46,9 @@ type Server struct {
 }
 
 type Config struct {
-	Server       Server                                   `json:"server" yaml:"server,omitempty"`
-	Destinations map[string]*enstorages.DestinationConfig `json:"destinations" yaml:"destinations,omitempty"`
-	Sources      map[string]*endriversbase.SourceConfig   `json:"sources" yaml:"sources,omitempty"`
+	Server       Server                                 `json:"server" yaml:"server,omitempty"`
+	Destinations map[string]*config.DestinationConfig   `json:"destinations" yaml:"destinations,omitempty"`
+	Sources      map[string]*endriversbase.SourceConfig `json:"sources" yaml:"sources,omitempty"`
 }
 
 func (ch *ConfigHandler) Handler(c *gin.Context) {
@@ -80,7 +81,7 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 			postHandleDestinationIds = append(postHandleDestinationIds, d.UID)
 		}
 	}
-	mappedDestinations := make(map[string]*enstorages.DestinationConfig)
+	mappedDestinations := make(map[string]*config.DestinationConfig)
 	for _, destination := range projectDestinations {
 		//dots can't be serialized in yaml configuration
 		//destinationID := projectID + "." + destination.UID

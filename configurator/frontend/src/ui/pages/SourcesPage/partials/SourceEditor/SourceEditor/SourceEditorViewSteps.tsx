@@ -10,19 +10,21 @@ import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types
 import { SetSourceEditorState, SourceEditorState } from "./SourceEditor"
 import { useState } from "react"
 import { Steps } from "antd"
-import { SourceEditorViewStepsControls } from "./SourceEditorViewStepsControls"
+import { SourceEditorStepsControlsDisabled, SourceEditorViewStepsControls } from "./SourceEditorViewStepsControls"
 import { LoadingOutlined } from "@ant-design/icons"
+import { uniqueId } from "lodash"
+import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 
 type SourceEditorTabsViewProps = {
   state: SourceEditorState
-  controlsDisabled: boolean
+  controlsDisabled: SourceEditorStepsControlsDisabled
   editorMode: "add" | "edit"
   showDocumentationDrawer: boolean
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
   configIsValidatedByStreams: boolean
   setSourceEditorState: SetSourceEditorState
-  setControlsDisabled: ReactSetState<boolean>
+  handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
   setConfigIsValidatedByStreams: (value: boolean) => void
   setShowDocumentationDrawer: (value: boolean) => void
   handleBringSourceData: () => SourceData
@@ -41,7 +43,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   sourceDataFromCatalog,
   configIsValidatedByStreams,
   setSourceEditorState,
-  setControlsDisabled,
+  handleSetControlsDisabled,
   setConfigIsValidatedByStreams,
   setShowDocumentationDrawer,
   handleBringSourceData,
@@ -64,15 +66,14 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   }
 
   const configurationProceedAction: AsyncUnknownFunction = async () => {
-    setControlsDisabled(true)
     setCurrentStepIsLoading(true)
     try {
       await handleValidateAndTestConfig()
       await handleGoToNextStep()
-    } catch {
+    } catch (error) {
+      actionNotification.error(`${error}`)
     } finally {
       setCurrentStepIsLoading(false)
-      setControlsDisabled(false)
     }
   }
 
@@ -87,7 +88,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
           sourceDataFromCatalog={sourceDataFromCatalog}
           disabled={currentStepIsLoading}
           setSourceEditorState={setSourceEditorState}
-          setControlsDisabled={setControlsDisabled}
+          handleSetControlsDisabled={handleSetControlsDisabled}
           setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
         />
       ),
@@ -102,7 +103,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
           sourceDataFromCatalog={sourceDataFromCatalog}
           sourceConfigValidatedByStreamsTab={configIsValidatedByStreams}
           setSourceEditorState={setSourceEditorState}
-          setControlsDisabled={setControlsDisabled}
+          handleSetControlsDisabled={handleSetControlsDisabled}
           setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
           handleBringSourceData={handleBringSourceData}
         />
@@ -126,7 +127,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   return (
     <>
       <div className={cn("flex flex-col items-stretch flex-grow-0 flex-shrink h-full min-h-0")}>
-        <div className="flex-shrink-0 flex-grow-0 mb-6">
+        <div className="flex-shrink-0 flex-grow-0 mb-4">
           <Steps current={currentStep}>
             {steps.map(({ title, description }, idx) => (
               <Steps.Step
@@ -141,7 +142,7 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
 
         <div className={cn("flex-grow flex-shrink min-h-0 overflow-y-auto pr-4")}>{steps[currentStep]?.render}</div>
 
-        <div className="flex-shrink flex-grow-0 border-t py-2">
+        <div className="flex items-center flex-shrink flex-grow-0 border-t py-2">
           <SourceEditorViewStepsControls
             proceedButton={{
               title: steps[currentStep].proceedButtonTitle ?? "Next",

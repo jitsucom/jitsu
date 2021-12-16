@@ -1,22 +1,29 @@
 server:
   name: jitsu
+  port: '${env.SERVER_PORT|8001}'
   disable_welcome_page: true
   strict_auth_tokens: true
-  admin_token: '${env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
-  telemetry: '${env.JITSU_CONFIGURATOR_URL}/api/v1/telemetry?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+  admin_token: '${env.CLUSTER_ADMIN_TOKEN|env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+  telemetry: '${env.TELEMETRY_URL|}'
+  cache:
+    enabled: '${env.EVENTS_CACHE_ENABLED|true}'
 
 geo:
   maxmind_path: '${env.MAX_MIND_PATH|}'
 
-geo_resolvers: '${env.JITSU_CONFIGURATOR_URL}/api/v1/geo_data_resolvers?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+configurator:
+  base_url: '${env.JITSU_CONFIGURATOR_URL|}'
+  admin_token: '${env.CLUSTER_ADMIN_TOKEN|env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
 
-api_keys: '${env.JITSU_CONFIGURATOR_URL}/api/v1/apikeys?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+geo_resolvers: '${env.GEO_RESOLVERS_URL|}'
 
-destinations: '${env.JITSU_CONFIGURATOR_URL}/api/v1/destinations?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+api_keys: '${env.API_KEYS_URL|}'
 
-sources: '${env.JITSU_CONFIGURATOR_URL}/api/v1/sources?token=${env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+destinations: '${env.DESTINATIONS_URL|}'
 
-system: '${env.JITSU_CONFIGURATOR_URL}/api/v1/system/configuration'
+sources: '${env.SOURCES_URL|}'
+
+system: '${env.SYSTEM_URL|}'
 
 notifications:
   slack:
@@ -24,11 +31,24 @@ notifications:
 
 users_recognition:
   enabled: '${env.USER_RECOGNITION_ENABLED|false}'
+  redis:
+    host: '${env.USER_RECOGNITION_REDIS_URL|}'
+    tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+    ttl_minutes:
+      anonymous_events: '${env.USER_RECOGNITION_TTL_MINUTES|10080}'
 
 meta:
   storage:
     redis:
-      host: '${env.REDIS_URL}'
+      host: '${env.REDIS_URL|}'
+      tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+      ttl_minutes:
+        anonymous_events: '${env.USER_RECOGNITION_TTL_MINUTES|10080}'
+
+events:
+  queue:
+    redis:
+      host: '${env.EVENTS_QUEUE_REDIS_URL|}'
       tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
 
 coordination:
@@ -43,6 +63,10 @@ sql_debug_log:
 singer-bridge:
   log:
     enabled: '${env.SINGER_LOG_ENABLED|false}'
+  batch_size: '${env.SOURCES_SYNC_BATCH_SIZE|10000}'
+
+airbyte-bridge:
+  batch_size: '${env.SOURCES_SYNC_BATCH_SIZE|10000}'
 
 google-ads:
   developer-token: '${env.GOOGLE_ADS_DEVELOPER_TOKEN|}'

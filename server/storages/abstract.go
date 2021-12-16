@@ -2,15 +2,17 @@ package storages
 
 import (
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
+	"github.com/jitsucom/jitsu/server/config"
+	"github.com/jitsucom/jitsu/server/logging"
 	"math/rand"
+
+	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/telemetry"
@@ -21,7 +23,7 @@ import (
 //aka abstract class
 type Abstract struct {
 	destinationID  string
-	fallbackLogger *logging.AsyncLogger
+	fallbackLogger logging.ObjectLogger
 	eventsCache    *caching.EventsCache
 	processor      *schema.Processor
 
@@ -30,9 +32,9 @@ type Abstract struct {
 
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
-	cachingConfiguration *CachingConfiguration
+	cachingConfiguration *config.CachingConfiguration
 
-	archiveLogger *logging.AsyncLogger
+	archiveLogger logging.ObjectLogger
 }
 
 //ID returns destination ID
@@ -161,7 +163,7 @@ func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error)
 //AccountResult checks input error and calls ErrorEvent or SuccessEvent
 func (a *Abstract) AccountResult(eventContext *adapters.EventContext, err error) {
 	if err != nil {
-		if isConnectionError(err) {
+		if IsConnectionError(err) {
 			a.ErrorEvent(false, eventContext, err)
 		} else {
 			a.ErrorEvent(true, eventContext, err)

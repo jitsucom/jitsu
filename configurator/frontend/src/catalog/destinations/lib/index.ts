@@ -12,6 +12,9 @@ import amplitudeDestination from "./amplitude"
 import hubspotDestination from "./hubspot"
 import dbtcloudDestination from "./dbtcloud"
 import s3Destination from "./s3"
+import mixpanelDestination from "./mixpanel"
+import npmDestination from "./npm"
+
 import { Destination } from "../types"
 
 export {
@@ -28,6 +31,7 @@ export {
   hubspotDestination,
   dbtcloudDestination,
   s3Destination,
+  mixpanelDestination,
 }
 
 export const destinationsReferenceMap = {
@@ -44,6 +48,7 @@ export const destinationsReferenceMap = {
   hubspot: hubspotDestination,
   dbtcloud: dbtcloudDestination,
   s3: s3Destination,
+  mixpanel: mixpanelDestination,
 } as const
 
 export type DestinationReference = typeof destinationsReferenceMap[keyof typeof destinationsReferenceMap]

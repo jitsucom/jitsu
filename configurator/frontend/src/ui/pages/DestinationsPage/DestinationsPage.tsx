@@ -26,7 +26,7 @@ export interface CommonDestinationPageProps {
   editorMode?: "edit" | "add"
 }
 
-const DestinationsPageComponent = ({ setBreadcrumbs }: PageProps) => {
+const DestinationsPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   const params = useParams<unknown>()
 
   if (destinationsStore.state === DestinationsStoreState.GLOBAL_ERROR) {

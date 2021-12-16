@@ -38,6 +38,14 @@ type UsePollingReturnType<T> = {
   reload: VoidFunction
 }
 
+type PollingHookConfigurator<T = unknown> = {
+  configure: () => {
+    pollingCallback: PollingSetupCallback<T>
+    onBeforePollingStart?: () => void
+    onAfterPollingEnd?: () => void
+  }
+}
+
 const defaultOptions: UsePollingOptions = {
   interval_ms: 1000,
   timeout_ms: 5 * 60 * 1000,
@@ -51,13 +59,18 @@ export const usePolling = <T>(
   /**
    *
    */
-  callback: PollingSetupCallback<T>,
+  callbackOrConfigurator: PollingSetupCallback<T> | PollingHookConfigurator<T>,
 
   /**
    * Polling options such as interval and timeout
    */
   options: UsePollingOptions = {}
 ): UsePollingReturnType<T> => {
+  const pollingHookConfigurator: PollingHookConfigurator<T> =
+    "configure" in callbackOrConfigurator
+      ? callbackOrConfigurator
+      : { configure: () => ({ pollingCallback: callbackOrConfigurator }) }
+  const { pollingCallback, onBeforePollingStart, onAfterPollingEnd } = pollingHookConfigurator.configure()
   const { interval_ms, timeout_ms } = { ...defaultOptions, ...(options ?? {}) }
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [data, setData] = useState<T | null>(null)
@@ -76,7 +89,8 @@ export const usePolling = <T>(
     }
 
     try {
-      const poll = new Poll<T>(callback, interval_ms, timeout_ms)
+      const poll = new Poll<T>(pollingCallback, interval_ms, timeout_ms)
+      onBeforePollingStart?.()
       poll.start()
 
       cancelCurrentPoll.current = poll.cancel
@@ -91,6 +105,7 @@ export const usePolling = <T>(
       !blockStateUpdates && setError(error)
     } finally {
       !blockStateUpdates && setIsLoading(false)
+      onAfterPollingEnd?.()
     }
   }
 

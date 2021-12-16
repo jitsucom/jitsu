@@ -2,12 +2,14 @@ package testsuit
 
 import (
 	"context"
+	"github.com/jitsucom/jitsu/server/config"
+	"github.com/jitsucom/jitsu/server/logevents"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"net/http"
 	"os"
 	"testing"
 	"time"
 
-	"bou.ke/monkey"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/coordination"
@@ -42,9 +44,6 @@ type Suit interface {
 
 //suit is an immutable test suit implementation of Suit
 type suit struct {
-	freezeTime time.Time
-	patchTime  *monkey.PatchGuard
-
 	httpAuthority string
 }
 
@@ -59,12 +58,10 @@ type SuiteBuilder interface {
 
 //suiteBuilder is a test Suit builder implementation
 type suiteBuilder struct {
-	freezeTime                       time.Time
-	patchTime                        *monkey.PatchGuard
 	httpAuthority                    string
 	segmentRequestFieldsMapper       events.Mapper
 	segmentCompatRequestFieldsMapper events.Mapper
-	globalUsersRecognitionConfig     *storages.UsersRecognition
+	globalUsersRecognitionConfig     *config.UsersRecognition
 	systemService                    *system.Service
 	eventsCache                      *caching.EventsCache
 	geoService                       *geo.Service
@@ -76,8 +73,7 @@ type suiteBuilder struct {
 
 //NewSuiteBuilder returns configured SuiteBuilder
 func NewSuiteBuilder(t *testing.T) SuiteBuilder {
-	freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
-	patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
+	timestamp.FreezeTime()
 
 	telemetry.InitTest()
 	httpAuthority, _ := test.GetLocalAuthority()
@@ -95,10 +91,10 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	metaStorage := &meta.Dummy{}
 	//mock destinations
 	inmemWriter := logging.InitInMemoryWriter()
-	consumer := logging.NewAsyncLogger(inmemWriter, false)
+	consumer := logevents.NewSyncLogger(inmemWriter, false)
 
 	mockStorageFactory := storages.NewMockFactory()
-	mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
+	mockStorage, _, _ := mockStorageFactory.Create("test", config.DestinationConfig{})
 	destinationService := destinations.NewTestService(map[string]*destinations.Unit{"dest1": destinations.NewTestUnit(mockStorage)},
 		destinations.TokenizedConsumers{"id1": {"id1": consumer}},
 		destinations.TokenizedStorages{},
@@ -106,34 +102,34 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		map[string]events.Consumer{"dest1": consumer})
 
 	//** Segment API
-	mappings, err := schema.ConvertOldMappings(schema.Default, viper.GetStringSlice("compatibility.segment.endpoint"))
+	mappings, err := schema.ConvertOldMappings(config.Default, viper.GetStringSlice("compatibility.segment.endpoint"))
 	require.NoError(t, err)
 	segmentRequestFieldsMapper, _, err := schema.NewFieldMapper(mappings)
 	require.NoError(t, err)
 
 	//Segment compat API
-	compatMappings, err := schema.ConvertOldMappings(schema.Default, viper.GetStringSlice("compatibility.segment_compat.endpoint"))
+	compatMappings, err := schema.ConvertOldMappings(config.Default, viper.GetStringSlice("compatibility.segment_compat.endpoint"))
 	require.NoError(t, err)
 	segmentRequestCompatFieldsMapper, _, err := schema.NewFieldMapper(compatMappings)
 	require.NoError(t, err)
 
-	globalRecognitionConfiguration := &storages.UsersRecognition{
+	globalRecognitionConfiguration := &config.UsersRecognition{
 		Enabled:             viper.GetBool("users_recognition.enabled"),
 		AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
 		IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
 		UserIDNode:          viper.GetString("users_recognition.user_id_node"),
+		PoolSize:            viper.GetInt("users_recognition.pool.size"),
+		Compression:         viper.GetString("users_recognition.compression"),
 	}
 
 	err = globalRecognitionConfiguration.Validate()
 	require.NoError(t, err)
 
-	dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
+	dummyRecognitionService, _ := users.NewRecognitionService(&users.Dummy{}, nil, nil)
 
 	systemService := system.NewService("")
 
 	return &suiteBuilder{
-		freezeTime:                       freezeTime,
-		patchTime:                        patch,
 		httpAuthority:                    httpAuthority,
 		segmentRequestFieldsMapper:       segmentRequestFieldsMapper,
 		segmentCompatRequestFieldsMapper: segmentRequestCompatFieldsMapper,
@@ -142,7 +138,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		recognitionService:               dummyRecognitionService,
 		destinationService:               destinationService,
 		systemService:                    systemService,
-		eventsCache:                      caching.NewEventsCache(metaStorage, 100),
+		eventsCache:                      caching.NewEventsCache(true, metaStorage, 100, 1),
 		geoService:                       geo.NewTestService(nil),
 	}
 }
@@ -167,11 +163,13 @@ func (sb *suiteBuilder) WithGeoDataMock(geoDataMock *geo.Data) SuiteBuilder {
 
 //WithMetaStorage overrides meta.Storage with configured from viper
 func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
-	metaStorage, err := meta.NewStorage(viper.Sub("meta.storage"))
+	metaStorage, err := meta.InitializeStorage(viper.Sub("meta.storage"))
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(metaStorage)
 
 	sb.metaStorage = metaStorage
+
+	sb.eventsCache = caching.NewEventsCache(true, metaStorage, 100, 1)
 	return sb
 }
 
@@ -179,8 +177,9 @@ func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
 func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig string) SuiteBuilder {
 	monitor := coordination.NewInMemoryService([]string{})
 	tempDir := os.TempDir()
-	loggerFactory := logging.NewFactory(tempDir, 5, false, nil, nil)
-	destinationsFactory := storages.NewFactory(context.Background(), tempDir, sb.geoService, monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, 0)
+	loggerFactory := logevents.NewFactory(tempDir, 5, false, nil, nil, false, 1)
+	queueFactory := events.NewQueueFactory(nil, 0)
+	destinationsFactory := storages.NewFactory(context.Background(), tempDir, sb.geoService, monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, queueFactory, 0)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
@@ -192,7 +191,10 @@ func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig s
 
 //WithUserRecognition overrides users.RecognitionService with configured one
 func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
-	usersRecognitionService, err := users.NewRecognitionService(sb.metaStorage, sb.destinationService, sb.globalUsersRecognitionConfig, os.TempDir())
+	storage, err := users.InitializeStorage(true, viper.Sub("meta.storage"))
+	require.NoError(t, err)
+
+	usersRecognitionService, err := users.NewRecognitionService(storage, sb.destinationService, sb.globalUsersRecognitionConfig)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(usersRecognitionService)
 
@@ -213,19 +215,19 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor, bulkProcessor)
 
 	multiplexingService := multiplexing.NewService(sb.destinationService, sb.eventsCache)
-	walService := wal.NewService("/tmp", &logging.AsyncLogger{}, multiplexingService, processorHolder)
+	walService := wal.NewService("/tmp", &logevents.SyncLogger{}, multiplexingService, processorHolder)
 	appconfig.Instance.ScheduleWriteAheadLogClosing(walService)
 
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		fallback.NewTestService(), coordination.NewInMemoryService([]string{}), sb.eventsCache, sb.systemService,
-		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService)
+		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService, nil)
 
 	server := &http.Server{
 		Addr:              sb.httpAuthority,
 		Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
-		ReadTimeout:       time.Second * 60,
-		ReadHeaderTimeout: time.Second * 60,
-		IdleTimeout:       time.Second * 65,
+		ReadTimeout:       time.Second * 5,
+		ReadHeaderTimeout: time.Second * 5,
+		IdleTimeout:       time.Second * 5,
 	}
 	go func() {
 		logging.Fatal(server.ListenAndServe())
@@ -238,8 +240,6 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	require.NoError(t, err)
 
 	return &suit{
-		freezeTime:    sb.freezeTime,
-		patchTime:     sb.patchTime,
 		httpAuthority: sb.httpAuthority,
 	}
 }
@@ -250,7 +250,7 @@ func (s *suit) HTTPAuthority() string {
 
 //Close releases all resources
 func (s *suit) Close() {
-	s.patchTime.Unpatch()
+	timestamp.UnfreezeTime()
 	appconfig.Instance.Close()
 	appconfig.Instance.CloseEventsConsumers()
 }

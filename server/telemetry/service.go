@@ -3,14 +3,11 @@ package telemetry
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"github.com/jitsucom/jitsu/server/resources"
+	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/safego"
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/spf13/viper"
 	"go.uber.org/atomic"
-	"math"
 	"net/http"
 	"time"
 )
@@ -46,10 +43,9 @@ func InitTest() {
 
 //InitFromViper creates telemetry instance, starts goroutine
 //if configuration is provided as a url - starts another goroutine (see resources.Watch)
-func InitFromViper(serviceName, commit, tag, builtAt, dockerHubID string) {
+func InitFromViper(telemetrySourceURL, serviceName, commit, tag, builtAt, dockerHubID string) {
 	Init(serviceName, commit, tag, builtAt, dockerHubID)
 
-	telemetrySourceURL := viper.GetString("server.telemetry")
 	if telemetrySourceURL != "" {
 		resources.Watch(serviceName, telemetrySourceURL, resources.LoadFromHTTP, reInit, reloadEvery)
 	} else {
@@ -82,26 +78,23 @@ func Init(serviceName, commit, tag, builtAt, dockerHubID string) {
 }
 
 //EnrichSystemInfo enriches request factory (every request) with system information (CPU/RAM)
-func EnrichSystemInfo(clusterID string) {
+func EnrichSystemInfo(clusterID string, systemInfo *runtime.Info) {
 	instance.reqFactory.iInfo.ClusterID = clusterID
 
-	v, _ := mem.VirtualMemory()
-	if v != nil {
-		instance.reqFactory.iInfo.RAMTotalGB = math.Round(float64(v.Total) / 1024 / 1024 / 1024)
-		instance.reqFactory.iInfo.RAMFreeGB = math.Round(float64(v.Free) / 1024 / 1024 / 1024)
-		instance.reqFactory.iInfo.RAMUsage = fmt.Sprintf("%.2f%%", v.UsedPercent)
-	}
+	instance.reqFactory.iInfo.RAMTotalGB = systemInfo.RAMTotalGB
+	instance.reqFactory.iInfo.RAMFreeGB = systemInfo.RAMFreeGB
+	instance.reqFactory.iInfo.RAMUsage = systemInfo.RAMUsage
 
-	cpuInfo, _ := cpu.Info()
-	if len(cpuInfo) > 0 {
-		data := cpuInfo[0]
-		instance.reqFactory.iInfo.CPUInfoInstances = len(cpuInfo)
-		instance.reqFactory.iInfo.CPUCores = int(data.Cores)
-		instance.reqFactory.iInfo.CPUModelName = data.ModelName
-		instance.reqFactory.iInfo.CPUModel = data.Model
-		instance.reqFactory.iInfo.CPUFamily = data.Family
-		instance.reqFactory.iInfo.CPUVendor = data.VendorID
-	}
+	instance.reqFactory.iInfo.CPUInfoInstances = systemInfo.CPUInfoInstances
+	instance.reqFactory.iInfo.CPUCores = systemInfo.CPUCores
+	instance.reqFactory.iInfo.CPUModelName = systemInfo.CPUModelName
+	instance.reqFactory.iInfo.CPUModel = systemInfo.CPUModel
+	instance.reqFactory.iInfo.CPUFamily = systemInfo.CPUFamily
+	instance.reqFactory.iInfo.CPUVendor = systemInfo.CPUVendor
+}
+
+func GetSystemInfo() *InstanceInfo {
+	return instance.reqFactory.iInfo
 }
 
 //reInit initializes telemetry configuration
@@ -160,7 +153,7 @@ func Event(sourceID, destinationID, src, sourceType string, quantity int) {
 func PushedErrorsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
 	if !instance.usageOptOut.Load() {
 		for src, quantity := range quantityPerSrc {
-			Error(sourceID, destinationID, src, "", quantity)
+			Error(sourceID, destinationID, src, "", int(quantity))
 		}
 	}
 }

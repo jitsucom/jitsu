@@ -1,10 +1,19 @@
 # Test binary, build with `go test -c`
 compose-data/configurator/data/logs
-compose-data/redis/data/*
-!compose-data/redis/data/.gitkeep
 compose-data/server/data/events
 compose-data/server/data/logs
 compose-data/server/data/venv
+compose-data/redis/data/*
+!compose-data/redis/data/.gitkeep
+compose-data/redis_users_recognition/data/*
+!compose-data/redis_users_recognition/data/.gitkeep
+
+benchmark/compose-data/configurator/data/logs
+benchmark/compose-data/redis/data/*
+!benchmark/compose-data/redis/data/.gitkeep
+benchmark/compose-data/server/data/events
+benchmark/compose-data/server/data/logs
+benchmark/compose-data/server/data/venv
 
 ui-dev-compose/redis/data/*
 !ui-dev-compose/redis/data/.gitkeep
@@ -16,6 +25,7 @@ package-lock.json
 package.json
 server/server
 server/logs
+server/venv
 
 configurator/build/*
 server/venv

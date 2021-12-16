@@ -1,4 +1,12 @@
-import { intType, isoUtcDateType, passwordType, selectionType, SourceConnector, stringType } from "../types"
+import {
+  intType,
+  isoUtcDateType,
+  oauthSecretType,
+  passwordType,
+  selectionType,
+  SourceConnector,
+  stringType,
+} from "../types"
 import { googleServiceAuthDocumentation } from "../lib/documentation"
 
 import { googleAuthConfigParameters } from "../lib/commonParams"
@@ -419,6 +427,7 @@ export const googleAds: SourceConnector = {
   configParameters: [
     ...googleAuthConfigParameters({
       requireSubject: true,
+      oauthSecretsRequired: false,
     }),
     {
       displayName: "Customer ID",
@@ -785,7 +794,9 @@ export const googleAnalytics: SourceConnector = {
   id: "google_analytics",
   collectionTypes: ["report"],
   configParameters: [
-    ...googleAuthConfigParameters({}),
+    ...googleAuthConfigParameters({
+      oauthSecretsRequired: false,
+    }),
     {
       displayName: "View ID",
       id: "config.view_id",
@@ -882,7 +893,9 @@ export const googlePlay: SourceConnector = {
         </>
       ),
     },
-    ...googleAuthConfigParameters({}),
+    ...googleAuthConfigParameters({
+      oauthSecretsRequired: false,
+    }),
   ],
 }
 

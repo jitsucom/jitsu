@@ -16,9 +16,9 @@ we build 3 docker images:
 * `@jitsucom/configurator` contains only Configurator (see the image [on docker hub](https://hub.docker.com/r/jitsucom/configurator))
 * `@jitsucom/jitsu` (aka Joint Image) contains both Server and Configurator (see the image [on docker hub](https://hub.docker.com/r/jitsucom/jitsu))
 
-`@jitsu/configurator` is an optional component. Jitsu Server can be configured with [YML file](http://localhost:3000/docs/configuration).
+`@jitsu/configurator` is an optional component. Jitsu Server can be configured with [YML file](/docs/configuration).
 
-[Heroku deployment](http://localhost:3000/docs/deployment/deploy-on-heroku) users `@jitsucom/jitsu` under the hood. [Docker compose](/docs/deployment/deploy-with-docker#run-dockercompose)
+[Heroku deployment](/docs/deployment/deploy-on-heroku) users `@jitsucom/jitsu` under the hood. [Docker compose](/docs/deployment/deploy-with-docker#run-dockercompose)
 uses Jitsu joint image as well. If you're getting started with Jitsu, or operate Jitsu under moderate (<10 RPS) load, use `@jitsucom/jitsu` image,
 otherwise consider deploying `@jitsucom/server` and `@jitsucom/configurator` separately.
 

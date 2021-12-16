@@ -1,4 +1,4 @@
-import { jsonType, Parameter, selectionType, stringType } from "./../types"
+import { jsonType, oauthSecretType, Parameter, selectionType, stringType } from "./../types"
 import * as React from "react"
 
 const oauthParamDocumentation = (
@@ -17,6 +17,7 @@ export type GoogleParametersNodes = {
   serviceAccountKey?: string
   requireSubject?: boolean
   subjectKey?: string
+  oauthSecretsRequired?: boolean
 }
 
 /**
@@ -43,6 +44,7 @@ export const googleAuthConfigParameters = ({
   serviceAccountKey = "config.auth.service_account_key",
   requireSubject = false,
   subjectKey = "config.auth.subject",
+  oauthSecretsRequired = true,
 }: GoogleParametersNodes): Parameter[] =>
   removeNulls([
     {
@@ -76,25 +78,25 @@ export const googleAuthConfigParameters = ({
     !disableOauth && {
       displayName: "OAuth Client ID",
       id: clientId,
-      type: stringType,
+      type: oauthSecretType,
       omitFieldRule: config => {
         //hack to make it work for singer based sources (which prefixes all fields with config. later on)
         let typeResolved = resolve(config, type) || resolve(config, "config.config." + type)
         return typeResolved !== "OAuth"
       },
-      required: true,
+      required: oauthSecretsRequired,
       documentation: oauthParamDocumentation,
     },
     !disableOauth && {
       displayName: "OAuth Client Secret",
       id: clientSecret,
-      type: stringType,
+      type: oauthSecretType,
       omitFieldRule: config => {
         //hack to make it work for singer based sources (which prefixes all fields with config. later on)
         let typeResolved = resolve(config, type) || resolve(config, "config.config." + type)
         return typeResolved !== "OAuth"
       },
-      required: true,
+      required: oauthSecretsRequired,
       documentation: oauthParamDocumentation,
     },
     !disableOauth && {
