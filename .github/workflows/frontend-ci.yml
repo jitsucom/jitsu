@@ -25,6 +25,7 @@ jobs:
         id: frontend-change
         run: git diff HEAD^ HEAD --quiet ./ ; echo "::set-output name=status::$(echo $?)"
       - name: Status
+        if:  ${{ always() }}
         env:
           FRONTEND_CHANGED: ${{ steps.frontend-change.outputs.status }}
         run: echo $FRONTEND_CHANGED
