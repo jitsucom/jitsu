@@ -1,5 +1,5 @@
 ### JS/GO BUILDER
-FROM golang:1.16.3-alpine3.13
+FROM golang:1.17.5-alpine3.15
 
 # Install dependencies
 RUN apk add git make bash npm yarn
@@ -15,7 +15,7 @@ WORKDIR /go/src/github.com/deps/install
 RUN echo $'\n\
 module github.com/deps/install \n\
 \n\
-go 1.16 \n\
+go 1.17 \n\
 \n\
 require ( \n\
 	bou.ke/monkey v1.0.2 \n\
