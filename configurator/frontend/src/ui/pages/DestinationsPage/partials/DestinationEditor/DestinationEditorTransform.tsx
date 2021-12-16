@@ -21,6 +21,7 @@ export interface Props {
   destinationReference: Destination
   form: FormInstance
   configForm: FormInstance
+  mappingForm: FormInstance
   handleTouchAnyField: (...args: any) => void
 }
 
@@ -29,6 +30,7 @@ const DestinationEditorTransform = ({
   destinationReference,
   form,
   configForm,
+  mappingForm,
   handleTouchAnyField,
 }: Props) => {
   const handleChange = debounce(handleTouchAnyField, 500)
@@ -66,6 +68,14 @@ const DestinationEditorTransform = ({
                 destinationsReferenceMap[destinationData._type].defaultTransform.length > 0 &&
                 !destinationData._mappings?._mappings,
               type: booleanType,
+              validator: (rule, value) => {
+                if (value && mappingForm?.getFieldValue("_mappings._mappings")?.length > 0) {
+                  return Promise.reject(
+                    "Transform cannot work with configured mappings. Please remove all mappings first."
+                  )
+                }
+                return Promise.resolve()
+              },
               bigField: true,
             },
             {
@@ -78,7 +88,7 @@ ${[destinationData._type, "segment"]
               displayName: "Javascript Transformation",
               defaultValue: !destinationData._mappings?._mappings
                 ? destinationsReferenceMap[destinationData._type].defaultTransform
-                : undefined,
+                : "",
               required: false,
               jsDebugger: "object",
               type: jsType,
@@ -86,7 +96,7 @@ ${[destinationData._type, "segment"]
             },
           ]}
           form={form}
-          configForm={configForm}
+          extraForms={[configForm, mappingForm]}
           initialValues={destinationData}
         />
       </Form>
