@@ -27,25 +27,25 @@ jobs:
           FRONTEND_CHANGED: ${{ steps.frontend-change.outputs.status }}
         run: echo Frontend changed - $FRONTEND_CHANGED
       - uses: actions/setup-node@v2
-        if: ${{ steps.frontend-change.outputs.status == 1 }}
+        if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
         with:
           node-version: "14"
       - run: yarn install
-        if: ${{ steps.frontend-change.outputs.status == 1 }}
+        if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
         name: "[Frontend CI] installing packages (yarn install)"
         working-directory: ./configurator/frontend
       - run: yarn build
-        if: ${{ steps.frontend-change.outputs.status == 1 }}
+        if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
         name: "[Frontend CI] building"
         working-directory: ./configurator/frontend
       - run: yarn all:check
-        if: ${{ steps.frontend-change.outputs.status == 1 }}
+        if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
         name: "[Frontend CI] running prettier & eslint checks"
         working-directory: ./configurator/frontend
 
       - name: Notify to Slack on Errors
         uses: rtCamp/action-slack-notify@v2.2.0
-        if: ${{ steps.frontend-change.outputs.status == 1 && failure() && (env.GITHUB_REF_NAME == 'beta' || env.GITHUB_REF_NAME == 'master' ) }}
+        if: ${{ failure() && steps.frontend-change.outputs.status == 1 && (env.GITHUB_REF_NAME == 'beta' || env.GITHUB_REF_NAME == 'master' ) }}
         env:
           SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
           SLACK_ICON_EMOJI: 👿
