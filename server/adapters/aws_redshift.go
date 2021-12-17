@@ -96,7 +96,7 @@ func (ar *AwsRedshift) Copy(fileKey, tableName string) error {
 	statement := fmt.Sprintf(copyTemplate, ar.dataSourceProxy.config.Schema, tableName, ar.s3Config.Bucket, fileKey, ar.s3Config.AccessKeyID, ar.s3Config.SecretKey, ar.s3Config.Region)
 	_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, statement)
 	if err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return checkErr(err)
 	}
 
@@ -150,7 +150,7 @@ func (ar *AwsRedshift) PatchTableSchema(patchSchema *Table) error {
 
 			table, err := ar.GetTableSchema(patchSchema.Name)
 			if err != nil {
-				secondWrappedTx.Rollback()
+				secondWrappedTx.Rollback(err)
 				return fmt.Errorf("%v (re-creation failed: %v)", patchErr, err)
 			}
 
@@ -158,7 +158,7 @@ func (ar *AwsRedshift) PatchTableSchema(patchSchema *Table) error {
 
 			recreationErr := ar.recreateNotNullColumnInTransaction(secondWrappedTx, table)
 			if recreationErr != nil {
-				secondWrappedTx.Rollback()
+				secondWrappedTx.Rollback(err)
 				return fmt.Errorf("%v (re-creation failed: %v)", patchErr, recreationErr)
 			}
 
@@ -205,7 +205,7 @@ func (ar *AwsRedshift) CreateTable(tableSchema *Table) error {
 
 	err = ar.dataSourceProxy.createTableInTransaction(wrappedTx, tableSchema)
 	if err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -305,7 +305,7 @@ func (ar *AwsRedshift) BulkInsert(table *Table, objects []map[string]interface{}
 	}
 
 	if err = ar.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -321,13 +321,13 @@ func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}
 
 	if !deleteConditions.IsEmpty() {
 		if err := ar.deleteWithConditions(wrappedTx, table, deleteConditions); err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return err
 		}
 	}
 
 	if err := ar.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
