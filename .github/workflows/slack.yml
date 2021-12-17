@@ -5,6 +5,8 @@ on:
     workflows:
       - "Backend CI"
       - "Frontend CI"
+      - backend-ci
+      - frontend-ci
     branches:
       - github_action_experiments
       - main
