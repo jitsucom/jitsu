@@ -27,7 +27,7 @@ const (
 	mySQLCreateTableTemplate         = "CREATE TABLE `%s`.`%s` (%s)"
 	mySQLInsertTemplate              = "INSERT INTO `%s`.`%s` (%s) VALUES %s"
 	mySQLUpdateTemplate              = "UPDATE `%s`.`%s` SET %s WHERE %s=?"
-	mySQLAlterPrimaryKeyTemplate     = "ALTER TABLE `%s`.`%s` ADD CONSTRAINT %s PRIMARY KEY (%s)"
+	mySQLAlterPrimaryKeyTemplate     = "ALTER TABLE `%s`.`%s` ADD CONSTRAINT PRIMARY KEY (%s)"
 	mySQLMergeTemplate               = "INSERT INTO `%s`.`%s` (%s) VALUES %s ON DUPLICATE KEY UPDATE %s"
 	mySQLBulkMergeTemplate           = "INSERT INTO `%s`.`%s` (%s) SELECT * FROM (SELECT %s FROM `%s`.`%s`) AS tmp ON DUPLICATE KEY UPDATE %s"
 	mySQLDeleteQueryTemplate         = "DELETE FROM `%s`.`%s` WHERE %s"
@@ -296,7 +296,7 @@ func (m *MySQL) Close() error {
 }
 
 func (m *MySQL) getTable(tableName string) (*Table, error) {
-	table := &Table{Name: tableName, Columns: map[string]typing.SQLColumn{}, PKFields: map[string]bool{}}
+	table := &Table{Schema: m.config.Db, Name: tableName, Columns: map[string]typing.SQLColumn{}, PKFields: map[string]bool{}}
 	rows, err := m.dataSource.QueryContext(m.ctx, mySQLTableSchemaQuery, m.config.Db, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
@@ -588,7 +588,7 @@ func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 	}
 
 	statement := fmt.Sprintf(mySQLAlterPrimaryKeyTemplate,
-		m.config.Db, table.Name, m.buildConstraintName(table.Name), strings.Join(quotedColumnNames, ","))
+		m.config.Db, table.Name, strings.Join(quotedColumnNames, ","))
 	m.queryLogger.LogDDL(statement)
 
 	_, err := wrappedTx.tx.ExecContext(m.ctx, statement)
@@ -626,10 +626,6 @@ func (m *MySQL) createTableInTransaction(wrappedTx *Transaction, table *Table) e
 	}
 
 	return nil
-}
-
-func (m *MySQL) buildConstraintName(tableName string) string {
-	return m.quote(fmt.Sprintf("%s_%s_pk", m.config.Db, tableName))
 }
 
 func (m *MySQL) quote(str string) string {

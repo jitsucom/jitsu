@@ -199,7 +199,7 @@ func (s *Snowflake) PatchTableSchema(patchSchema *Table) error {
 
 //GetTableSchema returns table (name,columns with name and types) representation wrapped in Table struct
 func (s *Snowflake) GetTableSchema(tableName string) (*Table, error) {
-	table := &Table{Name: tableName, Columns: Columns{}}
+	table := &Table{Schema: s.config.Schema, Name: tableName, Columns: Columns{}}
 
 	countReqRows, err := s.dataSource.QueryContext(s.ctx, tableExistenceSFQuery, reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName)))
 	if err != nil {
