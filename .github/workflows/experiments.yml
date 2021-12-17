@@ -45,8 +45,7 @@ jobs:
         uses: LASER-Yi/workflow-status@v0.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: experiments.yml
-          event: push
+          workflow: backend-ci.yml
           branch: ${{ github.ref_name }}
 
       - name: Notify to Slack on Errors
