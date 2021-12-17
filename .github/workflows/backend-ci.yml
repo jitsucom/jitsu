@@ -88,7 +88,7 @@ jobs:
  
     - name: Notify to Slack on Errors
       uses: rtCamp/action-slack-notify@v2.2.0
-      if: ${{ failure() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) && (env.GITHUB_REF_NAME == 'beta' || env.GITHUB_REF_NAME == 'master' ) }}
+      if: ${{ failure() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) && (github.ref_name == 'beta' || github.ref_name == 'master' ) }}
       env:
         SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
         SLACK_ICON_EMOJI: 👿
