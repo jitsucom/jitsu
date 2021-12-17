@@ -160,7 +160,7 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 			return
 		}
 
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("", err))
 		return
 	}
 
@@ -173,7 +173,7 @@ func (sh *SourcesHandler) OauthFields(c *gin.Context) {
 	sourceType := c.Param("sourceType")
 	oathFields := oauth.Fields[sourceType]
 	res := make(map[string]interface{})
-	for k,v := range oathFields {
+	for k, v := range oathFields {
 		fieldObject := make(map[string]interface{})
 		fieldObject["env_name"] = strings.ReplaceAll(strings.ToUpper(v), ".", "_")
 		fieldObject["yaml_path"] = v

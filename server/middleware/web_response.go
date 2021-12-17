@@ -1,6 +1,9 @@
 package middleware
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/jitsucom/jitsu/server/utils"
+)
 
 const (
 	StatusOK      = "ok"
@@ -9,7 +12,8 @@ const (
 
 //ErrorResponse is a dto for sending error response
 type ErrorResponse struct {
-	Message string `json:"message"`
+	Message string      `json:"message"`
+	Payload interface{} `json:"payload,omitempty"`
 	//Deprecated
 	Error string `json:"error"`
 }
@@ -19,7 +23,17 @@ func ErrResponse(msg string, err error) *ErrorResponse {
 	if err == nil {
 		return &ErrorResponse{Message: msg}
 	}
-
+	if richErr, ok := err.(*utils.RichError); ok {
+		return &ErrorResponse{
+			Message: richErr.Error(),
+			Payload: richErr.Payload(),
+		}
+	}
+	if msg == "" {
+		return &ErrorResponse{
+			Message: err.Error(),
+		}
+	}
 	return &ErrorResponse{
 		Message: fmt.Sprintf("%s: %s", msg, err.Error()),
 	}
