@@ -55,7 +55,7 @@ jobs:
         env:
           SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
           SLACK_ICON_EMOJI: 👿
-          SLACK_WEBHOOK: "https://hooks.slack.com/services/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"
+          SLACK_WEBHOOK: ${{ secrets.SLACK_ILDAR_WEBHOOK }}
           SLACK_FOOTER: ""
 
       - name: Notify to Slack on Success
@@ -64,5 +64,5 @@ jobs:
         env:
           SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
           SLACK_ICON_EMOJI: ✅
-          SLACK_WEBHOOK: "https://hooks.slack.com/services/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"
+          SLACK_WEBHOOK: ${{ secrets.SLACK_ILDAR_WEBHOOK }}
           SLACK_FOOTER: ""
