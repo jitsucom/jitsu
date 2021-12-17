@@ -116,7 +116,7 @@ func main() {
 	//** Slack Notifications **
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")
 	if slackNotificationsWebHook != "" {
-		notifications.Init(serviceName, slackNotificationsWebHook, appconfig.Instance.ServerName, logging.Errorf)
+		notifications.Init(serviceName, tag, slackNotificationsWebHook, appconfig.Instance.ServerName, logging.Errorf)
 	}
 
 	//** Default S3 **
