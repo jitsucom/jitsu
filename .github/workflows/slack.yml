@@ -1,10 +1,16 @@
-name: Notifications
+name: Slack
 
 on:
   workflow_run:
-    workflows: ["Backend CI", "Frontend CI"]
-    branches: [github_action_experiments, main, beta]
-    types: [completed]
+    workflows:
+      - "Backend CI"
+      - "Frontend CI"
+    branches:
+      - github_action_experiments
+      - main
+      - beta
+    types:
+      - completed
 
 
 jobs:
@@ -39,8 +45,8 @@ jobs:
         env:
           MATRIX_CONTEXT: ${{ toJSON(matrix) }}
         run: echo "$MATRIX_CONTEXT"
-#      - name: Fail
-#        run: failhere
+      #      - name: Fail
+      #        run: failhere
 
       - name: Check Previous status on this branch
         id: check-ci
