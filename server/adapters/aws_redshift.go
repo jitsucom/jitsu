@@ -25,7 +25,7 @@ const (
 	deleteBeforeBulkMergeCondition = `"%s"."%s".%s = "%s"."%s".%s`
 	redshiftBulkMergeInsert        = `INSERT INTO "%s"."%s" (%s) select %s from "%s"."%s"`
 
-	primaryKeyFieldsRedshiftQuery = `select kcu.column_name as key_column
+	primaryKeyFieldsRedshiftQuery = `select tco.constraint_name as constraint_name, kcu.column_name as key_column
 									 from information_schema.table_constraints tco
          							   join information_schema.key_column_usage kcu
              						   on kcu.constraint_name = tco.constraint_name
@@ -187,12 +187,18 @@ func (ar *AwsRedshift) GetTableSchema(tableName string) (*Table, error) {
 		return table, nil
 	}
 
-	pkFields, err := ar.getPrimaryKeys(tableName)
+	primaryKeyName, pkFields, err := ar.getPrimaryKeys(tableName)
 	if err != nil {
 		return nil, err
 	}
 
 	table.PKFields = pkFields
+	table.PrimaryKeyName = primaryKeyName
+
+	jitsuPrimaryKeyName := buildConstraintName(table.Schema, table.Name)
+	if primaryKeyName != "" && primaryKeyName != jitsuPrimaryKeyName {
+		logging.Warnf("[%s] table: %s.%s has a custom primary key with name: %s. It will be used in updates", ..., table.Schema, table.Name, primaryKeyName)
+	}
 	return table, nil
 }
 
@@ -217,30 +223,34 @@ func (ar *AwsRedshift) Update(table *Table, object map[string]interface{}, where
 	return ar.dataSourceProxy.Update(table, object, whereKey, whereValue)
 }
 
-func (ar *AwsRedshift) getPrimaryKeys(tableName string) (map[string]bool, error) {
+func (ar *AwsRedshift) getPrimaryKeys(tableName string) (string, map[string]bool, error) {
 	primaryKeys := map[string]bool{}
 	pkFieldsRows, err := ar.dataSourceProxy.dataSource.QueryContext(ar.dataSourceProxy.ctx, primaryKeyFieldsRedshiftQuery, ar.dataSourceProxy.config.Schema, tableName)
 	if err != nil {
-		return nil, fmt.Errorf("Error querying primary keys for [%s.%s] table: %v", ar.dataSourceProxy.config.Schema, tableName, err)
+		return "", nil, fmt.Errorf("Error querying primary keys for [%s.%s] table: %v", ar.dataSourceProxy.config.Schema, tableName, err)
 	}
 
 	defer pkFieldsRows.Close()
 	var pkFields []string
+	var primaryKeyName string
 	for pkFieldsRows.Next() {
-		var fieldName string
-		if err := pkFieldsRows.Scan(&fieldName); err != nil {
-			return nil, fmt.Errorf("Error scanning primary key result: %v", err)
+		var constraintName, fieldName string
+		if err := pkFieldsRows.Scan(&constraintName, &fieldName); err != nil {
+			return "", nil, fmt.Errorf("Error scanning primary key result: %v", err)
+		}
+		if primaryKeyName == "" && constraintName != ""{
+			primaryKeyName = constraintName
 		}
 		pkFields = append(pkFields, fieldName)
 	}
 	if err := pkFieldsRows.Err(); err != nil {
-		return nil, fmt.Errorf("pk last rows.Err: %v", err)
+		return "", nil, fmt.Errorf("pk last rows.Err: %v", err)
 	}
 	for _, field := range pkFields {
 		primaryKeys[field] = true
 	}
 
-	return primaryKeys, nil
+	return primaryKeyName, primaryKeys, nil
 }
 
 //recreateNotNullColumn create tmp column -> copy all values -> delete old column -> rename tmp column

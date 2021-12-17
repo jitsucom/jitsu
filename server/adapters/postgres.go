@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	tableNamesQuery  = `SELECT table_name FROM information_schema.tables WHERE table_schema=$1`
 	tableSchemaQuery = `SELECT 
  							pg_attribute.attname AS name,
     						pg_catalog.format_type(pg_attribute.atttypid,pg_attribute.atttypmod) AS column_type
@@ -31,7 +30,7 @@ const (
   							AND  pg_namespace.nspname = $1
   							AND pg_class.relname = $2
   							AND pg_attribute.attnum > 0`
-	primaryKeyFieldsQuery = `SELECT
+	primaryKeyFieldsQueryDeprecated = `SELECT
 							pg_attribute.attname
 						FROM pg_index, pg_class, pg_attribute, pg_namespace
 						WHERE
@@ -42,6 +41,16 @@ const (
 								pg_attribute.attrelid = pg_class.oid AND
 								pg_attribute.attnum = any(pg_index.indkey)
 					  	AND indisprimary`
+	primaryKeyFieldsQuery = `SELECT tco.constraint_name as constraint_name,
+       kcu.column_name as key_column
+FROM information_schema.table_constraints tco
+         JOIN information_schema.key_column_usage kcu
+              ON kcu.constraint_name = tco.constraint_name
+                  AND kcu.constraint_schema = tco.constraint_schema
+                  AND kcu.constraint_name = tco.constraint_name
+WHERE tco.constraint_type = 'PRIMARY KEY' AND 
+      kcu.table_schema = $1 AND
+      kcu.table_name = $2`
 	createDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS "%s"`
 	addColumnTemplate                 = `ALTER TABLE "%s"."%s" ADD COLUMN %s`
 	dropPrimaryKeyTemplate            = "ALTER TABLE %s.%s DROP CONSTRAINT %s"
@@ -236,12 +245,18 @@ func (p *Postgres) GetTableSchema(tableName string) (*Table, error) {
 		return table, nil
 	}
 
-	pkFields, err := p.getPrimaryKeys(tableName)
+	primaryKeyName, pkFields, err := p.getPrimaryKeys(tableName)
 	if err != nil {
 		return nil, err
 	}
 
 	table.PKFields = pkFields
+	table.PrimaryKeyName = primaryKeyName
+
+	jitsuPrimaryKeyName := buildConstraintName(table.Schema, table.Name)
+	if primaryKeyName != "" && primaryKeyName != jitsuPrimaryKeyName {
+		logging.Warnf("[%s] table: %s.%s has a custom primary key with name: %s. It will be used in updates", ..., table.Schema, table.Name, primaryKeyName)
+	}
 	return table, nil
 }
 
@@ -254,7 +269,7 @@ func (p *Postgres) Insert(eventContext *EventContext) error {
 	if len(eventContext.Table.PKFields) == 0 {
 		statement = fmt.Sprintf(insertTemplate, p.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
 	} else {
-		statement = fmt.Sprintf(mergeTemplate, p.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ","), "("+strings.Join(placeholders, ", ")+")", buildConstraintName(p.config.Schema, eventContext.Table.Name), p.buildUpdateSection(columnsWithoutQuotes))
+		statement = fmt.Sprintf(mergeTemplate, p.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ","), "("+strings.Join(placeholders, ", ")+")", eventContext.Table.PrimaryKeyName, p.buildUpdateSection(columnsWithoutQuotes))
 	}
 
 	p.queryLogger.LogQueryWithValues(statement, values)
@@ -280,7 +295,7 @@ func (p *Postgres) Truncate(tableName string) error {
 }
 
 func (p *Postgres) getTable(tableName string) (*Table, error) {
-	table := &Table{Name: tableName, Columns: map[string]typing.SQLColumn{}, PKFields: map[string]bool{}}
+	table := &Table{Schema: p.config.Schema, Name: tableName, Columns: map[string]typing.SQLColumn{}, PKFields: map[string]bool{}}
 	rows, err := p.dataSource.QueryContext(p.ctx, tableSchemaQuery, p.config.Schema, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
@@ -385,7 +400,7 @@ func (p *Postgres) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *
 	}
 
 	statement := fmt.Sprintf(alterPrimaryKeyTemplate,
-		p.config.Schema, table.Name, buildConstraintName(p.config.Schema, table.Name), strings.Join(quotedColumnNames, ","))
+		p.config.Schema, table.Name, table.PrimaryKeyName, strings.Join(quotedColumnNames, ","))
 	p.queryLogger.LogDDL(statement)
 
 	_, err := wrappedTx.tx.ExecContext(p.ctx, statement)
@@ -399,7 +414,7 @@ func (p *Postgres) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *
 
 //delete primary key
 func (p *Postgres) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
-	query := fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, table.Name, buildConstraintName(p.config.Schema, table.Name))
+	query := fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, table.Name, table.PrimaryKeyName)
 	p.queryLogger.LogDDL(query)
 	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
 	if err != nil {
@@ -605,7 +620,7 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
 	}
 
-	insertFromSelectStatement := fmt.Sprintf(bulkMergeTemplate, p.config.Schema, table.Name, strings.Join(headerWithQuotes, ", "), strings.Join(headerWithQuotes, ", "), p.config.Schema, tmpTable.Name, buildConstraintName(p.config.Schema, table.Name), strings.Join(setValues, ", "))
+	insertFromSelectStatement := fmt.Sprintf(bulkMergeTemplate, p.config.Schema, table.Name, strings.Join(headerWithQuotes, ", "), strings.Join(headerWithQuotes, ", "), p.config.Schema, tmpTable.Name, table.PrimaryKeyName, strings.Join(setValues, ", "))
 	p.queryLogger.LogQuery(insertFromSelectStatement)
 
 	_, err = wrappedTx.tx.ExecContext(p.ctx, insertFromSelectStatement)
@@ -722,34 +737,38 @@ func (p *Postgres) Close() error {
 	return p.dataSource.Close()
 }
 
-func buildConstraintName(schemaName string, tableName string) string {
-	return schemaName + "_" + tableName + "_pk"
-}
-
-func (p *Postgres) getPrimaryKeys(tableName string) (map[string]bool, error) {
+//getPrimaryKeys returns primary key name and fields
+func (p *Postgres) getPrimaryKeys(tableName string) (string, map[string]bool, error) {
 	primaryKeys := map[string]bool{}
-	pkFieldsRows, err := p.dataSource.QueryContext(p.ctx, primaryKeyFieldsQuery, p.config.Schema+"."+tableName, p.config.Schema)
+	pkFieldsRows, err := p.dataSource.QueryContext(p.ctx, primaryKeyFieldsQuery, p.config.Schema, tableName)
 	if err != nil {
-		return nil, fmt.Errorf("Error querying primary keys for [%s.%s] table: %v", p.config.Schema, tableName, err)
+		return "", nil, fmt.Errorf("Error querying primary keys for [%s.%s] table: %v", p.config.Schema, tableName, err)
 	}
 
 	defer pkFieldsRows.Close()
 	var pkFields []string
+	var primaryKeyName string
 	for pkFieldsRows.Next() {
-		var fieldName string
-		if err := pkFieldsRows.Scan(&fieldName); err != nil {
-			return nil, fmt.Errorf("error scanning primary key result: %v", err)
+		var constraintName, keyColumn string
+		if err := pkFieldsRows.Scan(&constraintName, &keyColumn); err != nil {
+			return "", nil, fmt.Errorf("error scanning primary key result: %v", err)
 		}
-		pkFields = append(pkFields, fieldName)
+		if primaryKeyName == "" && constraintName != ""{
+			primaryKeyName = constraintName
+		}
+
+		pkFields = append(pkFields, keyColumn)
 	}
+
 	if err := pkFieldsRows.Err(); err != nil {
-		return nil, fmt.Errorf("pk last rows.Err: %v", err)
+		return "", nil, fmt.Errorf("pk last rows.Err: %v", err)
 	}
+
 	for _, field := range pkFields {
 		primaryKeys[field] = true
 	}
 
-	return primaryKeys, nil
+	return primaryKeyName, primaryKeys, nil
 }
 
 //buildInsertPayload returns
