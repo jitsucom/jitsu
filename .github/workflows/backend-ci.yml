@@ -85,12 +85,12 @@ jobs:
         name: test-report
         path: |
           ./server/test_report.html
- 
-    - name: Notify to Slack on Errors
-      uses: rtCamp/action-slack-notify@v2.2.0
-      if: ${{ failure() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) && (github.ref_name == 'beta' || github.ref_name == 'master' ) }}
-      env:
-        SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
-        SLACK_ICON_EMOJI: 👿
-        SLACK_WEBHOOK: ${{ secrets.SLACK_CI_BACKEND_WEBHOOK }}
-        SLACK_FOOTER: ""
+#
+#    - name: Notify to Slack on Errors
+#      uses: rtCamp/action-slack-notify@v2.2.0
+#      if: ${{ failure() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) && (github.ref_name == 'beta' || github.ref_name == 'master' ) }}
+#      env:
+#        SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
+#        SLACK_ICON_EMOJI: 👿
+#        SLACK_WEBHOOK: ${{ secrets.SLACK_CI_BACKEND_WEBHOOK }}
+#        SLACK_FOOTER: ""
