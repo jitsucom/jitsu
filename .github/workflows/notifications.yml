@@ -1,9 +1,11 @@
-name: Experiments
+name: Notifications
 
 on:
-  push:
-    branches:
-      - 'github_action_experiments'
+  workflow_run:
+    workflows: ["Backend CI", "Frontend CI"]
+    branches: [main, beta]
+    types: [completed]
+
 
 jobs:
   experiments:
@@ -45,7 +47,7 @@ jobs:
         uses: LASER-Yi/workflow-status@v0.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: backend-ci.yml
+          workflow: experiments.yml
           branch: ${{ github.ref_name }}
 
       - name: Notify to Slack on Errors
