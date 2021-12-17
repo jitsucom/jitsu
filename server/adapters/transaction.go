@@ -33,9 +33,9 @@ func (t *Transaction) DirectCommit() error {
 }
 
 //Rollback cancels underlying transaction and logs system err if occurred
-func (t *Transaction) Rollback() {
+func (t *Transaction) Rollback(cause error) {
 	if err := t.tx.Rollback(); err != nil {
 		err = checkErr(err)
-		logging.SystemErrorf("Unable to rollback %s transaction: %v", t.dbType, err)
+		logging.SystemErrorf("Unable to rollback %s transaction: %v cause: %v", t.dbType, err, cause)
 	}
 }

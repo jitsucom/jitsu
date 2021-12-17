@@ -121,7 +121,7 @@ func (m *MySQL) CreateTable(table *Table) error {
 
 	err = m.createTableInTransaction(wrappedTx, table)
 	if err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -190,7 +190,7 @@ func (m *MySQL) BulkInsert(table *Table, objects []map[string]interface{}) error
 	}
 
 	if err = m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -206,13 +206,13 @@ func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, delet
 
 	if !deleteConditions.IsEmpty() {
 		if err := m.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return err
 		}
 	}
 
 	if err := m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -249,7 +249,7 @@ func (m *MySQL) DropTable(table *Table) error {
 	}
 
 	if err := m.dropTableInTransaction(wrappedTx, table); err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -648,7 +648,7 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 
 		_, err := wrappedTx.tx.ExecContext(m.ctx, query)
 		if err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return fmt.Errorf("Error patching %s table with [%s] DDL: %v", patchTable.Name, columnDDL, err)
 		}
 	}
@@ -657,7 +657,7 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 	if patchTable.DeletePkFields {
 		err := m.deletePrimaryKeyInTransaction(wrappedTx, patchTable)
 		if err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return err
 		}
 	}
@@ -666,7 +666,7 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 	if len(patchTable.PKFields) > 0 {
 		err := m.createPrimaryKeyInTransaction(wrappedTx, patchTable)
 		if err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return err
 		}
 	}
