@@ -37,8 +37,8 @@ jobs:
         env:
           MATRIX_CONTEXT: ${{ toJSON(matrix) }}
         run: echo "$MATRIX_CONTEXT"
-      - name: Fail
-        run: failhere
+#      - name: Fail
+#        run: failhere
 
       - name: Check Previous status on this branch
         id: check-ci
@@ -55,6 +55,7 @@ jobs:
         env:
           SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
           SLACK_ICON_EMOJI: 👿
+          SLACK_TITLE: ${{ job.status }} wokflow failure
           SLACK_WEBHOOK: ${{ secrets.SLACK_ILDAR_WEBHOOK }}
           SLACK_FOOTER: ""
 
@@ -64,5 +65,6 @@ jobs:
         env:
           SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
           SLACK_ICON_EMOJI: ✅
+          SLACK_TITLE: ${{ job.status }} wokflow restored
           SLACK_WEBHOOK: ${{ secrets.SLACK_ILDAR_WEBHOOK }}
           SLACK_FOOTER: ""
