@@ -1,10 +1,9 @@
 name: Notifications
 
-
 on:
   workflow_run:
     workflows: ["Backend CI", "Frontend CI"]
-    branches: [main, beta]
+    branches: [github_action_experiments, main, beta]
     types: [completed]
 
 
