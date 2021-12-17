@@ -7,7 +7,7 @@ on:
       - "Frontend CI"
     branches:
       - github_action_experiments
-      - main
+      - master
       - beta
     types:
       - completed
