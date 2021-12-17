@@ -43,11 +43,11 @@ jobs:
         name: "[Frontend CI] running prettier & eslint checks"
         working-directory: ./configurator/frontend
 
-      - name: Notify to Slack on Errors
-        uses: rtCamp/action-slack-notify@v2.2.0
-        if: ${{ failure() && steps.frontend-change.outputs.status == 1 && (github.ref_name == 'beta' || github.ref_name == 'master' ) }}
-        env:
-          SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
-          SLACK_ICON_EMOJI: 👿
-          SLACK_WEBHOOK: ${{ secrets.SLACK_CI_FRONTEND_WEBHOOK }}
-          SLACK_FOOTER: ""
+#      - name: Notify to Slack on Errors
+#        uses: rtCamp/action-slack-notify@v2.2.0
+#        if: ${{ failure() && steps.frontend-change.outputs.status == 1 && (github.ref_name == 'beta' || github.ref_name == 'master' ) }}
+#        env:
+#          SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
+#          SLACK_ICON_EMOJI: 👿
+#          SLACK_WEBHOOK: ${{ secrets.SLACK_CI_FRONTEND_WEBHOOK }}
+#          SLACK_FOOTER: ""

@@ -1,5 +1,6 @@
 name: Notifications
 
+
 on:
   workflow_run:
     workflows: ["Backend CI", "Frontend CI"]
