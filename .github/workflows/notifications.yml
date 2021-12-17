@@ -10,7 +10,7 @@ on:
       - master
       - beta
     types:
-      - completed
+      - requested
 
 
 jobs:
@@ -48,13 +48,13 @@ jobs:
       #      - name: Fail
       #        run: failhere
 
-#      - name: Check Previous status on this branch
-#        id: check-ci
-#        uses: LASER-Yi/workflow-status@v0.0.2
-#        with:
-#          token: ${{ secrets.GITHUB_TOKEN }}
-#          workflow: experiments.yml
-#          branch: ${{ github.ref_name }}
+      - name: Check Previous status on this branch
+        id: check-ci
+        uses: LASER-Yi/workflow-status@v0.0.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: backend-ci.yml
+          branch: ${{ github.ref_name }}
 
 #      - name: Notify to Slack on Errors
 #        uses: rtCamp/action-slack-notify@v2.2.0
