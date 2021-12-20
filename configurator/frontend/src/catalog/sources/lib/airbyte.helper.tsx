@@ -156,7 +156,7 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
           ([fieldName, fieldNode]) => !!fieldNode["const"]
         )
         const options = optionsEntries.map(([_, childNode]) => childNode["properties"]?.[optionsFieldName]?.["const"])
-        const defaultAuthOption = options.find(option => option.toLowerCase?.().includes('oauth'))
+        const defaultAuthOption = options.find(option => option.toLowerCase?.().includes("oauth"))
         const defaultOption = defaultAuthOption ?? options[0]
         const mappedSelectionField: Parameter = {
           displayName: name,
