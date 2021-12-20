@@ -19,13 +19,13 @@ func (d *Dummy) GetEventsWithGranularity(namespace, status, eventType string, id
 	return nil, nil
 }
 
-func (d *Dummy) AddEvent(destinationID, eventID, payload string, now time.Time) (int, error) {
-	return 0, nil
+func (d *Dummy) AddEvent(destinationID, eventID, payload string, now time.Time) error {
+	return nil
 }
 func (d *Dummy) UpdateSucceedEvent(destinationID, eventID, success string) error { return nil }
 func (d *Dummy) UpdateErrorEvent(destinationID, eventID, error string) error     { return nil }
 func (d *Dummy) UpdateSkipEvent(destinationID, eventID, error string) error      { return nil }
-func (d *Dummy) RemoveLastEvent(destinationID string) error                      { return nil }
+func (d *Dummy) TrimEvents(destinationID string, capacity int) error             { return nil }
 
 func (d *Dummy) GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error) {
 	return []Event{}, nil

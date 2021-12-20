@@ -138,7 +138,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		recognitionService:               dummyRecognitionService,
 		destinationService:               destinationService,
 		systemService:                    systemService,
-		eventsCache:                      caching.NewEventsCache(true, metaStorage, 100, 1),
+		eventsCache:                      caching.NewEventsCache(true, metaStorage, 100, 1, 100),
 		geoService:                       geo.NewTestService(nil),
 	}
 }
@@ -169,7 +169,7 @@ func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
 
 	sb.metaStorage = metaStorage
 
-	sb.eventsCache = caching.NewEventsCache(true, metaStorage, 100, 1)
+	sb.eventsCache = caching.NewEventsCache(true, metaStorage, 100, 1, 100)
 	return sb
 }
 
