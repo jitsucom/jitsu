@@ -64,7 +64,7 @@ export class FirebaseUserService implements UserService {
   initiateGithubLogin(): Promise<string> {
     const provider = new GithubAuthProvider()
     provider.setCustomParameters({
-      login: '',
+      login: "",
     })
     return new Promise<string>((resolve, reject) => {
       signInWithPopup(getAuth(), provider)
