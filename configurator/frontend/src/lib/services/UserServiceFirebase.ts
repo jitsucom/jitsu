@@ -76,7 +76,11 @@ export class FirebaseUserService implements UserService {
 
   initiateGoogleLogin(): Promise<string> {
     return new Promise<string>((resolve, reject) => {
-      signInWithPopup(getAuth(), new GoogleAuthProvider())
+      let provider = new GoogleAuthProvider()
+      provider.setCustomParameters({
+        prompt: "select_account",
+      })
+      signInWithPopup(getAuth(), provider)
         .then(a => {
           resolve(a.user.email)
           return a["additionalUserInfo"]?.isNewUser && this.trackSignup(a.user.email, "google")
