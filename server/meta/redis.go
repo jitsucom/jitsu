@@ -281,7 +281,7 @@ func (r *Redis) TrimEvents(destinationID string, capacity int) error {
 			r.errorMetrics.NoticeError(err)
 			return err
 		}
-		logging.Infof("ec destination: %s exceed by: %d", destinationID, len(values)/2)
+		logging.Debugf("[events cache] destination: %s exceed by: %d", destinationID, len(values)/2)
 
 		keys := make([]interface{}, 0, len(values))
 		for i, eventID := range values {
@@ -294,8 +294,7 @@ func (r *Redis) TrimEvents(destinationID string, capacity int) error {
 			r.errorMetrics.NoticeError(err)
 			return err
 		}
-		logging.Infof("ec destination: %s deleted: %d", destinationID, count)
-
+		logging.Debugf("[events cache] destination: %s deleted: %d", destinationID, count)
 	}
 	return nil
 }
