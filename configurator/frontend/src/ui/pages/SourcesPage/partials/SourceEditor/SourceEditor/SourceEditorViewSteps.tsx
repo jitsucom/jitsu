@@ -12,7 +12,6 @@ import { useState } from "react"
 import { Steps } from "antd"
 import { SourceEditorStepsControlsDisabled, SourceEditorViewStepsControls } from "./SourceEditorViewStepsControls"
 import { LoadingOutlined } from "@ant-design/icons"
-import { uniqueId } from "lodash"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 
 type SourceEditorTabsViewProps = {

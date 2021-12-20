@@ -66,7 +66,6 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   setConfigIsValidatedByStreams,
 }) => {
   const services = useServices()
-  const forceUpdate = useForceUpdate()
   const [forms, setForms] = useState<Forms>({})
 
   const [fillAuthDataManually, setFillAuthDataManually] = useState<boolean>(true)
@@ -108,6 +107,15 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           invisibleStaticFields: {
             "config.tap": tapId,
           },
+        }
+      default:
+        // native source
+        const id = sourceDataFromCatalog.id
+        return {
+          backendId: id,
+          hideOauthFields: true,
+          onlyManualAuth: false,
+          configurableFields: sourceDataFromCatalog.configParameters,
         }
     }
   }, [])
@@ -190,13 +198,13 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   const isLoadingOauth = !isOauthStatusReady || isLoadingBackendSecrets
 
   useEffect(() => {
-    if (isLoadingOauth) handleSetControlsDisabled(true, "oauth")
-    else if (sourceConfigurationSchema.onlyManualAuth) handleSetControlsDisabled(false, "oauth")
-    else if (fillAuthDataManually) handleSetControlsDisabled(false, "oauth")
-    else if (editorMode === "edit") handleSetControlsDisabled(false, "oauth")
+    if (sourceConfigurationSchema.onlyManualAuth) return
+    else if (isLoadingOauth) handleSetControlsDisabled(true, "byOauthFlow")
+    else if (fillAuthDataManually) handleSetControlsDisabled(false, "byOauthFlow")
+    else if (editorMode === "edit") handleSetControlsDisabled(false, "byOauthFlow")
     else if (!isOauthFlowCompleted)
-      handleSetControlsDisabled("Please, either grant Jitsu access or fill auth credentials manually", "oauth")
-    else handleSetControlsDisabled(false, "oauth")
+      handleSetControlsDisabled("Please, either grant Jitsu access or fill auth credentials manually", "byOauthFlow")
+    else handleSetControlsDisabled(false, "byOauthFlow")
   }, [isLoadingOauth, fillAuthDataManually, isOauthFlowCompleted])
 
   return (

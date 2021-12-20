@@ -39,24 +39,6 @@ export const sourceEditorUtils = {
     return updatedSourceData
   },
 
-  streamDataToSelectedStreamsMapper: (streamData: StreamData): StreamConfig => {
-    if (sourceEditorUtils.isAirbyteStream(streamData)) {
-      streamData = streamData as AirbyteStreamData
-      return {
-        name: streamData.stream.name,
-        namespace: streamData.stream.namespace,
-        sync_mode: streamData.sync_mode,
-      }
-    } else if (sourceEditorUtils.isSingerStream(streamData)) {
-      streamData = streamData as SingerStreamData
-      return {
-        name: streamData.stream,
-        namespace: streamData.tap_stream_id,
-        sync_mode: "",
-      }
-    }
-  },
-
   /** Reformat old catalog (full schema JSON) into SelectedStreams and always remove old format*/
   reformatCatalogIntoSelectedStreams: (sourceData: SourceData): SourceData => {
     if (!sourceData?.config?.selected_streams?.length) {
@@ -100,6 +82,24 @@ export const sourceEditorUtils = {
       return airbyteData.sync_mode
     } else if (sourceEditorUtils.isSingerStream(data)) {
       return ""
+    }
+  },
+
+  streamDataToSelectedStreamsMapper: (streamData: StreamData): StreamConfig => {
+    if (sourceEditorUtils.isAirbyteStream(streamData)) {
+      streamData = streamData as AirbyteStreamData
+      return {
+        name: streamData.stream.name,
+        namespace: streamData.stream.namespace,
+        sync_mode: streamData.sync_mode,
+      }
+    } else if (sourceEditorUtils.isSingerStream(streamData)) {
+      streamData = streamData as SingerStreamData
+      return {
+        name: streamData.stream,
+        namespace: streamData.tap_stream_id,
+        sync_mode: "",
+      }
     }
   },
 

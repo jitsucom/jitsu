@@ -34,9 +34,10 @@ export const SourceEditorSwitch: React.FC<CommonSourcePageProps> = props => {
       : undefined
   }, [source, sourceId])
 
-  return connectorSource.protoType === "airbyte" || connectorSource.protoType === "singer" ? (
-    <SourceEditorNew {...props} />
-  ) : (
-    <SourceEditorLegacy {...props} /> // Legacy
-  )
+  // return connectorSource.protoType === "airbyte" || connectorSource.protoType === "singer" ? (
+  //   <SourceEditorNew {...props} />
+  // ) : (
+  //   <SourceEditorLegacy {...props} />
+  // )
+  return <SourceEditorNew {...props} />
 }
