@@ -91,8 +91,8 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
         const airbyteId = sourceDataFromCatalog.id.replace("airbyte-", "")
         return {
           backendId: airbyteId,
-          hideOauthFields: false,
-          onlyManualAuth: true,
+          hideOauthFields: true,
+          onlyManualAuth: false,
           loadableFieldsEndpoint: "test",
           invisibleStaticFields: {
             "config.docker_image": sourceDataFromCatalog.id.replace("airbyte-", ""),
