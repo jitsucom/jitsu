@@ -222,38 +222,36 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           onFillAuthDataManuallyChange={handleFillAuthDataManuallyChange}
           setOauthSecretsToForms={setOauthSecretsToForms}
         />
-        <fieldset key={key} disabled={disabled}>
-          <SourceEditorFormConfigurationStaticFields
-            editorMode={editorMode}
+        <SourceEditorFormConfigurationStaticFields
+          editorMode={editorMode}
+          initialValues={initialSourceData}
+          patchConfig={patchConfig}
+          setValidator={setStaticFieldsValidator}
+          setFormReference={setFormReference}
+        />
+        {sourceConfigurationSchema.configurableFields && (
+          <SourceEditorFormConfigurationConfigurableFields
             initialValues={initialSourceData}
+            configParameters={sourceConfigurationSchema.configurableFields}
+            availableOauthBackendSecrets={availableBackendSecrets}
+            hideFields={hideFields}
             patchConfig={patchConfig}
-            setValidator={setStaticFieldsValidator}
+            setValidator={setConfigurableFieldsValidator}
             setFormReference={setFormReference}
           />
-          {sourceConfigurationSchema.configurableFields && (
-            <SourceEditorFormConfigurationConfigurableFields
-              initialValues={initialSourceData}
-              configParameters={sourceConfigurationSchema.configurableFields}
-              availableOauthBackendSecrets={availableBackendSecrets}
-              hideFields={hideFields}
-              patchConfig={patchConfig}
-              setValidator={setConfigurableFieldsValidator}
-              setFormReference={setFormReference}
-            />
-          )}
-          {sourceConfigurationSchema.loadableFieldsEndpoint && (
-            <SourceEditorFormConfigurationConfigurableLoadableFields
-              initialValues={initialSourceData}
-              sourceDataFromCatalog={sourceDataFromCatalog}
-              availableOauthBackendSecrets={availableBackendSecrets}
-              hideFields={hideFields}
-              patchConfig={patchConfig}
-              handleSetControlsDisabled={handleSetControlsDisabled}
-              setValidator={setConfigurableLoadableFieldsValidator}
-              setFormReference={setFormReference}
-            />
-          )}
-        </fieldset>
+        )}
+        {sourceConfigurationSchema.loadableFieldsEndpoint && (
+          <SourceEditorFormConfigurationConfigurableLoadableFields
+            initialValues={initialSourceData}
+            sourceDataFromCatalog={sourceDataFromCatalog}
+            availableOauthBackendSecrets={availableBackendSecrets}
+            hideFields={hideFields}
+            patchConfig={patchConfig}
+            handleSetControlsDisabled={handleSetControlsDisabled}
+            setValidator={setConfigurableLoadableFieldsValidator}
+            setFormReference={setFormReference}
+          />
+        )}
       </div>
     </>
   )

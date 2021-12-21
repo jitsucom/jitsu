@@ -17,8 +17,8 @@ import { PageHeader } from "ui/components/PageHeader/PageHeader"
 import { createInitialSourceData, sourceEditorUtils } from "./SourceEditor.utils"
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 import { firstToLower } from "lib/commons/utils"
-import { SourceEditorViewSteps } from "./SourceEditorViewSteps"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+import { SourceEditorView } from "./SourceEditorView"
 // @Utils
 
 export type SourceEditorState = {
@@ -44,13 +44,13 @@ export type SetSourceEditorState = React.Dispatch<React.SetStateAction<SourceEdi
 
 type ConfigurationState = {
   config: SourceConfigurationData
-  getErrorsCount: () => Promise<number>
+  validateGetErrorsCount: () => Promise<number>
   errorsCount: number
 }
 
 type StreamsState = {
-  // deprecated
-  streams: SourceStreamsData
+  /** @deprecated use `selectedStreams` instead */
+  streams?: SourceStreamsData
   selectedStreams: SourceSelectedStreams
   errorsCount: number
 }
@@ -78,7 +78,7 @@ export type UpdateConfigurationFields = (newFileds: Partial<SourceConfigurationD
 const initialState: SourceEditorState = {
   configuration: {
     config: {},
-    getErrorsCount: async () => 0,
+    validateGetErrorsCount: async () => 0,
     errorsCount: 0,
   },
   streams: {
@@ -155,7 +155,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   }
 
   const validateCountErrors = async (): Promise<number> => {
-    const configurationErrorsCount = await state.configuration.getErrorsCount()
+    const configurationErrorsCount = await state.configuration.validateGetErrorsCount()
 
     setState(state => {
       const newState = cloneDeep(state)
@@ -189,6 +189,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       return { ...state, stateChanged: false }
     })
     const sourceData = handleBringSourceData()
+    debugger
     const testConnectionResults = await sourcePageUtils.testConnection(sourceData, true)
 
     const sourceDataToSave: SourceData = {
@@ -240,7 +241,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   }, [editorMode, sourceDataFromCatalog, setBreadcrumbs])
 
   return (
-    <SourceEditorViewSteps
+    <SourceEditorView
       state={state}
       controlsDisabled={controlsDisabled}
       editorMode={editorMode}
