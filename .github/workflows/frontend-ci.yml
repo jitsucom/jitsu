@@ -21,11 +21,12 @@ jobs:
       - name: Check whether frontend code was changed
         id: frontend-change
         working-directory: ./configurator/frontend
-        run: git diff @~..@ --quiet ./ || echo ::set-output name=status::1
+        run: echo ::set-output name=status::1
+#        run: git diff @~..@ --quiet ./ || echo ::set-output name=status::1
       - name: Frontend changed status
         env:
           FRONTEND_CHANGED: ${{ steps.frontend-change.outputs.status }}
-        run: echo Frontend changed - $FRONTEND_CHANGED
+        run: echo TMP WORKAROUND - now it always "changed". Frontend changed - $FRONTEND_CHANGED
       - uses: actions/setup-node@v2
         if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
         with:

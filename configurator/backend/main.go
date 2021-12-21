@@ -302,7 +302,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 		apiV1.GET("/configurations/:collection", authenticatorMiddleware.ClientProjectAuth(enConfigurationsHandler.GetConfig))
 		apiV1.POST("/configurations/:collection", authenticatorMiddleware.ClientProjectAuth(enConfigurationsHandler.StoreConfig))
 
-		apiV1.GET("/system/configuration", handlers.NewSystemHandler(authService, configurationsService, emailService.IsConfigured(), viper.GetBool("server.self_hosted"), *dockerHubID).GetHandler)
+		apiV1.GET("/system/configuration", handlers.NewSystemHandler(authService, configurationsService, emailService.IsConfigured(), viper.GetBool("server.self_hosted"), *dockerHubID, tag, builtAt).GetHandler)
 		apiV1.GET("/system/version", func(c *gin.Context) {
 			c.JSON(http.StatusOK, Version{tag, builtAt})
 		})
