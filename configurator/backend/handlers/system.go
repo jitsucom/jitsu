@@ -15,6 +15,8 @@ type SystemHandler struct {
 	smtp                 bool
 	selfHosted           bool
 	dockerHubID          string
+	tag                  string
+	builtAt              string
 }
 
 type ConfigurationResponse struct {
@@ -22,13 +24,15 @@ type ConfigurationResponse struct {
 }
 
 func NewSystemHandler(authService *authorization.Service, configurationService *storages.ConfigurationsService,
-	smtp, selfHosted bool, dockerHubID string) *SystemHandler {
+	smtp, selfHosted bool, dockerHubID string, tag string, buildAt string) *SystemHandler {
 	return &SystemHandler{
 		authService:          authService,
 		configurationService: configurationService,
 		smtp:                 smtp,
 		selfHosted:           selfHosted,
 		dockerHubID:          dockerHubID,
+		tag:                  tag,
+		builtAt:              buildAt,
 	}
 }
 
@@ -65,6 +69,8 @@ func (sh *SystemHandler) GetHandler(c *gin.Context) {
 		TelemetryUsageDisabled: telemetryUsageDisabled,
 		ShowBecomeUser:         !sh.selfHosted,
 		DockerHubID:            sh.dockerHubID,
+		Tag:                    sh.tag,
+		BuiltAt:                sh.builtAt,
 	}
 
 	c.JSON(http.StatusOK, currentConfiguration)
