@@ -52,6 +52,7 @@ type StreamsState = {
   /** @deprecated use `selectedStreams` instead */
   streams?: SourceStreamsData
   selectedStreams: SourceSelectedStreams
+  validateGetErrorsCount: () => Promise<number>
   errorsCount: number
 }
 
@@ -84,6 +85,7 @@ const initialState: SourceEditorState = {
   streams: {
     streams: {},
     selectedStreams: {},
+    validateGetErrorsCount: async () => 0,
     errorsCount: 0,
   },
   connections: {
@@ -156,19 +158,21 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
 
   const validateCountErrors = async (): Promise<number> => {
     const configurationErrorsCount = await state.configuration.validateGetErrorsCount()
+    const streamsErrorsCount = await state.streams.validateGetErrorsCount()
 
     setState(state => {
       const newState = cloneDeep(state)
       newState.configuration.errorsCount = configurationErrorsCount
+      newState.streams.errorsCount = streamsErrorsCount
       return newState
     })
 
-    return configurationErrorsCount
+    return configurationErrorsCount + streamsErrorsCount
   }
 
-  const handleValidateAndTestConfig = async () => {
+  const handleValidateAndTestConfig = async (): Promise<void> => {
     const someFieldsErrored = !!(await validateCountErrors())
-    if (someFieldsErrored) throw new Error("Some configuration fields values are invalid")
+    if (someFieldsErrored) throw new Error("some values are invalid")
 
     const controlsDisableRequestId = uniqueId("validateAndTest-")
     handleSetControlsDisabled("Validating source configuration", controlsDisableRequestId)
@@ -182,6 +186,11 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     }
   }
 
+  const handleValidateStreams = async (): Promise<void> => {
+    const streamsErrorsCount = await state.streams.validateGetErrorsCount()
+    if (streamsErrorsCount) throw new Error("some streams settings are invalid")
+  }
+
   const handleSave = useCallback<AsyncVoidFunction>(async () => {
     let sourceEditorState = null
     setState(state => {
@@ -189,7 +198,15 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       return { ...state, stateChanged: false }
     })
     const sourceData = handleBringSourceData()
-    debugger
+
+    if (editorMode === "edit") {
+      const someFieldsErrored = !!(await validateCountErrors())
+      if (someFieldsErrored) {
+        actionNotification.error("Some values are invalid")
+        return
+      }
+    }
+
     const testConnectionResults = await sourcePageUtils.testConnection(sourceData, true)
 
     const sourceDataToSave: SourceData = {
@@ -258,6 +275,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       handleCompleteStep={handleCompleteStep}
       handleLeaveEditor={handleLeaveEditor}
       handleValidateAndTestConfig={handleValidateAndTestConfig}
+      handleValidateStreams={handleValidateStreams}
     />
   )
 }

@@ -36,7 +36,13 @@ export type PatchConfig = (
   key: string,
   allValues: PlainObjectWithPrimitiveValues,
   options?: {
+    /**
+     * Whether to tell the parent component to update the UI.
+     * Needed to distinguish the state updates caused by the user and updates made internally.
+     **/
     doNotSetStateChanged?: boolean
+    /** Whether to reset configuration tab errors count. False by default */
+    resetErrorsCount?: boolean
   }
 ) => void
 
@@ -78,7 +84,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   const [configurableLoadableFieldsValidator, setConfigurableLoadableFieldsValidator] =
     useState<ValidateGetErrorsCount>(initialValidator)
 
-  const [key, resetFormUi] = useUniqueKeyState() // pass a key to a component, then re-mount component by calling `resetFormUi`
+  const [resetKey, resetFormUi] = useUniqueKeyState() // pass a key to a component, then re-mount component by calling `resetFormUi`
 
   const setFormReference = useCallback<SetFormReference>((key, form, patchConfigOnFormValuesChange) => {
     setForms(forms => ({ ...forms, [key]: { form, patchConfigOnFormValuesChange } }))
@@ -161,6 +167,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
         configuration: { ...state.configuration, config: { ...state.configuration.config, [key]: allValues } },
       }
       if (!options?.doNotSetStateChanged) newState.stateChanged = true
+      if (options.resetErrorsCount) newState.configuration.errorsCount = 0
 
       setTabErrorsVisible?.(false)
       setConfigIsValidatedByStreams(false)
@@ -179,7 +186,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
 
     setSourceEditorState(state => {
       const newState = cloneDeep(state)
-      newState.configuration.getErrorsCount = validateConfigAndCountErrors
+      newState.configuration.validateGetErrorsCount = validateConfigAndCountErrors
       return newState
     })
   }, [staticFieldsValidator, configurableFieldsValidator, configurableLoadableFieldsValidator])
@@ -222,36 +229,38 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           onFillAuthDataManuallyChange={handleFillAuthDataManuallyChange}
           setOauthSecretsToForms={setOauthSecretsToForms}
         />
-        <SourceEditorFormConfigurationStaticFields
-          editorMode={editorMode}
-          initialValues={initialSourceData}
-          patchConfig={patchConfig}
-          setValidator={setStaticFieldsValidator}
-          setFormReference={setFormReference}
-        />
-        {sourceConfigurationSchema.configurableFields && (
-          <SourceEditorFormConfigurationConfigurableFields
+        <div key={resetKey}>
+          <SourceEditorFormConfigurationStaticFields
+            editorMode={editorMode}
             initialValues={initialSourceData}
-            configParameters={sourceConfigurationSchema.configurableFields}
-            availableOauthBackendSecrets={availableBackendSecrets}
-            hideFields={hideFields}
             patchConfig={patchConfig}
-            setValidator={setConfigurableFieldsValidator}
+            setValidator={setStaticFieldsValidator}
             setFormReference={setFormReference}
           />
-        )}
-        {sourceConfigurationSchema.loadableFieldsEndpoint && (
-          <SourceEditorFormConfigurationConfigurableLoadableFields
-            initialValues={initialSourceData}
-            sourceDataFromCatalog={sourceDataFromCatalog}
-            availableOauthBackendSecrets={availableBackendSecrets}
-            hideFields={hideFields}
-            patchConfig={patchConfig}
-            handleSetControlsDisabled={handleSetControlsDisabled}
-            setValidator={setConfigurableLoadableFieldsValidator}
-            setFormReference={setFormReference}
-          />
-        )}
+          {sourceConfigurationSchema.configurableFields && (
+            <SourceEditorFormConfigurationConfigurableFields
+              initialValues={initialSourceData}
+              configParameters={sourceConfigurationSchema.configurableFields}
+              availableOauthBackendSecrets={availableBackendSecrets}
+              hideFields={hideFields}
+              patchConfig={patchConfig}
+              setValidator={setConfigurableFieldsValidator}
+              setFormReference={setFormReference}
+            />
+          )}
+          {sourceConfigurationSchema.loadableFieldsEndpoint && (
+            <SourceEditorFormConfigurationConfigurableLoadableFields
+              initialValues={initialSourceData}
+              sourceDataFromCatalog={sourceDataFromCatalog}
+              availableOauthBackendSecrets={availableBackendSecrets}
+              hideFields={hideFields}
+              patchConfig={patchConfig}
+              handleSetControlsDisabled={handleSetControlsDisabled}
+              setValidator={setConfigurableLoadableFieldsValidator}
+              setFormReference={setFormReference}
+            />
+          )}
+        </div>
       </div>
     </>
   )
