@@ -88,14 +88,14 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
 
     const handleFormValuesChange = useCallback(
       (values: PlainObjectWithPrimitiveValues): void => {
-        patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
+        patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { resetErrorsCount: true })
       },
       [patchConfig]
     )
 
     const handleFormValuesChangeForm = useCallback<FormProps<PlainObjectWithPrimitiveValues>["onValuesChange"]>(
       (_, values) => {
-        patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
+        patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { resetErrorsCount: true })
       },
       [patchConfig]
     )

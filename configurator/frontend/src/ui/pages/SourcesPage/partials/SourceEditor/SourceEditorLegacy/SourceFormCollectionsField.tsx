@@ -49,7 +49,7 @@ const SourceFormCollectionsFieldComponent = ({ collection, field, documentation,
     if (collection.type.data?.maxOptions > 1) {
       rules.push({
         validator: (rule: Rule, value: string[]) =>
-          value?.length <= collection.type.data.maxOptions
+          (value?.length ?? 0) <= collection.type.data.maxOptions
             ? Promise.resolve()
             : Promise.reject(`You can select maximum ${collection.type.data?.maxOptions} options`),
       })

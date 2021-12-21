@@ -7,6 +7,7 @@ import { NavLink, generatePath } from "react-router-dom"
 import { taskLogsPageRoute } from "ui/pages/TaskLogs/TaskLogsPage"
 import { SourceConnector } from "catalog/sources/types"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+import { TabName } from "ui/components/Tabs/TabName"
 
 type Tab = {
   key: string
@@ -14,6 +15,7 @@ type Tab = {
   description: string
   render: React.ReactNode
   proceedButtonTitle?: string
+  errorsCount?: number
   proceedAction?: AsyncUnknownFunction
 }
 
@@ -69,9 +71,9 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
             <React.Fragment key={tab.key}>
               <Tabs.TabPane
                 key={tab.key}
-                tab={tab.title}
+                tab={<TabName name={tab.title} errorsCount={tab.errorsCount ?? 0} />}
+                // tab={tab.title}
                 forceRender
-                // tab={<TabName name={tab.name} errorsCount={tab.errorsCount} errorsLevel={tab.errorsLevel} />
               >
                 {tab.render}
               </Tabs.TabPane>

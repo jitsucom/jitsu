@@ -28,6 +28,7 @@ type SourceEditorViewProps = {
   handleCompleteStep: VoidFunction
   handleLeaveEditor: VoidFunction
   handleValidateAndTestConfig: AsyncUnknownFunction
+  handleValidateStreams: AsyncUnknownFunction
 }
 
 export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
@@ -47,12 +48,14 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
   handleCompleteStep,
   handleLeaveEditor,
   handleValidateAndTestConfig,
+  handleValidateStreams,
 }) => {
   const forms = [
     {
       key: "configuration",
       title: "Configuration",
       description: "Specify essential parameters",
+      errorsCount: state.configuration.errorsCount,
       render: (
         <SourceEditorFormConfiguration
           editorMode={editorMode}
@@ -69,6 +72,7 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
       key: "streams",
       title: "Streams",
       description: "Select data pipelines",
+      errorsCount: state.streams.errorsCount,
       render: (
         <SourceEditorFormStreams
           initialSourceData={initialSourceData}
@@ -80,6 +84,7 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
           handleBringSourceData={handleBringSourceData}
         />
       ),
+      proceedAction: handleValidateStreams,
     },
     {
       key: "connections",

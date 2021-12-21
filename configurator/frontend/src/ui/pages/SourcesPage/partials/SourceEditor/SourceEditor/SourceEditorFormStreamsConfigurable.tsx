@@ -1,5 +1,5 @@
 // @Libs
-import React, { ChangeEvent, useCallback, useRef, useState } from "react"
+import React, { ChangeEvent, useCallback, useEffect, useRef, useState } from "react"
 import { Button, Col, Collapse, Form, Input, Popover, Row } from "antd"
 // @Types
 import { CollectionParameter, CollectionTemplate, SourceConnector } from "catalog/sources/types"
@@ -64,7 +64,6 @@ const SourceEditorFormStreamsConfigurable = ({
 
   const getStream = useCallback(
     (index: number) => {
-      console.log(form.getFieldsValue().collections?.[index] ?? initialSourceData.collections[index])
       return form.getFieldsValue().collections?.[index] ?? initialSourceData.collections[index]
     },
     [initialSourceData.collections, form]
@@ -175,6 +174,27 @@ const SourceEditorFormStreamsConfigurable = ({
     },
     [form, , activePanel, setActivePanel, input]
   )
+
+  /**
+   * Pass form validator to the parent component
+   */
+  useEffect(() => {
+    const validateConfigAndCountErrors = async (): Promise<number> => {
+      let errorsCount = 0
+      try {
+        await form.validateFields()
+      } catch (error) {
+        errorsCount = +error?.errorFields?.length
+      }
+      return errorsCount
+    }
+
+    setSourceEditorState(state => {
+      const newState: SourceEditorState = { ...state, streams: { ...state.streams } }
+      newState.streams.validateGetErrorsCount = validateConfigAndCountErrors
+      return newState
+    })
+  }, [])
 
   return (
     <Form
@@ -359,7 +379,7 @@ const SourceEditorFormStreamsConfigurable = ({
                                       .includes(value)
 
                                     return isError
-                                      ? Promise.reject("Must be unique under the current collection")
+                                      ? Promise.reject("Name must be unique under the current collection")
                                       : Promise.resolve()
                                   },
                                 },
@@ -400,6 +420,10 @@ SourceEditorFormStreamsConfigurable.displayName = "SourceEditorFormStreamsConfig
 
 export { SourceEditorFormStreamsConfigurable }
 
+/**
+ * Helper function that passes the values to the parent
+ */
+
 const setSelectedStreams = (
   setSourceEditorState: SetSourceEditorState,
   sourceDataPath: string,
@@ -414,6 +438,7 @@ const setSelectedStreams = (
       streams: { ...state.streams, selectedStreams: { ...state.streams.selectedStreams } },
     }
     newState.streams.selectedStreams[sourceDataPath] = streams
+    newState.streams.errorsCount = 0
     if (!options?.doNotSetStateChanged) newState.stateChanged = true
     return newState
   })

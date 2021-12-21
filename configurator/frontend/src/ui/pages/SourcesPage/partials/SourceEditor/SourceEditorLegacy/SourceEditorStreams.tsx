@@ -7,8 +7,6 @@ import { ChangeEvent, useCallback, useRef, useState } from "react"
 import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined"
 import { CaretRightOutlined } from "@ant-design/icons"
 import DeleteOutlined from "@ant-design/icons/lib/icons/DeleteOutlined"
-import { LabelWithTooltip } from "../../../../../components/LabelWithTooltip/LabelWithTooltip"
-import { CodeInline } from "../../../../../../lib/components/components"
 import { SourceFormCollectionsField } from "./SourceFormCollectionsField"
 import { getUniqueAutoIncId, randomId } from "../../../../../../utils/numbers"
 import * as React from "react"
@@ -343,7 +341,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                                       .includes(value)
 
                                     return isError
-                                      ? Promise.reject("Must be unique under the current collection")
+                                      ? Promise.reject("Name must be unique under the current collection")
                                       : Promise.resolve()
                                   },
                                 },
