@@ -5,7 +5,7 @@ export DIST_DIR := ./build/dist/
 
 commit=`git rev-parse --short HEAD`
 built_at=`date -u +%FT%T.000000Z`
-branch=$(shell git branch --show-current)
+branch=$(shell git rev-parse --abbrev-ref HEAD)
 
 tag = $$( \
     case $(branch) in \
