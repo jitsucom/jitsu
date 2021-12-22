@@ -27,8 +27,6 @@ export type SourceEditorFormConfigurationProps = {
   disabled?: boolean
   setSourceEditorState: SetSourceEditorState
   handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
-  setTabErrorsVisible?: (value: boolean) => void
-  setConfigIsValidatedByStreams: (value: boolean) => void
 }
 
 export type ValidateGetErrorsCount = () => Promise<number>
@@ -68,8 +66,6 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   disabled,
   setSourceEditorState,
   handleSetControlsDisabled,
-  setTabErrorsVisible,
-  setConfigIsValidatedByStreams,
 }) => {
   const services = useServices()
   const [forms, setForms] = useState<Forms>({})
@@ -168,9 +164,6 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
       }
       if (!options?.doNotSetStateChanged) newState.stateChanged = true
       if (options.resetErrorsCount) newState.configuration.errorsCount = 0
-
-      setTabErrorsVisible?.(false)
-      setConfigIsValidatedByStreams(false)
 
       return newState
     })

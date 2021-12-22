@@ -10,20 +10,16 @@ import { SetSourceEditorState } from "./SourceEditor"
 type Props = {
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: SourceConnector
-  sourceConfigValidatedByStreamsTab: boolean
   setSourceEditorState: SetSourceEditorState
   handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
-  setConfigIsValidatedByStreams: (value: boolean) => void
   handleBringSourceData: () => SourceData
 }
 
 export const SourceEditorFormStreams: React.FC<Props> = ({
   initialSourceData,
   sourceDataFromCatalog,
-  sourceConfigValidatedByStreamsTab,
   setSourceEditorState,
   handleSetControlsDisabled,
-  setConfigIsValidatedByStreams,
   handleBringSourceData,
 }) => {
   const isNativeSource: boolean = !sourceDataFromCatalog.protoType
@@ -37,10 +33,8 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
     <SourceEditorFormStreamsLoadable
       initialSourceData={initialSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
-      sourceConfigValidatedByStreamsTab={sourceConfigValidatedByStreamsTab}
       setSourceEditorState={setSourceEditorState}
       handleSetControlsDisabled={handleSetControlsDisabled}
-      setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
       handleBringSourceData={handleBringSourceData}
     />
   )
