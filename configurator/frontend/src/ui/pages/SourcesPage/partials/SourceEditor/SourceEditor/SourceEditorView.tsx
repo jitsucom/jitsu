@@ -6,7 +6,12 @@ import { SourceEditorFormConnections } from "./SourceEditorFormConnections"
 import { SourceEditorDocumentationDrawer } from "./SourceEditorDocumentationDrawer"
 // @Types
 import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
-import { SetSourceEditorState, SourceEditorState } from "./SourceEditor"
+import {
+  SetSourceEditorDisabledTabs,
+  SetSourceEditorState,
+  SourceEditorDisabledTabs,
+  SourceEditorState,
+} from "./SourceEditor"
 import { SourceEditorControlsDisabled } from "./SourceEditorViewControls"
 import { SourceEditorViewSteps } from "./SourceEditorViewSteps"
 import { SourceEditorViewTabs } from "./SourceEditorViewTabs"
@@ -14,12 +19,14 @@ import { SourceEditorViewTabs } from "./SourceEditorViewTabs"
 type SourceEditorViewProps = {
   state: SourceEditorState
   controlsDisabled: SourceEditorControlsDisabled
+  tabsDisabled: SourceEditorDisabledTabs
   editorMode: "add" | "edit"
   showDocumentationDrawer: boolean
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
   setSourceEditorState: SetSourceEditorState
   handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
+  handleSetTabsDisabled: SetSourceEditorDisabledTabs
   setShowDocumentationDrawer: (value: boolean) => void
   handleBringSourceData: () => SourceData
   handleSave: AsyncUnknownFunction
@@ -32,12 +39,14 @@ type SourceEditorViewProps = {
 export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
   state,
   controlsDisabled,
+  tabsDisabled,
   editorMode,
   showDocumentationDrawer,
   initialSourceData,
   sourceDataFromCatalog,
   setSourceEditorState,
   handleSetControlsDisabled,
+  handleSetTabsDisabled,
   setShowDocumentationDrawer,
   handleBringSourceData,
   handleSave,
@@ -59,6 +68,7 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
           sourceDataFromCatalog={sourceDataFromCatalog}
           setSourceEditorState={setSourceEditorState}
           handleSetControlsDisabled={handleSetControlsDisabled}
+          handleSetTabsDisabled={handleSetTabsDisabled}
         />
       ),
       proceedAction: handleValidateAndTestConfig,
@@ -70,6 +80,7 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
       errorsCount: state.streams.errorsCount,
       render: (
         <SourceEditorFormStreams
+          editorMode={editorMode}
           initialSourceData={initialSourceData}
           sourceDataFromCatalog={sourceDataFromCatalog}
           setSourceEditorState={setSourceEditorState}
@@ -106,6 +117,7 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
       ) : (
         <SourceEditorViewTabs
           tabs={forms}
+          tabsDisabled={tabsDisabled}
           sourceDataFromCatalog={sourceDataFromCatalog}
           controlsDisabled={controlsDisabled}
           handleSave={handleSave}

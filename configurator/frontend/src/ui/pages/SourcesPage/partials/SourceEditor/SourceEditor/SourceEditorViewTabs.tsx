@@ -8,6 +8,7 @@ import { taskLogsPageRoute } from "ui/pages/TaskLogs/TaskLogsPage"
 import { SourceConnector } from "catalog/sources/types"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { TabName } from "ui/components/Tabs/TabName"
+import { SourceEditorDisabledTabs } from "./SourceEditor"
 
 type Tab = {
   key: string
@@ -21,6 +22,7 @@ type Tab = {
 
 type SourceEditorViewTabsProps = {
   tabs: Tab[]
+  tabsDisabled: SourceEditorDisabledTabs
   sourceDataFromCatalog: SourceConnector
   controlsDisabled: SourceEditorControlsDisabled
   handleSave: AsyncUnknownFunction
@@ -31,6 +33,7 @@ type SourceEditorViewTabsProps = {
 
 export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
   tabs,
+  tabsDisabled,
   sourceDataFromCatalog,
   controlsDisabled,
   handleSave,
@@ -72,7 +75,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
               <Tabs.TabPane
                 key={tab.key}
                 tab={<TabName name={tab.title} errorsCount={tab.errorsCount ?? 0} />}
-                disabled={!!controlsDisabled}
+                disabled={tabsDisabled?.has(tab.key)}
               >
                 {tab.render}
               </Tabs.TabPane>
