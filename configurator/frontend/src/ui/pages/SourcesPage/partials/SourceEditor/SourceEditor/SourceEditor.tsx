@@ -124,7 +124,6 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
 
   const [controlsDisabled, setControlsDisabled] = useState<boolean | string>(false)
   const [showDocumentation, setShowDocumentation] = useState<boolean>(false)
-  const [configIsValidatedByStreams, setConfigIsValidatedByStreams] = useState<boolean>(false)
 
   const handleSetControlsDisabled = useCallback((disabled: boolean | string, disableRequestId: string): void => {
     const tooltipMessage: string | undefined = typeof disabled === "string" ? disabled : undefined
@@ -265,10 +264,8 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       showDocumentationDrawer={showDocumentation}
       initialSourceData={initialSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
-      configIsValidatedByStreams={configIsValidatedByStreams}
       setSourceEditorState={setState}
       handleSetControlsDisabled={handleSetControlsDisabled}
-      setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
       setShowDocumentationDrawer={setShowDocumentation}
       handleBringSourceData={handleBringSourceData}
       handleSave={handleSave}

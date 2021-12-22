@@ -5,7 +5,6 @@ import { observer } from "mobx-react-lite"
 import { sourcesPageRoutes } from "./SourcesPage.routes"
 // @Components
 import { SourcesList } from "./partials/SourcesList/SourcesList"
-import { SourceEditorSwitch } from "./partials/SourceEditor/SourceEditorSwitch"
 import { AddSourceDialog } from "./partials/AddSourceDialog/AddSourceDialog"
 import { CenteredError, CenteredSpin } from "lib/components/components"
 // @Store

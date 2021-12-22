@@ -72,8 +72,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
               <Tabs.TabPane
                 key={tab.key}
                 tab={<TabName name={tab.title} errorsCount={tab.errorsCount ?? 0} />}
-                // tab={tab.title}
-                forceRender
+                disabled={!!controlsDisabled}
               >
                 {tab.render}
               </Tabs.TabPane>

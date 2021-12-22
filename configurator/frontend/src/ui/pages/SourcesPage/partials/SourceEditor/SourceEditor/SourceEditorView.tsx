@@ -18,10 +18,8 @@ type SourceEditorViewProps = {
   showDocumentationDrawer: boolean
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
-  configIsValidatedByStreams: boolean
   setSourceEditorState: SetSourceEditorState
   handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
-  setConfigIsValidatedByStreams: (value: boolean) => void
   setShowDocumentationDrawer: (value: boolean) => void
   handleBringSourceData: () => SourceData
   handleSave: AsyncUnknownFunction
@@ -38,10 +36,8 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
   showDocumentationDrawer,
   initialSourceData,
   sourceDataFromCatalog,
-  configIsValidatedByStreams,
   setSourceEditorState,
   handleSetControlsDisabled,
-  setConfigIsValidatedByStreams,
   setShowDocumentationDrawer,
   handleBringSourceData,
   handleSave,
@@ -63,7 +59,6 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
           sourceDataFromCatalog={sourceDataFromCatalog}
           setSourceEditorState={setSourceEditorState}
           handleSetControlsDisabled={handleSetControlsDisabled}
-          setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
         />
       ),
       proceedAction: handleValidateAndTestConfig,
@@ -77,10 +72,8 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
         <SourceEditorFormStreams
           initialSourceData={initialSourceData}
           sourceDataFromCatalog={sourceDataFromCatalog}
-          sourceConfigValidatedByStreamsTab={configIsValidatedByStreams}
           setSourceEditorState={setSourceEditorState}
           handleSetControlsDisabled={handleSetControlsDisabled}
-          setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
           handleBringSourceData={handleBringSourceData}
         />
       ),
