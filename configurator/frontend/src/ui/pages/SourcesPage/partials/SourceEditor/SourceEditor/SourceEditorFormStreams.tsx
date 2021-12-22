@@ -8,6 +8,7 @@ import { SourceConnector } from "catalog/sources/types"
 import { SetSourceEditorState } from "./SourceEditor"
 
 type Props = {
+  editorMode: "add" | "edit"
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: SourceConnector
   setSourceEditorState: SetSourceEditorState
@@ -16,6 +17,7 @@ type Props = {
 }
 
 export const SourceEditorFormStreams: React.FC<Props> = ({
+  editorMode,
   initialSourceData,
   sourceDataFromCatalog,
   setSourceEditorState,
@@ -31,6 +33,7 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
     />
   ) : (
     <SourceEditorFormStreamsLoadable
+      editorMode={editorMode}
       initialSourceData={initialSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
       setSourceEditorState={setSourceEditorState}

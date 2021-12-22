@@ -16,14 +16,17 @@ import { toTitleCase } from "utils/strings"
 import { mapAirbyteSpecToSourceConnectorConfig } from "catalog/sources/lib/airbyte.helper"
 import { memo, useCallback, useEffect, useMemo } from "react"
 import { uniqueId } from "lodash"
+import { SetSourceEditorDisabledTabs } from "./SourceEditor"
 
 type Props = {
+  editorMode: "add" | "edit"
   initialValues: Partial<SourceData>
   sourceDataFromCatalog: SourceConnector
   availableOauthBackendSecrets?: string[]
   hideFields?: string[]
   patchConfig: PatchConfig
   handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
+  handleSetTabsDisabled: SetSourceEditorDisabledTabs
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
   setFormReference: SetFormReference
 }
@@ -33,12 +36,14 @@ const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 
 export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> = memo(
   ({
+    editorMode,
     initialValues,
     sourceDataFromCatalog,
     availableOauthBackendSecrets,
     hideFields: _hideFields,
     patchConfig,
     handleSetControlsDisabled,
+    handleSetTabsDisabled,
     setValidator,
     setFormReference,
   }) => {
@@ -55,9 +60,11 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
           return {
             onBeforePollingStart: () => {
               handleSetControlsDisabled(true, controlsDisableRequestId)
+              editorMode === "edit" && handleSetTabsDisabled(["streams"], "disable")
             },
             onAfterPollingEnd: () => {
               handleSetControlsDisabled(false, controlsDisableRequestId)
+              editorMode === "edit" && handleSetTabsDisabled(["streams"], "enable")
             },
             pollingCallback: (end, fail) => async () => {
               try {

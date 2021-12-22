@@ -21,6 +21,7 @@ import {
 import { sourceEditorUtils } from "./SourceEditor.utils"
 
 type Props = {
+  editorMode: "add" | "edit"
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: SourceConnector
   setSourceEditorState: SetSourceEditorState
@@ -29,6 +30,7 @@ type Props = {
 }
 
 export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
+  editorMode,
   initialSourceData,
   sourceDataFromCatalog,
   setSourceEditorState,
@@ -60,24 +62,22 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
     error,
     reload: restartPolling,
   } = usePolling<StreamData[]>({
-    configure: () => {
-      return {
-        pollingCallback: (end, fail) => async () => {
-          try {
-            const result = await pullAllStreams(sourceDataFromCatalog, handleBringSourceData)
-            if (result !== undefined) end(result)
-          } catch (error) {
-            fail(error)
-          }
-        },
-        onBeforePollingStart: () => {
-          handleSetControlsDisabled("Loading streams list", controlsDisableRequestId)
-        },
-        onAfterPollingEnd: () => {
-          handleSetControlsDisabled(false, controlsDisableRequestId)
-        },
-      }
-    },
+    configure: () => ({
+      pollingCallback: (end, fail) => async () => {
+        try {
+          const result = await pullAllStreams(sourceDataFromCatalog, handleBringSourceData)
+          if (result !== undefined) end(result)
+        } catch (error) {
+          fail(error)
+        }
+      },
+      onBeforePollingStart: () => {
+        editorMode === "add" && handleSetControlsDisabled("Loading streams list", controlsDisableRequestId)
+      },
+      onAfterPollingEnd: () => {
+        handleSetControlsDisabled(false, controlsDisableRequestId)
+      },
+    }),
   })
 
   const selectAllFieldsByDefault: boolean = !Object.entries(previouslySelectedStreams).length

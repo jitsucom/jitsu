@@ -5,7 +5,7 @@ import { cloneDeep } from "lodash"
 import { FormInstance } from "antd"
 // @Types
 import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
-import { SetSourceEditorState, SourceEditorState } from "./SourceEditor"
+import { SetSourceEditorDisabledTabs, SetSourceEditorState, SourceEditorState } from "./SourceEditor"
 // @Components
 import { SourceEditorFormConfigurationStaticFields } from "./SourceEditorFormConfigurationStaticFields"
 import { SourceEditorFormConfigurationConfigurableLoadableFields } from "./SourceEditorFormConfigurationConfigurableLoadableFields"
@@ -16,7 +16,6 @@ import { useLoaderAsObject } from "hooks/useLoader"
 import { OAUTH_FIELDS_NAMES } from "constants/oauth"
 import { SourceEditorOauthButtons } from "../Common/SourceEditorOauthButtons/SourceEditorOauthButtons"
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
-import { useForceUpdate } from "hooks/useForceUpdate"
 import { useUniqueKeyState } from "hooks/useUniqueKeyState"
 import { FormSkeleton } from "ui/components/FormSkeleton/FormSkeleton"
 
@@ -27,6 +26,7 @@ export type SourceEditorFormConfigurationProps = {
   disabled?: boolean
   setSourceEditorState: SetSourceEditorState
   handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
+  handleSetTabsDisabled: SetSourceEditorDisabledTabs
 }
 
 export type ValidateGetErrorsCount = () => Promise<number>
@@ -66,6 +66,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   disabled,
   setSourceEditorState,
   handleSetControlsDisabled,
+  handleSetTabsDisabled,
 }) => {
   const services = useServices()
   const [forms, setForms] = useState<Forms>({})
@@ -243,12 +244,14 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           )}
           {sourceConfigurationSchema.loadableFieldsEndpoint && (
             <SourceEditorFormConfigurationConfigurableLoadableFields
+              editorMode={editorMode}
               initialValues={initialSourceData}
               sourceDataFromCatalog={sourceDataFromCatalog}
               availableOauthBackendSecrets={availableBackendSecrets}
               hideFields={hideFields}
               patchConfig={patchConfig}
               handleSetControlsDisabled={handleSetControlsDisabled}
+              handleSetTabsDisabled={handleSetTabsDisabled}
               setValidator={setConfigurableLoadableFieldsValidator}
               setFormReference={setFormReference}
             />

@@ -42,6 +42,10 @@ export type SourceEditorState = {
 
 export type SetSourceEditorState = React.Dispatch<React.SetStateAction<SourceEditorState>>
 
+export type SourceEditorDisabledTabs = Set<string>
+// export type SetSourceEditorDisabledTabs = React.Dispatch<React.SetStateAction<SourceEditorDisabledTabs>>
+export type SetSourceEditorDisabledTabs = (tabKeys: string[], action: "enable" | "disable") => void
+
 type ConfigurationState = {
   config: SourceConfigurationData
   validateGetErrorsCount: () => Promise<number>
@@ -123,6 +127,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   const [state, setState] = useState<SourceEditorState>(initialState)
 
   const [controlsDisabled, setControlsDisabled] = useState<boolean | string>(false)
+  const [tabsDisabled, setTabsDisabled] = useState<SourceEditorDisabledTabs>(null)
   const [showDocumentation, setShowDocumentation] = useState<boolean>(false)
 
   const handleSetControlsDisabled = useCallback((disabled: boolean | string, disableRequestId: string): void => {
@@ -144,6 +149,14 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
         setControlsDisabled(disabled)
       }
     }
+  }, [])
+
+  const handleSetTabsDisabled = useCallback<SetSourceEditorDisabledTabs>((tabKeys, action) => {
+    setTabsDisabled(state => {
+      const newState = new Set(state)
+      tabKeys.forEach(key => (action === "disable" ? newState.add(key) : newState.delete(key)))
+      return newState
+    })
   }, [])
 
   const handleBringSourceData = () => {
@@ -260,12 +273,14 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     <SourceEditorView
       state={state}
       controlsDisabled={controlsDisabled}
+      tabsDisabled={tabsDisabled}
       editorMode={editorMode}
       showDocumentationDrawer={showDocumentation}
       initialSourceData={initialSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
       setSourceEditorState={setState}
       handleSetControlsDisabled={handleSetControlsDisabled}
+      handleSetTabsDisabled={handleSetTabsDisabled}
       setShowDocumentationDrawer={setShowDocumentation}
       handleBringSourceData={handleBringSourceData}
       handleSave={handleSave}
