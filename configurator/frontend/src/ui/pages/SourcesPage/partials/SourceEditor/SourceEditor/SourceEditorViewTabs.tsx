@@ -8,7 +8,9 @@ import { taskLogsPageRoute } from "ui/pages/TaskLogs/TaskLogsPage"
 import { SourceConnector } from "catalog/sources/types"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { TabName } from "ui/components/Tabs/TabName"
-import { SourceEditorDisabledTabs } from "./SourceEditor"
+import { HandleSaveSource, HandleValidateTestConnection, SourceEditorDisabledTabs } from "./SourceEditor"
+import { ErrorDetailed } from "lib/commons/errors"
+import { uniqueId } from "lodash"
 
 type Tab = {
   key: string
@@ -25,8 +27,8 @@ type SourceEditorViewTabsProps = {
   tabsDisabled: SourceEditorDisabledTabs
   sourceDataFromCatalog: SourceConnector
   controlsDisabled: SourceEditorControlsDisabled
-  handleSave: AsyncUnknownFunction
-  handleValidateAndTestConfig: AsyncUnknownFunction
+  handleSave: HandleSaveSource
+  handleValidateAndTestConnection: HandleValidateTestConnection
   handleLeaveEditor: VoidFunction
   setShowDocumentationDrawer: (value: boolean) => void
 }
@@ -36,32 +38,85 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
   tabsDisabled,
   sourceDataFromCatalog,
   controlsDisabled,
-  handleSave,
-  handleValidateAndTestConfig,
+  handleSave: _handleSave,
+  handleValidateAndTestConnection,
   handleLeaveEditor,
   setShowDocumentationDrawer,
 }) => {
-  const [currentTab, setCurrentTab] = useState<number>(0)
+  const [currentTab, setCurrentTab] = useState<string>("configuration")
+  const [isSaving, setIsSaving] = useState<boolean>(false)
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false)
+  const [ignoreErrors, setIgnoreErrors] = useState<Set<string>>(new Set())
+
+  const [streamsTabKey, setStreamsTabKey] = useState<string>("streams")
+
+  const handleTabChange = useCallback((key: string) => setCurrentTab(key), [])
+
+  const handleSave = useCallback(async () => {
+    setIsSaving(true)
+    try {
+      await _handleSave({ ignoreErrors: [...ignoreErrors] })
+    } catch (error) {
+      handleConnectOrSaveError(error)
+    } finally {
+      setIsSaving(false)
+    }
+  }, [ignoreErrors, _handleSave])
 
   const handleTestConnection = useCallback(async () => {
     setIsTestingConnection(true)
     try {
-      await handleValidateAndTestConfig()
+      await handleValidateAndTestConnection({ ignoreErrors: [...ignoreErrors] })
+      actionNotification.success("Successfully connected")
     } catch (error) {
-      actionNotification.error(`${error}`)
+      handleConnectOrSaveError(error)
     } finally {
       setIsTestingConnection(false)
     }
-  }, [handleValidateAndTestConfig])
+  }, [ignoreErrors, handleValidateAndTestConnection])
+
+  const handleConnectOrSaveError = (error: unknown) => {
+    if (!(error instanceof ErrorDetailed)) {
+      actionNotification.error(`${error}`)
+      return
+    }
+    if (ignoreErrors.has(error.name)) return
+
+    switch (error.name) {
+      case "streams_changed": {
+        actionNotification.warn(
+          `Due to the configuration changes some of the previously selected streams are no longer available. Please, review your streams selection before saving.\nThe list of deleted streams: ${
+            error.payload.map?.(stream => stream?.name) ?? null
+          }`
+        )
+        setIgnoreErrors(state => {
+          const newState = new Set(state)
+          newState.add("streams_changed")
+          return newState
+        })
+        switchToAndReloadStreamsTab()
+        return
+      }
+      default: {
+        actionNotification.error(error.message)
+        return
+      }
+    }
+  }
+
+  const switchToAndReloadStreamsTab = () => {
+    const newStreamsTabKey = uniqueId("streams-")
+    setStreamsTabKey(newStreamsTabKey)
+    setCurrentTab(newStreamsTabKey)
+  }
 
   return (
     <div className={cn("flex flex-col items-stretch flex-grow-0 flex-shrink h-full min-h-0")}>
       <Tabs
         type="card"
         className={styles.tabCard}
-        // activeKey={"configuration"}
-        // onChange={onTabChange}
+        activeKey={currentTab}
+        onChange={handleTabChange}
         tabBarExtraContent={
           <TabsExtra
             sourceDataFromCatalog={sourceDataFromCatalog}
@@ -70,10 +125,11 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
         }
       >
         {tabs.map((tab: Tab) => {
+          const key = tab.key === "streams" ? streamsTabKey : tab.key
           return (
-            <React.Fragment key={tab.key}>
+            <React.Fragment key={key}>
               <Tabs.TabPane
-                key={tab.key}
+                key={key}
                 tab={<TabName name={tab.title} errorsCount={tab.errorsCount ?? 0} />}
                 disabled={tabsDisabled?.has(tab.key)}
               >
@@ -88,6 +144,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
         <SourceEditorViewControls
           mainButton={{
             title: "Save",
+            loading: isSaving,
             handleClick: handleSave,
           }}
           dashedButton={{

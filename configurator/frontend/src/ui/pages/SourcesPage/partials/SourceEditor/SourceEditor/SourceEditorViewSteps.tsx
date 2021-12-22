@@ -4,6 +4,7 @@ import { Steps } from "antd"
 import { SourceEditorControlsDisabled, SourceEditorViewControls } from "./SourceEditorViewControls"
 import { LoadingOutlined } from "@ant-design/icons"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+import { SetSourceEditorInitialSourceData } from "./SourceEditor"
 
 type Step = {
   key: string
@@ -17,20 +18,26 @@ type Step = {
 type SourceEditorTabsViewProps = {
   steps: Step[]
   controlsDisabled: SourceEditorControlsDisabled
-  handleCompleteStep: VoidFunction
+  handleBringSourceData: () => SourceData
+  setInitialSourceData: SetSourceEditorInitialSourceData
   handleLeaveEditor: VoidFunction
 }
 
 export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   steps,
   controlsDisabled,
-  handleCompleteStep,
+  handleBringSourceData,
+  setInitialSourceData,
   handleLeaveEditor,
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(0)
   const [currentStepIsLoading, setCurrentStepIsLoading] = useState<boolean>(false)
 
   const proceedButtonTitle = steps[currentStep].proceedButtonTitle ?? "Next"
+
+  const handleCompleteStep = () => {
+    setInitialSourceData(handleBringSourceData())
+  }
 
   const handleGoToNextStep: AsyncUnknownFunction = async () => {
     handleCompleteStep()
