@@ -8,6 +8,11 @@ import { SourceConnector } from "catalog/sources/types"
 import { makeObjectFromFieldsValues } from "utils/forms/marshalling"
 import { sourcesStore } from "stores/sources"
 import { COLLECTIONS_SCHEDULES } from "constants/schedule"
+import { useEffect } from "react"
+import { CommonSourcePageProps } from "ui/pages/SourcesPage/SourcesPage"
+import { withHome as breadcrumbsWithHome } from "ui/components/Breadcrumbs/Breadcrumbs"
+import { PageHeader } from "ui/components/PageHeader/PageHeader"
+import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 
 const STREAM_UID_DELIMITER = "__"
 
@@ -53,7 +58,7 @@ export const sourceEditorUtils = {
       }
     }
 
-    //remove massive catalog from config
+    //remove massive deprecated catalog from config
     if (sourceData?.["catalog"]) {
       delete sourceData["catalog"]
     }
@@ -138,3 +143,26 @@ export const createInitialSourceData = (sourceCatalogData: SourceConnector) =>
     connected: false,
     connectedErrorMessage: "",
   } as const)
+
+/** Hook for setting the Source Editor breadcrumbs */
+export const useBreadcrubmsEffect: UseBreadcrubmsEffect = parameters => {
+  useEffect(() => {
+    parameters.setBreadcrumbs(
+      breadcrumbsWithHome({
+        elements: [
+          { title: "Sources", link: sourcesPageRoutes.root },
+          {
+            title: (
+              <PageHeader
+                title={parameters.sourceDataFromCatalog?.displayName}
+                icon={parameters.sourceDataFromCatalog?.pic}
+                mode={parameters.editorMode}
+              />
+            ),
+          },
+        ],
+      })
+    )
+  }, [parameters.editorMode, parameters.sourceDataFromCatalog, parameters.setBreadcrumbs])
+}
+type UseBreadcrubmsEffect = (parameters: CommonSourcePageProps & { sourceDataFromCatalog: SourceConnector }) => void

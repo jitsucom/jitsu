@@ -7,7 +7,10 @@ import { SourceEditorDocumentationDrawer } from "./SourceEditorDocumentationDraw
 // @Types
 import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
 import {
+  HandleSaveSource,
+  HandleValidateTestConnection,
   SetSourceEditorDisabledTabs,
+  SetSourceEditorInitialSourceData,
   SetSourceEditorState,
   SourceEditorDisabledTabs,
   SourceEditorState,
@@ -29,10 +32,10 @@ type SourceEditorViewProps = {
   handleSetTabsDisabled: SetSourceEditorDisabledTabs
   setShowDocumentationDrawer: (value: boolean) => void
   handleBringSourceData: () => SourceData
-  handleSave: AsyncUnknownFunction
-  handleCompleteStep: VoidFunction
+  handleSave: HandleSaveSource
+  setInitialSourceData: SetSourceEditorInitialSourceData
   handleLeaveEditor: VoidFunction
-  handleValidateAndTestConfig: AsyncUnknownFunction
+  handleValidateAndTestConnection: HandleValidateTestConnection
   handleValidateStreams: AsyncUnknownFunction
 }
 
@@ -50,9 +53,9 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
   setShowDocumentationDrawer,
   handleBringSourceData,
   handleSave,
-  handleCompleteStep,
+  setInitialSourceData,
   handleLeaveEditor,
-  handleValidateAndTestConfig,
+  handleValidateAndTestConnection,
   handleValidateStreams,
 }) => {
   const forms = [
@@ -71,7 +74,7 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
           handleSetTabsDisabled={handleSetTabsDisabled}
         />
       ),
-      proceedAction: handleValidateAndTestConfig,
+      proceedAction: handleValidateAndTestConnection,
     },
     {
       key: "streams",
@@ -111,7 +114,8 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
         <SourceEditorViewSteps
           steps={forms}
           controlsDisabled={controlsDisabled}
-          handleCompleteStep={handleCompleteStep}
+          handleBringSourceData={handleBringSourceData}
+          setInitialSourceData={setInitialSourceData}
           handleLeaveEditor={handleLeaveEditor}
         />
       ) : (
@@ -121,7 +125,7 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
           sourceDataFromCatalog={sourceDataFromCatalog}
           controlsDisabled={controlsDisabled}
           handleSave={handleSave}
-          handleValidateAndTestConfig={handleValidateAndTestConfig}
+          handleValidateAndTestConnection={handleValidateAndTestConnection}
           handleLeaveEditor={handleLeaveEditor}
           setShowDocumentationDrawer={setShowDocumentationDrawer}
         />

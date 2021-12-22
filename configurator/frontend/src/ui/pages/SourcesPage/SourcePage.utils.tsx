@@ -15,6 +15,14 @@ import { Tab } from "ui/components/Tabs/TabsConfigurator"
 import { Poll } from "utils/polling"
 import { actionNotification } from "../../components/ActionNotification/ActionNotification"
 
+export type TestConnectionResponse = {
+  connected: boolean
+  connectedErrorType?: TestConnectionErrorType
+  connectedErrorMessage?: string
+  connectedErrorPayload?: any
+}
+type TestConnectionErrorType = "general" | "streams_changed"
+
 const sourcePageUtils = {
   getSourceType: (sourceConnector: SourceConnector) =>
     sourceConnector?.protoType ? sourceConnector?.protoType : snakeCase(sourceConnector?.id),
@@ -32,7 +40,12 @@ const sourcePageUtils = {
   getPromptMessage: (tabs: Tab[]) => () =>
     tabs.some(tab => tab.touched) ? "You have unsaved changes. Are you sure you want to leave the page?" : undefined,
 
-  testConnection: async (src: SourceData, hideMessage?: boolean) => {
+  testConnection: async (
+    src: SourceData,
+    hideMessage?: boolean,
+    _options?: { skipHandleError?: boolean }
+  ): Promise<TestConnectionResponse> => {
+    const options = _options ?? {}
     let connectionTestMessagePrefix: string | undefined
     try {
       const response = await ApplicationServices.get().backendApiClient.post("/sources/test", Marshal.toPureJson(src))
@@ -79,7 +92,9 @@ const sourcePageUtils = {
 
       return {
         connected: true,
+        connectedErrorType: undefined,
         connectedErrorMessage: undefined,
+        connectedErrorPayload: undefined,
       }
     } catch (error) {
       if (!hideMessage) {
@@ -87,12 +102,18 @@ const sourcePageUtils = {
         const prefixedMessage = connectionTestMessagePrefix
           ? `${connectionTestMessagePrefix}${message.toLowerCase()}`
           : message
-        handleError(error, prefixedMessage)
+        if (!options.skipHandleError) handleError(error, prefixedMessage)
       }
+
+      const errorType: TestConnectionErrorType = `${error}`.includes("selected streams unavailable")
+        ? "streams_changed"
+        : "general"
 
       return {
         connected: false,
+        connectedErrorType: errorType,
         connectedErrorMessage: error.message ?? "Failed to connect",
+        connectedErrorPayload: error._response?.payload,
       }
     }
   },
@@ -123,13 +144,7 @@ const sourcePageUtils = {
     })
 
     if (oauthFieldsSuccessfullySet.length > 0) {
-      // const secretsNamesSeparator = oauthFieldsSuccessfullySet.length === 2 ? " and " : ", "
-      actionNotification.success(
-        // `Successfully pasted ${oauthFieldsSuccessfullySet
-        //   .map(key => toTitleCase(key, { separator: "_" }))
-        //   .join(secretsNamesSeparator)}`
-        `Authorization Successful`
-      )
+      actionNotification.success(`Authorization Successful`)
       return true
     }
 
