@@ -314,7 +314,9 @@ export default class AnalyticsService {
   }
 
   onFailedAPI(param: ApiErrorInfo) {
-    let message = `[Jitsu] ${param.method.toUpperCase()} ${param.url} failed with ${param.responseStatus}`
+    let message = `[Jitsu] ${param.method.toUpperCase()} ${param.url} failed with ${
+      param.responseStatus
+    }:${JSON.stringify(param.responseObject)}`
     this.consoleInterceptor.error(message)
     if (!this.isDev()) {
       this.sendException(new ApiErrorWrapper(message, param))
