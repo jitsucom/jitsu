@@ -80,14 +80,27 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
     }),
   })
 
-  const selectAllFieldsByDefault: boolean = !Object.entries(previouslySelectedStreams).length
+  const selectAllFieldsByDefault: boolean = editorMode === "add"
 
-  const initiallySelectedFields = useMemo<Array<StreamConfig>>(() => {
-    return selectAllFieldsByDefault
+  const [initiallySelectedStreams, unavailableStreams] = useMemo<[StreamConfig[], StreamConfig[]]>(() => {
+    const unavailableStreams: StreamConfig[] = []
+    const initiallySelectedStreams = selectAllFieldsByDefault
       ? data
         ? data.map(sourceEditorUtils.streamDataToSelectedStreamsMapper)
         : []
+      : data
+      ? previouslySelectedStreams.filter(previouslySelectedStream => {
+          const streamIsAvailable = data.some(stream =>
+            sourceEditorUtils.streamsAreEqual(
+              sourceEditorUtils.streamDataToSelectedStreamsMapper(stream),
+              previouslySelectedStream
+            )
+          )
+          if (!streamIsAvailable) unavailableStreams.push(previouslySelectedStream)
+          return streamIsAvailable
+        })
       : previouslySelectedStreams
+    return [initiallySelectedStreams, unavailableStreams]
   }, [selectAllFieldsByDefault, previouslySelectedStreams, data])
 
   useEffect(() => {
@@ -101,13 +114,16 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
   return (
     <>
       {data && !error && !isLoading && (
-        <SourceEditorFormStreamsLoadableForm
-          allStreams={data}
-          initiallySelectedStreams={initiallySelectedFields}
-          selectAllFieldsByDefault={selectAllFieldsByDefault}
-          hide={isLoading || !!error}
-          setSourceEditorState={setSourceEditorState}
-        />
+        <>
+          {!!unavailableStreams.length && <StreamsUnavailableWarning unavailableStreams={unavailableStreams} />}
+          <SourceEditorFormStreamsLoadableForm
+            allStreams={data}
+            initiallySelectedStreams={initiallySelectedStreams}
+            selectAllFieldsByDefault={selectAllFieldsByDefault}
+            hide={isLoading || !!error}
+            setSourceEditorState={setSourceEditorState}
+          />
+        </>
       )}
       {isLoading ? (
         <Row>
@@ -146,5 +162,30 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
         </Row>
       ) : null}
     </>
+  )
+}
+
+const StreamsUnavailableWarning: React.FC<{ unavailableStreams: StreamConfig[] }> = ({ unavailableStreams }) => {
+  return (
+    <div className="w-full text-error">
+      {`Due to changes in the source configuration, some of the previously selected streams are no longer available.\nPlease, review your streams selection before saving the source`}
+      <div className="flex flex-col w-full mt-2 mb-2">
+        <span>{`The list of unavalilable streams:`}</span>
+        {unavailableStreams.map(({ name, namespace }) => (
+          <span className={"ml-2"}>
+            {`• name: `}
+            <span className="font-bold">{name}</span>
+            {namespace ? (
+              <>
+                {`, namespace: `}
+                <span className="font-bold">{namespace}</span>
+              </>
+            ) : (
+              ""
+            )}
+          </span>
+        ))}
+      </div>
+    </div>
   )
 }
