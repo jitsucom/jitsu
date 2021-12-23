@@ -46,7 +46,6 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
   const [currentTab, setCurrentTab] = useState<string>("configuration")
   const [isSaving, setIsSaving] = useState<boolean>(false)
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false)
-  const [ignoreErrors, setIgnoreErrors] = useState<Set<string>>(new Set())
 
   const [streamsTabKey, setStreamsTabKey] = useState<string>("streams")
 
@@ -55,45 +54,37 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
   const handleSave = useCallback(async () => {
     setIsSaving(true)
     try {
-      await _handleSave({ ignoreErrors: [...ignoreErrors] })
+      await _handleSave()
     } catch (error) {
       handleConnectOrSaveError(error)
     } finally {
       setIsSaving(false)
     }
-  }, [ignoreErrors, _handleSave])
+  }, [_handleSave])
 
   const handleTestConnection = useCallback(async () => {
     setIsTestingConnection(true)
     try {
-      await handleValidateAndTestConnection({ ignoreErrors: [...ignoreErrors] })
+      await handleValidateAndTestConnection()
       actionNotification.success("Successfully connected")
     } catch (error) {
       handleConnectOrSaveError(error)
     } finally {
       setIsTestingConnection(false)
     }
-  }, [ignoreErrors, handleValidateAndTestConnection])
+  }, [handleValidateAndTestConnection])
 
   const handleConnectOrSaveError = (error: unknown) => {
     if (!(error instanceof ErrorDetailed)) {
       actionNotification.error(`${error}`)
       return
     }
-    if (ignoreErrors.has(error.name)) return
 
     switch (error.name) {
       case "streams_changed": {
         actionNotification.warn(
-          `Due to the configuration changes some of the previously selected streams are no longer available. Please, review your streams selection before saving.\nThe list of deleted streams: ${
-            error.payload.map?.(stream => stream?.name) ?? null
-          }`
+          `Some of the previously selected streams are not available. Please, review your streams selection before saving.`
         )
-        setIgnoreErrors(state => {
-          const newState = new Set(state)
-          newState.add("streams_changed")
-          return newState
-        })
         switchToAndReloadStreamsTab()
         return
       }
