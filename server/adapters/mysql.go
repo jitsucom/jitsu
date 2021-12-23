@@ -106,7 +106,7 @@ func (m *MySQL) CreateDB(dbName string) error {
 	m.queryLogger.LogDDL(query)
 	_, err := m.dataSource.ExecContext(m.ctx, query)
 	if err != nil {
-		return fmt.Errorf("Error creating [%s] db with statement [%s]: %v", dbName, query, err)
+		return fmt.Errorf("%s error creating [%s] db with statement [%s]: %v", m.destinationId(), dbName, query, err)
 	}
 
 	return nil
@@ -176,7 +176,7 @@ func (m *MySQL) Insert(eventContext *EventContext) error {
 
 	_, err := m.dataSource.ExecContext(m.ctx, statement, values...)
 	if err != nil {
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, statement, values, err)
+		return fmt.Errorf("%s error inserting in %s table with statement: %s values: %v: %v", eventContext.DestinationID, eventContext.Table.Name, statement, values, err)
 	}
 
 	return nil
@@ -235,7 +235,7 @@ func (m *MySQL) Update(table *Table, object map[string]interface{}, whereKey str
 	m.queryLogger.LogQueryWithValues(statement, values)
 	_, err := m.dataSource.ExecContext(m.ctx, statement, values...)
 	if err != nil {
-		return fmt.Errorf("Error updating %s table with statement: %s values: %v: %v", table.Name, statement, values, err)
+		return fmt.Errorf("%s error updating %s table with statement: %s values: %v: %v", m.destinationId(), table.Name, statement, values, err)
 	}
 
 	return nil
@@ -262,7 +262,7 @@ func (m *MySQL) deleteInTransaction(wrappedTx *Transaction, table *Table, delete
 	m.queryLogger.LogQueryWithValues(query, values)
 
 	if _, err := wrappedTx.tx.ExecContext(m.ctx, query, values...); err != nil {
-		return fmt.Errorf("Error deleting using query: %s, error: %v", query, err)
+		return fmt.Errorf("%s error deleting using query: %s, error: %v", m.destinationId(), query, err)
 	}
 
 	return nil
@@ -299,14 +299,14 @@ func (m *MySQL) getTable(tableName string) (*Table, error) {
 	table := &Table{Name: tableName, Columns: map[string]typing.SQLColumn{}, PKFields: map[string]bool{}}
 	rows, err := m.dataSource.QueryContext(m.ctx, mySQLTableSchemaQuery, m.config.Db, tableName)
 	if err != nil {
-		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
+		return nil, fmt.Errorf("%s error querying table [%s] schema: %v", m.destinationId(), tableName, err)
 	}
 
 	defer rows.Close()
 	for rows.Next() {
 		var columnName, columnType string
 		if err := rows.Scan(&columnName, &columnType); err != nil {
-			return nil, fmt.Errorf("Error scanning result: %v", err)
+			return nil, fmt.Errorf(" %s error scanning result: %v", m.destinationId(), err)
 		}
 		if columnType == "" {
 			//skip dropped field
@@ -317,7 +317,7 @@ func (m *MySQL) getTable(tableName string) (*Table, error) {
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("Last rows.Err: %v", err)
+		return nil, fmt.Errorf("%s last rows.Err: %v", m.destinationId(), err)
 	}
 
 	return table, nil
@@ -327,7 +327,7 @@ func (m *MySQL) getPrimaryKeys(tableName string) (map[string]bool, error) {
 	primaryKeys := map[string]bool{}
 	pkFieldsRows, err := m.dataSource.QueryContext(m.ctx, mySQLPrimaryKeyFieldsQuery, m.config.Db, tableName)
 	if err != nil {
-		return nil, fmt.Errorf("Error querying primary keys for [%s.%s] table: %v", m.config.Db, tableName, err)
+		return nil, fmt.Errorf("%s error querying primary keys for [%s.%s] table: %v", m.destinationId(), m.config.Db, tableName, err)
 	}
 
 	defer pkFieldsRows.Close()
@@ -335,12 +335,12 @@ func (m *MySQL) getPrimaryKeys(tableName string) (map[string]bool, error) {
 	for pkFieldsRows.Next() {
 		var fieldName string
 		if err := pkFieldsRows.Scan(&fieldName); err != nil {
-			return nil, fmt.Errorf("error scanning primary key result: %v", err)
+			return nil, fmt.Errorf("%s error scanning primary key result: %v", m.destinationId(), err)
 		}
 		pkFields = append(pkFields, fieldName)
 	}
 	if err := pkFieldsRows.Err(); err != nil {
-		return nil, fmt.Errorf("pk last rows.Err: %v", err)
+		return nil, fmt.Errorf(" %s pk last rows.Err: %v", m.destinationId(), err)
 	}
 	for _, field := range pkFields {
 		primaryKeys[field] = true
@@ -404,7 +404,7 @@ func (m *MySQL) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, ob
 		if len(valueArgs)+len(headerWithoutQuotes) > mySQLValuesLimit {
 			err := m.executeInsert(wrappedTx, table, headerWithoutQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
 			if err != nil {
-				return fmt.Errorf("Error executing insert: %v", err)
+				return fmt.Errorf("%s error executing insert: %v", m.destinationId(), err)
 			}
 
 			placeholdersBuilder.Reset()
@@ -441,7 +441,7 @@ func (m *MySQL) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, ob
 	if len(valueArgs) > 0 {
 		err := m.executeInsert(wrappedTx, table, headerWithoutQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
 		if err != nil {
-			return fmt.Errorf("Error executing last insert in bulk: %v", err)
+			return fmt.Errorf("%s error executing last insert in bulk: %v", m.destinationId(), err)
 		}
 	}
 	return nil
@@ -478,12 +478,12 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 
 	err := m.createTableInTransaction(wrappedTx, tmpTable)
 	if err != nil {
-		return fmt.Errorf("Error creating temporary table: %v", err)
+		return fmt.Errorf("%s error creating temporary table: %v", m.destinationId(), err)
 	}
 
 	err = m.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
 	if err != nil {
-		return fmt.Errorf("Error inserting in temporary table: %v", err)
+		return fmt.Errorf("%s error inserting in temporary table: %v", m.destinationId(), err)
 	}
 
 	//insert from select
@@ -510,7 +510,7 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 
 	_, err = wrappedTx.tx.ExecContext(m.ctx, insertFromSelectStatement)
 	if err != nil {
-		return fmt.Errorf("Error bulk merging in %s table with statement: %s: %v", table.Name, insertFromSelectStatement, err)
+		return fmt.Errorf("%s error bulk merging in %s table with statement: %s: %v", m.destinationId(), table.Name, insertFromSelectStatement, err)
 	}
 
 	//delete tmp table
@@ -524,7 +524,7 @@ func (m *MySQL) dropTableInTransaction(wrappedTx *Transaction, table *Table) err
 	_, err := wrappedTx.tx.ExecContext(m.ctx, query)
 
 	if err != nil {
-		return fmt.Errorf("Error dropping [%s] table: %v", table.Name, err)
+		return fmt.Errorf("%s error dropping [%s] table: %v", m.destinationId(), table.Name, err)
 	}
 
 	return nil
@@ -593,7 +593,7 @@ func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 
 	_, err := wrappedTx.tx.ExecContext(m.ctx, statement)
 	if err != nil {
-		return fmt.Errorf("Error setting primary key [%s] %s table: %v", strings.Join(table.GetPKFields(), ","), table.Name, err)
+		return fmt.Errorf("%s error setting primary key [%s] %s table: %v", m.destinationId(), strings.Join(table.GetPKFields(), ","), table.Name, err)
 	}
 
 	return nil
@@ -617,7 +617,7 @@ func (m *MySQL) createTableInTransaction(wrappedTx *Transaction, table *Table) e
 	_, err := wrappedTx.tx.ExecContext(m.ctx, query)
 
 	if err != nil {
-		return fmt.Errorf("Error creating [%s] table with statement [%s]: %v", table.Name, query, err)
+		return fmt.Errorf("%s error creating [%s] table with statement [%s]: %v", m.destinationId(), table.Name, query, err)
 	}
 
 	err = m.createPrimaryKeyInTransaction(wrappedTx, table)
@@ -649,7 +649,7 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 		_, err := wrappedTx.tx.ExecContext(m.ctx, query)
 		if err != nil {
 			wrappedTx.Rollback(err)
-			return fmt.Errorf("Error patching %s table with [%s] DDL: %v", patchTable.Name, columnDDL, err)
+			return fmt.Errorf("%s error patching %s table with [%s] DDL: %v", m.destinationId(), patchTable.Name, columnDDL, err)
 		}
 	}
 
@@ -680,7 +680,7 @@ func (m *MySQL) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 	m.queryLogger.LogDDL(query)
 	_, err := wrappedTx.tx.ExecContext(m.ctx, query)
 	if err != nil {
-		return fmt.Errorf("Failed to drop primary key constraint for table %s.%s: %v", m.config.Db, table.Name, err)
+		return fmt.Errorf("%s failed to drop primary key constraint for table %s.%s: %v", m.destinationId(), m.config.Db, table.Name, err)
 	}
 
 	return nil
@@ -717,4 +717,8 @@ func (m *MySQL) mapColumnValue(columnVal interface{}) interface{} {
 		}
 	}
 	return columnVal
+}
+
+func (m *MySQL) destinationId() interface{} {
+	return m.ctx.Value(CtxDestinationId)
 }
