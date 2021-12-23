@@ -10,6 +10,8 @@ import (
 	"regexp"
 )
 
+const CtxDestinationId = "CtxDestinationId"
+
 var ErrTableNotExist = errors.New("table doesn't exist")
 
 var notExistRegexp = regexp.MustCompile(`(?i)(not|doesn't)\sexist`)
