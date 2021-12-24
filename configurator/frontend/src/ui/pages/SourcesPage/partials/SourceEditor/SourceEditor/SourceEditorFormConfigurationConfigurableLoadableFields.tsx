@@ -15,7 +15,7 @@ import { SetSourceEditorDisabledTabs } from "./SourceEditor"
 import { usePolling } from "hooks/usePolling"
 // @Utils
 import { toTitleCase } from "utils/strings"
-import { uniqueId, cloneDeep } from "lodash"
+import { uniqueId } from "lodash"
 import { withQueryParams } from "utils/queryParams"
 import { mapAirbyteSpecToSourceConnectorConfig } from "catalog/sources/lib/airbyte.helper"
 
@@ -48,8 +48,8 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     setFormReference,
   }) => {
     const [form] = Form.useForm()
-    const airbyteImageVersion = useRef<string>(initialValues?.config?.image_version ?? "")
     const [availableAirbyteImageVersions, setAvailableAirbyteImageVersions] = useState<string[]>([])
+    const airbyteImageVersion = useRef<string>(initialValues?.config?.image_version ?? "")
 
     const {
       isLoading: isLoadingParameters,
@@ -79,7 +79,6 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
                 if (response?.message) throw new Error(response?.message)
                 if (response?.status && response?.status !== "pending") {
                   const result = transformAirbyteSpecResponse(response)
-                  // result.unshift(makeAirbyteImageVersionsConfigParameter(availableImageVersions, imageVersion))
                   end(result)
                 }
               } catch (error) {
@@ -211,21 +210,6 @@ const pullAvailableAirbyteImageVersions = async (sourceId: string): Promise<stri
   return response.versions
 }
 
-const makeAirbyteImageVersionsConfigParameter = (imageVersions: string[], _defaultValue?: string): Parameter => {
-  const latestVersion = imageVersions[0]
-  let defaultValue = latestVersion
-  if (_defaultValue && imageVersions.includes(_defaultValue)) defaultValue = _defaultValue
-
-  return {
-    displayName: "Airbyte Image Version",
-    id: AIRBYTE_IMAGE_VERSION_FIELD_ID,
-    type: singleSelectionType(imageVersions),
-    defaultValue,
-    required: true,
-    documentation: "Version of the Docker image of the Airbyte connector",
-  }
-}
-
 const pullAirbyteSpec = async (sourceId: string, imageVersion?: string): Promise<any> => {
   const services = ApplicationServices.get()
   const queryParams = { project_id: services.activeProject.id }
@@ -244,43 +228,6 @@ const transformAirbyteSpecResponse = (response: any) => {
   }))
 }
 
-const modifyAirbyteImageVersionInitialValue = (
-  initialValues: Partial<SourceData>,
-  chosenImageVersion?: string
-): Partial<SourceData> => {
-  if (!chosenImageVersion) return initialValues
-  const nestedFields = AIRBYTE_IMAGE_VERSION_FIELD_ID.split(".")
-  const targetFieldName = nestedFields.slice(-1)[0] // last element
-  let targetSubObject = initialValues
-  nestedFields.forEach(fieldName => {
-    if (fieldName === targetFieldName) return
-    targetSubObject = targetSubObject[fieldName]
-  })
-  targetSubObject[targetFieldName] = chosenImageVersion
-}
-
-const setObjectNestedValueByPath = <V extends any = any>(
-  object: object,
-  value: V,
-  path: string,
-  options?: { delimiter?: string }
-): object => {
-  const { delimiter = "." } = options ?? {}
-  const result = cloneDeep(object)
-  const nestedFields = path.split(delimiter)
-  const targetFieldName = nestedFields.slice(-1)[0] // last element
-  let targetSubObject = result
-  nestedFields.forEach(fieldName => {
-    const subObject = targetSubObject[fieldName]
-    if (typeof subObject !== "object" || subObject === null)
-      throw new Error(`Failed to modify a sub object value. Value under ${fieldName} is not an object.`)
-    if (fieldName === targetFieldName) return
-    targetSubObject = targetSubObject[fieldName]
-  })
-  targetSubObject[targetFieldName] = value
-  return result
-}
-
 type AirbyteVersionSelectionProps = {
   defaultValue?: string
   options: string[]
@@ -293,8 +240,9 @@ const AirbyteVersionSelection: React.FC<AirbyteVersionSelectionProps> = ({ defau
       name={AIRBYTE_IMAGE_VERSION_FIELD_ID}
       displayName={`Airbyte Image Version`}
       type={singleSelectionType(options)}
+      required={true}
     >
-      <Select defaultValue={defaultValue}>
+      <Select defaultValue={defaultValue || options[0]}>
         {options.map(option => {
           return (
             <Select.Option value={option} key={option}>

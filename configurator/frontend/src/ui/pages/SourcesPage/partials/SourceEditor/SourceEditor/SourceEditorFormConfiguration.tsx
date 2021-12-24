@@ -216,6 +216,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
       <div className={isLoadingOauth ? "hidden" : ""}>
         <SourceEditorOauthButtons
           key="oauth"
+          editorMode={editorMode}
           sourceDataFromCatalog={sourceDataFromCatalog}
           disabled={disabled}
           onlyManualAuth={sourceConfigurationSchema.onlyManualAuth}
