@@ -215,7 +215,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     ignoreErrors?: string[]
   }): Promise<void> => {
     const response = config?.testConnectionResponse ?? (await getTestConnectionResponse())
-    if (!response.connected && !config?.ignoreErrors.includes(response.connectedErrorType))
+    if (!response.connected && !config?.ignoreErrors?.includes(response.connectedErrorType))
       throw new ErrorDetailed({
         message: response.connectedErrorMessage,
         name: response.connectedErrorType,
