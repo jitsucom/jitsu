@@ -247,7 +247,6 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
               editorMode={editorMode}
               initialValues={initialSourceData}
               sourceDataFromCatalog={sourceDataFromCatalog}
-              availableOauthBackendSecrets={availableBackendSecrets}
               hideFields={hideFields}
               patchConfig={patchConfig}
               handleSetControlsDisabled={handleSetControlsDisabled}

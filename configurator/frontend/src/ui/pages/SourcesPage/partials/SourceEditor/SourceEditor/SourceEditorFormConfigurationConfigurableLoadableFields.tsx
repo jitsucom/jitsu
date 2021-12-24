@@ -1,28 +1,28 @@
 // @Libs
-import { Col, Row, Form, FormProps } from "antd"
-import { Parameter, SourceConnector } from "catalog/sources/types"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Col, Row, Form, Select, FormProps } from "antd"
+import { Parameter, singleSelectionType, SourceConnector } from "catalog/sources/types"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Components
 import { ErrorCard } from "lib/components/ErrorCard/ErrorCard"
 import { LoadableFieldsLoadingMessageCard } from "lib/components/LoadingFormCard/LoadingFormCard"
-import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
+import { ConfigurableFieldsForm, FormItemWrapper } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 // @Types
 import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
+import { SetSourceEditorDisabledTabs } from "./SourceEditor"
 // @Hooks
 import { usePolling } from "hooks/usePolling"
 // @Utils
 import { toTitleCase } from "utils/strings"
+import { uniqueId, cloneDeep } from "lodash"
+import { withQueryParams } from "utils/queryParams"
 import { mapAirbyteSpecToSourceConnectorConfig } from "catalog/sources/lib/airbyte.helper"
-import { memo, useCallback, useEffect, useMemo } from "react"
-import { uniqueId } from "lodash"
-import { SetSourceEditorDisabledTabs } from "./SourceEditor"
 
 type Props = {
   editorMode: "add" | "edit"
   initialValues: Partial<SourceData>
   sourceDataFromCatalog: SourceConnector
-  availableOauthBackendSecrets?: string[]
   hideFields?: string[]
   patchConfig: PatchConfig
   handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
@@ -33,13 +33,13 @@ type Props = {
 
 const CONFIG_INTERNAL_STATE_KEY = "loadableParameters"
 const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
+const AIRBYTE_IMAGE_VERSION_FIELD_ID = "config.image_version"
 
 export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> = memo(
   ({
     editorMode,
     initialValues,
     sourceDataFromCatalog,
-    availableOauthBackendSecrets,
     hideFields: _hideFields,
     patchConfig,
     handleSetControlsDisabled,
@@ -48,19 +48,26 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     setFormReference,
   }) => {
     const [form] = Form.useForm()
+    const airbyteImageVersion = useRef<string>(initialValues?.config?.image_version ?? "")
+    const [availableAirbyteImageVersions, setAvailableAirbyteImageVersions] = useState<string[]>([])
 
     const {
       isLoading: isLoadingParameters,
       data: fieldsParameters,
       error: loadingParametersError,
+      reload: reloadParameters,
     } = usePolling<Parameter[]>(
       {
         configure: () => {
           const controlsDisableRequestId = uniqueId("configurableLoadableFields-")
+          const imageVersion: string = airbyteImageVersion.current
+          let availableImageVersions: string[] = imageVersion ? [imageVersion] : []
           return {
-            onBeforePollingStart: () => {
+            onBeforePollingStart: async () => {
               handleSetControlsDisabled(true, controlsDisableRequestId)
               editorMode === "edit" && handleSetTabsDisabled(["streams"], "disable")
+              availableImageVersions = await pullAvailableAirbyteImageVersions(sourceDataFromCatalog.id)
+              setAvailableAirbyteImageVersions(availableImageVersions)
             },
             onAfterPollingEnd: () => {
               handleSetControlsDisabled(false, controlsDisableRequestId)
@@ -68,10 +75,11 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
             },
             pollingCallback: (end, fail) => async () => {
               try {
-                const response = await pullAirbyteSpec(sourceDataFromCatalog.id)
+                const response = await pullAirbyteSpec(sourceDataFromCatalog.id, imageVersion)
                 if (response?.message) throw new Error(response?.message)
                 if (response?.status && response?.status !== "pending") {
                   const result = transformAirbyteSpecResponse(response)
+                  // result.unshift(makeAirbyteImageVersionsConfigParameter(availableImageVersions, imageVersion))
                   end(result)
                 }
               } catch (error) {
@@ -101,11 +109,20 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     )
 
     const handleFormValuesChangeForm = useCallback<FormProps<PlainObjectWithPrimitiveValues>["onValuesChange"]>(
-      (_, values) => {
-        patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { resetErrorsCount: true })
+      (changedValues, allValues) => {
+        patchConfig(CONFIG_INTERNAL_STATE_KEY, allValues, { resetErrorsCount: true })
+        handleIfAirbyteVersionChanged(changedValues)
       },
       [patchConfig]
     )
+
+    const handleIfAirbyteVersionChanged = (changedFormValues: PlainObjectWithPrimitiveValues): void => {
+      const newImageVersion = changedFormValues[AIRBYTE_IMAGE_VERSION_FIELD_ID]
+      if (newImageVersion && typeof newImageVersion === "string") {
+        airbyteImageVersion.current = newImageVersion
+        reloadParameters()
+      }
+    }
 
     const handleSetInitialFormValues = useCallback(
       (values: PlainObjectWithPrimitiveValues): void => {
@@ -158,12 +175,18 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
       </Row>
     ) : (
       /**
-       * Possible refactor -- use component for configurable fields
-       * e.g. <SourceEditorFormConfigurationConfigurableFields />
+       * Possible refactor -- share the following code with
+       * <SourceEditorFormConfigurationConfigurableFields />
+       * component
        *
-       * make sure that their functionality won't diverge
+       * make sure that functionality won't diverge
        */
       <Form form={form} onValuesChange={handleFormValuesChangeForm}>
+        <AirbyteVersionSelection
+          key={`Stream Version Selection`}
+          defaultValue={airbyteImageVersion.current}
+          options={availableAirbyteImageVersions}
+        />
         <ConfigurableFieldsForm
           fieldsParamsList={fieldsParameters || []}
           form={form}
@@ -178,12 +201,38 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   }
 )
 
-const pullAirbyteSpec = async (sourceId: string): Promise<any> => {
+const pullAvailableAirbyteImageVersions = async (sourceId: string): Promise<string[]> => {
   const services = ApplicationServices.get()
-  return await services.backendApiClient.get(
-    `/airbyte/${sourceId.replace("airbyte-", "")}/spec?project_id=${services.activeProject.id}`,
-    { proxy: true }
-  )
+  const queryParams = { project_id: services.activeProject.id }
+  const requestUrl = withQueryParams(`/airbyte/${sourceId.replace("airbyte-", "")}/versions`, queryParams)
+
+  const response = await services.backendApiClient.get(requestUrl, { proxy: true })
+  if (!Array.isArray(response?.versions)) return []
+  return response.versions
+}
+
+const makeAirbyteImageVersionsConfigParameter = (imageVersions: string[], _defaultValue?: string): Parameter => {
+  const latestVersion = imageVersions[0]
+  let defaultValue = latestVersion
+  if (_defaultValue && imageVersions.includes(_defaultValue)) defaultValue = _defaultValue
+
+  return {
+    displayName: "Airbyte Image Version",
+    id: AIRBYTE_IMAGE_VERSION_FIELD_ID,
+    type: singleSelectionType(imageVersions),
+    defaultValue,
+    required: true,
+    documentation: "Version of the Docker image of the Airbyte connector",
+  }
+}
+
+const pullAirbyteSpec = async (sourceId: string, imageVersion?: string): Promise<any> => {
+  const services = ApplicationServices.get()
+  const queryParams = { project_id: services.activeProject.id }
+  if (imageVersion) queryParams["image_version"] = imageVersion
+  const requestUrl = withQueryParams(`/airbyte/${sourceId.replace("airbyte-", "")}/spec`, queryParams)
+
+  return await services.backendApiClient.get(requestUrl, { proxy: true })
 }
 
 const transformAirbyteSpecResponse = (response: any) => {
@@ -193,4 +242,67 @@ const transformAirbyteSpecResponse = (response: any) => {
     ...parameter,
     displayName: toTitleCase(parameter.displayName, { separator: "_" }),
   }))
+}
+
+const modifyAirbyteImageVersionInitialValue = (
+  initialValues: Partial<SourceData>,
+  chosenImageVersion?: string
+): Partial<SourceData> => {
+  if (!chosenImageVersion) return initialValues
+  const nestedFields = AIRBYTE_IMAGE_VERSION_FIELD_ID.split(".")
+  const targetFieldName = nestedFields.slice(-1)[0] // last element
+  let targetSubObject = initialValues
+  nestedFields.forEach(fieldName => {
+    if (fieldName === targetFieldName) return
+    targetSubObject = targetSubObject[fieldName]
+  })
+  targetSubObject[targetFieldName] = chosenImageVersion
+}
+
+const setObjectNestedValueByPath = <V extends any = any>(
+  object: object,
+  value: V,
+  path: string,
+  options?: { delimiter?: string }
+): object => {
+  const { delimiter = "." } = options ?? {}
+  const result = cloneDeep(object)
+  const nestedFields = path.split(delimiter)
+  const targetFieldName = nestedFields.slice(-1)[0] // last element
+  let targetSubObject = result
+  nestedFields.forEach(fieldName => {
+    const subObject = targetSubObject[fieldName]
+    if (typeof subObject !== "object" || subObject === null)
+      throw new Error(`Failed to modify a sub object value. Value under ${fieldName} is not an object.`)
+    if (fieldName === targetFieldName) return
+    targetSubObject = targetSubObject[fieldName]
+  })
+  targetSubObject[targetFieldName] = value
+  return result
+}
+
+type AirbyteVersionSelectionProps = {
+  defaultValue?: string
+  options: string[]
+}
+
+const AirbyteVersionSelection: React.FC<AirbyteVersionSelectionProps> = ({ defaultValue, options }) => {
+  return (
+    <FormItemWrapper
+      id={AIRBYTE_IMAGE_VERSION_FIELD_ID}
+      name={AIRBYTE_IMAGE_VERSION_FIELD_ID}
+      displayName={`Airbyte Image Version`}
+      type={singleSelectionType(options)}
+    >
+      <Select defaultValue={defaultValue}>
+        {options.map(option => {
+          return (
+            <Select.Option value={option} key={option}>
+              {option}
+            </Select.Option>
+          )
+        })}
+      </Select>
+    </FormItemWrapper>
+  )
 }

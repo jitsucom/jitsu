@@ -77,7 +77,6 @@ export class OauthService implements IOauthService {
     function messageListener(e: MessageEvent) {
       if (e.isTrusted && e.source === oauthWindow) {
         if (oauthWindow !== null) {
-          console.log("catched oauth message", e.data)
           result = e.data
           endOauthFlow(e.data)
           window.removeEventListener("message", messageListener)
