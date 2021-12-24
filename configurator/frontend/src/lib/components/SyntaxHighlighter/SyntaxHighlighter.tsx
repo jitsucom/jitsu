@@ -26,4 +26,4 @@ export const SyntaxHighlighterAsync: React.FC<Props> = ({ children, language, cl
   </SyntaxHighlighter>
 )
 
-//lazyComponent(() => import('react-syntax-highlighter'));
+//lazyComponent(() => import( /* webpackPrefetch: true */ 'react-syntax-highlighter'));
