@@ -5,22 +5,22 @@ import { useHistory, useParams } from "react-router"
 import { cloneDeep, snakeCase, uniqueId } from "lodash"
 // @Types
 import { CommonSourcePageProps } from "ui/pages/SourcesPage/SourcesPage"
-import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
+import { SourceConnector as CatalogSourceConnector, SourceConnector } from "catalog/sources/types"
 // @Store
 import { sourcesStore } from "stores/sources"
 // @Catalog
 import { allSources as sourcesCatalog } from "catalog/sources/lib"
 // @Components
-import { withHome as breadcrumbsWithHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
-import { PageHeader } from "ui/components/PageHeader/PageHeader"
-import { createInitialSourceData, sourceEditorUtils } from "./SourceEditor.utils"
-import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
+import { createInitialSourceData, sourceEditorUtils, useBreadcrubmsEffect } from "./SourceEditor.utils"
+import { sourcePageUtils, TestConnectionResponse } from "ui/pages/SourcesPage/SourcePage.utils"
 import { firstToLower } from "lib/commons/utils"
-import { SourceEditorViewSteps } from "./SourceEditorViewSteps"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+import { SourceEditorView } from "./SourceEditorView"
+import { ErrorDetailed } from "lib/commons/errors"
 // @Utils
 
+/** Accumulated state of all forms that is transformed and sent to backend on source save */
 export type SourceEditorState = {
   /**
    * Source configuration step/tab
@@ -39,19 +39,41 @@ export type SourceEditorState = {
    */
   stateChanged: boolean
 }
-
 export type SetSourceEditorState = React.Dispatch<React.SetStateAction<SourceEditorState>>
+
+/** Initial source data used to render the forms */
+export type SourceEditorInitialSourceData = Optional<Partial<SourceData>>
+export type SetSourceEditorInitialSourceData = React.Dispatch<React.SetStateAction<SourceEditorInitialSourceData>>
+
+/** Set of source editor disabled tabs */
+export type SourceEditorDisabledTabs = Set<string>
+export type SetSourceEditorDisabledTabs = (tabKeys: string[], action: "enable" | "disable") => void
+
+/** Method for saving the configured source */
+export type HandleSaveSource = (config?: HandleSaveSourceConfig) => Promise<void>
+type HandleSaveSourceConfig = {
+  /** Errors names to skip when saving the source */
+  ignoreErrors?: string[]
+}
+
+/** Method for validating and testing connection of the configured source */
+export type HandleValidateTestConnection = (config?: HandleValidateTestConnectionConfig) => Promise<void>
+type HandleValidateTestConnectionConfig = {
+  /** Errors names to skip when testing the source connection */
+  ignoreErrors?: string[]
+}
 
 type ConfigurationState = {
   config: SourceConfigurationData
-  getErrorsCount: () => Promise<number>
+  validateGetErrorsCount: () => Promise<number>
   errorsCount: number
 }
 
 type StreamsState = {
-  // deprecated
-  streams: SourceStreamsData
+  /** @deprecated use `selectedStreams` instead */
+  streams?: SourceStreamsData
   selectedStreams: SourceSelectedStreams
+  validateGetErrorsCount: () => Promise<number>
   errorsCount: number
 }
 
@@ -78,12 +100,13 @@ export type UpdateConfigurationFields = (newFileds: Partial<SourceConfigurationD
 const initialState: SourceEditorState = {
   configuration: {
     config: {},
-    getErrorsCount: async () => 0,
+    validateGetErrorsCount: async () => 0,
     errorsCount: 0,
   },
   streams: {
     streams: {},
     selectedStreams: {},
+    validateGetErrorsCount: async () => 0,
     errorsCount: 0,
   },
   connections: {
@@ -112,7 +135,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       : undefined
   }, [sourceId, allSourcesList])
 
-  const [initialSourceData, setInitialSourceData] = useState<Optional<Partial<SourceData>>>(
+  const [initialSourceData, setInitialSourceData] = useState<SourceEditorInitialSourceData>(
     () =>
       sourceEditorUtils.reformatCatalogIntoSelectedStreams(allSourcesList.find(src => src.sourceId === sourceId)) ??
       createInitialSourceData(sourceDataFromCatalog)
@@ -121,8 +144,8 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   const [state, setState] = useState<SourceEditorState>(initialState)
 
   const [controlsDisabled, setControlsDisabled] = useState<boolean | string>(false)
+  const [tabsDisabled, setTabsDisabled] = useState<SourceEditorDisabledTabs>(null)
   const [showDocumentation, setShowDocumentation] = useState<boolean>(false)
-  const [configIsValidatedByStreams, setConfigIsValidatedByStreams] = useState<boolean>(false)
 
   const handleSetControlsDisabled = useCallback((disabled: boolean | string, disableRequestId: string): void => {
     const tooltipMessage: string | undefined = typeof disabled === "string" ? disabled : undefined
@@ -145,6 +168,14 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     }
   }, [])
 
+  const handleSetTabsDisabled = useCallback<SetSourceEditorDisabledTabs>((tabKeys, action) => {
+    setTabsDisabled(state => {
+      const newState = new Set(state)
+      tabKeys.forEach(key => (action === "disable" ? newState.add(key) : newState.delete(key)))
+      return newState
+    })
+  }, [])
+
   const handleBringSourceData = () => {
     let sourceEditorState = state
     setState(state => {
@@ -155,108 +186,125 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
   }
 
   const validateCountErrors = async (): Promise<number> => {
-    const configurationErrorsCount = await state.configuration.getErrorsCount()
+    const configurationErrorsCount = await state.configuration.validateGetErrorsCount()
+    const streamsErrorsCount = await state.streams.validateGetErrorsCount()
 
     setState(state => {
       const newState = cloneDeep(state)
       newState.configuration.errorsCount = configurationErrorsCount
+      newState.streams.errorsCount = streamsErrorsCount
       return newState
     })
 
-    return configurationErrorsCount
+    return configurationErrorsCount + streamsErrorsCount
   }
 
-  const handleValidateAndTestConfig = async () => {
+  const validateAllForms = async () => {
     const someFieldsErrored = !!(await validateCountErrors())
-    if (someFieldsErrored) throw new Error("Some configuration fields values are invalid")
+    if (someFieldsErrored) throw new Error("some values are invalid")
+  }
 
+  const getTestConnectionResponse = async (): Promise<TestConnectionResponse> => {
+    const sourceData = handleBringSourceData()
+    const testResult = await sourcePageUtils.testConnection(sourceData, true)
+    return testResult
+  }
+
+  const assertCanConnect = async (config?: {
+    testConnectionResponse?: TestConnectionResponse
+    ignoreErrors?: string[]
+  }): Promise<void> => {
+    const response = config?.testConnectionResponse ?? (await getTestConnectionResponse())
+    if (!response.connected && !config?.ignoreErrors.includes(response.connectedErrorType))
+      throw new ErrorDetailed({
+        message: response.connectedErrorMessage,
+        name: response.connectedErrorType,
+        payload: response.connectedErrorPayload,
+      })
+  }
+
+  const handleValidateAndTestConnection: HandleValidateTestConnection = async (methodConfig): Promise<void> => {
+    await validateAllForms()
     const controlsDisableRequestId = uniqueId("validateAndTest-")
     handleSetControlsDisabled("Validating source configuration", controlsDisableRequestId)
-
     try {
-      const sourceData = handleBringSourceData()
-      const testResult = await sourcePageUtils.testConnection(sourceData)
-      if (!testResult.connected) throw new Error(testResult.connectedErrorMessage)
+      await assertCanConnect({ ignoreErrors: methodConfig?.ignoreErrors })
     } finally {
       handleSetControlsDisabled(false, controlsDisableRequestId)
     }
   }
 
-  const handleSave = useCallback<AsyncVoidFunction>(async () => {
-    let sourceEditorState = null
-    setState(state => {
-      sourceEditorState = state
-      return { ...state, stateChanged: false }
-    })
-    const sourceData = handleBringSourceData()
-    const testConnectionResults = await sourcePageUtils.testConnection(sourceData, true)
+  const handleSave = useCallback<HandleSaveSource>(
+    async methodConfig => {
+      let sourceEditorState = null
+      setState(state => {
+        sourceEditorState = state // hack for getting the most recent state in the async function
+        return { ...state, stateChanged: false }
+      })
 
-    const sourceDataToSave: SourceData = {
-      ...sourceData,
-      ...testConnectionResults,
-    }
+      if (editorMode === "edit") await validateAllForms()
 
-    if (editorMode === "add") sourcesStore.addSource(sourceDataToSave)
-    if (editorMode === "edit") sourcesStore.editSources(sourceDataToSave)
+      const sourceData = handleBringSourceData()
+      const testConnectionResults = await sourcePageUtils.testConnection(sourceData, true)
 
-    handleLeaveEditor({ goToSourcesList: true })
+      await assertCanConnect({
+        testConnectionResponse: testConnectionResults,
+        ignoreErrors: methodConfig?.ignoreErrors,
+      })
 
-    if (sourceDataToSave.connected) {
-      actionNotification.success(editorMode === "add" ? "New source has been added!" : "Source has been saved")
-    } else {
-      actionNotification.warn(
-        `Source has been saved, but test has failed with '${firstToLower(
-          sourceDataToSave.connectedErrorMessage
-        )}'. Data from this source will not be available`
-      )
-    }
-  }, [editorMode, state])
+      const sourceDataToSave: SourceData = {
+        ...sourceData,
+        ...testConnectionResults,
+      }
 
-  const handleCompleteStep = () => {
-    setInitialSourceData(handleBringSourceData())
-  }
+      if (editorMode === "add") sourcesStore.addSource(sourceDataToSave)
+      if (editorMode === "edit") sourcesStore.editSources(sourceDataToSave)
+
+      handleLeaveEditor({ goToSourcesList: true })
+
+      if (sourceDataToSave.connected) {
+        actionNotification.success(editorMode === "add" ? "New source has been added!" : "Source has been saved")
+      } else {
+        actionNotification.warn(
+          `Source has been saved, but test has failed with '${firstToLower(
+            sourceDataToSave.connectedErrorMessage
+          )}'. Data from this source will not be available`
+        )
+      }
+    },
+    [editorMode, state]
+  )
 
   const handleLeaveEditor = useCallback<(options?: { goToSourcesList?: boolean }) => void>(options => {
     options.goToSourcesList ? history.push(sourcesPageRoutes.root) : history.goBack()
   }, [])
 
-  useEffect(() => {
-    setBreadcrumbs(
-      breadcrumbsWithHome({
-        elements: [
-          { title: "Sources", link: sourcesPageRoutes.root },
-          {
-            title: (
-              <PageHeader
-                title={sourceDataFromCatalog?.displayName}
-                icon={sourceDataFromCatalog?.pic}
-                mode={editorMode}
-              />
-            ),
-          },
-        ],
-      })
-    )
-  }, [editorMode, sourceDataFromCatalog, setBreadcrumbs])
+  const handleValidateStreams = async (): Promise<void> => {
+    const streamsErrorsCount = await state.streams.validateGetErrorsCount()
+    if (streamsErrorsCount) throw new Error("some streams settings are invalid")
+  }
+
+  useBreadcrubmsEffect({ editorMode, sourceDataFromCatalog, setBreadcrumbs })
 
   return (
-    <SourceEditorViewSteps
+    <SourceEditorView
       state={state}
       controlsDisabled={controlsDisabled}
+      tabsDisabled={tabsDisabled}
       editorMode={editorMode}
       showDocumentationDrawer={showDocumentation}
       initialSourceData={initialSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
-      configIsValidatedByStreams={configIsValidatedByStreams}
       setSourceEditorState={setState}
       handleSetControlsDisabled={handleSetControlsDisabled}
-      setConfigIsValidatedByStreams={setConfigIsValidatedByStreams}
+      handleSetTabsDisabled={handleSetTabsDisabled}
       setShowDocumentationDrawer={setShowDocumentation}
       handleBringSourceData={handleBringSourceData}
       handleSave={handleSave}
-      handleCompleteStep={handleCompleteStep}
+      setInitialSourceData={setInitialSourceData}
       handleLeaveEditor={handleLeaveEditor}
-      handleValidateAndTestConfig={handleValidateAndTestConfig}
+      handleValidateAndTestConnection={handleValidateAndTestConnection}
+      handleValidateStreams={handleValidateStreams}
     />
   )
 }
