@@ -78,9 +78,8 @@ func NewMySQL(ctx context.Context, config *DataSourceConfig, queryLogger *loggin
 	}
 
 	//set default values
-	dataSource.SetConnMaxLifetime(3 * time.Minute)
-	dataSource.SetMaxOpenConns(50)
-	dataSource.SetMaxIdleConns(50)
+	dataSource.SetMaxOpenConns(10)
+	dataSource.SetMaxIdleConns(10)
 
 	return &MySQL{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToMySQL)}, nil
 }
@@ -409,7 +408,7 @@ func (m *MySQL) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, ob
 
 			placeholdersBuilder.Reset()
 			placeholdersCounter = 1
-			valueArgs = make([]interface{}, 0, maxValues)
+			valueArgs = make([]interface{}, 0, maxValues-(i*len(headerWithoutQuotes)))
 		}
 		_, err := placeholdersBuilder.WriteString("(")
 		if err != nil {
