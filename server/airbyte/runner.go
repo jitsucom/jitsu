@@ -203,7 +203,7 @@ func (r *Runner) Close() error {
 		case <-r.closed:
 			return
 		case <-ticker.C:
-			logging.Errorf("%s airbyte runner closing timeout. Killing.")
+			logging.Errorf("%s airbyte runner closing timeout. Killing.", r.identifier)
 			_ = r.command.Process.Kill()
 		}
 		ticker.Stop()
