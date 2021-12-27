@@ -399,12 +399,12 @@ func (m *MySQL) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, ob
 	}
 	valueArgs := make([]interface{}, 0, maxValues)
 	placeholdersCounter := 1
-	for _, row := range objects {
+	for i, row := range objects {
 		// if number of values exceeds limit, we have to execute insert query on processed rows
 		if len(valueArgs)+len(headerWithoutQuotes) > mySQLValuesLimit {
 			err := m.executeInsert(wrappedTx, table, headerWithoutQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
 			if err != nil {
-				return fmt.Errorf("%s error executing insert: %v", m.destinationId(), err)
+				return fmt.Errorf("%s error executing insert %d of %d: %v", m.destinationId(), i, len(objects), err)
 			}
 
 			placeholdersBuilder.Reset()
