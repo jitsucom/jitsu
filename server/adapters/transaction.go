@@ -3,7 +3,9 @@ package adapters
 import (
 	"database/sql"
 	"fmt"
+	"github.com/go-sql-driver/mysql"
 	"github.com/jitsucom/jitsu/server/logging"
+	"strings"
 )
 
 //Transaction is sql transaction wrapper. Used for handling and log errors with db type (postgres, mySQL, redshift, clickhouse or snowflake)
@@ -35,7 +37,12 @@ func (t *Transaction) DirectCommit() error {
 //Rollback cancels underlying transaction and logs system err if occurred
 func (t *Transaction) Rollback(cause error) {
 	if err := t.tx.Rollback(); err != nil {
-		err = checkErr(err)
-		logging.SystemErrorf("Unable to rollback %s transaction: %v cause: %v", t.dbType, err, cause)
+		if !(t.dbType == "MySQL" && strings.HasSuffix(err.Error(), mysql.ErrInvalidConn.Error())) {
+			err = checkErr(err)
+			logging.SystemErrorf("Unable to rollback %s transaction: %v cause: %v", t.dbType, err, cause)
+		} else {
+			err = checkErr(err)
+			logging.Errorf("Unable to rollback %s transaction: %v cause: %v", t.dbType, err, cause)
+		}
 	}
 }

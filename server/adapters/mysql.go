@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
@@ -37,7 +38,7 @@ const (
 	mySQLTruncateTableTemplate       = "TRUNCATE TABLE `%s`.`%s`"
 	mySQLPrimaryKeyMaxLength         = 32
 	mySQLValuesLimit                 = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
-	batchRetryAttempts               = 2     //number of additional tries to proceed batch update or insert.
+	batchRetryAttempts               = 3     //number of additional tries to proceed batch update or insert.
 	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
 )
 
@@ -222,7 +223,7 @@ func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, delet
 		if !deleteConditions.IsEmpty() {
 			if err := m.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
 				wrappedTx.Rollback(err)
-				if strings.HasSuffix(err.Error(), "invalid connection") {
+				if strings.HasSuffix(err.Error(), mysql.ErrInvalidConn.Error()) {
 					e = err
 					continue
 				} else {
@@ -233,7 +234,7 @@ func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, delet
 
 		if err := m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
 			wrappedTx.Rollback(err)
-			if strings.HasSuffix(err.Error(), "invalid connection") {
+			if strings.HasSuffix(err.Error(), mysql.ErrInvalidConn.Error()) {
 				e = err
 				continue
 			} else {
