@@ -17,7 +17,8 @@ const (
 	GeoLite2CountryEdition Edition = "GeoLite2-Country"
 	GeoLite2ASNEdition     Edition = "GeoLite2-ASN"
 
-	Unknown Edition = ""
+	Unknown     Edition = ""
+	NotRequired Edition = "NotRequired"
 )
 
 var paidEditions = []Edition{GeoIP2CountryEdition, GeoIP2CityEdition, GeoIP2ISPEdition, GeoIP2DomainEdition}
@@ -34,6 +35,8 @@ func (e Edition) FreeAnalog() Edition {
 		return GeoLite2ASNEdition
 	case GeoIP2CountryEdition:
 		return GeoLite2CountryEdition
+	case GeoIP2DomainEdition:
+		return NotRequired
 	default:
 		return Unknown
 	}

@@ -74,7 +74,7 @@ func (gdrh *GeoDataResolverHandler) EditionsHandler(c *gin.Context) {
 		}
 
 		analog := edition.FreeAnalog()
-		if analog != geo.Unknown {
+		if analog != geo.Unknown && analog != geo.NotRequired {
 			rule.Analog = &geo.EditionData{
 				Name:   analog,
 				Status: geo.StatusUnknown,
