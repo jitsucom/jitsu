@@ -68,7 +68,7 @@ func (f *MaxMindFactory) Test(maxmindURL string) ([]*EditionRule, error) {
 
 		//analog
 		analog := edition.FreeAnalog()
-		if analog != Unknown {
+		if analog != Unknown && analog != NotRequired {
 			rule.Analog = &EditionData{
 				Name:   analog,
 				Status: StatusUnknown,
