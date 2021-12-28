@@ -207,7 +207,7 @@ func (p *Postgres) CreateTable(table *Table) error {
 
 	err = p.createTableInTransaction(wrappedTx, table)
 	if err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return checkErr(err)
 	}
 
@@ -346,7 +346,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTa
 
 		_, err := wrappedTx.tx.ExecContext(p.ctx, query)
 		if err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			err = checkErr(err)
 			return fmt.Errorf("Error patching %s table with [%s] DDL: %v", patchTable.Name, columnDDL, err)
 		}
@@ -356,7 +356,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTa
 	if patchTable.DeletePkFields {
 		err := p.deletePrimaryKeyInTransaction(wrappedTx, patchTable)
 		if err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return err
 		}
 	}
@@ -365,7 +365,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTa
 	if len(patchTable.PKFields) > 0 {
 		err := p.createPrimaryKeyInTransaction(wrappedTx, patchTable)
 		if err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return checkErr(err)
 		}
 	}
@@ -418,7 +418,7 @@ func (p *Postgres) BulkInsert(table *Table, objects []map[string]interface{}) er
 	}
 
 	if err = p.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -434,13 +434,13 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 
 	if !deleteConditions.IsEmpty() {
 		if err := p.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return err
 		}
 	}
 
 	if err := p.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -455,7 +455,7 @@ func (p *Postgres) DropTable(table *Table) error {
 	}
 
 	if err := p.dropTableInTransaction(wrappedTx, table); err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -793,7 +793,7 @@ func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, st
 	_, err := wrappedTx.tx.ExecContext(ctx, query)
 	if err != nil {
 		err = checkErr(err)
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 
 		return fmt.Errorf("Error creating [%s] db schema with statement [%s]: %v", dbSchemaName, query, err)
 	}
