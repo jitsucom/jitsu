@@ -37,6 +37,8 @@ const (
 	mySQLTruncateTableTemplate       = "TRUNCATE TABLE `%s`.`%s`"
 	mySQLPrimaryKeyMaxLength         = 32
 	mySQLValuesLimit                 = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	batchRetryAttempts               = 2     //number of additional tries to proceed batch update or insert.
+	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
 )
 
 var (
@@ -78,6 +80,7 @@ func NewMySQL(ctx context.Context, config *DataSourceConfig, queryLogger *loggin
 	}
 
 	//set default values
+	dataSource.SetConnMaxLifetime(3 * time.Minute)
 	dataSource.SetMaxOpenConns(10)
 	dataSource.SetMaxIdleConns(10)
 
@@ -183,39 +186,64 @@ func (m *MySQL) Insert(eventContext *EventContext) error {
 
 //BulkInsert runs bulkStoreInTransaction
 func (m *MySQL) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	wrappedTx, err := m.OpenTx()
-	if err != nil {
-		return err
-	}
+	var e error
+	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
+	for i := 0; i <= batchRetryAttempts; i++ {
+		wrappedTx, err := m.OpenTx()
+		if err != nil {
+			return err
+		}
 
-	if err = m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback(err)
-		return err
-	}
+		if err = m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
+			wrappedTx.Rollback(err)
+			if strings.HasSuffix(err.Error(), "invalid connection") {
+				e = err
+				continue
+			} else {
+				return err
+			}
+		}
 
-	return wrappedTx.DirectCommit()
+		return wrappedTx.DirectCommit()
+	}
+	return e
 }
 
 //BulkUpdate deletes with deleteConditions and runs bulkStoreInTransaction
 func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	wrappedTx, err := m.OpenTx()
-	if err != nil {
-		return err
-	}
-
-	if !deleteConditions.IsEmpty() {
-		if err := m.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
-			wrappedTx.Rollback(err)
+	var e error
+	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
+	for i := 0; i <= batchRetryAttempts; i++ {
+		wrappedTx, err := m.OpenTx()
+		if err != nil {
 			return err
 		}
-	}
 
-	if err := m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback(err)
-		return err
-	}
+		if !deleteConditions.IsEmpty() {
+			if err := m.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
+				wrappedTx.Rollback(err)
+				if strings.HasSuffix(err.Error(), "invalid connection") {
+					e = err
+					continue
+				} else {
+					return err
+				}
+			}
+		}
 
-	return wrappedTx.DirectCommit()
+		if err := m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
+			wrappedTx.Rollback(err)
+			if strings.HasSuffix(err.Error(), "invalid connection") {
+				e = err
+				continue
+			} else {
+				return err
+			}
+		}
+
+		return wrappedTx.DirectCommit()
+	}
+	return e
 }
 
 //Update one record in MySQL
