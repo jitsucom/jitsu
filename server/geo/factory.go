@@ -250,8 +250,7 @@ func (f *MaxMindFactory) downloadOfficial(licenseKey string, edition Edition) (*
 	b, err := loadFromURL(url)
 	if err != nil {
 		//download analog
-		if err == ErrInvalidLicenseKey && edition.FreeAnalog() != Unknown {
-
+		if edition.FreeAnalog() != Unknown {
 			edition = edition.FreeAnalog()
 			url = fmt.Sprintf(f.officialDownloadURLTemplate, licenseKey, edition)
 			b, err = loadFromURL(url)
