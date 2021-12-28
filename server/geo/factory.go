@@ -152,6 +152,9 @@ func (f *MaxMindFactory) createWithLicenseKey(licenseKey string, editions []Edit
 	mmr := &MaxMindResolver{}
 	for _, edition := range editions {
 		parser, downloadedEdition, err := f.downloadOfficial(licenseKey, edition)
+		if downloadedEdition == NotRequired {
+			continue
+		}
 		if err != nil {
 			if err == ErrInvalidLicenseKey {
 				continue
@@ -252,6 +255,9 @@ func (f *MaxMindFactory) downloadOfficial(licenseKey string, edition Edition) (*
 		//download analog
 		if edition.FreeAnalog() != Unknown {
 			edition = edition.FreeAnalog()
+			if edition == NotRequired {
+				return nil, NotRequired, nil
+			}
 			url = fmt.Sprintf(f.officialDownloadURLTemplate, licenseKey, edition)
 			b, err = loadFromURL(url)
 			if err != nil {
