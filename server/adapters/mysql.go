@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
@@ -37,6 +38,8 @@ const (
 	mySQLTruncateTableTemplate       = "TRUNCATE TABLE `%s`.`%s`"
 	mySQLPrimaryKeyMaxLength         = 32
 	mySQLValuesLimit                 = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	batchRetryAttempts               = 3     //number of additional tries to proceed batch update or insert.
+	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
 )
 
 var (
@@ -79,8 +82,8 @@ func NewMySQL(ctx context.Context, config *DataSourceConfig, queryLogger *loggin
 
 	//set default values
 	dataSource.SetConnMaxLifetime(3 * time.Minute)
-	dataSource.SetMaxOpenConns(50)
-	dataSource.SetMaxIdleConns(50)
+	dataSource.SetMaxOpenConns(10)
+	dataSource.SetMaxIdleConns(10)
 
 	return &MySQL{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToMySQL)}, nil
 }
@@ -121,7 +124,7 @@ func (m *MySQL) CreateTable(table *Table) error {
 
 	err = m.createTableInTransaction(wrappedTx, table)
 	if err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -184,39 +187,64 @@ func (m *MySQL) Insert(eventContext *EventContext) error {
 
 //BulkInsert runs bulkStoreInTransaction
 func (m *MySQL) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	wrappedTx, err := m.OpenTx()
-	if err != nil {
-		return err
-	}
+	var e error
+	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
+	for i := 0; i <= batchRetryAttempts; i++ {
+		wrappedTx, err := m.OpenTx()
+		if err != nil {
+			return err
+		}
 
-	if err = m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback()
-		return err
-	}
+		if err = m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
+			wrappedTx.Rollback(err)
+			if strings.HasSuffix(err.Error(), "invalid connection") {
+				e = err
+				continue
+			} else {
+				return err
+			}
+		}
 
-	return wrappedTx.DirectCommit()
+		return wrappedTx.DirectCommit()
+	}
+	return e
 }
 
 //BulkUpdate deletes with deleteConditions and runs bulkStoreInTransaction
 func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	wrappedTx, err := m.OpenTx()
-	if err != nil {
-		return err
-	}
-
-	if !deleteConditions.IsEmpty() {
-		if err := m.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
-			wrappedTx.Rollback()
+	var e error
+	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
+	for i := 0; i <= batchRetryAttempts; i++ {
+		wrappedTx, err := m.OpenTx()
+		if err != nil {
 			return err
 		}
-	}
 
-	if err := m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback()
-		return err
-	}
+		if !deleteConditions.IsEmpty() {
+			if err := m.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
+				wrappedTx.Rollback(err)
+				if strings.HasSuffix(err.Error(), mysql.ErrInvalidConn.Error()) {
+					e = err
+					continue
+				} else {
+					return err
+				}
+			}
+		}
 
-	return wrappedTx.DirectCommit()
+		if err := m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
+			wrappedTx.Rollback(err)
+			if strings.HasSuffix(err.Error(), mysql.ErrInvalidConn.Error()) {
+				e = err
+				continue
+			} else {
+				return err
+			}
+		}
+
+		return wrappedTx.DirectCommit()
+	}
+	return e
 }
 
 //Update one record in MySQL
@@ -249,7 +277,7 @@ func (m *MySQL) DropTable(table *Table) error {
 	}
 
 	if err := m.dropTableInTransaction(wrappedTx, table); err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -648,7 +676,7 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 
 		_, err := wrappedTx.tx.ExecContext(m.ctx, query)
 		if err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return fmt.Errorf("Error patching %s table with [%s] DDL: %v", patchTable.Name, columnDDL, err)
 		}
 	}
@@ -657,7 +685,7 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 	if patchTable.DeletePkFields {
 		err := m.deletePrimaryKeyInTransaction(wrappedTx, patchTable)
 		if err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return err
 		}
 	}
@@ -666,7 +694,7 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 	if len(patchTable.PKFields) > 0 {
 		err := m.createPrimaryKeyInTransaction(wrappedTx, patchTable)
 		if err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return err
 		}
 	}

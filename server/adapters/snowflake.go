@@ -162,7 +162,7 @@ func (s *Snowflake) CreateTable(tableSchema *Table) error {
 	}
 
 	if err = s.createTableInTransaction(wrappedTx, tableSchema); err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return fmt.Errorf("Error creating [%s] table: %v", tableSchema.Name, err)
 	}
 	return wrappedTx.tx.Commit()
@@ -183,13 +183,13 @@ func (s *Snowflake) PatchTableSchema(patchSchema *Table) error {
 		s.queryLogger.LogDDL(query)
 		alterStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
 		if err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return fmt.Errorf("Error preparing patching table %s schema statement: %v", patchSchema.Name, err)
 		}
 
 		_, err = alterStmt.ExecContext(s.ctx)
 		if err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, column.Type, err)
 		}
 	}
@@ -279,7 +279,7 @@ func (s *Snowflake) Copy(fileName, tableName string, header []string) error {
 
 	_, err = wrappedTx.tx.ExecContext(s.ctx, statement)
 	if err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -294,7 +294,7 @@ func (s *Snowflake) Insert(eventContext *EventContext) error {
 	}
 
 	if err := s.insertInTransaction(wrappedTx, eventContext); err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -337,7 +337,7 @@ func (s *Snowflake) BulkInsert(table *Table, objects []map[string]interface{}) e
 
 	err = s.bulkInsertInTransaction(wrappedTx, table, objects)
 	if err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
@@ -356,7 +356,7 @@ func (s *Snowflake) BulkUpdate(table *Table, objects []map[string]interface{}, d
 
 	if !deleteConditions.IsEmpty() {
 		if err := s.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return err
 		}
 	}
@@ -366,7 +366,7 @@ func (s *Snowflake) BulkUpdate(table *Table, objects []map[string]interface{}, d
 
 	for _, objectsBucket := range deduplicatedObjectsBuckets {
 		if err := s.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
-			wrappedTx.Rollback()
+			wrappedTx.Rollback(err)
 			return err
 		}
 	}
@@ -382,7 +382,7 @@ func (s *Snowflake) DropTable(table *Table) error {
 	}
 
 	if err := s.dropTableInTransaction(wrappedTx, table); err != nil {
-		wrappedTx.Rollback()
+		wrappedTx.Rollback(err)
 		return err
 	}
 
