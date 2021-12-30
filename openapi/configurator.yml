@@ -1,0 +1,88 @@
+openapi: 3.0.0
+info:
+  title: Calendso API
+  description: The open source Calendly alternative.
+  contact:
+    name: Support
+    email: support@cal.com
+  license:
+    name: MIT License
+    url: "https://opensource.org/licenses/MIT"
+  version: 1.0.0
+  termsOfService: "https://cal.com/terms"
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        error:
+          type: string
+      required:
+        - message
+    Empty:
+      type: object
+    AnyObject:
+      type: object
+    AnyArray:
+      type: object
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+    LoginResponse:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+  responses:
+    Error:
+      description: "Error response"
+      content:
+        "application/json":
+          schema:
+            $ref: "#/components/schemas/Error"
+    Empty:
+      description: "Empty OK response"
+      content:
+        "application/json":
+          schema:
+            $ref: "#/components/schemas/Empty"
+    Empty:
+      description: "Empty OK response"
+      content:
+        "application/json":
+          schema:
+            $ref: "#/components/schemas/Empty"
+
+
+paths:
+  /api/v1/users/signin:
+    post:
+      description: Sign-in user with login and password
+      responses:
+        "200":
+          $ref: '#/components/schemas/AnyArray'
+        "500":
+          $ref:
+
+
+
+      requestBody:
+        description: '{ email: "email", password: "password" }'
+        required: true
+
