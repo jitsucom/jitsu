@@ -23,6 +23,9 @@ import styles from "./ConnectionsPage.module.less"
 import { useServices } from "hooks/useServices"
 import { throttle } from "lodash"
 import Form from "antd/lib/form/Form"
+import { APIKeyUtil } from "../../../utils/apiKeys.utils"
+import { DestinationsUtils } from "../../../utils/destinations.utils"
+import { SourcesUtils } from "../../../utils/sources.utils"
 
 const CONNECTION_LINE_SIZE = 3
 const CONNECTION_LINE_COLOR = "#415969"
@@ -119,37 +122,37 @@ const ConnectionsPageComponent: React.FC = () => {
         >
           {apiKeysStore.hasApiKeys || sourcesStore.hasSources ? (
             [
-              ...apiKeysStore.apiKeys.map(({ uid, comment }) => {
+              ...apiKeysStore.apiKeys.map(apiKey => {
                 return (
-                  <CardContainer id={uid}>
+                  <CardContainer id={apiKey.uid}>
                     <EntityCard
-                      name={<CardTitle title={`API Key ${comment || uid}`} />}
+                      name={<CardTitle title={APIKeyUtil.getDisplayName(apiKey)} />}
                       message={<EntityMessage connectionTestOk={true} />}
-                      link="/api-keys"
+                      link={"/api-keys/" + apiKey.uid}
                       icon={
                         <IconWrapper sizeTailwind={12}>
                           <EntityIcon entityType="api_key" />
                         </IconWrapper>
                       }
-                      onMouseEnter={() => handleCardMouseEnter(uid)}
+                      onMouseEnter={() => handleCardMouseEnter(apiKey.uid)}
                       onMouseLeave={handleCardMouseLeave}
                     />
                   </CardContainer>
                 )
               }),
-              ...sourcesStore.sources.map(({ sourceId, sourceProtoType, connected }) => {
+              ...sourcesStore.sources.map(source => {
                 return (
-                  <CardContainer id={sourceId}>
+                  <CardContainer id={source.sourceId}>
                     <EntityCard
-                      name={<CardTitle title={sourceId} />}
-                      message={<EntityMessage connectionTestOk={connected} />}
-                      link={`/sources/edit/${sourceId}`}
+                      name={<CardTitle title={SourcesUtils.getDisplayName(source)} />}
+                      message={<EntityMessage connectionTestOk={source.connected} />}
+                      link={`/sources/edit/${source.sourceId}`}
                       icon={
                         <IconWrapper sizeTailwind={12}>
-                          <EntityIcon entityType="source" entitySubType={sourceProtoType} />
+                          <EntityIcon entityType="source" entitySubType={source.sourceProtoType} />
                         </IconWrapper>
                       }
-                      onMouseEnter={() => handleCardMouseEnter(sourceId)}
+                      onMouseEnter={() => handleCardMouseEnter(source.sourceId)}
                       onMouseLeave={handleCardMouseLeave}
                     />
                   </CardContainer>
@@ -198,19 +201,19 @@ const ConnectionsPageComponent: React.FC = () => {
           }
         >
           {destinationsStore.hasDestinations ? (
-            destinationsStore.destinations.map(({ _id, _uid, _type, _connectionTestOk }) => {
+            destinationsStore.destinations.map(dst => {
               return (
-                <CardContainer id={_uid}>
+                <CardContainer id={dst._uid}>
                   <EntityCard
-                    name={<CardTitle title={_id} />}
-                    message={<EntityMessage connectionTestOk={_connectionTestOk} />}
-                    link={`/destinations/edit/${_id}`}
+                    name={<CardTitle title={DestinationsUtils.getDisplayName(dst)} />}
+                    message={<EntityMessage connectionTestOk={dst._connectionTestOk} />}
+                    link={`/destinations/edit/${dst._id}`}
                     icon={
                       <IconWrapper sizeTailwind={12}>
-                        <EntityIcon entityType="destination" entitySubType={_type} />
+                        <EntityIcon entityType="destination" entitySubType={dst._type} />
                       </IconWrapper>
                     }
-                    onMouseEnter={() => handleCardMouseEnter(_uid)}
+                    onMouseEnter={() => handleCardMouseEnter(dst._uid)}
                     onMouseLeave={handleCardMouseLeave}
                   />
                 </CardContainer>
