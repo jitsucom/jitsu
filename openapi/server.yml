@@ -1,0 +1,32 @@
+openapi: 3.0.0
+info:
+  title: Jitsu Server API
+  contact:
+    name: Jitsu Dev Team
+    email: dev@jitsu.com
+  license:
+    name: MIT License
+    url: "https://opensource.org/licenses/MIT"
+  version: 1.0.0
+tags:
+  - name: Authentication
+    description: "Auth routes, powered by Next-Auth.js"
+    externalDocs:
+      url: "http://next-auth.js.org/"
+  - name: Availability
+    description: Checking and setting user availability
+  - name: Booking
+    description: Create and manage bookings
+  - name: Integrations
+    description: Manage integrations
+  - name: User
+    description: Manage the user's profile and settings
+  - name: Teams
+    description: Manage teams
+paths:
+  /api/auth/signin:
+    get:
+      description: Displays the sign in page.
+      summary: Displays the sign in page
+      tags:
+        - Authentication
