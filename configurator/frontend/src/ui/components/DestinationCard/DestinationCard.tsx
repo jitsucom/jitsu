@@ -15,6 +15,7 @@ import CodeOutlined from "@ant-design/icons/lib/icons/CodeOutlined"
 import SubMenu from "antd/lib/menu/SubMenu"
 import SyncOutlined from "@ant-design/icons/lib/icons/SyncOutlined"
 import { flowResult } from "mobx"
+import { DestinationsUtils } from "../../../utils/destinations.utils"
 
 export type DestinationCardProps = {
   dst: DestinationData
@@ -49,7 +50,7 @@ export function DestinationCard({ dst }: DestinationCardProps) {
   const statLink = generatePath(destinationPageRoutes.statisticsExact, { id: dst._id })
   return (
     <ConnectionCard
-      title={dst.displayName || dst._id}
+      title={DestinationsUtils.getDisplayName(dst)}
       icon={reference.ui.icon}
       deleteAction={deleteAction}
       editAction={editLink}
