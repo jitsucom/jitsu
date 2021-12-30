@@ -63,20 +63,31 @@ const SourceEditorConfigComponent = ({
   const validateUniqueSourceId = useCallback(
     (rule: RuleObject, value: string) =>
       sources?.find((source: SourceData) => source.sourceId === value)
-        ? Promise.reject("Source ID must be unique!")
+        ? Promise.reject("SourceId must be unique!")
         : Promise.resolve(),
+    [sources]
+  )
+
+  const validateSourceIdNoSpaces = useCallback(
+    (rule: RuleObject, value: string) => {
+      const re = /^[A-Za-z0-9_]*$/
+      if (!re.test(value)) {
+        return Promise.reject("SourceId must contain only letters, numbers, or the underscore character")
+      } else {
+        return Promise.resolve()
+      }
+    },
     [sources]
   )
 
   const handleChange = debounce(handleTouchAnyField, 500)
 
   const sourceIdValidators = useMemo(() => {
-    const rules: Rule[] = [{ required: true, message: "Source ID is required field" }]
+    const rules: Rule[] = [{ required: true, message: "SourceId is required field" }]
 
     if (isCreateForm) {
-      rules.push({
-        validator: validateUniqueSourceId,
-      })
+      rules.push({ validator: validateUniqueSourceId })
+      rules.push({ validator: validateSourceIdNoSpaces })
     }
 
     return rules
