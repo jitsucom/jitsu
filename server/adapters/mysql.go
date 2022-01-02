@@ -82,7 +82,6 @@ func NewMySQL(ctx context.Context, config *DataSourceConfig, queryLogger *loggin
 
 	//set default values
 	dataSource.SetConnMaxLifetime(3 * time.Minute)
-	dataSource.SetMaxOpenConns(10)
 	dataSource.SetMaxIdleConns(10)
 
 	return &MySQL{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToMySQL)}, nil
@@ -325,7 +324,9 @@ func (m *MySQL) Close() error {
 
 func (m *MySQL) getTable(tableName string) (*Table, error) {
 	table := &Table{Name: tableName, Columns: map[string]typing.SQLColumn{}, PKFields: map[string]bool{}}
-	rows, err := m.dataSource.QueryContext(m.ctx, mySQLTableSchemaQuery, m.config.Db, tableName)
+	ctx, cancel := context.WithTimeout(m.ctx, 1*time.Minute)
+	defer cancel()
+	rows, err := m.dataSource.QueryContext(ctx, mySQLTableSchemaQuery, m.config.Db, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("%s error querying table [%s] schema: %v", m.destinationId(), tableName, err)
 	}
