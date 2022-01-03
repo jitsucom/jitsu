@@ -438,7 +438,7 @@ func (m *MySQL) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, ob
 
 			placeholdersBuilder.Reset()
 			placeholdersCounter = 1
-			valueArgs = make([]interface{}, 0, maxValues-(i*len(headerWithoutQuotes)))
+			valueArgs = make([]interface{}, 0, maxValues)
 		}
 		_, err := placeholdersBuilder.WriteString("(")
 		if err != nil {
