@@ -1,5 +1,26 @@
 #!/usr/bin/env bash
 
+
+# Highlights args with color
+# Only red is supported so far
+#
+function chalk() {
+  local color=$1; shift
+  local color_code=0
+  if [[ $color == "red" ]]; then
+    color_code=1
+  elif [[ $color == "green" ]]; then
+    color_code=2
+  fi
+
+  echo -e "$(tput setaf $color_code)$*$(tput sgr0)"
+}
+
+function fail() {
+  local error="$*" || 'Unknown error'
+  echo "$(chalk red "${error}")" ; exit 1
+}
+
 function build_server() {
   echo "Building Server lib JS locally.."
   rm -rf server/build && rm -rf javascript-sdk/dist && \
@@ -61,40 +82,41 @@ function release_jitsu() {
 
 SEMVER_EXPRESSION='^([0-9]+\.){0,2}(\*|[0-9]+)$'
 echo "Release tool running..."
-echo ""
+echo "Running checks:"
 
-if [ $# -eq 2 ]
-  then
-    version=$1
-    subsystem=$2
-  else
-    read -r -p "What version would you like to release? ['beta' or release as semver, e. g. '1.30.1' ] " version
-fi
+docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" >/dev/null 2>&1|| fail 'Docker jitsu login failed. Make sure that JITSU_DOCKER_LOGIN and JITSU_DOCKER_PASSWORD are properly'
+echo "   ✅ Can login with docker"
 
-echo "=== Release version: $version ==="
-echo "Using git reset --hard"
-git reset --hard
+[[ $( git branch --show-current) == "master" || $( git branch --show-current) == "beta" ]] || fail "   ❌ Git branch should be master or beta. Run git branch"
+echo "   ✅ Git branch is master"
 
-if [[ $version =~ $SEMVER_EXPRESSION ]]; then
-  echo "Checkouting master ..."
-  git checkout master
-  git pull
-  echo "Service to release: configurator, server, jitsu"
-  subsystem='jitsu'
-elif [[ $version == "beta" ]]; then
-  echo "Checkouting beta ..."
-  git checkout beta
-  git pull
-  if [ -z "$subsystem" ]
-  then
-    read -r -p "What service would you like to release? ['server', 'configurator', 'jitsu']: " subsystem
-  fi
+git diff-index --quiet HEAD || fail "   ❌ Repository has local changes. Run git diff. And commit them!"
+echo "   ✅ No local changes"
+
+ [[ -z $(git cherry) ]] || fail "   ❌ Not all changes are pushed. Please run git diff HEAD^ HEAD to see them"
+echo "   ✅ No unpushed changes"
+
+
+if [ $# -eq 2 ]; then
+  version=$1
+  subsystem=$2
 else
-  echo "Invalid version: $version. Only 'beta' or certain version e.g. '1.30.1' are supported"
-  exit 1
+  subsystem="jitsu"
+  if [[ $( git branch --show-current) == "master" ]]; then
+    echo "Releasing master. Checking if HEAD is tagged"
+    git describe --exact-match HEAD >/dev/null 2>&1 || fail "   ❌ HEAD is not tagged. Run git describe --exact-match HEAD "
+    latest_tag=$(git describe --exact-match HEAD)
+    version=${latest_tag//v/}
+    echo "   ✅ Latest tag is $latest_tag, version is $version"
+  elif [[ $( git branch --show-current) == "beta" ]]; then
+    echo "Releasing beta"
+    version='beta'
+  fi
 fi
 
-echo "=== Release subsystem: $subsystem ==="
+chalk green "=== Release version: $version ==="
+
+chalk green "=== Release subsystem: $subsystem ==="
 
 case $subsystem in
     [s][e][r][v][e][r])
