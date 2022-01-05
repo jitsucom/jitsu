@@ -9,7 +9,10 @@ function chalk() {
   local color_code=0
   if [[ $color == "red" ]]; then
     color_code=1
+  elif [[ $color == "green" ]]; then
+    color_code=2
   fi
+
   echo -e "$(tput setaf $color_code)$*$(tput sgr0)"
 }
 
@@ -80,40 +83,42 @@ function release_jitsu() {
 SEMVER_EXPRESSION='^([0-9]+\.){0,2}(\*|[0-9]+)$'
 echo "Release tool running..."
 echo "Running checks:"
+
 docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" >/dev/null 2>&1|| fail 'Docker jitsu login failed. Make sure that JITSU_DOCKER_LOGIN and JITSU_DOCKER_PASSWORD are properly'
 echo "   ✅ Can login with docker"
-git status --porcelain >/dev/null 2>&1 && fail "   ❌ Repository has local changes. Run git diff. And commit them first"
 
-if [ $# -eq 2 ]
-  then
-    version=$1
-    subsystem=$2
-  else
-    read -r -p "What version would you like to release? ['beta' or release as semver, e. g. '1.30.1' ] " version
+[[ $( git branch --show-current) == "master" || $( git branch --show-current) == "beta" ]] || fail "   ❌ Git branch should be master or beta. Run git branch"
+echo "   ✅ Git branch is master"
+
+git status --porcelain >/dev/null 2>&1 && fail "   ❌ Repository has local changes. Run git diff. And commit them!"
+echo "   ✅ No local changes"
+
+git diff HEAD^ HEAD --quiet && fail "   ❌ Not all changes are pushed. Please run git diff HEAD^ HEAD to see them"
+echo "   ✅ No unpushed changes"
+
+
+if [ $# -eq 2 ]; then
+  version=$1
+  subsystem=$2
+else
+  if [[ $( git branch --show-current) == "master" ]]; then
+    echo "Releasing master. Checking if HEAD is tagged"
+    git describe --exact-match HEAD >/dev/null 2>&1 || fail "   ❌ HEAD is not tagged. Run git describe --exact-match HEAD "
+    latest_tag=$(git describe --exact-match HEAD)
+    latest_tag="v1.38.5"
+    version=${latest_tag//v/}
+    echo "   ✅ Latest tag is $latest_tag, version is $version"
+  elif [[ $( git branch --show-current) == "beta" ]]; then
+    echo "Releasing beta"
+    version='beta'
+  fi
 fi
 
 chalk green "=== Release version: $version ==="
 
-if [[ $version =~ $SEMVER_EXPRESSION ]]; then
-  echo "Checkouting master ..."
-  git checkout master
-  git pull
-  echo "Service to release: configurator, server, jitsu"
-  subsystem='jitsu'
-elif [[ $version == "beta" ]]; then
-  echo "Checkouting beta ..."
-  git checkout beta
-  git pull
-  if [ -z "$subsystem" ]
-  then
-    read -r -p "What service would you like to release? ['server', 'configurator', 'jitsu']: " subsystem
-  fi
-else
-  echo "Invalid version: $version. Only 'beta' or certain version e.g. '1.30.1' are supported"
-  exit 1
-fi
-
 chalk green "=== Release subsystem: $subsystem ==="
+
+exit 1;
 
 case $subsystem in
     [s][e][r][v][e][r])
