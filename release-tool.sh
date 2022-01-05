@@ -105,7 +105,6 @@ else
     echo "Releasing master. Checking if HEAD is tagged"
     git describe --exact-match HEAD >/dev/null 2>&1 || fail "   ❌ HEAD is not tagged. Run git describe --exact-match HEAD "
     latest_tag=$(git describe --exact-match HEAD)
-    latest_tag="v1.38.5"
     version=${latest_tag//v/}
     echo "   ✅ Latest tag is $latest_tag, version is $version"
   elif [[ $( git branch --show-current) == "beta" ]]; then
