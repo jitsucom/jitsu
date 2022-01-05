@@ -1,5 +1,23 @@
 #!/usr/bin/env bash
 
+
+# Highlights args with color
+# Only red is supported so far
+#
+function chalk() {
+  local color=$1; shift
+  local color_code=0
+  if [[ $color == "red" ]]; then
+    color_code=1
+  fi
+  echo -e "$(tput setaf $color_code)$*$(tput sgr0)"
+}
+
+function fail() {
+  local error="$*" || 'Unknown error'
+  echo "$(chalk red "${error}")" ; exit 1
+}
+
 function build_server() {
   echo "Building Server lib JS locally.."
   rm -rf server/build && rm -rf javascript-sdk/dist && \
@@ -61,7 +79,10 @@ function release_jitsu() {
 
 SEMVER_EXPRESSION='^([0-9]+\.){0,2}(\*|[0-9]+)$'
 echo "Release tool running..."
-echo ""
+echo "Running checks:"
+docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" >/dev/null 2>&1|| fail 'Docker jitsu login failed. Make sure that JITSU_DOCKER_LOGIN and JITSU_DOCKER_PASSWORD are properly'
+echo "   ✅ Can login with docker"
+git status --porcelain >/dev/null 2>&1 && fail "   ❌ Repository has local changes. Run git diff. And commit them first"
 
 if [ $# -eq 2 ]
   then
@@ -71,9 +92,7 @@ if [ $# -eq 2 ]
     read -r -p "What version would you like to release? ['beta' or release as semver, e. g. '1.30.1' ] " version
 fi
 
-echo "=== Release version: $version ==="
-echo "Using git reset --hard"
-git reset --hard
+chalk green "=== Release version: $version ==="
 
 if [[ $version =~ $SEMVER_EXPRESSION ]]; then
   echo "Checkouting master ..."
@@ -94,7 +113,7 @@ else
   exit 1
 fi
 
-echo "=== Release subsystem: $subsystem ==="
+chalk green "=== Release subsystem: $subsystem ==="
 
 case $subsystem in
     [s][e][r][v][e][r])
