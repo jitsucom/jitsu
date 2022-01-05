@@ -101,6 +101,7 @@ if [ $# -eq 2 ]; then
   version=$1
   subsystem=$2
 else
+  subsystem="jitsu"
   if [[ $( git branch --show-current) == "master" ]]; then
     echo "Releasing master. Checking if HEAD is tagged"
     git describe --exact-match HEAD >/dev/null 2>&1 || fail "   ❌ HEAD is not tagged. Run git describe --exact-match HEAD "
