@@ -93,7 +93,7 @@ echo "   ✅ Git branch is master"
 git diff-index --quiet HEAD || fail "   ❌ Repository has local changes. Run git diff. And commit them!"
 echo "   ✅ No local changes"
 
-git diff HEAD^ HEAD --quiet || fail "   ❌ Not all changes are pushed. Please run git diff HEAD^ HEAD to see them"
+ [[ -z $(git cherry) ]] || fail "   ❌ Not all changes are pushed. Please run git diff HEAD^ HEAD to see them"
 echo "   ✅ No unpushed changes"
 
 
