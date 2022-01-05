@@ -118,8 +118,6 @@ chalk green "=== Release version: $version ==="
 
 chalk green "=== Release subsystem: $subsystem ==="
 
-exit 1;
-
 case $subsystem in
     [s][e][r][v][e][r])
         build_server
