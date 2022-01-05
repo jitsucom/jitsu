@@ -90,10 +90,10 @@ echo "   ✅ Can login with docker"
 [[ $( git branch --show-current) == "master" || $( git branch --show-current) == "beta" ]] || fail "   ❌ Git branch should be master or beta. Run git branch"
 echo "   ✅ Git branch is master"
 
-git status --porcelain >/dev/null 2>&1 && fail "   ❌ Repository has local changes. Run git diff. And commit them!"
+git diff-index --quiet HEAD || fail "   ❌ Repository has local changes. Run git diff. And commit them!"
 echo "   ✅ No local changes"
 
-git diff HEAD^ HEAD --quiet && fail "   ❌ Not all changes are pushed. Please run git diff HEAD^ HEAD to see them"
+git diff HEAD^ HEAD --quiet || fail "   ❌ Not all changes are pushed. Please run git diff HEAD^ HEAD to see them"
 echo "   ✅ No unpushed changes"
 
 
