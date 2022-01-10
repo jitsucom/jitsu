@@ -1,0 +1,21 @@
+name: 'Issue States'
+
+on:
+  project_card:
+    types: [created, edited, moved]
+
+permissions:
+  repository-projects: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dessant/issue-states@v2
+        with:
+          github-token: ${{ github.token }}
+          open-issue-columns: 'To do, In progress, In Beta'
+          closed-issue-columns: 'Closed, Done'
+          log-output: false

@@ -62,8 +62,12 @@ export class FirebaseUserService implements UserService {
   }
 
   initiateGithubLogin(): Promise<string> {
+    const provider = new GithubAuthProvider()
+    provider.setCustomParameters({
+      login: "",
+    })
     return new Promise<string>((resolve, reject) => {
-      signInWithPopup(getAuth(), new GithubAuthProvider())
+      signInWithPopup(getAuth(), provider)
         .then(a => {
           resolve(a.user.email)
           return a["additionalUserInfo"]?.isNewUser && this.trackSignup(a.user.email, "github")
@@ -76,7 +80,11 @@ export class FirebaseUserService implements UserService {
 
   initiateGoogleLogin(): Promise<string> {
     return new Promise<string>((resolve, reject) => {
-      signInWithPopup(getAuth(), new GoogleAuthProvider())
+      const provider = new GoogleAuthProvider()
+      provider.setCustomParameters({
+        prompt: "select_account",
+      })
+      signInWithPopup(getAuth(), provider)
         .then(a => {
           resolve(a.user.email)
           return a["additionalUserInfo"]?.isNewUser && this.trackSignup(a.user.email, "google")

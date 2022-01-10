@@ -12,6 +12,7 @@ import { generatePath, NavLink } from "react-router-dom"
 import { apiKeysRoutes } from "./ApiKeyEditor"
 import { confirmDelete } from "../../commons/deletionConfirmation"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+import { APIKeyUtil } from "../../../utils/apiKeys.utils"
 
 type ApiKeyCardProps = {
   apiKey: APIKey
@@ -48,7 +49,7 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
   return (
     <ConnectionCard
       loading={loading}
-      title={key.comment || key.uid}
+      title={APIKeyUtil.getDisplayName(key)}
       icon={apiKeysReferenceMap.js.icon}
       deleteAction={deleteAction}
       editAction={editLink}

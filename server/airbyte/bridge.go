@@ -124,8 +124,13 @@ func (b *Bridge) pullImage(dockerVersionedImage string) {
 //BuildMsg returns formatted error
 func (b *Bridge) BuildMsg(prefix string, outWriter, errWriter *logging.StringWriter, err error) string {
 	msg := prefix
-	outStr := outWriter.String()
-	errStr := errWriter.String()
+	var outStr, errStr string
+	if outWriter != nil {
+		outStr = outWriter.String()
+	}
+	if errWriter != nil {
+		errStr = errWriter.String()
+	}
 	if outStr != "" {
 		if msg != "" {
 			msg += "\n\t"

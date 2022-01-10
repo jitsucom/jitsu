@@ -198,7 +198,7 @@ func main() {
 
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")
 	if slackNotificationsWebHook != "" {
-		notifications.Init(notifications.ServiceName, slackNotificationsWebHook, appconfig.Instance.ServerName, logging.Errorf)
+		notifications.Init(notifications.ServiceName, tag, slackNotificationsWebHook, appconfig.Instance.ServerName, logging.Errorf)
 	}
 
 	//listen to shutdown signal to free up all resources
@@ -312,13 +312,14 @@ func main() {
 	//events cache
 	eventsCacheEnabled := viper.GetBool("server.cache.enabled")
 	eventsCacheSize := viper.GetInt("server.cache.events.size")
+	eventsCacheTrimIntervalMs := viper.GetInt("server.cache.events.trim_interval_ms")
 	eventsCachePoolSize := viper.GetInt("server.cache.pool.size")
 	if eventsCachePoolSize == 0 {
 		eventsCachePoolSize = 1
 		logging.Infof("server.cache.pool.size can't be 0. Using default value=1 instead")
 
 	}
-	eventsCache := caching.NewEventsCache(eventsCacheEnabled, metaStorage, eventsCacheSize, eventsCachePoolSize)
+	eventsCache := caching.NewEventsCache(eventsCacheEnabled, metaStorage, eventsCacheSize, eventsCachePoolSize, eventsCacheTrimIntervalMs)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
 	// ** Retroactive users recognition

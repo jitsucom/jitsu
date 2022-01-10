@@ -46,7 +46,8 @@ func NewMySQL(config *Config) (Storage, error) {
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	adapter, err := CreateMySQLAdapter(config.ctx, *mConfig, queryLogger, config.sqlTypes)
+	ctx := context.WithValue(config.ctx, adapters.CtxDestinationId, config.destinationID)
+	adapter, err := CreateMySQLAdapter(ctx, *mConfig, queryLogger, config.sqlTypes)
 	if err != nil {
 		return nil, err
 	}

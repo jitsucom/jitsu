@@ -442,7 +442,7 @@ func TestIncomingEvent(t *testing.T) {
 			if tt.XAuthToken != "" {
 				apiReq.Header.Add(middleware.TokenHeaderName, tt.XAuthToken)
 			}
-			apiReq.Header.Add("x-real-ip", "95.82.232.185")
+			apiReq.Header.Add("x-forwarded-for", "95.82.232.185")
 			resp, err := http.DefaultClient.Do(apiReq)
 			require.NoError(t, err)
 
@@ -791,7 +791,7 @@ func TestIPCookiePolicyComply(t *testing.T) {
 			apiReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+tt.ReqURN, bytes.NewBuffer(b))
 			require.NoError(t, err)
 
-			apiReq.Header.Add("x-real-ip", "10.10.10.10")
+			apiReq.Header.Add("x-forwarded-for", "10.10.10.10")
 			resp, err := http.DefaultClient.Do(apiReq)
 			require.NoError(t, err)
 
