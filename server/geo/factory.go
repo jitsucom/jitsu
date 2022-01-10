@@ -68,7 +68,7 @@ func (f *MaxMindFactory) Test(maxmindURL string) ([]*EditionRule, error) {
 
 		//analog
 		analog := edition.FreeAnalog()
-		if analog != Unknown {
+		if analog != Unknown && analog != NotRequired {
 			rule.Analog = &EditionData{
 				Name:   analog,
 				Status: StatusUnknown,
@@ -152,6 +152,9 @@ func (f *MaxMindFactory) createWithLicenseKey(licenseKey string, editions []Edit
 	mmr := &MaxMindResolver{}
 	for _, edition := range editions {
 		parser, downloadedEdition, err := f.downloadOfficial(licenseKey, edition)
+		if downloadedEdition == NotRequired {
+			continue
+		}
 		if err != nil {
 			if err == ErrInvalidLicenseKey {
 				continue
@@ -250,9 +253,11 @@ func (f *MaxMindFactory) downloadOfficial(licenseKey string, edition Edition) (*
 	b, err := loadFromURL(url)
 	if err != nil {
 		//download analog
-		if err == ErrInvalidLicenseKey && edition.FreeAnalog() != Unknown {
-
+		if edition.FreeAnalog() != Unknown {
 			edition = edition.FreeAnalog()
+			if edition == NotRequired {
+				return nil, NotRequired, nil
+			}
 			url = fmt.Sprintf(f.officialDownloadURLTemplate, licenseKey, edition)
 			b, err = loadFromURL(url)
 			if err != nil {

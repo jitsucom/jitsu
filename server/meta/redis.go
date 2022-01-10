@@ -188,7 +188,7 @@ func (r *Redis) IncrementEventsCount(id, namespace, eventType, status string, no
 
 //AddEvent saves event JSON string into Redis and ensures that event ID is in index by destination ID
 //returns index length
-func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) (int, error) {
+func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 	//add event
@@ -197,7 +197,7 @@ func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) 
 	_, err := conn.Do("HSET", lastEventsKey, field, payload)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
-		return 0, err
+		return err
 	}
 
 	//enrich index
@@ -205,17 +205,9 @@ func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) 
 	_, err = conn.Do("ZADD", lastEventsIndexKey, now.Unix(), eventID)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
-		return 0, err
+		return err
 	}
-
-	//get index length
-	count, err := redis.Int(conn.Do("ZCOUNT", lastEventsIndexKey, "-inf", "+inf"))
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return 0, err
-	}
-
-	return count, nil
+	return nil
 }
 
 //UpdateSucceedEvent updates event record in Redis with success field = JSON of succeed event
@@ -271,31 +263,39 @@ func (r *Redis) UpdateSkipEvent(destinationID, eventID, error string) error {
 	return nil
 }
 
-//RemoveLastEvent removes last event from index and delete it from Redis
-func (r *Redis) RemoveLastEvent(destinationID string) error {
+//TrimEvents removes events from index that exceed provided capacity Redis
+func (r *Redis) TrimEvents(destinationID string, capacity int) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 	//remove last event from index
 	lastEventsIndexKey := "last_events_index:destination#" + destinationID
-	values, err := redis.Strings(conn.Do("ZPOPMIN", lastEventsIndexKey))
+	//get index length
+	count, err := redis.Int(conn.Do("ZCOUNT", lastEventsIndexKey, "-inf", "+inf"))
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return err
 	}
+	if count > capacity {
+		values, err := redis.Values(conn.Do("ZPOPMIN", lastEventsIndexKey, count-capacity))
+		if err != nil && err != redis.ErrNil {
+			r.errorMetrics.NoticeError(err)
+			return err
+		}
+		logging.Debugf("[events cache] destination: %s exceed by: %d", destinationID, len(values)/2)
 
-	if len(values) != 2 {
-		return fmt.Errorf("Error response format: %v", values)
+		keys := make([]interface{}, 0, len(values))
+		for i, eventID := range values {
+			if i%2 == 0 {
+				keys = append(keys, fmt.Sprintf("last_events:destination#%s:id#%s", destinationID, eventID))
+			}
+		}
+		count, err := redis.Int(conn.Do("DEL", keys...))
+		if err != nil && err != redis.ErrNil {
+			r.errorMetrics.NoticeError(err)
+			return err
+		}
+		logging.Debugf("[events cache] destination: %s deleted: %d", destinationID, count)
 	}
-
-	eventID := values[0]
-
-	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
-	_, err = conn.Do("DEL", lastEventsKey)
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
-	}
-
 	return nil
 }
 

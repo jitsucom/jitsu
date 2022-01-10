@@ -13,6 +13,7 @@ import (
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/utils"
 	"go.uber.org/atomic"
 	"path"
 	"strings"
@@ -113,21 +114,13 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 		}
 	}
 
-	var selectedStreamsWithNamespace map[string]base.StreamConfiguration
-	if len(config.SelectedStreams) > 0 {
-		selectedStreamsWithNamespace = map[string]base.StreamConfiguration{}
-		for _, sc := range config.SelectedStreams {
-			selectedStreamsWithNamespace[base.StreamIdentifier(sc.Namespace, sc.Name)] = sc
-		}
-	}
-
 	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, config.DockerImage, configPath, catalogPath, "", statePath,
 		config.StreamTableNamesPrefix, pathToConfigs, config.StreamTableNames)
 	s := &Airbyte{
 		mutex:                        &sync.RWMutex{},
 		activeCommands:               map[string]*base.SyncCommand{},
 		config:                       config,
-		selectedStreamsWithNamespace: selectedStreamsWithNamespace,
+		selectedStreamsWithNamespace: selectedStreamsWithNamespace(config),
 		pathToConfigs:                pathToConfigs,
 		catalogDiscovered:            catalogDiscovered,
 		streamsRepresentation:        streamsRepresentation,
@@ -158,7 +151,35 @@ func TestAirbyte(sourceConfig *base.SourceConfig) error {
 	}
 	base.FillPreconfiguredOauth(config.DockerImage, config.Config)
 	airbyteRunner := airbyte.NewRunner(config.DockerImage, config.ImageVersion, "")
-	return airbyteRunner.Check(config.Config)
+	err := airbyteRunner.Check(config.Config)
+	if err != nil {
+		return err
+	}
+	selectedStreamsWithNamespace := selectedStreamsWithNamespace(config)
+	if len(selectedStreamsWithNamespace) > 0 {
+		airbyteRunner = airbyte.NewRunner(config.DockerImage, config.ImageVersion, "")
+		catalog, err := airbyteRunner.Discover(config.Config, time.Minute*3)
+		if err != nil {
+			return err
+		}
+		var missingStreams []base.StreamConfiguration
+		var missingStreamsStr []string
+		availableStreams := map[string]interface{}{}
+		for _, stream := range catalog.Streams {
+			availableStreams[base.StreamIdentifier(stream.Namespace, stream.Name)] = true
+		}
+		for key, stream := range selectedStreamsWithNamespace {
+			_, ok := availableStreams[key]
+			if !ok {
+				missingStreams = append(missingStreams, stream)
+				missingStreamsStr = append(missingStreamsStr, stream.Name)
+			}
+		}
+		if len(missingStreams) > 0 {
+			return utils.NewRichError(fmt.Sprintf("selected streams unavailable: %s", strings.Join(missingStreamsStr, ",")), missingStreams)
+		}
+	}
+	return nil
 }
 
 //EnsureCatalog does discover if catalog wasn't provided
@@ -364,6 +385,17 @@ func (a *Airbyte) loadCatalog() (string, map[string]*base.StreamRepresentation, 
 	}
 
 	return catalogPath, streamsRepresentation, nil
+}
+
+func selectedStreamsWithNamespace(config *Config) map[string]base.StreamConfiguration {
+	var selectedStreamsWithNamespace map[string]base.StreamConfiguration
+	if len(config.SelectedStreams) > 0 {
+		selectedStreamsWithNamespace = map[string]base.StreamConfiguration{}
+		for _, sc := range config.SelectedStreams {
+			selectedStreamsWithNamespace[base.StreamIdentifier(sc.Namespace, sc.Name)] = sc
+		}
+	}
+	return selectedStreamsWithNamespace
 }
 
 func (a *Airbyte) IsClosed() bool {

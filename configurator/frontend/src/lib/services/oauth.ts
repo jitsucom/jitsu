@@ -19,14 +19,17 @@ export interface IOauthService {
 
 export class OauthService implements IOauthService {
   private readonly _oauthApiBase: string
+  private readonly _oauthSupported: boolean
   private readonly _backendApiClient: BackendApiClient
 
   constructor(oauthApiBase: string, backendApiClient: BackendApiClient) {
     this._oauthApiBase = oauthApiBase
+    this._oauthSupported = !!oauthApiBase
     this._backendApiClient = backendApiClient
   }
 
   public async getAvailableBackendSecrets(sourceType: string, projectId: string): Promise<string[]> {
+    if (!this._oauthSupported) return []
     const secretsStatus = await this._backendApiClient.get(
       `sources/oauth_fields/${sourceType}?project_id=${projectId}`,
       {
@@ -44,7 +47,7 @@ export class OauthService implements IOauthService {
   }
 
   public async checkIfOauthSupported(service: string): Promise<boolean> {
-    if (!this._oauthApiBase) return false
+    if (!this._oauthSupported) return false
     const response = await fetch(`${this._oauthApiBase}/info/${service}`)
     if (response.status === 200) {
       const result: OauthSupportResponse = await response.json()

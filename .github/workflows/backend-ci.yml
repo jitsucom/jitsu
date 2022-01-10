@@ -41,8 +41,10 @@ jobs:
     - name: Check whether golang code was changed
       id: go-change
       run: |
-        git diff @~..@ --quiet server || echo ::set-output name=server::1
-        git diff @~..@ --quiet configurator/backend || echo ::set-output name=backend::1
+        echo ::set-output name=server::1
+        echo ::set-output name=backend::1
+#        git diff @~..@ --quiet server || echo ::set-output name=server::1
+#        git diff @~..@ --quiet configurator/backend || echo ::set-output name=backend::1
       working-directory: ./
 
 
@@ -50,7 +52,7 @@ jobs:
       env:
         SERVER_CHANGED: ${{ steps.go-change.outputs.server }}
         BACKEND_CHANGED: ${{ steps.go-change.outputs.backend }}
-      run: echo Server changed - $SERVER_CHANGED Backend changed - $BACKEND_CHANGED
+      run: echo TMP WORKAROUND - now it always "changed". Server changed - $SERVER_CHANGED Backend changed - $BACKEND_CHANGED
 
     - name: Build Server
       if: ${{ success() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
@@ -73,14 +75,14 @@ jobs:
       working-directory: ./configurator/backend
 
     - name: Test Report
-      if: ${{ (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
+      if: ${{ always() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
       run: |
         go install github.com/vakenbolt/go-test-report@latest
         cat test_report.json | ~/go/bin/go-test-report
       working-directory: ./server
 
     - uses: actions/upload-artifact@v2
-      if: ${{ (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
+      if: ${{ always() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
       with:
         name: test-report
         path: |
@@ -88,7 +90,7 @@ jobs:
  
     - name: Notify to Slack on Errors
       uses: rtCamp/action-slack-notify@v2.2.0
-      if: ${{ failure() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) && (env.GITHUB_REF_NAME == 'beta' || env.GITHUB_REF_NAME == 'master' ) }}
+      if: ${{ failure() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) && (github.ref_name == 'beta' || github.ref_name == 'master' ) }}
       env:
         SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
         SLACK_ICON_EMOJI: 👿

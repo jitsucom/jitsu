@@ -21,11 +21,12 @@ jobs:
       - name: Check whether frontend code was changed
         id: frontend-change
         working-directory: ./configurator/frontend
-        run: git diff @~..@ --quiet ./ || echo ::set-output name=status::1
+        run: echo ::set-output name=status::1
+#        run: git diff @~..@ --quiet ./ || echo ::set-output name=status::1
       - name: Frontend changed status
         env:
           FRONTEND_CHANGED: ${{ steps.frontend-change.outputs.status }}
-        run: echo Frontend changed - $FRONTEND_CHANGED
+        run: echo TMP WORKAROUND - now it always "changed". Frontend changed - $FRONTEND_CHANGED
       - uses: actions/setup-node@v2
         if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
         with:
@@ -45,7 +46,7 @@ jobs:
 
       - name: Notify to Slack on Errors
         uses: rtCamp/action-slack-notify@v2.2.0
-        if: ${{ failure() && steps.frontend-change.outputs.status == 1 && (env.GITHUB_REF_NAME == 'beta' || env.GITHUB_REF_NAME == 'master' ) }}
+        if: ${{ failure() && steps.frontend-change.outputs.status == 1 && (github.ref_name == 'beta' || github.ref_name == 'master' ) }}
         env:
           SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
           SLACK_ICON_EMOJI: 👿

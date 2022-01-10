@@ -160,7 +160,7 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 			return
 		}
 
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("", err))
 		return
 	}
 
@@ -170,15 +170,17 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 //OauthFields returns object with source config field that can be preconfigured on server side.
 //Along with info what env pr yaml path need to configure field and current status (provided on server side or not)
 func (sh *SourcesHandler) OauthFields(c *gin.Context) {
-	sourceType := c.Param("sourceType")
-	oathFields := oauth.Fields[sourceType]
 	res := make(map[string]interface{})
-	for k,v := range oathFields {
-		fieldObject := make(map[string]interface{})
-		fieldObject["env_name"] = strings.ReplaceAll(strings.ToUpper(v), ".", "_")
-		fieldObject["yaml_path"] = v
-		fieldObject["provided"] = viper.GetString(v) != ""
-		res[k] = fieldObject
+	sourceType := c.Param("sourceType")
+	oathFields, ok := oauth.Fields[sourceType]
+	if ok {
+		for k, v := range oathFields {
+			fieldObject := make(map[string]interface{})
+			fieldObject["env_name"] = strings.ReplaceAll(strings.ToUpper(v), ".", "_")
+			fieldObject["yaml_path"] = v
+			fieldObject["provided"] = viper.GetString(v) != ""
+			res[k] = fieldObject
+		}
 	}
 	c.JSON(http.StatusOK, res)
 }

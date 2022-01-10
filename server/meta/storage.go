@@ -32,11 +32,11 @@ type Storage interface {
 
 	//** Cache **
 	//events caching
-	AddEvent(destinationID, eventID, payload string, now time.Time) (int, error)
+	AddEvent(destinationID, eventID, payload string, now time.Time) error
 	UpdateSucceedEvent(destinationID, eventID, success string) error
 	UpdateErrorEvent(destinationID, eventID, error string) error
 	UpdateSkipEvent(destinationID, eventID, error string) error
-	RemoveLastEvent(destinationID string) error
+	TrimEvents(destinationID string, capacity int) error
 
 	GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error)
 	GetTotalEvents(destinationID string) (int, error)

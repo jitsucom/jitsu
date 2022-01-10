@@ -208,12 +208,7 @@ func extractIP(c *gin.Context, eventPayloads ...events.Event) string {
 		}
 	}
 
-	//from HTTP request
-	ip := c.Request.Header.Get("X-Real-IP")
-
-	if ip == "" {
-		ip = c.Request.Header.Get("X-Forwarded-For")
-	}
+	ip := c.Request.Header.Get("X-Forwarded-For")
 
 	if ip == "" {
 		remoteAddr := c.Request.RemoteAddr
