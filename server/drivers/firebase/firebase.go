@@ -168,8 +168,15 @@ func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
 	var documentJSONs []map[string]interface{}
 	ctx, cancel := context.WithTimeout(f.ctx, 5*time.Minute)
 	defer cancel()
-	iter := f.firestoreClient.Collection(f.firestoreCollectionKey).Documents(ctx)
+
+	firebaseCollection := f.firestoreClient.Collection(f.firestoreCollectionKey)
+	if firebaseCollection == nil {
+		return nil, fmt.Errorf("collection [%s] doesn't exist in Firestore", f.firestoreCollectionKey)
+	}
+
+	iter := firebaseCollection.Documents(ctx)
 	defer iter.Stop()
+
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
