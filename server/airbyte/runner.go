@@ -65,7 +65,7 @@ func (r *Runner) Spec() (interface{}, error) {
 	resultParser := &synchronousParser{desiredRowType: SpecType}
 	errWriter := logging.NewStringWriter()
 
-	err := r.run(resultParser.parse, copyTo(errWriter), time.Minute*3, "run", "--rm", "-i", "--name", r.identifier, fmt.Sprintf("%s:%s", Instance.AddAirbytePrefix(r.DockerImage), r.Version), "spec")
+	err := r.run(resultParser.parse, copyTo(errWriter), time.Minute*3, "run", "--rm", "--init", "-i", "--name", r.identifier, "--log-driver", "none", fmt.Sprintf("%s:%s", Instance.AddAirbytePrefix(r.DockerImage), r.Version), "spec")
 	if err != nil {
 		if err == runner.ErrNotReady {
 			return nil, err
@@ -93,8 +93,8 @@ func (r *Runner) Check(airbyteSourceConfig interface{}) error {
 		}
 	}()
 
-	err = r.run(resultParser.parse, copyTo(errWriter), time.Minute * 3,
-		"run", "--rm", "-i", "--name", r.identifier, "-v", fmt.Sprintf("%s:%s", Instance.WorkspaceVolume, VolumeAlias), fmt.Sprintf("%s:%s", Instance.AddAirbytePrefix(r.DockerImage), r.Version), "check", "--config", path.Join(VolumeAlias, relatedFilePath))
+	err = r.run(resultParser.parse, copyTo(errWriter), time.Minute*3,
+		"run", "--rm", "--init", "-i", "--name", r.identifier, "--log-driver", "none", "-v", fmt.Sprintf("%s:%s", Instance.WorkspaceVolume, VolumeAlias), fmt.Sprintf("%s:%s", Instance.AddAirbytePrefix(r.DockerImage), r.Version), "check", "--config", path.Join(VolumeAlias, relatedFilePath))
 	if err != nil {
 		if err == runner.ErrNotReady {
 			return err
@@ -132,7 +132,7 @@ func (r *Runner) Discover(airbyteSourceConfig interface{}, timeout time.Duration
 	}()
 
 	err = r.run(resultParser.parse, copyTo(dualStdErrWriter), timeout,
-		"run", "--rm", "-i", "--name", r.identifier, "-v", fmt.Sprintf("%s:%s", Instance.WorkspaceVolume, VolumeAlias), fmt.Sprintf("%s:%s", Instance.AddAirbytePrefix(r.DockerImage), r.Version), "discover", "--config", path.Join(VolumeAlias, relatedFilePath))
+		"run", "--rm", "--init", "-i", "--name", r.identifier, "--log-driver", "none", "-v", fmt.Sprintf("%s:%s", Instance.WorkspaceVolume, VolumeAlias), fmt.Sprintf("%s:%s", Instance.AddAirbytePrefix(r.DockerImage), r.Version), "discover", "--config", path.Join(VolumeAlias, relatedFilePath))
 	if err != nil {
 		if err == runner.ErrNotReady {
 			return nil, err
@@ -182,7 +182,7 @@ func (r *Runner) Read(dataConsumer base.CLIDataConsumer, streamsRepresentation m
 
 	dualStdErrWriter := logging.Dual{FileWriter: taskLogger, Stdout: logging.NewPrefixDateTimeProxy(fmt.Sprintf("[%s]", sourceID), Instance.LogWriter)}
 
-	args := []string{"run", "--rm", "-i", "--name", taskCloser.TaskID(), "-v", fmt.Sprintf("%s:%s", Instance.WorkspaceVolume, VolumeAlias), fmt.Sprintf("%s:%s", Instance.AddAirbytePrefix(r.DockerImage), r.Version), "read", "--config", path.Join(VolumeAlias, sourceID, r.DockerImage, base.ConfigFileName), "--catalog", path.Join(VolumeAlias, sourceID, r.DockerImage, base.CatalogFileName)}
+	args := []string{"run", "--rm", "--init", "-i", "--name", taskCloser.TaskID(), "--log-driver", "none", "-v", fmt.Sprintf("%s:%s", Instance.WorkspaceVolume, VolumeAlias), fmt.Sprintf("%s:%s", Instance.AddAirbytePrefix(r.DockerImage), r.Version), "read", "--config", path.Join(VolumeAlias, sourceID, r.DockerImage, base.ConfigFileName), "--catalog", path.Join(VolumeAlias, sourceID, r.DockerImage, base.CatalogFileName)}
 
 	if statePath != "" {
 		args = append(args, "--state", path.Join(VolumeAlias, sourceID, r.DockerImage, base.StateFileName))
@@ -197,11 +197,26 @@ func (r *Runner) Close() error {
 		return runner.ErrAirbyteAlreadyTerminated
 	}
 
+	safego.Run(func() {
+		ticker := time.NewTicker(time.Second * 60)
+		select {
+		case <-r.closed:
+			return
+		case <-ticker.C:
+			logging.Errorf("%s airbyte runner closing timeout. Killing.", r.identifier)
+			_ = r.command.Process.Kill()
+		}
+		ticker.Stop()
+	})
+
+	err := exec.Command("docker", "stop", r.identifier, "&").Run()
 	close(r.closed)
-
-	exec.Command("docker", "stop", r.identifier, "&").Start()
-
-	return r.command.Process.Kill()
+	if err != nil {
+		logging.Errorf("%s airbyte runner closing failed. Killing. Closing error: %v", r.identifier, err)
+		_ = r.command.Process.Kill()
+		return err
+	}
+	return nil
 }
 
 func (r *Runner) terminated() bool {

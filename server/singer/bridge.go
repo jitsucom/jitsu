@@ -26,16 +26,21 @@ type Bridge struct {
 	PythonExecPath string
 	VenvDir        string
 	TmpDir         string
-	installTaps    bool
-	updateTaps     bool
-	LogWriter      io.Writer
+	BatchSize      int
+
+	installTaps bool
+	updateTaps  bool
+
+	LogWriter io.Writer
 
 	installedTaps         *sync.Map
 	installInProgressTaps *sync.Map
 	installErrorsByTap    map[string]error
 }
 
-func Init(pythonExecPath, venvDir string, installTaps, updateTaps bool, logWriter io.Writer) error {
+func Init(pythonExecPath, venvDir string, installTaps, updateTaps bool, batchSize int, logWriter io.Writer) error {
+	logging.Infof("Initializing Singer bridge. Batch size: %d", batchSize)
+
 	if pythonExecPath == "" {
 		return errors.New("Singer bridge python exec path can't be empty")
 	}
@@ -65,6 +70,7 @@ func Init(pythonExecPath, venvDir string, installTaps, updateTaps bool, logWrite
 		PythonExecPath:        pythonExecPath,
 		VenvDir:               venvDir,
 		TmpDir:                path.Join(venvDir, "tmp"),
+		BatchSize:             batchSize,
 		installTaps:           installTaps,
 		LogWriter:             logWriter,
 		installedTaps:         installedTaps,

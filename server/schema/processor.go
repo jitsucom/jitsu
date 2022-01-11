@@ -14,6 +14,7 @@ import (
 	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"strings"
 )
 
@@ -34,6 +35,7 @@ type Processor struct {
 	tableNameExtractor      *TableNameExtractor
 	lookupEnrichmentStep    *enrichment.LookupEnrichmentStep
 	transformer             *templates.JsTemplateExecutor
+	builtinTransformer      *templates.JsTemplateExecutor
 	fieldMapper             events.Mapper
 	pulledEventsfieldMapper events.Mapper
 	typeResolver            TypeResolver
@@ -42,7 +44,7 @@ type Processor struct {
 	uniqueIDField           *identifiers.UniqueID
 	maxColumnNameLen        int
 	tableNameFuncExpression string
-	defaultTransform        string
+	defaultUserTransform    string
 	javaScripts             []string
 	jsVariables             map[string]interface{}
 	//indicate that we didn't forget to init JavaScript transform
@@ -226,6 +228,20 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		//transform that returns null causes skipped event
 		return nil, ErrSkipObject
 	}
+	if p.builtinTransformer != nil {
+		transformedObj, ok := transformed.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("builtin javascript transform requires object. Got: %T", transformed)
+		}
+		transformed, err = p.builtinTransformer.ProcessEvent(transformedObj)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply builtin javascript transform: %v", err)
+		}
+	}
+	if transformed == nil {
+		//transform that returns null causes skipped event
+		return nil, ErrSkipObject
+	}
 	toProcess := make([]map[string]interface{}, 0, 1)
 	switch obj := transformed.(type) {
 	case map[string]interface{}:
@@ -245,6 +261,9 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 
 	for i, prObject := range toProcess {
 		newUniqueId := p.uniqueIDField.Extract(object)
+		if newUniqueId == "" {
+			newUniqueId = uuid.New()
+		}
 		if i > 0 {
 			//for event cache one to many mapping
 			newUniqueId = fmt.Sprintf("%s_%d", newUniqueId, i)
@@ -253,6 +272,9 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		if p.isSQLType {
 			prObject[p.uniqueIDField.GetFlatFieldName()] = newUniqueId
 			prObject[timestamp.Key] = object[timestamp.Key]
+			if _, ok := object[timestamp.Key]; !ok {
+				prObject[timestamp.Key] = timestamp.NowUTC()
+			}
 		}
 		newTableName, ok := prObject[templates.TableNameParameter].(string)
 		if !ok {
@@ -326,9 +348,14 @@ func (p *Processor) AddJavaScriptVariables(jsVar map[string]interface{}) {
 	}
 }
 
-//SetDefaultTransform set default transformation code that will be used if no transform or mapping settings provided
-func (p *Processor) SetDefaultTransform(defaultTransform string) {
-	p.defaultTransform = defaultTransform
+//SetDefaultUserTransform set default transformation code that will be used if no transform or mapping settings provided
+func (p *Processor) SetDefaultUserTransform(defaultUserTransform string) {
+	p.defaultUserTransform = defaultUserTransform
+}
+
+//SetBuiltinTransformer javascript executor for builtin js code (e.g. npm destination)
+func (p *Processor) SetBuiltinTransformer(builtinTransformer *templates.JsTemplateExecutor) {
+	p.builtinTransformer = builtinTransformer
 }
 
 //InitJavaScriptTemplates loads destination transform javascript, inits context variables.
@@ -356,7 +383,7 @@ func (p *Processor) InitJavaScriptTemplates() (err error) {
 	p.AddJavaScriptVariables(templateVariables)
 
 	transformDisabled := false
-	var transform string
+	var userTransform string
 	mappingDisabled := false
 	switch p.fieldMapper.(type) {
 	case DummyMapper, *DummyMapper, nil:
@@ -364,29 +391,32 @@ func (p *Processor) InitJavaScriptTemplates() (err error) {
 	}
 	if dataLayout := p.destinationConfig.DataLayout; dataLayout != nil {
 		transformDisabled = dataLayout.TransformEnabled != nil && !*dataLayout.TransformEnabled
-		transform = dataLayout.Transform
+		userTransform = dataLayout.Transform
 	}
 	if transformDisabled {
 		//transform is explicitly disabled
 		return nil
 	}
-	if transform != "" && !mappingDisabled {
-		return fmt.Errorf("mapping and javascript transform cannot be enabled at the same time.")
+	if userTransform == templates.TransformDefaultTemplate {
+		userTransform = ""
+	}
+	if userTransform != "" && !mappingDisabled {
+		return fmt.Errorf("mapping and javascript transform cannot be enabled at the same time")
 	}
 	//some destinations have built-in javascript transformation that must be used
 	//even if no explicit transform settings were provided. Only exception is enabled mapping –
 	//if mapping is set for destination - javascript transformation cannot be used
-	if transform == "" && p.defaultTransform != "" {
+	if userTransform == "" && p.defaultUserTransform != "" {
 		if !mappingDisabled {
-			logging.Warnf(`%s destination supports data mapping via builtin javascript transformation but mapping feature is enabled via config.\n
-Mapping feature is deprecated. It is recommended to migrate to javascript data transformation.`, p.destinationConfig.Type)
+			logging.Warnf(`%s %s destination supports data mapping via builtin javascript transformation but mapping feature is enabled via config.
+Mapping feature is deprecated. It is recommended to migrate to javascript data transformation.`, p.identifier, p.destinationConfig.Type)
 			return nil
 		} else {
-			transform = p.defaultTransform
+			userTransform = p.defaultUserTransform
 		}
 	}
-	if transform != "" && transform != templates.TransformDefaultTemplate {
-		if strings.Contains(transform, "toSegment") {
+	if userTransform != "" {
+		if strings.Contains(userTransform, "toSegment") {
 			//seems like built-in to segment transformation is used. We need to load script
 			segment, err := templates.Babelize(segmentTransform)
 			if err != nil {
@@ -394,7 +424,7 @@ Mapping feature is deprecated. It is recommended to migrate to javascript data t
 			}
 			p.AddJavaScript(segment)
 		}
-		transformer, err := templates.NewJsTemplateExecutor(transform, p.jsVariables, p.javaScripts...)
+		transformer, err := templates.NewJsTemplateExecutor(userTransform, p.jsVariables, p.javaScripts...)
 		if err != nil {
 			return fmt.Errorf("failed to init transform javascript: %v", err)
 		}
@@ -409,6 +439,9 @@ func (p *Processor) CloseJavaScriptTemplates() {
 	}
 	if p.transformer != nil {
 		p.transformer.Close()
+	}
+	if p.builtinTransformer != nil {
+		p.builtinTransformer.Close()
 	}
 }
 

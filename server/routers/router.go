@@ -40,9 +40,9 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	})
 
 	publicURL := viper.GetString("server.public_url")
-	configuratorURL := viper.GetString("server.configurator_url")
+	configuratorURN := viper.GetString("server.configurator_urn")
 
-	rootPathHandler := handlers.NewRootPathHandler(systemService, viper.GetString("server.static_files_dir"), configuratorURL,
+	rootPathHandler := handlers.NewRootPathHandler(systemService, viper.GetString("server.static_files_dir"), configuratorURN,
 		viper.GetBool("server.disable_welcome_page"), viper.GetBool("server.configurator_redirect_https"))
 	router.GET("/", rootPathHandler.Handler)
 
@@ -136,6 +136,12 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	//Setup profiler
 	statsPprof := router.Group("/stats/pprof")
 	{
+		statsPprof.GET("/", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Index)))
+		statsPprof.GET("/cmdline", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Cmdline)))
+		statsPprof.GET("/profile", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Profile)))
+		statsPprof.POST("/symbol", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Symbol)))
+		statsPprof.GET("/symbol", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Symbol)))
+		statsPprof.GET("/trace", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Trace)))
 		statsPprof.GET("/allocs", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("allocs").ServeHTTP)))
 		statsPprof.GET("/block", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("block").ServeHTTP)))
 		statsPprof.GET("/goroutine", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("goroutine").ServeHTTP)))

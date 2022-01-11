@@ -17,6 +17,7 @@ export type GoogleParametersNodes = {
   serviceAccountKey?: string
   requireSubject?: boolean
   subjectKey?: string
+  oauthSecretsRequired?: boolean
 }
 
 /**
@@ -43,6 +44,7 @@ export const googleAuthConfigParameters = ({
   serviceAccountKey = "config.auth.service_account_key",
   requireSubject = false,
   subjectKey = "config.auth.subject",
+  oauthSecretsRequired = true,
 }: GoogleParametersNodes): Parameter[] =>
   removeNulls([
     {
@@ -82,7 +84,7 @@ export const googleAuthConfigParameters = ({
         let typeResolved = resolve(config, type) || resolve(config, "config.config." + type)
         return typeResolved !== "OAuth"
       },
-      required: true,
+      required: oauthSecretsRequired,
       documentation: oauthParamDocumentation,
     },
     !disableOauth && {
@@ -94,7 +96,7 @@ export const googleAuthConfigParameters = ({
         let typeResolved = resolve(config, type) || resolve(config, "config.config." + type)
         return typeResolved !== "OAuth"
       },
-      required: true,
+      required: oauthSecretsRequired,
       documentation: oauthParamDocumentation,
     },
     !disableOauth && {

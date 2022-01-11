@@ -1,6 +1,6 @@
 // @Libs
 import * as React from "react"
-import { ReactNode, useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Button, Col, Form, FormItemProps, Input, InputNumber, Row, Select, Spin, Switch, Tooltip } from "antd"
 import debounce from "lodash/debounce"
 import get from "lodash/get"
@@ -30,7 +30,6 @@ import { InputWithDebug } from "./InputWithDebug"
 import { SwitchWithLabel } from "./SwitchWithLabel"
 import set from "lodash/set"
 import { InputWithUpload } from "./InputWithUpload"
-import { InputOauthSecret } from "lib/components/InputOauthSecret/InputOauthSecret"
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -39,30 +38,30 @@ import { InputOauthSecret } from "lib/components/InputOauthSecret/InputOauthSecr
 export interface Props {
   fieldsParamsList: readonly Parameter[]
   form: FormInstance
-  configForm?: FormInstance
+  extraForms?: FormInstance[]
   initialValues: any
-  loading?: boolean | ReactNode
-  oauthBackendSecretsStatus?: "loading" | "secrets_set" | "secrets_not_set"
+  availableOauthBackendSecrets?: string[] | "all_from_config"
+  hideFields?: string[]
   handleTouchAnyField?: (...args: any) => void
   setFormValues?: (values: PlainObjectWithPrimitiveValues) => void
   setInitialFormValues?: (values: PlainObjectWithPrimitiveValues) => void
 }
 
 export const FormItemName = {
-  serialize: id => {
-    return id
-  },
+  serialize: id => id,
 }
+
+const getFieldNameById = (id: string): string | undefined => id.split(".").slice(-1)[0]
 
 const services = ApplicationServices.get()
 
 const ConfigurableFieldsFormComponent = ({
   fieldsParamsList,
   form,
-  configForm,
+  extraForms,
   initialValues,
-  loading,
-  oauthBackendSecretsStatus,
+  availableOauthBackendSecrets,
+  hideFields,
   handleTouchAnyField,
   setFormValues,
   setInitialFormValues,
@@ -94,6 +93,7 @@ const ConfigurableFieldsFormComponent = ({
       form.setFieldsValue({ [id]: value })
       handleTouchAnyField?.()
       forceUpdateAll()
+      handleTouchField()
     },
     [form, forceUpdateAll]
   )
@@ -152,69 +152,42 @@ const ConfigurableFieldsFormComponent = ({
   ) => {
     const defaultValueToDisplay =
       form.getFieldValue(id) ?? getInitialValue(id, defaultValue, constantValue, type?.typeName)
-    form.setFieldsValue({ id: defaultValueToDisplay })
+    form.setFieldsValue({ ...form.getFieldsValue(), [id]: defaultValueToDisplay })
 
-    const FormItemWoStylesTuned: React.FC = ({ children }) => {
-      return (
-        <FormItemWrapperWoStyles key={id} id={id}>
-          {children}
-        </FormItemWrapperWoStyles>
-      )
-    }
+    const className = hideFields?.some(field => field === getFieldNameById(id)) ? "hidden" : ""
 
-    const FormItemWrapperTuned: React.FC = ({ children }) => {
-      return (
-        <FormItemWrapper
-          key={id}
-          type={type}
-          id={id}
-          bigField={bigField}
-          displayName={displayName}
-          documentation={documentation}
-          validationRules={validationRules}
-        >
-          {children}
-        </FormItemWrapper>
-      )
-    }
-
-    const NonFormItemWrapperTuned: React.FC = ({ children }) => {
-      return (
-        <NonFormItemWrapper
-          key={id}
-          id={id}
-          bigField={bigField}
-          displayName={displayName}
-          documentation={documentation}
-          validationRules={validationRules}
-        >
-          {children}
-        </NonFormItemWrapper>
-      )
+    const formItemWrapperProps: FormItemWrapperProps = {
+      type,
+      id,
+      bigField,
+      displayName,
+      documentation,
+      validationRules,
+      className,
     }
 
     switch (type?.typeName) {
       case "password":
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <Input.Password
               autoComplete="off"
               iconRender={visible => (visible ? <EyeOutlined /> : <EyeInvisibleOutlined />)}
             />
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
 
       case "int": {
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <InputNumber autoComplete="off" inputMode="numeric" onChange={handleChangeIntInput(id)} />
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
       }
-      // ToDo: check if it can be <select> in some cases
+
       case "selection": {
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <Select
               allowClear
               mode={type.data.maxOptions > 1 ? "multiple" : undefined}
@@ -228,19 +201,19 @@ const ConfigurableFieldsFormComponent = ({
                 )
               })}
             </Select>
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
       }
       case "array/string":
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <EditableList initialValue={defaultValueToDisplay} />
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
       case "javascript":
       case "json": {
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <CodeEditor
               initialValue={defaultValueToDisplay}
               className={styles.codeEditor}
@@ -271,47 +244,36 @@ const ConfigurableFieldsFormComponent = ({
                 </>
               )}
             </span>
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
       }
 
       case "boolean":
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             {bigField ? (
               <SwitchWithLabel
                 label={displayName}
                 id={id}
                 onChange={handleChangeSwitch(id)}
-                defaultChecked={!!defaultValueToDisplay}
+                defaultChecked={defaultValueToDisplay}
               />
             ) : (
-              <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
+              <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={defaultValueToDisplay} />
             )}
-          </FormItemWrapperTuned>
+          </FormItemWrapper>
         )
 
       case "file":
         return (
-          <FormItemWrapperTuned>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
             <InputWithUpload onChange={handleChangeTextInput(id)} value={defaultValueToDisplay} />
-          </FormItemWrapperTuned>
-        )
-
-      case "oauthSecret":
-        return (
-          <NonFormItemWrapperTuned>
-            <InputOauthSecret
-              status={oauthBackendSecretsStatus ?? "secrets_not_set"}
-              defaultChecked={!defaultValueToDisplay}
-              inputWrapper={FormItemWoStylesTuned}
-            />
-          </NonFormItemWrapperTuned>
+          </FormItemWrapper>
         )
 
       case "description":
         return (
-          <div className="ant-row ant-form-item form-field_fixed-label">
+          <div key={id} className="ant-row ant-form-item form-field_fixed-label">
             <div className="ant-col ant-col-4 ant-form-item-label">
               <label>{displayName}:</label>
             </div>
@@ -319,12 +281,25 @@ const ConfigurableFieldsFormComponent = ({
           </div>
         )
 
+      case "oauthSecret":
       case "string":
       default: {
+        const backendSecretAvailable =
+          type?.typeName === "oauthSecret" &&
+          (availableOauthBackendSecrets === "all_from_config" ||
+            availableOauthBackendSecrets?.some(name => getFieldNameById(id) === name))
+        const placeholder = backendSecretAvailable
+          ? "Leave this field empty to use a value provided by Jitsu"
+          : undefined
         return (
-          <FormItemWrapperTuned>
-            <InputWithDebug id={id} jsDebugger={jsDebugger} onButtonClick={() => handleOpenDebugger(id)} />
-          </FormItemWrapperTuned>
+          <FormItemWrapper key={id} {...formItemWrapperProps}>
+            <InputWithDebug
+              id={id}
+              placeholder={placeholder}
+              jsDebugger={jsDebugger}
+              onButtonClick={() => handleOpenDebugger(id)}
+            />
+          </FormItemWrapper>
         )
       }
     }
@@ -338,6 +313,9 @@ const ConfigurableFieldsFormComponent = ({
         _transform: values.code,
       }
     }
+    const configForm = extraForms && extraForms[0]
+    const mappingForm = extraForms && extraForms[1]
+
     const data = {
       reformat: debuggerType == "string",
       uid: initialValues._uid,
@@ -345,7 +323,12 @@ const ConfigurableFieldsFormComponent = ({
       field: field,
       expression: values.code,
       object: JSON.parse(values.object),
-      config: makeObjectFromFieldsValues({ ...initialValues, ...configForm.getFieldsValue(), ...transform }),
+      config: makeObjectFromFieldsValues({
+        ...initialValues,
+        ...configForm?.getFieldsValue(),
+        ...mappingForm?.getFieldsValue(),
+        ...transform,
+      }),
       template_variables: Object.entries((configForm || form).getFieldsValue())
         .filter(v => v[0].startsWith("_formData._"))
         .reduce((accumulator: any, currentValue: [string, unknown]) => {
@@ -384,20 +367,17 @@ const ConfigurableFieldsFormComponent = ({
     let formValues = {}
     const formFields: Parameters<typeof form.setFields>[0] = []
     fieldsParamsList.forEach((param: Parameter) => {
-      let constantValue: any
       const initConfig = makeObjectFromFieldsValues(formValues)
       const fieldNeeded = !param.omitFieldRule?.(initConfig)
       const id = param.id
 
+      const constantValue = typeof param.constant === "function" ? param.constant?.(initConfig) : param.constant
+      const initialValue = getInitialValue(id, param.defaultValue, constantValue, param.type?.typeName)
+
       if (fieldNeeded) {
-        const constantValue = typeof param.constant === "function" ? param.constant?.(initConfig) : param.constant
-
-        const initialValue = getInitialValue(param.id, param.defaultValue, constantValue, param.type?.typeName)
-
-        formValues[param.id] = initialValue
-
+        formValues[id] = initialValue
         formFields.push({
-          name: param.id,
+          name: id,
           value: initialValue,
           touched: false,
         })
@@ -416,13 +396,7 @@ const ConfigurableFieldsFormComponent = ({
     forceUpdateAll()
   }, [])
 
-  return loading ? (
-    typeof loading === "boolean" ? (
-      <Spin />
-    ) : (
-      <>{loading}</>
-    )
-  ) : (
+  return (
     <>
       {fieldsParamsList.map(
         ({
@@ -437,6 +411,7 @@ const ConfigurableFieldsFormComponent = ({
           jsDebugger,
           bigField,
           codeSuggestions,
+          validator,
         }: Parameter) => {
           const currentFormValues = form.getFieldsValue() ?? {}
           const defaultFormValues = fieldsParamsList.reduce(
@@ -466,34 +441,9 @@ const ConfigurableFieldsFormComponent = ({
               })
             if (type?.typeName === "isoUtcDate")
               validationRules.push(isoDateValidator(`${displayName} field is required.`))
-
-            /**
-             * Currently `antd` built in validations do not work as expected,
-             * therefore validations are currently omitted
-             *
-             */
-            if (type?.typeName === "string") {
-              // assertIsStringParameterType(type);
-              // type.pattern &&
-              //   validationRules.push({ pattern: new RegExp(type.pattern) });
-            }
-            if (type?.typeName === "int") {
-              // assertIsIntParameterType(type);
-              // (type.minimum || type.maximum) &&
-              //   validationRules.push({
-              //     validator: (_, value) => {
-              //       if (type.minimum && value < type.minimum)
-              //         return Promise.reject(
-              //           new Error(`value can't be lower than ${type.minimum}`)
-              //         );
-              //       if (type.maximum && value > type.maximum)
-              //         return Promise.reject(
-              //           new Error(`value can't be greater than ${type.maximum}`)
-              //         );
-              //       return Promise.resolve();
-              //     }
-              //   });
-            }
+          }
+          if (validator) {
+            validationRules.push({ validator: validator })
           }
 
           return isOmitted ? null : !isHidden ? (
@@ -519,7 +469,8 @@ const ConfigurableFieldsFormComponent = ({
                   bigField,
                   displayName,
                   codeSuggestions,
-                  documentation
+                  documentation,
+                  validationRules
                 )}
               </Col>
             </Row>
@@ -530,23 +481,12 @@ const ConfigurableFieldsFormComponent = ({
       )}
     </>
   )
+  // )
 }
 
 const ConfigurableFieldsForm = ConfigurableFieldsFormComponent
 
 export { ConfigurableFieldsForm }
-
-type FormItemWrapperWoStylesProps = {
-  id: string
-} & FormItemProps
-
-const FormItemWrapperWoStyles: React.FC<FormItemWrapperWoStylesProps> = ({ id, children, ...props }) => {
-  return (
-    <Form.Item key={id} name={id} {...props}>
-      {children}
-    </Form.Item>
-  )
-}
 
 type FormItemWrapperProps = {
   type: ParameterType<any>
@@ -555,7 +495,8 @@ type FormItemWrapperProps = {
   displayName?: string
   documentation?: React.ReactNode
   validationRules?: FormItemProps["rules"]
-}
+  className?: string
+} & FormItemProps
 
 const FormItemWrapper: React.FC<FormItemWrapperProps> = ({
   type,
@@ -564,16 +505,19 @@ const FormItemWrapper: React.FC<FormItemWrapperProps> = ({
   displayName,
   documentation,
   validationRules,
+  className,
   children,
 }) => {
   return (
-    <FormItemWrapperWoStyles
+    <Form.Item
       id={id}
+      name={id}
       className={cn(
         "form-field_fixed-label",
         styles.field,
         (type?.typeName === "json" || type?.typeName === "javascript") && styles.jsonField,
-        (type?.typeName === "json" || type?.typeName === "javascript") && bigField && styles.bigField
+        (type?.typeName === "json" || type?.typeName === "javascript") && bigField && styles.bigField,
+        className
       )}
       label={
         !bigField ? (
@@ -591,44 +535,6 @@ const FormItemWrapper: React.FC<FormItemWrapperProps> = ({
       rules={validationRules}
     >
       {children}
-    </FormItemWrapperWoStyles>
-  )
-}
-
-type NonFormItemWrapperProps = {
-  id: string
-  bigField?: boolean
-  displayName?: string
-  documentation?: React.ReactNode
-  validationRules?: FormItemProps["rules"]
-}
-
-const NonFormItemWrapper: React.FC<NonFormItemWrapperProps> = ({
-  id,
-  bigField,
-  displayName,
-  documentation,
-  validationRules,
-  children,
-}) => {
-  return (
-    <Row key={id} className={cn("form-field_fixed-label", "ant-form-item", styles.field)}>
-      <Col key="label-col" span={bigField ? 0 : 4} className={`ant-form-item-label`}>
-        <label>
-          {!bigField ? (
-            documentation ? (
-              <LabelWithTooltip documentation={documentation} render={displayName} />
-            ) : (
-              <span>{displayName}:</span>
-            )
-          ) : (
-            <span></span>
-          )}
-        </label>
-      </Col>
-      <Col key="field-col" span={bigField ? 24 : 20} className={`ant-form-item-control`}>
-        {children}
-      </Col>
-    </Row>
+    </Form.Item>
   )
 }

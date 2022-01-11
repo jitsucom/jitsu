@@ -14,14 +14,16 @@ import { usePolling } from "hooks/usePolling"
 // @Utils
 import { toTitleCase } from "utils/strings"
 import { mapAirbyteSpecToSourceConnectorConfig } from "catalog/sources/lib/airbyte.helper"
-import { memo, useCallback, useEffect } from "react"
+import { memo, useCallback, useEffect, useMemo } from "react"
+import { uniqueId } from "lodash"
 
 type Props = {
   initialValues: Partial<SourceData>
   sourceDataFromCatalog: SourceConnector
-  oauthBackendSecretsStatus: "loading" | "secrets_set" | "secrets_not_set"
+  availableOauthBackendSecrets?: string[]
+  hideFields?: string[]
   patchConfig: PatchConfig
-  setControlsDisabled: ReactSetState<boolean>
+  handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
   setFormReference: SetFormReference
 }
@@ -33,9 +35,10 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   ({
     initialValues,
     sourceDataFromCatalog,
-    oauthBackendSecretsStatus,
+    availableOauthBackendSecrets,
+    hideFields: _hideFields,
     patchConfig,
-    setControlsDisabled,
+    handleSetControlsDisabled,
     setValidator,
     setFormReference,
   }) => {
@@ -46,22 +49,42 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
       data: fieldsParameters,
       error: loadingParametersError,
     } = usePolling<Parameter[]>(
-      (end, fail) => async () => {
-        try {
-          const response = await pullAirbyteSpec(sourceDataFromCatalog.id)
-          if (response?.message) throw new Error(response?.message)
-          if (response?.status && response?.status !== "pending") {
-            const result = transformAirbyteSpecResponse(response)
-            end(result)
+      {
+        configure: () => {
+          const controlsDisableRequestId = uniqueId("configurableLoadableFields-")
+          return {
+            onBeforePollingStart: () => {
+              handleSetControlsDisabled(true, controlsDisableRequestId)
+            },
+            onAfterPollingEnd: () => {
+              handleSetControlsDisabled(false, controlsDisableRequestId)
+            },
+            pollingCallback: (end, fail) => async () => {
+              try {
+                const response = await pullAirbyteSpec(sourceDataFromCatalog.id)
+                if (response?.message) throw new Error(response?.message)
+                if (response?.status && response?.status !== "pending") {
+                  const result = transformAirbyteSpecResponse(response)
+                  end(result)
+                }
+              } catch (error) {
+                fail(error)
+              }
+            },
           }
-        } catch (error) {
-          fail(error)
-        } finally {
-          setControlsDisabled(false)
-        }
+        },
       },
       { interval_ms: 2000 }
     )
+
+    const hideFields = useMemo<string[]>(() => {
+      if (!fieldsParameters) return _hideFields
+      const oauthFieldsParametersNames = fieldsParameters.reduce<string[]>((result, current) => {
+        if (current.type.typeName === "oauthSecret") result.push(current.id)
+        return result
+      }, [])
+      return [..._hideFields, ...oauthFieldsParametersNames]
+    }, [_hideFields, fieldsParameters])
 
     const handleFormValuesChange = useCallback(
       (values: PlainObjectWithPrimitiveValues): void => {
@@ -84,10 +107,6 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
       [patchConfig]
     )
 
-    useEffect(() => {
-      setControlsDisabled(isLoadingParameters)
-    }, [isLoadingParameters])
-
     /**
      * set validator and form reference to parent component after the first render
      */
@@ -103,7 +122,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
       }
 
       setValidator(() => validateGetErrorsCount)
-      setFormReference(CONFIG_FORM_KEY, form)
+      setFormReference(CONFIG_FORM_KEY, form, handleFormValuesChange)
     }, [])
 
     return loadingParametersError ? (
@@ -142,7 +161,8 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
           fieldsParamsList={fieldsParameters || []}
           form={form}
           initialValues={initialValues}
-          oauthBackendSecretsStatus={oauthBackendSecretsStatus}
+          availableOauthBackendSecrets={"all_from_config"}
+          hideFields={hideFields}
           setFormValues={handleFormValuesChange}
           setInitialFormValues={handleSetInitialFormValues}
         />

@@ -3,6 +3,7 @@ package storages
 import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/config"
+	"github.com/jitsucom/jitsu/server/logging"
 	"math/rand"
 
 	"github.com/jitsucom/jitsu/server/identifiers"
@@ -12,7 +13,6 @@ import (
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/telemetry"
@@ -23,7 +23,7 @@ import (
 //aka abstract class
 type Abstract struct {
 	destinationID  string
-	fallbackLogger *logging.AsyncLogger
+	fallbackLogger logging.ObjectLogger
 	eventsCache    *caching.EventsCache
 	processor      *schema.Processor
 
@@ -34,7 +34,7 @@ type Abstract struct {
 	staged               bool
 	cachingConfiguration *config.CachingConfiguration
 
-	archiveLogger *logging.AsyncLogger
+	archiveLogger logging.ObjectLogger
 }
 
 //ID returns destination ID
@@ -110,11 +110,16 @@ func (a *Abstract) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-//Insert ensues table and sends input event to Destination (with 1 retry if error)
+//Insert ensures table and sends input event to Destination (with 1 retry if error)
 func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error) {
-	//metrics/counters/cache/fallback
 	defer func() {
+		//metrics/counters/cache/fallback
 		a.AccountResult(eventContext, insertErr)
+
+		//archive
+		if insertErr == nil {
+			a.archiveLogger.Consume(eventContext.RawEvent, eventContext.TokenID)
+		}
 	}()
 
 	sqlAdapter, tableHelper := a.getAdapters()
@@ -123,39 +128,40 @@ func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error)
 
 	dbTable, err := tableHelper.EnsureTableWithCaching(a.ID(), eventContext.Table)
 	if err != nil {
-		insertErr = err
+		//renew current db schema and retry
+		return a.retryInsert(sqlAdapter, tableHelper, eventContext, dbSchemaFromObject)
+	}
+
+	eventContext.Table = dbTable
+
+	err = sqlAdapter.Insert(eventContext)
+	if err != nil {
+		//renew current db schema and retry
+		return a.retryInsert(sqlAdapter, tableHelper, eventContext, dbSchemaFromObject)
+	}
+
+	return nil
+}
+
+//retryInsert does retry if ensuring table or insert is failed
+func (a *Abstract) retryInsert(sqlAdapter adapters.SQLAdapter, tableHelper *TableHelper, eventContext *adapters.EventContext,
+	dbSchemaFromObject *adapters.Table) error {
+	dbTable, err := tableHelper.RefreshTableSchema(a.ID(), dbSchemaFromObject)
+	if err != nil {
+		return err
+	}
+
+	dbTable, err = tableHelper.EnsureTableWithCaching(a.ID(), dbSchemaFromObject)
+	if err != nil {
 		return err
 	}
 
 	eventContext.Table = dbTable
 
 	err = sqlAdapter.Insert(eventContext)
-
-	//renew current db schema and retry
 	if err != nil {
-		dbTable, err := tableHelper.RefreshTableSchema(a.ID(), dbSchemaFromObject)
-		if err != nil {
-			insertErr = err
-			return err
-		}
-
-		dbTable, err = tableHelper.EnsureTableWithCaching(a.ID(), dbSchemaFromObject)
-		if err != nil {
-			insertErr = err
-			return err
-		}
-
-		eventContext.Table = dbTable
-
-		err = sqlAdapter.Insert(eventContext)
-		if err != nil {
-			insertErr = err
-			return err
-		}
+		return err
 	}
-
-	//archive
-	a.archiveLogger.Consume(eventContext.RawEvent, eventContext.TokenID)
 
 	return nil
 }

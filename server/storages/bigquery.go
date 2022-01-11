@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/uuid"
 )
 
 var disabledRecognitionConfiguration = &UserRecognitionConfiguration{enabled: false}
@@ -166,17 +167,22 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 
 	//batch mode
 	if bq.gcsAdapter != nil {
+		fileName := fdata.FileName
+		//in case of empty filename just generate it
+		if fileName == "" {
+			fileName = dbTable.Name + "_" + uuid.NewLettersNumbers()
+		}
 		b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
-		if err := bq.gcsAdapter.UploadBytes(fdata.FileName, b); err != nil {
+		if err := bq.gcsAdapter.UploadBytes(fileName, b); err != nil {
 			return err
 		}
 
-		if err := bq.bqAdapter.Copy(fdata.FileName, dbTable.Name); err != nil {
-			return fmt.Errorf("Error copying file [%s] from gcp to bigquery: %v", fdata.FileName, err)
+		if err := bq.bqAdapter.Copy(fileName, dbTable.Name); err != nil {
+			return fmt.Errorf("Error copying file [%s] from gcp to bigquery: %v", fileName, err)
 		}
 
-		if err := bq.gcsAdapter.DeleteObject(fdata.FileName); err != nil {
-			logging.SystemErrorf("[%s] file %s wasn't deleted from gcs: %v", bq.ID(), fdata.FileName, err)
+		if err := bq.gcsAdapter.DeleteObject(fileName); err != nil {
+			logging.SystemErrorf("[%s] file %s wasn't deleted from gcs: %v", bq.ID(), fileName, err)
 		}
 
 		return nil
@@ -187,7 +193,7 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 }
 
 //Update isn't supported
-func (bq *BigQuery) Update(object map[string]interface{}) error {
+func (bq *BigQuery) Update(objects []map[string]interface{}) error {
 	return errors.New("BigQuery doesn't support updates")
 }
 

@@ -26,7 +26,7 @@ func NewLevelDBQueue(identifier, queueName, logEventPath string) (Queue, error) 
 		return nil, fmt.Errorf(errCreateQueueTemplate, queueDir, err)
 	}
 
-	metrics.InitialStreamEventsQueueSize(identifier, queue.Size())
+	metrics.SetStreamEventsQueueSize(identifier, queue.Size())
 
 	return &LevelDBQueue{queue: queue, identifier: identifier}, nil
 }
@@ -44,7 +44,7 @@ func (ldq *LevelDBQueue) ConsumeTimed(f map[string]interface{}, t time.Time, tok
 
 	// or
 	if err := ldq.queue.Enqueue(QueuedEvent{FactBytes: factBytes, DequeuedTime: t, TokenID: tokenID}); err != nil {
-		logSkippedEvent(f, fmt.Errorf("Error putting event event bytes to the persistent queue: %v", err))
+		logSkippedEvent(f, fmt.Errorf("Error pushing event bytes to the persistent queue: %v", err))
 		return
 	}
 

@@ -32,11 +32,13 @@ type InMemory struct {
 }
 
 func NewInMemory() Queue {
-	return &InMemory{
-		slice:                  make([]interface{}, 0),
+	im := &InMemory{
+		slice:                  make([]interface{}, 0, 30),
 		waitForNextElementChan: make(chan chan interface{}, WaitForNextElementChanCapacity),
 		closed:                 make(chan struct{}, 1),
 	}
+
+	return im
 }
 
 //Push enqueues an element. Returns ErrQueueClosed if queue is closed
@@ -155,6 +157,10 @@ func (im *InMemory) Size() int64 {
 	defer im.mutex.RUnlock()
 
 	return int64(len(im.slice))
+}
+
+func (im *InMemory) Type() string {
+	return InMemoryType
 }
 
 func (im *InMemory) Close() error {

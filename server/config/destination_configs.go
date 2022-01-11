@@ -17,14 +17,14 @@ type DestinationConfig struct {
 	Type                   string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Package                string                   `mapstructure:"package" json:"package,omitempty" yaml:"package,omitempty"`
 	Mode                   string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
-	DataLayout             *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
+	DataLayout             *DataLayout              `mapstructure:"data_layout,omitempty" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
 	UsersRecognition       *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
 	Enrichment             []*enrichment.RuleConfig `mapstructure:"enrichment" json:"enrichment,omitempty" yaml:"enrichment,omitempty"`
 	Log                    *logging.SQLDebugConfig  `mapstructure:"log" json:"log,omitempty" yaml:"log,omitempty"`
 	BreakOnError           bool                     `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
 	Staged                 bool                     `mapstructure:"staged" json:"staged,omitempty" yaml:"staged,omitempty"`
 	CachingConfiguration   *CachingConfiguration    `mapstructure:"caching" json:"caching,omitempty" yaml:"caching,omitempty"`
-	PostHandleDestinations []string                 `mapstructure:"post_handle_destinations" json:"post_handle_destinations,omitempty" yaml:"post_handle_destinations,omitempty"`
+	PostHandleDestinations []string                 `mapstructure:"post_handle_destinations,omitempty" json:"post_handle_destinations,omitempty" yaml:"post_handle_destinations,omitempty"`
 	GeoDataResolverID      string                   `mapstructure:"geo_data_resolver_id" json:"geo_data_resolver_id,omitempty" yaml:"geo_data_resolver_id,omitempty"`
 
 	//Deprecated
@@ -95,7 +95,7 @@ type DataLayout struct {
 	//Deprecated
 	Mapping []string `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
 
-	TransformEnabled *bool  `mapstructure:"transform_enabled" json:"transform_enabled" yaml:"transform_enabled"`
+	TransformEnabled *bool  `mapstructure:"transform_enabled" json:"transform_enabled,omitempty" yaml:"transform_enabled,omitempty"`
 	Transform        string `mapstructure:"transform" json:"transform,omitempty" yaml:"transform,omitempty"`
 	//Deprecated
 	Mappings          *Mapping `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
@@ -111,6 +111,8 @@ type UsersRecognition struct {
 	AnonymousIDNode     string   `mapstructure:"anonymous_id_node" json:"anonymous_id_node,omitempty" yaml:"anonymous_id_node,omitempty"`
 	IdentificationNodes []string `mapstructure:"identification_nodes" json:"identification_nodes,omitempty" yaml:"identification_nodes,omitempty"`
 	UserIDNode          string   `mapstructure:"user_id_node" json:"user_id_node,omitempty" yaml:"user_id_node,omitempty"`
+	PoolSize            int      `mapstructure:"pool_size" json:"pool_size,omitempty" yaml:"pool_size,omitempty"`
+	Compression         string   `mapstructure:"compression" json:"compression,omitempty" yaml:"compression,omitempty"`
 }
 
 //CachingConfiguration is a configuration for disabling caching

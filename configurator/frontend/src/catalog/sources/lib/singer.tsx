@@ -33,7 +33,7 @@ export const allSingerTaps: SingerTap[] = [
           displayName: "Cient ID",
           id: "client_id",
           type: oauthSecretType,
-          required: true,
+          required: false,
           documentation: (
             <>
               ID of the <a href="https://apidocs.nextroll.com/guides/get-started.html">NextRoll API</a> application
@@ -44,7 +44,7 @@ export const allSingerTaps: SingerTap[] = [
           displayName: "Cient Secret",
           id: "client_secret",
           type: oauthSecretType,
-          required: true,
+          required: false,
           documentation: (
             <>
               Secret of the API key generated using the{" "}
@@ -83,9 +83,10 @@ export const allSingerTaps: SingerTap[] = [
           ),
         },
         {
-          displayName: "Strat Date",
+          displayName: "Start Date",
           id: "start_date",
           type: isoUtcDateType,
+          defaultValue: "2021-01-01T00:00:00.000Z",
           required: true,
         },
       ],
@@ -310,7 +311,7 @@ export const allSingerTaps: SingerTap[] = [
           displayName: "Start Date",
           id: "start_date",
           type: isoUtcDateType,
-          defaultValue: "2018-01-01T00:00:00.000Z",
+          defaultValue: "2021-01-01T00:00:00.000Z",
           required: true,
         },
       ],
@@ -365,7 +366,7 @@ export const allSingerTaps: SingerTap[] = [
           displayName: "Start Date",
           id: "start_date",
           type: isoUtcDateType,
-          defaultValue: "2018-01-01T00:00:00.000Z",
+          defaultValue: "2021-01-01T00:00:00.000Z",
           required: true,
         },
         {
@@ -399,6 +400,7 @@ export const allSingerTaps: SingerTap[] = [
           refreshToken: "refresh_token",
           clientSecret: "client_secret",
           disableServiceAccount: true,
+          oauthSecretsRequired: false,
         }),
         {
           displayName: "Google Spreadsheet ID",
@@ -410,7 +412,7 @@ export const allSingerTaps: SingerTap[] = [
           displayName: "Start Date",
           id: "start_date",
           type: isoUtcDateType,
-          defaultValue: "2018-01-01T00:00:00.000Z",
+          defaultValue: "2021-01-01T00:00:00.000Z",
           required: true,
         },
         {
@@ -495,7 +497,7 @@ export const allSingerTaps: SingerTap[] = [
           displayName: "Start Date",
           id: "start_date",
           type: isoUtcDateType,
-          defaultValue: "2018-01-01T00:00:00.000Z",
+          defaultValue: "2021-01-01T00:00:00.000Z",
           required: true,
         },
         {
@@ -677,7 +679,7 @@ export const allSingerTaps: SingerTap[] = [
           displayName: "Start Date",
           id: "start_date",
           type: isoUtcDateType,
-          defaultValue: "2018-01-01T00:00:00.000Z",
+          defaultValue: "2021-01-01T00:00:00.000Z",
           required: true,
         },
         {
@@ -975,7 +977,7 @@ export const allSingerTaps: SingerTap[] = [
           id: "start_date",
           required: true,
           type: isoUtcDateType,
-          defaultValue: "2018-01-01T00:00:00.000Z",
+          defaultValue: "2021-01-01T00:00:00.000Z",
         },
         {
           displayName: "Exclude Archive Channels",
@@ -1034,7 +1036,7 @@ export const allSingerTaps: SingerTap[] = [
           id: "start_date",
           type: isoUtcDateType,
           required: true,
-          defaultValue: "2020-01-01T00:00:00.000Z",
+          defaultValue: "2021-01-01T00:00:00.000Z",
           documentation: <>Jitsu will sync Stipe data since Start Date</>,
         },
       ],

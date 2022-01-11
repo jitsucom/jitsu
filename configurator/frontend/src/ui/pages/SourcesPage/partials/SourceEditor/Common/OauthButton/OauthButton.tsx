@@ -6,8 +6,8 @@ import { actionNotification } from "ui/components/ActionNotification/ActionNotif
 import { handleError } from "lib/components/components"
 // @Icons
 import { KeyOutlined } from "@ant-design/icons"
-import { ReactComponent as GoogleLogo } from "icons/google.svg"
 import { useServices } from "hooks/useServices"
+import { GoogleSignInButton } from "lib/components/GoogleSignInButton/GoogleSignInButton"
 
 type Props = {
   service: string
@@ -17,6 +17,7 @@ type Props = {
   icon?: React.ReactNode
   isGoogle?: boolean
   setAuthSecrets: (data: any) => void
+  onIsOauthSuppotedStatusChecked?: (isSupported: boolean) => void
 }
 
 export const OauthButton: React.FC<Props> = ({
@@ -28,11 +29,12 @@ export const OauthButton: React.FC<Props> = ({
   isGoogle,
   children,
   setAuthSecrets,
+  onIsOauthSuppotedStatusChecked,
 }) => {
   const services = useServices()
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isOauthSupported, setIsOauthSupported] = useState<boolean>(false)
-  // const [oauthResult, setOauthResult] = useState<string | null>(null)
+  const [isOauthCompleted, setIsOauthCompleted] = useState<boolean>(false)
 
   const handleClick = async (): Promise<void> => {
     setIsLoading(true)
@@ -40,17 +42,17 @@ export const OauthButton: React.FC<Props> = ({
       const oauthResult = await services.oauthService.getCredentialsInSeparateWindow(service)
       if (oauthResult.status === "error") {
         actionNotification.error(oauthResult.errorMessage)
-        // setOauthResult(`❌ ${oauthResult.errorMessage}`)
         return
       }
       if (oauthResult.status === "warning") {
         actionNotification.warn(oauthResult.message)
-        // setOauthResult(`⚠️ ${oauthResult.message}`)
         return
       }
       setAuthSecrets(oauthResult.secrets)
+      setIsOauthCompleted(true)
     } catch (error) {
       handleError(new Error(error.message ?? "Oauth failed due to internal error. Please, file an issue."))
+      setIsOauthCompleted(false)
     } finally {
       setIsLoading(false)
     }
@@ -58,29 +60,36 @@ export const OauthButton: React.FC<Props> = ({
 
   useEffect(() => {
     !forceNotSupported &&
-      services.oauthService.checkIfOauthSupported(service).then(result => result && setIsOauthSupported(result)) // only change state if oauth is supported
+      services.oauthService.checkIfOauthSupported(service).then(supported => {
+        if (supported) {
+          setIsOauthSupported(supported)
+        }
+        onIsOauthSuppotedStatusChecked(supported)
+      })
   }, [])
 
   return (
-    <div className={`h-full w-full transiton-transform duration-300 transform ${isOauthSupported ? "" : "scale-105)"}`}>
-      <Button
-        type="default"
-        loading={isLoading}
-        className={`transition-opacity duration-700 ${className} ${isOauthSupported ? "" : "hidden opacity-0"}`}
-        disabled={disabled}
-        icon={
-          isGoogle ? (
-            <span className="h-5 w-5 mr-2">
-              <GoogleLogo />
-            </span>
-          ) : (
-            icon ?? <KeyOutlined />
-          )
-        }
-        onClick={handleClick}
-      >
-        {isGoogle ? <span className="align-top">{`Sign In With Google (OAuth Only)`}</span> : children}
-      </Button>
+    <div className={`transiton-transform duration-300 transform ${isOauthSupported ? "" : "scale-105)"}`}>
+      <div className={`transition-opacity duration-700 ${className} ${isOauthSupported ? "" : "hidden opacity-0"}`}>
+        {isGoogle ? (
+          <GoogleSignInButton
+            disabled={disabled || isLoading}
+            type="dark"
+            onClick={handleClick}
+            style={{ margin: "3px" }}
+          />
+        ) : (
+          <Button
+            type="default"
+            loading={isLoading}
+            disabled={disabled}
+            icon={icon ?? <KeyOutlined />}
+            onClick={handleClick}
+          >
+            {children}
+          </Button>
+        )}
+      </div>
     </div>
   )
 }

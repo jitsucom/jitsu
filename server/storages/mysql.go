@@ -46,7 +46,8 @@ func NewMySQL(config *Config) (Storage, error) {
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	adapter, err := CreateMySQLAdapter(config.ctx, *mConfig, queryLogger, config.sqlTypes)
+	ctx := context.WithValue(config.ctx, adapters.CtxDestinationId, config.destinationID)
+	adapter, err := CreateMySQLAdapter(ctx, *mConfig, queryLogger, config.sqlTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -199,9 +200,34 @@ func (m *MySQL) Clean(tableName string) error {
 	return cleanImpl(m, tableName)
 }
 
-//Update uses SyncStore under the hood
-func (m *MySQL) Update(object map[string]interface{}) error {
-	return m.SyncStore(nil, []map[string]interface{}{object}, "", true)
+//Update updates record in MySQL
+func (m *MySQL) Update(objects []map[string]interface{}) error {
+	_, tableHelper := m.getAdapters()
+	for _, object := range objects {
+		envelops, err := m.processor.ProcessEvent(object)
+		if err != nil {
+			return err
+		}
+
+		for _, envelop := range envelops {
+			batchHeader := envelop.Header
+			processedObject := envelop.Event
+			table := tableHelper.MapTableSchema(batchHeader)
+
+			dbSchema, err := tableHelper.EnsureTableWithCaching(m.ID(), table)
+			if err != nil {
+				return err
+			}
+
+			start := timestamp.Now()
+			if err = m.adapter.Update(dbSchema, processedObject, m.uniqueIDField.GetFlatFieldName(), m.uniqueIDField.Extract(object)); err != nil {
+				return err
+			}
+			logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", m.ID(), timestamp.Now().Sub(start).Seconds())
+		}
+	}
+
+	return nil
 }
 
 //GetUsersRecognition returns users recognition configuration

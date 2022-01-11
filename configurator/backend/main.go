@@ -103,7 +103,8 @@ func main() {
 		dockerHubID = &environment
 	}
 
-	telemetry.InitFromViper(serviceName, commit, tag, builtAt, *dockerHubID)
+	telemetrySourceURL := viper.GetString("server.telemetry")
+	telemetry.InitFromViper(telemetrySourceURL, serviceName, commit, tag, builtAt, *dockerHubID)
 
 	safego.GlobalRecoverHandler = func(value interface{}) {
 		logging.Error("panic")
@@ -115,7 +116,7 @@ func main() {
 	//** Slack Notifications **
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")
 	if slackNotificationsWebHook != "" {
-		notifications.Init(serviceName, slackNotificationsWebHook, appconfig.Instance.ServerName, logging.Errorf)
+		notifications.Init(serviceName, tag, slackNotificationsWebHook, appconfig.Instance.ServerName, logging.Errorf)
 	}
 
 	//** Default S3 **
@@ -262,9 +263,10 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 	enConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsService, configurationsStorage)
 
 	proxyHandler := handlers.NewProxyHandler(jitsuService, map[string]jitsu.APIDecorator{
-		//write here custom decorators for certain HTTP URN paths
-		"/proxy/api/v1/events/cache": jitsu.NewEventsCacheDecorator(configurationsService).Decorate,
-		"/proxy/api/v1/statistics":   jitsu.NewStatisticsDecorator().Decorate,
+		//write here custom decorators for a certain HTTP URN paths
+		"/proxy/api/v1/events/cache":        jitsu.NewEventsCacheDecorator(configurationsService).Decorate,
+		"/proxy/api/v1/statistics":          jitsu.NewStatisticsDecorator().Decorate,
+		"/proxy/api/v1/statistics/detailed": jitsu.NewStatisticsDecorator().Decorate,
 	})
 	router.Any("/proxy/*path", authenticatorMiddleware.ClientProjectAuth(proxyHandler.Handler))
 
@@ -300,7 +302,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 		apiV1.GET("/configurations/:collection", authenticatorMiddleware.ClientProjectAuth(enConfigurationsHandler.GetConfig))
 		apiV1.POST("/configurations/:collection", authenticatorMiddleware.ClientProjectAuth(enConfigurationsHandler.StoreConfig))
 
-		apiV1.GET("/system/configuration", handlers.NewSystemHandler(authService, configurationsService, emailService.IsConfigured(), viper.GetBool("server.self_hosted"), *dockerHubID).GetHandler)
+		apiV1.GET("/system/configuration", handlers.NewSystemHandler(authService, configurationsService, emailService.IsConfigured(), viper.GetBool("server.self_hosted"), *dockerHubID, tag, builtAt).GetHandler)
 		apiV1.GET("/system/version", func(c *gin.Context) {
 			c.JSON(http.StatusOK, Version{tag, builtAt})
 		})

@@ -162,7 +162,7 @@ func (k *Kafka) GetUsersRecognition() *UserRecognitionConfiguration {
 }
 
 //Update isn't supported
-func (k *Kafka) Update(_ map[string]interface{}) error {
+func (k *Kafka) Update([]map[string]interface{}) error {
 	return fmt.Errorf("%s doesn't support Update() func", k.Type())
 }
 

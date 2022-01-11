@@ -48,7 +48,6 @@ func (vn *VersionReminder) Start() {
 				return
 			case <-ticker.C:
 				vn.showReminder()
-			default:
 			}
 		}
 	})

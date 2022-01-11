@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/logfiles"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/parsers"
@@ -47,8 +48,8 @@ func NewTestService() *Service {
 
 //NewService returns configured Service
 func NewService(logEventsPath string, destinationService *destinations.Service, usersRecognition events.Recognition) (*Service, error) {
-	fallbackPath := path.Join(logEventsPath, logging.FailedDir)
-	logArchiveEventPath := path.Join(logEventsPath, logging.ArchiveDir)
+	fallbackPath := path.Join(logEventsPath, logevents.FailedDir)
+	logArchiveEventPath := path.Join(logEventsPath, logevents.ArchiveDir)
 	statusManager, err := logfiles.NewStatusManager(fallbackPath)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating fallback files status manager: %v", err)

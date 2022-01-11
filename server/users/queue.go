@@ -39,9 +39,7 @@ func (q *Queue) startMonitor() {
 			return
 		case <-debugTicker.C:
 			size := q.queue.Size()
-			if size > debugElementCountThreshold {
-				logging.Infof("[queue: %s] current size: %d", q.identifier, size)
-			}
+			logging.Infof("[queue: %s] current size: %d", q.identifier, size)
 		}
 	}
 }

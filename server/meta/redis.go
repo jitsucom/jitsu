@@ -52,9 +52,8 @@ var (
 )
 
 type Redis struct {
-	pool                      *RedisPool
-	anonymousEventsSecondsTTL int
-	errorMetrics              *ErrorMetrics
+	pool         *RedisPool
+	errorMetrics *ErrorMetrics
 }
 
 //redis key [variables] - description
@@ -85,9 +84,6 @@ type Redis struct {
 //last_events:destination#destinationID:id#unique_id_field [original, success, error] - hashtable with original event json, processed with schema json, error json
 //last_events_index:destination#destinationID [timestamp_long unique_id_field] - sorted set of eventIDs and timestamps
 //
-//** Retroactive user recognition **
-//anonymous_events:destination_id#${destination_id}:anonymous_id#${cookies_anonymous_id} [event_id] {event JSON} - hashtable with all anonymous events
-//
 //** Sources Synchronization **
 // - task_id = $source_$collection_$UUID
 //sync_tasks_heartbeat [task_id] last_timestamp - hashtable with hash=task_id and value = last_timestamp.
@@ -100,19 +96,8 @@ type Redis struct {
 //sync_tasks#taskID hash with fields [id, source, collection, priority, created_at, started_at, finished_at, status]
 
 //NewRedis returns configured Redis struct with connection pool
-func NewRedis(factory *RedisPoolFactory, anonymousEventsMinutesTTL int) (*Redis, error) {
-	if anonymousEventsMinutesTTL > 0 {
-		logging.Infof("🏪 Initializing meta storage redis [%s] with anonymous events ttl: %d...", factory.Details(), anonymousEventsMinutesTTL)
-	} else {
-		logging.Infof("🏪 Initializing meta storage redis [%s]...", factory.Details())
-	}
-
-	pool, err := factory.Create()
-	if err != nil {
-		return nil, err
-	}
-
-	return &Redis{pool: pool, anonymousEventsSecondsTTL: anonymousEventsMinutesTTL * 60, errorMetrics: NewErrorMetrics(metrics.MetaRedisErrors)}, nil
+func NewRedis(pool *RedisPool) *Redis {
+	return &Redis{pool: pool, errorMetrics: NewErrorMetrics(metrics.MetaRedisErrors)}
 }
 
 //GetSignature returns sync interval signature from Redis
@@ -165,24 +150,45 @@ func (r *Redis) DeleteSignature(sourceID, collection string) error {
 	return nil
 }
 
-//SuccessEvents ensures that id is in the index and increments success events counter
-func (r *Redis) SuccessEvents(id, namespace, eventType string, now time.Time, value int) error {
-	return r.incrementEventsCount(id, namespace, eventType, SuccessStatus, now, value)
-}
+//IncrementEventsCount increment events counter
+//namespaces: [destination, source]
+//eventType: [push, pull]
+//status: [success, error, skip]
+func (r *Redis) IncrementEventsCount(id, namespace, eventType, status string, now time.Time, value int64) error {
+	conn := r.pool.Get()
+	defer conn.Close()
 
-//ErrorEvents increments error events counter
-func (r *Redis) ErrorEvents(id, namespace, eventType string, now time.Time, value int) error {
-	return r.incrementEventsCount(id, namespace, eventType, ErrorStatus, now, value)
-}
+	if err := r.ensureIDInIndex(conn, id, namespace); err != nil {
+		return fmt.Errorf("Error ensuring id in index: %v", err)
+	}
 
-//SkipEvents increments skipp events counter
-func (r *Redis) SkipEvents(id, namespace, eventType string, now time.Time, value int) error {
-	return r.incrementEventsCount(id, namespace, eventType, SkipStatus, now, value)
+	//increment hourly events
+	dayKey := now.Format(timestamp.DayLayout)
+
+	hourlyEventsKey := getHourlyEventsKey(id, namespace, eventType, dayKey, status)
+	fieldHour := strconv.Itoa(now.Hour())
+	_, err := conn.Do("HINCRBY", hourlyEventsKey, fieldHour, value)
+	if err != nil && err != redis.ErrNil {
+		r.errorMetrics.NoticeError(err)
+		return err
+	}
+
+	//increment daily events
+	monthKey := now.Format(timestamp.MonthLayout)
+	dailyEventsKey := getDailyEventsKey(id, namespace, eventType, monthKey, status)
+	fieldDay := strconv.Itoa(now.Day())
+	_, err = conn.Do("HINCRBY", dailyEventsKey, fieldDay, value)
+	if err != nil && err != redis.ErrNil {
+		r.errorMetrics.NoticeError(err)
+		return err
+	}
+
+	return nil
 }
 
 //AddEvent saves event JSON string into Redis and ensures that event ID is in index by destination ID
 //returns index length
-func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) (int, error) {
+func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 	//add event
@@ -191,7 +197,7 @@ func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) 
 	_, err := conn.Do("HSET", lastEventsKey, field, payload)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
-		return 0, err
+		return err
 	}
 
 	//enrich index
@@ -199,17 +205,9 @@ func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) 
 	_, err = conn.Do("ZADD", lastEventsIndexKey, now.Unix(), eventID)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
-		return 0, err
+		return err
 	}
-
-	//get index length
-	count, err := redis.Int(conn.Do("ZCOUNT", lastEventsIndexKey, "-inf", "+inf"))
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return 0, err
-	}
-
-	return count, nil
+	return nil
 }
 
 //UpdateSucceedEvent updates event record in Redis with success field = JSON of succeed event
@@ -265,31 +263,39 @@ func (r *Redis) UpdateSkipEvent(destinationID, eventID, error string) error {
 	return nil
 }
 
-//RemoveLastEvent removes last event from index and delete it from Redis
-func (r *Redis) RemoveLastEvent(destinationID string) error {
+//TrimEvents removes events from index that exceed provided capacity Redis
+func (r *Redis) TrimEvents(destinationID string, capacity int) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 	//remove last event from index
 	lastEventsIndexKey := "last_events_index:destination#" + destinationID
-	values, err := redis.Strings(conn.Do("ZPOPMIN", lastEventsIndexKey))
+	//get index length
+	count, err := redis.Int(conn.Do("ZCOUNT", lastEventsIndexKey, "-inf", "+inf"))
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return err
 	}
+	if count > capacity {
+		values, err := redis.Values(conn.Do("ZPOPMIN", lastEventsIndexKey, count-capacity))
+		if err != nil && err != redis.ErrNil {
+			r.errorMetrics.NoticeError(err)
+			return err
+		}
+		logging.Debugf("[events cache] destination: %s exceed by: %d", destinationID, len(values)/2)
 
-	if len(values) != 2 {
-		return fmt.Errorf("Error response format: %v", values)
+		keys := make([]interface{}, 0, len(values))
+		for i, eventID := range values {
+			if i%2 == 0 {
+				keys = append(keys, fmt.Sprintf("last_events:destination#%s:id#%s", destinationID, eventID))
+			}
+		}
+		count, err := redis.Int(conn.Do("DEL", keys...))
+		if err != nil && err != redis.ErrNil {
+			r.errorMetrics.NoticeError(err)
+			return err
+		}
+		logging.Debugf("[events cache] destination: %s deleted: %d", destinationID, count)
 	}
-
-	eventID := values[0]
-
-	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
-	_, err = conn.Do("DEL", lastEventsKey)
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
-	}
-
 	return nil
 }
 
@@ -342,61 +348,6 @@ func (r *Redis) GetTotalEvents(destinationID string) (int, error) {
 	}
 
 	return count, nil
-}
-
-//SaveAnonymousEvent saves event JSON by destination ID and user anonymous ID key
-func (r *Redis) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error {
-	conn := r.pool.Get()
-	defer conn.Close()
-	//add event
-	anonymousEventKey := "anonymous_events:destination_id#" + destinationID + ":anonymous_id#" + anonymousID
-	_, err := conn.Do("HSET", anonymousEventKey, eventID, payload)
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
-	}
-
-	if r.anonymousEventsSecondsTTL > 0 {
-		_, err := conn.Do("EXPIRE", anonymousEventKey, r.anonymousEventsSecondsTTL)
-		if err != nil && err != redis.ErrNil {
-			r.errorMetrics.NoticeError(err)
-			logging.SystemErrorf("Error EXPIRE anonymous event %s %s: %v", anonymousEventKey, eventID, err)
-		}
-	}
-
-	return nil
-}
-
-//GetAnonymousEvents returns events JSON per event ID map
-func (r *Redis) GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error) {
-	conn := r.pool.Get()
-	defer conn.Close()
-	//get events
-	anonymousEventKey := "anonymous_events:destination_id#" + destinationID + ":anonymous_id#" + anonymousID
-
-	eventsMap, err := redis.StringMap(conn.Do("HGETALL", anonymousEventKey))
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return nil, err
-	}
-
-	return eventsMap, nil
-}
-
-//DeleteAnonymousEvent deletes event with eventID
-func (r *Redis) DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error {
-	conn := r.pool.Get()
-	defer conn.Close()
-
-	//remove event
-	anonymousEventKey := "anonymous_events:destination_id#" + destinationID + ":anonymous_id#" + anonymousID
-	_, err := conn.Do("HDEL", anonymousEventKey, eventID)
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
-	}
-
-	return nil
 }
 
 //CreateTask saves task into Redis and add Task ID in index
@@ -1122,42 +1073,6 @@ func (r *Redis) ensureIDInIndex(conn redis.Conn, id, namespace string) error {
 	key := indexName + ":project#" + projectID
 
 	_, err := conn.Do("SADD", key, id)
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
-	}
-
-	return nil
-}
-
-//incrementEventsCount increment events counter
-//namespaces: [destination, source]
-//eventType: [push, pull]
-//status: [success, error, skip]
-func (r *Redis) incrementEventsCount(id, namespace, eventType, status string, now time.Time, value int) error {
-	conn := r.pool.Get()
-	defer conn.Close()
-
-	if err := r.ensureIDInIndex(conn, id, namespace); err != nil {
-		return fmt.Errorf("Error ensuring id in index: %v", err)
-	}
-
-	//increment hourly events
-	dayKey := now.Format(timestamp.DayLayout)
-
-	hourlyEventsKey := getHourlyEventsKey(id, namespace, eventType, dayKey, status)
-	fieldHour := strconv.Itoa(now.Hour())
-	_, err := conn.Do("HINCRBY", hourlyEventsKey, fieldHour, value)
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
-	}
-
-	//increment daily events
-	monthKey := now.Format(timestamp.MonthLayout)
-	dailyEventsKey := getDailyEventsKey(id, namespace, eventType, monthKey, status)
-	fieldDay := strconv.Itoa(now.Day())
-	_, err = conn.Do("HINCRBY", dailyEventsKey, fieldDay, value)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return err

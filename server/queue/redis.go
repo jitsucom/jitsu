@@ -14,7 +14,7 @@ const (
 	HTTPAdapterNamespace = "http"
 
 	eventsQueueKeyPrefix      = "events_queue:%s#%s"
-	defaultWaitTimeoutSeconds = 10
+	defaultWaitTimeoutSeconds = 1
 )
 
 //redis key [variables] - description
@@ -40,10 +40,11 @@ type Redis struct {
 func NewRedis(namespace, identifier string, redisPool *meta.RedisPool, serializationModelBuilder func() interface{},
 	redisReadTimeout time.Duration) Queue {
 	//wait timeout should be less than read timeout
-	waitTimeoutSeconds := int(redisReadTimeout.Seconds() * 0.7)
+	waitTimeoutSeconds := int(redisReadTimeout.Seconds() * 0.3)
 	if waitTimeoutSeconds == 0 {
 		waitTimeoutSeconds = defaultWaitTimeoutSeconds
 	}
+
 	return &Redis{
 		identifier:                identifier,
 		queueKey:                  fmt.Sprintf(eventsQueueKeyPrefix, namespace, identifier),
@@ -108,6 +109,10 @@ func (r *Redis) Size() int64 {
 	}
 
 	return size
+}
+
+func (r *Redis) Type() string {
+	return RedisType
 }
 
 //Close doesn't close sharedPool

@@ -1,0 +1,54 @@
+name: Frontend CI
+
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  frontend-build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+          # Make sure the value of GITHUB_TOKEN will not be persisted in repo's config
+          persist-credentials: false
+      - name: Check whether frontend code was changed
+        id: frontend-change
+        working-directory: ./configurator/frontend
+        run: echo ::set-output name=status::1
+#        run: git diff @~..@ --quiet ./ || echo ::set-output name=status::1
+      - name: Frontend changed status
+        env:
+          FRONTEND_CHANGED: ${{ steps.frontend-change.outputs.status }}
+        run: echo TMP WORKAROUND - now it always "changed". Frontend changed - $FRONTEND_CHANGED
+      - uses: actions/setup-node@v2
+        if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
+        with:
+          node-version: "14"
+      - run: yarn install
+        if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
+        name: "[Frontend CI] installing packages (yarn install)"
+        working-directory: ./configurator/frontend
+      - run: yarn build
+        if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
+        name: "[Frontend CI] building"
+        working-directory: ./configurator/frontend
+      - run: yarn all:check
+        if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
+        name: "[Frontend CI] running prettier & eslint checks"
+        working-directory: ./configurator/frontend
+
+      - name: Notify to Slack on Errors
+        uses: rtCamp/action-slack-notify@v2.2.0
+        if: ${{ failure() && steps.frontend-change.outputs.status == 1 && (github.ref_name == 'beta' || github.ref_name == 'master' ) }}
+        env:
+          SLACK_COLOR: ${{ job.status }} # or a specific color like 'good' or '#ff00ff'
+          SLACK_ICON_EMOJI: 👿
+          SLACK_WEBHOOK: ${{ secrets.SLACK_CI_FRONTEND_WEBHOOK }}
+          SLACK_FOOTER: ""

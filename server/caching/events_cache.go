@@ -4,76 +4,112 @@ import (
 	"encoding/json"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"math/rand"
+	"sync"
 	"time"
 )
 
 //EventsCache is an event cache based on meta.Storage(Redis)
 type EventsCache struct {
 	storage                meta.Storage
-	originalCh             chan *originalEvent
-	succeedCh              chan *succeedEvent
-	failedCh               chan *failedEvent
-	skippedCh              chan *failedEvent
+	eventsChannel          chan *statusEvent
 	capacityPerDestination int
-
-	done chan struct{}
+	poolSize               int
+	trimIntervalMs         time.Duration
+	lastDestinations       sync.Map
+	done                   chan struct{}
 }
 
 //NewEventsCache returns EventsCache and start goroutine for async operations
-func NewEventsCache(storage meta.Storage, capacityPerDestination int) *EventsCache {
+func NewEventsCache(enabled bool, storage meta.Storage, capacityPerDestination, poolSize, trimIntervalMs int) *EventsCache {
+	if !enabled {
+		logging.Warnf("Events cache is disabled.")
+		done := make(chan struct{})
+		close(done)
+		//return closed
+		return &EventsCache{done: done}
+	}
+
+	if storage.Type() == meta.DummyType {
+		logging.Warnf("Events cache is disabled. Since 'meta.storage' configuration is required.")
+
+		done := make(chan struct{})
+		close(done)
+		//return closed
+		return &EventsCache{done: done}
+	}
+
 	c := &EventsCache{
 		storage:                storage,
-		originalCh:             make(chan *originalEvent, 1_000_000),
-		succeedCh:              make(chan *succeedEvent, 1_000_000),
-		failedCh:               make(chan *failedEvent, 1_000_000),
-		skippedCh:              make(chan *failedEvent, 1_000_000),
+		eventsChannel:          make(chan *statusEvent, 1_000_000),
 		capacityPerDestination: capacityPerDestination,
+		lastDestinations:       sync.Map{},
+		poolSize:               poolSize,
+		trimIntervalMs:         time.Duration(trimIntervalMs),
 
 		done: make(chan struct{}),
 	}
-	c.start()
+
+	for i := 0; i < poolSize; i++ {
+		c.start()
+	}
+	c.startTrimmer()
 	return c
 }
 
 //start goroutine for reading from newCh/succeedCh/errorCh and put/update cache (async)
 func (ec *EventsCache) start() {
 	safego.RunWithRestart(func() {
-		for cf := range ec.originalCh {
-			ec.put(cf.destinationID, cf.eventID, cf.event)
+		for cf := range ec.eventsChannel {
+			switch cf.eventType {
+			case "put":
+				ec.put(cf.destinationID, cf.eventID, cf.serializedPayload)
+			case "succeed":
+				ec.succeed(cf.eventContext)
+			case "error":
+				ec.error(cf.destinationID, cf.eventID, cf.error)
+			case "skip":
+				ec.skip(cf.destinationID, cf.eventID, cf.error)
+			}
 		}
 	})
+}
 
+//start goroutine for reading from newCh/succeedCh/errorCh and put/update cache (async)
+func (ec *EventsCache) startTrimmer() {
 	safego.RunWithRestart(func() {
-		for cf := range ec.succeedCh {
-			ec.succeed(cf.eventContext)
-		}
-	})
-
-	safego.RunWithRestart(func() {
-		for cf := range ec.failedCh {
-			ec.error(cf.destinationID, cf.eventID, cf.error)
-		}
-	})
-
-	safego.RunWithRestart(func() {
-		for cf := range ec.skippedCh {
-			ec.skip(cf.destinationID, cf.eventID, cf.error)
+		ticker := time.NewTicker(time.Millisecond * ec.trimIntervalMs)
+		for {
+			select {
+			case <-ec.done:
+				return
+			case <-ticker.C:
+				ec.lastDestinations.Range(func(key interface{}, value interface{}) bool {
+					ec.lastDestinations.Delete(key)
+					err := ec.storage.TrimEvents(key.(string), ec.capacityPerDestination)
+					if err != nil {
+						logging.Warnf("failed to trim events cache events for %s: %v", key, err)
+					}
+					return true
+				})
+			}
 		}
 	})
 }
 
 //Put puts value into channel which will be read and written to storage
-func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, value events.Event) {
+func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, serializedPayload []byte) {
 	if !disabled && ec.isActive() {
 		select {
-		case ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: value}:
+		case ec.eventsChannel <- &statusEvent{eventType: "put", destinationID: destinationID, eventID: eventID, serializedPayload: serializedPayload}:
 		default:
-			logging.SystemErrorf("[events cache] original event hasn't been put: %s", value.Serialize())
+			if rand.Int31n(10) == 0 {
+				logging.Warnf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+			}
 		}
 	}
 }
@@ -82,9 +118,11 @@ func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, value e
 func (ec *EventsCache) Succeed(eventContext *adapters.EventContext) {
 	if !eventContext.CacheDisabled && ec.isActive() {
 		select {
-		case ec.succeedCh <- &succeedEvent{eventContext: eventContext}:
+		case ec.eventsChannel <- &statusEvent{eventType: "succeed", eventContext: eventContext}:
 		default:
-			logging.SystemErrorf("[events cache] succeed event hasn't been put: %s", eventContext.RawEvent.Serialize())
+			if rand.Int31n(10) == 0 {
+				logging.Warnf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+			}
 		}
 	}
 }
@@ -93,9 +131,11 @@ func (ec *EventsCache) Succeed(eventContext *adapters.EventContext) {
 func (ec *EventsCache) Error(disabled bool, destinationID, eventID string, errMsg string) {
 	if !disabled && ec.isActive() {
 		select {
-		case ec.failedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
+		case ec.eventsChannel <- &statusEvent{eventType: "error", destinationID: destinationID, eventID: eventID, error: errMsg}:
 		default:
-			logging.SystemErrorf("[events cache] error event hasn't been put: %s", eventID)
+			if rand.Int31n(10) == 0 {
+				logging.Warnf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+			}
 		}
 	}
 }
@@ -104,46 +144,28 @@ func (ec *EventsCache) Error(disabled bool, destinationID, eventID string, errMs
 func (ec *EventsCache) Skip(disabled bool, destinationID, eventID string, errMsg string) {
 	if !disabled && ec.isActive() {
 		select {
-		case ec.skippedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
+		case ec.eventsChannel <- &statusEvent{eventType: "skip", destinationID: destinationID, eventID: eventID, error: errMsg}:
 		default:
-			logging.SystemErrorf("[events cache] skipped event hasn't been put: %s", eventID)
+			if rand.Int31n(10) == 0 {
+				logging.Warnf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+			}
 		}
 	}
 }
 
 //put creates new event in storage
-func (ec *EventsCache) put(destinationID, eventID string, value events.Event) {
+func (ec *EventsCache) put(destinationID, eventID string, serializedPayload []byte) {
 	if eventID == "" {
-		logging.SystemErrorf("[%s] Event id can't be empty. Event: %s", destinationID, value.Serialize())
+		logging.SystemErrorf("[%s] Event id can't be empty. Event: %s", destinationID, string(serializedPayload))
 		return
 	}
 
-	b, err := json.Marshal(value)
+	err := ec.storage.AddEvent(destinationID, eventID, string(serializedPayload), timestamp.Now().UTC())
 	if err != nil {
-		logging.SystemErrorf("[%s] Error marshalling event [%v] before caching: %v", destinationID, value, err)
+		logging.SystemErrorf("[%s] Error saving event %v in cache: %v", destinationID, string(serializedPayload), err)
 		return
 	}
-
-	eventsInCache, err := ec.storage.AddEvent(destinationID, eventID, string(b), timestamp.Now().UTC())
-	if err != nil {
-		logging.SystemErrorf("[%s] Error saving event %v in cache: %v", destinationID, value.Serialize(), err)
-		return
-	}
-
-	//delete old if overflow
-	if eventsInCache > ec.capacityPerDestination {
-		toDelete := eventsInCache - ec.capacityPerDestination
-		if toDelete > 2 {
-			logging.Debugf("[%s] Events cache size: [%d] capacity: [%d] elements to delete: [%d]", destinationID, eventsInCache, ec.capacityPerDestination, toDelete)
-		}
-		for i := 0; i < toDelete; i++ {
-			err := ec.storage.RemoveLastEvent(destinationID)
-			if err != nil {
-				logging.SystemErrorf("[%s] Error removing event from cache: %v", destinationID, err)
-				return
-			}
-		}
-	}
+	ec.lastDestinations.LoadOrStore(destinationID, true)
 }
 
 //succeed serializes and update processed event in storage
@@ -264,10 +286,11 @@ func (ec *EventsCache) GetTotal(destinationID string) int {
 
 //Close stops all underlying goroutines
 func (ec *EventsCache) Close() error {
-	close(ec.done)
-	close(ec.originalCh)
-	close(ec.succeedCh)
-	close(ec.failedCh)
+	if ec.isActive() {
+		close(ec.done)
+		close(ec.eventsChannel)
+	}
+
 	return nil
 }
 

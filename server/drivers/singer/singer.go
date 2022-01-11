@@ -13,6 +13,7 @@ import (
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/singer"
+	"github.com/jitsucom/jitsu/server/utils"
 	"go.uber.org/atomic"
 	"io"
 	"os"
@@ -151,20 +152,12 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, config.Tap, configPath, catalogPath, propertiesPath, statePath,
 		config.StreamTableNamesPrefix, pathToConfigs, config.StreamTableNames)
 
-	var selectedStreamsWithNamespace map[string]base.StreamConfiguration
-	if len(config.SelectedStreams) > 0 {
-		selectedStreamsWithNamespace = map[string]base.StreamConfiguration{}
-		for _, sc := range config.SelectedStreams {
-			selectedStreamsWithNamespace[base.StreamIdentifier(sc.Namespace, sc.Name)] = sc
-		}
-	}
-
 	s := &Singer{
 		mutex:              &sync.RWMutex{},
 		activeSyncCommands: map[string]*base.SyncCommand{},
 
 		pathToConfigs:                pathToConfigs,
-		selectedStreamsWithNamespace: selectedStreamsWithNamespace,
+		selectedStreamsWithNamespace: selectedStreamsWithNamespace(config),
 		streamReplication:            streamReplicationMappings,
 		catalogDiscovered:            catalogDiscovered,
 
@@ -198,6 +191,43 @@ func TestSinger(sourceConfig *base.SourceConfig) error {
 		return runner.ErrNotReady
 	}
 
+	base.FillPreconfiguredOauth(config.Tap, config.Config)
+
+	configPath, err := singer.SaveConfig(sourceConfig.SourceID, config.Tap, config.Config)
+	if err != nil {
+		logging.Errorf("Cannot save config to file: %v", err)
+		return fmt.Errorf("cannot save config to file: %v", err)
+	}
+
+	selectedStreamsWithNamespace := selectedStreamsWithNamespace(config)
+	if len(selectedStreamsWithNamespace) > 0 {
+		catalog, err := singer.Instance.Discover(config.Tap, configPath)
+		if err != nil {
+			return err
+		}
+		var missingStreams []base.StreamConfiguration
+		var missingStreamsStr []string
+		availableStreams := map[string]interface{}{}
+		for _, stream := range catalog.Streams {
+			if streamName, ok := stream["stream"]; ok {
+				streamNameStr := fmt.Sprint(streamName)
+				tapStreamID, _ := stream["tap_stream_id"]
+				availableStreams[base.StreamIdentifier(fmt.Sprint(tapStreamID), streamNameStr)] = true
+			} else {
+				logging.Warnf("Stream [%v] doesn't have 'stream' name", stream)
+			}
+		}
+		for key, stream := range selectedStreamsWithNamespace {
+			_, ok := availableStreams[key]
+			if !ok {
+				missingStreams = append(missingStreams, stream)
+				missingStreamsStr = append(missingStreamsStr, stream.Name)
+			}
+		}
+		if len(missingStreams) > 0 {
+			return utils.NewRichError(fmt.Sprintf("selected streams unavailable: %s", strings.Join(missingStreamsStr, ",")), missingStreams)
+		}
+	}
 	return nil
 }
 
@@ -539,4 +569,15 @@ func (s *Singer) doDiscover(tap, pathToConfigs, configFilePath string) (string, 
 	}
 
 	return catalogPath, propertiesPath, streamNames, nil
+}
+
+func selectedStreamsWithNamespace(config *Config) map[string]base.StreamConfiguration {
+	var selectedStreamsWithNamespace map[string]base.StreamConfiguration
+	if len(config.SelectedStreams) > 0 {
+		selectedStreamsWithNamespace = map[string]base.StreamConfiguration{}
+		for _, sc := range config.SelectedStreams {
+			selectedStreamsWithNamespace[base.StreamIdentifier(sc.Namespace, sc.Name)] = sc
+		}
+	}
+	return selectedStreamsWithNamespace
 }

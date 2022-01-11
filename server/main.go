@@ -12,6 +12,7 @@ import (
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
+	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/runtime"
@@ -154,17 +155,22 @@ func main() {
 	}
 
 	if err := singer.Init(viper.GetString("singer-bridge.python"), viper.GetString("singer-bridge.venv_dir"),
-		viper.GetBool("singer-bridge.install_taps"), viper.GetBool("singer-bridge.update_taps"), appconfig.Instance.SingerLogsWriter); err != nil {
+		viper.GetBool("singer-bridge.install_taps"), viper.GetBool("singer-bridge.update_taps"), viper.GetInt("singer-bridge.batch_size"), appconfig.Instance.SingerLogsWriter); err != nil {
 		logging.Fatal(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	if err := airbyte.Init(ctx, viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), appconfig.Instance.AirbyteLogsWriter); err != nil {
+	if err := airbyte.Init(ctx, viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), viper.GetInt("airbyte-bridge.batch_size"), appconfig.Instance.AirbyteLogsWriter); err != nil {
 		logging.Errorf("❌ Airbyte integration is disabled: %v. For using Airbyte run Jitsu with: -v /var/run/docker.sock:/var/run/docker.sock", err)
 	}
 
-	geoService := geo.NewService(ctx, viper.GetString("geo_resolvers"), viper.GetString("geo.maxmind_path"), viper.GetString("maxmind.official_url"))
-	appconfig.Instance.ScheduleClosing(geoService)
+	//GEO Resolvers
+	geoResolversURL := viper.GetString("geo_resolvers")
+	if geoResolversURL == "" && appconfig.Instance.ConfiguratorURL != "" {
+		geoResolversURL = fmt.Sprintf("%s/api/v1/geo_data_resolvers?token=%s", appconfig.Instance.ConfiguratorURL, appconfig.Instance.ConfiguratorToken)
+	}
+
+	geoService := geo.NewService(ctx, geoResolversURL, viper.GetString("geo.maxmind_path"), viper.GetString("maxmind.official_url"))
 
 	enrichment.InitDefault(
 		viper.GetString("server.fields_configuration.src_source_ip"),
@@ -180,12 +186,19 @@ func main() {
 		notifications.SystemErrorf("Panic:\n%s\n%s", value, string(debug.Stack()))
 	}
 
-	telemetry.InitFromViper(notifications.ServiceName, commit, tag, builtAt, *dockerHubID)
+	//TELEMETRY
+	telemetryURL := viper.GetString("server.telemetry")
+	if telemetryURL == "" && appconfig.Instance.ConfiguratorURL != "" {
+		telemetryURL = fmt.Sprintf("%s/api/v1/telemetry?token=%s", appconfig.Instance.ConfiguratorURL, appconfig.Instance.ConfiguratorToken)
+	}
+
+	telemetry.InitFromViper(telemetryURL, notifications.ServiceName, commit, tag, builtAt, *dockerHubID)
+
 	metrics.Init(viper.GetBool("server.metrics.prometheus.enabled"))
 
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")
 	if slackNotificationsWebHook != "" {
-		notifications.Init(notifications.ServiceName, slackNotificationsWebHook, appconfig.Instance.ServerName, logging.Errorf)
+		notifications.Init(notifications.ServiceName, tag, slackNotificationsWebHook, appconfig.Instance.ServerName, logging.Errorf)
 	}
 
 	//listen to shutdown signal to free up all resources
@@ -205,6 +218,8 @@ func main() {
 		//we should close it in the end
 		appconfig.Instance.CloseEventsConsumers()
 		appconfig.Instance.CloseWriteAheadLog()
+		counters.Close()
+		geoService.Close()
 		time.Sleep(time.Second)
 		os.Exit(0)
 	}()
@@ -223,15 +238,17 @@ func main() {
 	}
 	logRotationMin := viper.GetInt64("log.rotation_min")
 
-	loggerFactory := logging.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
-		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter)
+	loggerFactory := logevents.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
+		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter, viper.GetBool("log.async_writers"),
+		viper.GetInt("log.pool.size"))
 
 	// ** Meta storage **
 	metaStorageConfiguration := viper.Sub("meta.storage")
-	metaStorage, err := meta.NewStorage(metaStorageConfiguration)
+	metaStorage, err := meta.InitializeStorage(metaStorageConfiguration)
 	if err != nil {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
+
 	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
 	systemInfo := runtime.GetInfo()
 	telemetry.EnrichSystemInfo(clusterID, systemInfo)
@@ -293,8 +310,16 @@ func main() {
 	counters.InitEvents(metaStorage)
 
 	//events cache
+	eventsCacheEnabled := viper.GetBool("server.cache.enabled")
 	eventsCacheSize := viper.GetInt("server.cache.events.size")
-	eventsCache := caching.NewEventsCache(metaStorage, eventsCacheSize)
+	eventsCacheTrimIntervalMs := viper.GetInt("server.cache.events.trim_interval_ms")
+	eventsCachePoolSize := viper.GetInt("server.cache.pool.size")
+	if eventsCachePoolSize == 0 {
+		eventsCachePoolSize = 1
+		logging.Infof("server.cache.pool.size can't be 0. Using default value=1 instead")
+
+	}
+	eventsCache := caching.NewEventsCache(eventsCacheEnabled, metaStorage, eventsCacheSize, eventsCachePoolSize, eventsCacheTrimIntervalMs)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
 	// ** Retroactive users recognition
@@ -303,10 +328,17 @@ func main() {
 		AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
 		IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
 		UserIDNode:          viper.GetString("users_recognition.user_id_node"),
+		PoolSize:            viper.GetInt("users_recognition.pool.size"),
+		Compression:         viper.GetString("users_recognition.compression"),
 	}
 
 	if err := globalRecognitionConfiguration.Validate(); err != nil {
 		logging.Fatalf("Invalid global users recognition configuration: %v", err)
+	}
+
+	if globalRecognitionConfiguration.PoolSize == 0 {
+		globalRecognitionConfiguration.PoolSize = 1
+		logging.Infof("users_recognition.pool.size can't be 0. Using default value=1 instead")
 	}
 
 	pluginsMap := viper.GetStringMapString("server.plugins")
@@ -319,14 +351,25 @@ func main() {
 	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory,
 		globalRecognitionConfiguration, metaStorage, eventsQueueFactory, maxColumns)
 
+	//DESTINATIONS
+	destinationsURL := viper.GetString(destinationsKey)
+	if destinationsURL == "" && appconfig.Instance.ConfiguratorURL != "" {
+		destinationsURL = fmt.Sprintf("%s/api/v1/destinations?token=%s", appconfig.Instance.ConfiguratorURL, appconfig.Instance.ConfiguratorToken)
+	}
+
 	//Create event destinations
-	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory, viper.GetBool("server.strict_auth_tokens"))
+	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), destinationsURL, destinationsFactory, loggerFactory, viper.GetBool("server.strict_auth_tokens"))
 	if err != nil {
 		logging.Fatal(err)
 	}
 	appconfig.Instance.ScheduleClosing(destinationsService)
 
-	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationsService, globalRecognitionConfiguration, logEventPath)
+	userRecognitionStorage, err := users.InitializeStorage(globalRecognitionConfiguration.Enabled, metaStorageConfiguration)
+	if err != nil {
+		logging.Fatalf("Error initializing users recognition storage: %v", err)
+	}
+
+	usersRecognitionService, err := users.NewRecognitionService(userRecognitionStorage, destinationsService, globalRecognitionConfiguration)
 	if err != nil {
 		logging.Fatal(err)
 	}
@@ -338,8 +381,14 @@ func main() {
 	cronScheduler := scheduling.NewCronScheduler()
 	appconfig.Instance.ScheduleClosing(cronScheduler)
 
+	//SOURCES
 	//Create sources
-	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), viper.GetString(sourcesKey), destinationsService, metaStorage, cronScheduler)
+	sourcesURL := viper.GetString(sourcesKey)
+	if sourcesURL == "" && appconfig.Instance.ConfiguratorURL != "" {
+		sourcesURL = fmt.Sprintf("%s/api/v1/sources?token=%s", appconfig.Instance.ConfiguratorURL, appconfig.Instance.ConfiguratorToken)
+	}
+
+	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), sourcesURL, destinationsService, metaStorage, cronScheduler)
 	if err != nil {
 		logging.Fatal("Error creating sources service:", err)
 	}
@@ -377,7 +426,7 @@ func main() {
 	uploader.Start()
 
 	//Streaming events archiver
-	periodicArchiver := logfiles.NewPeriodicArchiver(streamArchiveFileMask, path.Join(logEventPath, logging.ArchiveDir), time.Duration(streamArchiveEveryS)*time.Second)
+	periodicArchiver := logfiles.NewPeriodicArchiver(streamArchiveFileMask, path.Join(logEventPath, logevents.ArchiveDir), time.Duration(streamArchiveEveryS)*time.Second)
 	appconfig.Instance.ScheduleClosing(periodicArchiver)
 
 	adminToken := viper.GetString("server.admin_token")
@@ -418,7 +467,12 @@ func main() {
 		appconfig.Instance.ScheduleClosing(vn)
 	}
 
-	systemService := system.NewService(viper.GetString("system"))
+	//SYSTEM
+	systemConfigurationURL := viper.GetString("system")
+	if systemConfigurationURL == "" && appconfig.Instance.ConfiguratorURL != "" {
+		systemConfigurationURL = fmt.Sprintf("%s/api/v1/system/configuration", appconfig.Instance.ConfiguratorURL)
+	}
+	systemService := system.NewService(systemConfigurationURL)
 
 	//event processors
 	apiProcessor := events.NewAPIProcessor()
@@ -463,7 +517,10 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 	var coordinationRedisConfiguration *viper.Viper
 	redisShortcut := viper.GetString("coordination.type")
 	if redisShortcut == "redis" {
-		coordinationRedisConfiguration = metaStorageConfiguration.Sub("redis")
+		if metaStorageConfiguration != nil {
+			coordinationRedisConfiguration = metaStorageConfiguration.Sub("redis")
+		}
+
 		if coordinationRedisConfiguration == nil || coordinationRedisConfiguration.GetString("host") == "" {
 			//coordination.type is set but no Redis provided (e.g. in case of solo jitsucom/server without Redis)
 			return nil, nil
@@ -496,8 +553,12 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 
 //initializeEventsQueueFactory returns configured events.QueueFactory (redis or inmemory)
 func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*events.QueueFactory, error) {
-	//redis config from meta.storage section
-	redisConfigurationSource := metaStorageConfiguration.Sub("redis")
+	var redisConfigurationSource *viper.Viper
+
+	if metaStorageConfiguration != nil {
+		//redis config from meta.storage section
+		redisConfigurationSource = metaStorageConfiguration.Sub("redis")
+	}
 
 	//get redis configuration from separated config section if configured
 	if viper.GetString("events.queue.redis.host") != "" {
@@ -507,14 +568,14 @@ func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*event
 	var pollTimeout time.Duration
 	var eventsQueueRedisPool *meta.RedisPool
 	var err error
-	if redisConfigurationSource != nil {
+	if redisConfigurationSource != nil && redisConfigurationSource.GetString("host") != "" {
 		factory := meta.NewRedisPoolFactory(redisConfigurationSource.GetString("host"),
 			redisConfigurationSource.GetInt("port"),
 			redisConfigurationSource.GetString("password"),
 			redisConfigurationSource.GetBool("tls_skip_verify"),
 			redisConfigurationSource.GetString("sentinel_master_name"))
 		opts := meta.DefaultOptions
-		opts.MaxActive = 1000
+		opts.MaxActive = 5000
 		factory.WithOptions(opts)
 		pollTimeout = factory.GetOptions().DefaultDialReadTimeout
 		factory.CheckAndSetDefaultPort()

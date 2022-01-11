@@ -2,6 +2,7 @@ package authorization
 
 import (
 	"errors"
+	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/uuid"
@@ -29,7 +30,7 @@ type Service struct {
 	DestinationsForceReload func()
 }
 
-func NewService() (*Service, error) {
+func NewService(configuratorURL, configuratorToken string) (*Service, error) {
 	service := &Service{}
 
 	reloadSec := viper.GetInt("server.api_keys_reload_sec")
@@ -61,16 +62,22 @@ func NewService() (*Service, error) {
 
 	var tokens []Token
 	err := viper.UnmarshalKey(viperKey, &tokens)
-	if err == nil {
+	if err == nil && len(tokens) > 0 {
 		for _, s2sauth := range deprecatedS2SAuth {
 			tokens = append(tokens, Token{ServerSecret: s2sauth})
 		}
 		service.tokensHolder = reformat(tokens)
 	} else {
 		auth := viper.GetStringSlice(viperKey)
+		if len(auth) == 0 && configuratorURL != "" {
+			auth = append(auth, buildAuthURL(configuratorURL, configuratorToken))
+		}
 
 		if len(auth) == 1 {
 			authSource := auth[0]
+			if authSource == "" && configuratorURL != "" {
+				authSource = buildAuthURL(configuratorURL, configuratorToken)
+			}
 			if strings.HasPrefix(authSource, "http://") || strings.HasPrefix(authSource, "https://") {
 				resources.Watch(serviceName, authSource, resources.LoadFromHTTP, service.updateTokens, time.Duration(reloadSec)*time.Second)
 			} else if strings.HasPrefix(authSource, "file://") || strings.HasPrefix(authSource, "/") {
@@ -182,4 +189,8 @@ func (s *Service) updateTokens(payload []byte) {
 			s.DestinationsForceReload()
 		}
 	}
+}
+
+func buildAuthURL(configuratorURL, configuratorToken string) string {
+	return fmt.Sprintf("%s/api/v1/apikeys?token=%s", configuratorURL, configuratorToken)
 }

@@ -1,5 +1,5 @@
 // @Libs
-import React, { useState } from "react"
+import React, { SyntheticEvent, useCallback, useState } from "react"
 import { Collapse, Drawer, Form } from "antd"
 import debounce from "lodash/debounce"
 // @Components
@@ -14,12 +14,14 @@ import { destinationsReferenceMap } from "../../../../../catalog/destinations/li
 import { CodeSnippet } from "../../../../../lib/components/components"
 import { camelCase } from "lodash"
 import set from "lodash/set"
+import { FieldData } from "rc-field-form/lib/interface"
 
 export interface Props {
   destinationData: DestinationData
   destinationReference: Destination
   form: FormInstance
   configForm: FormInstance
+  mappingForm: FormInstance
   handleTouchAnyField: (...args: any) => void
 }
 
@@ -28,6 +30,7 @@ const DestinationEditorTransform = ({
   destinationReference,
   form,
   configForm,
+  mappingForm,
   handleTouchAnyField,
 }: Props) => {
   const handleChange = debounce(handleTouchAnyField, 500)
@@ -59,12 +62,20 @@ const DestinationEditorTransform = ({
             {
               id: "_transform_enabled",
               displayName: "Enable Javascript Transformation",
-              defaultValue:
-                !!destinationsReferenceMap[destinationData._type].defaultTransform &&
-                !destinationData._mappings?._mappings,
+              defaultValue: !destinationData._mappings?._mappings,
               required: false,
-              omitFieldRule: cfg => destinationsReferenceMap[destinationData._type].defaultTransform.length > 0,
+              omitFieldRule: cfg =>
+                destinationsReferenceMap[destinationData._type].defaultTransform.length > 0 &&
+                !destinationData._mappings?._mappings,
               type: booleanType,
+              validator: (rule, value) => {
+                if (value && mappingForm?.getFieldValue("_mappings._mappings")?.length > 0) {
+                  return Promise.reject(
+                    "Transform cannot work with configured mappings. Please remove all mappings first."
+                  )
+                }
+                return Promise.resolve()
+              },
               bigField: true,
             },
             {
@@ -75,7 +86,9 @@ ${[destinationData._type, "segment"]
   .map(type => `declare function ${camelCase("to_" + type)}(event: object): object`)
   .join("\n")}`,
               displayName: "Javascript Transformation",
-              defaultValue: destinationsReferenceMap[destinationData._type].defaultTransform || "return $",
+              defaultValue: !destinationData._mappings?._mappings
+                ? destinationsReferenceMap[destinationData._type].defaultTransform
+                : "",
               required: false,
               jsDebugger: "object",
               type: jsType,
@@ -83,7 +96,7 @@ ${[destinationData._type, "segment"]
             },
           ]}
           form={form}
-          configForm={configForm}
+          extraForms={[configForm, mappingForm]}
           initialValues={destinationData}
         />
       </Form>

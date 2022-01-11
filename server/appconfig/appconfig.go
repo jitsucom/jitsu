@@ -6,6 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/jitsucom/jitsu/server/authorization"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -20,6 +21,9 @@ type AppConfig struct {
 	ServerName string
 	Authority  string
 	ConfigPath string
+
+	ConfiguratorURL   string
+	ConfiguratorToken string
 
 	DisableSkipEventsWarn bool
 
@@ -61,16 +65,19 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.sources_reload_sec", 1)
 	viper.SetDefault("server.geo_resolvers_reload_sec", 1)
 	viper.SetDefault("server.sync_tasks.pool.size", 16)
-	viper.SetDefault("server.sync_tasks.stalled.last_heartbeat_threshold_seconds", 15)
+	viper.SetDefault("server.sync_tasks.stalled.last_heartbeat_threshold_seconds", 60)
 	viper.SetDefault("server.sync_tasks.stalled.last_activity_threshold_minutes", 10)
 	viper.SetDefault("server.sync_tasks.stalled.observe_stalled_every_seconds", 20)
 	viper.SetDefault("server.sync_tasks.store_logs.last_runs", -1)
 	viper.SetDefault("server.disable_version_reminder", false)
 	viper.SetDefault("server.disable_skip_events_warn", false)
+	viper.SetDefault("server.cache.enabled", true)
 	viper.SetDefault("server.cache.events.size", 100)
+	viper.SetDefault("server.cache.events.trim_interval_ms", 500)
+	viper.SetDefault("server.cache.pool.size", 10)
 	viper.SetDefault("server.strict_auth_tokens", false)
 	viper.SetDefault("server.max_columns", 100)
-	viper.SetDefault("server.configurator_url", "/configurator")
+	viper.SetDefault("server.configurator_urn", "/configurator")
 	//unique IDs
 	viper.SetDefault("server.fields_configuration.unique_id_field", "/eventn_ctx/event_id||/eventn_ctx_event_id||/event_id")
 	viper.SetDefault("server.fields_configuration.user_agent_path", "/eventn_ctx/user_agent||/user_agent")
@@ -81,6 +88,8 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.fields_configuration.dst_ua", "/eventn_ctx/parsed_ua||/parsed_ua")
 
 	viper.SetDefault("log.show_in_server", false)
+	viper.SetDefault("log.async_writers", false)
+	viper.SetDefault("log.pool.size", 10)
 	viper.SetDefault("log.rotation_min", 5)
 
 	viper.SetDefault("sql_debug_log.ddl.enabled", true)
@@ -91,8 +100,9 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("sql_debug_log.queries.max_backups", "7320") //30 days = 60 min * 7320
 
 	viper.SetDefault("users_recognition.enabled", false)
-	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id||/user/anonymous_id")
+	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id||/user/anonymous_id||/eventn_ctx/user/hashed_anonymous_id||/user/hashed_anonymous_id")
 	viper.SetDefault("users_recognition.identification_nodes", []string{"/eventn_ctx/user/internal_id||/user/internal_id"})
+	viper.SetDefault("users_recognition.pool.size", 10)
 
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.install_taps", true)
@@ -100,10 +110,12 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("singer-bridge.log.enabled", false)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
 	viper.SetDefault("singer-bridge.log.max_backups", "30") //30 days = 1440 min * 30
+	viper.SetDefault("singer-bridge.batch_size", 10_000)
 
 	viper.SetDefault("airbyte-bridge.log.enabled", false)
 	viper.SetDefault("airbyte-bridge.log.rotation_min", "1440")
 	viper.SetDefault("airbyte-bridge.log.max_backups", "30") //30 days = 1440 min * 30
+	viper.SetDefault("airbyte-bridge.batch_size", 10_000)
 
 	viper.SetDefault("server.volumes.workspace", "jitsu_workspace")
 
@@ -271,6 +283,9 @@ func Init(containerized bool, dockerHubID string) error {
 	appConfig.ServerName = serverName
 	appConfig.ConfigPath = viper.GetString("server.config.path")
 
+	appConfig.ConfiguratorURL = strings.TrimRight(viper.GetString("configurator.base_url"), "/")
+	appConfig.ConfiguratorToken = viper.GetString("configurator.admin_token")
+
 	emptyGIF, err := base64.StdEncoding.DecodeString(emptyGIFOnexOne)
 	if err != nil {
 		return fmt.Errorf("Error parsing empty GIF: %v", err)
@@ -325,7 +340,7 @@ func Init(containerized bool, dockerHubID string) error {
 	port := viper.GetString("server.port")
 	appConfig.Authority = "0.0.0.0:" + port
 
-	authService, err := authorization.NewService()
+	authService, err := authorization.NewService(appConfig.ConfiguratorURL, appConfig.ConfiguratorToken)
 	if err != nil {
 		return err
 	}

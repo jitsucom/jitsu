@@ -1,13 +1,13 @@
 package destinations
 
 import (
+	"github.com/jitsucom/jitsu/server/logevents"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -98,7 +98,7 @@ func TestServiceInit(t *testing.T) {
 	payload := &payloadHolder{payload: []byte(initialDestinations)}
 	mockDestinationsServer := startTestServer(payload)
 
-	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
+	loggerFactory := logevents.NewFactory("/tmp", 5, false, nil, nil, false, 1)
 	destinationsMockFactory := storages.NewMockFactory()
 	service, err := NewService(nil, mockDestinationsServer.URL, destinationsMockFactory, loggerFactory, false)
 	require.NoError(t, err)

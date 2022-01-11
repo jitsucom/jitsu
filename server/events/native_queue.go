@@ -2,8 +2,8 @@ package events
 
 import (
 	"fmt"
+	"github.com/jitsucom/jitsu/server/events/internal"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/queue"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/timestamp"
@@ -22,17 +22,26 @@ type NativeQueue struct {
 	identifier string
 	queue      queue.Queue
 
-	closed chan struct{}
+	metricsReporter internal.MetricReporter
+	closed          chan struct{}
 }
 
-func NewNativeQueue(namespace, identifier string, queue queue.Queue) (Queue, error) {
-	metrics.InitialStreamEventsQueueSize(identifier, int(queue.Size()))
+func NewNativeQueue(namespace, identifier string, underlyingQueue queue.Queue) (Queue, error) {
+	var metricsReporter internal.MetricReporter
+	if underlyingQueue.Type() == queue.RedisType {
+		metricsReporter = &internal.SharedQueueMetricReporter{}
+	} else {
+		metricsReporter = &internal.ServerMetricReporter{}
+	}
+
+	metricsReporter.SetMetrics(identifier, int(underlyingQueue.Size()))
 
 	nq := &NativeQueue{
-		queue:      queue,
-		namespace:  namespace,
-		identifier: identifier,
-		closed:     make(chan struct{}, 1),
+		queue:           underlyingQueue,
+		namespace:       namespace,
+		identifier:      identifier,
+		metricsReporter: metricsReporter,
+		closed:          make(chan struct{}, 1),
 	}
 
 	safego.Run(nq.startMonitor)
@@ -41,10 +50,13 @@ func NewNativeQueue(namespace, identifier string, queue queue.Queue) (Queue, err
 
 func (q *NativeQueue) startMonitor() {
 	debugTicker := time.NewTicker(time.Minute * 10)
+	metricsTicker := time.NewTicker(time.Second * 10)
 	for {
 		select {
 		case <-q.closed:
 			return
+		case <-metricsTicker.C:
+			q.metricsReporter.SetMetrics(q.identifier, int(q.queue.Size()))
 		case <-debugTicker.C:
 			size := q.queue.Size()
 			logging.Infof("[queue: %s_%s] current size: %d", q.namespace, q.identifier, size)
@@ -64,11 +76,11 @@ func (q *NativeQueue) ConsumeTimed(payload map[string]interface{}, t time.Time, 
 	}
 
 	if err := q.queue.Push(te); err != nil {
-		logSkippedEvent(payload, fmt.Errorf("Error putting event event bytes to the queue: %v", err))
+		logSkippedEvent(payload, fmt.Errorf("Error pushing event to the queue: %v", err))
 		return
 	}
 
-	metrics.EnqueuedEvent(q.identifier)
+	q.metricsReporter.EnqueuedEvent(q.identifier)
 }
 
 func (q *NativeQueue) DequeueBlock() (Event, time.Time, string, error) {
@@ -81,7 +93,7 @@ func (q *NativeQueue) DequeueBlock() (Event, time.Time, string, error) {
 		return nil, time.Time{}, "", err
 	}
 
-	metrics.DequeuedEvent(q.identifier)
+	q.metricsReporter.DequeuedEvent(q.identifier)
 
 	te, ok := ite.(*TimedEvent)
 	if !ok {

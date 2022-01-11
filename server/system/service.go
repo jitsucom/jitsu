@@ -24,6 +24,8 @@ type Configuration struct {
 	TelemetryUsageDisabled bool   `json:"telemetry_usage_disabled"`
 	ShowBecomeUser         bool   `json:"show_become_user"`
 	DockerHubID            string `json:"docker_hub_id"`
+	Tag                    string `json:"tag"`
+	BuiltAt                string `json:"built_at"`
 }
 
 //Service is a reloadable service for keeping system configuration

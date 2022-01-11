@@ -27,7 +27,7 @@ export const CurrentPlan: React.FC<CurrentPlanProps> = ({ planStatus, onPlanChan
   })
   return (
     <>
-      <div>
+      <div className="w-full">
         <div>
           You're on <b className="capitalize">{planStatus.currentPlan.name}</b> plan
         </div>

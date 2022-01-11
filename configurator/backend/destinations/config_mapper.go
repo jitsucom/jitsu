@@ -10,6 +10,7 @@ import (
 	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/utils"
 	"github.com/mitchellh/mapstructure"
+	"reflect"
 	"strings"
 )
 
@@ -60,7 +61,10 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 	if config.DataLayout == nil {
 		config.DataLayout = &enconfig.DataLayout{}
 	}
-	config.DataLayout.TransformEnabled = &destination.TransformEnabled
+	if destination.TransformEnabled != nil && !*destination.TransformEnabled {
+		//transform is implicitly enabled. pass only expilicit disabled values
+		config.DataLayout.TransformEnabled = destination.TransformEnabled
+	}
 	config.DataLayout.Transform = destination.Transform
 	setEnrichmentRules(destination, config)
 
@@ -98,6 +102,9 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 	config.Package = destination.Package
 	config.PostHandleDestinations = postHandleDestinations
 
+	if reflect.DeepEqual(*config.DataLayout, enconfig.DataLayout{}) {
+		config.DataLayout = nil
+	}
 	return config, nil
 }
 

@@ -78,7 +78,7 @@ func TestPostgresStreamInsert(t *testing.T) {
 }`)
 	pageviewReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+"/api/v1/event?token=c2stoken", bytes.NewBuffer(pageviewReqPayload))
 	require.NoError(t, err)
-	pageviewReq.Header.Add("x-real-ip", "10.10.10.10")
+	pageviewReq.Header.Add("x-forwarded-for", "10.10.10.10")
 	resp, err := http.DefaultClient.Do(pageviewReq)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
@@ -107,7 +107,7 @@ func TestPostgresStreamInsert(t *testing.T) {
 }`)
 	identifyReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+"/api/v1/event?token=c2stoken", bytes.NewBuffer(identifyReqPayload))
 	require.NoError(t, err)
-	identifyReq.Header.Add("x-real-ip", "10.10.10.10")
+	identifyReq.Header.Add("x-forwarded-for", "10.10.10.10")
 	resp, err = http.DefaultClient.Do(identifyReq)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
@@ -115,7 +115,7 @@ func TestPostgresStreamInsert(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	objects, err := postgresContainer.GetAllSortedRows("events", "order by utc_time")
+	objects, err := postgresContainer.GetSortedRows("events", "*", "", "order by utc_time")
 	require.NoError(t, err, "Error selecting all events")
 	require.Equal(t, 2, len(objects), "Rows count must be 2")
 

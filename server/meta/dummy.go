@@ -9,13 +9,7 @@ func (d *Dummy) GetSignature(sourceID, collection, interval string) (string, err
 func (d *Dummy) SaveSignature(sourceID, collection, interval, signature string) error { return nil }
 func (d *Dummy) DeleteSignature(sourceID, collection string) error                    { return nil }
 
-func (d *Dummy) SuccessEvents(id, namespace, eventType string, now time.Time, value int) error {
-	return nil
-}
-func (d *Dummy) ErrorEvents(id, namespace, eventType string, now time.Time, value int) error {
-	return nil
-}
-func (d *Dummy) SkipEvents(id, namespace, eventType string, now time.Time, value int) error {
+func (d *Dummy) IncrementEventsCount(id, namespace, eventType, status string, now time.Time, value int64) error {
 	return nil
 }
 func (d *Dummy) GetProjectSourceIDs(projectID string) ([]string, error)      { return []string{}, nil }
@@ -25,26 +19,18 @@ func (d *Dummy) GetEventsWithGranularity(namespace, status, eventType string, id
 	return nil, nil
 }
 
-func (d *Dummy) AddEvent(destinationID, eventID, payload string, now time.Time) (int, error) {
-	return 0, nil
+func (d *Dummy) AddEvent(destinationID, eventID, payload string, now time.Time) error {
+	return nil
 }
 func (d *Dummy) UpdateSucceedEvent(destinationID, eventID, success string) error { return nil }
 func (d *Dummy) UpdateErrorEvent(destinationID, eventID, error string) error     { return nil }
 func (d *Dummy) UpdateSkipEvent(destinationID, eventID, error string) error      { return nil }
-func (d *Dummy) RemoveLastEvent(destinationID string) error                      { return nil }
+func (d *Dummy) TrimEvents(destinationID string, capacity int) error             { return nil }
 
 func (d *Dummy) GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error) {
 	return []Event{}, nil
 }
 func (d *Dummy) GetTotalEvents(destinationID string) (int, error) { return 0, nil }
-
-func (d *Dummy) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error {
-	return nil
-}
-func (d *Dummy) GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error) {
-	return map[string]string{}, nil
-}
-func (d *Dummy) DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error { return nil }
 
 func (d *Dummy) CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error {
 	return nil

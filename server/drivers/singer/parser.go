@@ -8,12 +8,11 @@ import (
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/singer"
 	"io"
 )
 
 const (
-	batchSize = 10_000
-
 	SINGER_REPLICATION_INCREMENTAL = "INCREMENTAL"
 	SINGER_REPLICATION_FULL_TABLE  = "FULL_TABLE"
 )
@@ -40,7 +39,7 @@ type Schema struct {
 //  parses singer output
 //  passes data as batches to dataConsumer
 func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
-	sop.logger.INFO("Singer sync will store data as batches >= [%d] elements size", batchSize)
+	sop.logger.INFO("Singer sync will store data as batches >= [%d] elements size", singer.Instance.BatchSize)
 
 	outputPortion := &base.CLIOutputRepresentation{
 		Streams: map[string]*base.StreamRepresentation{},
@@ -108,7 +107,7 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 		}
 
 		//persist batch and recreate variables
-		if records >= batchSize {
+		if records >= singer.Instance.BatchSize {
 			err := sop.dataConsumer.Consume(outputPortion)
 			if err != nil {
 				return err
