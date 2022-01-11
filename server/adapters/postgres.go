@@ -53,7 +53,7 @@ WHERE tco.constraint_type = 'PRIMARY KEY' AND
       kcu.table_name = $2`
 	createDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS "%s"`
 	addColumnTemplate                 = `ALTER TABLE "%s"."%s" ADD COLUMN %s`
-	dropPrimaryKeyTemplate            = "ALTER TABLE %s.%s DROP CONSTRAINT %s"
+	dropPrimaryKeyTemplate            = `ALTER TABLE "%s"."%s" DROP CONSTRAINT %s`
 	alterPrimaryKeyTemplate           = `ALTER TABLE "%s"."%s" ADD CONSTRAINT %s PRIMARY KEY (%s)`
 	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
 	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES %s`
@@ -255,7 +255,7 @@ func (p *Postgres) GetTableSchema(tableName string) (*Table, error) {
 
 	jitsuPrimaryKeyName := buildConstraintName(table.Schema, table.Name)
 	if primaryKeyName != "" && primaryKeyName != jitsuPrimaryKeyName {
-		logging.Warnf("[%s] table: %s.%s has a custom primary key with name: %s. It will be used in updates", ..., table.Schema, table.Name, primaryKeyName)
+		logging.Warnf("[%s] table: %s.%s has a custom primary key with name: %s that isn't managed by Jitsu. Custom primary key will be used in rows deduplication and updates. Primary keys configuration provided in Jitsu config will be ignored.", p.destinationId(), table.Schema, table.Name, primaryKeyName)
 	}
 	return table, nil
 }
@@ -753,7 +753,7 @@ func (p *Postgres) getPrimaryKeys(tableName string) (string, map[string]bool, er
 		if err := pkFieldsRows.Scan(&constraintName, &keyColumn); err != nil {
 			return "", nil, fmt.Errorf("error scanning primary key result: %v", err)
 		}
-		if primaryKeyName == "" && constraintName != ""{
+		if primaryKeyName == "" && constraintName != "" {
 			primaryKeyName = constraintName
 		}
 
@@ -802,6 +802,10 @@ func (p *Postgres) buildUpdateSection(header []string) string {
 		updateColumns = append(updateColumns, fmt.Sprintf(`"%s"=$%d`, columnName, i+1))
 	}
 	return strings.Join(updateColumns, ",")
+}
+
+func (p *Postgres) destinationId() interface{} {
+	return p.ctx.Value(CtxDestinationId)
 }
 
 //create database and commit transaction
