@@ -16,7 +16,7 @@ type Execution struct {
 	restartTimeout time.Duration
 }
 
-//Run run a new goroutine and add panic handler (without restart)
+//Run runs a new goroutine and add panic handler (without restart)
 func Run(f func()) *Execution {
 	exec := Execution{
 		f:              f,
