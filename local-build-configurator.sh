@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-ARM_BUILD='GOOS=linux GOARCH=arm64'
-AMD_BUILD='GOOS=linux GOARCH=amd64'
+ARM_BUILD='CGO_ENABLED=0 GOOS=linux GOARCH=arm64'
+AMD_BUILD='CGO_ENABLED=0 GOOS=linux GOARCH=amd64'
 GO_BUILD_PARAMS=''
 
 arch_flag='amd'
