@@ -12,12 +12,13 @@
   "scripts": {
     "clean": "rm -rf ./dist",
     "devserver": "PORT=8081 nodemon --watch '__tests__/common/*.ts' --exec 'ts-node' __tests__/common/devserver.ts",
-    "test": "jest --detectOpenHandles --verbose false",
+    "test": "rollup -c && jest --detectOpenHandles --verbose false",
     "build": "rollup -c"
   },
   "jest": {
+    "testEnvironment": "node",
     "testMatch": [
-      "**/__tests__/*.spec.{ts,js}"
+      "**/__tests__/*.spec.ts"
     ],
     "automock": false,
     "verbose": false
@@ -34,12 +35,14 @@
     "jest": "^27.3.1",
     "jest-fetch-mock": "^3.0.3",
     "jest-playwright-preset": "^1.7.0",
+    "node-fetch": "^3.1.0",
     "nodemon": "^2.0.15",
     "playwright": "^1.17.1",
     "rollup": "^2.44.0",
     "rollup-plugin-copy": "^3.4.0",
     "rollup-plugin-terser": "^7.0.2",
     "rollup-plugin-typescript": "^1.0.1",
+    "ts-jest": "^27.1.2",
     "ts-node": "^9.1.1",
     "tslib": "^2.3.1",
     "typescript": "^4.4.3"
