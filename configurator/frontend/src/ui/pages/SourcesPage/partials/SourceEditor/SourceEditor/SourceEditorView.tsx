@@ -37,6 +37,7 @@ type SourceEditorViewProps = {
   handleLeaveEditor: VoidFunction
   handleValidateAndTestConnection: HandleValidateTestConnection
   handleValidateStreams: AsyncUnknownFunction
+  handleReloadStreams: VoidFunction | AsyncVoidFunction
 }
 
 export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
@@ -57,6 +58,7 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
   handleLeaveEditor,
   handleValidateAndTestConnection,
   handleValidateStreams,
+  handleReloadStreams,
 }) => {
   const forms = [
     {
@@ -72,6 +74,7 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
           setSourceEditorState={setSourceEditorState}
           handleSetControlsDisabled={handleSetControlsDisabled}
           handleSetTabsDisabled={handleSetTabsDisabled}
+          handleReloadStreams={handleReloadStreams}
         />
       ),
       proceedAction: handleValidateAndTestConnection,

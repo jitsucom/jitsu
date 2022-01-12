@@ -1,6 +1,6 @@
 // @Libs
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Col, Row, Form, Select, FormProps } from "antd"
+import { Col, Row, Form, Select, FormProps, Badge, FormInstance } from "antd"
 import { Parameter, singleSelectionType, SourceConnector } from "catalog/sources/types"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
@@ -18,6 +18,7 @@ import { toTitleCase } from "utils/strings"
 import { uniqueId } from "lodash"
 import { withQueryParams } from "utils/queryParams"
 import { mapAirbyteSpecToSourceConnectorConfig } from "catalog/sources/lib/airbyte.helper"
+import { ArrowDownOutlined, DownOutlined } from "@ant-design/icons"
 
 type Props = {
   editorMode: "add" | "edit"
@@ -29,6 +30,8 @@ type Props = {
   handleSetTabsDisabled: SetSourceEditorDisabledTabs
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
   setFormReference: SetFormReference
+  handleResetOauth: VoidFunction
+  handleReloadStreams: VoidFunction | AsyncVoidFunction
 }
 
 const CONFIG_INTERNAL_STATE_KEY = "loadableParameters"
@@ -46,6 +49,8 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     handleSetTabsDisabled,
     setValidator,
     setFormReference,
+    handleResetOauth,
+    handleReloadStreams,
   }) => {
     const [form] = Form.useForm()
     const [availableAirbyteImageVersions, setAvailableAirbyteImageVersions] = useState<string[]>([])
@@ -115,11 +120,13 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
       [patchConfig]
     )
 
-    const handleIfAirbyteVersionChanged = (changedFormValues: PlainObjectWithPrimitiveValues): void => {
+    const handleIfAirbyteVersionChanged = async (changedFormValues: PlainObjectWithPrimitiveValues): Promise<void> => {
       const newImageVersion = changedFormValues[AIRBYTE_IMAGE_VERSION_FIELD_ID]
       if (newImageVersion && typeof newImageVersion === "string") {
         airbyteImageVersion.current = newImageVersion
-        reloadParameters()
+        handleResetOauth()
+        await reloadParameters()
+        handleReloadStreams()
       }
     }
 
@@ -234,6 +241,11 @@ type AirbyteVersionSelectionProps = {
 }
 
 const AirbyteVersionSelection: React.FC<AirbyteVersionSelectionProps> = ({ defaultValue, options }) => {
+  const [selectedVersion, setSelectedVersion] = useState<string>(defaultValue || options[0])
+  const isLatestVersionSelected = selectedVersion === options[0]
+  const handleChange = useCallback<(value: string) => void>(version => {
+    setSelectedVersion(version)
+  }, [])
   return (
     <FormItemWrapper
       id={AIRBYTE_IMAGE_VERSION_FIELD_ID}
@@ -241,12 +253,20 @@ const AirbyteVersionSelection: React.FC<AirbyteVersionSelectionProps> = ({ defau
       displayName={`Airbyte Image Version`}
       type={singleSelectionType(options)}
       required={true}
+      initialValue={selectedVersion}
+      // help={!isLatestVersionSelected && <span className={`text-xs text-success`}>{"New version available!"}</span>}
     >
-      <Select defaultValue={defaultValue || options[0]}>
+      <Select value={selectedVersion} onChange={handleChange}>
         {options.map(option => {
           return (
             <Select.Option value={option} key={option}>
-              {option}
+              {option === selectedVersion && !isLatestVersionSelected ? (
+                <span>
+                  {option} <span className={`text-secondaryText`}>{"(New version available)"}</span>
+                </span>
+              ) : (
+                option
+              )}
             </Select.Option>
           )
         })}

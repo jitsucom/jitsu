@@ -90,7 +90,6 @@ export const usePolling = <T>(
 
     const { pollingCallback, onBeforePollingStart, onAfterPollingEnd } = pollingHookConfigurator.configure()
     try {
-      debugger
       const poll = new Poll<T>(pollingCallback, interval_ms, timeout_ms)
       await onBeforePollingStart?.()
       poll.start()
@@ -116,9 +115,9 @@ export const usePolling = <T>(
     cancelCurrentPoll.current?.()
   }
 
-  const reload = () => {
+  const reload = async () => {
     cancel()
-    poll()
+    await poll()
   }
 
   useEffect(() => {
