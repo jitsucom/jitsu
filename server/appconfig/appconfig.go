@@ -39,7 +39,8 @@ type AppConfig struct {
 
 	GlobalUniqueIDField *identifiers.UniqueID
 
-	closeMe []io.Closer
+	closeMe     []io.Closer
+	lastCloseMe []io.Closer
 
 	eventsConsumers []io.Closer
 	writeAheadLog   io.Closer
@@ -395,5 +396,19 @@ func (a *AppConfig) ScheduleWriteAheadLogClosing(c io.Closer) {
 func (a *AppConfig) CloseWriteAheadLog() {
 	if err := a.writeAheadLog.Close(); err != nil {
 		logging.Errorf("[WriteAheadLog] %v", err)
+	}
+}
+
+//ScheduleLastClosing adds meta.Storage, coordinationService closers
+func (a *AppConfig) ScheduleLastClosing(c io.Closer) {
+	a.lastCloseMe = append(a.lastCloseMe, c)
+}
+
+//CloseLast closes meta.Storage, coordinationService closers in the last call
+func (a *AppConfig) CloseLast() {
+	for _, cl := range a.lastCloseMe {
+		if err := cl.Close(); err != nil {
+			logging.Error(err)
+		}
 	}
 }
