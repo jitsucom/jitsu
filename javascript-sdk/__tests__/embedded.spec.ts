@@ -4,6 +4,7 @@ import { Browser } from 'playwright/types/types';
 
 const server = new TestServer();
 let browser: Browser;
+jest.setTimeout(10_000)
 
 beforeAll(async () => {
   await server.init();
