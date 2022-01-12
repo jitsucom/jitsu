@@ -220,6 +220,7 @@ func main() {
 		appconfig.Instance.CloseWriteAheadLog()
 		counters.Close()
 		notifications.Close()
+		appconfig.Instance.CloseLast()
 		geoService.Close()
 		time.Sleep(time.Second)
 		os.Exit(0)
@@ -295,19 +296,11 @@ func main() {
 
 	// ** Closing Meta Storage and Coordination Service
 	// Close after all for saving last task statuses
-	defer func() {
-		if err := eventsQueueFactory.Close(); err != nil {
-			logging.Errorf("Error closing events queue factory: %v", err)
-		}
-		if err := coordinationService.Close(); err != nil {
-			logging.Errorf("Error closing coordination service: %v", err)
-		}
-		if err := metaStorage.Close(); err != nil {
-			logging.Errorf("Error closing meta storage: %v", err)
-		}
-	}()
+	appconfig.Instance.ScheduleLastClosing(eventsQueueFactory)
+	appconfig.Instance.ScheduleLastClosing(coordinationService)
+	appconfig.Instance.ScheduleLastClosing(metaStorage)
 
-	//events counters
+	//event counters
 	counters.InitEvents(metaStorage)
 
 	//events cache

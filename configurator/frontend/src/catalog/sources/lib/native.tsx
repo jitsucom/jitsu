@@ -931,7 +931,12 @@ export const firebase: SourceConnector = {
       id: "collection",
       type: stringType,
       required: true,
-      documentation: <>Firestore collection ID. Can include wildcard for example: 'collection/*/sub_collection' will synchronized only sub collections from all objects in 'collection'</>,
+      documentation: (
+        <>
+          Firestore collection ID. Can include wildcard for example: 'collection/*/sub_collection' will synchronized
+          only sub collections from all objects in 'collection'
+        </>
+      ),
     },
   ],
   configParameters: [
