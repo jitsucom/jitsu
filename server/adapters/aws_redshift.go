@@ -197,7 +197,7 @@ func (ar *AwsRedshift) GetTableSchema(tableName string) (*Table, error) {
 
 	jitsuPrimaryKeyName := buildConstraintName(table.Schema, table.Name)
 	if primaryKeyName != "" && primaryKeyName != jitsuPrimaryKeyName {
-		logging.Warnf("[%s] table: %s.%s has a custom primary key with name: %s that isn't managed by Jitsu. Custom primary key will be used in rows deduplication and updates. Primary keys configuration provided in Jitsu config will be ignored.", ar.dataSourceProxy.destinationId(), table.Schema, table.Name, primaryKeyName)
+		logging.Warnf("[%s] table: %s.%s has a custom primary key with name: %s that isn't managed by Jitsu. Custom primary key will be used in rows deduplication and updates. primary_key_fields configuration provided in Jitsu config will be ignored.", ar.dataSourceProxy.destinationId(), table.Schema, table.Name, primaryKeyName)
 	}
 	return table, nil
 }
