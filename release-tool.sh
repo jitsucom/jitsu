@@ -1,53 +1,74 @@
 #!/usr/bin/env bash
 
+
+# Highlights args with color
+# Only red is supported so far
+#
+function chalk() {
+  local color=$1; shift
+  local color_code=0
+  if [[ $color == "red" ]]; then
+    color_code=1
+  elif [[ $color == "green" ]]; then
+    color_code=2
+  fi
+
+  echo -e "$(tput setaf $color_code)$*$(tput sgr0)"
+}
+
+function fail() {
+  local error="$*" || 'Unknown error'
+  echo "$(chalk red "${error}")" ; exit 1
+}
+
 function build_server() {
   echo "Building Server lib JS locally.."
   rm -rf server/build && rm -rf javascript-sdk/dist && \
   cd javascript-sdk/ && yarn clean && yarn install --prefer-offline && yarn build && cd ../server && \
-  make js_release && cd ../ || { echo 'Server build failed' ; exit 1; }
+  make js_release && cd ../ || fail 'Server build failed'
 }
 
 function build_configurator() {
   echo "Building Configurator UI locally.."
   rm -f configurator/backend/build/dist/configurator && rm -rf configurator/frontend/build && \
   cd configurator/frontend/ && yarn clean && yarn install --prefer-offline && CI=false NODE_ENV=production ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build && \
-  cd ../../ || { echo 'Configurator build failed' ; exit 1; }
+  cd ../../ || fail 'Configurator build failed'
 }
 
 function release_server() {
   echo "**** Server amd64/arm64 release [$1] ****"
-  docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" || { echo "Docker jitsu ($JITSU_DOCKER_LOGIN) login failed" ; exit 1; }
+  docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" || fail "Docker jitsu ($JITSU_DOCKER_LOGIN) login failed"
 
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -t jitsucom/server:latest -f server-release.Dockerfile --build-arg dhid=jitsucom . || { echo 'Server dockerx build semver failed' ; exit 1; }
+    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -t jitsucom/server:latest -f server-release.Dockerfile --build-arg dhid=jitsucom . || fail 'Server dockerx build semver failed'
 
-    docker login -u="$KSENSE_DOCKER_LOGIN" -p="$KSENSE_DOCKER_PASSWORD" || { echo "Docker ksense login failed" ; exit 1; }
-    docker buildx build --platform linux/amd64 --push -t ksense/eventnative:"$1" -t ksense/eventnative:latest -f server-release.Dockerfile --build-arg dhid=ksense . || { echo 'ksense/eventnative dockerx build semver failed' ; exit 1; }
+    docker login -u="$KSENSE_DOCKER_LOGIN" -p="$KSENSE_DOCKER_PASSWORD" || fail  "Docker ksense login failed"
+    docker buildx build --platform linux/amd64 --push -t ksense/eventnative:"$1" -t ksense/eventnative:latest -f server-release.Dockerfile --build-arg dhid=ksense . || fail 'ksense/eventnative dockerx build semver failed'
   else
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || { echo 'Server dockerx build failed' ; exit 1; }
+    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
   fi
 }
 
 function release_configurator() {
   echo "**** Configurator amd64/arm64 release [$1] ****"
-  docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" || { echo 'Docker jitsu login failed' ; exit 1; }
+  docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" || fail 'Docker jitsu login failed'
 
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/configurator:"$1" -t jitsucom/configurator:latest --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || { echo 'Configurator dockerx build semver failed' ; exit 1; }
+    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/configurator:"$1" -t jitsucom/configurator:latest --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || fail  'Configurator dockerx build semver failed'
   else
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/configurator:"$1" --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || { echo 'Configurator dockerx build failed' ; exit 1; }
+    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/configurator:"$1" --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || fail  'Configurator dockerx build failed'
   fi
 }
 
 function release_jitsu() {
   echo "**** Jitsu release [$1] ****"
-  docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" || { echo 'Docker jitsu login failed' ; exit 1; }
+  docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" || fail 'Docker jitsu login failed'
 
   cd docker && \
   docker pull jitsucom/configurator:"$1" && \
   docker pull jitsucom/configurator:latest && \
   docker pull jitsucom/server:"$1" && \
-  docker pull jitsucom/server:latest || { echo 'Jitsu docker pull failed' ; exit 1; }
+  docker pull jitsucom/server:latest || fail 'Jitsu docker pull failed'
 
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" -t jitsucom/jitsu:latest --build-arg dhid=jitsu --build-arg SRC_VERSION=latest . || { echo 'Jitsu dockerx build semver failed' ; exit 1; }
@@ -61,40 +82,44 @@ function release_jitsu() {
 
 SEMVER_EXPRESSION='^([0-9]+\.){0,2}(\*|[0-9]+)$'
 echo "Release tool running..."
-echo ""
+echo "Running checks:"
 
-if [ $# -eq 2 ]
-  then
-    version=$1
-    subsystem=$2
-  else
-    read -r -p "What version would you like to release? ['beta' or release as semver, e. g. '1.30.1' ] " version
-fi
+docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" >/dev/null 2>&1|| fail '   ❌ Jitsu docker login failed. Make sure that JITSU_DOCKER_LOGIN and JITSU_DOCKER_PASSWORD are properly set'
+echo "   ✅ Can login with jitsu docker account"
 
-echo "=== Release version: $version ==="
-echo "Using git reset --hard"
-git reset --hard
+docker login -u="$KSENSE_DOCKER_LOGIN" -p="$KSENSE_DOCKER_PASSWORD" >/dev/null 2>&1|| fail '   ❌ Ksense legacy docker account login failed. Make sure that KSENSE_DOCKER_LOGIN" and KSENSE_DOCKER_PASSWORD are properly set'
+echo "   ✅ Can login with ksense legacy docker account"
 
-if [[ $version =~ $SEMVER_EXPRESSION ]]; then
-  echo "Checkouting master ..."
-  git checkout master
-  git pull
-  echo "Service to release: configurator, server, jitsu"
-  subsystem='jitsu'
-elif [[ $version == "beta" ]]; then
-  echo "Checkouting beta ..."
-  git checkout beta
-  git pull
-  if [ -z "$subsystem" ]
-  then
-    read -r -p "What service would you like to release? ['server', 'configurator', 'jitsu']: " subsystem
-  fi
+[[ $( git branch --show-current) == "master" || $( git branch --show-current) == "beta" ]] || fail "   ❌ Git branch should be master or beta. Run git branch"
+echo "   ✅ Git branch is master"
+
+git diff-index --quiet HEAD || fail "   ❌ Repository has local changes. Run git diff. And commit them! (And sometimes this command fails due to cache try to re-run it)"
+echo "   ✅ No local changes"
+
+ [[ -z $(git cherry) ]] || fail "   ❌ Not all changes are pushed. Please run git diff HEAD^ HEAD to see them"
+echo "   ✅ No unpushed changes"
+
+
+if [ $# -eq 2 ]; then
+  version=$1
+  subsystem=$2
 else
-  echo "Invalid version: $version. Only 'beta' or certain version e.g. '1.30.1' are supported"
-  exit 1
+  subsystem="jitsu"
+  if [[ $( git branch --show-current) == "master" ]]; then
+    echo "Releasing master. Checking if HEAD is tagged"
+    git describe --exact-match HEAD >/dev/null 2>&1 || fail "   ❌ HEAD is not tagged. Run git describe --exact-match HEAD "
+    latest_tag=$(git describe --exact-match HEAD)
+    version=${latest_tag//v/}
+    echo "   ✅ Latest tag is $latest_tag, version is $version"
+  elif [[ $( git branch --show-current) == "beta" ]]; then
+    echo "Releasing beta"
+    version='beta'
+  fi
 fi
 
-echo "=== Release subsystem: $subsystem ==="
+chalk green "=== Release version: $version ==="
+
+chalk green "=== Release subsystem: $subsystem ==="
 
 case $subsystem in
     [s][e][r][v][e][r])

@@ -44,11 +44,24 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
 
   const validateUniqueSourceId = (_, value: string) =>
     editorMode === "add" && sourcesList?.find((source: SourceData) => source.sourceId === value)
-      ? Promise.reject("Source ID must be unique!")
+      ? Promise.reject("SourceId must be unique!")
       : Promise.resolve()
 
+  const validateSourceIdNoSpaces = (_, value: string) => {
+    const re = /^[A-Za-z0-9_]*$/
+    if (!re.test(value)) {
+      return Promise.reject("SourceId must contain only letters, numbers, or the underscore character")
+    } else {
+      return Promise.resolve()
+    }
+  }
+
   const sourceIdValidationRules = useMemo<AntdFormItemValidationRule[]>(
-    () => [{ required: true, message: "Source ID is required field" }, { validator: validateUniqueSourceId }],
+    () => [
+      { required: true, message: "SourceId is required field" },
+      { validator: validateUniqueSourceId },
+      { validator: validateSourceIdNoSpaces },
+    ],
     []
   )
 

@@ -65,7 +65,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.sources_reload_sec", 1)
 	viper.SetDefault("server.geo_resolvers_reload_sec", 1)
 	viper.SetDefault("server.sync_tasks.pool.size", 16)
-	viper.SetDefault("server.sync_tasks.stalled.last_heartbeat_threshold_seconds", 15)
+	viper.SetDefault("server.sync_tasks.stalled.last_heartbeat_threshold_seconds", 60)
 	viper.SetDefault("server.sync_tasks.stalled.last_activity_threshold_minutes", 10)
 	viper.SetDefault("server.sync_tasks.stalled.observe_stalled_every_seconds", 20)
 	viper.SetDefault("server.sync_tasks.store_logs.last_runs", -1)

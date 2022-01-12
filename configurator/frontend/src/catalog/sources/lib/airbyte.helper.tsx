@@ -1,3 +1,4 @@
+import { Moment, default as moment } from "moment"
 import {
   AirbyteSource,
   booleanType,
@@ -75,6 +76,7 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
 
   const id = `${parentNode.id}.${nodeName}`
   const required = !!requiredFields?.includes(nodeName || "")
+  const description = specNode["description"]
   const documentation = specNode["description"] ? (
     <span dangerouslySetInnerHTML={{ __html: specNode["description"] }} />
   ) : undefined
@@ -85,6 +87,16 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
     case "string": {
       const name: string = specNode["title"] ?? nodeName
       const pattern = specNode["pattern"]
+      let defaultValue = undefined
+      if (
+        pattern === "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" ||
+        description?.includes("YYYY-MM-DDT00:00:00Z")
+      ) {
+        defaultValue = moment().add(-1, "months").startOf("month").format("YYYY-MM-DDT00:00:00") + "Z"
+      } else if (pattern === "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" || /YYYY-MM-DD[^T]/.test(description)) {
+        defaultValue = moment().add(-1, "months").startOf("month").format("YYYY-MM-DD")
+      }
+
       const isMultiline = !!specNode["multiline"]
       const isSecret = !!specNode["airbyte_secret"]
       const isSelection = !!specNode["enum"]
@@ -105,6 +117,7 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
         required,
         documentation,
         omitFieldRule,
+        defaultValue,
         ...setChildrenParameters,
       }
       if (specNode["default"] !== undefined) mappedStringField.defaultValue = specNode["default"]

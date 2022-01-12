@@ -48,7 +48,7 @@ const bigQueryDestination = {
       Streaming is the fastest way to get started, but batching will be cheaper for large volumes.
     </>
   ),
-  syncFromSourcesStatus: "supported",
+  syncFromSourcesStatus: "coming_soon",
   id: "bigquery",
   type: "database",
   displayName: "BigQuery",
