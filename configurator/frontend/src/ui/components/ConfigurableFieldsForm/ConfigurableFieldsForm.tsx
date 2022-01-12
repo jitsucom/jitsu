@@ -384,8 +384,8 @@ const ConfigurableFieldsFormComponent = ({
       }
     })
 
-    setInitialFormValues?.(formValues)
     form.setFields(formFields)
+    setInitialFormValues?.(form.getFieldsValue())
 
     /**
      *
@@ -506,9 +506,11 @@ export const FormItemWrapper: React.FC<FormItemWrapperProps> = ({
   validationRules,
   className,
   children,
+  ...formItemProps
 }) => {
   return (
     <Form.Item
+      {...formItemProps}
       id={id}
       name={id}
       className={cn(
