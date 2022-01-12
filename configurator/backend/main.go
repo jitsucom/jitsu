@@ -92,6 +92,7 @@ func main() {
 		cancel()
 		appconfig.Instance.Close()
 		telemetry.Flush()
+		notifications.Flush()
 		time.Sleep(1 * time.Second)
 		notifications.Close()
 		telemetry.Close()

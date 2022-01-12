@@ -166,14 +166,24 @@ func (f *Firebase) GetObjectsFor(interval *base.TimeInterval) ([]map[string]inte
 
 func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
 	var documentJSONs []map[string]interface{}
-	iter := f.firestoreClient.Collection(f.firestoreCollectionKey).Documents(f.ctx)
+	ctx, cancel := context.WithTimeout(f.ctx, 5*time.Minute)
+	defer cancel()
+
+	firebaseCollection := f.firestoreClient.Collection(f.firestoreCollectionKey)
+	if firebaseCollection == nil {
+		return nil, fmt.Errorf("collection [%s] doesn't exist in Firestore", f.firestoreCollectionKey)
+	}
+
+	iter := firebaseCollection.Documents(ctx)
+	defer iter.Stop()
+
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to get API keys from firestore: %v", err)
+			return nil, fmt.Errorf("failed to get collection %s from firestore: %v", f.firestoreCollectionKey, err)
 		}
 		data := doc.Data()
 		if data == nil {
@@ -195,7 +205,9 @@ func (f *Firebase) Close() error {
 }
 
 func (f *Firebase) loadUsers() ([]map[string]interface{}, error) {
-	iter := f.authClient.Users(f.ctx, "")
+	ctx, cancel := context.WithTimeout(f.ctx, 5*time.Minute)
+	defer cancel()
+	iter := f.authClient.Users(ctx, "")
 	var users []map[string]interface{}
 	for {
 		authUser, err := iter.Next()

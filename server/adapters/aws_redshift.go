@@ -158,7 +158,7 @@ func (ar *AwsRedshift) PatchTableSchema(patchSchema *Table) error {
 
 			recreationErr := ar.recreateNotNullColumnInTransaction(secondWrappedTx, table)
 			if recreationErr != nil {
-				secondWrappedTx.Rollback(err)
+				secondWrappedTx.Rollback(recreationErr)
 				return fmt.Errorf("%v (re-creation failed: %v)", patchErr, recreationErr)
 			}
 

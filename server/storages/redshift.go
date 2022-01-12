@@ -200,29 +200,27 @@ func (ar *AwsRedshift) Clean(tableName string) error {
 }
 
 //Update updates record in Redshift
-func (ar *AwsRedshift) Update(objects []map[string]interface{}) error {
+func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 	_, tableHelper := ar.getAdapters()
-	for _, object := range objects {
-		envelops, err := ar.processor.ProcessEvent(object)
+	envelops, err := ar.processor.ProcessEvent(object)
+	if err != nil {
+		return err
+	}
+	for _, envelop := range envelops {
+		batchHeader := envelop.Header
+		processedObject := envelop.Event
+		table := tableHelper.MapTableSchema(batchHeader)
+
+		dbSchema, err := tableHelper.EnsureTableWithCaching(ar.ID(), table)
 		if err != nil {
 			return err
 		}
-		for _, envelop := range envelops {
-			batchHeader := envelop.Header
-			processedObject := envelop.Event
-			table := tableHelper.MapTableSchema(batchHeader)
 
-			dbSchema, err := tableHelper.EnsureTableWithCaching(ar.ID(), table)
-			if err != nil {
-				return err
-			}
-
-			start := timestamp.Now()
-			if err = ar.redshiftAdapter.Update(dbSchema, processedObject, ar.uniqueIDField.GetFlatFieldName(), ar.uniqueIDField.Extract(object)); err != nil {
-				return err
-			}
-			logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.ID(), timestamp.Now().Sub(start).Seconds())
+		start := timestamp.Now()
+		if err = ar.redshiftAdapter.Update(dbSchema, processedObject, ar.uniqueIDField.GetFlatFieldName(), ar.uniqueIDField.Extract(object)); err != nil {
+			return err
 		}
+		logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.ID(), timestamp.Now().Sub(start).Seconds())
 	}
 
 	return nil

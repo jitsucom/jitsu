@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	sf "github.com/snowflakedb/gosnowflake"
 )
@@ -254,9 +255,32 @@ func (s *Snowflake) Clean(tableName string) error {
 	return cleanImpl(s, tableName)
 }
 
-//Update uses SyncStore under the hood
-func (s *Snowflake) Update(objects []map[string]interface{}) error {
-	return s.SyncStore(nil, objects, "", true)
+//Update updates record in Snowflake
+func (s *Snowflake) Update(object map[string]interface{}) error {
+	_, tableHelper := s.getAdapters()
+	envelops, err := s.processor.ProcessEvent(object)
+	if err != nil {
+		return err
+	}
+	for _, envelop := range envelops {
+		batchHeader := envelop.Header
+		processedObject := envelop.Event
+		table := tableHelper.MapTableSchema(batchHeader)
+
+		dbSchema, err := tableHelper.EnsureTableWithCaching(s.ID(), table)
+		if err != nil {
+			return err
+		}
+
+		start := timestamp.Now()
+		if err = s.snowflakeAdapter.Update(dbSchema, processedObject, s.uniqueIDField.GetFlatFieldName(), s.uniqueIDField.Extract(object)); err != nil {
+			return err
+		}
+
+		logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", s.ID(), timestamp.Now().Sub(start).Seconds())
+	}
+
+	return nil
 }
 
 //Type returns Snowflake type
