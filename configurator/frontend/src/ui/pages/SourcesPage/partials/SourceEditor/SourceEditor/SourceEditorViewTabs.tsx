@@ -16,9 +16,9 @@ type Tab = {
   key: string
   title: string
   description: string
+  errorsCount?: number
   render: React.ReactNode
   proceedButtonTitle?: string
-  errorsCount?: number
   proceedAction?: AsyncUnknownFunction
 }
 
@@ -49,7 +49,15 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
 
   const [streamsTabKey, setStreamsTabKey] = useState<string>("streams")
 
-  const handleTabChange = useCallback((key: string) => setCurrentTab(key), [])
+  const handleTabChange = useCallback((_key: string) => {
+    let key = _key
+    if (key.includes("streams")) {
+      // reset streams tab key to re-mount the component
+      key = uniqueId("streams-")
+      setStreamsTabKey(key)
+    }
+    setCurrentTab(key)
+  }, [])
 
   const handleSave = useCallback(async () => {
     setIsSaving(true)
@@ -85,7 +93,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
         actionNotification.warn(
           `Some of the previously selected streams are not available. Please, review your streams selection before saving.`
         )
-        switchToAndReloadStreamsTab()
+        switchToStreamsTab()
         return
       }
       default: {
@@ -95,10 +103,8 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
     }
   }
 
-  const switchToAndReloadStreamsTab = () => {
-    const newStreamsTabKey = uniqueId("streams-")
-    setStreamsTabKey(newStreamsTabKey)
-    setCurrentTab(newStreamsTabKey)
+  const switchToStreamsTab = () => {
+    setCurrentTab(streamsTabKey)
   }
 
   return (
@@ -107,26 +113,25 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
         type="card"
         className={styles.tabCard}
         activeKey={currentTab}
-        onChange={handleTabChange}
         tabBarExtraContent={
           <TabsExtra
             sourceDataFromCatalog={sourceDataFromCatalog}
             setShowDocumentationDrawer={setShowDocumentationDrawer}
           />
         }
+        onChange={handleTabChange}
       >
         {tabs.map((tab: Tab) => {
-          const key = tab.key === "streams" ? streamsTabKey : tab.key
+          const isStreamsTab = tab.key === "streams"
+          const tabKey = isStreamsTab ? streamsTabKey : tab.key
           return (
-            <React.Fragment key={key}>
-              <Tabs.TabPane
-                key={key}
-                tab={<TabName name={tab.title} errorsCount={tab.errorsCount ?? 0} />}
-                disabled={tabsDisabled?.has(tab.key)}
-              >
-                {tab.render}
-              </Tabs.TabPane>
-            </React.Fragment>
+            <Tabs.TabPane
+              key={tabKey}
+              tab={<TabName name={tab.title} errorsCount={tab.errorsCount ?? 0} />}
+              disabled={!!controlsDisabled && isStreamsTab}
+            >
+              {tab.render}
+            </Tabs.TabPane>
           )
         })}
       </Tabs>

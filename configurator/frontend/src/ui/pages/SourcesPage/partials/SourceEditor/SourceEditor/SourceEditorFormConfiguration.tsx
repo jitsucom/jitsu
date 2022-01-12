@@ -27,6 +27,7 @@ export type SourceEditorFormConfigurationProps = {
   setSourceEditorState: SetSourceEditorState
   handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
   handleSetTabsDisabled: SetSourceEditorDisabledTabs
+  handleReloadStreams: VoidFunction | AsyncVoidFunction
 }
 
 export type ValidateGetErrorsCount = () => Promise<number>
@@ -67,13 +68,16 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   setSourceEditorState,
   handleSetControlsDisabled,
   handleSetTabsDisabled,
+  handleReloadStreams,
 }) => {
   const services = useServices()
   const [forms, setForms] = useState<Forms>({})
 
+  const isInitiallySignedIn = editorMode === "edit"
+
   const [fillAuthDataManually, setFillAuthDataManually] = useState<boolean>(true)
   const [isOauthStatusReady, setIsOauthStatusReady] = useState<boolean>(false)
-  const [isOauthFlowCompleted, setIsOauthFlowCompleted] = useState<boolean>(false)
+  const [isOauthFlowCompleted, setIsOauthFlowCompleted] = useState<boolean>(isInitiallySignedIn)
 
   const [staticFieldsValidator, setStaticFieldsValidator] = useState<ValidateGetErrorsCount>(initialValidator)
   const [configurableFieldsValidator, setConfigurableFieldsValidator] =
@@ -135,6 +139,10 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
     const { hideOauthFields } = sourceConfigurationSchema
     return fillAuthDataManually || !hideOauthFields ? [] : [...OAUTH_FIELDS_NAMES, ...(availableBackendSecrets ?? [])]
   }, [fillAuthDataManually, availableBackendSecrets])
+
+  const handleResetOauth = useCallback<() => void>(() => {
+    setIsOauthFlowCompleted(false)
+  }, [])
 
   const handleOauthSupportedStatusChange = useCallback((oauthSupported: boolean) => {
     setIsOauthStatusReady(true)
@@ -202,10 +210,13 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
     if (sourceConfigurationSchema.onlyManualAuth) return
     else if (isLoadingOauth) handleSetControlsDisabled(true, "byOauthFlow")
     else if (fillAuthDataManually) handleSetControlsDisabled(false, "byOauthFlow")
-    else if (editorMode === "edit") handleSetControlsDisabled(false, "byOauthFlow")
-    else if (!isOauthFlowCompleted)
+    else if (!isOauthFlowCompleted) {
       handleSetControlsDisabled("Please, either grant Jitsu access or fill auth credentials manually", "byOauthFlow")
-    else handleSetControlsDisabled(false, "byOauthFlow")
+      handleSetTabsDisabled(["streams"], "disable")
+    } else {
+      handleSetControlsDisabled(false, "byOauthFlow")
+      handleSetTabsDisabled(["streams"], "enable")
+    }
   }, [isLoadingOauth, fillAuthDataManually, isOauthFlowCompleted])
 
   return (
@@ -216,10 +227,10 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
       <div className={isLoadingOauth ? "hidden" : ""}>
         <SourceEditorOauthButtons
           key="oauth"
-          editorMode={editorMode}
           sourceDataFromCatalog={sourceDataFromCatalog}
           disabled={disabled}
           onlyManualAuth={sourceConfigurationSchema.onlyManualAuth}
+          isSignedIn={isOauthFlowCompleted}
           onIsOauthSupportedCheckSuccess={handleOauthSupportedStatusChange}
           onFillAuthDataManuallyChange={handleFillAuthDataManuallyChange}
           setOauthSecretsToForms={setOauthSecretsToForms}
@@ -254,6 +265,8 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
               handleSetTabsDisabled={handleSetTabsDisabled}
               setValidator={setConfigurableLoadableFieldsValidator}
               setFormReference={setFormReference}
+              handleResetOauth={handleResetOauth}
+              handleReloadStreams={handleReloadStreams}
             />
           )}
         </div>

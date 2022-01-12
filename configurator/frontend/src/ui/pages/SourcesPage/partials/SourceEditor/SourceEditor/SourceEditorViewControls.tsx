@@ -45,7 +45,10 @@ const SourceEditorViewControls: React.FC<Props> = ({
   controlsDisabled,
 }) => {
   const controlsDisabledObject = useMemo<SourceEditorStesControlsDisabledGranular>(
-    () => (typeof controlsDisabled === "object" ? controlsDisabled : { mainButton: controlsDisabled }),
+    () =>
+      typeof controlsDisabled === "object"
+        ? controlsDisabled
+        : { mainButton: controlsDisabled, dashedButton: controlsDisabled },
     [controlsDisabled]
   )
 

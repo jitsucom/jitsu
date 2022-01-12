@@ -60,7 +60,7 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
     isLoading,
     data,
     error,
-    reload: restartPolling,
+    reload: reloadStreamsList,
   } = usePolling<StreamData[]>({
     configure: () => ({
       pollingCallback: (end, fail) => async () => {
@@ -72,7 +72,7 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
         }
       },
       onBeforePollingStart: () => {
-        editorMode === "add" && handleSetControlsDisabled("Loading streams list", controlsDisableRequestId)
+        handleSetControlsDisabled("Loading streams list", controlsDisableRequestId)
       },
       onAfterPollingEnd: () => {
         handleSetControlsDisabled(false, controlsDisableRequestId)
@@ -110,6 +110,14 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
       return newState
     })
   }, [error])
+
+  useEffect(() => {
+    const forceReloadStreamsList = reloadStreamsList
+    setSourceEditorState(state => {
+      const newState = { ...state, streams: { ...state.streams, forceReloadStreamsList } }
+      return newState
+    })
+  }, [])
 
   return (
     <>

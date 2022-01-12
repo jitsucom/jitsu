@@ -74,6 +74,7 @@ type StreamsState = {
   streams?: SourceStreamsData
   selectedStreams: SourceSelectedStreams
   validateGetErrorsCount: () => Promise<number>
+  forceReloadStreamsList: VoidFunction | AsyncVoidFunction
   errorsCount: number
 }
 
@@ -107,6 +108,7 @@ const initialState: SourceEditorState = {
     streams: {},
     selectedStreams: {},
     validateGetErrorsCount: async () => 0,
+    forceReloadStreamsList: () => {},
     errorsCount: 0,
   },
   connections: {
@@ -305,6 +307,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
       handleLeaveEditor={handleLeaveEditor}
       handleValidateAndTestConnection={handleValidateAndTestConnection}
       handleValidateStreams={handleValidateStreams}
+      handleReloadStreams={state.streams.forceReloadStreamsList}
     />
   )
 }
