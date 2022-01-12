@@ -7,6 +7,8 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"google.golang.org/genproto/googleapis/type/latlng"
+	"path"
+	"strings"
 
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
@@ -21,7 +23,13 @@ const (
 	UsersCollection          = "users"
 	userIDField              = "uid"
 	firestoreDocumentIDField = "_firestore_document_id"
+
+	idDelimiter = "/"
 )
+
+type subCollectionResult struct {
+	objects []map[string]interface{}
+}
 
 //Firebase is a Firebase/Firestore driver. It used in syncing data from Firebase/Firestore
 type Firebase struct {
@@ -161,39 +169,72 @@ func (f *Firebase) GetObjectsFor(interval *base.TimeInterval) ([]map[string]inte
 	} else if f.collection.Type == UsersCollection {
 		return f.loadUsers()
 	}
-	return nil, fmt.Errorf("Unknown collection: %s", f.collection.Type)
+	return nil, fmt.Errorf("Unknown stream type: %s", f.collection.Type)
 }
 
+//loadCollection gets the exact firestore key or by path with wildcard:
+//  collection/*/sub_collection/*/sub_sub_collection
 func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
-	var documentJSONs []map[string]interface{}
 	ctx, cancel := context.WithTimeout(f.ctx, 5*time.Minute)
 	defer cancel()
 
-	firebaseCollection := f.firestoreClient.Collection(f.firestoreCollectionKey)
+	collectionPaths := strings.Split(f.firestoreCollectionKey, "/*/")
+	firstPathPart := collectionPaths[0]
+	collectionPaths = collectionPaths[1:]
+	firebaseCollection := f.firestoreClient.Collection(firstPathPart)
 	if firebaseCollection == nil {
-		return nil, fmt.Errorf("collection [%s] doesn't exist in Firestore", f.firestoreCollectionKey)
+		return nil, fmt.Errorf("collection [%s] (expression=%s) doesn't exist in Firestore", firstPathPart, f.firestoreCollectionKey)
 	}
 
-	iter := firebaseCollection.Documents(ctx)
+	result := &subCollectionResult{}
+	err := f.diveAndFetch(ctx, firebaseCollection, firstPathPart, collectionPaths, result)
+	if err != nil {
+		return nil, err
+	}
+
+	return result.objects, nil
+}
+
+//diveAndFetch dives into collections path if not empty or fetch data into the result
+func (f *Firebase) diveAndFetch(ctx context.Context, collection *firestore.CollectionRef, identifier string,
+	paths []string, result *subCollectionResult) error {
+	iter := collection.Documents(ctx)
 	defer iter.Stop()
 
 	for {
 		doc, err := iter.Next()
-		if err == iterator.Done {
-			break
-		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to get collection %s from firestore: %v", f.firestoreCollectionKey, err)
+			if err == iterator.Done {
+				break
+			}
+
+			return err
 		}
-		data := doc.Data()
-		if data == nil {
-			continue
+
+		//dive
+		if len(paths) > 0 {
+			subCollection := doc.Ref.Collection(paths[0])
+			if subCollection == nil {
+				continue
+			}
+
+			err := f.diveAndFetch(ctx, subCollection, path.Join(identifier, idDelimiter, doc.Ref.ID, idDelimiter, paths[0]), paths[1:], result)
+			if err != nil {
+				return err
+			}
+		} else {
+			//fetch
+			data := doc.Data()
+			if data == nil {
+				continue
+			}
+			data = convertSpecificTypes(data)
+			data[firestoreDocumentIDField] = path.Join(identifier, idDelimiter, doc.Ref.ID)
+			result.objects = append(result.objects, data)
 		}
-		data = convertSpecificTypes(data)
-		data[firestoreDocumentIDField] = doc.Ref.ID
-		documentJSONs = append(documentJSONs, data)
 	}
-	return documentJSONs, nil
+
+	return nil
 }
 
 func (f *Firebase) Type() string {
