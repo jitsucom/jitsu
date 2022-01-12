@@ -1,5 +1,11 @@
+import { requireWindow, isWindowAvailable } from "./window"
+
+
 export const getCookieDomain = () => {
-  return location.hostname.replace('www.', '');
+  if (isWindowAvailable()) {
+    return window.location.hostname.replace('www.', '');
+  }
+  return undefined;
 };
 
 let cookieParsingCache: Record<string, string>;
@@ -27,12 +33,12 @@ export const getCookie = (name: string) => {
   if (!name) {
     return null;
   }
-  return decodeURIComponent(document.cookie.replace(new RegExp("(?:(?:^|.*;)\\s*" + encodeURIComponent(name).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=\\s*([^;]*).*$)|^.*$"), "$1")) || null;
+  return decodeURIComponent(requireWindow().document.cookie.replace(new RegExp("(?:(?:^|.*;)\\s*" + encodeURIComponent(name).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=\\s*([^;]*).*$)|^.*$"), "$1")) || null;
 };
 
 export const setCookie = (name: string, value: string, expire: number, domain: string, secure: boolean) => {
   const expireString = expire === Infinity ? " expires=Fri, 31 Dec 9999 23:59:59 GMT" : "; max-age=" + expire;
-  document.cookie = encodeURIComponent(name) + "=" + value + "; path=/;" +  expireString + (domain ? "; domain=" + domain : "") + (secure ? "; secure" : "");
+  requireWindow().document.cookie = encodeURIComponent(name) + "=" + value + "; path=/;" +  expireString + (domain ? "; domain=" + domain : "") + (secure ? "; secure" : "");
 };
 
 export const deleteCookie = (name: string) => {
@@ -44,7 +50,7 @@ export const generateId = () => Math.random().toString(36).substring(2, 12);
 export const generateRandom = () => Math.random().toString(36).substring(2, 7);
 
 export const parseQuery = (qs?: string) => {
-  let queryString = qs || window.location.search.substring(1)
+  let queryString = qs || requireWindow().location.search.substring(1)
   let query: Record<string, string> = {};
   let pairs = (queryString[0] === '?' ? queryString.substr(1) : queryString).split('&');
   for (let i = 0; i < pairs.length; i++) {
