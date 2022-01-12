@@ -104,6 +104,7 @@ components:
 #TODO
 
 #/api/v1/configurations/:collection (GET, POST) --- ignore, will be deprecated
+#/api/v1/users/signup - (POST) --- not user, ignore and delete
 #/api/v1/become (GET)
 #/api/v1/telemetry (GET)
 #/api/v1/sources (GET)
@@ -160,26 +161,6 @@ paths:
         #All error responses
         default:
           $ref: '#/components/responses/Error'
-  /api/v1/users/signup:
-    post:
-      description: (Deprecated) create a user account
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EmailAndPasswordRequest'
-      responses:
-        "200":
-          description: 'Success login'
-          content:
-            "application/json":
-              schema:
-                $ref: '#/components/schemas/TokensResponse'
-        #All error responses
-        default:
-          $ref: '#/components/responses/Error'
-
-
   /api/v1/users/token/refresh:
     post:
       description: Refresh user access token
