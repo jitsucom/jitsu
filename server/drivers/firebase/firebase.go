@@ -6,8 +6,8 @@ import (
 	"firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/maputils"
 	"google.golang.org/genproto/googleapis/type/latlng"
-	"path"
 	"strings"
 
 	"fmt"
@@ -24,7 +24,7 @@ const (
 	userIDField              = "uid"
 	firestoreDocumentIDField = "_firestore_document_id"
 
-	idDelimiter = "/"
+	batchSize = 100
 )
 
 type subCollectionResult struct {
@@ -175,9 +175,6 @@ func (f *Firebase) GetObjectsFor(interval *base.TimeInterval) ([]map[string]inte
 //loadCollection gets the exact firestore key or by path with wildcard:
 //  collection/*/sub_collection/*/sub_sub_collection
 func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
-	ctx, cancel := context.WithTimeout(f.ctx, 5*time.Minute)
-	defer cancel()
-
 	collectionPaths := strings.Split(f.firestoreCollectionKey, "/*/")
 	firstPathPart := collectionPaths[0]
 	collectionPaths = collectionPaths[1:]
@@ -187,7 +184,7 @@ func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
 	}
 
 	result := &subCollectionResult{}
-	err := f.diveAndFetch(ctx, firebaseCollection, firstPathPart, collectionPaths, result)
+	err := f.diveAndFetch(firebaseCollection, map[string]interface{}{}, firestoreDocumentIDField, collectionPaths, result)
 	if err != nil {
 		return nil, err
 	}
@@ -195,30 +192,52 @@ func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
 	return result.objects, nil
 }
 
-//diveAndFetch dives into collections path if not empty or fetch data into the result
-func (f *Firebase) diveAndFetch(ctx context.Context, collection *firestore.CollectionRef, identifier string,
-	paths []string, result *subCollectionResult) error {
-	iter := collection.Documents(ctx)
+//diveAndFetch depth-first dives into collections tree if not empty or
+//fetches batches of data and puts into the result
+func (f *Firebase) diveAndFetch(collection *firestore.CollectionRef, parentIDs map[string]interface{}, idFieldName string, paths []string, result *subCollectionResult) error {
+	ctx, cancel := context.WithTimeout(f.ctx, 60*time.Minute)
+	defer cancel()
+
+	//firebase doesn't respect big requests
+	iter := collection.Limit(batchSize).Documents(ctx)
 	defer iter.Stop()
 
+	current := 0
+	batchesCount := 0
 	for {
 		doc, err := iter.Next()
 		if err != nil {
 			if err == iterator.Done {
+				//get next batch
+				if batchSize == current {
+					current = 0
+					batchesCount++
+					iter = collection.Offset(batchSize * batchesCount).Limit(batchSize).Documents(ctx)
+					continue
+				}
 				break
 			}
 
 			return err
 		}
 
+		current++
+
 		//dive
 		if len(paths) > 0 {
-			subCollection := doc.Ref.Collection(paths[0])
+			subCollectionName := paths[0]
+			subCollection := doc.Ref.Collection(subCollectionName)
 			if subCollection == nil {
 				continue
 			}
 
-			err := f.diveAndFetch(ctx, subCollection, path.Join(identifier, idDelimiter, doc.Ref.ID, idDelimiter, paths[0]), paths[1:], result)
+			//get parent ID
+			parentIDs = maputils.CopyMap(parentIDs)
+			parentIDs[idFieldName] = doc.Ref.ID
+
+			subCollectionIDField := idFieldName + "_" + subCollectionName
+
+			err := f.diveAndFetch(subCollection, parentIDs, subCollectionIDField, paths[1:], result)
 			if err != nil {
 				return err
 			}
@@ -229,7 +248,14 @@ func (f *Firebase) diveAndFetch(ctx context.Context, collection *firestore.Colle
 				continue
 			}
 			data = convertSpecificTypes(data)
-			data[firestoreDocumentIDField] = path.Join(identifier, idDelimiter, doc.Ref.ID)
+
+			data[idFieldName] = doc.Ref.ID
+
+			//parent ids
+			for parentIDKey, parentIDValue := range parentIDs {
+				data[parentIDKey] = parentIDValue
+			}
+
 			result.objects = append(result.objects, data)
 		}
 	}
