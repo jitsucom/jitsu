@@ -1,10 +1,20 @@
-import {jitsuClient} from '../dist/npm/jitsu.es'
-import {JitsuClient} from '../dist/npm/jitsu.d'
-
+import {jitsuClient} from '../src/jitsu'
+import {JitsuClient} from '../src/interface'
 test('Test Jitsu Client npm only', async () => {
-  // let jitsu: JitsuClient = jitsuClient({
-  //   key: "Test",
-  //   host: "https://some-host"
-  // });
-  // await jitsu.track('test');
+  let fetchMock = jest.mock('node-fetch')
+  let jitsu: JitsuClient = jitsuClient({
+    fetch: fetchMock,
+    key: "Test",
+    tracking_host: "https://some-host"
+  });
+  const req: Request = {}
+  const res: Response = {}
+  await jitsu.id({
+    email: 'a@b.c',
+    id: 'someId'
+  }, true)
+
+  await jitsu.track('test', {
+    req, res
+  });
 });
