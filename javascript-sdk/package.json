@@ -29,6 +29,7 @@
     "@babel/preset-typescript": "^7.13.0",
     "@rollup/plugin-babel": "^5.3.0",
     "@rollup/plugin-replace": "^2.4.2",
+    "@types/express": "^4.17.13",
     "@types/jest": "^26.0.22",
     "body-parser": "^1.19.0",
     "express": "^4.17.1",
