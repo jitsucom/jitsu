@@ -49,8 +49,8 @@ export const generateId = () => Math.random().toString(36).substring(2, 12);
 
 export const generateRandom = () => Math.random().toString(36).substring(2, 7);
 
-export const parseQuery = (qs?: string) => {
-  let queryString = qs || requireWindow().location.search.substring(1)
+export const parseQuery = (qs: string) => {
+  let queryString = (qs.length > 0 && qs.charAt(0) === '?') ? qs.substring(1) : qs
   let query: Record<string, string> = {};
   let pairs = (queryString[0] === '?' ? queryString.substr(1) : queryString).split('&');
   for (let i = 0; i < pairs.length; i++) {
