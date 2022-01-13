@@ -18,17 +18,17 @@ type recogTestData = struct {
 	testName    string
 	eventIds    []string
 	anonymousId string
-	internalId  string
+	id          string
 	userAgent   string
 	expObjects  []map[string]interface{}
 }
 
 var recogTest = []recogTestData{
 	{"Firefox", []string{"1", "2"}, "anonym1", "id1kk", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:97.0) Gecko/20100101 Firefox/97.0",
-		[]map[string]interface{}{{"eventn_ctx_event_id": "1", "eventn_ctx_user_anonymous_id": "anonym1", "eventn_ctx_user_internal_id": "id1kk"}, {"eventn_ctx_event_id": "2", "eventn_ctx_user_anonymous_id": "anonym1", "eventn_ctx_user_internal_id": "id1kk"}}},
-	//expect for event with eventn_ctx_event_id=3 from Google bot eventn_ctx_user_internal_id still be null
+		[]map[string]interface{}{{"eventn_ctx_event_id": "1", "eventn_ctx_user_anonymous_id": "anonym1", "eventn_ctx_user_id": "id1kk"}, {"eventn_ctx_event_id": "2", "eventn_ctx_user_anonymous_id": "anonym1", "eventn_ctx_user_id": "id1kk"}}},
+	//expect for event with eventn_ctx_event_id=3 from Google bot eventn_ctx_user_id still be null
 	{"GoogleBot", []string{"3", "4"}, "anonym2", "id2kk", "Googlebot/2.1 (+http://www.google.com/bot.html)",
-		[]map[string]interface{}{{"eventn_ctx_event_id": "3", "eventn_ctx_user_anonymous_id": "anonym2", "eventn_ctx_user_internal_id": nil}, {"eventn_ctx_event_id": "4", "eventn_ctx_user_anonymous_id": "anonym2", "eventn_ctx_user_internal_id": "id2kk"}}},
+		[]map[string]interface{}{{"eventn_ctx_event_id": "3", "eventn_ctx_user_anonymous_id": "anonym2", "eventn_ctx_user_id": nil}, {"eventn_ctx_event_id": "4", "eventn_ctx_user_anonymous_id": "anonym2", "eventn_ctx_user_id": "id2kk"}}},
 }
 
 //
@@ -133,7 +133,7 @@ func TestPostgresRetroactiveUsersRecognition(t *testing.T) {
     "event_id": "` + testData.eventIds[1] + `",
     "user": {
       "anonymous_id": "` + testData.anonymousId + `",
-      "internal_id": "` + testData.internalId + `"
+      "id": "` + testData.id + `"
     },
     "user_agent": "` + testData.userAgent + `",
     "utc_time": "2020-12-24T17:55:54.900000Z",
@@ -163,7 +163,7 @@ func TestPostgresRetroactiveUsersRecognition(t *testing.T) {
 
 			time.Sleep(2 * time.Second)
 
-			objects, err := postgresContainer.GetSortedRows("recognition_events", "eventn_ctx_event_id, eventn_ctx_user_anonymous_id, eventn_ctx_user_internal_id", "eventn_ctx_user_anonymous_id='"+testData.anonymousId+"'", "order by eventn_ctx_utc_time")
+			objects, err := postgresContainer.GetSortedRows("recognition_events", "eventn_ctx_event_id, eventn_ctx_user_anonymous_id, eventn_ctx_user_id", "eventn_ctx_user_anonymous_id='"+testData.anonymousId+"'", "order by eventn_ctx_utc_time")
 			require.NoError(t, err, "Error selecting all events")
 
 			require.Equal(t, testData.expObjects, objects, "Objects in DWH and expected objects aren't equal")
