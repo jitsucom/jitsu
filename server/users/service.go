@@ -156,12 +156,12 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 
 		anonymousIDStr := fmt.Sprint(anonymousID)
 
-		properties, ok := configuration.IdentificationJSONPathes.Get(event)
+		values, ok := configuration.IdentificationJSONPathes.Get(event)
 
 		identifiers[destinationID] = EventIdentifiers{
 			EventID:              eventID,
 			AnonymousID:          anonymousIDStr,
-			IdentificationValues: properties,
+			IdentificationValues: values,
 		}
 	}
 
@@ -235,9 +235,9 @@ func (rs *RecognitionService) processRecognitionPayload(rp *RecognitionPayload) 
 	destinationIdentifiers := rs.getDestinationsForRecognition(rp.Event, rp.EventID, rp.DestinationIDs)
 
 	for destinationID, identifiers := range destinationIdentifiers {
-		if identifiers.IsAllIdentificationValuesFilled() {
-			// Run pipeline only if all identification values were recognized,
-			// it is needed to update all other anonymous events
+		if identifiers.IsAnyIdentificationValueFilled() {
+			// Run pipeline if any identification value has been recognized,
+			// then update all other anonymous events
 			if err := rs.reprocessAnonymousEvents(destinationID, identifiers); err != nil {
 				return fmt.Errorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
 			}
