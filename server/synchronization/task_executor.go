@@ -19,6 +19,7 @@ import (
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
+	"runtime/debug"
 	"strings"
 	"time"
 )
@@ -188,6 +189,19 @@ func (te *TaskExecutor) startObserver() {
 
 //execute runs task validating and syncing (cli or plain)
 func (te *TaskExecutor) execute(i interface{}) {
+	var taskCloser *TaskCloser
+	//panic handler
+	defer func() {
+		if r := recover(); r != nil {
+			msg := fmt.Sprintf("panic in TaskExecutor: %v\n%s", r, string(debug.Stack()))
+			if taskCloser != nil {
+				taskCloser.CloseWithError(msg, true)
+			} else {
+				logging.SystemError(msg)
+			}
+		}
+	}()
+
 	task, ok := i.(*meta.Task)
 	if !ok {
 		taskPayload, _ := json.Marshal(i)
@@ -197,7 +211,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 
 	//create redis logger
 	taskLogger := NewTaskLogger(task.ID, te.metaStorage)
-	taskCloser := NewTaskCloser(task.ID, taskLogger, te.metaStorage)
+	taskCloser = NewTaskCloser(task.ID, taskLogger, te.metaStorage)
 
 	if taskCloser.HandleCanceling() == ErrTaskHasBeenCanceled {
 		return

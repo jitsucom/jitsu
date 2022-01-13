@@ -63,7 +63,7 @@ func NewClickHouse(config *Config) (Storage, error) {
 
 		chAdapters = append(chAdapters, adapter)
 		sqlAdapters = append(sqlAdapters, adapter)
-		chTableHelpers = append(chTableHelpers, NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToClickhouse, config.maxColumns, ClickHouseType))
+		chTableHelpers = append(chTableHelpers, NewTableHelper("", adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToClickhouse, config.maxColumns, ClickHouseType))
 	}
 
 	ch := &ClickHouse{
@@ -186,8 +186,8 @@ func (ch *ClickHouse) Clean(tableName string) error {
 }
 
 //Update uses SyncStore under the hood
-func (ch *ClickHouse) Update(objects []map[string]interface{}) error {
-	return ch.SyncStore(nil, objects, "", true)
+func (ch *ClickHouse) Update(object map[string]interface{}) error {
+	return ch.SyncStore(nil, []map[string]interface{}{object}, "", true)
 }
 
 //GetUsersRecognition returns users recognition configuration

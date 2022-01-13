@@ -44,18 +44,18 @@ func (jpa *JSONPaths) String() string {
 // 	  "key7/key8/key9" -> value3
 func (jpa *JSONPaths) Get(event map[string]interface{}) (map[string]interface{}, bool) {
 	result := false
-	array := make(map[string]interface{})
+	values := make(map[string]interface{})
 
 	for key, path := range jpa.paths {
 		value, answer := path.Get(event)
-		array[key] = value
+		values[key] = value
 		result = result || answer
 	}
 
-	return array, result
+	return values, result
 }
 
-// Set puts values into event according to configuration settings
+// Set puts all non nil values into event according to inner JSON paths settings
 func (jpa *JSONPaths) Set(event map[string]interface{}, values map[string]interface{}) error {
 	for key, path := range jpa.paths {
 		value := values[key]

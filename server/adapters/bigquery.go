@@ -116,7 +116,7 @@ func (bq *BigQuery) Insert(eventContext *EventContext) error {
 
 //GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct
 func (bq *BigQuery) GetTableSchema(tableName string) (*Table, error) {
-	table := &Table{Name: tableName, Columns: Columns{}}
+	table := &Table{Schema: bq.config.Dataset, Name: tableName, Columns: Columns{}}
 
 	bqTable := bq.client.Dataset(bq.config.Dataset).Table(tableName)
 
