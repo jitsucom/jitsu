@@ -75,7 +75,7 @@ func NewBigQuery(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(bigQueryAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToBigQueryString, config.maxColumns, BigQueryType)
+	tableHelper := NewTableHelper("", bigQueryAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToBigQueryString, config.maxColumns, BigQueryType)
 
 	bq := &BigQuery{
 		gcsAdapter: gcsAdapter,

@@ -28,7 +28,7 @@ const (
 	mySQLCreateTableTemplate         = "CREATE TABLE `%s`.`%s` (%s)"
 	mySQLInsertTemplate              = "INSERT INTO `%s`.`%s` (%s) VALUES %s"
 	mySQLUpdateTemplate              = "UPDATE `%s`.`%s` SET %s WHERE %s=?"
-	mySQLAlterPrimaryKeyTemplate     = "ALTER TABLE `%s`.`%s` ADD CONSTRAINT %s PRIMARY KEY (%s)"
+	mySQLAlterPrimaryKeyTemplate     = "ALTER TABLE `%s`.`%s` ADD CONSTRAINT PRIMARY KEY (%s)"
 	mySQLMergeTemplate               = "INSERT INTO `%s`.`%s` (%s) VALUES %s ON DUPLICATE KEY UPDATE %s"
 	mySQLBulkMergeTemplate           = "INSERT INTO `%s`.`%s` (%s) SELECT * FROM (SELECT %s FROM `%s`.`%s`) AS tmp ON DUPLICATE KEY UPDATE %s"
 	mySQLDeleteQueryTemplate         = "DELETE FROM `%s`.`%s` WHERE %s"
@@ -158,6 +158,7 @@ func (m *MySQL) GetTableSchema(tableName string) (*Table, error) {
 	}
 
 	table.PKFields = pkFields
+	//don't set table.PrimaryKeyName because in MySQL primary key has always name: "PRIMARY" and Jitsu can't compare it
 	return table, nil
 }
 
@@ -323,7 +324,7 @@ func (m *MySQL) Close() error {
 }
 
 func (m *MySQL) getTable(tableName string) (*Table, error) {
-	table := &Table{Name: tableName, Columns: map[string]typing.SQLColumn{}, PKFields: map[string]bool{}}
+	table := &Table{Schema: m.config.Db, Name: tableName, Columns: map[string]typing.SQLColumn{}, PKFields: map[string]bool{}}
 	ctx, cancel := context.WithTimeout(m.ctx, 1*time.Minute)
 	defer cancel()
 	rows, err := m.dataSource.QueryContext(ctx, mySQLTableSchemaQuery, m.config.Db, tableName)
@@ -617,7 +618,7 @@ func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 	}
 
 	statement := fmt.Sprintf(mySQLAlterPrimaryKeyTemplate,
-		m.config.Db, table.Name, m.buildConstraintName(table.Name), strings.Join(quotedColumnNames, ","))
+		m.config.Db, table.Name, strings.Join(quotedColumnNames, ","))
 	m.queryLogger.LogDDL(statement)
 
 	_, err := wrappedTx.tx.ExecContext(m.ctx, statement)
@@ -657,10 +658,6 @@ func (m *MySQL) createTableInTransaction(wrappedTx *Transaction, table *Table) e
 	return nil
 }
 
-func (m *MySQL) buildConstraintName(tableName string) string {
-	return m.quote(fmt.Sprintf("%s_%s_pk", m.config.Db, tableName))
-}
-
 func (m *MySQL) quote(str string) string {
 	return fmt.Sprintf("`%s`", str)
 }
@@ -682,16 +679,13 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 		}
 	}
 
-	//patch primary keys - delete old
+	//patch primary keys.
+	//Re-creation isn't supported. Instead of it just returns an error to do it manually
 	if patchTable.DeletePkFields {
-		err := m.deletePrimaryKeyInTransaction(wrappedTx, patchTable)
-		if err != nil {
-			wrappedTx.Rollback(err)
-			return err
-		}
+		return fmt.Errorf("Jitsu can't manage MySQL primary key in [schema: %s table: %s]. Please add all columns from existent primary key to Jitsu MySQL destination configuration manually. Or you can delete primary key in the table then Jitsu will create it from primary_key_fields configuration. Read more about primary keys configuration https://jitsu.com/docs/configuration/primary-keys-configuration.", patchTable.Schema, patchTable.Name)
 	}
 
-	//patch primary keys - create new
+	//create new
 	if len(patchTable.PKFields) > 0 {
 		err := m.createPrimaryKeyInTransaction(wrappedTx, patchTable)
 		if err != nil {
@@ -703,6 +697,8 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 	return wrappedTx.DirectCommit()
 }
 
+//DEPRECATED
+//since Jitsu doesn't know the creator of primary key - we can't delete anything.
 //delete primary key
 func (m *MySQL) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
 	query := fmt.Sprintf(mySQLDropPrimaryKeyTemplate, m.config.Db, table.Name)
