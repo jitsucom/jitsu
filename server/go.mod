@@ -59,6 +59,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/segmentio/analytics-go.v3 v3.1.0
 	gotest.tools v2.2.0+incompatible
+	rogchap.com/v8go v0.7.0
 )
 
 require (
