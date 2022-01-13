@@ -245,6 +245,7 @@
       "firstName": "Ned",
       "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
       "internal_id": "user1",
+      "id": "user1",
       "lastName": "Stark",
       "role": "the Lord of Winterfell"
     },
@@ -332,6 +333,7 @@
       "firstName": "Ned",
       "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
       "internal_id": "user1",
+      "id": "user1",
       "lastName": "Stark",
       "role": "the Lord of Winterfell"
     },
@@ -418,6 +420,7 @@
       "firstName": "Ned",
       "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
       "internal_id": "user1",
+      "id": "user1",
       "lastName": "Stark",
       "role": "the Lord of Winterfell"
     },
@@ -508,6 +511,7 @@
       "firstName": "Ned",
       "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
       "internal_id": "user1",
+      "id": "user1",
       "lastName": "Stark",
       "role": "the Lord of Winterfell"
     },
