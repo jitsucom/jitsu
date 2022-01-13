@@ -53,7 +53,7 @@ func NewAmplitude(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(aAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, AmplitudeType)
+	tableHelper := NewTableHelper("", aAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, AmplitudeType)
 
 	//HTTPStorage
 	a.tableHelper = tableHelper

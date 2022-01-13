@@ -253,7 +253,7 @@ func (p *Postgres) GetTableSchema(tableName string) (*Table, error) {
 	table.PKFields = pkFields
 	table.PrimaryKeyName = primaryKeyName
 
-	jitsuPrimaryKeyName := buildConstraintName(table.Schema, table.Name)
+	jitsuPrimaryKeyName := BuildConstraintName(table.Schema, table.Name)
 	if primaryKeyName != "" && primaryKeyName != jitsuPrimaryKeyName {
 		logging.Warnf("[%s] table: %s.%s has a custom primary key with name: %s that isn't managed by Jitsu. Custom primary key will be used in rows deduplication and updates. primary_key_fields configuration provided in Jitsu config will be ignored.", p.destinationId(), table.Schema, table.Name, primaryKeyName)
 	}
@@ -406,7 +406,7 @@ func (p *Postgres) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *
 	_, err := wrappedTx.tx.ExecContext(p.ctx, statement)
 	if err != nil {
 		err = checkErr(err)
-		return fmt.Errorf("Error setting primary key [%s] %s table: %v", strings.Join(table.GetPKFields(), ","), table.Name, err)
+		return fmt.Errorf("error setting primary key [%s] %s table: %v", strings.Join(table.GetPKFields(), ","), table.Name, err)
 	}
 
 	return nil

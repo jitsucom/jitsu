@@ -76,7 +76,7 @@ func (t Table) Diff(another *Table) *Table {
 		}
 	}
 
-	jitsuPrimaryKeyName := buildConstraintName(t.Schema, t.Name)
+	jitsuPrimaryKeyName := BuildConstraintName(t.Schema, t.Name)
 	//check if primary key is maintained by Jitsu (for Postgres and Redshift)
 	if t.PrimaryKeyName != "" && t.PrimaryKeyName != jitsuPrimaryKeyName {
 		//primary key isn't maintained by Jitsu: do nothing
@@ -102,6 +102,6 @@ func (t Table) Diff(another *Table) *Table {
 	return diff
 }
 
-func buildConstraintName(schemaName string, tableName string) string {
+func BuildConstraintName(schemaName string, tableName string) string {
 	return schemaName + "_" + tableName + "_pk"
 }

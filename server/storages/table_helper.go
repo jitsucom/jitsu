@@ -13,6 +13,7 @@ import (
 )
 
 //TableHelper keeps tables schema state inmemory and update it according to incoming new data
+//consider that all tables are in one destination schema.
 //note: Assume that after any outer changes in db we need to increment table version in MonitorKeeper
 type TableHelper struct {
 	sync.RWMutex
@@ -24,6 +25,7 @@ type TableHelper struct {
 	pkFields           map[string]bool
 	columnTypesMapping map[typing.DataType]string
 
+	dbSchema        string
 	destinationType string
 	streamMode      bool
 	maxColumns      int
@@ -31,7 +33,7 @@ type TableHelper struct {
 
 //NewTableHelper returns configured TableHelper instance
 //Note: columnTypesMapping must be not empty (or fields will be ignored)
-func NewTableHelper(sqlAdapter adapters.SQLAdapter, monitorKeeper MonitorKeeper, pkFields map[string]bool,
+func NewTableHelper(dbSchema string, sqlAdapter adapters.SQLAdapter, monitorKeeper MonitorKeeper, pkFields map[string]bool,
 	columnTypesMapping map[typing.DataType]string, maxColumns int, destinationType string) *TableHelper {
 
 	return &TableHelper{
@@ -42,6 +44,7 @@ func NewTableHelper(sqlAdapter adapters.SQLAdapter, monitorKeeper MonitorKeeper,
 		pkFields:           pkFields,
 		columnTypesMapping: columnTypesMapping,
 
+		dbSchema:        dbSchema,
 		destinationType: destinationType,
 		maxColumns:      maxColumns,
 	}
@@ -51,10 +54,16 @@ func NewTableHelper(sqlAdapter adapters.SQLAdapter, monitorKeeper MonitorKeeper,
 //applies column types mapping
 func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters.Table {
 	table := &adapters.Table{
+		Schema:   th.dbSchema,
 		Name:     batchHeader.TableName,
 		Columns:  adapters.Columns{},
 		PKFields: th.pkFields,
 		Version:  0,
+	}
+
+	//pk fields from the configuration
+	if len(th.pkFields) > 0 {
+		table.PrimaryKeyName = adapters.BuildConstraintName(table.Schema, table.Name)
 	}
 
 	for fieldName, field := range batchHeader.Fields {
@@ -252,10 +261,12 @@ func (th *TableHelper) getOrCreate(destinationName string, dataSchema *adapters.
 			return nil, fmt.Errorf("Error incrementing table %s version: %v", dataSchema.Name, err)
 		}
 
+		dbTableSchema.Schema = dataSchema.Schema
 		dbTableSchema.Name = dataSchema.Name
 		dbTableSchema.Columns = dataSchema.Columns
 		dbTableSchema.Version = ver
 		dbTableSchema.PKFields = dataSchema.PKFields
+		dbTableSchema.PrimaryKeyName = dataSchema.PrimaryKeyName
 	} else {
 		ver, err := th.monitorKeeper.GetVersion(destinationName, dbTableSchema.Name)
 		if err != nil {
