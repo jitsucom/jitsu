@@ -77,16 +77,11 @@ const menuItems = [
   makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud", "#e76e52"),
   makeItem(<Icon component={GlobeIcon} />, "Geo data resolver", "/geo_data_resolver", "#41b3a3"),
   makeItem(<CloudFilled />, "Custom Domains", "/domains", "#5ab9ea", f => f.enableCustomDomains),
-  makeItem(
-    <Icon component={DownloadIcon} />,
-    "Download Config",
-    "/cfg_download",
-    "#14a76c",
-    f => f.enableCustomDomains
-  ),
+  makeItem(<Icon component={DownloadIcon} />, "Download Config", "/cfg_download", "#14a76c"),
 ]
 
 export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) => {
+  const services = useServices()
   const key = usePageLocation().mainMenuKey
   const Wrapper = React.useMemo<React.FC<{ title?: string | React.ReactNode }>>(
     () =>
@@ -104,21 +99,24 @@ export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) =
     <div className={`max-h-full overflow-x-visible overflow-y-auto ${styles.sideBarContent_applicationMenu}`}>
       {menuItems.map(item => {
         const selected = item.link === "/" + key
+        const enabled = item.enabled(services.features)
         return (
-          <NavLink to={item.link} key={item.link}>
-            <Wrapper title={item.title}>
-              <div
-                key={item.link}
-                className={`flex items-center ${
-                  selected ? styles.selectedMenuItem : styles.sideBarContent_item__withRightBorder
-                } ${styles.menuItem} whitespace-nowrap text-textPale py-3 ml-2 pl-4 pr-6 rounded-l-xl`}
-                style={{ fill: item.color }}
-              >
-                <i className="block">{item.icon}</i>
-                {expanded && <span className="pl-2 whitespace-nowrap">{item.title}</span>}
-              </div>
-            </Wrapper>
-          </NavLink>
+          enabled && (
+            <NavLink to={item.link} key={item.link}>
+              <Wrapper title={item.title}>
+                <div
+                  key={item.link}
+                  className={`flex items-center ${
+                    selected ? styles.selectedMenuItem : styles.sideBarContent_item__withRightBorder
+                  } ${styles.menuItem} whitespace-nowrap text-textPale py-3 ml-2 pl-4 pr-6 rounded-l-xl`}
+                  style={{ fill: item.color }}
+                >
+                  <i className="block">{item.icon}</i>
+                  {expanded && <span className="pl-2 whitespace-nowrap">{item.title}</span>}
+                </div>
+              </Wrapper>
+            </NavLink>
+          )
         )
       })}
     </div>

@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"context"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -71,7 +72,8 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	redshiftAdapter, err := adapters.NewAwsRedshift(config.ctx, redshiftConfig, s3config, queryLogger, config.sqlTypes)
+	ctx := context.WithValue(config.ctx, adapters.CtxDestinationId, config.destinationID)
+	redshiftAdapter, err := adapters.NewAwsRedshift(ctx, redshiftConfig, s3config, queryLogger, config.sqlTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +85,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.maxColumns, RedshiftType)
+	tableHelper := NewTableHelper(redshiftConfig.Schema, redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.maxColumns, RedshiftType)
 
 	ar := &AwsRedshift{
 		s3Adapter:                     s3Adapter,
@@ -200,29 +202,27 @@ func (ar *AwsRedshift) Clean(tableName string) error {
 }
 
 //Update updates record in Redshift
-func (ar *AwsRedshift) Update(objects []map[string]interface{}) error {
+func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 	_, tableHelper := ar.getAdapters()
-	for _, object := range objects {
-		envelops, err := ar.processor.ProcessEvent(object)
+	envelops, err := ar.processor.ProcessEvent(object)
+	if err != nil {
+		return err
+	}
+	for _, envelop := range envelops {
+		batchHeader := envelop.Header
+		processedObject := envelop.Event
+		table := tableHelper.MapTableSchema(batchHeader)
+
+		dbSchema, err := tableHelper.EnsureTableWithCaching(ar.ID(), table)
 		if err != nil {
 			return err
 		}
-		for _, envelop := range envelops {
-			batchHeader := envelop.Header
-			processedObject := envelop.Event
-			table := tableHelper.MapTableSchema(batchHeader)
 
-			dbSchema, err := tableHelper.EnsureTableWithCaching(ar.ID(), table)
-			if err != nil {
-				return err
-			}
-
-			start := timestamp.Now()
-			if err = ar.redshiftAdapter.Update(dbSchema, processedObject, ar.uniqueIDField.GetFlatFieldName(), ar.uniqueIDField.Extract(object)); err != nil {
-				return err
-			}
-			logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.ID(), timestamp.Now().Sub(start).Seconds())
+		start := timestamp.Now()
+		if err = ar.redshiftAdapter.Update(dbSchema, processedObject, ar.uniqueIDField.GetFlatFieldName(), ar.uniqueIDField.Extract(object)); err != nil {
+			return err
 		}
+		logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.ID(), timestamp.Now().Sub(start).Seconds())
 	}
 
 	return nil

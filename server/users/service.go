@@ -11,9 +11,12 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/storages"
 	"go.uber.org/atomic"
-	"strings"
+	"sync"
 )
+
+const retryCount = 3
 
 //RecognitionService has a thread pool under the hood
 //saves anonymous events in meta storage
@@ -22,6 +25,9 @@ type RecognitionService struct {
 	storage            Storage
 	destinationService *destinations.Service
 	compressor         Compressor
+
+	mutex        *sync.RWMutex
+	eventRetries map[string]int
 
 	queue  *Queue
 	closed *atomic.Bool
@@ -55,6 +61,8 @@ func NewRecognitionService(storage Storage, destinationService *destinations.Ser
 		destinationService: destinationService,
 		storage:            storage,
 		compressor:         compressor,
+		mutex:              &sync.RWMutex{},
+		eventRetries:       map[string]int{},
 		queue:              newQueue(),
 		closed:             atomic.NewBool(false),
 	}
@@ -156,12 +164,12 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 
 		anonymousIDStr := fmt.Sprint(anonymousID)
 
-		properties, ok := configuration.IdentificationJSONPathes.Get(event)
+		values, ok := configuration.IdentificationJSONPathes.Get(event)
 
 		identifiers[destinationID] = EventIdentifiers{
 			EventID:              eventID,
 			AnonymousID:          anonymousIDStr,
-			IdentificationValues: properties,
+			IdentificationValues: values,
 		}
 	}
 
@@ -195,8 +203,6 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 		return nil
 	}
 
-	eventIDs := make([]string, 0, len(eventsMap))
-	eventsArr := make([]map[string]interface{}, 0, len(eventsMap))
 	for storedEventID, storedSerializedEvent := range eventsMap {
 		event, err := rs.deserialize(storedSerializedEvent)
 		if err != nil {
@@ -210,22 +216,33 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 			continue
 		}
 
-		eventsArr = append(eventsArr, event)
-		eventIDs = append(eventIDs, storedEventID)
-	}
+		if err := storage.Update(event); err != nil {
+			if storages.IsConnectionError(err) {
+				return err
+			}
 
-	if len(eventsArr) == 0 {
-		return nil
-	}
+			//retry 3 times if not connection error
+			rs.mutex.Lock()
+			rs.eventRetries[storedEventID]++
+			count, _ := rs.eventRetries[storedEventID]
+			rs.mutex.Unlock()
 
-	if err := storage.Update(eventsArr); err != nil {
-		return err
-	}
+			if count <= retryCount {
+				//retry
+				continue
+			}
 
-	// Pipeline goes only when event contains full identifiers according to settings,
-	// so all saved events will be recognized and should be removed from storage.
-	if err = rs.storage.DeleteAnonymousEvents(destinationID, identifiers.AnonymousID, eventIDs); err != nil {
-		return fmt.Errorf("error deleting anonymous events ids [%s]: %v", strings.Join(eventIDs, ", "), err)
+			logging.Info("[%s] Error updating recognition event %s after %d retries: %v", destinationID, storedSerializedEvent, retryCount, err)
+		}
+
+		// Pipeline goes only when event contains full identifiers according to settings,
+		if err = rs.storage.DeleteAnonymousEvent(destinationID, identifiers.AnonymousID, storedEventID); err != nil {
+			return fmt.Errorf("error deleting anonymous events id [%s]: %v", storedEventID, err)
+		}
+
+		rs.mutex.Lock()
+		delete(rs.eventRetries, storedEventID)
+		rs.mutex.Unlock()
 	}
 
 	return nil
@@ -235,9 +252,9 @@ func (rs *RecognitionService) processRecognitionPayload(rp *RecognitionPayload) 
 	destinationIdentifiers := rs.getDestinationsForRecognition(rp.Event, rp.EventID, rp.DestinationIDs)
 
 	for destinationID, identifiers := range destinationIdentifiers {
-		if identifiers.IsAllIdentificationValuesFilled() {
-			// Run pipeline only if all identification values were recognized,
-			// it is needed to update all other anonymous events
+		if identifiers.IsAnyIdentificationValueFilled() {
+			// Run pipeline if any identification value has been recognized,
+			// then update all other anonymous events
 			if err := rs.reprocessAnonymousEvents(destinationID, identifiers); err != nil {
 				return fmt.Errorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
 			}

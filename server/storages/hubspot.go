@@ -42,7 +42,7 @@ func NewHubSpot(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(hAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, HubSpotType)
+	tableHelper := NewTableHelper("", hAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, HubSpotType)
 
 	h.tableHelper = tableHelper
 	h.adapter = hAdapter

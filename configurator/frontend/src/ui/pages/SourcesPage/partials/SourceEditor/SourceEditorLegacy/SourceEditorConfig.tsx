@@ -70,7 +70,7 @@ const SourceEditorConfigComponent = ({
 
   const validateSourceIdNoSpaces = useCallback(
     (rule: RuleObject, value: string) => {
-      const re = /^[A-Za-z0-9_]*$/
+      const re = /^[A-Za-z0-9_-]*$/
       if (!re.test(value)) {
         return Promise.reject("SourceId must contain only letters, numbers, or the underscore character")
       } else {

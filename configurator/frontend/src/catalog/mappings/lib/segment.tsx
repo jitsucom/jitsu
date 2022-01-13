@@ -144,6 +144,16 @@ const mapping: DestinationConfigurationTemplate = {
       action: "move",
     },
     {
+      src: "/eventn_ctx/user/id",
+      dst: "/user_id",
+      action: "move",
+    },
+    {
+      src: "/user/id",
+      dst: "/user_id",
+      action: "move",
+    },
+    {
       src: "/eventn_ctx/user/internal_id",
       dst: "/user_id",
       action: "move",
