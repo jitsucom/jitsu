@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"context"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -71,7 +72,8 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	redshiftAdapter, err := adapters.NewAwsRedshift(config.ctx, redshiftConfig, s3config, queryLogger, config.sqlTypes)
+	ctx := context.WithValue(config.ctx, adapters.CtxDestinationId, config.destinationID)
+	redshiftAdapter, err := adapters.NewAwsRedshift(ctx, redshiftConfig, s3config, queryLogger, config.sqlTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +85,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.maxColumns, RedshiftType)
+	tableHelper := NewTableHelper(redshiftConfig.Schema, redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.maxColumns, RedshiftType)
 
 	ar := &AwsRedshift{
 		s3Adapter:                     s3Adapter,
