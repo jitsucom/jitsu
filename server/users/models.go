@@ -16,12 +16,12 @@ type EventIdentifiers struct {
 	IdentificationValues map[string]interface{}
 }
 
-func (ei *EventIdentifiers) IsAllIdentificationValuesFilled() bool {
+func (ei *EventIdentifiers) IsAnyIdentificationValueFilled() bool {
 	for _, value := range ei.IdentificationValues {
-		if value == nil {
-			return false
+		if value != nil {
+			return true
 		}
 	}
 
-	return true
+	return false
 }
