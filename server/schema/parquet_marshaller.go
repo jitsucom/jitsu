@@ -25,8 +25,8 @@ type ParquetMarshaller struct {
 }
 
 type parquetMetadataItem struct {
-	index int
-	dataType typing.DataType
+	index        int
+	dataType     typing.DataType
 	defaultValue interface{}
 }
 
@@ -50,7 +50,7 @@ func (pm *ParquetMarshaller) Marshal(bh *BatchHeader, data []map[string]interfac
 		if err != nil {
 			return nil, fmt.Errorf("can't prepare parquet record: %v", err)
 		}
-		if err = pw.Write(parquetRec); err != nil {
+		if err = pw.WriteString(parquetRec); err != nil {
 			return nil, fmt.Errorf("parquet write error: %v", err)
 		}
 	}
@@ -65,25 +65,23 @@ func (pm *ParquetMarshaller) parquetMetadata(bh *BatchHeader) ([]string, map[str
 	meta := make(map[string]parquetMetadataItem, len(bh.Fields))
 	i := 0
 	for field, fieldMeta := range bh.Fields {
-		if fieldMeta.dataType == nil {
-			return nil, nil, fmt.Errorf("field %s has nil data type", field)
-		}
-		switch *fieldMeta.dataType {
+		switch fieldMeta.GetType() {
 		case typing.BOOL:
 			parquetSchema = append(parquetSchema, fmt.Sprintf("name=%s, type=BOOLEAN", field))
-			meta[field] = parquetMetadataItem{i,typing.BOOL, false}
+			meta[field] = parquetMetadataItem{i, typing.BOOL, false}
 		case typing.INT64:
 			parquetSchema = append(parquetSchema, fmt.Sprintf("name=%s, type=INT64", field))
-			meta[field] = parquetMetadataItem{i,typing.INT64, int64(0)}
+			meta[field] = parquetMetadataItem{i, typing.INT64, int64(0)}
 		case typing.FLOAT64:
 			parquetSchema = append(parquetSchema, fmt.Sprintf("name=%s, type=DOUBLE", field))
-			meta[field] = parquetMetadataItem{i,typing.FLOAT64, float64(0)}
+			meta[field] = parquetMetadataItem{i, typing.FLOAT64, float64(0)}
 		case typing.STRING:
 			parquetSchema = append(parquetSchema, fmt.Sprintf("name=%s, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY", field))
-			meta[field] = parquetMetadataItem{i,typing.STRING, ""}
+			meta[field] = parquetMetadataItem{i, typing.STRING, ""}
 		case typing.TIMESTAMP:
 			parquetSchema = append(parquetSchema, fmt.Sprintf("name=%s, type=INT64, logicaltype=TIMESTAMP, logicaltype.isadjustedtoutc=true, logicaltype.unit=MILLIS", field))
-			meta[field] = parquetMetadataItem{i,typing.TIMESTAMP, time.Time{}}
+			meta[field] = parquetMetadataItem{i, typing.TIMESTAMP, time.Time{}}
+
 		// UNKNOWN and default
 		default:
 			return nil, nil, fmt.Errorf("field %s has unmappable data type", field)
@@ -93,8 +91,8 @@ func (pm *ParquetMarshaller) parquetMetadata(bh *BatchHeader) ([]string, map[str
 	return parquetSchema, meta, nil
 }
 
-func (pm *ParquetMarshaller) parquetRecord(meta map[string]parquetMetadataItem, obj map[string]interface{}) ([]interface{}, error) {
-	rec := make([]interface{}, len(meta))
+func (pm *ParquetMarshaller) parquetRecord(meta map[string]parquetMetadataItem, obj map[string]interface{}) ([]*string, error) {
+	rec := make([]*string, len(meta))
 	for field, metaItem := range meta {
 		fieldValue, ok := obj[field]
 		if !ok || fieldValue == nil {
@@ -102,17 +100,20 @@ func (pm *ParquetMarshaller) parquetRecord(meta map[string]parquetMetadataItem, 
 		}
 		switch metaItem.dataType {
 		case typing.BOOL, typing.INT64, typing.FLOAT64, typing.STRING:
-			rec[metaItem.index] = fieldValue
+			str := fmt.Sprintf("%v", fieldValue)
+			rec[metaItem.index] = &str
 		case typing.TIMESTAMP:
 			t, err := typing.ParseTimestamp(fieldValue)
 			if err != nil {
 				return nil, err
 			}
-			if t.IsZero() {
-				rec[metaItem.index] = int64(0)
-			} else {
-				rec[metaItem.index] = types.TimeToTIMESTAMP_MILLIS(t, true)
+			var v int64
+			if !t.IsZero() {
+				v = types.TimeToTIMESTAMP_MILLIS(t, true)
 			}
+			str := fmt.Sprintf("%v", v)
+			rec[metaItem.index] = &str
+
 		// UNKNOWN and default
 		default:
 			return nil, fmt.Errorf("field %s has unsupported data type %v", field, metaItem.dataType)
