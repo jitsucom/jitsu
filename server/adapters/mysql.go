@@ -682,7 +682,7 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 	//patch primary keys.
 	//Re-creation isn't supported. Instead of it just returns an error to do it manually
 	if patchTable.DeletePkFields {
-		return fmt.Errorf("Jitsu can't manage MySQL primary key in [schema: %s table %s]. Please add all columns from existent primary key to Jitsu MySQL destination configuration manually. Read more about primary keys configuration https://jitsu.com/docs/configuration/primary-keys-configuration.", patchTable.Schema, patchTable.Name)
+		return fmt.Errorf("Jitsu can't manage MySQL primary key in [schema: %s table: %s]. Please add all columns from existent primary key to Jitsu MySQL destination configuration manually. Or you can delete primary key in the table then Jitsu will create it from primary_key_fields configuration. Read more about primary keys configuration https://jitsu.com/docs/configuration/primary-keys-configuration.", patchTable.Schema, patchTable.Name)
 	}
 
 	//create new
