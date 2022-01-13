@@ -158,6 +158,7 @@ func (m *MySQL) GetTableSchema(tableName string) (*Table, error) {
 	}
 
 	table.PKFields = pkFields
+	//don't set table.PrimaryKeyName because in MySQL primary key has always name: "PRIMARY" and Jitsu can't compare it
 	return table, nil
 }
 
@@ -678,16 +679,13 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 		}
 	}
 
-	//patch primary keys - delete old
+	//patch primary keys.
+	//Re-creation isn't supported. Instead of it just returns an error to do it manually
 	if patchTable.DeletePkFields {
-		err := m.deletePrimaryKeyInTransaction(wrappedTx, patchTable)
-		if err != nil {
-			wrappedTx.Rollback(err)
-			return err
-		}
+		return fmt.Errorf("Jitsu can't manage MySQL primary key in [schema: %s table %s]. Please add all columns from existent primary key to Jitsu MySQL destination configuration manually. Read more about primary keys configuration https://jitsu.com/docs/configuration/primary-keys-configuration.", patchTable.Schema, patchTable.Name)
 	}
 
-	//patch primary keys - create new
+	//create new
 	if len(patchTable.PKFields) > 0 {
 		err := m.createPrimaryKeyInTransaction(wrappedTx, patchTable)
 		if err != nil {
@@ -699,6 +697,8 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 	return wrappedTx.DirectCommit()
 }
 
+//DEPRECATED
+//since Jitsu doesn't know the creator of primary key - we can't delete anything.
 //delete primary key
 func (m *MySQL) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
 	query := fmt.Sprintf(mySQLDropPrimaryKeyTemplate, m.config.Db, table.Name)
