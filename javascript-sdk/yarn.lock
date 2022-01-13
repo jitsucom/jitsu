@@ -2469,6 +2469,13 @@ fetch-blob@^3.1.2:
   dependencies:
     web-streams-polyfill "^3.0.3"
 
+fetch-cookie@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/fetch-cookie/-/fetch-cookie-1.0.0.tgz#77541b67821ea7c8cfa9bfd4b59e16bc5f7c69df"
+  integrity sha512-SWcAhkDe4yVBFtwRqJNmot6k1XjjzI7tw3aRHepxXrK6FQp6obBhqcnsdm2aNUzrtE71607crNAYodtKMq3TjA==
+  dependencies:
+    tough-cookie "^2.3.3 || ^3.0.1 || ^4.0.0"
+
 fill-range@^7.0.1:
   version "7.0.1"
   resolved "https://registry.yarnpkg.com/fill-range/-/fill-range-7.0.1.tgz#1919a6a7c75fe38b2c7c77e5198535da9acdda40"
@@ -4897,7 +4904,7 @@ touch@^3.1.0:
   dependencies:
     nopt "~1.0.10"
 
-tough-cookie@^4.0.0:
+"tough-cookie@^2.3.3 || ^3.0.1 || ^4.0.0", tough-cookie@^4.0.0:
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/tough-cookie/-/tough-cookie-4.0.0.tgz#d822234eeca882f991f0f908824ad2622ddbece4"
   integrity sha512-tHdtEpQCMrc1YLrMaqXXcj6AxhYi/xgit6mZu1+EDWUn+qhUf8wMQoFIy9NXuq23zAwtcB0t/MjACGR18pcRbg==

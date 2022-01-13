@@ -10,8 +10,9 @@ import {
   parseQuery,
   reformatDate,
   setCookie,
-} from "./helpers"
+} from "./helpers";
 import {
+  ClientProperties,
   Event,
   EventCompat,
   EventCtx,
@@ -20,104 +21,118 @@ import {
   JitsuClient,
   JitsuOptions,
   Policy,
+  TrackingEnvironment,
   UserProps,
-} from "./interface"
-import { getLogger, setRootLogLevel } from "./log"
-import { requireWindow, isWindowAvailable } from "./window"
+} from "./interface";
+import { getLogger, setRootLogLevel } from "./log";
+import { requireWindow, isWindowAvailable } from "./window";
 
 const VERSION_INFO = {
   env: "__buildEnv__",
   date: "__buildDate__",
   version: "__buildVersion__",
-}
+};
 
-const JITSU_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`
+import {
+  CookieOptions,
+  Request as ExpressRequest,
+  Response as ExpressResponse,
+} from "express-serve-static-core";
 
-const beaconTransport: Transport = (url: string, json: string): Promise<void> => {
-  getLogger().debug("Sending beacon", json)
-  const blob = new Blob([json], { type: "text/plain" })
-  navigator.sendBeacon(url, blob)
-  return Promise.resolve()
-}
+const JITSU_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`;
+
+const beaconTransport: Transport = (
+  url: string,
+  json: string
+): Promise<void> => {
+  getLogger().debug("Sending beacon", json);
+  const blob = new Blob([json], { type: "text/plain" });
+  navigator.sendBeacon(url, blob);
+  return Promise.resolve();
+};
 
 interface Persistence {
-  save(props: Record<string, any>)
+  save(props: Record<string, any>);
 
-  restore(): Record<string, any> | undefined
+  restore(): Record<string, any> | undefined;
 
-  delete()
+  delete();
 }
 
-
 class CookiePersistence implements Persistence {
-  private cookieDomain: string
-  private cookieName: string
+  private cookieDomain: string;
+  private cookieName: string;
 
   constructor(cookieDomain: string, cookieName: string) {
-    this.cookieDomain = cookieDomain
-    this.cookieName = cookieName
+    this.cookieDomain = cookieDomain;
+    this.cookieName = cookieName;
   }
 
   public save(props: Record<string, any>) {
-    setCookie(this.cookieName, encodeURIComponent(JSON.stringify(props)), Infinity, this.cookieDomain, document.location.protocol !== "http:")
+    setCookie(
+      this.cookieName,
+      encodeURIComponent(JSON.stringify(props)),
+      Infinity,
+      this.cookieDomain,
+      document.location.protocol !== "http:"
+    );
   }
 
   restore(): Record<string, any> | undefined {
-    let str = getCookie(this.cookieName)
+    let str = getCookie(this.cookieName);
     if (str) {
       try {
-        const parsed = JSON.parse(decodeURIComponent(str))
+        const parsed = JSON.parse(decodeURIComponent(str));
         if (typeof parsed !== "object") {
-          getLogger().warn(`Can't restore value of ${this.cookieName}@${this.cookieDomain}, expected to be object, but found ${typeof parsed !== "object"}: ${parsed}. Ignoring`)
-          return undefined
+          getLogger().warn(
+            `Can't restore value of ${this.cookieName}@${
+              this.cookieDomain
+            }, expected to be object, but found ${
+              typeof parsed !== "object"
+            }: ${parsed}. Ignoring`
+          );
+          return undefined;
         }
-        return parsed
+        return parsed;
       } catch (e) {
-        getLogger().error("Failed to decode JSON from " + str, e)
-        return undefined
+        getLogger().error("Failed to decode JSON from " + str, e);
+        return undefined;
       }
     }
-    return undefined
+    return undefined;
   }
 
   delete() {
-    deleteCookie(this.cookieName)
+    deleteCookie(this.cookieName);
   }
 }
 
 class NoPersistence implements Persistence {
-  public save(props: Record<string, any>) {
-  }
+  public save(props: Record<string, any>) {}
 
   restore(): Record<string, any> | undefined {
-    return undefined
+    return undefined;
   }
 
-  delete() {
-  }
+  delete() {}
 }
 
-const defaultCompatMode = false
+const defaultCompatMode = false;
 
 export function jitsuClient(opts?: JitsuOptions): JitsuClient {
-  let client = new JitsuClientImpl()
-  client.init(opts)
-  return client
+  let client = new JitsuClientImpl();
+  client.init(opts);
+  return client;
 }
 
 type PermanentProperties = {
-  globalProps: Record<string, any>
-  propsPerEvent: Record<string, Record<string, any>>
-}
+  globalProps: Record<string, any>;
+  propsPerEvent: Record<string, Record<string, any>>;
+};
 
-
-export type EventEnvironment = {}
-
-export type EventEnvironmentFactory = () => EventEnvironment
-
-
-function makeEnvFromWindow(): EventEnvironment {
-  return {
+const browserEnv: TrackingEnvironment = {
+  getSourceIp: () => undefined,
+  describeClient: () => ({
     referer: document.referrer,
     url: window.location.href,
     page_title: document.title,
@@ -125,68 +140,171 @@ function makeEnvFromWindow(): EventEnvironment {
     doc_host: document.location.hostname,
     doc_search: window.location.search,
     screen_resolution: screen.width + "x" + screen.height,
-    vp_size: Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0) + "x" + Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0),
+    vp_size:
+      Math.max(
+        document.documentElement.clientWidth || 0,
+        window.innerWidth || 0
+      ) +
+      "x" +
+      Math.max(
+        document.documentElement.clientHeight || 0,
+        window.innerHeight || 0
+      ),
+    user_agent: navigator.userAgent,
     user_language: navigator.language,
     doc_encoding: document.characterSet,
-  }
-}
+  }),
 
-function makeEnvFromReq(req: Request): EventEnvironment {
-  return {
-    referer: req.referrer,
-    url: req.url,
-    // page_title: "",
-    // doc_path: document.location.pathname,
-    // doc_host: document.location.hostname,
-    // doc_search: window.location.search,
-    // screen_resolution: undefined,
-    // vp_size: undefined,
-    // user_language: req,
-    // doc_encoding: undefined,
-  }
-}
-const xmlHttpTransport: Transport = (url: string, jsonPayload: string, handler = (code, body) => {} ) => {
-  let req = new XMLHttpRequest()
-  return new Promise<void>((resolve, reject) => {
-    req.onerror = (e) => {
-      getLogger().error("Failed to send", jsonPayload, e)
-      handler(-1, {})
-      reject(new Error(`Failed to send JSON. See console logs`))
+  getAnonymousId: ({ name, domain }) => {
+    const idCookie = getCookie(name);
+    if (idCookie) {
+      getLogger().debug("Existing user id", idCookie);
+      return idCookie;
     }
-    req.onload = () => {
-      handler(-1, {})
-      if (req.status !== 200) {
-        getLogger().warn(`Failed to send data to ${url} (#${req.status} - ${req.statusText})`, jsonPayload)
-        reject(new Error(`Failed to send JSON. Error code: ${req.status}. See logs for details`))
-      }
-      resolve()
-    }
-    req.open("POST", url)
-    req.setRequestHeader("Content-Type", "application/json")
-    req.send(jsonPayload)
-    getLogger().debug("sending json", jsonPayload)
-  })
+    let newId = generateId();
+    getLogger().debug("New user id", newId);
+    setCookie(
+      name,
+      newId,
+      Infinity,
+      domain,
+      document.location.protocol !== "http:"
+    );
+    return newId;
+  },
 };
 
-const fetchTransport: ((fetch: any) => Transport) = (fetch) => {
-  return async (url: string, jsonPayload: string, handler = (code, body) => {} ) => {
-    try {
-      let res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({a: 1, b: 'Textual content'})
-      })
-      let resJson = await res.json()
-      handler(res.status, resJson)
-    } catch (e) {
-      handler(-1, { });
-    }
-  }
+function expressEnv(
+  req: ExpressRequest,
+  res: ExpressResponse,
+  opts: { disableCookies?: boolean } = {}
+): TrackingEnvironment {
+  return {
+    getAnonymousId({ name, domain }): string {
+      if (opts?.disableCookies) {
+        return "";
+      }
+      const cookie = req.cookies && req.cookies[name];
+      if (!cookie) {
+        const cookieOpts: CookieOptions = {
+          maxAge: 31_622_400 * 10, //10 years
+          httpOnly: false,
+        };
+        if (domain) {
+          cookieOpts.domain = domain;
+        }
+        res.cookie(name, generateId(), cookieOpts);
+      } else {
+        // yes, cookie was already present
+        console.log("cookie exists", cookie);
+      }
+    },
+    getSourceIp() {
+      let ip =
+        req.header("x-forwarded-for") || req.header("x-real-ip") || req.ip;
+      return ip && ip.split(",")[0].trim();
+    },
+    describeClient(): ClientProperties {
+      const requestHost = req.header("x-forwarded-host") || req.header('host') || req.hostname;
+      const proto = req.header("x-forwarded-proto") || req.protocol;
+      const [path, query] = req.originalUrl ? req.originalUrl.split("?") : [];
+      let queryWithPrefix = query && "?" + query;
+      return {
+        doc_encoding: "",
+        doc_host: requestHost,
+        doc_path: req.originalUrl,
+        doc_search: queryWithPrefix,
+        page_title: "",
+        referer: req.header("referrer"),
+        screen_resolution: "",
+        url: `${proto}://${requestHost}${path}${queryWithPrefix}`,
+        user_agent: req.header("user-agent"),
+        user_language:
+          req.header("accept-language") &&
+          req.header("accept-language").split(",")[0],
+        vp_size: "",
+      };
+    },
+  };
 }
 
+const emptyEnv: TrackingEnvironment = {
+  getSourceIp: () => undefined,
+  describeClient: () => ({}),
+  getAnonymousId: () => "",
+};
+/**
+ * Dictionary of supported environments
+ */
+export const envs = {
+  /**
+   * Browser environment (based on window, document and other globals)
+   */
+  browser: browserEnv,
+  /**
+   * Based on express-js request and response
+   */
+  express: expressEnv,
+
+  empty: emptyEnv,
+};
+
+const xmlHttpTransport: Transport = (
+  url: string,
+  jsonPayload: string,
+  handler = (code, body) => {}
+) => {
+  let req = new XMLHttpRequest();
+  return new Promise<void>((resolve, reject) => {
+    req.onerror = (e) => {
+      getLogger().error("Failed to send", jsonPayload, e);
+      handler(-1, {});
+      reject(new Error(`Failed to send JSON. See console logs`));
+    };
+    req.onload = () => {
+      handler(-1, {});
+      if (req.status !== 200) {
+        getLogger().warn(
+          `Failed to send data to ${url} (#${req.status} - ${req.statusText})`,
+          jsonPayload
+        );
+        reject(
+          new Error(
+            `Failed to send JSON. Error code: ${req.status}. See logs for details`
+          )
+        );
+      }
+      resolve();
+    };
+    req.open("POST", url);
+    req.setRequestHeader("Content-Type", "application/json");
+    req.send(jsonPayload);
+    getLogger().debug("sending json", jsonPayload);
+  });
+};
+
+const fetchTransport: (fetch: any) => Transport = (fetch) => {
+  return async (
+    url: string,
+    jsonPayload: string,
+    handler = (code, body) => {}
+  ) => {
+    try {
+      let res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: jsonPayload,
+      });
+      let resJson = await res.json();
+      handler(res.status, resJson);
+    } catch (e) {
+      handler(-1, {});
+    }
+  };
+};
 
 /**
  * Abstraction on top of HTTP calls. Implementation can be either based on XMLHttpRequest, Beacon API or
@@ -197,349 +315,392 @@ const fetchTransport: ((fetch: any) => Transport) = (fetch) => {
  *    - jsonPayload - POST payload. If not string, result should be converted to string with JSON.parse()
  *    - an optional handler that will be called in any case (both for failed and succesfull requests)
  */
-export type Transport = (url: string, jsonPayload: string, handler?: (statusCode: number, responseBody: any) => void) => Promise<void>
+export type Transport = (
+  url: string,
+  jsonPayload: string,
+  handler?: (statusCode: number, responseBody: any) => void
+) => Promise<void>;
 
 class JitsuClientImpl implements JitsuClient {
-  private userIdPersistence?: Persistence
-  private propsPersistance?: Persistence
+  private userIdPersistence?: Persistence;
+  private propsPersistance?: Persistence;
 
-  private userProperties: UserProps = {}
-  private permanentProperties: PermanentProperties = { globalProps: {}, propsPerEvent: {} }
-  private cookieDomain: string = ""
-  private trackingHost: string = ""
-  private idCookieName: string = ""
-  private randomizeUrl: boolean = false
+  private userProperties: UserProps = {};
+  private permanentProperties: PermanentProperties = {
+    globalProps: {},
+    propsPerEvent: {},
+  };
+  private cookieDomain: string = "";
+  private trackingHost: string = "";
+  private idCookieName: string = "";
+  private randomizeUrl: boolean = false;
 
-  private apiKey: string = ""
-  private initialized: boolean = false
-  private _3pCookies: Record<string, boolean> = {}
-  private initialOptions?: JitsuOptions
-  private compatMode: boolean
-  private cookiePolicy: Policy = "keep"
-  private ipPolicy: Policy = "keep"
-  private beaconApi: boolean = false
+  private apiKey: string = "";
+  private initialized: boolean = false;
+  private _3pCookies: Record<string, boolean> = {};
+  private initialOptions?: JitsuOptions;
+  private compatMode: boolean;
+  private cookiePolicy: Policy = "keep";
+  private ipPolicy: Policy = "keep";
+  private beaconApi: boolean = false;
   private transport: Transport = xmlHttpTransport;
 
   id(props: UserProps, doNotSendEvent?: boolean): Promise<void> {
-    this.userProperties = { ...this.userProperties, ...props }
-    getLogger().debug("Jitsu user identified", props)
+    this.userProperties = { ...this.userProperties, ...props };
+    getLogger().debug("Jitsu user identified", props);
 
     if (this.userIdPersistence) {
-      this.userIdPersistence.save(props)
+      this.userIdPersistence.save(props);
     } else {
-      getLogger().warn("Id() is called before initialization")
+      getLogger().warn("Id() is called before initialization");
     }
     if (!doNotSendEvent) {
-      return this.track("user_identify", {})
+      return this.track("user_identify", {});
     } else {
-      return Promise.resolve()
+      return Promise.resolve();
     }
   }
 
   rawTrack(payload: any) {
-    this.sendJson(payload)
-  };
-
-  getAnonymousId({req, res}: {req?: Request, res?: Response} = {}) {
-    if (isWindowAvailable()) {
-      const idCookie = getCookie(this.idCookieName)
-      if (idCookie) {
-        getLogger().debug("Existing user id", idCookie)
-        return idCookie
-      }
-      let newId = generateId()
-      getLogger().debug("New user id", newId)
-      setCookie(this.idCookieName, newId, Infinity, this.cookieDomain, document.location.protocol !== "http:")
-      return newId
-    } else if (req && res) {
-      return "server-side"
-    }
-    return "";
+    this.sendJson(payload);
   }
 
-  makeEvent(event_type: string, src: EventSrc, payload: EventPayload): Event | EventCompat {
-    const { req, res, env, ...payloadData } = payload
-    this.restoreId()
-    let eventEnv: EventEnvironment = {}
-    if (isWindowAvailable()) {
-      eventEnv = makeEnvFromWindow();
-    } else if (req) {
-      eventEnv = makeEnvFromReq(req);
+  makeEvent(
+    event_type: string,
+    src: EventSrc,
+    payload: EventPayload
+  ): Event | EventCompat {
+    let { env, ...payloadData } = payload;
+    if (!env && isWindowAvailable()) {
+      env = isWindowAvailable() ? envs.browser : envs.empty;
     }
-    eventEnv = {...eventEnv, ...(env || {})}
-    let context = this.getCtx(eventEnv, {req, res})
+    this.restoreId();
+    let context = this.getCtx(env);
 
     let persistentProps = {
       ...this.permanentProperties.globalProps,
       ...(this.permanentProperties.propsPerEvent[event_type] ?? {}),
-    }
+    };
     let base = {
       api_key: this.apiKey,
       src,
       event_type,
       ...payloadData,
+    };
+    let sourceIp = env.getSourceIp();
+    if (sourceIp) {
+      base["source_ip"] = sourceIp;
     }
 
-    return this.compatMode ?
-      { ...persistentProps, eventn_ctx: context, ...base } :
-      { ...persistentProps, ...context, ...base }
+    return this.compatMode
+      ? { ...persistentProps, eventn_ctx: context, ...base }
+      : { ...persistentProps, ...context, ...base };
   }
 
   _send3p(sourceType: EventSrc, object: any, type?: string): Promise<any> {
-    let eventType = "3rdparty"
+    let eventType = "3rdparty";
     if (type && type !== "") {
-      eventType = type
+      eventType = type;
     }
 
     const e = this.makeEvent(eventType, sourceType, {
       src_payload: object,
-    })
-    return this.sendJson(e)
+    });
+    return this.sendJson(e);
   }
 
   sendJson(json: any): Promise<void> {
-    let cookiePolicy = this.cookiePolicy !== "keep" ? `&cookie_policy=${this.cookiePolicy}` : ""
-    let ipPolicy = this.ipPolicy !== "keep" ? `&ip_policy=${this.ipPolicy}` : ""
-    let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}${cookiePolicy}${ipPolicy}`
+    let cookiePolicy =
+      this.cookiePolicy !== "keep" ? `&cookie_policy=${this.cookiePolicy}` : "";
+    let ipPolicy =
+      this.ipPolicy !== "keep" ? `&ip_policy=${this.ipPolicy}` : "";
+    let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}${cookiePolicy}${ipPolicy}`;
     if (this.randomizeUrl) {
-      url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}${cookiePolicy}${ipPolicy}`
+      url = `${
+        this.trackingHost
+      }/api.${generateRandom()}?p_${generateRandom()}=${
+        this.apiKey
+      }${cookiePolicy}${ipPolicy}`;
     }
-    let jsonString = JSON.stringify(json)
-    return this.transport(url, jsonString, (code, body) => this.postHandle(code, body))
+    let jsonString = JSON.stringify(json);
+    return this.transport(url, jsonString, (code, body) =>
+      this.postHandle(code, body)
+    );
   }
-
-
 
   postHandle(status: number, response: any): any {
     if (this.cookiePolicy === "strict" || this.cookiePolicy === "comply") {
       if (status === 200) {
-        let data = response
+        let data = response;
         if (typeof response === "string") {
-          data = JSON.parse(response)
+          data = JSON.parse(response);
         }
         if (!data["delete_cookie"]) {
-          return
+          return;
         }
       }
-      this.userIdPersistence.delete()
-      this.propsPersistance.delete()
-      deleteCookie(this.idCookieName)
+      this.userIdPersistence.delete();
+      this.propsPersistance.delete();
+      deleteCookie(this.idCookieName);
     }
   }
 
-  getCtx(env: EventEnvironment, {req, res}: {req?: Request, res?: Response} = {}): EventCtx {
-    let now = new Date()
+  getCtx(env: TrackingEnvironment): EventCtx {
+    let now = new Date();
+    let props = env.describeClient() || {};
     return {
       event_id: "", //generate id on the backend
       user: {
-        anonymous_id: this.cookiePolicy !== "strict" ? this.getAnonymousId({req, res}) : "",
+        anonymous_id:
+          this.cookiePolicy !== "strict"
+            ? env.getAnonymousId({name: this.idCookieName, domain: this.cookieDomain})
+            : "",
         ...this.userProperties,
       },
       ids: this._getIds(),
       utc_time: reformatDate(now.toISOString()),
       local_tz_offset: now.getTimezoneOffset(),
-      ...(env || {}),
-      ...getDataFromParams(parseQuery(req && "?")),
-    }
+      ...props,
+      ...getDataFromParams(parseQuery(props.doc_search)),
+    };
   }
 
   private _getIds(): Record<string, string> {
     if (!isWindowAvailable()) {
       return {};
     }
-    let cookies = getCookies(false)
-    let res: Record<string, string> = {}
+    let cookies = getCookies(false);
+    let res: Record<string, string> = {};
     for (let [key, value] of Object.entries(cookies)) {
       if (this._3pCookies[key]) {
-        res[key.charAt(0) == "_" ?
-          key.substr(1) :
-          key] = value
+        res[key.charAt(0) == "_" ? key.substr(1) : key] = value;
       }
     }
-    return res
+    return res;
   }
 
   track(type: string, payload?: EventPayload): Promise<void> {
-    let data = payload || {}
-    getLogger().debug("track event of type", type, data)
-    const e = this.makeEvent(type, this.compatMode ?
-      "eventn" :
-      "jitsu", payload || {})
-    return this.sendJson(e)
+    let data = payload || {};
+    getLogger().debug("track event of type", type, data);
+    const e = this.makeEvent(
+      type,
+      this.compatMode ? "eventn" : "jitsu",
+      payload || {}
+    );
+    return this.sendJson(e);
   }
 
   init(options: JitsuOptions) {
     if (isWindowAvailable()) {
       if (options.fetch) {
-        getLogger().warn("Custom fetch implementation is provided to Jitsu. However, it will be ignored since Jitsu runs in browser")
+        getLogger().warn(
+          "Custom fetch implementation is provided to Jitsu. However, it will be ignored since Jitsu runs in browser"
+        );
       }
-      this.transport = this.beaconApi ? beaconTransport : xmlHttpTransport
+      this.transport = this.beaconApi ? beaconTransport : xmlHttpTransport;
     } else {
       if (!options.fetch && !globalThis.fetch) {
-        throw new Error("Jitsu runs in Node environment. However, neither JitsuOptions.fetch is provided, nor global fetch function is defined. \n" +
-          "Please, provide custom fetch implementation. You can get it via node-fetch package")
+        throw new Error(
+          "Jitsu runs in Node environment. However, neither JitsuOptions.fetch is provided, nor global fetch function is defined. \n" +
+            "Please, provide custom fetch implementation. You can get it via node-fetch package"
+        );
       }
       this.transport = fetchTransport(options.fetch || globalThis.fetch);
     }
 
     if (options.ip_policy) {
-      this.ipPolicy = options.ip_policy
+      this.ipPolicy = options.ip_policy;
     }
     if (options.cookie_policy) {
-      this.cookiePolicy = options.cookie_policy
+      this.cookiePolicy = options.cookie_policy;
     }
     if (options.privacy_policy === "strict") {
-      this.ipPolicy = "strict"
-      this.cookiePolicy = "strict"
+      this.ipPolicy = "strict";
+      this.cookiePolicy = "strict";
     }
     if (options.use_beacon_api && navigator.sendBeacon) {
-      this.beaconApi = true
+      this.beaconApi = true;
     }
 
     //can't handle delete cookie response when beacon api
     if (this.cookiePolicy === "comply" && this.beaconApi) {
-      this.cookiePolicy = "strict"
+      this.cookiePolicy = "strict";
     }
     if (options.log_level) {
-      setRootLogLevel(options.log_level)
+      setRootLogLevel(options.log_level);
     }
-    this.initialOptions = options
-    getLogger().debug("Initializing Jitsu Tracker tracker", options, JITSU_VERSION)
+    this.initialOptions = options;
+    getLogger().debug(
+      "Initializing Jitsu Tracker tracker",
+      options,
+      JITSU_VERSION
+    );
     if (!options.key) {
-      getLogger().error("Can't initialize Jitsu, key property is not set")
-      return
+      getLogger().error("Can't initialize Jitsu, key property is not set");
+      return;
     }
-    this.compatMode = options.compat_mode === undefined ?
-      defaultCompatMode :
-      !!options.compat_mode
-    this.cookieDomain = options.cookie_domain || getCookieDomain()
-    this.trackingHost = getHostWithProtocol(options["tracking_host"] || "t.jitsu.com")
-    this.randomizeUrl = options.randomize_url || false
-    this.idCookieName = options.cookie_name || "__eventn_id"
-    this.apiKey = options.key
+    this.compatMode =
+      options.compat_mode === undefined
+        ? defaultCompatMode
+        : !!options.compat_mode;
+    this.cookieDomain = options.cookie_domain || getCookieDomain();
+    this.trackingHost = getHostWithProtocol(
+      options["tracking_host"] || "t.jitsu.com"
+    );
+    this.randomizeUrl = options.randomize_url || false;
+    this.idCookieName = options.cookie_name || "__eventn_id";
+    this.apiKey = options.key;
 
     if (this.cookiePolicy === "strict") {
-      this.propsPersistance = new NoPersistence()
+      this.propsPersistance = new NoPersistence();
     } else {
-      this.propsPersistance = isWindowAvailable() ? new CookiePersistence(this.cookieDomain, this.idCookieName + "_props") : new NoPersistence();
+      this.propsPersistance = isWindowAvailable()
+        ? new CookiePersistence(this.cookieDomain, this.idCookieName + "_props")
+        : new NoPersistence();
     }
 
     if (this.cookiePolicy === "strict") {
-      this.userIdPersistence = new NoPersistence()
+      this.userIdPersistence = new NoPersistence();
     } else {
-      this.userIdPersistence = isWindowAvailable() ? new CookiePersistence(this.cookieDomain, this.idCookieName + "_usr") : new NoPersistence();
+      this.userIdPersistence = isWindowAvailable()
+        ? new CookiePersistence(this.cookieDomain, this.idCookieName + "_usr")
+        : new NoPersistence();
     }
 
     if (this.propsPersistance) {
-      const restored = this.propsPersistance.restore()
+      const restored = this.propsPersistance.restore();
       if (restored) {
-        this.permanentProperties = restored as PermanentProperties
-        this.permanentProperties.globalProps = restored.globalProps ?? {}
-        this.permanentProperties.propsPerEvent = restored.propsPerEvent ?? {}
+        this.permanentProperties = restored as PermanentProperties;
+        this.permanentProperties.globalProps = restored.globalProps ?? {};
+        this.permanentProperties.propsPerEvent = restored.propsPerEvent ?? {};
       }
-      getLogger().debug("Restored persistent properties", this.permanentProperties)
+      getLogger().debug(
+        "Restored persistent properties",
+        this.permanentProperties
+      );
     }
 
     if (options.capture_3rd_party_cookies === false) {
-      this._3pCookies = {}
+      this._3pCookies = {};
     } else {
-      (options.capture_3rd_party_cookies || ["_ga", "_fbp", "_ym_uid", "ajs_user_id", "ajs_anonymous_id"])
-        .forEach(name => this._3pCookies[name] = true)
+      (
+        options.capture_3rd_party_cookies || [
+          "_ga",
+          "_fbp",
+          "_ym_uid",
+          "ajs_user_id",
+          "ajs_anonymous_id",
+        ]
+      ).forEach((name) => (this._3pCookies[name] = true));
     }
 
     if (options.ga_hook) {
-      getLogger().warn("GA event interceptor isn't supported anymore")
+      getLogger().warn("GA event interceptor isn't supported anymore");
     }
     if (options.segment_hook) {
-      interceptSegmentCalls(this)
+      interceptSegmentCalls(this);
     }
-    this.initialized = true
+    this.initialized = true;
   }
 
   interceptAnalytics(analytics: any) {
     let interceptor = (chain: any) => {
       try {
-        let payload = { ...chain.payload }
-        getLogger().debug("Intercepted segment payload", payload.obj)
+        let payload = { ...chain.payload };
+        getLogger().debug("Intercepted segment payload", payload.obj);
 
-        let integration = chain.integrations["Segment.io"]
+        let integration = chain.integrations["Segment.io"];
         if (integration && integration.analytics) {
-          let analyticsOriginal = integration.analytics
-          if (typeof analyticsOriginal.user === "function" && analyticsOriginal.user() && typeof analyticsOriginal.user().id === "function") {
-            payload.obj.userId = analyticsOriginal.user().id()
+          let analyticsOriginal = integration.analytics;
+          if (
+            typeof analyticsOriginal.user === "function" &&
+            analyticsOriginal.user() &&
+            typeof analyticsOriginal.user().id === "function"
+          ) {
+            payload.obj.userId = analyticsOriginal.user().id();
           }
         }
         if (payload?.obj?.timestamp) {
-          payload.obj.sentAt = payload.obj.timestamp
+          payload.obj.sentAt = payload.obj.timestamp;
         }
 
-        let type = chain.payload.type()
+        let type = chain.payload.type();
         if (type === "track") {
-          type = chain.payload.event()
+          type = chain.payload.event();
         }
 
-        this._send3p("ajs", payload, type)
+        this._send3p("ajs", payload, type);
       } catch (e) {
-        getLogger().warn("Failed to send an event", e)
+        getLogger().warn("Failed to send an event", e);
       }
 
-      chain.next(chain.payload)
-    }
+      chain.next(chain.payload);
+    };
     if (typeof analytics.addSourceMiddleware === "function") {
       //analytics is fully initialized
-      getLogger().debug("Analytics.js is initialized, calling addSourceMiddleware")
-      analytics.addSourceMiddleware(interceptor)
+      getLogger().debug(
+        "Analytics.js is initialized, calling addSourceMiddleware"
+      );
+      analytics.addSourceMiddleware(interceptor);
     } else {
-      getLogger().debug("Analytics.js is not initialized, pushing addSourceMiddleware to callstack")
-      analytics.push(["addSourceMiddleware", interceptor])
+      getLogger().debug(
+        "Analytics.js is not initialized, pushing addSourceMiddleware to callstack"
+      );
+      analytics.push(["addSourceMiddleware", interceptor]);
     }
-    analytics["__en_intercepted"] = true
+    analytics["__en_intercepted"] = true;
   }
 
   private restoreId() {
     if (this.userIdPersistence) {
-      let props = this.userIdPersistence.restore()
+      let props = this.userIdPersistence.restore();
       if (props) {
-        this.userProperties = { ...props, ...this.userProperties }
+        this.userProperties = { ...props, ...this.userProperties };
       }
     }
   }
 
   set(properties, opts?) {
-    const eventType = opts?.eventType
-    const persist = opts?.persist === undefined || opts?.persist
+    const eventType = opts?.eventType;
+    const persist = opts?.persist === undefined || opts?.persist;
     if (eventType !== undefined) {
-      let current = this.permanentProperties.propsPerEvent[eventType] ?? {}
-      this.permanentProperties.propsPerEvent[eventType] = { ...current, ...properties }
+      let current = this.permanentProperties.propsPerEvent[eventType] ?? {};
+      this.permanentProperties.propsPerEvent[eventType] = {
+        ...current,
+        ...properties,
+      };
     } else {
-      this.permanentProperties.globalProps = { ...this.permanentProperties.globalProps, ...properties }
+      this.permanentProperties.globalProps = {
+        ...this.permanentProperties.globalProps,
+        ...properties,
+      };
     }
 
     if (this.propsPersistance && persist) {
-      this.propsPersistance.save(this.permanentProperties)
+      this.propsPersistance.save(this.permanentProperties);
     }
   }
 
   unset(propertyName: string, opts) {
-    requireWindow()
-    const eventType = opts?.eventType
-    const persist = opts?.persist === undefined || opts?.persist
+    requireWindow();
+    const eventType = opts?.eventType;
+    const persist = opts?.persist === undefined || opts?.persist;
 
     if (!eventType) {
-      delete this.permanentProperties.globalProps[propertyName]
+      delete this.permanentProperties.globalProps[propertyName];
     } else if (this.permanentProperties.propsPerEvent[eventType]) {
-      delete this.permanentProperties.propsPerEvent[eventType][propertyName]
+      delete this.permanentProperties.propsPerEvent[eventType][propertyName];
     }
     if (this.propsPersistance && persist) {
-      this.propsPersistance.save(this.permanentProperties)
+      this.propsPersistance.save(this.permanentProperties);
     }
   }
 }
 
 function interceptSegmentCalls(t: JitsuClient) {
-  let win = window as any
+  let win = window as any;
   if (!win.analytics) {
-    win.analytics = []
+    win.analytics = [];
   }
-  t.interceptAnalytics(win.analytics)
+  t.interceptAnalytics(win.analytics);
 }
