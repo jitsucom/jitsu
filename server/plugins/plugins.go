@@ -3,9 +3,9 @@ package plugins
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/dop251/goja"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"io"
 	"net/http"
@@ -77,8 +77,18 @@ func DownloadPlugin(packageString string) (*Plugin, error) {
 			return nil, fmt.Errorf("cannot install plugin %s: no version found.", packageString)
 		}
 		npmView := map[string]interface{}{}
-		if err := json.Unmarshal(outputBuf, &npmView); err != nil {
-			return nil, fmt.Errorf("cannot install plugin %s: failed to parse npm view result: %v", packageString, err)
+		if outputBuf[0] == '[' {
+			npmViewArr := make([]map[string]interface{}, 0)
+			if err := json.Unmarshal(outputBuf, &npmViewArr); err != nil {
+				return nil, fmt.Errorf("cannot install plugin %s: failed to parse npm view result: %v", packageString, err)
+			}
+			if len(npmViewArr) > 0 {
+				npmView = npmViewArr[len(npmViewArr)-1]
+			}
+		} else {
+			if err := json.Unmarshal(outputBuf, &npmView); err != nil {
+				return nil, fmt.Errorf("cannot install plugin %s: failed to parse npm view result: %v", packageString, err)
+			}
 		}
 		tbRaw, ok := tarballJsonPath.Get(npmView)
 		if !ok {
@@ -169,23 +179,16 @@ func downloadPlugin(packageString, tarballUrl string) (*Plugin, error) {
 	}
 	code := string(dist)
 	logging.Debug("Main File: %s", code)
-	vm := goja.New()
-	exports := map[string]interface{}{}
-	_ = vm.Set("exports", exports)
-	_, err = vm.RunString(code)
+	descriptorValue, err := templates.V8EvaluateCode(`exports["descriptor"]`, nil, code)
 	if err != nil {
 		return nil, fmt.Errorf("cannot install plugin %s: error running main script: %v", packageString, err)
-	}
-	descriptorValue, ok := exports["descriptor"]
-	if !ok {
-		return nil, fmt.Errorf("cannot install plugin %s: descriptor is not exported: %v", packageString, err)
 	}
 	descriptor, ok := descriptorValue.(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("cannot install plugin %s: failed to convert desriptor object to go map[string]interface{}. Actual type: %T", packageString, descriptorValue)
 	}
 	logging.Infof("Descriptor:  %s", descriptor)
-	plugin := &Plugin{Name: descriptor["type"].(string), Code: code, Descriptor: descriptor}
+	plugin := &Plugin{Name: descriptor["id"].(string), Code: code, Descriptor: descriptor}
 	pluginsCache[packageString] = CachedPlugin{
 		Plugin: plugin,
 		Added:  timestamp.Now(),
