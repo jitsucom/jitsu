@@ -133,8 +133,8 @@ function makeEnvFromWindow(): EventEnvironment {
 
 function makeEnvFromReq(req: Request): EventEnvironment {
   return {
-    // referer: req.referrer,
-    // url: req.url,
+    referer: req.referrer,
+    url: req.url,
     // page_title: "",
     // doc_path: document.location.pathname,
     // doc_host: document.location.hostname,
@@ -156,7 +156,7 @@ const xmlHttpTransport: Transport = (url: string, jsonPayload: string, handler =
     req.onload = () => {
       handler(-1, {})
       if (req.status !== 200) {
-        getLogger().warn(`Failed to send data to ${url} (#${req.status} - ${req.statusText})`, json)
+        getLogger().warn(`Failed to send data to ${url} (#${req.status} - ${req.statusText})`, jsonPayload)
         reject(new Error(`Failed to send JSON. Error code: ${req.status}. See logs for details`))
       }
       resolve()
