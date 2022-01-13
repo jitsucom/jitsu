@@ -244,10 +244,32 @@ export type EventCtx = {
   [propName: string]: any          //context is extendable, any extra properties can be added here
 }
 
+
+/**
+ * Tracking environment. Encapsulates environment such as Node browser or
+ */
+export type TrackingEnvironment = {
+  /**
+   * Describes "client": page title, url, etc. See type definition
+   */
+  describeClient(): Partial<ClientProperties>;
+  /**
+   * Returns source ip. If IP should be resolved by Jitsu server, this method should return undefined
+   */
+  getSourceIp(): string | undefined;
+
+  /**
+   * Gets (and persists) anonymous id. Example implementation: id can be persisted in cookies or in other way.
+   *
+   */
+  getAnonymousId(cookieOpts: { name: string, domain?: string }): string;
+};
+
+
 /**
  * Environment where the event have happened.
  */
-export type EventEnvironment = {
+export type ClientProperties = {
   screen_resolution: string        //screen resolution
   user_agent: string               //user
   referer: string                  //document referer
@@ -261,13 +283,12 @@ export type EventEnvironment = {
   vp_size: string                  //viewport size
   user_language: string            //user language
   doc_encoding: string
-
 }
 
 /**
  * Optional data that can be added to each event. Consist from optional fields,
  */
-export type EventPayload = Partial<EventEnvironment> & {
+export type EventPayload = Partial<ClientProperties> & {
   /**
    * If track() is called in node env, it's possible to provide
    * request/response. In this case Jitsu will try to use it for
@@ -276,7 +297,7 @@ export type EventPayload = Partial<EventEnvironment> & {
    */
   req?: Request
   res?: Response
-  env?: EventEnvironment
+  env?: TrackingEnvironment
 
   conversion?: Conversion          //Conversion data if events indicates a conversion
   src_payload?: any,               //Third-party payload if event is intercepted from third-party source
