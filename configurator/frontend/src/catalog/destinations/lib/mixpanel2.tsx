@@ -34,24 +34,24 @@ const mixpanelDestination = {
     </>
   ),
   syncFromSourcesStatus: "not_supported",
-  id: "mixpanel",
+  id: "mixpanel2",
   type: "other",
-  displayName: "Mixpanel (Deprecated)",
+  displayName: "Mixpanel v0.2.0",
   defaultTransform: "",
   hidden: false,
   parameters: [
+    modeParameter("stream"),
     {
       id: "_super_type",
       constant: "npm",
     },
     {
       id: "_package",
-      constant: "mixpanel-destination",
+      constant: "jitsu-mixpanel-destination@^0.2.0",
     },
     {
       id: "_formData.description",
       displayName: "Description",
-      required: false,
       type: descriptionType,
       defaultValue: (
         <span>
@@ -62,8 +62,8 @@ const mixpanelDestination = {
           <br />
           <br />
           Implementation is based on <b>npm-package:</b>{" "}
-          <a target={"_blank"} href={"https://www.npmjs.com/package/mixpanel-destination"}>
-            mixpanel-destination
+          <a target={"_blank"} href={"https://www.npmjs.com/package/jitsu-mixpanel-destination"}>
+            jitsu-mixpanel-destination
           </a>
           <br />
           Source code on{" "}
@@ -71,6 +71,24 @@ const mixpanelDestination = {
             Jitsu Github
           </a>
         </span>
+      ),
+    },
+    {
+      id: "_formData.meta_package",
+      displayName: "Package",
+      type: descriptionType,
+      defaultValue: <>jitsu-mixpanel-destination (version: ^0.2.0)</>,
+    },
+    {
+      id: "_formData.project_id",
+      displayName: "Project ID",
+      required: true,
+      type: stringType,
+      documentation: (
+        <>
+          ID of Mixpanel project. Can be found in the Project Details section of a project's settings overview page:{" "}
+          <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a>
+        </>
       ),
     },
     {
@@ -82,6 +100,19 @@ const mixpanelDestination = {
         <>
           <a href="https://developer.mixpanel.com/reference/project-token">Project Token</a>. A project's token can be
           found in the Access Keys section of a project's settings overview page:{" "}
+          <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a>
+        </>
+      ),
+    },
+    {
+      id: "_formData.api_secret",
+      displayName: "API Secret",
+      required: true,
+      type: stringType,
+      documentation: (
+        <>
+          <a href="https://developer.mixpanel.com/reference/project-secret">API Secret</a>. A project's API Secret can
+          be found in the Access Keys section of a project's settings overview page:{" "}
           <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a>
         </>
       ),
