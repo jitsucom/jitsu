@@ -64,7 +64,7 @@ Replace `eventN.init({...opts})` with `let eventN = jitsuClient({...opts})` and 
        //identify user
        jitsu.id({
          "email": getEmail(),
-         "internal_id": getId()
+         "id": getId()
        });
        //track page views
        jitsu.track('app_page');
@@ -84,7 +84,8 @@ Replace `eventN.init({...opts})` with `let eventN = jitsuClient({...opts})` and 
 -eventN.id({
 +jitsu.id({
      "email": getEmail(),
-     "internal_id": getId()
+-    "internal_id": getId()
++    "id": getId()
  });
  //track page views
 -eventN.track('app_page');
@@ -197,7 +198,7 @@ you need to make following changes in your configuration
 
 ### Retroactive users recognition changes
 
-Jitsu saves each anonymous event in Redis. On each identification event server gets saved events by event id from Redis and updates it in Data warehouse.
+Jitsu saves each anonymous event JSON in Redis. On each identification event server gets saved events by event id from Redis and updates them in Data warehouse.
 If you have already had configured users recognition then you should change it in eventnative.yaml according to a new format:
 
 ```
@@ -205,7 +206,8 @@ users_recognition:
  enabled: true
  anonymous_id_node: /eventn_ctx/user/anonymous_id||/user/anonymous_id
  identification_nodes:
-  - /eventn_ctx/user/internal_id||/user/internal_id
+  - /eventn_ctx/user/id||/user/id
+  - /eventn_ctx/user/email||/user/email
 ```
 or just:
 ```

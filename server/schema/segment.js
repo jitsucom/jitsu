@@ -20,10 +20,10 @@ function toSegment($) {
 
   return {
     JITSU_TABLE_NAME: tableName($),
-    name: $.src_payload?.name,
+    name: $.src_payload?.name || payloadObj.traits?.name,
     title: context.page_title || page.title,
     url: context.url || page.url,
-    user_id: user.internal_id || payloadObj.userId,
+    user_id: user.id || user.internal_id || payloadObj.userId,
     anonymous_id: user.anonymous_id || payloadObj.anonymousId,
     context_library_version: payloadObj.context?.library?.version,
     context_page_referrer: page.referrer,
@@ -43,7 +43,6 @@ function toSegment($) {
     context_locale: context.user_language || payloadObj.context?.locale,
     context_page_path: page.path,
     context_page_title: page.title,
-    name: payloadObj.traits?.name,
     email: user.email || payloadObj.traits?.email,
     context_campaign_source: utm.campaign,
     app: $.app,
