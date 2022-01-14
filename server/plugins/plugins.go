@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/mitchellh/mapstructure"
 	"io"
 	"net/http"
 	"os"
@@ -14,13 +15,15 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
 var tarballUrlRegex = regexp.MustCompile(`^http.*\.(?:tar|tar\.gz|tgz)$`)
 var tarballJsonPath = jsonutils.NewJSONPath("/dist/tarball")
 var pluginsCache = map[string]CachedPlugin{}
-var cacheTTL = time.Duration(1) * time.Hour
+var pluginsRWMutex = sync.RWMutex{}
+var cacheTTL = time.Duration(5) * time.Minute
 
 type PluginsRepository interface {
 	GetPlugins() map[string]*Plugin
@@ -38,8 +41,16 @@ type CachedPlugin struct {
 
 type Plugin struct {
 	Name       string
+	Version    string
 	Code       string
 	Descriptor map[string]interface{}
+	BuildInfo  BuildInfo
+}
+
+type BuildInfo struct {
+	SdkVersion     string `mapstructure:"sdkVersion"`
+	SdkPackage     string `mapstructure:"sdkPackage"`
+	BuildTimestamp string `mapstructure:"buildTimestamp"`
 }
 
 func NewPluginsRepository(pluginsMap map[string]string, cacheDir string) (PluginsRepository, error) {
@@ -179,16 +190,44 @@ func downloadPlugin(packageString, tarballUrl string) (*Plugin, error) {
 	}
 	code := string(dist)
 	logging.Debug("Main File: %s", code)
-	descriptorValue, err := templates.V8EvaluateCode(`exports["descriptor"]`, nil, code)
+	exportsValue, err := templates.V8EvaluateCode(`exports`, nil, code)
 	if err != nil {
 		return nil, fmt.Errorf("cannot install plugin %s: error running main script: %v", packageString, err)
+	}
+	exports, ok := exportsValue.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("cannot install plugin %s: failed to convert exports object to go map[string]interface{}. Actual type: %T", packageString, exportsValue)
+	}
+	descriptorValue, ok := exports["descriptor"]
+	if !ok {
+		return nil, fmt.Errorf("cannot install plugin %s: Descriptor is not found in exported objects: %s", packageString, exports)
 	}
 	descriptor, ok := descriptorValue.(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("cannot install plugin %s: failed to convert desriptor object to go map[string]interface{}. Actual type: %T", packageString, descriptorValue)
 	}
 	logging.Infof("Descriptor:  %s", descriptor)
-	plugin := &Plugin{Name: descriptor["id"].(string), Code: code, Descriptor: descriptor}
+	name, ok := descriptor["id"].(string)
+	if !ok {
+		name, ok = descriptor["type"].(string)
+		if !ok {
+			return nil, fmt.Errorf("cannot install plugin %s: no id or type provided in descriptor: %s", packageString, descriptorValue)
+		}
+	}
+	buildInfo := BuildInfo{}
+	buildInfoValue, ok := exports["buildInfo"]
+	if ok {
+		err := mapstructure.Decode(buildInfoValue, &buildInfo)
+		if err != nil {
+			return nil, fmt.Errorf("cannot install plugin %s: failed to parse buildInfo object : %s", packageString, buildInfoValue)
+		}
+	}
+	version, ok := pckgMap["version"].(string)
+	logging.Infof("Loaded Plugin: %s Version: %s BuildInfo: %+v", name, version, buildInfo)
+
+	plugin := &Plugin{Name: name, Version: version, Code: code, Descriptor: descriptor, BuildInfo: buildInfo}
+	pluginsRWMutex.Lock()
+	defer pluginsRWMutex.Unlock()
 	pluginsCache[packageString] = CachedPlugin{
 		Plugin: plugin,
 		Added:  timestamp.Now(),
@@ -197,13 +236,17 @@ func downloadPlugin(packageString, tarballUrl string) (*Plugin, error) {
 }
 
 func GetCached(packageString string) *Plugin {
+	pluginsRWMutex.RLock()
 	cached, ok := pluginsCache[packageString]
+	pluginsRWMutex.RUnlock()
 	if !ok {
 		return nil
 	}
 	if timestamp.Now().Sub(cached.Added) > cacheTTL {
 		logging.Infof("Cache expired. Plugin: %s time added: %s", packageString, cached.Added)
+		pluginsRWMutex.Lock()
 		delete(pluginsCache, packageString)
+		pluginsRWMutex.Unlock()
 		return nil
 	}
 	logging.Infof("Cache hit. Plugin: %s time added: %s", packageString, cached.Added)

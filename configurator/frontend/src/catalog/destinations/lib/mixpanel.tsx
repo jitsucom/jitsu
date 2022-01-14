@@ -8,6 +8,11 @@ import {
   selectionType,
   stringType,
 } from "../../sources/types"
+import { generatePath, Link } from "react-router-dom"
+import { destinationPageRoutes } from "../../../ui/pages/DestinationsPage/DestinationsPage.routes"
+import styles from "../../../ui/pages/DestinationsPage/partials/AddDestinationDialog/AddDestinationDialog.module.less"
+import { Badge } from "antd"
+import React from "react"
 
 const icon = (
   <svg width="100%" height="100%" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -36,9 +41,11 @@ const mixpanelDestination = {
   syncFromSourcesStatus: "not_supported",
   id: "mixpanel",
   type: "other",
-  displayName: "Mixpanel (Deprecated)",
+  displayName: "Mixpanel",
   defaultTransform: "",
   hidden: false,
+  deprecated: true,
+  deprecatedReplacement: "mixpanel2",
   parameters: [
     {
       id: "_super_type",
@@ -47,6 +54,22 @@ const mixpanelDestination = {
     {
       id: "_package",
       constant: "mixpanel-destination",
+    },
+    {
+      id: "_formData.deprecation",
+      displayName: "Deprecation Notice",
+      type: descriptionType,
+      defaultValue: (
+        <span className={"text-warning"}>
+          <b>
+            This version is deprecated because newer version is available. Please replace it with{" "}
+            <Link to={generatePath(destinationPageRoutes.newExact, { type: "mixpanel2" })} key={"mixpanel2"}>
+              Mixpanel v2
+            </Link>{" "}
+            destination.
+          </b>
+        </span>
+      ),
     },
     {
       id: "_formData.description",
@@ -114,7 +137,7 @@ const mixpanelDestination = {
   ui: {
     icon,
     connectCmd: null,
-    title: cfg => cfg["_formData"]["_projectId"],
+    title: cfg => ".",
   },
 } as const
 

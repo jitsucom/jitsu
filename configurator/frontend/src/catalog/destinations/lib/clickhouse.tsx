@@ -28,6 +28,7 @@ const destination = {
   displayName: "ClickHouse",
   defaultTransform: "",
   hidden: false,
+  deprecated: false,
   ui: {
     icon,
     title: cfg => (cfg?._formData?.ch_dsns_list?.length ? cfg._formData.ch_dsns_list[0] : "Unknown"),

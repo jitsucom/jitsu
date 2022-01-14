@@ -11,6 +11,7 @@ import { handleError } from "lib/components/components"
 type CommonProps = {
   title: ReactNode
   list?: ReactElement
+  handleAddClick?: () => void
   unit: string
 }
 
@@ -30,6 +31,7 @@ const EmptyListViewComponent: React.FC<Props> = ({
   title,
   list,
   unit,
+  handleAddClick = () => {},
   centered = true,
   dropdownOverlayPlacement = "bottomCenter",
   hideFreeDatabaseSeparateButton = false,
@@ -41,9 +43,19 @@ const EmptyListViewComponent: React.FC<Props> = ({
       <h3 className="text-2xl">{title}</h3>
       <div className="flex flex-row justify-center items center">
         <div className={`${centered ? "h-32" : ""} w-80`}>
-          <Dropdown placement={dropdownOverlayPlacement} trigger={["click"]} overlay={list}>
-            <Button type="primary" className="w-80" size="large" icon={<PlusOutlined />}>{`Add ${unit}`}</Button>
-          </Dropdown>
+          {list ? (
+            <Dropdown placement={dropdownOverlayPlacement} trigger={["click"]} overlay={list}>
+              <Button type="primary" className="w-80" size="large" icon={<PlusOutlined />}>{`Add ${unit}`}</Button>
+            </Dropdown>
+          ) : (
+            <Button
+              type="primary"
+              onClick={handleAddClick}
+              className="w-80"
+              size="large"
+              icon={<PlusOutlined />}
+            >{`Add ${unit}`}</Button>
+          )}
         </div>
         {!hideFreeDatabaseSeparateButton && handleCreateFreeDatabase && (
           <>
