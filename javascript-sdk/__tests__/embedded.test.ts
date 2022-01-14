@@ -1,6 +1,9 @@
 import { runUrl, TestServer } from './common/common';
 import { chromium } from 'playwright';
 import { Browser } from 'playwright/types/types';
+/**
+ * This test verifies that Jitsu SDK with HTML embedding.
+ */
 
 const server = new TestServer();
 let browser: Browser;

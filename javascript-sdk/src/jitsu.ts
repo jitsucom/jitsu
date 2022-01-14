@@ -6,11 +6,11 @@ import {
   getCookieDomain,
   getCookies,
   getDataFromParams,
-  getHostWithProtocol,
+  getHostWithProtocol, parseCookieString,
   parseQuery,
   reformatDate,
   setCookie,
-} from "./helpers";
+} from "./helpers"
 import {
   ClientProperties,
   Event,
@@ -184,7 +184,8 @@ function expressEnv(
       if (opts?.disableCookies) {
         return "";
       }
-      const cookie = req.cookies && req.cookies[name];
+
+      const cookie = parseCookieString(req.header('cookie'))[name];
       if (!cookie) {
         const cookieOpts: CookieOptions = {
           maxAge: 31_622_400 * 10, //10 years
@@ -193,10 +194,11 @@ function expressEnv(
         if (domain) {
           cookieOpts.domain = domain;
         }
-        res.cookie(name, generateId(), cookieOpts);
+        let newId = generateId()
+        res.cookie(name, newId, cookieOpts);
+        return newId;
       } else {
-        // yes, cookie was already present
-        console.log("cookie exists", cookie);
+        return cookie;
       }
     },
     getSourceIp() {
@@ -254,7 +256,7 @@ const xmlHttpTransport: Transport = (
   jsonPayload: string,
   handler = (code, body) => {}
 ) => {
-  let req = new XMLHttpRequest();
+  let req = new window.XMLHttpRequest();
   return new Promise<void>((resolve, reject) => {
     req.onerror = (e) => {
       getLogger().error("Failed to send", jsonPayload, e);
@@ -371,7 +373,7 @@ class JitsuClientImpl implements JitsuClient {
     payload: EventPayload
   ): Event | EventCompat {
     let { env, ...payloadData } = payload;
-    if (!env && isWindowAvailable()) {
+    if (!env) {
       env = isWindowAvailable() ? envs.browser : envs.empty;
     }
     this.restoreId();
