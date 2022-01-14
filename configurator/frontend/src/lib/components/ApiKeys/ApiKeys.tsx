@@ -22,6 +22,7 @@ import { default as JitsuClientLibraryCard, jitsuClientLibraries } from "../Jits
 import { Code } from "../Code/Code"
 import { actionNotification } from "../../../ui/components/ActionNotification/ActionNotification"
 import { ApiKeyCard } from "./ApiKeyCard"
+import { Link } from "react-router-dom"
 
 /**
  * What's displayed as loading?
@@ -40,23 +41,6 @@ const ApiKeysComponent: React.FC = () => {
   const [loading, setLoading] = useState<LoadingState>(null)
   const [documentationDrawerKey, setDocumentationDrawerKey] = useState<APIKey>(null)
 
-  let generateNewKey = async () => {
-    setLoading("NEW")
-    try {
-      await keysBackend.add({
-        uid: apiKeysStore.generateApiToken("", 6),
-        serverAuth: apiKeysStore.generateApiToken("s2s"),
-        jsAuth: apiKeysStore.generateApiToken("js"),
-        origins: [],
-      })
-      await flowResult(apiKeysStore.pullApiKeys())
-      actionNotification.info("New API key has been saved!")
-    } catch (error) {
-      actionNotification.error(`Failed to add new token: ${error.message || error}`)
-    } finally {
-      setLoading(null)
-    }
-  }
   const header = (
     <div className="flex flex-row mb-5 items-start justify between">
       <div className="flex-grow flex text-secondaryText">
@@ -82,15 +66,15 @@ const ApiKeysComponent: React.FC = () => {
         !
       </div>
       <div className="flex-shrink">
+        <Link to={'/api-keys/new'}>
         <Button
           type="primary"
           size="large"
           icon={<PlusOutlined />}
           loading={"NEW" === loading}
-          onClick={generateNewKey}
-        >
-          Generate New Key
-        </Button>
+        >Generate New Key
+        </Button></Link>
+
       </div>
     </div>
   )
