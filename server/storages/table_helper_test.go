@@ -78,14 +78,14 @@ func TestProcessTransformWithTypesOverride(t *testing.T) {
 		{
 			"type mapping transform: no mapping",
 			map[string]interface{}{"event_type": "site_page", "url": "https://jitsu.com", "field1": "somedata", "number": 22, "float": 11.34, "dter": stringTime, "nested": map[string]interface{}{"number": 0.33}},
-			[]events.Event{{"event_type": "site_page", "url": "https://jitsu.com", "field1": "somedata", "number": int64(22), "float": 11.34, "dter": expectedTime, "nested_number": 0.33}},
-			[]adapters.Table{{Schema: "test", Name: "events", Columns: adapters.Columns{"dter": typing.SQLColumn{Type: "timestamp"}, "event_type": typing.SQLColumn{Type: "text"}, "field1": typing.SQLColumn{Type: "text"}, "float": typing.SQLColumn{Type: "double precision"}, "nested_number": typing.SQLColumn{Type: "double precision"}, "number": typing.SQLColumn{Type: "bigint"}, "url": typing.SQLColumn{Type: "text"}}, PKFields: map[string]bool{}}},
+			[]events.Event{{"event_type": "site_page", "url": "https://jitsu.com", "field1": "somedata", "number": 22.0, "float": 11.34, "dter": expectedTime, "nested_number": 0.33}},
+			[]adapters.Table{{Schema: "test", Name: "events", Columns: adapters.Columns{"dter": typing.SQLColumn{Type: "timestamp"}, "event_type": typing.SQLColumn{Type: "text"}, "field1": typing.SQLColumn{Type: "text"}, "float": typing.SQLColumn{Type: "double precision"}, "nested_number": typing.SQLColumn{Type: "double precision"}, "number": typing.SQLColumn{Type: "double precision"}, "url": typing.SQLColumn{Type: "text"}}, PKFields: map[string]bool{}}},
 			"",
 		}, {
 			"type mapping transform: simple mapping",
 			map[string]interface{}{"event_type": "simple", "url": "https://jitsu.com", "field1": "somedata", "number": 22, "float": 11.34, "dter": stringTime, "nested": map[string]interface{}{"number": 33}},
-			[]events.Event{{"event_type": "simple", "url": "https://jitsu.com", "field1": "somedata", "number": int64(22), "float": 11.34, "dter": expectedTime, "nested_number": int64(33)}},
-			[]adapters.Table{{Schema: "test", Name: "events", Columns: adapters.Columns{"dter": typing.SQLColumn{Type: "timestamp", ColumnType: "timestamp with timezone", Override: true}, "event_type": typing.SQLColumn{Type: "text"}, "field1": typing.SQLColumn{Type: "text"}, "float": typing.SQLColumn{Type: "numeric(38,18)", Override: true}, "nested_number": typing.SQLColumn{Type: "int", Override: true}, "number": typing.SQLColumn{Type: "bigint"}, "url": typing.SQLColumn{Type: "text"}}, PKFields: map[string]bool{}}},
+			[]events.Event{{"event_type": "simple", "url": "https://jitsu.com", "field1": "somedata", "number": 22.0, "float": 11.34, "dter": expectedTime, "nested_number": 33.0}},
+			[]adapters.Table{{Schema: "test", Name: "events", Columns: adapters.Columns{"dter": typing.SQLColumn{Type: "timestamp", ColumnType: "timestamp with timezone", Override: true}, "event_type": typing.SQLColumn{Type: "text"}, "field1": typing.SQLColumn{Type: "text"}, "float": typing.SQLColumn{Type: "numeric(38,18)", Override: true}, "nested_number": typing.SQLColumn{Type: "int", Override: true}, "number": typing.SQLColumn{Type: "double precision"}, "url": typing.SQLColumn{Type: "text"}}, PKFields: map[string]bool{}}},
 			"",
 		},
 	}
