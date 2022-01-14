@@ -1,29 +1,38 @@
-import { requireWindow, isWindowAvailable } from "./window"
-
+import { isWindowAvailable, requireWindow } from "./window";
 
 export const getCookieDomain = () => {
   if (isWindowAvailable()) {
-    return window.location.hostname.replace('www.', '');
+    return window.location.hostname.replace("www.", "");
   }
   return undefined;
 };
 
 let cookieParsingCache: Record<string, string>;
 
+export function parseCookieString(cookieStr?: string) {
+  if (!cookieStr) {
+    return {}
+  }
+  let res: Record<string, string> = {};
+  let cookies = cookieStr.split(";");
+  for (let i = 0; i < cookies.length; i++) {
+    let cookie = cookies[i];
+    let idx = cookie.indexOf("=");
+    if (idx > 0) {
+      res[cookie.substr(i > 0 ? 1 : 0, i > 0 ? idx - 1 : idx)] = cookie.substr(
+        idx + 1
+      );
+    }
+  }
+  return res;
+}
+
 export const getCookies = (useCache: boolean = false): Record<string, string> => {
   if (useCache && cookieParsingCache) {
     return cookieParsingCache;
   }
-  let res: Record<string, string> = {};
 
-  let cookies = document.cookie.split(';');
-  for (let i = 0; i < cookies.length; i++) {
-    let cookie = cookies[i];
-    let idx = cookie.indexOf('=');
-    if (idx > 0) {
-      res[cookie.substr(i > 0 ? 1 : 0, i > 0 ? idx-1 : idx)] = cookie.substr(idx + 1);
-    }
-  }
+  let res = parseCookieString(document.cookie);
   cookieParsingCache = res;
   return res;
 
@@ -50,6 +59,9 @@ export const generateId = () => Math.random().toString(36).substring(2, 12);
 export const generateRandom = () => Math.random().toString(36).substring(2, 7);
 
 export const parseQuery = (qs: string) => {
+  if (!qs) {
+    return {}
+  }
   let queryString = (qs.length > 0 && qs.charAt(0) === '?') ? qs.substring(1) : qs
   let query: Record<string, string> = {};
   let pairs = (queryString[0] === '?' ? queryString.substr(1) : queryString).split('&');
