@@ -4,8 +4,15 @@ import fs from "fs"
 import express from 'express'
 import bodyParser from 'body-parser';
 import * as core from "express-serve-static-core"
-import * as nodeFetch from "cross-fetch"
-const fetch = require('fetch-cookie')(nodeFetch)
+import * as nodeFetch from "cross-fetch";
+const fetchCookieDecorator = require('fetch-cookie');
+
+
+/**
+ * This test verifies that Jitsu SDK works well with Node.js and Express environment.
+ *
+ * It spins a test server, and sends event to fake jitsu host through this server.
+ */
 
 let testServer = null;
 
@@ -29,6 +36,7 @@ async function createTestServer()  {
     });
     console.log('Processed. Sending data to Jitsu')
     try {
+      await jitsu.id({email: 'john.doe@gmail.com', id: '1212'}, true)
       await jitsu.track('page_view', {test: 1, env: envs.express(req, res)});
       res.status(200).send({status: 'ok'});
     } catch (e) {
@@ -63,10 +71,25 @@ afterAll(() => {
 
 test("Test Jitsu Client npm only", async () => {
   fetchLog.length = 0
-  let testResult = await fetch(`http://localhost:${testServer.address().port}/test/page?utm_source=1&gclid=2`);
-  testResult.headers.get('set-cookie')
+  const _fetch = fetchCookieDecorator(nodeFetch.default)
+  let testResult = await _fetch(`http://localhost:${testServer.address().port}/test/page?utm_source=1&gclid=2`);
   expect(testResult.status).toBe(200)
   expect(fetchLog.length).toBe(1)
   let body = JSON.parse(fetchLog[0].params[0].body)
   console.log("Jitsu Track Payload", body);
+  const userId = body?.user?.anonymous_id
+  expect(userId).toBeDefined()
+  expect(body?.utm?.source).toBe("1")
+  expect(body?.click_id?.gclid).toBe("2")
+  fetchLog.length = 0;
+
+  let testResult2 = await _fetch(`http://localhost:${testServer.address().port}/test/page?utm_source=3&gclid=2`);
+  expect(testResult2.status).toBe(200)
+  expect(fetchLog.length).toBe(1)
+  body = JSON.parse(fetchLog[0].params[0].body)
+  expect(body?.test).toBe(1)
+  expect(body?.user?.anonymous_id).toBe(userId)
+  expect(body?.user?.email).toBe('john.doe@gmail.com')
+  expect(body?.user?.id).toBe('1212')
+
 });
