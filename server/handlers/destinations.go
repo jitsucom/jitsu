@@ -170,7 +170,7 @@ func testDestinationConnection(config *config.DestinationConfig) error {
 		jsVariables["destinationId"] = identifier
 		jsVariables["destinationType"] = storages.NpmType
 		jsVariables["config"] = config.Config
-		res, err := templates.V8EvaluateCode(`exports.validator(globalThis.config)`, jsVariables, plugin.Code)
+		res, err := templates.V8EvaluateCode(`exports.validator ? exports.validator(globalThis.config) : true`, jsVariables, plugin.Code)
 		if err != nil {
 			return err
 		}

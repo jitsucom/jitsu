@@ -37,7 +37,19 @@ func NewNpmDestination(config *Config) (Storage, error) {
 	jsVariables["destinationId"] = config.destinationID
 	jsVariables["destinationType"] = NpmType
 	jsVariables["config"] = config.destination.Config
-	jsTemplate, err := templates.NewV8TemplateExecutor(`return `+transformFuncName+`($)`, jsVariables, plugin.Code, `function `+transformFuncName+`($) { return exports.destination($, globalThis) }`)
+
+	var jsTemplate *templates.V8TemplateExecutor
+
+	if plugin.BuildInfo.SdkVersion != "" {
+		jsTemplate, err = templates.NewV8TemplateExecutor(`return `+transformFuncName+`($)`, jsVariables, plugin.Code, `function `+transformFuncName+`($) { return exports.destination($, globalThis) }`)
+	} else {
+		//compatibility with old SDK
+		for k, v := range config.destination.Config {
+			jsVariables[k] = v
+		}
+		jsTemplate, err = templates.NewV8TemplateExecutor(`return `+transformFuncName+`($)`, jsVariables, plugin.Code, `function `+transformFuncName+`($) { return exports.adapter($, globalThis) }`)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to init builtin javascript code: %v", err)
 	}

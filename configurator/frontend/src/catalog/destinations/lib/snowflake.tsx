@@ -59,6 +59,7 @@ const destination = {
   displayName: "Snowflake",
   defaultTransform: "",
   hidden: false,
+  deprecated: false,
   ui: {
     icon,
     title: cfg => cfg._formData?.snowflakeDB,

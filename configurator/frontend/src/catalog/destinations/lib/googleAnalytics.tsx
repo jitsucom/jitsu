@@ -31,6 +31,7 @@ const googleAnalytics = {
 // https://github.com/jitsucom/jitsu/blob/master/server/templates/js/transform/google_analytics.js
 return toGoogleAnalytics($)`,
   hidden: false,
+  deprecated: false,
   parameters: [
     modeParameter("stream"),
     tableName(filteringExpressionDocumentation),

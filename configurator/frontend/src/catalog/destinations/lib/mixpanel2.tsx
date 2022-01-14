@@ -36,11 +36,11 @@ const mixpanelDestination = {
   syncFromSourcesStatus: "not_supported",
   id: "mixpanel2",
   type: "other",
-  displayName: "Mixpanel v0.2.0",
+  displayName: "Mixpanel v2",
   defaultTransform: "",
   hidden: false,
+  deprecated: false,
   parameters: [
-    modeParameter("stream"),
     {
       id: "_super_type",
       constant: "npm",
@@ -59,17 +59,6 @@ const mixpanelDestination = {
           original event data.
           <br />
           Mixpanel destination may also send User Profiles data to Mixpanel accounts that have User Profiles enabled.
-          <br />
-          <br />
-          Implementation is based on <b>npm-package:</b>{" "}
-          <a target={"_blank"} href={"https://www.npmjs.com/package/jitsu-mixpanel-destination"}>
-            jitsu-mixpanel-destination
-          </a>
-          <br />
-          Source code on{" "}
-          <a target={"_blank"} href={"https://github.com/jitsucom/jitsu-mixpanel"}>
-            Jitsu Github
-          </a>
         </span>
       ),
     },
@@ -77,7 +66,20 @@ const mixpanelDestination = {
       id: "_formData.meta_package",
       displayName: "Package",
       type: descriptionType,
-      defaultValue: <>jitsu-mixpanel-destination (version: ^0.2.0)</>,
+      defaultValue: (
+        <>
+          Implementation is based on <b>npm-package:</b>{" "}
+          <a target={"_blank"} href={"https://www.npmjs.com/package/jitsu-mixpanel-destination"}>
+            jitsu-mixpanel-destination
+          </a>{" "}
+          (version: ^0.2.0)
+          <br />
+          Source code on{" "}
+          <a target={"_blank"} href={"https://github.com/jitsucom/jitsu-mixpanel"}>
+            Jitsu Github
+          </a>
+        </>
+      ),
     },
     {
       id: "_formData.project_id",
@@ -145,7 +147,7 @@ const mixpanelDestination = {
   ui: {
     icon,
     connectCmd: null,
-    title: cfg => cfg["_formData"]["_projectId"],
+    title: cfg => "project id: " + cfg["_formData"]["project_id"],
   },
 } as const
 

@@ -46,6 +46,7 @@ const destination = {
   displayName: "Amazon S3",
   defaultTransform: "",
   hidden: false,
+  deprecated: false,
   ui: {
     icon,
     title: (cfg: object) => {
