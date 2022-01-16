@@ -17,6 +17,10 @@ import { confirmDelete } from "../../commons/deletionConfirmation"
 import { flowResult } from "mobx"
 import { useServices } from "../../../hooks/useServices"
 import { sourcePageUtils } from "../../../ui/pages/SourcesPage/SourcePage.utils"
+import { NavLink } from "react-router-dom"
+import { destinationsStore } from "../../../stores/destinations"
+import { DestinationPicker } from "./DestinationPicker"
+import union from "lodash/union"
 
 export const apiKeysRoutes = {
   newExact: "/api-keys/new",
@@ -34,7 +38,7 @@ function newKey(): APIKey {
     uid: uid,
     serverAuth: apiKeysStore.generateApiToken("s2s"),
     jsAuth: apiKeysStore.generateApiToken("js"),
-    comment: uid,
+    comment: "New API Key",
     origins: [],
   }
 }
@@ -66,7 +70,7 @@ const SecretKey: React.FC<{
   )
 }
 
-type EditorObject = Omit<APIKey, "origins"> & { originsText?: string }
+type EditorObject = Omit<APIKey, "origins"> & { originsText?: string; connectedDestinations?: string }
 
 function getEditorObject({ origins, ...rest }: APIKey) {
   return {
@@ -76,7 +80,7 @@ function getEditorObject({ origins, ...rest }: APIKey) {
   }
 }
 
-function getKey({ originsText, ...rest }: EditorObject, initialValue: APIKey) {
+function getKey({ originsText, connectedDestinations, ...rest }: EditorObject, initialValue: APIKey) {
   return {
     ...initialValue,
     ...rest,
@@ -100,19 +104,7 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
   const [deleting, setDeleting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form] = useForm<any>()
-  // props.setBreadcrumbs(
-  //   withHome({
-  //     elements: [
-  //       {
-  //         link: apiKeysRoutes.listExact,
-  //         title: "Api Keys",
-  //       },
-  //       {
-  //         title: id ? "Edit Key" : "Create Key",
-  //       },
-  //     ],
-  //   })
-  // )
+
   form.setFieldsValue(editorObject)
   return (
     <div className="flex justify-center w-full">
@@ -177,6 +169,33 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                   <TextArea required={false} size="large" rows={10} name="originsText" />
                 </Form.Item>
               </FormField>
+              <FormField
+                label="Connected Destinations"
+                tooltip={
+                  <>
+                    <NavLink to="/destinations">Destinations</NavLink> that are connected to this particular key
+                  </>
+                }
+                key="connectedDestinations"
+              >
+                <Form.Item name="connectedDestinations">
+                  <DestinationPicker
+                    allDestinations={destinationsStore.allDestinations}
+                    isSelected={dst => dst._onlyKeys.includes(id)}
+                  />
+                </Form.Item>
+                {/*<span*/}
+                {/*  className={`${*/}
+                {/*    form.getFieldsValue().connectedDestinations &&*/}
+                {/*    form.getFieldsValue().connectedDestinations.length > 0*/}
+                {/*      ? "invisible"*/}
+                {/*      : "visible"*/}
+                {/*  } text-error`}*/}
+                {/*>*/}
+                {/*  <strong>No destinations have been selected</strong>: Events sent with this API key will be ignored.*/}
+                {/*  Please, selected at least one destination*/}
+                {/*</span>*/}
+              </FormField>
             </span>
             <FormActions>
               {id && (
@@ -229,6 +248,22 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                 onClick={async () => {
                   try {
                     setSaving(true)
+                    const connectedDestinations: string[] = form.getFieldsValue().connectedDestinations || []
+                    let destinationsToUpdate: DestinationData[] = destinationsStore.allDestinations
+                      .map(dst => {
+                        if (connectedDestinations.includes(dst._uid)) {
+                          dst._onlyKeys = union(dst._onlyKeys || [], [id])
+                          //destination is connected
+                          return dst
+                        } else if (dst._onlyKeys && dst._onlyKeys.includes(id)) {
+                          //destination is not connected, but was
+                          dst._onlyKeys = dst._onlyKeys.filter(el => el !== id)
+                          return dst
+                        }
+                        return undefined
+                      })
+                      .filter(dst => !!dst)
+
                     let key = getKey(form.getFieldsValue(), initialApiKey)
                     if (id) {
                       await keysBackend.replace(id, key)
@@ -236,6 +271,7 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                       await keysBackend.add(key)
                     }
                     await flowResult(apiKeysStore.pullApiKeys())
+                    await flowResult(destinationsStore.editDestinations(destinationsToUpdate))
                     history.push(apiKeysRoutes.listExact)
                   } finally {
                     setSaving(false)
