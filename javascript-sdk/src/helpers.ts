@@ -1,4 +1,5 @@
 import { isWindowAvailable, requireWindow } from "./window";
+import { CookieOpts, serializeCookie } from "./cookie"
 
 export const getCookieDomain = () => {
   if (isWindowAvailable()) {
@@ -45,9 +46,8 @@ export const getCookie = (name: string) => {
   return decodeURIComponent(requireWindow().document.cookie.replace(new RegExp("(?:(?:^|.*;)\\s*" + encodeURIComponent(name).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=\\s*([^;]*).*$)|^.*$"), "$1")) || null;
 };
 
-export const setCookie = (name: string, value: string, expire: number, domain: string, secure: boolean) => {
-  const expireString = expire === Infinity ? " expires=Fri, 31 Dec 9999 23:59:59 GMT" : "; max-age=" + expire;
-  requireWindow().document.cookie = encodeURIComponent(name) + "=" + value + "; path=/;" +  expireString + (domain ? "; domain=" + domain : "") + (secure ? "; secure" : "");
+export const setCookie = (name: string, value: string, opts: CookieOpts = {}) => {
+  requireWindow().document.cookie = serializeCookie(name, value, opts);
 };
 
 export const deleteCookie = (name: string) => {

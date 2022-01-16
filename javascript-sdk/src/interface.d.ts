@@ -1,3 +1,4 @@
+import { httpApi } from "./jitsu"
 
 export declare function jitsuClient(opts: JitsuOptions): JitsuClient
 
@@ -229,6 +230,7 @@ export type Conversion = {
 
 }
 
+
 /**
  * Event context. Data that is present in any event type. EventContext is assembled automatically
  */
@@ -264,6 +266,45 @@ export type TrackingEnvironment = {
    */
   getAnonymousId(cookieOpts: { name: string, domain?: string }): string;
 };
+/**
+ * List of environments where Jitsu tracker can work. See TrackingEnvironment above
+ * to learn what is the environment
+ */
+export type Envs = {
+  // /**
+  //  * Environment where requests and responses are based on fetch API Request & Response object.
+  //  * Example: NextJS Middleware (https://nextjs.org/docs/middleware) is based on this API
+  //  */
+  // fetchApi(req, res);
+  // /**
+  //  * Alias of fetchApi
+  //  */
+  // nextjsMiddleware(req, res);
+
+  /**
+   * Environment where requests and responses are based on core Node.js http APIs (IncomingMessage and Server Response)
+   * Example: NextJS APIs (except Middleware) is based on this one, or Express
+   */
+  httpApi(req, res);
+  /**
+   * Alias of httpApi
+   */
+  nextjsApi(req, res);
+  /**
+   * Alias of httpApi. For requests handled by Express
+   */
+  express(req, res);
+  /**
+   * Browser environment (based on window, document and etc globals)
+   */
+  browser();
+  /**
+   * Empty environment
+   */
+  empty();
+}
+
+declare const envs: Envs;
 
 
 /**

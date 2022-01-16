@@ -6,13 +6,15 @@ import {
   getCookieDomain,
   getCookies,
   getDataFromParams,
-  getHostWithProtocol, parseCookieString,
+  getHostWithProtocol,
+  parseCookieString,
   parseQuery,
   reformatDate,
   setCookie,
-} from "./helpers"
+} from "./helpers";
 import {
   ClientProperties,
+  Envs,
   Event,
   EventCompat,
   EventCtx,
@@ -33,13 +35,12 @@ const VERSION_INFO = {
   version: "__buildVersion__",
 };
 
-import {
-  CookieOptions,
-  Request as ExpressRequest,
-  Response as ExpressResponse,
-} from "express-serve-static-core";
+import { CookieOpts, serializeCookie } from "./cookie";
+import { IncomingMessage, ServerResponse } from "http";
+import * as url from "url";
 
 const JITSU_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`;
+let MAX_AGE_TEN_YEARS = 31_622_400 * 10;
 
 const beaconTransport: Transport = (
   url: string,
@@ -48,6 +49,21 @@ const beaconTransport: Transport = (
   getLogger().debug("Sending beacon", json);
   const blob = new Blob([json], { type: "text/plain" });
   navigator.sendBeacon(url, blob);
+  return Promise.resolve();
+};
+
+function tryFormat(string: string): string {
+  if (typeof string === "string") {
+    try {
+      return JSON.stringify(JSON.parse(string), null, 2);
+    } catch (e) {
+      return string;
+    }
+  }
+}
+
+const echoTransport: Transport = (url: string, json: string) => {
+  console.log(`Jitsu client tried to send payload to ${url}`, tryFormat(json));
   return Promise.resolve();
 };
 
@@ -69,13 +85,11 @@ class CookiePersistence implements Persistence {
   }
 
   public save(props: Record<string, any>) {
-    setCookie(
-      this.cookieName,
-      encodeURIComponent(JSON.stringify(props)),
-      Infinity,
-      this.cookieDomain,
-      document.location.protocol !== "http:"
-    );
+    setCookie(this.cookieName, JSON.stringify(props), {
+      domain: this.cookieDomain,
+      secure: document.location.protocol !== "http:",
+      maxAge: MAX_AGE_TEN_YEARS,
+    });
   }
 
   restore(): Record<string, any> | undefined {
@@ -163,20 +177,25 @@ const browserEnv: TrackingEnvironment = {
     }
     let newId = generateId();
     getLogger().debug("New user id", newId);
-    setCookie(
-      name,
-      newId,
-      Infinity,
+    setCookie(name, newId, {
       domain,
-      document.location.protocol !== "http:"
-    );
+      secure: document.location.protocol !== "http:",
+      maxAge: MAX_AGE_TEN_YEARS,
+    });
     return newId;
   },
 };
 
-function expressEnv(
-  req: ExpressRequest,
-  res: ExpressResponse,
+function ensurePrefix(prefix: string, str?: string) {
+  if (!str) {
+    return str;
+  }
+  return str?.length > 0 && str.indexOf(prefix) !== 0 ? prefix + str : str;
+}
+
+export function fetchApi(
+  req: Request,
+  res: Response,
   opts: { disableCookies?: boolean } = {}
 ): TrackingEnvironment {
   return {
@@ -185,17 +204,17 @@ function expressEnv(
         return "";
       }
 
-      const cookie = parseCookieString(req.header('cookie'))[name];
+      const cookie = parseCookieString(req.headers["cookie"])[name];
       if (!cookie) {
-        const cookieOpts: CookieOptions = {
-          maxAge: 31_622_400 * 10, //10 years
+        const cookieOpts: CookieOpts = {
+          maxAge: 31_622_400 * 10,
           httpOnly: false,
         };
         if (domain) {
           cookieOpts.domain = domain;
         }
-        let newId = generateId()
-        res.cookie(name, newId, cookieOpts);
+        let newId = generateId();
+        res.headers.set("Set-Cookie", serializeCookie(name, newId, cookieOpts));
         return newId;
       } else {
         return cookie;
@@ -203,27 +222,120 @@ function expressEnv(
     },
     getSourceIp() {
       let ip =
-        req.header("x-forwarded-for") || req.header("x-real-ip") || req.ip;
+        req.headers["x-forwarded-for"] || req.headers["x-real-ip"] || req["ip"];
       return ip && ip.split(",")[0].trim();
     },
     describeClient(): ClientProperties {
-      const requestHost = req.header("x-forwarded-host") || req.header('host') || req.hostname;
-      const proto = req.header("x-forwarded-proto") || req.protocol;
-      const [path, query] = req.originalUrl ? req.originalUrl.split("?") : [];
-      let queryWithPrefix = query && "?" + query;
+      const requestHost = req.headers.get("host") || req.headers.get("host");
+      const proto =
+        req.headers["x-forwarded-proto"] ||
+        req["nextUrl"]["protocol"] ||
+        "http";
+      let reqUrl = req.url || "/";
+      let queryPos = reqUrl.indexOf("?");
+      let path, query;
+      if (queryPos >= 0) {
+        path = reqUrl.substring(0, queryPos);
+        query = reqUrl.substring(queryPos + 1);
+      } else {
+        path = reqUrl;
+        query = undefined;
+      }
+      query = ensurePrefix(query, "?");
+      path = ensurePrefix(path, "/");
       return {
         doc_encoding: "",
         doc_host: requestHost,
-        doc_path: req.originalUrl,
-        doc_search: queryWithPrefix,
+        doc_path: reqUrl,
+        doc_search: query,
         page_title: "",
-        referer: req.header("referrer"),
+        referer: req.headers["referrer"],
         screen_resolution: "",
-        url: `${proto}://${requestHost}${path}${queryWithPrefix}`,
-        user_agent: req.header("user-agent"),
+        url: `${proto}://${requestHost}${path || ""}${query || ""}`,
+        user_agent: req.headers["user-agent"],
         user_language:
-          req.header("accept-language") &&
-          req.header("accept-language").split(",")[0],
+          req.headers["accept-language"] &&
+          req.headers["accept-language"].split(",")[0],
+        vp_size: "",
+      };
+    },
+  };
+}
+
+export function httpApi(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: { disableCookies?: boolean } = {}
+): TrackingEnvironment {
+  const header: (req: IncomingMessage, name: string) => string | undefined = (
+    req,
+    name
+  ) => {
+    let vals = req.headers[name.toLowerCase()];
+    if (!vals) {
+      return undefined;
+    }
+    if (typeof vals === "string") {
+      return vals;
+    } else if (vals.length > 0) {
+      return vals.join(",");
+    }
+  };
+
+  return {
+    getAnonymousId({ name, domain }): string {
+      if (opts?.disableCookies) {
+        return "";
+      }
+
+      const cookie = parseCookieString(req.headers["cookie"])[name];
+      if (!cookie) {
+        const cookieOpts: CookieOpts = {
+          maxAge: 31_622_400 * 10,
+          httpOnly: false,
+        };
+        if (domain) {
+          cookieOpts.domain = domain;
+        }
+        let newId = generateId();
+        res.setHeader("Set-Cookie", serializeCookie(name, newId, cookieOpts));
+        return newId;
+      } else {
+        return cookie;
+      }
+    },
+    getSourceIp() {
+      let ip =
+        req.rawHeaders["x-forwarded-for"] ||
+        req.rawHeaders["x-real-ip"] ||
+        req.socket.remoteAddress;
+      return ip && ip.split(",")[0].trim();
+    },
+    describeClient(): ClientProperties {
+      let url: Partial<URL> = req.url
+        ? new URL(
+            req.url,
+            req.url.startsWith("http") ? undefined : "http://localhost"
+          )
+        : {};
+      const requestHost =
+        header(req, "x-forwarded-host") || header(req, "host") || url.hostname;
+      const proto = header(req, "x-forwarded-proto") || url.protocol;
+      let query = ensurePrefix("?", url.search);
+      let path = ensurePrefix("/", url.pathname);
+      return {
+        doc_encoding: "",
+        doc_host: requestHost,
+        doc_path: req.url,
+        doc_search: query,
+        page_title: "",
+        referer: header(req, "referrer"),
+        screen_resolution: "",
+        url: `${proto}://${requestHost}${path || ""}${query || ""}`,
+        user_agent: req.headers["user-agent"],
+        user_language:
+          req.headers["accept-language"] &&
+          req.headers["accept-language"].split(",")[0],
         vp_size: "",
       };
     },
@@ -238,17 +350,14 @@ const emptyEnv: TrackingEnvironment = {
 /**
  * Dictionary of supported environments
  */
-export const envs = {
-  /**
-   * Browser environment (based on window, document and other globals)
-   */
-  browser: browserEnv,
-  /**
-   * Based on express-js request and response
-   */
-  express: expressEnv,
-
-  empty: emptyEnv,
+export const envs: Envs = {
+  httpApi: httpApi,
+  nextjsApi: httpApi,
+  nextjsMiddleware: fetchApi,
+  browser: () => browserEnv,
+  express: httpApi,
+  fetchApi: fetchApi,
+  empty: () => emptyEnv,
 };
 
 const xmlHttpTransport: Transport = (
@@ -374,7 +483,7 @@ class JitsuClientImpl implements JitsuClient {
   ): Event | EventCompat {
     let { env, ...payloadData } = payload;
     if (!env) {
-      env = isWindowAvailable() ? envs.browser : envs.empty;
+      env = isWindowAvailable() ? envs.browser() : envs.empty();
     }
     this.restoreId();
     let context = this.getCtx(env);
@@ -455,7 +564,10 @@ class JitsuClientImpl implements JitsuClient {
       user: {
         anonymous_id:
           this.cookiePolicy !== "strict"
-            ? env.getAnonymousId({name: this.idCookieName, domain: this.cookieDomain})
+            ? env.getAnonymousId({
+                name: this.idCookieName,
+                domain: this.cookieDomain,
+              })
             : "",
         ...this.userProperties,
       },
@@ -508,6 +620,13 @@ class JitsuClientImpl implements JitsuClient {
         );
       }
       this.transport = fetchTransport(options.fetch || globalThis.fetch);
+    }
+
+    if (options.tracking_host === "echo") {
+      getLogger().warn(
+        'jitsuClient is configured with "echo" transport. Outgoing requests will be written to console'
+      );
+      this.transport = echoTransport;
     }
 
     if (options.ip_policy) {
