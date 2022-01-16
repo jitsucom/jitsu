@@ -400,8 +400,9 @@ const fetchTransport: (fetch: any) => Transport = (fetch) => {
     jsonPayload: string,
     handler = (code, body) => {}
   ) => {
+    let res: any;
     try {
-      let res = await fetch(url, {
+      res = await fetch(url, {
         method: "POST",
         headers: {
           Accept: "application/json",
@@ -409,11 +410,22 @@ const fetchTransport: (fetch: any) => Transport = (fetch) => {
         },
         body: jsonPayload,
       });
-      let resJson = await res.json();
-      handler(res.status, resJson);
     } catch (e) {
+      getLogger().error("Failed to send", jsonPayload, e);
       handler(-1, {});
+      throw new Error(`Failed to send JSON. See console logs`);
     }
+    if (res.status !== 200) {
+      getLogger().warn(
+        `Failed to send data to ${url} (#${res.status} - ${res.statusText})`,
+        jsonPayload
+      );
+      throw new Error(
+        `Failed to send JSON. Error code: ${res.status}. See logs for details`
+      );
+    }
+    let resJson = await res.json();
+    handler(res.status, resJson);
   };
 };
 
@@ -525,7 +537,8 @@ class JitsuClientImpl implements JitsuClient {
       this.cookiePolicy !== "keep" ? `&cookie_policy=${this.cookiePolicy}` : "";
     let ipPolicy =
       this.ipPolicy !== "keep" ? `&ip_policy=${this.ipPolicy}` : "";
-    let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}${cookiePolicy}${ipPolicy}`;
+    let urlPrefix = isWindowAvailable() ? "/api/v1/event" : "/api/v1/s2s/event";
+    let url = `${this.trackingHost}${urlPrefix}?token=${this.apiKey}${cookiePolicy}${ipPolicy}`;
     if (this.randomizeUrl) {
       url = `${
         this.trackingHost
@@ -534,7 +547,7 @@ class JitsuClientImpl implements JitsuClient {
       }${cookiePolicy}${ipPolicy}`;
     }
     let jsonString = JSON.stringify(json);
-    getLogger().warn(`Sending payload to ${url}`, jsonString)
+    getLogger().warn(`Sending payload to ${url}`, jsonString);
     return this.transport(url, jsonString, (code, body) =>
       this.postHandle(code, body)
     );
