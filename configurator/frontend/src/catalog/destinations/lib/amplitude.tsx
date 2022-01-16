@@ -47,7 +47,7 @@ const amplitudeDestination = {
   type: "other",
   displayName: "Amplitude",
   defaultTransform: `// Code of Amplitude transform:
-// https://github.com/jitsucom/jitsu/blob/master/server/templates/js/transform/amplitude.js
+// https://github.com/jitsucom/jitsu/blob/master/server/storages/transform/amplitude.js
 return toAmplitude($)`,
   hidden: false,
   ui: {
