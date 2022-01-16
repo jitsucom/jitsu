@@ -66,15 +66,11 @@ const ApiKeysComponent: React.FC = () => {
         !
       </div>
       <div className="flex-shrink">
-        <Link to={'/api-keys/new'}>
-        <Button
-          type="primary"
-          size="large"
-          icon={<PlusOutlined />}
-          loading={"NEW" === loading}
-        >Generate New Key
-        </Button></Link>
-
+        <Link to={"/api-keys/new"}>
+          <Button type="primary" size="large" icon={<PlusOutlined />} loading={"NEW" === loading}>
+            Generate New Key
+          </Button>
+        </Link>
       </div>
     </div>
   )
