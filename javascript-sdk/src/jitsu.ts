@@ -353,10 +353,10 @@ const emptyEnv: TrackingEnvironment = {
 export const envs: Envs = {
   httpApi: httpApi,
   nextjsApi: httpApi,
-  nextjsMiddleware: fetchApi,
+  // fetchApi: fetchApi,
+  // nextjsMiddleware: fetchApi,
   browser: () => browserEnv,
   express: httpApi,
-  fetchApi: fetchApi,
   empty: () => emptyEnv,
 };
 
@@ -534,6 +534,7 @@ class JitsuClientImpl implements JitsuClient {
       }${cookiePolicy}${ipPolicy}`;
     }
     let jsonString = JSON.stringify(json);
+    getLogger().warn(`Sending payload to ${url}`, jsonString)
     return this.transport(url, jsonString, (code, body) =>
       this.postHandle(code, body)
     );
