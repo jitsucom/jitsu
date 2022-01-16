@@ -306,8 +306,8 @@ export function httpApi(
     },
     getSourceIp() {
       let ip =
-        req.rawHeaders["x-forwarded-for"] ||
-        req.rawHeaders["x-real-ip"] ||
+        header(req, "x-forwarded-for") ||
+        header(req, "x-real-ip") ||
         req.socket.remoteAddress;
       return ip && ip.split(",")[0].trim();
     },
