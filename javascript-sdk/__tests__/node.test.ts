@@ -21,7 +21,7 @@ const fetchMock = (...args) => {
   const [url, ...params] = args;
   console.log("Called fetch with", args);
   fetchLog.push({url: url, params: [...params]});
-  return Promise.resolve();
+  return Promise.resolve({status: 200, json: () => Promise.resolve({})});
 };
 
 async function createTestServer()  {
