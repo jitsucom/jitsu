@@ -163,7 +163,11 @@ func V8LoadTemplateScript(iso *v8go.Isolate, script string, extraFunctions templ
 			return nil, fmt.Errorf("failed json stringify js function result: %v", err)
 		}
 		var resP interface{}
-		err = json.Unmarshal([]byte(strRes), &resP)
+		decoder := json.NewDecoder(strings.NewReader(strRes))
+		//parse json exactly the same way as it happens in http request processing.
+		//transform that does no changes must return exactly the same object as w/o transform
+		decoder.UseNumber()
+		err = decoder.Decode(&resP)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal js function result: %v", err)
 		}
