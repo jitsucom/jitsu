@@ -1,14 +1,24 @@
 {
   "name": "@jitsu/sdk-js",
-  "version": "2.3.0-alpha5",
+  "version": "2.3.0-rc1",
   "description": "Jitsu JavaScript SDK (more at http://jitsu.com/docs/js-sdk)",
   "main": "dist/npm/jitsu.cjs.js",
-  "module": "dist/npm/dist/jitsu.esm.js",
+  "module": "dist/npm/dist/jitsu.es.js",
   "types": "dist/npm/jitsu.d.ts",
   "files": [
-    "dist/npm/*"
+    "dist/npm/*",
+    "dist/web/*"
   ],
-  "author": "Jitsu <hello@jitsu.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jitsucom/jitsu",
+    "directory": "javascript-sdk"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "private": false,
+  "author": "Jitsu Dev <dev@jitsu.com>",
   "scripts": {
     "clean": "rm -rf ./dist",
     "devserver": "PORT=8081 nodemon --watch '__tests__/common/*.ts' --exec 'ts-node' __tests__/common/devserver.ts",
@@ -51,12 +61,5 @@
     "typescript": "^4.4.3"
   },
   "resolutions": {
-    "path-parse": "^1.0.7",
-    "ansi-regex": "^5.0.1",
-    "tmpl": "^1.0.5",
-    "ws": "^8.2.3",
-    "normalize-url": "^4.5.1",
-    "axios": "^0.21.2",
-    "browserslist": "^4.17.3"
   }
 }
