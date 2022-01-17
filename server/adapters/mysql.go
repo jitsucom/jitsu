@@ -197,7 +197,7 @@ func (m *MySQL) BulkInsert(table *Table, objects []map[string]interface{}) error
 
 		if err = m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
 			wrappedTx.Rollback(err)
-			if strings.HasSuffix(err.Error(), "invalid connection") {
+			if strings.HasSuffix(err.Error(), mysql.ErrInvalidConn.Error()) || strings.HasSuffix(err.Error(), "bad connection") {
 				e = err
 				continue
 			} else {
@@ -223,7 +223,7 @@ func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, delet
 		if !deleteConditions.IsEmpty() {
 			if err := m.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
 				wrappedTx.Rollback(err)
-				if strings.HasSuffix(err.Error(), mysql.ErrInvalidConn.Error()) {
+				if strings.HasSuffix(err.Error(), mysql.ErrInvalidConn.Error()) || strings.HasSuffix(err.Error(), "bad connection") {
 					e = err
 					continue
 				} else {
@@ -234,7 +234,7 @@ func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, delet
 
 		if err := m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
 			wrappedTx.Rollback(err)
-			if strings.HasSuffix(err.Error(), mysql.ErrInvalidConn.Error()) {
+			if strings.HasSuffix(err.Error(), mysql.ErrInvalidConn.Error()) || strings.HasSuffix(err.Error(), "bad connection") {
 				e = err
 				continue
 			} else {

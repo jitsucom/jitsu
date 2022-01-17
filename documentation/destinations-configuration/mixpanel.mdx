@@ -1,7 +1,7 @@
 # Mixpanel
 
 **Jitsu** supports [Mixpanel](https://mixpanel.com) as a destination and
-sends data using  [Ingestion API](https://developer.mixpanel.com/reference/ingestion-api).
+sends data using [Ingestion API](https://developer.mixpanel.com/reference/ingestion-api).
 
 Jitsu sends events to Ingestion API filling as much Mixpanel [Events Properties](https://help.mixpanel.com/hc/en-us/articles/115004613766#ingestion-api) as possible from original event data.
 
@@ -17,7 +17,7 @@ In addition to Mixpanel Default properties, Jitsu automatically sets `Revenue` f
 
 ## User Profiles
 
-If enabled Jitsu sets [Mixpanel User Profiles](https://help.mixpanel.com/hc/en-us/articles/115004708186-Profile-Properties) properties 
+If enabled Jitsu sets [Mixpanel User Profiles](https://help.mixpanel.com/hc/en-us/articles/115004708186-Profile-Properties) properties
 from `user_identify` events.
 
 ### Aliases
@@ -26,20 +26,22 @@ Jitsu automatically create aliases in Mixpanel on `user_identify` events if `use
 
 ### User Profiles properties and counters
 
-Jitsu automatically updates following User Profile properties on every event except `user_identify`: 
-* `Last ${event name or type}` with `_timestamp` of incoming event. E.g.: `Last Page View: 2021-11-11T16:12:41`  
-* `${event name or type}` – increments counter by 1 for each event. E.g.: `Page View: 1`
-  
+Jitsu automatically updates following User Profile properties on every event except `user_identify`:
+
+- `Last ${event name or type}` with `_timestamp` of incoming event. E.g.: `Last Page View: 2021-11-11T16:12:41`
+- `${event name or type}` – increments counter by 1 for each event. E.g.: `Page View: 1`
+
 Jitsu automatically increments `Lifetime Revenue` User Profile property on events with `revenue` field like `conversion`
 
 ## Events Customization
 
 Use [JavaScript Transform](/docs/configuration/javascript-transform) to set your own event names based on incoming event data:
+
 ```javascript
 if ($.doc_path?.startsWith("/shop/")) {
-    $.event_type = "Shop Page"
+  $.event_type = "Shop Page";
 }
-return $
+return $;
 ```
 ### Custom event properties
 
@@ -49,11 +51,12 @@ You can add custom property by adding it with JS SDK on the web site or using [J
 ## Skipping events
 
 If not all event types are needed in Mixpanel – you can skip unnecessary evens using [JavaScript Transform](/docs/configuration/javascript-transform) general skip logic by returning `null`:
+
 ```javascript
 if ($.event_type === "not_interesting") {
-  return null
+  return null;
 }
-return $
+return $;
 ```
 
 ## Configuration
@@ -103,7 +106,16 @@ Configuration parameters for Mixpanel destination must be provided under `templa
           <em>(required)</em>
       </td>
       <td>string</td>
-      <td><a href="https://developer.mixpanel.com/reference/project-token">Project Token</a>. A project's token can be found in the Access Keys section of a project's settings overview page: <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a></td>
+      <td>
+          <a href="https://developer.mixpanel.com/reference/project-token">
+              Project Token
+          </a>
+          . A project's token can be found in the Access Keys section of a
+          project's settings overview page:{" "}
+          <a href="https://mixpanel.com/settings/project/">
+              https://mixpanel.com/settings/project/
+          </a>
+      </td>
     </tr>
     <tr>
       <td>
@@ -119,15 +131,20 @@ Configuration parameters for Mixpanel destination must be provided under `templa
           <b>users_enabled</b>
       </td>
       <td>boolean</td>
-      <td>Enables Mixpanel destination to work with User Profiles. See <a href="#user-profiles">User Profiles</a> section</td>
+      <td>
+        Enables Mixpanel destination to work with User Profiles. See{" "}
+        <a href="#user-profiles">User Profiles</a> section
+      </td>
     </tr>
     <tr>
       <td>
-          <b>anonymous_users_enabled</b>
+        <b>anonymous_users_enabled</b>
       </td>
       <td>boolean</td>
-      <td>Enables updating User Profiles for anonymous users. Requires <b>users_enabled</b> set to <b>true</b></td>
+      <td>
+        Enables updating User Profiles for anonymous users. Requires{" "}
+        <b>users_enabled</b> set to <b>true</b>
+      </td>
     </tr>
   </tbody>
 </table>
-

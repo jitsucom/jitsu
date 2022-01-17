@@ -241,7 +241,7 @@ const AddSourceDropdownOverlay: React.FC = () => {
         {
           id: "api_key",
           title: "Add JS Events API Key",
-          link: "/api_keys",
+          link: "/api-keys/new",
         },
         {
           id: "connectors",
