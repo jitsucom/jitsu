@@ -79,16 +79,19 @@ test("Test Jitsu Client npm only", async () => {
   console.log("Jitsu Track Payload", body);
   const userId = body?.user?.anonymous_id
   expect(userId).toBeDefined()
+  expect(body?.doc_search).toBe('?utm_source=1&gclid=2')
+  expect(body?.url?.indexOf('http://')).toBe(0)
   expect(body?.utm?.source).toBe("1")
   expect(body?.click_id?.gclid).toBe("2")
   fetchLog.length = 0;
 
-  let testResult2 = await _fetch(`http://localhost:${testServer.address().port}/test/page?utm_source=3&gclid=2`);
+  let testResult2 = await _fetch(`http://localhost:${testServer.address().port}/test/page`);
   expect(testResult2.status).toBe(200)
   expect(fetchLog.length).toBe(1)
   body = JSON.parse(fetchLog[0].params[0].body)
   expect(body?.test).toBe(1)
   expect(body?.user?.anonymous_id).toBe(userId)
+  expect(body?.doc_search).toBe('');
   expect(body?.user?.email).toBe('john.doe@gmail.com')
   expect(body?.user?.id).toBe('1212')
 
