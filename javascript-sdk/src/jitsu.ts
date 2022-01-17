@@ -193,6 +193,17 @@ function ensurePrefix(prefix: string, str?: string) {
   return str?.length > 0 && str.indexOf(prefix) !== 0 ? prefix + str : str;
 }
 
+function cutPostfix(postfixes: string | string[], str?: string) {
+  for (const postfix of typeof postfixes === "string"
+    ? [postfixes]
+    : postfixes) {
+    while (str && str.length > 0 && str.charAt(str.length - 1) === postfix) {
+      str = str.substring(0, str.length - 1);
+    }
+  }
+  return str;
+}
+
 export function fetchApi(
   req: Request,
   res: Response,
@@ -227,10 +238,13 @@ export function fetchApi(
     },
     describeClient(): ClientProperties {
       const requestHost = req.headers.get("host") || req.headers.get("host");
-      const proto =
-        req.headers["x-forwarded-proto"] ||
-        req["nextUrl"]["protocol"] ||
-        "http";
+      let proto = cutPostfix(
+        [":", "/"],
+        req.headers["x-forwarded-proto"] || req["nextUrl"]["protocol"] || "http"
+      );
+      while (proto && proto.length > 0 && proto.charAt(proto.length - 1)) {
+        proto = proto.substring(0, proto.length - 1);
+      }
       let reqUrl = req.url || "/";
       let queryPos = reqUrl.indexOf("?");
       let path, query;
@@ -320,7 +334,10 @@ export function httpApi(
         : {};
       const requestHost =
         header(req, "x-forwarded-host") || header(req, "host") || url.hostname;
-      const proto = header(req, "x-forwarded-proto") || url.protocol;
+      const proto = cutPostfix(
+        [":", '/'],
+        header(req, "x-forwarded-proto") || url.protocol
+      );
       let query = ensurePrefix("?", url.search);
       let path = ensurePrefix("/", url.pathname);
       return {
