@@ -23,16 +23,22 @@ components:
       name: projectId
       description: ID of the project
       required: true
+      schema:
+        type: string
     objectType:
       in: path
       name: objectType
       description: 'Type of object. Currently, following values are supported: destinations, sources, api_keys'
       required: true
+      schema:
+        type: string
     objectUid:
       in: path
       name: objectUid
       description: 'Unique ID of the object. The object id is sitting in /uid node of JSON object'
       required: true
+      schema:
+        type: string
 
   schemas:
     #Object that represents error with message and
@@ -126,6 +132,7 @@ components:
 paths:
   /api/v1/users/signin:
     post:
+      operationId: usersSignIn
       description: Sign-in user with login and password
       requestBody:
         content:
@@ -145,6 +152,7 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/onboarded/signup:
     post:
+      operationId: usersOnboardedSignUp
       description: Create a user account
       requestBody:
         content:
@@ -161,13 +169,26 @@ paths:
         #All error responses
         default:
           $ref: '#/components/responses/Error'
+  /api/v1/users/signout:
+    post:
+      operationId: usersSignOut
+      description: Delete token from DB
+      security:
+        - bearerAuth: ['client']
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
   /api/v1/users/token/refresh:
     post:
+      operationId: usersTokenRefresh
       description: Refresh user access token
       requestBody:
         content:
           "application/json":
             schema:
+              title: TokenRefreshRequest
               type: object
               properties:
                 refresh_token: { type: "string" }
@@ -181,14 +202,15 @@ paths:
                 $ref: '#/components/schemas/TokensResponse'
         default:
           $ref: '#/components/responses/Error'
-
   /api/v1/users/password/reset:
     post:
+      operationId: usersPasswordReset
       description: 'Request password reset'
       requestBody:
         content:
           "application/json":
             schema:
+              title: UserPasswordResetRequest
               type: object
               properties:
                 email: { type: string }
@@ -201,16 +223,15 @@ paths:
         #All error responses
         default:
           $ref: '#/components/responses/Error'
-
   /api/v1/users/password/change:
     post:
-      security:
-        - bearerAuth: [ ]
+      operationId: usersPasswordChange
       description: 'Change password'
       requestBody:
         content:
           "application/json":
             schema:
+              title: UserPasswordChangeRequest
               type: object
               properties:
                 new_password: { type: string }
@@ -222,18 +243,20 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/info:
     get:
+      operationId: getUsersInfo
       description: 'Returns a current authenticated user'
       security:
-        - bearerAuth: [ ]
+        - bearerAuth: ['client']
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
         default:
           $ref: '#/components/responses/Error'
     post:
+      operationId: setUsersInfo
       description: 'Replaces users settings with a new user settings. Changes to some fields (such as security settings), will not have an effect'
       security:
-        - bearerAuth: [ ]
+        - bearerAuth: ['client']
       requestBody:
         content:
           application/json:
@@ -244,9 +267,9 @@ paths:
           $ref: '#/components/responses/AnyObjectResponse'
         default:
           $ref: '#/components/responses/Error'
-
   /api/v1/system/configuration:
     get:
+      operationId: getSystemConfiguration
       description: Returns system configuration
       responses:
         '200':
@@ -255,6 +278,7 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/system/version:
     get:
+      operationId: getSystemVersion
       description: Returns the version of Jitsu sotware running on the server
       responses:
         '200':
@@ -264,7 +288,10 @@ paths:
 
   /api/v1/geo_data_resolvers:
     get:
+      operationId: getGeoDataResolvers
       description: Returns available geo resolvers
+      security:
+        - bearerAuth: ['server']
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -273,7 +300,10 @@ paths:
 
   /api/v2/projects:
     get:
+      operationId: getProjects
       description: Returns a list of projects available for current user
+      security:
+        - bearerAuth: [ 'client' ]
       responses:
         '200':
           $ref: '#/components/responses/AnyArrayResponse'
@@ -285,8 +315,9 @@ paths:
       - $ref: '#/components/parameters/projectId'
       - $ref: '#/components/parameters/objectType'
     get:
+      operationId: getObjectsByProjectIDAndObjectType
       security:
-        - bearerAuth: [ ]
+        - bearerAuth: [ 'client:project' ]
       description: Returns the list of objects of given type
       responses:
         '200':
@@ -294,11 +325,12 @@ paths:
         default:
           $ref: '#/components/responses/Error'
     post:
+      operationId: setObjectsByProjectIDAndObjectType
       description: >
         Create new object. The method returns newly created object. Some properties of
         newly created object might different from on which has been posted (for example, ID)
       security:
-        - bearerAuth: [ ]
+        - bearerAuth: [ 'client:project' ]
       requestBody:
         content:
           application/json:
@@ -315,7 +347,10 @@ paths:
       - $ref: '#/components/parameters/objectType'
       - $ref: '#/components/parameters/objectUid'
     get:
+      operationId: getObjectsByProjectIDAndObjectTypeAndID
       description: Get an object  with given UID
+      security:
+        - bearerAuth: [ 'client:project' ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -323,16 +358,22 @@ paths:
           $ref: '#/components/responses/Error'
 
     delete:
+      operationId: deleteObjectsByProjectIDAndObjectTypeAndID
       description: Delete an object with given UID. Returns a deleted object
+      security:
+        - bearerAuth: [ 'client:project' ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
         default:
           $ref: '#/components/responses/Error'
     patch:
+      operationId: patchObjectsByProjectIDAndObjectTypeAndID
       description: >
         Updates a object with given ID. Object will be patched: request body properties will be merged into an original object, it's ok to send partial objects
         Some fields might be ignored and overwritten. The method returns an updated object
+      security:
+        - bearerAuth: [ 'client:project' ]
       requestBody:
         content:
           application/json:
