@@ -13,7 +13,6 @@
 <a href="https://jitsu.com/docs"><img src="https://img.shields.io/badge/docs-jitsu.com/docs-purple.svg" alt="Jitsu Documentation"></a>
 <a href="https://jitsu.com/slack"><img src="https://img.shields.io/badge/slack-join-purple.svg" alt="Jitsu Slack"></a>
 <a href="https://circleci.com/gh/jitsucom/jitsu/tree/master"><img src="https://circleci.com/gh/jitsucom/jitsu/tree/master.svg?style=shield&amp;circle-token=52a01ca8af325a73c950df2aa1953f68933383c3" alt="Master Build"></a>
-<a href="https://cloud.jitsu.com"><img src="https://api.netlify.com/api/v1/badges/977ca49f-30a4-47e4-99a9-22afd5e7db5d/deploy-status" alt="Netlify Status"></a>
 <a href="https://cloud.jitsu.com"><img src="https://img.shields.io/github/license/jitsucom/jitsu" alt="License"></a>
 </p>
 
