@@ -89,9 +89,11 @@ func TestPostgresTruncateNonexistentTable(t *testing.T) {
 
 func TestBulkMerge(t *testing.T) {
 	table := &Table{
-		Name:     "test_merge",
-		Columns:  Columns{"field1": typing.SQLColumn{Type: "text"}, "field2": typing.SQLColumn{Type: "text"}, "field3": typing.SQLColumn{Type: "bigint"}, "user": typing.SQLColumn{Type: "text"}},
-		PKFields: map[string]bool{"field1": true},
+		Schema:         "public",
+		Name:           "test_merge",
+		Columns:        Columns{"field1": typing.SQLColumn{Type: "text"}, "field2": typing.SQLColumn{Type: "text"}, "field3": typing.SQLColumn{Type: "bigint"}, "user": typing.SQLColumn{Type: "text"}},
+		PKFields:       map[string]bool{"field1": true},
+		PrimaryKeyName: "public_test_merge_pk",
 	}
 	container, pg := setupDatabase(t, table)
 	defer container.Close()

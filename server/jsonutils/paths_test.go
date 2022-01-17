@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewPathes(t *testing.T) {
+func TestNewPaths(t *testing.T) {
 	var configuration []string = nil
 	value := NewJSONPaths(configuration)
 	require.NotNil(t, value)
@@ -29,7 +29,7 @@ func TestNewPathes(t *testing.T) {
 	require.Len(t, value.paths, 3)
 }
 
-func TestGetPathes(t *testing.T) {
+func TestGetPaths(t *testing.T) {
 	var configuration []string = nil
 
 	event := map[string]interface{}{
@@ -66,17 +66,19 @@ func TestGetPathes(t *testing.T) {
 	require.Equal(t, "value", object["key3"])
 }
 
-func TestSetPathes(t *testing.T) {
+func TestSetPaths(t *testing.T) {
 	var configuration []string = nil
 
 	event := map[string]interface{}{
 		"key1": 7,
+		"key4": 10,
 	}
 
 	values := map[string]interface{}{
 		"key1": 42,
 		"key2": "value",
 		"key3": true,
+		"key4": nil,
 	}
 
 	pathes := NewJSONPaths(configuration)
@@ -85,6 +87,7 @@ func TestSetPathes(t *testing.T) {
 	require.Equal(t, 7, event["key1"])
 	require.Equal(t, nil, event["key2"])
 	require.Equal(t, nil, event["key3"])
+	require.Equal(t, 10, event["key4"])
 
 	configuration = []string{"key/subkey"}
 	pathes = NewJSONPaths(configuration)
@@ -93,12 +96,14 @@ func TestSetPathes(t *testing.T) {
 	require.Equal(t, 7, event["key1"])
 	require.Equal(t, nil, event["key2"])
 	require.Equal(t, nil, event["key3"])
+	require.Equal(t, 10, event["key4"])
 
-	configuration = []string{"key1", "key2", "key3"}
+	configuration = []string{"key1", "key2", "key3", "key4"}
 	pathes = NewJSONPaths(configuration)
 	err = pathes.Set(event, values)
 	require.Nil(t, err)
 	require.Equal(t, 42, event["key1"])
 	require.Equal(t, "value", event["key2"])
 	require.Equal(t, true, event["key3"])
+	require.Equal(t, 10, event["key4"])
 }

@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"fmt"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -23,7 +24,11 @@ func TestNonGZIPParquetMarshal(t *testing.T) {
 		},
 		{
 			name: "fields of all types, values are nil",
-			pte: fieldsOfAllTypesValueAreNilParquetTestEntity(),
+			pte:  fieldsOfAllTypesValueAreNilParquetTestEntity(),
+		},
+		{
+			name: "dateType is nil, but there are several type occurrences",
+			pte:  severalTypeOccurrences(),
 		},
 	}
 	for _, tt := range tests {
@@ -50,7 +55,11 @@ func TestGZIPParquetMarshal(t *testing.T) {
 		},
 		{
 			name: "fields of all types, values are nil",
-			pte: fieldsOfAllTypesValueAreNilParquetTestEntity(),
+			pte:  fieldsOfAllTypesValueAreNilParquetTestEntity(),
+		},
+		{
+			name: "dateType is nil, but there are several type occurrences",
+			pte:  severalTypeOccurrences(),
 		},
 	}
 	for _, tt := range tests {
@@ -70,6 +79,10 @@ func TestParquetMetadata(t *testing.T) {
 		{
 			name: "fields of all types, values are present",
 			pte:  fieldOfAllTypesValuesArePresentParquetTestEntity(),
+		},
+		{
+			name: "dateType is nil, but there are several type occurrences",
+			pte:  severalTypeOccurrences(),
 		},
 	}
 	for _, tt := range tests {
@@ -97,13 +110,21 @@ func TestParquetRecord(t *testing.T) {
 		},
 		{
 			name: "fields of all types, values are nil",
-			pte: fieldsOfAllTypesValueAreNilParquetTestEntity(),
+			pte:  fieldsOfAllTypesValueAreNilParquetTestEntity(),
+		},
+		{
+			name: "dateType is nil, but there are several type occurrences",
+			pte:  severalTypeOccurrences(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			actual, _ := pm.parquetRecord(metaStub(tt.pte.batchHeader), tt.pte.inputObj)
-			require.ElementsMatchf(t, tt.pte.expectedRecord, actual, "expected parquet record != actual parquet record")
+			actualAsStringSlice := make([]string, 0, len(actual))
+			for _, v := range actual {
+				actualAsStringSlice = append(actualAsStringSlice, *v)
+			}
+			require.ElementsMatchf(t, tt.pte.expectedRecord, actualAsStringSlice, "expected parquet record != actual parquet record")
 		})
 	}
 }
@@ -114,7 +135,7 @@ type parquetTestEntity struct {
 	inputObj    map[string]interface{}
 	//expected result
 	expectedMetadata []string
-	expectedRecord   []interface{}
+	expectedRecord   []string
 }
 
 func fieldOfAllTypesValuesArePresentParquetTestEntity() *parquetTestEntity {
@@ -154,12 +175,12 @@ func fieldOfAllTypesValuesArePresentParquetTestEntity() *parquetTestEntity {
 			"name=field_float64, type=DOUBLE",
 			"name=field_timestamp, type=INT64, logicaltype=TIMESTAMP, logicaltype.isadjustedtoutc=true, logicaltype.unit=MILLIS",
 		},
-		expectedRecord: []interface{}{
-			int64(12345),
+		expectedRecord: []string{
+			"12345",
 			"some test string",
-			true,
-			56.78,
-			testDatetime.Unix() * 1000,
+			"true",
+			"56.78",
+			fmt.Sprintf("%v", testDatetime.Unix()*1000),
 		},
 	}
 }
@@ -194,12 +215,12 @@ func fieldsOfAllTypesValueOmittedParquetTestEntity() *parquetTestEntity {
 			"name=field_float64, type=DOUBLE",
 			"name=field_timestamp, type=INT64, logicaltype=TIMESTAMP, logicaltype.isadjustedtoutc=true, logicaltype.unit=MILLIS",
 		},
-		expectedRecord: []interface{}{
-			int64(0),
+		expectedRecord: []string{
+			"0",
 			"",
-			false,
-			float64(0),
-			int64(0),
+			"false",
+			"0",
+			"0",
 		},
 	}
 }
@@ -240,12 +261,48 @@ func fieldsOfAllTypesValueAreNilParquetTestEntity() *parquetTestEntity {
 			"name=field_float64, type=DOUBLE",
 			"name=field_timestamp, type=INT64, logicaltype=TIMESTAMP, logicaltype.isadjustedtoutc=true, logicaltype.unit=MILLIS",
 		},
-		expectedRecord: []interface{}{
-			int64(0),
+		expectedRecord: []string{
+			"0",
 			"",
-			false,
-			float64(0),
-			int64(0),
+			"false",
+			"0",
+			"0",
+		},
+	}
+}
+
+func severalTypeOccurrences() *parquetTestEntity {
+	return &parquetTestEntity{
+		batchHeader: &BatchHeader{
+			TableName: "test_table",
+			Fields: Fields{
+				"location_longitude": Field{
+					dataType: nil,
+					typeOccurrence: map[typing.DataType]bool{
+						typing.INT64:   true,
+						typing.FLOAT64: true,
+					},
+				},
+				"location_latitude": Field{
+					dataType: nil,
+					typeOccurrence: map[typing.DataType]bool{
+						typing.INT64:   true,
+						typing.FLOAT64: true,
+					},
+				},
+			},
+		},
+		inputObj: map[string]interface{}{
+			"location_longitude": float64(192.64),
+			"location_latitude":  int64(75),
+		},
+		expectedMetadata: []string{
+			"name=location_longitude, type=DOUBLE",
+			"name=location_latitude, type=DOUBLE",
+		},
+		expectedRecord: []string{
+			"192.64",
+			"75",
 		},
 	}
 }
@@ -254,7 +311,7 @@ func metaStub(bh *BatchHeader) map[string]parquetMetadataItem {
 	meta := make(map[string]parquetMetadataItem, len(bh.Fields))
 	i := 0
 	for field, fieldMeta := range bh.Fields {
-		switch *fieldMeta.dataType {
+		switch fieldMeta.GetType() {
 		case typing.BOOL:
 			meta[field] = parquetMetadataItem{i, typing.BOOL, false}
 		case typing.INT64:

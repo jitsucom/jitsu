@@ -48,9 +48,9 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
       : Promise.resolve()
 
   const validateSourceIdNoSpaces = (_, value: string) => {
-    const re = /^[A-Za-z0-9_]*$/
+    const re = /^[A-Za-z0-9_-]*$/
     if (!re.test(value)) {
-      return Promise.reject("SourceId must contain only letters, numbers, or the underscore character")
+      return Promise.reject("SourceId must contain only letters, numbers, hyphens or the underscore character")
     } else {
       return Promise.resolve()
     }

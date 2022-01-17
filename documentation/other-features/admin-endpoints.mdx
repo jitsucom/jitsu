@@ -52,7 +52,6 @@ Response will be either HTTP 200 OK, or error with description as JSON
 
 This api call returns a cluster information as JSON. If synchronization service is configured, this endpoint returns all instances in the cluster,
 otherwise only **server.name** from the configuration.
-{% endapi-method-description %}
 
 <h4>Parameters</h4>
 
@@ -148,7 +147,7 @@ Evaluates input [JavaScript functions](/docs/configuration/javascript-functions)
     "app": "jitsu_cloud",
     "user": {
       "anonymous_id": "anonym_id",
-      "internal_id": "internal_id"
+      "id": "id"
     },
     "src": "jitsu",
     "event_type": "site_page"

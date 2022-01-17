@@ -1,7 +1,5 @@
 # HubSpot
 
-
-
 **Jitsu** supports [HubSpot](https://www.hubspot.com/) as a destination.
 
 <Hint>
@@ -51,9 +49,12 @@ or if you are using [Jitsu Events API](/docs/sending-data/api) you should send `
 or you, also, could use [Mappings](/docs/configuration/schema-and-mappings) for deliver all user properties into `user` JSON node.
 
 <Hint>
-  All fields that aren't in default HubSpot properties or that aren't configured in HubSpot User Interface will be deleted from request.
-  You can find all user properties in <code inline="true">Contacts</code> > <code inline="true">Contact Settings</code>.
-  HubSpot does not accept properties that contain spaces or uppercases. All properties will be converted to lowercase and all not alphanumeric symbols are replaced with underscores.
+  All fields that aren't in default HubSpot properties or that aren't configured
+  in HubSpot User Interface will be deleted from request. You can find all user
+  properties in <code inline="true">Contacts</code> >{" "}
+  <code inline="true">Contact Settings</code>. HubSpot does not accept
+  properties that contain spaces or uppercases. All properties will be converted
+  to lowercase and all not alphanumeric symbols are replaced with underscores.
 </Hint>
 
 ## Other events
@@ -64,12 +65,12 @@ You can configure your own [custom behavioral events](https://knowledge.hubspot.
 For using a certain custom behavioral event - specify its name in `event_type` field:
 
 ```javascript
-jitsu.track('custom_event_type', {
+jitsu.track("custom_event_type", {
   conversion: {
     revenue: 2000.0,
-    currency: 'USD'
-  }
-})
+    currency: "USD",
+  },
+});
 ```
 
 Jitsu sends custom events to HubSpot with the following fields:
@@ -82,7 +83,6 @@ Jitsu sends custom events to HubSpot with the following fields:
   Other events are supported only on HubSpot Enterprise plan.
   <code inline="true">/user/email</code> is required.
 </Hint>
-
 
 ## Filtering events
 
@@ -99,31 +99,41 @@ destinations:
     type: hubspot
     mode: stream
     hubspot:
-      api_key: 'b7bc95dc-4d52-48c1-8dcd-406aaa56c3cc' #Your HubSpot API Key - see below
+      api_key: "b7bc95dc-4d52-48c1-8dcd-406aaa56c3cc" #Your HubSpot API Key - see below
       hub_id: "20546336" #Your Hub ID - see below
     data_layout:
-      table_name_template: '{{text template}}' #Optional. It is used for filtering events.
+      table_name_template: "{{text template}}" #Optional. It is used for filtering events.
 ```
 
 ## HubSpot credentials
 
 <table>
-    <thead>
+  <thead>
     <tr>
-        <th>Field</th>
-        <th>Type</th>
-        <th>Description</th>
+      <th>Field</th>
+      <th>Type</th>
+      <th>Description</th>
     </tr>
-    </thead>
-    <tbody>
+  </thead>
+  <tbody>
     <tr>
-        <td>
-            <b>api_key</b>
-            <br />
-            <em>(required)</em>
-        </td>
-        <td>string</td>
-        <td>Your HubSpot API Key (in UUID format, like: e91eb0d4-a72e-4688-9fe4-60cecf8376eb). <a target="_blank" href="https://knowledge.hubspot.com/integrations/how-do-i-get-my-hubspot-api-key">Read How to obtain API Key</a>.</td>
+      <td>
+        <b>api_key</b>
+        <br />
+        <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td>
+        Your HubSpot API Key (in UUID format, like:
+        e91eb0d4-a72e-4688-9fe4-60cecf8376eb).{" "}
+        <a
+          target="_blank"
+          href="https://knowledge.hubspot.com/integrations/how-do-i-get-my-hubspot-api-key"
+        >
+          Read How to obtain API Key
+        </a>
+        .
+      </td>
     </tr>
     <tr>
       <td>
@@ -132,8 +142,16 @@ destinations:
         <em>(required)</em>
       </td>
       <td>string</td>
-      <td>Your HubSpot Hub ID (in number format, like 453283). <a target="_blank" href="http://help.hubspot.com/articles/KCS_Article/Account/Where-can-I-find-my-HUB-ID">Read How to obtain HubSpot Hub ID</a>.</td>
+      <td>
+        Your HubSpot Hub ID (in number format, like 453283).{" "}
+        <a
+          target="_blank"
+          href="http://help.hubspot.com/articles/KCS_Article/Account/Where-can-I-find-my-HUB-ID"
+        >
+          Read How to obtain HubSpot Hub ID
+        </a>
+        .
+      </td>
     </tr>
-    </tbody>
+  </tbody>
 </table>
-

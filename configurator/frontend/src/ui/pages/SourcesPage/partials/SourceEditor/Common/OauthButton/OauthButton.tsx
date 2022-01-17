@@ -41,7 +41,11 @@ export const OauthButton: React.FC<Props> = ({
     try {
       const oauthResult = await services.oauthService.getCredentialsInSeparateWindow(service)
       if (oauthResult.status === "error") {
-        actionNotification.error(oauthResult.errorMessage)
+        actionNotification.error(
+          oauthResult.message ??
+            oauthResult.errorMessage ??
+            "OAuth failed due to internal error. Please, file an issue."
+        )
         return
       }
       if (oauthResult.status === "warning") {
@@ -51,7 +55,7 @@ export const OauthButton: React.FC<Props> = ({
       setAuthSecrets(oauthResult.secrets)
       setIsOauthCompleted(true)
     } catch (error) {
-      handleError(new Error(error.message ?? "Oauth failed due to internal error. Please, file an issue."))
+      handleError(new Error(error.message ?? "OAuth failed due to internal error. Please, file an issue."))
       setIsOauthCompleted(false)
     } finally {
       setIsLoading(false)

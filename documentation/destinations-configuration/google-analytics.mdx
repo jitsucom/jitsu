@@ -6,8 +6,12 @@ All event fields after [Mapping Step](/docs/how-it-works/architecture#mapping-st
 formatted as URL values and will be sent to Google Analytics with HTTP GET request.
 
 <Hint>
-Google Analytics destination supports only <code inline="true">stream</code> mode and <b>should have</b> mapping rules
-  compatible with <a href="https://developers.google.com/analytics/devguides/collection/protocol/v1/parameters">Measurement protocol requirements</a>. See mapping below
+  Google Analytics destination supports only <code inline="true">stream</code>{" "}
+  mode and <b>should have</b> mapping rules compatible with{" "}
+  <a href="https://developers.google.com/analytics/devguides/collection/protocol/v1/parameters">
+    Measurement protocol requirements
+  </a>
+  . See mapping below
 </Hint>
 
 ## Filtering events
@@ -187,14 +191,15 @@ destinations:
   <tbody>
     <tr>
       <td>
-          <b>tracking_id</b>
-          <br />
-          <em>(required)</em>
+        <b>tracking_id</b>
+        <br />
+        <em>(required)</em>
       </td>
       <td>string</td>
-      <td>Google Analytics Tracking ID. Can be taken from Google Analytics UI or
-        from javascript pixel.</td>
+      <td>
+        Google Analytics Tracking ID. Can be taken from Google Analytics UI or
+        from javascript pixel.
+      </td>
     </tr>
   </tbody>
 </table>
-
