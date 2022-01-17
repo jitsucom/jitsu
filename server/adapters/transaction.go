@@ -37,7 +37,7 @@ func (t *Transaction) DirectCommit() error {
 //Rollback cancels underlying transaction and logs system err if occurred
 func (t *Transaction) Rollback(cause error) {
 	if err := t.tx.Rollback(); err != nil {
-		if !(t.dbType == "MySQL" && strings.HasSuffix(err.Error(), mysql.ErrInvalidConn.Error())) {
+		if !(t.dbType == "MySQL" && (strings.HasSuffix(err.Error(), mysql.ErrInvalidConn.Error()) || strings.HasSuffix(err.Error(), "bad connection"))) {
 			err = checkErr(err)
 			logging.SystemErrorf("Unable to rollback %s transaction: %v cause: %v", t.dbType, err, cause)
 		} else {
