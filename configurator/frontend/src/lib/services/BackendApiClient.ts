@@ -171,7 +171,6 @@ export class JWTBackendClient implements BackendApiClient {
       }
       request.data = payload
     }
-
     return new Promise<any>((resolve, reject) => {
       axios(request)
         .then((response: AxiosResponse<any>) => {
