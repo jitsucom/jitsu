@@ -1,17 +1,4 @@
-import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
-import {
-  arrayOf,
-  booleanType,
-  descriptionType,
-  jsType,
-  passwordType,
-  selectionType,
-  stringType,
-} from "../../sources/types"
-import { generatePath, Link } from "react-router-dom"
-import { destinationPageRoutes } from "../../../ui/pages/DestinationsPage/DestinationsPage.routes"
-import styles from "../../../ui/pages/DestinationsPage/partials/AddDestinationDialog/AddDestinationDialog.module.less"
-import { Badge } from "antd"
+import { booleanType, descriptionType, stringType } from "../../sources/types"
 import React from "react"
 
 const icon = (
@@ -62,10 +49,7 @@ const mixpanelDestination = {
       defaultValue: (
         <span className={"text-warning"}>
           <b>
-            This version is deprecated because newer version is available. Please replace it with{" "}
-            <Link to={generatePath(destinationPageRoutes.newExact, { type: "mixpanel2" })} key={"mixpanel2"}>
-              Mixpanel v2
-            </Link>{" "}
+            This version is deprecated because newer version is available. Please replace it with <b>Mixpanel v2</b>{" "}
             destination.
           </b>
         </span>
