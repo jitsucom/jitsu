@@ -84,6 +84,7 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
     case "array":
     //TODO: very limited implementation that works correctly for comma separated string arrays
     case "string": {
+      const name: string = specNode["title"] ?? nodeName
       const pattern = specNode["pattern"]
       let defaultValue = undefined
       const now = new Date()
@@ -100,18 +101,20 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
       }
 
       const isMultiline = !!specNode["multiline"]
+      const isSecret = !!specNode["airbyte_secret"]
+      const isSelection = !!specNode["enum"]
       const isBackendStoredOauth = !!specNode["env_name"]
       const fieldType = isBackendStoredOauth
         ? oauthSecretType
         : isMultiline
         ? makeStringType({ multiline: true })
-        : specNode["airbyte_secret"]
+        : isSecret
         ? passwordType
-        : specNode["enum"]
+        : isSelection
         ? singleSelectionType(specNode["enum"])
         : makeStringType(pattern ? { pattern } : {})
       const mappedStringField: Parameter = {
-        displayName: specNode["title"] ?? nodeName,
+        displayName: name,
         id,
         type: fieldType,
         required,
@@ -163,15 +166,19 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
         listOfRequiredFields = _listOfRequiredFields
       } else if (specNode["oneOf"]) {
         // this is a rare case, see the Postgres source spec for an example
+        const name = specNode["title"] ?? nodeName
         optionsEntries = getEntriesFromOneOfField(specNode, nodeName)
         const [optionsFieldName] = Object.entries(optionsEntries[0][1]["properties"]).find(
           ([fieldName, fieldNode]) => !!fieldNode["const"]
         )
         const options = optionsEntries.map(([_, childNode]) => childNode["properties"]?.[optionsFieldName]?.["const"])
+        const defaultAuthOption = options.find(option => option.toLowerCase?.().includes("oauth"))
+        const defaultOption = defaultAuthOption ?? options[0]
         const mappedSelectionField: Parameter = {
-          displayName: specNode["title"] ?? nodeName,
+          displayName: name,
           id: `${parentNode.id}.${nodeName}.${optionsFieldName}`,
           type: singleSelectionType(options),
+          defaultValue: defaultOption,
           required,
           documentation,
           omitFieldRule,

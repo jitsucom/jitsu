@@ -1,6 +1,5 @@
 // @Libs
 import snakeCase from "lodash/snakeCase"
-import merge from "lodash/merge"
 import { FormInstance } from "antd"
 // @Types
 import { SourceConnector } from "catalog/sources/types"
@@ -13,11 +12,16 @@ import ApplicationServices from "lib/services/ApplicationServices"
 import Marshal from "lib/commons/marshalling"
 // @Components
 import { Tab } from "ui/components/Tabs/TabsConfigurator"
-import { validateTabForm } from "utils/forms/validateTabForm"
-import { makeObjectFromFieldsValues } from "utils/forms/marshalling"
-import { SourceTabKey } from "ui/pages/SourcesPage/partials/SourceEditor/SourceEditorLegacy/SourceEditor"
 import { Poll } from "utils/polling"
 import { actionNotification } from "../../components/ActionNotification/ActionNotification"
+
+export type TestConnectionResponse = {
+  connected: boolean
+  connectedErrorType?: TestConnectionErrorType
+  connectedErrorMessage?: string
+  connectedErrorPayload?: any
+}
+type TestConnectionErrorType = "general" | "streams_changed"
 
 const sourcePageUtils = {
   getSourceType: (sourceConnector: SourceConnector) =>
@@ -36,59 +40,12 @@ const sourcePageUtils = {
   getPromptMessage: (tabs: Tab[]) => () =>
     tabs.some(tab => tab.touched) ? "You have unsaved changes. Are you sure you want to leave the page?" : undefined,
 
-  bringSourceData: ({
-    sourcesTabs,
-    sourceData,
-    forceUpdate,
-    options,
-  }: {
-    sourcesTabs: Tab<SourceTabKey>[]
-    sourceData: any
-    forceUpdate: any
-    options?: {
-      omitEmptyValues?: boolean
-      skipValidation?: boolean
-    }
-  }) => {
-    return Promise.all(
-      sourcesTabs.map((tab: Tab) =>
-        options?.skipValidation
-          ? tab.form.getFieldsValue()
-          : validateTabForm(tab, {
-              forceUpdate,
-              beforeValidate: () => (tab.errorsCount = 0),
-              errorCb: errors => (tab.errorsCount = errors.errorFields?.length),
-            })
-      )
-    ).then((allValues: [{ [key: string]: string }, CollectionSource[], string[]]) => {
-      const enrichedData = {
-        ...sourceData,
-        ...allValues.reduce((result: any, current: any) => {
-          return merge(
-            result,
-            makeObjectFromFieldsValues(current, {
-              omitEmptyValues: options?.omitEmptyValues,
-            })
-          )
-        }, {}),
-      }
-
-      if (enrichedData.collections) {
-        enrichedData.collections = enrichedData.collections.map((collection: CollectionSource) => {
-          if (!collection.parameters) {
-            collection.parameters = {} as Array<{
-              [key: string]: string[]
-            }>
-          }
-
-          return collection
-        })
-      }
-
-      return enrichedData
-    })
-  },
-  testConnection: async (src: SourceData, hideMessage?: boolean) => {
+  testConnection: async (
+    src: SourceData,
+    hideMessage?: boolean,
+    _options?: { skipHandleError?: boolean }
+  ): Promise<TestConnectionResponse> => {
+    const options = _options ?? {}
     let connectionTestMessagePrefix: string | undefined
     try {
       const response = await ApplicationServices.get().backendApiClient.post("/sources/test", Marshal.toPureJson(src))
@@ -135,7 +92,9 @@ const sourcePageUtils = {
 
       return {
         connected: true,
+        connectedErrorType: undefined,
         connectedErrorMessage: undefined,
+        connectedErrorPayload: undefined,
       }
     } catch (error) {
       if (!hideMessage) {
@@ -143,12 +102,18 @@ const sourcePageUtils = {
         const prefixedMessage = connectionTestMessagePrefix
           ? `${connectionTestMessagePrefix}${message.toLowerCase()}`
           : message
-        handleError(error, prefixedMessage)
+        if (!options.skipHandleError) handleError(error, prefixedMessage)
       }
+
+      const errorType: TestConnectionErrorType = `${error}`.includes("selected streams unavailable")
+        ? "streams_changed"
+        : "general"
 
       return {
         connected: false,
+        connectedErrorType: errorType,
         connectedErrorMessage: error.message ?? "Failed to connect",
+        connectedErrorPayload: error._response?.payload,
       }
     }
   },
@@ -179,13 +144,7 @@ const sourcePageUtils = {
     })
 
     if (oauthFieldsSuccessfullySet.length > 0) {
-      // const secretsNamesSeparator = oauthFieldsSuccessfullySet.length === 2 ? " and " : ", "
-      actionNotification.success(
-        // `Successfully pasted ${oauthFieldsSuccessfullySet
-        //   .map(key => toTitleCase(key, { separator: "_" }))
-        //   .join(secretsNamesSeparator)}`
-        `Authorization Successful`
-      )
+      actionNotification.success(`Authorization Successful`)
       return true
     }
 

@@ -17,18 +17,26 @@ import { apiKeysRoutes, ApiKeyEditor } from "./lib/components/ApiKeys/ApiKeyEdit
 
 // @Components
 
-const ApiKeys = React.lazy(() => import("./lib/components/ApiKeys/ApiKeys"))
-const CustomDomains = React.lazy(() => import("./lib/components/CustomDomains/CustomDomains"))
-const DestinationsPage = React.lazy(() => import("ui/pages/DestinationsPage/DestinationsPage"))
-const DbtCloudPage = React.lazy(() => import("ui/pages/DbtCloud/DbtCloudPage"))
-const GeoDataResolver = React.lazy(() => import("./lib/components/GeoDataResolver/GeoDataResolver"))
+const ApiKeys = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/components/ApiKeys/ApiKeys"))
+const CustomDomains = React.lazy(
+  () => import(/* webpackPrefetch: true */ "./lib/components/CustomDomains/CustomDomains")
+)
+const DestinationsPage = React.lazy(
+  () => import(/* webpackPrefetch: true */ "ui/pages/DestinationsPage/DestinationsPage")
+)
+const DbtCloudPage = React.lazy(() => import(/* webpackPrefetch: true */ "ui/pages/DbtCloud/DbtCloudPage"))
+const GeoDataResolver = React.lazy(
+  () => import(/* webpackPrefetch: true */ "./lib/components/GeoDataResolver/GeoDataResolver")
+)
 
-const EventsStream = React.lazy(() => import("./lib/components/EventsStream/EventsStream"))
-const SetupForm = React.lazy(() => import("ui/pages/SetupPage/SetupForm"))
-const SourcesPage = React.lazy(() => import("ui/pages/SourcesPage/SourcesPage"))
-const ConnectionsPage = React.lazy(() => import("ui/pages/ConnectionsPage/ConnectionsPage"))
-const PasswordForm = React.lazy(() => import("./lib/components/PasswordForm/PasswordForm"))
-const DownloadConfig = React.lazy(() => import("./lib/components/DownloadConfig/DownloadConfig"))
+const EventsStream = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/components/EventsStream/EventsStream"))
+const SetupForm = React.lazy(() => import(/* webpackPrefetch: true */ "ui/pages/SetupPage/SetupForm"))
+const SourcesPage = React.lazy(() => import(/* webpackPrefetch: true */ "ui/pages/SourcesPage/SourcesPage"))
+const ConnectionsPage = React.lazy(() => import(/* webpackPrefetch: true */ "ui/pages/ConnectionsPage/ConnectionsPage"))
+const PasswordForm = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/components/PasswordForm/PasswordForm"))
+const DownloadConfig = React.lazy(
+  () => import(/* webpackPrefetch: true */ "./lib/components/DownloadConfig/DownloadConfig")
+)
 
 // const ApiKeys = null
 // const CustomDomains = null
