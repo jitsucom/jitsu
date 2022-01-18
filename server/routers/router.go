@@ -2,6 +2,7 @@ package routers
 
 import (
 	"github.com/jitsucom/jitsu/server/geo"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/wal"
@@ -33,7 +34,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
-	router.Use(gin.Recovery())
+	router.Use(gin.RecoveryWithWriter(logging.GlobalLogsWriter))
 
 	router.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
