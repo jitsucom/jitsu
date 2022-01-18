@@ -35,11 +35,11 @@ export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = 
     // get form fields from source connector
 
     const handleFormValuesChange = useCallback<(values: PlainObjectWithPrimitiveValues) => void>(values => {
-      patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
+      patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { resetErrorsCount: true })
     }, [])
 
     const handleFormValuesChangeForm: FormProps<PlainObjectWithPrimitiveValues>["onValuesChange"] = (_, values) => {
-      patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
+      patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { resetErrorsCount: true })
     }
 
     const handleSetInitialFormValues = useCallback<(values: PlainObjectWithPrimitiveValues) => void>(values => {
