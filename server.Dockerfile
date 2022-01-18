@@ -1,6 +1,8 @@
 # BASE STAGE
 FROM alpine:3.13 as main
 
+ARG TARGETARCH
+
 RUN apk add --no-cache gcompat build-base python3 py3-pip python3-dev tzdata docker bash sudo curl npm
 
 ARG dhid
@@ -66,7 +68,7 @@ RUN yarn build && \
 
 #######################################
 # BUILD BACKEND STAGE
-FROM jitsucom/jitsu-builder as builder
+FROM jitsucom/jitsu-builder:$TARGETARCH as builder
 
 RUN mkdir /app
 

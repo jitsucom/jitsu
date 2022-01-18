@@ -1,6 +1,8 @@
 # BASE STAGE
 FROM alpine:3.13 as main
 
+ARG TARGETARCH
+
 RUN apk add --no-cache gcompat build-base python3 py3-pip python3-dev tzdata bash sudo curl
 
 ARG dhid
@@ -51,7 +53,7 @@ RUN if [ "$SKIP_UI" != "true" ]; then CI=false NODE_ENV=production ANALYTICS_KEY
 
 #######################################
 # BUILD BACKEND STAGE
-FROM jitsucom/jitsu-builder as builder
+FROM jitsucom/jitsu-builder:$TARGETARCH as builder
 
 ENV CONFIGURATOR_USER=configurator
 
