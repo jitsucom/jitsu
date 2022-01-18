@@ -75,24 +75,23 @@ export const OauthButton: React.FC<Props> = ({
   return (
     <div className={`transiton-transform duration-300 transform ${isOauthSupported ? "" : "scale-105)"}`}>
       <div className={`transition-opacity duration-700 ${className} ${isOauthSupported ? "" : "hidden opacity-0"}`}>
-        {isGoogle ? (
+        {/* {isGoogle ? (
           <GoogleSignInButton
             disabled={disabled || isLoading}
             type="dark"
             onClick={handleClick}
             style={{ margin: "3px" }}
           />
-        ) : (
-          <Button
-            type="default"
-            loading={isLoading}
-            disabled={disabled}
-            icon={icon ?? <KeyOutlined />}
-            onClick={handleClick}
-          >
-            {children}
-          </Button>
-        )}
+        ) : ( */}
+        <Button
+          type="default"
+          loading={isLoading}
+          disabled={disabled}
+          icon={icon ?? <KeyOutlined />}
+          onClick={handleClick}
+        >
+          {children}
+        </Button>
       </div>
     </div>
   )

@@ -10,19 +10,17 @@ type Props = {
   sourceDataFromCatalog: CatalogSourceConnector
   disabled?: boolean
   onlyManualAuth?: boolean
+  isSignedIn?: boolean
   onIsOauthSupportedCheckSuccess?: (supported: boolean) => void
   onFillAuthDataManuallyChange?: (setManually: boolean) => void
   setOauthSecretsToForms?: (secrets: PlainObjectWithPrimitiveValues) => void
-}
-
-type Forms = {
-  [key: string]: FormInstance<PlainObjectWithPrimitiveValues>
 }
 
 export const SourceEditorOauthButtons: React.FC<Props> = ({
   sourceDataFromCatalog,
   disabled,
   onlyManualAuth,
+  isSignedIn,
   onIsOauthSupportedCheckSuccess,
   onFillAuthDataManuallyChange,
   setOauthSecretsToForms,
@@ -64,7 +62,9 @@ export const SourceEditorOauthButtons: React.FC<Props> = ({
             setAuthSecrets={setOauthSecretsToForms}
             onIsOauthSuppotedStatusChecked={handleOauthSupportCheckStatus}
           >
-            <span className="align-top">{`Grant Jitsu Access to ${sourceDataFromCatalog.displayName}`}</span>
+            <span className="align-top">{`${
+              isSignedIn ? "Re-Sign In" : `Grant Jitsu Access to ${sourceDataFromCatalog.displayName}`
+            }`}</span>
           </OauthButton>
         </div>
         {!onlyManualAuth && isOauthSupported && (
