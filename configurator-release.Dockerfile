@@ -22,7 +22,7 @@ RUN ln -s /home/$CONFIGURATOR_USER/data/config /home/$CONFIGURATOR_USER/app/res 
     chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/logs
 #######################################
 # BUILD BACKEND STAGE
-FROM jitsucom/jitsu-builder:test as builder
+FROM jitsucom/jitsu-builder as builder
 
 ENV CONFIGURATOR_USER=configurator
 

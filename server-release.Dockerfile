@@ -31,7 +31,7 @@ RUN ln -s /home/$EVENTNATIVE_USER/data/config /home/$EVENTNATIVE_USER/app/res &&
 
 #######################################
 # BUILD BACKEND STAGE
-FROM jitsucom/jitsu-builder:test as builder
+FROM jitsucom/jitsu-builder as builder
 
 RUN mkdir /app
 

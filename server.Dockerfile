@@ -66,7 +66,7 @@ RUN yarn build && \
 
 #######################################
 # BUILD BACKEND STAGE
-FROM jitsucom/jitsu-builder:test as builder
+FROM jitsucom/jitsu-builder as builder
 
 RUN mkdir /app
 
