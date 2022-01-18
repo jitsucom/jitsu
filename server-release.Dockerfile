@@ -1,7 +1,7 @@
 # BASE STAGE
 FROM alpine:3.13 as main
 
-RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata docker bash sudo curl npm
+RUN apk add --no-cache gcompat build-base python3 py3-pip python3-dev tzdata docker bash sudo curl npm
 
 ARG dhid
 ENV DOCKER_HUB_ID=$dhid
@@ -31,7 +31,7 @@ RUN ln -s /home/$EVENTNATIVE_USER/data/config /home/$EVENTNATIVE_USER/app/res &&
 
 #######################################
 # BUILD BACKEND STAGE
-FROM jitsucom/server-builder as builder
+FROM jitsucom/jitsu-builder:test as builder
 
 RUN mkdir /app
 
@@ -40,6 +40,10 @@ WORKDIR /go/src/github.com/jitsucom/jitsu/server
 #Caching dependencies
 ADD server/go.mod ./
 RUN go mod tidy && go mod download
+
+#tmp workaround until next version of v8go will be release
+RUN git clone https://github.com/rogchap/v8go.git /tmp/v8go@v0.7.0
+RUN cp -fr /tmp/v8go@v0.7.0/* /root/go/pkg/mod/rogchap.com/v8go@v0.7.0
 
 #Copy backend
 ADD server/. ./.
