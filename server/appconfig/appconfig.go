@@ -59,7 +59,6 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.name", "unnamed-server")
 	viper.SetDefault("server.port", "8001")
 	viper.SetDefault("server.log.level", "info")
-	viper.SetDefault("server.static_files_dir", "./web")
 	viper.SetDefault("server.auth_reload_sec", 1)
 	viper.SetDefault("server.api_keys_reload_sec", 1)
 	viper.SetDefault("server.destinations_reload_sec", 1)
@@ -213,6 +212,8 @@ func setDefaultParams(containerized bool) {
 	})
 
 	if containerized {
+		viper.SetDefault("server.static_files_dir", "/home/eventnative/app/web")
+
 		viper.SetDefault("log.path", "/home/eventnative/data/logs/events")
 		viper.SetDefault("server.log.path", "/home/eventnative/data/logs")
 		viper.SetDefault("server.config.path", "/home/eventnative/data/config")
@@ -224,6 +225,8 @@ func setDefaultParams(containerized bool) {
 		viper.SetDefault("sql_debug_log.ddl.path", "/home/eventnative/data/logs")
 		viper.SetDefault("sql_debug_log.queries.path", "/home/eventnative/data/logs")
 	} else {
+		viper.SetDefault("server.static_files_dir", "./web")
+		
 		viper.SetDefault("log.path", "./logs/events")
 		viper.SetDefault("server.log.path", "./logs")
 		viper.SetDefault("sql_debug_log.ddl.path", "./logs")
