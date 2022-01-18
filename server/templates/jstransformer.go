@@ -239,7 +239,14 @@ func initV8Context(iso *v8go.Isolate, console, fetch bool, extraFunctions templa
 	return v8ctx, nil
 }
 
-func V8EvaluateCode(script string, extraFunctions template.FuncMap, extraScripts ...string) (interface{}, error) {
+func V8EvaluateCode(script string, extraFunctions template.FuncMap, extraScripts ...string) (result interface{}, err error) {
+	//panic handler
+	defer func() {
+		if r := recover(); r != nil {
+			result = nil
+			err = fmt.Errorf("javascript panic: %v", r)
+		}
+	}()
 	iso := v8go.NewIsolate()
 	defer iso.Dispose()
 	v8ctx, err := initV8Context(iso, true, true, extraFunctions, extraScripts...)
