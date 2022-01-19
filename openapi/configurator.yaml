@@ -129,6 +129,11 @@ components:
 #/api/v1/database
 #/api/v1/notify
 
+#future
+#/api/v2/projects (POST) - create a project
+#/api/v2/projects/users (POST) - add user to the project
+#/api/v2/projects/users (DELETE) - delete user from the project
+
 paths:
   /api/v1/users/signin:
     post:
@@ -348,7 +353,7 @@ paths:
       - $ref: '#/components/parameters/objectUid'
     get:
       operationId: getObjectsByProjectIDAndObjectTypeAndID
-      description: Get an object  with given UID
+      description: Get an object with given UID
       security:
         - bearerAuth: [ 'client:project' ]
       responses:

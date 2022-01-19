@@ -8,6 +8,9 @@ import (
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/random"
+	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"time"
 )
@@ -24,6 +27,8 @@ const (
 	telemetryCollection = "telemetry"
 	telemetryGlobalID   = "global_configuration"
 
+	allObjectsIdentifier = "all"
+
 	LastUpdatedLayout = "2006-01-02T15:04:05.000Z"
 )
 
@@ -34,12 +39,76 @@ var collectionsDependencies = map[string]string{
 
 type ConfigurationsService struct {
 	storage            ConfigurationsStorage
+	monitorKeeper      storages.MonitorKeeper
 	defaultDestination *destinations.Postgres
 }
 
-func NewConfigurationsService(storage ConfigurationsStorage, defaultDestination *destinations.Postgres) *ConfigurationsService {
-	return &ConfigurationsService{storage: storage, defaultDestination: defaultDestination}
+func NewConfigurationsService(storage ConfigurationsStorage, defaultDestination *destinations.Postgres,
+	monitorKeeper storages.MonitorKeeper) *ConfigurationsService {
+	return &ConfigurationsService{
+		storage:            storage,
+		defaultDestination: defaultDestination,
+		monitorKeeper:      monitorKeeper,
+	}
 }
+
+//** Data manipulation **
+
+//saveWithLock locks and uses save func under the hood
+func (cs *ConfigurationsService) saveWithLock(objectType, projectID string, object interface{}) error {
+	lock, err := cs.monitorKeeper.Lock(objectType, projectID)
+	if err != nil {
+		return fmt.Errorf("error locking: %v", err)
+	}
+	defer cs.monitorKeeper.Unlock(lock)
+
+	return cs.save(objectType, projectID, object)
+}
+
+//getWithLock locks and uses get func under the hood
+func (cs *ConfigurationsService) getWithLock(objectType, projectID string) ([]byte, error) {
+	lock, err := cs.monitorKeeper.Lock(objectType, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("error locking: %v", err)
+	}
+	defer cs.monitorKeeper.Unlock(lock)
+
+	return cs.get(objectType, projectID)
+}
+
+//save proxies save request to the storage and updates dependency collection last_update (if a dependency is present)
+func (cs *ConfigurationsService) save(objectType, projectID string, object interface{}) error {
+	if err := cs.storage.Store(objectType, projectID, object); err != nil {
+		return err
+	}
+
+	if dependency, ok := collectionsDependencies[objectType]; ok {
+		if err := cs.storage.UpdateCollectionLastUpdated(dependency); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+//get proxies get request to the storage
+func (cs *ConfigurationsService) get(objectType, projectID string) ([]byte, error) {
+	return cs.storage.Get(objectType, projectID)
+}
+
+// ** General functions **
+
+//SaveConfigWithLock proxies call to saveWithLock
+func (cs *ConfigurationsService) SaveConfigWithLock(objectType string, id string, entity interface{}) error {
+	return cs.saveWithLock(objectType, id, entity)
+}
+
+//GetConfigWithLock proxies call to getWithLock
+func (cs *ConfigurationsService) GetConfigWithLock(objectType string, id string) ([]byte, error) {
+	return cs.getWithLock(objectType, id)
+}
+
+// ** Utility **
 
 //CreateDefaultDestination Creates default destination in case no other destinations exist for the project
 func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*entities.Database, error) {
@@ -47,7 +116,15 @@ func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*en
 		return nil, errors.New("Default destination postgres isn't configured")
 	}
 
-	credentials, err := cs.storage.Get(defaultDatabaseCredentialsCollection, projectID)
+	objectType := defaultDatabaseCredentialsCollection
+
+	lock, err := cs.monitorKeeper.Lock(objectType, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("error locking: %v", err)
+	}
+	defer cs.monitorKeeper.Unlock(lock)
+
+	credentials, err := cs.get(objectType, projectID)
 	if err != nil {
 		if err == ErrConfigurationNotFound {
 			//create new
@@ -56,7 +133,7 @@ func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*en
 				return nil, fmt.Errorf("Error creating database: [%s]: %v", projectID, err)
 			}
 
-			err = cs.storage.Store(defaultDatabaseCredentialsCollection, projectID, database)
+			err = cs.save(objectType, projectID, database)
 			if err != nil {
 				return nil, err
 			}
@@ -74,13 +151,73 @@ func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*en
 	return database, err
 }
 
+//CreateDefaultAPIKey returns generated default key per project only in case if no other API key exists
+func (cs *ConfigurationsService) CreateDefaultAPIKey(projectID string) error {
+	objectType := apiKeysCollection
+	lock, err := cs.monitorKeeper.Lock(objectType, projectID)
+	if err != nil {
+		return fmt.Errorf("error locking: %v", err)
+	}
+	defer cs.monitorKeeper.Unlock(lock)
+
+	keys, err := cs.GetAPIKeysByProjectID(projectID)
+	if err != nil {
+		return err
+	}
+
+	//don't create default api keys if any exists
+	if len(keys) > 0 {
+		return nil
+	}
+
+	if _, err = cs.get(objectType, projectID); err != nil {
+		if err != ErrConfigurationNotFound {
+			return fmt.Errorf("error getting api keys [%s] by projectID [%s]: %v", objectType, projectID, err)
+		}
+	}
+
+	apiKeyRecord := generateDefaultAPIToken(projectID)
+	err = cs.save(objectType, projectID, apiKeyRecord)
+	if err != nil {
+		return fmt.Errorf("failed to store default key for project=[%s]: %v", projectID, err)
+	}
+	return nil
+}
+
+// ** Last Updated **
+
+//GetDestinationsLastUpdated returns destinations last updated time
 func (cs *ConfigurationsService) GetDestinationsLastUpdated() (*time.Time, error) {
 	return cs.storage.GetCollectionLastUpdated(destinationsCollection)
 }
 
-//GetDestinations return map with projectID:destinations
-func (cs ConfigurationsService) GetDestinations() (map[string]*entities.Destinations, error) {
-	allDestinations, err := cs.storage.GetAllGroupedByID(destinationsCollection)
+//GetAPIKeysLastUpdated returns api keys last updated
+func (cs *ConfigurationsService) GetAPIKeysLastUpdated() (*time.Time, error) {
+	return cs.storage.GetCollectionLastUpdated(apiKeysCollection)
+}
+
+//GetSourcesLastUpdated returns sources last updated
+func (cs *ConfigurationsService) GetSourcesLastUpdated() (*time.Time, error) {
+	return cs.storage.GetCollectionLastUpdated(sourcesCollection)
+}
+
+//GetGeoDataResolversLastUpdated returns geo data resolvers last updated
+func (cs *ConfigurationsService) GetGeoDataResolversLastUpdated() (*time.Time, error) {
+	return cs.storage.GetCollectionLastUpdated(geoDataResolversCollection)
+}
+
+// ** Destinations **
+
+//GetAllDestinations locks and returns all destinations in format map with projectID:destinations
+func (cs ConfigurationsService) GetAllDestinations() (map[string]*entities.Destinations, error) {
+	objectType := destinationsCollection
+	lock, err := cs.monitorKeeper.Lock(objectType, allObjectsIdentifier)
+	if err != nil {
+		return nil, fmt.Errorf("error locking: %v", err)
+	}
+	defer cs.monitorKeeper.Unlock(lock)
+
+	allDestinations, err := cs.storage.GetAllGroupedByID(objectType)
 	if err != nil {
 		return nil, err
 	}
@@ -92,8 +229,9 @@ func (cs ConfigurationsService) GetDestinations() (map[string]*entities.Destinat
 	return result, nil
 }
 
+//GetDestinationsByProjectID uses getWithLock func under the hood, returns all destinations per project
 func (cs *ConfigurationsService) GetDestinationsByProjectID(projectID string) ([]*entities.Destination, error) {
-	doc, err := cs.storage.Get(destinationsCollection, projectID)
+	doc, err := cs.getWithLock(destinationsCollection, projectID)
 	if err != nil {
 		if err == ErrConfigurationNotFound {
 			return make([]*entities.Destination, 0), nil
@@ -110,38 +248,37 @@ func (cs *ConfigurationsService) GetDestinationsByProjectID(projectID string) ([
 	return dest.Destinations, nil
 }
 
-func (cs *ConfigurationsService) GetAPIKeysLastUpdated() (*time.Time, error) {
-	return cs.storage.GetCollectionLastUpdated(apiKeysCollection)
-}
+// ** API Keys **
 
-func (cs *ConfigurationsService) GetAPIKeys() ([]*entities.APIKey, error) {
+//GetAllAPIKeys locks and returns all api keys
+func (cs *ConfigurationsService) GetAllAPIKeys() ([]*entities.APIKey, error) {
+	objectType := apiKeysCollection
+	lock, err := cs.monitorKeeper.Lock(objectType, allObjectsIdentifier)
+	if err != nil {
+		return nil, fmt.Errorf("error locking: %v", err)
+	}
+	defer cs.monitorKeeper.Unlock(lock)
+
+	keysGrouped := make(map[string]*entities.APIKeys)
+	data, err := cs.storage.GetAllGroupedByID(objectType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get api keys: %v", err)
+	}
+
+	if err = json.Unmarshal(data, &keysGrouped); err != nil {
+		return nil, fmt.Errorf("failed to parse API keys: %v", err)
+	}
+
 	var result []*entities.APIKey
-	keys, err := cs.GetAPIKeysGroupByProjectID()
-	if err != nil {
-		return nil, err
-	}
-	for _, apiKeys := range keys {
-		result = append(result, apiKeys...)
+	for _, keyEntity := range keysGrouped {
+		result = append(result, keyEntity.Keys...)
 	}
 	return result, nil
 }
 
-func (cs *ConfigurationsService) GetAPIKeysGroupByProjectID() (map[string][]*entities.APIKey, error) {
-	keys := make(map[string]*entities.APIKeys)
-	data, err := cs.storage.GetAllGroupedByID(apiKeysCollection)
-	err = json.Unmarshal(data, &keys)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse API keys: %v", err)
-	}
-	result := make(map[string][]*entities.APIKey)
-	for projectID, keys := range keys {
-		result[projectID] = keys.Keys
-	}
-	return result, nil
-}
-
+//GetAPIKeysByProjectID uses getWithLock func under the hood, returns all api keys per project
 func (cs *ConfigurationsService) GetAPIKeysByProjectID(projectID string) ([]*entities.APIKey, error) {
-	data, err := cs.storage.Get(apiKeysCollection, projectID)
+	data, err := cs.getWithLock(apiKeysCollection, projectID)
 	if err != nil {
 		if err == ErrConfigurationNotFound {
 			return make([]*entities.APIKey, 0), nil
@@ -157,64 +294,73 @@ func (cs *ConfigurationsService) GetAPIKeysByProjectID(projectID string) ([]*ent
 	return apiKeys.Keys, nil
 }
 
-//GetSourcesLastUpdated returns sources last updated
-func (cs *ConfigurationsService) GetSourcesLastUpdated() (*time.Time, error) {
-	return cs.storage.GetCollectionLastUpdated(sourcesCollection)
-}
+// ** Sources **
 
-//GetSources return map with projectID:sources
-func (cs *ConfigurationsService) GetSources() (map[string]*entities.Sources, error) {
-	allSources, err := cs.storage.GetAllGroupedByID(sourcesCollection)
+//GetAllSources locks and returns all sources in format map with projectID:sources
+func (cs *ConfigurationsService) GetAllSources() (map[string]*entities.Sources, error) {
+	objectType := sourcesCollection
+	lock, err := cs.monitorKeeper.Lock(objectType, allObjectsIdentifier)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error locking: %v", err)
 	}
-	result := map[string]*entities.Sources{}
-	err = json.Unmarshal(allSources, &result)
+	defer cs.monitorKeeper.Unlock(lock)
+
+	allSources, err := cs.storage.GetAllGroupedByID(objectType)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get sources: %v", err)
+	}
+
+	result := map[string]*entities.Sources{}
+	if err = json.Unmarshal(allSources, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse sources: %v", err)
 	}
 	return result, nil
 }
 
-//GetSourcesByProjectID returns sources of input project
+//GetSourcesByProjectID uses getWithLock func under the hood, returns all sources per project
 func (cs *ConfigurationsService) GetSourcesByProjectID(projectID string) ([]*entities.Source, error) {
-	doc, err := cs.storage.Get(sourcesCollection, projectID)
+	doc, err := cs.getWithLock(sourcesCollection, projectID)
 	if err != nil {
 		if err == ErrConfigurationNotFound {
 			return make([]*entities.Source, 0), nil
 		} else {
-			return nil, fmt.Errorf("Error getting sources by projectID [%s]: %v", projectID, err)
+			return nil, fmt.Errorf("failed to get sources by projectID [%s]: %v", projectID, err)
 		}
 	}
 
 	sources := &entities.Sources{}
-	err = json.Unmarshal(doc, sources)
-	if err != nil {
-		return nil, fmt.Errorf("Error parsing sources of projectID [%s]: %v", projectID, err)
+	if err = json.Unmarshal(doc, sources); err != nil {
+		return nil, fmt.Errorf("failed to parse sources of projectID [%s]: %v", projectID, err)
 	}
 	return sources.Sources, nil
 }
 
-func (cs *ConfigurationsService) GetGeoDataResolversLastUpdated() (*time.Time, error) {
-	return cs.storage.GetCollectionLastUpdated(geoDataResolversCollection)
-}
+// ** Geo Data Resolvers **
 
-//GetGeoDataResolvers return map with projectID:geo_data_resolver
+//GetGeoDataResolvers locks and returns all sources in format map with projectID:geo_data_resolver
 func (cs *ConfigurationsService) GetGeoDataResolvers() (map[string]*entities.GeoDataResolver, error) {
-	allDestinations, err := cs.storage.GetAllGroupedByID(geoDataResolversCollection)
+	objectType := geoDataResolversCollection
+	lock, err := cs.monitorKeeper.Lock(objectType, allObjectsIdentifier)
+	if err != nil {
+		return nil, fmt.Errorf("error locking: %v", err)
+	}
+	defer cs.monitorKeeper.Unlock(lock)
+
+	allGeoDataResolvers, err := cs.storage.GetAllGroupedByID(objectType)
 	if err != nil {
 		return nil, err
 	}
 	result := map[string]*entities.GeoDataResolver{}
-	err = json.Unmarshal(allDestinations, &result)
-	if err != nil {
+	if err = json.Unmarshal(allGeoDataResolvers, &result); err != nil {
 		return nil, err
 	}
+
 	return result, nil
 }
 
+//GetGeoDataResolverByProjectID uses getWithLock func under the hood, returns all geo data resolvers per project
 func (cs *ConfigurationsService) GetGeoDataResolverByProjectID(projectID string) (*entities.GeoDataResolver, error) {
-	doc, err := cs.storage.Get(geoDataResolversCollection, projectID)
+	doc, err := cs.getWithLock(geoDataResolversCollection, projectID)
 	if err != nil {
 		if err == ErrConfigurationNotFound {
 			return nil, nil
@@ -224,56 +370,35 @@ func (cs *ConfigurationsService) GetGeoDataResolverByProjectID(projectID string)
 	}
 
 	gdr := &entities.GeoDataResolver{}
-	err = json.Unmarshal(doc, gdr)
-	if err != nil {
+	if err = json.Unmarshal(doc, gdr); err != nil {
 		return nil, fmt.Errorf("error parsing geo data resolver of projectID [%s]: %v", projectID, err)
 	}
+
 	return gdr, nil
 }
 
-//CreateDefaultAPIKey returns generated default key per project only in case if no other API key exists
-func (cs *ConfigurationsService) CreateDefaultAPIKey(projectID string) error {
-	keys, err := cs.GetAPIKeysByProjectID(projectID)
-	if err != nil {
-		return err
-	}
-	if len(keys) > 0 {
-		return nil
-	}
-	_, err = cs.storage.Get(apiKeysCollection, projectID)
-	if err != nil {
-		if err != ErrConfigurationNotFound {
-			return fmt.Errorf("Error getting api keys by projectID [%s]: %v", projectID, err)
-		}
-	}
-	apiKeyRecord := cs.generateDefaultAPIToken(projectID)
-	err = cs.storage.Store(apiKeysCollection, projectID, apiKeyRecord)
-	if err != nil {
-		return fmt.Errorf("Failed to store default key for project=[%s]: %v", projectID, err)
-	}
-	return nil
-}
+// ** Telemetry **
 
-//SaveTelemetry saves telemetry configuration
+//SaveTelemetry uses saveWithLock for saving with lock telemetry settings
 func (cs *ConfigurationsService) SaveTelemetry(disabledConfiguration map[string]bool) error {
-	err := cs.storage.Store(telemetryCollection, telemetryGlobalID, telemetry.Configuration{Disabled: disabledConfiguration})
+	err := cs.saveWithLock(telemetryCollection, telemetryGlobalID, telemetry.Configuration{Disabled: disabledConfiguration})
 	if err != nil {
-		return fmt.Errorf("Failed to store telemetry settings:: %v", err)
+		return fmt.Errorf("failed to store telemetry settings:: %v", err)
 	}
 	return nil
 }
 
-//GetTelemetry returns telemetry configuration bytes
+//GetTelemetry uses getWithLock for getting with lock telemetry settings
 func (cs *ConfigurationsService) GetTelemetry() ([]byte, error) {
-	b, err := cs.storage.Get(telemetryCollection, telemetryGlobalID)
+	b, err := cs.getWithLock(telemetryCollection, telemetryGlobalID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get telemetry settings:: %v", err)
 	}
 
 	return b, nil
 }
 
-//GetParsedTelemetry returns telemetry configuration
+//GetParsedTelemetry returns telemetry configuration using GetTelemetry func
 func (cs *ConfigurationsService) GetParsedTelemetry() (*telemetry.Configuration, error) {
 	b, err := cs.GetTelemetry()
 	if err != nil {
@@ -281,66 +406,211 @@ func (cs *ConfigurationsService) GetParsedTelemetry() (*telemetry.Configuration,
 	}
 
 	telemetryConfig := &telemetry.Configuration{}
-	err = json.Unmarshal(b, telemetryConfig)
-	if err != nil {
-		return nil, fmt.Errorf("Error parsing telemetry configuration: %v", err)
+	if err = json.Unmarshal(b, telemetryConfig); err != nil {
+		return nil, fmt.Errorf("failed to  parse telemetry configuration: %v", err)
 	}
 	return telemetryConfig, nil
 }
 
-//StoreConfig stores configuration in db and update last update field in dependencies
-func (cs *ConfigurationsService) StoreConfig(collection string, key string, entity interface{}) error {
-	if err := cs.storage.Store(collection, key, entity); err != nil {
-		return err
+// ** Domains **
+
+//GetAllCustomDomains locks and returns all domains in format map with projectID:domains
+func (cs *ConfigurationsService) GetAllCustomDomains() (map[string]*entities.CustomDomains, error) {
+	objectType := customDomainsCollection
+	lock, err := cs.monitorKeeper.Lock(objectType, allObjectsIdentifier)
+	if err != nil {
+		return nil, fmt.Errorf("error locking: %v", err)
 	}
+	defer cs.monitorKeeper.Unlock(lock)
 
-	if dependency, ok := collectionsDependencies[collection]; ok {
-		if err := cs.storage.UpdateCollectionLastUpdated(dependency); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (cs *ConfigurationsService) generateDefaultAPIToken(projectID string) entities.APIKeys {
-	return entities.APIKeys{
-		Keys: []*entities.APIKey{{
-			ID:           projectID + "." + random.String(6),
-			ClientSecret: "js." + projectID + "." + random.String(21),
-			ServerSecret: "s2s." + projectID + "." + random.String(21),
-		}},
-	}
-}
-
-func (cs *ConfigurationsService) GetCustomDomains() (map[string]*entities.CustomDomains, error) {
 	customDomains := make(map[string]*entities.CustomDomains)
-	data, err := cs.storage.GetAllGroupedByID(customDomainsCollection)
+	data, err := cs.storage.GetAllGroupedByID(objectType)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get custom domains: %v", err)
+		return nil, fmt.Errorf("failed to get custom domains: %v", err)
 	}
-	err = json.Unmarshal(data, &customDomains)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse custom domains: %v", err)
+	if err = json.Unmarshal(data, &customDomains); err != nil {
+		return nil, fmt.Errorf("failed to parse custom domains: %v", err)
 	}
 	return customDomains, nil
 }
 
+//GetCustomDomainsByProjectID uses getWithLock func under the hood, returns all domains per project
 func (cs *ConfigurationsService) GetCustomDomainsByProjectID(projectID string) (*entities.CustomDomains, error) {
-	data, err := cs.storage.Get(customDomainsCollection, projectID)
+	data, err := cs.getWithLock(customDomainsCollection, projectID)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get custom domains for project [%s]: %v", projectID, err)
+		return nil, fmt.Errorf("failed to get custom domains for project [%s]: %v", projectID, err)
 	}
 	domains := &entities.CustomDomains{}
-	err = json.Unmarshal(data, &domains)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse custom domains for project [%s]: [%v]", projectID, err)
+	if err = json.Unmarshal(data, &domains); err != nil {
+		return nil, fmt.Errorf("failed to parse custom domains for project [%s]: [%v]", projectID, err)
 	}
 	return domains, nil
 }
 
+//UpdateCustomDomain proxies call to saveWithLock
 func (cs *ConfigurationsService) UpdateCustomDomain(projectID string, customDomains *entities.CustomDomains) error {
-	return cs.storage.Store(customDomainsCollection, projectID, customDomains)
+	return cs.saveWithLock(customDomainsCollection, projectID, customDomains)
+}
+
+// ** Objects API **
+
+//PatchConfigWithLock locks by collection and projectID, applies pathPayload to data, saves and returns the updated object
+func (cs *ConfigurationsService) PatchConfigWithLock(collection, projectID string, patchPayload *PatchPayload) ([]byte, error) {
+	lock, err := cs.monitorKeeper.Lock(collection, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("error locking: %v", err)
+	}
+	defer cs.monitorKeeper.Unlock(lock)
+
+	data, err := cs.get(collection, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	collectionData := map[string]interface{}{}
+	if err := json.Unmarshal(data, &collectionData); err != nil {
+		return nil, fmt.Errorf("error unmarshal data: %v", err)
+	}
+
+	objectsArrayI, ok := collectionData[patchPayload.ObjectArrayPath]
+	if !ok {
+		return nil, fmt.Errorf("path [%s] doesn't exist in the collection", patchPayload.ObjectArrayPath)
+	}
+
+	objectsArray, ok := objectsArrayI.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("path [%s] is not an array (is %T) in the collection", patchPayload.ObjectArrayPath, objectsArrayI)
+	}
+
+	for i, objectI := range objectsArray {
+		foundObject, ok, err := findObject(i, objectI, patchPayload.ObjectArrayPath, collection, projectID, patchPayload.ObjectMeta)
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
+			newObject := jsonutils.Merge(foundObject, patchPayload.Patch)
+			objectsArray[i] = newObject
+			collectionData[patchPayload.ObjectArrayPath] = objectsArray
+
+			err := cs.save(collection, projectID, collectionData)
+			if err != nil {
+				return nil, err
+			}
+
+			newObjectBytes, err := json.Marshal(newObject)
+			if err != nil {
+				return nil, fmt.Errorf("error serializing patched object: %v", err)
+			}
+
+			return newObjectBytes, nil
+		}
+	}
+
+	return nil, fmt.Errorf("object hasn't been found by id in path [%s] in the collection", patchPayload.ObjectArrayPath)
+}
+
+//DeleteObjectWithLock locks by collection and projectID, deletes object by objectUID, saves and returns deleted object
+func (cs *ConfigurationsService) DeleteObjectWithLock(collection, projectID, objectArrayPath string, objectMeta *ObjectMeta) ([]byte, error) {
+	lock, err := cs.monitorKeeper.Lock(collection, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("error locking: %v", err)
+	}
+	defer cs.monitorKeeper.Unlock(lock)
+
+	data, err := cs.get(collection, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	collectionData := map[string]interface{}{}
+	if err := json.Unmarshal(data, &collectionData); err != nil {
+		return nil, fmt.Errorf("error unmarshal data: %v", err)
+	}
+
+	objectsArrayI, ok := collectionData[objectArrayPath]
+	if !ok {
+		return nil, fmt.Errorf("path [%s] doesn't exist in the collection", objectArrayPath)
+	}
+
+	objectsArray, ok := objectsArrayI.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("path [%s] is not an array (is %T) in the collection", objectArrayPath, objectsArrayI)
+	}
+
+	for i, objectI := range objectsArray {
+		foundObject, ok, err := findObject(i, objectI, objectArrayPath, collection, projectID, objectMeta)
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
+			//save without foundObject
+			newObjectsArray := append(objectsArray[:i], objectsArray[i+1:]...)
+			collectionData[objectArrayPath] = newObjectsArray
+
+			err := cs.save(collection, projectID, collectionData)
+			if err != nil {
+				return nil, err
+			}
+
+			deletedObjectBytes, err := json.Marshal(foundObject)
+			if err != nil {
+				return nil, fmt.Errorf("error serializing deleted object: %v", err)
+			}
+
+			return deletedObjectBytes, nil
+		}
+	}
+
+	return nil, fmt.Errorf("object hasn't been found by id in path [%s] in the collection", objectArrayPath)
+}
+
+//GetObjectWithLock locks by collection and projectID, gets object by objectUID and returns it
+func (cs *ConfigurationsService) GetObjectWithLock(collection, projectID, objectArrayPath string, objectMeta *ObjectMeta) ([]byte, error) {
+	lock, err := cs.monitorKeeper.Lock(collection, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("error locking: %v", err)
+	}
+	defer cs.monitorKeeper.Unlock(lock)
+
+	data, err := cs.get(collection, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	collectionData := map[string]interface{}{}
+	if err := json.Unmarshal(data, &collectionData); err != nil {
+		return nil, fmt.Errorf("error unmarshal data: %v", err)
+	}
+
+	objectsArrayI, ok := collectionData[objectArrayPath]
+	if !ok {
+		return nil, fmt.Errorf("path [%s] doesn't exist in the collection", objectArrayPath)
+	}
+
+	objectsArray, ok := objectsArrayI.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("path [%s] is not an array (is %T) in the collection", objectArrayPath, objectsArrayI)
+	}
+
+	for i, objectI := range objectsArray {
+		foundObject, ok, err := findObject(i, objectI, objectArrayPath, collection, projectID, objectMeta)
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
+			foundObjectBytes, err := json.Marshal(foundObject)
+			if err != nil {
+				return nil, fmt.Errorf("error serializing object: %v", err)
+			}
+
+			return foundObjectBytes, nil
+		}
+	}
+
+	return nil, fmt.Errorf("object hasn't been found by id in path [%s] in the collection", objectArrayPath)
 }
 
 func (cs *ConfigurationsService) Close() (multiErr error) {
@@ -350,8 +620,43 @@ func (cs *ConfigurationsService) Close() (multiErr error) {
 		}
 	}
 
+	if err := cs.monitorKeeper.Close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	}
+
 	if err := cs.storage.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing configurations storage: %v", err))
 	}
 	return multiErr
+}
+
+//findObject returns object and true if input objectI has the same ID as in objectMeta
+func findObject(i int, objectI interface{}, objectArrayPath, collection, projectID string, objectMeta *ObjectMeta) (map[string]interface{}, bool, error) {
+	object, ok := objectI.(map[string]interface{})
+	if !ok {
+		logging.Infof("element [%T: %v] isn't an object in path [%s] in the %s collection by %s ID", objectI, objectI, objectArrayPath, collection, projectID)
+		return nil, false, fmt.Errorf("element with index: %d isn't an object in path [%s] in the collection", i, objectArrayPath)
+	}
+
+	idValue, ok := object[objectMeta.IDFieldPath]
+	if !ok {
+		logging.Infof("element [%v] doesn't have an id field in path [%s] in the %s collection by %s ID", object, objectMeta.IDFieldPath, collection, projectID)
+		return nil, false, fmt.Errorf("element with index: %d doesn't have an id field in path [%s] in the collection", i, objectMeta.IDFieldPath)
+	}
+
+	if fmt.Sprint(idValue) == fmt.Sprint(objectMeta.Value) {
+		return object, true, nil
+	}
+
+	return nil, false, nil
+}
+
+func generateDefaultAPIToken(projectID string) entities.APIKeys {
+	return entities.APIKeys{
+		Keys: []*entities.APIKey{{
+			ID:           projectID + "." + random.String(6),
+			ClientSecret: "js." + projectID + "." + random.String(21),
+			ServerSecret: "s2s." + projectID + "." + random.String(21),
+		}},
+	}
 }

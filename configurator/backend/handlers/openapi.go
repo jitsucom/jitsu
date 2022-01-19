@@ -3,7 +3,6 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/openapi"
-	"net/http"
 )
 
 //OpenAPI is an openapi.ServerInterface implementation wrapper
@@ -12,15 +11,19 @@ type OpenAPI struct {
 	jConfigurationsHandler  *ConfigurationHandler
 	systemHandler           *SystemHandler
 	geoDataResolversHandler *GeoDataResolversHandler
+	objectsHandler          *ObjectsHandler
+	projectsHandler         *ProjectsHandler
 }
 
 func NewOpenAPI(authHandler *AuthorizationHandler, jConfigurationsHandler *ConfigurationHandler, systemHandler *SystemHandler,
-	geoDataResolversHandler *GeoDataResolversHandler) *OpenAPI {
+	geoDataResolversHandler *GeoDataResolversHandler, objectsHandler *ObjectsHandler, projectsHandler *ProjectsHandler) *OpenAPI {
 	return &OpenAPI{
 		authHandler:             authHandler,
 		jConfigurationsHandler:  jConfigurationsHandler,
 		systemHandler:           systemHandler,
 		geoDataResolversHandler: geoDataResolversHandler,
+		objectsHandler:          objectsHandler,
+		projectsHandler:         projectsHandler,
 	}
 }
 
@@ -113,44 +116,44 @@ func (oa *OpenAPI) UsersTokenRefresh(c *gin.Context) {
 	oa.authHandler.RefreshToken(c)
 }
 
-func (oa *OpenAPI) GetObjectsByProjectIDAndObjectType(c *gin.Context, projectId openapi.ProjectId, objectType openapi.ObjectType) {
+func (oa *OpenAPI) GetObjectsByProjectIDAndObjectType(c *gin.Context, projectID openapi.ProjectId, objectType openapi.ObjectType) {
 	if c.IsAborted() {
 		return
 	}
 
-	c.Status(http.StatusGone)
+	oa.objectsHandler.GetObjectsByProjectIDAndObjectType(c, string(projectID), string(objectType))
 }
 
-func (oa *OpenAPI) SetObjectsByProjectIDAndObjectType(c *gin.Context, projectId openapi.ProjectId, objectType openapi.ObjectType) {
+func (oa *OpenAPI) SetObjectsByProjectIDAndObjectType(c *gin.Context, projectID openapi.ProjectId, objectType openapi.ObjectType) {
 	if c.IsAborted() {
 		return
 	}
 
-	c.Status(http.StatusGone)
+	oa.objectsHandler.SetObjectsByProjectIDAndObjectType(c, string(projectID), string(objectType))
 }
 
-func (oa *OpenAPI) DeleteObjectsByProjectIDAndObjectTypeAndID(c *gin.Context, projectId openapi.ProjectId, objectType openapi.ObjectType, objectUid openapi.ObjectUid) {
+func (oa *OpenAPI) DeleteObjectsByProjectIDAndObjectTypeAndID(c *gin.Context, projectID openapi.ProjectId, objectType openapi.ObjectType, objectUID openapi.ObjectUid) {
 	if c.IsAborted() {
 		return
 	}
 
-	c.Status(http.StatusGone)
+	oa.objectsHandler.DeleteObjectsByProjectIDAndObjectTypeAndID(c, string(projectID), string(objectType), string(objectUID))
 }
 
-func (oa *OpenAPI) GetObjectsByProjectIDAndObjectTypeAndID(c *gin.Context, projectId openapi.ProjectId, objectType openapi.ObjectType, objectUid openapi.ObjectUid) {
+func (oa *OpenAPI) GetObjectsByProjectIDAndObjectTypeAndID(c *gin.Context, projectID openapi.ProjectId, objectType openapi.ObjectType, objectUID openapi.ObjectUid) {
 	if c.IsAborted() {
 		return
 	}
 
-	c.Status(http.StatusGone)
+	oa.objectsHandler.GetObjectsByProjectIDAndObjectTypeAndID(c, string(projectID), string(objectType), string(objectUID))
 }
 
-func (oa *OpenAPI) PatchObjectsByProjectIDAndObjectTypeAndID(c *gin.Context, projectId openapi.ProjectId, objectType openapi.ObjectType, objectUid openapi.ObjectUid) {
+func (oa *OpenAPI) PatchObjectsByProjectIDAndObjectTypeAndID(c *gin.Context, projectID openapi.ProjectId, objectType openapi.ObjectType, objectUID openapi.ObjectUid) {
 	if c.IsAborted() {
 		return
 	}
 
-	c.Status(http.StatusGone)
+	oa.objectsHandler.PatchObjectsByProjectIDAndObjectTypeAndID(c, string(projectID), string(objectType), string(objectUID))
 }
 
 func (oa *OpenAPI) GetProjects(c *gin.Context) {
@@ -158,5 +161,5 @@ func (oa *OpenAPI) GetProjects(c *gin.Context) {
 		return
 	}
 
-	c.Status(http.StatusGone)
+	oa.projectsHandler.GetProjects(c)
 }

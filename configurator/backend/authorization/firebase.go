@@ -28,7 +28,7 @@ type Provider interface {
 	GetUserByEmail(email string) (*User, error)
 	SaveUser(user *User) error
 	CreateTokens(userID string) (*TokenDetails, error)
-	DeleteToken(token string) error
+	DeleteAccessToken(token string) error
 	DeleteAllTokens(userID string) error
 	SavePasswordResetID(resetID, userID string) error
 	DeletePasswordResetID(resetID string) error
@@ -173,8 +173,8 @@ func (fp *FirebaseProvider) CreateTokens(userID string) (*TokenDetails, error) {
 	return nil, errors.New(errMsg)
 }
 
-func (fp *FirebaseProvider) DeleteToken(token string) error {
-	errMsg := "DeleteToken isn't supported in authorization FirebaseProvider"
+func (fp *FirebaseProvider) DeleteAccessToken(token string) error {
+	errMsg := "DeleteAccessToken isn't supported in authorization FirebaseProvider"
 	logging.SystemError(errMsg)
 	return errors.New(errMsg)
 }

@@ -1,18 +1,6 @@
 package authorization
 
-type JwtToken struct {
-	Token  string
-	UUID   string
-	Exp    int64
-	UserID string
-}
-
-type TokenDetails struct {
-	AccessToken  *JwtToken
-	RefreshToken *JwtToken
-}
-
-//Redis entity
+//User is a Redis entity for storing user sign data
 type User struct {
 	ID             string `json:"id,omitempty" redis:"id"`
 	Email          string `json:"email,omitempty" redis:"email"`
@@ -27,4 +15,19 @@ type UserInfo struct {
 type Project struct {
 	ID   string `json:"_id"`
 	Name string `json:"_name"`
+}
+
+//TokenEntity is a Redis entity for storing authorization
+type TokenEntity struct {
+	UserID       string `json:"user_id,omitempty" redis:"user_id"`
+	ExpiredAt    string `json:"expired_at,omitempty" redis:"expired_at"`
+	TokenType    string `json:"token_type,omitempty" redis:"token_type"`
+	AccessToken  string `json:"access_token,omitempty" redis:"access_token"`
+	RefreshToken string `json:"refresh_token,omitempty" redis:"refresh_token"`
+}
+
+//TokenDetails is a dto for both access and refresh tokens
+type TokenDetails struct {
+	AccessTokenEntity  *TokenEntity
+	RefreshTokenEntity *TokenEntity
 }

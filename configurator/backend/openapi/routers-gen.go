@@ -170,8 +170,8 @@ func (siw *ServerInterfaceWrapper) UsersSignIn(c *gin.Context) {
 	siw.Handler.UsersSignIn(c)
 }
 
-// UsersSignout operation middleware
-func (siw *ServerInterfaceWrapper) UsersSignout(c *gin.Context) {
+// UsersSignOut operation middleware
+func (siw *ServerInterfaceWrapper) UsersSignOut(c *gin.Context) {
 
 	c.Set(BearerAuthScopes, []string{"client"})
 
@@ -427,7 +427,7 @@ func RegisterHandlersWithOptions(router *gin.Engine, si ServerInterface, options
 
 	router.POST(options.BaseURL+"/api/v1/users/signin", wrapper.UsersSignIn)
 
-	router.POST(options.BaseURL+"/api/v1/users/signout", wrapper.UsersSignout)
+	router.POST(options.BaseURL+"/api/v1/users/signout", wrapper.UsersSignOut)
 
 	router.POST(options.BaseURL+"/api/v1/users/token/refresh", wrapper.UsersTokenRefresh)
 

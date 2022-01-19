@@ -40,7 +40,7 @@ func NewDestinationsHandler(configurationsService *storages.ConfigurationsServic
 
 func (dh *DestinationsHandler) GetHandler(c *gin.Context) {
 	begin := time.Now()
-	destinationsMap, err := dh.configurationsService.GetDestinations()
+	destinationsMap, err := dh.configurationsService.GetAllDestinations()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse(DestinationsGettingErrMsg, err))
 		return
