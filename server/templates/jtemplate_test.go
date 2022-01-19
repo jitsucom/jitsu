@@ -90,20 +90,23 @@ func test(t *testing.T, data templateTestData) {
 		return
 	}
 	defer templateExecutor.Close()
-
-	//t.Logf("Format %s", templateExecutor.Format())
-	value, err := templateExecutor.ProcessEvent(data.event)
-	if err != nil {
-		testExpectedError(t, data, err)
-		return
-	}
-	if data.expFormat != templateExecutor.Format() {
-		t.Errorf("Format %v != expected: %v", templateExecutor.Format(), data.expFormat)
-	}
-	if !cmp.Equal(value, data.expected) {
-		t.Errorf("Not equals. %v != expected: %v\nDiff:%v", value, data.expected, cmp.Diff(value, data.expected))
-	} else {
-		//t.Logf("%s", value)
+	for i := 0; i < 10; i++ {
+		//t.Logf("Format %s", templateExecutor.Format())
+		value, err := templateExecutor.ProcessEvent(data.event)
+		if err != nil {
+			testExpectedError(t, data, err)
+			return
+		}
+		if data.expFormat != templateExecutor.Format() {
+			t.Errorf("Format %v != expected: %v", templateExecutor.Format(), data.expFormat)
+			return
+		}
+		if !cmp.Equal(value, data.expected) {
+			t.Errorf("Not equals. %v != expected: %v\nDiff:%v", value, data.expected, cmp.Diff(value, data.expected))
+			return
+		} else {
+			//t.Logf("%s", value)
+		}
 	}
 }
 
