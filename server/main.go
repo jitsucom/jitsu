@@ -392,23 +392,28 @@ func main() {
 	//Create sync task service
 	taskService := synchronization.NewTaskService(sourceService, destinationsService, metaStorage, coordinationService, storeTasksLogsForLastRuns)
 
-	//Start cron scheduler
-	if taskService.IsConfigured() {
-		cronScheduler.Start(taskService.ScheduleSyncFunc)
-	}
-
-	//sources sync tasks pool size
 	poolSize := viper.GetInt("server.sync_tasks.pool.size")
-	stalledTasksThresholdSeconds := viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")
-	stalledLastLogThresholdMinutes := viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")
-	observeStalledTaskEverySeconds := viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")
+	if poolSize > 0 {
+		logging.Infof("Sources sync task executor pool size: %d", poolSize)
+		//Start cron scheduler
+		if taskService.IsConfigured() {
+			cronScheduler.Start(taskService.ScheduleSyncFunc)
+		}
 
-	//Create task executor
-	taskExecutor, err := synchronization.NewTaskExecutor(poolSize, stalledTasksThresholdSeconds, stalledLastLogThresholdMinutes, observeStalledTaskEverySeconds, sourceService, destinationsService, metaStorage, coordinationService)
-	if err != nil {
-		logging.Fatal("Error creating sources sync task executor:", err)
+		//sources sync tasks pool size
+		stalledTasksThresholdSeconds := viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")
+		stalledLastLogThresholdMinutes := viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")
+		observeStalledTaskEverySeconds := viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")
+
+		//Create task executor
+		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, stalledTasksThresholdSeconds, stalledLastLogThresholdMinutes, observeStalledTaskEverySeconds, sourceService, destinationsService, metaStorage, coordinationService)
+		if err != nil {
+			logging.Fatal("Error creating sources sync task executor:", err)
+		}
+		appconfig.Instance.ScheduleClosing(taskExecutor)
+	} else {
+		logging.Warnf("Sources sync task executor pool size: %d. Task executor is disabled.", poolSize)
 	}
-	appconfig.Instance.ScheduleClosing(taskExecutor)
 
 	//for now use the same interval as for log rotation
 	uploaderRunInterval := viper.GetInt("log.rotation_min")
