@@ -1,71 +1,90 @@
-import { FormInstance } from "antd/lib/form/hooks/useForm"
-import { CollectionParameter, CollectionTemplate, SourceConnector } from "../../../../../../catalog/sources/types"
-import styles from "./SourceEditor.module.less"
-import { FormListFieldData, FormListOperation } from "antd/es/form/FormList"
+// @Libs
+import React, { ChangeEvent, useCallback, useEffect, useRef, useState } from "react"
 import { Button, Col, Collapse, Form, Input, Popover, Row } from "antd"
-import { ChangeEvent, useCallback, useRef, useState } from "react"
-import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined"
-import { CaretRightOutlined } from "@ant-design/icons"
-import DeleteOutlined from "@ant-design/icons/lib/icons/DeleteOutlined"
-import { LabelWithTooltip } from "../../../../../components/LabelWithTooltip/LabelWithTooltip"
-import { CodeInline } from "../../../../../../lib/components/components"
-import { SourceFormCollectionsField } from "./SourceFormCollectionsField"
-import { getUniqueAutoIncId, randomId } from "../../../../../../utils/numbers"
-import * as React from "react"
+// @Types
+import { CollectionParameter, CollectionTemplate, SourceConnector } from "catalog/sources/types"
+import { FormListFieldData, FormListOperation } from "antd/es/form/FormList"
+import { SetSourceEditorState, SourceEditorState } from "./SourceEditor"
+// @Components
+import { SourceEditorFormStreamsCollectionsField } from "./SourceEditorFormStreamsConfigurableCollectionsField"
+// @Icons
+import { CaretRightOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons"
+// @Utils
+import { getUniqueAutoIncId, randomId } from "utils/numbers"
+import { useDebouncedCallback } from "hooks/useDebouncedCallback"
+// @Styles
+import styles from "./SourceEditor.module.less"
+// @Unsorted
 
 const { Panel } = Collapse
 
 export interface Props {
-  form: FormInstance
-  initialValues: SourceData
-  connectorSource: SourceConnector
-  handleTouchAnyField: (...args: any) => void
+  initialSourceData: Partial<SourceData>
+  sourceDataFromCatalog: SourceConnector
+  setSourceEditorState: SetSourceEditorState
 }
 
-const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouchAnyField }: Props) => {
-  const [selectedCollectionTypes, setSelectedCollectionTypes] = useState(connectorSource.collectionTypes)
+const SELECTED_STREAMS_SOURCE_DATA_PATH = "collections"
+
+const SourceEditorFormStreamsConfigurable = ({
+  initialSourceData,
+  sourceDataFromCatalog,
+  setSourceEditorState,
+}: Props) => {
+  const [selectedCollectionTypes, setSelectedCollectionTypes] = useState(sourceDataFromCatalog.collectionTypes)
   const [addStreamVisible, setAddStreamVisible] = useState(false)
   const [addTemplateVisible, setAddTemplateVisible] = useState(false)
   const [activePanel, setActivePanel] = useState([])
   const input = useRef(null)
+  const [form] = Form.useForm()
 
-  const renderAddButton = connectorSource.collectionTypes.length <= 1
-  const renderAddPopover = connectorSource.collectionTypes.length > 1
-  const renderApplyTemplates = connectorSource.collectionTemplates
+  const renderAddButton = sourceDataFromCatalog.collectionTypes.length <= 1
+  const renderAddPopover = sourceDataFromCatalog.collectionTypes.length > 1
+  const renderApplyTemplates = sourceDataFromCatalog.collectionTemplates
+
+  const handleValuesChange = useDebouncedCallback(
+    (_, values: { [SELECTED_STREAMS_SOURCE_DATA_PATH]: UnknownObject[] }) => {
+      setSelectedStreams(
+        setSourceEditorState,
+        SELECTED_STREAMS_SOURCE_DATA_PATH,
+        values[SELECTED_STREAMS_SOURCE_DATA_PATH]
+      )
+    },
+    100
+  )
 
   const handleCollectionTypesFilter = useCallback(
     e => {
       setSelectedCollectionTypes(
-        connectorSource.collectionTypes.filter(v => v.toLowerCase().includes(e.target.value.toLowerCase()))
+        sourceDataFromCatalog.collectionTypes.filter(v => v.toLowerCase().includes(e.target.value.toLowerCase()))
       )
     },
-    [connectorSource]
+    [sourceDataFromCatalog]
   )
 
   const getStream = useCallback(
     (index: number) => {
-      console.log(form.getFieldsValue().collections?.[index] ?? initialValues.collections[index])
-      return form.getFieldsValue().collections?.[index] ?? initialValues.collections[index]
+      return form.getFieldsValue().collections?.[index] ?? initialSourceData.collections[index]
     },
-    [initialValues.collections, form]
+    [initialSourceData.collections, form]
   )
 
   const getFormErrors = useCallback(
     (index: number) => {
-      let fields = connectorSource.collectionParameters.map(v => ["collections", index, "parameters", v.id])
+      let fields = sourceDataFromCatalog.collectionParameters.map(v => ["collections", index, "parameters", v.id])
       fields.push(["collections", index, "name"])
       return form.getFieldsError(fields).filter(v => v.errors.length > 0)
     },
-    [form, connectorSource]
+    [form, sourceDataFromCatalog]
   )
 
   const getCollectionParametersForType = useCallback(
     (type: string) => {
-      return connectorSource.collectionParameters?.filter(
+      return sourceDataFromCatalog.collectionParameters?.filter(
         ({ applyOnlyTo }: CollectionParameter) => !applyOnlyTo || applyOnlyTo === type
       )
     },
-    [connectorSource.collectionParameters]
+    [sourceDataFromCatalog.collectionParameters]
   )
 
   const getCollectionParameters = useCallback(
@@ -107,9 +126,8 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
       }
       operation.add(newCollection, 0)
       setActivePanel(activePanel.concat(newCollection._id))
-      handleTouchAnyField()
     },
-    [handleTouchAnyField, connectorSource.collectionTemplates, activePanel, setActivePanel]
+    [, sourceDataFromCatalog.collectionTemplates, activePanel, setActivePanel]
   )
 
   const remove = useCallback(
@@ -118,16 +136,15 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
       const keyToRemove = stream._id ?? stream.name
       operation.remove(index)
       setActivePanel(activePanel.filter(v => v !== keyToRemove))
-      handleTouchAnyField()
     },
-    [handleTouchAnyField, activePanel, setActivePanel, getStream]
+    [, activePanel, setActivePanel, getStream]
   )
 
   const handleApplyTemplate = useCallback(
     (chosenTemplate: number, operation: FormListOperation) => {
       if (chosenTemplate >= 0) {
         let newActivePanel = activePanel
-        let template = connectorSource.collectionTemplates[chosenTemplate]
+        let template = sourceDataFromCatalog.collectionTemplates[chosenTemplate]
         for (const col of template.collections) {
           let copy = JSON.parse(JSON.stringify(col))
           if (copy.name) {
@@ -140,10 +157,9 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
           newActivePanel = newActivePanel.concat(copy._id)
         }
         setActivePanel(newActivePanel)
-        handleTouchAnyField()
       }
     },
-    [connectorSource.collectionTemplates, activePanel, setActivePanel, handleTouchAnyField]
+    [sourceDataFromCatalog.collectionTemplates, activePanel, setActivePanel]
   )
 
   const handleTouchParameter = useCallback(
@@ -155,20 +171,40 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
         stream._id = input.current.state.value
       }
       form.setFieldsValue({ collections })
-      handleTouchAnyField()
     },
-    [form, handleTouchAnyField, activePanel, setActivePanel, input]
+    [form, , activePanel, setActivePanel, input]
   )
+
+  /**
+   * Pass form validator to the parent component
+   */
+  useEffect(() => {
+    const validateConfigAndCountErrors = async (): Promise<number> => {
+      let errorsCount = 0
+      try {
+        await form.validateFields()
+      } catch (error) {
+        errorsCount = +error?.errorFields?.length
+      }
+      return errorsCount
+    }
+
+    setSourceEditorState(state => {
+      const newState: SourceEditorState = { ...state, streams: { ...state.streams } }
+      newState.streams.validateGetErrorsCount = validateConfigAndCountErrors
+      return newState
+    })
+  }, [])
 
   return (
     <Form
       name="source-collections"
       form={form}
-      initialValues={initialValues}
+      initialValues={initialSourceData}
       autoComplete="off"
-      onChange={handleTouchAnyField}
+      onValuesChange={handleValuesChange}
     >
-      <Form.List name="collections">
+      <Form.List name={SELECTED_STREAMS_SOURCE_DATA_PATH}>
         {(fields: FormListFieldData[], operation: FormListOperation, meta) => (
           <>
             <Row className={"pb-3"}>
@@ -177,7 +213,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                   <Button
                     size="large"
                     className="mr-4"
-                    onClick={() => addNewOfType(connectorSource.collectionTypes[0] ?? "default", operation)}
+                    onClick={() => addNewOfType(sourceDataFromCatalog.collectionTypes[0] ?? "default", operation)}
                     icon={<PlusOutlined />}
                   >
                     Add new stream
@@ -190,7 +226,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                     onVisibleChange={setAddStreamVisible}
                     content={
                       <>
-                        {connectorSource.collectionTypes.length > 7 && (
+                        {sourceDataFromCatalog.collectionTypes.length > 7 && (
                           <Input
                             allowClear={true}
                             onChange={handleCollectionTypesFilter}
@@ -238,7 +274,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                       onVisibleChange={setAddTemplateVisible}
                       content={
                         <div className={styles.templates}>
-                          {connectorSource.collectionTemplates.map((template: CollectionTemplate, index) => (
+                          {sourceDataFromCatalog.collectionTemplates.map((template: CollectionTemplate, index) => (
                             <div key={template.templateName} className={styles.template}>
                               <div>
                                 <p className="font-bold capitalize">{template.templateName}</p>
@@ -301,8 +337,8 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                         </div>
                         <div className={"whitespace-nowrap lg:w-1/4 w-1/3 overflow-hidden overflow-ellipsis pr-2"}>
                           Table Name:&nbsp;&nbsp;
-                          <b title={`${initialValues.sourceId}_${getStream(field.name).name ?? "[Name]"}`}>
-                            {`${initialValues.sourceId}_${getStream(field.name).name ?? "[Name]"}`}
+                          <b title={`${initialSourceData.sourceId}_${getStream(field.name).name ?? "[Name]"}`}>
+                            {`${initialSourceData.sourceId}_${getStream(field.name).name ?? "[Name]"}`}
                           </b>
                         </div>
                         <div className={"w-full lg:w-1/4 lg:text-right lg:pr-8 overflow-hidden overflow-ellipsis"}>
@@ -343,7 +379,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                                       .includes(value)
 
                                     return isError
-                                      ? Promise.reject("Must be unique under the current collection")
+                                      ? Promise.reject("Name must be unique under the current collection")
                                       : Promise.resolve()
                                   },
                                 },
@@ -360,12 +396,12 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                           </Col>
                         </Row>
                         {getCollectionParameters(field.name).map((collection: CollectionParameter) => (
-                          <SourceFormCollectionsField
+                          <SourceEditorFormStreamsCollectionsField
                             documentation={collection.documentation}
                             field={field}
                             key={collection.id}
                             collection={collection}
-                            handleFormFieldsChange={handleTouchAnyField}
+                            // handleFormFieldsChange={}
                           />
                         ))}
                       </>
@@ -380,6 +416,30 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
     </Form>
   )
 }
-SourceEditorStreams.displayName = "SourceEditorStreams"
+SourceEditorFormStreamsConfigurable.displayName = "SourceEditorFormStreamsConfigurable"
 
-export { SourceEditorStreams }
+export { SourceEditorFormStreamsConfigurable }
+
+/**
+ * Helper function that passes the values to the parent
+ */
+
+const setSelectedStreams = (
+  setSourceEditorState: SetSourceEditorState,
+  sourceDataPath: string,
+  streams: any,
+  options?: {
+    doNotSetStateChanged?: boolean
+  }
+) => {
+  setSourceEditorState(state => {
+    const newState: SourceEditorState = {
+      ...state,
+      streams: { ...state.streams, selectedStreams: { ...state.streams.selectedStreams } },
+    }
+    newState.streams.selectedStreams[sourceDataPath] = streams
+    newState.streams.errorsCount = 0
+    if (!options?.doNotSetStateChanged) newState.stateChanged = true
+    return newState
+  })
+}

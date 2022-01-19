@@ -12,10 +12,15 @@ export interface Props {
   collection: CollectionParameter
   field: FormListFieldData
   documentation?: React.ReactNode
-  handleFormFieldsChange: (...args: any) => void
+  handleFormFieldsChange?: (...args: any) => void
 }
 
-const SourceFormCollectionsFieldComponent = ({ collection, field, documentation, handleFormFieldsChange }: Props) => {
+const SourceEditorFormStreamsCollectionsFieldComponent = ({
+  collection,
+  field,
+  documentation,
+  handleFormFieldsChange,
+}: Props) => {
   const formItemChild = useMemo(() => {
     switch (collection.type.typeName) {
       case "selection":
@@ -49,7 +54,7 @@ const SourceFormCollectionsFieldComponent = ({ collection, field, documentation,
     if (collection.type.data?.maxOptions > 1) {
       rules.push({
         validator: (rule: Rule, value: string[]) =>
-          value?.length <= collection.type.data.maxOptions
+          (value?.length ?? 0) <= collection.type.data.maxOptions
             ? Promise.resolve()
             : Promise.reject(`You can select maximum ${collection.type.data?.maxOptions} options`),
       })
@@ -83,6 +88,6 @@ const SourceFormCollectionsFieldComponent = ({ collection, field, documentation,
   )
 }
 
-SourceFormCollectionsFieldComponent.displayName = "SourceFormCollectionsField"
+SourceEditorFormStreamsCollectionsFieldComponent.displayName = "SourceEditorFormStreamsCollectionsField"
 
-export const SourceFormCollectionsField = memo(SourceFormCollectionsFieldComponent)
+export const SourceEditorFormStreamsCollectionsField = memo(SourceEditorFormStreamsCollectionsFieldComponent)

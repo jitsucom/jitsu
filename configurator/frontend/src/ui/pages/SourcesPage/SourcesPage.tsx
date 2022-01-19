@@ -5,7 +5,6 @@ import { observer } from "mobx-react-lite"
 import { sourcesPageRoutes } from "./SourcesPage.routes"
 // @Components
 import { SourcesList } from "./partials/SourcesList/SourcesList"
-import { SourceEditorSwitch } from "./partials/SourceEditor/SourceEditorSwitch"
 import { AddSourceDialog } from "./partials/AddSourceDialog/AddSourceDialog"
 import { CenteredError, CenteredSpin } from "lib/components/components"
 // @Store
@@ -16,6 +15,7 @@ import "./SourcesPage.less"
 import { BreadcrumbsProps } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { PageProps } from "navigation"
 import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
+import { SourceEditor } from "./partials/SourceEditor/SourceEditor/SourceEditor"
 
 export interface CollectionSourceData {
   sources: SourceData[]
@@ -47,7 +47,7 @@ const SourcesPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
       </Route>
       <Route path={sourcesPageRoutes.addExact} strict={false} exact>
         <ErrorBoundary>
-          <SourceEditorSwitch {...{ setBreadcrumbs, editorMode: "add" }} />
+          <SourceEditor {...{ setBreadcrumbs, editorMode: "add" }} />
         </ErrorBoundary>
       </Route>
       <Route path={sourcesPageRoutes.add} strict={false} exact>
@@ -57,7 +57,7 @@ const SourcesPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
       </Route>
       <Route path={sourcesPageRoutes.editExact} strict={false} exact>
         <ErrorBoundary>
-          <SourceEditorSwitch key={params?.["sourceId"] || "static_key"} {...{ setBreadcrumbs, editorMode: "edit" }} />
+          <SourceEditor key={params?.["sourceId"] || "static_key"} {...{ setBreadcrumbs, editorMode: "edit" }} />
         </ErrorBoundary>
       </Route>
     </Switch>

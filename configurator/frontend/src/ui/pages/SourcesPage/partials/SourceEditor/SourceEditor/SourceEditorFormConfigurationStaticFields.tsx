@@ -66,7 +66,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
   )
 
   const handleFormValuesChange: FormProps<PlainObjectWithPrimitiveValues>["onValuesChange"] = (_, values) => {
-    patchConfig(CONFIG_INTERNAL_STATE_KEY, values)
+    patchConfig(CONFIG_INTERNAL_STATE_KEY, values, { resetErrorsCount: true })
   }
 
   /**

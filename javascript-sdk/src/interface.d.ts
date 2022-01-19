@@ -1,3 +1,5 @@
+import { httpApi } from "./jitsu"
+
 export declare function jitsuClient(opts: JitsuOptions): JitsuClient
 
 export type JitsuClient = {
@@ -87,6 +89,19 @@ export type Policy = 'strict' | 'keep' | 'comply'
  * Configuration options of Jitsu
  */
 export type JitsuOptions = {
+
+  /**
+   * A custom fetch implementation. Here's how Jitsu decides what functions to use to execute HTTP requests
+   *
+   * - If Jitsu runs in browser, this parameter will be ignored. The best available API (most likely, XMLHttpRequest)
+   *   will be used for sending reqs
+   * - For node Jitsu will use this param. If it's not set, Jitsu will try to search for fetch in global environment
+   *   and will fail if it's absent
+   *
+   *
+   *
+   */
+  fetch?: any,
 
   /**
    * If Jitsu should work in compatibility mode. If set to true:
@@ -215,6 +230,7 @@ export type Conversion = {
 
 }
 
+
 /**
  * Event context. Data that is present in any event type. EventContext is assembled automatically
  */
@@ -222,9 +238,81 @@ export type EventCtx = {
   event_id: string                 //unique event id or empty string for generating id on the backend side
   user: UserProps                  //user properties
   ids?: ThirdpartyIds              //user ids from external systems
-  user_agent: string               //user
   utc_time: string                 //current UTC time in ISO 8601
   local_tz_offset: number          //local timezone offset (in minutes)
+
+  utm: Record<string, string>      //utm tags (without utm prefix, e.g key will be "source", not utm_source. See
+  click_id: Record<string, string> //all external click ids (passed through URL). See CLICK_IDS for supported all supported click ids
+  [propName: string]: any          //context is extendable, any extra properties can be added here
+}
+
+
+/**
+ * Tracking environment. Encapsulates environment such as Node browser or
+ */
+export type TrackingEnvironment = {
+  /**
+   * Describes "client": page title, url, etc. See type definition
+   */
+  describeClient(): Partial<ClientProperties>;
+  /**
+   * Returns source ip. If IP should be resolved by Jitsu server, this method should return undefined
+   */
+  getSourceIp(): string | undefined;
+
+  /**
+   * Gets (and persists) anonymous id. Example implementation: id can be persisted in cookies or in other way.
+   *
+   */
+  getAnonymousId(cookieOpts: { name: string, domain?: string }): string;
+};
+/**
+ * List of environments where Jitsu tracker can work. See TrackingEnvironment above
+ * to learn what is the environment
+ */
+export type Envs = {
+  // /**
+  //  * Environment where requests and responses are based on fetch API Request & Response object.
+  //  * Example: NextJS Middleware (https://nextjs.org/docs/middleware) is based on this API
+  //  */
+  // fetchApi(req, res);
+  // /**
+  //  * Alias of fetchApi
+  //  */
+  // nextjsMiddleware(req, res);
+
+  /**
+   * Environment where requests and responses are based on core Node.js http APIs (IncomingMessage and Server Response)
+   * Example: NextJS APIs (except Middleware) is based on this one, or Express
+   */
+  httpApi(req, res);
+  /**
+   * Alias of httpApi
+   */
+  nextjsApi(req, res);
+  /**
+   * Alias of httpApi. For requests handled by Express
+   */
+  express(req, res);
+  /**
+   * Browser environment (based on window, document and etc globals)
+   */
+  browser();
+  /**
+   * Empty environment
+   */
+  empty();
+}
+
+declare const envs: Envs;
+
+
+/**
+ * Environment where the event have happened.
+ */
+export type ClientProperties = {
+  screen_resolution: string        //screen resolution
+  user_agent: string               //user
   referer: string                  //document referer
   url: string                      //current url
   page_title: string               //page title
@@ -232,27 +320,30 @@ export type EventCtx = {
   doc_path: string                 //document path
   doc_host: string                 //document host
   doc_search: string               //document search string
-  screen_resolution: string        //screen resolution
+
   vp_size: string                  //viewport size
   user_language: string            //user language
-
   doc_encoding: string
-
-  utm: Record<string, string>      //utm tags (without utm prefix, e.g key will be "source", not utm_source. See
-  click_id: Record<string, string> //all external click ids (passed through URL). See CLICK_IDS for supported all supported click ids
-  [propName: string]: any          //context is extendable, any extra properties can be added here
 }
 
 /**
  * Optional data that can be added to each event. Consist from optional fields,
  */
-export type EventPayload = {
+export type EventPayload = Partial<ClientProperties> & {
+  /**
+   * If track() is called in node env, it's possible to provide
+   * request/response. In this case Jitsu will try to use it for
+   * getting request data (url, referer and etc). Also, it will be used for
+   * setting and getting cookies
+   */
+  req?: Request
+  res?: Response
+  env?: TrackingEnvironment
+
   conversion?: Conversion          //Conversion data if events indicates a conversion
   src_payload?: any,               //Third-party payload if event is intercepted from third-party source
   [propName: string]: any          //payload is extendable, any extra properties can be added here
 }
-
-export type Transport = (url: string, jsonPayload: string) => Promise<void>
 
 /**
  * Type of event source

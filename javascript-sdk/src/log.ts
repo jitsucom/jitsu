@@ -1,3 +1,5 @@
+import { isWindowAvailable } from "./window"
+
 /**
  * Interface for logging. Plugins might use it
  * internally
@@ -49,6 +51,9 @@ export function setRootLogLevel(logLevelName: LogLevelName): Logger {
 }
 
 export function setDebugVar(name: string, val: any) {
+  if (!isWindowAvailable()) {
+    return;
+  }
   let win = window as any;
   if (!win.__jitsuDebug) {
     win.__jitsuDebug = { };
@@ -64,7 +69,7 @@ export function setDebugVar(name: string, val: any) {
  * @param logLevel
  */
 export function createLogger(logLevel?: LogLevel): Logger {
-  let globalLogLevel = (window as any)['__eventNLogLevel'];
+  let globalLogLevel = isWindowAvailable() && (window as any)['__eventNLogLevel'];
 
   let minLogLevel = LogLevels.WARN;
   if (globalLogLevel) {

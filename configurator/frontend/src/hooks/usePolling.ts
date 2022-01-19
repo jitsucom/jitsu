@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Poll, PollingSetupCallback } from "utils/polling"
 
-type UsePollingOptions = {
+type UsePollingOptions<StartArgs = any, EndArgs = any> = {
   /**
    * Polling interval. Is 1 second by default.
    */
@@ -38,11 +38,11 @@ type UsePollingReturnType<T> = {
   reload: VoidFunction
 }
 
-type PollingHookConfigurator<T = unknown> = {
+type PollingHookConfigurator<T = unknown, StartOpts = any, EndOpts = any> = {
   configure: () => {
     pollingCallback: PollingSetupCallback<T>
-    onBeforePollingStart?: () => void
-    onAfterPollingEnd?: () => void
+    onBeforePollingStart?: (options?: StartOpts) => void | Promise<void>
+    onAfterPollingEnd?: (options?: EndOpts) => void
   }
 }
 
@@ -66,11 +66,11 @@ export const usePolling = <T>(
    */
   options: UsePollingOptions = {}
 ): UsePollingReturnType<T> => {
+  // const { pollingCallback, onBeforePollingStart, onAfterPollingEnd } = useMemo<>(() => {}, )
   const pollingHookConfigurator: PollingHookConfigurator<T> =
     "configure" in callbackOrConfigurator
       ? callbackOrConfigurator
       : { configure: () => ({ pollingCallback: callbackOrConfigurator }) }
-  const { pollingCallback, onBeforePollingStart, onAfterPollingEnd } = pollingHookConfigurator.configure()
   const { interval_ms, timeout_ms } = { ...defaultOptions, ...(options ?? {}) }
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [data, setData] = useState<T | null>(null)
@@ -88,9 +88,10 @@ export const usePolling = <T>(
       blockStateUpdates = true
     }
 
+    const { pollingCallback, onBeforePollingStart, onAfterPollingEnd } = pollingHookConfigurator.configure()
     try {
       const poll = new Poll<T>(pollingCallback, interval_ms, timeout_ms)
-      onBeforePollingStart?.()
+      await onBeforePollingStart?.()
       poll.start()
 
       cancelCurrentPoll.current = poll.cancel
@@ -114,9 +115,9 @@ export const usePolling = <T>(
     cancelCurrentPoll.current?.()
   }
 
-  const reload = () => {
+  const reload = async () => {
     cancel()
-    poll()
+    await poll()
   }
 
   useEffect(() => {
