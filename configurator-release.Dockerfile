@@ -37,6 +37,7 @@ ADD server/go.mod /go/src/github.com/jitsucom/jitsu/server/
 RUN go mod tidy && go mod download
 
 #Copy backend
+ADD openapi /go/src/github.com/jitsucom/jitsu/openapi
 ADD configurator/backend/. ./.
 ADD server /go/src/github.com/jitsucom/jitsu/server
 ADD .git /go/src/github.com/jitsucom/jitsu/.git
