@@ -286,10 +286,15 @@ func main() {
 
 	// ** Destinations **
 	//events queue
-	//Redis based if events.queue.redis or meta.storage configured
-	//or
-	//inmemory
-	eventsQueueFactory, err := initializeEventsQueueFactory(metaStorageConfiguration)
+	//by default Redis based if events.queue.redis or meta.storage configured
+	//otherwise inmemory
+	//to force inmemory set events.queue.inmemory: true
+	var eventsQueueFactory *events.QueueFactory
+	if viper.GetBool("events.queue.inmemory") {
+		eventsQueueFactory, err = initializeEventsQueueFactory(nil)
+	} else {
+		eventsQueueFactory, err = initializeEventsQueueFactory(metaStorageConfiguration)
+	}
 	if err != nil {
 		logging.Fatal(err)
 	}
