@@ -130,17 +130,16 @@ func getToken(c *gin.Context) (string, bool) {
 	//from bearer
 	authHeader := c.GetHeader(bearerAuthHeader)
 	if len(authHeader) != 0 {
-		matches := tokenRe.FindAllStringSubmatch(authHeader, -1)
-		if len(matches) == 0 || len(matches[0]) == 0 {
+		var ok bool
+		token, ok = ExtractBearerToken(c)
+		if !ok {
 			c.Writer.Header().Set("WWW-Authenticate", "Bearer realm=\"invalid_token\" error=\"invalid_token\"")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, middleware.ErrResponse("Token is invalid in Header: "+bearerAuthHeader+". Request should contain 'Authorization: Bearer <token>' header.", nil))
 			return "", false
 		}
-
-		token = matches[0][1]
 	} else {
 		//from query, headers (backward compatibility)
-		token = extractTokenFromDeprecatedParameters(c)
+		token = ExtractTokenFromDeprecatedParameters(c)
 	}
 
 	if token == "" {
@@ -152,7 +151,21 @@ func getToken(c *gin.Context) (string, bool) {
 	return token, true
 }
 
-func extractTokenFromDeprecatedParameters(c *gin.Context) string {
+//ExtractBearerToken returns token value from the bearer Authorization header
+func ExtractBearerToken(c *gin.Context) (string, bool) {
+	authHeader := c.GetHeader(bearerAuthHeader)
+	if len(authHeader) != 0 {
+		matches := tokenRe.FindAllStringSubmatch(authHeader, -1)
+		if len(matches) > 0 && len(matches[0]) > 1 {
+			return matches[0][1], true
+		}
+	}
+
+	return "", false
+}
+
+//ExtractTokenFromDeprecatedParameters returns token value from deprecated query parameters and headers
+func ExtractTokenFromDeprecatedParameters(c *gin.Context) string {
 	queryValues := c.Request.URL.Query()
 	token := queryValues.Get("token")
 	if token == "" {

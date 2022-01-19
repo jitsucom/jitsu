@@ -26,7 +26,7 @@ func NewAPIKeysHandler(configurationsService *storages.ConfigurationsService) *A
 
 func (akh *APIKeysHandler) GetHandler(c *gin.Context) {
 	begin := time.Now()
-	keys, err := akh.configurationsService.GetAPIKeys()
+	keys, err := akh.configurationsService.GetAllAPIKeys()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse(APIKeysGettingErrMsg, err))
 		return

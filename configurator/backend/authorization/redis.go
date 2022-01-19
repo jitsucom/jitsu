@@ -1,32 +1,44 @@
 package authorization
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 const (
-	accessTokensPrefix  = "jwt_access_tokens"
+	//DEPRECATED
+	accessTokensPrefix = "jwt_access_tokens"
+	//DEPRECATED
 	refreshTokensPrefix = "jwt_refresh_tokens"
+
+	authAccessTokensKey  = "auth_access_tokens"
+	authRefreshTokensKey = "auth_refresh_tokens"
 )
 
 //** redis key [variables] - description **
 //user#userID [email, salt.passwordhash] -
 //users_index [email, id, email, id] hashtable where field = email and value = id
+//password_reset#reset_id user_id 1 hour - key contains user_id with ttl = 1 hour
+
+//auth_access_tokens [access_token] hashtable with JSON string value = {user_id, expired_at, paired_token}
+//auth_refresh_tokens [refresh_token] hashtable with JSON string value = {user_id, expired_at, paired_token}
+
+//DEPRECATED
 //jwt_access_tokens:user#userID [access_token_id, refresh_token_id, access_token_id, refresh_token_id] hashtable where field = access_token_id and value = refresh_token_id (TTL RefreshTokenTTL)
 //jwt_refresh_tokens:user#userID [refresh_token_id, access_token_id, refresh_token_id, access_token_id] hashtable where field = refresh_token_id and value = access_token_id (TTL RefreshTokenTTL)
-//password_reset#reset_id user_id 1 hour - key contains user_id with ttl = 1 hour
 
 //RedisProvider provides authorization storage
 type RedisProvider struct {
-	jwtTokenManager *JwtTokenManager
-	pool            *meta.RedisPool
+	tokenManager *TokenManager
+	pool         *meta.RedisPool
 }
 
-func NewRedisProvider(accessSecret, refreshSecret string, factory *meta.RedisPoolFactory) (*RedisProvider, error) {
+func NewRedisProvider(factory *meta.RedisPoolFactory) (*RedisProvider, error) {
 	logging.Infof("Initializing redis authorization storage [%s]...", factory.Details())
 
 	pool, err := factory.Create()
@@ -35,34 +47,33 @@ func NewRedisProvider(accessSecret, refreshSecret string, factory *meta.RedisPoo
 	}
 
 	return &RedisProvider{
-		pool:            pool,
-		jwtTokenManager: NewTokenManager(accessSecret, refreshSecret),
+		tokenManager: &TokenManager{},
+		pool:         pool,
 	}, nil
 }
 
 //VerifyAccessToken verifies token
 //returns user id if token is valid
-func (rp *RedisProvider) VerifyAccessToken(strToken string) (string, error) {
-	jwtToken, err := rp.jwtTokenManager.ParseToken(strToken, rp.jwtTokenManager.accessKeyFunc)
+func (rp *RedisProvider) VerifyAccessToken(accessToken string) (string, error) {
+	tokenEntity, err := rp.getTokenData(accessToken, authAccessTokensKey)
 	if err != nil {
-		if err == ErrExpiredToken || err == ErrTokenSignature {
-			return "", err
+		return "", err
+	}
+
+	expiredAt, err := timestamp.ParseISOFormat(tokenEntity.ExpiredAt)
+	if err != nil {
+		return "", err
+	}
+
+	if timestamp.Now().After(expiredAt) {
+		if err := rp.deleteToken(tokenEntity); err != nil {
+			logging.Errorf("error deleting expired token %s: %v", accessToken, err)
 		}
 
-		return "", fmt.Errorf("Token verification error: %v", err)
+		return "", ErrExpiredToken
 	}
 
-	//check if token exists in Redis
-	exists, err := rp.tokenExists(jwtToken.UserID, jwtToken.UUID, accessTokensPrefix)
-	if err != nil {
-		return "", fmt.Errorf("Error checking token in Redis: %v", err)
-	}
-
-	if !exists {
-		return "", ErrUnknownToken
-	}
-
-	return jwtToken.UserID, nil
+	return tokenEntity.UserID, nil
 }
 
 func (rp *RedisProvider) UsersExist() (bool, error) {
@@ -154,85 +165,98 @@ func (rp *RedisProvider) SaveUser(user *User) error {
 	return nil
 }
 
+//DeleteAllTokens removes both access and refresh tokens from Redis by userIDs
 func (rp *RedisProvider) DeleteAllTokens(userID string) error {
 	conn := rp.pool.Get()
 	defer conn.Close()
 
-	//delete all access
-	_, err := conn.Do("DEL", accessTokensPrefix+":user#"+userID)
-	if err != nil && err != redis.ErrNil {
-		return err
+	if err := rp.deleteAllUsersTokens(userID, authAccessTokensKey); err != nil {
+		return fmt.Errorf("error deleting access tokens: %v", err)
 	}
 
-	//delete all refresh
-	_, err = conn.Do("DEL", refreshTokensPrefix+":user#"+userID)
-	if err != nil && err != redis.ErrNil {
-		return err
+	if err := rp.deleteAllUsersTokens(userID, authRefreshTokensKey); err != nil {
+		return fmt.Errorf("error deleting refresh tokens: %v", err)
 	}
 
 	return nil
 }
 
-func (rp *RedisProvider) DeleteToken(strToken string) error {
-	jwtToken, err := rp.jwtTokenManager.ParseToken(strToken, rp.jwtTokenManager.accessKeyFunc)
-	if err != nil {
-		if err == ErrExpiredToken || err == ErrTokenSignature {
+//deleteAllUsersTokens iterates through token types and if token belongs to user - delete it
+func (rp *RedisProvider) deleteAllUsersTokens(userID, redisTokenKey string) error {
+	conn := rp.pool.Get()
+	defer conn.Close()
+
+	tokenEntitiesStrs, err := redis.Strings(conn.Do("HGETALL", redisTokenKey))
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	for _, tokenEntityStr := range tokenEntitiesStrs {
+		tokenEntity := &TokenEntity{}
+		if err := json.Unmarshal([]byte(tokenEntityStr), tokenEntity); err != nil {
+			logging.Infof("error unmarshal token entity [%v] for [%s] userID: %v", tokenEntityStr, userID, err)
 			return err
 		}
 
-		return fmt.Errorf("Token verification error: %v", err)
-	}
-
-	err = rp.deleteToken(jwtToken.UserID, jwtToken.UUID, accessTokensPrefix, refreshTokensPrefix)
-	if err != nil {
-		return err
+		if tokenEntity.UserID == userID {
+			if err := rp.deleteToken(tokenEntity); err != nil {
+				logging.Infof("error deleting token %v: %v", tokenEntity, err)
+				return err
+			}
+		}
 	}
 
 	return nil
 }
 
 func (rp *RedisProvider) CreateTokens(userID string) (*TokenDetails, error) {
-	td, err := rp.jwtTokenManager.CreateTokens(userID)
-	if err != nil {
-		return nil, err
+	accessTokenEntity := rp.tokenManager.CreateAccessToken(userID)
+	refreshTokenEntity := rp.tokenManager.CreateRefreshToken(userID)
+
+	//link access token to refresh token
+	accessTokenEntity.RefreshToken = refreshTokenEntity.RefreshToken
+	refreshTokenEntity.AccessToken = accessTokenEntity.AccessToken
+
+	if err := rp.saveToken(authAccessTokensKey, accessTokenEntity.AccessToken, accessTokenEntity); err != nil {
+		return nil, fmt.Errorf("error saving %s: %v", authAccessTokensKey, err)
 	}
 
-	err = rp.saveTokens(userID, td)
-	if err != nil {
-		return nil, err
+	if err := rp.saveToken(authRefreshTokensKey, accessTokenEntity.RefreshToken, refreshTokenEntity); err != nil {
+		return nil, fmt.Errorf("error saving %s: %v", refreshTokenEntity, err)
 	}
 
-	return td, nil
+	return &TokenDetails{
+		AccessTokenEntity:  accessTokenEntity,
+		RefreshTokenEntity: refreshTokenEntity,
+	}, nil
 }
 
-func (rp *RedisProvider) RefreshTokens(strRefreshToken string) (*TokenDetails, error) {
-	jwtRefreshToken, err := rp.jwtTokenManager.ParseToken(strRefreshToken, rp.jwtTokenManager.refreshKeyFunc)
+func (rp *RedisProvider) RefreshTokens(refreshToken string) (*TokenDetails, error) {
+	tokenEntity, err := rp.getTokenData(refreshToken, authRefreshTokensKey)
 	if err != nil {
-		if err == ErrExpiredToken || err == ErrTokenSignature {
-			return nil, err
+		return nil, err
+	}
+
+	expiredAt, err := timestamp.ParseISOFormat(tokenEntity.ExpiredAt)
+	if err != nil {
+		return nil, err
+	}
+
+	if timestamp.Now().After(expiredAt) {
+		if err := rp.deleteToken(tokenEntity); err != nil {
+			logging.Errorf("error deleting expired token %s: %v", refreshToken, err)
 		}
 
-		return nil, fmt.Errorf("Token verification error: %v", err)
-	}
-
-	//check if token exists in Redis
-	exists, err := rp.tokenExists(jwtRefreshToken.UserID, jwtRefreshToken.UUID, refreshTokensPrefix)
-	if err != nil {
-		return nil, fmt.Errorf("Error checking token in Redis: %v", err)
-	}
-
-	if !exists {
-		return nil, ErrUnknownToken
+		return nil, ErrExpiredToken
 	}
 
 	//delete tokens
-	err = rp.deleteToken(jwtRefreshToken.UserID, jwtRefreshToken.UUID, refreshTokensPrefix, accessTokensPrefix)
+	err = rp.deleteToken(tokenEntity)
 	if err != nil {
-		logging.SystemErrorf("Error deleting refresh [%s] and access tokens from Redis: %v", jwtRefreshToken.UUID, err)
 		return nil, err
 	}
 
-	return rp.CreateTokens(jwtRefreshToken.UserID)
+	return rp.CreateTokens(tokenEntity.UserID)
 }
 
 //SavePasswordResetID save reset id with ttl 1 hour
@@ -296,32 +320,13 @@ func (rp *RedisProvider) GetUserByResetID(resetID string) (*User, error) {
 	return user, nil
 }
 
-func (rp *RedisProvider) saveTokens(userID string, td *TokenDetails) error {
-	//access
-	err := rp.saveToken(userID, td.AccessToken.UUID, td.RefreshToken.UUID, accessTokensPrefix)
-	if err != nil {
-		return err
-	}
-
-	//refresh
-	err = rp.saveToken(userID, td.RefreshToken.UUID, td.AccessToken.UUID, refreshTokensPrefix)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (rp *RedisProvider) saveToken(userID, mainTokenID, secondaryTokenID, keyPrefix string) error {
+//saveToken saves JSON token entity under redis KEY into hashtable
+func (rp *RedisProvider) saveToken(tokenRedisKey, token string, tokenEntity *TokenEntity) error {
 	conn := rp.pool.Get()
 	defer conn.Close()
 
-	_, err := conn.Do("HSET", keyPrefix+":user#"+userID, mainTokenID, secondaryTokenID)
-	if err != nil && err != redis.ErrNil {
-		return err
-	}
-
-	_, err = conn.Do("EXPIRE", keyPrefix+":user#"+userID, RefreshTokenTTL.Seconds())
+	b, _ := json.Marshal(tokenEntity)
+	_, err := conn.Do("HSET", tokenRedisKey, token, b)
 	if err != nil && err != redis.ErrNil {
 		return err
 	}
@@ -329,34 +334,65 @@ func (rp *RedisProvider) saveToken(userID, mainTokenID, secondaryTokenID, keyPre
 	return nil
 }
 
-func (rp *RedisProvider) tokenExists(userID, tokenID, keyPrefix string) (bool, error) {
+func (rp *RedisProvider) getTokenData(token, tokenType string) (*TokenEntity, error) {
 	conn := rp.pool.Get()
 	defer conn.Close()
 
-	exists, err := redis.Bool(conn.Do("HEXISTS", keyPrefix+":user#"+userID, tokenID))
-	if err != nil && err != redis.ErrNil {
-		return false, err
+	tokenDataStr, err := redis.String(conn.Do("HGET", tokenType, token))
+	if err != nil {
+		if err == redis.ErrNil {
+			return nil, ErrUnknownToken
+		}
+
+		return nil, err
 	}
 
-	return exists, nil
+	if len(tokenDataStr) == 0 {
+		return nil, ErrUnknownToken
+	}
+
+	tokenEntity := &TokenEntity{}
+	if err := json.Unmarshal([]byte(tokenDataStr), tokenEntity); err != nil {
+		msg := fmt.Sprintf("malformed token [%s] data [%v]: %v", token, tokenDataStr, err)
+		logging.SystemError(msg)
+		return nil, errors.New(msg)
+	}
+
+	return tokenEntity, nil
 }
 
-//deleteToken remove main and secondary (access and refresh) tokens from Redis
-func (rp *RedisProvider) deleteToken(userID, tokenID, mainKeyPrefix, secondaryKeyPrefix string) error {
+func (rp *RedisProvider) DeleteAccessToken(token string) error {
 	conn := rp.pool.Get()
 	defer conn.Close()
 
-	secondaryToken, err := redis.String(conn.Do("HGET", mainKeyPrefix+":user#"+userID, tokenID))
+	tokenDataStr, err := redis.String(conn.Do("HGET", authAccessTokensKey, token))
 	if err != nil && err != redis.ErrNil {
 		return err
 	}
 
-	_, err = conn.Do("HDEL", mainKeyPrefix+":user#"+userID, tokenID)
+	if len(tokenDataStr) == 0 {
+		return nil
+	}
+
+	tokenEntity := &TokenEntity{}
+	if err := json.Unmarshal([]byte(tokenDataStr), tokenEntity); err != nil {
+		return fmt.Errorf("malformed token [%s] data: %v", token, tokenDataStr)
+	}
+
+	return rp.deleteToken(tokenEntity)
+}
+
+//deleteToken removes access and refresh (access and refresh) tokens from Redis
+func (rp *RedisProvider) deleteToken(tokenEntity *TokenEntity) error {
+	conn := rp.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("HDEL", authAccessTokensKey, tokenEntity.AccessToken)
 	if err != nil && err != redis.ErrNil {
 		return err
 	}
 
-	_, err = conn.Do("HDEL", secondaryKeyPrefix+":user#"+userID, secondaryToken)
+	_, err = conn.Do("HDEL", authRefreshTokensKey, tokenEntity.RefreshToken)
 	if err != nil && err != redis.ErrNil {
 		return err
 	}

@@ -118,7 +118,11 @@ func (ah *AuthorizationHandler) SignIn(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserID: td.AccessToken.UserID})
+	c.JSON(http.StatusOK, TokensResponse{
+		AccessToken:  td.AccessTokenEntity.AccessToken,
+		RefreshToken: td.RefreshTokenEntity.RefreshToken,
+		UserID:       td.AccessTokenEntity.UserID,
+	})
 }
 
 //OnboardedSignUp is used only for self-hosted
@@ -159,7 +163,11 @@ func (ah *AuthorizationHandler) OnboardedSignUp(c *gin.Context) {
 	}
 	telemetry.User(user)
 
-	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserID: td.AccessToken.UserID})
+	c.JSON(http.StatusOK, TokensResponse{
+		AccessToken:  td.AccessTokenEntity.AccessToken,
+		RefreshToken: td.RefreshTokenEntity.RefreshToken,
+		UserID:       td.AccessTokenEntity.UserID,
+	})
 }
 
 func (ah *AuthorizationHandler) SignUp(c *gin.Context) {
@@ -181,7 +189,11 @@ func (ah *AuthorizationHandler) SignUp(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserID: td.AccessToken.UserID})
+	c.JSON(http.StatusOK, TokensResponse{
+		AccessToken:  td.AccessTokenEntity.AccessToken,
+		RefreshToken: td.RefreshTokenEntity.RefreshToken,
+		UserID:       td.AccessTokenEntity.UserID,
+	})
 }
 
 func (ah *AuthorizationHandler) SignOut(c *gin.Context) {
@@ -253,7 +265,11 @@ func (ah *AuthorizationHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	token := c.GetHeader(middleware.ClientAuthHeader)
+	//Extract token from all places including deprecated ones
+	token, ok := middleware.ExtractBearerToken(c)
+	if !ok {
+		token = middleware.ExtractTokenFromDeprecatedParameters(c)
+	}
 
 	td, err := ah.authService.ChangePassword(req.ResetID, token, req.NewPassword)
 	if err != nil {
@@ -266,7 +282,11 @@ func (ah *AuthorizationHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserID: td.AccessToken.UserID})
+	c.JSON(http.StatusOK, TokensResponse{
+		AccessToken:  td.AccessTokenEntity.AccessToken,
+		RefreshToken: td.RefreshTokenEntity.RefreshToken,
+		UserID:       td.AccessTokenEntity.UserID,
+	})
 }
 
 func (ah *AuthorizationHandler) RefreshToken(c *gin.Context) {
@@ -287,5 +307,9 @@ func (ah *AuthorizationHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserID: td.AccessToken.UserID})
+	c.JSON(http.StatusOK, TokensResponse{
+		AccessToken:  td.AccessTokenEntity.AccessToken,
+		RefreshToken: td.RefreshTokenEntity.RefreshToken,
+		UserID:       td.AccessTokenEntity.UserID,
+	})
 }

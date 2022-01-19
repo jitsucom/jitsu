@@ -8,42 +8,57 @@ import (
 	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/storages"
-	mdlwr "github.com/jitsucom/jitsu/server/middleware"
+	jmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"net/http"
 )
 
+//ConfigurationHandler is a handler for get/save configurations (apikeys/destinations/etc by projectID)
 type ConfigurationHandler struct {
 	configurationsService *storages.ConfigurationsService
-	configStorage         storages.ConfigurationsStorage
 }
 
-func NewConfigurationsHandler(configurationsService *storages.ConfigurationsService, configStorage storages.ConfigurationsStorage) *ConfigurationHandler {
-	return &ConfigurationHandler{configurationsService: configurationsService, configStorage: configStorage}
+//NewConfigurationsHandler returns configured ConfigurationHandler
+func NewConfigurationsHandler(configurationsService *storages.ConfigurationsService) *ConfigurationHandler {
+	return &ConfigurationHandler{configurationsService: configurationsService}
 }
 
+//GetConfig returns JSON with configuration entities by project ID and object type
+//id = projectID and collection = objectType
 func (ch *ConfigurationHandler) GetConfig(c *gin.Context) {
-	configID := c.Query("id")
-	if configID == "" {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Required query parameter [id] is empty", nil))
+	projectID := c.Query("id")
+	if projectID == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, jmiddleware.ErrResponse("Required query parameter [id] is empty", nil))
 		return
 	}
+
+	if c.GetString(middleware.ProjectIDKey) != projectID {
+		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
+		return
+	}
+
 	collection := c.Param("collection")
-	config, err := ch.getConfig(collection, configID)
+	config, err := ch.getConfig(collection, projectID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
+		c.AbortWithStatusJSON(http.StatusBadRequest, jmiddleware.ErrResponse(err.Error(), nil))
 		return
 	}
 	writeResponse(c, config)
 }
 
 func (ch *ConfigurationHandler) StoreConfig(c *gin.Context) {
-	configID := c.Query("id")
-	if configID == "" {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Required query parameter [id] is empty", nil))
+	projectID := c.Query("id")
+	if projectID == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, jmiddleware.ErrResponse("Required query parameter [id] is empty", nil))
 		return
 	}
+
+	if c.GetString(middleware.ProjectIDKey) != projectID {
+		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
+		return
+	}
+
 	collection := c.Param("collection")
-	ch.saveConfig(c, collection, configID)
+	ch.saveConfig(c, collection, projectID)
 }
 
 func (ch *ConfigurationHandler) GetUserInfo(c *gin.Context) {
@@ -51,7 +66,7 @@ func (ch *ConfigurationHandler) GetUserInfo(c *gin.Context) {
 
 	config, err := ch.getConfig(authorization.UsersInfoCollection, userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
+		c.AbortWithStatusJSON(http.StatusBadRequest, jmiddleware.ErrResponse(err.Error(), nil))
 		return
 	}
 	writeResponse(c, config)
@@ -65,21 +80,21 @@ func (ch *ConfigurationHandler) StoreUserInfo(c *gin.Context) {
 	err := c.BindJSON(&data)
 	if err != nil {
 		bodyExtractionErrorMessage := fmt.Sprintf("Failed to get user info body from request: %v", err)
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(bodyExtractionErrorMessage, nil))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse(bodyExtractionErrorMessage, nil))
 		return
 	}
-	err = ch.configurationsService.StoreConfig(authorization.UsersInfoCollection, userID, data)
+	err = ch.configurationsService.SaveConfigWithLock(authorization.UsersInfoCollection, userID, data)
 	if err != nil {
 		configStoreErrorMessage := fmt.Sprintf("Failed to save user info [%s]: %v", userID, err)
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(configStoreErrorMessage, nil))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse(configStoreErrorMessage, nil))
 		return
 	}
 
-	c.JSON(http.StatusOK, mdlwr.OKResponse())
+	c.JSON(http.StatusOK, jmiddleware.OKResponse())
 }
 
 func (ch *ConfigurationHandler) getConfig(collection string, id string) ([]byte, error) {
-	config, err := ch.configStorage.Get(collection, id)
+	config, err := ch.configurationsService.GetConfigWithLock(collection, id)
 	if err != nil {
 		if err == storages.ErrConfigurationNotFound {
 			return json.Marshal(make(map[string]interface{}))
@@ -95,16 +110,16 @@ func (ch *ConfigurationHandler) saveConfig(c *gin.Context, collection string, id
 	err := c.BindJSON(&data)
 	if err != nil {
 		bodyExtractionErrorMessage := fmt.Sprintf("Failed to get config body from request: %v", err)
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(bodyExtractionErrorMessage, nil))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse(bodyExtractionErrorMessage, nil))
 		return
 	}
-	err = ch.configurationsService.StoreConfig(collection, id, data)
+	err = ch.configurationsService.SaveConfigWithLock(collection, id, data)
 	if err != nil {
 		configStoreErrorMessage := fmt.Sprintf("Failed to save collection [%s], id=[%s]: %v", collection, id, err)
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(configStoreErrorMessage, nil))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse(configStoreErrorMessage, nil))
 		return
 	}
-	c.JSON(http.StatusOK, mdlwr.OKResponse())
+	c.JSON(http.StatusOK, jmiddleware.OKResponse())
 }
 
 func writeResponse(c *gin.Context, config []byte) {
@@ -113,6 +128,6 @@ func writeResponse(c *gin.Context, config []byte) {
 	_, err := c.Writer.Write(config)
 	if err != nil {
 		writeErrorMessage := fmt.Sprintf("Failed to write response: %v", err)
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(writeErrorMessage, nil))
+		c.AbortWithStatusJSON(http.StatusBadRequest, jmiddleware.ErrResponse(writeErrorMessage, nil))
 	}
 }

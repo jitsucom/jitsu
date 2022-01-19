@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
@@ -20,11 +21,14 @@ import (
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
 	config "github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/meta"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/safego"
+	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/viper"
 	"math/rand"
@@ -139,12 +143,32 @@ func main() {
 	}
 
 	//** Main Storage **
-	configurationsStorage, err := storages.NewConfigurationsStorage(ctx, viper.GetViper())
+	configurationsStorage, redisPoolFactory, err := initializeStorage(ctx, viper.GetViper())
 	if err != nil {
 		logging.Fatalf("Error creating configurations storage: %v", err)
 	}
 
-	configurationsService := storages.NewConfigurationsService(configurationsStorage, defaultPostgres)
+	var monitorKeeper enstorages.MonitorKeeper
+	if redisPoolFactory != nil {
+		options := redisPoolFactory.GetOptions()
+		options.MaxActive = 100
+		redisPoolFactory.WithOptions(options)
+
+		monitorKeeper, err = coordination.NewRedisService(ctx, appconfig.Instance.ServerName, redisPoolFactory, coordination.Options{
+			DisableHeartBeating: true,
+			LockExpire:          2 * time.Minute,
+			LockRetry:           20,
+			LockRetryDelay:      2 * time.Second,
+		})
+		if err != nil {
+			logging.Fatalf("Error creating redis monitoring keeper: %v", err)
+		}
+	} else {
+		//in case of firebase installation
+		monitorKeeper = coordination.NewInMemoryService([]string{appconfig.Instance.ServerName})
+	}
+
+	configurationsService := storages.NewConfigurationsService(configurationsStorage, defaultPostgres, monitorKeeper)
 	if err != nil {
 		logging.Fatalf("Error creating configurations service: %v", err)
 	}
@@ -213,7 +237,7 @@ func main() {
 
 	cors.Init(viper.GetString("server.domain"), viper.GetStringSlice("server.allowed_domains"))
 
-	router := SetupRouter(jitsuService, configurationsStorage, configurationsService,
+	router := SetupRouter(jitsuService, configurationsService,
 		authService, s3Config, sslUpdateExecutor, emailsService)
 
 	notifications.ServerStart(runtime.GetInfo())
@@ -228,9 +252,9 @@ func main() {
 	logging.Fatal(server.ListenAndServe())
 }
 
-func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.ConfigurationsStorage,
-	configurationsService *storages.ConfigurationsService, authService *authorization.Service,
-	defaultS3 *enadapters.S3Config, sslUpdateExecutor *ssl.UpdateExecutor, emailService *emails.Service) *gin.Engine {
+func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.ConfigurationsService,
+	authService *authorization.Service, defaultS3 *enadapters.S3Config, sslUpdateExecutor *ssl.UpdateExecutor,
+	emailService *emails.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery(), enmiddleware.GinLogErrorBody)
@@ -262,10 +286,12 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 	})
 
 	apiKeysHandler := handlers.NewAPIKeysHandler(configurationsService)
-	jConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsService, configurationsStorage)
+	jConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsService)
 	authHandler := handlers.NewAuthorizationHandler(authService, emailService, configurationsService)
 	systemHandler := handlers.NewSystemHandler(authService, configurationsService, emailService.IsConfigured(), viper.GetBool("server.self_hosted"), *dockerHubID, tag, builtAt)
 	geoDataResolversHandler := handlers.NewGeoDataResolversHandler(configurationsService)
+	objectsHandler := handlers.NewObjectHandler(configurationsService)
+	projectsHandler := handlers.NewProjectsHandler(authService)
 
 	proxyHandler := handlers.NewProxyHandler(jitsuService, map[string]jitsu.APIDecorator{
 		//write here custom decorators for a certain HTTP URN paths
@@ -284,7 +310,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 
 		apiV1.GET("/apikeys", middleware.ServerAuth(contentChangesMiddleware.OldStyleIfModifiedSince(apiKeysHandler.GetHandler), serverToken))
 
-		apiV1.GET("/jitsu/configuration", authenticatorMiddleware.OldStyleBearerAuth(handlers.NewConfigurationHandler(configurationsService).Handler, true))
+		apiV1.GET("/jitsu/configuration", authenticatorMiddleware.OldStyleBearerAuth(handlers.NewGenerateConfigHandler(configurationsService).Handler, true))
 
 		if sslUpdateExecutor != nil {
 			apiV1.POST("/ssl", authenticatorMiddleware.OldStyleBearerAuth(handlers.NewCustomDomainHandler(sslUpdateExecutor).PerProjectHandler, true))
@@ -305,51 +331,47 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 
 		apiV1.GET("/become", authenticatorMiddleware.OldStyleBearerAuth(handlers.NewBecomeUserHandler(authService).Handler, false))
 
+		//DEPRECATED
 		apiV1.GET("/configurations/:collection", authenticatorMiddleware.OldStyleBearerAuth(jConfigurationsHandler.GetConfig, true))
 		apiV1.POST("/configurations/:collection", authenticatorMiddleware.OldStyleBearerAuth(jConfigurationsHandler.StoreConfig, true))
-
-		/* TODO
-
-		apiV1.GET("/system/configuration", systemHandler.GetConfiguration)
-		apiV1.GET("/system/version", systemHandler.GetSystemVersion)
-
-		apiV1.GET("/geo_data_resolvers", middleware.ServerAuth(contentChangesMiddleware.IfModifiedSince(geoDataResolversHandler.GetHandler), serverToken))
-
-
-		usersAPIGroup := apiV1.Group("/users")
-		{
-			usersAPIGroup.GET("/info", authenticatorMiddleware.BearerAuth(jConfigurationsHandler.GetUserInfo))
-			usersAPIGroup.POST("/info", authenticatorMiddleware.BearerAuth(jConfigurationsHandler.StoreUserInfo))
-		}
-
-
-		usersAPIGroup.POST("/onboarded/signup", authHandler.OnboardedSignUp)
-		usersAPIGroup.POST("/signin", authHandler.SignIn)
-		usersAPIGroup.POST("/signout", authenticatorMiddleware.BearerAuth(authHandler.SignOut))
-
-
-		passwordAPIGroup := usersAPIGroup.Group("/password")
-		{
-			passwordAPIGroup.POST("/reset", authHandler.ResetPassword)
-			passwordAPIGroup.POST("/change", authHandler.ChangePassword)
-		}
-
-
-		usersAPIGroup.POST("/token/refresh", authHandler.RefreshToken)
-		*/
-
-		//authorization
-		//DEPRECATED
-		usersAPIGroup := apiV1.Group("/users")
-		usersAPIGroup.POST("/signup", authHandler.SignUp)
 	}
 
 	// ** New API generated by OpenAPI
-	openAPIHandler := handlers.NewOpenAPI(authHandler, jConfigurationsHandler, systemHandler, geoDataResolversHandler)
+	openAPIHandler := handlers.NewOpenAPI(authHandler, jConfigurationsHandler, systemHandler, geoDataResolversHandler,
+		objectsHandler, projectsHandler)
 	return openapi.RegisterHandlersWithOptions(router, openAPIHandler, openapi.GinServerOptions{
 		BaseURL:     "",
 		Middlewares: []openapi.MiddlewareFunc{authenticatorMiddleware.BearerAuth, contentChangesMiddleware.IfModifiedSince},
 	})
+}
+
+func initializeStorage(ctx context.Context, vp *viper.Viper) (storages.ConfigurationsStorage, *meta.RedisPoolFactory, error) {
+	if vp.IsSet("storage.firebase.project_id") {
+		projectID := vp.GetString("storage.firebase.project_id")
+		credentialsFile := vp.GetString("storage.firebase.credentials_file")
+		firebase, err := storages.NewFirebase(ctx, projectID, credentialsFile)
+		return firebase, nil, err
+	} else if vp.IsSet("storage.redis.host") {
+		host := vp.GetString("storage.redis.host")
+		if host == "" {
+			return nil, nil, errors.New("storage.redis.host must not be empty")
+		}
+
+		port := vp.GetInt("storage.redis.port")
+		password := vp.GetString("storage.redis.password")
+		tlsSkipVerify := vp.GetBool("storage.redis.tls_skip_verify")
+		sentinelMaster := vp.GetString("storage.redis.sentinel_master_name")
+
+		redisPoolFactory := meta.NewRedisPoolFactory(host, port, password, tlsSkipVerify, sentinelMaster)
+		if defaultPort, ok := redisPoolFactory.CheckAndSetDefaultPort(); ok {
+			logging.Infof("storage.redis.port isn't configured. Will be used default: %d", defaultPort)
+		}
+
+		redisService, err := storages.NewRedis(redisPoolFactory)
+		return redisService, redisPoolFactory, err
+	} else {
+		return nil, nil, errors.New("Unknown 'storage' section type. Supported: firebase, redis")
+	}
 }
 
 func setAppWorkDir() {

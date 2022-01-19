@@ -538,7 +538,7 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 			coordinationRedisConfiguration.GetBool("tls_skip_verify"),
 			coordinationRedisConfiguration.GetString("sentinel_master_name"))
 		factory.CheckAndSetDefaultPort()
-		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, factory)
+		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, factory, coordination.DefaultOptions)
 	}
 
 	return nil, errors.New("Unknown coordination configuration. Currently only [redis, etcd] are supported. " +
