@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/wal"
 	"net/http"
 	"net/http/pprof"
+	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
@@ -34,7 +35,10 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
-	router.Use(gin.RecoveryWithWriter(logging.GlobalLogsWriter))
+	router.Use(gin.RecoveryWithWriter(logging.GlobalLogsWriter, func(c *gin.Context, err interface{}) {
+		logging.SystemErrorf("Panic:\n%s\n%s", err, string(debug.Stack()))
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}))
 
 	router.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
