@@ -120,9 +120,13 @@ func NewService(configuratorURL, configuratorToken string) (*Service, error) {
 func (s *Service) GetClientOrigins(clientSecret string) ([]string, bool) {
 	s.RLock()
 	defer s.RUnlock()
-
-	origins, ok := s.tokensHolder.clientTokensOrigins[clientSecret]
-	return origins, ok
+	if s.tokensHolder != nil {
+		origins, ok := s.tokensHolder.clientTokensOrigins[clientSecret]
+		return origins, ok
+	} else {
+		logging.Errorf("Authorization service is not initialized")
+		return nil, false
+	}
 }
 
 //GetServerOrigins return origins by server_secret

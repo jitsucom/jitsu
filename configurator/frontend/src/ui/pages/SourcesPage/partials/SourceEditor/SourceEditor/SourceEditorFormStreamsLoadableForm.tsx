@@ -115,7 +115,7 @@ const SourceEditorFormStreamsLoadableForm = ({
           <StreamsCollapsibleList
             streamsToDisplay={streamsToDisplay}
             initiallySelectedStreams={initiallySelectedStreams}
-            allStreamsChecked={allChecked}
+            isAllStreamsChecked={allChecked}
             handleToggleStream={handleToggleStream}
             setSourceEditorState={setSourceEditorState}
           />
@@ -135,15 +135,15 @@ export { SourceEditorFormStreamsLoadableForm }
 type StreamsCollapsibleListProps = {
   streamsToDisplay: StreamData[]
   initiallySelectedStreams: StreamConfig[]
-  allStreamsChecked?: boolean
+  isAllStreamsChecked?: boolean
   setSourceEditorState: SetSourceEditorState
   handleToggleStream: (checked: boolean, streamUid: string) => void
 }
 
 const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo(
-  ({ streamsToDisplay, initiallySelectedStreams, allStreamsChecked, handleToggleStream, setSourceEditorState }) => {
+  ({ streamsToDisplay, initiallySelectedStreams, isAllStreamsChecked, handleToggleStream, setSourceEditorState }) => {
     /**
-     * Creates source-type-specific methods and components
+     * Creates source type specific methods and components
      */
     const getStreamUiComponents = (streamData: StreamData) => {
       if (sourceEditorUtils.isAirbyteStream(streamData)) {
@@ -159,7 +159,7 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
           content: (
             <AirbyteStreamParameters
               streamData={streamData}
-              checked={allStreamsChecked}
+              checked={isAllStreamsChecked}
               handleChangeStreamSyncMode={handleChangeStreamSyncMode}
             />
           ),
@@ -178,22 +178,31 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
         destroyInactivePanel
         expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
       >
-        {streamsToDisplay.map((streamData, idx) => {
-          const streamUid = sourceEditorUtils.getStreamUid(streamData)
-          const { header, content } = getStreamUiComponents(streamData)
-          return (
-            <StreamPanel
-              key={streamUid}
-              streamUid={streamUid}
-              header={header}
-              initiallySelectedStreams={initiallySelectedStreams}
-              checked={allStreamsChecked}
-              handleToggleStream={handleToggleStream}
-            >
-              {content}
-            </StreamPanel>
-          )
-        })}
+        {streamsToDisplay
+          .sort((a, b) => {
+            // moves initially selected streams to the top of the list
+            const [aUid, bUid] = [a, b].map(sourceEditorUtils.getStreamUid)
+            const [aIsInitiallySelected, bIsInitiallySelected] = [aUid, bUid].map(uid =>
+              initiallySelectedStreams.some(selected => sourceEditorUtils.getSelectedStreamUid(selected) === uid)
+            )
+            return Number(bIsInitiallySelected) - Number(aIsInitiallySelected)
+          })
+          .map(streamData => {
+            const streamUid = sourceEditorUtils.getStreamUid(streamData)
+            const { header, content } = getStreamUiComponents(streamData)
+            return (
+              <StreamPanel
+                key={streamUid}
+                streamUid={streamUid}
+                header={header}
+                initiallySelectedStreams={initiallySelectedStreams}
+                checked={isAllStreamsChecked}
+                handleToggleStream={handleToggleStream}
+              >
+                {content}
+              </StreamPanel>
+            )
+          })}
       </Collapse>
     )
   }

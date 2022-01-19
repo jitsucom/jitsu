@@ -19,7 +19,7 @@ we build 3 docker images:
 `@jitsu/configurator` is an optional component. Jitsu Server can be configured with [YML file](/docs/configuration).
 
 [Heroku deployment](/docs/deployment/deploy-on-heroku) users `@jitsucom/jitsu` under the hood. [Docker compose](/docs/deployment/deploy-with-docker#run-dockercompose)
-uses Jitsu joint image as well. If you're getting started with Jitsu, or operate Jitsu under moderate (<10 RPS) load, use `@jitsucom/jitsu` image,
+uses Jitsu joint image as well. If you're getting started with Jitsu, or operate Jitsu under moderate (`<10 RPS`) load, use `@jitsucom/jitsu` image,
 otherwise consider deploying `@jitsucom/server` and `@jitsucom/configurator` separately.
 
 Also, Jitsu requires Redis. Configurator uses Redis for storing Jitsu configuration, user accounts and so on. Server uses Redis for

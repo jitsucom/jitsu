@@ -28,7 +28,7 @@ const googleAnalytics = {
   type: "other",
   displayName: "GoogleAnalytics",
   defaultTransform: `// Code of Google Analytics transform:
-// https://github.com/jitsucom/jitsu/blob/master/server/templates/js/transform/google_analytics.js
+// https://github.com/jitsucom/jitsu/blob/master/server/storages/transform/google_analytics.js
 return toGoogleAnalytics($)`,
   hidden: false,
   parameters: [
