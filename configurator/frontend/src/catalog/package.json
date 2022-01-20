@@ -9,9 +9,6 @@
     "lib": "lib",
     "test": "__tests__"
   },
-  "files": [
-    "./*"
-  ],
   "publishConfig": {
     "access": "public"
   },
