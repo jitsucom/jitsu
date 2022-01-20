@@ -84,6 +84,7 @@
     "babel-plugin-lodash": "^3.3.4",
     "craco-antd": "^1.19.0",
     "craco-less": "^1.17.1",
+    "lerna": "^4.0.0",
     "monaco-editor-webpack-plugin": "^4.2.0",
     "msw": "^0.35.0",
     "prettier": "^2.5.1",
