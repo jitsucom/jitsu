@@ -1,0 +1,11 @@
+openapi: 3.0.0
+info:
+  title: Jitsu Server API
+  contact:
+    name: Jitsu Dev Team
+    email: dev@jitsu.com
+  license:
+    name: MIT License
+    url: "https://opensource.org/licenses/MIT"
+  version: 1.0.0
+paths:

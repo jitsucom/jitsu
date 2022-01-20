@@ -25,7 +25,6 @@ var (
 	ErrResetIDNotFound   = errors.New("Reset id wasn't found")
 	ErrIncorrectPassword = errors.New("Incorrect password")
 	ErrExpiredToken      = errors.New("Expired token")
-	ErrTokenSignature    = errors.New("Token signature is invalid")
 	ErrUnknownToken      = errors.New("Unknown token")
 )
 
@@ -59,25 +58,7 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 			logging.Infof("auth.redis.port isn't configured. Will be used default: %d", defaultPort)
 		}
 
-		accessSecret := vp.GetString("auth.redis.access_secret")
-		if accessSecret == "" {
-			return nil, errors.New("auth.redis.access_secret is required. Please provide any random string or uuid value in configurator.yaml or via UI_AUTH_ACCESS_SECRET env variable.")
-		}
-		if accessSecret == "generate" {
-			accessSecret = uuid.NewV4().String()
-			logging.Infof("'auth.redis.access_secret' has been generated: %q. For keeping UI authorization sessions between application restarts - provide any random string or uuid value in configurator.yaml or via UI_AUTH_ACCESS_SECRET env variable.", accessSecret)
-		}
-
-		refreshSecret := vp.GetString("auth.redis.refresh_secret")
-		if refreshSecret == "" {
-			return nil, errors.New("auth.redis.refresh_secret is required. Please provide any random string or uuid value in configurator.yaml or via UI_AUTH_REFRESH_SECRET env variable.")
-		}
-		if refreshSecret == "generate" {
-			refreshSecret = uuid.NewV4().String()
-			logging.Infof("'auth.redis.refresh_secret' has been generated: %q. For keeping UI authorization sessions between application restarts - provide any random string or uuid value in configurator.yaml or via UI_AUTH_REFRESH_SECRET env variable.", refreshSecret)
-		}
-
-		authProvider, err = NewRedisProvider(accessSecret, refreshSecret, redisPoolFactory)
+		authProvider, err = NewRedisProvider(redisPoolFactory)
 		if err != nil {
 			return nil, err
 		}
@@ -116,6 +97,22 @@ func (s *Service) GetProjectID(userID string) (string, error) {
 	}
 
 	return userInfo.Project.ID, nil
+}
+
+//GetUserProjects return projects array by userID
+func (s *Service) GetUserProjects(userID string) ([]Project, error) {
+	usersInfoResponse, err := s.configurationsStorage.Get(UsersInfoCollection, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var userInfo UserInfo
+	err = json.Unmarshal(usersInfoResponse, &userInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	return []Project{userInfo.Project}, nil
 }
 
 //GenerateUserToken generate access token for userID
@@ -175,7 +172,7 @@ func (s *Service) SignIn(email, password string) (*TokenDetails, error) {
 
 //SignOut delete token from authorization storage
 func (s *Service) SignOut(token string) error {
-	return s.authProvider.DeleteToken(token)
+	return s.authProvider.DeleteAccessToken(token)
 }
 
 //CreateResetID return rest id and email
@@ -197,11 +194,11 @@ func (s *Service) CreateResetID(email string) (string, string, error) {
 
 //ChangePassword gets user by reset ID or by authorization token
 //changes user password and delete all tokens
-func (s *Service) ChangePassword(resetID, clientAuthToken, newPassword string) (*TokenDetails, error) {
+func (s *Service) ChangePassword(resetID *string, clientAuthToken, newPassword string) (*TokenDetails, error) {
 	var user *User
 	var err error
-	if resetID != "" {
-		user, err = s.authProvider.GetUserByResetID(resetID)
+	if resetID != nil {
+		user, err = s.authProvider.GetUserByResetID(*resetID)
 		if err != nil {
 			return nil, err
 		}
@@ -233,9 +230,11 @@ func (s *Service) ChangePassword(resetID, clientAuthToken, newPassword string) (
 		return nil, err
 	}
 
-	err = s.authProvider.DeletePasswordResetID(resetID)
-	if err != nil {
-		return nil, err
+	if resetID != nil {
+		err = s.authProvider.DeletePasswordResetID(*resetID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return s.authProvider.CreateTokens(user.ID)

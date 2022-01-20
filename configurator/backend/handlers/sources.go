@@ -39,7 +39,7 @@ func NewSourcesHandler(configurationsService *storages.ConfigurationsService, en
 
 func (sh *SourcesHandler) GetHandler(c *gin.Context) {
 	begin := time.Now()
-	sourcesMap, err := sh.configurationsService.GetSources()
+	sourcesMap, err := sh.configurationsService.GetAllSources()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, jmiddleware.ErrResponse(SourcesGettingErrMsg, err))
 		return

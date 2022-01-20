@@ -25,14 +25,6 @@ under `/configurator` path
 <APIParam small={true}  name="CLUSTER_ADMIN_TOKEN" dataType="string" required={true} type="Docker Env Var">
     Admin Token for authorizing requests from/to Configurator.
 </APIParam>
-<APIParam small={true}  name="UI_AUTH_ACCESS_SECRET" dataType="string" required={true} type="Docker Env Var">
-    Secrets used to sign and refresh JWT Access Token. Use any random strings.{' '}
-    Feel free to rotate them, change in the settings will force logout of of Configurator
-</APIParam>
-<APIParam small={true}  name="UI_AUTH_REFRESH_SECRET" dataType="string" required={true} type="Docker Env Var">
-    Secrets used to sign and refresh JWT Access Token. Use any random strings.{' '}
-    Feel free to rotate them, change in the settings will force logout of of Configurator
-</APIParam>
 <APIParam small={true}  name="TLS_SKIP_VERIFY" dataType="boolean" required={false} type="Docker Env Var">
     Redis: skip client certificate verification
 </APIParam>
@@ -152,8 +144,6 @@ chmod -R 777 $PWD/server_logs/ $PWD/configurator_logs/
 ```
 docker run -p <local_port>:8000 \
   -e REDIS_URL=<redis_url> \
-  -e UI_AUTH_ACCESS_SECRET=<your_generated_access_secret> \
-  -e UI_AUTH_REFRESH_SECRET=<your_generated_refresh_secret> \
   -v $PWD/server_logs/:/home/eventnative/data/logs/ \
   -v $PWD/configurator_logs/:/home/configurator/data/logs/ \
   -v jitsu_workspace:/home/eventnative/data/airbyte \
