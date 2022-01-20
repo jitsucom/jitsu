@@ -372,7 +372,9 @@ func (rp *RedisProvider) DeleteAccessToken(token string) error {
 
 	tokenEntity := &TokenEntity{}
 	if err := json.Unmarshal([]byte(tokenDataStr), tokenEntity); err != nil {
-		return fmt.Errorf("malformed token [%s] data: %v", token, tokenDataStr)
+		msg := fmt.Sprintf("malformed token [%s] data [%v]: %v", token, tokenDataStr, err)
+		logging.SystemError(msg)
+		return errors.New(msg)
 	}
 
 	return rp.deleteToken(tokenEntity)

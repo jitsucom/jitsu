@@ -15,7 +15,6 @@ import (
 	jmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	jsystem "github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/telemetry"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -79,7 +78,6 @@ func (oa *OpenAPI) GetGeoDataResolvers(c *gin.Context) {
 		}
 	}
 
-	logging.Debugf("Geo data resolvers response in [%.2f] seconds", time.Now().Sub(begin).Seconds())
 	resp := &jgeo.Payload{GeoResolvers: idConfig}
 	b, _ := json.Marshal(resp)
 
@@ -90,6 +88,7 @@ func (oa *OpenAPI) GetGeoDataResolvers(c *gin.Context) {
 		return
 	}
 
+	logging.Debugf("Geo data resolvers response in [%.2f] seconds", time.Now().Sub(begin).Seconds())
 	c.JSON(http.StatusOK, anyObject)
 }
 
@@ -482,9 +481,10 @@ func (oa *OpenAPI) SetObjectsByProjectIDAndObjectType(c *gin.Context, projectIDI
 	}
 
 	req := &openapi.AnyObject{}
-	bodyBytes, _ := ioutil.ReadAll(c.Request.Body)
-	if err := req.UnmarshalJSON(bodyBytes); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(fmt.Sprintf("Failed to get objects body from request: %v", err), nil))
+	err := c.BindJSON(req)
+	if err != nil {
+		bodyExtractionErrorMessage := fmt.Sprintf("Failed to get objects body from request: %v", err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(bodyExtractionErrorMessage, nil))
 		return
 	}
 
@@ -591,9 +591,10 @@ func (oa *OpenAPI) PatchObjectsByProjectIDAndObjectTypeAndID(c *gin.Context, pro
 	}
 
 	req := &openapi.AnyObject{}
-	bodyBytes, _ := ioutil.ReadAll(c.Request.Body)
-	if err := req.UnmarshalJSON(bodyBytes); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(fmt.Sprintf("Failed to get patch objects body from request: %v", err), nil))
+	err := c.BindJSON(req)
+	if err != nil {
+		bodyExtractionErrorMessage := fmt.Sprintf("Failed to get patch objects body from request: %v", err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(bodyExtractionErrorMessage, nil))
 		return
 	}
 
