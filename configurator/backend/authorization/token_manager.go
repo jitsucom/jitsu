@@ -1,123 +1,37 @@
 package authorization
 
 import (
-	"errors"
-	"fmt"
-	"github.com/dgrijalva/jwt-go"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	uuid "github.com/satori/go.uuid"
 	"time"
 )
 
 const (
+	//AccessTokenType is a token type only for debugging purpose
+	AccessTokenType = "access_token"
+	//RefreshTokenType is a token type only for debugging purpose
+	RefreshTokenType = "refresh_token"
+
 	AccessTokenTTL  = time.Hour
 	RefreshTokenTTL = time.Hour * 24 * 7
 )
 
-type JwtTokenManager struct {
-	accessSecret  []byte
-	refreshSecret []byte
-}
+type TokenManager struct{}
 
-func NewTokenManager(accessSecret, refreshSecret string) *JwtTokenManager {
-	return &JwtTokenManager{
-		accessSecret:  []byte(accessSecret),
-		refreshSecret: []byte(refreshSecret),
+func (tm *TokenManager) CreateAccessToken(userID string) *TokenEntity {
+	return &TokenEntity{
+		UserID:      userID,
+		ExpiredAt:   timestamp.ToISOFormat(timestamp.Now().UTC().Add(AccessTokenTTL)),
+		AccessToken: uuid.NewV4().String(),
+		TokenType:   AccessTokenType,
 	}
 }
 
-func (jtm *JwtTokenManager) CreateTokens(userID string) (td *TokenDetails, err error) {
-	td = &TokenDetails{AccessToken: &JwtToken{UserID: userID}, RefreshToken: &JwtToken{UserID: userID}}
-	td.AccessToken.Exp = time.Now().Add(AccessTokenTTL).Unix()
-	td.AccessToken.UUID = uuid.NewV4().String()
-
-	td.RefreshToken.Exp = time.Now().Add(RefreshTokenTTL).Unix()
-	td.RefreshToken.UUID = uuid.NewV4().String()
-
-	atClaims := jwt.MapClaims{}
-	atClaims["uuid"] = td.AccessToken.UUID
-	atClaims["user_id"] = userID
-	atClaims["exp"] = td.AccessToken.Exp
-	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
-	td.AccessToken.Token, err = at.SignedString(jtm.accessSecret)
-	if err != nil {
-		return nil, err
+func (tm *TokenManager) CreateRefreshToken(userID string) *TokenEntity {
+	return &TokenEntity{
+		UserID:       userID,
+		ExpiredAt:    timestamp.ToISOFormat(timestamp.Now().UTC().Add(RefreshTokenTTL)),
+		RefreshToken: uuid.NewV4().String(),
+		TokenType:    RefreshTokenType,
 	}
-
-	rtClaims := jwt.MapClaims{}
-	rtClaims["uuid"] = td.RefreshToken.UUID
-	rtClaims["user_id"] = userID
-	rtClaims["exp"] = td.RefreshToken.Exp
-	rt := jwt.NewWithClaims(jwt.SigningMethodHS256, rtClaims)
-	td.RefreshToken.Token, err = rt.SignedString(jtm.refreshSecret)
-	if err != nil {
-		return nil, err
-	}
-
-	return td, nil
-}
-
-func (jtm *JwtTokenManager) ParseToken(strToken string, keyFunc func(token *jwt.Token) (interface{}, error)) (*JwtToken, error) {
-	token, err := jwt.Parse(strToken, keyFunc)
-	if err != nil {
-		jwve, ok := err.(*jwt.ValidationError)
-		if ok {
-			if jwve.Errors == jwt.ValidationErrorExpired {
-				return nil, ErrExpiredToken
-			}
-
-			if jwve.Errors == jwt.ValidationErrorSignatureInvalid {
-				return nil, ErrTokenSignature
-			}
-		}
-
-		return nil, err
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok || !token.Valid {
-		return nil, errors.New("Invalid token claims")
-	}
-
-	accessUUID, ok := claims["uuid"]
-	if !ok {
-		return nil, errors.New("Invalid token uuid")
-	}
-
-	userID, ok := claims["user_id"]
-	if !ok {
-		return nil, errors.New("Invalid user_id")
-	}
-
-	exp, ok := claims["exp"]
-	if !ok {
-		return nil, errors.New("Invalid exp")
-	}
-
-	expFloat, ok := exp.(float64)
-	if !ok {
-		return nil, fmt.Errorf("Invalid exp type: expeceted float64, but received: %T", exp)
-	}
-
-	return &JwtToken{
-		Token:  strToken,
-		UUID:   fmt.Sprint(accessUUID),
-		Exp:    int64(expFloat),
-		UserID: fmt.Sprint(userID),
-	}, nil
-}
-
-func (jtm *JwtTokenManager) accessKeyFunc(token *jwt.Token) (interface{}, error) {
-	//Make sure that the token method conform to "SigningMethodHMAC"
-	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-		return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-	}
-	return jtm.accessSecret, nil
-}
-
-func (jtm *JwtTokenManager) refreshKeyFunc(token *jwt.Token) (interface{}, error) {
-	//Make sure that the token method conform to "SigningMethodHMAC"
-	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-		return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-	}
-	return jtm.refreshSecret, nil
 }

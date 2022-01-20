@@ -1,0 +1,431 @@
+openapi: 3.0.0
+info:
+  title: Jitsu API
+  description: Jitsu API
+  contact:
+    name: Jitsu
+    email: dev@jitsu.com
+  license:
+    name: MIT License
+    url: "https://opensource.org/licenses/MIT"
+  version: 1.0.0
+
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: 'Access Token'
+  parameters:
+    projectId:
+      in: path
+      name: projectId
+      description: ID of the project
+      required: true
+      schema:
+        type: string
+    objectType:
+      in: path
+      name: objectType
+      description: 'Type of object. Currently, following values are supported: destinations, sources, api_keys'
+      required: true
+      schema:
+        type: string
+    objectUid:
+      in: path
+      name: objectUid
+      description: 'Unique ID of the object. The object id is sitting in /uid node of JSON object'
+      required: true
+      schema:
+        type: string
+
+  schemas:
+    #Object that represents error with message and
+    ErrorObject:
+      type: object
+      properties:
+        message:
+          type: string
+        error:
+          type: string
+      required:
+        - message
+    StatusObject:
+      type: object
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+      required:
+        - status
+    VersionObject:
+      type: object
+      properties:
+        version:
+          type: string
+        builtAt:
+          type: string
+      required:
+        - version
+        - builtAt
+    AnyObject:
+      description: Unspecified JSON Object
+      type: object
+      additionalProperties: { }
+    AnyArray:
+      description: Unspecified JSON Array
+      type: array
+      items:
+        $ref: "#/components/schemas/AnyObject"
+
+    EmailAndPasswordRequest:
+      type: object
+      properties:
+        email: { type: "string" }
+        password: { type: "string" }
+      required: [ 'email', 'password' ]
+    TokensResponse:
+      type: object
+      properties:
+        access_token: { type: "string" }
+        refresh_token: { type: "string" }
+        user_id: { type: "string" }
+      required: [ access_token, refresh_token, user_id ]
+
+    SignupRequest:
+      allOf:
+        - $ref: '#/components/schemas/EmailAndPasswordRequest'
+        - type: object
+          properties:
+            name: { type: "string" }
+            company: { type: "string" }
+            emailOptout: { type: "boolean" }
+            usageOptout: { type: "boolean" }
+          required: [ name, company, emailOptout, usageOptout ]
+
+  responses:
+    Error:
+      description: "Error response"
+      content:
+        "application/json":
+          schema:
+            $ref: "#/components/schemas/ErrorObject"
+    StatusResponse:
+      description: "Response contains status and message"
+      content:
+        "application/json":
+          schema:
+            $ref: "#/components/schemas/StatusObject"
+    VersionResponse:
+      description: "Response contains Jitsu version"
+      content:
+        "application/json":
+          schema:
+            $ref: "#/components/schemas/VersionObject"
+    AnyObjectResponse:
+      description: "Unspecified JSON object response"
+      content:
+        "application/json":
+          schema:
+            $ref: "#/components/schemas/AnyObject"
+    AnyArrayResponse:
+      description: "Unspecified JSON array "
+      content:
+        "application/json":
+          schema:
+            $ref: "#/components/schemas/AnyArray"
+
+#TODO
+
+#/api/v1/configurations/:collection (GET, POST) --- ignore, will be deprecated
+#/api/v1/users/signup - (POST) --- not user, ignore and delete
+#/api/v1/become (GET)
+#/api/v1/telemetry (GET)
+#/api/v1/sources (GET)
+#/api/v1/sources/test (POST)
+
+#/api/v1/destinations (GET)
+#/api/v1/destinations/test (POST)
+#/api/v1/destinations/evaluate (POST)
+
+#/api/v1/ssl (POST)
+#/api/v1/ssl/all (POST)
+#/api/v1/jitsu/configuration (GET)
+#/api/v1/apikeys (GET)
+
+#/api/v1/apikeys/default
+#/api/v1/database
+#/api/v1/notify
+
+#future
+#/api/v2/projects (POST) - create a project
+#/api/v2/projects/users (POST) - add user to the project
+#/api/v2/projects/users (DELETE) - delete user from the project
+
+paths:
+  /api/v1/users/signin:
+    post:
+      operationId: usersSignIn
+      description: Sign-in user with login and password
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailAndPasswordRequest'
+      responses:
+        "200":
+          description: 'Success login'
+          content:
+            "application/json":
+              schema:
+                $ref: '#/components/schemas/TokensResponse'
+
+        #All error responses
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/users/onboarded/signup:
+    post:
+      operationId: usersOnboardedSignUp
+      description: Create a user account
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+      responses:
+        "200":
+          description: 'Success login'
+          content:
+            "application/json":
+              schema:
+                $ref: '#/components/schemas/TokensResponse'
+        #All error responses
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/users/signout:
+    post:
+      operationId: usersSignOut
+      description: Delete token from DB
+      security:
+        - bearerAuth: ['client']
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/users/token/refresh:
+    post:
+      operationId: usersTokenRefresh
+      description: Refresh user access token
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              title: TokenRefreshRequest
+              type: object
+              properties:
+                refresh_token: { type: "string" }
+              required: [ refresh_token ]
+      responses:
+        200:
+          description: Success refresh
+          content:
+            "application/json":
+              schema:
+                $ref: '#/components/schemas/TokensResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/users/password/reset:
+    post:
+      operationId: usersPasswordReset
+      description: 'Request password reset'
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              title: UserPasswordResetRequest
+              type: object
+              properties:
+                email: { type: string }
+                callback: { type: string }
+              required: [ email ]
+
+      responses:
+        "200":
+          $ref: '#/components/responses/StatusResponse'
+        #All error responses
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/users/password/change:
+    post:
+      operationId: usersPasswordChange
+      description: 'Change password'
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              title: UserPasswordChangeRequest
+              type: object
+              properties:
+                new_password: { type: string }
+                reset_id: { type: string }
+              required: [ email ]
+      responses:
+        "200":
+          description: 'Success password changing'
+          content:
+            "application/json":
+              schema:
+                $ref: '#/components/schemas/TokensResponse'
+        #All error responses
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/users/info:
+    get:
+      operationId: getUsersInfo
+      description: 'Returns a current authenticated user'
+      security:
+        - bearerAuth: ['client']
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: setUsersInfo
+      description: 'Replaces users settings with a new user settings. Changes to some fields (such as security settings), will not have an effect'
+      security:
+        - bearerAuth: ['client']
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/system/configuration:
+    get:
+      operationId: getSystemConfiguration
+      description: Returns system configuration
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/system/version:
+    get:
+      operationId: getSystemVersion
+      description: Returns the version of Jitsu sotware running on the server
+      responses:
+        '200':
+          $ref: '#/components/responses/VersionResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v1/geo_data_resolvers:
+    get:
+      operationId: getGeoDataResolvers
+      description: Returns available geo resolvers
+      security:
+        - bearerAuth: ['server']
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v2/projects:
+    get:
+      operationId: getProjects
+      description: Returns a list of projects available for current user
+      security:
+        - bearerAuth: [ 'client' ]
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyArrayResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v2/objects/{projectId}/{objectType}:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/objectType'
+    get:
+      operationId: getObjectsByProjectIDAndObjectType
+      security:
+        - bearerAuth: [ 'client:project' ]
+      description: Returns the list of objects of given type
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyArrayResponse'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: setObjectsByProjectIDAndObjectType
+      description: >
+        Create new object. The method returns newly created object. Some properties of
+        newly created object might different from on which has been posted (for example, ID)
+      security:
+        - bearerAuth: [ 'client:project' ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v2/objects/{projectId}/{objectType}/{objectUid}:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/objectType'
+      - $ref: '#/components/parameters/objectUid'
+    get:
+      operationId: getObjectsByProjectIDAndObjectTypeAndID
+      description: Get an object with given UID
+      security:
+        - bearerAuth: [ 'client:project' ]
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+    delete:
+      operationId: deleteObjectsByProjectIDAndObjectTypeAndID
+      description: Delete an object with given UID. Returns a deleted object
+      security:
+        - bearerAuth: [ 'client:project' ]
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      operationId: patchObjectsByProjectIDAndObjectTypeAndID
+      description: >
+        Updates a object with given ID. Object will be patched: request body properties will be merged into an original object, it's ok to send partial objects
+        Some fields might be ignored and overwritten. The method returns an updated object
+      security:
+        - bearerAuth: [ 'client:project' ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+
+
+

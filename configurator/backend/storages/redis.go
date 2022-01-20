@@ -1,7 +1,6 @@
 package storages
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
 	entime "github.com/jitsucom/jitsu/configurator/time"
@@ -50,7 +49,7 @@ func (r *Redis) Get(collection string, documentID string) ([]byte, error) {
 	return b, nil
 }
 
-func (r *Redis) GetAllGroupedByID(collection string) ([]byte, error) {
+func (r *Redis) GetAllGroupedByID(collection string) (map[string][]byte, error) {
 	connection := r.pool.Get()
 	defer connection.Close()
 
@@ -58,17 +57,12 @@ func (r *Redis) GetAllGroupedByID(collection string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	configs := make(map[string]interface{})
+	configs := make(map[string][]byte)
+
 	for id, stringConfig := range configsByID {
-		config := map[string]interface{}{}
-		err := json.Unmarshal([]byte(stringConfig), &config)
-		if err != nil {
-			logging.Errorf("Failed to parse collection %s, id=[%s], %v", collection, id, err)
-			return nil, err
-		}
-		configs[id] = config
+		configs[id] = []byte(stringConfig)
 	}
-	return json.Marshal(configs)
+	return configs, nil
 }
 
 func (r *Redis) GetCollectionLastUpdated(collection string) (*time.Time, error) {
@@ -107,21 +101,13 @@ func (r *Redis) UpdateCollectionLastUpdated(collection string) error {
 	return nil
 }
 
-func (r *Redis) Store(collection string, key string, entity interface{}) error {
+func (r *Redis) Store(collection string, key string, entity []byte) error {
 	connection := r.pool.Get()
 	defer connection.Close()
-	configuration, err := toStringMap(entity)
-	if err != nil {
-		return fmt.Errorf("Error converting configuration %s, id=[%s]: %v", collection, key, err)
-	}
+
 	lastUpdatedTimestamp := entime.AsISOString(time.Now().UTC())
 
-	serialized, err := json.MarshalIndent(configuration, "", "    ")
-	if err != nil {
-		logging.Errorf("Error serializing entity to store to [%s], id=[%s]: %v", collection, key, err)
-		return fmt.Errorf("Error storing collection [%s], id=[%s]: %v", collection, key, err)
-	}
-	_, err = connection.Do("hset", toRedisKey(collection), key, string(serialized))
+	_, err := connection.Do("hset", toRedisKey(collection), key, string(entity))
 	if err != nil {
 		return err
 	}
@@ -130,17 +116,6 @@ func (r *Redis) Store(collection string, key string, entity interface{}) error {
 		return fmt.Errorf("Error while updating configs#meta#last_updated collection for [%s]: %v", collection, err)
 	}
 	return nil
-}
-
-func toStringMap(value interface{}) (map[string]interface{}, error) {
-	marshal, err := json.Marshal(value)
-	if err != nil {
-		return nil, err
-	}
-	config := make(map[string]interface{})
-	err = json.Unmarshal(marshal, &config)
-	return config, err
-
 }
 
 func toRedisKey(collection string) string {
