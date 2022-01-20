@@ -416,7 +416,7 @@ func (cs *ConfigurationsService) SaveTelemetry(disabledConfiguration map[string]
 func (cs *ConfigurationsService) GetTelemetry() ([]byte, error) {
 	b, err := cs.getWithLock(telemetryCollection, telemetryGlobalID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get telemetry settings:: %v", err)
+		return nil, err
 	}
 
 	return b, nil
