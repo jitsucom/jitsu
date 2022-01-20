@@ -14,14 +14,14 @@ type ConfigurationsStorage interface {
 	Get(collection string, id string) ([]byte, error)
 	//GetAllGroupedByID returns all the configurations of requested type grouped by id (result must be
 	//deserializable to map[string]<entity_type>
-	GetAllGroupedByID(collection string) ([]byte, error)
+	GetAllGroupedByID(collection string) (map[string][]byte, error)
 	//GetCollectionLastUpdated returns time when collection was last updated
 	//(max _lastUpdated field among entities)
 	GetCollectionLastUpdated(collection string) (*time.Time, error)
 	//UpdateCollectionLastUpdated updates time when collection was last updated
 	UpdateCollectionLastUpdated(collection string) error
 	//Store saves entity and also must update _lastUpdated field of the collection
-	Store(collection string, id string, entity interface{}) error
+	Store(collection string, id string, entity []byte) error
 	//Close frees all the resources used by the storage (close connections etc.)
 	Close() error
 }

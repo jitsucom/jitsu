@@ -66,10 +66,6 @@ func (rp *RedisProvider) VerifyAccessToken(accessToken string) (string, error) {
 	}
 
 	if timestamp.Now().After(expiredAt) {
-		if err := rp.deleteToken(tokenEntity); err != nil {
-			logging.Errorf("error deleting expired token %s: %v", accessToken, err)
-		}
-
 		return "", ErrExpiredToken
 	}
 
