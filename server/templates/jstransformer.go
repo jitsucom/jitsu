@@ -140,19 +140,13 @@ func V8LoadTemplateScript(iso *v8go.Isolate, script string, extraFunctions templ
 	if err != nil {
 		return nil, err
 	}
-	_, err = funcValue.AsFunction()
+	fc, err := funcValue.AsFunction()
 	if err != nil {
 		return nil, err
 	}
 
 	//jitsuExportWrapperFunc skips undefined fields during exporting object from vm
 	var jitsuExportWrapperFunc = func(event map[string]interface{}) (interface{}, error) {
-		global := v8ctx.Global()
-		funcValue, err := global.Get(functionName)
-		fc, err := funcValue.AsFunction()
-		if err != nil {
-			return nil, err
-		}
 		value, err := toV8Value(v8ctx, event)
 		if err != nil {
 			return nil, fmt.Errorf("failed to inject event to v8 function: %v", err)
