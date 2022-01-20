@@ -194,11 +194,11 @@ func (s *Service) CreateResetID(email string) (string, string, error) {
 
 //ChangePassword gets user by reset ID or by authorization token
 //changes user password and delete all tokens
-func (s *Service) ChangePassword(resetID, clientAuthToken, newPassword string) (*TokenDetails, error) {
+func (s *Service) ChangePassword(resetID *string, clientAuthToken, newPassword string) (*TokenDetails, error) {
 	var user *User
 	var err error
-	if resetID != "" {
-		user, err = s.authProvider.GetUserByResetID(resetID)
+	if resetID != nil {
+		user, err = s.authProvider.GetUserByResetID(*resetID)
 		if err != nil {
 			return nil, err
 		}
@@ -230,9 +230,11 @@ func (s *Service) ChangePassword(resetID, clientAuthToken, newPassword string) (
 		return nil, err
 	}
 
-	err = s.authProvider.DeletePasswordResetID(resetID)
-	if err != nil {
-		return nil, err
+	if resetID != nil {
+		err = s.authProvider.DeletePasswordResetID(*resetID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return s.authProvider.CreateTokens(user.ID)

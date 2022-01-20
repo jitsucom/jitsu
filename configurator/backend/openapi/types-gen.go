@@ -12,6 +12,9 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// Unspecified JSON Array
+type AnyArray []AnyObject
+
 // Unspecified JSON Object
 type AnyObject struct {
 	AdditionalProperties map[string]interface{} `json:"-"`
@@ -40,11 +43,23 @@ type SignupRequest struct {
 	UsageOptout bool   `json:"usageOptout"`
 }
 
+// StatusObject defines model for StatusObject.
+type StatusObject struct {
+	Message *string `json:"message,omitempty"`
+	Status  string  `json:"status"`
+}
+
 // TokensResponse defines model for TokensResponse.
 type TokensResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	UserId       string `json:"user_id"`
+}
+
+// VersionObject defines model for VersionObject.
+type VersionObject struct {
+	BuiltAt string `json:"builtAt"`
+	Version string `json:"version"`
 }
 
 // ObjectType defines model for objectType.
@@ -56,14 +71,20 @@ type ObjectUid string
 // ProjectId defines model for projectId.
 type ProjectId string
 
-// Unspecified JSON Object
-type AnyArrayResponse AnyObject
+// Unspecified JSON Array
+type AnyArrayResponse AnyArray
 
 // Unspecified JSON Object
 type AnyObjectResponse AnyObject
 
 // Error defines model for Error.
 type Error ErrorObject
+
+// StatusResponse defines model for StatusResponse.
+type StatusResponse StatusObject
+
+// VersionResponse defines model for VersionResponse.
+type VersionResponse VersionObject
 
 // SetUsersInfoJSONBody defines parameters for SetUsersInfo.
 type SetUsersInfoJSONBody AnyObject

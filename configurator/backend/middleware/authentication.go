@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/openapi"
@@ -189,4 +190,13 @@ func errProjectID(c *gin.Context, token string, err error) {
 	logging.SystemErrorf("Project id error in token %s: %v", token, err)
 	c.Writer.Header().Set("WWW-Authenticate", "Bearer realm=\"token_required\" error=\"not_allowed\"")
 	c.AbortWithStatusJSON(http.StatusForbidden, middleware.ErrResponse("Forbidden", err))
+}
+
+//ForbiddenProject returns forbidden project error wrappered into openapi error response
+func ForbiddenProject(projectID string) *openapi.ErrorObject {
+	eo := &openapi.ErrorObject{
+		Message: fmt.Sprintf("User does not have access to the project: %s", projectID),
+	}
+
+	return eo
 }

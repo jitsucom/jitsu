@@ -22,7 +22,6 @@ const (
 	apiKeysCollection                    = "api_keys"
 	customDomainsCollection              = "custom_domains"
 	geoDataResolversCollection           = "geo_data_resolvers"
-	lastUpdatedField                     = "_lastUpdated"
 
 	telemetryCollection = "telemetry"
 	telemetryGlobalID   = "global_configuration"
@@ -55,10 +54,10 @@ func NewConfigurationsService(storage ConfigurationsStorage, defaultDestination 
 //** Data manipulation **
 
 //saveWithLock locks and uses save func under the hood
-func (cs *ConfigurationsService) saveWithLock(objectType, projectID string, object interface{}) error {
+func (cs *ConfigurationsService) saveWithLock(objectType, projectID string, object interface{}) ([]byte, error) {
 	lock, err := cs.monitorKeeper.Lock(objectType, projectID)
 	if err != nil {
-		return fmt.Errorf("error locking: %v", err)
+		return nil, fmt.Errorf("error locking: %v", err)
 	}
 	defer cs.monitorKeeper.Unlock(lock)
 
@@ -77,18 +76,23 @@ func (cs *ConfigurationsService) getWithLock(objectType, projectID string) ([]by
 }
 
 //save proxies save request to the storage and updates dependency collection last_update (if a dependency is present)
-func (cs *ConfigurationsService) save(objectType, projectID string, object interface{}) error {
-	if err := cs.storage.Store(objectType, projectID, object); err != nil {
-		return err
+func (cs *ConfigurationsService) save(objectType, projectID string, object interface{}) ([]byte, error) {
+	serialized, err := json.MarshalIndent(object, "", "    ")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := cs.storage.Store(objectType, projectID, serialized); err != nil {
+		return nil, err
 	}
 
 	if dependency, ok := collectionsDependencies[objectType]; ok {
 		if err := cs.storage.UpdateCollectionLastUpdated(dependency); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return serialized, nil
 }
 
 //get proxies get request to the storage
@@ -99,7 +103,7 @@ func (cs *ConfigurationsService) get(objectType, projectID string) ([]byte, erro
 // ** General functions **
 
 //SaveConfigWithLock proxies call to saveWithLock
-func (cs *ConfigurationsService) SaveConfigWithLock(objectType string, id string, entity interface{}) error {
+func (cs *ConfigurationsService) SaveConfigWithLock(objectType string, id string, entity interface{}) ([]byte, error) {
 	return cs.saveWithLock(objectType, id, entity)
 }
 
@@ -133,7 +137,7 @@ func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*en
 				return nil, fmt.Errorf("Error creating database: [%s]: %v", projectID, err)
 			}
 
-			err = cs.save(objectType, projectID, database)
+			_, err = cs.save(objectType, projectID, database)
 			if err != nil {
 				return nil, err
 			}
@@ -177,7 +181,7 @@ func (cs *ConfigurationsService) CreateDefaultAPIKey(projectID string) error {
 	}
 
 	apiKeyRecord := generateDefaultAPIToken(projectID)
-	err = cs.save(objectType, projectID, apiKeyRecord)
+	_, err = cs.save(objectType, projectID, apiKeyRecord)
 	if err != nil {
 		return fmt.Errorf("failed to store default key for project=[%s]: %v", projectID, err)
 	}
@@ -221,11 +225,17 @@ func (cs ConfigurationsService) GetAllDestinations() (map[string]*entities.Desti
 	if err != nil {
 		return nil, err
 	}
+
 	result := map[string]*entities.Destinations{}
-	err = json.Unmarshal(allDestinations, &result)
-	if err != nil {
-		return nil, err
+	for projectID, destinationsBytes := range allDestinations {
+		destEntity := &entities.Destinations{}
+		if err := json.Unmarshal(destinationsBytes, destEntity); err != nil {
+			logging.Errorf("Failed to parse destination %s, project id=[%s], %v", string(destinationsBytes), projectID, err)
+			return nil, err
+		}
+		result[projectID] = destEntity
 	}
+
 	return result, nil
 }
 
@@ -259,20 +269,21 @@ func (cs *ConfigurationsService) GetAllAPIKeys() ([]*entities.APIKey, error) {
 	}
 	defer cs.monitorKeeper.Unlock(lock)
 
-	keysGrouped := make(map[string]*entities.APIKeys)
-	data, err := cs.storage.GetAllGroupedByID(objectType)
+	allApiKeys, err := cs.storage.GetAllGroupedByID(objectType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get api keys: %v", err)
 	}
 
-	if err = json.Unmarshal(data, &keysGrouped); err != nil {
-		return nil, fmt.Errorf("failed to parse API keys: %v", err)
+	var result []*entities.APIKey
+	for projectID, apiKeysBytes := range allApiKeys {
+		apiKeysEntity := &entities.APIKeys{}
+		if err := json.Unmarshal(apiKeysBytes, apiKeysEntity); err != nil {
+			logging.Errorf("failed to parse api keys %s, project id=[%s], %v", string(apiKeysBytes), projectID, err)
+			return nil, err
+		}
+		result = append(result, apiKeysEntity.Keys...)
 	}
 
-	var result []*entities.APIKey
-	for _, keyEntity := range keysGrouped {
-		result = append(result, keyEntity.Keys...)
-	}
 	return result, nil
 }
 
@@ -311,9 +322,16 @@ func (cs *ConfigurationsService) GetAllSources() (map[string]*entities.Sources, 
 	}
 
 	result := map[string]*entities.Sources{}
-	if err = json.Unmarshal(allSources, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse sources: %v", err)
+
+	for projectID, sourcesBytes := range allSources {
+		sourceEntity := &entities.Sources{}
+		if err := json.Unmarshal(sourcesBytes, sourceEntity); err != nil {
+			logging.Errorf("Failed to parse source %s, project id=[%s], %v", string(sourcesBytes), projectID, err)
+			return nil, err
+		}
+		result[projectID] = sourceEntity
 	}
+
 	return result, nil
 }
 
@@ -350,9 +368,15 @@ func (cs *ConfigurationsService) GetGeoDataResolvers() (map[string]*entities.Geo
 	if err != nil {
 		return nil, err
 	}
+
 	result := map[string]*entities.GeoDataResolver{}
-	if err = json.Unmarshal(allGeoDataResolvers, &result); err != nil {
-		return nil, err
+	for projectID, geoResolverBytes := range allGeoDataResolvers {
+		geoResolverEntity := &entities.GeoDataResolver{}
+		if err := json.Unmarshal(geoResolverBytes, geoResolverEntity); err != nil {
+			logging.Errorf("Failed to parse geo data resolver %s, project id=[%s], %v", string(geoResolverBytes), projectID, err)
+			return nil, err
+		}
+		result[projectID] = geoResolverEntity
 	}
 
 	return result, nil
@@ -381,7 +405,7 @@ func (cs *ConfigurationsService) GetGeoDataResolverByProjectID(projectID string)
 
 //SaveTelemetry uses saveWithLock for saving with lock telemetry settings
 func (cs *ConfigurationsService) SaveTelemetry(disabledConfiguration map[string]bool) error {
-	err := cs.saveWithLock(telemetryCollection, telemetryGlobalID, telemetry.Configuration{Disabled: disabledConfiguration})
+	_, err := cs.saveWithLock(telemetryCollection, telemetryGlobalID, telemetry.Configuration{Disabled: disabledConfiguration})
 	if err != nil {
 		return fmt.Errorf("failed to store telemetry settings:: %v", err)
 	}
@@ -423,15 +447,21 @@ func (cs *ConfigurationsService) GetAllCustomDomains() (map[string]*entities.Cus
 	}
 	defer cs.monitorKeeper.Unlock(lock)
 
-	customDomains := make(map[string]*entities.CustomDomains)
-	data, err := cs.storage.GetAllGroupedByID(objectType)
+	result := make(map[string]*entities.CustomDomains)
+	customDomains, err := cs.storage.GetAllGroupedByID(objectType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get custom domains: %v", err)
 	}
-	if err = json.Unmarshal(data, &customDomains); err != nil {
-		return nil, fmt.Errorf("failed to parse custom domains: %v", err)
+
+	for projectID, customDomainsBytes := range customDomains {
+		customDomainEntity := &entities.CustomDomains{}
+		if err := json.Unmarshal(customDomainsBytes, customDomainEntity); err != nil {
+			logging.Errorf("Failed to parse custom domain %s, project id=[%s], %v", string(customDomainsBytes), projectID, err)
+			return nil, err
+		}
+		result[projectID] = customDomainEntity
 	}
-	return customDomains, nil
+	return result, nil
 }
 
 //GetCustomDomainsByProjectID uses getWithLock func under the hood, returns all domains per project
@@ -449,7 +479,8 @@ func (cs *ConfigurationsService) GetCustomDomainsByProjectID(projectID string) (
 
 //UpdateCustomDomain proxies call to saveWithLock
 func (cs *ConfigurationsService) UpdateCustomDomain(projectID string, customDomains *entities.CustomDomains) error {
-	return cs.saveWithLock(customDomainsCollection, projectID, customDomains)
+	_, err := cs.saveWithLock(customDomainsCollection, projectID, customDomains)
+	return err
 }
 
 // ** Objects API **
@@ -493,7 +524,7 @@ func (cs *ConfigurationsService) PatchConfigWithLock(collection, projectID strin
 			objectsArray[i] = newObject
 			collectionData[patchPayload.ObjectArrayPath] = objectsArray
 
-			err := cs.save(collection, projectID, collectionData)
+			_, err := cs.save(collection, projectID, collectionData)
 			if err != nil {
 				return nil, err
 			}
@@ -549,7 +580,7 @@ func (cs *ConfigurationsService) DeleteObjectWithLock(collection, projectID, obj
 			newObjectsArray := append(objectsArray[:i], objectsArray[i+1:]...)
 			collectionData[objectArrayPath] = newObjectsArray
 
-			err := cs.save(collection, projectID, collectionData)
+			_, err := cs.save(collection, projectID, collectionData)
 			if err != nil {
 				return nil, err
 			}

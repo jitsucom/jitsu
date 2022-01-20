@@ -51,6 +51,25 @@ components:
           type: string
       required:
         - message
+    StatusObject:
+      type: object
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+      required:
+        - status
+    VersionObject:
+      type: object
+      properties:
+        version:
+          type: string
+        builtAt:
+          type: string
+      required:
+        - version
+        - builtAt
     AnyObject:
       description: Unspecified JSON Object
       type: object
@@ -59,8 +78,7 @@ components:
       description: Unspecified JSON Array
       type: array
       items:
-        type: object
-        additionalProperties: {}
+        $ref: "#/components/schemas/AnyObject"
 
     EmailAndPasswordRequest:
       type: object
@@ -94,6 +112,18 @@ components:
         "application/json":
           schema:
             $ref: "#/components/schemas/ErrorObject"
+    StatusResponse:
+      description: "Response contains status and message"
+      content:
+        "application/json":
+          schema:
+            $ref: "#/components/schemas/StatusObject"
+    VersionResponse:
+      description: "Response contains Jitsu version"
+      content:
+        "application/json":
+          schema:
+            $ref: "#/components/schemas/VersionObject"
     AnyObjectResponse:
       description: "Unspecified JSON object response"
       content:
@@ -105,7 +135,7 @@ components:
       content:
         "application/json":
           schema:
-            $ref: "#/components/schemas/AnyObject"
+            $ref: "#/components/schemas/AnyArray"
 
 #TODO
 
@@ -182,7 +212,7 @@ paths:
         - bearerAuth: ['client']
       responses:
         '200':
-          $ref: '#/components/responses/AnyObjectResponse'
+          $ref: '#/components/responses/StatusResponse'
         default:
           $ref: '#/components/responses/Error'
   /api/v1/users/token/refresh:
@@ -224,7 +254,7 @@ paths:
 
       responses:
         "200":
-          $ref: '#/components/responses/AnyObjectResponse'
+          $ref: '#/components/responses/StatusResponse'
         #All error responses
         default:
           $ref: '#/components/responses/Error'
@@ -243,6 +273,12 @@ paths:
                 reset_id: { type: string }
               required: [ email ]
       responses:
+        "200":
+          description: 'Success password changing'
+          content:
+            "application/json":
+              schema:
+                $ref: '#/components/schemas/TokensResponse'
         #All error responses
         default:
           $ref: '#/components/responses/Error'
@@ -287,7 +323,7 @@ paths:
       description: Returns the version of Jitsu sotware running on the server
       responses:
         '200':
-          $ref: '#/components/responses/AnyObjectResponse'
+          $ref: '#/components/responses/VersionResponse'
         default:
           $ref: '#/components/responses/Error'
 
