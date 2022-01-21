@@ -1,14 +1,11 @@
 ### JS/GO BUILDER
-FROM ubuntu:rolling
+FROM debian:bullseye-slim
 
+RUN echo "deb http://deb.debian.org/debian bullseye-backports main contrib non-free" > /etc/apt/sources.list.d/backports.list
 # Install dependencies
 RUN apt-get update
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
-RUN apt-get install -y golang-1.17-go git make bash
-#RUN npm install --global yarn
-# Install yarn dependencies
-
-#RUN yarn add global tslib@2.2.0 rollup@2.44.0 typescript@4.2.3 ts-node@9.1.1 jest@26.6.3 jest-fetch-mock@3.0.3 --prefer-offline --frozen-lockfile --network-timeout 1000000
+RUN apt-get install -y golang-1.17-go/bullseye-backports git make bash
 
 # GO
 ENV PATH="/usr/lib/go-1.17/bin:${PATH}"

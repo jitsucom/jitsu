@@ -1,27 +1,37 @@
 ARG SRC_VERSION=latest
 
-FROM nginx:alpine as main
+FROM nginx:latest as main
 
-RUN apk add --no-cache gcompat build-base python3 py3-pip python3-dev tzdata bash sudo docker curl npm nano
+# Install dependencies
+RUN apt-get update
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
+RUN apt-get install -y --fix-missing bash python3 python3-pip python3-venv python3-dev sudo curl
+
+#install docker
+RUN apt-get install apt-transport-https ca-certificates curl gnupg lsb-release -y
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+RUN apt-get update
+RUN apt-get install -y docker-ce docker-ce-cli containerd.io
 
 ENV EVENTNATIVE_USER=eventnative
 
-RUN sed -e 's;^# \(%wheel.*NOPASSWD.*\);\1;g' -i /etc/sudoers \
-    && addgroup -S $EVENTNATIVE_USER \
-    && adduser -S -G $EVENTNATIVE_USER $EVENTNATIVE_USER \
-    && addgroup -S $EVENTNATIVE_USER docker \
-    && addgroup -S $EVENTNATIVE_USER daemon \
-    && addgroup -S $EVENTNATIVE_USER root \
-    && addgroup -S $EVENTNATIVE_USER bin \
-    && addgroup -S $EVENTNATIVE_USER wheel \
+RUN echo "$EVENTNATIVE_USER     ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
+    && addgroup --system $EVENTNATIVE_USER \
+    && adduser --system  $EVENTNATIVE_USER  \
+    && adduser $EVENTNATIVE_USER $EVENTNATIVE_USER \
+        && adduser $EVENTNATIVE_USER docker \
+        && adduser $EVENTNATIVE_USER daemon \
+        && adduser $EVENTNATIVE_USER root \
+        && adduser $EVENTNATIVE_USER bin \
     && mkdir -p /home/$EVENTNATIVE_USER/data/logs/events \
     && mkdir -p /home/$EVENTNATIVE_USER/data/config \
     && mkdir -p /home/$EVENTNATIVE_USER/data/venv \
     && mkdir -p /home/$EVENTNATIVE_USER/data/airbyte \
-    && mkdir -p /home/$EVENTNATIVE_USER/app \
+    && mkdir -p /home/$EVENTNATIVE_USER/app/ \
     && chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER \
-    && echo 'if [ -e /var/run/docker.sock ]; then sudo chmod 666 /var/run/docker.sock; fi' > /home/eventnative/.bashrc \
-    && echo ''
+    && echo "if [ -e /var/run/docker.sock ]; then sudo chmod 666 /var/run/docker.sock; fi" > /home/eventnative/.bashrc
+
 
 # Create symlink for backward compatibility
 RUN ln -s /home/$EVENTNATIVE_USER/data/config /home/$EVENTNATIVE_USER/app/res && \

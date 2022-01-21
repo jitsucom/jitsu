@@ -1,23 +1,32 @@
 # BASE STAGE
-FROM alpine:3.13 as main
+FROM debian:bullseye-slim as main
+
+# Install dependencies
+RUN apt-get update
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
+RUN apt-get install -y --fix-missing bash python3 python3-pip python3-venv python3-dev sudo curl
+
+#install docker
+RUN apt-get install apt-transport-https ca-certificates curl gnupg lsb-release -y
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+RUN apt-get update
+RUN apt-get install -y docker-ce docker-ce-cli containerd.io
 
 ARG TARGETARCH
-
-RUN apk add --no-cache gcompat build-base python3 py3-pip python3-dev tzdata docker bash sudo curl npm
-
 ARG dhid
 ENV DOCKER_HUB_ID=$dhid
 ENV TZ=UTC
 ENV EVENTNATIVE_USER=eventnative
 
-RUN sed -e 's;^# \(%wheel.*NOPASSWD.*\);\1;g' -i /etc/sudoers \
-    && addgroup -S $EVENTNATIVE_USER \
-    && adduser -S -G $EVENTNATIVE_USER $EVENTNATIVE_USER \
-    && addgroup -S $EVENTNATIVE_USER docker \
-        && addgroup -S $EVENTNATIVE_USER daemon \
-        && addgroup -S $EVENTNATIVE_USER root \
-        && addgroup -S $EVENTNATIVE_USER bin \
-    && addgroup -S $EVENTNATIVE_USER wheel \
+RUN echo "$EVENTNATIVE_USER     ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
+    && addgroup --system $EVENTNATIVE_USER \
+    && adduser --system  $EVENTNATIVE_USER  \
+    && adduser $EVENTNATIVE_USER $EVENTNATIVE_USER \
+        && adduser $EVENTNATIVE_USER docker \
+        && adduser $EVENTNATIVE_USER daemon \
+        && adduser $EVENTNATIVE_USER root \
+        && adduser $EVENTNATIVE_USER bin \
     && mkdir -p /home/$EVENTNATIVE_USER/data/logs/events \
     && mkdir -p /home/$EVENTNATIVE_USER/data/config \
     && mkdir -p /home/$EVENTNATIVE_USER/data/venv \
@@ -72,5 +81,7 @@ USER $EVENTNATIVE_USER
 
 VOLUME ["/home/$EVENTNATIVE_USER/data"]
 EXPOSE 8001
+
+SHELL ["/bin/bash","-c"]
 
 ENTRYPOINT source ~/.bashrc && ./eventnative -cfg=../data/config/eventnative.yaml -cr=true -dhid="$DOCKER_HUB_ID"
