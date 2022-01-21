@@ -3,17 +3,21 @@ package plugins
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/Masterminds/semver"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/utils"
 	"github.com/mitchellh/mapstructure"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
 	"path"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -71,44 +75,97 @@ func DownloadPlugin(packageString string) (*Plugin, error) {
 		return plugin, nil
 	}
 	var tarballUrl string
+	var err error
 	if tarballUrlRegex.MatchString(packageString) {
 		//full tarball url was provided instead of version
 		tarballUrl = packageString
 		logging.Infof("Provided tarball URL: %s", tarballUrl)
 	} else {
 		//use npm view to detect tarball ur
-		logging.Infof("Running npm view for: %s", packageString)
-		command := exec.Command("npm", "view", packageString, "--json")
-		command.Stderr = os.Stderr
-		outputBuf, err := command.Output()
+		logging.Infof("Fetching tarball url for: %s", packageString)
+		tarballUrl, err = fetchTarballUrl(packageString)
 		if err != nil {
-			return nil, fmt.Errorf("cannot install plugin %s: npm view failed: %v", packageString, err)
+			return nil, fmt.Errorf("cannot install plugin %s: %v", packageString, err)
 		}
-		if len(outputBuf) == 0 {
-			return nil, fmt.Errorf("cannot install plugin %s: no version found.", packageString)
-		}
-		npmView := map[string]interface{}{}
-		if outputBuf[0] == '[' {
-			npmViewArr := make([]map[string]interface{}, 0)
-			if err := json.Unmarshal(outputBuf, &npmViewArr); err != nil {
-				return nil, fmt.Errorf("cannot install plugin %s: failed to parse npm view result: %v", packageString, err)
-			}
-			if len(npmViewArr) > 0 {
-				npmView = npmViewArr[len(npmViewArr)-1]
-			}
-		} else {
-			if err := json.Unmarshal(outputBuf, &npmView); err != nil {
-				return nil, fmt.Errorf("cannot install plugin %s: failed to parse npm view result: %v", packageString, err)
-			}
-		}
-		tbRaw, ok := tarballJsonPath.Get(npmView)
-		if !ok {
-			return nil, fmt.Errorf("cannot install plugin %s: cannot find tarball url in npmv view for: %v", packageString, packageString)
-		}
-		tarballUrl = tbRaw.(string)
 		logging.Infof("Tarball URL from npm: %s", tarballUrl)
 	}
 	return downloadPlugin(packageString, tarballUrl)
+}
+
+func fetchTarballUrl(packageString string) (string, error) {
+	packageName := packageString
+	packageVersion := ""
+	var versionConstraint *semver.Constraints
+	var err error
+	iof := strings.LastIndex(packageString, "@")
+	if iof > 0 {
+		packageName = packageString[:iof]
+		packageVersion = packageString[iof+1:]
+		if packageVersion != "" {
+			versionConstraint, err = semver.NewConstraint(packageVersion)
+			if err != nil {
+				return "", fmt.Errorf("failed to parse requested version info: %s err: %v", packageVersion, err)
+			}
+		}
+	}
+	req, err := http.NewRequest("GET", "https://registry.npmjs.org/"+packageName+"/", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Add("Accept", "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to access npmjs repository: %v", err)
+	}
+	status := resp.StatusCode
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read npmjs repository response (%d): %v", status, err)
+	}
+	if status != http.StatusOK {
+		if status == http.StatusNotFound {
+			return "", fmt.Errorf("package not found (%d): %s", status, body)
+		}
+		return "", fmt.Errorf("failed to read npmjs repository response (%d): %v", status, err)
+	}
+	respJson := map[string]interface{}{}
+	err = json.Unmarshal(body, &respJson)
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshall npmjs repository response: %v", err)
+	}
+	versions, ok := respJson["versions"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("failed to get versions data from npmjs repository response")
+
+	}
+	matchedVersions := make([]*semver.Version, 0)
+	for k, _ := range versions {
+		v, err := semver.NewVersion(k)
+		if err != nil {
+			logging.SystemErrorf("failed to parse package version %s as semver for %s err: %v", v, packageName, err)
+			continue
+		}
+		if versionConstraint == nil || versionConstraint.Check(v) {
+			matchedVersions = append(matchedVersions, v)
+		}
+	}
+	if len(matchedVersions) == 0 {
+		return "", fmt.Errorf("no versions match requested: %s for package: %s", packageVersion, packageName)
+	}
+	sort.Sort(sort.Reverse(semver.Collection(matchedVersions)))
+	logging.Infof("Matched versions for package %s (%s): %s", packageName, packageVersion, matchedVersions)
+	matched := matchedVersions[0]
+	tarballObj, err := utils.ExtractObject(versions, matched.Original(), "dist", "tarball")
+	if err != nil {
+		return "", fmt.Errorf("failed to extract tarball url from package versions data %s (%s) err: %v", packageVersion, packageName, err)
+	}
+	tarballString, ok := tarballObj.(string)
+	if err != nil {
+		return "", fmt.Errorf("tarball data for %s (%s) is not string: %T", packageVersion, packageName, tarballObj)
+	}
+	return tarballString, nil
 }
 
 func downloadPlugin(packageString, tarballUrl string) (*Plugin, error) {
