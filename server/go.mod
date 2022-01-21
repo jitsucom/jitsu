@@ -8,6 +8,7 @@ require (
 	cloud.google.com/go/storage v1.10.0
 	firebase.google.com/go/v4 v4.1.0
 	github.com/FZambia/sentinel v1.1.0
+	github.com/Masterminds/semver v1.5.0
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/charmbracelet/lipgloss v0.2.1
 	github.com/docker/docker v20.10.11+incompatible
