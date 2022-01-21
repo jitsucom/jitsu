@@ -73,7 +73,7 @@ function release_jitsu() {
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" -t jitsucom/jitsu:latest --build-arg dhid=jitsu --build-arg SRC_VERSION=latest . || { echo 'Jitsu dockerx build semver failed' ; exit 1; }
   else
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION=beta . || { echo 'Jitsu dockerx build failed' ; exit 1; }
+    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION="$1" . || { echo 'Jitsu dockerx build failed' ; exit 1; }
   fi
 
   cd ../
@@ -121,6 +121,11 @@ else
   elif [[ $( git branch --show-current) == "beta" ]]; then
     echo "Releasing beta"
     version='beta'
+  else
+    echo "Releasing custom branch: $( git branch --show-current)"
+    while [ -z "$version" ]; do
+      read -r -p "Please provide docker image tag for the custom branch release: " version
+    done
   fi
 fi
 
