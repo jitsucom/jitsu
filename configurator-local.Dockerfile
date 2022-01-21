@@ -1,15 +1,20 @@
 # BASE STAGE
-FROM alpine:3.13
+FROM debian:bullseye-slim as main
 
-RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata bash sudo curl
+# Install dependencies
+RUN apt-get update
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
+RUN apt-get install -y --fix-missing bash python3 python3-pip python3-venv python3-dev sudo curl
 
+ARG TARGETARCH
 ARG dhid
 ENV DOCKER_HUB_ID=$dhid
 ENV CONFIGURATOR_USER=configurator
 ENV TZ=UTC
 
-RUN addgroup -S $CONFIGURATOR_USER \
-    && adduser -S -G $CONFIGURATOR_USER $CONFIGURATOR_USER \
+RUN addgroup --system $CONFIGURATOR_USER \
+    && adduser --system $CONFIGURATOR_USER \
+    && adduser $CONFIGURATOR_USER $CONFIGURATOR_USER \
     && mkdir -p /home/$CONFIGURATOR_USER/data/logs \
     && mkdir -p /home/$CONFIGURATOR_USER/data/config \
     && mkdir -p /home/$CONFIGURATOR_USER/app/web \
