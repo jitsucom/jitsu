@@ -93,6 +93,9 @@ COPY --from=jsbuilder /frontend/build /home/$CONFIGURATOR_USER/app/web
 
 RUN chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/app
 
+ADD configurator/backend/entrypoint.sh /home/$CONFIGURATOR_USER/entrypoint.sh
+RUN chmod +x /home/$CONFIGURATOR_USER/entrypoint.sh
+
 USER $CONFIGURATOR_USER
 WORKDIR /home/$CONFIGURATOR_USER/app
 
@@ -101,4 +104,4 @@ COPY docker/configurator.yaml /home/$CONFIGURATOR_USER/data/config/
 VOLUME ["/home/$CONFIGURATOR_USER/data"]
 EXPOSE 7000
 
-ENTRYPOINT ./configurator -cfg=/home/$CONFIGURATOR_USER/data/config/configurator.yaml -cr=true -dhid="$DOCKER_HUB_ID"
+ENTRYPOINT ["/home/$CONFIGURATOR_USER/entrypoint.sh"]
