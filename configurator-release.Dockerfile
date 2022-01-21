@@ -12,7 +12,8 @@ ENV DOCKER_HUB_ID=$dhid
 ENV CONFIGURATOR_USER=configurator
 ENV TZ=UTC
 
-RUN addgroup --system $CONFIGURATOR_USER \
+RUN echo "$CONFIGURATOR_USER     ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
+    && addgroup --system $CONFIGURATOR_USER \
     && adduser --system $CONFIGURATOR_USER \
     && adduser $CONFIGURATOR_USER $CONFIGURATOR_USER \
     && mkdir -p /home/$CONFIGURATOR_USER/data/logs \
