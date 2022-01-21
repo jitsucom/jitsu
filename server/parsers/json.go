@@ -42,7 +42,20 @@ func ParseJSONFileWithFunc(b []byte, parseFunc func(b []byte) (map[string]interf
 }
 
 //ParseJSON converts json bytes into map with json Numbers
+//removes first empty bytes if exist
 func ParseJSON(b []byte) (map[string]interface{}, error) {
+	//check if array contains empty bytes in the begging and removes them
+	p := 0
+	for _, v := range b {
+		if v != 0 {
+			break
+		}
+		p++
+	}
+	if p > 0 {
+		b = b[p:]
+	}
+
 	decoder := json.NewDecoder(bytes.NewReader(b))
 	decoder.UseNumber()
 
