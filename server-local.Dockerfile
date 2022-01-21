@@ -48,6 +48,9 @@ COPY docker/eventnative.yaml /home/$EVENTNATIVE_USER/data/config/
 
 RUN chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER/app
 
+ADD server/entrypoint.sh /home/$EVENTNATIVE_USER/entrypoint.sh
+RUN chmod +x /home/$EVENTNATIVE_USER/entrypoint.sh
+
 USER $EVENTNATIVE_USER
 
 VOLUME ["/home/$EVENTNATIVE_USER/data"]
@@ -55,4 +58,4 @@ EXPOSE 8001
 
 SHELL ["/bin/bash","-c"]
 
-ENTRYPOINT source ~/.bashrc && ./eventnative -cfg=../data/config/eventnative.yaml -cr=true -dhid="$DOCKER_HUB_ID"
+ENTRYPOINT ["/home/eventnative/entrypoint.sh"]
