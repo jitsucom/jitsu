@@ -44,4 +44,4 @@ COPY docker/configurator.yaml /home/$CONFIGURATOR_USER/data/config/
 VOLUME ["/home/$CONFIGURATOR_USER/data"]
 EXPOSE 7000
 
-ENTRYPOINT ["/home/$CONFIGURATOR_USER/entrypoint.sh"]
+ENTRYPOINT /home/$CONFIGURATOR_USER/entrypoint.sh

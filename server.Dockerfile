@@ -126,4 +126,4 @@ EXPOSE 8001
 
 SHELL ["/bin/bash","-c"]
 
-ENTRYPOINT ["/home/eventnative/entrypoint.sh"]
+ENTRYPOINT /home/$EVENTNATIVE_USER/entrypoint.sh

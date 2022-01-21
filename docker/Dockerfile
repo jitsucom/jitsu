@@ -67,4 +67,4 @@ USER $EVENTNATIVE_USER
 VOLUME ["/home/$EVENTNATIVE_USER/data", "/home/configurator/data"]
 EXPOSE 8000
 
-ENTRYPOINT ["/home/eventnative/entrypoint.sh"]
+ENTRYPOINT /home/eventnative/entrypoint.sh
