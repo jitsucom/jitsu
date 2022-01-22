@@ -162,8 +162,12 @@ func (oa *OpenAPI) GetUsersInfo(c *gin.Context) {
 
 	data, err := oa.configurationsService.GetConfigWithLock(authorization.UsersInfoCollection, userID)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(err.Error(), nil))
-		return
+		if err == storages.ErrConfigurationNotFound {
+			data, _ = json.Marshal(make(map[string]interface{}))
+		} else {
+			c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(err.Error(), nil))
+			return
+		}
 	}
 
 	object, err := convertToObject(data)
