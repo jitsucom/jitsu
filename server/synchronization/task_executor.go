@@ -112,7 +112,7 @@ func (te *TaskExecutor) startTaskController() {
 				}
 
 				if timestamp.Now().UTC().Before(lastHeartBeatTime.Add(te.stalledThreshold)) {
-					//not enough time
+					//not enough time passed
 					continue
 				}
 
@@ -130,10 +130,6 @@ func (te *TaskExecutor) startTaskController() {
 
 					errMsg := fmt.Sprintf("The task is marked as Stalled. Jitsu has not received any updates from this task [%.2f] seconds (~ %.2f minutes). It might happen due to server restart. Sometimes out of memory errors might be a cause. You can check application logs and if so, please give Jitsu more RAM.", stalledTimeAgo.Seconds(), stalledTimeAgo.Minutes())
 					taskCloser.CloseWithError(errMsg, false)
-
-					if err := te.monitorKeeper.UnlockCleanUp(task.Source, task.Collection); err != nil {
-						logging.SystemErrorf("error unlocking task [%s] from heartbeat: %v", taskID, err)
-					}
 				}
 
 				if err := te.metaStorage.RemoveTaskFromHeartBeat(taskID); err != nil {

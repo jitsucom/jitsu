@@ -20,9 +20,6 @@ import (
 
 const instancePrefix = "en_instance_"
 
-//ErrAlreadyLocked is about already locked resource in coordination service
-var ErrAlreadyLocked = errors.New("Resource has been already locked")
-
 //Service is an interface for coordination (locking, cluster management, etc)
 type Service interface {
 	io.Closer
@@ -136,45 +133,6 @@ func (es *EtcdService) Unlock(lock storages.Lock) error {
 	es.mutex.Unlock()
 
 	return nil
-}
-
-func (es *EtcdService) UnlockCleanUp(system string, collection string) error {
-	ctx, cancel := context.WithDeadline(es.ctx, timestamp.Now().Add(2*time.Minute))
-	defer cancel()
-
-	//the session depends on the context. We can't cancel() before unlock.
-	session, sessionError := concurrency.NewSession(es.client, concurrency.WithContext(ctx))
-	if sessionError != nil {
-		return nil
-	}
-	identifier := system + "_" + collection
-	l := concurrency.NewMutex(session, identifier)
-
-	err := l.Unlock(ctx)
-	if err != nil {
-		return fmt.Errorf("error unlocking %s: %v", identifier, err)
-	}
-
-	es.mutex.Lock()
-	delete(es.unlockMe, identifier)
-	es.mutex.Unlock()
-
-	return nil
-}
-
-//IsLocked return true if already locked
-func (es *EtcdService) IsLocked(system string, collection string) (bool, error) {
-	l, err := es.TryLock(system, collection)
-	if err != nil {
-		if err == ErrAlreadyLocked {
-			return true, nil
-		}
-
-		return false, err
-	}
-
-	defer l.Unlock()
-	return false, nil
 }
 
 //GetVersion returns system collection version or error if occurred
