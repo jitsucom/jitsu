@@ -58,18 +58,6 @@ func (ims *InMemoryService) Unlock(lock storages.Lock) error {
 	return nil
 }
 
-func (ims *InMemoryService) UnlockCleanUp(system string, collection string) error {
-	identifier := getIdentifier(system, collection)
-	ims.locks.Delete(identifier)
-	return nil
-}
-
-func (ims *InMemoryService) IsLocked(system string, collection string) (bool, error) {
-	identifier := getIdentifier(system, collection)
-	_, locked := ims.locks.Load(identifier)
-	return locked, nil
-}
-
 func (ims *InMemoryService) GetVersion(system string, collection string) (int64, error) {
 	ims.versionMutex.RLock()
 	defer ims.versionMutex.RUnlock()

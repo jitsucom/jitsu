@@ -24,9 +24,6 @@ type MonitorKeeper interface {
 	//TryLock returns err if lock acquired
 	TryLock(system string, collection string) (Lock, error)
 	Unlock(lock Lock) error
-	UnlockCleanUp(system string, collection string) error
-
-	IsLocked(system string, collection string) (bool, error)
 
 	GetVersion(system string, collection string) (int64, error)
 	IncrementVersion(system string, collection string) (int64, error)

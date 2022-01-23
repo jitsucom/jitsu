@@ -168,20 +168,6 @@ func (rs *RedisService) IncrementVersion(system string, collection string) (int6
 	return newVersion, nil
 }
 
-func (rs *RedisService) IsLocked(system string, collection string) (bool, error) {
-	lock, err := rs.TryLock(system, collection)
-	if err != nil {
-		if err == ErrAlreadyLocked {
-			return true, nil
-		}
-
-		return false, err
-	}
-
-	defer lock.Unlock()
-	return false, nil
-}
-
 //Lock creates mutex and locks it with 3 hours expiration
 //waits 2 minutes if locked
 func (rs *RedisService) Lock(system string, collection string) (storages.Lock, error) {
@@ -209,26 +195,6 @@ func (rs *RedisService) Unlock(lock storages.Lock) error {
 
 	rs.selfmutex.Lock()
 	delete(rs.unlockMe, lock.Identifier())
-	rs.selfmutex.Unlock()
-
-	return nil
-}
-
-//UnlockCleanUp unlocks and deletes lock key from Redis
-func (rs *RedisService) UnlockCleanUp(system string, collection string) error {
-	identifier := rs.getMutexName(system, collection)
-
-	conn := rs.pool.Get()
-	defer conn.Close()
-
-	_, err := conn.Do("DEL", identifier)
-	if err != nil && err != redis.ErrNil {
-		rs.errorMetrics.NoticeError(err)
-		return err
-	}
-
-	rs.selfmutex.Lock()
-	delete(rs.unlockMe, identifier)
 	rs.selfmutex.Unlock()
 
 	return nil
