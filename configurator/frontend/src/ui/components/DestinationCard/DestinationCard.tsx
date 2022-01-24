@@ -68,7 +68,7 @@ export function DestinationCard({ dst }: DestinationCardProps) {
           </Menu.Item>
         </Menu>
       }
-      subtitle={<>mode: {dst._formData?.mode}</>}
+      subtitle={dst._formData?.mode ? <>mode: {dst._formData?.mode}</> : <>{reference.ui.title(dst)}</>}
       status={
         <Tooltip
           overlay={
@@ -79,9 +79,12 @@ export function DestinationCard({ dst }: DestinationCardProps) {
             size="default"
             status={dst._connectionTestOk ? "success" : "error"}
             text={
-              <span className={`text-${dst._connectionTestOk ? "success" : "error"}`}>
-                {dst._connectionTestOk ? "Active" : "Connection test failed"}
-              </span>
+              <>
+                <span className={`text-${dst._connectionTestOk ? "success" : "error"}`}>
+                  {dst._connectionTestOk ? "Active" : "Connection test failed"}
+                </span>
+                {reference.deprecated ? <span className={"text-warning"}> (Deprecated)</span> : <></>}
+              </>
             }
           />
         </Tooltip>

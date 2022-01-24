@@ -1,5 +1,6 @@
 export const destinationPageRoutes = {
   root: "/destinations",
+  add: "/destinations/add",
   edit: "/destinations/edit",
   statistics: "/destinations/statistics",
   newExact: "/destinations/new/:type/:tabName?",

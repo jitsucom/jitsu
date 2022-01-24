@@ -28,6 +28,7 @@ require (
 	cloud.google.com/go/bigquery v1.8.0 // indirect
 	cloud.google.com/go/storage v1.10.0 // indirect
 	github.com/FZambia/sentinel v1.1.0 // indirect
+	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.4.17-0.20210211115548-6eac466e5fa3 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/apache/arrow/go/arrow v0.0.0-20200601151325-b2287a20f230 // indirect
@@ -144,6 +145,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	rogchap.com/v8go v0.7.0 // indirect
 )
 
 replace (

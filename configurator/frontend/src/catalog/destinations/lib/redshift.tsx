@@ -35,6 +35,7 @@ const destination = {
   displayName: "Redshift",
   defaultTransform: "",
   hidden: false,
+  deprecated: false,
   ui: {
     title: cfg => cfg._formData.redshiftHost,
     connectCmd: (cfg: object) => {
