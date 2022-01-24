@@ -16,7 +16,7 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: 'Access Token'
+      bearerFormat: '-H Authorization: Bearer <token>'
   parameters:
     projectId:
       in: path
@@ -71,11 +71,14 @@ components:
         - version
         - builtAt
     AnyObject:
-      description: Unspecified JSON Object
+      description: Any JSON Object
       type: object
       additionalProperties: { }
+      example: # Sample object
+        any_field1: 10
+        any_field2: Some data
     AnyArray:
-      description: Unspecified JSON Array
+      description: Array of any JSON objects
       type: array
       items:
         $ref: "#/components/schemas/AnyObject"
@@ -125,13 +128,13 @@ components:
           schema:
             $ref: "#/components/schemas/VersionObject"
     AnyObjectResponse:
-      description: "Unspecified JSON object response"
+      description: "Any JSON object"
       content:
         "application/json":
           schema:
             $ref: "#/components/schemas/AnyObject"
     AnyArrayResponse:
-      description: "Unspecified JSON array "
+      description: "Array of any JSON objects"
       content:
         "application/json":
           schema:
@@ -167,7 +170,7 @@ components:
 paths:
   /api/v1/users/signin:
     post:
-      operationId: usersSignIn
+      operationId: 'User sign in'
       description: Sign-in user with login and password
       requestBody:
         content:
@@ -187,7 +190,7 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/onboarded/signup:
     post:
-      operationId: usersOnboardedSignUp
+      operationId: 'User sign up'
       description: Create a user account
       requestBody:
         content:
@@ -206,7 +209,7 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/signout:
     post:
-      operationId: usersSignOut
+      operationId: 'User sign out'
       description: Delete token from DB
       security:
         - bearerAuth: ['client']
@@ -217,7 +220,7 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/token/refresh:
     post:
-      operationId: usersTokenRefresh
+      operationId: 'User authorization token refresh'
       description: Refresh user access token
       requestBody:
         content:
@@ -239,7 +242,7 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/password/reset:
     post:
-      operationId: usersPasswordReset
+      operationId: 'User password reset'
       description: 'Request password reset'
       requestBody:
         content:
@@ -260,7 +263,7 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/password/change:
     post:
-      operationId: usersPasswordChange
+      operationId: 'User password change'
       description: 'Change password'
       requestBody:
         content:
@@ -284,7 +287,7 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/info:
     get:
-      operationId: getUsersInfo
+      operationId: 'Get User info'
       description: 'Returns a current authenticated user'
       security:
         - bearerAuth: ['client']
@@ -294,7 +297,7 @@ paths:
         default:
           $ref: '#/components/responses/Error'
     post:
-      operationId: setUsersInfo
+      operationId: "Update user info"
       description: 'Replaces users settings with a new user settings. Changes to some fields (such as security settings), will not have an effect'
       security:
         - bearerAuth: ['client']
@@ -310,7 +313,7 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/system/configuration:
     get:
-      operationId: getSystemConfiguration
+      operationId: 'Get system configuration'
       description: Returns system configuration
       responses:
         '200':
@@ -319,7 +322,7 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/system/version:
     get:
-      operationId: getSystemVersion
+      operationId: 'Get system version'
       description: Returns the version of Jitsu sotware running on the server
       responses:
         '200':
@@ -329,7 +332,7 @@ paths:
 
   /api/v1/geo_data_resolvers:
     get:
-      operationId: getGeoDataResolvers
+      operationId: 'Get geo data resolvers'
       description: Returns available geo resolvers
       security:
         - bearerAuth: ['server']
@@ -341,7 +344,7 @@ paths:
 
   /api/v2/projects:
     get:
-      operationId: getProjects
+      operationId: "Get users projects"
       description: Returns a list of projects available for current user
       security:
         - bearerAuth: [ 'client' ]
@@ -356,7 +359,7 @@ paths:
       - $ref: '#/components/parameters/projectId'
       - $ref: '#/components/parameters/objectType'
     get:
-      operationId: getObjectsByProjectIDAndObjectType
+      operationId: 'Get objects by projectId and objectType'
       security:
         - bearerAuth: [ 'client:project' ]
       description: Returns the list of objects of given type
@@ -366,7 +369,7 @@ paths:
         default:
           $ref: '#/components/responses/Error'
     post:
-      operationId: setObjectsByProjectIDAndObjectType
+      operationId: 'Create object in project'
       description: >
         Create new object. The method returns newly created object. Some properties of
         newly created object might different from on which has been posted (for example, ID)
@@ -388,7 +391,7 @@ paths:
       - $ref: '#/components/parameters/objectType'
       - $ref: '#/components/parameters/objectUid'
     get:
-      operationId: getObjectsByProjectIDAndObjectTypeAndID
+      operationId: 'Get object by uuid'
       description: Get an object with given UID
       security:
         - bearerAuth: [ 'client:project' ]
@@ -399,7 +402,7 @@ paths:
           $ref: '#/components/responses/Error'
 
     delete:
-      operationId: deleteObjectsByProjectIDAndObjectTypeAndID
+      operationId: "Delete object by uuid"
       description: Delete an object with given UID. Returns a deleted object
       security:
         - bearerAuth: [ 'client:project' ]
@@ -409,7 +412,7 @@ paths:
         default:
           $ref: '#/components/responses/Error'
     patch:
-      operationId: patchObjectsByProjectIDAndObjectTypeAndID
+      operationId: "Patch object by uuid"
       description: >
         Updates a object with given ID. Object will be patched: request body properties will be merged into an original object, it's ok to send partial objects
         Some fields might be ignored and overwritten. The method returns an updated object
