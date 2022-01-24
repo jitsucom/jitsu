@@ -173,7 +173,7 @@ func (s *CertificateService) UpdateCustomDomains(projectID string, domains *enti
 }
 
 func (s *CertificateService) LoadCustomDomains() (map[string]*entities.CustomDomains, error) {
-	return s.configurationsService.GetCustomDomains()
+	return s.configurationsService.GetAllCustomDomains()
 }
 
 func (s *CertificateService) LoadCustomDomainsByProjectID(projectID string) (*entities.CustomDomains, error) {

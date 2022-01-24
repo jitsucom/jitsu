@@ -46,6 +46,7 @@ RUN git clone https://github.com/rogchap/v8go.git /tmp/v8go@v0.7.0
 RUN cp -fr /tmp/v8go@v0.7.0/* /root/go/pkg/mod/rogchap.com/v8go@v0.7.0
 
 #Copy backend
+ADD openapi /go/src/github.com/jitsucom/jitsu/openapi
 ADD configurator/backend/. ./.
 ADD server /go/src/github.com/jitsucom/jitsu/server
 ADD .git /go/src/github.com/jitsucom/jitsu/.git

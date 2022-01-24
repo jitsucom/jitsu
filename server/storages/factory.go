@@ -340,6 +340,9 @@ func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string
 
 	//validates or overrides with the global one
 	if destination.UsersRecognition != nil {
+		if destination.UsersRecognition.IsEnabled() && !f.globalConfiguration.IsEnabled() {
+			return nil, fmt.Errorf("Error enabling user recognition for destination %s. Global user recognition configuration can't be disabled when destination has enabled one. Please add global user_recognition.enabled: true", destinationID)
+		}
 		//partly overriding
 		if destination.UsersRecognition.UserIDNode == "" {
 			destination.UsersRecognition.UserIDNode = f.globalConfiguration.UserIDNode
@@ -364,7 +367,7 @@ func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string
 	}
 
 	//check primary fields
-	if (destination.Type == PostgresType || destination.Type == RedshiftType || destination.Type == SnowflakeType) && len(pkFields) == 0 {
+	if (destination.Type == PostgresType || destination.Type == RedshiftType || destination.Type == MySQLType) && len(pkFields) == 0 {
 		logging.Errorf("[%s] retroactive users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", destinationID)
 		return &UserRecognitionConfiguration{enabled: false}, nil
 	}
