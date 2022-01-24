@@ -24,6 +24,7 @@ const dbtcloudDestination = {
   displayName: "dbt Cloud",
   defaultTransform: "",
   hidden: true,
+  deprecated: false,
   ui: {
     icon,
     title: cfg => `Account ID: ${cfg._formData.dbtAccountId} Job ID: ${cfg._formData.dbtJobId}`,

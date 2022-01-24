@@ -50,6 +50,7 @@ const amplitudeDestination = {
 // https://github.com/jitsucom/jitsu/blob/master/server/storages/transform/amplitude.js
 return toAmplitude($)`,
   hidden: false,
+  deprecated: false,
   ui: {
     icon,
     title: cfg => `API Key: ${cfg._formData.apiKey.substr(0, cfg._formData.apiKey.length / 2)}*****`,

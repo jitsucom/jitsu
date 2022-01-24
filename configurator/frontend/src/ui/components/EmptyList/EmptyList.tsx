@@ -13,10 +13,11 @@ import { destinationsStore } from "stores/destinations"
 export interface Props {
   title: ReactNode
   list?: ReactElement
+  handleAddClick?: () => void
   unit: string
 }
 
-const EmptyListComponent = ({ title, list, unit }: Props) => {
+const EmptyListComponent = ({ title, list, handleAddClick, unit }: Props) => {
   const router = useHistory()
   const services = useServices()
 
@@ -55,6 +56,7 @@ const EmptyListComponent = ({ title, list, unit }: Props) => {
     <EmptyListView
       title={title}
       list={list}
+      handleAddClick={handleAddClick}
       unit={unit}
       hideFreeDatabaseSeparateButton={!needShowCreateDemoDatabase}
       handleCreateFreeDatabase={handleCreateFreeDatabase}
