@@ -33,10 +33,27 @@ const (
 	systemsCollectionVersionsKey = "systems:versions"
 )
 
-//RedisService is a redis implementation for coordination Service
+// Options for RedisService
+type Options struct {
+	DisableHeartBeating bool
+	LockExpire          time.Duration
+	LockRetry           int
+	LockRetryDelay      time.Duration
+}
+
+// DefaultOptions for RedisService
+var DefaultOptions = Options{
+	DisableHeartBeating: false,
+	LockExpire:          3 * time.Hour,
+	LockRetry:           24,
+	LockRetryDelay:      5 * time.Second,
+}
+
+//RedisService is a Redis implementation for coordination Service
 type RedisService struct {
 	ctx        context.Context
 	serverName string
+	options    Options
 	selfmutex  sync.RWMutex
 	unlockMe   map[string]*storages.RetryableLock
 
@@ -60,7 +77,7 @@ func (mp *MutexProxy) Unlock(context context.Context) error {
 }
 
 //NewRedisService returns configured RedisService instance
-func NewRedisService(ctx context.Context, serverName string, factory *meta.RedisPoolFactory) (Service, error) {
+func NewRedisService(ctx context.Context, serverName string, factory *meta.RedisPoolFactory, options Options) (Service, error) {
 	logging.Infof("🛫 Initializing redis coordination service [%s]...", factory.Details())
 
 	redisPool, err := factory.Create()
@@ -74,13 +91,16 @@ func NewRedisService(ctx context.Context, serverName string, factory *meta.Redis
 		ctx:          ctx,
 		selfmutex:    sync.RWMutex{},
 		serverName:   serverName,
+		options:      options,
 		unlockMe:     map[string]*storages.RetryableLock{},
 		pool:         redisPool,
 		redsync:      redisSync,
 		errorMetrics: meta.NewErrorMetrics(metrics.CoordinationRedisErrors),
 		closed:       atomic.NewBool(false),
 	}
-	rs.startHeartBeating()
+	if !options.DisableHeartBeating {
+		rs.startHeartBeating()
+	}
 
 	return rs, nil
 }
@@ -165,13 +185,13 @@ func (rs *RedisService) IsLocked(system string, collection string) (bool, error)
 //Lock creates mutex and locks it with 3 hours expiration
 //waits 2 minutes if locked
 func (rs *RedisService) Lock(system string, collection string) (storages.Lock, error) {
-	return rs.doLock(system, collection, redsync.WithExpiry(3*time.Hour), redsync.WithRetryDelay(5*time.Second), redsync.WithTries(24))
+	return rs.doLock(system, collection, redsync.WithExpiry(rs.options.LockExpire), redsync.WithRetryDelay(rs.options.LockRetryDelay), redsync.WithTries(rs.options.LockRetry))
 }
 
 //TryLock creates mutex and locks it with 3 hours expiration
 //doesn't wait if locked
 func (rs *RedisService) TryLock(system string, collection string) (storages.Lock, error) {
-	lock, err := rs.doLock(system, collection, redsync.WithExpiry(3*time.Hour), redsync.WithRetryDelay(0), redsync.WithTries(1))
+	lock, err := rs.doLock(system, collection, redsync.WithExpiry(rs.options.LockExpire), redsync.WithRetryDelay(0), redsync.WithTries(1))
 	if err != nil {
 		if err == redsync.ErrFailed {
 			return nil, ErrAlreadyLocked
