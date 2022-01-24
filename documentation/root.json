@@ -55,7 +55,8 @@
         "other-features/typecast",
         "other-features/admin-endpoints",
         "other-features/application-metrics",
-        "other-features/cli"
+        "other-features/cli",
+        "other-features/jitsu-api"
       ]
     }
   ]
