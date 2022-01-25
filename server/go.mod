@@ -26,6 +26,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/huandu/facebook/v2 v2.5.3
 	github.com/iancoleman/strcase v0.2.0
+	github.com/jfk9w-go/flu v0.10.4
 	github.com/jitsucom/goque/v2 v2.2.0
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
 	github.com/lib/pq v1.10.2
@@ -36,7 +37,9 @@ require (
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/oschwald/geoip2-golang v1.4.0
 	github.com/panjf2000/ants/v2 v2.4.6
-	github.com/prometheus/client_golang v1.7.1
+	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v1.11.0
+	github.com/prometheus/client_model v0.2.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/satori/go.uuid v1.2.0
 	github.com/segmentio/backo-go v0.0.0-20200129164019-23eae7c10bd3 // indirect
