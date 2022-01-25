@@ -2,13 +2,13 @@ package integration_tests
 
 import (
 	"context"
+	"github.com/jitsucom/jitsu/server/coordination/internal"
 	"github.com/jitsucom/jitsu/server/test"
 	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -47,7 +47,7 @@ func TestMySQLPrimaryKeyNotRemoved(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, mySQL)
 
-	tableHelperWithPk := storages.NewTableHelper(container.Database, mySQL, coordination.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToMySQL, 0, storages.MySQLType)
+	tableHelperWithPk := storages.NewTableHelper(container.Database, mySQL, internal.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToMySQL, 0, storages.MySQLType)
 
 	// all events should be merged as have the same PK value
 	tableWithMerge := tableHelperWithPk.MapTableSchema(&schema.BatchHeader{
@@ -70,7 +70,7 @@ func TestMySQLPrimaryKeyNotRemoved(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, rowsUnique)
 
-	tableHelperWithoutPk := storages.NewTableHelper(container.Database, mySQL, coordination.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToMySQL, 0, storages.MySQLType)
+	tableHelperWithoutPk := storages.NewTableHelper(container.Database, mySQL, internal.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToMySQL, 0, storages.MySQLType)
 	// all events should be merged as have the same PK value
 	table := tableHelperWithoutPk.MapTableSchema(&schema.BatchHeader{
 		TableName: "users",

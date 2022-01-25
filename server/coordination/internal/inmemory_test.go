@@ -1,4 +1,4 @@
-package coordination
+package internal
 
 import (
 	"testing"

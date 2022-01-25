@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+//redis key [variables] - description
+//** Locking **
+//coordination:mutex#${identifier} - redsync key for locking
+
 const (
 	defaultRetries    = 10
 	defaultExpiration = 8 * time.Second
@@ -18,24 +22,27 @@ const (
 
 //Lock is a Redis lock
 type Lock struct {
-	name         string
+	mutexName    string
 	ctx          context.Context
 	pool         *meta.RedisPool
 	redsync      *redsync.Redsync
 	errorMetrics *meta.ErrorMetrics
+	lockCloser   *base.LocksCloser
 
 	//exist only after locking
 	controller *LockController
 	mutex      *redsync.Mutex
 }
 
-func newLock(name string, ctx context.Context, pool *meta.RedisPool, redsync *redsync.Redsync, errorMetrics *meta.ErrorMetrics) *Lock {
+func newLock(name string, ctx context.Context, pool *meta.RedisPool, redsync *redsync.Redsync, errorMetrics *meta.ErrorMetrics,
+	lockCloser *base.LocksCloser) *Lock {
 	return &Lock{
-		name:         name,
+		mutexName:    "coordination:mutex#" + name,
 		ctx:          ctx,
 		pool:         pool,
 		redsync:      redsync,
 		errorMetrics: errorMetrics,
+		lockCloser:   lockCloser,
 	}
 }
 
@@ -50,10 +57,10 @@ func (l *Lock) TryLock() error {
 	return l.doLock(redsync.WithExpiry(defaultExpiration), redsync.WithRetryDelay(0), redsync.WithTries(1))
 }
 
-//doLock locks mutex with name with input expiration and retries configuration
+//doLock locks mutex with getMutexName with input expiration and retries configuration
 //starts controller heartbeat
 func (l *Lock) doLock(options ...redsync.Option) error {
-	mutex := l.redsync.NewMutex(l.name, options...)
+	mutex := l.redsync.NewMutex(l.mutexName, options...)
 	if err := mutex.LockContext(l.ctx); err != nil {
 		if err == redsync.ErrFailed {
 			return base.ErrAlreadyLocked
@@ -65,9 +72,11 @@ func (l *Lock) doLock(options ...redsync.Option) error {
 	l.mutex = mutex
 
 	//start controller for lock's heartbeat
-	controller := NewController(l.name, defaultExpiration/2, l)
+	controller := NewController(l.mutexName, defaultExpiration/2, l)
 	l.controller = controller
 	controller.StartHeartbeat()
+
+	l.lockCloser.Add(l.mutexName, l)
 
 	return nil
 }
@@ -81,10 +90,11 @@ func (l *Lock) Unlock() bool {
 		i++
 		result, err := l.mutex.Unlock()
 		if err != nil {
-			logging.SystemErrorf("error unlocking %s after %d attempts: %v", l.name, i, err)
+			logging.SystemErrorf("error unlocking %s after %d attempts: %v", l.mutexName, i, err)
 			continue
 		}
 
+		l.lockCloser.Remove(l.mutexName)
 		return result
 	}
 

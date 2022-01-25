@@ -21,16 +21,18 @@ import (
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
 	config "github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/coordination"
+	"github.com/jitsucom/jitsu/server/locks"
+	locksinmemory "github.com/jitsucom/jitsu/server/locks/inmemory"
+	locksredis "github.com/jitsucom/jitsu/server/locks/redis"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/safego"
-	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/viper"
+	"io"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -97,6 +99,7 @@ func main() {
 		notifications.Flush()
 		time.Sleep(1 * time.Second)
 		notifications.Close()
+		appconfig.Instance.CloseLast()
 		telemetry.Close()
 		os.Exit(0)
 	}()
@@ -150,27 +153,27 @@ func main() {
 		logging.Fatalf("Error creating configurations storage: %v", err)
 	}
 
-	var monitorKeeper enstorages.MonitorKeeper
+	var lockFactory locks.LockFactory
+	var redisPool *meta.RedisPool
+	var locksCloser io.Closer
 	if redisPoolFactory != nil {
 		options := redisPoolFactory.GetOptions()
 		options.MaxActive = 100
 		redisPoolFactory.WithOptions(options)
 
-		monitorKeeper, err = coordination.NewRedisService(ctx, appconfig.Instance.ServerName, redisPoolFactory, coordination.Options{
-			DisableHeartBeating: true,
-			LockExpire:          2 * time.Minute,
-			LockRetry:           20,
-			LockRetryDelay:      2 * time.Second,
-		})
+		redisPool, err = redisPoolFactory.Create()
 		if err != nil {
-			logging.Fatalf("Error creating redis monitoring keeper: %v", err)
+			logging.Fatalf("Error creating redis pool for locks: %v", err)
 		}
+		lockFactory, locksCloser = locksredis.NewLockFactory(ctx, redisPool)
 	} else {
 		//in case of firebase installation
-		monitorKeeper = coordination.NewInMemoryService([]string{appconfig.Instance.ServerName})
+		lockFactory, locksCloser = locksinmemory.NewLockFactory()
 	}
+	appconfig.Instance.ScheduleLastClosing(locksCloser)
+	appconfig.Instance.ScheduleLastClosing(redisPool)
 
-	configurationsService := storages.NewConfigurationsService(configurationsStorage, defaultPostgres, monitorKeeper)
+	configurationsService := storages.NewConfigurationsService(configurationsStorage, defaultPostgres, lockFactory)
 	if err != nil {
 		logging.Fatalf("Error creating configurations service: %v", err)
 	}

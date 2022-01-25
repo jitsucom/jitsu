@@ -503,7 +503,6 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 		Columns:        table.Columns,
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,
-		Version:        0,
 	}
 
 	err := m.createTableInTransaction(wrappedTx, tmpTable)

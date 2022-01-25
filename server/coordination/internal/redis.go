@@ -1,21 +1,4 @@
-package coordination
-
-import (
-	"context"
-	"github.com/gomodule/redigo/redis"
-	"github.com/jitsucom/jitsu/server/meta"
-	"github.com/jitsucom/jitsu/server/metrics"
-	"github.com/jitsucom/jitsu/server/safego"
-	"github.com/jitsucom/jitsu/server/timestamp"
-	"go.uber.org/atomic"
-	"sync"
-	"time"
-
-	"github.com/go-redsync/redsync/v4"
-	rsyncpool "github.com/go-redsync/redsync/v4/redis/redigo"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/storages"
-)
+package internal
 
 //redis key [variables] - description
 //
@@ -27,7 +10,7 @@ import (
 //
 //** Locking **
 //coordination:mutex#$system_$collection - redsync key for locking
-
+/*
 const (
 	heartbeatKey                 = "cluster:heartbeat"
 	systemsCollectionVersionsKey = "systems:versions"
@@ -55,7 +38,7 @@ type RedisService struct {
 	serverName string
 	options    Options
 	selfmutex  sync.RWMutex
-	unlockMe   map[string]*storages.RetryableLock
+	unlockMe   map[string]*coordination.RetryableLock
 
 	pool         *meta.RedisPool
 	redsync      *redsync.Redsync
@@ -92,7 +75,7 @@ func NewRedisService(ctx context.Context, serverName string, factory *meta.Redis
 		selfmutex:    sync.RWMutex{},
 		serverName:   serverName,
 		options:      options,
-		unlockMe:     map[string]*storages.RetryableLock{},
+		unlockMe:     map[string]*coordination.RetryableLock{},
 		pool:         redisPool,
 		redsync:      redisSync,
 		errorMetrics: meta.NewErrorMetrics(metrics.CoordinationRedisErrors),
@@ -170,13 +153,13 @@ func (rs *RedisService) IncrementVersion(system string, collection string) (int6
 
 //Lock creates mutex and locks it with 3 hours expiration
 //waits 2 minutes if locked
-func (rs *RedisService) Lock(system string, collection string) (storages.Lock, error) {
+func (rs *RedisService) Lock(system string, collection string) (coordination.Lock, error) {
 	return rs.doLock(system, collection, redsync.WithExpiry(rs.options.LockExpire), redsync.WithRetryDelay(rs.options.LockRetryDelay), redsync.WithTries(rs.options.LockRetry))
 }
 
 //TryLock creates mutex and locks it with 3 hours expiration
 //doesn't wait if locked
-func (rs *RedisService) TryLock(system string, collection string) (storages.Lock, error) {
+func (rs *RedisService) TryLock(system string, collection string) (coordination.Lock, error) {
 	lock, err := rs.doLock(system, collection, redsync.WithExpiry(rs.options.LockExpire), redsync.WithRetryDelay(0), redsync.WithTries(1))
 	if err != nil {
 		if err == redsync.ErrFailed {
@@ -190,7 +173,7 @@ func (rs *RedisService) TryLock(system string, collection string) (storages.Lock
 }
 
 //Unlock unlocks mutex and removes it from unlockMe
-func (rs *RedisService) Unlock(lock storages.Lock) error {
+func (rs *RedisService) Unlock(lock coordination.Lock) error {
 	lock.Unlock()
 
 	rs.selfmutex.Lock()
@@ -215,7 +198,7 @@ func (rs *RedisService) Close() error {
 }
 
 //doLock locks mutex with system + collection identifier with input expiration, retries configuration
-func (rs *RedisService) doLock(system string, collection string, options ...redsync.Option) (storages.Lock, error) {
+func (rs *RedisService) doLock(system string, collection string, options ...redsync.Option) (coordination.Lock, error) {
 	identifier := rs.getMutexName(system, collection)
 
 	mutex := rs.redsync.NewMutex(identifier, options...)
@@ -224,7 +207,7 @@ func (rs *RedisService) doLock(system string, collection string, options ...reds
 	}
 
 	proxy := &MutexProxy{mutex: mutex}
-	lock := storages.NewRetryableLock(identifier, proxy, nil, nil, 5)
+	lock := coordination.NewRetryableLock(identifier, proxy, nil, nil, 5)
 
 	rs.selfmutex.Lock()
 	rs.unlockMe[identifier] = lock
@@ -232,44 +215,4 @@ func (rs *RedisService) doLock(system string, collection string, options ...reds
 
 	return lock, nil
 }
-
-//getMutexName returns mutex key
-func (rs *RedisService) getMutexName(system string, collection string) string {
-	return "coordination:mutex#" + system + "_" + collection
-}
-
-//starts a new goroutine for pushing serverName every 90 seconds to Redis with 120 seconds ttl
-func (rs *RedisService) startHeartBeating() {
-	safego.RunWithRestart(func() {
-		for {
-			if rs.closed.Load() {
-				break
-			}
-
-			if err := rs.heartBeat(); err != nil {
-				logging.Errorf("Error heart beat to redis: %v", err)
-				//delay after error
-				time.Sleep(10 * time.Second)
-				continue
-			}
-
-			time.Sleep(90 * time.Second)
-		}
-	})
-}
-
-//heartBeat writes timestamp with server name under key
-//Instances are considered alive if timestamp < now minus 120 seconds
-func (rs *RedisService) heartBeat() error {
-	field := rs.serverName
-	connection := rs.pool.Get()
-	defer connection.Close()
-
-	_, err := connection.Do("HSET", heartbeatKey, field, timestamp.NowUTC())
-	if err != nil && err != redis.ErrNil {
-		rs.errorMetrics.NoticeError(err)
-		return err
-	}
-
-	return nil
-}
+*/

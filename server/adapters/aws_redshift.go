@@ -382,7 +382,6 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 		Columns:        table.Columns,
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,
-		Version:        0,
 	}
 
 	err := ar.dataSourceProxy.createTableInTransaction(wrappedTx, tmpTable)

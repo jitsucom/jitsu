@@ -3,11 +3,11 @@ package integration_tests
 import (
 	"context"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/coordination/internal"
 	"testing"
 
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -40,7 +40,7 @@ func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, pg)
 
-	tableHelperWithPk := storages.NewTableHelper(container.Schema, pg, coordination.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToPostgres, 0, storages.PostgresType)
+	tableHelperWithPk := storages.NewTableHelper(container.Schema, pg, internal.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToPostgres, 0, storages.PostgresType)
 
 	// all events should be merged as have the same PK value
 	tableWithMerge := tableHelperWithPk.MapTableSchema(&schema.BatchHeader{
@@ -63,7 +63,7 @@ func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, rowsUnique)
 
-	tableHelperWithoutPk := storages.NewTableHelper(container.Schema, pg, coordination.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToPostgres, 0, storages.PostgresType)
+	tableHelperWithoutPk := storages.NewTableHelper(container.Schema, pg, internal.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToPostgres, 0, storages.PostgresType)
 	// all events should be merged as have the same PK value
 	table := tableHelperWithoutPk.MapTableSchema(&schema.BatchHeader{
 		TableName: "users",
@@ -107,7 +107,7 @@ func TestPostgresNotManagedPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, pg)
 
-	tableHelperWithPk := storages.NewTableHelper(container.Schema, pg, coordination.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToPostgres, 0, storages.PostgresType)
+	tableHelperWithPk := storages.NewTableHelper(container.Schema, pg, internal.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToPostgres, 0, storages.PostgresType)
 
 	// users table
 	tableBatchHeader := &schema.BatchHeader{
@@ -142,7 +142,7 @@ func TestPostgresNotManagedPrimaryKeyRemoval(t *testing.T) {
 	require.Equal(t, 5, rowsUnique)
 
 	//check that Jitsu mustn't delete primary key
-	tableHelperWithoutPk := storages.NewTableHelper(container.Schema, pg, coordination.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToPostgres, 0, storages.PostgresType)
+	tableHelperWithoutPk := storages.NewTableHelper(container.Schema, pg, internal.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToPostgres, 0, storages.PostgresType)
 	// all events should be merged as have the same PK value
 	table := tableHelperWithoutPk.MapTableSchema(&schema.BatchHeader{
 		TableName: "users",

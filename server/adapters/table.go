@@ -3,6 +3,7 @@ package adapters
 import (
 	"github.com/jitsucom/jitsu/server/typing"
 	"reflect"
+	"sync"
 )
 
 //Columns is a list of columns representation
@@ -17,6 +18,7 @@ type TableField struct {
 
 //Table is a dto for DWH Table representation
 type Table struct {
+	mutex  sync.RWMutex
 	Schema string
 	Name   string
 
@@ -25,7 +27,6 @@ type Table struct {
 	PrimaryKeyName string
 
 	DeletePkFields bool
-	Version        int64
 }
 
 //Exists returns true if there is at least one column
@@ -35,6 +36,32 @@ func (t *Table) Exists() bool {
 	}
 
 	return len(t.Columns) > 0 || len(t.PKFields) > 0 || t.DeletePkFields
+}
+
+//Clone returns clone of current table
+func (t *Table) Clone() *Table {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	clonedColumns := Columns{}
+	for k, v := range t.Columns {
+		clonedColumns[k] = v
+	}
+
+	clonedPkFields := map[string]bool{}
+	for k, v := range t.PKFields {
+		clonedPkFields[k] = v
+	}
+
+	return &Table{
+		mutex:          sync.RWMutex{},
+		Schema:         t.Schema,
+		Name:           t.Name,
+		Columns:        clonedColumns,
+		PKFields:       clonedPkFields,
+		PrimaryKeyName: t.PrimaryKeyName,
+		DeletePkFields: t.DeletePkFields,
+	}
 }
 
 //GetPKFields returns primary keys list

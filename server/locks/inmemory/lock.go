@@ -1,89 +1,64 @@
 package inmemory
 
 import (
-	"fmt"
-	"github.com/go-redsync/redsync/v4"
 	"github.com/jitsucom/jitsu/server/locks/base"
-	"github.com/jitsucom/jitsu/server/logging"
-	"sync"
 	"time"
 )
 
+const defaultLockAttempts = 10
+
+type inmemoryLockFunc func(key, value interface{}) (actual interface{}, loaded bool)
+type inmemoryUnlockFunc func(key interface{})
+
 //Lock is an in-memory lock
 type Lock struct {
-	name  string
-	locks *sync.Map
+	name       string
+	lockFunc   inmemoryLockFunc
+	unlockFunc inmemoryUnlockFunc
 }
 
-func newLock(name string, locks *sync.Map) *Lock {
+func newLock(name string, lockFunc inmemoryLockFunc, unlockFunc inmemoryUnlockFunc) *Lock {
 	return &Lock{
-		name:  name,
-		locks: locks,
+		name:       name,
+		lockFunc:   lockFunc,
+		unlockFunc: unlockFunc,
 	}
 }
 
 //Lock obtains lock with wait timeout
 func (l *Lock) Lock(timeout time.Duration) error {
-	_, loaded := l.locks.LoadOrStore(l.name, true)
-	if loaded {
-		if retryCount >= 3 {
-			return base.ErrAlreadyLocked
-		}
+	currentAttempt := 0
+	attemptTimeout := timeout / defaultLockAttempts
 
-		time.Sleep(time.Millisecond * 20)
-		return ims.lockWithRetry(system, collection, retryCount+1)
+	for {
+		_, loaded := l.lockFunc(l.name, true)
+		if loaded {
+			if currentAttempt > defaultLockAttempts {
+				break
+			}
+			currentAttempt++
+
+			time.Sleep(attemptTimeout)
+		} else {
+			return nil
+		}
 	}
 
-	return nil
+	return base.ErrAlreadyLocked
 }
 
 //TryLock tries to obtain a lock with 1 retry without timeout
 func (l *Lock) TryLock() error {
-	return l.doLock(redsync.WithExpiry(defaultExpiration), redsync.WithRetryDelay(0), redsync.WithTries(1))
-}
-
-//doLock locks mutex with name with input expiration and retries configuration
-//starts controller heartbeat
-func (l *Lock) doLock(options ...redsync.Option) error {
-	mutex := l.redsync.NewMutex(l.name, options...)
-	if err := mutex.LockContext(l.ctx); err != nil {
-		if err == redsync.ErrFailed {
-			return base.ErrAlreadyLocked
-		}
-
-		return err
+	_, loaded := l.lockFunc(l.name, true)
+	if loaded {
+		return base.ErrAlreadyLocked
 	}
-
-	l.mutex = mutex
-
-	//start controller for lock's heartbeat
-	controller := NewController(l.name, defaultExpiration/2, l)
-	l.controller = controller
-	controller.StartHeartbeat()
 
 	return nil
 }
 
-//Unlock tries to unlock with defaultUnlockRetries attempts
+//Unlock unlocks the key
 func (l *Lock) Unlock() bool {
-	l.controller.Close()
-
-	i := 0
-	for i <= defaultUnlockRetries {
-		i++
-		result, err := l.mutex.Unlock()
-		if err != nil {
-			logging.SystemErrorf("error unlocking %s after %d attempts: %v", l.name, i, err)
-			continue
-		}
-
-		return result
-	}
-
-	return false
-}
-
-//Extend extends the lock expiration
-func (l *Lock) Extend() (bool, error) {
-	return l.mutex.Extend()
+	l.unlockFunc(l.name)
+	return true
 }
