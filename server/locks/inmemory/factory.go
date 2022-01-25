@@ -24,7 +24,3 @@ func NewLockFactory() (*LockFactory, io.Closer) {
 func (lf *LockFactory) CreateLock(name string) locks.Lock {
 	return newLock(name, lf.locks.LoadOrStore, lf.locks.Delete)
 }
-
-func (lf *LockFactory) Close() error {
-	return nil
-}

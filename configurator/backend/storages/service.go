@@ -670,7 +670,7 @@ func (cs *ConfigurationsService) lockProjectObject(objectType, projectID string)
 			return nil, fmt.Errorf("unable to lock project [%s] object type [%s]. Already locked: timeout after %s", projectID, objectType, defaultProjectObjectLockTimeout.String())
 		}
 
-		msg := fmt.Sprintf("System error: Unable to lock project [%s] object type [%s]: %v", projectID, objectType, err)
+		msg := fmt.Sprintf("System error: failed to lock project [%s] object type [%s]: %v", projectID, objectType, err)
 		notifications.SystemError(msg)
 		return nil, errors.New(msg)
 	}
