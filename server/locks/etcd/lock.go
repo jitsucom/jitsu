@@ -24,13 +24,16 @@ type Lock struct {
 	mutex   *concurrency.Mutex
 	session *concurrency.Session
 	cancel  context.CancelFunc
+
+	lockCloser *base.LocksCloser
 }
 
-func newLock(name string, ctx context.Context, client *clientv3.Client) *Lock {
+func newLock(name string, ctx context.Context, client *clientv3.Client, lockCloser *base.LocksCloser) *Lock {
 	return &Lock{
-		name:   name,
-		ctx:    ctx,
-		client: client,
+		name:       name,
+		ctx:        ctx,
+		client:     client,
+		lockCloser: lockCloser,
 	}
 }
 
@@ -56,6 +59,7 @@ func (l *Lock) Lock(timeout time.Duration) error {
 	l.mutex = mutex
 	l.session = session
 	l.cancel = cancel
+	l.lockCloser.Add(l.name, l)
 
 	return nil
 }
@@ -79,6 +83,7 @@ func (l *Lock) TryLock() error {
 
 	l.mutex = mutex
 	l.session = session
+	l.lockCloser.Add(l.name, l)
 
 	return nil
 }
@@ -97,6 +102,7 @@ func (l *Lock) Unlock() bool {
 			continue
 		}
 
+		l.lockCloser.Remove(l.name)
 		return true
 	}
 

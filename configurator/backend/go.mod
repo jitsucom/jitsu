@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/firestore v1.3.0
 	firebase.google.com/go/v4 v4.1.0
 	github.com/bramvdbogaerde/go-scp v0.0.0-20200820121624-ded9ee94aef5
-	github.com/deepmap/oapi-codegen v1.9.0
+	github.com/deepmap/oapi-codegen v1.9.1
 	github.com/gin-gonic/contrib v0.0.0-20201101042839-6a891bf89f19
 	github.com/gin-gonic/gin v1.7.4
 	github.com/go-acme/lego v2.7.2+incompatible

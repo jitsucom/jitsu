@@ -1,5 +1,6 @@
-package storages
+package coordination
 
+/*
 import (
 	"context"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -15,7 +16,7 @@ type Lock interface {
 	Identifier() string
 }
 
-type MonitorKeeper interface {
+type Service interface {
 	io.Closer
 	//system values: [source_id, destination_id], collection values: [collectionName, tableName]
 
@@ -90,3 +91,4 @@ func (rl *RetryableLock) unlock() error {
 func (rl *RetryableLock) Identifier() string {
 	return rl.identifier
 }
+*/
