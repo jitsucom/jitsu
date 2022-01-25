@@ -151,6 +151,7 @@ func replay(inputFile string, inputMasks []string) error {
 		if err := uploadFile(globalBar, client, absFilePath, fileStat.Size()); err != nil {
 			errorKeeper = append(errorKeeper, filePathAndError{absFilePath, err})
 			if len(errorKeeper) > suppressErrors {
+				globalBar.SetErrorState()
 				break
 			}
 		}
@@ -159,12 +160,12 @@ func replay(inputFile string, inputMasks []string) error {
 		stateManager.Success(absFilePath)
 	}
 
-	globalBar.SetSuccessCurrent(capacity)
 	//wait for globalBar filled
+	globalBar.Wait()
 	time.Sleep(time.Second)
 
 	if len(errorKeeper) > 0 {
-		fmt.Println("Errors happened during uploading files:")
+		fmt.Println("\nErrors happened during uploading files:")
 		for _, item := range errorKeeper {
 			fmt.Printf("\t%s\n\t\t%v\n", item.path, item.err)
 		}
@@ -201,14 +202,14 @@ func uploadFile(globalBar ProgressBar, client *bulkClient, filePath string, file
 	payloadSize := int64(len(payload))
 	processingTime := int64(float64(payloadSize) * 0.1)
 	capacity := payloadSize + processingTime
+	capacity *= 10
 	fileProgressBar := globalBar.createKBFileBar(filePath, capacity)
 	if err := client.sendGzippedMultiPart(fileProgressBar, filePath, payload); err != nil {
-		fileProgressBar.SetCurrent(capacity)
+		fileProgressBar.SetErrorState()
 		return err
 	}
 
-	fileProgressBar.SetSuccessCurrent(capacity)
-
+	fileProgressBar.SetCurrent(capacity)
 	return nil
 }
 
@@ -233,7 +234,6 @@ func sendChunked(progressBar ProgressBar, filePath string, fileSize int64, sende
 	}
 
 	fileProgressBar := progressBar.createPartFileBar(filePath, capacity)
-	defer fileProgressBar.SetCurrent(capacity)
 
 	cbuffer := make([]byte, 0, bufio.MaxScanTokenSize)
 	scanner.Buffer(cbuffer, bufio.MaxScanTokenSize*100)
@@ -245,10 +245,12 @@ func sendChunked(progressBar ProgressBar, filePath string, fileSize int64, sende
 		if int64(chunk.Len()) > chunkSize {
 			gzipped, err := doGzip(chunk.Bytes())
 			if err != nil {
+				fileProgressBar.SetErrorState()
 				return err
 			}
 
 			if err := sender(nil, filePath, gzipped); err != nil {
+				fileProgressBar.SetErrorState()
 				return err
 			}
 			progress++
@@ -261,11 +263,13 @@ func sendChunked(progressBar ProgressBar, filePath string, fileSize int64, sende
 		}
 
 		if _, err := chunk.Write(line); err != nil {
+			fileProgressBar.SetErrorState()
 			return err
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
+		fileProgressBar.SetErrorState()
 		return err
 	}
 
@@ -273,16 +277,17 @@ func sendChunked(progressBar ProgressBar, filePath string, fileSize int64, sende
 		//send
 		gzipped, err := doGzip(chunk.Bytes())
 		if err != nil {
+			fileProgressBar.SetErrorState()
 			return err
 		}
 
 		if err := sender(nil, filePath, gzipped); err != nil {
+			fileProgressBar.SetErrorState()
 			return err
 		}
 	}
 
-	fileProgressBar.SetSuccessCurrent(capacity)
-
+	fileProgressBar.SetCurrent(capacity)
 	return nil
 }
 
