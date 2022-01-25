@@ -36,7 +36,7 @@ services:
       - main
   redis:
     container_name: jitsu_redis
-    image: redis:6.2.4-alpine
+    image: redis:6.2.6-bullseye
     volumes:
       - ./ui-dev-compose/configurator/redis/data:/data
     restart: always

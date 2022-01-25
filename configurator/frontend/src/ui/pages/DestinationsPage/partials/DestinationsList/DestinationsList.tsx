@@ -30,12 +30,26 @@ const DestinationsListComponent = ({ setBreadcrumbs }: CommonDestinationPageProp
   const history = useHistory()
   const subscription = useServices().currentSubscription
 
+  const handleAddClick = useCallback(() => {
+    if (
+      destinationsStore.allDestinations.length >= subscription.currentPlan.quota.destinations &&
+      !subscription.doNotBlock
+    ) {
+      showQuotaLimitModal(
+        subscription,
+        <>You current plan allows to have only {subscription.currentPlan.quota.destinations} destinations</>
+      )
+      return
+    }
+    history.push(destinationPageRoutes.add)
+  }, [history, subscription])
+
   const dropDownList = useMemo(
     () => (
       <DropDownList
         hideFilter
         list={destinationsReferenceList
-          .filter(v => !v.hidden)
+          .filter(v => !v.hidden && !v.deprecated)
           .map((dst: Destination) => ({
             title: dst.displayName,
             id: dst.id,
@@ -76,17 +90,15 @@ const DestinationsListComponent = ({ setBreadcrumbs }: CommonDestinationPageProp
   }, [setBreadcrumbs])
 
   if (destinationsStore.destinations.length === 0) {
-    return <EmptyList list={dropDownList} title="Destinations list is still empty" unit="destination" />
+    return <EmptyList handleAddClick={handleAddClick} title="Destinations list is still empty" unit="destination" />
   }
 
   return (
     <>
       <div className="mb-5">
-        <Dropdown trigger={["click"]} overlay={dropDownList}>
-          <Button type="primary" icon={<PlusOutlined />}>
-            Add destination
-          </Button>
-        </Dropdown>
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddClick}>
+          Add destination
+        </Button>
       </div>
 
       <div className="flex flex-wrap justify-center">

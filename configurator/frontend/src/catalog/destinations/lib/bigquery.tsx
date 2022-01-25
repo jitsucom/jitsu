@@ -54,6 +54,7 @@ const bigQueryDestination = {
   displayName: "BigQuery",
   defaultTransform: "",
   hidden: false,
+  deprecated: false,
   ui: {
     icon: icon,
     connectCmd: (cfg: object) => {

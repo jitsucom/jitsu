@@ -153,7 +153,7 @@ func (oa *OpenAPI) GetSystemVersion(c *gin.Context) {
 	c.JSON(http.StatusOK, version)
 }
 
-func (oa *OpenAPI) GetUsersInfo(c *gin.Context) {
+func (oa *OpenAPI) GetUserInfo(c *gin.Context) {
 	if c.IsAborted() {
 		return
 	}
@@ -162,8 +162,12 @@ func (oa *OpenAPI) GetUsersInfo(c *gin.Context) {
 
 	data, err := oa.configurationsService.GetConfigWithLock(authorization.UsersInfoCollection, userID)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(err.Error(), nil))
-		return
+		if err == storages.ErrConfigurationNotFound {
+			data, _ = json.Marshal(make(map[string]interface{}))
+		} else {
+			c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(err.Error(), nil))
+			return
+		}
 	}
 
 	object, err := convertToObject(data)
@@ -176,7 +180,7 @@ func (oa *OpenAPI) GetUsersInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, object)
 }
 
-func (oa *OpenAPI) SetUsersInfo(c *gin.Context) {
+func (oa *OpenAPI) UpdateUserInfo(c *gin.Context) {
 	if c.IsAborted() {
 		return
 	}
@@ -208,12 +212,12 @@ func (oa *OpenAPI) SetUsersInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, anyObject)
 }
 
-func (oa *OpenAPI) UsersOnboardedSignUp(c *gin.Context) {
+func (oa *OpenAPI) UserSignUp(c *gin.Context) {
 	if c.IsAborted() {
 		return
 	}
 
-	req := &openapi.UsersOnboardedSignUpJSONRequestBody{}
+	req := &openapi.UserSignUpJSONRequestBody{}
 	if err := c.BindJSON(req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("Invalid input JSON", err))
 		return
@@ -270,12 +274,12 @@ func (oa *OpenAPI) UsersOnboardedSignUp(c *gin.Context) {
 	})
 }
 
-func (oa *OpenAPI) UsersPasswordChange(c *gin.Context) {
+func (oa *OpenAPI) UserPasswordChange(c *gin.Context) {
 	if c.IsAborted() {
 		return
 	}
 
-	req := &openapi.UsersPasswordChangeJSONRequestBody{}
+	req := &openapi.UserPasswordChangeJSONRequestBody{}
 	if err := c.BindJSON(req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("Invalid input JSON", err))
 		return
@@ -310,7 +314,7 @@ func (oa *OpenAPI) UsersPasswordChange(c *gin.Context) {
 	})
 }
 
-func (oa *OpenAPI) UsersPasswordReset(c *gin.Context) {
+func (oa *OpenAPI) UserPasswordReset(c *gin.Context) {
 	if c.IsAborted() {
 		return
 	}
@@ -320,7 +324,7 @@ func (oa *OpenAPI) UsersPasswordReset(c *gin.Context) {
 		return
 	}
 
-	req := &openapi.UsersPasswordResetJSONRequestBody{}
+	req := &openapi.UserPasswordResetJSONRequestBody{}
 	if err := c.BindJSON(req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("Invalid input JSON", err))
 		return
@@ -356,12 +360,12 @@ func (oa *OpenAPI) UsersPasswordReset(c *gin.Context) {
 	c.JSON(http.StatusOK, OpenAPIOKResponse())
 }
 
-func (oa *OpenAPI) UsersSignIn(c *gin.Context) {
+func (oa *OpenAPI) UserSignIn(c *gin.Context) {
 	if c.IsAborted() {
 		return
 	}
 
-	req := &openapi.UsersSignInJSONRequestBody{}
+	req := &openapi.UserSignInJSONRequestBody{}
 	if err := c.BindJSON(req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("Invalid input JSON", err))
 		return
@@ -390,7 +394,7 @@ func (oa *OpenAPI) UsersSignIn(c *gin.Context) {
 	})
 }
 
-func (oa *OpenAPI) UsersSignOut(c *gin.Context) {
+func (oa *OpenAPI) UserSignOut(c *gin.Context) {
 	if c.IsAborted() {
 		return
 	}
@@ -406,12 +410,12 @@ func (oa *OpenAPI) UsersSignOut(c *gin.Context) {
 	c.JSON(http.StatusOK, OpenAPIOKResponse())
 }
 
-func (oa *OpenAPI) UsersTokenRefresh(c *gin.Context) {
+func (oa *OpenAPI) UserAuthorizationTokenRefresh(c *gin.Context) {
 	if c.IsAborted() {
 		return
 	}
 
-	req := &openapi.UsersTokenRefreshJSONRequestBody{}
+	req := &openapi.UserAuthorizationTokenRefreshJSONRequestBody{}
 	if err := c.BindJSON(req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("Invalid input JSON", err))
 		return
@@ -435,7 +439,7 @@ func (oa *OpenAPI) UsersTokenRefresh(c *gin.Context) {
 	})
 }
 
-func (oa *OpenAPI) GetObjectsByProjectIDAndObjectType(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType) {
+func (oa *OpenAPI) GetObjectsByProjectIdAndObjectType(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType) {
 	if c.IsAborted() {
 		return
 	}
@@ -467,7 +471,7 @@ func (oa *OpenAPI) GetObjectsByProjectIDAndObjectType(c *gin.Context, projectIDI
 	c.JSON(http.StatusOK, result)
 }
 
-func (oa *OpenAPI) SetObjectsByProjectIDAndObjectType(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType) {
+func (oa *OpenAPI) CreateObjectInProject(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType) {
 	if c.IsAborted() {
 		return
 	}
@@ -504,7 +508,7 @@ func (oa *OpenAPI) SetObjectsByProjectIDAndObjectType(c *gin.Context, projectIDI
 	c.JSON(http.StatusOK, newObject)
 }
 
-func (oa *OpenAPI) DeleteObjectsByProjectIDAndObjectTypeAndID(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType, objectUIDI openapi.ObjectUid) {
+func (oa *OpenAPI) DeleteObjectByUuid(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType, objectUIDI openapi.ObjectUid) {
 	if c.IsAborted() {
 		return
 	}
@@ -540,7 +544,7 @@ func (oa *OpenAPI) DeleteObjectsByProjectIDAndObjectTypeAndID(c *gin.Context, pr
 	c.JSON(http.StatusOK, result)
 }
 
-func (oa *OpenAPI) GetObjectsByProjectIDAndObjectTypeAndID(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType, objectUIDI openapi.ObjectUid) {
+func (oa *OpenAPI) GetObjectByUuid(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType, objectUIDI openapi.ObjectUid) {
 	if c.IsAborted() {
 		return
 	}
@@ -576,7 +580,7 @@ func (oa *OpenAPI) GetObjectsByProjectIDAndObjectTypeAndID(c *gin.Context, proje
 	c.JSON(http.StatusOK, result)
 }
 
-func (oa *OpenAPI) PatchObjectsByProjectIDAndObjectTypeAndID(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType, objectUIDI openapi.ObjectUid) {
+func (oa *OpenAPI) PatchObjectByUuid(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType, objectUIDI openapi.ObjectUid) {
 	if c.IsAborted() {
 		return
 	}
@@ -624,7 +628,7 @@ func (oa *OpenAPI) PatchObjectsByProjectIDAndObjectTypeAndID(c *gin.Context, pro
 	c.JSON(http.StatusOK, result)
 }
 
-func (oa *OpenAPI) GetProjects(c *gin.Context) {
+func (oa *OpenAPI) GetUsersProjects(c *gin.Context) {
 	if c.IsAborted() {
 		return
 	}

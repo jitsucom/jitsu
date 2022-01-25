@@ -27,6 +27,7 @@ const mysqlDestination = {
   displayName: "MySQL",
   defaultTransform: "",
   hidden: false,
+  deprecated: false,
   ui: {
     icon: icon,
     connectCmd: (cfg: object) => null,

@@ -6,14 +6,17 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/safego"
 	"reflect"
+	"rogchap.com/v8go"
 	"strings"
 	"sync"
 	"text/template"
 	"text/template/parse"
+	"time"
 )
 
 const (
 	jsLoadingErrorText = "JS LOADING ERROR"
+	jsLoadingTest      = "js_loading_test_dummy"
 )
 
 type TemplateExecutor interface {
@@ -89,9 +92,10 @@ func NewJsTemplateExecutor(expression string, extraFunctions template.FuncMap, e
 
 	jte := &JsTemplateExecutor{sync.Mutex{}, make(chan events.Event), make(chan struct{}), make(chan interface{}), script, nil}
 	safego.RunWithRestart(func() { jte.start(extraFunctions, extraScripts...) })
-	_, err = jte.ProcessEvent(events.Event{})
+	_, err = jte.ProcessEvent(events.Event{"event_type": jsLoadingTest})
 	if err != nil && strings.HasPrefix(err.Error(), jsLoadingErrorText) {
 		//we need to test that js function is properly loaded because that happens in JsTemplateExecutor's goroutine
+		jte.Close()
 		return nil, err
 	}
 	return jte, nil
@@ -113,6 +117,10 @@ func (jte *JsTemplateExecutor) start(extraFunctions template.FuncMap, extraScrip
 		if jte.loadingError != nil {
 			jte.results <- jte.loadingError
 		} else {
+			if event["event_type"] == jsLoadingTest {
+				jte.results <- event
+				continue
+			}
 			res, err := ProcessEvent(function, event)
 			if err != nil {
 				jte.results <- err
@@ -160,6 +168,113 @@ func (jte *JsTemplateExecutor) Close() {
 	jte.Lock()
 	defer jte.Unlock()
 	close(jte.closed)
+}
+
+type V8TemplateExecutor struct {
+	sync.Mutex
+	iso                   *v8go.Isolate
+	incoming              chan events.Event
+	closed                chan struct{}
+	results               chan interface{}
+	transformedExpression string
+	loadingError          error
+}
+
+func NewV8TemplateExecutor(expression string, extraFunctions template.FuncMap, extraScripts ...string) (*V8TemplateExecutor, error) {
+	expression = Wrap(expression, functionName)
+	v8go.SetFlags("--stack-trace-limit", "100", "--stack-size", "100")
+	iso := v8go.NewIsolate()
+	vte := &V8TemplateExecutor{sync.Mutex{}, iso, make(chan events.Event), make(chan struct{}), make(chan interface{}), expression, nil}
+	safego.RunWithRestart(func() { vte.start(extraFunctions, extraScripts...) })
+	_, err := vte.ProcessEvent(events.Event{"event_type": jsLoadingTest})
+	if err != nil && strings.HasPrefix(err.Error(), jsLoadingErrorText) {
+		vte.Close()
+		//we need to test that js function is properly loaded because that happens in JsTemplateExecutor's goroutine
+		return nil, err
+	}
+	return vte, nil
+}
+
+func (vte *V8TemplateExecutor) start(extraFunctions template.FuncMap, extraScripts ...string) {
+	//loads javascript into new vm instance
+	function, err := V8LoadTemplateScript(vte.iso, vte.transformedExpression, extraFunctions, extraScripts...)
+	if err != nil {
+		vte.loadingError = fmt.Errorf("%s: %v\ntransformed function:\n%v\n", jsLoadingErrorText, err, vte.transformedExpression)
+	}
+	for {
+		var event events.Event
+		select {
+		case <-vte.closed:
+			return
+		case event = <-vte.incoming:
+		}
+		if vte.loadingError != nil {
+			vte.results <- vte.loadingError
+		} else {
+			if event["event_type"] == jsLoadingTest {
+				vte.results <- event
+				continue
+			}
+			processDone := make(chan interface{})
+			go func() {
+				ticker := time.NewTicker(time.Second * 3)
+				defer ticker.Stop()
+				select {
+				case <-ticker.C:
+					vte.iso.TerminateExecution()
+				case <-processDone:
+					return
+				}
+			}()
+			res, err := ProcessEvent(function, event)
+			close(processDone)
+			if err != nil {
+				vte.results <- err
+			} else {
+				vte.results <- res
+			}
+		}
+	}
+}
+
+func (vte *V8TemplateExecutor) ProcessEvent(event events.Event) (res interface{}, err error) {
+	vte.Lock()
+	defer vte.Unlock()
+	if vte.cancelled() {
+		return nil, fmt.Errorf("Attempt to use closed template executor")
+	}
+	vte.incoming <- event
+	resRaw := <-vte.results
+	switch res := resRaw.(type) {
+	case error:
+		return nil, res
+	default:
+		return res, nil
+	}
+}
+
+func (vte *V8TemplateExecutor) Format() string {
+	return "javascript"
+}
+
+func (vte *V8TemplateExecutor) Expression() string {
+	return vte.transformedExpression
+}
+
+func (vte *V8TemplateExecutor) cancelled() bool {
+	select {
+	case <-vte.closed:
+		return true
+	default:
+		return false
+	}
+}
+
+func (vte *V8TemplateExecutor) Close() {
+	vte.Lock()
+	defer vte.Unlock()
+	vte.iso.Dispose()
+	close(vte.closed)
 }
 
 type constTemplateExecutor struct {
