@@ -1,6 +1,6 @@
 {
   "name": "@jitsu/catalog",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "This package contains the code that enables variety of features of Jitsu Sources, Destinations and API Keys. ",
   "author": "taletski <kirill@taletski.com>",
   "homepage": "https://jitsu.com",
@@ -8,7 +8,9 @@
   "scripts": {
     "build": "rollup -c"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "publishConfig": {
     "access": "public"
   },
