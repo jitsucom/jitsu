@@ -8,6 +8,7 @@ require (
 	cloud.google.com/go/storage v1.10.0
 	firebase.google.com/go/v4 v4.1.0
 	github.com/FZambia/sentinel v1.1.0
+	github.com/Masterminds/semver v1.5.0
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/charmbracelet/lipgloss v0.2.1
 	github.com/docker/docker v20.10.11+incompatible
@@ -35,6 +36,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/oschwald/geoip2-golang v1.4.0
 	github.com/panjf2000/ants/v2 v2.4.6
+	github.com/penglongli/gin-metrics v0.1.9
 	github.com/prometheus/client_golang v1.7.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/satori/go.uuid v1.2.0
@@ -59,6 +61,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/segmentio/analytics-go.v3 v3.1.0
 	gotest.tools v2.2.0+incompatible
+	rogchap.com/v8go v0.7.0
 )
 
 require (
@@ -143,6 +146,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.9 // indirect
 	github.com/tklauser/numcpus v0.3.0 // indirect
 	github.com/ugorji/go/codec v1.1.7 // indirect
+	github.com/willf/bitset v1.1.11 // indirect
 	github.com/xtgo/uuid v0.0.0-20140804021211-a0b114877d4c // indirect
 	go.etcd.io/etcd/api/v3 v3.5.0 // indirect
 	go.etcd.io/etcd/pkg/v3 v3.5.0-alpha.0 // indirect

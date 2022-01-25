@@ -1,16 +1,21 @@
 # BASE STAGE
-FROM alpine:3.13 as main
+FROM debian:bullseye-slim as main
 
-RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata bash sudo curl
+# Install dependencies
+RUN apt-get update
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
+RUN apt-get install -y --fix-missing bash python3 python3-pip python3-venv python3-dev sudo curl
 
+ARG TARGETARCH
 ARG dhid
 ENV DOCKER_HUB_ID=$dhid
-
 ENV CONFIGURATOR_USER=configurator
 ENV TZ=UTC
 
-RUN addgroup -S $CONFIGURATOR_USER \
-    && adduser -S -G $CONFIGURATOR_USER $CONFIGURATOR_USER \
+RUN echo "$CONFIGURATOR_USER     ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
+    && addgroup --system $CONFIGURATOR_USER \
+    && adduser --system $CONFIGURATOR_USER \
+    && adduser $CONFIGURATOR_USER $CONFIGURATOR_USER \
     && mkdir -p /home/$CONFIGURATOR_USER/data/logs \
     && mkdir -p /home/$CONFIGURATOR_USER/data/config \
     && mkdir -p /home/$CONFIGURATOR_USER/app/web \
@@ -22,7 +27,7 @@ RUN ln -s /home/$CONFIGURATOR_USER/data/config /home/$CONFIGURATOR_USER/app/res 
     chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/logs
 #######################################
 # BUILD BACKEND STAGE
-FROM jitsucom/configurator-builder as builder
+FROM jitsucom/jitsu-builder:$TARGETARCH as builder
 
 ENV CONFIGURATOR_USER=configurator
 
@@ -36,7 +41,12 @@ ADD configurator/backend/go.mod ./
 ADD server/go.mod /go/src/github.com/jitsucom/jitsu/server/
 RUN go mod tidy && go mod download
 
+#tmp workaround until next version of v8go will be release
+RUN git clone https://github.com/rogchap/v8go.git /tmp/v8go@v0.7.0
+RUN cp -fr /tmp/v8go@v0.7.0/* /root/go/pkg/mod/rogchap.com/v8go@v0.7.0
+
 #Copy backend
+ADD openapi /go/src/github.com/jitsucom/jitsu/openapi
 ADD configurator/backend/. ./.
 ADD server /go/src/github.com/jitsucom/jitsu/server
 ADD .git /go/src/github.com/jitsucom/jitsu/.git
@@ -56,6 +66,9 @@ COPY --from=builder /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend
 
 RUN chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/app
 
+ADD configurator/backend/entrypoint.sh /home/$CONFIGURATOR_USER/entrypoint.sh
+RUN chmod +x /home/$CONFIGURATOR_USER/entrypoint.sh
+
 USER $CONFIGURATOR_USER
 WORKDIR /home/$CONFIGURATOR_USER/app
 
@@ -64,4 +77,4 @@ COPY docker/configurator.yaml /home/$CONFIGURATOR_USER/data/config/
 VOLUME ["/home/$CONFIGURATOR_USER/data"]
 EXPOSE 7000
 
-ENTRYPOINT ./configurator -cfg=/home/$CONFIGURATOR_USER/data/config/configurator.yaml -cr=true -dhid="$DOCKER_HUB_ID"
+ENTRYPOINT /home/$CONFIGURATOR_USER/entrypoint.sh

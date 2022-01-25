@@ -1,15 +1,21 @@
 # BASE STAGE
-FROM alpine:3.13
+FROM debian:bullseye-slim as main
 
-RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata bash sudo curl
+# Install dependencies
+RUN apt-get update
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
+RUN apt-get install -y --fix-missing bash python3 python3-pip python3-venv python3-dev sudo curl
 
+ARG TARGETARCH
 ARG dhid
 ENV DOCKER_HUB_ID=$dhid
 ENV CONFIGURATOR_USER=configurator
 ENV TZ=UTC
 
-RUN addgroup -S $CONFIGURATOR_USER \
-    && adduser -S -G $CONFIGURATOR_USER $CONFIGURATOR_USER \
+RUN echo "$CONFIGURATOR_USER     ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
+    && addgroup --system $CONFIGURATOR_USER \
+    && adduser --system $CONFIGURATOR_USER \
+    && adduser $CONFIGURATOR_USER $CONFIGURATOR_USER \
     && mkdir -p /home/$CONFIGURATOR_USER/data/logs \
     && mkdir -p /home/$CONFIGURATOR_USER/data/config \
     && mkdir -p /home/$CONFIGURATOR_USER/app/web \
@@ -28,6 +34,9 @@ ADD configurator/frontend/build/ /home/$CONFIGURATOR_USER/app/web/
 
 RUN chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/app
 
+ADD configurator/backend/entrypoint.sh /home/$CONFIGURATOR_USER/entrypoint.sh
+RUN chmod +x /home/$CONFIGURATOR_USER/entrypoint.sh
+
 USER $CONFIGURATOR_USER
 WORKDIR /home/$CONFIGURATOR_USER/app
 
@@ -36,4 +45,4 @@ COPY docker/configurator.yaml /home/$CONFIGURATOR_USER/data/config/
 VOLUME ["/home/$CONFIGURATOR_USER/data"]
 EXPOSE 7000
 
-ENTRYPOINT ./configurator -cfg=/home/$CONFIGURATOR_USER/data/config/configurator.yaml -cr=true -dhid="$DOCKER_HUB_ID"
+ENTRYPOINT /home/$CONFIGURATOR_USER/entrypoint.sh

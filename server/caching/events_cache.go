@@ -45,7 +45,7 @@ func NewEventsCache(enabled bool, storage meta.Storage, capacityPerDestination, 
 
 	c := &EventsCache{
 		storage:                storage,
-		eventsChannel:          make(chan *statusEvent, 1_000_000),
+		eventsChannel:          make(chan *statusEvent, capacityPerDestination*10),
 		capacityPerDestination: capacityPerDestination,
 		lastDestinations:       sync.Map{},
 		poolSize:               poolSize,
