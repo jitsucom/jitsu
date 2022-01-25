@@ -36,6 +36,7 @@ const hubspotDestination = {
   displayName: "HubSpot",
   defaultTransform: "",
   hidden: false,
+  deprecated: false,
   ui: {
     icon,
     title: cfg => `Hub ID: ${cfg._formData.hubID}`,

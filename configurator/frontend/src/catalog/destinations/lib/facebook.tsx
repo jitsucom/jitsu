@@ -40,6 +40,7 @@ const facebookDestination = {
 // https://github.com/jitsucom/jitsu/blob/master/server/storages/transform/facebook.js
 return toFacebook($)`,
   hidden: false,
+  deprecated: false,
   ui: {
     icon,
     title: cfg => `Pixel ID: ${cfg._formData.fbPixelId}`,

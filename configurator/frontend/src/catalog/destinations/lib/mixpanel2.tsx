@@ -1,5 +1,13 @@
-import { booleanType, descriptionType, stringType } from "../../sources/types"
-import React from "react"
+import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
+import {
+  arrayOf,
+  booleanType,
+  descriptionType,
+  jsType,
+  passwordType,
+  selectionType,
+  stringType,
+} from "../../sources/types"
 
 const icon = (
   <svg width="100%" height="100%" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -26,13 +34,12 @@ const mixpanelDestination = {
     </>
   ),
   syncFromSourcesStatus: "not_supported",
-  id: "mixpanel",
+  id: "mixpanel2",
   type: "other",
-  displayName: "Mixpanel",
+  displayName: "Mixpanel v2",
   defaultTransform: "",
   hidden: false,
-  deprecated: true,
-  deprecatedReplacement: "mixpanel2",
+  deprecated: false,
   parameters: [
     {
       id: "_super_type",
@@ -40,25 +47,11 @@ const mixpanelDestination = {
     },
     {
       id: "_package",
-      constant: "mixpanel-destination",
-    },
-    {
-      id: "_formData.deprecation",
-      displayName: "Deprecation Notice",
-      type: descriptionType,
-      defaultValue: (
-        <span className={"text-warning"}>
-          <b>
-            This version is deprecated because newer version is available. Please replace it with <b>Mixpanel v2</b>{" "}
-            destination.
-          </b>
-        </span>
-      ),
+      constant: "jitsu-mixpanel-destination@^0.2.0",
     },
     {
       id: "_formData.description",
       displayName: "Description",
-      required: false,
       type: descriptionType,
       defaultValue: (
         <span>
@@ -66,18 +59,38 @@ const mixpanelDestination = {
           original event data.
           <br />
           Mixpanel destination may also send User Profiles data to Mixpanel accounts that have User Profiles enabled.
-          <br />
-          <br />
+        </span>
+      ),
+    },
+    {
+      id: "_formData.meta_package",
+      displayName: "Package",
+      type: descriptionType,
+      defaultValue: (
+        <>
           Implementation is based on <b>npm-package:</b>{" "}
-          <a target={"_blank"} href={"https://www.npmjs.com/package/mixpanel-destination"}>
-            mixpanel-destination
-          </a>
+          <a target={"_blank"} href={"https://www.npmjs.com/package/jitsu-mixpanel-destination"}>
+            jitsu-mixpanel-destination
+          </a>{" "}
+          (version: ^0.2.0)
           <br />
           Source code on{" "}
           <a target={"_blank"} href={"https://github.com/jitsucom/jitsu-mixpanel"}>
             Jitsu Github
           </a>
-        </span>
+        </>
+      ),
+    },
+    {
+      id: "_formData.project_id",
+      displayName: "Project ID",
+      required: true,
+      type: stringType,
+      documentation: (
+        <>
+          ID of Mixpanel project. Can be found in the Project Details section of a project's settings overview page:{" "}
+          <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a>
+        </>
       ),
     },
     {
@@ -89,6 +102,19 @@ const mixpanelDestination = {
         <>
           <a href="https://developer.mixpanel.com/reference/project-token">Project Token</a>. A project's token can be
           found in the Access Keys section of a project's settings overview page:{" "}
+          <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a>
+        </>
+      ),
+    },
+    {
+      id: "_formData.api_secret",
+      displayName: "API Secret",
+      required: true,
+      type: stringType,
+      documentation: (
+        <>
+          <a href="https://developer.mixpanel.com/reference/project-secret">API Secret</a>. A project's API Secret can
+          be found in the Access Keys section of a project's settings overview page:{" "}
           <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a>
         </>
       ),
@@ -121,7 +147,7 @@ const mixpanelDestination = {
   ui: {
     icon,
     connectCmd: null,
-    title: cfg => ".",
+    title: cfg => "project id: " + cfg["_formData"]["project_id"],
   },
 } as const
 

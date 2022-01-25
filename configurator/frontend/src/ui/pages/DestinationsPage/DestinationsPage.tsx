@@ -15,6 +15,8 @@ import { CenteredError, CenteredSpin } from "lib/components/components"
 import { PageProps } from "navigation"
 import { BreadcrumbsProps } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { DestinationStatistics } from "./partials/DestinationStatistics/DestinationStatistics"
+import { ErrorBoundary } from "../../../lib/components/ErrorBoundary/ErrorBoundary"
+import { AddDestinationDialog } from "./partials/AddDestinationDialog/AddDestinationDialog"
 
 export interface CollectionDestinationData {
   destinations: DestinationData[]
@@ -55,6 +57,11 @@ const DestinationsPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
           key={params?.["id"] || "static_key"}
           {...{ setBreadcrumbs, editorMode: "edit" }}
         />
+      </Route>
+      <Route path={destinationPageRoutes.add} strict={false} exact>
+        <ErrorBoundary>
+          <AddDestinationDialog />
+        </ErrorBoundary>
       </Route>
       <Route path={destinationPageRoutes.statisticsExact} strict={false} exact>
         <DestinationStatistics setBreadcrumbs={setBreadcrumbs} />
