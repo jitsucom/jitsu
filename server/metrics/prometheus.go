@@ -1,11 +1,15 @@
 package metrics
 
 import (
-	"github.com/jitsucom/jitsu/server/logging"
 	"strings"
+
+	"github.com/jitsucom/jitsu/server/logging"
 )
 
-var Enabled = false
+var (
+	Enabled         = false
+	DefaultRegistry *Registry
+)
 
 func Init(enabled bool) {
 	Enabled = enabled
