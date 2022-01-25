@@ -171,7 +171,9 @@ func main() {
 		lockFactory, locksCloser = locksinmemory.NewLockFactory()
 	}
 	appconfig.Instance.ScheduleLastClosing(locksCloser)
-	appconfig.Instance.ScheduleLastClosing(redisPool)
+	if redisPool != nil {
+		appconfig.Instance.ScheduleLastClosing(redisPool)
+	}
 
 	configurationsService := storages.NewConfigurationsService(configurationsStorage, defaultPostgres, lockFactory)
 	if err != nil {

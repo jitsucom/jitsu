@@ -3,7 +3,6 @@ package adapters
 import (
 	"github.com/jitsucom/jitsu/server/typing"
 	"reflect"
-	"sync"
 )
 
 //Columns is a list of columns representation
@@ -18,7 +17,6 @@ type TableField struct {
 
 //Table is a dto for DWH Table representation
 type Table struct {
-	mutex  sync.RWMutex
 	Schema string
 	Name   string
 
@@ -40,9 +38,6 @@ func (t *Table) Exists() bool {
 
 //Clone returns clone of current table
 func (t *Table) Clone() *Table {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-
 	clonedColumns := Columns{}
 	for k, v := range t.Columns {
 		clonedColumns[k] = v
@@ -54,7 +49,6 @@ func (t *Table) Clone() *Table {
 	}
 
 	return &Table{
-		mutex:          sync.RWMutex{},
 		Schema:         t.Schema,
 		Name:           t.Name,
 		Columns:        clonedColumns,
