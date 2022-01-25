@@ -39,12 +39,10 @@ export const makeAirbyteSource = (airbyteSource: AirbyteSource): SourceConnector
 }
 
 /**
- *
- *
  * Airbyte Sources Specification Mapping
  */
 
-type EnrichedAirbyteSpecNode = UnknownObject & {
+type EnrichedAirbyteSpecNode = {
   id: string
   parentNode?: EnrichedAirbyteSpecNode
 }
