@@ -10,6 +10,8 @@ export type Destination = {
   parameters: readonly Parameter[]
   syncFromSourcesStatus: "supported" | "coming_soon" | "not_supported"
   hidden?: boolean
+  deprecated?: boolean
+  deprecatedReplacement?: string
   defaultTransform?: string
 }
 

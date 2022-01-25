@@ -286,10 +286,15 @@ func main() {
 
 	// ** Destinations **
 	//events queue
-	//Redis based if events.queue.redis or meta.storage configured
-	//or
-	//inmemory
-	eventsQueueFactory, err := initializeEventsQueueFactory(metaStorageConfiguration)
+	//by default Redis based if events.queue.redis or meta.storage configured
+	//otherwise inmemory
+	//to force inmemory set events.queue.inmemory: true
+	var eventsQueueFactory *events.QueueFactory
+	if viper.GetBool("events.queue.inmemory") {
+		eventsQueueFactory, err = initializeEventsQueueFactory(nil)
+	} else {
+		eventsQueueFactory, err = initializeEventsQueueFactory(metaStorageConfiguration)
+	}
 	if err != nil {
 		logging.Fatal(err)
 	}
@@ -392,23 +397,28 @@ func main() {
 	//Create sync task service
 	taskService := synchronization.NewTaskService(sourceService, destinationsService, metaStorage, coordinationService, storeTasksLogsForLastRuns)
 
-	//Start cron scheduler
-	if taskService.IsConfigured() {
-		cronScheduler.Start(taskService.ScheduleSyncFunc)
-	}
-
-	//sources sync tasks pool size
 	poolSize := viper.GetInt("server.sync_tasks.pool.size")
-	stalledTasksThresholdSeconds := viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")
-	stalledLastLogThresholdMinutes := viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")
-	observeStalledTaskEverySeconds := viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")
+	if poolSize > 0 {
+		logging.Infof("Sources sync task executor pool size: %d", poolSize)
+		//Start cron scheduler
+		if taskService.IsConfigured() {
+			cronScheduler.Start(taskService.ScheduleSyncFunc)
+		}
 
-	//Create task executor
-	taskExecutor, err := synchronization.NewTaskExecutor(poolSize, stalledTasksThresholdSeconds, stalledLastLogThresholdMinutes, observeStalledTaskEverySeconds, sourceService, destinationsService, metaStorage, coordinationService)
-	if err != nil {
-		logging.Fatal("Error creating sources sync task executor:", err)
+		//sources sync tasks pool size
+		stalledTasksThresholdSeconds := viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")
+		stalledLastLogThresholdMinutes := viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")
+		observeStalledTaskEverySeconds := viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")
+
+		//Create task executor
+		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, stalledTasksThresholdSeconds, stalledLastLogThresholdMinutes, observeStalledTaskEverySeconds, sourceService, destinationsService, metaStorage, coordinationService)
+		if err != nil {
+			logging.Fatal("Error creating sources sync task executor:", err)
+		}
+		appconfig.Instance.ScheduleClosing(taskExecutor)
+	} else {
+		logging.Warnf("Sources sync task executor pool size: %d. Task executor is disabled.", poolSize)
 	}
-	appconfig.Instance.ScheduleClosing(taskExecutor)
 
 	//for now use the same interval as for log rotation
 	uploaderRunInterval := viper.GetInt("log.rotation_min")
@@ -538,7 +548,7 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 			coordinationRedisConfiguration.GetBool("tls_skip_verify"),
 			coordinationRedisConfiguration.GetString("sentinel_master_name"))
 		factory.CheckAndSetDefaultPort()
-		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, factory)
+		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, factory, coordination.DefaultOptions)
 	}
 
 	return nil, errors.New("Unknown coordination configuration. Currently only [redis, etcd] are supported. " +

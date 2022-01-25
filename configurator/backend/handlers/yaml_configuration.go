@@ -24,13 +24,13 @@ log:
   path: <path to event logs directory>
 `
 
-type ConfigHandler struct {
+type GenerateConfigHandler struct {
 	configurationsService *storages.ConfigurationsService
 	defaultS3             *enadapters.S3Config
 }
 
-func NewConfigurationHandler(configurationsProvider *storages.ConfigurationsService) *ConfigHandler {
-	return &ConfigHandler{
+func NewGenerateConfigHandler(configurationsProvider *storages.ConfigurationsService) *GenerateConfigHandler {
+	return &GenerateConfigHandler{
 		configurationsService: configurationsProvider,
 		defaultS3: &enadapters.S3Config{
 			AccessKeyID: "Please fill this field with your S3 credentials",
@@ -51,7 +51,7 @@ type Config struct {
 	Sources      map[string]*endriversbase.SourceConfig `json:"sources" yaml:"sources,omitempty"`
 }
 
-func (ch *ConfigHandler) Handler(c *gin.Context) {
+func (ch *GenerateConfigHandler) Handler(c *gin.Context) {
 	projectID := c.Query("project_id")
 	if projectID == "" {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(ErrProjectIDRequired.Error(), nil))
@@ -86,13 +86,13 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 		//dots can't be serialized in yaml configuration
 		//destinationID := projectID + "." + destination.UID
 		destinationID := destination.UID
-		config, err := destinations.MapConfig(destinationID, destination, ch.defaultS3, postHandleDestinationIds)
+		destinationConfig, err := destinations.MapConfig(destinationID, destination, ch.defaultS3, postHandleDestinationIds)
 
 		if err != nil {
 			c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to build destinations response", err))
 			return
 		}
-		mappedDestinations[destinationID] = config
+		mappedDestinations[destinationID] = destinationConfig
 	}
 
 	// ** Sources **
@@ -123,9 +123,9 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 
 	// building yaml response
 	server := Server{APIKeys: keys, Name: &yaml.Node{Kind: yaml.ScalarNode, Value: random.String(5), LineComment: "rename server if another name is desired"}}
-	config := Config{Server: server, Destinations: mappedDestinations, Sources: mappedSources}
+	serverConfig := Config{Server: server, Destinations: mappedDestinations, Sources: mappedSources}
 
-	marshal, err := yaml.Marshal(&config)
+	marshal, err := yaml.Marshal(&serverConfig)
 	configYaml := yaml.Node{}
 
 	if err = yaml.Unmarshal(marshal, &configYaml); err != nil {

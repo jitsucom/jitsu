@@ -1,12 +1,5 @@
 # Mixpanel
 
-<Hint>
-  <ul>
-    <li>Mixpanel destination is available in `beta` version only</li>
-    <li>This section of documentation is still in progress</li>
-  </ul>
-</Hint>
-
 **Jitsu** supports [Mixpanel](https://mixpanel.com) as a destination and
 sends data using [Ingestion API](https://developer.mixpanel.com/reference/ingestion-api).
 
@@ -14,7 +7,7 @@ Jitsu sends events to Ingestion API filling as much Mixpanel [Events Properties]
 
 Mixpanel destination may also send User Profiles data to Mixpanel accounts that have User Profiles enabled.
 
-Implementation is based on **npm-package:** [mixpanel-destination](https://www.npmjs.com/package/mixpanel-destination)
+Implementation is based on **npm-package:** [mixpanel-destination](https://www.npmjs.com/package/jitsu-mixpanel-destination)
 
 Source code on [Jitsu Github](https://github.com/jitsucom/jitsu-mixpanel)
 
@@ -50,6 +43,10 @@ if ($.doc_path?.startsWith("/shop/")) {
 }
 return $;
 ```
+### Custom event properties
+
+Jitsu automatically pass all non standard jitsu event properties from original event to Mixpanel.
+You can add custom property by adding it with JS SDK on the web site or using [JavaScript Transform](/docs/configuration/javascript-transform) on server side.
 
 ## Skipping events
 
@@ -70,10 +67,12 @@ Mixpanel destination config consists of the following schema:
 destinations:
   my_mixpanel:
     type: npm
-    package: mixpanel-destination
+    package: jitsu-mixpanel-destination@^0.2.0
     mode: stream
-    template_variables:
+    config:
       token: abc123abc123abc123
+      api_secret: zzzz123123
+      project_id: "123456"
       users_enabled: true
       anonymous_users_enabled: false
 ```
@@ -93,25 +92,43 @@ Configuration parameters for Mixpanel destination must be provided under `templa
   <tbody>
     <tr>
       <td>
-        <b>token</b>
-        <br />
-        <em>(required)</em>
+          <b>project_id</b>
+          <br />
+          <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td>ID of Mixpanel project. Can be found in the Project Details section of a project's settings overview page: <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a></td>
+    </tr>
+    <tr>
+      <td>
+          <b>token</b>
+          <br />
+          <em>(required)</em>
       </td>
       <td>string</td>
       <td>
-        <a href="https://developer.mixpanel.com/reference/project-token">
-          Project Token
-        </a>
-        . A project's token can be found in the Access Keys section of a
-        project's settings overview page:{" "}
-        <a href="https://mixpanel.com/settings/project/">
-          https://mixpanel.com/settings/project/
-        </a>
+          <a href="https://developer.mixpanel.com/reference/project-token">
+              Project Token
+          </a>
+          . A project's token can be found in the Access Keys section of a
+          project's settings overview page:{" "}
+          <a href="https://mixpanel.com/settings/project/">
+              https://mixpanel.com/settings/project/
+          </a>
       </td>
     </tr>
     <tr>
       <td>
-        <b>users_enabled</b>
+          <b>api_secret</b>
+          <br />
+          <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td><a href="https://developer.mixpanel.com/reference/project-secret">API Secret</a>. A project's API Secret can be found in the Access Keys section of a project's settings overview page: <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a></td>
+    </tr>
+    <tr>
+      <td>
+          <b>users_enabled</b>
       </td>
       <td>boolean</td>
       <td>

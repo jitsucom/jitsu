@@ -2,11 +2,14 @@ package routers
 
 import (
 	"github.com/jitsucom/jitsu/server/geo"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/wal"
+	"github.com/penglongli/gin-metrics/ginmetrics"
 	"net/http"
 	"net/http/pprof"
+	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
@@ -33,7 +36,20 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
-	router.Use(gin.Recovery())
+	if metrics.Enabled {
+		// get global Monitor object
+		m := ginmetrics.GetMonitor()
+		m.SetSlowTime(5)
+		// set request duration, default {0.1, 0.3, 1.2, 5, 10}
+		// used to p95, p99
+		m.SetDuration([]float64{0.1, 0.3, 1.2, 5, 10})
+		m.UseWithoutExposingEndpoint(router)
+	}
+
+	router.Use(gin.RecoveryWithWriter(logging.GlobalLogsWriter, func(c *gin.Context, err interface{}) {
+		logging.SystemErrorf("Panic:\n%s\n%s", err, string(debug.Stack()))
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}))
 
 	router.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")

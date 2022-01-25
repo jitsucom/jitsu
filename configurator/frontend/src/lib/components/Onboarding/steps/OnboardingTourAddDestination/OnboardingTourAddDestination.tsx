@@ -28,7 +28,7 @@ type FilterHidden<T> = T extends { readonly hidden: false } ? T : never
 
 const destinationsToOffer = destinationsReferenceList.filter(
   (dest): dest is FilterHidden<ExtractDatabaseOrWebhook<DestinationReference>> => {
-    return !dest.hidden && (dest.type === "database" || dest.id === "webhook")
+    return !dest.hidden && !dest.deprecated
   }
 )
 

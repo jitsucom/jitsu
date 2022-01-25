@@ -32,3 +32,8 @@ func NowUTC() string {
 func ToISOFormat(t time.Time) string {
 	return t.Format(Layout)
 }
+
+//ParseISOFormat returns time.Time from ISO time string representation
+func ParseISOFormat(t string) (time.Time, error) {
+	return time.Parse(Layout, t)
+}

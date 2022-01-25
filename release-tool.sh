@@ -73,7 +73,7 @@ function release_jitsu() {
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" -t jitsucom/jitsu:latest --build-arg dhid=jitsu --build-arg SRC_VERSION=latest . || { echo 'Jitsu dockerx build semver failed' ; exit 1; }
   else
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION=beta . || { echo 'Jitsu dockerx build failed' ; exit 1; }
+    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION="$1" . || { echo 'Jitsu dockerx build failed' ; exit 1; }
   fi
 
   cd ../
@@ -87,7 +87,7 @@ echo "Fetching remote changes from git with git fetch"
 git fetch origin "$CURRENT_BRANCH" > /dev/null 2>&1
 echo "Running checks..."
 
-git diff --shortstat --exit-code beta origin/beta > /dev/null 2>&1 || fail "   ❌ Some changes are not pulled. Run git pull!"
+git diff --shortstat --exit-code $CURRENT_BRANCH origin/$CURRENT_BRANCH > /dev/null 2>&1 || fail "   ❌ Some changes are not pulled. Run git pull!"
 echo "   ✅ No incoming changes detected"
 
 docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" >/dev/null 2>&1|| fail '   ❌ Jitsu docker login failed. Make sure that JITSU_DOCKER_LOGIN and JITSU_DOCKER_PASSWORD are properly set'
@@ -96,8 +96,11 @@ echo "   ✅ Can login with jitsu docker account"
 docker login -u="$KSENSE_DOCKER_LOGIN" -p="$KSENSE_DOCKER_PASSWORD" >/dev/null 2>&1|| fail '   ❌ Ksense legacy docker account login failed. Make sure that KSENSE_DOCKER_LOGIN" and KSENSE_DOCKER_PASSWORD are properly set'
 echo "   ✅ Can login with ksense legacy docker account"
 
-[[ $CURRENT_BRANCH == "master" || $CURRENT_BRANCH == "beta" ]] || fail "   ❌ Git branch should be master or beta. Run git branch"
-echo "   ✅ Git branch is master"
+if [[ $CURRENT_BRANCH == "master" || $CURRENT_BRANCH == "beta" ]]; then
+  echo "   ✅ Git branch is $CURRENT_BRANCH"
+else
+  echo "   ⚠️ Git branch $CURRENT_BRANCH is not master or beta."
+fi
 
 git diff-index --quiet HEAD || fail "   ❌ Repository has local changes. Run git diff. And commit them! (And sometimes this command fails due to cache try to re-run it)"
 echo "   ✅ No local changes"
@@ -121,6 +124,11 @@ else
   elif [[ $( git branch --show-current) == "beta" ]]; then
     echo "Releasing beta"
     version='beta'
+  else
+    echo "Releasing custom branch: $( git branch --show-current)"
+    while [ -z "$version" ]; do
+      read -r -p "Please provide docker image tag for the custom branch release: " version
+    done
   fi
 fi
 

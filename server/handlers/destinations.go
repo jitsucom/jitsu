@@ -17,9 +17,11 @@ import (
 	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/jitsucom/jitsu/server/uuid"
+	"github.com/mitchellh/mapstructure"
 	"net/http"
 	"net/url"
 	"os"
@@ -160,8 +162,36 @@ func testDestinationConnection(config *config.DestinationConfig) error {
 		defer s3Adapter.Close()
 		return s3Adapter.ValidateWritePermission()
 	case storages.NpmType:
-		_, err := plugins.DownloadPlugin(config.Package)
-		return err
+		plugin, err := plugins.DownloadPlugin(config.Package)
+		if err != nil {
+			return err
+		}
+		jsVariables := make(map[string]interface{})
+		jsVariables["destinationId"] = identifier
+		jsVariables["destinationType"] = storages.NpmType
+		jsVariables["config"] = config.Config
+		res, err := templates.V8EvaluateCode(`exports.validator ? exports.validator(globalThis.config) : true`, jsVariables, plugin.Code)
+		if err != nil {
+			return err
+		}
+		switch r := res.(type) {
+		case bool:
+			if !r {
+				return fmt.Errorf("validation of npm plugin %s failed with status: %v", plugin.Name, r)
+			}
+		case string:
+			return fmt.Errorf(r)
+		case map[string]interface{}:
+			validationRes := storages.NpmValidatorResult{}
+			err := mapstructure.Decode(r, &validationRes)
+			if err != nil {
+				return fmt.Errorf("validation result of unknown type: %s", r)
+			}
+			if !validationRes.Ok {
+				return fmt.Errorf(validationRes.Message)
+			}
+		}
+		return nil
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}
