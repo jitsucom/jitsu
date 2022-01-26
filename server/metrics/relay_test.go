@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/resources"
 	"mime"
 	"net/http"
 	"sync"
@@ -46,6 +47,7 @@ func runMockServer(t *testing.T) (*mockServer, error) {
 				return
 			}
 
+			defer r.Body.Close()
 			var data metrics.RelayData
 			err = json.NewDecoder(r.Body).Decode(&data)
 			if !assert.Nil(t, err, "decode request json body error") {
@@ -67,15 +69,17 @@ func (mock *mockServer) Handle(work *sync.WaitGroup, handler RelayDataHandlerFun
 }
 
 func TestRelay_Relay(t *testing.T) {
+	sourceID := "source_id0"
+	destinationID := "destination_id0"
 	registry := prometheus.NewRegistry()
-	counter := prometheus.NewCounter(prometheus.CounterOpts{
+	counterVec := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "namespace0",
 		Subsystem: "subsystem0",
 		Name:      "counter0",
-	})
+	}, []string{"source_type", "source_id", "destination_type", "destination_id"})
+	registry.MustRegister(counterVec)
+	counterVec.WithLabelValues("source_type0", sourceID, "destination_type0", destinationID).Add(10)
 
-	registry.MustRegister(counter)
-	counter.Add(10)
 	gatheredData, err := registry.Gather()
 	if !assert.Nil(t, err, "gather registry data error") {
 		return
@@ -84,7 +88,10 @@ func TestRelay_Relay(t *testing.T) {
 	hostID := "host0"
 	deploymentID := "deployment0"
 	now := time.Now()
-	gatheredData[0].Metric[0].Label = nil
+
+	*gatheredData[0].Metric[0].Label[1].Value = resources.GetStringHash(sourceID)
+	*gatheredData[0].Metric[0].Label[3].Value = resources.GetStringHash(destinationID)
+
 	expectedData := metrics.RelayData{
 		Timestamp:    now.UnixMilli(),
 		HostID:       hostID,
