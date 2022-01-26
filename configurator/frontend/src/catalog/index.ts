@@ -10,6 +10,4 @@ export * from "./sources/lib"
 export * from "./mappings/types"
 export * from "./mappings/lib"
 
-export * from "./"
-
 // test

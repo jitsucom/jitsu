@@ -18,6 +18,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2
       with:
+        fetch-depth: "0"
         token: ${{ secrets.GITHUB_TOKEN }}
 
     # 2. setup .npmrc it uses NODE_AUTH_TOKEN
@@ -27,13 +28,6 @@ jobs:
       with:
         node-version: '12.x'
         registry-url: 'https://registry.npmjs.org'
-
-    # - name: Check if ready to publish to npm
-    #   working-directory: ./configurator/frontend
-    #   run: |
-    #     npm whoami
-    #   env:
-    #     NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
 
     # 3. configure git user used to push tag
     - name: Configure Git User
@@ -49,5 +43,5 @@ jobs:
       run: |
         npm whoami
         yarn publish:patch
-      # env:
-      #   NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
+      env:
+        NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
