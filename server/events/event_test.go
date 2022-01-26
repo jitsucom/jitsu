@@ -32,7 +32,7 @@ func TestParseFallbackJSON(t *testing.T) {
 			"input malformed event",
 			`{"malformed_event":"{\"_timestamp\":\"2022-01-26T15:08:24.692087Z\",\"api_key\":\"js.123.aaa\"{\"aa\":123,\"app\":\"jitsu_cloud\"}","error":"malformed event"}`,
 			nil,
-			"event {\"_timestamp\":\"2022-01-26T15:08:24.692087Z\",\"api_key\":\"js.123.aaa\"{\"aa\":123,\"app\":\"jitsu_cloud\"} was sent to fallback because it is malformed (not valid JSON): malformed event",
+			"event: {\"_timestamp\":\"2022-01-26T15:08:24.692087Z\",\"api_key\":\"js.123.aaa\"{\"aa\":123,\"app\":\"jitsu_cloud\"} was sent to fallback because it is malformed (not valid JSON): malformed event",
 		},
 	}
 	for _, tt := range tests {
