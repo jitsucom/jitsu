@@ -210,7 +210,15 @@ func main() {
 	metricsRelay := metrics.InitRelay(clusterID, viper.Sub("server.metrics.relay"))
 	if metricsExported || metricsRelay != nil {
 		metrics.Init(metricsExported)
-		metricsRelay.Run(ctx, metrics.Registry)
+		if metricsRelay != nil {
+			interval := time.Minute
+			if viper.IsSet("server.metrics.relay.interval") {
+				interval = viper.GetDuration("server.metrics.relay.interval")
+			}
+
+			trigger := metrics.TickerTrigger{Ticker: time.NewTicker(interval)}
+			metricsRelay.Run(ctx, trigger, metrics.Registry)
+		}
 	}
 
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")

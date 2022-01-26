@@ -13,34 +13,49 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
+type RelayTrigger interface {
+	Channel() <-chan time.Time
+	Now() time.Time
+	Stop()
+}
+
+type TickerTrigger struct {
+	*time.Ticker
+}
+
+func (t TickerTrigger) Now() time.Time {
+	return time.Now()
+}
+
+func (t TickerTrigger) Channel() <-chan time.Time {
+	return t.C
+}
+
 type Relay struct {
 	URL          string
 	HostID       string
 	DeploymentID string
-	Interval     time.Duration
 	Timeout      time.Duration
 	work         sync.WaitGroup
 	cancel       func()
 }
 
-func (r *Relay) Run(ctx context.Context, gatherer prometheus.Gatherer) {
+func (r *Relay) Run(ctx context.Context, trigger RelayTrigger, gatherer prometheus.Gatherer) {
 	r.Stop()
 	ctx, cancel := context.WithCancel(ctx)
 	r.cancel = cancel
 	r.work.Add(1)
 	go func() {
 		defer func() {
+			trigger.Stop()
+			_ = r.Relay(context.Background(), trigger.Now(), gatherer) // scrape final metrics state on shutdown
 			r.cancel()
 			r.work.Done()
 		}()
 
-		// scrape final metrics state on shutdown
-		defer func() { _ = r.Relay(context.Background(), time.Now(), gatherer) }()
-		ticker := time.NewTicker(r.Interval)
-		defer ticker.Stop()
 		for {
 			select {
-			case now := <-ticker.C:
+			case now := <-trigger.Channel():
 				if err := r.Relay(ctx, now, gatherer); err != nil {
 					if ctx.Err() != nil {
 						return
@@ -65,8 +80,8 @@ func (r *Relay) Stop() {
 	}
 }
 
-type relayData struct {
-	Timestamp    time.Time           `json:"timestamp"`
+type RelayData struct {
+	Timestamp    int64               `json:"timestamp"`
 	HostID       string              `json:"hostId"`
 	DeploymentID string              `json:"deploymentId"`
 	Data         []*dto.MetricFamily `json:"data"`
@@ -82,8 +97,9 @@ func (r *Relay) Relay(ctx context.Context, now time.Time, gatherer prometheus.Ga
 	defer cancel()
 
 	if err := requests.URL(r.URL).
-		BodyJSON(relayData{
-			Timestamp:    now,
+		Method(http.MethodPost).
+		BodyJSON(RelayData{
+			Timestamp:    now.UnixMilli(),
 			HostID:       r.HostID,
 			DeploymentID: r.DeploymentID,
 			Data:         data,
