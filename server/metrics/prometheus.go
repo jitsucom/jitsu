@@ -62,7 +62,7 @@ func InitRelay(clusterID string, viper *viper.Viper) *Relay {
 
 	url := viper.GetString("url")
 	if url == "" {
-		logging.Debugf("Metrics relay URL is empty, disabling relay")
+		url = DefaultRelayURL
 		return nil
 	}
 
@@ -89,7 +89,8 @@ func InitRelay(clusterID string, viper *viper.Viper) *Relay {
 		Timeout:      timeout,
 	}
 
-	logging.Debugf("✅ Initialized metrics relay: %+v", relay)
+	logging.Debugf("✅ Initialized metrics relay to %s as [host: %s, deployment: %s]",
+		relay.URL, relay.HostID, relay.DeploymentID)
 	return &relay
 }
 

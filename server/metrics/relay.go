@@ -16,19 +16,30 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-var HashedRelayLabels = map[string]bool{
+// DefaultRelayURL is the URL which is used by default for relaying metrics.
+var DefaultRelayURL = "https://cplane.jitsu.com/prometheus/relay"
+
+// SensitiveLabels are label names which values should be hashed
+// in order to respect users' privacy.
+var SensitiveLabels = map[string]bool{
 	"source_id":      true,
 	"destination_id": true,
 }
 
+// RelayTrigger is basically an interface of time.Ticker.
+// Triggers are responsible for emitting events on the channel returned by Channel
+// when some conditions for relay execution are met.
 type RelayTrigger interface {
-	// Channel must return a channel which is emitted values to.
-	// Don't want to start a whole new goroutine to convert time.Time to struct{} values for TickerTrigger.
-	// Let's just say that the channel values are ignored.
+
+	// Channel returns the channel which events are emitted to.
+	// The returned channel values are ignored.
 	Channel() <-chan time.Time
+
+	// Stop stops this trigger from emitting events.
 	Stop()
 }
 
+// TickerTrigger wraps the stdlib time.Ticker into RelayTrigger interface.
 type TickerTrigger struct {
 	*time.Ticker
 }
@@ -67,7 +78,7 @@ func (r *Relay) Run(rootCtx context.Context, trigger RelayTrigger, gatherer prom
 						return
 					}
 
-					logging.Debugf("Error sending collected usage data: %s", err)
+					logging.Debugf("Error sending metrics relay data: %s", err)
 				}
 
 			case <-ctx.Done():
@@ -93,6 +104,9 @@ type RelayData struct {
 	Data         []*dto.MetricFamily `json:"data"`
 }
 
+// Relay is responsible for relaying all metrics data from Registry
+// to some HTTP endpoint via POST request with JSON body (see RelayData)
+// while also hashing sensitive label values.
 func (r *Relay) Relay(ctx context.Context, gatherer prometheus.Gatherer) error {
 	data, err := gatherer.Gather()
 	if err != nil {
@@ -102,7 +116,7 @@ func (r *Relay) Relay(ctx context.Context, gatherer prometheus.Gatherer) error {
 	for _, metricFamily := range data {
 		for _, metric := range metricFamily.Metric {
 			for _, label := range metric.Label {
-				if label.Name == nil || label.Value == nil || !HashedRelayLabels[*label.Name] {
+				if label.Name == nil || label.Value == nil || !SensitiveLabels[*label.Name] {
 					continue
 				}
 

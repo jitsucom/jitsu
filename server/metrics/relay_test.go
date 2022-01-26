@@ -94,6 +94,7 @@ func TestRelay_Relay(t *testing.T) {
 	hostID := "host0"
 	deploymentID := "deployment0"
 
+	// respecting privacy here
 	*gatheredData[0].Metric[0].Label[1].Value = resources.GetStringHash(sourceID)
 	*gatheredData[0].Metric[0].Label[3].Value = resources.GetStringHash(destinationID)
 
