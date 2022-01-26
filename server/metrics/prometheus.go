@@ -77,11 +77,6 @@ func InitRelay(clusterID string, viper *viper.Viper) *Relay {
 		hostID = Unknown
 	}
 
-	interval := time.Minute
-	if viper.IsSet("interval") {
-		interval = viper.GetDuration("interval")
-	}
-
 	timeout := time.Second
 	if viper.IsSet("timeout") {
 		timeout = viper.GetDuration("timeout")
@@ -91,7 +86,6 @@ func InitRelay(clusterID string, viper *viper.Viper) *Relay {
 		URL:          url,
 		HostID:       hostID,
 		DeploymentID: deploymentID,
-		Interval:     interval,
 		Timeout:      timeout,
 	}
 
