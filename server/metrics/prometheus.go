@@ -34,9 +34,11 @@ func NewGaugeVec(opts prometheus.GaugeOpts, labels []string) *prometheus.GaugeVe
 const Unknown = "unknown"
 
 func Init(exported bool) {
-	logging.Info("✅ Initializing Prometheus metrics..")
-
 	Exported = exported
+	if Exported {
+		logging.Info("✅ Initializing Prometheus metrics..")
+	}
+
 	Registry = prometheus.NewRegistry()
 	Registry.MustRegister(
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
@@ -55,43 +57,44 @@ func Init(exported bool) {
 }
 
 func InitRelay(clusterID string, viper *viper.Viper) *Relay {
-	if viper.GetBool("disabled") {
-		logging.Debugf("Metrics relay is disabled")
-		return nil
-	}
-
-	url := viper.GetString("url")
-	if url == "" {
-		url = DefaultRelayURL
-		return nil
-	}
-
-	deploymentID := viper.GetString("deployment_id")
-	if deploymentID == "" {
-		deploymentID = clusterID
+	relay := &Relay{
+		URL:          DefaultRelayURL,
+		HostID:       Unknown,
+		DeploymentID: clusterID,
+		Timeout:      time.Second / 10,
 	}
 
 	hostID, err := os.Hostname()
 	if err != nil {
 		logging.Debugf("Failed to get hostname for metrics relay, using '%s': %s", Unknown, err)
-		hostID = Unknown
+	} else {
+		relay.HostID = hostID
 	}
 
-	timeout := time.Second
-	if viper.IsSet("timeout") {
-		timeout = viper.GetDuration("timeout")
-	}
+	if viper != nil {
+		if viper.GetBool("disabled") {
+			logging.Debugf("Metrics relay is disabled")
+			return nil
+		}
 
-	relay := Relay{
-		URL:          url,
-		HostID:       hostID,
-		DeploymentID: deploymentID,
-		Timeout:      timeout,
+		url := viper.GetString("url")
+		if url != "" {
+			relay.URL = url
+		}
+
+		deploymentID := viper.GetString("deployment_id")
+		if deploymentID != "" {
+			relay.DeploymentID = deploymentID
+		}
+
+		if viper.IsSet("timeout") {
+			relay.Timeout = viper.GetDuration("timeout")
+		}
 	}
 
 	logging.Debugf("✅ Initialized metrics relay to %s as [host: %s, deployment: %s]",
 		relay.URL, relay.HostID, relay.DeploymentID)
-	return &relay
+	return relay
 }
 
 func extractLabels(destinationName string) (projectID, destinationID string) {
