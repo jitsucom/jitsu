@@ -121,7 +121,7 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 		return errors.New(errMsg)
 	}
 
-	parserFunc := parsers.ParseFallbackJSON
+	parserFunc := events.ParseFallbackJSON
 	if rawFile {
 		parserFunc = parsers.ParseJSON
 	}
