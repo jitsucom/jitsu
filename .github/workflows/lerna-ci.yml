@@ -12,13 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_AUTH_TOKEN: ${{ secrets.LERNA_CI_NPM }}
+      NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
     steps:
 
     # 1. provide Personal Access Token for checkout@v2
     - name: Checkout
       uses: actions/checkout@v2
       with:
-        fetch-depth: "0"
+        fetch-depth: "0" # pulls all history and tags for Lerna
         token: ${{ secrets.GITHUB_TOKEN }}
 
     # 2. setup .npmrc it uses NODE_AUTH_TOKEN
@@ -36,12 +37,13 @@ jobs:
         git config --global user.name "lerna-ci@$GITHUB_ACTOR"
 
     - name: Install dependencies
+      working-directory: ./configurator/frontend
       run: yarn install
+
+    - name: Check if able to publish changes
+      run: npm whoami
 
     - name: Publish
       working-directory: ./configurator/frontend
-      run: |
-        npm whoami
-        yarn publish:patch
-      env:
-        NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
+      run: yarn publish:patch
+        
