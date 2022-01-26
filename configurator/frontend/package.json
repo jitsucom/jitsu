@@ -51,7 +51,7 @@
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/",
     "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/ --fix",
     "all:check": "yarn run prettier:check && yarn run eslint:check",
-    "publish:patch": "npx lerna publish patch --no-private --yes"
+    "publish:patch": "npx lerna publish patch --no-private --no-verify-access --yes"
   },
   "browserslist": {
     "production": [
