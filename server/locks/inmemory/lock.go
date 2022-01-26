@@ -1,7 +1,6 @@
 package inmemory
 
 import (
-	"github.com/jitsucom/jitsu/server/locks/base"
 	"time"
 )
 
@@ -25,14 +24,18 @@ func newLock(name string, lockFunc inmemoryLockFunc, unlockFunc inmemoryUnlockFu
 	}
 }
 
-//Lock obtains lock with wait timeout
-func (l *Lock) Lock(timeout time.Duration) error {
+// TryLock Attempts to acquire lock within given amount of time. If lock is not free by
+// that time, returns false. Otherwise, returns true
+func (l *Lock) TryLock(timeout time.Duration) (bool, error) {
 	currentAttempt := 0
 	attemptTimeout := timeout / defaultLockAttempts
 
 	for {
 		_, loaded := l.lockFunc(l.name, true)
 		if loaded {
+			if timeout == 0 {
+				break
+			}
 			if currentAttempt > defaultLockAttempts {
 				break
 			}
@@ -40,25 +43,14 @@ func (l *Lock) Lock(timeout time.Duration) error {
 
 			time.Sleep(attemptTimeout)
 		} else {
-			return nil
+			return true, nil
 		}
 	}
 
-	return base.ErrAlreadyLocked
-}
-
-//TryLock tries to obtain a lock with 1 retry without timeout
-func (l *Lock) TryLock() error {
-	_, loaded := l.lockFunc(l.name, true)
-	if loaded {
-		return base.ErrAlreadyLocked
-	}
-
-	return nil
+	return false, nil
 }
 
 //Unlock unlocks the key
-func (l *Lock) Unlock() bool {
+func (l *Lock) Unlock() {
 	l.unlockFunc(l.name)
-	return true
 }

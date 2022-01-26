@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/destinations"
-	locksbase "github.com/jitsucom/jitsu/server/locks/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/safego"
@@ -126,12 +125,12 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 
 	//get task-creation lock
 	taskCreationLock := ts.coordinationService.CreateLock(sourceID + "_" + collection + "_task_creation")
-	if err := taskCreationLock.TryLock(); err != nil {
-		if err == locksbase.ErrAlreadyLocked {
-			return "", ErrSourceCollectionIsStartingToSync
-		}
-
+	locked, err := taskCreationLock.TryLock(0)
+	if err != nil {
 		return "", fmt.Errorf("failed to get task creation lock source [%s] collection %s: %v", sourceID, collection, err)
+	}
+	if !locked {
+		return "", ErrSourceCollectionIsStartingToSync
 	}
 	defer taskCreationLock.Unlock()
 

@@ -3,7 +3,6 @@ package redis
 import (
 	"context"
 	"github.com/go-redsync/redsync/v4"
-	"github.com/jitsucom/jitsu/server/locks/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"time"
@@ -27,7 +26,7 @@ type Lock struct {
 	pool         *meta.RedisPool
 	redsync      *redsync.Redsync
 	errorMetrics *meta.ErrorMetrics
-	lockCloser   *base.LocksCloser
+	lockCloser   *LocksCloser
 
 	//exist only after locking
 	controller *LockController
@@ -35,7 +34,7 @@ type Lock struct {
 }
 
 func newLock(name string, ctx context.Context, pool *meta.RedisPool, redsync *redsync.Redsync, errorMetrics *meta.ErrorMetrics,
-	lockCloser *base.LocksCloser) *Lock {
+	lockCloser *LocksCloser) *Lock {
 	return &Lock{
 		mutexName:    "coordination:mutex#" + name,
 		ctx:          ctx,
@@ -46,27 +45,27 @@ func newLock(name string, ctx context.Context, pool *meta.RedisPool, redsync *re
 	}
 }
 
-//Lock obtains lock with wait timeout
-func (l *Lock) Lock(timeout time.Duration) error {
+// TryLock Attempts to acquire lock within given amount of time. If lock is not free by
+// that time, returns false. Otherwise, returns true
+func (l *Lock) TryLock(timeout time.Duration) (bool, error) {
+	if timeout == 0 {
+		return l.doLock(redsync.WithExpiry(defaultExpiration), redsync.WithRetryDelay(0), redsync.WithTries(1))
+	}
+
 	retryDelay := timeout / defaultRetries
 	return l.doLock(redsync.WithExpiry(defaultExpiration), redsync.WithRetryDelay(retryDelay), redsync.WithTries(defaultRetries))
 }
 
-//TryLock tries to obtain a lock with 1 retry without timeout
-func (l *Lock) TryLock() error {
-	return l.doLock(redsync.WithExpiry(defaultExpiration), redsync.WithRetryDelay(0), redsync.WithTries(1))
-}
-
 //doLock locks mutex with getMutexName with input expiration and retries configuration
 //starts controller heartbeat
-func (l *Lock) doLock(options ...redsync.Option) error {
+func (l *Lock) doLock(options ...redsync.Option) (bool, error) {
 	mutex := l.redsync.NewMutex(l.mutexName, options...)
 	if err := mutex.LockContext(l.ctx); err != nil {
 		if err == redsync.ErrFailed {
-			return base.ErrAlreadyLocked
+			return false, nil
 		}
 
-		return err
+		return false, err
 	}
 
 	l.mutex = mutex
@@ -78,27 +77,25 @@ func (l *Lock) doLock(options ...redsync.Option) error {
 
 	l.lockCloser.Add(l.mutexName, l)
 
-	return nil
+	return true, nil
 }
 
 //Unlock tries to unlock with defaultUnlockRetries attempts
-func (l *Lock) Unlock() bool {
+func (l *Lock) Unlock() {
 	l.controller.Close()
 
 	i := 0
 	for i <= defaultUnlockRetries {
 		i++
-		result, err := l.mutex.Unlock()
+		_, err := l.mutex.Unlock()
 		if err != nil {
 			logging.SystemErrorf("error unlocking %s after %d attempts: %v", l.mutexName, i, err)
 			continue
 		}
 
 		l.lockCloser.Remove(l.mutexName)
-		return result
+		return
 	}
-
-	return false
 }
 
 //Extend extends the lock expiration

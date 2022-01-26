@@ -2,7 +2,7 @@ package inmemory
 
 import (
 	"github.com/jitsucom/jitsu/server/locks"
-	"github.com/jitsucom/jitsu/server/locks/base"
+	"github.com/jitsucom/jitsu/server/locks/redis"
 	"io"
 	"sync"
 )
@@ -14,7 +14,7 @@ type LockFactory struct {
 
 //NewLockFactory returns configured Redis based LockFactory
 func NewLockFactory() (*LockFactory, io.Closer) {
-	lc := base.NewLocksCloser()
+	lc := redis.NewLocksCloser()
 	return &LockFactory{
 		locks: &sync.Map{},
 	}, lc
