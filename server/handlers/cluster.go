@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/jitsu/server/cluster"
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"net/http"
 )
@@ -19,19 +19,19 @@ type InstanceInfo struct {
 
 //ClusterHandler handles cluster info requests
 type ClusterHandler struct {
-	manager cluster.Manager
+	coordinationService *coordination.Service
 }
 
 //NewClusterHandler returns configured ClusterHandler instance
-func NewClusterHandler(manager cluster.Manager) *ClusterHandler {
+func NewClusterHandler(coordinationService *coordination.Service) *ClusterHandler {
 	return &ClusterHandler{
-		manager: manager,
+		coordinationService: coordinationService,
 	}
 }
 
 //Handler returns all jitsu server instances names from current cluster
 func (ch *ClusterHandler) Handler(c *gin.Context) {
-	instanceNames, err := ch.manager.GetInstances()
+	instanceNames, err := ch.coordinationService.GetJitsuInstancesInCluster()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error getting cluster info", err))
 		return

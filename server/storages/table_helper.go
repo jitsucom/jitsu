@@ -3,7 +3,11 @@ package storages
 import (
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/coordination"
+	"github.com/jitsucom/jitsu/server/locks"
+	locksbase "github.com/jitsucom/jitsu/server/locks/base"
 	"sync"
+	"time"
 
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -12,15 +16,17 @@ import (
 	"github.com/jitsucom/jitsu/server/typing"
 )
 
+const tableLockTimeout = time.Minute
+
 //TableHelper keeps tables schema state inmemory and update it according to incoming new data
 //consider that all tables are in one destination schema.
-//note: Assume that after any outer changes in db we need to increment table version in MonitorKeeper
+//note: Assume that after any outer changes in db we need to increment table version in Service
 type TableHelper struct {
 	sync.RWMutex
 
-	sqlAdapter    adapters.SQLAdapter
-	monitorKeeper MonitorKeeper
-	tables        map[string]*adapters.Table
+	sqlAdapter          adapters.SQLAdapter
+	coordinationService *coordination.Service
+	tables              map[string]*adapters.Table
 
 	pkFields           map[string]bool
 	columnTypesMapping map[typing.DataType]string
@@ -33,13 +39,13 @@ type TableHelper struct {
 
 //NewTableHelper returns configured TableHelper instance
 //Note: columnTypesMapping must be not empty (or fields will be ignored)
-func NewTableHelper(dbSchema string, sqlAdapter adapters.SQLAdapter, monitorKeeper MonitorKeeper, pkFields map[string]bool,
+func NewTableHelper(dbSchema string, sqlAdapter adapters.SQLAdapter, coordinationService *coordination.Service, pkFields map[string]bool,
 	columnTypesMapping map[typing.DataType]string, maxColumns int, destinationType string) *TableHelper {
 
 	return &TableHelper{
-		sqlAdapter:    sqlAdapter,
-		monitorKeeper: monitorKeeper,
-		tables:        map[string]*adapters.Table{},
+		sqlAdapter:          sqlAdapter,
+		coordinationService: coordinationService,
+		tables:              map[string]*adapters.Table{},
 
 		pkFields:           pkFields,
 		columnTypesMapping: columnTypesMapping,
@@ -58,7 +64,6 @@ func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters
 		Name:     batchHeader.TableName,
 		Columns:  adapters.Columns{},
 		PKFields: th.pkFields,
-		Version:  0,
 	}
 
 	//pk fields from the configuration
@@ -108,7 +113,7 @@ func (th *TableHelper) EnsureTable(destinationID string, dataSchema *adapters.Ta
 	if cacheTable {
 		dbSchema, err = th.getCachedTableSchema(destinationID, dataSchema)
 	} else {
-		dbSchema, err = th.getOrCreate(destinationID, dataSchema)
+		dbSchema, err = th.getOrCreateWithLock(destinationID, dataSchema)
 	}
 	if err != nil {
 		return nil, err
@@ -130,51 +135,32 @@ func (th *TableHelper) EnsureTable(destinationID string, dataSchema *adapters.Ta
 	}
 
 	//** Diff exists **
-	//patch schema
-	lock, err := th.monitorKeeper.Lock(destinationID, dbSchema.Name)
+	//patch table schema
+	return th.patchTableWithLock(destinationID, dataSchema)
+}
+
+//patchTable locks table, get from DWH and patch
+func (th *TableHelper) patchTableWithLock(destinationID string, dataSchema *adapters.Table) (*adapters.Table, error) {
+	tableIdentifier := th.getTableIdentifier(destinationID, dataSchema.Name)
+	tableLock, err := th.lockTable(destinationID, dataSchema.Name, tableIdentifier)
 	if err != nil {
-		msg := fmt.Sprintf("System error: Unable to lock table %s: %v", dbSchema.Name, err)
-		notifications.SystemError(msg)
-		return nil, errors.New(msg)
+		return nil, err
 	}
-	defer th.monitorKeeper.Unlock(lock)
+	defer tableLock.Unlock()
 
-	//handle schema local changes (patching was in another goroutine)
-	diff = dbSchema.Diff(dataSchema)
-	if !diff.Exists() {
-		return dbSchema, nil
-	}
-
-	//handle schema remote changes (in multi-cluster setup)
-	ver, err := th.monitorKeeper.GetVersion(destinationID, dbSchema.Name)
+	dbSchema, err := th.getOrCreate(dataSchema)
 	if err != nil {
-		return nil, fmt.Errorf("Error getting table %s version: %v", dataSchema.Name, err)
+		return nil, err
 	}
 
-	//get schema and calculate diff one more time if version was changed (this statement handles optimistic locking)
-	if ver != dbSchema.Version {
-		dbSchema, err = th.sqlAdapter.GetTableSchema(dbSchema.Name)
-		if err != nil {
-			return nil, fmt.Errorf("Error getting table %s schema: %v", dataSchema.Name, err)
-		}
-
-		dbSchema.Version = ver
-
-		diff = dbSchema.Diff(dataSchema)
-	}
-
-	//check if newSchemaDiff doesn't exist - do nothing
+	//handle table schema local changes (patching was in another goroutine)
+	diff := dbSchema.Diff(dataSchema)
 	if !diff.Exists() {
 		return dbSchema, nil
 	}
 
 	if err := th.sqlAdapter.PatchTableSchema(diff); err != nil {
 		return nil, err
-	}
-
-	newVersion, err := th.monitorKeeper.IncrementVersion(destinationID, diff.Name)
-	if err != nil {
-		return nil, fmt.Errorf("Error incrementing table %s version: %v", diff.Name, err)
 	}
 
 	//** Save **
@@ -190,10 +176,13 @@ func (th *TableHelper) EnsureTable(destinationID string, dataSchema *adapters.Ta
 	if diff.DeletePkFields {
 		dbSchema.PKFields = map[string]bool{}
 	}
-	//version
-	dbSchema.Version = newVersion
 
-	return dbSchema, nil
+	// Save data schema to local cache
+	th.Lock()
+	th.tables[dbSchema.Name] = dbSchema
+	th.Unlock()
+
+	return dbSchema.Clone(), nil
 }
 
 func (th *TableHelper) getCachedTableSchema(destinationName string, dataSchema *adapters.Table) (*adapters.Table, error) {
@@ -202,11 +191,11 @@ func (th *TableHelper) getCachedTableSchema(destinationName string, dataSchema *
 	th.RUnlock()
 
 	if ok {
-		return dbSchema, nil
+		return dbSchema.Clone(), nil
 	}
 
 	// Get data schema from DWH or create
-	dbSchema, err := th.getOrCreate(destinationName, dataSchema)
+	dbSchema, err := th.getOrCreateWithLock(destinationName, dataSchema)
 	if err != nil {
 		return nil, err
 	}
@@ -216,12 +205,12 @@ func (th *TableHelper) getCachedTableSchema(destinationName string, dataSchema *
 	th.tables[dbSchema.Name] = dbSchema
 	th.Unlock()
 
-	return dbSchema, nil
+	return dbSchema.Clone(), nil
 }
 
 //RefreshTableSchema force get (or create) db table schema and update it in-memory
 func (th *TableHelper) RefreshTableSchema(destinationName string, dataSchema *adapters.Table) (*adapters.Table, error) {
-	dbTableSchema, err := th.getOrCreate(destinationName, dataSchema)
+	dbTableSchema, err := th.getOrCreateWithLock(destinationName, dataSchema)
 	if err != nil {
 		return nil, err
 	}
@@ -235,46 +224,55 @@ func (th *TableHelper) RefreshTableSchema(destinationName string, dataSchema *ad
 }
 
 //lock table -> get existing schema -> create a new one if doesn't exist -> return schema with version
-func (th *TableHelper) getOrCreate(destinationName string, dataSchema *adapters.Table) (*adapters.Table, error) {
-	lock, err := th.monitorKeeper.Lock(destinationName, dataSchema.Name)
+func (th *TableHelper) getOrCreateWithLock(destinationID string, dataSchema *adapters.Table) (*adapters.Table, error) {
+	tableIdentifier := th.getTableIdentifier(destinationID, dataSchema.Name)
+	tableLock, err := th.lockTable(destinationID, dataSchema.Name, tableIdentifier)
 	if err != nil {
-		msg := fmt.Sprintf("System error: Unable to lock table %s: %v", dataSchema.Name, err)
-		notifications.SystemError(msg)
-		return nil, errors.New(msg)
+		return nil, err
 	}
-	defer th.monitorKeeper.Unlock(lock)
+	defer tableLock.Unlock()
 
+	return th.getOrCreate(dataSchema)
+}
+
+func (th *TableHelper) getOrCreate(dataSchema *adapters.Table) (*adapters.Table, error) {
 	//Get schema
 	dbTableSchema, err := th.sqlAdapter.GetTableSchema(dataSchema.Name)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting table %s schema: %v", dataSchema.Name, err)
 	}
 
-	//create new or get version
+	//create new
 	if !dbTableSchema.Exists() {
 		if err := th.sqlAdapter.CreateTable(dataSchema); err != nil {
 			return nil, fmt.Errorf("Error creating table %s: %v", dataSchema.Name, err)
 		}
 
-		ver, err := th.monitorKeeper.IncrementVersion(destinationName, dataSchema.Name)
-		if err != nil {
-			return nil, fmt.Errorf("Error incrementing table %s version: %v", dataSchema.Name, err)
-		}
-
 		dbTableSchema.Schema = dataSchema.Schema
 		dbTableSchema.Name = dataSchema.Name
 		dbTableSchema.Columns = dataSchema.Columns
-		dbTableSchema.Version = ver
 		dbTableSchema.PKFields = dataSchema.PKFields
 		dbTableSchema.PrimaryKeyName = dataSchema.PrimaryKeyName
-	} else {
-		ver, err := th.monitorKeeper.GetVersion(destinationName, dbTableSchema.Name)
-		if err != nil {
-			return nil, fmt.Errorf("Error getting table %s version: %v", dataSchema.Name, err)
-		}
-
-		dbTableSchema.Version = ver
 	}
 
 	return dbTableSchema, nil
+}
+
+func (th *TableHelper) lockTable(destinationID, tableName, tableIdentifier string) (locks.Lock, error) {
+	tableLock := th.coordinationService.CreateLock(tableIdentifier)
+	if err := tableLock.Lock(tableLockTimeout); err != nil {
+		if err == locksbase.ErrAlreadyLocked {
+			return nil, fmt.Errorf("unable to lock table %s. Table has been already locked: timeout after %s", tableIdentifier, tableLockTimeout.String())
+		}
+
+		msg := fmt.Sprintf("System error: Unable to lock destination [%s] table %s: %v", destinationID, tableName, err)
+		notifications.SystemError(msg)
+		return nil, errors.New(msg)
+	}
+
+	return tableLock, nil
+}
+
+func (th *TableHelper) getTableIdentifier(destinationID, tableName string) string {
+	return destinationID + "_" + tableName
 }
