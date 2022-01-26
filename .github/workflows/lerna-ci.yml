@@ -3,6 +3,7 @@ name: Lerna CI
 on:
   push:
     branches:
+      - beta
       - feature/725-documentation-publishing-2.0
 
 
@@ -12,36 +13,28 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_AUTH_TOKEN: ${{ secrets.LERNA_CI_NPM }}
-      NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
     steps:
 
-    # 1. provide Personal Access Token for checkout@v2
     - name: Checkout
       uses: actions/checkout@v2
       with:
         fetch-depth: "0" # pulls all history and tags for Lerna
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GITHUB_TOKEN }} # this token is available by default
 
-    # 2. setup .npmrc it uses NODE_AUTH_TOKEN
+    # sets up .npmrc using NODE_AUTH_TOKEN
     - name: Setup .npmrc file for publish
       uses: actions/setup-node@v2
-      # working-directory: ./configurator/frontend
       with:
         node-version: '12.x'
         registry-url: 'https://registry.npmjs.org'
 
-    # 3. configure git user used to push tag
     - name: Configure Git User
       run: |
         git config --global user.email "lerna-ci@jitsu.com"
         git config --global user.name "lerna-ci@$GITHUB_ACTOR"
 
-    - name: Install dependencies
-      working-directory: ./configurator/frontend
-      run: yarn install
-
     - name: Check if able to publish changes
-      run: npm whoami
+      run: npm whoami # will throw and exit if npm is misconfigurend and not ready to publish
 
     - name: Publish
       working-directory: ./configurator/frontend
