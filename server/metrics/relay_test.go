@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jitsucom/jitsu/server/safego"
+
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/timestamp"
@@ -59,7 +61,7 @@ func runMockServer(t *testing.T) (*mockServer, error) {
 		}),
 	}
 
-	go server.ListenAndServe()
+	safego.Run(func() { _ = server.ListenAndServe() })
 	mock.Server = server
 	return mock, nil
 }
