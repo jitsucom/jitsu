@@ -2,13 +2,15 @@ package metrics
 
 import (
 	"context"
-	"github.com/jitsucom/jitsu/server/resources"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/carlmjohnson/requests"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/resources"
+	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -20,17 +22,15 @@ var HashedRelayLabels = map[string]bool{
 }
 
 type RelayTrigger interface {
+	// Channel must return a channel which is emitted values to.
+	// Don't want to start a whole new goroutine to convert time.Time to struct{} values for TickerTrigger.
+	// Let's just say that the channel values are ignored.
 	Channel() <-chan time.Time
-	Now() time.Time
 	Stop()
 }
 
 type TickerTrigger struct {
 	*time.Ticker
-}
-
-func (t TickerTrigger) Now() time.Time {
-	return time.Now()
 }
 
 func (t TickerTrigger) Channel() <-chan time.Time {
@@ -46,23 +46,23 @@ type Relay struct {
 	cancel       func()
 }
 
-func (r *Relay) Run(ctx context.Context, trigger RelayTrigger, gatherer prometheus.Gatherer) {
+func (r *Relay) Run(rootCtx context.Context, trigger RelayTrigger, gatherer prometheus.Gatherer) {
 	r.Stop()
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(rootCtx)
 	r.cancel = cancel
 	r.work.Add(1)
-	go func() {
+	safego.Run(func() {
 		defer func() {
 			trigger.Stop()
-			_ = r.Relay(context.Background(), trigger.Now(), gatherer) // scrape final metrics state on shutdown
+			_ = r.Relay(rootCtx, gatherer) // scrape final metrics state on shutdown
 			r.cancel()
 			r.work.Done()
 		}()
 
 		for {
 			select {
-			case now := <-trigger.Channel():
-				if err := r.Relay(ctx, now, gatherer); err != nil {
+			case <-trigger.Channel():
+				if err := r.Relay(ctx, gatherer); err != nil {
 					if ctx.Err() != nil {
 						return
 					}
@@ -74,7 +74,7 @@ func (r *Relay) Run(ctx context.Context, trigger RelayTrigger, gatherer promethe
 				return
 			}
 		}
-	}()
+	})
 }
 
 func (r *Relay) Stop() {
@@ -93,7 +93,7 @@ type RelayData struct {
 	Data         []*dto.MetricFamily `json:"data"`
 }
 
-func (r *Relay) Relay(ctx context.Context, now time.Time, gatherer prometheus.Gatherer) error {
+func (r *Relay) Relay(ctx context.Context, gatherer prometheus.Gatherer) error {
 	data, err := gatherer.Gather()
 	if err != nil {
 		return errors.Wrap(err, "gather metrics")
@@ -118,7 +118,7 @@ func (r *Relay) Relay(ctx context.Context, now time.Time, gatherer prometheus.Ga
 	if err := requests.URL(r.URL).
 		Method(http.MethodPost).
 		BodyJSON(RelayData{
-			Timestamp:    now.UnixMilli(),
+			Timestamp:    timestamp.Now().UnixMilli(),
 			HostID:       r.HostID,
 			DeploymentID: r.DeploymentID,
 			Data:         data,

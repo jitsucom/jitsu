@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/resources"
 	"mime"
 	"net/http"
 	"sync"
@@ -12,6 +11,8 @@ import (
 	"time"
 
 	"github.com/jitsucom/jitsu/server/metrics"
+	"github.com/jitsucom/jitsu/server/resources"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/phayes/freeport"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -69,6 +70,9 @@ func (mock *mockServer) Handle(work *sync.WaitGroup, handler RelayDataHandlerFun
 }
 
 func TestRelay_Relay(t *testing.T) {
+	timestamp.FreezeTime()
+	defer timestamp.UnfreezeTime()
+
 	sourceID := "source_id0"
 	destinationID := "destination_id0"
 	registry := prometheus.NewRegistry()
@@ -87,13 +91,12 @@ func TestRelay_Relay(t *testing.T) {
 
 	hostID := "host0"
 	deploymentID := "deployment0"
-	now := time.Now()
 
 	*gatheredData[0].Metric[0].Label[1].Value = resources.GetStringHash(sourceID)
 	*gatheredData[0].Metric[0].Label[3].Value = resources.GetStringHash(destinationID)
 
 	expectedData := metrics.RelayData{
-		Timestamp:    now.UnixMilli(),
+		Timestamp:    timestamp.Now().UnixMilli(),
 		HostID:       hostID,
 		DeploymentID: deploymentID,
 		Data:         gatheredData,
@@ -116,7 +119,7 @@ func TestRelay_Relay(t *testing.T) {
 		Timeout:      time.Second,
 	}
 
-	err = relay.Relay(context.Background(), now, registry)
+	err = relay.Relay(context.Background(), registry)
 	if !assert.Nil(t, err, "relay metrics error") {
 		return
 	}
@@ -125,29 +128,27 @@ func TestRelay_Relay(t *testing.T) {
 }
 
 type manualTrigger struct {
-	C   chan time.Time
-	now time.Time
+	C chan time.Time
 }
 
-func newManualTrigger(now time.Time) *manualTrigger {
+func newManualTrigger() *manualTrigger {
 	return &manualTrigger{
-		C:   make(chan time.Time),
-		now: now,
+		C: make(chan time.Time),
 	}
 }
 
-func (t *manualTrigger) Trigger()                  { t.C <- t.now }
+func (t *manualTrigger) Trigger()                  { t.C <- time.Time{} }
 func (t *manualTrigger) Channel() <-chan time.Time { return t.C }
-func (t *manualTrigger) Now() time.Time            { return t.now }
 func (t *manualTrigger) Stop()                     { close(t.C) }
 
 func TestRelay_Run_Stop(t *testing.T) {
-	registry := prometheus.NewRegistry()
+	timestamp.FreezeTime()
+	defer timestamp.UnfreezeTime()
 
+	registry := prometheus.NewRegistry()
 	hostID := "host0"
 	deploymentID := "deployment0"
 
-	now := time.Now()
 	server, err := runMockServer(t)
 	if !assert.Nil(t, err, "run mock server error") {
 		return
@@ -157,7 +158,7 @@ func TestRelay_Run_Stop(t *testing.T) {
 	work := new(sync.WaitGroup)
 	work.Add(4)
 	server.Handle(work, func(actualData metrics.RelayData) {
-		assert.Equal(t, now.UnixMilli(), actualData.Timestamp, "relay data timestamp")
+		assert.Equal(t, timestamp.Now().UnixMilli(), actualData.Timestamp, "relay data timestamp")
 	})
 
 	relay := &metrics.Relay{
@@ -167,7 +168,7 @@ func TestRelay_Run_Stop(t *testing.T) {
 		Timeout:      time.Second,
 	}
 
-	trigger := newManualTrigger(now)
+	trigger := newManualTrigger()
 	relay.Run(context.Background(), trigger, registry)
 	for i := 0; i < 4; i++ {
 		trigger.Trigger()
@@ -178,7 +179,7 @@ func TestRelay_Run_Stop(t *testing.T) {
 	work = new(sync.WaitGroup)
 	work.Add(1)
 	server.Handle(work, func(actualData metrics.RelayData) {
-		assert.Equal(t, now.UnixMilli(), actualData.Timestamp, "relay data timestamp")
+		assert.Equal(t, timestamp.Now().UnixMilli(), actualData.Timestamp, "relay data timestamp")
 	})
 
 	relay.Stop()
