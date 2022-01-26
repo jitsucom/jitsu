@@ -10,7 +10,6 @@ import (
 	"github.com/jitsucom/jitsu/configurator/random"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/locks"
-	locksbase "github.com/jitsucom/jitsu/server/locks/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/telemetry"
@@ -665,14 +664,15 @@ func (cs *ConfigurationsService) Close() (multiErr error) {
 
 func (cs *ConfigurationsService) lockProjectObject(objectType, projectID string) (locks.Lock, error) {
 	lock := cs.lockFactory.CreateLock(getObjectLockIdentifier(objectType, projectID))
-	if err := lock.Lock(defaultProjectObjectLockTimeout); err != nil {
-		if err == locksbase.ErrAlreadyLocked {
-			return nil, fmt.Errorf("unable to lock project [%s] object type [%s]. Already locked: timeout after %s", projectID, objectType, defaultProjectObjectLockTimeout.String())
-		}
-
+	locked, err := lock.TryLock(defaultProjectObjectLockTimeout)
+	if err != nil {
 		msg := fmt.Sprintf("System error: failed to lock project [%s] object type [%s]: %v", projectID, objectType, err)
 		notifications.SystemError(msg)
 		return nil, errors.New(msg)
+	}
+
+	if !locked {
+		return nil, fmt.Errorf("unable to lock project [%s] object type [%s]. Already locked: timeout after %s", projectID, objectType, defaultProjectObjectLockTimeout.String())
 	}
 
 	return lock, nil

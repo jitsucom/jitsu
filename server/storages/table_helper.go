@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/locks"
-	locksbase "github.com/jitsucom/jitsu/server/locks/base"
 	"sync"
 	"time"
 
@@ -260,14 +259,15 @@ func (th *TableHelper) getOrCreate(dataSchema *adapters.Table) (*adapters.Table,
 
 func (th *TableHelper) lockTable(destinationID, tableName, tableIdentifier string) (locks.Lock, error) {
 	tableLock := th.coordinationService.CreateLock(tableIdentifier)
-	if err := tableLock.Lock(tableLockTimeout); err != nil {
-		if err == locksbase.ErrAlreadyLocked {
-			return nil, fmt.Errorf("unable to lock table %s. Table has been already locked: timeout after %s", tableIdentifier, tableLockTimeout.String())
-		}
-
+	locked, err := tableLock.TryLock(tableLockTimeout)
+	if err != nil {
 		msg := fmt.Sprintf("System error: Unable to lock destination [%s] table %s: %v", destinationID, tableName, err)
 		notifications.SystemError(msg)
 		return nil, errors.New(msg)
+	}
+
+	if !locked {
+		return nil, fmt.Errorf("unable to lock table %s. Table has been already locked: timeout after %s", tableIdentifier, tableLockTimeout.String())
 	}
 
 	return tableLock, nil

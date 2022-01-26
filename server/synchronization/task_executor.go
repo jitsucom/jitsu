@@ -8,7 +8,6 @@ import (
 	"github.com/jitsucom/jitsu/server/destinations"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/events"
-	locksbase "github.com/jitsucom/jitsu/server/locks/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
@@ -257,14 +256,15 @@ func (te *TaskExecutor) execute(i interface{}) {
 	taskLogger.INFO("Acquiring lock...")
 	logging.Debugf("[TASK %s] Getting sync lock source [%s] collection [%s]...", task.ID, task.Source, task.Collection)
 	collectionLock := te.coordinationService.CreateLock(task.Source + "_" + task.Collection)
-	if err := collectionLock.Lock(collectionLockTimeout); err != nil {
-		if err == locksbase.ErrAlreadyLocked {
-			msg := fmt.Sprintf("unable to lock source [%s] collection [%s] task [%s]. Collection has been already locked: timeout after %s", task.Source, task.Collection, task.ID, collectionLockTimeout.String())
-			taskCloser.CloseWithError(msg, true)
-			return
-		}
-
+	locked, err := collectionLock.TryLock(collectionLockTimeout)
+	if err != nil {
 		msg := fmt.Sprintf("unable to lock source [%s] collection [%s] task [%s]: %v", task.Source, task.Collection, task.ID, err)
+		taskCloser.CloseWithError(msg, true)
+		return
+	}
+
+	if !locked {
+		msg := fmt.Sprintf("unable to lock source [%s] collection [%s] task [%s]. Collection has been already locked: timeout after %s", task.Source, task.Collection, task.ID, collectionLockTimeout.String())
 		taskCloser.CloseWithError(msg, true)
 		return
 	}

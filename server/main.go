@@ -265,23 +265,11 @@ func main() {
 	}
 
 	if coordinationService == nil {
-		//TODO remove deprecated someday
-		//backward compatibility
-		if viper.IsSet("synchronization_service") {
-			logging.Warnf("\n\t'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
-
-			coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
-			if err != nil {
-				logging.Fatal("Failed to initiate coordination service", err)
-			}
-			telemetry.Coordination("etcd_sync")
-		} else {
-			//inmemory service (default)
-			logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
-				"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
-			coordinationService = coordination.NewInMemoryService(appconfig.Instance.ServerName)
-			telemetry.Coordination("inmemory")
-		}
+		//inmemory service (default)
+		logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
+			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
+		coordinationService = coordination.NewInMemoryService(appconfig.Instance.ServerName)
+		telemetry.Coordination("inmemory")
 	}
 
 	// ** Destinations **
@@ -507,13 +495,11 @@ func main() {
 	logging.Fatal(server.ListenAndServe())
 }
 
-//initializeCoordinationService returns configured coordination.Service (redis or etcd or inmemory)
+//initializeCoordinationService returns configured coordination.Service (redis or inmemory)
 func initializeCoordinationService(ctx context.Context, metaStorageConfiguration *viper.Viper) (*coordination.Service, error) {
-	//etcd
-	etcdEndpoint := viper.GetString("coordination.etcd.endpoint")
-	if etcdEndpoint != "" {
-		telemetry.Coordination("etcd")
-		return coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("coordination.etcd.endpoint"), viper.GetUint("coordination.etcd.connection_timeout_seconds"))
+	//check deprecated etcd
+	if viper.GetString("coordination.etcd.endpoint") != "" || viper.IsSet("synchronization_service") {
+		return nil, fmt.Errorf("coordination.etcd is no longer supported. Please use Redis instead. Read more about coordination service https://jitsu.com/docs/deployment/scale#redis")
 	}
 
 	//redis

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-//heartbeat is a periodic heatbeat executer
+//heartbeat is a periodic heartbeat executer
 type heartbeat struct {
 	manager Manager
 
