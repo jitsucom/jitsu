@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const defaultLockAttempts = 10
+const defaultLockAttempts = 100
 
 type inmemoryLockFunc func(key, value interface{}) (actual interface{}, loaded bool)
 type inmemoryUnlockFunc func(key interface{})

@@ -14,7 +14,7 @@ import (
 //coordination:mutex#${identifier} - redsync key for locking
 
 const (
-	defaultRetries    = 10
+	defaultRetries    = 100
 	defaultExpiration = 8 * time.Second
 
 	defaultUnlockRetries = 5
