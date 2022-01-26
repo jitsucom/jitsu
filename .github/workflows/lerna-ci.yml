@@ -1,0 +1,45 @@
+name: Lerna CI
+
+# checks if any of submodules changed 
+
+on:
+  push:
+    branches:
+      - feature/725-documentation-publishing-2.0
+
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.LERNA_CI_NPM }}
+    steps:
+
+    # 1. provide Personal Access Token for checkout@v2
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+          # submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+    # 2. setup .npmrc it uses NODE_AUTH_TOKEN
+    - name: Setup .npmrc file for publish
+      uses: actions/setup-node@v2
+      with:
+        node-version: '12.x'
+        registry-url: 'https://registry.npmjs.org'
+
+    # 3. configure git user used to push tag
+    - name: Configure Git User
+      run: |
+        git config --global user.email "lerna-ci@jitsu.com"
+        git config --global user.name "lerna-ci@$GITHUB_ACTOR"
+
+    - name: Install dependencies
+      run: yarn install
+
+    - name: Publish
+      working-directory: ./configurator/frontend
+      run: |
+        yarn publish:patch
