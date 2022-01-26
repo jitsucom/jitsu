@@ -1,5 +1,5 @@
 import { ConnectionCard } from "../ConnectionCard/ConnectionCard"
-import { destinationsReferenceMap } from "../../../catalog/destinations/lib"
+import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
 import { Badge, Menu, Modal } from "antd"
 import { ExclamationCircleOutlined } from "@ant-design/icons"
 import { destinationsStore } from "../../../stores/destinations"

@@ -7,10 +7,10 @@ import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/Con
 // @Types
 import { Destination } from "catalog/destinations/types"
 import { FormInstance } from "antd/lib/form/hooks/useForm"
-import { booleanType, jsType, stringType } from "../../../../../catalog/sources/types"
+import { booleanType, jsType, stringType } from "@jitsu/catalog/sources/types"
 import { TabDescription } from "../../../../components/Tabs/TabDescription"
 import styles from "./DestinationEditor.module.less"
-import { destinationsReferenceMap } from "../../../../../catalog/destinations/lib"
+import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
 import { CodeSnippet } from "../../../../../lib/components/components"
 import { camelCase } from "lodash"
 import set from "lodash/set"

@@ -21,7 +21,7 @@ import { CombinedStatisticsDatePoint, IStatisticsService, StatisticsService } fr
 import { useLoaderAsObject } from "hooks/useLoader"
 import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 // @Styles
-import { Destination } from "../../../../../catalog/destinations/types"
+import { Destination } from "@jitsu/catalog/destinations/types"
 
 type StatisticsPageParams = {
   id: string

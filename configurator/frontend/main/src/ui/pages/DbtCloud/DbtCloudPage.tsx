@@ -12,7 +12,7 @@ import { PageProps } from "navigation"
 import { BreadcrumbsProps } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { useState } from "react"
 import { useForceUpdate } from "../../../hooks/useForceUpdate"
-import dbtcloud from "../../../catalog/destinations/lib/dbtcloud"
+import dbtcloud from "@jitsu/catalog/destinations/lib/dbtcloud"
 
 export interface CollectionDestinationData {
   destinations: DestinationData[]

@@ -3,7 +3,7 @@ import { observer } from "mobx-react-lite"
 import { destinationsStore } from "../../../stores/destinations"
 import { Select } from "antd"
 import { DestinationsUtils } from "../../../utils/destinations.utils"
-import { destinationsReferenceMap } from "../../../catalog/destinations/lib"
+import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
 import Icon from "@ant-design/icons/lib/components/AntdIcon"
 
 export type DestinationPickerProps = {

@@ -5,9 +5,8 @@
   "author": "taletski <kirill@taletski.com>",
   "homepage": "https://jitsu.com",
   "main": "./index.ts",
-  "directories": {
-    "lib": "lib",
-    "test": "__tests__"
+  "scripts": {
+    "build": "(echo \"ℹ️ Skipping build for catalog package because it is not supposed to be built\" && exit 0)"
   },
   "publishConfig": {
     "access": "public"
