@@ -20,15 +20,22 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2
       with:
-          # submodules: recursive
-          token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GITHUB_TOKEN }}
 
     # 2. setup .npmrc it uses NODE_AUTH_TOKEN
     - name: Setup .npmrc file for publish
       uses: actions/setup-node@v2
+      working-directory: ./configurator/frontend
       with:
         node-version: '12.x'
         registry-url: 'https://registry.npmjs.org'
+
+    - name: Check if ready to publish to npm
+      working-directory: ./configurator/frontend
+      run: |
+        npm whoami
+      env:
+        NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
 
     # 3. configure git user used to push tag
     - name: Configure Git User
@@ -43,3 +50,5 @@ jobs:
       working-directory: ./configurator/frontend
       run: |
         yarn publish:patch
+      env:
+        NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
