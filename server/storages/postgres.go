@@ -66,7 +66,7 @@ func NewPostgres(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(pgConfig.Schema, adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToPostgres, config.maxColumns, PostgresType)
+	tableHelper := NewTableHelper(pgConfig.Schema, adapter, config.coordinationService, config.pkFields, adapters.SchemaToPostgres, config.maxColumns, PostgresType)
 
 	p := &Postgres{
 		adapter:                       adapter,

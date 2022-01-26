@@ -232,7 +232,7 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 				continue
 			}
 
-			logging.Info("[%s] Error updating recognition event %s after %d retries: %v", destinationID, storedSerializedEvent, retryCount, err)
+			logging.Infof("[%s] Error updating recognition event %s after %d retries: %v", destinationID, storedSerializedEvent, retryCount, err)
 		}
 
 		// Pipeline goes only when event contains full identifiers according to settings,

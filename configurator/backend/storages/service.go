@@ -9,9 +9,12 @@ import (
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/random"
 	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/locks"
+	locksbase "github.com/jitsucom/jitsu/server/locks/base"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/telemetry"
+	"io"
 	"time"
 )
 
@@ -29,6 +32,8 @@ const (
 	allObjectsIdentifier = "all"
 
 	LastUpdatedLayout = "2006-01-02T15:04:05.000Z"
+
+	defaultProjectObjectLockTimeout = time.Second * 40
 )
 
 //collectionsDependencies is used for updating last_updated field in db. It leads Jitsu Server to reload configuration with new changes
@@ -38,16 +43,17 @@ var collectionsDependencies = map[string]string{
 
 type ConfigurationsService struct {
 	storage            ConfigurationsStorage
-	monitorKeeper      storages.MonitorKeeper
+	lockFactory        locks.LockFactory
 	defaultDestination *destinations.Postgres
+	locksCloser        io.Closer
 }
 
 func NewConfigurationsService(storage ConfigurationsStorage, defaultDestination *destinations.Postgres,
-	monitorKeeper storages.MonitorKeeper) *ConfigurationsService {
+	lockFactory locks.LockFactory) *ConfigurationsService {
 	return &ConfigurationsService{
 		storage:            storage,
 		defaultDestination: defaultDestination,
-		monitorKeeper:      monitorKeeper,
+		lockFactory:        lockFactory,
 	}
 }
 
@@ -55,22 +61,22 @@ func NewConfigurationsService(storage ConfigurationsStorage, defaultDestination 
 
 //saveWithLock locks and uses save func under the hood
 func (cs *ConfigurationsService) saveWithLock(objectType, projectID string, object interface{}) ([]byte, error) {
-	lock, err := cs.monitorKeeper.Lock(objectType, projectID)
+	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
-		return nil, fmt.Errorf("error locking: %v", err)
+		return nil, err
 	}
-	defer cs.monitorKeeper.Unlock(lock)
+	defer lock.Unlock()
 
 	return cs.save(objectType, projectID, object)
 }
 
 //getWithLock locks and uses get func under the hood
 func (cs *ConfigurationsService) getWithLock(objectType, projectID string) ([]byte, error) {
-	lock, err := cs.monitorKeeper.Lock(objectType, projectID)
+	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
-		return nil, fmt.Errorf("error locking: %v", err)
+		return nil, err
 	}
-	defer cs.monitorKeeper.Unlock(lock)
+	defer lock.Unlock()
 
 	return cs.get(objectType, projectID)
 }
@@ -122,11 +128,11 @@ func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*en
 
 	objectType := defaultDatabaseCredentialsCollection
 
-	lock, err := cs.monitorKeeper.Lock(objectType, projectID)
+	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
-		return nil, fmt.Errorf("error locking: %v", err)
+		return nil, err
 	}
-	defer cs.monitorKeeper.Unlock(lock)
+	defer lock.Unlock()
 
 	credentials, err := cs.get(objectType, projectID)
 	if err != nil {
@@ -158,11 +164,11 @@ func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*en
 //CreateDefaultAPIKey returns generated default key per project only in case if no other API key exists
 func (cs *ConfigurationsService) CreateDefaultAPIKey(projectID string) error {
 	objectType := apiKeysCollection
-	lock, err := cs.monitorKeeper.Lock(objectType, projectID)
+	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
-		return fmt.Errorf("error locking: %v", err)
+		return err
 	}
-	defer cs.monitorKeeper.Unlock(lock)
+	defer lock.Unlock()
 
 	keys, err := cs.GetAPIKeysByProjectID(projectID)
 	if err != nil {
@@ -215,11 +221,11 @@ func (cs *ConfigurationsService) GetGeoDataResolversLastUpdated() (*time.Time, e
 //GetAllDestinations locks and returns all destinations in format map with projectID:destinations
 func (cs ConfigurationsService) GetAllDestinations() (map[string]*entities.Destinations, error) {
 	objectType := destinationsCollection
-	lock, err := cs.monitorKeeper.Lock(objectType, allObjectsIdentifier)
+	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
 	if err != nil {
-		return nil, fmt.Errorf("error locking: %v", err)
+		return nil, err
 	}
-	defer cs.monitorKeeper.Unlock(lock)
+	defer lock.Unlock()
 
 	allDestinations, err := cs.storage.GetAllGroupedByID(objectType)
 	if err != nil {
@@ -263,11 +269,11 @@ func (cs *ConfigurationsService) GetDestinationsByProjectID(projectID string) ([
 //GetAllAPIKeys locks and returns all api keys
 func (cs *ConfigurationsService) GetAllAPIKeys() ([]*entities.APIKey, error) {
 	objectType := apiKeysCollection
-	lock, err := cs.monitorKeeper.Lock(objectType, allObjectsIdentifier)
+	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
 	if err != nil {
-		return nil, fmt.Errorf("error locking: %v", err)
+		return nil, err
 	}
-	defer cs.monitorKeeper.Unlock(lock)
+	defer lock.Unlock()
 
 	allApiKeys, err := cs.storage.GetAllGroupedByID(objectType)
 	if err != nil {
@@ -310,11 +316,11 @@ func (cs *ConfigurationsService) GetAPIKeysByProjectID(projectID string) ([]*ent
 //GetAllSources locks and returns all sources in format map with projectID:sources
 func (cs *ConfigurationsService) GetAllSources() (map[string]*entities.Sources, error) {
 	objectType := sourcesCollection
-	lock, err := cs.monitorKeeper.Lock(objectType, allObjectsIdentifier)
+	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
 	if err != nil {
-		return nil, fmt.Errorf("error locking: %v", err)
+		return nil, err
 	}
-	defer cs.monitorKeeper.Unlock(lock)
+	defer lock.Unlock()
 
 	allSources, err := cs.storage.GetAllGroupedByID(objectType)
 	if err != nil {
@@ -358,11 +364,11 @@ func (cs *ConfigurationsService) GetSourcesByProjectID(projectID string) ([]*ent
 //GetGeoDataResolvers locks and returns all sources in format map with projectID:geo_data_resolver
 func (cs *ConfigurationsService) GetGeoDataResolvers() (map[string]*entities.GeoDataResolver, error) {
 	objectType := geoDataResolversCollection
-	lock, err := cs.monitorKeeper.Lock(objectType, allObjectsIdentifier)
+	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
 	if err != nil {
-		return nil, fmt.Errorf("error locking: %v", err)
+		return nil, err
 	}
-	defer cs.monitorKeeper.Unlock(lock)
+	defer lock.Unlock()
 
 	allGeoDataResolvers, err := cs.storage.GetAllGroupedByID(objectType)
 	if err != nil {
@@ -441,11 +447,11 @@ func (cs *ConfigurationsService) GetParsedTelemetry() (*telemetry.Configuration,
 //GetAllCustomDomains locks and returns all domains in format map with projectID:domains
 func (cs *ConfigurationsService) GetAllCustomDomains() (map[string]*entities.CustomDomains, error) {
 	objectType := customDomainsCollection
-	lock, err := cs.monitorKeeper.Lock(objectType, allObjectsIdentifier)
+	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
 	if err != nil {
-		return nil, fmt.Errorf("error locking: %v", err)
+		return nil, err
 	}
-	defer cs.monitorKeeper.Unlock(lock)
+	defer lock.Unlock()
 
 	result := make(map[string]*entities.CustomDomains)
 	customDomains, err := cs.storage.GetAllGroupedByID(objectType)
@@ -486,14 +492,14 @@ func (cs *ConfigurationsService) UpdateCustomDomain(projectID string, customDoma
 // ** Objects API **
 
 //PatchConfigWithLock locks by collection and projectID, applies pathPayload to data, saves and returns the updated object
-func (cs *ConfigurationsService) PatchConfigWithLock(collection, projectID string, patchPayload *PatchPayload) ([]byte, error) {
-	lock, err := cs.monitorKeeper.Lock(collection, projectID)
+func (cs *ConfigurationsService) PatchConfigWithLock(objectType, projectID string, patchPayload *PatchPayload) ([]byte, error) {
+	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
-		return nil, fmt.Errorf("error locking: %v", err)
+		return nil, err
 	}
-	defer cs.monitorKeeper.Unlock(lock)
+	defer lock.Unlock()
 
-	data, err := cs.get(collection, projectID)
+	data, err := cs.get(objectType, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -514,7 +520,7 @@ func (cs *ConfigurationsService) PatchConfigWithLock(collection, projectID strin
 	}
 
 	for i, objectI := range objectsArray {
-		foundObject, ok, err := findObject(i, objectI, patchPayload.ObjectArrayPath, collection, projectID, patchPayload.ObjectMeta)
+		foundObject, ok, err := findObject(i, objectI, patchPayload.ObjectArrayPath, objectType, projectID, patchPayload.ObjectMeta)
 		if err != nil {
 			return nil, err
 		}
@@ -524,7 +530,7 @@ func (cs *ConfigurationsService) PatchConfigWithLock(collection, projectID strin
 			objectsArray[i] = newObject
 			collectionData[patchPayload.ObjectArrayPath] = objectsArray
 
-			_, err := cs.save(collection, projectID, collectionData)
+			_, err := cs.save(objectType, projectID, collectionData)
 			if err != nil {
 				return nil, err
 			}
@@ -542,14 +548,14 @@ func (cs *ConfigurationsService) PatchConfigWithLock(collection, projectID strin
 }
 
 //DeleteObjectWithLock locks by collection and projectID, deletes object by objectUID, saves and returns deleted object
-func (cs *ConfigurationsService) DeleteObjectWithLock(collection, projectID, objectArrayPath string, objectMeta *ObjectMeta) ([]byte, error) {
-	lock, err := cs.monitorKeeper.Lock(collection, projectID)
+func (cs *ConfigurationsService) DeleteObjectWithLock(objectType, projectID, objectArrayPath string, objectMeta *ObjectMeta) ([]byte, error) {
+	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
-		return nil, fmt.Errorf("error locking: %v", err)
+		return nil, err
 	}
-	defer cs.monitorKeeper.Unlock(lock)
+	defer lock.Unlock()
 
-	data, err := cs.get(collection, projectID)
+	data, err := cs.get(objectType, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -570,7 +576,7 @@ func (cs *ConfigurationsService) DeleteObjectWithLock(collection, projectID, obj
 	}
 
 	for i, objectI := range objectsArray {
-		foundObject, ok, err := findObject(i, objectI, objectArrayPath, collection, projectID, objectMeta)
+		foundObject, ok, err := findObject(i, objectI, objectArrayPath, objectType, projectID, objectMeta)
 		if err != nil {
 			return nil, err
 		}
@@ -580,7 +586,7 @@ func (cs *ConfigurationsService) DeleteObjectWithLock(collection, projectID, obj
 			newObjectsArray := append(objectsArray[:i], objectsArray[i+1:]...)
 			collectionData[objectArrayPath] = newObjectsArray
 
-			_, err := cs.save(collection, projectID, collectionData)
+			_, err := cs.save(objectType, projectID, collectionData)
 			if err != nil {
 				return nil, err
 			}
@@ -598,14 +604,14 @@ func (cs *ConfigurationsService) DeleteObjectWithLock(collection, projectID, obj
 }
 
 //GetObjectWithLock locks by collection and projectID, gets object by objectUID and returns it
-func (cs *ConfigurationsService) GetObjectWithLock(collection, projectID, objectArrayPath string, objectMeta *ObjectMeta) ([]byte, error) {
-	lock, err := cs.monitorKeeper.Lock(collection, projectID)
+func (cs *ConfigurationsService) GetObjectWithLock(objectType, projectID, objectArrayPath string, objectMeta *ObjectMeta) ([]byte, error) {
+	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
-		return nil, fmt.Errorf("error locking: %v", err)
+		return nil, err
 	}
-	defer cs.monitorKeeper.Unlock(lock)
+	defer lock.Unlock()
 
-	data, err := cs.get(collection, projectID)
+	data, err := cs.get(objectType, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -626,7 +632,7 @@ func (cs *ConfigurationsService) GetObjectWithLock(collection, projectID, object
 	}
 
 	for i, objectI := range objectsArray {
-		foundObject, ok, err := findObject(i, objectI, objectArrayPath, collection, projectID, objectMeta)
+		foundObject, ok, err := findObject(i, objectI, objectArrayPath, objectType, projectID, objectMeta)
 		if err != nil {
 			return nil, err
 		}
@@ -651,14 +657,25 @@ func (cs *ConfigurationsService) Close() (multiErr error) {
 		}
 	}
 
-	if err := cs.monitorKeeper.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	}
-
 	if err := cs.storage.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing configurations storage: %v", err))
 	}
 	return multiErr
+}
+
+func (cs *ConfigurationsService) lockProjectObject(objectType, projectID string) (locks.Lock, error) {
+	lock := cs.lockFactory.CreateLock(getObjectLockIdentifier(objectType, projectID))
+	if err := lock.Lock(defaultProjectObjectLockTimeout); err != nil {
+		if err == locksbase.ErrAlreadyLocked {
+			return nil, fmt.Errorf("unable to lock project [%s] object type [%s]. Already locked: timeout after %s", projectID, objectType, defaultProjectObjectLockTimeout.String())
+		}
+
+		msg := fmt.Sprintf("System error: failed to lock project [%s] object type [%s]: %v", projectID, objectType, err)
+		notifications.SystemError(msg)
+		return nil, errors.New(msg)
+	}
+
+	return lock, nil
 }
 
 //findObject returns object and true if input objectI has the same ID as in objectMeta
@@ -690,4 +707,8 @@ func generateDefaultAPIToken(projectID string) entities.APIKeys {
 			ServerSecret: "s2s." + projectID + "." + random.String(21),
 		}},
 	}
+}
+
+func getObjectLockIdentifier(objectType, projectID string) string {
+	return objectType + "_" + projectID
 }

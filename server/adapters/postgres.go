@@ -599,7 +599,6 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 		Columns:        table.Columns,
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,
-		Version:        0,
 	}
 
 	err := p.createTableInTransaction(wrappedTx, tmpTable)

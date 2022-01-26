@@ -3,6 +3,7 @@ package testsuit
 import (
 	"context"
 	"github.com/jitsucom/jitsu/server/config"
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"net/http"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
-	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
@@ -175,7 +175,7 @@ func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
 
 //WithDestinationService overrides destinations.Service with input data configured
 func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig string) SuiteBuilder {
-	monitor := coordination.NewInMemoryService([]string{})
+	monitor := coordination.NewInMemoryService("")
 	tempDir := os.TempDir()
 	loggerFactory := logevents.NewFactory(tempDir, 5, false, nil, nil, false, 1)
 	queueFactory := events.NewQueueFactory(nil, 0)
@@ -219,7 +219,7 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	appconfig.Instance.ScheduleWriteAheadLogClosing(walService)
 
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
-		fallback.NewTestService(), coordination.NewInMemoryService([]string{}), sb.eventsCache, sb.systemService,
+		fallback.NewTestService(), coordination.NewInMemoryService(""), sb.eventsCache, sb.systemService,
 		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService, nil)
 
 	server := &http.Server{
