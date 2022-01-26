@@ -17,36 +17,53 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func runMockServer(t *testing.T, work *sync.WaitGroup, handler func(metrics.RelayData)) (string, error) {
+type RelayDataHandlerFunc func(actualData metrics.RelayData)
+
+type mockServer struct {
+	*http.Server
+	handler RelayDataHandlerFunc
+	work    *sync.WaitGroup
+}
+
+func runMockServer(t *testing.T) (*mockServer, error) {
 	port, err := freeport.GetFreePort()
 	if err != nil {
-		return "", errors.Wrap(err, "get free port")
+		return nil, errors.Wrap(err, "get free port")
 	}
 
-	address := fmt.Sprintf("localhost:%d", port)
+	mock := new(mockServer)
+	server := &http.Server{
+		Addr: fmt.Sprintf("localhost:%d", port),
+		Handler: http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			defer mock.work.Done()
 
-	go http.ListenAndServe(address, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		defer work.Done()
+			mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			assert.Equal(t, http.MethodPost, r.Method, "http method")
+			assert.Nil(t, err, "parse content type header error")
+			assert.Equal(t, "application/json", mediaType, "request media type")
 
-		mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-		assert.Equal(t, http.MethodPost, r.Method, "http method")
-		assert.Nil(t, err, "parse content type header error")
-		assert.Equal(t, "application/json", mediaType, "request media type")
+			if !assert.NotNil(t, r.Body, "request body is empty") {
+				return
+			}
 
-		if !assert.NotNil(t, r.Body, "request body is empty") {
-			return
-		}
+			var data metrics.RelayData
+			err = json.NewDecoder(r.Body).Decode(&data)
+			if !assert.Nil(t, err, "decode request json body error") {
+				return
+			}
 
-		var data metrics.RelayData
-		err = json.NewDecoder(r.Body).Decode(&data)
-		if !assert.Nil(t, err, "decode request json body error") {
-			return
-		}
+			mock.handler(data)
+		}),
+	}
 
-		handler(data)
-	}))
+	go server.ListenAndServe()
+	mock.Server = server
+	return mock, nil
+}
 
-	return "http://" + address, nil
+func (mock *mockServer) Handle(work *sync.WaitGroup, handler RelayDataHandlerFunc) {
+	mock.work = work
+	mock.handler = handler
 }
 
 func TestRelay_Relay(t *testing.T) {
@@ -77,16 +94,16 @@ func TestRelay_Relay(t *testing.T) {
 
 	work := new(sync.WaitGroup)
 	work.Add(1)
-	address, err := runMockServer(t, work, func(actualData metrics.RelayData) {
-		assert.Equal(t, expectedData, actualData)
-	})
-
+	server, err := runMockServer(t)
 	if !assert.Nil(t, err, "run mock server error") {
 		return
 	}
 
+	defer server.Close()
+	server.Handle(work, func(actualData metrics.RelayData) { assert.Equal(t, expectedData, actualData) })
+
 	relay := &metrics.Relay{
-		URL:          address,
+		URL:          "http://" + server.Addr,
 		HostID:       hostID,
 		DeploymentID: deploymentID,
 		Timeout:      time.Second,
@@ -124,20 +141,20 @@ func TestRelay_Run_Stop(t *testing.T) {
 	deploymentID := "deployment0"
 
 	now := time.Now()
-	work := new(sync.WaitGroup)
-	// we trigger relay 4 times and the fifth is final on Stop
-	work.Add(5)
-	address, err := runMockServer(t, work, func(actualData metrics.RelayData) {
-		// simply check that the requests are there via sync.WaitGroup
-		assert.Equal(t, now.UnixMilli(), actualData.Timestamp, "relay data timestamp")
-	})
-
+	server, err := runMockServer(t)
 	if !assert.Nil(t, err, "run mock server error") {
 		return
 	}
 
+	defer server.Close()
+	work := new(sync.WaitGroup)
+	work.Add(4)
+	server.Handle(work, func(actualData metrics.RelayData) {
+		assert.Equal(t, now.UnixMilli(), actualData.Timestamp, "relay data timestamp")
+	})
+
 	relay := &metrics.Relay{
-		URL:          address,
+		URL:          "http://" + server.Addr,
 		HostID:       hostID,
 		DeploymentID: deploymentID,
 		Timeout:      time.Second,
@@ -148,6 +165,14 @@ func TestRelay_Run_Stop(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		trigger.Trigger()
 	}
+
+	work.Wait()
+
+	work = new(sync.WaitGroup)
+	work.Add(1)
+	server.Handle(work, func(actualData metrics.RelayData) {
+		assert.Equal(t, now.UnixMilli(), actualData.Timestamp, "relay data timestamp")
+	})
 
 	relay.Stop()
 	work.Wait()
