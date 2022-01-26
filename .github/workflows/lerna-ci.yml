@@ -1,7 +1,5 @@
 name: Lerna CI
 
-# checks if any of submodules changed 
-
 on:
   push:
     branches:
@@ -25,17 +23,17 @@ jobs:
     # 2. setup .npmrc it uses NODE_AUTH_TOKEN
     - name: Setup .npmrc file for publish
       uses: actions/setup-node@v2
-      working-directory: ./configurator/frontend
+      # working-directory: ./configurator/frontend
       with:
         node-version: '12.x'
         registry-url: 'https://registry.npmjs.org'
 
-    - name: Check if ready to publish to npm
-      working-directory: ./configurator/frontend
-      run: |
-        npm whoami
-      env:
-        NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
+    # - name: Check if ready to publish to npm
+    #   working-directory: ./configurator/frontend
+    #   run: |
+    #     npm whoami
+    #   env:
+    #     NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
 
     # 3. configure git user used to push tag
     - name: Configure Git User
@@ -49,6 +47,7 @@ jobs:
     - name: Publish
       working-directory: ./configurator/frontend
       run: |
+        npm whoami
         yarn publish:patch
-      env:
-        NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
+      # env:
+      #   NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
