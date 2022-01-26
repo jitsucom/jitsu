@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"github.com/jitsucom/jitsu/server/resources"
 	"net/http"
 	"sync"
 	"time"
@@ -12,6 +13,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
+
+var HashedRelayLabels = map[string]bool{
+	"source_id":      true,
+	"destination_id": true,
+}
 
 type RelayTrigger interface {
 	Channel() <-chan time.Time
@@ -91,6 +97,19 @@ func (r *Relay) Relay(ctx context.Context, now time.Time, gatherer prometheus.Ga
 	data, err := gatherer.Gather()
 	if err != nil {
 		return errors.Wrap(err, "gather metrics")
+	}
+
+	for _, metricFamily := range data {
+		for _, metric := range metricFamily.Metric {
+			for _, label := range metric.Label {
+				if label.Name == nil || label.Value == nil || !HashedRelayLabels[*label.Name] {
+					continue
+				}
+
+				hashedValue := resources.GetStringHash(*label.Value)
+				label.Value = &hashedValue
+			}
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, r.Timeout)
