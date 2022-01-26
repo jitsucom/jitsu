@@ -12,8 +12,8 @@ import {
   shopifyDocumentation,
   slackDocumentation,
   stripeDocumentation,
-} from "../lib/documentation"
-import { googleAuthConfigParameters } from "../lib/commonParams"
+} from "./documentation"
+import { googleAuthConfigParameters } from "./commonParams"
 
 export const allSingerTaps: SingerTap[] = [
   {

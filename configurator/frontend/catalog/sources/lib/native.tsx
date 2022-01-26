@@ -7,10 +7,9 @@ import {
   SourceConnector,
   stringType,
 } from "../types"
-import { googleServiceAuthDocumentation } from "../lib/documentation"
+import { googleServiceAuthDocumentation } from "./documentation"
 
-import { googleAuthConfigParameters } from "../lib/commonParams"
-import * as React from "react"
+import { googleAuthConfigParameters } from "./commonParams"
 
 export const facebook: SourceConnector = {
   pic: (

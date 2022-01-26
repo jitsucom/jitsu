@@ -1,5 +1,4 @@
-import { jsonType, oauthSecretType, Parameter, selectionType, stringType } from "./../types"
-import * as React from "react"
+import { jsonType, oauthSecretType, Parameter, selectionType, stringType } from "../types"
 
 const oauthParamDocumentation = (
   <>
