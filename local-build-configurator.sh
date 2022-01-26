@@ -92,7 +92,7 @@ then
   echo "============================================"
   echo ""
 
-  docker build -t jitsucom/configurator -f configurator-local.Dockerfile --build-arg dhid=jitsucom . || { echo 'Building jitsucom/configurator docker failed' ; exit 1; }
+  docker build -t jitsucom/configurator -f configurator-release.Dockerfile --build-arg dhid=jitsucom . || { echo 'Building jitsucom/configurator docker failed' ; exit 1; }
 fi
 
 echo ""

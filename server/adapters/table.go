@@ -25,7 +25,6 @@ type Table struct {
 	PrimaryKeyName string
 
 	DeletePkFields bool
-	Version        int64
 }
 
 //Exists returns true if there is at least one column
@@ -35,6 +34,28 @@ func (t *Table) Exists() bool {
 	}
 
 	return len(t.Columns) > 0 || len(t.PKFields) > 0 || t.DeletePkFields
+}
+
+//Clone returns clone of current table
+func (t *Table) Clone() *Table {
+	clonedColumns := Columns{}
+	for k, v := range t.Columns {
+		clonedColumns[k] = v
+	}
+
+	clonedPkFields := map[string]bool{}
+	for k, v := range t.PKFields {
+		clonedPkFields[k] = v
+	}
+
+	return &Table{
+		Schema:         t.Schema,
+		Name:           t.Name,
+		Columns:        clonedColumns,
+		PKFields:       clonedPkFields,
+		PrimaryKeyName: t.PrimaryKeyName,
+		DeletePkFields: t.DeletePkFields,
+	}
 }
 
 //GetPKFields returns primary keys list

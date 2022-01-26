@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/config"
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/logevents"
@@ -36,7 +37,6 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/caching"
-	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
@@ -256,7 +256,7 @@ func main() {
 	telemetry.EnrichSystemInfo(clusterID, systemInfo)
 
 	// ** Coordination Service **
-	var coordinationService coordination.Service
+	var coordinationService *coordination.Service
 	if viper.IsSet("coordination") {
 		coordinationService, err = initializeCoordinationService(ctx, metaStorageConfiguration)
 		if err != nil {
@@ -279,7 +279,7 @@ func main() {
 			//inmemory service (default)
 			logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
 				"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
-			coordinationService = coordination.NewInMemoryService([]string{appconfig.Instance.ServerName})
+			coordinationService = coordination.NewInMemoryService(appconfig.Instance.ServerName)
 			telemetry.Coordination("inmemory")
 		}
 	}
@@ -508,7 +508,7 @@ func main() {
 }
 
 //initializeCoordinationService returns configured coordination.Service (redis or etcd or inmemory)
-func initializeCoordinationService(ctx context.Context, metaStorageConfiguration *viper.Viper) (coordination.Service, error) {
+func initializeCoordinationService(ctx context.Context, metaStorageConfiguration *viper.Viper) (*coordination.Service, error) {
 	//etcd
 	etcdEndpoint := viper.GetString("coordination.etcd.endpoint")
 	if etcdEndpoint != "" {
@@ -548,11 +548,11 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 			coordinationRedisConfiguration.GetBool("tls_skip_verify"),
 			coordinationRedisConfiguration.GetString("sentinel_master_name"))
 		factory.CheckAndSetDefaultPort()
-		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, factory, coordination.DefaultOptions)
+		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, factory)
 	}
 
-	return nil, errors.New("Unknown coordination configuration. Currently only [redis, etcd] are supported. " +
-		"\n\tRead more about coordination service configuration: https://jitsu.com/docs/other-features/scaling-eventnative#coordination")
+	return nil, errors.New("Unknown coordination configuration. Currently only [redis] is supported. " +
+		"\n\tRead more about coordination service configuration: https://jitsu.com/docs/deployment/scale#coordination")
 }
 
 //initializeEventsQueueFactory returns configured events.QueueFactory (redis or inmemory)

@@ -19,7 +19,6 @@ func (a *AbstractHTTP) GetTableSchema(tableName string) (*Table, error) {
 		Columns:        Columns{},
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,
-		Version:        0,
 	}, nil
 }
 
