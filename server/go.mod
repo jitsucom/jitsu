@@ -10,6 +10,8 @@ require (
 	github.com/FZambia/sentinel v1.1.0
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/beeker1121/goque v2.1.0+incompatible // indirect
+	github.com/carlmjohnson/requests v0.22.1
+	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/charmbracelet/lipgloss v0.2.1
 	github.com/docker/docker v20.10.11+incompatible
 	github.com/docker/go-connections v0.4.0
@@ -20,13 +22,13 @@ require (
 	github.com/gomodule/redigo v1.8.2
 	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v32 v32.1.0
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/martian v2.1.0+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/gookit/color v1.3.1
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/huandu/facebook/v2 v2.5.3
 	github.com/iancoleman/strcase v0.2.0
-	github.com/jfk9w-go/flu v0.10.4
 	github.com/jitsucom/goque/v2 v2.2.0
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
 	github.com/lib/pq v1.10.2
@@ -40,6 +42,8 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/client_model v0.2.0
+	github.com/prometheus/common v0.32.1 // indirect
+	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/satori/go.uuid v1.2.0
 	github.com/segmentio/backo-go v0.0.0-20200129164019-23eae7c10bd3 // indirect
@@ -60,6 +64,7 @@ require (
 	golang.org/x/net v0.0.0-20211108170745-6635138e15ea
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
+	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/api v0.56.0
 	google.golang.org/genproto v0.0.0-20210828152312-66f60bf46e71
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0

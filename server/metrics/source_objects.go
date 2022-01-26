@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var objectsLabels = []string{"project_id", "source_id"}
@@ -13,12 +12,12 @@ var (
 )
 
 func initSourceObjects() {
-	successObjects = promauto.NewCounterVec(prometheus.CounterOpts{
+	successObjects = NewCounterVec(prometheus.CounterOpts{
 		Namespace: "eventnative",
 		Subsystem: "sources",
 		Name:      "objects",
 	}, objectsLabels)
-	errorsObjects = promauto.NewCounterVec(prometheus.CounterOpts{
+	errorsObjects = NewCounterVec(prometheus.CounterOpts{
 		Namespace: "eventnative",
 		Subsystem: "sources",
 		Name:      "errors",
@@ -30,7 +29,7 @@ func SuccessObject(sourceName string) {
 }
 
 func SuccessObjects(sourceName string, value int) {
-	if Enabled {
+	if Enabled() {
 		projectID, sourceID := extractLabels(sourceName)
 		successObjects.WithLabelValues(projectID, sourceID).Add(float64(value))
 	}
@@ -41,7 +40,7 @@ func ErrorObject(sourceName string) {
 }
 
 func ErrorObjects(sourceName string, value int) {
-	if Enabled {
+	if Enabled() {
 		projectID, sourceID := extractLabels(sourceName)
 		errorsObjects.WithLabelValues(projectID, sourceID).Add(float64(value))
 	}

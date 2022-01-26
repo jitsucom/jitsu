@@ -7,6 +7,17 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math/rand"
+	"net/http"
+	"os"
+	"os/signal"
+	"path"
+	"path/filepath"
+	"runtime/debug"
+	"strings"
+	"syscall"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/config"
@@ -21,16 +32,6 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/jitsucom/jitsu/server/wal"
-	"math/rand"
-	"net/http"
-	"os"
-	"os/signal"
-	"path"
-	"path/filepath"
-	"runtime/debug"
-	"strings"
-	"syscall"
-	"time"
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/jitsu/server/appconfig"
@@ -194,7 +195,23 @@ func main() {
 
 	telemetry.InitFromViper(telemetryURL, notifications.ServiceName, commit, tag, builtAt, *dockerHubID)
 
-	metrics.Init(viper.GetBool("server.metrics.prometheus.enabled"))
+	// ** Meta storage **
+	metaStorageConfiguration := viper.Sub("meta.storage")
+	metaStorage, err := meta.InitializeStorage(metaStorageConfiguration)
+	if err != nil {
+		logging.Fatalf("Error initializing meta storage: %v", err)
+	}
+
+	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
+	systemInfo := runtime.GetInfo()
+	telemetry.EnrichSystemInfo(clusterID, systemInfo)
+
+	metricsExported := viper.GetBool("server.metrics.prometheus.enabled")
+	metricsRelay := metrics.InitRelay(clusterID, viper.Sub("server.metrics.relay"))
+	if metricsExported || metricsRelay != nil {
+		metrics.Init(metricsExported)
+		metricsRelay.Run(ctx, metrics.Registry)
+	}
 
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")
 	if slackNotificationsWebHook != "" {
@@ -207,6 +224,11 @@ func main() {
 	go func() {
 		<-c
 		logging.Info("🤖 * Server is shutting down.. *")
+
+		if metricsRelay != nil {
+			metricsRelay.Stop()
+		}
+
 		telemetry.ServerStop()
 		appstatus.Instance.Idle.Store(true)
 		cancel()
@@ -241,17 +263,6 @@ func main() {
 	loggerFactory := logevents.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
 		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter, viper.GetBool("log.async_writers"),
 		viper.GetInt("log.pool.size"))
-
-	// ** Meta storage **
-	metaStorageConfiguration := viper.Sub("meta.storage")
-	metaStorage, err := meta.InitializeStorage(metaStorageConfiguration)
-	if err != nil {
-		logging.Fatalf("Error initializing meta storage: %v", err)
-	}
-
-	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
-	systemInfo := runtime.GetInfo()
-	telemetry.EnrichSystemInfo(clusterID, systemInfo)
 
 	// ** Coordination Service **
 	var coordinationService coordination.Service
