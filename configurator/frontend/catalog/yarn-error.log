@@ -1,0 +1,56 @@
+Arguments: 
+  /usr/local/Cellar/node/16.11.0/bin/node /usr/local/Cellar/yarn/1.22.15/libexec/bin/yarn.js build
+
+PATH: 
+  /Users/taletski/tools/flutter/bin:/usr/local/opt/postgresql@9.5/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Users/taletski/Library/Python/3.7/bin:/Users/taletski/tools/flutter/bin:/usr/local/opt/postgresql@9.5/bin
+
+Yarn version: 
+  1.22.15
+
+Node version: 
+  16.11.0
+
+Platform: 
+  darwin x64
+
+Trace: 
+  Invariant Violation: Script must exist
+      at invariant (/usr/local/Cellar/yarn/1.22.15/libexec/lib/cli.js:2314:15)
+      at /usr/local/Cellar/yarn/1.22.15/libexec/lib/cli.js:62430:11
+      at Generator.next (<anonymous>)
+      at step (/usr/local/Cellar/yarn/1.22.15/libexec/lib/cli.js:310:30)
+      at /usr/local/Cellar/yarn/1.22.15/libexec/lib/cli.js:328:14
+      at new Promise (<anonymous>)
+      at new F (/usr/local/Cellar/yarn/1.22.15/libexec/lib/cli.js:5301:28)
+      at /usr/local/Cellar/yarn/1.22.15/libexec/lib/cli.js:307:12
+      at realRunCommand (/usr/local/Cellar/yarn/1.22.15/libexec/lib/cli.js:62515:23)
+      at action.action (/usr/local/Cellar/yarn/1.22.15/libexec/lib/cli.js:62576:16)
+
+npm manifest: 
+  {
+    "name": "@jitsu/catalog",
+    "version": "1.0.14",
+    "description": "This package contains the code that enables variety of features of Jitsu Sources, Destinations and API Keys. ",
+    "author": "taletski <kirill@taletski.com>",
+    "homepage": "https://jitsu.com",
+    "main": "./index.ts",
+    "scripts": {
+      "build": ""
+    },
+    "publishConfig": {
+      "access": "public"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/jitsucom/jitsu.git"
+    },
+    "bugs": {
+      "url": "https://github.com/jitsucom/jitsu/issues"
+    }
+  }
+
+yarn manifest: 
+  No manifest
+
+Lockfile: 
+  No lockfile
