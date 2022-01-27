@@ -1,6 +1,7 @@
 package adapters
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/utils"
@@ -13,7 +14,7 @@ type Envelop struct {
 	URL     string            `mapstructure:"url"`
 	Method  string            `mapstructure:"method"`
 	Headers map[string]string `mapstructure:"headers"`
-	Body    string            `mapstructure:"body"`
+	Body    interface{}       `mapstructure:"body"`
 }
 
 //HTTPRequestFactory is a factory for creating http.Request from input event object
@@ -82,7 +83,7 @@ func (wrf *WebhookRequestFactory) Create(object map[string]interface{}) (req *Re
 	utils.StringMapPutAll(headers, wrf.headers)
 	utils.StringMapPutAll(headers, envelop.Headers)
 
-	if envelop.Body == "" {
+	if envelop.Body == nil {
 		rawBody, err := wrf.bodyTmpl.ProcessEvent(object)
 		if err != nil {
 			return nil, fmt.Errorf("Error executing body template: %v", err)
@@ -92,7 +93,17 @@ func (wrf *WebhookRequestFactory) Create(object map[string]interface{}) (req *Re
 			return nil, err
 		}
 	} else {
-		body = []byte(envelop.Body)
+		switch b := envelop.Body.(type) {
+		case string:
+			body = []byte(b)
+		case []byte:
+			body = b
+		default:
+			body, err = json.Marshal(b)
+			if err != nil {
+				return nil, fmt.Errorf("cannot marshal JITSU_ENVELOP body: %v", err)
+			}
+		}
 	}
 
 	return &Request{
