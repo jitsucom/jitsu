@@ -41,7 +41,7 @@ ADD server/Makefile /go/src/github.com/jitsucom/jitsu/server/Makefile
 
 WORKDIR /go/src/github.com/jitsucom/jitsu/server
 # Build js (for caching) and copy builded files
-RUN make clean_js js assemble_js &&\
+RUN make assemble_js &&\
     cp -r ./build/dist/* /app
 
 #######################################
