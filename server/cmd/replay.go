@@ -26,10 +26,10 @@ const (
 
 var (
 	//command flags
-	state, file, start, end, host, apiKey, fallback string
-	chunkSize                                       int64
-	suppressErrors                                  int
-	disableProgressBars                             string
+	state, file, start, end, host, apiKey, fallback, skipMalformed string
+	chunkSize                                                      int64
+	suppressErrors                                                 int
+	disableProgressBars                                            string
 	//command args
 	files []string
 )
@@ -83,6 +83,7 @@ func init() {
 	replayCmd.Flags().IntVar(&suppressErrors, "suppress-errors", 0, "(optional) suppressing the specified amount of errors")
 	replayCmd.Flags().StringVar(&disableProgressBars, "disable-progress-bars", "false", "(optional) if true then progress bars won't be displayed")
 	replayCmd.Flags().StringVar(&fallback, "fallback", "false", "(optional) If you would like to process failed events (from vents/failed directory) then use --fallback true")
+	replayCmd.Flags().StringVar(&skipMalformed, "skip-malformed", "false", "(optional) Option for skipping malformed events while processing fallback=true. Default value is false means that all events batch won't be processed if it contains any malformed event. For skipping malformed events use --skip-malformed true")
 
 	replayCmd.Flags().StringVar(&apiKey, "api-key", "", "(required) Jitsu API Server secret. Data will be loaded into all destinations linked to this API Key.")
 	replayCmd.MarkFlagRequired("api-key")
@@ -138,7 +139,7 @@ func replay(inputFile string, inputMasks []string) error {
 		globalBar = NewParentMultiProgressBar(capacity)
 	}
 
-	client := newBulkClient(host, apiKey, fallback == "true")
+	client := newBulkClient(host, apiKey, fallback == "true", skipMalformed == "true")
 
 	errorKeeper := make([]filePathAndError, 0)
 	var processedFiles int64

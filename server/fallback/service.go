@@ -65,7 +65,7 @@ func NewService(logEventsPath string, destinationService *destinations.Service, 
 }
 
 //Replay processes fallback file (or plain file) and store it in the destination
-func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
+func (s *Service) Replay(fileName, destinationID string, rawFile, skipMalformed bool) error {
 	if fileName == "" {
 		return errors.New("File name can't be empty")
 	}
@@ -121,12 +121,7 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 		return errors.New(errMsg)
 	}
 
-	parserFunc := events.ParseFallbackJSON
-	if rawFile {
-		parserFunc = parsers.ParseJSON
-	}
-
-	objects, err := parsers.ParseJSONFileWithFunc(b, parserFunc)
+	objects, err := ExtractEvents(b, rawFile, skipMalformed)
 	if err != nil {
 		return fmt.Errorf("Error parsing fallback file %s: %v", fileName, err)
 	}
@@ -225,4 +220,31 @@ func (s *Service) readFileBytes(filePath string) ([]byte, error) {
 	}
 
 	return resB.Bytes(), nil
+}
+
+//ExtractEvents parses input bytes as plain jsons or fallback jsons or fallback jsons with skipping malformed objects
+func ExtractEvents(b []byte, rawFile, skipMalformed bool) ([]map[string]interface{}, error) {
+	var objects []map[string]interface{}
+	var err error
+
+	var parseErrors []parsers.ParseError
+	if rawFile {
+		objects, err = parsers.ParseJSONFileWithFunc(b, parsers.ParseJSON)
+	} else {
+		if skipMalformed {
+			//ignore parsing errors
+			objects, parseErrors, err = parsers.ParseJSONFileWithFuncFallback(b, events.ParseFallbackJSON)
+		} else {
+			objects, err = parsers.ParseJSONFileWithFunc(b, events.ParseFallbackJSON)
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	for _, pe := range parseErrors {
+		logging.Errorf("Event will be skipped because skip_malformed is provided: %s", pe.Error)
+	}
+
+	return objects, nil
 }
