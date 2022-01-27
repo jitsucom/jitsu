@@ -103,7 +103,7 @@ func extractBulkEvents(c *gin.Context) ([]map[string]interface{}, error) {
 
 	parserFunc := parsers.ParseJSON
 	if c.Query("fallback") == "true" {
-		parserFunc = parsers.ParseFallbackJSON
+		parserFunc = events.ParseFallbackJSON
 	}
 
 	objects, err := parsers.ParseJSONFileWithFunc(payload, parserFunc)
