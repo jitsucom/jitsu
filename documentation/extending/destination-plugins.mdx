@@ -65,7 +65,7 @@ Config will consist from oauth 2.0 access token and text template for tweets:
 ```typescript
 export type DestinationConfig = {
   accessToken: string, //oauth 2.0 access token
-  tweetTemplate: string //string literals template e.g. `Welcome new user ${event.user.email} !🎉`
+  tweetTemplate: string //string literals template e.g. `Welcome new user ${event.user?.id} !🎉`
 }
 ```
 
@@ -113,7 +113,7 @@ export const validator: ConfigValidator<DestinationConfig> = async (config: Dest
 Now we can test our validator with validate-config action that jitsu-cli already added to the project
 
 ```shell
-yarn build && yarn validate-config -j '{"tweetTemplate":"Welcome new user ${event.user.email} !🎉", "accessToken":"Q0Mzb0VhZ0"}'
+yarn build && yarn validate-config -j '{"tweetTemplate":"Welcome new user ${event.user?.id} !🎉", "accessToken":"Q0Mzb0VhZ0"}'
 ```
 
 If everything is fine we should get following output:
@@ -181,7 +181,7 @@ testDestination({
     destinationId: "test",
     destinationType: "twitter",
     config: {
-      "tweetTemplate":"Welcome new user ${event.user.id}!🎉",
+      "tweetTemplate":"Welcome new user ${event.user?.id}!🎉",
       "accessToken":"Q0Mzb0VhZ0"
     }
   },
@@ -291,7 +291,7 @@ const descriptor: ExtensionDescriptor = {
       type: "string",
       required: true,
       displayName: "Tweet template",
-      documentation: "Template of tweet text.<br/>You can use string literals expressions to add values from incoming event, e.g.:<br/>Welcome ${event.user.email}<br/>Received event ${event.event_type}"
+      documentation: "Template of tweet text.<br/>You can use string literals expressions to add values from incoming event, e.g.:<br/>Welcome ${event.user?.id}<br/>Received event ${event.event_type}"
     }
   ],
 };
@@ -301,6 +301,73 @@ if you want Jitsu to display nice graphic icon along with destination name you n
 
 ## Adding to Jitsu
 
-### manual tarball
+To add our plugin to jitsu we need to build it and make package.
 
-### npm publish
+To build plugin code use:
+```shell
+yarn build
+```
+For making package there are 2 options:
+
+#### handmade .tgz tarball
+
+Making .tgz is fast and simple.
+This way is perfect if we don't plan to share our plugin with anybody else.
+
+Use command like that to make compressed .tgz package of destination project directory:
+```shell
+tar -cvzf package_name.tgz -C /workspace_directory/ destination_project_directory
+```
+In case of our destination command will look like:
+```shell
+tar -cvzf jitsu-twitter-destination.tgz -C /Users/testaccount/projects/ jitsu-twitter-destination
+```
+
+**jitsu-twitter-destination.tgz** file will appear in current directory.
+
+#### publish to npm repository
+
+In case we want to share plugin with other people - publishing to public npm repository is a preferable way.
+You need to have account in https://www.npmjs.com
+
+The following commands in project directory may be used to publish package to npmjs repository.
+```shell
+npm login
+```
+```shell
+npm publish
+```
+npm will ask to provide some additional details to complete publishing
+
+### Setting up Jitsu Server
+
+Users of standalone jitsu server can setup destination based on plugin since version 1.38.
+Simply add new destination of type **npm**, information about plugin package and config to `eventnative.yaml` config file:
+```yaml
+destinations:
+...
+  my_twitter_destination:
+    only_tokens:
+      - my_token
+    type: npm
+    package: /home/eventnative/data/plugins/jitsu-twitter-destination.tgz
+    mode: stream
+    config:
+      accessToken: "Q0Mzb0VhZ0"
+      tweetTemplate: "Welcome new user ${event.user?.id} !\U0001F389"
+```
+
+**package** can be:
+ * **filesystem path** - in case of docker image, provided path need to be reachable inside of docker image filesystem.
+/home/eventnative/data/plugins/ needs to be mounted to host filesystem directory where file jitsu-twitter-destination.tgz is located,
+e.g.: `-v /Users/testaccount/projects/:/home/eventnative/data/plugins/`
+ * **HTTP URL** - e.g.: `https://my-site.com/plugins/jitsu-twitter-destination.tgz`
+ * **npm package name** - in case plugin is published to npm repository. It is recommended to provide package name with version expression,
+to prevent backward compatibility issues when new version of plugin will require some features that current version of server doesn't support,
+e.g.: `jitsu-twitter-destination@^1.0.0`
+
+### Setting up Jitsu Joint Image or Configurator UI
+
+UI support for adding plugin based destinations is not ready yet.
+To make your destination plugin appear in Jitsu Configurator UI please create a new ticket or pull request in
+[jitsu repository](https://github.com/jitsucom/jitsu)
