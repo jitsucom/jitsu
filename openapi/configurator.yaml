@@ -10,13 +10,36 @@ info:
     url: "https://opensource.org/licenses/MIT"
   version: 1.0.0
 
-
+tags:
+  - name: configuration-management
+    x-displayName: Configuration Management
+    description: >
+      API for managing Jitsu configuration: sources, destinations, API keys etc
+  - name: cluster-admin
+    x-displayName: Cluster Admin
+    description: >
+      This API is used by Jitsu internally to communicate between components (Jitsu Server and Jitsu Configurator).
 components:
   securitySchemes:
-    bearerAuth:
+    clusterAdminAuth:
+      x-displayName: 'Cluster Admin Auth'
+      name: 'HTTP Authorization Bearer Auth'
+      description: >
+        HTTP Bearer Auth.
+        Use `Authorization: Bearer <access token>` header.<br />
+
+        You should use possible to use an admin token
       type: http
       scheme: bearer
-      bearerFormat: '-H Authorization: Bearer <token>'
+    configurationManagementAuth:
+      name: 'HTTP Authorization Bearer Auth for managing configuration'
+      description: >
+        HTTP Bearer Auth.
+        Use `Authorization: Bearer <access token>` header.<br />
+        To obtain `<access token>` call **User sign in** method: `/api/v1/users/signin`; <br />
+        Alternatively it's possible to use an admin token
+      type: http
+      scheme: bearer
   parameters:
     projectId:
       in: path
@@ -170,6 +193,8 @@ components:
 paths:
   /api/v1/users/signin:
     post:
+      tags:
+        - configuration-management
       operationId: 'User sign in'
       description: Sign-in user with login and password
       requestBody:
@@ -190,6 +215,8 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/onboarded/signup:
     post:
+      tags:
+        - configuration-management
       operationId: 'User sign up'
       description: Create a user account
       requestBody:
@@ -209,10 +236,12 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/signout:
     post:
+      tags:
+        - configuration-management
       operationId: 'User sign out'
       description: Delete token from DB
       security:
-        - bearerAuth: ['client']
+        - configurationManagementAuth: []
       responses:
         '200':
           $ref: '#/components/responses/StatusResponse'
@@ -220,6 +249,8 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/token/refresh:
     post:
+      tags:
+        - configuration-management
       operationId: 'User authorization token refresh'
       description: Refresh user access token
       requestBody:
@@ -242,6 +273,8 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/password/reset:
     post:
+      tags:
+        - configuration-management
       operationId: 'User password reset'
       description: 'Request password reset'
       requestBody:
@@ -263,6 +296,8 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/password/change:
     post:
+      tags:
+        - configuration-management
       operationId: 'User password change'
       description: 'Change password'
       requestBody:
@@ -287,20 +322,24 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/info:
     get:
+      tags:
+        - configuration-management
       operationId: 'Get User info'
       description: 'Returns a current authenticated user'
       security:
-        - bearerAuth: ['client']
+        - configurationManagementAuth: []
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
         default:
           $ref: '#/components/responses/Error'
     post:
+      tags:
+        - configuration-management
       operationId: "Update user info"
       description: 'Replaces users settings with a new user settings. Changes to some fields (such as security settings), will not have an effect'
       security:
-        - bearerAuth: ['client']
+        - configurationManagementAuth: ['client']
       requestBody:
         content:
           application/json:
@@ -313,6 +352,8 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/system/configuration:
     get:
+      tags:
+        - configuration-management
       operationId: 'Get system configuration'
       description: Returns system configuration
       responses:
@@ -322,6 +363,8 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/system/version:
     get:
+      tags:
+        - configuration-management
       operationId: 'Get system version'
       description: Returns the version of Jitsu sotware running on the server
       responses:
@@ -332,10 +375,12 @@ paths:
 
   /api/v1/geo_data_resolvers:
     get:
+      tags:
+        - cluster-admin
       operationId: 'Get geo data resolvers'
       description: Returns available geo resolvers
       security:
-        - bearerAuth: ['server']
+        - clusterAdminAuth: []
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -344,10 +389,12 @@ paths:
 
   /api/v2/projects:
     get:
+      tags:
+        - configuration-management
       operationId: "Get users projects"
       description: Returns a list of projects available for current user
       security:
-        - bearerAuth: [ 'client' ]
+        - configurationManagementAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/AnyArrayResponse'
@@ -359,9 +406,11 @@ paths:
       - $ref: '#/components/parameters/projectId'
       - $ref: '#/components/parameters/objectType'
     get:
+      tags:
+        - configuration-management
       operationId: 'Get objects by projectId and objectType'
       security:
-        - bearerAuth: [ 'client:project' ]
+        - configurationManagementAuth: []
       description: Returns the list of objects of given type
       responses:
         '200':
@@ -369,12 +418,14 @@ paths:
         default:
           $ref: '#/components/responses/Error'
     post:
+      tags:
+        - configuration-management
       operationId: 'Create object in project'
       description: >
         Create new object. The method returns newly created object. Some properties of
         newly created object might different from on which has been posted (for example, ID)
       security:
-        - bearerAuth: [ 'client:project' ]
+        - configurationManagementAuth: []
       requestBody:
         content:
           application/json:
@@ -391,10 +442,12 @@ paths:
       - $ref: '#/components/parameters/objectType'
       - $ref: '#/components/parameters/objectUid'
     get:
+      tags:
+        - configuration-management
       operationId: 'Get object by uuid'
       description: Get an object with given UID
       security:
-        - bearerAuth: [ 'client:project' ]
+        - configurationManagementAuth: [  ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -402,22 +455,26 @@ paths:
           $ref: '#/components/responses/Error'
 
     delete:
+      tags:
+        - configuration-management
       operationId: "Delete object by uuid"
       description: Delete an object with given UID. Returns a deleted object
       security:
-        - bearerAuth: [ 'client:project' ]
+        - configurationManagementAuth: [ 'client:project' ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
         default:
           $ref: '#/components/responses/Error'
     patch:
-      operationId: "Patch object by uuid"
+      tags:
+        - configuration-management
+      operationId: "Update object by uuid"
       description: >
         Updates a object with given ID. Object will be patched: request body properties will be merged into an original object, it's ok to send partial objects
         Some fields might be ignored and overwritten. The method returns an updated object
       security:
-        - bearerAuth: [ 'client:project' ]
+        - configurationManagementAuth: [  ]
       requestBody:
         content:
           application/json:
