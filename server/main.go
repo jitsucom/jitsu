@@ -207,7 +207,6 @@ func main() {
 	telemetry.EnrichSystemInfo(clusterID, systemInfo)
 
 	metricsExported := viper.GetBool("server.metrics.prometheus.enabled")
-	println(fmt.Sprintf("%+v", viper.Get("server.metrics.relay.url")))
 	metricsRelay := metrics.InitRelay(clusterID, viper.Sub("server.metrics.relay"))
 	if metricsExported || metricsRelay != nil {
 		metrics.Init(metricsExported)
