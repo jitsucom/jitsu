@@ -112,7 +112,7 @@ func TestProcessFilePayload(t *testing.T) {
 		},
 		{
 			"Input fallback file",
-			parsers.ParseFallbackJSON,
+			events.ParseFallbackJSON,
 			"../test_data/fallback_fact_input.log",
 			map[string]*ProcessedFile{
 				"user_2020_08": {FileName: "testfile", payload: []map[string]interface{}{
