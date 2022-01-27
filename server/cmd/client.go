@@ -18,10 +18,13 @@ type bulkClient struct {
 }
 
 //newBulkClient returns configured bulkClient
-func newBulkClient(host, apiKey string, fallbackFormat bool) *bulkClient {
+func newBulkClient(host, apiKey string, fallbackFormat, skipMalformed bool) *bulkClient {
 	url := strings.TrimRight(host, "/") + "/api/v1/events/bulk?token=" + apiKey
 	if fallbackFormat {
 		url += "&fallback=true"
+	}
+	if skipMalformed {
+		url += "&skip_malformed=true"
 	}
 	return &bulkClient{
 		httpClient: &http.Client{Timeout: 3 * time.Minute},

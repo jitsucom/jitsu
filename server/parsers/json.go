@@ -87,7 +87,7 @@ func ParseJSON(b []byte) (map[string]interface{}, error) {
 
 	err := ParseJSONAsObject(b, &obj)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot unmarshal bytes into Go value of type map[string]interface {}: %v", err)
 	}
 
 	return obj, nil

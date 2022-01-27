@@ -72,7 +72,7 @@ func ParseFallbackJSON(line []byte) (map[string]interface{}, error) {
 	fe := &FailedEvent{}
 	err := parsers.ParseJSONAsObject(line, fe)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot unmarshal bytes into Go value of type FailedEvent {}: %v", err)
 	}
 
 	if fe.MalformedEvent != "" {
@@ -85,7 +85,7 @@ func ParseFallbackJSON(line []byte) (map[string]interface{}, error) {
 
 	originalEvent, err := parsers.ParseJSON(fe.Event)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing event %s from fallback: %v", string(line), err)
+		return nil, fmt.Errorf("Error parsing event %s malformed json: %v", string(line), err)
 	}
 
 	return originalEvent, nil

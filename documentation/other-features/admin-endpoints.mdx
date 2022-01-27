@@ -115,6 +115,8 @@ In case you have the access, it might be more convenient to use [Jitsu CLI](/doc
 
 <APIParam name={"file_name"} dataType="string" required={true} type="jsonBody" description="name of a fallback file to replay or global path to a custom file with json data"/>
 
+<APIParam name={"skip_malformed"} dataType="boolean" required={false} type="jsonBody" description="Set true and fallback file won't be interrupted if any fallback event is malformed. Malformed events will be written into application logs with error message. Default value is false means that whole fallback file won't be processed if it contains any malformed event."/>
+
 <h4>Request and response</h4>
 
 Request example
