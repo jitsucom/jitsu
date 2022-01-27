@@ -126,7 +126,7 @@ If everything is fine we should get following output:
 ## Pushing to the destination
 
 Lets get to the main part of plugin – pushing data to the target destination.
-We need to replace placeholder of DestinationFunction with the proper version:
+We need to write proper version of DestinationFunction instead of placeholder:
 ```typescript
 export const destination: DestinationFunction = (event: DefaultJitsuEvent, dstContext: JitsuDestinationContext<DestinationConfig>) => {
   return { url: "https://test.com", method: "POST", body: { a: (event.a || 0) + 1 } };
@@ -138,12 +138,15 @@ DestinationFunction receives two parameters:
  * **dstContext** - type: JitsuDestinationContext - destination context containing: **destinationId**, **destinationType**
 and what is more important: **config** - config object that we described in the beginning filled by Jitsu Server
 
-Return values:
-As we mentioned in the beginning, plugin itself don't send anything to internet. Instead,
-DestinationFunction may return: a single instance of DestinationMessage, array of DestinationMessage's or null.
-When DestinationFunction return null it means that Jitsu must skip this event.
+**Return values**:
 
-DestinationMessage is an object that tells Jitsu Server what HTTP request it needs to make to push data to the destination.
+As we mentioned in the beginning, plugin itself doesn't send anything to internet. Instead,
+DestinationFunction may return:
+ * a single instance of DestinationMessage
+ * array of DestinationMessage's - to produce multiple pushes to destination
+ * null - null means that Jitsu must skip this event.
+
+DestinationMessage is an object that tells Jitsu Server what HTTP request it needs to make to push data to the destination:
 ```typescript
 export declare type DestinationMessage = {
   url: string;
@@ -177,6 +180,7 @@ To implement the test we need to fill DestinationTestParams properties and pass 
 ```typescript
 testDestination({
   name: "proper case",
+
   context: {
     destinationId: "test",
     destinationType: "twitter",
@@ -185,7 +189,9 @@ testDestination({
       "accessToken":"Q0Mzb0VhZ0"
     }
   },
+
   destination: destination,
+
   event: {
     event_type: 'registration',
     user: {
@@ -193,6 +199,7 @@ testDestination({
       email: "test_new_user@example.com"
     }
   },
+
   expectedResult: {
     method: "POST",
     url: "https://api.twitter.com/2/tweets",
@@ -264,7 +271,7 @@ Tests:       1 passed, 1 total
 ```
 
 Ok main logic is ready. But nothing appears on Twitter yet. We need Jitsu for that.
-But before we add our plugin to Jitsu lets fill some meta information that will help users identify plugin, understand its purpose and properly set config parameters.
+But before we add our plugin to Jitsu lets fill some meta information that will help users to identify plugin, understand its purpose and properly set config parameters.
 
 ## Providing meta information
 
@@ -323,7 +330,7 @@ In case of our destination command will look like:
 tar -cvzf jitsu-twitter-destination.tgz -C /Users/testaccount/projects/ jitsu-twitter-destination
 ```
 
-**jitsu-twitter-destination.tgz** file will appear in current directory.
+`jitsu-twitter-destination.tgz` file will appear in current directory.
 
 #### publish to npm repository
 
@@ -360,7 +367,7 @@ destinations:
 **package** can be:
  * **filesystem path** - in case of docker image, provided path need to be reachable inside of docker image filesystem.
 /home/eventnative/data/plugins/ needs to be mounted to host filesystem directory where file jitsu-twitter-destination.tgz is located,
-e.g.: `-v /Users/testaccount/projects/:/home/eventnative/data/plugins/`
+e.g. following param may be added to docker run command: `-v /Users/testaccount/projects/:/home/eventnative/data/plugins/`
  * **HTTP URL** - e.g.: `https://my-site.com/plugins/jitsu-twitter-destination.tgz`
  * **npm package name** - in case plugin is published to npm repository. It is recommended to provide package name with version expression,
 to prevent backward compatibility issues when new version of plugin will require some features that current version of server doesn't support,
