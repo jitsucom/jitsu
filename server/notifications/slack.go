@@ -280,12 +280,22 @@ func SystemError(msg ...interface{}) {
 
 func Flush() {
 	if instance != nil {
-		close(instance.flush)
+		select {
+		case <-instance.flush:
+		default:
+			close(instance.flush)
+		}
+
 	}
 }
 
 func Close() {
 	if instance != nil {
-		close(instance.closed)
+		select {
+		case <-instance.closed:
+			return
+		default:
+			close(instance.closed)
+		}
 	}
 }
