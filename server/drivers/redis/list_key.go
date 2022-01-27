@@ -39,7 +39,7 @@ func (lt *listType) get(conn redis.Conn) ([]map[string]interface{}, error) {
 	for start < listLength {
 		end := start + scanChunkSize
 
-		values, err := redis.Strings(conn.Do("LRANGE", lt.key, end))
+		values, err := redis.Strings(conn.Do("LRANGE", lt.key, start, end))
 		if err != nil {
 			return nil, err
 		}
