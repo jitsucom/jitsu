@@ -181,7 +181,7 @@ testDestination({
     destinationId: "test",
     destinationType: "twitter",
     config: {
-      "tweetTemplate":"Welcome new user ${event.user.id} !🎉",
+      "tweetTemplate":"Welcome new user ${event.user.id}!🎉",
       "accessToken":"Q0Mzb0VhZ0"
     }
   },
@@ -216,22 +216,91 @@ yarn test
 Test fails because we still need to replace placeholder for DestinationFunction with proper implementation.
 
 In real plugin for production usage one test for "proper case" probably won't be enough.
-It would be great to add test cases when Jitsu Event doesn't have user.id or event_type is not "registration"
+It would be great to add test cases when event_type is not "registration"
 to make sure that nothing bad happens in that cases and we get **null** result.
-
 
 
 ### Writing DestinationFunction
 
-
 Now we can write DestinationFunction implementation that prepares DestinationMessage with HTTP request that creates a new tweet.
-DestinationFunction must skip all events with event type other than "registration" and events that dont contain user.id information.
-Let's get back to the **src/destination.ts** file and write some code.
+DestinationFunction must skip all events with event type other than "registration".
+Let's get back to the **src/destination.ts** file and write some code:
 
+```typescript
+export const destination: DestinationFunction = (event: DefaultJitsuEvent, dstContext: JitsuDestinationContext<DestinationConfig>) => {
+  if (event.event_type != "registration") {
+    return null
+  }
+  let tweetText = eval("`" + dstContext.config.tweetTemplate + "`")
+  if (!tweetText) {
+    return null;
+  }
+  return {
+    url: "https://api.twitter.com/2/tweets",
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + dstContext.config.accessToken,
+      "Content-type": "application/json",
+    },
+    body: {
+      "text": tweetText
+    }
+  };
+};
+```
 
-##
+That is it!
+Now let's run tests again to make sure that everything works fine.
+```shell
+yarn test
+```
+Output must contain following line.
+```text
+ PASS  __test__/destination.test.ts
+  ✓ proper case (1 ms)
 
-npm publish
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+```
 
-##
-how to add to Jitsu
+Ok main logic is ready. But nothing appears on Twitter yet. We need Jitsu for that.
+But before we add our plugin to Jitsu lets fill some meta information that will help users identify plugin, understand its purpose and properly set config parameters.
+
+## Providing meta information
+
+Let's open file **src/index.ts**
+Here we can find placeholder object that jitsu-cli made for us.
+Let's fill it with some real data
+
+```typescript
+const descriptor: ExtensionDescriptor = {
+  id: "jitsu-twitter-destination",
+  displayName: "Twitter",
+  icon: "<svg xmlns=\"http:\/\/www.w3.org\/2000\/svg\" xml:space=\"preserve\" width=\"70.5556mm\" height=\"57.3391mm\" version=\"1.1\" style=\"shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd\"\r\nviewBox=\"0 0 6701 5446\"\r\n xmlns:xlink=\"http:\/\/www.w3.org\/1999\/xlink\">\r\n <defs>\r\n  <style type=\"text\/css\">\r\n   <![CDATA[\r\n    .fil0 {fill:#41ABE1}\r\n   ]]>\r\n  <\/style>\r\n <\/defs>\r\n <g id=\"Livello_x0020_1\">\r\n  <metadata id=\"CorelCorpID_0Corel-Layer\"\/>\r\n  <path class=\"fil0\" d=\"M6701 645c-247,109 -512,183 -790,216 284,-170 502,-440 604,-761 -266,158 -560,272 -873,334 -251,-267 -608,-434 -1004,-434 -759,0 -1375,616 -1375,1375 0,108 12,213 36,313 -1143,-57 -2156,-605 -2834,-1437 -118,203 -186,439 -186,691 0,477 243,898 612,1144 -225,-7 -437,-69 -623,-172 0,6 0,11 0,17 0,666 474,1222 1103,1348 -115,31 -237,48 -362,48 -89,0 -175,-9 -259,-25 175,546 683,944 1284,955 -471,369 -1063,589 -1708,589 -111,0 -220,-7 -328,-19 608,390 1331,618 2108,618 2529,0 3912,-2095 3912,-3912 0,-60 -1,-119 -4,-178 269,-194 502,-436 686,-712z\"\/>\r\n <\/g>\r\n<\/svg>",
+  description: "Destination that posts a tweet welcoming new user on receiving \"registration\" event.",
+  configurationParameters: [
+    {
+      id: "accessToken",
+      type: "string",
+      required: true,
+      displayName: "Access Token",
+      documentation: "Oauth 2.0 Access Token"
+    },
+    {
+      id: "tweetTemplate",
+      type: "string",
+      required: true,
+      displayName: "Tweet template",
+      documentation: "Template of tweet text.<br/>You can use string literals expressions to add values from incoming event, e.g.:<br/>Welcome ${event.user.email}<br/>Received event ${event.event_type}"
+    }
+  ],
+};
+```
+
+if you want Jitsu to display nice graphic icon along with destination name you need to provide svg code of icon to "icon" parameter of ExtensionDescriptor.
+
+## Adding to Jitsu
+
+### manual tarball
+
+### npm publish
