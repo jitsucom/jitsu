@@ -1,0 +1,237 @@
+---
+title: Destination Plugins
+---
+
+With Jitsu SDK you can implement plugins for Jitsu using Typescript language.
+
+Plugin types:
+ * Destination
+ * Transformation (Not implemented yet)
+ * Source (Not implemented yet)
+
+# Destination Plugin
+
+Jitsu Destination Plugins are designed to work with HTTP based APIs.
+Plugin receives Jitsu event and returns object describing HTTP requests necessary to push data to destination.
+Jitsu server is in charge of queuing, executing and retrying HTTP requests the same as with builtin destinations like webhook.
+Main plugin code doesn't have access to any external resources and doesn't support async execution.
+
+## Create New Destination Plugin
+
+In this article we explain creation of Jitsu destination plugin step by step.
+As an example we implement a simple destination that will post a tweet welcoming new user on receiving Jitsu event with event_type = "registration".
+
+## Bootstrapping project
+
+We need to use Jitsu SDK's CLI tool to bootstrap a project for new destination plugin
+with some preconfigured configs and placeholder functions:
+```shell
+npx jitsu-cli extension create --type destination
+```
+
+We need to provide project name and directory.
+```text
+? Please, provide project name: jitsu-twitter-destination
+? Project directory: /Users/testaccount/projects/jitsu-twitter-destination
+[info ] - Creating new jitsu project in /Users/testaccount/projects/jitsu-twitter-destination
+[info ] - Project directory doesn't exist, creating it!
+[info ] - ✨ Done
+```
+
+jitsu-cli will generate project directory structure with set of files typical for Typescript node.js project:
+```text
+├── package.json
+├── src
+│   ├── destination.ts
+│   └── index.ts
+├── __test__
+│   └── destination.test.ts
+└── tsconfig.json
+```
+
+ * **package.json** – file contains meta information about npm project including name, version
+ * **src/index.ts** – file contains the instance of ExtensionDescriptor that Jitsu uses to collect info about destination:
+id, icon,  name, description, configuration parameters.
+ * **src/destination.ts** – file where must be implemented main logic of destination along with config object and config validator
+ * **__test__/destination.test.ts** – test for destination logic must be written here
+ * **tsconfig.json** – settings for Typescript compiler. No need to change that
+
+## Destination Config
+
+No destination can work without configuration.
+Let's open **src/destination.ts** file and prepare DestinationConfig object for out Twitter destination.
+Config will consist from oauth 2.0 access token and text template for tweets:
+
+```typescript
+export type DestinationConfig = {
+  accessToken: string, //oauth 2.0 access token
+  tweetTemplate: string //string literals template e.g. `Welcome new user ${event.user.email} !🎉`
+}
+```
+
+Destination plugin must not handle authorization process. If our twitter plugin manage to become part of Jitsu server -
+Jitsu server will handle authorization and obtain accessToken. For UI users that will look like "Grant Jitsu Access to Twitter" button.
+
+What plugin can do – is to check validness of access token.
+
+## Validating Config
+
+Once we have destination config we can implement **validator**.
+It is optional part, but it is highly recommended to implement it.
+
+We replace placeholder implementation with to following code
+```typescript
+export const validator: ConfigValidator<DestinationConfig> = async (config: DestinationConfig) => {
+  //check that all config parameters are present
+  if (!config.tweetTemplate) {
+    return "Missing required parameter: tweetTemplate";
+  }
+  if (!config.accessToken) {
+    return "Missing required parameter: accessToken";
+  }
+  //check that authorization passed
+  return await fetch("https://api.twitter.com/2/users/me", {
+    method: 'get',
+    headers: {
+      "Authorization": "Bearer " + config.accessToken
+    }
+  }).then(response => response.json())
+      .then(result => {
+        if (result.data) {
+          //we got data in response
+          return true
+        } else {
+          return "Error: " + result["status"] + ": " +  result["title"] + " (" + result["detail"] + ")"
+        }
+      })
+      .catch(error => {
+        return "Error: " + error.toString()
+      });
+}
+```
+
+Now we can test our validator with validate-config action that jitsu-cli already added to the project
+
+```shell
+yarn build && yarn validate-config -j '{"tweetTemplate":"Welcome new user ${event.user.email} !🎉", "accessToken":"Q0Mzb0VhZ0"}'
+```
+
+If everything is fine we should get following output:
+```text
+[info ] - 🤔 Validating configuration {"tweetTemplate":"sasd","accessToken":"Q0Mzb0VhZ0"}
+[info ] - ✅ Config is valid. Hooray!
+[info ] - ✨ Done
+```
+
+## Pushing to the destination
+
+Lets get to the main part of plugin – pushing data to the target destination.
+We need to replace placeholder of DestinationFunction with the proper version:
+```typescript
+export const destination: DestinationFunction = (event: DefaultJitsuEvent, dstContext: JitsuDestinationContext<DestinationConfig>) => {
+  return { url: "https://test.com", method: "POST", body: { a: (event.a || 0) + 1 } };
+};
+```
+
+DestinationFunction receives two parameters:
+ * **event** – type: DefaultJitsuEvent – event received and enriched by Jitsu Server
+ * **dstContext** - type: JitsuDestinationContext - destination context containing: **destinationId**, **destinationType**
+and what is more important: **config** - config object that we described in the beginning filled by Jitsu Server
+
+Return values:
+As we mentioned in the beginning, plugin itself don't send anything to internet. Instead,
+DestinationFunction may return: a single instance of DestinationMessage, array of DestinationMessage's or null.
+When DestinationFunction return null it means that Jitsu must skip this event.
+
+DestinationMessage is an object that tells Jitsu Server what HTTP request it needs to make to push data to the destination.
+```typescript
+export declare type DestinationMessage = {
+  url: string;
+  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  headers?: { [key: string]: string };
+  body: any;
+};
+```
+
+### Writing a test
+
+But before actually writing DestinationFunction lets write a test for it.
+By writing a test first we will be sure that our DestinationFunction works as we expect.
+Otherwise, we risk to create a test that simply matches DestinationFunction results that we just wrote - which may happen to be incorrect.
+
+Let's open **__test__/destination.test.ts**
+To write a test we simply need to make a call to the function **testDestination**.
+testDestination accepts a single parameter - object of DestinationTestParams type
+```typescript
+export declare type DestinationTestParams = {
+  name: string;                                    //name of the test
+  context: JitsuDestinationContext;                //JitsuDestinationContext containing: destinationId, destinationType and config
+  destination: DestinationFunction;                //DestinationFunction we are going to test
+  event: DefaultJitsuEvent;                        //JitsuEvent
+  expectedResult: ObjectSet<DestinationMessage>;   //Result object we expect to get after processing event with provided DestinationFunction
+};
+
+```
+To implement the test we need to fill DestinationTestParams properties and pass it to the function **testDestination**
+
+```typescript
+testDestination({
+  name: "proper case",
+  context: {
+    destinationId: "test",
+    destinationType: "twitter",
+    config: {
+      "tweetTemplate":"Welcome new user ${event.user.id} !🎉",
+      "accessToken":"Q0Mzb0VhZ0"
+    }
+  },
+  destination: destination,
+  event: {
+    event_type: 'registration',
+    user: {
+      id: "test_new_user",
+      email: "test_new_user@example.com"
+    }
+  },
+  expectedResult: {
+    method: "POST",
+    url: "https://api.twitter.com/2/tweets",
+    headers: {
+      "Authorization": "Bearer Q0Mzb0VhZ0",
+      "Content-type": "application/json",
+    },
+    body: {"text": "Welcome new user test_new_user!🎉"},
+  },
+})
+```
+This is a test for "proper case". We provide testDestination function with:
+ * properly set context with a config,
+ * Jitsu event - very short one with fields that may be used in plugin code
+ * our expectation of HTTP request jitsu should make to Twitter API in case of receiving such event.
+
+Run the test
+```shell
+yarn test
+```
+Test fails because we still need to replace placeholder for DestinationFunction with proper implementation.
+
+In real plugin for production usage one test for "proper case" probably won't be enough.
+It would be great to add test cases when Jitsu Event doesn't have user.id or event_type is not "registration"
+to make sure that nothing bad happens in that cases and we get **null** result.
+
+
+
+### Writing DestinationFunction
+
+
+Now we can write DestinationFunction implementation that prepares DestinationMessage with HTTP request that creates a new tweet.
+DestinationFunction must skip all events with event type other than "registration" and events that dont contain user.id information.
+Let's get back to the **src/destination.ts** file and write some code.
+
+
+##
+
+npm publish
+
+##
+how to add to Jitsu
