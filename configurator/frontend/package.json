@@ -4,13 +4,14 @@
   "scripts": {
     "bootstrap": "npx lerna bootstrap",
     "start": "yarn --cwd ./main start",
-    "build": "yarn check:all && npx lerna run build",
+    "build": "yarn check:all && yarn bootstrap && npx lerna run build",
+    "clean": "rm -rf ./main/node_modules/ ./main/build ./main/dist",
     "lerna:publish": "npx lerna publish --canary --no-private --no-verify-access --yes",
     "prettier:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run yarn prettier:fix!\" && exit 1)",
     "prettier:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore ./",
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/",
     "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/ --fix",
-    "check:all": "yarn prettier:check && eslint:check",
+    "check:all": "yarn prettier:check && yarn eslint:check",
     "main": "yarn --cwd main"
   },
   "dependencies": {

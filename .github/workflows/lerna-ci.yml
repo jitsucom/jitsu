@@ -38,5 +38,5 @@ jobs:
 
     - name: Publish
       working-directory: ./configurator/frontend
-      run: yarn publish
+      run: yarn lerna:publish
         
