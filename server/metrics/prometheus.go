@@ -61,7 +61,7 @@ func InitRelay(clusterID string, viper *viper.Viper) *Relay {
 		URL:          DefaultRelayURL,
 		HostID:       Unknown,
 		DeploymentID: clusterID,
-		Timeout:      time.Second,
+		Timeout:      5 * time.Second,
 	}
 
 	hostID, err := os.Hostname()
