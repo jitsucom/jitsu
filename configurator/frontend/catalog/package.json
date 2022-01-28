@@ -1,13 +1,11 @@
 {
   "name": "@jitsu/catalog",
-  "version": "1.0.14",
+  "version": "1.0.15-alpha.1+28a336a9",
   "description": "This package contains the code that enables variety of features of Jitsu Sources, Destinations and API Keys. ",
   "author": "taletski <kirill@taletski.com>",
   "homepage": "https://jitsu.com",
   "main": "./index.ts",
-  "scripts": {
-    "build": "(echo \"ℹ️ Skipping build for catalog package because it is not supposed to be built\" && exit 0)"
-  },
+  "scripts": {},
   "publishConfig": {
     "access": "public"
   },
@@ -17,5 +15,6 @@
   },
   "bugs": {
     "url": "https://github.com/jitsucom/jitsu/issues"
-  }
+  },
+  "gitHead": "28a336a9cab9ccfea55d78e39372e82a8aa553a5"
 }
