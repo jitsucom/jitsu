@@ -53,11 +53,3 @@ func (eh *DatabaseHandler) PostHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, database)
 }
-
-func hasAccessToProject(c *gin.Context, requestedProjectID string) bool {
-	userProjectID, exists := c.Get("_project_id")
-	if !exists || userProjectID != requestedProjectID {
-		return false
-	}
-	return true
-}

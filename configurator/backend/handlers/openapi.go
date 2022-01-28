@@ -447,7 +447,7 @@ func (oa *OpenAPI) GetObjectsByProjectIdAndObjectType(c *gin.Context, projectIDI
 	projectID := string(projectIDI)
 	objectType := string(objectTypeI)
 
-	if c.GetString(middleware.ProjectIDKey) != projectID {
+	if !hasAccessToProject(c, projectID) {
 		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
 		return
 	}
@@ -479,7 +479,7 @@ func (oa *OpenAPI) CreateObjectInProject(c *gin.Context, projectIDI openapi.Proj
 	projectID := string(projectIDI)
 	objectType := string(objectTypeI)
 
-	if c.GetString(middleware.ProjectIDKey) != projectID {
+	if !hasAccessToProject(c, projectID) {
 		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
 		return
 	}
@@ -508,7 +508,7 @@ func (oa *OpenAPI) CreateObjectInProject(c *gin.Context, projectIDI openapi.Proj
 	c.JSON(http.StatusOK, newObject)
 }
 
-func (oa *OpenAPI) DeleteObjectByUuid(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType, objectUIDI openapi.ObjectUid) {
+func (oa *OpenAPI) DeleteObjectByUid(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType, objectUIDI openapi.ObjectUid) {
 	if c.IsAborted() {
 		return
 	}
@@ -517,7 +517,7 @@ func (oa *OpenAPI) DeleteObjectByUuid(c *gin.Context, projectIDI openapi.Project
 	objectType := string(objectTypeI)
 	objectUID := string(objectUIDI)
 
-	if c.GetString(middleware.ProjectIDKey) != projectID {
+	if !hasAccessToProject(c, projectID) {
 		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
 		return
 	}
@@ -544,7 +544,7 @@ func (oa *OpenAPI) DeleteObjectByUuid(c *gin.Context, projectIDI openapi.Project
 	c.JSON(http.StatusOK, result)
 }
 
-func (oa *OpenAPI) GetObjectByUuid(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType, objectUIDI openapi.ObjectUid) {
+func (oa *OpenAPI) GetObjectByUid(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType, objectUIDI openapi.ObjectUid) {
 	if c.IsAborted() {
 		return
 	}
@@ -553,7 +553,7 @@ func (oa *OpenAPI) GetObjectByUuid(c *gin.Context, projectIDI openapi.ProjectId,
 	objectType := string(objectTypeI)
 	objectUID := string(objectUIDI)
 
-	if c.GetString(middleware.ProjectIDKey) != projectID {
+	if !hasAccessToProject(c, projectID) {
 		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
 		return
 	}
@@ -580,7 +580,7 @@ func (oa *OpenAPI) GetObjectByUuid(c *gin.Context, projectIDI openapi.ProjectId,
 	c.JSON(http.StatusOK, result)
 }
 
-func (oa *OpenAPI) PatchObjectByUuid(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType, objectUIDI openapi.ObjectUid) {
+func (oa *OpenAPI) UpdateObjectByUid(c *gin.Context, projectIDI openapi.ProjectId, objectTypeI openapi.ObjectType, objectUIDI openapi.ObjectUid) {
 	if c.IsAborted() {
 		return
 	}
@@ -589,7 +589,7 @@ func (oa *OpenAPI) PatchObjectByUuid(c *gin.Context, projectIDI openapi.ProjectI
 	objectType := string(objectTypeI)
 	objectUID := string(objectUIDI)
 
-	if c.GetString(middleware.ProjectIDKey) != projectID {
+	if !hasAccessToProject(c, projectID) {
 		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
 		return
 	}
@@ -653,6 +653,22 @@ func (oa *OpenAPI) GetUsersProjects(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+func hasAccessToProject(c *gin.Context, projectID string) bool {
+	permissions, ok := c.Get(middleware.Permissions)
+	if !ok {
+		logging.SystemErrorf("unable to find resolved permissions in context: %s", c.Request.URL.String())
+		return false
+	}
+
+	pa, ok := permissions.(*middleware.ProjectAccess)
+	if !ok {
+		logging.SystemErrorf("failed to cast object %v of type %T to *middleware.ProjectAccess: %s", permissions, permissions, c.Request.URL.String())
+		return false
+	}
+
+	return pa.HasAccess(projectID)
 }
 
 //OpenAPIOKResponse returns openapi ok response wrapper

@@ -301,7 +301,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 		"/proxy/api/v1/statistics":          jitsu.NewStatisticsDecorator().Decorate,
 		"/proxy/api/v1/statistics/detailed": jitsu.NewStatisticsDecorator().Decorate,
 	})
-	router.Any("/proxy/*path", authenticatorMiddleware.OldStyleBearerAuth(proxyHandler.Handler, true))
+	router.Any("/proxy/*path", authenticatorMiddleware.BearerAuthWrapper(proxyHandler.Handler))
 
 	// ** OLD API (will be moved to OpenAPI soon) **
 	apiV1 := router.Group("/api/v1")
