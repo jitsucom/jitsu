@@ -1,7 +1,7 @@
 // @Components
 import { Collapse, Drawer } from "antd"
 // @Types
-import { SourceConnector } from "catalog/sources/types"
+import { SourceConnector } from "@jitsu/catalog/sources/types"
 // @Styles
 import styles from "./SourceEditorDocumentationDrawer.module.less"
 

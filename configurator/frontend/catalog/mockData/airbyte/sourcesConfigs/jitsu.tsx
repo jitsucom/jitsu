@@ -8,7 +8,7 @@ import {
   selectionType,
   singleSelectionType,
   stringType,
-} from "catalog/sources/types"
+} from "./sources/types"
 
 export const hubspot: Parameter[] = [
   {

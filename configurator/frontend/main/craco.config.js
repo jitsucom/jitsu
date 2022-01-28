@@ -1,12 +1,18 @@
 const path = require("path")
+const fs = require("fs")
 const CracoLessPlugin = require("craco-less")
 const BundleAnalyzerPlugin = require("webpack-bundle-analyzer").BundleAnalyzerPlugin
 const CracoAntDesignPlugin = require("craco-antd")
+const CracoBabelLoader = require("craco-babel-loader")
 const TerserPlugin = require("terser-webpack-plugin")
 const MonacoWebpackPlugin = require("monaco-editor-webpack-plugin")
 const webpack = require("webpack")
 const DEV_PORT = process.env.DEV_PORT || "9876"
 const DEV_HOST = process.env.DEV_HOST || "localhost"
+
+// manage relative paths to packages
+const appDirectory = fs.realpathSync(process.cwd())
+const resolvePackage = relativePath => path.resolve(appDirectory, relativePath)
 
 module.exports = {
   eslint: {
@@ -97,6 +103,14 @@ module.exports = {
     },
   },
   plugins: [
+    {
+      plugin: CracoBabelLoader,
+      options: {
+        includes: [
+          resolvePackage("node_modules/@jitsu/catalog"), // transpile this module with babel
+        ],
+      },
+    },
     {
       plugin: CracoAntDesignPlugin,
       options: {

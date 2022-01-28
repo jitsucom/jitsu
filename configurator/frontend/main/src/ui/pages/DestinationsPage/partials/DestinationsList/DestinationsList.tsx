@@ -4,7 +4,7 @@ import { generatePath, useHistory } from "react-router-dom"
 import { Button, Dropdown, Modal } from "antd"
 import { observer } from "mobx-react-lite"
 // @Services
-import { destinationsReferenceList, destinationsReferenceMap } from "catalog/destinations/lib"
+import { destinationsReferenceList, destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
 // @Store
 import { destinationsStore } from "stores/destinations"
 // @Components
@@ -21,7 +21,7 @@ import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { destinationPageRoutes } from "ui/pages/DestinationsPage/DestinationsPage.routes"
 // @Types
 import { CommonDestinationPageProps } from "ui/pages/DestinationsPage/DestinationsPage"
-import { Destination } from "catalog/destinations/types"
+import { Destination } from "@jitsu/catalog/destinations/types"
 import { useServices } from "../../../../../hooks/useServices"
 import { showQuotaLimitModal } from "../../../../../lib/services/billing"
 import { DestinationCard } from "../../../../components/DestinationCard/DestinationCard"

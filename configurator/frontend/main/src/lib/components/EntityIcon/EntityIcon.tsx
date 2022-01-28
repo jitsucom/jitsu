@@ -1,9 +1,9 @@
 // @Libs
 import { memo } from "react"
 // @Data
-import { destinationsReferenceMap } from "catalog/destinations/lib"
-import { allSourcesMap } from "catalog/sources/lib"
-import { apiKeysReferenceMap } from "catalog/apiKeys/lib"
+import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
+import { allSourcesMap } from "@jitsu/catalog/sources/lib"
+import { apiKeysReferenceMap } from "@jitsu/catalog/apiKeys/lib"
 
 type EntityIconProps = DestinationIconProps | SourceIconProps | ApiKeyIconProps
 

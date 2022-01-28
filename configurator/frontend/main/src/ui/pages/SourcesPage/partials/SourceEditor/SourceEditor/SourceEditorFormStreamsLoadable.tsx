@@ -9,7 +9,7 @@ import { LoadableFieldsLoadingMessageCard } from "lib/components/LoadingFormCard
 // @Hooks
 import { usePolling } from "hooks/usePolling"
 // @Types
-import { SourceConnector } from "catalog/sources/types"
+import { SourceConnector } from "@jitsu/catalog/sources/types"
 import { SetSourceEditorState } from "./SourceEditor"
 // @Utils
 import {

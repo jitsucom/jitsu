@@ -5,7 +5,7 @@ import { SourceEditorControlsDisabled, SourceEditorViewControls } from "./Source
 import styles from "./SourceEditor.module.less"
 import { NavLink, generatePath } from "react-router-dom"
 import { taskLogsPageRoute } from "ui/pages/TaskLogs/TaskLogsPage"
-import { SourceConnector } from "catalog/sources/types"
+import { SourceConnector } from "@jitsu/catalog/sources/types"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { TabName } from "ui/components/Tabs/TabName"
 import { HandleSaveSource, HandleValidateTestConnection, SourceEditorDisabledTabs } from "./SourceEditor"

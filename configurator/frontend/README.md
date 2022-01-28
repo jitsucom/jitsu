@@ -10,9 +10,6 @@ Before starting the frontend locally or building for production, run `lerna boot
 
 Refer to `README.md` in the `main` folder
 
-
 ## Test your changes locally
 
 ## Deploying your changes
-
-
