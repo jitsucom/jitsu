@@ -17,7 +17,7 @@ import (
 )
 
 // DefaultRelayURL is the URL which is used by default for relaying metrics.
-var DefaultRelayURL = "https://cplane.jitsu.com/api/prometheus/relay"
+var DefaultRelayURL = "https://cplane.jitsu.com/api/prometheus/relay/submit"
 
 // SensitiveLabels are label names which values should be hashed
 // in order to respect users' privacy.
