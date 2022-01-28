@@ -41,6 +41,13 @@ components:
       type: http
       scheme: bearer
   parameters:
+    projectIdQuery:
+      in: query
+      name: projectId
+      description: ID of the project
+      required: true
+      schema:
+        type: string
     projectId:
       in: path
       name: projectId
@@ -162,33 +169,6 @@ components:
         "application/json":
           schema:
             $ref: "#/components/schemas/AnyArray"
-
-#TODO
-
-#/api/v1/configurations/:collection (GET, POST) --- ignore, will be deprecated
-#/api/v1/users/signup - (POST) --- not user, ignore and delete
-#/api/v1/become (GET)
-#/api/v1/telemetry (GET)
-#/api/v1/sources (GET)
-#/api/v1/sources/test (POST)
-
-#/api/v1/destinations (GET)
-#/api/v1/destinations/test (POST)
-#/api/v1/destinations/evaluate (POST)
-
-#/api/v1/ssl (POST)
-#/api/v1/ssl/all (POST)
-#/api/v1/jitsu/configuration (GET)
-#/api/v1/apikeys (GET)
-
-#/api/v1/apikeys/default
-#/api/v1/database
-#/api/v1/notify
-
-#future
-#/api/v2/projects (POST) - create a project
-#/api/v2/projects/users (POST) - add user to the project
-#/api/v2/projects/users (DELETE) - delete user from the project
 
 paths:
   /api/v1/users/signin:
@@ -444,7 +424,7 @@ paths:
     get:
       tags:
         - configuration-management
-      operationId: 'Get object by uuid'
+      operationId: 'Get object by uid'
       description: Get an object with given UID
       security:
         - configurationManagementAuth: [  ]
@@ -457,7 +437,7 @@ paths:
     delete:
       tags:
         - configuration-management
-      operationId: "Delete object by uuid"
+      operationId: "Delete object by uid"
       description: Delete an object with given UID. Returns a deleted object
       security:
         - configurationManagementAuth: [ 'client:project' ]
@@ -469,7 +449,7 @@ paths:
     patch:
       tags:
         - configuration-management
-      operationId: "Update object by uuid"
+      operationId: "Update object by uid"
       description: >
         Updates a object with given ID. Object will be patched: request body properties will be merged into an original object, it's ok to send partial objects
         Some fields might be ignored and overwritten. The method returns an updated object
@@ -485,7 +465,191 @@ paths:
           $ref: '#/components/responses/AnyObjectResponse'
         default:
           $ref: '#/components/responses/Error'
+  /api/v1/telemetry:
+    get:
+      tags:
+        - cluster-admin
+      operationId: 'Get telemetry settings'
+      description: Returns current telemetry configuration
+      security:
+        - clusterAdminAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/sources:
+    get:
+      tags:
+        - cluster-admin
+      operationId: 'Get sources configuration'
+      description: Returns all configured sources
+      security:
+        - clusterAdminAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v1/sources/test:
+    post:
+      tags:
+        - configuration-management
+      operationId: 'Test source configuration'
+      description: >
+        Test configured source connection. This method is used on Configurator UI on source save.
+        Proxies request to Jitsu Server.
+      security:
+        - configurationManagementAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v1/destinations:
+    get:
+      tags:
+        - cluster-admin
+      operationId: 'Get destinations configuration'
+      description: Returns all configured destinations
+      security:
+        - clusterAdminAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v1/destinations/test:
+    post:
+      tags:
+        - configuration-management
+      operationId: 'Test destination configuration'
+      description: >
+        Test configured destination connection. This method is used on Configurator UI on destination save.
+        Proxies request to Jitsu Server.
+      security:
+        - configurationManagementAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v1/destinations/evaluate:
+    post:
+      tags:
+        - configuration-management
+      operationId: 'Evaluate destination JS transformation script'
+      description: >
+        Evaluate destination Javascript transformation script and return the result.
+      security:
+        - configurationManagementAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v1/apikeys:
+    get:
+      tags:
+        - cluster-admin
+      operationId: 'Get api keys configuration'
+      description: Returns all configured api keys
+      security:
+        - clusterAdminAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v1/ssl:
+    parameters:
+      - $ref: '#/components/parameters/projectIdQuery'
+      - in: query
+        name: async
+        description: Flag for reissue certificates asynchonisly
+        required: false
+        schema:
+          type: boolean
+    post:
+      tags:
+        - configuration-management
+      operationId: 'Reissue project SSL certificates'
+      description: >
+        Initiate the reissue project SSL certificate pipeline. Method is only available on cloud.jitsu.com.
+      security:
+        - configurationManagementAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusResponse'
+        default:
+          $ref: '#/components/responses/Error'
 
 
 
 
+  /api/v1/become:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/objectType'
+      - $ref: '#/components/parameters/objectUid'
+    get:
+      tags:
+        - configuration-management
+      operationId: 'Get object by uid'
+      description: Get an object with given UID
+      security:
+        - configurationManagementAuth: [  ]
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+
+
+
+#TODO
+
+#/api/v1/configurations/:collection (GET, POST) --- ignore, will be deprecated
+#/api/v1/become (GET) ???
+
+
+
+#/api/v1/ssl/all (POST)
+#/api/v1/jitsu/configuration (GET)
+
+
+#/api/v1/apikeys/default
+#/api/v1/database
+#/api/v1/notify
+
+#future
+#/api/v2/projects (POST) - create a project
+#/api/v2/projects/users (POST) - add user to the project
+#/api/v2/projects/users (DELETE) - delete user from the project

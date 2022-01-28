@@ -5,12 +5,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
+	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/random"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/config"
 	endriversbase "github.com/jitsucom/jitsu/server/drivers/base"
-	"github.com/jitsucom/jitsu/server/middleware"
+	jmdlwr "github.com/jitsucom/jitsu/server/middleware"
 	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"gopkg.in/yaml.v3"
 	"net/http"
@@ -54,25 +55,25 @@ type Config struct {
 func (ch *GenerateConfigHandler) Handler(c *gin.Context) {
 	projectID := c.Query("project_id")
 	if projectID == "" {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(ErrProjectIDRequired.Error(), nil))
+		c.JSON(http.StatusBadRequest, jmdlwr.ErrResponse(ErrProjectIDRequired.Error(), nil))
 		return
 	}
 	if !hasAccessToProject(c, projectID) {
-		c.JSON(http.StatusUnauthorized, middleware.ErrResponse("You are not authorized to request data for project "+projectID, nil))
+		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
 		return
 	}
 
 	//** API keys (auth) **
 	keys, err := ch.configurationsService.GetAPIKeysByProjectID(projectID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(APIKeysGettingErrMsg, err))
+		c.JSON(http.StatusBadRequest, jmdlwr.ErrResponse(APIKeysGettingErrMsg, err))
 		return
 	}
 
 	// ** Destinations **
 	projectDestinations, err := ch.configurationsService.GetDestinationsByProjectID(projectID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(DestinationsGettingErrMsg, err))
+		c.JSON(http.StatusBadRequest, jmdlwr.ErrResponse(DestinationsGettingErrMsg, err))
 		return
 	}
 	postHandleDestinationIds := make([]string, 0)
@@ -89,7 +90,7 @@ func (ch *GenerateConfigHandler) Handler(c *gin.Context) {
 		destinationConfig, err := destinations.MapConfig(destinationID, destination, ch.defaultS3, postHandleDestinationIds)
 
 		if err != nil {
-			c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to build destinations response", err))
+			c.JSON(http.StatusBadRequest, jmdlwr.ErrResponse("Failed to build destinations response", err))
 			return
 		}
 		mappedDestinations[destinationID] = destinationConfig
@@ -98,7 +99,7 @@ func (ch *GenerateConfigHandler) Handler(c *gin.Context) {
 	// ** Sources **
 	projectSources, err := ch.configurationsService.GetSourcesByProjectID(projectID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(SourcesGettingErrMsg, err))
+		c.JSON(http.StatusBadRequest, jmdlwr.ErrResponse(SourcesGettingErrMsg, err))
 		return
 	}
 	mappedSources := make(map[string]*endriversbase.SourceConfig)
@@ -115,7 +116,7 @@ func (ch *GenerateConfigHandler) Handler(c *gin.Context) {
 		}
 		mappedConfig, err := mapSourceConfig(source, destinationIDs, postHandleDestinationIds)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, middleware.ErrResponse(fmt.Sprintf("Failed to map source [%s] config", sourceID), err))
+			c.JSON(http.StatusBadRequest, jmdlwr.ErrResponse(fmt.Sprintf("Failed to map source [%s] config", sourceID), err))
 			return
 		}
 		mappedSources[sourceID] = &mappedConfig
@@ -129,7 +130,7 @@ func (ch *GenerateConfigHandler) Handler(c *gin.Context) {
 	configYaml := yaml.Node{}
 
 	if err = yaml.Unmarshal(marshal, &configYaml); err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to deserialize result configuration", err))
+		c.JSON(http.StatusBadRequest, jmdlwr.ErrResponse("Failed to deserialize result configuration", err))
 		return
 	}
 	configYaml.HeadComment = configHeaderText
@@ -141,6 +142,6 @@ func (ch *GenerateConfigHandler) Handler(c *gin.Context) {
 	encoder.SetIndent(2)
 	err = encoder.Encode(&configYaml)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed write response", err))
+		c.JSON(http.StatusBadRequest, jmdlwr.ErrResponse("Failed write response", err))
 	}
 }

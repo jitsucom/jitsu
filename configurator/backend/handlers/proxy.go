@@ -39,15 +39,8 @@ func (ph *ProxyHandler) Handler(c *gin.Context) {
 		return
 	}
 
-	userProjectID := c.GetString(middleware.ProjectIDKey)
-	if userProjectID == "" {
-		logging.SystemError(ErrProjectIDNotFoundInContext)
-		c.JSON(http.StatusUnauthorized, smdlwr.ErrResponse("Project authorization error", ErrProjectIDNotFoundInContext))
-		return
-	}
-
-	if userProjectID != projectID {
-		c.JSON(http.StatusUnauthorized, smdlwr.ErrResponse("User does not have access to project "+projectID, nil))
+	if !hasAccessToProject(c, projectID) {
+		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
 		return
 	}
 
