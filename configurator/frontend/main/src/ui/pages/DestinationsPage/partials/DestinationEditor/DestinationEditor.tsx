@@ -18,10 +18,10 @@ import { DestinationNotFound } from "../DestinationNotFound/DestinationNotFound"
 import { sourcesStore } from "stores/sources"
 import { destinationsStore } from "stores/destinations"
 // @CatalogDestinations
-import { destinationsReferenceMap } from "catalog/destinations/lib"
+import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
 // @Types
 import { FormInstance } from "antd/es"
-import { Destination } from "catalog/destinations/types"
+import { Destination } from "@jitsu/catalog/destinations/types"
 import { Tab } from "ui/components/Tabs/TabsConfigurator"
 import { CommonDestinationPageProps } from "ui/pages/DestinationsPage/DestinationsPage"
 import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"

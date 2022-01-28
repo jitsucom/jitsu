@@ -1,7 +1,7 @@
 // @Libs
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Col, Row, Form, Select, FormProps, Badge, FormInstance } from "antd"
-import { Parameter, singleSelectionType, SourceConnector } from "catalog/sources/types"
+import { Parameter, singleSelectionType, SourceConnector } from "@jitsu/catalog/sources/types"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Components
@@ -17,7 +17,7 @@ import { usePolling } from "hooks/usePolling"
 import { toTitleCase } from "utils/strings"
 import { uniqueId } from "lodash"
 import { withQueryParams } from "utils/queryParams"
-import { mapAirbyteSpecToSourceConnectorConfig } from "catalog/sources/lib/airbyte.helper"
+import { mapAirbyteSpecToSourceConnectorConfig } from "@jitsu/catalog/sources/lib/airbyte.helper"
 import { ArrowDownOutlined, DownOutlined } from "@ant-design/icons"
 
 type Props = {

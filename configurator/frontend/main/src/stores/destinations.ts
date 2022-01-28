@@ -7,7 +7,7 @@ import { intersection, union, without } from "lodash"
 import { toArrayIfNot } from "utils/arrays"
 import { ISourcesStore, sourcesStore } from "./sources"
 import { apiKeysStore, IApiKeysStore } from "./apiKeys"
-import { destinationsReferenceMap, DestinationReference } from "../catalog/destinations/lib"
+import { destinationsReferenceMap, DestinationReference } from "@jitsu/catalog/destinations/lib"
 
 export interface IDestinationsStore {
   destinations: DestinationData[]

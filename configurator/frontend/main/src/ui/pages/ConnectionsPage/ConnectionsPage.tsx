@@ -16,7 +16,7 @@ import { PlusOutlined } from "@ant-design/icons"
 // @Utils
 import { generatePath } from "react-router-dom"
 // @Reference
-import { destinationsReferenceList } from "catalog/destinations/lib"
+import { destinationsReferenceList } from "@jitsu/catalog/destinations/lib"
 import { destinationPageRoutes } from "../DestinationsPage/DestinationsPage.routes"
 // @Styles
 import styles from "./ConnectionsPage.module.less"

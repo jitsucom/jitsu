@@ -12,7 +12,11 @@ import styles from "./OnboardingTourAddDestination.module.less"
 import { EmptyListView } from "ui/components/EmptyList/EmptyListView"
 import { DropDownList } from "ui/components/DropDownList/DropDownList"
 import { DestinationEditor } from "ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor"
-import { destinationsReferenceList, destinationsReferenceMap, DestinationReference } from "catalog/destinations/lib"
+import {
+  destinationsReferenceList,
+  destinationsReferenceMap,
+  DestinationReference,
+} from "@jitsu/catalog/destinations/lib"
 
 // @Hooks
 import { useServices } from "hooks/useServices"

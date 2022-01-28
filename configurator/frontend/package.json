@@ -3,12 +3,15 @@
   "private": true,
   "scripts": {
     "bootstrap": "npx lerna bootstrap",
-    "build": "npx lerna run build",
-    "publish:patch": "npx lerna publish patch --no-private --no-verify-access --yes",
-    "prettier:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore packages || (echo \"\t👉👉 Run yarn prettier:fix!\" && exit 1)",
-    "prettier:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore packages",
+    "start": "yarn --cwd ./main start",
+    "build": "yarn check:all && npx lerna run build",
+    "lerna:publish": "npx lerna publish --canary --no-private --no-verify-access --yes",
+    "prettier:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run yarn prettier:fix!\" && exit 1)",
+    "prettier:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore ./",
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/",
-    "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/ --fix"
+    "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/ --fix",
+    "check:all": "yarn prettier:check && eslint:check",
+    "main": "yarn --cwd main"
   },
   "dependencies": {
     "@jitsu/catalog": "file:catalog",

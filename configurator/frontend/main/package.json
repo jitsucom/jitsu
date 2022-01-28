@@ -79,5 +79,9 @@
     "tar": "^6.1.11",
     "nth-check": "^2.0.1",
     "browserslist": "^4.17.3"
+  },
+  "devDependencies": {
+    "@types/highlightjs": "^9.12.2",
+    "craco-babel-loader": "^1.0.3"
   }
 }

@@ -1,11 +1,11 @@
 // @Libs
 import { Button, Modal } from "antd"
 // @Catalog
-import mappings from "catalog/mappings/lib"
+import mappings from "@jitsu/catalog/mappings/lib"
 // @Styles
 import styles from "./DestinationEditor.module.less"
 // @Types
-import { FieldMapping, DestinationConfigurationTemplate } from "catalog/mappings/types"
+import { FieldMapping, DestinationConfigurationTemplate } from "@jitsu/catalog/mappings/types"
 // @Icons
 import ExclamationCircleOutlined from "@ant-design/icons/lib/icons/ExclamationCircleOutlined"
 // @Components

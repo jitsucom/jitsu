@@ -6,7 +6,7 @@ import { setupMockServer } from "utils/tests/tests-utils.mock-server"
 import SourcesPage from "./SourcesPage"
 import { initializeApplication } from "App"
 import { sourcesPageRoutes } from "./SourcesPage.routes"
-import { allAirbyteSources } from "catalog/sources/lib/__mocks__/airbyte"
+import { allAirbyteSources } from "@jitsu/catalog/sources/lib/__mocks__/airbyte"
 
 jest.mock("catalog/sources/lib/airbyte")
 

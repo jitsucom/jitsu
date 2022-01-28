@@ -5,13 +5,13 @@ import { Badge, Input, Modal, Switch } from "antd"
 import cn from "classnames"
 import debounce from "lodash/debounce"
 // @Catalog sources
-import { allSources } from "catalog/sources/lib"
+import { allSources } from "@jitsu/catalog/sources/lib"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Styles
 import styles from "./AddSourceDialog.module.less"
 // @Types
-import { SourceConnector } from "catalog/sources/types"
+import { SourceConnector } from "@jitsu/catalog/sources/types"
 // @Icons
 import { StarOutlined, StarFilled, ExclamationCircleOutlined } from "@ant-design/icons"
 // @Routes

@@ -2,7 +2,7 @@
 import React, { ChangeEvent, useCallback, useEffect, useRef, useState } from "react"
 import { Button, Col, Collapse, Form, Input, Popover, Row } from "antd"
 // @Types
-import { CollectionParameter, CollectionTemplate, SourceConnector } from "catalog/sources/types"
+import { CollectionParameter, CollectionTemplate, SourceConnector } from "@jitsu/catalog/sources/types"
 import { FormListFieldData, FormListOperation } from "antd/es/form/FormList"
 import { SetSourceEditorState, SourceEditorState } from "./SourceEditor"
 // @Components

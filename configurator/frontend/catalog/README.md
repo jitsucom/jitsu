@@ -9,7 +9,7 @@ At Jitsu we use it to power the Configurator front-end as well as to generate a 
 Just import the needed files from the catalog package.
 
 ```JSX
-import { allSources } from "@jitsu/catalog/sources/lib"
+import { allSources } from "./sources/lib"
 
 //...
 
