@@ -54,11 +54,12 @@ func TestParseFromBytes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualTokenHolder, err := parseFromBytes(tt.input)
+			tokens, err := parseFromBytes(tt.input)
 			if tt.expectedErr != "" {
 				require.EqualError(t, err, tt.expectedErr, "Errors aren't equal")
 			} else {
 				require.NoError(t, err)
+				actualTokenHolder := reformat(tokens)
 				test.ObjectsEqual(t, tt.expected.ids, actualTokenHolder.ids, "Token holder ids aren't equal")
 				test.ObjectsEqual(t, tt.expected.all, actualTokenHolder.all, "Token holders all aren't equal")
 				test.ObjectsEqual(t, tt.expected.clientTokensOrigins, actualTokenHolder.clientTokensOrigins, "Token holders client tokens aren't equal")
@@ -98,79 +99,5 @@ func buildExpected() *TokensHolder {
 			"03f9ed11a0268dd78766686f8f292b7b": token3,
 			"sr_secret3":                       token3,
 		},
-	}
-}
-
-func TestFromStrings(t *testing.T) {
-	tests := []struct {
-		name       string
-		input      []string
-		deprecated []string
-		expected   *TokensHolder
-	}{
-		{
-			"empty tokens",
-			[]string{},
-			[]string{},
-			&TokensHolder{clientTokensOrigins: map[string][]string{}, serverTokensOrigins: map[string][]string{}, all: map[string]Token{}},
-		},
-		{
-			"value is string slice",
-			[]string{"token1", "token2"},
-			[]string{},
-			&TokensHolder{
-				clientTokensOrigins: map[string][]string{"token1": nil, "token2": nil},
-				serverTokensOrigins: map[string][]string{},
-				all: map[string]Token{
-					"78b1e6d775cec5260001af137a79dbd5": {ID: "78b1e6d775cec5260001af137a79dbd5", ClientSecret: "token1"},
-					"token1":                           {ID: "78b1e6d775cec5260001af137a79dbd5", ClientSecret: "token1"},
-
-					"0e0530c1430da76495955eb06eb99d95": {ID: "0e0530c1430da76495955eb06eb99d95", ClientSecret: "token2"},
-					"token2":                           {ID: "0e0530c1430da76495955eb06eb99d95", ClientSecret: "token2"},
-				},
-				ids: []string{"78b1e6d775cec5260001af137a79dbd5", "0e0530c1430da76495955eb06eb99d95"},
-			},
-		},
-		{
-			"value is string slice with deprecated s2s",
-			[]string{"token1", "token2"},
-			[]string{"s2s"},
-			&TokensHolder{
-				clientTokensOrigins: map[string][]string{"token1": nil, "token2": nil},
-				serverTokensOrigins: map[string][]string{"s2s": nil},
-				all: map[string]Token{
-					"78b1e6d775cec5260001af137a79dbd5": {ID: "78b1e6d775cec5260001af137a79dbd5", ClientSecret: "token1"},
-					"token1":                           {ID: "78b1e6d775cec5260001af137a79dbd5", ClientSecret: "token1"},
-
-					"0e0530c1430da76495955eb06eb99d95": {ID: "0e0530c1430da76495955eb06eb99d95", ClientSecret: "token2"},
-					"token2":                           {ID: "0e0530c1430da76495955eb06eb99d95", ClientSecret: "token2"},
-
-					"56c61ed958d9e124f3c2767637147a0c": {ID: "56c61ed958d9e124f3c2767637147a0c", ServerSecret: "s2s"},
-					"s2s":                              {ID: "56c61ed958d9e124f3c2767637147a0c", ServerSecret: "s2s"},
-				},
-				ids: []string{"78b1e6d775cec5260001af137a79dbd5", "0e0530c1430da76495955eb06eb99d95", "56c61ed958d9e124f3c2767637147a0c"},
-			},
-		},
-		{
-			"only deprecated s2s",
-			[]string{},
-			[]string{"s2s"},
-			&TokensHolder{
-				clientTokensOrigins: map[string][]string{},
-				serverTokensOrigins: map[string][]string{"s2s": nil},
-				all: map[string]Token{
-					"56c61ed958d9e124f3c2767637147a0c": {ID: "56c61ed958d9e124f3c2767637147a0c", ServerSecret: "s2s"},
-					"s2s":                              {ID: "56c61ed958d9e124f3c2767637147a0c", ServerSecret: "s2s"},
-				},
-				ids: []string{"56c61ed958d9e124f3c2767637147a0c"},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := fromStrings(tt.input, tt.deprecated)
-			test.ObjectsEqual(t, tt.expected, actual, "Token holders aren't equal")
-		})
 	}
 }
