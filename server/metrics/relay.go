@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
@@ -129,17 +130,32 @@ func (r *Relay) Relay(ctx context.Context, gatherer prometheus.Gatherer) error {
 	ctx, cancel := context.WithTimeout(ctx, r.Timeout)
 	defer cancel()
 
-	if err := requests.URL(r.URL).
+	json, err := json.Marshal(RelayData{
+		Timestamp:    timestamp.Now().UnixMilli(),
+		HostID:       r.HostID,
+		DeploymentID: r.DeploymentID,
+		Data:         data,
+	})
+
+	if err != nil {
+		return errors.Wrap(err, "marshal metric data")
+	}
+
+	req, err := requests.URL(r.URL).
 		Method(http.MethodPost).
-		BodyJSON(RelayData{
-			Timestamp:    timestamp.Now().UnixMilli(),
-			HostID:       r.HostID,
-			DeploymentID: r.DeploymentID,
-			Data:         data,
-		}).
+		ContentType("application/json").
+		BodyBytes(json).
+		Request(ctx)
+	if err != nil {
+		return errors.Wrap(err, "compose http request")
+	}
+
+	req.ContentLength = int64(len(json))
+	req.TransferEncoding = []string{"identity"}
+	if err := requests.URL(r.URL).
 		CheckStatus(http.StatusOK).
-		Fetch(ctx); err != nil {
-		return errors.Wrap(err, "send metrics")
+		Do(req); err != nil {
+		return errors.Wrap(err, "do http request")
 	}
 
 	return nil
