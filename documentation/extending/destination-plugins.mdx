@@ -2,19 +2,13 @@
 title: Destination Plugins
 ---
 
-With Jitsu SDK you can implement plugins for Jitsu using Typescript language.
-
-Plugin types:
- * Destination
- * Transformation (Not implemented yet)
- * Source (Not implemented yet)
-
 # Destination Plugin
+
+Jitsu Destination Plugins allows anyone to implement new destination type for Jitsu,
+and publish it to make it available for all users of Jitsu.
 
 Jitsu Destination Plugins are designed to work with HTTP based APIs.
 Plugin receives Jitsu event and returns object describing HTTP requests necessary to push data to destination.
-Jitsu server is in charge of queuing, executing and retrying HTTP requests the same as with builtin destinations like webhook.
-Main plugin code doesn't have access to any external resources and doesn't support async execution.
 
 ## Create New Destination Plugin
 
@@ -143,8 +137,8 @@ and what is more important: **config** - config object that we described in the 
 
 **Return values**:
 
-As we mentioned in the beginning, plugin itself doesn't send anything to internet. Instead,
-DestinationFunction may return:
+Main plugin code doesn't support async execution and doesn't have access to any external resources.
+Instead, DestinationFunction needs to return:
  * a single instance of DestinationMessage
  * array of DestinationMessage's - to produce multiple pushes to destination
  * null - null means that Jitsu must skip this event.
@@ -158,6 +152,7 @@ export declare type DestinationMessage = {
   body: any;
 };
 ```
+Jitsu server is in charge of queuing, executing and retrying HTTP requests the same as with builtin destinations like webhook.
 
 ### Writing a test
 
@@ -354,33 +349,16 @@ if you want Jitsu to display nice graphic icon along with destination name you n
 
 ## Adding to Jitsu
 
-To add our plugin to jitsu we need to build it and make package.
+To add our plugin to jitsu we need to build it and publish.
 
 To build plugin code use:
 ```shell
 yarn build
 ```
-For making package there are 2 options:
 
-#### handmade .tgz tarball
+### publish to npm repository
 
-Making .tgz is fast and simple.
-This way is perfect if we don't plan to share our plugin with anybody else.
-
-Use command like that to make compressed .tgz package of destination project directory:
-```shell
-tar -cvzf package_name.tgz -C /workspace_directory/ destination_project_directory
-```
-In case of our destination command will look like:
-```shell
-tar -cvzf jitsu-slack-destination.tgz -C /Users/testaccount/projects/ jitsu-slack-destination
-```
-
-`jitsu-slack-destination.tgz` file will appear in current directory.
-
-#### publish to npm repository
-
-In case we want to share plugin with other people - publishing to public npm repository is a preferable way.
+Publishing plugin to public npm repository to make it available for other users..
 You need to have account in https://www.npmjs.com
 
 The following commands in project directory may be used to publish package to npmjs repository.
@@ -403,7 +381,7 @@ destinations:
     only_tokens:
       - my_token
     type: npm
-    package: /home/eventnative/data/plugins/jitsu-slack-destination.tgz
+    package: jitsu-slack-destination@^1.0.0
     mode: stream
     config:
       webhookUrl: "https://hooks.slack.com/services/ABC/XYZ/etc"
@@ -412,16 +390,36 @@ destinations:
 ```
 
 **package** can be:
- * **filesystem path** - in case of docker image, provided path need to be reachable inside of docker image filesystem.
-/home/eventnative/data/plugins/ needs to be mounted to host filesystem directory where file jitsu-slack-destination.tgz is located,
-e.g. following param may be added to docker run command: `-v /Users/testaccount/projects/:/home/eventnative/data/plugins/`
- * **HTTP URL** - e.g.: `https://my-site.com/plugins/jitsu-slack-destination.tgz`
  * **npm package name** - in case plugin is published to npm repository. It is recommended to provide package name with version expression,
 to prevent backward compatibility issues when new version of plugin will require some features that current version of server doesn't support,
 e.g.: `jitsu-slack-destination@^1.0.0`
+ * **HTTP URL** - e.g.: `https://my-site.com/plugins/jitsu-slack-destination.tgz`
+ * **filesystem path** - in case of docker image, provided path need to be reachable inside of docker image filesystem.
+/home/eventnative/data/plugins/ needs to be mounted to host filesystem directory where file jitsu-slack-destination.tgz is located,
+e.g. following param may be added to docker run command: `-v /Users/testaccount/projects/:/home/eventnative/data/plugins/`
 
 ### Setting up Jitsu Joint Image or Configurator UI
 
 UI support for adding plugin based destinations is not ready yet.
 To make your destination plugin appear in Jitsu Configurator UI please create a new ticket or pull request in
 [jitsu repository](https://github.com/jitsucom/jitsu)
+
+### Publishing plugin locally
+
+In case that there is no intention to publish plugin for other users you can keep it for yourself.
+
+You need to build .tgz package manually:
+
+Use command like that to make compressed .tgz package of destination project directory:
+```shell
+tar -cvzf package_name.tgz -C /workspace_directory/ destination_project_directory
+```
+In case of our destination command will look like:
+```shell
+tar -cvzf jitsu-slack-destination.tgz -C /Users/testaccount/projects/ jitsu-slack-destination
+```
+`jitsu-slack-destination.tgz` file will appear in current directory.
+
+See [Setting Up Jitsu Server](#setting-up-jitsu-server) to check how to pass local package to Jitsu Server
+
+
