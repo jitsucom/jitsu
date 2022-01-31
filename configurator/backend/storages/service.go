@@ -26,7 +26,7 @@ const (
 	geoDataResolversCollection           = "geo_data_resolvers"
 
 	telemetryCollection = "telemetry"
-	telemetryGlobalID   = "global_configuration"
+	TelemetryGlobalID   = "global_configuration"
 
 	allObjectsIdentifier = "all"
 
@@ -410,7 +410,7 @@ func (cs *ConfigurationsService) GetGeoDataResolverByProjectID(projectID string)
 
 //SaveTelemetry uses saveWithLock for saving with lock telemetry settings
 func (cs *ConfigurationsService) SaveTelemetry(disabledConfiguration map[string]bool) error {
-	_, err := cs.saveWithLock(telemetryCollection, telemetryGlobalID, telemetry.Configuration{Disabled: disabledConfiguration})
+	_, err := cs.saveWithLock(telemetryCollection, TelemetryGlobalID, telemetry.Configuration{Disabled: disabledConfiguration})
 	if err != nil {
 		return fmt.Errorf("failed to store telemetry settings:: %v", err)
 	}
@@ -419,7 +419,7 @@ func (cs *ConfigurationsService) SaveTelemetry(disabledConfiguration map[string]
 
 //GetTelemetry uses getWithLock for getting with lock telemetry settings
 func (cs *ConfigurationsService) GetTelemetry() ([]byte, error) {
-	b, err := cs.getWithLock(telemetryCollection, telemetryGlobalID)
+	b, err := cs.getWithLock(telemetryCollection, TelemetryGlobalID)
 	if err != nil {
 		return nil, err
 	}
