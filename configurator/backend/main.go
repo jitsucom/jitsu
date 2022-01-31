@@ -292,9 +292,6 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 		c.String(http.StatusOK, "pong")
 	})
 
-	apiKeysHandler := handlers.NewAPIKeysHandler(configurationsService)
-	jConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsService)
-
 	proxyHandler := handlers.NewProxyHandler(jitsuService, map[string]jitsu.APIDecorator{
 		//write here custom decorators for a certain HTTP URN paths
 		"/proxy/api/v1/events/cache":        jitsu.NewEventsCacheDecorator(configurationsService).Decorate,
@@ -303,35 +300,10 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 	})
 	router.Any("/proxy/*path", authenticatorMiddleware.BearerAuthWrapper(proxyHandler.Handler))
 
-	// ** OLD API (will be moved to OpenAPI soon) **
+	// ** OLD API (delete after migrating UI to api/v2) **
+	jConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsService)
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.POST("/notify", authenticatorMiddleware.OldStyleBearerAuth(handlers.NotifyHandler, true))
-		apiV1.POST("/database", authenticatorMiddleware.OldStyleBearerAuth(handlers.NewDatabaseHandler(configurationsService).PostHandler, true))
-		apiV1.POST("/apikeys/default", authenticatorMiddleware.OldStyleBearerAuth(apiKeysHandler.CreateDefaultAPIKeyHandler, true))
-
-		apiV1.GET("/apikeys", middleware.ServerAuth(contentChangesMiddleware.OldStyleIfModifiedSince(apiKeysHandler.GetHandler), serverToken))
-
-		apiV1.GET("/jitsu/configuration", authenticatorMiddleware.OldStyleBearerAuth(handlers.NewGenerateConfigHandler(configurationsService).Handler, true))
-
-		if sslUpdateExecutor != nil {
-			apiV1.POST("/ssl", authenticatorMiddleware.OldStyleBearerAuth(handlers.NewCustomDomainHandler(sslUpdateExecutor).PerProjectHandler, true))
-			apiV1.POST("/ssl/all", middleware.ServerAuth(handlers.NewCustomDomainHandler(sslUpdateExecutor).AllHandler, serverToken))
-		}
-
-		destinationsHandler := handlers.NewDestinationsHandler(configurationsService, defaultS3, jitsuService)
-		apiV1.GET("/destinations", middleware.ServerAuth(contentChangesMiddleware.OldStyleIfModifiedSince(destinationsHandler.GetHandler), serverToken))
-		apiV1.POST("/destinations/test", authenticatorMiddleware.OldStyleBearerAuth(destinationsHandler.TestHandler, true))
-		apiV1.POST("/destinations/evaluate", authenticatorMiddleware.OldStyleBearerAuth(destinationsHandler.EvaluateHandler, true))
-
-		sourcesHandler := handlers.NewSourcesHandler(configurationsService, jitsuService)
-		apiV1.GET("/sources", middleware.ServerAuth(contentChangesMiddleware.OldStyleIfModifiedSince(sourcesHandler.GetHandler), serverToken))
-		apiV1.POST("/sources/test", authenticatorMiddleware.OldStyleBearerAuth(sourcesHandler.TestHandler, true))
-
-		telemetryHandler := handlers.NewTelemetryHandler(configurationsService)
-		apiV1.GET("/telemetry", middleware.ServerAuth(telemetryHandler.GetHandler, serverToken))
-
-		apiV1.GET("/become", authenticatorMiddleware.OldStyleBearerAuth(handlers.NewBecomeUserHandler(authService).Handler, false))
 
 		//DEPRECATED
 		apiV1.GET("/configurations/:collection", authenticatorMiddleware.OldStyleBearerAuth(jConfigurationsHandler.GetConfig, true))
@@ -346,7 +318,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 		Tag:         tag,
 		BuiltAt:     builtAt,
 	}
-	openAPIHandler := handlers.NewOpenAPI(authService, emailService, configurationsService, systemConfig)
+	openAPIHandler := handlers.NewOpenAPI(authService, emailService, configurationsService, systemConfig, jitsuService, sslUpdateExecutor, defaultS3)
 	return openapi.RegisterHandlersWithOptions(router, openAPIHandler, openapi.GinServerOptions{
 		BaseURL:     "",
 		Middlewares: []openapi.MiddlewareFunc{authenticatorMiddleware.BearerAuth, contentChangesMiddleware.IfModifiedSince},
