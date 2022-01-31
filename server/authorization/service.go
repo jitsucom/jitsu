@@ -4,16 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/spf13/viper"
-	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	serviceName                     = "authorization"
+	serviceName = "authorization"
+
 	viperApiKeysKey                 = "api_keys"
 	deprecatedViperServerApiKeysKey = "server.api_keys"
 	deprecatedViperAuthKey          = "server.auth"
@@ -31,7 +30,14 @@ type Service struct {
 }
 
 func NewService(configuratorURL, configuratorToken string) (*Service, error) {
-	service := &Service{}
+	service := &Service{
+		tokensHolder: &TokensHolder{
+			clientTokensOrigins: map[string][]string{},
+			serverTokensOrigins: map[string][]string{},
+			all:                 map[string]Token{},
+			ids:                 []string{},
+		},
+	}
 
 	reloadSec := viper.GetInt("server.api_keys_reload_sec")
 	if reloadSec == 0 {
@@ -42,6 +48,8 @@ func NewService(configuratorURL, configuratorToken string) (*Service, error) {
 	if reloadSec == 0 {
 		return nil, errors.New("server.api_keys_reload_sec can't be empty")
 	}
+
+	reloadEvery := time.Duration(reloadSec) * time.Second
 
 	//if api_keys is used => strict tokens
 	if viper.IsSet(viperApiKeysKey) || viper.IsSet(deprecatedViperServerApiKeysKey) {
@@ -57,46 +65,27 @@ func NewService(configuratorURL, configuratorToken string) (*Service, error) {
 		viperKey = deprecatedViperAuthKey
 	}
 
-	//deprecated viper s2s key
-	deprecatedS2SAuth := viper.GetStringSlice(deprecatedViperS2SKey)
+	//returns initialized true if already service.tokenHolders is filled
+	initialized, tokens, err := extractFromViper(viperKey, reloadEvery, service)
+	if err != nil {
+		return nil, err
+	}
 
-	var tokens []Token
-	err := viper.UnmarshalKey(viperKey, &tokens)
-	if err == nil && len(tokens) > 0 {
-		for _, s2sauth := range deprecatedS2SAuth {
-			tokens = append(tokens, Token{ServerSecret: s2sauth})
-		}
-		service.tokensHolder = reformat(tokens)
-	} else {
-		auth := viper.GetStringSlice(viperKey)
-		if len(auth) == 0 && configuratorURL != "" {
-			auth = append(auth, buildAuthURL(configuratorURL, configuratorToken))
-		}
-
-		if len(auth) == 1 {
-			authSource := auth[0]
-			if authSource == "" && configuratorURL != "" {
-				authSource = buildAuthURL(configuratorURL, configuratorToken)
-			}
-			if strings.HasPrefix(authSource, "http://") || strings.HasPrefix(authSource, "https://") {
-				resources.Watch(serviceName, authSource, resources.LoadFromHTTP, service.updateTokens, time.Duration(reloadSec)*time.Second)
-			} else if strings.HasPrefix(authSource, "file://") || strings.HasPrefix(authSource, "/") {
-				resources.Watch(serviceName, strings.Replace(authSource, "file://", "", 1), resources.LoadFromFile, service.updateTokens, time.Duration(reloadSec)*time.Second)
-			} else if strings.HasPrefix(authSource, "{") && strings.HasSuffix(authSource, "}") {
-				tokensHolder, err := parseFromBytes([]byte(authSource))
-				if err != nil {
-					return nil, err
-				}
-				service.tokensHolder = tokensHolder
-			} else {
-				//plain token
-				service.tokensHolder = fromStrings(auth, deprecatedS2SAuth)
+	if !initialized {
+		//initialize via configurator URL
+		if len(tokens) == 0 && configuratorURL != "" {
+			if _, _, err = extractFromString(buildAuthURL(configuratorURL, configuratorToken), service, reloadEvery); err != nil {
+				return nil, err
 			}
 		} else {
-			//array of tokens
-			service.tokensHolder = fromStrings(auth, deprecatedS2SAuth)
-		}
+			//add deprecated viper s2s key and fill service.tokenHolders
+			deprecatedS2SAuth := viper.GetStringSlice(deprecatedViperS2SKey)
+			for _, s2sauth := range deprecatedS2SAuth {
+				tokens = append(tokens, Token{ServerSecret: s2sauth})
+			}
 
+			service.tokensHolder = reformat(tokens)
+		}
 	}
 
 	if service.tokensHolder.IsEmpty() && !viper.GetBool("server.strict_auth_tokens") {
@@ -180,12 +169,12 @@ func (s *Service) GetTokenID(tokenFilter string) string {
 
 //parse and set tokensHolder with lock
 func (s *Service) updateTokens(payload []byte) {
-	tokenHolder, err := parseFromBytes(payload)
+	tokens, err := parseFromBytes(payload)
 	if err != nil {
 		logging.Errorf("Error updating authorization tokens: %v", err)
 	} else {
 		s.Lock()
-		s.tokensHolder = tokenHolder
+		s.tokensHolder = reformat(tokens)
 		s.Unlock()
 
 		//we should reload destinations after all changes in authorization service

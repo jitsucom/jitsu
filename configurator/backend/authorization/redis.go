@@ -18,6 +18,8 @@ const (
 
 	authAccessTokensKey  = "auth_access_tokens"
 	authRefreshTokensKey = "auth_refresh_tokens"
+
+	userIndexKey = "users_index"
 )
 
 //** redis key [variables] - description **
@@ -76,7 +78,7 @@ func (rp *RedisProvider) UsersExist() (bool, error) {
 	conn := rp.pool.Get()
 	defer conn.Close()
 
-	exists, err := redis.Bool(conn.Do("EXISTS", "users_index"))
+	exists, err := redis.Bool(conn.Do("EXISTS", userIndexKey))
 	if err != nil && err != redis.ErrNil {
 		return false, err
 	}
@@ -113,7 +115,7 @@ func (rp *RedisProvider) GetUserByEmail(email string) (*User, error) {
 	defer conn.Close()
 
 	//get userID from index
-	userID, err := redis.String(conn.Do("HGET", "users_index", email))
+	userID, err := redis.String(conn.Do("HGET", userIndexKey, email))
 	if err != nil {
 		if err == redis.ErrNil {
 			return nil, ErrUserNotFound
@@ -125,7 +127,7 @@ func (rp *RedisProvider) GetUserByEmail(email string) (*User, error) {
 	userValues, err := redis.Values(conn.Do("HGETALL", "user#"+userID))
 	if err != nil {
 		if err == redis.ErrNil {
-			logging.SystemErrorf("User with id: %s exists in users_index but doesn't exist in user#%s record", userID, userID)
+			logging.SystemErrorf("User with id: %s exists in %s but doesn't exist in user#%s record", userID, userIndexKey, userID)
 			return nil, ErrUserNotFound
 		}
 
@@ -153,12 +155,51 @@ func (rp *RedisProvider) SaveUser(user *User) error {
 	}
 
 	//update index
-	_, err = conn.Do("HSET", "users_index", user.Email, user.ID)
+	_, err = conn.Do("HSET", userIndexKey, user.Email, user.ID)
 	if err != nil && err != redis.ErrNil {
 		return err
 	}
 
 	return nil
+}
+
+//ChangeUserEmail changes user's email
+//returns user ID and err
+func (rp *RedisProvider) ChangeUserEmail(oldEmail, newEmail string) (string, error) {
+	conn := rp.pool.Get()
+	defer conn.Close()
+
+	//get userID from index
+	userID, err := redis.String(conn.Do("HGET", userIndexKey, oldEmail))
+	if err != nil {
+		if err == redis.ErrNil {
+			return "", ErrUserNotFound
+		}
+
+		return "", err
+	}
+
+	//save new email into user record
+	_, err = conn.Do("HSET", "user#"+userID, "email", newEmail)
+	if err != nil && err != redis.ErrNil {
+		return "", err
+	}
+
+	//update index with new email
+	_, err = conn.Do("HSET", userIndexKey, newEmail, userID)
+	if err != nil && err != redis.ErrNil {
+		logging.SystemErrorf("can't change user email from %s to %s: error updating email in index: %v", oldEmail, newEmail, err)
+		return "", err
+	}
+
+	//remove old email from index
+	_, err = conn.Do("HDEL", userIndexKey, oldEmail)
+	if err != nil && err != redis.ErrNil {
+		logging.SystemErrorf("failed to remove old user email [%s] from index: %v", oldEmail, err)
+		return "", err
+	}
+
+	return userID, nil
 }
 
 //DeleteAllTokens removes both access and refresh tokens from Redis by userIDs
