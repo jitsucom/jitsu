@@ -552,7 +552,7 @@ func (oa *OpenAPI) GenerateJitsuServerYamlConfiguration(c *gin.Context, params o
 	}
 }
 
-func (oa *OpenAPI) SendCustomPayloadNotification(c *gin.Context) {
+func (oa *OpenAPI) SendCustomPayloadNotificationAsynchronously(c *gin.Context) {
 	//check if middleware has aborted the request
 	if c.IsAborted() {
 		return
@@ -777,18 +777,19 @@ func (oa *OpenAPI) GetSystemConfiguration(c *gin.Context) {
 	}
 
 	currentConfiguration := jsystem.Configuration{
-		Authorization:          oa.authService.GetAuthorizationType(),
-		Users:                  exist,
-		SMTP:                   oa.systemConfiguration.SMTP,
-		SelfHosted:             oa.systemConfiguration.SelfHosted,
-		SupportWidget:          !oa.systemConfiguration.SelfHosted,
-		DefaultS3Bucket:        !oa.systemConfiguration.SelfHosted,
-		SupportTrackingDomains: !oa.systemConfiguration.SelfHosted,
-		TelemetryUsageDisabled: telemetryUsageDisabled,
-		ShowBecomeUser:         !oa.systemConfiguration.SelfHosted,
-		DockerHubID:            oa.systemConfiguration.DockerHUBID,
-		Tag:                    oa.systemConfiguration.Tag,
-		BuiltAt:                oa.systemConfiguration.BuiltAt,
+		Authorization:               oa.authService.GetAuthorizationType(),
+		Users:                       exist,
+		SMTP:                        oa.systemConfiguration.SMTP,
+		SelfHosted:                  oa.systemConfiguration.SelfHosted,
+		SupportWidget:               !oa.systemConfiguration.SelfHosted,
+		DefaultS3Bucket:             !oa.systemConfiguration.SelfHosted,
+		SupportTrackingDomains:      !oa.systemConfiguration.SelfHosted,
+		TelemetryUsageDisabled:      telemetryUsageDisabled,
+		ShowBecomeUser:              !oa.systemConfiguration.SelfHosted,
+		DockerHubID:                 oa.systemConfiguration.DockerHUBID,
+		OnlyAdminCanChangeUserEmail: oa.systemConfiguration.SelfHosted,
+		Tag:                         oa.systemConfiguration.Tag,
+		BuiltAt:                     oa.systemConfiguration.BuiltAt,
 	}
 
 	data, _ := json.Marshal(currentConfiguration)
@@ -836,6 +837,37 @@ func (oa *OpenAPI) GetTelemetrySettings(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, anyObject)
+}
+
+func (oa *OpenAPI) UserEmailChange(c *gin.Context) {
+	//check if middleware has aborted the request
+	if c.IsAborted() {
+		return
+	}
+
+	req := &openapi.UserEmailChangeJSONBody{}
+	if err := c.BindJSON(req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("Invalid input JSON", err))
+		return
+	}
+
+	if req.OldEmail == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("Invalid input data", errors.New("old_email is required field")))
+		return
+	}
+
+	if req.NewEmail == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("Invalid input data", errors.New("new_email is required field")))
+		return
+	}
+
+	err := oa.authService.ChangeEmail(req.OldEmail, req.NewEmail)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(fmt.Sprintf("Failed to change user email from %s to %s", req.OldEmail, req.NewEmail), err))
+		return
+	}
+
+	c.JSON(http.StatusOK, OpenAPIOKResponse())
 }
 
 func (oa *OpenAPI) GetUserInfo(c *gin.Context) {

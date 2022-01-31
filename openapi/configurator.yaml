@@ -298,7 +298,6 @@ paths:
               properties:
                 new_password: { type: string }
                 reset_id: { type: string }
-              required: [ email ]
       responses:
         "200":
           description: 'Success password changing'
@@ -328,7 +327,7 @@ paths:
       operationId: "Update user info"
       description: 'Replaces users settings with a new user settings. Changes to some fields (such as security settings), will not have an effect'
       security:
-        - configurationManagementAuth: ['client']
+        - configurationManagementAuth: [ ]
       requestBody:
         content:
           application/json:
@@ -337,6 +336,30 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/users/email/change:
+    post:
+      tags:
+        - cluster-admin
+      operationId: 'User email change'
+      description: 'Change email'
+      security:
+        - clusterAdminAuth: [ ]
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              title: UserEmailChangeRequest
+              type: object
+              properties:
+                old_email: { type: string }
+                new_email: { type: string }
+              required: [ old_email, new_email ]
+      responses:
+        "200":
+          $ref: '#/components/responses/StatusResponse'
+        #All error responses
         default:
           $ref: '#/components/responses/Error'
   /api/v1/system/configuration:
@@ -449,7 +472,7 @@ paths:
       operationId: "Delete object by uid"
       description: Delete an object with given UID. Returns a deleted object
       security:
-        - configurationManagementAuth: [ 'client:project' ]
+        - configurationManagementAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'

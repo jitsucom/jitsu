@@ -35,7 +35,7 @@ func (ph *ProxyHandler) Handler(c *gin.Context) {
 
 	projectID := extractProjectID(c)
 	if projectID == "" {
-		c.JSON(http.StatusBadRequest, smdlwr.ErrResponse(ErrProjectIDRequired.Error(), nil))
+		c.JSON(http.StatusBadRequest, smdlwr.ErrResponse("project_id is required query/body parameter", nil))
 		return
 	}
 

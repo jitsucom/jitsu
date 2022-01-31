@@ -5,6 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/openapi"
+	"github.com/jitsucom/jitsu/configurator/storages"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"net/http"
@@ -23,9 +24,7 @@ const (
 	bearerAuthHeader = "authorization"
 
 	//Scopes
-	bearerClientScope        = "client"
-	bearerClientProjectScope = "client:project"
-	bearerServerScope        = "server"
+	bearerClientScope = "client"
 )
 
 var tokenRe = regexp.MustCompile(`(?i)^bearer (.+)$`)
@@ -33,10 +32,11 @@ var tokenRe = regexp.MustCompile(`(?i)^bearer (.+)$`)
 type Authenticator struct {
 	serverToken string
 	service     *authorization.Service
+	selfhosted  bool
 }
 
-func NewAuthenticator(serverToken string, service *authorization.Service) *Authenticator {
-	return &Authenticator{serverToken: serverToken, service: service}
+func NewAuthenticator(serverToken string, service *authorization.Service, selfhosted bool) *Authenticator {
+	return &Authenticator{serverToken: serverToken, service: service, selfhosted: selfhosted}
 }
 
 //BearerAuth is a middleware for authenticate user with bearer token
@@ -82,51 +82,27 @@ func (a *Authenticator) BearerAuth(c *gin.Context) {
 		if projectID, err := a.service.GetProjectID(userID); err == nil {
 			access.projects[projectID] = true
 		}
+
+		//added permissions on global configuration
+		if a.selfhosted {
+			access.projects[storages.TelemetryGlobalID] = true
+		}
 	}
 
 	c.Set(Permissions, access)
 }
 
-//BearerAuthWrapper is a wrapper for BearerAuth func
-func (a *Authenticator) BearerAuthWrapper(main gin.HandlerFunc) gin.HandlerFunc {
+//BearerAuthManagementWrapper is a wrapper for BearerAuth func
+//adds minimal openapi.ConfigurationManagementAuthScopes to request
+func (a *Authenticator) BearerAuthManagementWrapper(main gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		c.Set(openapi.ConfigurationManagementAuthScopes, "")
 		a.BearerAuth(c)
 		if !c.IsAborted() {
 			main(c)
 		}
 	}
 
-}
-
-//OldStyleBearerAuth is a middleware for authenticate user with bearer token for backward compatibility
-//TODO delete this func after moving all API endpoints to openAPI
-func (a *Authenticator) OldStyleBearerAuth(main gin.HandlerFunc, extractProjectID bool) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		token, ok := getToken(c)
-		if !ok {
-			return
-		}
-		c.Set(TokenKey, token)
-
-		userID, err := a.service.Authenticate(token)
-		if err != nil {
-			errAuthenticate(c, token, err)
-			return
-		}
-		c.Set(UserIDKey, userID)
-
-		if extractProjectID {
-			projectID, err := a.service.GetProjectID(userID)
-			if err != nil {
-				errProjectID(c, token, err)
-				return
-			}
-
-			c.Set(ProjectIDKey, projectID)
-		}
-
-		main(c)
-	}
 }
 
 //getToken extracts token from all supported headers/query parameters
