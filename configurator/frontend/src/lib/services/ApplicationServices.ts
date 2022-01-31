@@ -215,8 +215,6 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
 
   assert(typeof responseData.smtp === "boolean")
 
-  assert(typeof responseData.only_admin_can_change_user_email === "boolean")
-
   return {
     ...responseData,
     createDemoDatabase: !responseData.selfhosted,
@@ -229,7 +227,7 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     authorization: responseData.authorization,
     smtp: responseData.smtp,
     environment: environment,
-    onlyAdminCanChangeUserEmail: responseData.only_admin_can_change_user_email,
+    onlyAdminCanChangeUserEmail: !!responseData.only_admin_can_change_user_email,
   }
 }
 
@@ -290,5 +288,5 @@ export type FeatureSettings = {
   /**
    * If only admin can change user email. For example in self-hosted instances admin token is required for this method
    */
-  onlyAdminCanChangeUserEmail: boolean
+  onlyAdminCanChangeUserEmail?: boolean
 }
