@@ -35,25 +35,14 @@ func (th *TokensHolder) IsEmpty() bool {
 }
 
 //parse tokens from json bytes
-func parseFromBytes(b []byte) (*TokensHolder, error) {
+func parseFromBytes(b []byte) ([]Token, error) {
 	payload := &TokensPayload{}
 	err := json.Unmarshal(b, payload)
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshalling tokens. Payload must be json with 'tokens' key: %v", err)
 	}
 
-	return reformat(payload.Tokens), nil
-}
-
-func fromStrings(clientSecrets, serverSecrets []string) *TokensHolder {
-	var tokens []Token
-	for _, clientSecret := range clientSecrets {
-		tokens = append(tokens, Token{ClientSecret: clientSecret})
-	}
-	for _, serverSecret := range serverSecrets {
-		tokens = append(tokens, Token{ServerSecret: serverSecret})
-	}
-	return reformat(tokens)
+	return payload.Tokens, nil
 }
 
 func reformat(tokens []Token) *TokensHolder {

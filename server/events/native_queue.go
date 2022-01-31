@@ -105,6 +105,11 @@ func (q *NativeQueue) DequeueBlock() (Event, time.Time, string, error) {
 
 //Close closes underlying queue
 func (q *NativeQueue) Close() error {
-	close(q.closed)
-	return q.queue.Close()
+	select {
+	case <-q.closed:
+		return nil
+	default:
+		close(q.closed)
+		return q.queue.Close()
+	}
 }

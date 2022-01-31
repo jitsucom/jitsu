@@ -26,6 +26,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/huandu/facebook/v2 v2.5.3
 	github.com/iancoleman/strcase v0.2.0
+	github.com/jarcoal/httpmock v1.1.0
 	github.com/jitsucom/goque/v2 v2.2.0
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
 	github.com/lib/pq v1.10.2
