@@ -12,9 +12,10 @@ const changeEmailInitialFormValues: ChangeEmailFormValues = {
 type Props = {
   className?: string
   handleChangeEmail: (newEmail: string) => Promise<void>
+  changeEmailDisabled: boolean
 }
 
-const ChangeEmailFormComponent: React.FC<Props> = ({ className, handleChangeEmail }) => {
+const ChangeEmailFormComponent: React.FC<Props> = ({ className, handleChangeEmail, changeEmailDisabled }) => {
   const inputRef = useRef(null)
   const [form] = Form.useForm<ChangeEmailFormValues>()
   const [showChangeEmailField, setShowChangeEmailField] = useState<boolean>(false)
@@ -61,6 +62,7 @@ const ChangeEmailFormComponent: React.FC<Props> = ({ className, handleChangeEmai
       <Button
         type="primary"
         size="middle"
+        disabled={changeEmailDisabled}
         loading={isChangeEmailInProgress}
         htmlType={showChangeEmailField ? "submit" : "button"}
         onClick={() => (showChangeEmailField ? form.submit() : setShowChangeEmailField(true))}

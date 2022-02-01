@@ -12,7 +12,8 @@ type AppConfig struct {
 	ServerName string
 	Authority  string
 
-	closeMe []io.Closer
+	closeMe     []io.Closer
+	lastCloseMe []io.Closer
 }
 
 var Instance *AppConfig
@@ -77,6 +78,20 @@ func (a *AppConfig) ScheduleClosing(c io.Closer) {
 
 func (a *AppConfig) Close() {
 	for _, cl := range a.closeMe {
+		if err := cl.Close(); err != nil {
+			logging.Error(err)
+		}
+	}
+}
+
+//ScheduleLastClosing adds meta.Storage, coordinationService closers
+func (a *AppConfig) ScheduleLastClosing(c io.Closer) {
+	a.lastCloseMe = append(a.lastCloseMe, c)
+}
+
+//CloseLast closes meta.Storage, coordinationService closers in the last call
+func (a *AppConfig) CloseLast() {
+	for _, cl := range a.lastCloseMe {
 		if err := cl.Close(); err != nil {
 			logging.Error(err)
 		}

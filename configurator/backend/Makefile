@@ -15,7 +15,7 @@ tag = $$( \
 
 all: clean assemble
 
-docker_assemble: clean build_backend assemble_backend
+docker_assemble: clean go_generate build_backend assemble_backend
 
 assemble: backend assemble_backend
 
@@ -23,11 +23,15 @@ assemble_backend:
 	mkdir -p $(DIST_DIR)
 	mv configurator $(DIST_DIR)
 
-backend: deps_backend build_backend
+backend: go_generate deps_backend build_backend
+
+go_generate:
+	go get github.com/deepmap/oapi-codegen/cmd/oapi-codegen
+	go generate
 
 deps_backend:
 	echo "Using path $(PATH)"
-	go mod tidy
+	go mod download
 
 build_backend:
 	$(GOBUILD_PREFIX) go build -ldflags "-X main.commit=${commit} -X main.builtAt=${built_at} -X main.tag=${tag}" -o configurator

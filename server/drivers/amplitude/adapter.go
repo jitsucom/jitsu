@@ -285,37 +285,45 @@ func parseEvents(income []byte) ([]map[string]interface{}, error) {
 	eventsArray := make([]map[string]interface{}, 0)
 
 	for _, file := range zipReader.File {
-		fileReader, err := file.Open()
+		array, err := parseFileWithEvents(file)
 		if err != nil {
 			return nil, err
 		}
-		defer fileReader.Close()
-
-		buffer, err := ioutil.ReadAll(fileReader)
-		if err != nil {
-			return nil, err
-		}
-
-		gzipReader, err := gzip.NewReader(bytes.NewReader(buffer))
-		if err != nil {
-			return nil, err
-		}
-		defer gzipReader.Close()
-
-		content, err := ioutil.ReadAll(gzipReader)
-		if err != nil {
-			return nil, err
-		}
-
-		array, err := parsers.ParseJSONFile(content)
-		if err != nil {
-			return nil, err
-		}
-
 		eventsArray = append(eventsArray, array...)
 	}
 
 	return eventsArray, nil
+}
+
+func parseFileWithEvents(file *zip.File) ([]map[string]interface{}, error) {
+	fileReader, err := file.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer fileReader.Close()
+
+	buffer, err := ioutil.ReadAll(fileReader)
+	if err != nil {
+		return nil, err
+	}
+
+	gzipReader, err := gzip.NewReader(bytes.NewReader(buffer))
+	if err != nil {
+		return nil, err
+	}
+	defer gzipReader.Close()
+
+	content, err := ioutil.ReadAll(gzipReader)
+	if err != nil {
+		return nil, err
+	}
+
+	array, err := parsers.ParseJSONFile(content)
+	if err != nil {
+		return nil, err
+	}
+
+	return array, nil
 }
 
 type dashboardData struct {

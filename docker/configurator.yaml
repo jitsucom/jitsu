@@ -18,5 +18,3 @@ auth:
   redis:
     host: '${env.REDIS_URL}'
     tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
-    access_secret: '${env.UI_AUTH_ACCESS_SECRET|demo___please_provide_value_in_production___}'
-    refresh_secret: '${env.UI_AUTH_REFRESH_SECRET|demo___please_provide_value_in_production___}'

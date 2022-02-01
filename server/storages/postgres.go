@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"context"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -52,7 +53,8 @@ func NewPostgres(config *Config) (Storage, error) {
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	adapter, err := adapters.NewPostgres(config.ctx, pgConfig, queryLogger, config.sqlTypes)
+	ctx := context.WithValue(config.ctx, adapters.CtxDestinationId, config.destinationID)
+	adapter, err := adapters.NewPostgres(ctx, pgConfig, queryLogger, config.sqlTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +66,7 @@ func NewPostgres(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToPostgres, config.maxColumns, PostgresType)
+	tableHelper := NewTableHelper(pgConfig.Schema, adapter, config.coordinationService, config.pkFields, adapters.SchemaToPostgres, config.maxColumns, PostgresType)
 
 	p := &Postgres{
 		adapter:                       adapter,
@@ -173,30 +175,29 @@ func (p *Postgres) Clean(tableName string) error {
 }
 
 //Update updates record in Postgres
-func (p *Postgres) Update(objects []map[string]interface{}) error {
+func (p *Postgres) Update(object map[string]interface{}) error {
 	_, tableHelper := p.getAdapters()
-	for _, object := range objects {
-		envelops, err := p.processor.ProcessEvent(object)
+	envelops, err := p.processor.ProcessEvent(object)
+	if err != nil {
+		return err
+	}
+
+	for _, envelop := range envelops {
+		batchHeader := envelop.Header
+		processedObject := envelop.Event
+		table := tableHelper.MapTableSchema(batchHeader)
+
+		dbSchema, err := tableHelper.EnsureTableWithCaching(p.ID(), table)
 		if err != nil {
 			return err
 		}
 
-		for _, envelop := range envelops {
-			batchHeader := envelop.Header
-			processedObject := envelop.Event
-			table := tableHelper.MapTableSchema(batchHeader)
-
-			dbSchema, err := tableHelper.EnsureTableWithCaching(p.ID(), table)
-			if err != nil {
-				return err
-			}
-
-			start := timestamp.Now()
-			if err = p.adapter.Update(dbSchema, processedObject, p.uniqueIDField.GetFlatFieldName(), p.uniqueIDField.Extract(object)); err != nil {
-				return err
-			}
-			logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", p.ID(), timestamp.Now().Sub(start).Seconds())
+		start := timestamp.Now()
+		if err = p.adapter.Update(dbSchema, processedObject, p.uniqueIDField.GetFlatFieldName(), p.uniqueIDField.Extract(object)); err != nil {
+			return err
 		}
+
+		logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", p.ID(), timestamp.Now().Sub(start).Seconds())
 	}
 
 	return nil

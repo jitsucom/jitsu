@@ -1,13 +1,5 @@
-import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
-import {
-  arrayOf,
-  booleanType,
-  descriptionType,
-  jsType,
-  passwordType,
-  selectionType,
-  stringType,
-} from "../../sources/types"
+import { booleanType, descriptionType, stringType } from "../../sources/types"
+import React from "react"
 
 const icon = (
   <svg width="100%" height="100%" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -39,6 +31,8 @@ const mixpanelDestination = {
   displayName: "Mixpanel",
   defaultTransform: "",
   hidden: false,
+  deprecated: true,
+  deprecatedReplacement: "mixpanel2",
   parameters: [
     {
       id: "_super_type",
@@ -47,6 +41,19 @@ const mixpanelDestination = {
     {
       id: "_package",
       constant: "mixpanel-destination",
+    },
+    {
+      id: "_formData.deprecation",
+      displayName: "Deprecation Notice",
+      type: descriptionType,
+      defaultValue: (
+        <span className={"text-warning"}>
+          <b>
+            This version is deprecated because newer version is available. Please replace it with <b>Mixpanel v2</b>{" "}
+            destination.
+          </b>
+        </span>
+      ),
     },
     {
       id: "_formData.description",
@@ -114,7 +121,7 @@ const mixpanelDestination = {
   ui: {
     icon,
     connectCmd: null,
-    title: cfg => cfg["_formData"]["_projectId"],
+    title: cfg => ".",
   },
 } as const
 

@@ -226,7 +226,8 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     billingEnabled: !responseData.selfhosted,
     authorization: responseData.authorization,
     smtp: responseData.smtp,
-    environment,
+    environment: environment,
+    onlyAdminCanChangeUserEmail: !!responseData.only_admin_can_change_user_email,
   }
 }
 
@@ -283,4 +284,9 @@ export type FeatureSettings = {
    * Environment in which Jitsu runs
    */
   environment: "heroku" | "docker" | "jitsu_cloud" | "custom"
+
+  /**
+   * If only admin can change user email. For example in self-hosted instances admin token is required for this method
+   */
+  onlyAdminCanChangeUserEmail?: boolean
 }

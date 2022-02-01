@@ -59,18 +59,12 @@ with Redis frequently, and it makes sense to put them as close as possible (same
 
 We recommend to set up Redis with 2 nodes and master-slave replication.
 
-
-### Coordination with etcd (legacy)
-
-Jitsu Server can use `etcd` as a coordination service instead of Redis. It will still require redis to run [user recognition](/docs/other-features/retroactive-user-recognition)
-and calculating statistics. We do not recommend set up new clusters with etcd (we do plan to support etcd as an alternative coordination services in the future)
-
 ## Configuration
 
 
 ### Coordination
 
-At present **Jitsu** supports [redis](https://redis.io/) and [etcd](https://etcd.io) as coordination services. It used in creating/patching tables phase, for heart beating and for sync tasks scheduling. For
+At present **Jitsu** supports only [redis](https://redis.io/) as a coordination service. It used in creating/patching tables phase, for heart beating and for sync tasks scheduling. For
 using two or more **Jitsu Server** instances please make additional configuration:
 
 ```yaml

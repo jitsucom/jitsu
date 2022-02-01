@@ -35,8 +35,8 @@ type Processor struct {
 	isSQLType               bool
 	tableNameExtractor      *TableNameExtractor
 	lookupEnrichmentStep    *enrichment.LookupEnrichmentStep
-	transformer             *templates.JsTemplateExecutor
-	builtinTransformer      *templates.JsTemplateExecutor
+	transformer             *templates.V8TemplateExecutor
+	builtinTransformer      *templates.V8TemplateExecutor
 	fieldMapper             events.Mapper
 	pulledEventsfieldMapper events.Mapper
 	typeResolver            TypeResolver
@@ -355,7 +355,7 @@ func (p *Processor) SetDefaultUserTransform(defaultUserTransform string) {
 }
 
 //SetBuiltinTransformer javascript executor for builtin js code (e.g. npm destination)
-func (p *Processor) SetBuiltinTransformer(builtinTransformer *templates.JsTemplateExecutor) {
+func (p *Processor) SetBuiltinTransformer(builtinTransformer *templates.V8TemplateExecutor) {
 	p.builtinTransformer = builtinTransformer
 }
 
@@ -425,7 +425,7 @@ Mapping feature is deprecated. It is recommended to migrate to javascript data t
 			}
 			p.AddJavaScript(segment)
 		}
-		transformer, err := templates.NewJsTemplateExecutor(userTransform, p.jsVariables, p.javaScripts...)
+		transformer, err := templates.NewV8TemplateExecutor(userTransform, p.jsVariables, p.javaScripts...)
 		if err != nil {
 			return fmt.Errorf("failed to init transform javascript: %v", err)
 		}
@@ -446,7 +446,7 @@ func (p *Processor) CloseJavaScriptTemplates() {
 	}
 }
 
-func (p *Processor) GetTransformer() *templates.JsTemplateExecutor {
+func (p *Processor) GetTransformer() *templates.V8TemplateExecutor {
 	return p.transformer
 }
 

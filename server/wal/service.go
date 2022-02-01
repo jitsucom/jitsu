@@ -115,7 +115,6 @@ func (s *Service) handleFile(filePath string) error {
 	}
 
 	if len(b) == 0 {
-		os.Remove(filePath)
 		return nil
 	}
 

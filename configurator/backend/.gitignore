@@ -10,3 +10,4 @@ temp/
 configurator
 
 build/*
+openapi/*

@@ -15,9 +15,9 @@ import (
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/fallback"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/middleware"
-	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
 )
@@ -102,14 +102,11 @@ func extractBulkEvents(c *gin.Context) ([]map[string]interface{}, error) {
 		return nil, fmt.Errorf("failed to read payload from input file: %v", err)
 	}
 
-	parserFunc := parsers.ParseJSON
-	if c.Query("fallback") == "true" {
-		parserFunc = parsers.ParseFallbackJSON
-	}
-
-	objects, err := parsers.ParseJSONFileWithFunc(payload, parserFunc)
+	fallbackRequest := c.Query("fallback") == "true"
+	skipMalformed := c.Query("skip_malformed") == "true"
+	objects, err := fallback.ExtractEvents(payload, !fallbackRequest, skipMalformed)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse JSON payload from input file: %v", err)
+		return nil, fmt.Errorf("failed to parse JSON payload: %v", err)
 	}
 
 	return objects, nil

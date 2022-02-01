@@ -75,7 +75,7 @@ func NewBigQuery(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(bigQueryAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToBigQueryString, config.maxColumns, BigQueryType)
+	tableHelper := NewTableHelper("", bigQueryAdapter, config.coordinationService, config.pkFields, adapters.SchemaToBigQueryString, config.maxColumns, BigQueryType)
 
 	bq := &BigQuery{
 		gcsAdapter: gcsAdapter,
@@ -193,7 +193,7 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 }
 
 //Update isn't supported
-func (bq *BigQuery) Update(objects []map[string]interface{}) error {
+func (bq *BigQuery) Update(object map[string]interface{}) error {
 	return errors.New("BigQuery doesn't support updates")
 }
 

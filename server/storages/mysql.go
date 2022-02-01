@@ -46,12 +46,13 @@ func NewMySQL(config *Config) (Storage, error) {
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	adapter, err := CreateMySQLAdapter(config.ctx, *mConfig, queryLogger, config.sqlTypes)
+	ctx := context.WithValue(config.ctx, adapters.CtxDestinationId, config.destinationID)
+	adapter, err := CreateMySQLAdapter(ctx, *mConfig, queryLogger, config.sqlTypes)
 	if err != nil {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToMySQL, config.maxColumns, MySQLType)
+	tableHelper := NewTableHelper(mConfig.Schema, adapter, config.coordinationService, config.pkFields, adapters.SchemaToMySQL, config.maxColumns, MySQLType)
 
 	m := &MySQL{
 		adapter:                       adapter,
@@ -200,30 +201,28 @@ func (m *MySQL) Clean(tableName string) error {
 }
 
 //Update updates record in MySQL
-func (m *MySQL) Update(objects []map[string]interface{}) error {
+func (m *MySQL) Update(object map[string]interface{}) error {
 	_, tableHelper := m.getAdapters()
-	for _, object := range objects {
-		envelops, err := m.processor.ProcessEvent(object)
+	envelops, err := m.processor.ProcessEvent(object)
+	if err != nil {
+		return err
+	}
+
+	for _, envelop := range envelops {
+		batchHeader := envelop.Header
+		processedObject := envelop.Event
+		table := tableHelper.MapTableSchema(batchHeader)
+
+		dbSchema, err := tableHelper.EnsureTableWithCaching(m.ID(), table)
 		if err != nil {
 			return err
 		}
 
-		for _, envelop := range envelops {
-			batchHeader := envelop.Header
-			processedObject := envelop.Event
-			table := tableHelper.MapTableSchema(batchHeader)
-
-			dbSchema, err := tableHelper.EnsureTableWithCaching(m.ID(), table)
-			if err != nil {
-				return err
-			}
-
-			start := timestamp.Now()
-			if err = m.adapter.Update(dbSchema, processedObject, m.uniqueIDField.GetFlatFieldName(), m.uniqueIDField.Extract(object)); err != nil {
-				return err
-			}
-			logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", m.ID(), timestamp.Now().Sub(start).Seconds())
+		start := timestamp.Now()
+		if err = m.adapter.Update(dbSchema, processedObject, m.uniqueIDField.GetFlatFieldName(), m.uniqueIDField.Extract(object)); err != nil {
+			return err
 		}
+		logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", m.ID(), timestamp.Now().Sub(start).Seconds())
 	}
 
 	return nil

@@ -160,7 +160,7 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 			return
 		}
 
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("", err))
 		return
 	}
 

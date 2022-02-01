@@ -10,6 +10,8 @@ declare type DestinationType =
   | "mysql"
   | "dbtcloud"
   | "s3"
+  | "mixpanel"
+  | "mixpanel2"
 
 declare interface DestinationData {
   readonly _type: DestinationType

@@ -5,7 +5,7 @@ import { cloneDeep } from "lodash"
 import { FormInstance } from "antd"
 // @Types
 import { SourceConnector as CatalogSourceConnector } from "catalog/sources/types"
-import { SetSourceEditorState, SourceEditorState } from "./SourceEditor"
+import { SetSourceEditorDisabledTabs, SetSourceEditorState, SourceEditorState } from "./SourceEditor"
 // @Components
 import { SourceEditorFormConfigurationStaticFields } from "./SourceEditorFormConfigurationStaticFields"
 import { SourceEditorFormConfigurationConfigurableLoadableFields } from "./SourceEditorFormConfigurationConfigurableLoadableFields"
@@ -16,7 +16,6 @@ import { useLoaderAsObject } from "hooks/useLoader"
 import { OAUTH_FIELDS_NAMES } from "constants/oauth"
 import { SourceEditorOauthButtons } from "../Common/SourceEditorOauthButtons/SourceEditorOauthButtons"
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
-import { useForceUpdate } from "hooks/useForceUpdate"
 import { useUniqueKeyState } from "hooks/useUniqueKeyState"
 import { FormSkeleton } from "ui/components/FormSkeleton/FormSkeleton"
 
@@ -27,8 +26,8 @@ export type SourceEditorFormConfigurationProps = {
   disabled?: boolean
   setSourceEditorState: SetSourceEditorState
   handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
-  setTabErrorsVisible?: (value: boolean) => void
-  setConfigIsValidatedByStreams: (value: boolean) => void
+  handleSetTabsDisabled: SetSourceEditorDisabledTabs
+  handleReloadStreams: VoidFunction | AsyncVoidFunction
 }
 
 export type ValidateGetErrorsCount = () => Promise<number>
@@ -36,7 +35,13 @@ export type PatchConfig = (
   key: string,
   allValues: PlainObjectWithPrimitiveValues,
   options?: {
+    /**
+     * Whether to tell the parent component to update the UI.
+     * Needed to distinguish the state updates caused by the user and updates made internally.
+     **/
     doNotSetStateChanged?: boolean
+    /** Whether to reset configuration tab errors count. False by default */
+    resetErrorsCount?: boolean
   }
 ) => void
 
@@ -62,16 +67,17 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   disabled,
   setSourceEditorState,
   handleSetControlsDisabled,
-  setTabErrorsVisible,
-  setConfigIsValidatedByStreams,
+  handleSetTabsDisabled,
+  handleReloadStreams,
 }) => {
   const services = useServices()
-  const forceUpdate = useForceUpdate()
   const [forms, setForms] = useState<Forms>({})
+
+  const isInitiallySignedIn = editorMode === "edit"
 
   const [fillAuthDataManually, setFillAuthDataManually] = useState<boolean>(true)
   const [isOauthStatusReady, setIsOauthStatusReady] = useState<boolean>(false)
-  const [isOauthFlowCompleted, setIsOauthFlowCompleted] = useState<boolean>(false)
+  const [isOauthFlowCompleted, setIsOauthFlowCompleted] = useState<boolean>(isInitiallySignedIn)
 
   const [staticFieldsValidator, setStaticFieldsValidator] = useState<ValidateGetErrorsCount>(initialValidator)
   const [configurableFieldsValidator, setConfigurableFieldsValidator] =
@@ -79,7 +85,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   const [configurableLoadableFieldsValidator, setConfigurableLoadableFieldsValidator] =
     useState<ValidateGetErrorsCount>(initialValidator)
 
-  const [key, resetFormUi] = useUniqueKeyState() // pass a key to a component, then re-mount component by calling `resetFormUi`
+  const [resetKey, resetFormUi] = useUniqueKeyState() // pass a key to a component, then re-mount component by calling `resetFormUi`
 
   const setFormReference = useCallback<SetFormReference>((key, form, patchConfigOnFormValuesChange) => {
     setForms(forms => ({ ...forms, [key]: { form, patchConfigOnFormValuesChange } }))
@@ -91,8 +97,8 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
         const airbyteId = sourceDataFromCatalog.id.replace("airbyte-", "")
         return {
           backendId: airbyteId,
-          hideOauthFields: false,
-          onlyManualAuth: true,
+          hideOauthFields: true,
+          onlyManualAuth: false,
           loadableFieldsEndpoint: "test",
           invisibleStaticFields: {
             "config.docker_image": sourceDataFromCatalog.id.replace("airbyte-", ""),
@@ -109,6 +115,15 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
             "config.tap": tapId,
           },
         }
+      default:
+        // native source
+        const id = sourceDataFromCatalog.id
+        return {
+          backendId: id,
+          hideOauthFields: true,
+          onlyManualAuth: false,
+          configurableFields: sourceDataFromCatalog.configParameters,
+        }
     }
   }, [])
 
@@ -124,6 +139,10 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
     const { hideOauthFields } = sourceConfigurationSchema
     return fillAuthDataManually || !hideOauthFields ? [] : [...OAUTH_FIELDS_NAMES, ...(availableBackendSecrets ?? [])]
   }, [fillAuthDataManually, availableBackendSecrets])
+
+  const handleResetOauth = useCallback<() => void>(() => {
+    setIsOauthFlowCompleted(false)
+  }, [])
 
   const handleOauthSupportedStatusChange = useCallback((oauthSupported: boolean) => {
     setIsOauthStatusReady(true)
@@ -153,9 +172,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
         configuration: { ...state.configuration, config: { ...state.configuration.config, [key]: allValues } },
       }
       if (!options?.doNotSetStateChanged) newState.stateChanged = true
-
-      setTabErrorsVisible?.(false)
-      setConfigIsValidatedByStreams(false)
+      if (options.resetErrorsCount) newState.configuration.errorsCount = 0
 
       return newState
     })
@@ -171,7 +188,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
 
     setSourceEditorState(state => {
       const newState = cloneDeep(state)
-      newState.configuration.getErrorsCount = validateConfigAndCountErrors
+      newState.configuration.validateGetErrorsCount = validateConfigAndCountErrors
       return newState
     })
   }, [staticFieldsValidator, configurableFieldsValidator, configurableLoadableFieldsValidator])
@@ -190,13 +207,16 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   const isLoadingOauth = !isOauthStatusReady || isLoadingBackendSecrets
 
   useEffect(() => {
-    if (isLoadingOauth) handleSetControlsDisabled(true, "oauth")
-    else if (sourceConfigurationSchema.onlyManualAuth) handleSetControlsDisabled(false, "oauth")
-    else if (fillAuthDataManually) handleSetControlsDisabled(false, "oauth")
-    else if (editorMode === "edit") handleSetControlsDisabled(false, "oauth")
-    else if (!isOauthFlowCompleted)
-      handleSetControlsDisabled("Please, either grant Jitsu access or fill auth credentials manually", "oauth")
-    else handleSetControlsDisabled(false, "oauth")
+    if (sourceConfigurationSchema.onlyManualAuth) return
+    else if (isLoadingOauth) handleSetControlsDisabled(true, "byOauthFlow")
+    else if (fillAuthDataManually) handleSetControlsDisabled(false, "byOauthFlow")
+    else if (!isOauthFlowCompleted) {
+      handleSetControlsDisabled("Please, either grant Jitsu access or fill auth credentials manually", "byOauthFlow")
+      handleSetTabsDisabled(["streams"], "disable")
+    } else {
+      handleSetControlsDisabled(false, "byOauthFlow")
+      handleSetTabsDisabled(["streams"], "enable")
+    }
   }, [isLoadingOauth, fillAuthDataManually, isOauthFlowCompleted])
 
   return (
@@ -210,11 +230,12 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           sourceDataFromCatalog={sourceDataFromCatalog}
           disabled={disabled}
           onlyManualAuth={sourceConfigurationSchema.onlyManualAuth}
+          isSignedIn={isOauthFlowCompleted}
           onIsOauthSupportedCheckSuccess={handleOauthSupportedStatusChange}
           onFillAuthDataManuallyChange={handleFillAuthDataManuallyChange}
           setOauthSecretsToForms={setOauthSecretsToForms}
         />
-        <fieldset key={key} disabled={disabled}>
+        <div key={resetKey}>
           <SourceEditorFormConfigurationStaticFields
             editorMode={editorMode}
             initialValues={initialSourceData}
@@ -235,17 +256,20 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           )}
           {sourceConfigurationSchema.loadableFieldsEndpoint && (
             <SourceEditorFormConfigurationConfigurableLoadableFields
+              editorMode={editorMode}
               initialValues={initialSourceData}
               sourceDataFromCatalog={sourceDataFromCatalog}
-              availableOauthBackendSecrets={availableBackendSecrets}
               hideFields={hideFields}
               patchConfig={patchConfig}
               handleSetControlsDisabled={handleSetControlsDisabled}
+              handleSetTabsDisabled={handleSetTabsDisabled}
               setValidator={setConfigurableLoadableFieldsValidator}
               setFormReference={setFormReference}
+              handleResetOauth={handleResetOauth}
+              handleReloadStreams={handleReloadStreams}
             />
           )}
-        </fieldset>
+        </div>
       </div>
     </>
   )

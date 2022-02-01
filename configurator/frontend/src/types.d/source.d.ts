@@ -89,6 +89,8 @@ declare interface AirbyteSourceData {
       streams: Array<AirbyteStreamData>
     }
     selected_streams?: Array<StreamConfig>
+    docker_image?: string
+    image_version?: string
 
     [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
   }

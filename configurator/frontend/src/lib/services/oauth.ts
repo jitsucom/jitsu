@@ -1,9 +1,16 @@
 import { BackendApiClient } from "./BackendApiClient"
 
-type OauthCredentials = { status: "success"; secrets: any }
-type OauthError = { status: "error"; errorMessage: string; errorDetails?: any }
-type OauthWarning = { status: "warning"; message: string }
 type OauthResult = OauthCredentials | OauthWarning | OauthError
+
+type OauthCredentials = { status: "success"; secrets: any }
+type OauthWarning = { status: "warning"; message: string }
+type OauthError = {
+  status: "error"
+  message?: string
+  /** @deprecated as of Jan 2022 */
+  errorMessage?: string
+  errorDetails?: any
+}
 
 export type OauthSupportResponse = {
   status: "ok"
@@ -77,7 +84,6 @@ export class OauthService implements IOauthService {
     function messageListener(e: MessageEvent) {
       if (e.isTrusted && e.source === oauthWindow) {
         if (oauthWindow !== null) {
-          console.log("catched oauth message", e.data)
           result = e.data
           endOauthFlow(e.data)
           window.removeEventListener("message", messageListener)
@@ -87,13 +93,13 @@ export class OauthService implements IOauthService {
     }
 
     if (oauthWindow === null) {
-      throw new Error("Oauth flow failed: can't open a popup window")
+      throw new Error("OAuth flow failed: can't open a popup window")
     }
 
     window.addEventListener("message", messageListener)
 
-    // a hack for a cross-origin request
     const timer = setInterval(() => {
+      // using polling as a hack for a cross-origin request
       if (oauthWindow.closed && !result) {
         clearInterval(timer)
         endOauthFlow({ status: "warning", message: "Oauth did not complete because popup window has been closed" })

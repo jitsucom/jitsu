@@ -34,6 +34,7 @@ const (
 	deleteSFTemplate                    = `DELETE FROM %s.%s WHERE %s`
 	dropSFTableTemplate                 = `DROP TABLE %s.%s`
 	truncateSFTableTemplate             = `TRUNCATE TABLE IF EXISTS %s.%s`
+	updateSFTemplate                    = `UPDATE %s.%s SET %s WHERE %s = ?`
 )
 
 var (
@@ -199,7 +200,7 @@ func (s *Snowflake) PatchTableSchema(patchSchema *Table) error {
 
 //GetTableSchema returns table (name,columns with name and types) representation wrapped in Table struct
 func (s *Snowflake) GetTableSchema(tableName string) (*Table, error) {
-	table := &Table{Name: tableName, Columns: Columns{}}
+	table := &Table{Schema: s.config.Schema, Name: tableName, Columns: Columns{}}
 
 	countReqRows, err := s.dataSource.QueryContext(s.ctx, tableExistenceSFQuery, reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName)))
 	if err != nil {
@@ -400,6 +401,33 @@ func (s *Snowflake) Truncate(tableName string) error {
 	return sqlParams.commonTruncate(tableName, statement)
 }
 
+//Update one record in Snowflake
+func (s *Snowflake) Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error {
+	columnNames := make([]string, len(object), len(object))
+	values := make([]interface{}, len(object)+1, len(object)+1)
+
+	i := 0
+	for name, value := range object {
+		castClause := s.getCastClause(name, table.Columns[name])
+		columnNames[i] = reformatValue(name) + "= ?" + castClause
+		values[i] = value
+		i++
+	}
+	values[i] = whereValue
+
+	header := strings.Join(columnNames, ", ")
+
+	statement := fmt.Sprintf(updateSFTemplate, s.config.Schema, reformatValue(table.Name), header, reformatValue(whereKey))
+	s.queryLogger.LogQueryWithValues(statement, values)
+
+	_, err := s.dataSource.ExecContext(s.ctx, statement, values...)
+	if err != nil {
+		return fmt.Errorf("Error updating in %s table with statement: %s values: %v: %v", table.Name, header, values, err)
+	}
+
+	return nil
+}
+
 //createTableInTransaction creates database table with name,columns provided in Table representation
 func (s *Snowflake) createTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	var columnsDDL []string
@@ -489,7 +517,6 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 		Columns:        table.Columns,
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,
-		Version:        0,
 	}
 
 	err := s.createTableInTransaction(wrappedTx, tmpTable)

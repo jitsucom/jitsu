@@ -79,6 +79,11 @@ func (up *UpdatableProxy) Close() error {
 	up.mutex.RLock()
 	defer up.mutex.RUnlock()
 
-	close(up.closed)
-	return up.resolver.Close()
+	select {
+	case <-up.closed:
+		return nil
+	default:
+		close(up.closed)
+		return up.resolver.Close()
+	}
 }

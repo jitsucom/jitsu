@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
@@ -14,18 +15,24 @@ import (
 	"github.com/jitsucom/jitsu/configurator/handlers"
 	"github.com/jitsucom/jitsu/configurator/jitsu"
 	"github.com/jitsucom/jitsu/configurator/middleware"
+	"github.com/jitsucom/jitsu/configurator/openapi"
 	"github.com/jitsucom/jitsu/configurator/ssh"
 	"github.com/jitsucom/jitsu/configurator/ssl"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
 	config "github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/locks"
+	locksinmemory "github.com/jitsucom/jitsu/server/locks/inmemory"
+	locksredis "github.com/jitsucom/jitsu/server/locks/redis"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/meta"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/viper"
+	"io"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -54,11 +61,8 @@ var (
 	builtAt string
 )
 
-type Version struct {
-	Version string `json:"version"`
-	BuiltAt string `json:"builtAt"`
-}
-
+//go:generate oapi-codegen -templates ../../openapi/templates -generate gin -package openapi -o openapi/routers-gen.go ../../openapi/configurator.yaml
+//go:generate oapi-codegen -templates ../../openapi/templates -generate types -package openapi -o openapi/types-gen.go ../../openapi/configurator.yaml
 func main() {
 	flag.Parse()
 
@@ -92,8 +96,10 @@ func main() {
 		cancel()
 		appconfig.Instance.Close()
 		telemetry.Flush()
+		notifications.Flush()
 		time.Sleep(1 * time.Second)
 		notifications.Close()
+		appconfig.Instance.CloseLast()
 		telemetry.Close()
 		os.Exit(0)
 	}()
@@ -142,12 +148,34 @@ func main() {
 	}
 
 	//** Main Storage **
-	configurationsStorage, err := storages.NewConfigurationsStorage(ctx, viper.GetViper())
+	configurationsStorage, redisPoolFactory, err := initializeStorage(viper.GetViper())
 	if err != nil {
 		logging.Fatalf("Error creating configurations storage: %v", err)
 	}
 
-	configurationsService := storages.NewConfigurationsService(configurationsStorage, defaultPostgres)
+	var lockFactory locks.LockFactory
+	var redisPool *meta.RedisPool
+	var locksCloser io.Closer
+	if redisPoolFactory != nil {
+		options := redisPoolFactory.GetOptions()
+		options.MaxActive = 100
+		redisPoolFactory.WithOptions(options)
+
+		redisPool, err = redisPoolFactory.Create()
+		if err != nil {
+			logging.Fatalf("Error creating redis pool for locks: %v", err)
+		}
+		lockFactory, locksCloser = locksredis.NewLockFactory(ctx, redisPool)
+	} else {
+		//in case of firebase installation
+		lockFactory, locksCloser = locksinmemory.NewLockFactory()
+	}
+	appconfig.Instance.ScheduleLastClosing(locksCloser)
+	if redisPool != nil {
+		appconfig.Instance.ScheduleLastClosing(redisPool)
+	}
+
+	configurationsService := storages.NewConfigurationsService(configurationsStorage, defaultPostgres, lockFactory)
 	if err != nil {
 		logging.Fatalf("Error creating configurations service: %v", err)
 	}
@@ -216,7 +244,7 @@ func main() {
 
 	cors.Init(viper.GetString("server.domain"), viper.GetStringSlice("server.allowed_domains"))
 
-	router := SetupRouter(jitsuService, configurationsStorage, configurationsService,
+	router := SetupRouter(jitsuService, configurationsService,
 		authService, s3Config, sslUpdateExecutor, emailsService)
 
 	notifications.ServerStart(runtime.GetInfo())
@@ -231,36 +259,39 @@ func main() {
 	logging.Fatal(server.ListenAndServe())
 }
 
-func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.ConfigurationsStorage,
-	configurationsService *storages.ConfigurationsService, authService *authorization.Service,
-	defaultS3 *enadapters.S3Config, sslUpdateExecutor *ssl.UpdateExecutor, emailService *emails.Service) *gin.Engine {
+func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.ConfigurationsService,
+	authService *authorization.Service, defaultS3 *enadapters.S3Config, sslUpdateExecutor *ssl.UpdateExecutor,
+	emailService *emails.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery(), enmiddleware.GinLogErrorBody)
-	//TODO when https://github.com/gin-gonic will have a new version (https://github.com/gin-gonic/gin/pull/2322)
-	/*router.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
-	    c.JSON(http.StatusInternalServerError, `{"err":"System error on %s server"}`
-	}))*/
+	router.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
+		logging.SystemErrorf("Panic on request %s: %v", c.Request.URL.String(), recovered)
+		logging.Errorf("%v", *c.Request)
+		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse("System error", nil))
+	}))
 
 	router.Use(static.Serve("/", static.LocalFile("./web", true)))
 	router.NoRoute(func(c *gin.Context) {
 		c.File("./web/index.html")
 	})
 
-	authenticatorMiddleware := middleware.NewAuthenticator(authService)
-
-	router.GET("/ping", func(c *gin.Context) {
-		c.String(http.StatusOK, "pong")
-	})
-
 	serverToken := viper.GetString("server.auth")
 	if strings.HasPrefix(serverToken, "demo") {
 		logging.Error("\t⚠️ Please replace server.auth (CLUSTER_ADMIN_TOKEN env variable) with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
 	}
+	selfHosted := viper.GetBool("server.self_hosted")
+	authenticatorMiddleware := middleware.NewAuthenticator(serverToken, authService, selfHosted)
+	contentChangesMiddleware := middleware.NewContentChanges(map[string]func() (*time.Time, error){
+		"/api/v1/apikeys":            configurationsService.GetAPIKeysLastUpdated,
+		"/api/v1/destinations":       configurationsService.GetDestinationsLastUpdated,
+		"/api/v1/sources":            configurationsService.GetSourcesLastUpdated,
+		"/api/v1/geo_data_resolvers": configurationsService.GetGeoDataResolversLastUpdated,
+	})
 
-	apiKeysHandler := handlers.NewAPIKeysHandler(configurationsService)
-
-	enConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsService, configurationsStorage)
+	router.GET("/ping", func(c *gin.Context) {
+		c.String(http.StatusOK, "pong")
+	})
 
 	proxyHandler := handlers.NewProxyHandler(jitsuService, map[string]jitsu.APIDecorator{
 		//write here custom decorators for a certain HTTP URN paths
@@ -268,75 +299,55 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 		"/proxy/api/v1/statistics":          jitsu.NewStatisticsDecorator().Decorate,
 		"/proxy/api/v1/statistics/detailed": jitsu.NewStatisticsDecorator().Decorate,
 	})
-	router.Any("/proxy/*path", authenticatorMiddleware.ClientProjectAuth(proxyHandler.Handler))
+	router.Any("/proxy/*path", authenticatorMiddleware.BearerAuthManagementWrapper(proxyHandler.Handler))
 
+	// ** OLD API (delete after migrating UI to api/v2) **
+	jConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsService)
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.POST("/notify", authenticatorMiddleware.ClientProjectAuth(handlers.NotifyHandler))
-		apiV1.POST("/database", authenticatorMiddleware.ClientProjectAuth(handlers.NewDatabaseHandler(configurationsService).PostHandler))
-		apiV1.POST("/apikeys/default", authenticatorMiddleware.ClientProjectAuth(apiKeysHandler.CreateDefaultAPIKeyHandler))
 
-		apiV1.GET("/apikeys", middleware.ServerAuth(middleware.IfModifiedSince(apiKeysHandler.GetHandler, configurationsService.GetAPIKeysLastUpdated), serverToken))
-
-		apiV1.GET("/jitsu/configuration", authenticatorMiddleware.ClientProjectAuth(handlers.NewConfigurationHandler(configurationsService).Handler))
-
-		if sslUpdateExecutor != nil {
-			apiV1.POST("/ssl", authenticatorMiddleware.ClientProjectAuth(handlers.NewCustomDomainHandler(sslUpdateExecutor).PerProjectHandler))
-			apiV1.POST("/ssl/all", middleware.ServerAuth(handlers.NewCustomDomainHandler(sslUpdateExecutor).AllHandler, serverToken))
-		}
-
-		destinationsHandler := handlers.NewDestinationsHandler(configurationsService, defaultS3, jitsuService)
-		apiV1.GET("/destinations", middleware.ServerAuth(middleware.IfModifiedSince(destinationsHandler.GetHandler, configurationsService.GetDestinationsLastUpdated), serverToken))
-		apiV1.POST("/destinations/test", authenticatorMiddleware.ClientProjectAuth(destinationsHandler.TestHandler))
-		apiV1.POST("/destinations/evaluate", authenticatorMiddleware.ClientProjectAuth(destinationsHandler.EvaluateHandler))
-
-		sourcesHandler := handlers.NewSourcesHandler(configurationsService, jitsuService)
-		apiV1.GET("/sources", middleware.ServerAuth(middleware.IfModifiedSince(sourcesHandler.GetHandler, configurationsService.GetSourcesLastUpdated), serverToken))
-		apiV1.POST("/sources/test", authenticatorMiddleware.ClientProjectAuth(sourcesHandler.TestHandler))
-
-		telemetryHandler := handlers.NewTelemetryHandler(configurationsService)
-		apiV1.GET("/telemetry", middleware.ServerAuth(telemetryHandler.GetHandler, serverToken))
-
-		apiV1.GET("/become", authenticatorMiddleware.ClientAuth(handlers.NewBecomeUserHandler(authService).Handler))
-
-		apiV1.GET("/configurations/:collection", authenticatorMiddleware.ClientProjectAuth(enConfigurationsHandler.GetConfig))
-		apiV1.POST("/configurations/:collection", authenticatorMiddleware.ClientProjectAuth(enConfigurationsHandler.StoreConfig))
-
-		apiV1.GET("/system/configuration", handlers.NewSystemHandler(authService, configurationsService, emailService.IsConfigured(), viper.GetBool("server.self_hosted"), *dockerHubID, tag, builtAt).GetHandler)
-		apiV1.GET("/system/version", func(c *gin.Context) {
-			c.JSON(http.StatusOK, Version{tag, builtAt})
-		})
-
-		geoDataResolversHandler := handlers.NewGeoDataResolversHandler(configurationsService)
-		apiV1.GET("/geo_data_resolvers", middleware.ServerAuth(middleware.IfModifiedSince(geoDataResolversHandler.GetHandler, configurationsService.GetGeoDataResolversLastUpdated), serverToken))
-
-		usersAPIGroup := apiV1.Group("/users")
-		{
-			usersAPIGroup.GET("/info", authenticatorMiddleware.ClientAuth(enConfigurationsHandler.GetUserInfo))
-			usersAPIGroup.POST("/info", authenticatorMiddleware.ClientAuth(enConfigurationsHandler.StoreUserInfo))
-		}
-
-		//authorization
-		if authService.GetAuthorizationType() == authorization.RedisType {
-			authHandler := handlers.NewAuthorizationHandler(authService, emailService, configurationsService)
-
-			usersAPIGroup.POST("/signup", authHandler.SignUp)
-			usersAPIGroup.POST("/onboarded/signup", authHandler.OnboardedSignUp)
-			usersAPIGroup.POST("/signin", authHandler.SignIn)
-			usersAPIGroup.POST("/signout", authenticatorMiddleware.ClientAuth(authHandler.SignOut))
-
-			passwordAPIGroup := usersAPIGroup.Group("/password")
-			{
-				passwordAPIGroup.POST("/reset", authHandler.ResetPassword)
-				passwordAPIGroup.POST("/change", authHandler.ChangePassword)
-			}
-
-			usersAPIGroup.POST("/token/refresh", authHandler.RefreshToken)
-		}
-
+		//DEPRECATED
+		apiV1.GET("/configurations/:collection", authenticatorMiddleware.BearerAuthManagementWrapper(jConfigurationsHandler.GetConfig))
+		apiV1.POST("/configurations/:collection", authenticatorMiddleware.BearerAuthManagementWrapper(jConfigurationsHandler.StoreConfig))
 	}
 
-	return router
+	// ** New API generated by OpenAPI
+	systemConfig := &handlers.SystemConfiguration{
+		SMTP:        emailService.IsConfigured(),
+		SelfHosted:  selfHosted,
+		DockerHUBID: *dockerHubID,
+		Tag:         tag,
+		BuiltAt:     builtAt,
+	}
+	openAPIHandler := handlers.NewOpenAPI(authService, emailService, configurationsService, systemConfig, jitsuService, sslUpdateExecutor, defaultS3)
+	return openapi.RegisterHandlersWithOptions(router, openAPIHandler, openapi.GinServerOptions{
+		BaseURL:     "",
+		Middlewares: []openapi.MiddlewareFunc{authenticatorMiddleware.BearerAuth, contentChangesMiddleware.IfModifiedSince},
+	})
+}
+
+func initializeStorage(vp *viper.Viper) (storages.ConfigurationsStorage, *meta.RedisPoolFactory, error) {
+	if vp.IsSet("storage.redis.host") {
+		host := vp.GetString("storage.redis.host")
+		if host == "" {
+			return nil, nil, errors.New("storage.redis.host must not be empty")
+		}
+
+		port := vp.GetInt("storage.redis.port")
+		password := vp.GetString("storage.redis.password")
+		tlsSkipVerify := vp.GetBool("storage.redis.tls_skip_verify")
+		sentinelMaster := vp.GetString("storage.redis.sentinel_master_name")
+
+		redisPoolFactory := meta.NewRedisPoolFactory(host, port, password, tlsSkipVerify, sentinelMaster)
+		if defaultPort, ok := redisPoolFactory.CheckAndSetDefaultPort(); ok {
+			logging.Infof("storage.redis.port isn't configured. Will be used default: %d", defaultPort)
+		}
+
+		redisService, err := storages.NewRedis(redisPoolFactory)
+		return redisService, redisPoolFactory, err
+	} else {
+		return nil, nil, errors.New("Unknown 'storage' section type. Supported: redis")
+	}
 }
 
 func setAppWorkDir() {

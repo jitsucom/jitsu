@@ -57,22 +57,24 @@ jobs:
     - name: Build Server
       if: ${{ success() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
       run: |
-        go mod tidy
+        go mod download
         go build
       working-directory: ./server
+
+    - name: Build Backend
+      if: ${{ success() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
+      run: |
+        go get github.com/deepmap/oapi-codegen/cmd/oapi-codegen
+        go generate
+        go mod download
+        go build
+      working-directory: ./configurator/backend
 
     - name: Test Server
       if: ${{ success() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
       run: |
         go test -parallel=1 -json ./... > test_report.json
       working-directory: ./server
-
-    - name: Build Backend
-      if: ${{ success() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
-      run: |
-        go mod tidy
-        go build
-      working-directory: ./configurator/backend
 
     - name: Test Report
       if: ${{ always() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}

@@ -14,18 +14,19 @@ var reloadEvery = 5 * time.Second
 //Configuration is used for system endpoint in Configurator and for Server redirect when configured
 //provides current authorization configuration and amount of registered users
 type Configuration struct {
-	Authorization          string `json:"authorization"`
-	Users                  bool   `json:"users"`
-	SMTP                   bool   `json:"smtp"`
-	SelfHosted             bool   `json:"selfhosted"`
-	SupportWidget          bool   `json:"support_widget"`
-	DefaultS3Bucket        bool   `json:"default_s3_bucket"`
-	SupportTrackingDomains bool   `json:"support_tracking_domains"`
-	TelemetryUsageDisabled bool   `json:"telemetry_usage_disabled"`
-	ShowBecomeUser         bool   `json:"show_become_user"`
-	DockerHubID            string `json:"docker_hub_id"`
-	Tag                    string `json:"tag"`
-	BuiltAt                string `json:"built_at"`
+	Authorization               string `json:"authorization"`
+	Users                       bool   `json:"users"`
+	SMTP                        bool   `json:"smtp"`
+	SelfHosted                  bool   `json:"selfhosted"`
+	SupportWidget               bool   `json:"support_widget"`
+	DefaultS3Bucket             bool   `json:"default_s3_bucket"`
+	SupportTrackingDomains      bool   `json:"support_tracking_domains"`
+	TelemetryUsageDisabled      bool   `json:"telemetry_usage_disabled"`
+	ShowBecomeUser              bool   `json:"show_become_user"`
+	DockerHubID                 string `json:"docker_hub_id"`
+	OnlyAdminCanChangeUserEmail bool   `json:"only_admin_can_change_user_email"`
+	Tag                         string `json:"tag"`
+	BuiltAt                     string `json:"built_at"`
 }
 
 //Service is a reloadable service for keeping system configuration

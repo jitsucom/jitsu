@@ -24,7 +24,7 @@ type FormLayoutProps = {
 
 export const FormField: React.FC<FormFieldProps> = ({ children, label, tooltip, splitter = false }: FormFieldProps) => {
   return (
-    <div className={`flex flex-wrap items-start w-full py-4 ${splitter && "border-b border-splitBorder"}`}>
+    <div className={`flex flex-nowrap items-start w-full py-4 ${splitter && "border-b border-splitBorder"}`}>
       <div style={{ width: "20em", minWidth: "20em" }} className="font-semibold">
         {tooltip ? <LabelWithTooltip documentation={tooltip} render={label} /> : label}
       </div>
