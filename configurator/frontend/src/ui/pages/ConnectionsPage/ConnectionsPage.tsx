@@ -124,7 +124,7 @@ const ConnectionsPageComponent: React.FC = () => {
             [
               ...apiKeysStore.apiKeys.map(apiKey => {
                 return (
-                  <CardContainer id={apiKey.uid}>
+                  <CardContainer id={apiKey.uid} key={apiKey.uid}>
                     <EntityCard
                       name={<CardTitle title={APIKeyUtil.getDisplayName(apiKey)} />}
                       message={<EntityMessage connectionTestOk={true} />}
@@ -142,7 +142,7 @@ const ConnectionsPageComponent: React.FC = () => {
               }),
               ...sourcesStore.sources.map(source => {
                 return (
-                  <CardContainer id={source.sourceId}>
+                  <CardContainer id={source.sourceId} key={source.sourceId}>
                     <EntityCard
                       name={<CardTitle title={SourcesUtils.getDisplayName(source)} />}
                       message={<EntityMessage connectionTestOk={source.connected} />}
@@ -203,7 +203,7 @@ const ConnectionsPageComponent: React.FC = () => {
           {destinationsStore.hasDestinations ? (
             destinationsStore.destinations.map(dst => {
               return (
-                <CardContainer id={dst._uid}>
+                <CardContainer id={dst._uid} key={dst._uid}>
                   <EntityCard
                     name={<CardTitle title={DestinationsUtils.getDisplayName(dst)} />}
                     message={<EntityMessage connectionTestOk={dst._connectionTestOk} />}
