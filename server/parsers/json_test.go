@@ -18,7 +18,7 @@ func TestParseJSON(t *testing.T) {
 			"Empty input array",
 			[]byte{},
 			map[string]interface{}{},
-			"EOF",
+			"cannot unmarshal bytes into Go value of type map[string]interface {}: EOF",
 		},
 		{
 			"Empty input object",

@@ -29,6 +29,7 @@ func TestServiceInit(t *testing.T) {
 	viper.Set("server.destinations_reload_sec", 1)
 	viper.Set("server.api_keys_reload_sec", 1)
 	viper.Set("server.log.path", "")
+	viper.Set("sql_debug_log.ddl.enabled", false)
 
 	initialAuth := `{
   "tokens": [

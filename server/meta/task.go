@@ -6,6 +6,7 @@ import "encoding/json"
 //some fields are updated using names in Storage (like status updating)
 type Task struct {
 	ID         string `json:"id,omitempty" redis:"id"`
+	SourceType string `json:"source_type" redis:"source_type"`
 	Source     string `json:"source,omitempty" redis:"source"`
 	Collection string `json:"collection,omitempty" redis:"collection"`
 	Priority   int64  `json:"priority,omitempty" redis:"priority"`

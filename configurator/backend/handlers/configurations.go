@@ -33,7 +33,7 @@ func (ch *ConfigurationHandler) GetConfig(c *gin.Context) {
 		return
 	}
 
-	if c.GetString(middleware.ProjectIDKey) != projectID {
+	if !hasAccessToProject(c, projectID) {
 		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
 		return
 	}
@@ -55,7 +55,7 @@ func (ch *ConfigurationHandler) StoreConfig(c *gin.Context) {
 		return
 	}
 
-	if c.GetString(middleware.ProjectIDKey) != projectID {
+	if !hasAccessToProject(c, projectID) {
 		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
 		return
 	}

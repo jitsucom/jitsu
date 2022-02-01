@@ -15,6 +15,7 @@ import (
 
 const (
 	UsersInfoCollection = "users_info"
+	usersInfoEmailKey   = "_email"
 	RedisType           = "redis"
 	FirebaseType        = "firebase"
 )
@@ -106,7 +107,7 @@ func (s *Service) GetUserProjects(userID string) ([]Project, error) {
 		return nil, err
 	}
 
-	var userInfo UserInfo
+	userInfo := UserInfo{}
 	err = json.Unmarshal(usersInfoResponse, &userInfo)
 	if err != nil {
 		return nil, err
@@ -190,6 +191,32 @@ func (s *Service) CreateResetID(email string) (string, string, error) {
 	}
 
 	return resetID, user.Email, nil
+}
+
+//ChangeEmail proxies request to auth provider
+func (s *Service) ChangeEmail(oldEmail, newEmail string) error {
+	userID, err := s.authProvider.ChangeUserEmail(oldEmail, newEmail)
+	if err != nil {
+		return err
+	}
+
+	usersInfoBytes, err := s.configurationsStorage.Get(UsersInfoCollection, userID)
+	if err != nil {
+		return err
+	}
+
+	usersInfo := map[string]interface{}{}
+	if err := json.Unmarshal(usersInfoBytes, &usersInfo); err != nil {
+		return fmt.Errorf("failed to deserialize users info: %v", err)
+	}
+
+	usersInfo[usersInfoEmailKey] = newEmail
+	b, err := json.Marshal(usersInfo)
+	if err != nil {
+		return fmt.Errorf("failed to serialize users info: %v", err)
+	}
+
+	return s.configurationsStorage.Store(UsersInfoCollection, userID, b)
 }
 
 //ChangePassword gets user by reset ID or by authorization token

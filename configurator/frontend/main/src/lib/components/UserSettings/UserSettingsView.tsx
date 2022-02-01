@@ -6,6 +6,9 @@ import { ChangePasswordForm } from "./components/ChangePasswordForm/ChangePasswo
 import { TelemetrySettingsForm } from "./components/TelemetrySettingsForm/TelemetrySettingsForm"
 // @Styles
 import styles from "./UserSettingsView.module.less"
+import React from "react"
+import { TabDescription } from "../../../ui/components/Tabs/TabDescription"
+import { CodeSnippet } from "../components"
 
 type Email = {
   value: string
@@ -18,6 +21,7 @@ type Props = {
   currentEmail: Email
   confirmationEmailStatus: ConfirmationEmailStatus
   isTelemetryEnabled: boolean
+  onlyAdminCanChangeUserEmail: boolean
   handleChangeEmail: (newEmail: string) => Promise<void>
   handleSendEmailConfirmation: () => Promise<void>
   handleChangeTelemetry?: false | ((enabled: boolean) => Promise<void>)
@@ -40,6 +44,7 @@ export const UserSettingsViewComponent: React.FC<Props> = ({
   currentEmail,
   confirmationEmailStatus,
   isTelemetryEnabled,
+  onlyAdminCanChangeUserEmail,
   handleChangeEmail,
   handleSendEmailConfirmation,
   handleChangeTelemetry,
@@ -73,7 +78,32 @@ export const UserSettingsViewComponent: React.FC<Props> = ({
             )}
           </span>
         )}
-        <ChangeEmailForm handleChangeEmail={handleChangeEmail} />
+        <ChangeEmailForm handleChangeEmail={handleChangeEmail} changeEmailDisabled={onlyAdminCanChangeUserEmail} />
+
+        {onlyAdminCanChangeUserEmail && (
+          <>
+            <span>
+              You can change your email using cluster admin token. Use curl command: <br />
+              Replace {"<YOUR SERVER>"} with 'localhost:8000' if you run Jitsu locally. <br />
+              <a target="_blank" href="https://jitsu.com/docs/deployment/deploy-with-docker/jitsu-configurator">
+                {" "}
+                Read how to get CLUSTER_ADMIN_TOKEN
+              </a>
+              .
+            </span>
+            <br />
+            <div className={"flex"}>
+              <CodeSnippet language={"bash"} size={"small"}>
+                {"curl --location --request POST 'http://<YOUR SERVER>/configurator/api/v1/users/email/change?token=<CLUSTER_ADMIN_TOKEN>' \\\n" +
+                  "--header 'Content-Type: application/json' \\\n" +
+                  "--data-raw '{\n" +
+                  '    "old_email": "<YOUR OLD EMAIL>",\n' +
+                  '    "new_email": "<YOUR NEW EMAIL>"\n' +
+                  "}'"}
+              </CodeSnippet>
+            </div>
+          </>
+        )}
       </SectionContainer>
 
       <SectionContainer>

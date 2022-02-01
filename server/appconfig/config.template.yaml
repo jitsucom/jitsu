@@ -341,10 +341,6 @@ destinations:
 #     password: abc #Optional.
 ### Redis configuration shortcut (meta.storage redis will be used)
 #   type: redis
-### Etcd configuration example
-#   etcd:
-#     endpoint: http://your_etcd_host
-#     connection_timeout_seconds: 60 # Optional. Default value is 60
 
 
 ### Sources https://jitsu.com/docs/sources-configuration

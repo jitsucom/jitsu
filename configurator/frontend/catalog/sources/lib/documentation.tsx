@@ -61,8 +61,8 @@ export function googleServiceAuthDocumentation({
       </ul>
       You should also enable Google API for your project. Go to the{" "}
       <a href="https://console.cloud.google.com/apis/library">Google APIs Library page</a>, search{" "}
-      {apis.map<React.ReactNode>(t => <b>{t}</b>).reduce((prev, curr) => [prev, " and ", curr])} and make sure they are
-      enabled
+      {apis.map<React.ReactNode>(t => <b key={t}>{t}</b>).reduce((prev, curr) => [prev, " and ", curr])} and make sure
+      they are enabled
       {oauthEnabled && (
         <>
           <h1>

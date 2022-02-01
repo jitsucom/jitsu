@@ -27,6 +27,7 @@ type Provider interface {
 	GetUserByID(userID string) (*User, error)
 	GetUserByEmail(email string) (*User, error)
 	SaveUser(user *User) error
+	ChangeUserEmail(oldEmail, newEmail string) (string, error)
 	CreateTokens(userID string) (*TokenDetails, error)
 	DeleteAccessToken(token string) error
 	DeleteAllTokens(userID string) error
@@ -165,6 +166,12 @@ func (fp *FirebaseProvider) SaveUser(user *User) error {
 	errMsg := fmt.Sprintf("SaveUser isn't supported in authorization FirebaseProvider. email: %s", user.Email)
 	logging.SystemError(errMsg)
 	return errors.New(errMsg)
+}
+
+func (fp *FirebaseProvider) ChangeUserEmail(oldEmail, newEmail string) (string, error) {
+	errMsg := fmt.Sprintf("ChangeUserEmail isn't supported in authorization FirebaseProvider. old email: %s", oldEmail)
+	logging.SystemError(errMsg)
+	return "", errors.New(errMsg)
 }
 
 func (fp *FirebaseProvider) CreateTokens(userID string) (*TokenDetails, error) {

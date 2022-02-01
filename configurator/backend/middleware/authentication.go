@@ -5,6 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/openapi"
+	"github.com/jitsucom/jitsu/configurator/storages"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"net/http"
@@ -12,9 +13,10 @@ import (
 )
 
 const (
-	ProjectIDKey = "_project_id"
-	UserIDKey    = "_user_id"
-	TokenKey     = "_token"
+	ProjectIDQuery = "project_id"
+	UserIDKey      = "_user_id"
+	TokenKey       = "_token"
+	Permissions    = "__permissions"
 
 	//DEPRECATED
 	ClientAuthHeader = "X-Client-Auth"
@@ -22,9 +24,7 @@ const (
 	bearerAuthHeader = "authorization"
 
 	//Scopes
-	bearerClientScope        = "client"
-	bearerClientProjectScope = "client:project"
-	bearerServerScope        = "server"
+	bearerClientScope = "client"
 )
 
 var tokenRe = regexp.MustCompile(`(?i)^bearer (.+)$`)
@@ -32,76 +32,46 @@ var tokenRe = regexp.MustCompile(`(?i)^bearer (.+)$`)
 type Authenticator struct {
 	serverToken string
 	service     *authorization.Service
+	selfhosted  bool
 }
 
-func NewAuthenticator(serverToken string, service *authorization.Service) *Authenticator {
-	return &Authenticator{serverToken: serverToken, service: service}
+func NewAuthenticator(serverToken string, service *authorization.Service, selfhosted bool) *Authenticator {
+	return &Authenticator{serverToken: serverToken, service: service, selfhosted: selfhosted}
 }
 
 //BearerAuth is a middleware for authenticate user with bearer token
 func (a *Authenticator) BearerAuth(c *gin.Context) {
-	//scopes present = authentication required
-	scopes, ok := c.Get(openapi.BearerAuthScopes)
-	if ok {
-		token, ok := getToken(c)
-		if !ok {
-			return
-		}
-		c.Set(TokenKey, token)
-
-		// ** Check scope **
-		scopesStrs := scopes.([]string)
-		for _, scope := range scopesStrs {
-			switch scope {
-			case bearerClientScope:
-				userID, err := a.service.Authenticate(token)
-				if err != nil {
-					errAuthenticate(c, token, err)
-					return
-				}
-				c.Set(UserIDKey, userID)
-			case bearerClientProjectScope:
-				userID, err := a.service.Authenticate(token)
-				if err != nil {
-					errAuthenticate(c, token, err)
-					return
-				}
-
-				projectID, err := a.service.GetProjectID(userID)
-				if err != nil {
-					errProjectID(c, token, err)
-					return
-				}
-
-				c.Set(ProjectIDKey, projectID)
-				c.Set(UserIDKey, userID)
-			case bearerServerScope:
-				if token != a.serverToken {
-					logging.SystemErrorf("Server request [%s] with [%s] token has been denied: token mismatch", c.Request.URL.String(), token)
-					c.Writer.Header().Set("WWW-Authenticate", "Bearer realm=\"token_required\" error=\"invalid_token\"")
-					c.AbortWithStatusJSON(http.StatusUnauthorized, middleware.ErrResponse("Server Token mismatch", nil))
-					return
-				}
-			default:
-				logging.SystemErrorf("%s unknown bearer authorization scope: %v", c.Request.URL, scope)
-				c.Writer.Header().Set("WWW-Authenticate", "Bearer realm=\"insufficient_scope\" error=\"insufficient_scope\"")
-				c.AbortWithStatusJSON(http.StatusForbidden, middleware.ErrResponse("Insufficient scope", nil))
-				return
-			}
-		}
+	//keys present = authentication required
+	_, checkAdminAccess := c.Get(openapi.ClusterAdminAuthScopes)
+	_, checkManagementAccess := c.Get(openapi.ConfigurationManagementAuthScopes)
+	if !checkAdminAccess && !checkManagementAccess {
+		return
 	}
-}
 
-//OldStyleBearerAuth is a middleware for authenticate user with bearer token for backward compatibility
-//TODO delete this func after moving all API endpoints to openAPI
-func (a *Authenticator) OldStyleBearerAuth(main gin.HandlerFunc, extractProjectID bool) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		token, ok := getToken(c)
-		if !ok {
-			return
-		}
-		c.Set(TokenKey, token)
+	token, ok := getToken(c)
+	if !ok {
+		return
+	}
+	c.Set(TokenKey, token)
 
+	access := &ProjectAccess{
+		projects:    map[string]bool{},
+		adminAccess: token == a.serverToken,
+	}
+
+	if access.adminAccess {
+		c.Set(Permissions, access)
+		return
+	}
+
+	if checkAdminAccess && !access.adminAccess {
+		logging.SystemErrorf("Server request [%s] with [%s] token has been denied: token mismatch", c.Request.URL.String(), token)
+		c.Writer.Header().Set("WWW-Authenticate", "Bearer realm=\"token_required\" error=\"invalid_token\"")
+		c.AbortWithStatusJSON(http.StatusUnauthorized, middleware.ErrResponse("Server Token mismatch", nil))
+		return
+	}
+
+	if checkManagementAccess {
 		userID, err := a.service.Authenticate(token)
 		if err != nil {
 			errAuthenticate(c, token, err)
@@ -109,18 +79,30 @@ func (a *Authenticator) OldStyleBearerAuth(main gin.HandlerFunc, extractProjectI
 		}
 		c.Set(UserIDKey, userID)
 
-		if extractProjectID {
-			projectID, err := a.service.GetProjectID(userID)
-			if err != nil {
-				errProjectID(c, token, err)
-				return
-			}
-
-			c.Set(ProjectIDKey, projectID)
+		if projectID, err := a.service.GetProjectID(userID); err == nil {
+			access.projects[projectID] = true
 		}
 
-		main(c)
+		//added permissions on global configuration
+		if a.selfhosted {
+			access.projects[storages.TelemetryGlobalID] = true
+		}
 	}
+
+	c.Set(Permissions, access)
+}
+
+//BearerAuthManagementWrapper is a wrapper for BearerAuth func
+//adds minimal openapi.ConfigurationManagementAuthScopes to request
+func (a *Authenticator) BearerAuthManagementWrapper(main gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set(openapi.ConfigurationManagementAuthScopes, "")
+		a.BearerAuth(c)
+		if !c.IsAborted() {
+			main(c)
+		}
+	}
+
 }
 
 //getToken extracts token from all supported headers/query parameters

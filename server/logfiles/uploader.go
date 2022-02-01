@@ -1,6 +1,12 @@
 package logfiles
 
 import (
+	"io/ioutil"
+	"os"
+	"path"
+	"path/filepath"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
@@ -13,12 +19,9 @@ import (
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/timestamp"
-	"io/ioutil"
-	"os"
-	"path"
-	"path/filepath"
-	"time"
 )
+
+const parsingErrSrc = "parsing"
 
 //PeriodicUploader read already rotated and closed log files
 //Pass them to storages according to tokens
@@ -99,10 +102,19 @@ func (u *PeriodicUploader) Start() {
 					continue
 				}
 
-				objects, err := parsers.ParseJSONFile(b)
+				objects, parsingErrors, err := parsers.ParseJSONFileWithFuncFallback(b, parsers.ParseJSON)
 				if err != nil {
 					logging.SystemErrorf("Error parsing JSON file [%s] with events: %v", filePath, err)
 					continue
+				}
+
+				if len(parsingErrors) > 0 {
+					if len(objects) == 0 {
+						logging.SystemErrorf("JSON file [%s] contains only records with errors: [%d]. (for instance event [%s]: %vs)", filePath, len(parsingErrors), string(parsingErrors[0].Original), parsingErrors[0].Error)
+						continue
+					}
+
+					logging.Warnf("JSON file %s contains %d malformed events. They are sent to failed log", filePath, len(parsingErrors))
 				}
 
 				//flag for archiving file if all storages don't have errors while storing this file
@@ -125,7 +137,7 @@ func (u *PeriodicUploader) Start() {
 					resultPerTable, failedEvents, skippedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables)
 
 					if !skippedEvents.IsEmpty() {
-						metrics.SkipTokenEvents(tokenID, storage.ID(), len(skippedEvents.Events))
+						metrics.SkipTokenEvents(tokenID, storage.Type(), storage.ID(), len(skippedEvents.Events))
 						counters.SkipPushDestinationEvents(storage.ID(), int64(len(skippedEvents.Events)))
 					}
 
@@ -140,7 +152,7 @@ func (u *PeriodicUploader) Start() {
 						}
 
 						errRowsCount := len(objects)
-						metrics.ErrorTokenEvents(tokenID, storage.ID(), errRowsCount)
+						metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), errRowsCount)
 						counters.ErrorPushDestinationEvents(storage.ID(), int64(errRowsCount))
 
 						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), eventsSrc)
@@ -148,7 +160,20 @@ func (u *PeriodicUploader) Start() {
 						continue
 					}
 
-					//events which are failed to process
+					//** Fallback **
+					//events that are failed to be parsed
+					if len(parsingErrors) > 0 {
+						var parsingFailedEvents []*events.FailedEvent
+						for _, pe := range parsingErrors {
+							parsingFailedEvents = append(parsingFailedEvents, &events.FailedEvent{
+								MalformedEvent: string(pe.Original),
+								Error:          pe.Error,
+							})
+						}
+						storage.Fallback(parsingFailedEvents...)
+						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), map[string]int{parsingErrSrc: len(parsingErrors)})
+					}
+					//events that are failed to be processed
 					if !failedEvents.IsEmpty() {
 						storage.Fallback(failedEvents.Events...)
 
@@ -159,7 +184,7 @@ func (u *PeriodicUploader) Start() {
 						if result.Err != nil {
 							archiveFile = false
 							logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.ID(), tableName, filePath, result.Err)
-							metrics.ErrorTokenEvents(tokenID, storage.ID(), result.RowsCount)
+							metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), result.RowsCount)
 							counters.ErrorPushDestinationEvents(storage.ID(), int64(result.RowsCount))
 
 							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
@@ -175,7 +200,7 @@ func (u *PeriodicUploader) Start() {
 									mp[storage.ID()] = true
 								}
 							}
-							metrics.SuccessTokenEvents(tokenID, storage.ID(), result.RowsCount)
+							metrics.SuccessTokenEvents(tokenID, storage.Type(), storage.ID(), result.RowsCount)
 							counters.SuccessPushDestinationEvents(storage.ID(), int64(result.RowsCount))
 
 							telemetry.PushedEventsPerSrc(tokenID, storage.ID(), result.EventsSrc)

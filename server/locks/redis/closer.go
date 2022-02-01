@@ -1,4 +1,4 @@
-package base
+package redis
 
 import (
 	"github.com/jitsucom/jitsu/server/locks"

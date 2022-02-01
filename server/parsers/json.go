@@ -8,12 +8,18 @@ import (
 	"io"
 )
 
+type ParseError struct {
+	Original []byte
+	Error    string
+}
+
 //ParseJSONFile converts bytes (JSON objects with \n delimiter) into slice of map with json Numbers
 func ParseJSONFile(b []byte) ([]map[string]interface{}, error) {
 	return ParseJSONFileWithFunc(b, ParseJSON)
 }
 
 //ParseJSONFileWithFunc converts bytes (JSON objects with \n delimiter) into slice of map with json Numbers
+//failfast: returns err if at least 1 occurred
 func ParseJSONFileWithFunc(b []byte, parseFunc func(b []byte) (map[string]interface{}, error)) ([]map[string]interface{}, error) {
 	var objects []map[string]interface{}
 	input := bytes.NewBuffer(b)
@@ -41,46 +47,61 @@ func ParseJSONFileWithFunc(b []byte, parseFunc func(b []byte) (map[string]interf
 	return objects, nil
 }
 
+//ParseJSONFileWithFuncFallback converts bytes (JSON objects with \n delimiter) into slice of map with json Numbers
+//returns slice with events and slice with parsing errors which contains malformed JSON's(malformed lines)
+func ParseJSONFileWithFuncFallback(b []byte, parseFunc func(b []byte) (map[string]interface{}, error)) ([]map[string]interface{}, []ParseError, error) {
+	var parseErrors []ParseError
+	var objects []map[string]interface{}
+	input := bytes.NewBuffer(b)
+	reader := bufio.NewReaderSize(input, 64*1024)
+	line, readErr := reader.ReadBytes('\n')
+
+	for readErr == nil {
+		object, err := parseFunc(line)
+		if err != nil {
+			parseErrors = append(parseErrors, ParseError{
+				Original: line,
+				Error:    err.Error(),
+			})
+		} else {
+			objects = append(objects, object)
+		}
+
+		line, readErr = reader.ReadBytes('\n')
+		if readErr != nil && readErr != io.EOF {
+			return nil, nil, readErr
+		}
+	}
+
+	if readErr != nil && readErr != io.EOF {
+		return nil, nil, readErr
+	}
+
+	return objects, parseErrors, nil
+}
+
 //ParseJSON converts json bytes into map with json Numbers
 //removes first empty bytes if exist
 func ParseJSON(b []byte) (map[string]interface{}, error) {
-	//check if array contains empty bytes in the begging and removes them
-	p := 0
-	for _, v := range b {
-		if v != 0 {
-			break
-		}
-		p++
+	obj := map[string]interface{}{}
+
+	err := ParseJSONAsObject(b, &obj)
+	if err != nil {
+		return nil, fmt.Errorf("cannot unmarshal bytes into Go value of type map[string]interface {}: %v", err)
 	}
-	if p > 0 {
-		b = b[p:]
-	}
+
+	return obj, nil
+}
+
+//ParseJSONAsObject converts json bytes into the object
+//removes first empty bytes if exist
+func ParseJSONAsObject(b []byte, value interface{}) error {
+	b = RemoveFirstEmptyBytes(b)
 
 	decoder := json.NewDecoder(bytes.NewReader(b))
 	decoder.UseNumber()
 
-	obj := map[string]interface{}{}
-	err := decoder.Decode(&obj)
-	return obj, err
-}
-
-//ParseFallbackJSON returns parsed into map[string]interface{} event from events.FailedFact
-func ParseFallbackJSON(line []byte) (map[string]interface{}, error) {
-	object, err := ParseJSON(line)
-	if err != nil {
-		return nil, err
-	}
-
-	event, ok := object["event"]
-	if !ok {
-		return nil, fmt.Errorf("Error parsing event %s from fallback: 'event' key doesn't exist", string(line))
-	}
-	objEvent, ok := event.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("Error parsing event %s from fallback: 'event' key must be json object", string(line))
-	}
-
-	return objEvent, nil
+	return decoder.Decode(&value)
 }
 
 //ParseInterface converts interface into json bytes then into map with json Numbers
@@ -95,4 +116,20 @@ func ParseInterface(v interface{}) (map[string]interface{}, error) {
 	obj := map[string]interface{}{}
 	err = decoder.Decode(&obj)
 	return obj, err
+}
+
+//RemoveFirstEmptyBytes checks if array contains empty bytes in the begging and removes them
+func RemoveFirstEmptyBytes(b []byte) []byte {
+	p := 0
+	for _, v := range b {
+		if v != 0 {
+			break
+		}
+		p++
+	}
+	if p > 0 {
+		b = b[p:]
+	}
+
+	return b
 }

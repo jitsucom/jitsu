@@ -3,9 +3,10 @@ package synchronization
 import (
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/destinations"
-	locksbase "github.com/jitsucom/jitsu/server/locks/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/safego"
@@ -13,7 +14,6 @@ import (
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	uuid "github.com/satori/go.uuid"
-	"time"
 )
 
 var (
@@ -25,6 +25,7 @@ var (
 //TaskDto is used in Task API (handlers.TaskHandler)
 type TaskDto struct {
 	ID         string `json:"id,omitempty"`
+	SourceType string `json:"source_type,omitempty"`
 	Source     string `json:"source,omitempty"`
 	Collection string `json:"collection,omitempty"`
 	Priority   int64  `json:"priority,omitempty"`
@@ -126,12 +127,12 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 
 	//get task-creation lock
 	taskCreationLock := ts.coordinationService.CreateLock(sourceID + "_" + collection + "_task_creation")
-	if err := taskCreationLock.TryLock(); err != nil {
-		if err == locksbase.ErrAlreadyLocked {
-			return "", ErrSourceCollectionIsStartingToSync
-		}
-
+	locked, err := taskCreationLock.TryLock(0)
+	if err != nil {
 		return "", fmt.Errorf("failed to get task creation lock source [%s] collection %s: %v", sourceID, collection, err)
+	}
+	if !locked {
+		return "", ErrSourceCollectionIsStartingToSync
 	}
 	defer taskCreationLock.Unlock()
 
@@ -181,6 +182,7 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 	now := timestamp.Now().UTC()
 	task := meta.Task{
 		ID:         generatedTaskID,
+		SourceType: sourceUnit.SourceType,
 		Source:     sourceID,
 		Collection: collection,
 		Priority:   priority.GetValue(now),
@@ -240,6 +242,7 @@ func (ts *TaskService) GetTask(id string) (*TaskDto, error) {
 
 	return &TaskDto{
 		ID:         task.ID,
+		SourceType: task.SourceType,
 		Source:     task.Source,
 		Collection: task.Collection,
 		Priority:   task.Priority,
@@ -273,6 +276,7 @@ func (ts *TaskService) GetTasks(sourceID, collectionID string, statusFilter *Sta
 
 		result = append(result, TaskDto{
 			ID:         task.ID,
+			SourceType: task.SourceType,
 			Source:     task.Source,
 			Collection: task.Collection,
 			Priority:   task.Priority,

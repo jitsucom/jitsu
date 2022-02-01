@@ -11,7 +11,8 @@ type LockFactory interface {
 
 //Lock all operations with lock
 type Lock interface {
-	Lock(timeout time.Duration) error
-	Unlock() bool
-	TryLock() error
+	// TryLock Attempts to acquire lock within given amount of time. If lock is not free by
+	// that time, returns false. Otherwise, returns true
+	TryLock(timeout time.Duration) (bool, error)
+	Unlock()
 }
