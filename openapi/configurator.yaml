@@ -739,7 +739,7 @@ paths:
         required: true
         schema:
           type: string
-    post:
+    get:
       tags:
         - configuration-management
       operationId: 'Become another cloud user'
