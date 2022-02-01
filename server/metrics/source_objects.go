@@ -2,10 +2,9 @@ package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var objectsLabels = []string{"project_id", "source_id"}
+var objectsLabels = []string{"project_id", "source_type", "source_tap", "source_id"}
 
 var (
 	successObjects *prometheus.CounterVec
@@ -13,36 +12,36 @@ var (
 )
 
 func initSourceObjects() {
-	successObjects = promauto.NewCounterVec(prometheus.CounterOpts{
+	successObjects = NewCounterVec(prometheus.CounterOpts{
 		Namespace: "eventnative",
 		Subsystem: "sources",
 		Name:      "objects",
 	}, objectsLabels)
-	errorsObjects = promauto.NewCounterVec(prometheus.CounterOpts{
+	errorsObjects = NewCounterVec(prometheus.CounterOpts{
 		Namespace: "eventnative",
 		Subsystem: "sources",
 		Name:      "errors",
 	}, objectsLabels)
 }
 
-func SuccessObject(sourceName string) {
-	SuccessObjects(sourceName, 1)
+func SuccessTokenObjects(tokenID string, value int) {
+	SuccessObjects(TokenSourceType, EmptySourceTap, tokenID, value)
 }
 
-func SuccessObjects(sourceName string, value int) {
-	if Enabled {
+func SuccessObjects(sourceType, sourceTap, sourceName string, value int) {
+	if Enabled() {
 		projectID, sourceID := extractLabels(sourceName)
-		successObjects.WithLabelValues(projectID, sourceID).Add(float64(value))
+		successObjects.WithLabelValues(projectID, sourceType, sourceTap, sourceID).Add(float64(value))
 	}
 }
 
-func ErrorObject(sourceName string) {
-	ErrorObjects(sourceName, 1)
+func ErrorTokenObjects(tokenID string, value int) {
+	ErrorObjects(TokenSourceType, EmptySourceTap, tokenID, value)
 }
 
-func ErrorObjects(sourceName string, value int) {
-	if Enabled {
+func ErrorObjects(sourceType, sourceTap, sourceName string, value int) {
+	if Enabled() {
 		projectID, sourceID := extractLabels(sourceName)
-		errorsObjects.WithLabelValues(projectID, sourceID).Add(float64(value))
+		errorsObjects.WithLabelValues(projectID, sourceType, sourceTap, sourceID).Add(float64(value))
 	}
 }
