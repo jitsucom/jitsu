@@ -1,12 +1,11 @@
 package events
 
 import (
-	"io"
-	"time"
-
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/queue"
+	"io"
+	"time"
 )
 
 //TimedEvent is used for keeping events with time in queue
@@ -33,7 +32,7 @@ func NewQueueFactory(redisPool *meta.RedisPool, redisReadTimeout time.Duration) 
 	return &QueueFactory{redisPool: redisPool, redisReadTimeout: redisReadTimeout}
 }
 
-func (qf *QueueFactory) CreateEventsQueue(subsystem, identifier string) (Queue, error) {
+func (qf *QueueFactory) CreateEventsQueue(identifier string) (Queue, error) {
 	//DEPRECATED
 	//queueName = "queue.dst="+destinationID,  logEventPath = f.logEventPath
 	//return NewDQueBasedQueue(identifier, queueName, logEventPath)
@@ -47,7 +46,7 @@ func (qf *QueueFactory) CreateEventsQueue(subsystem, identifier string) (Queue, 
 		logging.Infof("[%s] initializing inmemory events queue", identifier)
 		underlyingQueue = queue.NewInMemory()
 	}
-	return NewNativeQueue(queue.DestinationNamespace, subsystem, identifier, underlyingQueue)
+	return NewNativeQueue(queue.DestinationNamespace, identifier, underlyingQueue)
 }
 
 func (qf *QueueFactory) CreateHTTPQueue(identifier string, serializationModelBuilder func() interface{}) queue.Queue {
