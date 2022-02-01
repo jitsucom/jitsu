@@ -114,9 +114,9 @@ func (r *Relay) Relay(ctx context.Context, gatherer prometheus.Gatherer) error {
 		return errors.Wrap(err, "gather metrics")
 	}
 
-	preparedData := make([]*dto.MetricFamily, 0, len(gatheredData))
-	if err := clone(gatheredData, &preparedData); err != nil {
-		return errors.Wrap(err, "clone metrics")
+	preparedData, err := CloneMetricData(gatheredData)
+	if err != nil {
+		return errors.Wrap(err, "clone metric data")
 	}
 
 	for _, metricFamily := range preparedData {
@@ -127,7 +127,7 @@ func (r *Relay) Relay(ctx context.Context, gatherer prometheus.Gatherer) error {
 				}
 
 				hashedValue := resources.GetStringHash(*label.Value)
-				label.Value = &hashedValue
+				*label.Value = hashedValue
 			}
 		}
 	}
@@ -166,15 +166,16 @@ func (r *Relay) Relay(ctx context.Context, gatherer prometheus.Gatherer) error {
 	return nil
 }
 
-func clone(src []*dto.MetricFamily, dest interface{}) error {
+func CloneMetricData(src []*dto.MetricFamily) ([]*dto.MetricFamily, error) {
 	data, err := json.Marshal(src)
 	if err != nil {
-		return errors.Wrap(err, "serialize")
+		return nil, errors.Wrap(err, "serialize")
 	}
 
-	if err := json.Unmarshal(data, dest); err != nil {
-		return errors.Wrap(err, "deserialize")
+	dest := make([]*dto.MetricFamily, 0, len(src))
+	if err := json.Unmarshal(data, &dest); err != nil {
+		return nil, errors.Wrap(err, "deserialize")
 	}
 
-	return nil
+	return dest, nil
 }
