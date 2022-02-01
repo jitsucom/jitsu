@@ -3,6 +3,8 @@ package synchronization
 import (
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -13,7 +15,6 @@ import (
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	uuid "github.com/satori/go.uuid"
-	"time"
 )
 
 var (
@@ -25,6 +26,7 @@ var (
 //TaskDto is used in Task API (handlers.TaskHandler)
 type TaskDto struct {
 	ID         string `json:"id,omitempty"`
+	SourceType string `json:"source_type,omitempty"`
 	Source     string `json:"source,omitempty"`
 	Collection string `json:"collection,omitempty"`
 	Priority   int64  `json:"priority,omitempty"`
@@ -181,6 +183,7 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 	now := timestamp.Now().UTC()
 	task := meta.Task{
 		ID:         generatedTaskID,
+		SourceType: sourceUnit.SourceType,
 		Source:     sourceID,
 		Collection: collection,
 		Priority:   priority.GetValue(now),
@@ -240,6 +243,7 @@ func (ts *TaskService) GetTask(id string) (*TaskDto, error) {
 
 	return &TaskDto{
 		ID:         task.ID,
+		SourceType: task.SourceType,
 		Source:     task.Source,
 		Collection: task.Collection,
 		Priority:   task.Priority,
@@ -273,6 +277,7 @@ func (ts *TaskService) GetTasks(sourceID, collectionID string, statusFilter *Sta
 
 		result = append(result, TaskDto{
 			ID:         task.ID,
+			SourceType: task.SourceType,
 			Source:     task.Source,
 			Collection: task.Collection,
 			Priority:   task.Priority,
