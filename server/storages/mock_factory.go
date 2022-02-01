@@ -2,7 +2,6 @@ package storages
 
 import (
 	"fmt"
-
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
@@ -49,7 +48,7 @@ func (mf *MockFactory) Create(id string, destination config.DestinationConfig) (
 	var eventQueue events.Queue
 	if destination.Mode == StreamMode {
 		qf := events.NewQueueFactory(nil, 0)
-		eventQueue, _ = qf.CreateEventsQueue(destination.Type, id)
+		eventQueue, _ = qf.CreateEventsQueue(id)
 	}
 	return &testProxyMock{}, eventQueue, nil
 }

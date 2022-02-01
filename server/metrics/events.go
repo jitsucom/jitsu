@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var eventsRedisLabels = []string{"error_type"}
@@ -11,7 +12,7 @@ var (
 )
 
 func initEventsRedis() {
-	eventsRedisErrors = NewCounterVec(prometheus.CounterOpts{
+	eventsRedisErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "eventnative",
 		Subsystem: "events",
 		Name:      "redis",
@@ -19,7 +20,7 @@ func initEventsRedis() {
 }
 
 func EventsRedisErrors(errorType string) {
-	if Enabled() {
+	if Enabled {
 		eventsRedisErrors.WithLabelValues(errorType).Inc()
 	}
 }

@@ -1,13 +1,12 @@
 package routers
 
 import (
-	"net/http"
-	"net/http/pprof"
-
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/wal"
+	"net/http"
+	"net/http/pprof"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
@@ -130,7 +129,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
-	if metrics.Exported {
+	if metrics.Enabled {
 		router.GET("/prometheus", middleware.TokenAuth(gin.WrapH(promhttp.Handler()), adminToken))
 	}
 

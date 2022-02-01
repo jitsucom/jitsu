@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var sourcesPoolLabels = []string{"type"}
@@ -11,7 +12,7 @@ var (
 )
 
 func initSourcesPool() {
-	sourcesGoroutinesPoolSize = NewGaugeVec(prometheus.GaugeOpts{
+	sourcesGoroutinesPoolSize = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "eventnative",
 		Subsystem: "sources",
 		Name:      "goroutines_pool",
@@ -19,13 +20,13 @@ func initSourcesPool() {
 }
 
 func FreeSourcesGoroutines(value int) {
-	if Enabled() {
+	if Enabled {
 		sourcesGoroutinesPoolSize.WithLabelValues("free").Set(float64(value))
 	}
 }
 
 func RunningSourcesGoroutines(value int) {
-	if Enabled() {
+	if Enabled {
 		sourcesGoroutinesPoolSize.WithLabelValues("running").Set(float64(value))
 	}
 }

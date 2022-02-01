@@ -3,14 +3,13 @@ package events
 import (
 	"encoding/json"
 	"fmt"
-	"path"
-	"time"
-
 	"github.com/jitsucom/goque/v2"
 	"github.com/jitsucom/jitsu/server/leveldb"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"path"
+	"time"
 )
 
 const errCreateQueueTemplate = "error opening/creating event queue in dir [%s]: %v"
@@ -27,7 +26,7 @@ func NewLevelDBQueue(identifier, queueName, logEventPath string) (Queue, error) 
 		return nil, fmt.Errorf(errCreateQueueTemplate, queueDir, err)
 	}
 
-	metrics.SetStreamEventsQueueSize("DEPRECATED", identifier, queue.Size())
+	metrics.SetStreamEventsQueueSize(identifier, queue.Size())
 
 	return &LevelDBQueue{queue: queue, identifier: identifier}, nil
 }
@@ -49,7 +48,7 @@ func (ldq *LevelDBQueue) ConsumeTimed(f map[string]interface{}, t time.Time, tok
 		return
 	}
 
-	metrics.EnqueuedEvent("DEPRECATED", ldq.identifier)
+	metrics.EnqueuedEvent(ldq.identifier)
 }
 
 func (ldq *LevelDBQueue) DequeueBlock() (Event, time.Time, string, error) {
@@ -61,7 +60,7 @@ func (ldq *LevelDBQueue) DequeueBlock() (Event, time.Time, string, error) {
 		return nil, time.Time{}, "", err
 	}
 
-	metrics.DequeuedEvent("DEPRECATED", ldq.identifier)
+	metrics.DequeuedEvent(ldq.identifier)
 
 	fact, err := parsers.ParseJSON(qe.FactBytes)
 	if err != nil {

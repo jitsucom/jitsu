@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var (
@@ -9,7 +10,7 @@ var (
 )
 
 func initUsersRecognitionQueue() {
-	usersRecognitionQueueSize = NewGaugeVec(prometheus.GaugeOpts{
+	usersRecognitionQueueSize = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "eventnative",
 		Subsystem: "users_recognition",
 		Name:      "queue_size",
@@ -17,19 +18,19 @@ func initUsersRecognitionQueue() {
 }
 
 func InitialUsersRecognitionQueueSize(value int) {
-	if Enabled() {
+	if Enabled {
 		usersRecognitionQueueSize.WithLabelValues().Set(float64(value))
 	}
 }
 
 func DequeuedRecognitionEvent() {
-	if Enabled() {
+	if Enabled {
 		usersRecognitionQueueSize.WithLabelValues().Sub(1)
 	}
 }
 
 func EnqueuedRecognitionEvent() {
-	if Enabled() {
+	if Enabled {
 		usersRecognitionQueueSize.WithLabelValues().Add(1)
 	}
 }
