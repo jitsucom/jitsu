@@ -7,6 +7,10 @@ server:
   telemetry: '${env.TELEMETRY_URL|}'
   cache:
     enabled: '${env.EVENTS_CACHE_ENABLED|true}'
+  metrics:
+    relay:
+      disabled: '${env.JITSU_EXTENDED_TELEMETRY_DISABLED|false}'
+      deployment_id: '${env.JITSU_EXTENDED_TELEMETRY_DEPLOYMENT_ID|}'
 
 geo:
   maxmind_path: '${env.MAX_MIND_PATH|}'

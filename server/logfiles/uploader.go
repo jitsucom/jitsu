@@ -1,6 +1,12 @@
 package logfiles
 
 import (
+	"io/ioutil"
+	"os"
+	"path"
+	"path/filepath"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
@@ -13,11 +19,6 @@ import (
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/timestamp"
-	"io/ioutil"
-	"os"
-	"path"
-	"path/filepath"
-	"time"
 )
 
 const parsingErrSrc = "parsing"
@@ -136,7 +137,7 @@ func (u *PeriodicUploader) Start() {
 					resultPerTable, failedEvents, skippedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables)
 
 					if !skippedEvents.IsEmpty() {
-						metrics.SkipTokenEvents(tokenID, storage.ID(), len(skippedEvents.Events))
+						metrics.SkipTokenEvents(tokenID, storage.Type(), storage.ID(), len(skippedEvents.Events))
 						counters.SkipPushDestinationEvents(storage.ID(), int64(len(skippedEvents.Events)))
 					}
 
@@ -151,7 +152,7 @@ func (u *PeriodicUploader) Start() {
 						}
 
 						errRowsCount := len(objects)
-						metrics.ErrorTokenEvents(tokenID, storage.ID(), errRowsCount)
+						metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), errRowsCount)
 						counters.ErrorPushDestinationEvents(storage.ID(), int64(errRowsCount))
 
 						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), eventsSrc)
@@ -183,7 +184,7 @@ func (u *PeriodicUploader) Start() {
 						if result.Err != nil {
 							archiveFile = false
 							logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.ID(), tableName, filePath, result.Err)
-							metrics.ErrorTokenEvents(tokenID, storage.ID(), result.RowsCount)
+							metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), result.RowsCount)
 							counters.ErrorPushDestinationEvents(storage.ID(), int64(result.RowsCount))
 
 							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
@@ -199,7 +200,7 @@ func (u *PeriodicUploader) Start() {
 									mp[storage.ID()] = true
 								}
 							}
-							metrics.SuccessTokenEvents(tokenID, storage.ID(), result.RowsCount)
+							metrics.SuccessTokenEvents(tokenID, storage.Type(), storage.ID(), result.RowsCount)
 							counters.SuccessPushDestinationEvents(storage.ID(), int64(result.RowsCount))
 
 							telemetry.PushedEventsPerSrc(tokenID, storage.ID(), result.EventsSrc)

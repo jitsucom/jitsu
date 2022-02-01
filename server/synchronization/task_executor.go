@@ -3,6 +3,10 @@ package synchronization
 import (
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
+	"strings"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
@@ -20,9 +24,6 @@ import (
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
-	"runtime/debug"
-	"strings"
-	"time"
 )
 
 const (
@@ -444,16 +445,16 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 		for _, storage := range destinationStorages {
 			err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTableName}, objects, intervalToSync.String(), false)
 			if err != nil {
-				metrics.ErrorSourceEvents(task.Source, storage.ID(), rowsCount)
-				metrics.ErrorObjects(task.Source, rowsCount)
+				metrics.ErrorSourceEvents(task.SourceType, metrics.EmptySourceTap, task.Source, storage.Type(), storage.ID(), rowsCount)
+				metrics.ErrorObjects(task.SourceType, metrics.EmptySourceTap, task.Source, rowsCount)
 				telemetry.Error(task.Source, storage.ID(), srcSource, driver.GetDriversInfo().SourceType, rowsCount)
 				counters.ErrorPullDestinationEvents(storage.ID(), int64(rowsCount))
 				counters.ErrorPullSourceEvents(task.Source, int64(rowsCount))
 				return fmt.Errorf("Error storing %d source objects in [%s] destination: %v. All %d objects haven't been stored", rowsCount, storage.ID(), err, rowsCount)
 			}
 
-			metrics.SuccessSourceEvents(task.Source, storage.ID(), rowsCount)
-			metrics.SuccessObjects(task.Source, rowsCount)
+			metrics.SuccessSourceEvents(task.SourceType, metrics.EmptySourceTap, task.Source, storage.Type(), storage.ID(), rowsCount)
+			metrics.SuccessObjects(task.SourceType, metrics.EmptySourceTap, task.Source, rowsCount)
 			telemetry.Event(task.Source, storage.ID(), srcSource, driver.GetDriversInfo().SourceType, rowsCount)
 			counters.SuccessPullDestinationEvents(storage.ID(), int64(rowsCount))
 		}

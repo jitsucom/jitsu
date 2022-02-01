@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/joncrlsn/dque"
-	"time"
 )
 
 const eventsPerPersistedFile = 2000
@@ -43,7 +44,7 @@ func NewDQueBasedQueue(identifier, queueName, logEventPath string) (Queue, error
 		return nil, fmt.Errorf("Error opening/creating event queue [%s] in dir [%s]: %v", queueName, logEventPath, err)
 	}
 
-	metrics.SetStreamEventsQueueSize(identifier, queue.Size())
+	metrics.SetStreamEventsQueueSize("DEPRECATED", identifier, queue.Size())
 
 	return &DQueBasedQueue{queue: queue, identifier: identifier}, nil
 }
@@ -64,7 +65,7 @@ func (dbq *DQueBasedQueue) ConsumeTimed(f map[string]interface{}, t time.Time, t
 		return
 	}
 
-	metrics.EnqueuedEvent(dbq.identifier)
+	metrics.EnqueuedEvent("DEPRECATED", dbq.identifier)
 }
 
 func (dbq *DQueBasedQueue) DequeueBlock() (Event, time.Time, string, error) {
@@ -76,7 +77,7 @@ func (dbq *DQueBasedQueue) DequeueBlock() (Event, time.Time, string, error) {
 		return nil, time.Time{}, "", err
 	}
 
-	metrics.DequeuedEvent(dbq.identifier)
+	metrics.DequeuedEvent("DEPRECATED", dbq.identifier)
 
 	wrappedFact, ok := iface.(*QueuedEvent)
 	if !ok || len(wrappedFact.FactBytes) == 0 {

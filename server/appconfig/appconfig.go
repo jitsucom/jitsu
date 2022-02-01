@@ -226,7 +226,7 @@ func setDefaultParams(containerized bool) {
 		viper.SetDefault("sql_debug_log.queries.path", "/home/eventnative/data/logs")
 	} else {
 		viper.SetDefault("server.static_files_dir", "./web")
-		
+
 		viper.SetDefault("log.path", "./logs/events")
 		viper.SetDefault("server.log.path", "./logs")
 		viper.SetDefault("sql_debug_log.ddl.path", "./logs")

@@ -1,13 +1,6 @@
 package routers
 
 import (
-	"github.com/jitsucom/jitsu/server/coordination"
-	"github.com/jitsucom/jitsu/server/geo"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/multiplexing"
-	"github.com/jitsucom/jitsu/server/plugins"
-	"github.com/jitsucom/jitsu/server/wal"
-	"github.com/penglongli/gin-metrics/ginmetrics"
 	"net/http"
 	"net/http/pprof"
 	"runtime/debug"
@@ -15,16 +8,23 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/fallback"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/handlers"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/multiplexing"
+	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/synchronization"
 	"github.com/jitsucom/jitsu/server/system"
+	"github.com/jitsucom/jitsu/server/wal"
+	"github.com/penglongli/gin-metrics/ginmetrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
 )
@@ -37,7 +37,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
-	if metrics.Enabled {
+	if metrics.Enabled() {
 		// get global Monitor object
 		m := ginmetrics.GetMonitor()
 		m.SetSlowTime(5)
@@ -146,7 +146,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
-	if metrics.Enabled {
+	if metrics.Exported {
 		router.GET("/prometheus", middleware.TokenAuth(gin.WrapH(promhttp.Handler()), adminToken))
 	}
 
