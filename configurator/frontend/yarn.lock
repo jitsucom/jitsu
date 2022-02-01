@@ -3046,10 +3046,10 @@
     "@types/yargs" "^16.0.0"
     chalk "^4.0.0"
 
-"@jitsu/sdk-js@^2.2.2":
-  version "2.2.2"
-  resolved "https://registry.npmjs.org/@jitsu/sdk-js/-/sdk-js-2.2.2.tgz"
-  integrity sha512-jvYo7oukIF+gfMkWS2zl7FD1PXkRniBJjxTV7FQJdQ0R3vyF0u+NkLDUcS1iKLl5yeXcuX9+LyDEeIMZiRVUHQ==
+"@jitsu/sdk-js@^2.3.0":
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/@jitsu/sdk-js/-/sdk-js-2.3.0.tgz#bedaa0d2419336b8154907f48f2d4b3779344cdc"
+  integrity sha512-NOoZdJQhSHv7g7evPUjnzqBKaJ0pQTRKicq511zLbaaIU/okJoLPXSzS+Z4XLI919o5rT1ME/STzaIYSr4Fwbg==
 
 "@leichtgewicht/ip-codec@^2.0.1":
   version "2.0.3"
