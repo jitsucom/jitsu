@@ -211,7 +211,7 @@ func main() {
 	if metricsExported || metricsRelay != nil {
 		metrics.Init(metricsExported)
 		if metricsRelay != nil {
-			interval := time.Minute
+			interval := 5 * time.Minute
 			if viper.IsSet("server.metrics.relay.interval") {
 				interval = viper.GetDuration("server.metrics.relay.interval")
 			}
