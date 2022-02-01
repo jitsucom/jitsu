@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-var tarballUrlRegex = regexp.MustCompile(`^http.*\.(?:tar|tar\.gz|tgz)$`)
+var tarballUrlRegex = regexp.MustCompile(`^.*\.(?:tar|tar\.gz|tgz)$`)
 var tarballJsonPath = jsonutils.NewJSONPath("/dist/tarball")
 var pluginsCache = map[string]CachedPlugin{}
 var pluginsRWMutex = sync.RWMutex{}
@@ -169,30 +169,42 @@ func fetchTarballUrl(packageString string) (string, error) {
 }
 
 func downloadPlugin(packageString, tarballUrl string) (*Plugin, error) {
-	logging.Infof("Downloading: %s", tarballUrl)
-
-	resp, err := http.Get(tarballUrl)
-	if err != nil {
-		return nil, fmt.Errorf("cannot install plugin %s: failed to download tarball: %s : %v", packageString, tarballUrl, err)
-	}
-	defer resp.Body.Close()
-	contentDisposition := resp.Header.Get("content-disposition")
-	contentDisposition = strings.ReplaceAll(contentDisposition, "attachment; filename=", "")
-	var filename = ""
-	if contentDisposition != "" {
-		filename = contentDisposition
-	} else {
-		urlParts := strings.Split(resp.Request.URL.String(), "/")
-		filename = urlParts[len(urlParts)-1]
-	}
 	dir, err := os.MkdirTemp("", "plugin")
-	logging.Infof("Created tmp dir: %s", dir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create tmp dir to extract plugin: %v", err)
 	}
 	defer os.RemoveAll(dir) // clean up
+	logging.Infof("Created tmp dir: %s", dir)
 
-	// Create the file
+	var filename = ""
+	var source io.Reader
+	if strings.HasPrefix(tarballUrl, "http") {
+		logging.Infof("Downloading: %s", tarballUrl)
+		resp, err := http.Get(tarballUrl)
+		if err != nil {
+			return nil, fmt.Errorf("cannot install plugin %s: failed to download tarball: %s : %v", packageString, tarballUrl, err)
+		}
+		defer resp.Body.Close()
+		contentDisposition := resp.Header.Get("content-disposition")
+		contentDisposition = strings.ReplaceAll(contentDisposition, "attachment; filename=", "")
+		if contentDisposition != "" {
+			filename = contentDisposition
+		} else {
+			urlParts := strings.Split(resp.Request.URL.String(), "/")
+			filename = urlParts[len(urlParts)-1]
+		}
+		source = resp.Body
+	} else {
+		logging.Infof("Copying: %s", tarballUrl)
+		filename = path.Base(tarballUrl)
+		sourceFile, err := os.Open(tarballUrl)
+		if err != nil {
+			return nil, err
+		}
+		defer sourceFile.Close()
+		source = sourceFile
+	}
+	// Create tmp file
 	out, err := os.Create(path.Join(dir, filename))
 	if err != nil {
 		return nil, err
@@ -200,10 +212,11 @@ func downloadPlugin(packageString, tarballUrl string) (*Plugin, error) {
 	defer out.Close()
 
 	// Write the body to file
-	_, err = io.Copy(out, resp.Body)
+	_, err = io.Copy(out, source)
 	if err != nil {
 		return nil, err
 	}
+	_ = out.Sync()
 	logging.Infof("Extracting: %s", filename)
 	command := exec.Command("tar", "--strip-components", "1", "-xf", filename)
 	command.Dir = dir

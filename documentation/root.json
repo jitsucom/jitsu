@@ -38,6 +38,12 @@
       ]
     },
     {
+      "name": "Extending Jitsu",
+      "pages": [
+        "extending/destination-plugins"
+      ]
+    },
+    {
       "name": "Configurator UI",
       "pages": [
         "configurator-configuration"

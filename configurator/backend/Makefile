@@ -31,7 +31,7 @@ go_generate:
 
 deps_backend:
 	echo "Using path $(PATH)"
-	go mod tidy
+	go mod download
 
 build_backend:
 	$(GOBUILD_PREFIX) go build -ldflags "-X main.commit=${commit} -X main.builtAt=${built_at} -X main.tag=${tag}" -o configurator
