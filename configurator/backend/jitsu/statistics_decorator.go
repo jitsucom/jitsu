@@ -12,7 +12,7 @@ func NewStatisticsDecorator() *StatisticsDecorator {
 }
 
 func (sd *StatisticsDecorator) Decorate(c *gin.Context) (*Request, error) {
-	projectID := c.GetString(middleware.ProjectIDKey)
+	projectID := c.Query(middleware.ProjectIDQuery)
 	destinationID := c.Query("destination_id")
 	if destinationID == "" {
 		return BuildRequest(c), nil

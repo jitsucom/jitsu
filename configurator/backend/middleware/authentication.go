@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	ProjectIDKey = "_project_id"
-	UserIDKey    = "_user_id"
-	TokenKey     = "_token"
-	Permissions  = "__permissions"
+	ProjectIDQuery = "project_id"
+	UserIDKey      = "_user_id"
+	TokenKey       = "_token"
+	Permissions    = "__permissions"
 
 	//DEPRECATED
 	ClientAuthHeader = "X-Client-Auth"

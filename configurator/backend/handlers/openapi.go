@@ -660,9 +660,6 @@ func (oa *OpenAPI) TestSourceConfiguration(c *gin.Context) {
 		return
 	}
 
-	sourceID := c.GetString(middleware.ProjectIDKey) + "." + sourceEntity.SourceID
-	enSourceConfig.SourceID = sourceID
-
 	b, err := json.Marshal(enSourceConfig)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("Failed to serialize source config", err))
