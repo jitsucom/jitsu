@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
-
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/enrichment"
@@ -17,6 +15,7 @@ import (
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
+	"strings"
 )
 
 var ErrSkipObject = errors.New("Transform or table name filter marked object to be skipped. This object will be skipped.")
@@ -448,10 +447,6 @@ func (p *Processor) CloseJavaScriptTemplates() {
 
 func (p *Processor) GetTransformer() *templates.JsTemplateExecutor {
 	return p.transformer
-}
-
-func (p *Processor) DestinationType() string {
-	return p.destinationConfig.Type
 }
 
 func (p *Processor) Close() {

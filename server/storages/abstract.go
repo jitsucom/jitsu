@@ -2,10 +2,9 @@ package storages
 
 import (
 	"fmt"
-	"math/rand"
-
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/logging"
+	"math/rand"
 
 	"github.com/jitsucom/jitsu/server/identifiers"
 
@@ -69,7 +68,7 @@ func (a *Abstract) DryRun(payload events.Event) ([][]adapters.TableField, error)
 
 //ErrorEvent writes error to metrics/counters/telemetry/events cache
 func (a *Abstract) ErrorEvent(fallback bool, eventCtx *adapters.EventContext, err error) {
-	metrics.ErrorTokenEvent(eventCtx.TokenID, a.Processor().DestinationType(), a.destinationID)
+	metrics.ErrorTokenEvent(eventCtx.TokenID, a.destinationID)
 	counters.ErrorPushDestinationEvents(a.destinationID, 1)
 	telemetry.Error(eventCtx.TokenID, a.destinationID, eventCtx.Src, "", 1)
 
@@ -89,7 +88,7 @@ func (a *Abstract) ErrorEvent(fallback bool, eventCtx *adapters.EventContext, er
 func (a *Abstract) SuccessEvent(eventCtx *adapters.EventContext) {
 	counters.SuccessPushDestinationEvents(a.destinationID, 1)
 	telemetry.Event(eventCtx.TokenID, a.destinationID, eventCtx.Src, "", 1)
-	metrics.SuccessTokenEvent(eventCtx.TokenID, a.Processor().DestinationType(), a.destinationID)
+	metrics.SuccessTokenEvent(eventCtx.TokenID, a.destinationID)
 
 	//cache
 	a.eventsCache.Succeed(eventCtx)
@@ -98,7 +97,7 @@ func (a *Abstract) SuccessEvent(eventCtx *adapters.EventContext) {
 //SkipEvent writes skip to metrics/counters/telemetry and error to events cache
 func (a *Abstract) SkipEvent(eventCtx *adapters.EventContext, err error) {
 	counters.SkipPushDestinationEvents(a.destinationID, 1)
-	metrics.SkipTokenEvent(eventCtx.TokenID, a.Processor().DestinationType(), a.destinationID)
+	metrics.SkipTokenEvent(eventCtx.TokenID, a.destinationID)
 
 	//cache
 	a.eventsCache.Skip(eventCtx.CacheDisabled, a.destinationID, eventCtx.EventID, err.Error())
