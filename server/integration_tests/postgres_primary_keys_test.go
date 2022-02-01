@@ -23,6 +23,7 @@ import (
 func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 	telemetry.InitTest()
 	viper.Set("server.log.path", "")
+	viper.Set("sql_debug_log.ddl.enabled", false)
 
 	ctx := context.Background()
 	container, err := test.NewPostgresContainer(ctx)
@@ -88,6 +89,7 @@ func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 func TestPostgresNotManagedPrimaryKeyRemoval(t *testing.T) {
 	telemetry.InitTest()
 	viper.Set("server.log.path", "")
+	viper.Set("sql_debug_log.ddl.enabled", false)
 	destinationID := "test"
 
 	background := context.Background()

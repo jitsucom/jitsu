@@ -22,6 +22,7 @@ import (
 
 func TestProcessFilePayload(t *testing.T) {
 	viper.Set("server.log.path", "")
+	viper.Set("sql_debug_log.ddl.enabled", false)
 
 	err := appconfig.Init(false, "")
 	require.NoError(t, err)
@@ -194,6 +195,7 @@ func TestProcessFilePayload(t *testing.T) {
 
 func TestProcessFact(t *testing.T) {
 	viper.Set("server.log.path", "")
+	viper.Set("sql_debug_log.ddl.enabled", false)
 
 	err := appconfig.Init(false, "")
 	require.NoError(t, err)
@@ -302,7 +304,10 @@ func TestProcessFact(t *testing.T) {
 			"",
 		},
 	}
-	appconfig.Init(false, "")
+
+	err = appconfig.Init(false, "")
+	require.NoError(t, err)
+
 	appconfig.Instance.UaResolver = useragent.Mock{}
 	geoService := geo.NewTestService(geo.Mock{"10.10.10.10": geoDataMock})
 	uaRule, err := enrichment.NewRule(&enrichment.RuleConfig{
@@ -352,6 +357,7 @@ func TestProcessFact(t *testing.T) {
 
 func TestProcessTransform(t *testing.T) {
 	viper.Set("server.log.path", "")
+	viper.Set("sql_debug_log.ddl.enabled", false)
 
 	err := appconfig.Init(false, "")
 	require.NoError(t, err)

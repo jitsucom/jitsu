@@ -22,6 +22,7 @@ import (
 func TestMySQLPrimaryKeyNotRemoved(t *testing.T) {
 	telemetry.InitTest()
 	viper.Set("server.log.path", "")
+	viper.Set("sql_debug_log.ddl.enabled", false)
 
 	ctx := context.Background()
 	container, err := test.NewMySQLContainer(ctx)
