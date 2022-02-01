@@ -39,7 +39,8 @@ type AppConfig struct {
 
 	GlobalUniqueIDField *identifiers.UniqueID
 
-	closeMe []io.Closer
+	closeMe     []io.Closer
+	lastCloseMe []io.Closer
 
 	eventsConsumers []io.Closer
 	writeAheadLog   io.Closer
@@ -58,14 +59,13 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.name", "unnamed-server")
 	viper.SetDefault("server.port", "8001")
 	viper.SetDefault("server.log.level", "info")
-	viper.SetDefault("server.static_files_dir", "./web")
 	viper.SetDefault("server.auth_reload_sec", 1)
 	viper.SetDefault("server.api_keys_reload_sec", 1)
 	viper.SetDefault("server.destinations_reload_sec", 1)
 	viper.SetDefault("server.sources_reload_sec", 1)
 	viper.SetDefault("server.geo_resolvers_reload_sec", 1)
 	viper.SetDefault("server.sync_tasks.pool.size", 16)
-	viper.SetDefault("server.sync_tasks.stalled.last_heartbeat_threshold_seconds", 15)
+	viper.SetDefault("server.sync_tasks.stalled.last_heartbeat_threshold_seconds", 60)
 	viper.SetDefault("server.sync_tasks.stalled.last_activity_threshold_minutes", 10)
 	viper.SetDefault("server.sync_tasks.stalled.observe_stalled_every_seconds", 20)
 	viper.SetDefault("server.sync_tasks.store_logs.last_runs", -1)
@@ -212,6 +212,8 @@ func setDefaultParams(containerized bool) {
 	})
 
 	if containerized {
+		viper.SetDefault("server.static_files_dir", "/home/eventnative/app/web")
+
 		viper.SetDefault("log.path", "/home/eventnative/data/logs/events")
 		viper.SetDefault("server.log.path", "/home/eventnative/data/logs")
 		viper.SetDefault("server.config.path", "/home/eventnative/data/config")
@@ -223,6 +225,8 @@ func setDefaultParams(containerized bool) {
 		viper.SetDefault("sql_debug_log.ddl.path", "/home/eventnative/data/logs")
 		viper.SetDefault("sql_debug_log.queries.path", "/home/eventnative/data/logs")
 	} else {
+		viper.SetDefault("server.static_files_dir", "./web")
+
 		viper.SetDefault("log.path", "./logs/events")
 		viper.SetDefault("server.log.path", "./logs")
 		viper.SetDefault("sql_debug_log.ddl.path", "./logs")
@@ -396,5 +400,19 @@ func (a *AppConfig) ScheduleWriteAheadLogClosing(c io.Closer) {
 func (a *AppConfig) CloseWriteAheadLog() {
 	if err := a.writeAheadLog.Close(); err != nil {
 		logging.Errorf("[WriteAheadLog] %v", err)
+	}
+}
+
+//ScheduleLastClosing adds meta.Storage, coordinationService closers
+func (a *AppConfig) ScheduleLastClosing(c io.Closer) {
+	a.lastCloseMe = append(a.lastCloseMe, c)
+}
+
+//CloseLast closes meta.Storage, coordinationService closers in the last call
+func (a *AppConfig) CloseLast() {
+	for _, cl := range a.lastCloseMe {
+		if err := cl.Close(); err != nil {
+			logging.Error(err)
+		}
 	}
 }

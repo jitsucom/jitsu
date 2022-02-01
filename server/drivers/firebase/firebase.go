@@ -6,7 +6,9 @@ import (
 	"firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/maputils"
 	"google.golang.org/genproto/googleapis/type/latlng"
+	"strings"
 
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
@@ -21,7 +23,13 @@ const (
 	UsersCollection          = "users"
 	userIDField              = "uid"
 	firestoreDocumentIDField = "_firestore_document_id"
+
+	batchSize = 100
 )
+
+type subCollectionResult struct {
+	objects []map[string]interface{}
+}
 
 //Firebase is a Firebase/Firestore driver. It used in syncing data from Firebase/Firestore
 type Firebase struct {
@@ -161,34 +169,98 @@ func (f *Firebase) GetObjectsFor(interval *base.TimeInterval) ([]map[string]inte
 	} else if f.collection.Type == UsersCollection {
 		return f.loadUsers()
 	}
-	return nil, fmt.Errorf("Unknown collection: %s", f.collection.Type)
+	return nil, fmt.Errorf("Unknown stream type: %s", f.collection.Type)
 }
 
+//loadCollection gets the exact firestore key or by path with wildcard:
+//  collection/*/sub_collection/*/sub_sub_collection
 func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
-	var documentJSONs []map[string]interface{}
-	firebaseCollection := f.firestoreClient.Collection(f.firestoreCollectionKey)
+	collectionPaths := strings.Split(f.firestoreCollectionKey, "/*/")
+	firstPathPart := collectionPaths[0]
+	collectionPaths = collectionPaths[1:]
+	firebaseCollection := f.firestoreClient.Collection(firstPathPart)
 	if firebaseCollection == nil {
-		return nil, fmt.Errorf("collection [%s] doesn't exist in Firestore", f.firestoreCollectionKey)
+		return nil, fmt.Errorf("collection [%s] (expression=%s) doesn't exist in Firestore", firstPathPart, f.firestoreCollectionKey)
 	}
 
-	iter := firebaseCollection.Documents(f.ctx)
+	result := &subCollectionResult{}
+	err := f.diveAndFetch(firebaseCollection, map[string]interface{}{}, firestoreDocumentIDField, collectionPaths, result)
+	if err != nil {
+		return nil, err
+	}
+
+	return result.objects, nil
+}
+
+//diveAndFetch depth-first dives into collections tree if not empty or
+//fetches batches of data and puts into the result
+func (f *Firebase) diveAndFetch(collection *firestore.CollectionRef, parentIDs map[string]interface{}, idFieldName string, paths []string, result *subCollectionResult) error {
+	ctx, cancel := context.WithTimeout(f.ctx, 60*time.Minute)
+	defer cancel()
+
+	//firebase doesn't respect big requests
+	iter := collection.Limit(batchSize).Documents(ctx)
+	defer iter.Stop()
+
+	current := 0
+	batchesCount := 0
 	for {
 		doc, err := iter.Next()
-		if err == iterator.Done {
-			break
-		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to get API keys from firestore: %v", err)
+			if err == iterator.Done {
+				//get next batch
+				if batchSize == current {
+					current = 0
+					batchesCount++
+					iter = collection.Offset(batchSize * batchesCount).Limit(batchSize).Documents(ctx)
+					continue
+				}
+				break
+			}
+
+			return err
 		}
-		data := doc.Data()
-		if data == nil {
-			continue
+
+		current++
+
+		//dive
+		if len(paths) > 0 {
+			subCollectionName := paths[0]
+			subCollection := doc.Ref.Collection(subCollectionName)
+			if subCollection == nil {
+				continue
+			}
+
+			//get parent ID
+			parentIDs = maputils.CopyMap(parentIDs)
+			parentIDs[idFieldName] = doc.Ref.ID
+
+			subCollectionIDField := idFieldName + "_" + subCollectionName
+
+			err := f.diveAndFetch(subCollection, parentIDs, subCollectionIDField, paths[1:], result)
+			if err != nil {
+				return err
+			}
+		} else {
+			//fetch
+			data := doc.Data()
+			if data == nil {
+				continue
+			}
+			data = convertSpecificTypes(data)
+
+			data[idFieldName] = doc.Ref.ID
+
+			//parent ids
+			for parentIDKey, parentIDValue := range parentIDs {
+				data[parentIDKey] = parentIDValue
+			}
+
+			result.objects = append(result.objects, data)
 		}
-		data = convertSpecificTypes(data)
-		data[firestoreDocumentIDField] = doc.Ref.ID
-		documentJSONs = append(documentJSONs, data)
 	}
-	return documentJSONs, nil
+
+	return nil
 }
 
 func (f *Firebase) Type() string {
@@ -200,7 +272,9 @@ func (f *Firebase) Close() error {
 }
 
 func (f *Firebase) loadUsers() ([]map[string]interface{}, error) {
-	iter := f.authClient.Users(f.ctx, "")
+	ctx, cancel := context.WithTimeout(f.ctx, 5*time.Minute)
+	defer cancel()
+	iter := f.authClient.Users(ctx, "")
 	var users []map[string]interface{}
 	for {
 		authUser, err := iter.Next()

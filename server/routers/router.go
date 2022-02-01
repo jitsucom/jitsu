@@ -3,38 +3,54 @@ package routers
 import (
 	"net/http"
 	"net/http/pprof"
-
-	"github.com/jitsucom/jitsu/server/geo"
-	"github.com/jitsucom/jitsu/server/multiplexing"
-	"github.com/jitsucom/jitsu/server/plugins"
-	"github.com/jitsucom/jitsu/server/wal"
+	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
-	"github.com/jitsucom/jitsu/server/cluster"
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/fallback"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/handlers"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/multiplexing"
+	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/synchronization"
 	"github.com/jitsucom/jitsu/server/system"
+	"github.com/jitsucom/jitsu/server/wal"
+	"github.com/penglongli/gin-metrics/ginmetrics"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
 )
 
-func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *destinations.Service, sourcesService *sources.Service, taskService *synchronization.TaskService,
-	fallbackService *fallback.Service, clusterManager cluster.Manager, eventsCache *caching.EventsCache, systemService *system.Service,
-	segmentEndpointFieldMapper, segmentCompatEndpointFieldMapper events.Mapper, processorHolder *events.ProcessorHolder,
-	multiplexingService *multiplexing.Service, walService *wal.Service, geoService *geo.Service, pluginsRepository plugins.PluginsRepository) *gin.Engine {
+func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *destinations.Service, sourcesService *sources.Service,
+	taskService *synchronization.TaskService, fallbackService *fallback.Service, coordinationService *coordination.Service,
+	eventsCache *caching.EventsCache, systemService *system.Service, segmentEndpointFieldMapper, segmentCompatEndpointFieldMapper events.Mapper,
+	processorHolder *events.ProcessorHolder, multiplexingService *multiplexing.Service, walService *wal.Service, geoService *geo.Service,
+	pluginsRepository plugins.PluginsRepository) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
-	router.Use(gin.Recovery())
+	if metrics.Enabled() {
+		// get global Monitor object
+		m := ginmetrics.GetMonitor()
+		m.SetSlowTime(5)
+		// set request duration, default {0.1, 0.3, 1.2, 5, 10}
+		// used to p95, p99
+		m.SetDuration([]float64{0.1, 0.3, 1.2, 5, 10})
+		m.UseWithoutExposingEndpoint(router)
+	}
+
+	router.Use(gin.RecoveryWithWriter(logging.GlobalLogsWriter, func(c *gin.Context, err interface{}) {
+		logging.SystemErrorf("Panic:\n%s\n%s", err, string(debug.Stack()))
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}))
 
 	router.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
@@ -115,7 +131,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.GET("/tasks/:taskID/logs", adminTokenMiddleware.AdminAuth(taskHandler.TaskLogsHandler))
 		apiV1.POST("/tasks/:taskID/cancel", adminTokenMiddleware.AdminAuth(taskHandler.TaskCancelHandler))
 
-		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler))
+		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(coordinationService).Handler))
 		apiV1.GET("/events/cache", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler))
 
 		apiV1.GET("/fallback", adminTokenMiddleware.AdminAuth(fallbackHandler.GetHandler))

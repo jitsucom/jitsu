@@ -21,6 +21,7 @@ import (
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/config"
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/logevents"
@@ -37,7 +38,6 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/caching"
-	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
@@ -242,13 +242,15 @@ func main() {
 		cancel()
 		appconfig.Instance.Close()
 		telemetry.Flush()
-		notifications.Close()
+		notifications.Flush()
 		time.Sleep(4 * time.Second)
 		telemetry.Close()
 		//we should close it in the end
 		appconfig.Instance.CloseEventsConsumers()
 		appconfig.Instance.CloseWriteAheadLog()
 		counters.Close()
+		notifications.Close()
+		appconfig.Instance.CloseLast()
 		geoService.Close()
 		time.Sleep(time.Second)
 		os.Exit(0)
@@ -273,7 +275,7 @@ func main() {
 		viper.GetInt("log.pool.size"))
 
 	// ** Coordination Service **
-	var coordinationService coordination.Service
+	var coordinationService *coordination.Service
 	if viper.IsSet("coordination") {
 		coordinationService, err = initializeCoordinationService(ctx, metaStorageConfiguration)
 		if err != nil {
@@ -282,50 +284,35 @@ func main() {
 	}
 
 	if coordinationService == nil {
-		//TODO remove deprecated someday
-		//backward compatibility
-		if viper.IsSet("synchronization_service") {
-			logging.Warnf("\n\t'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
-
-			coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
-			if err != nil {
-				logging.Fatal("Failed to initiate coordination service", err)
-			}
-			telemetry.Coordination("etcd_sync")
-		} else {
-			//inmemory service (default)
-			logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
-				"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
-			coordinationService = coordination.NewInMemoryService([]string{appconfig.Instance.ServerName})
-			telemetry.Coordination("inmemory")
-		}
+		//inmemory service (default)
+		logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
+			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
+		coordinationService = coordination.NewInMemoryService(appconfig.Instance.ServerName)
+		telemetry.Coordination("inmemory")
 	}
 
 	// ** Destinations **
 	//events queue
-	//Redis based if events.queue.redis or meta.storage configured
-	//or
-	//inmemory
-	eventsQueueFactory, err := initializeEventsQueueFactory(metaStorageConfiguration)
+	//by default Redis based if events.queue.redis or meta.storage configured
+	//otherwise inmemory
+	//to force inmemory set events.queue.inmemory: true
+	var eventsQueueFactory *events.QueueFactory
+	if viper.GetBool("events.queue.inmemory") {
+		eventsQueueFactory, err = initializeEventsQueueFactory(nil)
+	} else {
+		eventsQueueFactory, err = initializeEventsQueueFactory(metaStorageConfiguration)
+	}
 	if err != nil {
 		logging.Fatal(err)
 	}
 
 	// ** Closing Meta Storage and Coordination Service
 	// Close after all for saving last task statuses
-	defer func() {
-		if err := eventsQueueFactory.Close(); err != nil {
-			logging.Errorf("Error closing events queue factory: %v", err)
-		}
-		if err := coordinationService.Close(); err != nil {
-			logging.Errorf("Error closing coordination service: %v", err)
-		}
-		if err := metaStorage.Close(); err != nil {
-			logging.Errorf("Error closing meta storage: %v", err)
-		}
-	}()
+	appconfig.Instance.ScheduleLastClosing(eventsQueueFactory)
+	appconfig.Instance.ScheduleLastClosing(coordinationService)
+	appconfig.Instance.ScheduleLastClosing(metaStorage)
 
-	//events counters
+	//event counters
 	counters.InitEvents(metaStorage)
 
 	//events cache
@@ -417,23 +404,28 @@ func main() {
 	//Create sync task service
 	taskService := synchronization.NewTaskService(sourceService, destinationsService, metaStorage, coordinationService, storeTasksLogsForLastRuns)
 
-	//Start cron scheduler
-	if taskService.IsConfigured() {
-		cronScheduler.Start(taskService.ScheduleSyncFunc)
-	}
-
-	//sources sync tasks pool size
 	poolSize := viper.GetInt("server.sync_tasks.pool.size")
-	stalledTasksThresholdSeconds := viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")
-	stalledLastLogThresholdMinutes := viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")
-	observeStalledTaskEverySeconds := viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")
+	if poolSize > 0 {
+		logging.Infof("Sources sync task executor pool size: %d", poolSize)
+		//Start cron scheduler
+		if taskService.IsConfigured() {
+			cronScheduler.Start(taskService.ScheduleSyncFunc)
+		}
 
-	//Create task executor
-	taskExecutor, err := synchronization.NewTaskExecutor(poolSize, stalledTasksThresholdSeconds, stalledLastLogThresholdMinutes, observeStalledTaskEverySeconds, sourceService, destinationsService, metaStorage, coordinationService)
-	if err != nil {
-		logging.Fatal("Error creating sources sync task executor:", err)
+		//sources sync tasks pool size
+		stalledTasksThresholdSeconds := viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")
+		stalledLastLogThresholdMinutes := viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")
+		observeStalledTaskEverySeconds := viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")
+
+		//Create task executor
+		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, stalledTasksThresholdSeconds, stalledLastLogThresholdMinutes, observeStalledTaskEverySeconds, sourceService, destinationsService, metaStorage, coordinationService)
+		if err != nil {
+			logging.Fatal("Error creating sources sync task executor:", err)
+		}
+		appconfig.Instance.ScheduleClosing(taskExecutor)
+	} else {
+		logging.Warnf("Sources sync task executor pool size: %d. Task executor is disabled.", poolSize)
 	}
-	appconfig.Instance.ScheduleClosing(taskExecutor)
 
 	//for now use the same interval as for log rotation
 	uploaderRunInterval := viper.GetInt("log.rotation_min")
@@ -522,13 +514,11 @@ func main() {
 	logging.Fatal(server.ListenAndServe())
 }
 
-//initializeCoordinationService returns configured coordination.Service (redis or etcd or inmemory)
-func initializeCoordinationService(ctx context.Context, metaStorageConfiguration *viper.Viper) (coordination.Service, error) {
-	//etcd
-	etcdEndpoint := viper.GetString("coordination.etcd.endpoint")
-	if etcdEndpoint != "" {
-		telemetry.Coordination("etcd")
-		return coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("coordination.etcd.endpoint"), viper.GetUint("coordination.etcd.connection_timeout_seconds"))
+//initializeCoordinationService returns configured coordination.Service (redis or inmemory)
+func initializeCoordinationService(ctx context.Context, metaStorageConfiguration *viper.Viper) (*coordination.Service, error) {
+	//check deprecated etcd
+	if viper.GetString("coordination.etcd.endpoint") != "" || viper.IsSet("synchronization_service") {
+		return nil, fmt.Errorf("coordination.etcd is no longer supported. Please use Redis instead. Read more about coordination service https://jitsu.com/docs/deployment/scale#redis")
 	}
 
 	//redis
@@ -566,8 +556,8 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, factory)
 	}
 
-	return nil, errors.New("Unknown coordination configuration. Currently only [redis, etcd] are supported. " +
-		"\n\tRead more about coordination service configuration: https://jitsu.com/docs/other-features/scaling-eventnative#coordination")
+	return nil, errors.New("Unknown coordination configuration. Currently only [redis] is supported. " +
+		"\n\tRead more about coordination service configuration: https://jitsu.com/docs/deployment/scale#coordination")
 }
 
 //initializeEventsQueueFactory returns configured events.QueueFactory (redis or inmemory)

@@ -12,7 +12,6 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/sources"
-	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	uuid "github.com/satori/go.uuid"
 )
@@ -46,10 +45,10 @@ type LogRecordDto struct {
 
 //TaskService handle get all tasks/ task logs requests
 type TaskService struct {
-	sourceService      *sources.Service
-	destinationService *destinations.Service
-	metaStorage        meta.Storage
-	monitorKeeper      storages.MonitorKeeper
+	sourceService       *sources.Service
+	destinationService  *destinations.Service
+	metaStorage         meta.Storage
+	coordinationService *coordination.Service
 
 	storeTasksLogsForLastRuns int
 	configured                bool
@@ -62,7 +61,7 @@ func NewTestTaskService() *TaskService {
 
 //NewTaskService returns configured TaskService instance
 func NewTaskService(sourceService *sources.Service, destinationService *destinations.Service,
-	metaStorage meta.Storage, monitorKeeper storages.MonitorKeeper, storeTasksLogsForLastRuns int) *TaskService {
+	metaStorage meta.Storage, coordinationService *coordination.Service, storeTasksLogsForLastRuns int) *TaskService {
 	if !sourceService.IsConfigured() {
 		return &TaskService{}
 	}
@@ -72,7 +71,7 @@ func NewTaskService(sourceService *sources.Service, destinationService *destinat
 	}
 
 	return &TaskService{sourceService: sourceService, destinationService: destinationService, metaStorage: metaStorage,
-		monitorKeeper: monitorKeeper, configured: true, storeTasksLogsForLastRuns: storeTasksLogsForLastRuns}
+		coordinationService: coordinationService, configured: true, storeTasksLogsForLastRuns: storeTasksLogsForLastRuns}
 }
 
 //ScheduleSyncFunc is used in scheduling.CronScheduler for scheduling sync of source&collection with retry
@@ -127,15 +126,15 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 	}
 
 	//get task-creation lock
-	creationTaskLock, err := ts.monitorKeeper.TryLock(sourceID, collection+"task_creation")
+	taskCreationLock := ts.coordinationService.CreateLock(sourceID + "_" + collection + "_task_creation")
+	locked, err := taskCreationLock.TryLock(0)
 	if err != nil {
-		if err == coordination.ErrAlreadyLocked {
-			return "", ErrSourceCollectionIsStartingToSync
-		}
-
-		return "", err
+		return "", fmt.Errorf("failed to get task creation lock source [%s] collection %s: %v", sourceID, collection, err)
 	}
-	defer ts.monitorKeeper.Unlock(creationTaskLock)
+	if !locked {
+		return "", ErrSourceCollectionIsStartingToSync
+	}
+	defer taskCreationLock.Unlock()
 
 	//get and check last task - if it has already been created
 	lastTask, getTaskErr := ts.metaStorage.GetLastTask(sourceID, collection)

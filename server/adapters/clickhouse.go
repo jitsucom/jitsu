@@ -338,7 +338,7 @@ func (ch *ClickHouse) CreateTable(tableSchema *Table) error {
 
 //GetTableSchema return table (name,columns with name and types) representation wrapped in Table struct
 func (ch *ClickHouse) GetTableSchema(tableName string) (*Table, error) {
-	table := &Table{Name: tableName, Columns: map[string]typing.SQLColumn{}}
+	table := &Table{Schema: ch.database, Name: tableName, Columns: map[string]typing.SQLColumn{}}
 	rows, err := ch.dataSource.QueryContext(ch.ctx, tableSchemaCHQuery, ch.database, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)

@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/config"
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
@@ -55,7 +56,7 @@ type Config struct {
 	processor              *schema.Processor
 	streamMode             bool
 	maxColumns             int
-	monitorKeeper          MonitorKeeper
+	coordinationService    *coordination.Service
 	eventQueue             events.Queue
 	eventsCache            *caching.EventsCache
 	loggerFactory          *logevents.Factory
@@ -99,7 +100,7 @@ type FactoryImpl struct {
 	ctx                 context.Context
 	logEventPath        string
 	geoService          *geo.Service
-	monitorKeeper       MonitorKeeper
+	coordinationService *coordination.Service
 	eventsCache         *caching.EventsCache
 	globalLoggerFactory *logevents.Factory
 	globalConfiguration *config.UsersRecognition
@@ -109,14 +110,14 @@ type FactoryImpl struct {
 }
 
 //NewFactory returns configured Factory
-func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, monitorKeeper MonitorKeeper,
-	eventsCache *caching.EventsCache, globalLoggerFactory *logevents.Factory,
-	globalConfiguration *config.UsersRecognition, metaStorage meta.Storage, eventsQueueFactory *events.QueueFactory, maxColumns int) Factory {
+func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, coordinationService *coordination.Service,
+	eventsCache *caching.EventsCache, globalLoggerFactory *logevents.Factory, globalConfiguration *config.UsersRecognition,
+	metaStorage meta.Storage, eventsQueueFactory *events.QueueFactory, maxColumns int) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
 		geoService:          geoService,
-		monitorKeeper:       monitorKeeper,
+		coordinationService: coordinationService,
 		eventsCache:         eventsCache,
 		globalLoggerFactory: globalLoggerFactory,
 		globalConfiguration: globalConfiguration,
@@ -221,7 +222,7 @@ func (f *FactoryImpl) Configure(destinationID string, destination config.Destina
 		processor:              processor,
 		streamMode:             destination.Mode == StreamMode,
 		maxColumns:             maxColumns,
-		monitorKeeper:          f.monitorKeeper,
+		coordinationService:    f.coordinationService,
 		eventQueue:             eventQueue,
 		eventsCache:            f.eventsCache,
 		loggerFactory:          destinationLoggerFactory,
@@ -341,6 +342,9 @@ func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string
 
 	//validates or overrides with the global one
 	if destination.UsersRecognition != nil {
+		if destination.UsersRecognition.IsEnabled() && !f.globalConfiguration.IsEnabled() {
+			return nil, fmt.Errorf("Error enabling user recognition for destination %s. Global user recognition configuration can't be disabled when destination has enabled one. Please add global user_recognition.enabled: true", destinationID)
+		}
 		//partly overriding
 		if destination.UsersRecognition.UserIDNode == "" {
 			destination.UsersRecognition.UserIDNode = f.globalConfiguration.UserIDNode
@@ -365,7 +369,7 @@ func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string
 	}
 
 	//check primary fields
-	if (destination.Type == PostgresType || destination.Type == RedshiftType || destination.Type == SnowflakeType) && len(pkFields) == 0 {
+	if (destination.Type == PostgresType || destination.Type == RedshiftType || destination.Type == MySQLType) && len(pkFields) == 0 {
 		logging.Errorf("[%s] retroactive users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", destinationID)
 		return &UserRecognitionConfiguration{enabled: false}, nil
 	}

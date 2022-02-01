@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -34,8 +35,29 @@ const (
 		}
 	]
 }`
+
 	systemErrorTemplate = `{
     "text": "*%s %s* [%s]: System error",
+	"attachments": [
+		{
+			"color": "#d9534f",
+			"blocks": [
+				{
+					"type": "divider"
+				},
+				{
+					"type": "section",
+					"text": {
+						"type": "mrkdwn",
+						"text": "%s"
+					}
+				}
+			]
+		}
+	]
+}`
+	groupedSystemErrorTemplate = `{
+    "text": "*%s %s* [%s]: System error occurred [%d] times in the last minute",
 	"attachments": [
 		{
 			"color": "#d9534f",
@@ -78,15 +100,19 @@ type Text struct {
 }
 
 type SlackNotifier struct {
-	client           *http.Client
-	errorLoggingFunc func(format string, v ...interface{})
-	serviceName      string
-	version          string
-	webHookURL       string
-	serverName       string
+	client              *http.Client
+	errorLoggingFunc    func(format string, v ...interface{})
+	mutex               *sync.RWMutex
+	systemErrorsCounter map[string]int64
+
+	serviceName string
+	version     string
+	webHookURL  string
+	serverName  string
 
 	messagesCh chan string
-	closed     bool
+	flush      chan struct{}
+	closed     chan struct{}
 }
 
 func (sn *SlackNotifier) Send(payload string) error {
@@ -105,20 +131,56 @@ func (sn *SlackNotifier) Send(payload string) error {
 	return nil
 }
 
-func (sn *SlackNotifier) start() {
+//startSending starts goroutine for sending messages from messagesCh
+func (sn *SlackNotifier) startSending() {
 	safego.RunWithRestart(func() {
 		for {
-			if sn.closed {
-				break
-			}
-
-			message := <-sn.messagesCh
-			err := sn.Send(message)
-			if err != nil {
-				sn.errorLoggingFunc("Error notify: %v", err)
+			select {
+			case <-sn.closed:
+				return
+			case message := <-sn.messagesCh:
+				err := sn.Send(message)
+				if err != nil {
+					sn.errorLoggingFunc("Error notify: %v", err)
+				}
 			}
 		}
 	})
+}
+
+//startErrorsObserver starts a goroutine for sending grouped errors every minute
+func (sn *SlackNotifier) startErrorsObserver() {
+	safego.RunWithRestart(func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-sn.closed:
+				return
+			case <-sn.flush:
+				sn.observe()
+			case <-ticker.C:
+				sn.observe()
+			}
+		}
+	})
+}
+
+//observe sends all grouped errors and clean up the counter
+func (sn *SlackNotifier) observe() {
+	knownSystemErrors := map[string]int64{}
+	instance.mutex.Lock()
+	for errPayload, count := range sn.systemErrorsCounter {
+		if count > 1 {
+			instance.messagesCh <- fmt.Sprintf(groupedSystemErrorTemplate, instance.serviceName, instance.version, instance.serverName, count, errPayload)
+			//made error known. It prevents extra system error notification after group notification
+			knownSystemErrors[errPayload] = 1
+		}
+	}
+
+	sn.systemErrorsCounter = knownSystemErrors
+	instance.mutex.Unlock()
 }
 
 func Init(serviceName, version, url, serverName string, errorLoggingFunc func(format string, v ...interface{})) {
@@ -130,14 +192,19 @@ func Init(serviceName, version, url, serverName string, errorLoggingFunc func(fo
 				MaxIdleConnsPerHost: 1000,
 			},
 		},
-		errorLoggingFunc: errorLoggingFunc,
-		serviceName:      serviceName,
-		webHookURL:       url,
-		version:          version,
-		serverName:       serverName,
-		messagesCh:       make(chan string, 1000),
+		errorLoggingFunc:    errorLoggingFunc,
+		mutex:               &sync.RWMutex{},
+		systemErrorsCounter: map[string]int64{},
+		serviceName:         serviceName,
+		webHookURL:          url,
+		version:             version,
+		serverName:          serverName,
+		messagesCh:          make(chan string, 1000),
+		flush:               make(chan struct{}),
+		closed:              make(chan struct{}),
 	}
-	instance.start()
+	instance.startSending()
+	instance.startErrorsObserver()
 }
 
 func Custom(payload string) {
@@ -195,12 +262,40 @@ func SystemError(msg ...interface{}) {
 		for _, v := range msg {
 			valuesStr = append(valuesStr, fmt.Sprint(v))
 		}
-		instance.messagesCh <- fmt.Sprintf(systemErrorTemplate, instance.serviceName, instance.version, instance.serverName, strings.Join(valuesStr, " "))
+
+		errPayload := strings.Join(valuesStr, " ")
+
+		//increments error counter
+		instance.mutex.Lock()
+		instance.systemErrorsCounter[errPayload]++
+		counter, _ := instance.systemErrorsCounter[errPayload]
+		instance.mutex.Unlock()
+
+		//send if an error occurred first time or it will be sent in startErrorsObserver()
+		if counter == 1 {
+			instance.messagesCh <- fmt.Sprintf(systemErrorTemplate, instance.serviceName, instance.version, instance.serverName, errPayload)
+		}
+	}
+}
+
+func Flush() {
+	if instance != nil {
+		select {
+		case <-instance.flush:
+		default:
+			close(instance.flush)
+		}
+
 	}
 }
 
 func Close() {
 	if instance != nil {
-		instance.closed = true
+		select {
+		case <-instance.closed:
+			return
+		default:
+			close(instance.closed)
+		}
 	}
 }

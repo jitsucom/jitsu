@@ -40,6 +40,7 @@ const webhookDestination = {
   displayName: "WebHook",
   defaultTransform: "",
   hidden: false,
+  deprecated: false,
   parameters: [
     modeParameter("stream"),
     tableName(filteringExpressionDocumentation),

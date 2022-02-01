@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 echo "Starting Jitsu. $@"
 
+sudo chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/configurator
+sudo chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/eventnative
+
 ### Vars
 PID_SERVER=0
 PID_CONFIGURATOR=0

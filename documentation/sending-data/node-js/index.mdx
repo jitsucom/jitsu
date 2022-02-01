@@ -1,0 +1,95 @@
+# Node.js
+
+Starting from `2.3.0`, `@jitsu/sdk-js` is an _isomorphic_ package. It means the package
+can work both on frontend (in browser) and on backend (Node.js).
+
+## Getting Started
+
+To add the package to your project, please follow [installation instructions](/docs/sending-data/js-sdk/package).
+
+  * For yarn: `yarn add @jitsu/sdk-js`
+  * For npm: `npm install --save @jitsu/sdk-js`
+
+## API
+
+Package API for Node.js is very similar to [the one for browser](/docs/sending-data/js-sdk/package) (please,
+read this page first). However, there are some differences. This page highlights the difference
+
+## Gathering page information
+
+On frontend, the easiest way to send data to Jitsu is calling `jitsu.track('<event_name>')`. The call will
+collect all necessary data points information about page: url, user agent etc.
+
+
+Currently, it works for express [Express](https://expressjs.com/):
+
+```typescript
+ app.get('<url>', async (req, res) => {
+   await jitsu.track('page_view', {env: envs.express(req, res)});
+ })
+```
+
+And for NextJS [`getServerSideProps()`](https://nextjs.org/docs/basic-features/data-fetching/get-server-side-props),
+[API Middleware](https://nextjs.org/docs/api-routes/api-middlewares), but not for [Page Middleware](https://nextjs.org/docs/middleware)
+(page middleware using different Request/Response API; support is coming soon, so far please set all parameters manually)
+
+```typescript
+export async function getServerSideProps(context) {
+  return jitsu.track("server_page", { env: envs.nextjsApi(context.req, context.res) })
+}
+```
+
+or
+
+
+```typescript
+async function apiMiddleware(req, res) {
+  await jitsu.track('api_call', {env: envs.nextjsApi(req, res)})
+}
+
+export default apiMiddleware
+```
+
+`envs.express(req, res)` or `envs.nextjsApi(req, res)` tells Jitsu to use Express (or NextJs) request and response objects:
+
+ * Following standard fields will be inferred from request and response: `doc_host`, `doc_path`,
+`doc_search`, `url`, `user_agent`, `utm`, `click_id`, `source_ip`
+ * Following fields won't be available due to its frontend-only nature: `vp_size`, `page_title`, `screen_resolution`.
+
+However, it's possible to set non-detected fields (and overwrite others):
+
+```typescript
+await jitsu.track('api_call', {
+  env: envs.nextjsApi(req, res),
+  page_title: 'Page Title',
+  doc_host: 'overwrite_host'
+})
+```
+
+Also, `jitsu.track()` will set user.anonymous_id based on cookies. The cookie handler respects `cookie_name`,
+`cookie_domain` and `cookie_policy` [settings](/docs/sending-data/js-sdk/parameters-reference)
+
+## Custom parameters
+
+If `envs.express(req, res)` or `envs.nextjsApi(req, res)` can't be used by any reason, you can set all parameters manually.
+Jitsu is not opinionated about data schema, so you can use any names. However, to be compatible with data collected on
+frontend, following parameters are recommended to be set:
+
+```typescript
+await jitsu.track('api_call', {
+  doc_encoding: '',
+  doc_host: '',
+  doc_path: '',
+  doc_search: '',
+  page_title: '',
+  referer: '',
+  url: '',
+  user_agent: '',
+  user_language: ''
+})
+```
+
+## Identifying users
+
+`jitsu.id({email, id}, true)` should be called if the identity of the user is known. Please note the last parameter (`doNotSendEvent`).
+It's recommended to set it to `true`, otherwise a separate identify event will be sent which is usually not required for server-side tracking

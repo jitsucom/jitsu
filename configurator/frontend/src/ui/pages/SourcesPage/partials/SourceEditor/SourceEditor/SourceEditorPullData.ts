@@ -22,13 +22,19 @@ export const pullAllAirbyteStreams = async (
 
   const services = ApplicationServices.get()
 
-  const config = (await handleBringSourceData()).config.config
+  const sourceData = await handleBringSourceData()
+  const config = sourceData.config.config
+  const image_version = sourceData.config.image_version
   const baseUrl = sourceDataFromCatalog.staticStreamsConfigEndpoint
   const project_id = services.userService.getUser().projects[0].id
 
-  const response = await services.backendApiClient.post(withQueryParams(baseUrl, { project_id }), config, {
-    proxy: true,
-  })
+  const response = await services.backendApiClient.post(
+    withQueryParams(baseUrl, { project_id, image_version }),
+    config,
+    {
+      proxy: true,
+    }
+  )
 
   if (response.message) throw new Error(response.message)
 

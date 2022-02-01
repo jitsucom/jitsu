@@ -12,6 +12,11 @@ type NpmDestination struct {
 	WebHook
 }
 
+type NpmValidatorResult struct {
+	Ok      bool   `mapstructure:"ok"`
+	Message string `mapstructure:"message"`
+}
+
 func init() {
 	RegisterStorage(StorageType{typeName: NpmType, createFunc: NewNpmDestination, isSQL: false})
 }
@@ -31,10 +36,20 @@ func NewNpmDestination(config *Config) (Storage, error) {
 	jsVariables := make(map[string]interface{})
 	jsVariables["destinationId"] = config.destinationID
 	jsVariables["destinationType"] = NpmType
-	for k, v := range config.destination.Config {
-		jsVariables[k] = v
+	jsVariables["config"] = config.destination.Config
+
+	var jsTemplate *templates.V8TemplateExecutor
+
+	if plugin.BuildInfo.SdkVersion != "" {
+		jsTemplate, err = templates.NewV8TemplateExecutor(`return `+transformFuncName+`($)`, jsVariables, plugin.Code, `function `+transformFuncName+`($) { return exports.destination($, globalThis) }`)
+	} else {
+		//compatibility with old SDK
+		for k, v := range config.destination.Config {
+			jsVariables[k] = v
+		}
+		jsTemplate, err = templates.NewV8TemplateExecutor(`return `+transformFuncName+`($)`, jsVariables, plugin.Code, `function `+transformFuncName+`($) { return exports.adapter($, globalThis) }`)
 	}
-	jsTemplate, err := templates.NewJsTemplateExecutor(`return `+transformFuncName+`($)`, jsVariables, plugin.Code, `function `+transformFuncName+`($) { return exports.adapter($, globalThis) }`)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to init builtin javascript code: %v", err)
 	}
@@ -56,7 +71,7 @@ func NewNpmDestination(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(wbAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, WebHookType)
+	tableHelper := NewTableHelper("", wbAdapter, config.coordinationService, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, WebHookType)
 
 	wh.tableHelper = tableHelper
 	wh.adapter = wbAdapter

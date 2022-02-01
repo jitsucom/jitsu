@@ -1,0 +1,41 @@
+# NPM plugins
+
+**Jitsu** supports [Destination Plugins](/docs/extending/destination-plugins).
+New type of destination may be added to Jitsu Server from npm package.
+
+
+## Configuration
+
+NPM based destination configs consist of the following schema:
+
+```yaml
+destinations:
+  my_plugin:
+    type: npm
+    package: jitsu-custom-destination@^1.0.0
+    mode: stream
+    config:
+      #config depends on particular plugin implementation
+```
+
+## Plugin Configuration Parameters
+
+| Parameter | Description |
+| :--- | :--- |
+| `package` (required) | package can be:<ul><li>npm package name - if a plugin is published to npm repository. We recommend providing package name with version expression to prevent backward compatibility issues: jitsu-slack-destination@^1.0.0</li><li>HTTP URL - e.g.: `https://my-site.com/plugins/jitsu-slack-destination.tgz`</li><li>filesystem path - in case of a docker image, provided path needs to be reachable inside of docker image filesystem. `/home/eventnative/data/plugins/` needs to be mounted to host filesystem directory where plugin's .tgz is located, e.g. following param may be added to docker run command: `-v /Users/testaccount/projects/:/home/eventnative/data/plugins/`</li></ul> |
+
+## Mixpanel v2 Plugin Example
+
+```yaml
+destinations:
+  mixpanel2:
+    type: npm
+    package: jitsu-mixpanel-destination@^0.2.0
+    mode: stream
+    config:
+      anonymous_users_enabled: false
+      api_secret: "abc"
+      project_id: "123456"
+      token: "ZZZZZZZ"
+      users_enabled: true
+```

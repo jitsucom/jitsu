@@ -197,9 +197,20 @@ func (r *Runner) Close() error {
 		return runner.ErrAirbyteAlreadyTerminated
 	}
 
-	close(r.closed)
+	safego.Run(func() {
+		ticker := time.NewTicker(time.Second * 60)
+		select {
+		case <-r.closed:
+			return
+		case <-ticker.C:
+			logging.Errorf("%s airbyte runner closing timeout. Killing.", r.identifier)
+			_ = r.command.Process.Kill()
+		}
+		ticker.Stop()
+	})
 
 	err := exec.Command("docker", "stop", r.identifier, "&").Run()
+	close(r.closed)
 	if err != nil {
 		logging.Errorf("%s airbyte runner closing failed. Killing. Closing error: %v", r.identifier, err)
 		_ = r.command.Process.Kill()

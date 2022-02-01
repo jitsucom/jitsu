@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-ARM_BUILD='GOOS=linux GOARCH=arm64'
-AMD_BUILD='GOOS=linux GOARCH=amd64'
+ARM_BUILD='GOARCH=arm64'
+AMD_BUILD='GOARCH=amd64'
 GO_BUILD_PARAMS=''
 
 arch_flag='amd'
@@ -14,8 +14,8 @@ print_usage() {
   echo "options:"
   echo "-h, --help                show brief help"
   echo "-a, --arch                specify an architecture for builg go:"
-  echo "                          -a amd: (default) build go with GOOS=linux GOARCH=amd64 parameters for x86"
-  echo "                          -a arm: build go with GOOS=linux GOARCH=arm64 parameters for arm"
+  echo "                          -a amd: (default) build go with GOARCH=amd64 parameters for x86"
+  echo "                          -a arm: build go with GOARCH=arm64 parameters for arm"
   echo "-d, --docker              specify should CLI build docker image or not:"
   echo "                          -d true: (default) build binaries and docker image"
   echo "                          -d false: build only binaries"
@@ -92,7 +92,7 @@ then
   echo "============================================"
   echo ""
 
-  docker build -t jitsucom/configurator -f configurator-local.Dockerfile --build-arg dhid=jitsucom . || { echo 'Building jitsucom/configurator docker failed' ; exit 1; }
+  docker build -t jitsucom/configurator -f configurator-release.Dockerfile --build-arg dhid=jitsucom . || { echo 'Building jitsucom/configurator docker failed' ; exit 1; }
 fi
 
 echo ""

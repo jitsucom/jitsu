@@ -16,8 +16,9 @@
     {
       "name": "Sending data",
       "pages": [
-        "sending-data/mobile-apps",
         "sending-data/js-sdk",
+        "sending-data/node-js",
+        "sending-data/mobile-apps",
         "sending-data/api",
         "sending-data/bulk-api",
         "sending-data/segment-api",
@@ -34,6 +35,12 @@
         "destinations-configuration",
         "sources-configuration",
         "sources"
+      ]
+    },
+    {
+      "name": "Extending Jitsu",
+      "pages": [
+        "extending/destination-plugins"
       ]
     },
     {
@@ -54,7 +61,8 @@
         "other-features/typecast",
         "other-features/admin-endpoints",
         "other-features/application-metrics",
-        "other-features/cli"
+        "other-features/cli",
+        "other-features/jitsu-api"
       ]
     }
   ]

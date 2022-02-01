@@ -59,6 +59,8 @@ docker run --rm -it jitsucom/jitsu replay -h
 | `--chunk-size` | int | max data chunk size in bytes (default 20 MB). If file size is greater then the file will be split into N chunks with max size and sent to Jitsu (default 20971520)|
 | `--disable-progress-bars` | bool | if true then progress bars won't be displayed|
 | `--fallback` | bool | Use true when you intend to replay "failed events" (log files with failed events from Jitsu Server events/failed directory). Failed events log records have different format|
+| `--file` | string | single file to upload |
+| `--suppress-errors` | int | option allows suppressing the specified amount of errors |
 | `-h` or `--help` | - | shows command usage|
 
 ### State

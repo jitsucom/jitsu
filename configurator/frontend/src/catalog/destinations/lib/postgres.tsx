@@ -70,6 +70,7 @@ const postgresDestination = {
   defaultTransform: "",
   displayName: "Postgres SQL",
   hidden: false,
+  deprecated: false,
   ui: {
     icon: icon,
     connectCmd: (cfg: object) => {

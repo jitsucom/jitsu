@@ -3,9 +3,11 @@ package synchronization
 import (
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"time"
 
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
@@ -24,15 +26,19 @@ import (
 	"go.uber.org/atomic"
 )
 
-const srcSource = "source"
-const ConfigSignatureSuffix = "_JITSU_config"
+const (
+	srcSource             = "source"
+	ConfigSignatureSuffix = "_JITSU_config"
+
+	collectionLockTimeout = time.Minute
+)
 
 type TaskExecutor struct {
-	workersPool        *ants.PoolWithFunc
-	sourceService      *sources.Service
-	destinationService *destinations.Service
-	metaStorage        meta.Storage
-	monitorKeeper      storages.MonitorKeeper
+	workersPool         *ants.PoolWithFunc
+	sourceService       *sources.Service
+	destinationService  *destinations.Service
+	metaStorage         meta.Storage
+	coordinationService *coordination.Service
 
 	stalledThreshold      time.Duration
 	lastActivityThreshold time.Duration
@@ -41,12 +47,13 @@ type TaskExecutor struct {
 }
 
 //NewTaskExecutor returns TaskExecutor and starts 2 goroutines (monitoring and queue observer)
-func NewTaskExecutor(poolSize, stalledThresholdSeconds, stalledLastActivityThresholdMinutes, observeStalledTaskEverySeconds int, sourceService *sources.Service, destinationService *destinations.Service, metaStorage meta.Storage, monitorKeeper storages.MonitorKeeper) (*TaskExecutor, error) {
+func NewTaskExecutor(poolSize, stalledThresholdSeconds, stalledLastActivityThresholdMinutes, observeStalledTaskEverySeconds int,
+	sourceService *sources.Service, destinationService *destinations.Service, metaStorage meta.Storage, coordinationService *coordination.Service) (*TaskExecutor, error) {
 	executor := &TaskExecutor{
 		sourceService:         sourceService,
 		destinationService:    destinationService,
 		metaStorage:           metaStorage,
-		monitorKeeper:         monitorKeeper,
+		coordinationService:   coordinationService,
 		stalledThreshold:      time.Duration(stalledThresholdSeconds) * time.Second,
 		lastActivityThreshold: time.Duration(stalledLastActivityThresholdMinutes) * time.Minute,
 		observerStalledEvery:  time.Duration(observeStalledTaskEverySeconds) * time.Second,
@@ -112,7 +119,7 @@ func (te *TaskExecutor) startTaskController() {
 				}
 
 				if timestamp.Now().UTC().Before(lastHeartBeatTime.Add(te.stalledThreshold)) {
-					//not enough time
+					//not enough time passed
 					continue
 				}
 
@@ -130,10 +137,6 @@ func (te *TaskExecutor) startTaskController() {
 
 					errMsg := fmt.Sprintf("The task is marked as Stalled. Jitsu has not received any updates from this task [%.2f] seconds (~ %.2f minutes). It might happen due to server restart. Sometimes out of memory errors might be a cause. You can check application logs and if so, please give Jitsu more RAM.", stalledTimeAgo.Seconds(), stalledTimeAgo.Minutes())
 					taskCloser.CloseWithError(errMsg, false)
-
-					if err := te.monitorKeeper.UnlockCleanUp(task.Source, task.Collection); err != nil {
-						logging.SystemErrorf("error unlocking task [%s] from heartbeat: %v", taskID, err)
-					}
 				}
 
 				if err := te.metaStorage.RemoveTaskFromHeartBeat(taskID); err != nil {
@@ -189,6 +192,19 @@ func (te *TaskExecutor) startObserver() {
 
 //execute runs task validating and syncing (cli or plain)
 func (te *TaskExecutor) execute(i interface{}) {
+	var taskCloser *TaskCloser
+	//panic handler
+	defer func() {
+		if r := recover(); r != nil {
+			msg := fmt.Sprintf("panic in TaskExecutor: %v\n%s", r, string(debug.Stack()))
+			if taskCloser != nil {
+				taskCloser.CloseWithError(msg, true)
+			} else {
+				logging.SystemError(msg)
+			}
+		}
+	}()
+
 	task, ok := i.(*meta.Task)
 	if !ok {
 		taskPayload, _ := json.Marshal(i)
@@ -198,7 +214,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 
 	//create redis logger
 	taskLogger := NewTaskLogger(task.ID, te.metaStorage)
-	taskCloser := NewTaskCloser(task.ID, taskLogger, te.metaStorage)
+	taskCloser = NewTaskCloser(task.ID, taskLogger, te.metaStorage)
 
 	if taskCloser.HandleCanceling() == ErrTaskHasBeenCanceled {
 		return
@@ -240,15 +256,23 @@ func (te *TaskExecutor) execute(i interface{}) {
 
 	taskLogger.INFO("Acquiring lock...")
 	logging.Debugf("[TASK %s] Getting sync lock source [%s] collection [%s]...", task.ID, task.Source, task.Collection)
-	collectionLock, err := te.monitorKeeper.Lock(task.Source, task.Collection)
+	collectionLock := te.coordinationService.CreateLock(task.Source + "_" + task.Collection)
+	locked, err := collectionLock.TryLock(collectionLockTimeout)
 	if err != nil {
-		msg := fmt.Sprintf("Error getting lock source [%s] collection [%s] task [%s]: %v", task.Source, task.Collection, task.ID, err)
+		msg := fmt.Sprintf("unable to lock source [%s] collection [%s] task [%s]: %v", task.Source, task.Collection, task.ID, err)
 		taskCloser.CloseWithError(msg, true)
 		return
 	}
+
+	if !locked {
+		msg := fmt.Sprintf("unable to lock source [%s] collection [%s] task [%s]. Collection has been already locked: timeout after %s", task.Source, task.Collection, task.ID, collectionLockTimeout.String())
+		taskCloser.CloseWithError(msg, true)
+		return
+	}
+
 	taskLogger.INFO("Lock has been acquired!")
 	logging.Debugf("[TASK %s] Lock obtained for source [%s] collection [%s]!", task.ID, task.Source, task.Collection)
-	defer te.monitorKeeper.Unlock(collectionLock)
+	defer collectionLock.Unlock()
 
 	sourceUnit, err := te.sourceService.GetSource(task.Source)
 	if err != nil {
@@ -426,7 +450,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 				telemetry.Error(task.Source, storage.ID(), srcSource, driver.GetDriversInfo().SourceType, rowsCount)
 				counters.ErrorPullDestinationEvents(storage.ID(), int64(rowsCount))
 				counters.ErrorPullSourceEvents(task.Source, int64(rowsCount))
-				return fmt.Errorf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
+				return fmt.Errorf("Error storing %d source objects in [%s] destination: %v. All %d objects haven't been stored", rowsCount, storage.ID(), err, rowsCount)
 			}
 
 			metrics.SuccessSourceEvents(task.SourceType, metrics.EmptySourceTap, task.Source, storage.Type(), storage.ID(), rowsCount)

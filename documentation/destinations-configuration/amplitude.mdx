@@ -1,16 +1,17 @@
 # Amplitude API
 
-
-
 **Jitsu** supports [Amplitude](http://amplitude.com/) as a destination.
 All event fields after [Mapping Step](/docs/how-it-works/architecture#mapping-step) will be formatted as JSON body and
 will be sent via [Amplitude API](https://developers.amplitude.com/docs/http-api-v2) with HTTP POST request.
 
 <Hint>
-    Amplitude destination supports only <code inline="true">stream</code> mode and <b>should have</b> mapping rules compatible with{' '}
-    <a href="https://developers.amplitude.com/docs/http-api-v2">Amplitude API parameters</a>. See mapping below
+  Amplitude destination supports only <code inline="true">stream</code> mode and{" "}
+  <b>should have</b> mapping rules compatible with{" "}
+  <a href="https://developers.amplitude.com/docs/http-api-v2">
+    Amplitude API parameters
+  </a>
+  . See mapping below
 </Hint>
-
 
 ## Filtering events
 
@@ -29,7 +30,7 @@ destinations:
     amplitude:
       api_key: <YOUR_API_KEY> #see below how to get it from Amplitude
     data_layout:
-      table_name_template: '$.event_type' #Optional. It is used for filtering events.
+      table_name_template: "$.event_type" #Optional. It is used for filtering events.
       mappings:
         keep_unmapped: false
         fields:
@@ -89,23 +90,25 @@ destinations:
 ## Amplitude credentials
 
 <table>
-    <thead>
+  <thead>
     <tr>
-        <th>Field</th>
-        <th>Type</th>
-        <th>Description</th>
+      <th>Field</th>
+      <th>Type</th>
+      <th>Description</th>
     </tr>
-    </thead>
-    <tbody>
+  </thead>
+  <tbody>
     <tr>
-        <td>
-            <b>api_key</b>
-            <br />
-            <em>(required)</em>
-        </td>
-        <td>string</td>
-        <td>Amplitude project API Key from the <a href="https://analytics.amplitude.com/">Project Settings</a> page.</td>
+      <td>
+        <b>api_key</b>
+        <br />
+        <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td>
+        Amplitude project API Key from the{" "}
+        <a href="https://analytics.amplitude.com/">Project Settings</a> page.
+      </td>
     </tr>
-    </tbody>
+  </tbody>
 </table>
-

@@ -50,6 +50,8 @@ export const UserSettings: React.FC<Props> = () => {
     }
   }
 
+  const onlyAdminCanChangeUserEmail = services.features.onlyAdminCanChangeUserEmail
+
   const handleChangeEmail = async (newEmail: string) => {
     try {
       await services.userService.changeEmail(newEmail)
@@ -100,6 +102,7 @@ export const UserSettings: React.FC<Props> = () => {
       currentEmail={currentEmail}
       confirmationEmailStatus={confirmationEmailStatus}
       isTelemetryEnabled={isTelemetryEnabled}
+      onlyAdminCanChangeUserEmail={onlyAdminCanChangeUserEmail}
       handleChangeEmail={handleChangeEmail}
       handleSendEmailConfirmation={handleSendEmailConfirmation}
       handleChangePassword={handleChangePassword}

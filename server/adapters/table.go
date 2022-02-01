@@ -15,14 +15,16 @@ type TableField struct {
 	Value interface{} `json:"value,omitempty"`
 }
 
-
 //Table is a dto for DWH Table representation
 type Table struct {
-	Name           string
+	Schema string
+	Name   string
+
 	Columns        Columns
 	PKFields       map[string]bool
+	PrimaryKeyName string
+
 	DeletePkFields bool
-	Version        int64
 }
 
 //Exists returns true if there is at least one column
@@ -32,6 +34,28 @@ func (t *Table) Exists() bool {
 	}
 
 	return len(t.Columns) > 0 || len(t.PKFields) > 0 || t.DeletePkFields
+}
+
+//Clone returns clone of current table
+func (t *Table) Clone() *Table {
+	clonedColumns := Columns{}
+	for k, v := range t.Columns {
+		clonedColumns[k] = v
+	}
+
+	clonedPkFields := map[string]bool{}
+	for k, v := range t.PKFields {
+		clonedPkFields[k] = v
+	}
+
+	return &Table{
+		Schema:         t.Schema,
+		Name:           t.Name,
+		Columns:        clonedColumns,
+		PKFields:       clonedPkFields,
+		PrimaryKeyName: t.PrimaryKeyName,
+		DeletePkFields: t.DeletePkFields,
+	}
 }
 
 //GetPKFields returns primary keys list
@@ -60,7 +84,7 @@ func (t *Table) GetPKFieldsMap() map[string]bool {
 // 2) all fields from another schema exist in current schema
 // NOTE: Diff method doesn't take types into account
 func (t Table) Diff(another *Table) *Table {
-	diff := &Table{Name: t.Name, Columns: map[string]typing.SQLColumn{}, PKFields: map[string]bool{}}
+	diff := &Table{Schema: t.Schema, Name: t.Name, Columns: map[string]typing.SQLColumn{}, PKFields: map[string]bool{}}
 
 	if !another.Exists() {
 		return diff
@@ -71,6 +95,13 @@ func (t Table) Diff(another *Table) *Table {
 		if !ok {
 			diff.Columns[name] = column
 		}
+	}
+
+	jitsuPrimaryKeyName := BuildConstraintName(t.Schema, t.Name)
+	//check if primary key is maintained by Jitsu (for Postgres and Redshift)
+	if t.PrimaryKeyName != "" && t.PrimaryKeyName != jitsuPrimaryKeyName {
+		//primary key isn't maintained by Jitsu: do nothing
+		return diff
 	}
 
 	//primary keys logic
@@ -88,5 +119,10 @@ func (t Table) Diff(another *Table) *Table {
 		}
 	}
 
+	diff.PrimaryKeyName = t.PrimaryKeyName
 	return diff
+}
+
+func BuildConstraintName(schemaName string, tableName string) string {
+	return schemaName + "_" + tableName + "_pk"
 }
