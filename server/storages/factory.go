@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/config"
@@ -18,7 +20,6 @@ import (
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/typing"
-	"strings"
 )
 
 const (
@@ -179,7 +180,7 @@ func (f *FactoryImpl) Configure(destinationID string, destination config.Destina
 		return nil, nil, err
 	}
 
-	eventQueue, err := f.eventsQueueFactory.CreateEventsQueue(destinationID)
+	eventQueue, err := f.eventsQueueFactory.CreateEventsQueue(destination.Type, destinationID)
 	if err != nil {
 		return nil, nil, err
 	}

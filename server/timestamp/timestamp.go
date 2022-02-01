@@ -7,24 +7,24 @@ import (
 )
 
 var (
-	// The value of freezed time that is used in all tests
-	freezedTime = time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
+	// The value of frozen time that is used in all tests
+	frozenTime = time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 
-	// Indicator shows that time was freezed or was not freezed
-	timeFreezed = atomic.NewBool(false)
+	// Indicator shows that time was frozen or was not frozen
+	timeFrozen = atomic.NewBool(false)
 )
 
 func Now() time.Time {
-	if timeFreezed.Load() {
-		return freezedTime
+	if timeFrozen.Load() {
+		return frozenTime
 	}
 	return time.Now()
 }
 
 func FreezeTime() {
-	timeFreezed.Store(true)
+	timeFrozen.Store(true)
 }
 
 func UnfreezeTime() {
-	timeFreezed.Store(false)
+	timeFrozen.Store(false)
 }

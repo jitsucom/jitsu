@@ -5,6 +5,10 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"mime/multipart"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/counters"
@@ -16,9 +20,6 @@ import (
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
-	"io/ioutil"
-	"mime/multipart"
-	"net/http"
 )
 
 //BulkHandler is used for accepting bulk events requests from server 2 server integrations (CLI)
@@ -64,8 +65,8 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 	for _, storageProxy := range storageProxies {
 		if err := bh.upload(storageProxy, eventObjects); err != nil {
 
-			metrics.ErrorSourceEvents(tokenID, storageProxy.ID(), rowsCount)
-			metrics.ErrorObjects(tokenID, rowsCount)
+			metrics.ErrorTokenEvents(tokenID, storageProxy.Type(), storageProxy.ID(), rowsCount)
+			metrics.ErrorTokenObjects(tokenID, rowsCount)
 			telemetry.Error(tokenID, storageProxy.ID(), events.SrcBulk, "", rowsCount)
 			counters.ErrorPushDestinationEvents(storageProxy.ID(), int64(rowsCount))
 
@@ -73,8 +74,8 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 			return
 		}
 
-		metrics.SuccessSourceEvents(tokenID, storageProxy.ID(), rowsCount)
-		metrics.SuccessObjects(tokenID, rowsCount)
+		metrics.SuccessTokenEvents(tokenID, storageProxy.Type(), storageProxy.ID(), rowsCount)
+		metrics.SuccessTokenObjects(tokenID, rowsCount)
 		telemetry.Event(tokenID, storageProxy.ID(), events.SrcBulk, "", rowsCount)
 		counters.SuccessPushDestinationEvents(storageProxy.ID(), int64(rowsCount))
 	}
