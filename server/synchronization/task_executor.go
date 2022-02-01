@@ -449,7 +449,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 				telemetry.Error(task.Source, storage.ID(), srcSource, driver.GetDriversInfo().SourceType, rowsCount)
 				counters.ErrorPullDestinationEvents(storage.ID(), int64(rowsCount))
 				counters.ErrorPullSourceEvents(task.Source, int64(rowsCount))
-				return fmt.Errorf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
+				return fmt.Errorf("Error storing %d source objects in [%s] destination: %v. All %d objects haven't been stored", rowsCount, storage.ID(), err, rowsCount)
 			}
 
 			metrics.SuccessSourceEvents(task.Source, storage.ID(), rowsCount)
