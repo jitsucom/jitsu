@@ -109,12 +109,17 @@ type RelayData struct {
 // to some HTTP endpoint via POST request with JSON body (see RelayData)
 // while also hashing sensitive label values.
 func (r *Relay) Relay(ctx context.Context, gatherer prometheus.Gatherer) error {
-	data, err := gatherer.Gather()
+	gatheredData, err := gatherer.Gather()
 	if err != nil {
 		return errors.Wrap(err, "gather metrics")
 	}
 
-	for _, metricFamily := range data {
+	preparedData := make([]*dto.MetricFamily, 0, len(gatheredData))
+	if err := clone(gatheredData, &preparedData); err != nil {
+		return errors.Wrap(err, "clone metrics")
+	}
+
+	for _, metricFamily := range preparedData {
 		for _, metric := range metricFamily.Metric {
 			for _, label := range metric.Label {
 				if label.Name == nil || label.Value == nil || !SensitiveLabels[*label.Name] {
@@ -134,7 +139,7 @@ func (r *Relay) Relay(ctx context.Context, gatherer prometheus.Gatherer) error {
 		Timestamp:    timestamp.Now().UnixMilli(),
 		HostID:       r.HostID,
 		DeploymentID: r.DeploymentID,
-		Data:         data,
+		Data:         preparedData,
 	})
 
 	if err != nil {
@@ -156,6 +161,19 @@ func (r *Relay) Relay(ctx context.Context, gatherer prometheus.Gatherer) error {
 		CheckStatus(http.StatusOK).
 		Do(req); err != nil {
 		return errors.Wrap(err, "do http request")
+	}
+
+	return nil
+}
+
+func clone(src []*dto.MetricFamily, dest interface{}) error {
+	data, err := json.Marshal(src)
+	if err != nil {
+		return errors.Wrap(err, "serialize")
+	}
+
+	if err := json.Unmarshal(data, dest); err != nil {
+		return errors.Wrap(err, "deserialize")
 	}
 
 	return nil
