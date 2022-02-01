@@ -91,18 +91,26 @@ func TestRelay_Relay(t *testing.T) {
 		return
 	}
 
+	preparedData, err := metrics.CloneMetricData(gatheredData)
+	if !assert.Nil(t, err, "clone metric data") {
+		return
+	}
+
 	hostID := "host0"
 	deploymentID := "deployment0"
 
 	// respecting privacy here
-	*gatheredData[0].Metric[0].Label[1].Value = resources.GetStringHash(sourceID)
-	*gatheredData[0].Metric[0].Label[3].Value = resources.GetStringHash(destinationID)
+	for _, label := range preparedData[0].Metric[0].Label {
+		if *label.Name == "source_id" || *label.Name == "destination_id" {
+			*label.Value = resources.GetStringHash(*label.Value)
+		}
+	}
 
 	expectedData := metrics.RelayData{
 		Timestamp:    timestamp.Now().UnixMilli(),
 		HostID:       hostID,
 		DeploymentID: deploymentID,
-		Data:         gatheredData,
+		Data:         preparedData,
 	}
 
 	work := new(sync.WaitGroup)
