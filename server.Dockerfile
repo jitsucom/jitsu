@@ -85,7 +85,7 @@ WORKDIR /go/src/github.com/jitsucom/jitsu/server
 
 #Caching dependencies
 ADD server/go.mod ./
-RUN go mod tidy && go mod download
+RUN go mod download
 
 #tmp workaround until next version of v8go will be release
 RUN git clone https://github.com/rogchap/v8go.git /tmp/v8go@v0.7.0
