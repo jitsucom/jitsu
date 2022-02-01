@@ -5,7 +5,7 @@ FROM nginx:latest as main
 # Install dependencies
 RUN apt-get update
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
-RUN apt-get install -y --fix-missing bash python3 python3-pip python3-venv python3-dev sudo curl
+RUN apt-get install -y --fix-missing bash python3 python3-pip python3-venv python3-dev sudo curl dnsutils
 
 #install docker
 RUN apt-get install apt-transport-https ca-certificates curl gnupg lsb-release -y
