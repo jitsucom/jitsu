@@ -65,8 +65,8 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 	for _, storageProxy := range storageProxies {
 		if err := bh.upload(storageProxy, eventObjects); err != nil {
 
-			metrics.ErrorSourceEvents(metrics.TokenSourceType, tokenID, storageProxy.Type(), storageProxy.ID(), rowsCount)
-			metrics.ErrorObjects(metrics.TokenSourceType, tokenID, rowsCount)
+			metrics.ErrorTokenEvents(tokenID, storageProxy.Type(), storageProxy.ID(), rowsCount)
+			metrics.ErrorTokenObjects(tokenID, rowsCount)
 			telemetry.Error(tokenID, storageProxy.ID(), events.SrcBulk, "", rowsCount)
 			counters.ErrorPushDestinationEvents(storageProxy.ID(), int64(rowsCount))
 
@@ -74,8 +74,8 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 			return
 		}
 
-		metrics.SuccessSourceEvents(metrics.TokenSourceType, tokenID, storageProxy.Type(), storageProxy.ID(), rowsCount)
-		metrics.SuccessObjects(metrics.TokenSourceType, tokenID, rowsCount)
+		metrics.SuccessTokenEvents(tokenID, storageProxy.Type(), storageProxy.ID(), rowsCount)
+		metrics.SuccessTokenObjects(tokenID, rowsCount)
 		telemetry.Event(tokenID, storageProxy.ID(), events.SrcBulk, "", rowsCount)
 		counters.SuccessPushDestinationEvents(storageProxy.ID(), int64(rowsCount))
 	}
