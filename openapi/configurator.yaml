@@ -43,7 +43,7 @@ components:
   parameters:
     projectIdQuery:
       in: query
-      name: projectId
+      name: project_id
       description: ID of the project
       required: true
       schema:
