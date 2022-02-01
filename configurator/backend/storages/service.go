@@ -10,7 +10,6 @@ import (
 	"github.com/jitsucom/jitsu/configurator/random"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/locks"
-	locksbase "github.com/jitsucom/jitsu/server/locks/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/telemetry"
@@ -27,7 +26,7 @@ const (
 	geoDataResolversCollection           = "geo_data_resolvers"
 
 	telemetryCollection = "telemetry"
-	telemetryGlobalID   = "global_configuration"
+	TelemetryGlobalID   = "global_configuration"
 
 	allObjectsIdentifier = "all"
 
@@ -411,7 +410,7 @@ func (cs *ConfigurationsService) GetGeoDataResolverByProjectID(projectID string)
 
 //SaveTelemetry uses saveWithLock for saving with lock telemetry settings
 func (cs *ConfigurationsService) SaveTelemetry(disabledConfiguration map[string]bool) error {
-	_, err := cs.saveWithLock(telemetryCollection, telemetryGlobalID, telemetry.Configuration{Disabled: disabledConfiguration})
+	_, err := cs.saveWithLock(telemetryCollection, TelemetryGlobalID, telemetry.Configuration{Disabled: disabledConfiguration})
 	if err != nil {
 		return fmt.Errorf("failed to store telemetry settings:: %v", err)
 	}
@@ -420,7 +419,7 @@ func (cs *ConfigurationsService) SaveTelemetry(disabledConfiguration map[string]
 
 //GetTelemetry uses getWithLock for getting with lock telemetry settings
 func (cs *ConfigurationsService) GetTelemetry() ([]byte, error) {
-	b, err := cs.getWithLock(telemetryCollection, telemetryGlobalID)
+	b, err := cs.getWithLock(telemetryCollection, TelemetryGlobalID)
 	if err != nil {
 		return nil, err
 	}
@@ -665,14 +664,15 @@ func (cs *ConfigurationsService) Close() (multiErr error) {
 
 func (cs *ConfigurationsService) lockProjectObject(objectType, projectID string) (locks.Lock, error) {
 	lock := cs.lockFactory.CreateLock(getObjectLockIdentifier(objectType, projectID))
-	if err := lock.Lock(defaultProjectObjectLockTimeout); err != nil {
-		if err == locksbase.ErrAlreadyLocked {
-			return nil, fmt.Errorf("unable to lock project [%s] object type [%s]. Already locked: timeout after %s", projectID, objectType, defaultProjectObjectLockTimeout.String())
-		}
-
+	locked, err := lock.TryLock(defaultProjectObjectLockTimeout)
+	if err != nil {
 		msg := fmt.Sprintf("System error: failed to lock project [%s] object type [%s]: %v", projectID, objectType, err)
 		notifications.SystemError(msg)
 		return nil, errors.New(msg)
+	}
+
+	if !locked {
+		return nil, fmt.Errorf("unable to lock project [%s] object type [%s]. Already locked: timeout after %s", projectID, objectType, defaultProjectObjectLockTimeout.String())
 	}
 
 	return lock, nil

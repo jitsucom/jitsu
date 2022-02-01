@@ -13,6 +13,7 @@ Authorization server secret token might be provided either as query parameter or
 <APIParam name={"X-Auth-Token"} dataType="string" required={true} type="header" description="Server secret token"/>
 <APIParam name={"token"} dataType="string" required={true} type="queryString" description="Server secret token"/>
 <APIParam name={"fallback"} dataType="boolean" required={false} type="queryString" description="Set true if provided file contains fallback format"/>
+<APIParam name={"skip_malformed"} dataType="boolean" required={false} type="queryString" description="Option for skipping malformed events while processing fallback=true. Default value is false means that all events batch won't be processed if it contains any malformed event."/>
 <APIParam name={"Content-Type"} dataType="string" required={true} type="header" description="multipart/form-data"/>
 
 <h4>Request Payload</h4>

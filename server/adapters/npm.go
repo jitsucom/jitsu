@@ -1,6 +1,7 @@
 package adapters
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/mitchellh/mapstructure"
 )
@@ -43,11 +44,23 @@ func (n *NpmRequestFactory) Create(object map[string]interface{}) (req *Request,
 	if err := mapstructure.Decode(object, &envelop); err != nil {
 		return nil, fmt.Errorf("cannot parse DestinationMessage: %v", err)
 	}
+	var body []byte
+	switch b := envelop.Body.(type) {
+	case string:
+		body = []byte(b)
+	case []byte:
+		body = b
+	default:
+		body, err = json.Marshal(b)
+		if err != nil {
+			return nil, fmt.Errorf("cannot marshal DestinationMessage body: %v", err)
+		}
+	}
 
 	return &Request{
 		URL:     envelop.URL,
 		Method:  envelop.Method,
-		Body:    []byte(envelop.Body),
+		Body:    body,
 		Headers: envelop.Headers,
 	}, nil
 }

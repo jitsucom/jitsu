@@ -7,6 +7,17 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math/rand"
+	"net/http"
+	"os"
+	"os/signal"
+	"path"
+	"path/filepath"
+	"runtime/debug"
+	"strings"
+	"syscall"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/config"
@@ -22,16 +33,6 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/jitsucom/jitsu/server/wal"
-	"math/rand"
-	"net/http"
-	"os"
-	"os/signal"
-	"path"
-	"path/filepath"
-	"runtime/debug"
-	"strings"
-	"syscall"
-	"time"
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/jitsu/server/appconfig"
@@ -194,7 +195,31 @@ func main() {
 
 	telemetry.InitFromViper(telemetryURL, notifications.ServiceName, commit, tag, builtAt, *dockerHubID)
 
-	metrics.Init(viper.GetBool("server.metrics.prometheus.enabled"))
+	// ** Meta storage **
+	metaStorageConfiguration := viper.Sub("meta.storage")
+	metaStorage, err := meta.InitializeStorage(metaStorageConfiguration)
+	if err != nil {
+		logging.Fatalf("Error initializing meta storage: %v", err)
+	}
+
+	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
+	systemInfo := runtime.GetInfo()
+	telemetry.EnrichSystemInfo(clusterID, systemInfo)
+
+	metricsExported := viper.GetBool("server.metrics.prometheus.enabled")
+	metricsRelay := metrics.InitRelay(clusterID, viper.Sub("server.metrics.relay"))
+	if metricsExported || metricsRelay != nil {
+		metrics.Init(metricsExported)
+		if metricsRelay != nil {
+			interval := 5 * time.Minute
+			if viper.IsSet("server.metrics.relay.interval") {
+				interval = viper.GetDuration("server.metrics.relay.interval")
+			}
+
+			trigger := metrics.TickerTrigger{Ticker: time.NewTicker(interval)}
+			metricsRelay.Run(ctx, trigger, metrics.Registry)
+		}
+	}
 
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")
 	if slackNotificationsWebHook != "" {
@@ -207,6 +232,11 @@ func main() {
 	go func() {
 		<-c
 		logging.Info("🤖 * Server is shutting down.. *")
+
+		if metricsRelay != nil {
+			metricsRelay.Stop()
+		}
+
 		telemetry.ServerStop()
 		appstatus.Instance.Idle.Store(true)
 		cancel()
@@ -244,17 +274,6 @@ func main() {
 		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter, viper.GetBool("log.async_writers"),
 		viper.GetInt("log.pool.size"))
 
-	// ** Meta storage **
-	metaStorageConfiguration := viper.Sub("meta.storage")
-	metaStorage, err := meta.InitializeStorage(metaStorageConfiguration)
-	if err != nil {
-		logging.Fatalf("Error initializing meta storage: %v", err)
-	}
-
-	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
-	systemInfo := runtime.GetInfo()
-	telemetry.EnrichSystemInfo(clusterID, systemInfo)
-
 	// ** Coordination Service **
 	var coordinationService *coordination.Service
 	if viper.IsSet("coordination") {
@@ -265,23 +284,11 @@ func main() {
 	}
 
 	if coordinationService == nil {
-		//TODO remove deprecated someday
-		//backward compatibility
-		if viper.IsSet("synchronization_service") {
-			logging.Warnf("\n\t'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
-
-			coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
-			if err != nil {
-				logging.Fatal("Failed to initiate coordination service", err)
-			}
-			telemetry.Coordination("etcd_sync")
-		} else {
-			//inmemory service (default)
-			logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
-				"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
-			coordinationService = coordination.NewInMemoryService(appconfig.Instance.ServerName)
-			telemetry.Coordination("inmemory")
-		}
+		//inmemory service (default)
+		logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
+			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
+		coordinationService = coordination.NewInMemoryService(appconfig.Instance.ServerName)
+		telemetry.Coordination("inmemory")
 	}
 
 	// ** Destinations **
@@ -507,13 +514,11 @@ func main() {
 	logging.Fatal(server.ListenAndServe())
 }
 
-//initializeCoordinationService returns configured coordination.Service (redis or etcd or inmemory)
+//initializeCoordinationService returns configured coordination.Service (redis or inmemory)
 func initializeCoordinationService(ctx context.Context, metaStorageConfiguration *viper.Viper) (*coordination.Service, error) {
-	//etcd
-	etcdEndpoint := viper.GetString("coordination.etcd.endpoint")
-	if etcdEndpoint != "" {
-		telemetry.Coordination("etcd")
-		return coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("coordination.etcd.endpoint"), viper.GetUint("coordination.etcd.connection_timeout_seconds"))
+	//check deprecated etcd
+	if viper.GetString("coordination.etcd.endpoint") != "" || viper.IsSet("synchronization_service") {
+		return nil, fmt.Errorf("coordination.etcd is no longer supported. Please use Redis instead. Read more about coordination service https://jitsu.com/docs/deployment/scale#redis")
 	}
 
 	//redis

@@ -17,7 +17,7 @@ func NewEventsCacheDecorator(configurationsProvider *storages.ConfigurationsServ
 }
 
 func (ecd *EventsCacheDecorator) Decorate(c *gin.Context) (*Request, error) {
-	projectID := c.GetString(middleware.ProjectIDKey)
+	projectID := c.Query(middleware.ProjectIDQuery)
 	destinationIDs := c.Query("destination_ids")
 	if destinationIDs == "" {
 		destinationsObjects, err := ecd.configurationsProvider.GetDestinationsByProjectID(projectID)

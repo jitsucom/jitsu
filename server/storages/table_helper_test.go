@@ -63,6 +63,7 @@ func TestMapTableSchema(t *testing.T) {
 
 func TestProcessTransformWithTypesOverride(t *testing.T) {
 	viper.Set("server.log.path", "")
+	viper.Set("sql_debug_log.ddl.enabled", false)
 
 	err := appconfig.Init(false, "")
 	require.NoError(t, err)

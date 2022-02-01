@@ -1810,11 +1810,6 @@
 "@jitsu/catalog@file:catalog":
   version "1.0.14"
 
-"@jitsu/sdk-js@^2.2.2":
-  version "2.3.0"
-  resolved "https://registry.yarnpkg.com/@jitsu/sdk-js/-/sdk-js-2.3.0.tgz#bedaa0d2419336b8154907f48f2d4b3779344cdc"
-  integrity sha512-NOoZdJQhSHv7g7evPUjnzqBKaJ0pQTRKicq511zLbaaIU/okJoLPXSzS+Z4XLI919o5rT1ME/STzaIYSr4Fwbg==
-
 "@lerna/add@4.0.0":
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/@lerna/add/-/add-4.0.0.tgz#c36f57d132502a57b9e7058d1548b7a565ef183f"
@@ -2477,6 +2472,10 @@
     slash "^3.0.0"
     temp-write "^4.0.0"
     write-json-file "^4.3.0"
+"@jitsu/sdk-js@^2.3.0":
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/@jitsu/sdk-js/-/sdk-js-2.3.0.tgz#bedaa0d2419336b8154907f48f2d4b3779344cdc"
+  integrity sha512-NOoZdJQhSHv7g7evPUjnzqBKaJ0pQTRKicq511zLbaaIU/okJoLPXSzS+Z4XLI919o5rT1ME/STzaIYSr4Fwbg==
 
 "@lerna/write-log-file@4.0.0":
   version "4.0.0"
@@ -9609,7 +9608,7 @@ jest@26.6.0:
   version "1.0.0"
   dependencies:
     "@jitsu/catalog" "file:../../../../../Library/Caches/Yarn/v6/npm-jitsu-configurator-ui-1.0.0-efffeec4-a47a-417a-9031-da3afaabe5eb-1643348097358/node_modules/catalog"
-    "@jitsu/sdk-js" "^2.2.2"
+    "@jitsu/sdk-js" "^2.3.0"
     "@types/react-grid-layout" "^1.1.2"
     antd "^4.13.1"
     axios "^0.21.4"

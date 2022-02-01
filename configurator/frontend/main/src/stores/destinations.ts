@@ -182,7 +182,9 @@ class DestinationsStore implements IDestinationsStore {
 
   private filterDestinations(destinations: DestinationData[], hidden: boolean) {
     return destinations
-      ? destinations.filter(v => (destinationsReferenceMap[v._type].hidden ? true : false) == hidden)
+      ? destinations.filter(
+          v => destinationsReferenceMap[v._type] && destinationsReferenceMap[v._type].hidden == hidden
+        )
       : []
   }
 

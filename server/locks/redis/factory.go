@@ -5,7 +5,6 @@ import (
 	"github.com/go-redsync/redsync/v4"
 	rsyncpool "github.com/go-redsync/redsync/v4/redis/redigo"
 	"github.com/jitsucom/jitsu/server/locks"
-	"github.com/jitsucom/jitsu/server/locks/base"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"io"
@@ -18,12 +17,12 @@ type LockFactory struct {
 	redsync      *redsync.Redsync
 	errorMetrics *meta.ErrorMetrics
 
-	locksCloser *base.LocksCloser
+	locksCloser *LocksCloser
 }
 
 //NewLockFactory returns configured Redis based LockFactory
 func NewLockFactory(ctx context.Context, pool *meta.RedisPool) (*LockFactory, io.Closer) {
-	locksCloser := base.NewLocksCloser()
+	locksCloser := NewLocksCloser()
 	return &LockFactory{
 		ctx:          ctx,
 		pool:         pool,

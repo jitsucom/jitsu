@@ -107,5 +107,10 @@ func (sm *StateManager) writeState() error {
 }
 
 func (sm *StateManager) Close() {
-	close(sm.closed)
+	select {
+	case <-sm.closed:
+		return
+	default:
+		close(sm.closed)
+	}
 }

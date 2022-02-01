@@ -68,7 +68,7 @@ jobs:
             cd server && make test_backend | tee ${TEST_RESULTS}/go-test.out
       - store_test_results:
           path: /tmp/test-results
-      - run: go mod tidy
+      - run: go mod download
       - save_cache:
           key: go-mod-v1-{{ checksum "./server/go.sum" }}
           paths:

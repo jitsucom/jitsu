@@ -46,7 +46,7 @@ var (
 	SchemaToMySQL = map[typing.DataType]string{
 		typing.STRING:    "TEXT",
 		typing.INT64:     "BIGINT",
-		typing.FLOAT64:   "DECIMAL(38,18)",
+		typing.FLOAT64:   "DOUBLE",
 		typing.TIMESTAMP: "DATETIME", // TIMESTAMP type only supports values from 1970 to 2038, DATETIME doesn't have such constrains
 		typing.BOOL:      "BOOLEAN",
 		typing.UNKNOWN:   "TEXT",
@@ -434,7 +434,7 @@ func (m *MySQL) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, ob
 		if len(valueArgs)+len(headerWithoutQuotes) > mySQLValuesLimit {
 			err := m.executeInsert(wrappedTx, table, headerWithoutQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
 			if err != nil {
-				return fmt.Errorf("%s error executing insert %d of %d: %v", m.destinationId(), i, len(objects), err)
+				return fmt.Errorf("%s error executing insert %dth object in %d batch: %v", m.destinationId(), i, len(objects), err)
 			}
 
 			placeholdersBuilder.Reset()
@@ -507,12 +507,12 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 
 	err := m.createTableInTransaction(wrappedTx, tmpTable)
 	if err != nil {
-		return fmt.Errorf("%s error creating temporary table: %v", m.destinationId(), err)
+		return fmt.Errorf("%s error creating temporary table [%s]: %v", m.destinationId(), tmpTable.Name, err)
 	}
 
 	err = m.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
 	if err != nil {
-		return fmt.Errorf("%s error inserting in temporary table: %v", m.destinationId(), err)
+		return fmt.Errorf("%s error inserting in temporary table [%s]: %v", m.destinationId(), tmpTable.Name, err)
 	}
 
 	//insert from select

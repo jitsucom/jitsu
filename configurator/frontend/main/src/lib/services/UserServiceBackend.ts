@@ -263,9 +263,11 @@ export class BackendUserService implements UserService {
       })
   }
 
+  //changeEmail is supported via CLUSTER_ADMIN_TOKEN only
   async changeEmail(newEmail: string): Promise<void> {
-    this.user.email = newEmail
-    return this.update(this.user)
+    return new Promise<void>((resolve, reject) => {
+      reject(new Error("changeEmail isn't supported in BackendUserService"))
+    })
   }
 
   async changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void> {

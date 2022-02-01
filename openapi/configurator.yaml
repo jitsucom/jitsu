@@ -10,14 +10,44 @@ info:
     url: "https://opensource.org/licenses/MIT"
   version: 1.0.0
 
-
+tags:
+  - name: configuration-management
+    x-displayName: Configuration Management
+    description: >
+      API for managing Jitsu configuration: sources, destinations, API keys etc
+  - name: cluster-admin
+    x-displayName: Cluster Admin
+    description: >
+      This API is used by Jitsu internally to communicate between components (Jitsu Server and Jitsu Configurator).
 components:
   securitySchemes:
-    bearerAuth:
+    clusterAdminAuth:
+      x-displayName: 'Cluster Admin Auth'
+      name: 'HTTP Authorization Bearer Auth'
+      description: >
+        HTTP Bearer Auth.
+        Use `Authorization: Bearer <access token>` header.<br />
+
+        You should use possible to use an admin token
       type: http
       scheme: bearer
-      bearerFormat: '-H Authorization: Bearer <token>'
+    configurationManagementAuth:
+      name: 'HTTP Authorization Bearer Auth for managing configuration'
+      description: >
+        HTTP Bearer Auth.
+        Use `Authorization: Bearer <access token>` header.<br />
+        To obtain `<access token>` call **User sign in** method: `/api/v1/users/signin`; <br />
+        Alternatively it's possible to use an admin token
+      type: http
+      scheme: bearer
   parameters:
+    projectIdQuery:
+      in: query
+      name: project_id
+      description: ID of the project
+      required: true
+      schema:
+        type: string
     projectId:
       in: path
       name: projectId
@@ -96,7 +126,11 @@ components:
         refresh_token: { type: "string" }
         user_id: { type: "string" }
       required: [ access_token, refresh_token, user_id ]
-
+    TokenResponse:
+      type: object
+      properties:
+        token: { type: string }
+      required: [ token ]
     SignupRequest:
       allOf:
         - $ref: '#/components/schemas/EmailAndPasswordRequest'
@@ -107,6 +141,11 @@ components:
             emailOptout: { type: "boolean" }
             usageOptout: { type: "boolean" }
           required: [ name, company, emailOptout, usageOptout ]
+    ProjectIdRequest:
+      type: object
+      properties:
+        projectID: { type: "string" }
+      required: [ 'projectID']
 
   responses:
     Error:
@@ -140,36 +179,11 @@ components:
           schema:
             $ref: "#/components/schemas/AnyArray"
 
-#TODO
-
-#/api/v1/configurations/:collection (GET, POST) --- ignore, will be deprecated
-#/api/v1/users/signup - (POST) --- not user, ignore and delete
-#/api/v1/become (GET)
-#/api/v1/telemetry (GET)
-#/api/v1/sources (GET)
-#/api/v1/sources/test (POST)
-
-#/api/v1/destinations (GET)
-#/api/v1/destinations/test (POST)
-#/api/v1/destinations/evaluate (POST)
-
-#/api/v1/ssl (POST)
-#/api/v1/ssl/all (POST)
-#/api/v1/jitsu/configuration (GET)
-#/api/v1/apikeys (GET)
-
-#/api/v1/apikeys/default
-#/api/v1/database
-#/api/v1/notify
-
-#future
-#/api/v2/projects (POST) - create a project
-#/api/v2/projects/users (POST) - add user to the project
-#/api/v2/projects/users (DELETE) - delete user from the project
-
 paths:
   /api/v1/users/signin:
     post:
+      tags:
+        - configuration-management
       operationId: 'User sign in'
       description: Sign-in user with login and password
       requestBody:
@@ -190,6 +204,8 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/onboarded/signup:
     post:
+      tags:
+        - configuration-management
       operationId: 'User sign up'
       description: Create a user account
       requestBody:
@@ -209,10 +225,12 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/signout:
     post:
+      tags:
+        - configuration-management
       operationId: 'User sign out'
       description: Delete token from DB
       security:
-        - bearerAuth: ['client']
+        - configurationManagementAuth: []
       responses:
         '200':
           $ref: '#/components/responses/StatusResponse'
@@ -220,6 +238,8 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/token/refresh:
     post:
+      tags:
+        - configuration-management
       operationId: 'User authorization token refresh'
       description: Refresh user access token
       requestBody:
@@ -242,6 +262,8 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/password/reset:
     post:
+      tags:
+        - configuration-management
       operationId: 'User password reset'
       description: 'Request password reset'
       requestBody:
@@ -263,6 +285,8 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/password/change:
     post:
+      tags:
+        - configuration-management
       operationId: 'User password change'
       description: 'Change password'
       requestBody:
@@ -274,7 +298,6 @@ paths:
               properties:
                 new_password: { type: string }
                 reset_id: { type: string }
-              required: [ email ]
       responses:
         "200":
           description: 'Success password changing'
@@ -287,20 +310,24 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/users/info:
     get:
+      tags:
+        - configuration-management
       operationId: 'Get User info'
       description: 'Returns a current authenticated user'
       security:
-        - bearerAuth: ['client']
+        - configurationManagementAuth: []
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
         default:
           $ref: '#/components/responses/Error'
     post:
+      tags:
+        - configuration-management
       operationId: "Update user info"
       description: 'Replaces users settings with a new user settings. Changes to some fields (such as security settings), will not have an effect'
       security:
-        - bearerAuth: ['client']
+        - configurationManagementAuth: [ ]
       requestBody:
         content:
           application/json:
@@ -311,8 +338,34 @@ paths:
           $ref: '#/components/responses/AnyObjectResponse'
         default:
           $ref: '#/components/responses/Error'
+  /api/v1/users/email/change:
+    post:
+      tags:
+        - cluster-admin
+      operationId: 'User email change'
+      description: 'Change email'
+      security:
+        - clusterAdminAuth: [ ]
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              title: UserEmailChangeRequest
+              type: object
+              properties:
+                old_email: { type: string }
+                new_email: { type: string }
+              required: [ old_email, new_email ]
+      responses:
+        "200":
+          $ref: '#/components/responses/StatusResponse'
+        #All error responses
+        default:
+          $ref: '#/components/responses/Error'
   /api/v1/system/configuration:
     get:
+      tags:
+        - configuration-management
       operationId: 'Get system configuration'
       description: Returns system configuration
       responses:
@@ -322,6 +375,8 @@ paths:
           $ref: '#/components/responses/Error'
   /api/v1/system/version:
     get:
+      tags:
+        - configuration-management
       operationId: 'Get system version'
       description: Returns the version of Jitsu sotware running on the server
       responses:
@@ -332,10 +387,12 @@ paths:
 
   /api/v1/geo_data_resolvers:
     get:
+      tags:
+        - cluster-admin
       operationId: 'Get geo data resolvers'
       description: Returns available geo resolvers
       security:
-        - bearerAuth: ['server']
+        - clusterAdminAuth: []
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -344,10 +401,12 @@ paths:
 
   /api/v2/projects:
     get:
+      tags:
+        - configuration-management
       operationId: "Get users projects"
       description: Returns a list of projects available for current user
       security:
-        - bearerAuth: [ 'client' ]
+        - configurationManagementAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/AnyArrayResponse'
@@ -359,9 +418,11 @@ paths:
       - $ref: '#/components/parameters/projectId'
       - $ref: '#/components/parameters/objectType'
     get:
+      tags:
+        - configuration-management
       operationId: 'Get objects by projectId and objectType'
       security:
-        - bearerAuth: [ 'client:project' ]
+        - configurationManagementAuth: []
       description: Returns the list of objects of given type
       responses:
         '200':
@@ -369,12 +430,14 @@ paths:
         default:
           $ref: '#/components/responses/Error'
     post:
+      tags:
+        - configuration-management
       operationId: 'Create object in project'
       description: >
         Create new object. The method returns newly created object. Some properties of
         newly created object might different from on which has been posted (for example, ID)
       security:
-        - bearerAuth: [ 'client:project' ]
+        - configurationManagementAuth: []
       requestBody:
         content:
           application/json:
@@ -391,10 +454,12 @@ paths:
       - $ref: '#/components/parameters/objectType'
       - $ref: '#/components/parameters/objectUid'
     get:
-      operationId: 'Get object by uuid'
+      tags:
+        - configuration-management
+      operationId: 'Get object by uid'
       description: Get an object with given UID
       security:
-        - bearerAuth: [ 'client:project' ]
+        - configurationManagementAuth: [  ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -402,22 +467,128 @@ paths:
           $ref: '#/components/responses/Error'
 
     delete:
-      operationId: "Delete object by uuid"
+      tags:
+        - configuration-management
+      operationId: "Delete object by uid"
       description: Delete an object with given UID. Returns a deleted object
       security:
-        - bearerAuth: [ 'client:project' ]
+        - configurationManagementAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
         default:
           $ref: '#/components/responses/Error'
     patch:
-      operationId: "Patch object by uuid"
+      tags:
+        - configuration-management
+      operationId: "Update object by uid"
       description: >
         Updates a object with given ID. Object will be patched: request body properties will be merged into an original object, it's ok to send partial objects
         Some fields might be ignored and overwritten. The method returns an updated object
       security:
-        - bearerAuth: [ 'client:project' ]
+        - configurationManagementAuth: [  ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/telemetry:
+    get:
+      tags:
+        - cluster-admin
+      operationId: 'Get telemetry settings'
+      description: Returns current telemetry configuration
+      security:
+        - clusterAdminAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/sources:
+    get:
+      tags:
+        - cluster-admin
+      operationId: 'Get sources configuration'
+      description: Returns all configured sources
+      security:
+        - clusterAdminAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v1/sources/test:
+    post:
+      tags:
+        - configuration-management
+      operationId: 'Test source configuration'
+      description: >
+        Test configured source connection. This method is used on Configurator UI on source save.
+        Proxies request to Jitsu Server.
+      security:
+        - configurationManagementAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusResponse'
+        default:
+          $ref: '#/components/responses/AnyObjectResponse'
+
+  /api/v1/destinations:
+    get:
+      tags:
+        - cluster-admin
+      operationId: 'Get destinations configuration'
+      description: Returns all configured destinations
+      security:
+        - clusterAdminAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v1/destinations/test:
+    post:
+      tags:
+        - configuration-management
+      operationId: 'Test destination configuration'
+      description: >
+        Test configured destination connection. This method is used on Configurator UI on destination save.
+        Proxies request to Jitsu Server.
+      security:
+        - configurationManagementAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusResponse'
+        default:
+          $ref: '#/components/responses/AnyObjectResponse'
+
+  /api/v1/destinations/evaluate:
+    post:
+      tags:
+        - configuration-management
+      operationId: 'Evaluate destination JS transformation script'
+      description: >
+        Evaluate destination Javascript transformation script and return the result.
+      security:
+        - configurationManagementAuth: []
       requestBody:
         content:
           application/json:
@@ -429,6 +600,186 @@ paths:
         default:
           $ref: '#/components/responses/Error'
 
+  /api/v1/apikeys:
+    get:
+      tags:
+        - cluster-admin
+      operationId: 'Get api keys configuration'
+      description: Returns all configured api keys
+      security:
+        - clusterAdminAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v1/ssl:
+    parameters:
+      - $ref: '#/components/parameters/projectIdQuery'
+      - in: query
+        name: async
+        description: Flag for reissue certificates asynchonisly
+        required: false
+        schema:
+          type: boolean
+    post:
+      tags:
+        - configuration-management
+      operationId: 'Reissue project SSL certificates'
+      description: >
+        Initiate the reissue project SSL certificate pipeline. Method is only available on cloud.jitsu.com.
+      security:
+        - configurationManagementAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/ssl/all:
+    parameters:
+      - in: query
+        name: async
+        description: Flag for reissue certificates asynchonisly
+        required: false
+        schema:
+          type: boolean
+    post:
+      tags:
+        - cluster-admin
+      operationId: 'Reissue all configured SSL certificates'
+      description: >
+        Initiate the reissue all configured SSL certificates pipeline. Method is only available on cloud.jitsu.com.
+      security:
+        - clusterAdminAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/jitsu/configuration:
+    parameters:
+      - $ref: '#/components/parameters/projectIdQuery'
+    get:
+      tags:
+        - configuration-management
+      operationId: 'Generate Jitsu Server yaml configuration'
+      description: >
+        Generate Jitsu Server yaml configuration payload for the current project (including api keys, sources, destinations configs)
+      security:
+        - configurationManagementAuth: []
+      responses:
+        '200':
+          description: "Response contains Jitsu Server yaml configuration"
+          content:
+            "application/yaml":
+              schema:
+                description: Any YAML Object
+                type: object
+                additionalProperties: { }
+                example: # Sample object
+                  server:
+                    name: Uvsnj # rename server if another name is desired
+                  api_keys:
+                    - id: 'apikey1'
+                      client_secret: 'client_secret1'
+                      server_secret: 'server_secret1'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/apikeys/default:
+    post:
+      tags:
+        - configuration-management
+      operationId: 'Generate default project api key'
+      description: >
+        Generate new project api key if no one exists. Otherwise do nothing.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectIdRequest'
+      security:
+        - configurationManagementAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/database:
+    post:
+      tags:
+        - configuration-management
+      operationId: 'Create free tier Postgres database'
+      description: >
+        Create free tier Postgres database. Method is only available on cloud.jitsu.com.
+        Return Postgres destination configuration.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectIdRequest'
+      security:
+        - configurationManagementAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v1/become:
+    parameters:
+      - in: query
+        name: user_id
+        description: ID of desirable user
+        required: true
+        schema:
+          type: string
+    get:
+      tags:
+        - configuration-management
+      operationId: 'Become another cloud user'
+      description: Authorize as another user. Method can only be used by admins and it is only available on cloud.jitsu.com.
+      security:
+        - configurationManagementAuth: [  ]
+      responses:
+        '200':
+          description: "Access token for desired user authorization"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/notify:
+    post:
+      tags:
+        - configuration-management
+      operationId: 'Send Custom payload notification asynchronously'
+      description: Send custom payload Slack notification asynchronously. Method always returns 200 OK. There should be configured notifications.slack.url section in the Jitsu configuration.
+      security:
+        - configurationManagementAuth: [  ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusResponse'
 
 
 
+
+#TODO
+
+#/api/v1/configurations/:collection (GET, POST) --- ignore, will be deprecated
+
+#future
+#/api/v2/projects (POST) - create a project
+#/api/v2/projects/users (POST) - add user to the project
+#/api/v2/projects/users (DELETE) - delete user from the project

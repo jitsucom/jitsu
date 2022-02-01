@@ -57,6 +57,10 @@ func NewRollingWriter(config *Config) io.WriteCloser {
 
 	ticker := time.NewTicker(rotation)
 	safego.RunWithRestart(func() {
+		//initial rotate
+		if err := rwp.lWriter.Rotate(); err != nil {
+			log.Errorf("Error initial rotating log file [%s]: %v", rwp.lWriter.Filename, err)
+		}
 		for {
 			<-ticker.C
 			rwp.rotate()
