@@ -18,23 +18,23 @@ func initStreamEventsQueue() {
 	}, streamEventsQueueLabels)
 }
 
-func SetStreamEventsQueueSize(destinationName string, value int) {
+func SetStreamEventsQueueSize(destinationType, destinationName string, value int) {
 	if Enabled() {
 		projectID, destinationID := extractLabels(destinationName)
-		streamEventsQueueSize.WithLabelValues(projectID, destinationID).Set(float64(value))
+		streamEventsQueueSize.WithLabelValues(projectID, destinationType, destinationID).Set(float64(value))
 	}
 }
 
-func DequeuedEvent(destinationName string) {
+func DequeuedEvent(destinationType, destinationName string) {
 	if Enabled() {
 		projectID, destinationID := extractLabels(destinationName)
-		streamEventsQueueSize.WithLabelValues(projectID, destinationID).Sub(1)
+		streamEventsQueueSize.WithLabelValues(projectID, destinationType, destinationID).Sub(1)
 	}
 }
 
-func EnqueuedEvent(destinationName string) {
+func EnqueuedEvent(destinationType, destinationName string) {
 	if Enabled() {
 		projectID, destinationID := extractLabels(destinationName)
-		streamEventsQueueSize.WithLabelValues(projectID, destinationID).Add(1)
+		streamEventsQueueSize.WithLabelValues(projectID, destinationType, destinationID).Add(1)
 	}
 }
