@@ -4,7 +4,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var objectsLabels = []string{"project_id", "source_type", "source_id"}
+var objectsLabels = []string{"project_id", "source_type", "source_tap", "source_id"}
 
 var (
 	successObjects *prometheus.CounterVec
@@ -24,24 +24,24 @@ func initSourceObjects() {
 	}, objectsLabels)
 }
 
-func SuccessObject(sourceType, sourceName string) {
-	SuccessObjects(sourceType, sourceName, 1)
+func SuccessTokenObjects(tokenID string, value int) {
+	SuccessObjects(TokenSourceType, EmptySourceTap, tokenID, value)
 }
 
-func SuccessObjects(sourceType, sourceName string, value int) {
+func SuccessObjects(sourceType, sourceTap, sourceName string, value int) {
 	if Enabled() {
 		projectID, sourceID := extractLabels(sourceName)
-		successObjects.WithLabelValues(projectID, sourceType, sourceID).Add(float64(value))
+		successObjects.WithLabelValues(projectID, sourceType, sourceTap, sourceID).Add(float64(value))
 	}
 }
 
-func ErrorObject(sourceType, sourceName string) {
-	ErrorObjects(sourceType, sourceName, 1)
+func ErrorTokenObjects(tokenID string, value int) {
+	ErrorObjects(TokenSourceType, EmptySourceTap, tokenID, value)
 }
 
-func ErrorObjects(sourceType, sourceName string, value int) {
+func ErrorObjects(sourceType, sourceTap, sourceName string, value int) {
 	if Enabled() {
 		projectID, sourceID := extractLabels(sourceName)
-		errorsObjects.WithLabelValues(projectID, sourceType, sourceID).Add(float64(value))
+		errorsObjects.WithLabelValues(projectID, sourceType, sourceTap, sourceID).Add(float64(value))
 	}
 }

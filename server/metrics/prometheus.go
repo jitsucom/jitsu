@@ -11,7 +11,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-const TokenSourceType = "token"
+const (
+	TokenSourceType = "token"
+	EmptySourceTap  = ""
+)
 
 var Exported bool
 
