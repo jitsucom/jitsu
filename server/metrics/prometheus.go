@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+const TokenSourceType = "token"
+
 var Exported bool
 
 var Registry *prometheus.Registry

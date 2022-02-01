@@ -4,7 +4,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var eventLabels = []string{"source_id", "project_id", "destination_id"}
+var eventLabels = []string{"project_id", "source_type", "source_id", "destination_type", "destination_id"}
 
 var (
 	successEvents *prometheus.CounterVec
@@ -30,51 +30,51 @@ func initEvents() {
 	}, eventLabels)
 }
 
-func SuccessTokenEvent(tokenID, destinationName string) {
-	SuccessTokenEvents(tokenID, destinationName, 1)
+func SuccessTokenEvent(tokenID, destinationType, destinationName string) {
+	SuccessTokenEvents(tokenID, destinationType, destinationName, 1)
 }
 
-func SuccessTokenEvents(tokenID, destinationName string, value int) {
+func SuccessTokenEvents(tokenID, destinationType, destinationName string, value int) {
 	if Enabled() {
 		projectID, destinationID := extractLabels(destinationName)
-		successEvents.WithLabelValues("token_"+tokenID, projectID, destinationID).Add(float64(value))
+		successEvents.WithLabelValues(projectID, TokenSourceType, "token_"+tokenID, destinationType, destinationID).Add(float64(value))
 	}
 }
 
-func SkipTokenEvent(tokenID, destinationName string) {
-	SkipTokenEvents(tokenID, destinationName, 1)
+func SkipTokenEvent(tokenID, destinationType, destinationName string) {
+	SkipTokenEvents(tokenID, destinationType, destinationName, 1)
 }
 
-func ErrorTokenEvent(tokenID, destinationName string) {
-	ErrorTokenEvents(tokenID, destinationName, 1)
+func ErrorTokenEvent(tokenID, destinationType, destinationName string) {
+	ErrorTokenEvents(tokenID, destinationType, destinationName, 1)
 }
 
-func ErrorTokenEvents(tokenID, destinationName string, value int) {
+func ErrorTokenEvents(tokenID, destinationType, destinationName string, value int) {
 	if Enabled() {
 		projectID, destinationID := extractLabels(destinationName)
-		errorsEvents.WithLabelValues("token_"+tokenID, projectID, destinationID).Add(float64(value))
+		errorsEvents.WithLabelValues(projectID, TokenSourceType, "token_"+tokenID, destinationType, destinationID).Add(float64(value))
 	}
 }
 
-func SuccessSourceEvents(sourceName, destinationName string, value int) {
+func SuccessSourceEvents(sourceType, sourceName, destinationType, destinationName string, value int) {
 	if Enabled() {
 		projectID, destinationID := extractLabels(destinationName)
 		_, sourceID := extractLabels(sourceName)
-		successEvents.WithLabelValues("source_"+sourceID, projectID, destinationID).Add(float64(value))
+		successEvents.WithLabelValues(projectID, sourceType, "source_"+sourceID, destinationType, destinationID).Add(float64(value))
 	}
 }
 
-func SkipTokenEvents(tokenID, destinationName string, value int) {
+func SkipTokenEvents(tokenID, destinationType, destinationName string, value int) {
 	if Enabled() {
 		projectID, destinationID := extractLabels(destinationName)
-		skippedEvents.WithLabelValues("token_"+tokenID, projectID, destinationID).Add(float64(value))
+		skippedEvents.WithLabelValues(projectID, TokenSourceType, "token_"+tokenID, destinationType, destinationID).Add(float64(value))
 	}
 }
 
-func ErrorSourceEvents(sourceName, destinationName string, value int) {
+func ErrorSourceEvents(sourceType, sourceName, destinationType, destinationName string, value int) {
 	if Enabled() {
 		projectID, destinationID := extractLabels(destinationName)
 		_, sourceID := extractLabels(sourceName)
-		errorsEvents.WithLabelValues("source_"+sourceID, projectID, destinationID).Add(float64(value))
+		errorsEvents.WithLabelValues(projectID, sourceType, "source_"+sourceID, destinationType, destinationID).Add(float64(value))
 	}
 }
