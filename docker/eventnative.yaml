@@ -9,7 +9,7 @@ server:
     enabled: '${env.EVENTS_CACHE_ENABLED|true}'
   metrics:
     relay:
-      disabled: '${env.JITSU_EXTENTED_TELEMETRY_DISABLED|false}'
+      disabled: '${env.JITSU_EXTENDED_TELEMETRY_DISABLED|false}'
       deployment_id: '${env.JITSU_EXTENDED_TELEMETRY_DEPLOYMENT_ID|}'
 
 geo:
