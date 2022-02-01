@@ -25,7 +25,7 @@ func initSourceObjects() {
 }
 
 func SuccessObject(sourceType, sourceName string) {
-	SuccessObjects(sourceName, sourceType, 1)
+	SuccessObjects(sourceType, sourceName, 1)
 }
 
 func SuccessObjects(sourceType, sourceName string, value int) {
