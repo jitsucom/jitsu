@@ -155,3 +155,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 
 	return nil
 }
+
+func (rs *ResultSaver) Tap() string {
+	return rs.tap
+}
