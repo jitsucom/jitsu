@@ -8,17 +8,12 @@ import ApplicationServices, { IApplicationServices } from "lib/services/Applicat
 import { intersection, without } from "lodash"
 import { toArrayIfNot } from "utils/arrays"
 
-export interface ISourcesStore {
-  sources: SourceData[]
-  hasSources: boolean
+export interface ISourcesStore extends EntitiesStore<SourceData> {
   state: SourcesStoreState
   error: string
-  getSourceById(id: string): SourceData
-  pullSources: (showGlobalLoader: boolean) => Generator<Promise<unknown>, void, unknown>
-  addSource: (source: SourceData) => Generator<Promise<unknown>, void, unknown>
-  deleteSource: (source: SourceData) => Generator<Promise<unknown>, void, unknown>
-  editSources: (
-    newData: SourceData | SourceData[],
+  pullSources: (showGlobalLoader: boolean) => Generator<Promise<unknown>, void, unknown> // move to init
+  update: (
+    newSourceData: SourceData | SourceData[],
     options?: EditSourcesOptions
   ) => Generator<Promise<unknown>, void, unknown>
 }
@@ -123,8 +118,8 @@ class SourcesStore implements ISourcesStore {
     })
   }
 
-  public get sources() {
-    return this._sources
+  public get list() {
+    return this._sources ?? []
   }
 
   public get hasSources(): boolean {
@@ -143,7 +138,7 @@ class SourcesStore implements ISourcesStore {
     this._destinatinonsStore = destinationsStore
   }
 
-  public getSourceById(id: string) {
+  public get(id: string) {
     return this._sources.find(({ sourceId }) => id === sourceId)
   }
 
@@ -160,7 +155,7 @@ class SourcesStore implements ISourcesStore {
     }
   }
 
-  public *addSource(sourceToAdd: SourceData) {
+  public *add(sourceToAdd: SourceData) {
     this.resetError()
     this._state = BACKGROUND_LOADING
     const updatedSources = [...this._sources, sourceToAdd]
@@ -179,7 +174,7 @@ class SourcesStore implements ISourcesStore {
     }
   }
 
-  public *deleteSource(sourceToDelete: SourceData) {
+  public *delete(sourceToDelete: SourceData) {
     this.resetError()
     this._state = BACKGROUND_LOADING
     const updatedSources = this._sources.filter(({ sourceId }) => sourceId !== sourceToDelete.sourceId)
@@ -198,7 +193,7 @@ class SourcesStore implements ISourcesStore {
     }
   }
 
-  public *editSources(_sourcesToUpdate: SourceData | SourceData[], options = EDIT_SOURCES_DEFAULT_OPTIONS) {
+  public *update(_sourcesToUpdate: SourceData | SourceData[], options = EDIT_SOURCES_DEFAULT_OPTIONS) {
     const sourcesToUpdate: SourceData[] = toArrayIfNot(_sourcesToUpdate)
     this.resetError()
     this._state = BACKGROUND_LOADING
