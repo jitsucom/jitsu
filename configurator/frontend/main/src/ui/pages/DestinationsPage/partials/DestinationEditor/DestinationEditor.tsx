@@ -95,7 +95,7 @@ const DestinationEditor = ({
   const [destinationSaving, setDestinationSaving] = useState<boolean>(false)
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false)
 
-  const sources = sourcesStore.sources
+  const sources = sourcesStore.list
   const destinationData = useRef<DestinationData>(getDestinationData(params))
 
   const destinationReference = useMemo<Destination | null | undefined>(() => {

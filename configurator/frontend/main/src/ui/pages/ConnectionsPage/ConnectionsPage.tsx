@@ -21,8 +21,6 @@ import { destinationPageRoutes } from "../DestinationsPage/DestinationsPage.rout
 // @Styles
 import styles from "./ConnectionsPage.module.less"
 import { useServices } from "hooks/useServices"
-import { throttle } from "lodash"
-import Form from "antd/lib/form/Form"
 import { APIKeyUtil } from "../../../utils/apiKeys.utils"
 import { DestinationsUtils } from "../../../utils/destinations.utils"
 import { SourcesUtils } from "../../../utils/sources.utils"
@@ -89,7 +87,7 @@ const ConnectionsPageComponent: React.FC = () => {
     return () => {
       eraseLines()
     }
-  }, [destinationsStore.destinations, sourcesStore.sources, apiKeysStore.apiKeys])
+  }, [destinationsStore.destinations, sourcesStore.list, apiKeysStore.apiKeys])
 
   useEffect(() => {
     // move the lines on scroll
@@ -120,7 +118,7 @@ const ConnectionsPageComponent: React.FC = () => {
             </div>
           }
         >
-          {apiKeysStore.hasApiKeys || sourcesStore.hasSources ? (
+          {apiKeysStore.hasApiKeys || !!sourcesStore.list.length ? (
             [
               ...apiKeysStore.apiKeys.map(apiKey => {
                 return (
@@ -140,7 +138,7 @@ const ConnectionsPageComponent: React.FC = () => {
                   </CardContainer>
                 )
               }),
-              ...sourcesStore.sources.map(source => {
+              ...sourcesStore.list.map(source => {
                 return (
                   <CardContainer id={source.sourceId} key={source.sourceId}>
                     <EntityCard

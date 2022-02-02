@@ -30,7 +30,7 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
   const handleAddClick = useCallback(() => {
     services.features.billingEnabled
     if (
-      sourcesStore.sources.length >= (services.currentSubscription?.currentPlan.quota.sources ?? 999) &&
+      sourcesStore.list.length >= (services.currentSubscription?.currentPlan.quota.sources ?? 999) &&
       !services.currentSubscription.doNotBlock
     ) {
       showQuotaLimitModal(
@@ -55,7 +55,7 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
     )
   }, [setBreadcrumbs])
 
-  if (sourcesStore.sources.length === 0) {
+  if (sourcesStore.list.length === 0) {
     return (
       <div className={styles.empty}>
         <h3 className="text-2xl">Sources list is still empty</h3>
@@ -77,7 +77,7 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
       </div>
 
       <div className="flex flex-wrap justify-center">
-        {sourcesStore.sources.map((src: SourceData) => (
+        {sourcesStore.list.map((src: SourceData) => (
           <SourceCard key={src.sourceId} src={src} />
         ))}
       </div>

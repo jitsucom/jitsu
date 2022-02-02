@@ -122,14 +122,14 @@ const disableControlsRequestsRegistry = new Map<string, { tooltipMessage?: strin
 
 const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcrumbs }) => {
   const history = useHistory()
-  const allSourcesList = sourcesStore.sources
+  const allSourcesList = sourcesStore.list
   const { source, sourceId } = useParams<{ source?: string; sourceId?: string }>()
 
   const sourceDataFromCatalog = useMemo<CatalogSourceConnector>(() => {
     let sourceType = source
       ? source
       : sourceId
-      ? sourcesStore.sources.find(src => src.sourceId === sourceId)?.sourceProtoType
+      ? sourcesStore.list.find(src => src.sourceId === sourceId)?.sourceProtoType
       : undefined
 
     return sourceType

@@ -37,7 +37,7 @@ export interface Props {
 const DestinationEditorConnectorsComponent = ({ form, initialValues, destination, handleTouchAnyField }: Props) => {
   const service = ApplicationServices.get()
 
-  const sources = sourcesStore.sources
+  const sources = sourcesStore.list
   const sourcesError = sourcesStore.error
 
   const [apiKeysError, apiKeysData] = useLoader(
