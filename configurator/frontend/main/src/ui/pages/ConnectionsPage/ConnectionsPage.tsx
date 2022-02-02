@@ -82,7 +82,7 @@ const ConnectionsPageComponent: React.FC = () => {
     return () => {
       eraseLines()
     }
-  }, [destinationsStore.destinations, sourcesStore.sources, apiKeysStore.apiKeys])
+  }, [destinationsStore.destinations, sourcesStore.list, apiKeysStore.apiKeys])
 
   return (
     <div ref={containerRef} className="relative flex justify-center w-full h-full overflow-y-auto">
@@ -105,7 +105,7 @@ const ConnectionsPageComponent: React.FC = () => {
             </div>
           }
         >
-          {apiKeysStore.hasApiKeys || sourcesStore.hasSources ? (
+          {apiKeysStore.hasApiKeys || !!sourcesStore.list.length ? (
             [
               ...apiKeysStore.apiKeys.map(apiKey => {
                 return (
@@ -125,7 +125,7 @@ const ConnectionsPageComponent: React.FC = () => {
                   </CardContainer>
                 )
               }),
-              ...sourcesStore.sources.map(source => {
+              ...sourcesStore.list.map(source => {
                 return (
                   <CardContainer id={source.sourceId} key={source.sourceId}>
                     <EntityCard
