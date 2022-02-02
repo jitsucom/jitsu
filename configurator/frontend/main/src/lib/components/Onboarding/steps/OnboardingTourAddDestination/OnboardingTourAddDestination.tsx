@@ -54,7 +54,7 @@ const OnboardingTourAddDestinationComponent: React.FC<Props> = ({ handleGoNext, 
     [services.features.createDemoDatabase]
   )
 
-  const userSources = sourcesStore.sources
+  const userSources = sourcesStore.list
   const userDestinations = destinationsStore.destinations
 
   const isLoadingUserSources = sourcesStore.state === SourcesStoreState.GLOBAL_LOADING

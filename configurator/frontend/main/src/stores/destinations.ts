@@ -93,7 +93,7 @@ class DestinationsStore implements IDestinationsStore {
     const updatedDestinations = toArrayIfNot(_updatedDestinations)
     const updatedSourcesMap: { [key: string]: SourceData } = {}
     updatedDestinations.forEach(destination => {
-      this._sourcesStore.sources.forEach(source => {
+      this._sourcesStore.list.forEach(source => {
         const sourceLinkedToDestination = !!source.destinations?.includes(destination._uid)
         const sourceNeedsToBeLinked = !!destination._sources?.includes(source.sourceId)
         if (sourceLinkedToDestination === sourceNeedsToBeLinked) return
@@ -125,7 +125,7 @@ class DestinationsStore implements IDestinationsStore {
     const destinationsToDelete = toArrayIfNot(_deletedDestinations)
     const destinationsToDeleteUids = destinationsToDelete.map(({ _uid }) => _uid)
     const updatedSourcesAccumulator: SourceData[] = []
-    const updatedSources = sourcesStore.sources.reduce((updatedSources, source) => {
+    const updatedSources = sourcesStore.list.reduce((updatedSources, source) => {
       if (!intersection(source.destinations, destinationsToDeleteUids).length) return updatedSources
       const updated: SourceData = {
         ...source,

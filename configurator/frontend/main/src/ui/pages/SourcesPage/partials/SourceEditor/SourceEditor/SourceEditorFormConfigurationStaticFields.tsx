@@ -40,7 +40,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
   const [form] = AntdForm.useForm<FormFields>()
   const services = useServices()
   const subscription = services.currentSubscription?.currentPlan
-  const sourcesList = sourcesStore.sources
+  const sourcesList = sourcesStore.list
 
   const validateUniqueSourceId = (_, value: string) =>
     editorMode === "add" && sourcesList?.find((source: SourceData) => source.sourceId === value)
