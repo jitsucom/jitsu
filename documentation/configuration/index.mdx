@@ -102,6 +102,7 @@ All fields from the **server** section are optional:
 | **metrics.prometheus.enabled** | boolean | see [Application Metrics](/docs/other-features/application-metrics) page. | `false` |
 | **telemetry.disabled.usage** | boolean | Flag for disabling telemetry. **Jitsu** collects usage metrics about how you use it and how it is working. **We don't collect any customer data**. | `false` |
 | **metrics.relay.disabled** | boolean | Disables extended telemetry metrics collection. | `false` |
+| **metrics.relay.deployment_id** | string | Allows to provide deployment ID for extended telemetry collection. | Cluster ID |
 | **disable\_version\_reminder** | boolean | Flag for disabling log reminder banner about new **Jitsu** versions availability. | `false` |
 | **sync_tasks.store_logs.last_runs** | int | Logs for how many task runs must be kept in meta storage. Controlled on Source's collection level. When number of task runs for Source collection exceed provided value – old records get removed from meta storage. | `-1` unlimited number of logs |
 
