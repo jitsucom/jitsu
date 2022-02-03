@@ -91,23 +91,27 @@ func CreateMySQLAdapter(ctx context.Context, config adapters.DataSourceConfig, q
 			if mErr.Number == 1049 {
 				mySQLDB := config.Db
 				config.Db = ""
-				mySQLAdapter, err := adapters.NewMySQL(ctx, &config, queryLogger, sqlTypes)
+				//create adapter without a certain DB
+				mySQLAdapterWithoutDB, err := adapters.NewMySQL(ctx, &config, queryLogger, sqlTypes)
 				if err != nil {
 					return nil, err
 				}
+
 				config.Db = mySQLDB
 				//create DB and reconnect
-				err = mySQLAdapter.CreateDB(config.Db)
+				err = mySQLAdapterWithoutDB.CreateDB(config.Db)
+				//close adapter that connected without a certain DB
+				mySQLAdapterWithoutDB.Close()
 				if err != nil {
 					return nil, err
 				}
-				mySQLAdapter.Close()
 
-				mySQLAdapter, err = adapters.NewMySQL(ctx, &config, queryLogger, sqlTypes)
+				//create adapter with a certain DB
+				mySQLAdapterWithDB, err := adapters.NewMySQL(ctx, &config, queryLogger, sqlTypes)
 				if err != nil {
 					return nil, err
 				}
-				return mySQLAdapter, nil
+				return mySQLAdapterWithDB, nil
 			}
 		}
 		return nil, err
