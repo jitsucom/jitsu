@@ -4,6 +4,11 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
@@ -17,10 +22,6 @@ import (
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/wal"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
 )
 
 const (
@@ -110,8 +111,11 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		return
 	}
 
-	err = eh.multiplexingService.AcceptRequest(eh.processor, reqContext, token, eventsArray)
-	if err != nil {
+	if err := eh.multiplexingService.AcceptRequest(eventsArray, multiplexing.Token{
+		Context:   reqContext,
+		Processor: eh.processor,
+		Value:     token,
+	}); err != nil {
 		code := http.StatusBadRequest
 		if err == multiplexing.ErrNoDestinations {
 			code = http.StatusUnprocessableEntity
