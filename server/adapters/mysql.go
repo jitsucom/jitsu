@@ -36,7 +36,6 @@ const (
 	mySQLDropPrimaryKeyTemplate      = "ALTER TABLE `%s`.`%s` DROP PRIMARY KEY"
 	mySQLDropTableTemplate           = "DROP TABLE `%s`.`%s`"
 	mySQLTruncateTableTemplate       = "TRUNCATE TABLE `%s`.`%s`"
-	mySQLPrimaryKeyMaxLength         = 32
 	mySQLValuesLimit                 = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 	batchRetryAttempts               = 3     //number of additional tries to proceed batch update or insert.
 	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
@@ -584,7 +583,7 @@ func (m *MySQL) columnDDL(name string, column typing.SQLColumn, pkFields map[str
 	//map special types for primary keys (text -> varchar)
 	//because old versions of MYSQL requires non null and default value on TEXT types
 	if _, ok := pkFields[name]; ok {
-		if typeForPKField, ok := mySQLPrimaryKeyTypesMapping[column.ColumnType]; ok {
+		if typeForPKField, ok := mySQLPrimaryKeyTypesMapping[sqlType]; ok {
 			sqlType = typeForPKField
 		}
 	}
@@ -600,14 +599,7 @@ func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 
 	var quotedColumnNames []string
 	for _, column := range table.GetPKFields() {
-		columnType := table.Columns[column].Type
-		var quoted string
-		if columnType == SchemaToMySQL[typing.STRING] {
-			quoted = fmt.Sprintf("%s(%d)", m.quote(column), mySQLPrimaryKeyMaxLength)
-		} else {
-			quoted = m.quote(column)
-		}
-		quotedColumnNames = append(quotedColumnNames, quoted)
+		quotedColumnNames = append(quotedColumnNames, m.quote(column))
 	}
 
 	statement := fmt.Sprintf(mySQLAlterPrimaryKeyTemplate,
