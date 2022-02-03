@@ -31,6 +31,7 @@ func SetTestDefaultParams() {
 	viper.Set("log.path", "")
 	viper.Set("api_keys", `{"tokens":[{"id":"id1","client_secret":"c2stoken","server_secret":"s2stoken","origins":["whiteorigin*"]}]}`)
 	viper.Set("server.log.path", "")
+	viper.Set("sql_debug_log.ddl.enabled", false)
 }
 
 func TestCors(t *testing.T) {
