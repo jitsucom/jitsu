@@ -10,7 +10,7 @@ type InstanceInfo struct {
 	ServiceName string `json:"service,omitempty"`
 	RunID       string `json:"run_id,omitempty"`
 	ClusterID   string `json:"cluster_id,omitempty"`
-	Arch        string `json:"arch,omitempty""`
+	Arch        string `json:"arch,omitempty"`
 
 	CPUInfoInstances int    `json:"cpu_info_instances,omitempty"`
 	CPUCores         int    `json:"cpu_cores,omitempty"`
