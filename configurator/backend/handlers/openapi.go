@@ -270,6 +270,12 @@ func (oa *OpenAPI) GetDestinationsConfiguration(c *gin.Context) {
 		geoResolvers = map[string]*entities.GeoDataResolver{}
 	}
 
+	apiKeysPerProjectByID, err := oa.configurationsService.GetAllAPIKeysPerProjectByID()
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(APIKeysGettingErrMsg, err))
+		return
+	}
+
 	idConfig := map[string]config.DestinationConfig{}
 	for projectID, destinationsEntity := range destinationsMap {
 		if len(destinationsEntity.Destinations) == 0 {
@@ -295,6 +301,19 @@ func (oa *OpenAPI) GetDestinationsConfiguration(c *gin.Context) {
 				enDestinationConfig.GeoDataResolverID = projectID
 			}
 
+			//check api keys existence
+			projectsApikeysByID, ok := apiKeysPerProjectByID[projectID]
+			projectApiKeysInOnlyTokens := []string{}
+			if ok {
+				//filter api keys that don't belong to the project
+				for _, apiKeyID := range enDestinationConfig.OnlyTokens {
+					if _, ok := projectsApikeysByID[apiKeyID]; ok {
+						projectApiKeysInOnlyTokens = append(projectApiKeysInOnlyTokens, apiKeyID)
+					}
+				}
+			}
+
+			enDestinationConfig.OnlyTokens = projectApiKeysInOnlyTokens
 			idConfig[destinationID] = *enDestinationConfig
 		}
 	}

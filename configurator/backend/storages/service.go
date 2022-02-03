@@ -292,6 +292,38 @@ func (cs *ConfigurationsService) GetAllAPIKeys() ([]*entities.APIKey, error) {
 	return result, nil
 }
 
+//GetAllAPIKeysPerProjectByID locks and returns all api keys grouped by project
+func (cs *ConfigurationsService) GetAllAPIKeysPerProjectByID() (map[string]map[string]entities.APIKey, error) {
+	objectType := apiKeysCollection
+	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
+	if err != nil {
+		return nil, err
+	}
+	defer lock.Unlock()
+
+	allApiKeys, err := cs.storage.GetAllGroupedByID(objectType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get api keys: %v", err)
+	}
+
+	result := map[string]map[string]entities.APIKey{}
+	for projectID, apiKeysBytes := range allApiKeys {
+		apiKeysEntity := &entities.APIKeys{}
+		if err := json.Unmarshal(apiKeysBytes, apiKeysEntity); err != nil {
+			logging.Errorf("failed to parse api keys %s, project id=[%s], %v", string(apiKeysBytes), projectID, err)
+			return nil, err
+		}
+
+		apikeys := map[string]entities.APIKey{}
+		for _, key := range apiKeysEntity.Keys {
+			apikeys[key.ID] = *key
+		}
+		result[projectID] = apikeys
+	}
+
+	return result, nil
+}
+
 //GetAPIKeysByProjectID uses getWithLock func under the hood, returns all api keys per project
 func (cs *ConfigurationsService) GetAPIKeysByProjectID(projectID string) ([]*entities.APIKey, error) {
 	data, err := cs.getWithLock(apiKeysCollection, projectID)

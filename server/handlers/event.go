@@ -208,23 +208,7 @@ func extractIP(c *gin.Context, eventPayloads ...events.Event) string {
 		}
 	}
 
-	ip := c.Request.Header.Get("X-Forwarded-For")
-
-	if ip == "" {
-		remoteAddr := c.Request.RemoteAddr
-		if remoteAddr != "" {
-			addrPort := strings.Split(remoteAddr, ":")
-			ip = addrPort[0]
-		}
-	}
-
-	//Case when Nginx concatenate remote_addr to client addr
-	if strings.Contains(ip, ",") {
-		addresses := strings.Split(ip, ",")
-		return strings.TrimSpace(addresses[0])
-	}
-
-	return ip
+	return middleware.ExtractIP(c)
 }
 
 func getRequestContext(c *gin.Context, geoResolver geo.Resolver, eventPayloads ...events.Event) *events.RequestContext {
