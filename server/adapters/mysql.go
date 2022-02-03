@@ -36,7 +36,6 @@ const (
 	mySQLDropPrimaryKeyTemplate      = "ALTER TABLE `%s`.`%s` DROP PRIMARY KEY"
 	mySQLDropTableTemplate           = "DROP TABLE `%s`.`%s`"
 	mySQLTruncateTableTemplate       = "TRUNCATE TABLE `%s`.`%s`"
-	mySQLPrimaryKeyMaxLength         = 32
 	mySQLValuesLimit                 = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 	batchRetryAttempts               = 3     //number of additional tries to proceed batch update or insert.
 	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
@@ -50,6 +49,11 @@ var (
 		typing.TIMESTAMP: "DATETIME", // TIMESTAMP type only supports values from 1970 to 2038, DATETIME doesn't have such constrains
 		typing.BOOL:      "BOOLEAN",
 		typing.UNKNOWN:   "TEXT",
+	}
+
+	//mySQLPrimaryKeyTypesMapping forces to use a special type in primary keys
+	mySQLPrimaryKeyTypesMapping = map[string]string{
+		"TEXT": "VARCHAR(100)",
 	}
 )
 
@@ -570,32 +574,21 @@ func (m *MySQL) buildUpdateSection(header []string) string {
 
 //columnDDL returns column DDL (quoted column name, mapped sql type and 'not null' if pk field)
 func (m *MySQL) columnDDL(name string, column typing.SQLColumn, pkFields map[string]bool) string {
-	var notNullClause string
 	sqlType := column.DDLType()
 
 	if overriddenSQLType, ok := m.sqlTypes[name]; ok {
 		sqlType = overriddenSQLType.ColumnType
 	}
 
-	//not null
+	//map special types for primary keys (text -> varchar)
+	//because old versions of MYSQL requires non null and default value on TEXT types
 	if _, ok := pkFields[name]; ok {
-		notNullClause = " NOT NULL " + m.getDefaultValueStatement(sqlType)
+		if typeForPKField, ok := mySQLPrimaryKeyTypesMapping[sqlType]; ok {
+			sqlType = typeForPKField
+		}
 	}
 
-	return fmt.Sprintf("%s %s%s", m.quote(name), sqlType, notNullClause)
-}
-
-//getDefaultValueStatement returns default value statement for creating column
-func (m *MySQL) getDefaultValueStatement(sqlType string) string {
-	//get default value based on type
-	normalizedSqlType := strings.ToLower(sqlType)
-	if strings.Contains(normalizedSqlType, "var") {
-		return "DEFAULT ''"
-	} else if strings.Contains(normalizedSqlType, "text") {
-		return "DEFAULT ('')"
-	}
-
-	return "DEFAULT 0"
+	return fmt.Sprintf("%s %s", m.quote(name), sqlType)
 }
 
 //createPrimaryKeyInTransaction create primary key constraint
@@ -606,14 +599,7 @@ func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 
 	var quotedColumnNames []string
 	for _, column := range table.GetPKFields() {
-		columnType := table.Columns[column].Type
-		var quoted string
-		if columnType == SchemaToMySQL[typing.STRING] {
-			quoted = fmt.Sprintf("%s(%d)", m.quote(column), mySQLPrimaryKeyMaxLength)
-		} else {
-			quoted = m.quote(column)
-		}
-		quotedColumnNames = append(quotedColumnNames, quoted)
+		quotedColumnNames = append(quotedColumnNames, m.quote(column))
 	}
 
 	statement := fmt.Sprintf(mySQLAlterPrimaryKeyTemplate,
