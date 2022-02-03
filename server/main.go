@@ -404,6 +404,7 @@ func main() {
 	//Create sync task service
 	taskService := synchronization.NewTaskService(sourceService, destinationsService, metaStorage, coordinationService, storeTasksLogsForLastRuns)
 
+	multiplexingService := multiplexing.NewService(destinationsService, eventsCache)
 	poolSize := viper.GetInt("server.sync_tasks.pool.size")
 	if poolSize > 0 {
 		logging.Infof("Sources sync task executor pool size: %d", poolSize)
@@ -412,13 +413,17 @@ func main() {
 			cronScheduler.Start(taskService.ScheduleSyncFunc)
 		}
 
-		//sources sync tasks pool size
-		stalledTasksThresholdSeconds := viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")
-		stalledLastLogThresholdMinutes := viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")
-		observeStalledTaskEverySeconds := viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")
-
 		//Create task executor
-		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, stalledTasksThresholdSeconds, stalledLastLogThresholdMinutes, observeStalledTaskEverySeconds, sourceService, destinationsService, metaStorage, coordinationService)
+		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, &synchronization.TaskExecutorContext{
+			SourceService:         sourceService,
+			DestinationService:    destinationsService,
+			MetaStorage:           metaStorage,
+			CoordinationService:   coordinationService,
+			MultiplexingService:   multiplexingService,
+			StalledThreshold:      time.Duration(viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")) * time.Second,
+			LastActivityThreshold: time.Duration(viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")) * time.Minute,
+			ObserverStalledEvery:  time.Duration(viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")) * time.Second,
+		})
 		if err != nil {
 			logging.Fatal("Error creating sources sync task executor:", err)
 		}
@@ -493,7 +498,6 @@ func main() {
 	segmentProcessor := events.NewSegmentProcessor(usersRecognitionService)
 	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor, bulkProcessor)
 
-	multiplexingService := multiplexing.NewService(destinationsService, eventsCache)
 	walService := wal.NewService(logEventPath, loggerFactory.CreateWriteAheadLogger(), multiplexingService, processorHolder)
 	appconfig.Instance.ScheduleWriteAheadLogClosing(walService)
 
