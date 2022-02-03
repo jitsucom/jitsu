@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "bootstrap": "npx lerna bootstrap",
+    "link": "npx lerna link convert",
     "start": "yarn --cwd ./main start",
     "build": "yarn check:all && yarn bootstrap && npx lerna run build",
     "clean": "rm -rf ./main/node_modules/ ./main/build ./main/dist",
@@ -27,6 +28,7 @@
     "@testing-library/user-event": "^12.1.10",
     "@types/classnames": "^2.2.11",
     "@types/firebase": "^3.2.1",
+    "@types/highlightjs": "^9.12.2",
     "@types/jest": "^26.0.24",
     "@types/lodash": "^4.14.168",
     "@types/lodash-es": "^4.17.4",
@@ -37,6 +39,7 @@
     "autoprefixer": "^9",
     "babel-plugin-lodash": "^3.3.4",
     "craco-antd": "^1.19.0",
+    "craco-babel-loader": "^1.0.3",
     "craco-less": "^1.17.1",
     "lerna": "^4.0.0",
     "monaco-editor-webpack-plugin": "^4.2.0",
@@ -61,5 +64,9 @@
   },
   "bugs": {
     "url": "https://github.com/jitsucom/jitsu/issues"
-  }
+  },
+  "workspaces": [
+    "catalog",
+    "main"
+  ]
 }
