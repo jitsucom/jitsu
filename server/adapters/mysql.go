@@ -53,7 +53,7 @@ var (
 
 	//mySQLPrimaryKeyTypesMapping forces to use a special type in primary keys
 	mySQLPrimaryKeyTypesMapping = map[string]string{
-		"TEXT": "VARCHAR(100)",
+		"TEXT": "VARCHAR(255)",
 	}
 )
 
