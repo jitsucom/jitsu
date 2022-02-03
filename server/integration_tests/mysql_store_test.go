@@ -21,6 +21,7 @@ func TestMySQLStreamInsert(t *testing.T) {
 	viper.Set("server.log.path", "")
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken"}]}`)
+	viper.Set("sql_debug_log.ddl.enabled", false)
 
 	//create mySQL
 	ctx := context.Background()

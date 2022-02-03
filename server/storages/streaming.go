@@ -72,6 +72,7 @@ func (sw *StreamingWorker) start() {
 					continue
 				}
 				logging.SystemErrorf("[%s] Error reading event from queue: %v", sw.streamingStorage.ID(), err)
+				time.Sleep(time.Second)
 				continue
 			}
 
