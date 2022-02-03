@@ -25,7 +25,6 @@ import (
 	"github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/wal"
 	"github.com/penglongli/gin-metrics/ginmetrics"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
 )
 
@@ -147,7 +146,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
 	if metrics.Exported {
-		router.GET("/prometheus", middleware.TokenAuth(gin.WrapH(promhttp.Handler()), adminToken))
+		router.GET("/prometheus", middleware.TokenAuth(gin.WrapH(metrics.Handler()), adminToken))
 	}
 
 	//Setup profiler

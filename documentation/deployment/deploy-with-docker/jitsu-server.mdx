@@ -113,6 +113,12 @@ those variables will not work!
     Can be an URL for getting Sources configuration JSON or raw JSON. Read more about <a href="/docs/sources-configuration#configuring-sources-via-http--endpoint">Sources configuration format</a>.
    This var is not compatible with <code inline={true}>JITSU_CONFIGURATOR_URL</code> (see above)
 </APIParam>
+<APIParam small={true} name="JITSU_EXTENDED_TELEMETRY_DISABLED" dataType="boolean" required={false} type="Docker Env Var">
+  Disables extended telemetry collection.
+</APIParam>
+<APIParam small={true} name="JITSU_EXTENDED_TELEMETRY_DEPLOYMENT_ID" dataType="string" required={false} type="Docker Env Var">
+  Allows to provide deployment ID for extended telemetry collection. By default, <code inline={true}>clusterId</code> would be used as deployment ID.
+</APIParam>
 
 
 
