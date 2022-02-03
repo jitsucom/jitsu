@@ -117,8 +117,8 @@ else
   subsystem="jitsu"
   if [[ $( git branch --show-current) == "master" ]]; then
     echo "Releasing master. Checking if HEAD is tagged"
-    git describe --exact-match HEAD >/dev/null 2>&1 || fail "   ❌ HEAD is not tagged. Run git describe --exact-match HEAD "
-    latest_tag=$(git describe --exact-match HEAD)
+    git describe --tags --exact-match HEAD >/dev/null 2>&1 || fail "   ❌ HEAD is not tagged. Run git describe --exact-match HEAD "
+    latest_tag=$(git describe --tags --exact-match HEAD)
     version=${latest_tag//v/}
     echo "   ✅ Latest tag is $latest_tag, version is $version"
   elif [[ $( git branch --show-current) == "beta" ]]; then
