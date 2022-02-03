@@ -13,6 +13,7 @@ import { apiKeysRoutes } from "./ApiKeyEditor"
 import { confirmDelete } from "../../commons/deletionConfirmation"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { APIKeyUtil } from "../../../utils/apiKeys.utils"
+import { handleError } from "../components"
 
 type ApiKeyCardProps = {
   apiKey: APIKey
@@ -37,8 +38,9 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
       action: async () => {
         setLoading(true)
         try {
-          await keysBackend.remove(key.uid)
-          await flowResult(apiKeysStore.pullApiKeys())
+          await flowResult(apiKeysStore.deleteApiKey(key))
+        } catch (error) {
+          handleError(error, "Unable to delete API key at this moment, please try later.")
         } finally {
           setLoading(false)
         }
@@ -87,9 +89,9 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
 }
 
 type SecretKeyProps = {
-  //Key
+  /** Key */
   children: ReactNode
-  //Function that generates newKey
+  /** Function that generates newKey */
   rotateKey: () => Promise<string>
 }
 
@@ -124,32 +126,6 @@ function SecretKey({ children, rotateKey }: SecretKeyProps) {
           {trimMiddle(keyStr, 29, "•••")}
         </span>
       </Tooltip>
-      {/*<Button*/}
-      {/*  size="small"*/}
-      {/*  type="link"*/}
-      {/*  icon={<ReloadOutlined />}*/}
-      {/*  onClick={() => {*/}
-      {/*    Modal.confirm({*/}
-      {/*      title: "Please confirm key rotation",*/}
-      {/*      icon: <ExclamationCircleOutlined />,*/}
-      {/*      content:*/}
-      {/*        "Are you sure you want to rotate the key? Previously generated key will be lost and you'll need to reconfigure ALL clients",*/}
-      {/*      okText: "Generate new key",*/}
-      {/*      cancelText: "Cancel",*/}
-      {/*      onOk: async () => {*/}
-      {/*        setCurrentKeyDisplay("Generating...")*/}
-      {/*        try {*/}
-      {/*          let newKey = await rotateKey()*/}
-      {/*          setCurrentKeyDisplay(newKey)*/}
-      {/*        } catch (e) {*/}
-      {/*          setCurrentKeyDisplay("Error!")*/}
-      {/*          console.log(e)*/}
-      {/*        }*/}
-      {/*      },*/}
-      {/*      onCancel: () => {},*/}
-      {/*    })*/}
-      {/*  }}*/}
-      {/*/>*/}
     </div>
   )
 }

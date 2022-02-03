@@ -14,7 +14,7 @@ import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { taskLogsPageRoute } from "../../pages/TaskLogs/TaskLogsPage"
 import { sourcesStore } from "../../../stores/sources"
 import ExclamationCircleOutlined from "@ant-design/icons/lib/icons/ExclamationCircleOutlined"
-import { withProgressBar } from "../../../lib/components/components"
+import { handleError, withProgressBar } from "../../../lib/components/components"
 import { useServices } from "../../../hooks/useServices"
 import { EditableName } from "../EditableName/EditableName"
 import useLoader, { useLoaderAsObject } from "../../../hooks/useLoader"
@@ -120,8 +120,12 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
       cancelText: "Cancel",
       onCancel: () => {},
       onOk: async () => {
-        sourcesStore.deleteSource(src)
-        actionNotification.success("Sources list successfully updated")
+        try {
+          await sourcesStore.deleteSource(src)
+          actionNotification.success("Sources list successfully updated")
+        } catch (error) {
+          handleError(error, "Unable to delete source at this moment, please try later.")
+        }
       },
     })
   }
