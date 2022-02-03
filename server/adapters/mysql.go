@@ -51,6 +51,11 @@ var (
 		typing.BOOL:      "BOOLEAN",
 		typing.UNKNOWN:   "TEXT",
 	}
+
+	//mySQLPrimaryKeyTypesMapping forces to use a special type in primary keys
+	mySQLPrimaryKeyTypesMapping = map[string]string{
+		"TEXT": "VARCHAR(100)",
+	}
 )
 
 //MySQL is adapter for creating, patching (schema or table), inserting data to mySQL database
@@ -570,32 +575,21 @@ func (m *MySQL) buildUpdateSection(header []string) string {
 
 //columnDDL returns column DDL (quoted column name, mapped sql type and 'not null' if pk field)
 func (m *MySQL) columnDDL(name string, column typing.SQLColumn, pkFields map[string]bool) string {
-	var notNullClause string
 	sqlType := column.DDLType()
 
 	if overriddenSQLType, ok := m.sqlTypes[name]; ok {
 		sqlType = overriddenSQLType.ColumnType
 	}
 
-	//not null
+	//map special types for primary keys (text -> varchar)
+	//because old versions of MYSQL requires non null and default value on TEXT types
 	if _, ok := pkFields[name]; ok {
-		notNullClause = " NOT NULL " + m.getDefaultValueStatement(sqlType)
+		if typeForPKField, ok := mySQLPrimaryKeyTypesMapping[column.ColumnType]; ok {
+			sqlType = typeForPKField
+		}
 	}
 
-	return fmt.Sprintf("%s %s%s", m.quote(name), sqlType, notNullClause)
-}
-
-//getDefaultValueStatement returns default value statement for creating column
-func (m *MySQL) getDefaultValueStatement(sqlType string) string {
-	//get default value based on type
-	normalizedSqlType := strings.ToLower(sqlType)
-	if strings.Contains(normalizedSqlType, "var") {
-		return "DEFAULT ''"
-	} else if strings.Contains(normalizedSqlType, "text") {
-		return "DEFAULT ('')"
-	}
-
-	return "DEFAULT 0"
+	return fmt.Sprintf("%s %s", m.quote(name), sqlType)
 }
 
 //createPrimaryKeyInTransaction create primary key constraint
