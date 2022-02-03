@@ -6,6 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"net"
+	"runtime"
 	"strings"
 )
 
@@ -35,6 +36,7 @@ func newRequestFactory(serviceName, commit, tag, buildAt, dockerHubID string) *R
 			Commit:      commit,
 			Tag:         tag,
 			BuiltAt:     buildAt,
+			Arch:        runtime.GOARCH,
 			ServiceName: serviceName,
 			RunID:       uuid.New(),
 		},
