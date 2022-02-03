@@ -5,7 +5,6 @@
   "dependencies": {
     "@jitsu/catalog": "file:../catalog",
     "@jitsu/sdk-js": "^2.3.0",
-    "@types/react-grid-layout": "^1.1.2",
     "antd": "^4.13.1",
     "axios": "^0.21.4",
     "classnames": "^2.2.6",
@@ -79,9 +78,5 @@
     "tar": "^6.1.11",
     "nth-check": "^2.0.1",
     "browserslist": "^4.17.3"
-  },
-  "devDependencies": {
-    "@types/highlightjs": "^9.12.2",
-    "craco-babel-loader": "^1.0.3"
   }
 }
