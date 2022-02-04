@@ -3,14 +3,16 @@
   "private": true,
   "scripts": {
     "bootstrap": "npx lerna bootstrap",
+    "link": "npx lerna link convert",
     "start": "yarn --cwd ./main start",
     "build": "yarn check:all && yarn bootstrap && npx lerna run build",
+    "build:dev": "npx lerna run build",
     "clean": "rm -rf ./main/node_modules/ ./main/build ./main/dist",
     "lerna:publish": "npx lerna publish --canary --no-private --no-verify-access --yes",
     "prettier:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run yarn prettier:fix!\" && exit 1)",
     "prettier:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore ./",
-    "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/",
-    "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/ --fix",
+    "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern **/node_modules/",
+    "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern **/node_modules/ --fix",
     "check:all": "yarn prettier:check && yarn eslint:check",
     "main": "yarn --cwd main"
   },
@@ -18,6 +20,20 @@
     "@jitsu/catalog": "file:catalog",
     "jitsu-configurator-ui": "file:main"
   },
+  "publishConfig": {
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jitsucom/jitsu.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jitsucom/jitsu/issues"
+  },
+  "workspaces": [
+    "catalog",
+    "main"
+  ],
   "devDependencies": {
     "@ant-design/icons": "^4.5.0",
     "@craco/craco": "^6.1.1",
@@ -25,8 +41,6 @@
     "@testing-library/jest-dom": "^5.14.1",
     "@testing-library/react": "^11.1.0",
     "@testing-library/user-event": "^12.1.10",
-    "@types/classnames": "^2.2.11",
-    "@types/firebase": "^3.2.1",
     "@types/highlightjs": "^9.12.2",
     "@types/jest": "^26.0.24",
     "@types/lodash": "^4.14.168",
@@ -40,10 +54,8 @@
     "craco-antd": "^1.19.0",
     "craco-babel-loader": "^1.0.3",
     "craco-less": "^1.17.1",
-    "lerna": "^4.0.0",
     "monaco-editor-webpack-plugin": "^4.2.0",
     "msw": "^0.35.0",
-    "prettier": "^2.5.1",
     "progress-bar-webpack-plugin": "^2.1.0",
     "react-scripts": "^4.0.3",
     "source-map-explorer": "^2.5.2",
@@ -53,15 +65,5 @@
     "typescript": "^4.4.3",
     "web-vitals": "^1.0.1",
     "webpack-bundle-analyzer": "^4.4.0"
-  },
-  "publishConfig": {
-    "access": "restricted"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/jitsucom/jitsu.git"
-  },
-  "bugs": {
-    "url": "https://github.com/jitsucom/jitsu/issues"
   }
 }
