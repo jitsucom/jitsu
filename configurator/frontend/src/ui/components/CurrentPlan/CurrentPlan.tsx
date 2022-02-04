@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from "react"
-import { Button, Modal, Progress, ButtonProps, Typography, Divider } from "antd"
-import cn from "classnames"
+import { useState } from "react"
+import { observer } from "mobx-react-lite"
+import { Button, Modal, Progress } from "antd"
 import { generateCheckoutLink, generateCustomerPortalLink, CurrentSubscription } from "lib/services/billing"
 import { useServices } from "hooks/useServices"
 import { handleError } from "lib/components/components"
@@ -13,7 +13,7 @@ export type CurrentPlanProps = {
   onPlanChangeModalOpen: () => void
 }
 
-export const CurrentPlan: React.FC<CurrentPlanProps> = ({ planStatus, onPlanChangeModalOpen }) => {
+export const CurrentPlanComponent: React.FC<CurrentPlanProps> = ({ planStatus, onPlanChangeModalOpen }) => {
   const location = useLocation()
   const [upgradeDialogVisible, setUpgradeDialogVisible] = useState(
     location.search && !!new URLSearchParams(location.search).get("planUpgrade")
@@ -179,3 +179,9 @@ export const UpgradePlan: React.FC<{
     </>
   )
 }
+
+const CurrentPlan = observer(CurrentPlanComponent)
+
+CurrentPlan.displayName = "CurrentPlan"
+
+export { CurrentPlan }
