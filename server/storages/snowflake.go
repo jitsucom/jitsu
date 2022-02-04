@@ -141,16 +141,15 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 				snowflakeSchema := config.Schema
 				config.Schema = ""
 				//create adapter without a certain schema
-				snowflakeAdapterWithoutSchema, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
+				tmpSnowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
 				if err != nil {
 					return nil, err
 				}
+				defer tmpSnowflakeAdapter.Close()
+
 				config.Schema = snowflakeSchema
 				//create schema and reconnect
-				err = snowflakeAdapterWithoutSchema.CreateDbSchema(config.Schema)
-				//close adapter that connected without a certain schema
-				snowflakeAdapterWithoutSchema.Close()
-				if err != nil {
+				if err = tmpSnowflakeAdapter.CreateDbSchema(config.Schema); err != nil {
 					return nil, err
 				}
 
