@@ -92,17 +92,15 @@ func CreateMySQLAdapter(ctx context.Context, config adapters.DataSourceConfig, q
 				mySQLDB := config.Db
 				config.Db = ""
 				//create adapter without a certain DB
-				mySQLAdapterWithoutDB, err := adapters.NewMySQL(ctx, &config, queryLogger, sqlTypes)
+				tmpMySQLAdapter, err := adapters.NewMySQL(ctx, &config, queryLogger, sqlTypes)
 				if err != nil {
 					return nil, err
 				}
+				defer tmpMySQLAdapter.Close()
 
 				config.Db = mySQLDB
 				//create DB and reconnect
-				err = mySQLAdapterWithoutDB.CreateDB(config.Db)
-				//close adapter that connected without a certain DB
-				mySQLAdapterWithoutDB.Close()
-				if err != nil {
+				if err = tmpMySQLAdapter.CreateDB(config.Db); err != nil {
 					return nil, err
 				}
 
