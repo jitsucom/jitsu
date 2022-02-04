@@ -9,7 +9,6 @@ import (
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/storages"
 	"go.uber.org/atomic"
@@ -105,13 +104,11 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 		return
 	}
 
-	copyEvent := maputils.CopyMap(event)
-
 	var isBot bool
-	parsedUaRaw, ok := enrichment.DefaultJsUaRule.DstPath().Get(copyEvent)
+	parsedUaRaw, ok := enrichment.DefaultJsUaRule.DstPath().Get(event)
 	if !ok {
-		enrichment.DefaultJsUaRule.Execute(copyEvent)
-		parsedUaRaw, _ = enrichment.DefaultJsUaRule.DstPath().Get(copyEvent)
+		enrichment.DefaultJsUaRule.Execute(event)
+		parsedUaRaw, _ = enrichment.DefaultJsUaRule.DstPath().Get(event)
 	}
 	parsedUaMap, ok := parsedUaRaw.(map[string]interface{})
 	if ok {
@@ -121,16 +118,26 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 		return
 	}
 
-	rp := &RecognitionPayload{Event: copyEvent, EventID: eventID, DestinationIDs: destinationIDs}
+	destinationIdentifiers, hasAnonymous := rs.getDestinationsForRecognition(event, eventID, destinationIDs)
+	if len(destinationIdentifiers) == 0 {
+		return
+	}
+	var compressedEvent []byte
+	if hasAnonymous {
+		//event payload necessary only for anonymous events.
+		//identified event has identifiers
+		compressedEvent = rs.compressor.Compress(event)
+	}
+	rp := &RecognitionPayload{EventBytes: compressedEvent, DestinationIdentifiers: destinationIdentifiers}
 	if err := rs.queue.Enqueue(rp); err != nil {
 		rpBytes, _ := json.Marshal(rp)
-		logging.SystemErrorf("Error saving recognition payload [%s] from event [%s] into the queue: %v", string(rpBytes), rp.Event.Serialize(), err)
+		logging.SystemErrorf("Error saving recognition payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.Serialize(), err)
 		return
 	}
 }
 
-func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, eventID string, destinationIDs []string) map[string]EventIdentifiers {
-	identifiers := map[string]EventIdentifiers{}
+func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, eventID string, destinationIDs []string) (identifiers map[string]EventIdentifiers, hasAnonymous bool) {
+	identifiers = make(map[string]EventIdentifiers, len(destinationIDs))
 	for _, destinationID := range destinationIDs {
 		storageProxy, ok := rs.destinationService.GetDestinationByID(destinationID)
 		if !ok {
@@ -163,17 +170,28 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 		}
 
 		anonymousIDStr := fmt.Sprint(anonymousID)
+		isAnyIdentificationValueFilled := false
 
 		values, ok := configuration.IdentificationJSONPathes.Get(event)
-
-		identifiers[destinationID] = EventIdentifiers{
-			EventID:              eventID,
-			AnonymousID:          anonymousIDStr,
-			IdentificationValues: values,
+		for _, value := range values {
+			if value != nil {
+				isAnyIdentificationValueFilled = true
+				break
+			}
 		}
+		ids := EventIdentifiers{
+			EventID:                        eventID,
+			AnonymousID:                    anonymousIDStr,
+			IdentificationValues:           values,
+			IsAnyIdentificationValueFilled: isAnyIdentificationValueFilled,
+		}
+		if !isAnyIdentificationValueFilled {
+			hasAnonymous = true
+		}
+		identifiers[destinationID] = ids
 	}
 
-	return identifiers
+	return identifiers, hasAnonymous
 }
 
 func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, identifiers EventIdentifiers) error {
@@ -249,18 +267,15 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 }
 
 func (rs *RecognitionService) processRecognitionPayload(rp *RecognitionPayload) error {
-	destinationIdentifiers := rs.getDestinationsForRecognition(rp.Event, rp.EventID, rp.DestinationIDs)
-
-	for destinationID, identifiers := range destinationIdentifiers {
-		if identifiers.IsAnyIdentificationValueFilled() {
+	for destinationID, identifiers := range rp.DestinationIdentifiers {
+		if identifiers.IsAnyIdentificationValueFilled {
 			// Run pipeline if any identification value has been recognized,
 			// then update all other anonymous events
 			if err := rs.reprocessAnonymousEvents(destinationID, identifiers); err != nil {
 				return fmt.Errorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
 			}
 		} else {
-			compressedEvent := rs.compressor.Compress(rp.Event)
-			if err := rs.storage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(compressedEvent)); err != nil {
+			if err := rs.storage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(rp.EventBytes)); err != nil {
 				return fmt.Errorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
 			}
 		}
