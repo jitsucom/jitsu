@@ -7,6 +7,7 @@ import { sourcesPageRoutes } from "./SourcesPage.routes"
 import { SourcesList } from "./partials/SourcesList/SourcesList"
 import { AddSourceDialog } from "./partials/AddSourceDialog/AddSourceDialog"
 import { CenteredError, CenteredSpin } from "lib/components/components"
+import { BillingCheckRedirect } from "lib/components/BillingCheckRedirect/BillingCheckRedirect"
 // @Store
 import { sourcesStore, SourcesStoreState } from "stores/sources"
 // @Styles
@@ -16,6 +17,9 @@ import { BreadcrumbsProps } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { PageProps } from "navigation"
 import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
 import { SourceEditor } from "./partials/SourceEditor/SourceEditor/SourceEditor"
+import { useServices } from "hooks/useServices"
+import { CurrentSubscription } from "lib/services/billing"
+import { useCallback } from "react"
 
 export interface CollectionSourceData {
   sources: SourceData[]
@@ -31,6 +35,12 @@ export interface CommonSourcePageProps {
 
 const SourcesPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   const params = useParams<unknown>()
+  const services = useServices()
+
+  const isSourcesLimitReached = useCallback<(subscription?: CurrentSubscription) => boolean>(
+    subscription => sourcesStore.sources.length >= (subscription?.currentPlan.quota.sources ?? 999),
+    [sourcesStore.sources.length]
+  )
 
   if (sourcesStore.state === SourcesStoreState.GLOBAL_ERROR) {
     return <CenteredError error={sourcesStore.error} />
@@ -39,28 +49,32 @@ const SourcesPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   }
 
   return (
-    <Switch>
-      <Route path={sourcesPageRoutes.root} exact>
-        <ErrorBoundary>
+    <ErrorBoundary>
+      <Switch>
+        <Route path={sourcesPageRoutes.root} exact>
           <SourcesList {...{ setBreadcrumbs }} />
-        </ErrorBoundary>
-      </Route>
-      <Route path={sourcesPageRoutes.addExact} strict={false} exact>
-        <ErrorBoundary>
-          <SourceEditor {...{ setBreadcrumbs, editorMode: "add" }} />
-        </ErrorBoundary>
-      </Route>
-      <Route path={sourcesPageRoutes.add} strict={false} exact>
-        <ErrorBoundary>
-          <AddSourceDialog />
-        </ErrorBoundary>
-      </Route>
-      <Route path={sourcesPageRoutes.editExact} strict={false} exact>
-        <ErrorBoundary>
+        </Route>
+        <Route path={sourcesPageRoutes.editExact} strict={false} exact>
           <SourceEditor key={params?.["sourceId"] || "static_key"} {...{ setBreadcrumbs, editorMode: "edit" }} />
-        </ErrorBoundary>
-      </Route>
-    </Switch>
+        </Route>
+        <BillingCheckRedirect
+          quotaExceededRedirectTo={sourcesPageRoutes.root}
+          quotaExceedeMessage={
+            <>You current plan allows to have only {services.currentSubscription.currentPlan.quota.sources} sources</>
+          }
+          isQuotaExceeded={isSourcesLimitReached}
+        >
+          <Switch>
+            <Route path={sourcesPageRoutes.addExact} strict={false} exact>
+              <SourceEditor {...{ setBreadcrumbs, editorMode: "add" }} />
+            </Route>
+            <Route path={sourcesPageRoutes.add} strict={false} exact>
+              <AddSourceDialog />
+            </Route>
+          </Switch>
+        </BillingCheckRedirect>
+      </Switch>
+    </ErrorBoundary>
   )
 }
 
