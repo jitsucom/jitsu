@@ -85,7 +85,11 @@ function release_jitsu() {
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" -t jitsucom/jitsu:latest --build-arg dhid=jitsu --build-arg SRC_VERSION=latest . || { echo 'Jitsu dockerx build semver failed' ; exit 1; }
   else
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION="$1" . || { echo 'Jitsu dockerx build failed' ; exit 1; }
+    if [[ "$1" == "beta" ]]; then
+      docker buildx build --platform linux/amd64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION="$1" . || { echo 'Jitsu dockerx build failed' ; exit 1; }
+    else
+      docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION="$1" . || { echo 'Jitsu dockerx build failed' ; exit 1; }
+    fi
   fi
 
   cd ../
