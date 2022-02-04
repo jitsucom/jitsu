@@ -1,5 +1,5 @@
 import CopyOutlined from "@ant-design/icons/lib/icons/CopyOutlined"
-import hljs from "highlight.js/lib/common"
+import hljs from "highlight.js"
 import "./hljs.css"
 import { useState } from "react"
 import { reactElementToString } from "../../commons/utils"
