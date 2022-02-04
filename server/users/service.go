@@ -25,11 +25,13 @@ type RecognitionService struct {
 	destinationService *destinations.Service
 	compressor         Compressor
 
-	mutex        *sync.RWMutex
+	mutex        *sync.Mutex
 	eventRetries map[string]int
 
-	queue  *Queue
-	closed *atomic.Bool
+	idsMutex        *sync.Mutex
+	identifiedQueue *Queue
+	anonymousQueue  *Queue
+	closed          *atomic.Bool
 }
 
 //NewRecognitionService creates a new RecognitionService if metaStorage configuration exists
@@ -60,26 +62,29 @@ func NewRecognitionService(storage Storage, destinationService *destinations.Ser
 		destinationService: destinationService,
 		storage:            storage,
 		compressor:         compressor,
-		mutex:              &sync.RWMutex{},
+		mutex:              &sync.Mutex{},
+		idsMutex:           &sync.Mutex{},
 		eventRetries:       map[string]int{},
-		queue:              newQueue(),
+		identifiedQueue:    newQueue("users_identified"),
+		anonymousQueue:     newQueue("users_recognition"),
 		closed:             atomic.NewBool(false),
 	}
 
 	for i := 0; i < configuration.PoolSize; i++ {
-		safego.RunWithRestart(service.startObserver)
+		safego.RunWithRestart(service.startAnonymousObserver)
+		safego.RunWithRestart(service.startIdentifiedObserver)
 	}
 
 	return service, nil
 }
 
-func (rs *RecognitionService) startObserver() {
+func (rs *RecognitionService) startAnonymousObserver() {
 	for {
 		if rs.closed.Load() {
 			break
 		}
 
-		rp, err := rs.queue.DequeueBlock()
+		rpi, err := rs.anonymousQueue.DequeueBlock()
 		if err != nil {
 			if rs.closed.Load() {
 				continue
@@ -88,11 +93,55 @@ func (rs *RecognitionService) startObserver() {
 			logging.SystemErrorf("Error reading recognition payload from queue: %v", err)
 			continue
 		}
-
-		if err := rs.processRecognitionPayload(rp); err != nil {
+		rp, ok := rpi.(*AnonymousPayload)
+		if !ok {
+			logging.SystemErrorf("wrong type of recognition payload dto in queue. Expected: *AnonymousPayload, actual: %T (%s)", rpi, rpi)
+		}
+		if err := rs.processAnonymousPayload(rp); err != nil {
 			logging.SystemError(err)
-			if err := rs.queue.Enqueue(rp); err != nil {
-				logging.SystemErrorf("Error writing recognition payload [%v]: %v", rp, err)
+		}
+	}
+}
+
+func (rs *RecognitionService) startIdentifiedObserver() {
+	for {
+		if rs.closed.Load() {
+			break
+		}
+
+		rs.idsMutex.Lock()
+		size := rs.identifiedQueue.Size()
+		if size == 0 {
+			size = 1
+		}
+		aggregatedIdentifiers := map[EventKey]map[string]interface{}{}
+		notAggrSize := 0
+		for i := int64(0); i < size; i++ {
+			identified, err := rs.identifiedQueue.DequeueBlock()
+			if err != nil {
+				if rs.closed.Load() {
+					break
+				}
+				logging.SystemErrorf("Error reading recognition payload from queue: %v", err)
+				continue
+			}
+			eventIdentifiers, ok := identified.([]*EventIdentifiers)
+			if !ok {
+				logging.SystemErrorf("wrong type of recognition payload dto in queue. Expected: []*EventIdentifiers, actual: %T (%s)", identified, identified)
+				rs.idsMutex.Unlock()
+				return
+			}
+			notAggrSize = notAggrSize + len(eventIdentifiers)
+			for _, ids := range eventIdentifiers {
+				aggregatedIdentifiers[ids.EventKey] = ids.IdentificationValues
+			}
+		}
+		rs.idsMutex.Unlock()
+		logging.Infof("Identified events total: %d aggregated: %d", notAggrSize, len(aggregatedIdentifiers))
+
+		for eventKey, values := range aggregatedIdentifiers {
+			if err := rs.reprocessAnonymousEvents(eventKey, values); err != nil {
+				logging.SystemError(err)
 			}
 		}
 	}
@@ -118,26 +167,31 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 		return
 	}
 
-	destinationIdentifiers, hasAnonymous := rs.getDestinationsForRecognition(event, eventID, destinationIDs)
-	if len(destinationIdentifiers) == 0 {
+	anonymousPayload, identified := rs.getDestinationsForRecognition(event, eventID, destinationIDs)
+	if len(identified) == 0 && anonymousPayload == nil {
 		return
 	}
-	var compressedEvent []byte
-	if hasAnonymous {
-		//event payload necessary only for anonymous events.
-		//identified event has identifiers
-		compressedEvent = rs.compressor.Compress(event)
+	if anonymousPayload != nil {
+		if err := rs.anonymousQueue.Enqueue(anonymousPayload); err != nil {
+			rpBytes, _ := json.Marshal(anonymousPayload)
+			logging.SystemErrorf("Error saving recognition anonymous payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.Serialize(), err)
+			return
+		}
 	}
-	rp := &RecognitionPayload{EventBytes: compressedEvent, DestinationIdentifiers: destinationIdentifiers}
-	if err := rs.queue.Enqueue(rp); err != nil {
-		rpBytes, _ := json.Marshal(rp)
-		logging.SystemErrorf("Error saving recognition payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.Serialize(), err)
-		return
+	if len(identified) > 0 {
+		if err := rs.identifiedQueue.Enqueue(identified); err != nil {
+			rpBytes, _ := json.Marshal(anonymousPayload)
+			logging.SystemErrorf("Error saving recognition identified payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.Serialize(), err)
+			return
+		}
 	}
+
 }
 
-func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, eventID string, destinationIDs []string) (identifiers map[string]EventIdentifiers, hasAnonymous bool) {
-	identifiers = make(map[string]EventIdentifiers, len(destinationIDs))
+func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, eventID string, destinationIDs []string) (rp *AnonymousPayload, identified []*EventIdentifiers) {
+	identified = make([]*EventIdentifiers, 0, len(destinationIDs))
+	rp = nil
+	anonymousDestinationIDs := make([]EventKey, 0, len(destinationIDs))
 	for _, destinationID := range destinationIDs {
 		storageProxy, ok := rs.destinationService.GetDestinationByID(destinationID)
 		if !ok {
@@ -179,22 +233,21 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 				break
 			}
 		}
-		ids := EventIdentifiers{
-			EventID:                        eventID,
-			AnonymousID:                    anonymousIDStr,
-			IdentificationValues:           values,
-			IsAnyIdentificationValueFilled: isAnyIdentificationValueFilled,
+		if isAnyIdentificationValueFilled {
+			identified = append(identified, &EventIdentifiers{EventKey: EventKey{DestinationID: destinationID, AnonymousID: anonymousIDStr}, IdentificationValues: values})
+		} else {
+			anonymousDestinationIDs = append(anonymousDestinationIDs, EventKey{DestinationID: destinationID, AnonymousID: anonymousIDStr})
 		}
-		if !isAnyIdentificationValueFilled {
-			hasAnonymous = true
-		}
-		identifiers[destinationID] = ids
 	}
-
-	return identifiers, hasAnonymous
+	if len(anonymousDestinationIDs) > 0 {
+		compressedEvent := rs.compressor.Compress(event)
+		rp = &AnonymousPayload{EventID: eventID, EventBytes: compressedEvent, EventKeys: anonymousDestinationIDs}
+	}
+	return
 }
 
-func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, identifiers EventIdentifiers) error {
+func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, identificationValues map[string]interface{}) error {
+	destinationID := eventsKey.DestinationID
 	storageProxy, ok := rs.destinationService.GetDestinationByID(destinationID)
 	if !ok {
 		return fmt.Errorf("destination [%s] wasn't found", destinationID)
@@ -212,9 +265,9 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 		return nil
 	}
 
-	eventsMap, err := rs.storage.GetAnonymousEvents(destinationID, identifiers.AnonymousID)
+	eventsMap, err := rs.storage.GetAnonymousEvents(destinationID, eventsKey.AnonymousID)
 	if err != nil {
-		return fmt.Errorf("Error getting anonymous events by destinationID: [%s] and anonymousID: [%s] from storage: %v", destinationID, identifiers.AnonymousID, err)
+		return fmt.Errorf("Error getting anonymous events by destinationID: [%s] and anonymousID: [%s] from storage: %v", destinationID, eventsKey.AnonymousID, err)
 	}
 
 	if len(eventsMap) == 0 {
@@ -228,7 +281,7 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 			continue
 		}
 
-		if err = configuration.IdentificationJSONPathes.Set(event, identifiers.IdentificationValues); err != nil {
+		if err = configuration.IdentificationJSONPathes.Set(event, identificationValues); err != nil {
 			logging.Errorf("[%s] Error setting recognized user id into event: %s with json path rule [%s]: %v",
 				destinationID, storedSerializedEvent, configuration.IdentificationJSONPathes.String(), err)
 			continue
@@ -254,7 +307,7 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 		}
 
 		// Pipeline goes only when event contains full identifiers according to settings,
-		if err = rs.storage.DeleteAnonymousEvent(destinationID, identifiers.AnonymousID, storedEventID); err != nil {
+		if err = rs.storage.DeleteAnonymousEvent(destinationID, eventsKey.AnonymousID, storedEventID); err != nil {
 			return fmt.Errorf("error deleting anonymous events id [%s]: %v", storedEventID, err)
 		}
 
@@ -266,21 +319,12 @@ func (rs *RecognitionService) reprocessAnonymousEvents(destinationID string, ide
 	return nil
 }
 
-func (rs *RecognitionService) processRecognitionPayload(rp *RecognitionPayload) error {
-	for destinationID, identifiers := range rp.DestinationIdentifiers {
-		if identifiers.IsAnyIdentificationValueFilled {
-			// Run pipeline if any identification value has been recognized,
-			// then update all other anonymous events
-			if err := rs.reprocessAnonymousEvents(destinationID, identifiers); err != nil {
-				return fmt.Errorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
-			}
-		} else {
-			if err := rs.storage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(rp.EventBytes)); err != nil {
-				return fmt.Errorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
-			}
+func (rs *RecognitionService) processAnonymousPayload(rp *AnonymousPayload) error {
+	for _, eventKey := range rp.EventKeys {
+		if err := rs.storage.SaveAnonymousEvent(eventKey.DestinationID, eventKey.AnonymousID, rp.EventID, string(rp.EventBytes)); err != nil {
+			return fmt.Errorf("[%s] Error saving event with anonymous id %s: %v", eventKey.DestinationID, eventKey.AnonymousID, err)
 		}
 	}
-
 	return nil
 }
 
@@ -289,8 +333,8 @@ func (rs *RecognitionService) processRecognitionPayload(rp *RecognitionPayload) 
 func (rs *RecognitionService) Close() (multiErr error) {
 	rs.closed.Store(true)
 
-	if rs.queue != nil {
-		if err := rs.queue.Close(); err != nil {
+	if rs.anonymousQueue != nil {
+		if err := rs.anonymousQueue.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("error closing users recognition queue: %v", err))
 		}
 	}
