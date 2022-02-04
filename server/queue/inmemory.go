@@ -144,6 +144,7 @@ func (im *InMemory) DequeueOrWaitForNextElementContext(ctx context.Context) (int
 			continue
 		}
 		elementToReturn := im.slice[0]
+		//clear reference to free memory
 		im.slice[0] = nil
 		im.slice = im.slice[1:]
 
@@ -180,6 +181,8 @@ func (im *InMemory) dequeue() (interface{}, error) {
 	}
 
 	elementToReturn := im.slice[0]
+	//clear reference to free memory
+	im.slice[0] = nil
 	im.slice = im.slice[1:]
 
 	return elementToReturn, nil
