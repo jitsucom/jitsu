@@ -79,6 +79,7 @@ module.exports = {
 
       return {
         ...webpackConfig,
+        resolve: { ...webpackConfig.resolve, modules: ["../node_modules", ...webpackConfig.resolve.modules] },
         optimization: {
           runtimeChunk: false,
           splitChunks: {
@@ -104,11 +105,10 @@ module.exports = {
   },
   plugins: [
     {
+      // transpile some of the node_modules using babel
       plugin: CracoBabelLoader,
       options: {
-        includes: [
-          resolvePackage("node_modules/@jitsu/catalog"), // transpile this module with babel
-        ],
+        includes: [resolvePackage("../node_modules/@jitsu/catalog")],
       },
     },
     {

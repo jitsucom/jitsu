@@ -1,7 +1,7 @@
 {
   "name": "jitsu-configurator-ui",
   "version": "1.0.0",
-  "private": true,
+  "private": false,
   "dependencies": {
     "@jitsu/catalog": "file:../catalog",
     "@jitsu/sdk-js": "^2.3.0",
