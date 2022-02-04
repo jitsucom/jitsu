@@ -175,7 +175,7 @@ class ApiKeysStore implements IApiKeysStore {
     this._state = BACKGROUND_LOADING
     const updatedApiKeys = this._apiKeys.filter(({ uid }) => uid !== apiKeyToDelete.uid)
     try {
-      const result = yield services.storageService.save("api_keys", { keys: updatedApiKeys }, services.activeProject.id)
+      yield services.storageService.save("api_keys", { keys: updatedApiKeys }, services.activeProject.id)
       this._apiKeys = updatedApiKeys
       this.removeDeletedApiKeysFromDestinations(apiKeyToDelete)
     } catch (error) {

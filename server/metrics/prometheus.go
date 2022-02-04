@@ -1,13 +1,14 @@
 package metrics
 
 import (
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
 )
 
@@ -44,11 +45,7 @@ func Init(exported bool) {
 		logging.Info("✅ Initializing Prometheus metrics..")
 	}
 
-	Registry = prometheus.NewRegistry()
-	Registry.MustRegister(
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-		collectors.NewGoCollector(),
-	)
+	Registry = prometheus.DefaultRegisterer.(*prometheus.Registry)
 
 	initEvents()
 	initSourcesPool()
@@ -100,6 +97,12 @@ func InitRelay(clusterID string, viper *viper.Viper) *Relay {
 	logging.Debugf("✅ Initialized metrics relay to %s as [host: %s, deployment: %s]",
 		relay.URL, relay.HostID, relay.DeploymentID)
 	return relay
+}
+
+func Handler() http.Handler {
+	return promhttp.InstrumentMetricHandler(
+		Registry, promhttp.HandlerFor(Registry, promhttp.HandlerOpts{}),
+	)
 }
 
 func extractLabels(destinationName string) (projectID, destinationID string) {

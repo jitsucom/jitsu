@@ -50,8 +50,8 @@ export const StatisticsChart: React.FC<Props> = ({
 }) => {
   const [state, dispatch] = useReducer(reducer, initialState)
 
-  const handleClickOnLegend = (event: React.MouseEvent) => {
-    const clickedDataType = event["value"] as DataType
+  const handleClickOnLegend = (data: any) => {
+    const clickedDataType = data["value"] as DataType
     dispatch({ type: clickedDataType })
   }
 

@@ -109,9 +109,8 @@ const ConfigurableFieldsFormComponent = ({
     const values = {
       [id]: value ? value : "",
     }
-    setFormValues?.(values)
-    const currentValues = form.getFieldsValue()
-    form.setFieldsValue({ ...currentValues, value })
+    form.setFieldsValue(values)
+    setFormValues?.(form.getFieldsValue())
     handleTouchField()
   }
 
