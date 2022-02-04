@@ -144,6 +144,7 @@ func (im *InMemory) DequeueOrWaitForNextElementContext(ctx context.Context) (int
 			continue
 		}
 		elementToReturn := im.slice[0]
+		im.slice[0] = nil
 		im.slice = im.slice[1:]
 
 		im.mutex.Unlock()
