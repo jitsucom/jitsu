@@ -338,7 +338,7 @@ func TestProcessFact(t *testing.T) {
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			envelopes, err := p.ProcessEvent(tt.input, needCopyEvent)
+			envelopes, err := p.ProcessEvent(tt.input, false)
 
 			if tt.expectedErr != "" {
 				require.Error(t, err)
@@ -455,7 +455,7 @@ switch ($.event_type) {
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			envelopes, err := p.ProcessEvent(tt.input, needCopyEvent)
+			envelopes, err := p.ProcessEvent(tt.input, false)
 			if tt.expectedErr != "" {
 				require.Error(t, err)
 				require.Equal(t, tt.expectedErr, err.Error())
