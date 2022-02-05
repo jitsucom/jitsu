@@ -72,18 +72,18 @@ func NewProcessor(destinationID string, destinationConfig *config.DestinationCon
 }
 
 //ProcessEvent returns table representation, processed flatten object
-func (p *Processor) ProcessEvent(event map[string]interface{}) ([]Envelope, error) {
+func (p *Processor) ProcessEvent(event map[string]interface{}, needCopyEvent bool) ([]Envelope, error) {
 	if !p.transformInitialized {
 		err := fmt.Errorf("Destination: %s Attempt to use processor without running InitJavaScriptTemplates first", p.identifier)
 		return nil, err
 	}
-	return p.processObject(event, map[string]bool{})
+	return p.processObject(event, map[string]bool{}, needCopyEvent)
 }
 
 //ProcessEvents processes events objects
 //returns array of processed objects per table like {"table1": []objects, "table2": []objects},
 //All failed events are moved to separate collection for sending to fallback
-func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*ProcessedFile, *events.FailedEvents, *events.SkippedEvents, error) {
+func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*ProcessedFile, *events.FailedEvents, *events.SkippedEvents, error) {
 	if !p.transformInitialized {
 		err := fmt.Errorf("Destination: %s Attempt to use processor without running InitJavaScriptTemplates first", p.identifier)
 		return nil, nil, nil, err
@@ -93,7 +93,7 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 	filePerTable := map[string]*ProcessedFile{}
 
 	for _, event := range objects {
-		envelops, err := p.processObject(event, alreadyUploadedTables)
+		envelops, err := p.processObject(event, alreadyUploadedTables, needCopyEvent)
 		if err != nil {
 			//handle skip object functionality
 			if err == ErrSkipObject {
@@ -197,9 +197,15 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 //1. extract table name
 //2. execute enrichment.LookupEnrichmentStep and Mapping
 //or ErrSkipObject/another error
-func (p *Processor) processObject(object map[string]interface{}, alreadyUploadedTables map[string]bool) ([]Envelope, error) {
-	objectCopy := maputils.CopyMap(object)
-	tableName, err := p.tableNameExtractor.Extract(objectCopy)
+func (p *Processor) processObject(object map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) ([]Envelope, error) {
+	var workingObject map[string]interface{}
+	if needCopyEvent {
+		//we need to copy event when more that one storage can process the same event in parallel
+		workingObject = maputils.CopyMap(object)
+	} else {
+		workingObject = object
+	}
+	tableName, err := p.tableNameExtractor.Extract(workingObject)
 	if err != nil {
 		return nil, err
 	}
@@ -207,8 +213,8 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		return nil, ErrSkipObject
 	}
 
-	p.lookupEnrichmentStep.Execute(objectCopy)
-	mappedObject, err := p.fieldMapper.Map(objectCopy)
+	p.lookupEnrichmentStep.Execute(workingObject)
+	mappedObject, err := p.fieldMapper.Map(workingObject)
 	if err != nil {
 		return nil, fmt.Errorf("Error mapping object: %v", err)
 	}

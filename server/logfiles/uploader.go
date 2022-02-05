@@ -79,12 +79,12 @@ func (u *PeriodicUploader) Start() {
 			for _, filePath := range files {
 				fileName := filepath.Base(filePath)
 
-				b, err := ioutil.ReadFile(filePath)
+				fileBytes, err := ioutil.ReadFile(filePath)
 				if err != nil {
 					logging.SystemErrorf("Error reading file [%s] with events: %v", filePath, err)
 					continue
 				}
-				if len(b) == 0 {
+				if len(fileBytes) == 0 {
 					os.Remove(filePath)
 					continue
 				}
@@ -101,8 +101,9 @@ func (u *PeriodicUploader) Start() {
 					logging.Warnf("Destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
 					continue
 				}
+				needCopyEvent := len(storageProxies) > 1
 
-				objects, parsingErrors, err := parsers.ParseJSONFileWithFuncFallback(b, parsers.ParseJSON)
+				objects, parsingErrors, err := parsers.ParseJSONFileWithFuncFallback(fileBytes, parsers.ParseJSON)
 				if err != nil {
 					logging.SystemErrorf("Error parsing JSON file [%s] with events: %v", filePath, err)
 					continue
@@ -134,7 +135,7 @@ func (u *PeriodicUploader) Start() {
 						}
 					}
 
-					resultPerTable, failedEvents, skippedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables)
+					resultPerTable, failedEvents, skippedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables, needCopyEvent)
 
 					if !skippedEvents.IsEmpty() {
 						metrics.SkipTokenEvents(tokenID, storage.Type(), storage.ID(), len(skippedEvents.Events))
