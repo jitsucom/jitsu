@@ -111,8 +111,8 @@ func (ch *ClickHouse) Type() string {
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
-	flatData, failedEvents, skippedEvents, err := ch.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+	flatData, failedEvents, skippedEvents, err := ch.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -177,8 +177,8 @@ func (ch *ClickHouse) storeTable(adapter adapters.SQLAdapter, tableHelper *Table
 }
 
 //SyncStore is used in storing chunk of pulled data to ClickHouse with processing
-func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return syncStoreImpl(ch, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
+func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
+	return syncStoreImpl(ch, overriddenDataSchema, objects, timeIntervalValue, cacheTable, needCopyEvent)
 }
 
 func (ch *ClickHouse) Clean(tableName string) error {
@@ -187,7 +187,7 @@ func (ch *ClickHouse) Clean(tableName string) error {
 
 //Update uses SyncStore under the hood
 func (ch *ClickHouse) Update(object map[string]interface{}) error {
-	return ch.SyncStore(nil, []map[string]interface{}{object}, "", true)
+	return ch.SyncStore(nil, []map[string]interface{}{object}, "", true, false)
 }
 
 //GetUsersRecognition returns users recognition configuration

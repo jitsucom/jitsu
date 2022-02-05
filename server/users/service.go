@@ -10,12 +10,14 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
-	"github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"go.uber.org/atomic"
 	"sync"
+	"time"
 )
 
-const retryCount = 3
+const retryCount = 1
+const sysErrFreqSec = 10
 
 //RecognitionService has a thread pool under the hood
 //saves anonymous events in meta storage
@@ -28,10 +30,11 @@ type RecognitionService struct {
 	mutex        *sync.Mutex
 	eventRetries map[string]int
 
-	idsMutex        *sync.Mutex
-	identifiedQueue *Queue
-	anonymousQueue  *Queue
-	closed          *atomic.Bool
+	idsMutex            *sync.Mutex
+	identifiedQueue     *Queue
+	anonymousQueue      *Queue
+	closed              *atomic.Bool
+	lastSystemErrorTime time.Time
 }
 
 //NewRecognitionService creates a new RecognitionService if metaStorage configuration exists
@@ -59,15 +62,16 @@ func NewRecognitionService(storage Storage, destinationService *destinations.Ser
 	}
 
 	service := &RecognitionService{
-		destinationService: destinationService,
-		storage:            storage,
-		compressor:         compressor,
-		mutex:              &sync.Mutex{},
-		idsMutex:           &sync.Mutex{},
-		eventRetries:       map[string]int{},
-		identifiedQueue:    newQueue("users_identified"),
-		anonymousQueue:     newQueue("users_recognition"),
-		closed:             atomic.NewBool(false),
+		destinationService:  destinationService,
+		storage:             storage,
+		compressor:          compressor,
+		mutex:               &sync.Mutex{},
+		idsMutex:            &sync.Mutex{},
+		eventRetries:        map[string]int{},
+		identifiedQueue:     newQueue("users_identified"),
+		anonymousQueue:      newQueue("users_recognition"),
+		closed:              atomic.NewBool(false),
+		lastSystemErrorTime: timestamp.Now().Add(time.Second * -sysErrFreqSec),
 	}
 
 	for i := 0; i < configuration.PoolSize; i++ {
@@ -76,6 +80,14 @@ func NewRecognitionService(storage Storage, destinationService *destinations.Ser
 	}
 
 	return service, nil
+}
+
+func (rs *RecognitionService) systemErrorf(format string, v ...interface{}) {
+	now := timestamp.Now()
+	if timestamp.Now().After(rs.lastSystemErrorTime.Add(time.Second * sysErrFreqSec)) {
+		logging.SystemErrorf(format, v...)
+		rs.lastSystemErrorTime = now
+	}
 }
 
 func (rs *RecognitionService) startAnonymousObserver() {
@@ -90,17 +102,45 @@ func (rs *RecognitionService) startAnonymousObserver() {
 				continue
 			}
 
-			logging.SystemErrorf("Error reading recognition payload from queue: %v", err)
+			rs.systemErrorf("Error reading recognition payload from queue: %v", err)
 			continue
 		}
 		rp, ok := rpi.(*AnonymousPayload)
 		if !ok {
-			logging.SystemErrorf("wrong type of recognition payload dto in queue. Expected: *AnonymousPayload, actual: %T (%s)", rpi, rpi)
+			rs.systemErrorf("wrong type of recognition payload dto in queue. Expected: *AnonymousPayload, actual: %T (%s)", rpi, rpi)
 		}
 		if err := rs.processAnonymousPayload(rp); err != nil {
-			logging.SystemError(err)
+			rs.systemErrorf("System error: %v", err)
 		}
 	}
+}
+
+func (rs *RecognitionService) getAggregatedIdentifiers() (map[EventKey]map[string]interface{}, error) {
+	rs.idsMutex.Lock()
+	defer rs.idsMutex.Unlock()
+
+	size := rs.identifiedQueue.Size()
+	if size == 0 {
+		size = 1
+	}
+	aggregatedIdentifiers := map[EventKey]map[string]interface{}{}
+	notAggrSize := 0
+	for i := int64(0); i < size; i++ {
+		identified, err := rs.identifiedQueue.DequeueBlock()
+		if err != nil {
+			return nil, fmt.Errorf("Error reading recognition payload from queue: %v", err)
+		}
+		eventIdentifiers, ok := identified.([]*EventIdentifiers)
+		if !ok {
+			return nil, fmt.Errorf("wrong type of recognition payload dto in queue. Expected: []*EventIdentifiers, actual: %T (%s)", identified, identified)
+		}
+		notAggrSize = notAggrSize + len(eventIdentifiers)
+		for _, ids := range eventIdentifiers {
+			aggregatedIdentifiers[ids.EventKey] = ids.IdentificationValues
+		}
+	}
+	logging.Infof("Identified events total: %d aggregated: %d", notAggrSize, len(aggregatedIdentifiers))
+	return aggregatedIdentifiers, nil
 }
 
 func (rs *RecognitionService) startIdentifiedObserver() {
@@ -108,40 +148,16 @@ func (rs *RecognitionService) startIdentifiedObserver() {
 		if rs.closed.Load() {
 			break
 		}
-
-		rs.idsMutex.Lock()
-		size := rs.identifiedQueue.Size()
-		if size == 0 {
-			size = 1
+		aggregatedIdentifiers, err := rs.getAggregatedIdentifiers()
+		if err != nil {
+			rs.systemErrorf("System error: %v", err)
+			continue
 		}
-		aggregatedIdentifiers := map[EventKey]map[string]interface{}{}
-		notAggrSize := 0
-		for i := int64(0); i < size; i++ {
-			identified, err := rs.identifiedQueue.DequeueBlock()
-			if err != nil {
-				if rs.closed.Load() {
-					break
-				}
-				logging.SystemErrorf("Error reading recognition payload from queue: %v", err)
-				continue
-			}
-			eventIdentifiers, ok := identified.([]*EventIdentifiers)
-			if !ok {
-				logging.SystemErrorf("wrong type of recognition payload dto in queue. Expected: []*EventIdentifiers, actual: %T (%s)", identified, identified)
-				rs.idsMutex.Unlock()
-				return
-			}
-			notAggrSize = notAggrSize + len(eventIdentifiers)
-			for _, ids := range eventIdentifiers {
-				aggregatedIdentifiers[ids.EventKey] = ids.IdentificationValues
-			}
-		}
-		rs.idsMutex.Unlock()
-		logging.Infof("Identified events total: %d aggregated: %d", notAggrSize, len(aggregatedIdentifiers))
 
 		for eventKey, values := range aggregatedIdentifiers {
 			if err := rs.reprocessAnonymousEvents(eventKey, values); err != nil {
-				logging.SystemError(err)
+				rs.systemErrorf("System error: %v", err)
+				break
 			}
 		}
 	}
@@ -174,14 +190,14 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 	if anonymousPayload != nil {
 		if err := rs.anonymousQueue.Enqueue(anonymousPayload); err != nil {
 			rpBytes, _ := json.Marshal(anonymousPayload)
-			logging.SystemErrorf("Error saving recognition anonymous payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.Serialize(), err)
+			rs.systemErrorf("Error saving recognition anonymous payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.Serialize(), err)
 			return
 		}
 	}
 	if len(identified) > 0 {
 		if err := rs.identifiedQueue.Enqueue(identified); err != nil {
 			rpBytes, _ := json.Marshal(anonymousPayload)
-			logging.SystemErrorf("Error saving recognition identified payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.Serialize(), err)
+			rs.systemErrorf("Error saving recognition identified payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.Serialize(), err)
 			return
 		}
 	}
@@ -277,7 +293,7 @@ func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, ident
 	for storedEventID, storedSerializedEvent := range eventsMap {
 		event, err := rs.deserialize(storedSerializedEvent)
 		if err != nil {
-			logging.SystemErrorf("[%s] error deserializing event [%s]: %v", destinationID, storedSerializedEvent, err)
+			return fmt.Errorf("[%s] error deserializing event [%s]: %v", destinationID, storedSerializedEvent, err)
 			continue
 		}
 
@@ -288,11 +304,6 @@ func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, ident
 		}
 
 		if err := storage.Update(event); err != nil {
-			if storages.IsConnectionError(err) {
-				return err
-			}
-
-			//retry 3 times if not connection error
 			rs.mutex.Lock()
 			rs.eventRetries[storedEventID]++
 			count, _ := rs.eventRetries[storedEventID]
@@ -335,7 +346,13 @@ func (rs *RecognitionService) Close() (multiErr error) {
 
 	if rs.anonymousQueue != nil {
 		if err := rs.anonymousQueue.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("error closing users recognition queue: %v", err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("error closing users recognition anonymous queue: %v", err))
+		}
+	}
+
+	if rs.identifiedQueue != nil {
+		if err := rs.identifiedQueue.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("error closing users recognition identified queue: %v", err))
 		}
 	}
 

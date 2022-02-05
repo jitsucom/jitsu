@@ -47,6 +47,8 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 		return
 	}
 
+	needCopyEvent := len(storageProxies) > 1
+
 	eventObjects, err := extractBulkEvents(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
@@ -63,7 +65,7 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 	rowsCount := len(eventObjects)
 
 	for _, storageProxy := range storageProxies {
-		if err := bh.upload(storageProxy, eventObjects); err != nil {
+		if err := bh.upload(storageProxy, eventObjects, needCopyEvent); err != nil {
 
 			metrics.ErrorTokenEvents(tokenID, storageProxy.Type(), storageProxy.ID(), rowsCount)
 			metrics.ErrorTokenObjects(tokenID, rowsCount)
@@ -112,7 +114,7 @@ func extractBulkEvents(c *gin.Context) ([]map[string]interface{}, error) {
 	return objects, nil
 }
 
-func (bh *BulkHandler) upload(storageProxy storages.StorageProxy, objects []map[string]interface{}) error {
+func (bh *BulkHandler) upload(storageProxy storages.StorageProxy, objects []map[string]interface{}, needCopyEvent bool) error {
 	storage, ok := storageProxy.Get()
 	if !ok {
 		return fmt.Errorf("Destination [%s] hasn't been initialized yet", storage.ID())
@@ -122,7 +124,7 @@ func (bh *BulkHandler) upload(storageProxy storages.StorageProxy, objects []map[
 			"cannot be used to store data (only available for dry-run)", storage.ID())
 	}
 
-	return storage.SyncStore(nil, objects, "", true)
+	return storage.SyncStore(nil, objects, "", true, needCopyEvent)
 }
 
 //readFileBytes reads file from form data and returns byte payload or err if occurred

@@ -116,7 +116,7 @@ return $
 			afterJson, err := parsers.ParseInterface(tt.input)
 			require.NoError(t, err)
 
-			envelopes, err := p.ProcessEvent(afterJson)
+			envelopes, err := p.ProcessEvent(afterJson, false)
 			if tt.expectedErr != "" {
 				require.Error(t, err)
 				require.Equal(t, tt.expectedErr, err.Error())

@@ -92,6 +92,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 			}
 		}
 
+		needCopyEvent := len(rs.destinations) > 1
 		rowsCount := len(stream.Objects)
 		//Sync stream
 		for _, storage := range rs.destinations {
@@ -102,7 +103,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 				}
 				stream.NeedClean = false
 			}
-			err := storage.SyncStore(stream.BatchHeader, stream.Objects, "", false)
+			err := storage.SyncStore(stream.BatchHeader, stream.Objects, "", false, needCopyEvent)
 			if err != nil {
 				errMsg := fmt.Sprintf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
 				metrics.ErrorSourceEvents(rs.task.SourceType, rs.tap, rs.task.Source, storage.Type(), storage.ID(), rowsCount)

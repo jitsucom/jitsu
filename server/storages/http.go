@@ -31,12 +31,12 @@ func (h *HTTPStorage) DryRun(payload events.Event) ([][]adapters.TableField, err
 }
 
 //Store isn't supported
-func (h *HTTPStorage) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+func (h *HTTPStorage) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
 	return nil, nil, nil, fmt.Errorf("%s doesn't support Store() func", h.Type())
 }
 
 //SyncStore isn't supported
-func (h *HTTPStorage) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
+func (h *HTTPStorage) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
 	return fmt.Errorf("%s doesn't support Store() func", h.Type())
 }
 

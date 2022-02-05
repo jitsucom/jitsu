@@ -92,7 +92,7 @@ func (sw *StreamingWorker) start() {
 				RawEvent:      fact,
 			}
 
-			envelops, err := sw.processor.ProcessEvent(fact)
+			envelops, err := sw.processor.ProcessEvent(fact, true)
 			if err != nil {
 				if err == schema.ErrSkipObject {
 					if !appconfig.Instance.DisableSkipEventsWarn {
