@@ -120,7 +120,7 @@ func (u *PeriodicUploader) Start() {
 
 				//flag for archiving file if all storages don't have errors while storing this file
 				archiveFile := true
-				for _, storageProxy := range storageProxies {
+				for i, storageProxy := range storageProxies {
 					storage, ok := storageProxy.Get()
 					if !ok {
 						archiveFile = false
@@ -135,7 +135,7 @@ func (u *PeriodicUploader) Start() {
 						}
 					}
 
-					resultPerTable, failedEvents, skippedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables, needCopyEvent)
+					resultPerTable, failedEvents, skippedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables, needCopyEvent && i > 0)
 
 					if !skippedEvents.IsEmpty() {
 						metrics.SkipTokenEvents(tokenID, storage.Type(), storage.ID(), len(skippedEvents.Events))
