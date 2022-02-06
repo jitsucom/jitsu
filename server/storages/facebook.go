@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/templates"
 )
 
 //go:embed transform/facebook.js
@@ -31,11 +30,7 @@ func NewFacebook(config *Config) (Storage, error) {
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 
-	es5transform, err := templates.Babelize(facebookTransform)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert transformation code to es5: %v", err)
-	}
-	config.processor.AddJavaScript(es5transform)
+	config.processor.AddJavaScript(facebookTransform)
 	config.processor.SetDefaultUserTransform(`return toFacebook($)`)
 
 	fb := &Facebook{}
