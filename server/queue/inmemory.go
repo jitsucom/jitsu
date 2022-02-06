@@ -2,6 +2,7 @@ package queue
 
 import (
 	"errors"
+	"github.com/jitsucom/jitsu/server/logging"
 )
 
 import (
@@ -20,9 +21,15 @@ var (
 	ErrQueueEmpty      = errors.New("queue is empty")
 )
 
+// minQueueLen is smallest capacity that queue may have.
+// Must be power of 2 for bitwise modulus: x % n == x & (n - 1).
+const minQueueLen = 1024
+
 // InMemory is an in-memory RWMutex+slice based Queue
 type InMemory struct {
-	slice []interface{}
+	buf               []interface{}
+	head, tail, count int
+
 	mutex sync.RWMutex
 
 	// queue for watchers that will wait for next elements (if queue is empty at DequeueOrWaitForNextElement execution )
@@ -33,7 +40,7 @@ type InMemory struct {
 
 func NewInMemory() Queue {
 	im := &InMemory{
-		slice:                  make([]interface{}, 0, 30),
+		buf:                    make([]interface{}, minQueueLen),
 		waitForNextElementChan: make(chan chan interface{}, WaitForNextElementChanCapacity),
 		closed:                 make(chan struct{}, 1),
 	}
@@ -43,7 +50,6 @@ func NewInMemory() Queue {
 
 //Push enqueues an element. Returns ErrQueueClosed if queue is closed
 func (im *InMemory) Push(value interface{}) error {
-
 	// check if there is a listener waiting for the next element (this element)
 	select {
 	case <-im.closed:
@@ -54,20 +60,11 @@ func (im *InMemory) Push(value interface{}) error {
 		case listener <- value:
 		default:
 			// enqueue if listener is not ready
-
-			// lock the object to enqueue the element into the slice
-			im.mutex.Lock()
-			// enqueue the element
-			im.slice = append(im.slice, value)
-			defer im.mutex.Unlock()
+			im.add(value)
 		}
 
 	default:
-		// lock the object to enqueue the element into the slice
-		im.mutex.Lock()
-		// enqueue the element
-		im.slice = append(im.slice, value)
-		defer im.mutex.Unlock()
+		im.add(value)
 	}
 
 	return nil
@@ -92,7 +89,7 @@ func (im *InMemory) DequeueOrWaitForNextElementContext(ctx context.Context) (int
 
 		// get the slice's len
 		im.mutex.Lock()
-		length := len(im.slice)
+		length := im.count
 		im.mutex.Unlock()
 
 		if length == 0 {
@@ -136,19 +133,10 @@ func (im *InMemory) DequeueOrWaitForNextElementContext(ctx context.Context) (int
 			}
 		}
 
-		im.mutex.Lock()
-
-		// verify that at least 1 item resides on the queue
-		if len(im.slice) == 0 {
-			im.mutex.Unlock()
+		elementToReturn, err := im.dequeue()
+		if err != nil {
 			continue
 		}
-		elementToReturn := im.slice[0]
-		//clear reference to free memory
-		im.slice[0] = nil
-		im.slice = im.slice[1:]
-
-		im.mutex.Unlock()
 		return elementToReturn, nil
 	}
 }
@@ -158,7 +146,39 @@ func (im *InMemory) Size() int64 {
 	im.mutex.RLock()
 	defer im.mutex.RUnlock()
 
-	return int64(len(im.slice))
+	return int64(im.count)
+}
+
+// resizes the queue to fit exactly twice its current contents
+// this can result in shrinking if the queue is less than half-full
+func (im *InMemory) resize() {
+	logging.Info("ImQueue resize current cap: %d size: %d new cap: %d", cap(im.buf), im.count, im.count<<1)
+	newBuf := make([]interface{}, im.count<<1)
+
+	if im.tail > im.head {
+		copy(newBuf, im.buf[im.head:im.tail])
+	} else {
+		n := copy(newBuf, im.buf[im.head:])
+		copy(newBuf[n:], im.buf[:im.tail])
+	}
+
+	im.head = 0
+	im.tail = im.count
+	im.buf = newBuf
+}
+
+// Add puts an element on the end of the queue.
+func (im *InMemory) add(elem interface{}) {
+	im.mutex.Lock()
+	defer im.mutex.Unlock()
+	if im.count == len(im.buf) {
+		im.resize()
+	}
+
+	im.buf[im.tail] = elem
+	// bitwise modulus
+	im.tail = (im.tail + 1) & (len(im.buf) - 1)
+	im.count++
 }
 
 func (im *InMemory) Type() string {
@@ -174,16 +194,17 @@ func (im *InMemory) Close() error {
 func (im *InMemory) dequeue() (interface{}, error) {
 	im.mutex.Lock()
 	defer im.mutex.Unlock()
-
-	size := len(im.slice)
-	if size == 0 {
+	if im.count <= 0 {
 		return nil, ErrQueueEmpty
 	}
-
-	elementToReturn := im.slice[0]
-	//clear reference to free memory
-	im.slice[0] = nil
-	im.slice = im.slice[1:]
-
-	return elementToReturn, nil
+	ret := im.buf[im.head]
+	im.buf[im.head] = nil
+	// bitwise modulus
+	im.head = (im.head + 1) & (len(im.buf) - 1)
+	im.count--
+	// Resize down if buffer 1/4 full.
+	if len(im.buf) > minQueueLen && (im.count<<2) == len(im.buf) {
+		im.resize()
+	}
+	return ret, nil
 }
