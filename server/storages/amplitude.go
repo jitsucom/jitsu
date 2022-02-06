@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/templates"
 )
 
 //go:embed transform/amplitude.js
@@ -29,11 +28,7 @@ func NewAmplitude(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	es5transform, err := templates.Babelize(amplitudeTransform)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert transformation code to es5: %v", err)
-	}
-	config.processor.AddJavaScript(es5transform)
+	config.processor.AddJavaScript(amplitudeTransform)
 	config.processor.SetDefaultUserTransform(`return toAmplitude($)`)
 
 	a := &Amplitude{}

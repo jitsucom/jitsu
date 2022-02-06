@@ -2,7 +2,6 @@ package queue
 
 import (
 	"errors"
-	"github.com/jitsucom/jitsu/server/logging"
 )
 
 import (
@@ -23,7 +22,7 @@ var (
 
 // minQueueLen is smallest capacity that queue may have.
 // Must be power of 2 for bitwise modulus: x % n == x & (n - 1).
-const minQueueLen = 1024
+const minQueueLen = 2048
 
 // InMemory is an in-memory RWMutex+slice based Queue
 type InMemory struct {
@@ -152,7 +151,6 @@ func (im *InMemory) Size() int64 {
 // resizes the queue to fit exactly twice its current contents
 // this can result in shrinking if the queue is less than half-full
 func (im *InMemory) resize() {
-	logging.Info("ImQueue resize current cap: %d size: %d new cap: %d", cap(im.buf), im.count, im.count<<1)
 	newBuf := make([]interface{}, im.count<<1)
 
 	if im.tail > im.head {

@@ -425,11 +425,7 @@ Mapping feature is deprecated. It is recommended to migrate to javascript data t
 	if userTransform != "" {
 		if strings.Contains(userTransform, "toSegment") {
 			//seems like built-in to segment transformation is used. We need to load script
-			segment, err := templates.Babelize(segmentTransform)
-			if err != nil {
-				return fmt.Errorf("failed to init transform segment.js: %v", err)
-			}
-			p.AddJavaScript(segment)
+			p.AddJavaScript(segmentTransform)
 		}
 		transformer, err := templates.NewV8TemplateExecutor(userTransform, p.jsVariables, p.javaScripts...)
 		if err != nil {
