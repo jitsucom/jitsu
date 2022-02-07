@@ -19,7 +19,13 @@ export type ApiRequestOptions = {
    * If set to true, Auth header should not be added
    */
   noauth?: boolean
+  /**
+   * API version
+   */
+  version?: number
 }
+
+const DEFAULT_OPTIONS: ApiRequestOptions = {version: 1} as const
 
 /**
  * Backend API client. Authorization is handled by implementation
@@ -42,6 +48,12 @@ export interface BackendApiClient {
   getRaw(url, opts?: ApiRequestOptions): Promise<string>
 
   get(url: string, opts?: ApiRequestOptions): Promise<any>
+
+  put(url, payload: unknown, opts?: ApiRequestOptions): Promise<any>
+
+  patch(url, payload: unknown, opts?: ApiRequestOptions): Promise<any>
+
+  delete(url, opts?: ApiRequestOptions): Promise<any>
 }
 
 export class APIError extends Error {
@@ -137,13 +149,13 @@ export class JWTBackendClient implements BackendApiClient {
     method: Method,
     transform: AxiosTransformer,
     url: string,
-    payload: any,
-    opts: ApiRequestOptions
+    payload: unknown,
+    options: ApiRequestOptions = { version: 1 }
   ): Promise<any> {
-    let fullUrl = concatenateURLs(this.baseUrl, url)
-    if (opts.proxy) {
-      fullUrl = concatenateURLs(this.proxyUrl, url)
-    }
+    const opts = {...DEFAULT_OPTIONS, ...(options ?? {})}
+    const baseUrl = opts.proxy ? this.proxyUrl : this.baseUrl
+    const baseUrlWithApiVersion = concatenateURLs(baseUrl, `/v${opts.version}/`)
+    let fullUrl = concatenateURLs(baseUrlWithApiVersion, url)
     if (opts.urlParams) {
       fullUrl +=
         "?" +
@@ -153,7 +165,7 @@ export class JWTBackendClient implements BackendApiClient {
           .join("&")
     }
 
-    let request: AxiosRequestConfig = {
+    const request: AxiosRequestConfig = {
       method: method,
       url: fullUrl,
       transformResponse: transform,
@@ -224,18 +236,30 @@ export class JWTBackendClient implements BackendApiClient {
   }
 
   get(url: string, opts?: ApiRequestOptions): Promise<any> {
-    return this.exec("get", JSON_FORMAT, url, undefined, opts ?? {})
+    return this.exec("get", JSON_FORMAT, url, undefined, opts)
   }
 
   post(url: string, data: any, opts?: ApiRequestOptions): Promise<any> {
-    return this.exec("post", JSON_FORMAT, url, data, opts ?? {})
+    return this.exec("post", JSON_FORMAT, url, data, opts)
   }
 
-  postRaw(url, data: any, opts?: ApiRequestOptions): Promise<string> {
-    return this.exec("post", AS_IS_FORMAT, url, data ?? {}, opts ?? {})
+  put(url: string, data: unknown, opts?: ApiRequestOptions): Promise<any> {
+    return this.exec("put", JSON_FORMAT, url, data, opts)
+  }
+
+  patch(url: string, data: unknown, opts?: ApiRequestOptions): Promise<any> {
+    return this.exec("patch", JSON_FORMAT, url, data, opts)
+  }
+
+  delete(url: string, opts?: ApiRequestOptions): Promise<any> {
+    return this.exec("delete", JSON_FORMAT, url, undefined, opts)
+  }
+
+  postRaw(url, data: unknown, opts?: ApiRequestOptions): Promise<string> {
+    return this.exec("post", AS_IS_FORMAT, url, data ?? {}, opts)
   }
 
   getRaw(url, opts?: ApiRequestOptions): Promise<string> {
-    return this.exec("get", AS_IS_FORMAT, url, undefined, opts ?? {})
+    return this.exec("get", AS_IS_FORMAT, url, undefined, opts)
   }
 }

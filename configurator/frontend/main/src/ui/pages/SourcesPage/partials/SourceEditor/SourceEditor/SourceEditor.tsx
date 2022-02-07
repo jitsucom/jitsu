@@ -1,11 +1,11 @@
 // @Libs
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useMemo, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { useHistory, useParams } from "react-router"
 import { cloneDeep, snakeCase, uniqueId } from "lodash"
 // @Types
 import { CommonSourcePageProps } from "ui/pages/SourcesPage/SourcesPage"
-import { SourceConnector as CatalogSourceConnector, SourceConnector } from "@jitsu/catalog/sources/types"
+import { SourceConnector as CatalogSourceConnector } from "@jitsu/catalog/sources/types"
 // @Store
 import { sourcesStore } from "stores/sources"
 // @Catalog
@@ -259,8 +259,8 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
         ...testConnectionResults,
       }
 
-      if (editorMode === "add") sourcesStore.addSource(sourceDataToSave)
-      if (editorMode === "edit") sourcesStore.editSources(sourceDataToSave)
+      if (editorMode === "add") sourcesStore.add(sourceDataToSave)
+      if (editorMode === "edit") sourcesStore.replace(sourceDataToSave)
 
       handleLeaveEditor({ goToSourcesList: true })
 

@@ -1,8 +1,6 @@
 // @Libs
 import ReactDOM from "react-dom"
 import { BrowserRouter } from "react-router-dom"
-// @MobX
-import "stores/_setupMobx"
 // @App component
 import App from "./App"
 // @Styles
