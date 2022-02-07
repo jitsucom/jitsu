@@ -35,7 +35,7 @@ const ConnectionsPageComponent: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null)
 
   const updateLines = () => {
-    destinationsStore.destinations.forEach(({ _uid, _onlyKeys = [], _sources = [] }) => {
+    destinationsStore.list.forEach(({ _uid, _onlyKeys = [], _sources = [] }) => {
       ;[..._onlyKeys, ..._sources].forEach(sourceId => {
         const start = document.getElementById(sourceId)
         const end = document.getElementById(_uid)
@@ -82,7 +82,7 @@ const ConnectionsPageComponent: React.FC = () => {
     return () => {
       eraseLines()
     }
-  }, [destinationsStore.destinations, sourcesStore.list, apiKeysStore.apiKeys])
+  }, [destinationsStore.list, sourcesStore.list, apiKeysStore.list])
 
   return (
     <div ref={containerRef} className="relative flex justify-center w-full h-full overflow-y-auto">
@@ -107,7 +107,7 @@ const ConnectionsPageComponent: React.FC = () => {
         >
           {apiKeysStore.hasApiKeys || !!sourcesStore.list.length ? (
             [
-              ...apiKeysStore.apiKeys.map(apiKey => {
+              ...apiKeysStore.list.map(apiKey => {
                 return (
                   <CardContainer id={apiKey.uid} key={apiKey.uid}>
                     <EntityCard
@@ -185,8 +185,8 @@ const ConnectionsPageComponent: React.FC = () => {
             </div>
           }
         >
-          {destinationsStore.hasDestinations ? (
-            destinationsStore.destinations.map(dst => {
+          {destinationsStore.list.length ? (
+            destinationsStore.list.map(dst => {
               return (
                 <CardContainer id={dst._uid} key={dst._uid}>
                   <EntityCard

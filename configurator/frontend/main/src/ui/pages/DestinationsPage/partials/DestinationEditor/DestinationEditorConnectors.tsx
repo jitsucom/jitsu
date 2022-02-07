@@ -9,9 +9,6 @@ import { sourcesStore } from "stores/sources"
 import useLoader from "hooks/useLoader"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
-// @Utils
-import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
-import { destinationEditorUtils } from "ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils"
 // @Components
 import { NameWithPicture, ConnectedItems, ConnectedItem } from "ui/components/ConnectedItems/ConnectedItems"
 import { CenteredError, CenteredSpin } from "lib/components/components"
@@ -63,7 +60,7 @@ const DestinationEditorConnectorsComponent = ({ form, initialValues, destination
   const apiKeysList = useMemo<ConnectedItem[]>(
     () =>
       apiKeysData?.keys
-        ? apiKeysData.keys.map((key: APIKey) => ({
+        ? apiKeysData.keys.map((key: ApiKey) => ({
             title: <span>{APIKeyUtil.getDisplayName(key)}</span>,
             id: key.uid,
           }))
