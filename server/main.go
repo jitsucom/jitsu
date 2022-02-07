@@ -375,7 +375,7 @@ func main() {
 		logging.Fatalf("Error initializing users recognition storage: %v", err)
 	}
 
-	usersRecognitionService, err := users.NewRecognitionService(userRecognitionStorage, destinationsService, globalRecognitionConfiguration)
+	usersRecognitionService, err := users.NewRecognitionService(userRecognitionStorage, destinationsService, globalRecognitionConfiguration, viper.GetString("server.fields_configuration.user_agent_path"))
 	if err != nil {
 		logging.Fatal(err)
 	}
