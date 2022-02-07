@@ -125,7 +125,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	err = globalRecognitionConfiguration.Validate()
 	require.NoError(t, err)
 
-	dummyRecognitionService, _ := users.NewRecognitionService(&users.Dummy{}, nil, nil)
+	dummyRecognitionService, _ := users.NewRecognitionService(&users.Dummy{}, nil, nil, "/eventn_ctx/user_agent||/user_agent")
 
 	systemService := system.NewService("")
 
@@ -194,7 +194,7 @@ func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
 	storage, err := users.InitializeStorage(true, viper.Sub("meta.storage"))
 	require.NoError(t, err)
 
-	usersRecognitionService, err := users.NewRecognitionService(storage, sb.destinationService, sb.globalUsersRecognitionConfig)
+	usersRecognitionService, err := users.NewRecognitionService(storage, sb.destinationService, sb.globalUsersRecognitionConfig, "/eventn_ctx/user_agent||/user_agent")
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(usersRecognitionService)
 

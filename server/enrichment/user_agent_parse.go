@@ -67,6 +67,10 @@ func (uap *UserAgentParseRule) Execute(event map[string]interface{}) {
 			return
 		}
 		uap.mutex.Lock()
+		if len(uap.cache) > 100_000 {
+			logging.Infof("Cleaning up user-agent's cache.")
+			uap.cache = map[string]map[string]interface{}{}
+		}
 		uap.cache[ua] = parsedUAMap
 		uap.mutex.Unlock()
 	}

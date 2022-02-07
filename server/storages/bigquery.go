@@ -106,9 +106,9 @@ func NewBigQuery(config *Config) (Storage, error) {
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
 	_, tableHelper := bq.getAdapters()
-	flatData, failedEvents, skippedEvents, err := bq.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	flatData, failedEvents, skippedEvents, err := bq.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -198,14 +198,14 @@ func (bq *BigQuery) Update(object map[string]interface{}) error {
 }
 
 // SyncStore is used in storing chunk of pulled data to BigQuery with processing
-func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
+func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
 	if len(objects) == 0 {
 		return nil
 	}
 
 	_, tableHelper := bq.getAdapters()
 
-	flatDataPerTable, err := processData(bq, overriddenDataSchema, objects, timeIntervalValue)
+	flatDataPerTable, err := processData(bq, overriddenDataSchema, objects, timeIntervalValue, needCopyEvent)
 	if err != nil {
 		return err
 	}
