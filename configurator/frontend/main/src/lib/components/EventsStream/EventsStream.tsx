@@ -311,7 +311,7 @@ const EventsList: React.FC<{ destinationsFilter: string[]; reloadCount: number }
   const [selectedEvent, setSelectedEvent] = useState(null)
   const services = useServices()
 
-  const destinationsMap: Record<string, DestinationData> = destinationsStore.allDestinations.reduce((index, dst) => {
+  const destinationsMap: Record<string, DestinationData> = destinationsStore.listIncludeHidden.reduce((index, dst) => {
     index[dst._uid] = dst
     return index
   }, {})
@@ -419,7 +419,7 @@ const EventStreamComponent = () => {
       <div className="mb-6 flex justify-between">
         <DestinationsFilter
           initialFilter={filterByIds}
-          allDestinations={destinationsStore.allDestinations}
+          allDestinations={destinationsStore.listIncludeHidden}
           onChange={ids => {
             setFilterByIds(ids)
             history.push({ search: `onlyIds=${ids}` })

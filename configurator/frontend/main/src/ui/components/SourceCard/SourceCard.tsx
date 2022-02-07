@@ -118,7 +118,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
       onCancel: () => {},
       onOk: async () => {
         try {
-          await sourcesStore.deleteSource(src)
+          await sourcesStore.delete(src.sourceId)
           actionNotification.success("Sources list successfully updated")
         } catch (error) {
           handleError(error, "Unable to delete source at this moment, please try later.")

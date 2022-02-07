@@ -8,7 +8,7 @@ import { SourcesList } from "./partials/SourcesList/SourcesList"
 import { AddSourceDialog } from "./partials/AddSourceDialog/AddSourceDialog"
 import { CenteredError, CenteredSpin } from "lib/components/components"
 // @Store
-import { sourcesStore, SourcesStoreState } from "stores/sources"
+import { sourcesStore } from "stores/sources"
 // @Styles
 import "./SourcesPage.less"
 // @Types
@@ -16,6 +16,7 @@ import { BreadcrumbsProps } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { PageProps } from "navigation"
 import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
 import { SourceEditor } from "./partials/SourceEditor/SourceEditor/SourceEditor"
+import { EntitiesStoreState } from "stores/types.enums"
 
 export interface CollectionSourceData {
   sources: SourceData[]
@@ -32,9 +33,9 @@ export interface CommonSourcePageProps {
 const SourcesPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   const params = useParams<unknown>()
 
-  if (sourcesStore.state === SourcesStoreState.GLOBAL_ERROR) {
+  if (sourcesStore.state === EntitiesStoreState.GLOBAL_ERROR) {
     return <CenteredError error={sourcesStore.error} />
-  } else if (sourcesStore.state === SourcesStoreState.GLOBAL_LOADING) {
+  } else if (sourcesStore.state === EntitiesStoreState.GLOBAL_LOADING) {
     return <CenteredSpin />
   }
 

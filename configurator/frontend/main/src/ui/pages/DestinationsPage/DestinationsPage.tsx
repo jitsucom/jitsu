@@ -5,8 +5,8 @@ import { observer } from "mobx-react-lite"
 import { DestinationsList } from "./partials/DestinationsList/DestinationsList"
 import { DestinationEditor } from "./partials/DestinationEditor/DestinationEditor"
 // @Store
-import { destinationsStore, DestinationsStoreState } from "stores/destinations"
-import { sourcesStore, SourcesStoreState } from "stores/sources"
+import { destinationsStore } from "stores/destinations"
+import { sourcesStore } from "stores/sources"
 // @Routes
 import { destinationPageRoutes } from "./DestinationsPage.routes"
 // @Components
@@ -17,6 +17,7 @@ import { BreadcrumbsProps } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { DestinationStatistics } from "./partials/DestinationStatistics/DestinationStatistics"
 import { ErrorBoundary } from "../../../lib/components/ErrorBoundary/ErrorBoundary"
 import { AddDestinationDialog } from "./partials/AddDestinationDialog/AddDestinationDialog"
+import { EntitiesStoreState } from "stores/types.enums"
 
 export interface CollectionDestinationData {
   destinations: DestinationData[]
@@ -31,11 +32,11 @@ export interface CommonDestinationPageProps {
 const DestinationsPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   const params = useParams<unknown>()
 
-  if (destinationsStore.state === DestinationsStoreState.GLOBAL_ERROR) {
+  if (destinationsStore.state === EntitiesStoreState.GLOBAL_ERROR) {
     return <CenteredError error={destinationsStore.error} />
   } else if (
-    destinationsStore.state === DestinationsStoreState.GLOBAL_LOADING ||
-    sourcesStore.state === SourcesStoreState.GLOBAL_LOADING
+    destinationsStore.state === EntitiesStoreState.GLOBAL_LOADING ||
+    sourcesStore.state === EntitiesStoreState.GLOBAL_LOADING
   ) {
     return <CenteredSpin />
   }
