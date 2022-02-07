@@ -73,8 +73,8 @@ func (s3 *S3) DryRun(events.Event) ([][]adapters.TableField, error) {
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
-	processedFiles, failedEvents, skippedEvents, err := s3.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+	processedFiles, failedEvents, skippedEvents, err := s3.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -186,7 +186,7 @@ func findStartEndTimestamp(fdata []map[string]interface{}) (time.Time, time.Time
 }
 
 //SyncStore isn't supported
-func (s3 *S3) SyncStore(*schema.BatchHeader, []map[string]interface{}, string, bool) error {
+func (s3 *S3) SyncStore(*schema.BatchHeader, []map[string]interface{}, string, bool, bool) error {
 	return errors.New("S3 doesn't support sync store")
 }
 

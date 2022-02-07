@@ -79,12 +79,12 @@ func NewDbtCloud(config *Config) (Storage, error) {
 }
 
 //SyncStore isn't supported silently
-func (dbt *DbtCloud) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
+func (dbt *DbtCloud) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
 	return nil
 }
 
 //Store isn't supported silently
-func (dbt *DbtCloud) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+func (dbt *DbtCloud) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
 	return nil, nil, nil, nil
 }
 
