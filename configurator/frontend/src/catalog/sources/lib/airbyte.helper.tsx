@@ -86,14 +86,22 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
     case "string": {
       const name: string = specNode["title"] ?? nodeName
       const pattern = specNode["pattern"]
-      let defaultValue = undefined
       const now = new Date()
       const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-      if (
+
+      let defaultValue = undefined
+      if (specNode["default"] !== undefined) {
+        defaultValue = specNode["default"]
+      } else if (
         pattern === "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" ||
         description?.includes("YYYY-MM-DDT00:00:00Z")
       ) {
         // defaultValue = moment().add(-1, "months").startOf("month").format("YYYY-MM-DDT00:00:00") + "Z"
+        defaultValue = startOfPrevMonth.toISOString().split(".")[0] + "Z"
+      } else if (
+        pattern === "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}Z$" ||
+        description?.includes("YYYY-MM-DDT00:00:00.000Z")
+      ) {
         defaultValue = startOfPrevMonth.toISOString()
       } else if (pattern === "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" || /YYYY-MM-DD[^T]/.test(description)) {
         // defaultValue = moment().add(-1, "months").startOf("month").format("YYYY-MM-DD")
@@ -120,10 +128,11 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
         required,
         documentation,
         omitFieldRule,
-        defaultValue,
         ...setChildrenParameters,
       }
-      if (specNode["default"] !== undefined) mappedStringField.defaultValue = specNode["default"]
+      if (defaultValue) {
+        mappedStringField.defaultValue = defaultValue
+      }
       return [mappedStringField]
     }
 

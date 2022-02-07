@@ -140,23 +140,25 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 			if sferr.Number == sf.ErrObjectNotExistOrAuthorized {
 				snowflakeSchema := config.Schema
 				config.Schema = ""
-				snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
+				//create adapter without a certain schema
+				tmpSnowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
 				if err != nil {
 					return nil, err
 				}
+				defer tmpSnowflakeAdapter.Close()
+
 				config.Schema = snowflakeSchema
 				//create schema and reconnect
-				err = snowflakeAdapter.CreateDbSchema(config.Schema)
-				if err != nil {
+				if err = tmpSnowflakeAdapter.CreateDbSchema(config.Schema); err != nil {
 					return nil, err
 				}
-				snowflakeAdapter.Close()
 
-				snowflakeAdapter, err = adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
+				//create adapter with a certain schema
+				snowflakeAdapterWithSchema, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
 				if err != nil {
 					return nil, err
 				}
-				return snowflakeAdapter, nil
+				return snowflakeAdapterWithSchema, nil
 			}
 		}
 		return nil, err
