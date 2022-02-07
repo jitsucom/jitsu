@@ -1,9 +1,12 @@
-# Configuration File
+# Configurator
 
-If **Jitsu Configurator** is deployed in a standlone mode, it should be configured via single YAML file
-(read more about deployment options [here](/docs/deployment/)).
+**Jitsu Configurator** is a service that's provide a UI and API for configuring Jitsu. Configurator is an optional, but highly recommended
+services (read more about `@jitsucom/server` and `@jitsucom/configurator` relations on a [docker deployment page](/docs/deployment/deploy-with-docker))
 
-Jitsu Configurator config file consists of the following sections:
+If **Jitsu Configurator** is deployed in a standalone mode (not a part of [joint image](/docs/deployment/deploy-with-docker/joint-image)), it should be configured via single YAML file
+or with [env variables](/docs/deployment/deploy-with-docker/jitsu-configurator) if you're deploying it with Docker
+
+The file consists of the following sections:
 
 * `server` — General configuration parameters such as port, application logs configuration, CORS, etc.
 * `jitsu` — Jitsu Server address configuration. Configurator UI proxies some requests from UI to Jitsu Server via Configurator e.g. getting Live events and Statistics data or Destinations Test requests.

@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/templates"
 )
 
 //go:embed transform/google_analytics.js
@@ -26,11 +25,7 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 		return nil, fmt.Errorf("Google Analytics destination doesn't support %s mode", BatchMode)
 	}
 
-	es5transform, err := templates.Babelize(googleAnalyticsTransform)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert transformation code to es5: %v", err)
-	}
-	config.processor.AddJavaScript(es5transform)
+	config.processor.AddJavaScript(googleAnalyticsTransform)
 	config.processor.SetDefaultUserTransform(`return toGoogleAnalytics($)`)
 
 	gaConfig := &adapters.GoogleAnalyticsConfig{}
