@@ -38,7 +38,7 @@ func ParseJSONAsFile(newPath string, value interface{}) (string, error) {
 		if err == nil && len(content) > 0 && strings.HasPrefix(string(content), "{") {
 			testObj := map[string]interface{}{}
 			if err := json.Unmarshal(content, &testObj); err != nil {
-				return "", fmt.Errorf("value must contain a valid JSON: %v", value)
+				return "", fmt.Errorf("value in file %s must contain a valid JSON", value)
 			}
 
 			return valueString, nil
