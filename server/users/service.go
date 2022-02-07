@@ -142,7 +142,7 @@ func (rs *RecognitionService) getAggregatedIdentifiers() (map[EventKey]map[strin
 			aggregatedIdentifiers[ids.EventKey] = ids.IdentificationValues
 		}
 	}
-	logging.Infof("Identified events total: %d aggregated: %d", notAggrSize, len(aggregatedIdentifiers))
+	logging.Debugf("Identified events total: %d aggregated: %d", notAggrSize, len(aggregatedIdentifiers))
 	return aggregatedIdentifiers, nil
 }
 
@@ -196,7 +196,7 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 	}
 	if len(identified) > 0 {
 		if err := rs.identifiedQueue.Enqueue(identified); err != nil {
-			rpBytes, _ := json.Marshal(anonymousPayload)
+			rpBytes, _ := json.Marshal(identified)
 			rs.systemErrorf("Error saving recognition identified payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.Serialize(), err)
 			return
 		}
