@@ -125,9 +125,9 @@ func (m *MySQL) DryRun(payload events.Event) ([][]adapters.TableField, error) {
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (m *MySQL) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+func (m *MySQL) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
 	_, tableHelper := m.getAdapters()
-	flatData, failedEvents, skippedEvents, err := m.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	flatData, failedEvents, skippedEvents, err := m.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -194,8 +194,8 @@ func (m *MySQL) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) e
 }
 
 //SyncStore is used in storing chunk of pulled data to Postgres with processing
-func (m *MySQL) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return syncStoreImpl(m, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
+func (m *MySQL) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
+	return syncStoreImpl(m, overriddenDataSchema, objects, timeIntervalValue, cacheTable, needCopyEvent)
 }
 
 func (m *MySQL) Clean(tableName string) error {
@@ -205,7 +205,7 @@ func (m *MySQL) Clean(tableName string) error {
 //Update updates record in MySQL
 func (m *MySQL) Update(object map[string]interface{}) error {
 	_, tableHelper := m.getAdapters()
-	envelops, err := m.processor.ProcessEvent(object)
+	envelops, err := m.processor.ProcessEvent(object, false)
 	if err != nil {
 		return err
 	}

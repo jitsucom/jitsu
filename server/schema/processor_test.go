@@ -158,7 +158,7 @@ func TestProcessFilePayload(t *testing.T) {
 			objects, err := parsers.ParseJSONFileWithFunc(fBytes, tt.parseFunc)
 			require.NoError(t, err)
 
-			actual, failed, skipped, err := p.ProcessEvents("testfile", objects, map[string]bool{})
+			actual, failed, skipped, err := p.ProcessEvents("testfile", objects, map[string]bool{}, false)
 			require.NoError(t, err)
 
 			if len(tt.expectedSkipped) > 0 {
@@ -338,7 +338,7 @@ func TestProcessFact(t *testing.T) {
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			envelopes, err := p.ProcessEvent(tt.input)
+			envelopes, err := p.ProcessEvent(tt.input, false)
 
 			if tt.expectedErr != "" {
 				require.Error(t, err)
@@ -455,7 +455,7 @@ switch ($.event_type) {
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			envelopes, err := p.ProcessEvent(tt.input)
+			envelopes, err := p.ProcessEvent(tt.input, false)
 			if tt.expectedErr != "" {
 				require.Error(t, err)
 				require.Equal(t, tt.expectedErr, err.Error())

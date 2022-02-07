@@ -97,9 +97,9 @@ func NewPostgres(config *Config) (Storage, error) {
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
 	_, tableHelper := p.getAdapters()
-	flatData, failedEvents, skippedEvents, err := p.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	flatData, failedEvents, skippedEvents, err := p.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -166,8 +166,8 @@ func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table
 }
 
 //SyncStore is used in storing chunk of pulled data to Postgres with processing
-func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return syncStoreImpl(p, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
+func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
+	return syncStoreImpl(p, overriddenDataSchema, objects, timeIntervalValue, cacheTable, needCopyEvent)
 }
 
 func (p *Postgres) Clean(tableName string) error {
@@ -177,7 +177,7 @@ func (p *Postgres) Clean(tableName string) error {
 //Update updates record in Postgres
 func (p *Postgres) Update(object map[string]interface{}) error {
 	_, tableHelper := p.getAdapters()
-	envelops, err := p.processor.ProcessEvent(object)
+	envelops, err := p.processor.ProcessEvent(object, false)
 	if err != nil {
 		return err
 	}
