@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/destinations"
-	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/timestamp"
@@ -35,10 +36,11 @@ type RecognitionService struct {
 	anonymousQueue      *Queue
 	closed              *atomic.Bool
 	lastSystemErrorTime time.Time
+	userAgentJSONPath   jsonutils.JSONPath
 }
 
 //NewRecognitionService creates a new RecognitionService if metaStorage configuration exists
-func NewRecognitionService(storage Storage, destinationService *destinations.Service, configuration *config.UsersRecognition) (*RecognitionService, error) {
+func NewRecognitionService(storage Storage, destinationService *destinations.Service, configuration *config.UsersRecognition, userAgentPath string) (*RecognitionService, error) {
 	if !configuration.IsEnabled() {
 		logging.Info("❌ Users recognition is not enabled. Read how to enable them: https://jitsu.com/docs/other-features/retroactive-user-recognition")
 		//return closed
@@ -72,6 +74,7 @@ func NewRecognitionService(storage Storage, destinationService *destinations.Ser
 		anonymousQueue:      newQueue("users_recognition"),
 		closed:              atomic.NewBool(false),
 		lastSystemErrorTime: timestamp.Now().Add(time.Second * -sysErrFreqSec),
+		userAgentJSONPath:   jsonutils.NewJSONPath(userAgentPath),
 	}
 
 	for i := 0; i < configuration.PoolSize; i++ {
@@ -169,18 +172,15 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 		return
 	}
 
-	var isBot bool
-	parsedUaRaw, ok := enrichment.DefaultJsUaRule.DstPath().Get(event)
-	if !ok {
-		enrichment.DefaultJsUaRule.Execute(event)
-		parsedUaRaw, _ = enrichment.DefaultJsUaRule.DstPath().Get(event)
-	}
-	parsedUaMap, ok := parsedUaRaw.(map[string]interface{})
+	userAgent, ok := rs.userAgentJSONPath.Get(event)
 	if ok {
-		isBot, _ = parsedUaMap["bot"].(bool)
-	}
-	if isBot {
-		return
+		userAgent, ok := userAgent.(string)
+		if ok {
+			resolvedUa := appconfig.Instance.UaResolver.Resolve(userAgent)
+			if resolvedUa != nil && resolvedUa.Bot {
+				return
+			}
+		}
 	}
 
 	anonymousPayload, identified := rs.getDestinationsForRecognition(event, eventID, destinationIDs)
