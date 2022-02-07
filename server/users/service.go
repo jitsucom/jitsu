@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
-	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/events"
@@ -13,6 +12,7 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"go.uber.org/atomic"
+	"strings"
 	"sync"
 	"time"
 )
@@ -176,8 +176,8 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 	if ok {
 		userAgent, ok := userAgent.(string)
 		if ok {
-			resolvedUa := appconfig.Instance.UaResolver.Resolve(userAgent)
-			if resolvedUa != nil && resolvedUa.Bot {
+			lcUserAgent := strings.ToLower(userAgent)
+			if strings.Contains(lcUserAgent, "bot") || strings.Contains(lcUserAgent, "crawl") {
 				return
 			}
 		}
