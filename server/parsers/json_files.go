@@ -8,12 +8,14 @@ import (
 	"strings"
 )
 
+var ErrValueIsNil = errors.New("value is nil")
+
 //ParseJSONAsFile parses value and write it to a json file
 //returns path to created json file or return value if it is already path to json file
 //or empty string if value is nil
 func ParseJSONAsFile(newPath string, value interface{}) (string, error) {
 	if value == nil {
-		return "", nil
+		return "", ErrValueIsNil
 	}
 
 	switch value.(type) {
@@ -26,14 +28,24 @@ func ParseJSONAsFile(newPath string, value interface{}) (string, error) {
 
 		return newPath, ioutil.WriteFile(newPath, b, 0644)
 	case string:
-		payload := value.(string)
-		if strings.HasPrefix(payload, "{") {
-			return newPath, ioutil.WriteFile(newPath, []byte(payload), 0644)
+		valueString := value.(string)
+		if strings.HasPrefix(valueString, "{") {
+			return newPath, ioutil.WriteFile(newPath, []byte(valueString), 0644)
 		}
 
-		//already file
-		return payload, nil
+		//check if it is valid json in the filepath
+		content, err := ioutil.ReadFile(valueString)
+		if err == nil && len(content) > 0 && strings.HasPrefix(string(content), "{") {
+			testObj := map[string]interface{}{}
+			if err := json.Unmarshal(content, &testObj); err != nil {
+				return "", fmt.Errorf("value must contain a valid JSON: %v", value)
+			}
+
+			return valueString, nil
+		}
+
+		return "", fmt.Errorf("value must be a path to json file or raw json in ParseJSONAsFile(): %v", value)
 	default:
-		return "", errors.New("Unknown type. Value must be path to json file or raw json")
+		return "", fmt.Errorf("Unknown type. Value must be a path to json file or raw json: %v (%T)", value, value)
 	}
 }
