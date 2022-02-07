@@ -239,7 +239,7 @@ func (b *Bridge) Discover(tap, singerConfigPath string) (*RawCatalog, error) {
 	return catalog, nil
 }
 
-//saveConfig saves config as file for using
+//SaveConfig saves config as file for using
 //returns absolute file path to generated file
 func SaveConfig(sourceId string, tap string, singerConfig interface{}) (string, error) {
 	configDir := path.Join(Instance.VenvDir, sourceId, tap)
@@ -250,8 +250,7 @@ func SaveConfig(sourceId string, tap string, singerConfig interface{}) (string, 
 
 	absoluteFilePath := path.Join(configDir, base.ConfigFileName)
 	//write singer config as file path
-	_, err := parsers.ParseJSONAsFile(absoluteFilePath, singerConfig)
-	if err != nil {
+	if _, err := parsers.ParseJSONAsFile(absoluteFilePath, singerConfig); err != nil {
 		return "", fmt.Errorf("Error writing singer to %s: %v", absoluteFilePath, err)
 	}
 

@@ -324,8 +324,7 @@ func saveConfig(airbyteSourceConfig interface{}) (string, string, error) {
 
 	absoluteFilePath := path.Join(absoluteDirPath, fileName)
 	//write airbyte config as file path
-	_, err := parsers.ParseJSONAsFile(absoluteFilePath, airbyteSourceConfig)
-	if err != nil {
+	if _, err := parsers.ParseJSONAsFile(absoluteFilePath, airbyteSourceConfig); err != nil {
 		return "", "", fmt.Errorf("Error writing airbyte config [%v]: %v", airbyteSourceConfig, err)
 	}
 

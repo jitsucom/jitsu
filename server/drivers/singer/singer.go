@@ -86,20 +86,19 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 	_, err = os.Stat(configPath)
 	if err != nil {
 		//parse singer config as file path
-		_, err := parsers.ParseJSONAsFile(configPath, config.Config)
-		if err != nil {
+		if _, err := parsers.ParseJSONAsFile(configPath, config.Config); err != nil {
 			return nil, fmt.Errorf("Error parsing singer config [%v]: %v", config.Config, err)
 		}
 	}
 	//parse singer catalog as file path
 	catalogPath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, base.CatalogFileName), config.Catalog)
-	if err != nil {
+	if err != nil && err != parsers.ErrValueIsNil {
 		return nil, fmt.Errorf("Error parsing singer catalog [%v]: %v", config.Catalog, err)
 	}
 
 	//parse singer properties as file path
 	propertiesPath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, base.PropertiesFileName), config.Properties)
-	if err != nil {
+	if err != nil && err != parsers.ErrValueIsNil {
 		return nil, fmt.Errorf("Error parsing singer properties [%v]: %v", config.Properties, err)
 	}
 
@@ -140,7 +139,7 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 
 	//parse singer state as file path
 	statePath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, base.StateFileName), config.InitialState)
-	if err != nil {
+	if err != nil && err != parsers.ErrValueIsNil {
 		return nil, fmt.Errorf("Error parsing singer initial state [%v]: %v", config.InitialState, err)
 	}
 
@@ -328,8 +327,7 @@ func (s *Singer) Load(config string, state string, taskLogger logging.TaskLogger
 	}
 
 	if config != "" {
-		_, err = parsers.ParseJSONAsFile(s.GetConfigPath(), config)
-		if err != nil {
+		if _, err = parsers.ParseJSONAsFile(s.GetConfigPath(), config); err != nil {
 			return fmt.Errorf("Failed to write config loaded from meta storage: %v", err)
 		}
 	}
