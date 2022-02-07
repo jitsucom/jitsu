@@ -1,4 +1,4 @@
-declare interface APIKey {
+declare interface ApiKey {
   jsAuth: string
   comment?: string
   origins: string[]

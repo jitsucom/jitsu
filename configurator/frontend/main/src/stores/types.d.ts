@@ -14,9 +14,21 @@
  * const result = await flowResult(someStore.add(entity))
  */
 interface EntitiesStore<T> {
-  add(entity: T): Generator<Promise<unknown>, void, unknown>
-  delete(entity: T): Generator<Promise<unknown>, void, unknown>
-  update(entities: T | Array<T>, options?: UnknownObject): Generator<Promise<unknown>, void, unknown>
+  add(entityOrOptions: T | { [key: string]: string }): Generator<Promise<unknown>, void, unknown>
+  delete(id: string): Generator<Promise<unknown>, void, unknown>
+  replace(entity: T, options?: EntityUpdateOptions): Generator<Promise<unknown>, void, unknown>
+  patch(id: string, patch: Partial<T>, options?: EntityUpdateOptions): Generator<Promise<unknown>, void, unknown>
   get(id: string): T
   list: Array<T>
+}
+
+type EntityUpdateOptions = {
+  /**
+   * Whether to update connections between entities, e.g. `apiKey <--> destinations`, `source <--> destinations` etc.
+   *
+   * Set to `true` by default but you may want to set it to `false` when it causes infinite update loops,
+   * e.g when updating destinations when deleted a source pass `updateConnections: false` to destinations `patch()`
+   * method, otherwise it will try to update sources in turn.
+   */
+  updateConnections?: boolean
 }

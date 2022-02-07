@@ -272,7 +272,7 @@ export async function getCurrentSubscription(
   return parseSubscription(subscription, {
     events,
     sources: sourcesStore.list.length,
-    destinations: destinationsStore.destinations.length,
+    destinations: destinationsStore.list.length,
   })
 }
 
