@@ -119,7 +119,7 @@ func (t Table) Diff(another *Table) *Table {
 		}
 	}
 
-	diff.PrimaryKeyName = t.PrimaryKeyName
+	diff.PrimaryKeyName = jitsuPrimaryKeyName
 	return diff
 }
 
