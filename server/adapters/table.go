@@ -108,6 +108,7 @@ func (t Table) Diff(another *Table) *Table {
 	if len(t.PKFields) > 0 && len(another.PKFields) == 0 {
 		//only delete
 		diff.DeletePkFields = true
+		diff.PrimaryKeyName = t.PrimaryKeyName
 	} else {
 		if len(t.PKFields) == 0 && len(another.PKFields) > 0 {
 			//create
