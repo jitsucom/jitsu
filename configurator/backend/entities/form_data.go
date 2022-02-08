@@ -36,6 +36,7 @@ type PostgresFormData struct {
 
 	SSLMode          string              `firestore:"pgsslmode" json:"pgsslmode"`
 	SSLConfiguration *adapters.SSLConfig `firestore:"pgssl" json:"pgssl"`
+	Parameters       []string            `firestore:"parameters" json:"parameters"`
 }
 
 //ClickHouseFormData entity is stored in main storage (Firebase/Redis)

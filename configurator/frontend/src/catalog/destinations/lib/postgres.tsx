@@ -1,5 +1,13 @@
 import { modeParameter, tableName } from "./common"
-import { fileType, hiddenValue, intType, passwordType, selectionTypeWithOptions, stringType } from "../../sources/types"
+import {
+  arrayOf,
+  fileType,
+  hiddenValue,
+  intType,
+  passwordType,
+  selectionTypeWithOptions,
+  stringType,
+} from "../../sources/types"
 
 const icon = (
   <svg viewBox="0 0 25.6 25.6" height="100%" width="100%" xmlns="http://www.w3.org/2000/svg">
@@ -174,6 +182,20 @@ const postgresDestination = {
       constant: hiddenValue("", cfg => {
         return cfg?.["_formData"]?.pgsslmode === "require" || cfg?.["_formData"]?.pgsslmode === "disable"
       }),
+    },
+    {
+      id: "_formData.parameters",
+      displayName: "Connection parameters",
+      required: false,
+      type: arrayOf(stringType),
+      documentation: (
+        <>
+          Optional Postgres connection parameters in format: parameter=value. You can check them all in{" "}
+          <a href="https://www.postgresql.org/docs/9.1/libpq-connect.html">Postgres docs</a>. If you use{" "}
+          <a href="https://www.pgbouncer.org/">PgBouncer</a> you should add required connection parameter:{" "}
+          <code>binary_parameters=yes</code>
+        </>
+      ),
     },
   ],
 } as const
