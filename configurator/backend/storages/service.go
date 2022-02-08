@@ -625,9 +625,7 @@ func (cs *ConfigurationsService) PatchObjectWithLock(objectType, projectID strin
 	var patchedObject map[string]interface{}
 	if patchPayload.ObjectArrayPath == "" && objectsArray == nil {
 		//single object (geo data resolver or telemetry)
-		patchedObject = jsonutils.Merge(projectConfig, patchPayload.Patch)
-
-		newProjectConfigWithObject = buildProjectDataObject(nil, nil, patchedObject, unknownObjectPosition, patchPayload.ObjectArrayPath)
+		newProjectConfigWithObject = jsonutils.Merge(projectConfig, patchPayload.Patch)
 	} else {
 		objectPosition := unknownObjectPosition
 		for i, objectI := range objectsArray {
@@ -685,7 +683,7 @@ func (cs *ConfigurationsService) ReplaceObjectWithLock(objectType, projectID str
 	var newProjectConfigWithObject map[string]interface{}
 	if patchPayload.ObjectArrayPath == "" && objectsArray == nil {
 		//single object (geo data resolver or telemetry)
-		newProjectConfigWithObject = buildProjectDataObject(nil, nil, patchPayload.Patch, unknownObjectPosition, patchPayload.ObjectArrayPath)
+		newProjectConfigWithObject = patchPayload.Patch
 	} else {
 		objectPosition := unknownObjectPosition
 		for i, objectI := range objectsArray {
