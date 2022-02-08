@@ -116,6 +116,11 @@ func (s *Service) GetUserProjects(userID string) ([]Project, error) {
 	return []Project{userInfo.Project}, nil
 }
 
+//GetOnlyUserID return the only userID. Works only in self-hosted (when authorization is via Redis)
+func (s *Service) GetOnlyUserID() (string, error) {
+	return s.authProvider.GetOnlyUserID()
+}
+
 //GenerateUserToken generate access token for userID
 func (s *Service) GenerateUserToken(userID string) (string, error) {
 	return s.authProvider.GenerateUserAccessToken(userID)

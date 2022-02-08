@@ -13,6 +13,8 @@ import (
 	"strings"
 )
 
+var ErrNoUserExist = errors.New("no users exist")
+
 type Provider interface {
 	//both authorization types
 	io.Closer
@@ -27,6 +29,7 @@ type Provider interface {
 	GetUserByID(userID string) (*User, error)
 	GetUserByEmail(email string) (*User, error)
 	SaveUser(user *User) error
+	GetOnlyUserID() (string, error)
 	ChangeUserEmail(oldEmail, newEmail string) (string, error)
 	CreateTokens(userID string) (*TokenDetails, error)
 	DeleteAccessToken(token string) error
@@ -166,6 +169,12 @@ func (fp *FirebaseProvider) SaveUser(user *User) error {
 	errMsg := fmt.Sprintf("SaveUser isn't supported in authorization FirebaseProvider. email: %s", user.Email)
 	logging.SystemError(errMsg)
 	return errors.New(errMsg)
+}
+
+func (fp *FirebaseProvider) GetOnlyUserID() (string, error) {
+	errMsg := fmt.Sprintf("GetOnlyUserID() isn't supported in authorization FirebaseProvider.")
+	logging.SystemError(errMsg)
+	return "", errors.New(errMsg)
 }
 
 func (fp *FirebaseProvider) ChangeUserEmail(oldEmail, newEmail string) (string, error) {
