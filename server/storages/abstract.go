@@ -214,25 +214,25 @@ func (a *Abstract) close() (multiErr error) {
 	return nil
 }
 
-func (a *Abstract) Init(config *Config) (err error) {
+func (a *Abstract) Init(config *Config) error {
 	//Abstract (SQLAdapters and tableHelpers are omitted)
 	a.destinationID = config.destinationID
 	a.eventsCache = config.eventsCache
 	a.uniqueIDField = config.uniqueIDField
 	a.staged = config.destination.Staged
 	a.cachingConfiguration = config.destination.CachingConfiguration
+	var err error
 	a.processor, a.sqlTypes, err = a.setupProcessor(config)
-	return
+	if err != nil {
+		return err
+	}
+	return a.Processor().InitJavaScriptTemplates()
 }
 
 func (a *Abstract) Start(config *Config) error {
 	a.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	a.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
-	err := a.Processor().InitJavaScriptTemplates()
-	if err != nil {
-		return err
-	}
 	if a.streamingWorker != nil {
 		a.streamingWorker.start()
 	}
