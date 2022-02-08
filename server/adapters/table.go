@@ -112,14 +112,15 @@ func (t Table) Diff(another *Table) *Table {
 		if len(t.PKFields) == 0 && len(another.PKFields) > 0 {
 			//create
 			diff.PKFields = another.PKFields
+			diff.PrimaryKeyName = jitsuPrimaryKeyName
 		} else if !reflect.DeepEqual(t.PKFields, another.PKFields) {
 			//re-create
 			diff.DeletePkFields = true
 			diff.PKFields = another.PKFields
+			diff.PrimaryKeyName = jitsuPrimaryKeyName
 		}
 	}
 
-	diff.PrimaryKeyName = jitsuPrimaryKeyName
 	return diff
 }
 
