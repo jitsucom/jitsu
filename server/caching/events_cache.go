@@ -108,7 +108,7 @@ func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, seriali
 		case ec.eventsChannel <- &statusEvent{eventType: "put", destinationID: destinationID, eventID: eventID, serializedPayload: serializedPayload}:
 		default:
 			if rand.Int31n(1000) == 0 {
-				logging.Warnf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+				logging.Debugf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
 			}
 		}
 	}
@@ -121,7 +121,7 @@ func (ec *EventsCache) Succeed(eventContext *adapters.EventContext) {
 		case ec.eventsChannel <- &statusEvent{eventType: "succeed", eventContext: eventContext}:
 		default:
 			if rand.Int31n(1000) == 0 {
-				logging.Warnf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+				logging.Debugf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
 			}
 		}
 	}
@@ -134,7 +134,7 @@ func (ec *EventsCache) Error(disabled bool, destinationID, eventID string, errMs
 		case ec.eventsChannel <- &statusEvent{eventType: "error", destinationID: destinationID, eventID: eventID, error: errMsg}:
 		default:
 			if rand.Int31n(1000) == 0 {
-				logging.Warnf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+				logging.Debugf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
 			}
 		}
 	}
@@ -147,7 +147,7 @@ func (ec *EventsCache) Skip(disabled bool, destinationID, eventID string, errMsg
 		case ec.eventsChannel <- &statusEvent{eventType: "skip", destinationID: destinationID, eventID: eventID, error: errMsg}:
 		default:
 			if rand.Int31n(1000) == 0 {
-				logging.Warnf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+				logging.Debugf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
 			}
 		}
 	}
