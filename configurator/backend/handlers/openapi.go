@@ -1254,13 +1254,16 @@ func (oa *OpenAPI) DeleteObjectByUid(c *gin.Context, projectIDI openapi.ProjectI
 		return
 	}
 
-	objectArrayPath := oa.configurationsService.GetObjectArrayPathByObjectType(objectType)
-	objectMeta := &storages.ObjectMeta{
-		IDFieldPath: oa.configurationsService.GetObjectIDField(objectType),
-		Value:       objectUID,
+	deletePayload := &storages.PatchPayload{
+		ObjectArrayPath: oa.configurationsService.GetObjectArrayPathByObjectType(objectType),
+		ObjectMeta: &storages.ObjectMeta{
+			IDFieldPath: oa.configurationsService.GetObjectIDField(objectType),
+			Value:       objectUID,
+		},
+		Patch: nil,
 	}
 
-	deletedObject, err := oa.configurationsService.DeleteObjectWithLock(objectType, projectID, objectArrayPath, objectMeta)
+	deletedObject, err := oa.configurationsService.DeleteObjectWithLock(objectType, projectID, deletePayload)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(fmt.Sprintf("failed to delete object [%s] in project [%s], id=[%s]: %v", objectType, projectID, objectUID, err), nil))
 		return
@@ -1344,7 +1347,7 @@ func (oa *OpenAPI) PatchObjectByUid(c *gin.Context, projectIDI openapi.ProjectId
 		Patch: req.AdditionalProperties,
 	}
 
-	newObject, err := oa.configurationsService.PatchConfigWithLock(objectType, projectID, patchPayload)
+	newObject, err := oa.configurationsService.PatchObjectWithLock(objectType, projectID, patchPayload)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(fmt.Sprintf("failed to patch object [%s] in project [%s], id=[%s]: %v", objectType, projectID, objectUID, err), nil))
 		return

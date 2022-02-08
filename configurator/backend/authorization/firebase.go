@@ -173,7 +173,6 @@ func (fp *FirebaseProvider) SaveUser(user *User) error {
 
 func (fp *FirebaseProvider) GetOnlyUserID() (string, error) {
 	errMsg := fmt.Sprintf("GetOnlyUserID() isn't supported in authorization FirebaseProvider.")
-	logging.SystemError(errMsg)
 	return "", errors.New(errMsg)
 }
 
