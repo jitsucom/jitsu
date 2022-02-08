@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
+	"github.com/jitsucom/jitsu/configurator/openapi"
 	"github.com/jitsucom/jitsu/configurator/random"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/locks"
@@ -59,14 +60,14 @@ func NewConfigurationsService(storage ConfigurationsStorage, defaultDestination 
 //** Data manipulation **
 
 //saveWithLock locks and uses save func under the hood
-func (cs *ConfigurationsService) saveWithLock(objectType, projectID string, object interface{}) ([]byte, error) {
+func (cs *ConfigurationsService) saveWithLock(objectType, projectID string, projectConfig interface{}) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
 		return nil, err
 	}
 	defer lock.Unlock()
 
-	return cs.save(objectType, projectID, object)
+	return cs.save(objectType, projectID, projectConfig)
 }
 
 //getWithLock locks and uses get func under the hood
@@ -81,8 +82,8 @@ func (cs *ConfigurationsService) getWithLock(objectType, projectID string) ([]by
 }
 
 //save proxies save request to the storage and updates dependency collection last_update (if a dependency is present)
-func (cs *ConfigurationsService) save(objectType, projectID string, object interface{}) ([]byte, error) {
-	serialized, err := json.MarshalIndent(object, "", "    ")
+func (cs *ConfigurationsService) save(objectType, projectID string, projectConfig interface{}) ([]byte, error) {
+	serialized, err := json.MarshalIndent(projectConfig, "", "    ")
 	if err != nil {
 		return nil, err
 	}
@@ -108,13 +109,79 @@ func (cs *ConfigurationsService) get(objectType, projectID string) ([]byte, erro
 // ** General functions **
 
 //SaveConfigWithLock proxies call to saveWithLock
-func (cs *ConfigurationsService) SaveConfigWithLock(objectType string, id string, entity interface{}) ([]byte, error) {
-	return cs.saveWithLock(objectType, id, entity)
+func (cs *ConfigurationsService) SaveConfigWithLock(objectType string, projectID string, projectConfig interface{}) ([]byte, error) {
+	return cs.saveWithLock(objectType, projectID, projectConfig)
 }
 
 //GetConfigWithLock proxies call to getWithLock
-func (cs *ConfigurationsService) GetConfigWithLock(objectType string, id string) ([]byte, error) {
-	return cs.getWithLock(objectType, id)
+func (cs *ConfigurationsService) GetConfigWithLock(objectType string, projectID string) ([]byte, error) {
+	return cs.getWithLock(objectType, projectID)
+}
+
+//CreateObjectWithLock locks project object Types and add new object
+//returns new object
+func (cs *ConfigurationsService) CreateObjectWithLock(objectType string, projectID string, object *openapi.AnyObject) ([]byte, error) {
+	lock, err := cs.lockProjectObject(objectType, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer lock.Unlock()
+
+	arrayPath := cs.GetObjectArrayPathByObjectType(objectType)
+
+	//extract configuration fields
+	idField := cs.GetObjectIDField(objectType)
+	typeField := cs.GetObjectTypeField(objectType)
+
+	projectConfigBytes, err := cs.get(objectType, projectID)
+	if err != nil {
+		if err == ErrConfigurationNotFound {
+			generatedID := cs.GenerateID(typeField, objectType, projectID, object, map[string]bool{})
+			object.Set(idField, generatedID)
+
+			//first object of objectType in project
+			newProjectConfig := map[string]interface{}{
+				arrayPath: []interface{}{object},
+			}
+
+			if _, err := cs.save(objectType, projectID, newProjectConfig); err != nil {
+				return nil, err
+			}
+
+			return object.MarshalJSON()
+		}
+
+		return nil, err
+	}
+
+	objectsArray, err := deserializeProjectObjects(projectConfigBytes, arrayPath, objectType, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	//extract all used ids
+	usedIDs := make(map[string]bool, len(objectsArray))
+	for _, obj := range objectsArray {
+		objID, ok := obj[idField]
+		if ok {
+			usedIDs[fmt.Sprint(objID)] = true
+		}
+	}
+
+	generatedID := cs.GenerateID(typeField, objectType, projectID, object, usedIDs)
+	object.Set(idField, generatedID)
+
+	objectsArray = append(objectsArray, object.AdditionalProperties)
+	newProjectConfig := map[string]interface{}{
+		arrayPath: objectsArray,
+	}
+
+	if _, err := cs.save(objectType, projectID, newProjectConfig); err != nil {
+		return nil, err
+	}
+
+	return object.MarshalJSON()
+
 }
 
 // ** Utility **
@@ -535,23 +602,13 @@ func (cs *ConfigurationsService) PatchConfigWithLock(objectType, projectID strin
 		return nil, err
 	}
 
-	collectionData := map[string]interface{}{}
-	if err := json.Unmarshal(data, &collectionData); err != nil {
-		return nil, fmt.Errorf("error unmarshal data: %v", err)
-	}
-
-	objectsArrayI, ok := collectionData[patchPayload.ObjectArrayPath]
-	if !ok {
-		return nil, fmt.Errorf("path [%s] doesn't exist in the collection", patchPayload.ObjectArrayPath)
-	}
-
-	objectsArray, ok := objectsArrayI.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("path [%s] is not an array (is %T) in the collection", patchPayload.ObjectArrayPath, objectsArrayI)
+	objectsArray, err := deserializeProjectObjects(data, patchPayload.ObjectArrayPath, objectType, projectID)
+	if err != nil {
+		return nil, err
 	}
 
 	for i, objectI := range objectsArray {
-		foundObject, ok, err := findObject(i, objectI, patchPayload.ObjectArrayPath, objectType, projectID, patchPayload.ObjectMeta)
+		foundObject, ok, err := findObject(i, objectI, objectType, projectID, patchPayload.ObjectMeta)
 		if err != nil {
 			return nil, err
 		}
@@ -559,9 +616,11 @@ func (cs *ConfigurationsService) PatchConfigWithLock(objectType, projectID strin
 		if ok {
 			newObject := jsonutils.Merge(foundObject, patchPayload.Patch)
 			objectsArray[i] = newObject
-			collectionData[patchPayload.ObjectArrayPath] = objectsArray
+			projectData := map[string]interface{}{
+				patchPayload.ObjectArrayPath: objectsArray,
+			}
 
-			_, err := cs.save(objectType, projectID, collectionData)
+			_, err := cs.save(objectType, projectID, projectData)
 			if err != nil {
 				return nil, err
 			}
@@ -578,6 +637,68 @@ func (cs *ConfigurationsService) PatchConfigWithLock(objectType, projectID strin
 	return nil, fmt.Errorf("object hasn't been found by id in path [%s] in the collection", patchPayload.ObjectArrayPath)
 }
 
+//ReplaceObjectWithLock locks by collection and projectID, rewrite pathPayload, saves and returns the updated object
+func (cs *ConfigurationsService) ReplaceObjectWithLock(objectType, projectID string, patchPayload *PatchPayload) ([]byte, error) {
+	lock, err := cs.lockProjectObject(objectType, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer lock.Unlock()
+
+	data, err := cs.get(objectType, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	objectsArray, err := deserializeProjectObjects(data, patchPayload.ObjectArrayPath, objectType, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	replacePosition := -1
+	for i, objectI := range objectsArray {
+		_, ok, err := findObject(i, objectI, objectType, projectID, patchPayload.ObjectMeta)
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
+			replacePosition = i
+			break
+		}
+	}
+
+	//keep old id
+	currentID, ok := patchPayload.Patch[patchPayload.ObjectMeta.IDFieldPath]
+	if !ok || fmt.Sprint(currentID) != patchPayload.ObjectMeta.Value {
+		patchPayload.Patch[patchPayload.ObjectMeta.IDFieldPath] = patchPayload.ObjectMeta.Value
+	}
+
+	if replacePosition > -1 {
+		//replace foundObject with input object
+		objectsArray[replacePosition] = patchPayload.Patch
+	} else {
+		//just set if not exist
+		objectsArray = append(objectsArray, patchPayload.Patch)
+	}
+
+	//save
+	projectData := map[string]interface{}{
+		patchPayload.ObjectArrayPath: objectsArray,
+	}
+
+	if _, err := cs.save(objectType, projectID, projectData); err != nil {
+		return nil, err
+	}
+
+	newObjectBytes, err := json.Marshal(patchPayload.Patch)
+	if err != nil {
+		return nil, fmt.Errorf("error serializing new object: %v", err)
+	}
+
+	return newObjectBytes, nil
+}
+
 //DeleteObjectWithLock locks by collection and projectID, deletes object by objectUID, saves and returns deleted object
 func (cs *ConfigurationsService) DeleteObjectWithLock(objectType, projectID, objectArrayPath string, objectMeta *ObjectMeta) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
@@ -591,23 +712,13 @@ func (cs *ConfigurationsService) DeleteObjectWithLock(objectType, projectID, obj
 		return nil, err
 	}
 
-	collectionData := map[string]interface{}{}
-	if err := json.Unmarshal(data, &collectionData); err != nil {
-		return nil, fmt.Errorf("error unmarshal data: %v", err)
-	}
-
-	objectsArrayI, ok := collectionData[objectArrayPath]
-	if !ok {
-		return nil, fmt.Errorf("path [%s] doesn't exist in the collection", objectArrayPath)
-	}
-
-	objectsArray, ok := objectsArrayI.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("path [%s] is not an array (is %T) in the collection", objectArrayPath, objectsArrayI)
+	objectsArray, err := deserializeProjectObjects(data, objectArrayPath, objectType, projectID)
+	if err != nil {
+		return nil, err
 	}
 
 	for i, objectI := range objectsArray {
-		foundObject, ok, err := findObject(i, objectI, objectArrayPath, objectType, projectID, objectMeta)
+		foundObject, ok, err := findObject(i, objectI, objectType, projectID, objectMeta)
 		if err != nil {
 			return nil, err
 		}
@@ -615,9 +726,11 @@ func (cs *ConfigurationsService) DeleteObjectWithLock(objectType, projectID, obj
 		if ok {
 			//save without foundObject
 			newObjectsArray := append(objectsArray[:i], objectsArray[i+1:]...)
-			collectionData[objectArrayPath] = newObjectsArray
+			projectData := map[string]interface{}{
+				objectArrayPath: newObjectsArray,
+			}
 
-			_, err := cs.save(objectType, projectID, collectionData)
+			_, err := cs.save(objectType, projectID, projectData)
 			if err != nil {
 				return nil, err
 			}
@@ -647,23 +760,13 @@ func (cs *ConfigurationsService) GetObjectWithLock(objectType, projectID, object
 		return nil, err
 	}
 
-	collectionData := map[string]interface{}{}
-	if err := json.Unmarshal(data, &collectionData); err != nil {
-		return nil, fmt.Errorf("error unmarshal data: %v", err)
-	}
-
-	objectsArrayI, ok := collectionData[objectArrayPath]
-	if !ok {
-		return nil, fmt.Errorf("path [%s] doesn't exist in the collection", objectArrayPath)
-	}
-
-	objectsArray, ok := objectsArrayI.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("path [%s] is not an array (is %T) in the collection", objectArrayPath, objectsArrayI)
+	objectsArray, err := deserializeProjectObjects(data, objectArrayPath, objectType, projectID)
+	if err != nil {
+		return nil, err
 	}
 
 	for i, objectI := range objectsArray {
-		foundObject, ok, err := findObject(i, objectI, objectArrayPath, objectType, projectID, objectMeta)
+		foundObject, ok, err := findObject(i, objectI, objectType, projectID, objectMeta)
 		if err != nil {
 			return nil, err
 		}
@@ -710,14 +813,94 @@ func (cs *ConfigurationsService) lockProjectObject(objectType, projectID string)
 	return lock, nil
 }
 
-//findObject returns object and true if input objectI has the same ID as in objectMeta
-func findObject(i int, objectI interface{}, objectArrayPath, collection, projectID string, objectMeta *ObjectMeta) (map[string]interface{}, bool, error) {
-	object, ok := objectI.(map[string]interface{})
-	if !ok {
-		logging.Infof("element [%T: %v] isn't an object in path [%s] in the %s collection by %s ID", objectI, objectI, objectArrayPath, collection, projectID)
-		return nil, false, fmt.Errorf("element with index: %d isn't an object in path [%s] in the collection", i, objectArrayPath)
+//GetObjectArrayPathByObjectType returns paths in JSON
+//some entities arrays can be different from entity type
+func (cs *ConfigurationsService) GetObjectArrayPathByObjectType(objectType string) string {
+	switch objectType {
+	case apiKeysCollection:
+		return "keys"
+	case geoDataResolversCollection:
+		return ""
+	default:
+		return objectType
+	}
+}
+
+//GetObjectIDField returns id field name by object type
+func (cs *ConfigurationsService) GetObjectIDField(objectType string) string {
+	switch objectType {
+	case apiKeysCollection:
+		return "uid"
+	case sourcesCollection:
+		return "sourceId"
+	default:
+		return "_uid"
+	}
+}
+
+//GetObjectTypeField returns type field name
+func (cs *ConfigurationsService) GetObjectTypeField(objectType string) string {
+	switch objectType {
+	case sourcesCollection:
+		return "sourceType"
+	case destinationsCollection:
+		return "_type"
+	default:
+		return ""
+	}
+}
+
+//GenerateID returns auto incremented ID based on jserver entity type
+func (cs *ConfigurationsService) GenerateID(typeField, objectType, projectID string, object *openapi.AnyObject, alreadyUsedIDs map[string]bool) string {
+	if typeField == "" {
+		if objectType == apiKeysCollection {
+			return generateAPIKeyID(projectID)
+		}
+
+		return generateUniqueID(random.LowerString(20), alreadyUsedIDs)
 	}
 
+	t, ok := object.Get(typeField)
+	jServerEntityType := fmt.Sprint(t)
+	if !ok || jServerEntityType == "" {
+		logging.Errorf("failed to get type field [%s] from object: %v", object.AdditionalProperties)
+		return generateUniqueID(random.LowerString(20), alreadyUsedIDs)
+	}
+
+	return generateUniqueID(jServerEntityType, alreadyUsedIDs)
+}
+
+func deserializeProjectObjects(projectObjectsBytes []byte, arrayPath, objectType, projectID string) ([]map[string]interface{}, error) {
+	collectionData := map[string]interface{}{}
+	if err := json.Unmarshal(projectObjectsBytes, &collectionData); err != nil {
+		return nil, fmt.Errorf("error unmarshal data: %v", err)
+	}
+
+	objectsArrayI, ok := collectionData[arrayPath]
+	if !ok {
+		return nil, fmt.Errorf("path [%s] doesn't exist in the collection", arrayPath)
+	}
+
+	objectsArray, ok := objectsArrayI.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("path [%s] is not an array (is %T) in the collection", arrayPath, objectsArrayI)
+	}
+
+	result := make([]map[string]interface{}, len(objectsArray))
+	for i, objectI := range objectsArray {
+		object, ok := objectI.(map[string]interface{})
+		if !ok {
+			logging.Infof("element [%T: %v] isn't an object in path [%s] in the %s collection by %s ID", objectI, objectI, arrayPath, objectType, projectID)
+			return nil, fmt.Errorf("element with index: %d isn't an object in path [%s] in the collection", i, arrayPath)
+		}
+		result[i] = object
+	}
+
+	return result, nil
+}
+
+//findObject returns object and true if input objectI has the same ID as in objectMeta
+func findObject(i int, object map[string]interface{}, collection, projectID string, objectMeta *ObjectMeta) (map[string]interface{}, bool, error) {
 	idValue, ok := object[objectMeta.IDFieldPath]
 	if !ok {
 		logging.Infof("element [%v] doesn't have an id field in path [%s] in the %s collection by %s ID", object, objectMeta.IDFieldPath, collection, projectID)
@@ -734,13 +917,30 @@ func findObject(i int, objectI interface{}, objectArrayPath, collection, project
 func generateDefaultAPIToken(projectID string) entities.APIKeys {
 	return entities.APIKeys{
 		Keys: []*entities.APIKey{{
-			ID:           projectID + "." + random.String(6),
-			ClientSecret: "js." + projectID + "." + random.String(21),
-			ServerSecret: "s2s." + projectID + "." + random.String(21),
+			ID:           generateAPIKeyID(projectID),
+			ClientSecret: "js." + projectID + "." + random.LowerString(21),
+			ServerSecret: "s2s." + projectID + "." + random.LowerString(21),
 		}},
 	}
 }
 
+func generateAPIKeyID(projectID string) string {
+	return projectID + "." + random.LowerString(6)
+}
+
 func getObjectLockIdentifier(objectType, projectID string) string {
 	return objectType + "_" + projectID
+}
+
+//generateUniqueID generated id in format: base + i, where i if previous value of i has already been used
+func generateUniqueID(base string, alreadyUsedIDs map[string]bool) string {
+	id := base
+	_, used := alreadyUsedIDs[id]
+	i := 1
+	for used {
+		id = fmt.Sprintf("%s%d", base, i)
+		_, used = alreadyUsedIDs[id]
+	}
+
+	return id
 }

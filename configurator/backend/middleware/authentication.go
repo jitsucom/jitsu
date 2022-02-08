@@ -60,6 +60,11 @@ func (a *Authenticator) BearerAuth(c *gin.Context) {
 	}
 
 	if access.adminAccess {
+		userID, err := a.service.GetOnlyUserID()
+		//set user id only if exist
+		if err == nil {
+			c.Set(UserIDKey, userID)
+		}
 		c.Set(Permissions, access)
 		return
 	}
