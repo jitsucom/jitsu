@@ -38,6 +38,10 @@ func NewDbtCloud(config *Config) (Storage, error) {
 	}
 
 	dbt := &DbtCloud{enabled: dbtCloudConfig.Enabled}
+	err := dbt.Init(config)
+	if err != nil {
+		return nil, err
+	}
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	dbtAdapter, err := adapters.NewDbtCloud(dbtCloudConfig, &adapters.HTTPAdapterConfiguration{
 		DestinationID:  config.destinationID,
@@ -53,27 +57,10 @@ func NewDbtCloud(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper("", dbtAdapter, config.coordinationService, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, DbtCloudType)
-
-	dbt.tableHelper = tableHelper
 	dbt.adapter = dbtAdapter
 
-	//Abstract (SQLAdapters and tableHelpers are omitted)
-	dbt.destinationID = config.destinationID
-	dbt.processor = config.processor
-	dbt.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	dbt.eventsCache = config.eventsCache
-	dbt.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	dbt.uniqueIDField = config.uniqueIDField
-	dbt.staged = config.destination.Staged
-	dbt.cachingConfiguration = config.destination.CachingConfiguration
-
 	//streaming worker (queue reading)
-	dbt.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, dbt, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	dbt.streamingWorker.start()
+	dbt.streamingWorker = newStreamingWorker(config.eventQueue, dbt)
 
 	return dbt, nil
 }
