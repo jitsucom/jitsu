@@ -100,6 +100,16 @@ components:
       required:
         - version
         - builtAt
+    ProjectSettings:
+      type: object
+      properties:
+        notifications:
+          type: object
+          properties:
+            slack:
+              type: object
+              properties:
+                url: { type: string }
     AnyObject:
       description: Any JSON Object
       type: object
@@ -178,6 +188,12 @@ components:
         "application/json":
           schema:
             $ref: "#/components/schemas/AnyArray"
+    ProjectSettingsResponse:
+      description: "Project settings"
+      content:
+        "application/json":
+          schema:
+            $ref: "#/components/schemas/ProjectSettings"
 
 paths:
   /api/v1/users/signin:
@@ -425,7 +441,7 @@ paths:
       description: Get project settings for a given project ID
       responses:
         '200':
-          $ref: '#/components/responses/AnyObjectResponse'
+          $ref: '#/components/responses/ProjectSettingsResponse'
         default:
           $ref: '#/components/responses/Error'
     patch:
@@ -441,10 +457,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AnyObject'
+              $ref: '#/components/schemas/ProjectSettings'
       responses:
         '200':
-          $ref: '#/components/responses/AnyObjectResponse'
+          $ref: '#/components/responses/ProjectSettingsResponse'
         default:
           $ref: '#/components/responses/Error'
 
