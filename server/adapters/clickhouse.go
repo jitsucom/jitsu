@@ -382,38 +382,18 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 	return nil
 }
 
-//Insert provided object in ClickHouse in stream mode
-func (ch *ClickHouse) Insert(eventContext *EventContext) error {
-	var headerWithQuotes, placeholders []string
-	var values []interface{}
-	for name, value := range eventContext.ProcessedEvent {
-		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
-		placeholders = append(placeholders, ch.getPlaceholder(name, eventContext.Table.Columns[name]))
-		values = append(values, value)
-	}
-
-	query := fmt.Sprintf(insertCHTemplate, ch.database, eventContext.Table.Name, strings.Join(headerWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
-	ch.queryLogger.LogQueryWithValues(query, values)
-
-	if _, err := ch.dataSource.ExecContext(ch.ctx, query, values...); err != nil {
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, query, values, err)
-	}
-
-	return nil
-}
-
-func (ch *ClickHouse) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	if !deleteConditions.IsEmpty() {
-		if err := ch.delete(table, deleteConditions); err != nil {
-			return err
+//Insert inserts provided object in ClickHouse as a single record or batch
+func (ch *ClickHouse) Insert(insertContext *InsertContext) error {
+	if insertContext.eventContext != nil {
+		return ch.insert(insertContext.eventContext.Table, insertContext.eventContext.ProcessedEvent)
+	} else {
+		if !insertContext.deleteConditions.IsEmpty() {
+			if err := ch.delete(insertContext.table, insertContext.deleteConditions); err != nil {
+				return err
+			}
 		}
+		return ch.insert(insertContext.table, insertContext.objects...)
 	}
-
-	if err := ch.insert(table, objects); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (ch *ClickHouse) delete(table *Table, deleteConditions *DeleteConditions) error {
@@ -427,11 +407,6 @@ func (ch *ClickHouse) delete(table *Table, deleteConditions *DeleteConditions) e
 	}
 
 	return nil
-}
-
-//BulkInsert insert objects into table in one prepared statement
-func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	return ch.insert(table, objects)
 }
 
 //Truncate deletes all records in tableName table
@@ -482,7 +457,7 @@ func (ch *ClickHouse) toDeleteQuery(table *Table, conditions *DeleteConditions) 
 
 //insert creates statement like insert ... values (), (), ()
 //runs executeInsert func
-func (ch *ClickHouse) insert(table *Table, objects []map[string]interface{}) error {
+func (ch *ClickHouse) insert(table *Table, objects ...map[string]interface{}) error {
 	var placeholdersBuilder strings.Builder
 	var headerWithoutQuotes, headerWithQuotes []string
 	for name := range table.Columns {

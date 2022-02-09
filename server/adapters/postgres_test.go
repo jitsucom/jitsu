@@ -47,14 +47,14 @@ func TestDeduplicateObjects(t *testing.T) {
 	require.Equal(t, 3, len(threeBucketsAgain))
 }
 
-func TestBulkInsert(t *testing.T) {
+func TestBatchInsert(t *testing.T) {
 	table := &Table{
 		Name:    "test_insert",
 		Columns: Columns{"field1": typing.SQLColumn{Type: "text"}, "field2": typing.SQLColumn{Type: "text"}, "field3": typing.SQLColumn{Type: "bigint"}, "user": typing.SQLColumn{Type: "text"}},
 	}
 	container, pg := setupDatabase(t, table)
 	defer container.Close()
-	err := pg.BulkInsert(table, createObjects(5))
+	err := pg.insertBatch(table, createObjects(5), nil)
 	require.NoError(t, err, "Failed to bulk insert 5 objects")
 	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
@@ -68,7 +68,7 @@ func TestPostgresTruncateExistingTable(t *testing.T) {
 	}
 	container, pg := setupDatabase(t, table)
 	defer container.Close()
-	err := pg.BulkInsert(table, createObjects(5))
+	err := pg.insertBatch(table, createObjects(5), nil)
 	require.NoError(t, err, "Failed to bulk insert 5 objects")
 	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
@@ -102,7 +102,7 @@ func TestBulkMerge(t *testing.T) {
 	objects = append(objects, objects[0])
 	objects = append(objects, objects[2])
 	objects = append(objects, objects[3])
-	err := pg.BulkInsert(table, objects)
+	err := pg.insertBatch(table, objects, nil)
 	require.NoError(t, err, "Failed to bulk merge objects")
 	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)

@@ -135,7 +135,7 @@ func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error)
 
 	eventContext.Table = dbTable
 
-	err = sqlAdapter.Insert(eventContext)
+	err = sqlAdapter.Insert(adapters.NewSingleInsertContext(eventContext))
 	if err != nil {
 		//renew current db schema and retry
 		return a.retryInsert(sqlAdapter, tableHelper, eventContext, dbSchemaFromObject)
@@ -159,7 +159,7 @@ func (a *Abstract) retryInsert(sqlAdapter adapters.SQLAdapter, tableHelper *Tabl
 
 	eventContext.Table = dbTable
 
-	err = sqlAdapter.Insert(eventContext)
+	err = sqlAdapter.Insert(adapters.NewSingleInsertContext(eventContext))
 	if err != nil {
 		return err
 	}

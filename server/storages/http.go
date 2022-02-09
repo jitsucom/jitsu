@@ -23,7 +23,7 @@ type HTTPStorage struct {
 
 //Insert sends event into adapters.Adapter
 func (h *HTTPStorage) Insert(eventContext *adapters.EventContext) error {
-	return h.adapter.Insert(eventContext)
+	return h.adapter.Insert(adapters.NewSingleInsertContext(eventContext))
 }
 
 func (h *HTTPStorage) DryRun(payload events.Event) ([][]adapters.TableField, error) {

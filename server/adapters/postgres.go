@@ -30,17 +30,6 @@ const (
   							AND  pg_namespace.nspname = $1
   							AND pg_class.relname = $2
   							AND pg_attribute.attnum > 0`
-	primaryKeyFieldsQueryDeprecated = `SELECT
-							pg_attribute.attname
-						FROM pg_index, pg_class, pg_attribute, pg_namespace
-						WHERE
-								pg_class.oid = $1::regclass AND
-								indrelid = pg_class.oid AND
-								nspname = $2 AND
-								pg_class.relnamespace = pg_namespace.oid AND
-								pg_attribute.attrelid = pg_class.oid AND
-								pg_attribute.attnum = any(pg_index.indkey)
-					  	AND indisprimary`
 	primaryKeyFieldsQuery = `SELECT tco.constraint_name as constraint_name,
        kcu.column_name as key_column
 FROM information_schema.table_constraints tco
@@ -260,9 +249,54 @@ func (p *Postgres) GetTableSchema(tableName string) (*Table, error) {
 	return table, nil
 }
 
-//Insert provided object in postgres with typecasts
+//Insert inserts data with InsertContext as a single object or a batch into Redshift
+func (p *Postgres) Insert(insertContext *InsertContext) error {
+	if insertContext.eventContext != nil {
+		return p.insertSingle(insertContext.eventContext)
+	} else {
+		return p.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
+	}
+}
+
+func (p *Postgres) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) (err error) {
+	wrappedTx, openTxErr := p.OpenTx()
+	if openTxErr != nil {
+		return openTxErr
+	}
+
+	defer func() {
+		if err != nil {
+			wrappedTx.Rollback(err)
+		} else {
+			err = wrappedTx.DirectCommit()
+		}
+	}()
+
+	if !deleteConditions.IsEmpty() {
+		if err = p.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
+			return err
+		}
+	}
+
+	if len(table.PKFields) == 0 {
+		return p.bulkInsertInTransaction(wrappedTx, table, objects, postgresValuesLimit)
+	}
+
+	//deduplication for bulkMerge success (it fails if there is any duplicate)
+	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
+
+	for _, objectsBucket := range deduplicatedObjectsBuckets {
+		if err = p.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+//insertSingle inserts single provided object in postgres with typecasts
 //uses upsert (merge on conflict) if primary_keys are configured
-func (p *Postgres) Insert(eventContext *EventContext) error {
+func (p *Postgres) insertSingle(eventContext *EventContext) error {
 	columnsWithoutQuotes, columnsWithQuotes, placeholders, values := p.buildInsertPayload(eventContext.Table, eventContext.ProcessedEvent)
 
 	var statement string
@@ -425,43 +459,6 @@ func (p *Postgres) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *
 	return nil
 }
 
-//BulkInsert runs bulkStoreInTransaction
-func (p *Postgres) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	wrappedTx, err := p.OpenTx()
-	if err != nil {
-		return err
-	}
-
-	if err = p.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback(err)
-		return err
-	}
-
-	return wrappedTx.DirectCommit()
-}
-
-//BulkUpdate deletes with deleteConditions and runs bulkStoreInTransaction
-func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	wrappedTx, err := p.OpenTx()
-	if err != nil {
-		return err
-	}
-
-	if !deleteConditions.IsEmpty() {
-		if err := p.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
-			wrappedTx.Rollback(err)
-			return err
-		}
-	}
-
-	if err := p.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback(err)
-		return err
-	}
-
-	return wrappedTx.DirectCommit()
-}
-
 //DropTable drops table in transaction
 func (p *Postgres) DropTable(table *Table) error {
 	wrappedTx, err := p.OpenTx()
@@ -500,28 +497,7 @@ func (p *Postgres) Update(table *Table, object map[string]interface{}, whereKey 
 	return nil
 }
 
-//bulkStoreInTransaction checks PKFields and uses bulkInsert or bulkMerge
-//in bulkMerge - deduplicate objects
-//if there are any duplicates, do the job 2 times
-func (p *Postgres) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
-	if len(table.PKFields) == 0 {
-		return p.bulkInsertInTransaction(wrappedTx, table, objects, postgresValuesLimit)
-	}
-
-	//deduplication for bulkMerge success (it fails if there is any duplicate)
-	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
-
-	for _, objectsBucket := range deduplicatedObjectsBuckets {
-		if err := p.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-//Must be used when table has no primary keys. Inserts data in batches to improve performance.
-//Prefer to use bulkStoreInTransaction instead of calling this method directly
+//bulkInsertInTransaction should be used when table has no primary keys. Inserts data in batches to improve performance.
 func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}, valuesLimit int) error {
 	var placeholdersBuilder strings.Builder
 	var headerWithoutQuotes []string
