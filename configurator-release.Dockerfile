@@ -59,7 +59,7 @@ RUN make docker_assemble
 FROM main as final
 
 # add frontend
-ADD configurator/frontend/build/ /home/$CONFIGURATOR_USER/app/web/
+ADD configurator/frontend/main/build/ /home/$CONFIGURATOR_USER/app/web/
 
 # add backend
 COPY --from=builder /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend/build/dist/configurator /home/$CONFIGURATOR_USER/app/configurator
