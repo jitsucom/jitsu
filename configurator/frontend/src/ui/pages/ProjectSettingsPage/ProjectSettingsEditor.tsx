@@ -9,9 +9,7 @@ import { actionNotification } from "../../components/ActionNotification/ActionNo
 
 type Props = {
   data: ProjectSettings
-  loading: boolean
   setData: (ProjectSettings) => void
-  setLoading: (boolean) => void
 }
 
 export const ProjectSettingsEditor: React.FC<Props> = props => {
