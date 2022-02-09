@@ -2,10 +2,8 @@
   "name": "root",
   "private": true,
   "scripts": {
-    "bootstrap": "npx lerna bootstrap",
-    "link": "npx lerna link convert",
     "start": "yarn --cwd ./main start",
-    "build": "yarn check:all && yarn bootstrap && npx lerna run build",
+    "build": "yarn install && yarn check:all && npx lerna run build",
     "build:dev": "npx lerna run build",
     "clean": "rm -rf ./main/node_modules/ ./main/build ./main/dist",
     "lerna:publish": "npx lerna publish --canary --no-private --no-verify-access --yes",
@@ -30,10 +28,6 @@
   "bugs": {
     "url": "https://github.com/jitsucom/jitsu/issues"
   },
-  "workspaces": [
-    "catalog",
-    "main"
-  ],
   "devDependencies": {
     "@ant-design/icons": "^4.5.0",
     "@craco/craco": "^6.1.1",
@@ -56,6 +50,7 @@
     "craco-less": "^1.17.1",
     "monaco-editor-webpack-plugin": "^4.2.0",
     "msw": "^0.35.0",
+    "prettier": "^2.5.1",
     "progress-bar-webpack-plugin": "^2.1.0",
     "react-scripts": "^4.0.3",
     "source-map-explorer": "^2.5.2",

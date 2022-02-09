@@ -73,11 +73,11 @@ echo "=         Building Configurator UI...      ="
 echo "============================================"
 echo ""
 
-(cd configurator/frontend; rm -rf build && yarn clean && yarn install && CI=false NODE_ENV=production ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build) || { echo 'Building Configurator UI failed' ; exit 1; }
+(cd configurator/frontend; rm -rf main/build && yarn clean && CI=false ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build) || { echo 'Building Configurator UI failed' ; exit 1; }
 
 echo ""
 echo "============================================"
-echo "=         Packaging Configurator UI...     ="
+echo "=          Packaging Configurator...       ="
 echo "============================================"
 echo ""
 

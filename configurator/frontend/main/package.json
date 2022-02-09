@@ -1,7 +1,7 @@
 {
   "name": "jitsu-configurator-ui",
   "version": "1.0.0",
-  "private": false,
+  "private": true,
   "dependencies": {
     "@jitsu/catalog": "file:../catalog",
     "@jitsu/sdk-js": "^2.3.0",
@@ -45,12 +45,7 @@
     "bundle": "npx webpack-bundle-analyzer ./build/bundle-stats.json",
     "analyze": "source-map-explorer 'build/static/js/*.js' --no-border-checks",
     "test": "craco test --watchAll",
-    "test:debug": "craco --inspect-brk test --runInBand --no-cache",
-    "prettier:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore .",
-    "prettier:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore .",
-    "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/",
-    "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/ --fix",
-    "all:check": "yarn run prettier:check && yarn run eslint:check"
+    "test:debug": "craco --inspect-brk test --runInBand --no-cache"
   },
   "browserslist": {
     "production": [
