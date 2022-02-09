@@ -56,39 +56,38 @@ export default function ProjectSettingsPage() {
       {loading && !data && <CenteredSpin />}
       {!!error && !data && <CenteredError error={error} />}
       {!error && !!data && (
-        <div className="flex flex-col w-full">
-          <div className="flex items-stretch flex-auto justify-center w-full">
-            {form.isFieldsTouched() && <Prompt message={unsavedMessage} />}
-            <div className="w-full pt-8 px-4" style={{ maxWidth: "1000px" }}>
-              <Form form={form} preserve>
-                <FormLayout>
-                  <div className="border-2 rounded-md border-white p-8">
-                    <h2>Notifications</h2>
-                    <FormField
-                      label="Slack"
-                      tooltip="Slack webhook URL for sending task status updates"
-                      key="notifications.slack.url"
-                    >
-                      <Form.Item name="notifications.slack.url">
-                        <Input
-                          size="small"
-                          name="notifications.slack.url"
-                          placeholder="Webhook URL"
-                          disabled={pending}
-                          suffix={<Button type="text" icon={<ApiOutlined />} onClick={onSlackTest} />}
-                        />
-                      </Form.Item>
-                    </FormField>
-                  </div>
-                </FormLayout>
-                <FormActions></FormActions>
-              </Form>
-            </div>
-          </div>
-          <div className="flex-shrink border-t py-2 w-full">
-            <Button type="primary" size="large" icon={<SaveFilled />} onClick={onSave} loading={pending}>
-              Save
-            </Button>
+        <div className="flex justify-center w-full">
+          {form.isFieldsTouched() && <Prompt message={unsavedMessage} />}
+          <div className="w-full pt-8 px-4" style={{ maxWidth: "1000px" }}>
+            <Form form={form} preserve>
+              <FormLayout>
+                <div className="border-2 rounded-md border-white p-8">
+                  <h2>Notifications</h2>
+                  <FormField
+                    label="Slack"
+                    tooltip="Slack webhook URL for sending task status updates"
+                    key="notifications.slack.url"
+                  >
+                    <Form.Item name="notifications.slack.url">
+                      <Input
+                        size="small"
+                        name="notifications.slack.url"
+                        placeholder="Webhook URL"
+                        disabled={pending}
+                        suffix={<Button type="text" icon={<ApiOutlined />} onClick={onSlackTest} />}
+                      />
+                    </Form.Item>
+                  </FormField>
+                </div>
+              </FormLayout>
+              <FormActions>
+                <div className="pt-8 text-right w-full">
+                  <Button type="primary" size="large" onClick={onSave} loading={pending}>
+                    Save
+                  </Button>
+                </div>
+              </FormActions>
+            </Form>
           </div>
         </div>
       )}
