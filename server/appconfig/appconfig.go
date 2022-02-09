@@ -77,6 +77,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.cache.pool.size", 10)
 	viper.SetDefault("server.strict_auth_tokens", false)
 	viper.SetDefault("server.max_columns", 100)
+	viper.SetDefault("server.max_event_size", 51200)
 	viper.SetDefault("server.configurator_urn", "/configurator")
 	//unique IDs
 	viper.SetDefault("server.fields_configuration.unique_id_field", "/eventn_ctx/event_id||/eventn_ctx_event_id||/event_id")
