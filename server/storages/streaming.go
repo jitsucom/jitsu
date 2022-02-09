@@ -38,19 +38,13 @@ type StreamingWorker struct {
 }
 
 //newStreamingWorker returns configured streaming worker
-func newStreamingWorker(eventQueue events.Queue, processor *schema.Processor, streamingStorage StreamingStorage,
-	tableHelper ...*TableHelper) (*StreamingWorker, error) {
-	err := processor.InitJavaScriptTemplates()
-	if err != nil {
-		return nil, err
-	}
+func newStreamingWorker(eventQueue events.Queue, streamingStorage StreamingStorage, tableHelper ...*TableHelper) *StreamingWorker {
 	return &StreamingWorker{
 		eventQueue:       eventQueue,
-		processor:        processor,
 		streamingStorage: streamingStorage,
 		tableHelper:      tableHelper,
 		closed:           atomic.NewBool(false),
-	}, nil
+	}
 }
 
 //Run goroutine to:
@@ -92,7 +86,7 @@ func (sw *StreamingWorker) start() {
 				RawEvent:      fact,
 			}
 
-			envelops, err := sw.processor.ProcessEvent(fact, true)
+			envelops, err := sw.streamingStorage.Processor().ProcessEvent(fact, true)
 			if err != nil {
 				if err == schema.ErrSkipObject {
 					if !appconfig.Instance.DisableSkipEventsWarn {
@@ -114,8 +108,11 @@ func (sw *StreamingWorker) start() {
 				if !batchHeader.Exists() {
 					continue
 				}
-
-				table := sw.getTableHelper().MapTableSchema(batchHeader)
+				var table *adapters.Table
+				tableHelper := sw.getTableHelper()
+				if tableHelper != nil {
+					table = tableHelper.MapTableSchema(batchHeader)
+				}
 				eventContext := &adapters.EventContext{
 					CacheDisabled: sw.streamingStorage.IsCachingDisabled(),
 					DestinationID: sw.streamingStorage.ID(),
@@ -149,6 +146,10 @@ func (sw *StreamingWorker) Close() error {
 }
 
 func (sw *StreamingWorker) getTableHelper() *TableHelper {
-	num := rand.Intn(len(sw.tableHelper))
+	length := len(sw.tableHelper)
+	if length == 0 {
+		return nil
+	}
+	num := rand.Intn(length)
 	return sw.tableHelper[num]
 }

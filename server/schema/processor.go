@@ -50,9 +50,10 @@ type Processor struct {
 	jsVariables             map[string]interface{}
 	//indicate that we didn't forget to init JavaScript transform
 	transformInitialized bool
+	MappingStyle         string
 }
 
-func NewProcessor(destinationID string, destinationConfig *config.DestinationConfig, isSQLType bool, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule, flattener Flattener, typeResolver TypeResolver, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int) (*Processor, error) {
+func NewProcessor(destinationID string, destinationConfig *config.DestinationConfig, isSQLType bool, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule, flattener Flattener, typeResolver TypeResolver, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int, mappingStyle string) (*Processor, error) {
 	return &Processor{
 		identifier:              destinationID,
 		destinationConfig:       destinationConfig,
@@ -68,6 +69,7 @@ func NewProcessor(destinationID string, destinationConfig *config.DestinationCon
 		tableNameFuncExpression: tableNameFuncExpression,
 		javaScripts:             []string{},
 		jsVariables:             map[string]interface{}{},
+		MappingStyle:            mappingStyle,
 	}, nil
 }
 
