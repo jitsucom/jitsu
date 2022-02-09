@@ -171,7 +171,7 @@ func (ec *EventsCache) put(destinationID, eventID string, serializedPayload []by
 //succeed serializes and update processed event in storage
 func (ec *EventsCache) succeed(eventContext *adapters.EventContext) {
 	if eventContext.EventID == "" {
-		logging.SystemErrorf("[EventsCache] Succeed(): Event id can't be empty. Destination [%s] event %s", eventContext.DestinationID, eventContext.ProcessedEvent.Serialize())
+		logging.SystemErrorf("[EventsCache] Succeed(): Event id can't be empty. Destination [%s] event %s", eventContext.DestinationID, eventContext.ProcessedEvent.DebugString())
 		return
 	}
 	eventId := eventContext.EventID
@@ -229,7 +229,7 @@ func (ec *EventsCache) succeed(eventContext *adapters.EventContext) {
 
 	err = ec.storage.UpdateSucceedEvent(eventContext.DestinationID, eventId, string(b))
 	if err != nil {
-		logging.SystemErrorf("[%s] Error updating success event %s in cache: %v", eventContext.DestinationID, eventContext.ProcessedEvent.Serialize(), err)
+		logging.SystemErrorf("[%s] Error updating success event %s in cache: %v", eventContext.DestinationID, eventContext.ProcessedEvent.DebugString(), err)
 		return
 	}
 }

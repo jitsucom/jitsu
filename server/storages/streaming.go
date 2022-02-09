@@ -95,7 +95,7 @@ func (sw *StreamingWorker) start() {
 
 					sw.streamingStorage.SkipEvent(eventContext, err)
 				} else {
-					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.ID(), fact.Serialize(), err)
+					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.ID(), fact.DebugString(), err)
 					sw.streamingStorage.ErrorEvent(true, eventContext, err)
 				}
 
@@ -126,7 +126,7 @@ func (sw *StreamingWorker) start() {
 				}
 
 				if err := sw.streamingStorage.Insert(eventContext); err != nil {
-					logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.Serialize(), table.Name, err)
+					logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.DebugString(), table.Name, err)
 					if IsConnectionError(err) {
 						//retry
 						sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(20*time.Second), tokenID)

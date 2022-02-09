@@ -115,6 +115,6 @@ func (pp *PixelProcessor) Type() string {
 //setIfNotExist uses JSONPath SetIfNotExist func and log error if occurred
 func (pp *PixelProcessor) setIfNotExist(path jsonutils.JSONPath, event Event, value interface{}) {
 	if err := path.SetIfNotExist(event, value); err != nil {
-		logging.Errorf("Error setting %v into event %s by path %s: %v", value, event.Serialize(), path.String(), err)
+		logging.Errorf("Error setting %v into event %s by path %s: %v", value, event.DebugString(), path.String(), err)
 	}
 }
