@@ -6,7 +6,6 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/parsers"
-	"k8s.io/utils/strings"
 )
 
 //Event is a dto for deserialization input events
@@ -65,7 +64,12 @@ func (f Event) Serialize() string {
 
 //DebugString returns the same JSON string representation of the event as Serialize but limited to 1024 bytes
 func (f Event) DebugString() string {
-	return strings.ShortenString(f.Serialize(), 1024)
+	limit := 1024
+	str := f.Serialize()
+	if len(str) <= limit {
+		return str
+	}
+	return str[:limit]
 }
 
 //Clone returns copy of event
