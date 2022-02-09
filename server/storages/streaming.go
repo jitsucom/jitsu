@@ -72,6 +72,7 @@ func (sw *StreamingWorker) start() {
 					continue
 				}
 				logging.SystemErrorf("[%s] Error reading event from queue: %v", sw.streamingStorage.ID(), err)
+				time.Sleep(time.Second)
 				continue
 			}
 
@@ -91,7 +92,7 @@ func (sw *StreamingWorker) start() {
 				RawEvent:      fact,
 			}
 
-			envelops, err := sw.processor.ProcessEvent(fact)
+			envelops, err := sw.processor.ProcessEvent(fact, true)
 			if err != nil {
 				if err == schema.ErrSkipObject {
 					if !appconfig.Instance.DisableSkipEventsWarn {

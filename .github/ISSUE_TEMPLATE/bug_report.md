@@ -13,6 +13,7 @@ assignees: xtreding
 - **Jitsu version**:  for instance `1.37.5`
 - **OS**: for instance `Mac OS BigSur` or `Ubuntu 20.04` or `Windows 10`
 - **Cloud Provider**: for instance `AWS EC2` or `AWS Lightsail` or `GCP`
+- **Docker Params (if deployed with docker)**: a list of env variables with values (please, hide sensitive credentials!), mapped volumes and ports
 
 ## Description
 A short description of the bug and its impact

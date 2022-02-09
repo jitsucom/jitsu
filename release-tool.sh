@@ -36,27 +36,39 @@ function build_configurator() {
 }
 
 function release_server() {
-  echo "**** Server amd64/arm64 release [$1] ****"
   docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" || fail "Docker jitsu ($JITSU_DOCKER_LOGIN) login failed"
 
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
+    echo "**** Server amd64/arm64 release [$1] ****"
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -t jitsucom/server:latest -f server-release.Dockerfile --build-arg dhid=jitsucom . || fail 'Server dockerx build semver failed'
 
     docker login -u="$KSENSE_DOCKER_LOGIN" -p="$KSENSE_DOCKER_PASSWORD" || fail  "Docker ksense login failed"
     docker buildx build --platform linux/amd64 --push -t ksense/eventnative:"$1" -t ksense/eventnative:latest -f server-release.Dockerfile --build-arg dhid=ksense . || fail 'ksense/eventnative dockerx build semver failed'
   else
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
+    if [[ "$1" == "beta" ]]; then
+      echo "**** Server amd64 release [$1] ****"
+      docker buildx build --platform linux/amd64 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
+    else
+      echo "**** Server amd64/arm64 release [$1] ****"
+      docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
+    fi
   fi
 }
 
 function release_configurator() {
-  echo "**** Configurator amd64/arm64 release [$1] ****"
   docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" || fail 'Docker jitsu login failed'
 
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
+     echo "**** Configurator amd64/arm64 release [$1] ****"
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/configurator:"$1" -t jitsucom/configurator:latest --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || fail  'Configurator dockerx build semver failed'
   else
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/configurator:"$1" --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || fail  'Configurator dockerx build failed'
+    if [[ "$1" == "beta" ]]; then
+      echo "**** Configurator amd64 release [$1] ****"
+      docker buildx build --platform linux/amd64 --push -t jitsucom/configurator:"$1" --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || fail  'Configurator dockerx build failed'
+    else
+      echo "**** Configurator amd64/arm64 release [$1] ****"
+      docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/configurator:"$1" --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || fail  'Configurator dockerx build failed'
+    fi
   fi
 }
 
@@ -73,7 +85,11 @@ function release_jitsu() {
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" -t jitsucom/jitsu:latest --build-arg dhid=jitsu --build-arg SRC_VERSION=latest . || { echo 'Jitsu dockerx build semver failed' ; exit 1; }
   else
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION="$1" . || { echo 'Jitsu dockerx build failed' ; exit 1; }
+    if [[ "$1" == "beta" ]]; then
+      docker buildx build --platform linux/amd64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION="$1" . || { echo 'Jitsu dockerx build failed' ; exit 1; }
+    else
+      docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION="$1" . || { echo 'Jitsu dockerx build failed' ; exit 1; }
+    fi
   fi
 
   cd ../

@@ -481,10 +481,28 @@ paths:
     patch:
       tags:
         - configuration-management
-      operationId: "Update object by uid"
+      operationId: "Patch object by uid"
       description: >
-        Updates a object with given ID. Object will be patched: request body properties will be merged into an original object, it's ok to send partial objects
+        Patches object with given ID. Object will be patched: request body properties will be merged into an original object, it's ok to send partial objects
         Some fields might be ignored and overwritten. The method returns an updated object
+      security:
+        - configurationManagementAuth: [  ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      tags:
+        - configuration-management
+      operationId: "Replace object by uid"
+      description: >
+        Save object with given ID. The whole object except id field will be overwritten. The method returns an updated object
       security:
         - configurationManagementAuth: [  ]
       requestBody:

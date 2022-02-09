@@ -140,23 +140,25 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 			if sferr.Number == sf.ErrObjectNotExistOrAuthorized {
 				snowflakeSchema := config.Schema
 				config.Schema = ""
-				snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
+				//create adapter without a certain schema
+				tmpSnowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
 				if err != nil {
 					return nil, err
 				}
+				defer tmpSnowflakeAdapter.Close()
+
 				config.Schema = snowflakeSchema
 				//create schema and reconnect
-				err = snowflakeAdapter.CreateDbSchema(config.Schema)
-				if err != nil {
+				if err = tmpSnowflakeAdapter.CreateDbSchema(config.Schema); err != nil {
 					return nil, err
 				}
-				snowflakeAdapter.Close()
 
-				snowflakeAdapter, err = adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
+				//create adapter with a certain schema
+				snowflakeAdapterWithSchema, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
 				if err != nil {
 					return nil, err
 				}
-				return snowflakeAdapter, nil
+				return snowflakeAdapterWithSchema, nil
 			}
 		}
 		return nil, err
@@ -166,9 +168,9 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
 	_, tableHelper := s.getAdapters()
-	flatData, failedEvents, skippedEvents, err := s.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	flatData, failedEvents, skippedEvents, err := s.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -247,8 +249,8 @@ func (s *Snowflake) GetUsersRecognition() *UserRecognitionConfiguration {
 }
 
 // SyncStore is used in storing chunk of pulled data to Snowflake with processing
-func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return syncStoreImpl(s, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
+func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
+	return syncStoreImpl(s, overriddenDataSchema, objects, timeIntervalValue, cacheTable, needCopyEvent)
 }
 
 func (s *Snowflake) Clean(tableName string) error {
@@ -258,7 +260,7 @@ func (s *Snowflake) Clean(tableName string) error {
 //Update updates record in Snowflake
 func (s *Snowflake) Update(object map[string]interface{}) error {
 	_, tableHelper := s.getAdapters()
-	envelops, err := s.processor.ProcessEvent(object)
+	envelops, err := s.processor.ProcessEvent(object, false)
 	if err != nil {
 		return err
 	}

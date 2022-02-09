@@ -22,6 +22,8 @@ type ConfigurationsStorage interface {
 	UpdateCollectionLastUpdated(collection string) error
 	//Store saves entity and also must update _lastUpdated field of the collection
 	Store(collection string, id string, entity []byte) error
+	//Delete deletes entity and also must update _lastUpdated field of the collection
+	Delete(collection string, id string) error
 	//Close frees all the resources used by the storage (close connections etc.)
 	Close() error
 }
