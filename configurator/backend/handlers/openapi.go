@@ -1407,9 +1407,15 @@ func (oa *OpenAPI) GetProjectSettings(c *gin.Context, projectIDI openapi.Project
 		return
 	}
 
-	result, err := convertToObject(object)
+	data, err := json.Marshal(object)
 	if err != nil {
-		logging.Errorf("System error: malformed data %s: %v", string(object), err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(fmt.Sprintf("failed to marshal project settings: %v", err), nil))
+		return
+	}
+
+	result := new(openapi.ProjectSettingsResponse)
+	if err := json.Unmarshal(data, result); err != nil {
+		logging.Errorf("System error: malformed data %s: %v", string(data), err)
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(ErrMalformedData, nil))
 		return
 	}
@@ -1442,8 +1448,8 @@ func (oa *OpenAPI) PatchProjectSettings(c *gin.Context, projectIDI openapi.Proje
 		return
 	}
 
-	result, err := convertToObject(newObject)
-	if err != nil {
+	result := new(openapi.ProjectSettingsResponse)
+	if err := json.Unmarshal(newObject, result); err != nil {
 		logging.Errorf("System error: malformed data %s: %v", string(newObject), err)
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(ErrMalformedData, nil))
 		return

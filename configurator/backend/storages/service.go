@@ -683,18 +683,17 @@ func (cs *ConfigurationsService) GetObjectWithLock(objectType, projectID, object
 	return nil, fmt.Errorf("object hasn't been found by id in path [%s] in the collection", objectArrayPath)
 }
 
-func (cs *ConfigurationsService) GetProjectSettings(projectID string) ([]byte, error) {
-	data, err := cs.getWithLock(projectSettings, projectID)
+func (cs *ConfigurationsService) GetProjectSettings(projectID string) (result entities.ProjectSettings, err error) {
+	var data []byte
+	data, err = cs.getWithLock(projectSettings, projectID)
 	switch {
 	case err == nil:
-		// is ok
+		err = json.Unmarshal(data, &result)
 	case errors.Is(err, ErrConfigurationNotFound):
-		data = []byte(`{}`)
-	default:
-		return nil, errors.Wrap(err, "get")
+		err = nil
 	}
 
-	return data, nil
+	return
 }
 
 func (cs *ConfigurationsService) PatchProjectSettings(projectID string, patch map[string]interface{}) ([]byte, error) {
