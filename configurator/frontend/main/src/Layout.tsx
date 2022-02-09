@@ -24,6 +24,7 @@ import Icon, {
 import { ReactComponent as JitsuLogo } from "icons/logo-responsive.svg"
 import { ReactComponent as Cross } from "icons/cross.svg"
 import { ReactComponent as DbtCloudIcon } from "icons/dbtCloud.svg"
+import { ReactComponent as ProjectSettingsIcon } from "icons/dbtCloud.svg" // TODO find matching icon
 import { ReactComponent as KeyIcon } from "icons/key.svg"
 import { ReactComponent as DownloadIcon } from "icons/download.svg"
 import { ReactComponent as GlobeIcon } from "icons/globe.svg"
@@ -73,7 +74,7 @@ const menuItems = [
   makeItem(<ApiFilled />, "Sources", "/sources", "#d83f87"),
   makeItem(<NotificationFilled />, "Destinations", "/destinations", "#4056a1"),
   makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud", "#e76e52"),
-  makeItem(<SettingOutlined />, "Project settings", "/project_settings", "#0d6050"),
+  makeItem(<Icon component={ProjectSettingsIcon} />, "Project settings", "/project_settings",  "#0d6050"),
   makeItem(<Icon component={GlobeIcon} />, "Geo data resolver", "/geo_data_resolver", "#41b3a3"),
   makeItem(<CloudFilled />, "Custom Domains", "/domains", "#5ab9ea", f => f.enableCustomDomains),
   makeItem(<Icon component={DownloadIcon} />, "Download Config", "/cfg_download", "#14a76c"),
