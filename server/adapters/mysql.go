@@ -168,54 +168,17 @@ func (m *MySQL) GetTableSchema(tableName string) (*Table, error) {
 
 //Insert provided object in mySQL with typecasts
 //uses upsert (merge on conflict) if primary_keys are configured
-func (m *MySQL) Insert(eventContext *EventContext) error {
-	columnsWithoutQuotes, columnsWithQuotes, placeholders, values := m.buildInsertPayload(eventContext.ProcessedEvent)
-
-	var statement string
-	if len(eventContext.Table.PKFields) == 0 {
-		statement = fmt.Sprintf(mySQLInsertTemplate, m.config.Db, eventContext.Table.Name, strings.Join(columnsWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
+func (m *MySQL) Insert(insertContext *InsertContext) error {
+	if insertContext.eventContext != nil {
+		return m.insertSingle(insertContext.eventContext)
 	} else {
-		statement = fmt.Sprintf(mySQLMergeTemplate, m.config.Db, eventContext.Table.Name, strings.Join(columnsWithQuotes, ","), "("+strings.Join(placeholders, ", ")+")", m.buildUpdateSection(columnsWithoutQuotes))
-		values = append(values, values...)
+		return m.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
 	}
-
-	m.queryLogger.LogQueryWithValues(statement, values)
-
-	_, err := m.dataSource.ExecContext(m.ctx, statement, values...)
-	if err != nil {
-		return fmt.Errorf("%s error inserting in %s table with statement: %s values: %v: %v", eventContext.DestinationID, eventContext.Table.Name, statement, values, err)
-	}
-
-	return nil
 }
 
-//BulkInsert runs bulkStoreInTransaction
-func (m *MySQL) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	var e error
-	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
-	for i := 0; i <= batchRetryAttempts; i++ {
-		wrappedTx, err := m.OpenTx()
-		if err != nil {
-			return err
-		}
-
-		if err = m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-			wrappedTx.Rollback(err)
-			if strings.HasSuffix(err.Error(), mysql.ErrInvalidConn.Error()) || strings.HasSuffix(err.Error(), "bad connection") {
-				e = err
-				continue
-			} else {
-				return err
-			}
-		}
-
-		return wrappedTx.DirectCommit()
-	}
-	return e
-}
-
-//BulkUpdate deletes with deleteConditions and runs bulkStoreInTransaction
-func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+//insertBatch inserts batch of provided objects in mysql with typecasts
+//uses upsert if primary_keys are configured
+func (m *MySQL) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
 	var e error
 	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
 	for i := 0; i <= batchRetryAttempts; i++ {
@@ -249,6 +212,29 @@ func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, delet
 		return wrappedTx.DirectCommit()
 	}
 	return e
+}
+
+//insertSingle inserts single provided object in mysql with typecasts
+//uses upsert if primary_keys are configured
+func (m *MySQL) insertSingle(eventContext *EventContext) error {
+	columnsWithoutQuotes, columnsWithQuotes, placeholders, values := m.buildInsertPayload(eventContext.ProcessedEvent)
+
+	var statement string
+	if len(eventContext.Table.PKFields) == 0 {
+		statement = fmt.Sprintf(mySQLInsertTemplate, m.config.Db, eventContext.Table.Name, strings.Join(columnsWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
+	} else {
+		statement = fmt.Sprintf(mySQLMergeTemplate, m.config.Db, eventContext.Table.Name, strings.Join(columnsWithQuotes, ","), "("+strings.Join(placeholders, ", ")+")", m.buildUpdateSection(columnsWithoutQuotes))
+		values = append(values, values...)
+	}
+
+	m.queryLogger.LogQueryWithValues(statement, values)
+
+	_, err := m.dataSource.ExecContext(m.ctx, statement, values...)
+	if err != nil {
+		return fmt.Errorf("%s error inserting in %s table with statement: %s values: %v: %v", eventContext.DestinationID, eventContext.Table.Name, statement, values, err)
+	}
+
+	return nil
 }
 
 //Update one record in MySQL

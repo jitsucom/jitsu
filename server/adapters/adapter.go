@@ -22,15 +22,13 @@ type SQLAdapter interface {
 	GetTableSchema(tableName string) (*Table, error)
 	CreateTable(schemaToCreate *Table) error
 	PatchTableSchema(schemaToAdd *Table) error
-	BulkInsert(table *Table, objects []map[string]interface{}) error
-	BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error
 	Truncate(tableName string) error
 }
 
 //Adapter is an adapter for all destinations
 type Adapter interface {
 	io.Closer
-	Insert(eventContext *EventContext) error
+	Insert(insertContext *InsertContext) error
 }
 
 type SqlParams struct {

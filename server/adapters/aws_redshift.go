@@ -114,8 +114,54 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 		ar.dataSourceProxy.queryLogger)
 }
 
-//Insert provided object in AwsRedshift
-func (ar *AwsRedshift) Insert(eventContext *EventContext) error {
+//Insert inserts data with InsertContext as a single object or a batch into Redshift
+func (ar *AwsRedshift) Insert(insertContext *InsertContext) error {
+	if insertContext.eventContext != nil {
+		return ar.insertSingle(insertContext.eventContext)
+	} else {
+		return ar.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
+	}
+}
+
+//insertBatch inserts batch of data in transaction
+func (ar *AwsRedshift) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) (err error) {
+	wrappedTx, err := ar.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			wrappedTx.Rollback(err)
+		} else {
+			err = wrappedTx.DirectCommit()
+		}
+	}()
+
+	if !deleteConditions.IsEmpty() {
+		if err = ar.deleteWithConditions(wrappedTx, table, deleteConditions); err != nil {
+			return err
+		}
+	}
+
+	if len(table.PKFields) == 0 {
+		return ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, table, objects, redshiftValuesLimit)
+	}
+
+	//deduplication for bulkMerge success (it fails if there is any duplicate)
+	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
+
+	for _, objectsBucket := range deduplicatedObjectsBuckets {
+		if err = ar.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+//insertSingle inserts single provided object in Redshift with typecasts
+func (ar *AwsRedshift) insertSingle(eventContext *EventContext) error {
 	_, quotedColumnNames, placeholders, values := ar.dataSourceProxy.buildInsertPayload(eventContext.Table, eventContext.ProcessedEvent)
 
 	statement := fmt.Sprintf(insertTemplate, ar.dataSourceProxy.config.Schema, eventContext.Table.Name, strings.Join(quotedColumnNames, ", "), "("+strings.Join(placeholders, ", ")+")")
@@ -307,43 +353,6 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 	return nil
 }
 
-//BulkInsert opens a new transaction and uses bulkStoreInTransaction func
-func (ar *AwsRedshift) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	wrappedTx, err := ar.OpenTx()
-	if err != nil {
-		return err
-	}
-
-	if err = ar.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback(err)
-		return err
-	}
-
-	return wrappedTx.DirectCommit()
-}
-
-//BulkUpdate deletes with deleteConditions and runs bulkStoreInTransaction
-func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	wrappedTx, err := ar.OpenTx()
-	if err != nil {
-		return err
-	}
-
-	if !deleteConditions.IsEmpty() {
-		if err := ar.deleteWithConditions(wrappedTx, table, deleteConditions); err != nil {
-			wrappedTx.Rollback(err)
-			return err
-		}
-	}
-
-	if err := ar.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback(err)
-		return err
-	}
-
-	return wrappedTx.DirectCommit()
-}
-
 //Truncate deletes all records in tableName table
 func (ar *AwsRedshift) Truncate(tableName string) error {
 	return ar.dataSourceProxy.Truncate(tableName)
@@ -352,27 +361,6 @@ func (ar *AwsRedshift) Truncate(tableName string) error {
 //DropTable drops table in transaction uses underlying postgres datasource
 func (ar *AwsRedshift) DropTable(table *Table) error {
 	return ar.dataSourceProxy.DropTable(table)
-}
-
-//bulkStoreInTransaction uses different statements for inserts and merges. Without primary keys:
-//  inserts data batch into the table by using postgres bulk insert (insert into ... values (), (), ())
-//with primary keys:
-//  uses bulkMergeInTransaction func with deduplicated objects
-func (ar *AwsRedshift) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
-	if len(table.PKFields) == 0 {
-		return ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, table, objects, redshiftValuesLimit)
-	}
-
-	//deduplication for bulkMerge success (it fails if there is any duplicate)
-	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
-
-	for _, objectsBucket := range deduplicatedObjectsBuckets {
-		if err := ar.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 //bulkMergeInTransaction uses temporary table and insert from select statement

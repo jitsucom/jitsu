@@ -91,27 +91,14 @@ func (bq *BigQuery) Test() error {
 	return err
 }
 
-//Insert provided object in BigQuery in stream mode
-func (bq *BigQuery) Insert(eventContext *EventContext) error {
-	inserter := bq.client.Dataset(bq.config.Dataset).Table(eventContext.Table.Name).Inserter()
-	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", eventContext.Table.Name), eventContext.ProcessedEvent, false)
-	err := inserter.Put(bq.ctx, &BQItem{values: eventContext.ProcessedEvent})
-	if err != nil {
-		putMultiError, ok := err.(bigquery.PutMultiError)
-		if !ok {
-			return err
-		}
-
-		//parse bigquery multi error
-		var multiErr error
-		for _, errUnit := range putMultiError {
-			multiErr = multierror.Append(multiErr, errors.New(errUnit.Error()))
-		}
-
-		return multiErr
+//Insert inserts data with InsertContext as a single object or a batch into BigQuery
+func (bq *BigQuery) Insert(insertContext *InsertContext) error {
+	if insertContext.eventContext != nil {
+		return bq.insertSingle(insertContext.eventContext)
+	} else {
+		return bq.insertBatch(insertContext.table, insertContext.objects)
 	}
 
-	return nil
 }
 
 //GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct
@@ -228,9 +215,32 @@ func (bq *BigQuery) DeleteWithConditions(tableName string, deleteConditions *Del
 	return err
 }
 
-//BulkInsert streams data into BQ using stream API
+//insertBatch streams data into BQ using stream API
+func (bq *BigQuery) insertSingle(eventContext *EventContext) error {
+	inserter := bq.client.Dataset(bq.config.Dataset).Table(eventContext.Table.Name).Inserter()
+	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", eventContext.Table.Name), eventContext.ProcessedEvent, false)
+	err := inserter.Put(bq.ctx, &BQItem{values: eventContext.ProcessedEvent})
+	if err != nil {
+		putMultiError, ok := err.(bigquery.PutMultiError)
+		if !ok {
+			return err
+		}
+
+		//parse bigquery multi error
+		var multiErr error
+		for _, errUnit := range putMultiError {
+			multiErr = multierror.Append(multiErr, errors.New(errUnit.Error()))
+		}
+
+		return multiErr
+	}
+
+	return nil
+}
+
+//insertBatch streams data into BQ using stream API
 //1 insert = max 500 rows
-func (bq *BigQuery) BulkInsert(table *Table, objects []map[string]interface{}) error {
+func (bq *BigQuery) insertBatch(table *Table, objects []map[string]interface{}) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(table.Name).Inserter()
 	bq.logQuery(fmt.Sprintf("Inserting [%d] values to table %s using BigQuery Streaming API with chunks [%d]: ", len(objects), table.Name, rowsLimitPerInsertOperation), objects, false)
 
@@ -253,11 +263,6 @@ func (bq *BigQuery) BulkInsert(table *Table, objects []map[string]interface{}) e
 	}
 
 	return nil
-}
-
-//BulkUpdate isn't supported
-func (bq *BigQuery) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	return errors.New("BigQuery doesn't support BulkUpdate()")
 }
 
 //DropTable drops table from BigQuery

@@ -287,23 +287,17 @@ func (s *Snowflake) Copy(fileName, tableName string, header []string) error {
 	return wrappedTx.DirectCommit()
 }
 
-// Insert inserts provided object into Snowflake
-func (s *Snowflake) Insert(eventContext *EventContext) error {
-	wrappedTx, err := s.OpenTx()
-	if err != nil {
-		return err
+//Insert inserts data with InsertContext as a single object or a batch into Snowflake
+func (s *Snowflake) Insert(insertContext *InsertContext) error {
+	if insertContext.eventContext != nil {
+		return s.insertSingle(insertContext.eventContext)
+	} else {
+		return s.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
 	}
-
-	if err := s.insertInTransaction(wrappedTx, eventContext); err != nil {
-		wrappedTx.Rollback(err)
-		return err
-	}
-
-	return wrappedTx.DirectCommit()
 }
 
-//insertInTransaction inserts provided object into Snowflake in transaction
-func (s *Snowflake) insertInTransaction(wrappedTx *Transaction, eventContext *EventContext) error {
+// insertSingle inserts provided object into Snowflake
+func (s *Snowflake) insertSingle(eventContext *EventContext) error {
 	var columnNames, placeholders []string
 	var values []interface{}
 	for name, value := range eventContext.ProcessedEvent {
@@ -320,7 +314,7 @@ func (s *Snowflake) insertInTransaction(wrappedTx *Transaction, eventContext *Ev
 	query := fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(eventContext.Table.Name), header, "("+placeholderStr+")")
 	s.queryLogger.LogQueryWithValues(query, values)
 
-	_, err := wrappedTx.tx.ExecContext(s.ctx, query, values...)
+	_, err := s.dataSource.ExecContext(s.ctx, query, values...)
 	if err != nil {
 		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, header, values, err)
 	}
@@ -328,36 +322,23 @@ func (s *Snowflake) insertInTransaction(wrappedTx *Transaction, eventContext *Ev
 	return nil
 }
 
-//BulkInsert runs bulkInsertInTransaction
-//returns error if occurred
-func (s *Snowflake) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	wrappedTx, err := s.OpenTx()
-	if err != nil {
-		return err
+//insertBatch deletes with deleteConditions and runs bulkMergeInTransaction
+func (s *Snowflake) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) (err error) {
+	wrappedTx, openTxErr := s.OpenTx()
+	if openTxErr != nil {
+		return openTxErr
 	}
 
-	err = s.bulkInsertInTransaction(wrappedTx, table, objects)
-	if err != nil {
-		wrappedTx.Rollback(err)
-		return err
-	}
-
-	return wrappedTx.DirectCommit()
-}
-
-//BulkUpdate deletes with deleteConditions and runs bulkMergeInTransaction
-//checks PKFields and uses bulkInsert or bulkMerge
-//in bulkMerge - deduplicate objects
-//if there are any duplicates, do the job 2 times
-func (s *Snowflake) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	wrappedTx, err := s.OpenTx()
-	if err != nil {
-		return err
-	}
+	defer func() {
+		if err != nil {
+			wrappedTx.Rollback(err)
+		} else {
+			err = wrappedTx.DirectCommit()
+		}
+	}()
 
 	if !deleteConditions.IsEmpty() {
-		if err := s.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
-			wrappedTx.Rollback(err)
+		if err = s.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
 			return err
 		}
 	}
@@ -366,13 +347,12 @@ func (s *Snowflake) BulkUpdate(table *Table, objects []map[string]interface{}, d
 	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
 
 	for _, objectsBucket := range deduplicatedObjectsBuckets {
-		if err := s.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
-			wrappedTx.Rollback(err)
+		if err = s.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
 			return err
 		}
 	}
 
-	return wrappedTx.DirectCommit()
+	return nil
 }
 
 //DropTable drops table in transaction
