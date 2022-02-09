@@ -111,7 +111,7 @@ components:
       type: object
       properties:
         notifications:
-          $ref: "#/components/schemas/ProjectSettings"
+          $ref: "#/components/schemas/NotificationConfig"
     AnyObject:
       description: Any JSON Object
       type: object
