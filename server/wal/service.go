@@ -5,13 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"os"
-	"path"
-	"path/filepath"
-	"time"
-
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logevents"
@@ -19,6 +12,12 @@ import (
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/safego"
 	"go.uber.org/atomic"
+	"io"
+	"io/ioutil"
+	"os"
+	"path"
+	"path/filepath"
+	"time"
 )
 
 const (
@@ -139,11 +138,9 @@ func (s *Service) handleFile(filePath string) error {
 	}
 
 	for _, record := range records {
-		if err := s.multiplexingService.AcceptRequest(record.Events, multiplexing.Token{
-			Context:   record.RequestContext,
-			Processor: s.processorHolder.GetByType(record.ProcessorType),
-			Value:     record.Token,
-		}); err != nil {
+		processor := s.processorHolder.GetByType(record.ProcessorType)
+		err := s.multiplexingService.AcceptRequest(processor, record.RequestContext, record.Token, record.Events)
+		if err != nil {
 			//ELOST
 			reqBody, _ := json.Marshal(record)
 			logging.Warnf("%v. Event from wal: %s", err, string(reqBody))
