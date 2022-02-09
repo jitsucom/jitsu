@@ -1,6 +1,6 @@
 /* eslint-disable */
-import React, { useCallback, useState } from "react"
-import { ProjectSettings, projectSettingsStore } from "../../../stores/projectSettings"
+import React, { useState } from "react"
+import { loadProjectSettings, ProjectSettings, saveProjectSettings } from "../../../stores/projectSettings"
 import { CenteredError, CenteredSpin } from "../../../lib/components/components"
 import { actionNotification } from "../../components/ActionNotification/ActionNotification"
 import { Prompt } from "react-router-dom"
@@ -8,27 +8,28 @@ import { FormActions, FormField, FormLayout, unsavedMessage } from "../../../lib
 import { Button, Form, Input } from "antd"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
 import useForm from "antd/lib/form/hooks/useForm"
+import { flatten, unflatten } from "lib/commons/utils"
 
 export default function ProjectSettingsPage() {
-  let { error, data, setData, isLoading: loading } = useLoaderAsObject(projectSettingsStore.get)
+  let { error, data, setData, isLoading: loading } = useLoaderAsObject(loadProjectSettings)
   let [pending, setPending] = useState<boolean>()
   let [form] = useForm<ProjectSettings>()
-  form.setFieldsValue(data)
+  form.setFieldsValue(flatten(data))
 
-  let onSave = useCallback(async () => {
+  let onSave = async () => {
     if (!form.isFieldsTouched()) {
       return
     }
 
     setPending(true)
     try {
-      setData(await projectSettingsStore.patch(form.getFieldsValue()))
+      setData(await saveProjectSettings(unflatten(form.getFieldsValue())))
     } catch (e) {
       actionNotification.error(`${e}`)
     } finally {
       setPending(false)
     }
-  }, [])
+  }
 
   return (
     <>
