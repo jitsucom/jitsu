@@ -3,10 +3,11 @@ package multiplexing
 import (
 	"encoding/json"
 	"errors"
-
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
+	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 )
@@ -30,33 +31,31 @@ func NewService(destinationService *destinations.Service, eventsCache *caching.E
 }
 
 //AcceptRequest multiplexes input events, enriches with context and sends to consumers
-func (s *Service) AcceptRequest(events []events.Event, emitter Emitter) error {
-	tokenID := emitter.GetTokenID()
+func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.RequestContext, token string, eventsArray []events.Event) error {
+	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
 	destinationStorages := s.destinationService.GetDestinations(tokenID)
 	if len(destinationStorages) == 0 {
 		counters.SkipPushSourceEvents(tokenID, 1)
 		return ErrNoDestinations
 	}
 
-	uniqueIDField := destinationStorages[0].GetUniqueIDField()
-	for _, payload := range events {
+	for _, payload := range eventsArray {
 		//** Context enrichment **
 		//Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
-		emitter.EnrichContext(uniqueIDField, payload)
+		enrichment.ContextEnrichmentStep(payload, token, reqContext, processor, destinationStorages[0].GetUniqueIDField())
 
 		//Persisted cache
 		//extract unique identifier
-		eventID := uniqueIDField.Extract(payload)
+		eventID := destinationStorages[0].GetUniqueIDField().Extract(payload)
 		if eventID == "" {
 			logging.SystemErrorf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), payload.DebugString())
 		}
 
 		serializedPayload, _ := json.Marshal(payload)
-		destinationIDs := make([]string, 0, len(destinationStorages))
+		var destinationIDs []string
 		for _, destinationProxy := range destinationStorages {
-			destinationID := destinationProxy.ID()
-			destinationIDs = append(destinationIDs, destinationID)
-			s.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationID, eventID, serializedPayload)
+			destinationIDs = append(destinationIDs, destinationProxy.ID())
+			s.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, serializedPayload)
 		}
 
 		//** Multiplexing **
@@ -71,7 +70,7 @@ func (s *Service) AcceptRequest(events []events.Event, emitter Emitter) error {
 		}
 
 		//Retroactive users recognition
-		emitter.RecognizeUsers(eventID, payload, destinationIDs)
+		processor.Postprocess(payload, eventID, destinationIDs)
 
 		counters.SuccessPushSourceEvents(tokenID, 1)
 	}

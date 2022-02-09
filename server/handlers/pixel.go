@@ -4,10 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
-	"strings"
-
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/cors"
@@ -20,6 +16,9 @@ import (
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
+	"net/http"
+	"net/url"
+	"strings"
 )
 
 const (
@@ -87,11 +86,8 @@ func (ph *PixelHandler) Handle(c *gin.Context) {
 		reqContext.JitsuAnonymousID = ph.extractOrSetAnonymIDCookie(c, event, reqContext)
 	}
 
-	if err := ph.multiplexingService.AcceptRequest([]events.Event{event}, multiplexing.Token{
-		Context:   reqContext,
-		Processor: ph.processor,
-		Value:     strToken,
-	}); err != nil {
+	err = ph.multiplexingService.AcceptRequest(ph.processor, reqContext, strToken, []events.Event{event})
+	if err != nil {
 		code := http.StatusBadRequest
 		if err == multiplexing.ErrNoDestinations {
 			code = http.StatusUnprocessableEntity
