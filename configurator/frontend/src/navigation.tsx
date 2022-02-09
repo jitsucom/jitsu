@@ -25,7 +25,9 @@ const DestinationsPage = React.lazy(
   () => import(/* webpackPrefetch: true */ "ui/pages/DestinationsPage/DestinationsPage")
 )
 const DbtCloudPage = React.lazy(() => import(/* webpackPrefetch: true */ "ui/pages/DbtCloud/DbtCloudPage"))
-const ProjectSettingsPage = React.lazy(() => import(/* webpackPrefetch: true */ "ui/pages/ProjectSettingsPage/ProjectSettingsPage"))
+const ProjectSettingsPage = React.lazy(
+  () => import(/* webpackPrefetch: true */ "ui/pages/ProjectSettingsPage/ProjectSettingsPage")
+)
 const GeoDataResolver = React.lazy(
   () => import(/* webpackPrefetch: true */ "./lib/components/GeoDataResolver/GeoDataResolver")
 )

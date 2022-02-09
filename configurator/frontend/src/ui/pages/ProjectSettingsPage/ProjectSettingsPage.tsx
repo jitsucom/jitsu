@@ -1,8 +1,8 @@
 /* eslint-disable */
-import React, {useEffect, useState} from "react"
-import {ProjectSettings, projectSettingsStore} from "../../../stores/projectSettings";
-import {CenteredError, CenteredSpin} from "../../../lib/components/components";
-import {ProjectSettingsEditor} from "./ProjectSettingsEditor";
+import React, { useEffect, useState } from "react"
+import { ProjectSettings, projectSettingsStore } from "../../../stores/projectSettings"
+import { CenteredError, CenteredSpin } from "../../../lib/components/components"
+import { ProjectSettingsEditor } from "./ProjectSettingsEditor"
 
 export default function ProjectSettingsPage() {
   let [data, setData] = useState<ProjectSettings>()
@@ -24,14 +24,13 @@ export default function ProjectSettingsPage() {
     load()
   }, [])
 
-  return <>
-    {loading && !data && <CenteredSpin/>}
-    {!!error && !data && <CenteredError error={error}/>}
-    {!error && !!data && <ProjectSettingsEditor
-      data={data}
-      setData={setData}
-      setLoading={setLoading}
-      loading={loading}
-    />}
-  </>
+  return (
+    <>
+      {loading && !data && <CenteredSpin />}
+      {!!error && !data && <CenteredError error={error} />}
+      {!error && !!data && (
+        <ProjectSettingsEditor data={data} setData={setData} setLoading={setLoading} loading={loading} />
+      )}
+    </>
+  )
 }

@@ -243,7 +243,7 @@ export class JWTBackendClient implements BackendApiClient {
   }
 
   patch<T>(url: string, payload: Partial<T>, opts?: ApiRequestOptions): Promise<T> {
-    return this.exec("patch", JSON_FORMAT, url, payload, opts ?? {});
+    return this.exec("patch", JSON_FORMAT, url, payload, opts ?? {})
   }
 
   postRaw(url, data: any, opts?: ApiRequestOptions): Promise<string> {
