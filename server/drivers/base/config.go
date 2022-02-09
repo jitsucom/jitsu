@@ -29,7 +29,8 @@ type SourceConfig struct {
 	Collections []interface{} `mapstructure:"collections" json:"collections,omitempty" yaml:"collections,omitempty"`
 	Schedule    string        `mapstructure:"schedule" json:"schedule,omitempty" yaml:"schedule,omitempty"`
 
-	Config map[string]interface{} `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
+	Config        map[string]interface{} `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
+	Notifications map[string]interface{} `mapstructure:"notifications" json:"notifications,omitempty" yaml:"notifications,omitempty"`
 }
 
 //Collection is a dto for report unit serialization

@@ -6,6 +6,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/jitsucom/jitsu/configurator/openapi"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
@@ -683,7 +685,7 @@ func (cs *ConfigurationsService) GetObjectWithLock(objectType, projectID, object
 	return nil, fmt.Errorf("object hasn't been found by id in path [%s] in the collection", objectArrayPath)
 }
 
-func (cs *ConfigurationsService) GetProjectSettings(projectID string) (result entities.ProjectSettings, err error) {
+func (cs *ConfigurationsService) GetProjectSettings(projectID string) (result openapi.ProjectSettings, err error) {
 	var data []byte
 	data, err = cs.getWithLock(projectSettings, projectID)
 	switch {
@@ -696,12 +698,13 @@ func (cs *ConfigurationsService) GetProjectSettings(projectID string) (result en
 	return
 }
 
-func (cs *ConfigurationsService) PatchProjectSettings(projectID string, patch map[string]interface{}) ([]byte, error) {
+func (cs *ConfigurationsService) PatchProjectSettings(projectID string, patch map[string]interface{}) (result openapi.ProjectSettings, err error) {
 	objectType := projectSettings
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
-		return nil, err
+		return
 	}
+
 	defer lock.Unlock()
 
 	data, err := cs.get(objectType, projectID)
@@ -710,21 +713,23 @@ func (cs *ConfigurationsService) PatchProjectSettings(projectID string, patch ma
 		// is ok
 	case errors.Is(err, ErrConfigurationNotFound):
 		data = []byte(`{}`)
+		err = nil
 	default:
-		return nil, errors.Wrap(err, "get")
+		return
 	}
 
 	object := make(map[string]interface{})
-	if err := json.Unmarshal(data, &object); err != nil {
-		return nil, errors.Wrap(err, "unmarshal")
+	if err = json.Unmarshal(data, &object); err != nil {
+		return
 	}
 
 	data, err = cs.save(objectType, projectID, jsonutils.Merge(object, patch))
 	if err != nil {
-		return nil, errors.Wrap(err, "save")
+		return
 	}
 
-	return data, nil
+	err = json.Unmarshal(data, &result)
+	return
 }
 
 func (cs *ConfigurationsService) Close() (multiErr error) {
