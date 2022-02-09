@@ -15,7 +15,6 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
-	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/sources"
@@ -34,30 +33,32 @@ const (
 	collectionLockTimeout = time.Minute
 )
 
-type TaskExecutorContext struct {
-	SourceService         *sources.Service
-	DestinationService    *destinations.Service
-	MetaStorage           meta.Storage
-	CoordinationService   *coordination.Service
-	MultiplexingService   *multiplexing.Service
-	StalledThreshold      time.Duration
-	LastActivityThreshold time.Duration
-	ObserverStalledEvery  time.Duration
-}
-
 type TaskExecutor struct {
-	*TaskExecutorContext
-	workersPool *ants.PoolWithFunc
-	closed      *atomic.Bool
+	workersPool         *ants.PoolWithFunc
+	sourceService       *sources.Service
+	destinationService  *destinations.Service
+	metaStorage         meta.Storage
+	coordinationService *coordination.Service
+
+	stalledThreshold      time.Duration
+	lastActivityThreshold time.Duration
+	observerStalledEvery  time.Duration
+	closed                *atomic.Bool
 }
 
 //NewTaskExecutor returns TaskExecutor and starts 2 goroutines (monitoring and queue observer)
-func NewTaskExecutor(poolSize int, ctx *TaskExecutorContext) (*TaskExecutor, error) {
+func NewTaskExecutor(poolSize, stalledThresholdSeconds, stalledLastActivityThresholdMinutes, observeStalledTaskEverySeconds int,
+	sourceService *sources.Service, destinationService *destinations.Service, metaStorage meta.Storage, coordinationService *coordination.Service) (*TaskExecutor, error) {
 	executor := &TaskExecutor{
-		TaskExecutorContext: ctx,
-		closed:              atomic.NewBool(false),
+		sourceService:         sourceService,
+		destinationService:    destinationService,
+		metaStorage:           metaStorage,
+		coordinationService:   coordinationService,
+		stalledThreshold:      time.Duration(stalledThresholdSeconds) * time.Second,
+		lastActivityThreshold: time.Duration(stalledLastActivityThresholdMinutes) * time.Minute,
+		observerStalledEvery:  time.Duration(observeStalledTaskEverySeconds) * time.Second,
+		closed:                atomic.NewBool(false),
 	}
-
 	pool, err := ants.NewPoolWithFunc(poolSize, executor.execute)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating goroutines pool: %v", err)
@@ -77,7 +78,7 @@ func NewTaskExecutor(poolSize int, ctx *TaskExecutorContext) (*TaskExecutor, err
 //initialHeartbeat gets all stalled tasks and does initial heartbeat
 //it helps to close tasks which were created in previous Jitsu versions
 func (te *TaskExecutor) initialHeartbeat() {
-	taskIDs, err := te.MetaStorage.GetAllTasksForInitialHeartbeat(RUNNING.String(), SCHEDULED.String(), te.LastActivityThreshold)
+	taskIDs, err := te.metaStorage.GetAllTasksForInitialHeartbeat(RUNNING.String(), SCHEDULED.String(), te.lastActivityThreshold)
 	if err != nil {
 		logging.SystemErrorf("error getting all tasks ids for initial heartbeat: %v", err)
 		return
@@ -87,7 +88,7 @@ func (te *TaskExecutor) initialHeartbeat() {
 		logging.Infof("Tasks for initial heartbeat:\n%s", strings.Join(taskIDs, "\b\n"))
 
 		for _, taskID := range taskIDs {
-			if hbErr := te.MetaStorage.TaskHeartBeat(taskID); hbErr != nil {
+			if hbErr := te.metaStorage.TaskHeartBeat(taskID); hbErr != nil {
 				logging.SystemErrorf("error in task [%s] initial heartbeat: %v", taskID, hbErr)
 			}
 		}
@@ -103,7 +104,7 @@ func (te *TaskExecutor) startTaskController() {
 				break
 			}
 
-			tasksHeartBeats, err := te.MetaStorage.GetAllTasksHeartBeat()
+			tasksHeartBeats, err := te.metaStorage.GetAllTasksHeartBeat()
 			if err != nil {
 				logging.SystemErrorf("error getting all tasks heartbeat: %v", err)
 				time.Sleep(5 * time.Second)
@@ -117,34 +118,34 @@ func (te *TaskExecutor) startTaskController() {
 					continue
 				}
 
-				if timestamp.Now().UTC().Before(lastHeartBeatTime.Add(te.StalledThreshold)) {
+				if timestamp.Now().UTC().Before(lastHeartBeatTime.Add(te.stalledThreshold)) {
 					//not enough time passed
 					continue
 				}
 
 				//check and update the status
-				task, err := te.MetaStorage.GetTask(taskID)
+				task, err := te.metaStorage.GetTask(taskID)
 				if err != nil {
 					logging.SystemErrorf("error getting task by id [%s] in heartbeat controller: %v", taskID, err)
 					continue
 				}
 
 				if task.Status == RUNNING.String() || task.Status == SCHEDULED.String() {
-					taskLogger := NewTaskLogger(task.ID, te.MetaStorage)
-					taskCloser := NewTaskCloser(task.ID, taskLogger, te.MetaStorage)
+					taskLogger := NewTaskLogger(task.ID, te.metaStorage)
+					taskCloser := NewTaskCloser(task.ID, taskLogger, te.metaStorage)
 					stalledTimeAgo := timestamp.Now().UTC().Sub(lastHeartBeatTime)
 
 					errMsg := fmt.Sprintf("The task is marked as Stalled. Jitsu has not received any updates from this task [%.2f] seconds (~ %.2f minutes). It might happen due to server restart. Sometimes out of memory errors might be a cause. You can check application logs and if so, please give Jitsu more RAM.", stalledTimeAgo.Seconds(), stalledTimeAgo.Minutes())
 					taskCloser.CloseWithError(errMsg, false)
 				}
 
-				if err := te.MetaStorage.RemoveTaskFromHeartBeat(taskID); err != nil {
+				if err := te.metaStorage.RemoveTaskFromHeartBeat(taskID); err != nil {
 					logging.SystemErrorf("error removing task [%s] from heartbeat: %v", taskID, err)
 				}
 
 			}
 
-			time.Sleep(te.ObserverStalledEvery)
+			time.Sleep(te.observerStalledEvery)
 		}
 	})
 }
@@ -174,7 +175,7 @@ func (te *TaskExecutor) startObserver() {
 			}
 
 			if te.workersPool.Free() > 0 {
-				task, err := te.MetaStorage.PollTask()
+				task, err := te.metaStorage.PollTask()
 				if err != nil {
 					logging.SystemErrorf("Error polling task: %v", err)
 				} else if task != nil {
@@ -212,8 +213,8 @@ func (te *TaskExecutor) execute(i interface{}) {
 	}
 
 	//create redis logger
-	taskLogger := NewTaskLogger(task.ID, te.MetaStorage)
-	taskCloser = NewTaskCloser(task.ID, taskLogger, te.MetaStorage)
+	taskLogger := NewTaskLogger(task.ID, te.metaStorage)
+	taskCloser = NewTaskCloser(task.ID, taskLogger, te.metaStorage)
 
 	if taskCloser.HandleCanceling() == ErrTaskHasBeenCanceled {
 		return
@@ -223,7 +224,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	logging.Infof("[%s] Running task...", task.ID)
 	taskLogger.INFO("Running task with id: %s", task.ID)
 
-	err := te.MetaStorage.UpdateStartedTask(task.ID, RUNNING.String())
+	err := te.metaStorage.UpdateStartedTask(task.ID, RUNNING.String())
 	if err != nil {
 		msg := fmt.Sprintf("Error updating started task [%s] in meta.Storage: %v", task.ID, err)
 		taskCloser.CloseWithError(msg, true)
@@ -235,7 +236,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	defer close(taskDone)
 	safego.Run(func() {
 		//first heart beat
-		if hbErr := te.MetaStorage.TaskHeartBeat(task.ID); hbErr != nil {
+		if hbErr := te.metaStorage.TaskHeartBeat(task.ID); hbErr != nil {
 			logging.SystemErrorf("error in task [%s] first heartbeat: %v", task.ID, hbErr)
 		}
 
@@ -246,7 +247,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 			case <-taskDone:
 				return
 			case <-ticker.C:
-				if hbErr := te.MetaStorage.TaskHeartBeat(task.ID); hbErr != nil {
+				if hbErr := te.metaStorage.TaskHeartBeat(task.ID); hbErr != nil {
 					logging.SystemErrorf("error in task [%s] heartbeat: %v", task.ID, hbErr)
 				}
 			}
@@ -255,7 +256,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 
 	taskLogger.INFO("Acquiring lock...")
 	logging.Debugf("[TASK %s] Getting sync lock source [%s] collection [%s]...", task.ID, task.Source, task.Collection)
-	collectionLock := te.CoordinationService.CreateLock(task.Source + "_" + task.Collection)
+	collectionLock := te.coordinationService.CreateLock(task.Source + "_" + task.Collection)
 	locked, err := collectionLock.TryLock(collectionLockTimeout)
 	if err != nil {
 		msg := fmt.Sprintf("unable to lock source [%s] collection [%s] task [%s]: %v", task.Source, task.Collection, task.ID, err)
@@ -273,7 +274,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	logging.Debugf("[TASK %s] Lock obtained for source [%s] collection [%s]!", task.ID, task.Source, task.Collection)
 	defer collectionLock.Unlock()
 
-	sourceUnit, err := te.SourceService.GetSource(task.Source)
+	sourceUnit, err := te.sourceService.GetSource(task.Source)
 	if err != nil {
 		msg := fmt.Sprintf("Error getting source in task [%s]: %v", task.ID, err)
 		taskCloser.CloseWithError(msg, true)
@@ -289,7 +290,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	//get destinations
 	var destinationStorages []storages.Storage
 	for _, destinationID := range sourceUnit.DestinationIDs {
-		storageProxy, ok := te.DestinationService.GetDestinationByID(destinationID)
+		storageProxy, ok := te.destinationService.GetDestinationByID(destinationID)
 		if ok {
 			storage, ok := storageProxy.Get()
 			if ok {
@@ -336,17 +337,17 @@ func (te *TaskExecutor) execute(i interface{}) {
 	taskLogger.INFO("FINISHED SUCCESSFULLY in [%.2f] seconds (~ %.2f minutes)", end.Seconds(), end.Minutes())
 	logging.Infof("[%s] FINISHED SUCCESSFULLY in [%.2f] seconds (~ %.2f minutes)", task.ID, end.Seconds(), end.Minutes())
 
-	err = te.MetaStorage.UpdateFinishedTask(task.ID, SUCCESS.String())
+	err = te.metaStorage.UpdateFinishedTask(task.ID, SUCCESS.String())
 	if err != nil {
 		msg := fmt.Sprintf("Error updating success task [%s] in meta.Storage: %v", task.ID, err)
 		taskCloser.CloseWithError(msg, true)
 		return
 	}
-	te.triggerStatusEvents(task, taskLogger)
+	te.onSuccess(task, sourceUnit, taskLogger)
 }
 
-func (te *TaskExecutor) triggerStatusEvents(task *meta.Task, taskLogger *TaskLogger) {
-	success := events.Event{
+func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLogger *TaskLogger) {
+	event := events.Event{
 		"event_type":  storages.SourceSuccessEventType,
 		"source":      task.Source,
 		"status":      task.Status,
@@ -354,12 +355,14 @@ func (te *TaskExecutor) triggerStatusEvents(task *meta.Task, taskLogger *TaskLog
 		"finished_at": task.FinishedAt,
 		"started_at":  task.StartedAt,
 	}
-
-	if err := te.MultiplexingService.AcceptRequest([]events.Event{success}, multiplexing.System); err != nil {
-		logging.Error(err)
-		taskLogger.ERROR(err.Error())
-	} else {
-		taskLogger.INFO("Successfully emitted task status events")
+	for _, id := range source.PostHandleDestinationIDs {
+		err := te.destinationService.PostHandle(id, event)
+		if err != nil {
+			logging.Error(err)
+			taskLogger.ERROR(err.Error())
+		} else {
+			taskLogger.INFO("Successful run triggered postHandle destination: %s", id)
+		}
 	}
 }
 
@@ -387,7 +390,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			return err
 		}
 
-		storedSignature, err := te.MetaStorage.GetSignature(task.Source, collectionMetaKey, interval.String())
+		storedSignature, err := te.metaStorage.GetSignature(task.Source, collectionMetaKey, interval.String())
 		if err != nil {
 			return fmt.Errorf("Error getting interval [%s] signature: %v", interval.String(), err)
 		}
@@ -458,7 +461,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 
 		counters.SuccessPullSourceEvents(task.Source, int64(rowsCount))
 
-		if err := te.MetaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now, refreshWindow)); err != nil {
+		if err := te.metaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now, refreshWindow)); err != nil {
 			logging.SystemErrorf("Unable to save source: [%s] collection: [%s] meta key: [%s] signature: %v", task.Source, task.Collection, collectionMetaKey, err)
 		}
 
@@ -471,13 +474,13 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 //syncCLI syncs singer/airbyte source
 func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver,
 	destinationStorages []storages.Storage, taskCloser *TaskCloser) error {
-	state, err := te.MetaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey(), driversbase.ALL.String())
+	state, err := te.metaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey(), driversbase.ALL.String())
 
 	if err != nil {
 		return fmt.Errorf("Error getting state from meta storage: %v", err)
 	}
 
-	config, err := te.MetaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey()+ConfigSignatureSuffix, driversbase.ALL.String())
+	config, err := te.metaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey()+ConfigSignatureSuffix, driversbase.ALL.String())
 
 	if err != nil {
 		return fmt.Errorf("Error getting persisted config from meta storage: %v", err)
@@ -492,7 +495,7 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 		taskLogger.INFO("Loaded persisted config from meta storage.")
 	}
 
-	rs := NewResultSaver(task, cliDriver.GetTap(), cliDriver.GetCollectionMetaKey(), cliDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.MetaStorage, cliDriver.GetStreamTableNameMapping(), cliDriver.GetConfigPath())
+	rs := NewResultSaver(task, cliDriver.GetTap(), cliDriver.GetCollectionMetaKey(), cliDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.metaStorage, cliDriver.GetStreamTableNameMapping(), cliDriver.GetConfigPath())
 
 	err = cliDriver.Load(config, state, taskLogger, rs, taskCloser)
 	if err != nil {
