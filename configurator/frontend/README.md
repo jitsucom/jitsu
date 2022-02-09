@@ -11,6 +11,7 @@
 - `yarn bundle` - analyze the bundle using `webpack-bundle-analyzer` which has better UI but [may fail to represent tree-shaking](https://github.com/webpack-contrib/webpack-bundle-analyzer/issues/161); for more info, refer to [this discussion](https://github.com/facebook/create-react-app/issues/4563)
 - `yarn prettier:check` - check all \*.ts|tsx files in src directory for compliance
 - `yarn prettier:write` - fix all mistakes in \*.ts|tsx files in src directory
+- `yarn build:openapi` - generates OpenAPI definitions
 
 ## Application configuration
 
