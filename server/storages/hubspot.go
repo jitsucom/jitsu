@@ -26,6 +26,10 @@ func NewHubSpot(config *Config) (Storage, error) {
 	}
 
 	h := &HubSpot{}
+	err := h.Init(config)
+	if err != nil {
+		return nil, err
+	}
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	hAdapter, err := adapters.NewHubSpot(hubspotConfig, &adapters.HTTPAdapterConfiguration{
@@ -42,28 +46,10 @@ func NewHubSpot(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper("", hAdapter, config.coordinationService, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, HubSpotType)
-
-	h.tableHelper = tableHelper
 	h.adapter = hAdapter
 
-	//Abstract (SQLAdapters and tableHelpers are omitted)
-	h.destinationID = config.destinationID
-	h.processor = config.processor
-	h.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	h.eventsCache = config.eventsCache
-	h.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	h.uniqueIDField = config.uniqueIDField
-	h.staged = config.destination.Staged
-	h.cachingConfiguration = config.destination.CachingConfiguration
-
 	//streaming worker (queue reading)
-	h.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, h, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	h.streamingWorker.start()
-
+	h.streamingWorker = newStreamingWorker(config.eventQueue, h)
 	return h, nil
 }
 

@@ -14,7 +14,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-const emptyGIFOnexOne = "R0lGODlhAQABAIAAAAAAAP8AACH5BAEAAAEALAAAAAABAAEAAAICTAEAOw=="
+const (
+	emptyGIFOnexOne       = "R0lGODlhAQABAIAAAAAAAP8AACH5BAEAAAEALAAAAAABAAEAAAICTAEAOw=="
+	localAirbyteConfigDir = "./airbyte_config"
+)
 
 //AppConfig is a main Application Global Configuration
 type AppConfig struct {
@@ -77,6 +80,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.cache.pool.size", 10)
 	viper.SetDefault("server.strict_auth_tokens", false)
 	viper.SetDefault("server.max_columns", 100)
+	viper.SetDefault("server.max_event_size", 51200)
 	viper.SetDefault("server.configurator_urn", "/configurator")
 	//unique IDs
 	viper.SetDefault("server.fields_configuration.unique_id_field", "/eventn_ctx/event_id||/eventn_ctx_event_id||/event_id")
@@ -102,7 +106,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("users_recognition.enabled", false)
 	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id||/user/anonymous_id||/eventn_ctx/user/hashed_anonymous_id||/user/hashed_anonymous_id")
 	viper.SetDefault("users_recognition.identification_nodes", []string{"/eventn_ctx/user/id||/user/id", "/eventn_ctx/user/email||/user/email", "/eventn_ctx/user/internal_id||/user/internal_id"}) // internal_id is DEPRECATED and is set for backward compatibility
-	viper.SetDefault("users_recognition.pool.size", 5)
+	viper.SetDefault("users_recognition.pool.size", 10)
 
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.install_taps", true)
@@ -116,8 +120,6 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("airbyte-bridge.log.rotation_min", "1440")
 	viper.SetDefault("airbyte-bridge.log.max_backups", "30") //30 days = 1440 min * 30
 	viper.SetDefault("airbyte-bridge.batch_size", 10_000)
-
-	viper.SetDefault("server.volumes.workspace", "jitsu_workspace")
 
 	//User Recognition anonymous events default TTL 10080 min - 7 days
 	viper.SetDefault("meta.storage.redis.ttl_minutes.anonymous_events", 10080)
@@ -224,6 +226,7 @@ func setDefaultParams(containerized bool) {
 		viper.SetDefault("airbyte-bridge.config_dir", "/home/eventnative/data/airbyte")
 		viper.SetDefault("sql_debug_log.ddl.path", "/home/eventnative/data/logs")
 		viper.SetDefault("sql_debug_log.queries.path", "/home/eventnative/data/logs")
+		viper.SetDefault("server.volumes.workspace", "jitsu_workspace")
 	} else {
 		viper.SetDefault("server.static_files_dir", "./web")
 
@@ -236,7 +239,8 @@ func setDefaultParams(containerized bool) {
 		viper.SetDefault("singer-bridge.venv_dir", "./venv")
 		viper.SetDefault("singer-bridge.log.path", "./logs")
 		viper.SetDefault("airbyte-bridge.log.path", "./logs")
-		viper.SetDefault("airbyte-bridge.config_dir", "./airbyte_config")
+		viper.SetDefault("airbyte-bridge.config_dir", localAirbyteConfigDir)
+		viper.SetDefault("server.volumes.workspace", localAirbyteConfigDir) //should be the same as airbyte-bridge.config_dir
 	}
 }
 
