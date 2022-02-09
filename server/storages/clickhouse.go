@@ -16,7 +16,6 @@ type ClickHouse struct {
 
 	adapters                      []*adapters.ClickHouse
 	chTableHelpers                []*TableHelper
-	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 }
 
@@ -25,15 +24,22 @@ func init() {
 }
 
 //NewClickHouse returns configured ClickHouse instance
-func NewClickHouse(config *Config) (Storage, error) {
+func NewClickHouse(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
+
 	chConfig := &adapters.ClickHouseConfig{}
-	if err := config.destination.GetDestConfig(config.destination.ClickHouse, chConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.ClickHouse, chConfig); err != nil {
+		return
 	}
 
 	tableStatementFactory, err := adapters.NewTableStatementFactory(chConfig)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	nullableFields := map[string]bool{}
@@ -44,64 +50,45 @@ func NewClickHouse(config *Config) (Storage, error) {
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
+	ch := &ClickHouse{}
+	err = ch.Init(config)
+	if err != nil {
+		return
+	}
+	storage = ch
 
 	//creating tableHelpers and Adapters
 	//1 helper+adapter per ClickHouse node
-	var chAdapters []*adapters.ClickHouse
 	var sqlAdapters []adapters.SQLAdapter
-	var chTableHelpers []*TableHelper
 	for _, dsn := range chConfig.Dsns {
-		adapter, err := adapters.NewClickHouse(config.ctx, dsn, chConfig.Database, chConfig.Cluster, chConfig.TLS,
-			tableStatementFactory, nullableFields, queryLogger, config.sqlTypes)
+		var adapter *adapters.ClickHouse
+		adapter, err = adapters.NewClickHouse(config.ctx, dsn, chConfig.Database, chConfig.Cluster, chConfig.TLS,
+			tableStatementFactory, nullableFields, queryLogger, ch.sqlTypes)
 		if err != nil {
-			//close all previous created adapters
-			for _, toClose := range chAdapters {
-				toClose.Close()
-			}
-			return nil, err
+			return
 		}
 
-		chAdapters = append(chAdapters, adapter)
+		ch.adapters = append(ch.adapters, adapter)
+		ch.chTableHelpers = append(ch.chTableHelpers, NewTableHelper("", adapter, config.coordinationService, config.pkFields, adapters.SchemaToClickhouse, config.maxColumns, ClickHouseType))
 		sqlAdapters = append(sqlAdapters, adapter)
-		chTableHelpers = append(chTableHelpers, NewTableHelper("", adapter, config.coordinationService, config.pkFields, adapters.SchemaToClickhouse, config.maxColumns, ClickHouseType))
 	}
 
-	ch := &ClickHouse{
-		adapters:                      chAdapters,
-		chTableHelpers:                chTableHelpers,
-		usersRecognitionConfiguration: config.usersRecognition,
-	}
-
-	//Abstract
-	ch.destinationID = config.destinationID
-	ch.processor = config.processor
-	ch.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	ch.eventsCache = config.eventsCache
-	ch.tableHelpers = chTableHelpers
-	ch.sqlAdapters = sqlAdapters
-	ch.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	ch.uniqueIDField = config.uniqueIDField
-	ch.staged = config.destination.Staged
-	ch.cachingConfiguration = config.destination.CachingConfiguration
-
-	err = chAdapters[0].CreateDB(chConfig.Database)
+	ch.usersRecognitionConfiguration = config.usersRecognition
 	if err != nil {
-		//close all previous created adapters
-		for _, toClose := range chAdapters {
-			toClose.Close()
-		}
-		ch.fallbackLogger.Close()
-		return nil, err
+		return
+	}
+	//Abstract
+	ch.tableHelpers = ch.chTableHelpers
+	ch.sqlAdapters = sqlAdapters
+
+	err = ch.adapters[0].CreateDB(chConfig.Database)
+	if err != nil {
+		return
 	}
 
 	//streaming worker (queue reading)
-	ch.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, ch, chTableHelpers...)
-	if err != nil {
-		return nil, err
-	}
-	ch.streamingWorker.start()
-
-	return ch, nil
+	ch.streamingWorker = newStreamingWorker(config.eventQueue, ch, ch.chTableHelpers...)
+	return
 }
 
 //Type returns ClickHouse type
@@ -197,15 +184,15 @@ func (ch *ClickHouse) GetUsersRecognition() *UserRecognitionConfiguration {
 
 //Close closes ClickHouse adapters, fallback logger and streaming worker
 func (ch *ClickHouse) Close() (multiErr error) {
-	for i, adapter := range ch.adapters {
-		if err := adapter.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing clickhouse datasource[%d]: %v", ch.ID(), i, err))
-		}
-	}
-
 	if ch.streamingWorker != nil {
 		if err := ch.streamingWorker.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", ch.ID(), err))
+		}
+	}
+
+	for i, adapter := range ch.adapters {
+		if err := adapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing clickhouse datasource[%d]: %v", ch.ID(), i, err))
 		}
 	}
 
