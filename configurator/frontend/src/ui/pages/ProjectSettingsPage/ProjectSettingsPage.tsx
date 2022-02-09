@@ -9,6 +9,7 @@ import { Button, Form, Input } from "antd"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
 import useForm from "antd/lib/form/hooks/useForm"
 import { flatten, unflatten } from "lib/commons/utils"
+import { ApiOutlined, SaveFilled } from "@ant-design/icons"
 
 export default function ProjectSettingsPage() {
   let { error, data, setData, isLoading: loading } = useLoaderAsObject(loadProjectSettings)
@@ -31,33 +32,63 @@ export default function ProjectSettingsPage() {
     }
   }
 
+  let onSlackTest = async () => {
+    let url = unflatten<ProjectSettings>(form.getFieldsValue()).notifications?.slack?.url
+    try {
+      let response = await fetch(url, {
+        method: "POST",
+        body: `{"text": "Jitsu test notification"}`,
+      })
+
+      if (!response.ok) {
+        throw new Error(response.statusText)
+      }
+
+      actionNotification.success("Slack test notification OK")
+    } catch (e) {
+      actionNotification.error(`Failed to send Slack test notification: ${e.message}`)
+      console.log(e)
+    }
+  }
+
   return (
     <>
       {loading && !data && <CenteredSpin />}
       {!!error && !data && <CenteredError error={error} />}
       {!error && !!data && (
-        <div className="flex justify-center w-full">
-          {form.isFieldsTouched() && <Prompt message={unsavedMessage} />}
-          <div className="w-full pt-8 px-4" style={{ maxWidth: "1000px" }}>
-            <Form form={form}>
-              <FormLayout>
-                <h2>Notifications</h2>
-                <FormField
-                  label="Slack"
-                  tooltip="Slack webhook URL for sending task status updates"
-                  key="notifications.slack.url"
-                >
-                  <Form.Item name="notifications.slack.url">
-                    <Input size="large" name="notifications.slack.url" placeholder="Webhook URL" disabled={pending} />
-                  </Form.Item>
-                </FormField>
-              </FormLayout>
-              <FormActions>
-                <Button onClick={onSave} loading={pending}>
-                  Save
-                </Button>
-              </FormActions>
-            </Form>
+        <div className="flex flex-col w-full">
+          <div className="flex items-stretch flex-auto justify-center w-full">
+            {form.isFieldsTouched() && <Prompt message={unsavedMessage} />}
+            <div className="w-full pt-8 px-4" style={{ maxWidth: "1000px" }}>
+              <Form form={form} preserve>
+                <FormLayout>
+                  <div className="border-2 rounded-md border-white p-8">
+                    <h2>Notifications</h2>
+                    <FormField
+                      label="Slack"
+                      tooltip="Slack webhook URL for sending task status updates"
+                      key="notifications.slack.url"
+                    >
+                      <Form.Item name="notifications.slack.url">
+                        <Input
+                          size="small"
+                          name="notifications.slack.url"
+                          placeholder="Webhook URL"
+                          disabled={pending}
+                          suffix={<Button type="text" icon={<ApiOutlined />} onClick={onSlackTest} />}
+                        />
+                      </Form.Item>
+                    </FormField>
+                  </div>
+                </FormLayout>
+                <FormActions></FormActions>
+              </Form>
+            </div>
+          </div>
+          <div className="flex-shrink border-t py-2 w-full">
+            <Button type="primary" size="large" icon={<SaveFilled />} onClick={onSave} loading={pending}>
+              Save
+            </Button>
           </div>
         </div>
       )}
