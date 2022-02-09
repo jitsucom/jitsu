@@ -28,9 +28,7 @@ export default function ProjectSettingsPage() {
     <>
       {loading && !data && <CenteredSpin />}
       {!!error && !data && <CenteredError error={error} />}
-      {!error && !!data && (
-        <ProjectSettingsEditor data={data} setData={setData} setLoading={setLoading} loading={loading} />
-      )}
+      {!error && !!data && <ProjectSettingsEditor data={data} setData={setData} />}
     </>
   )
 }
