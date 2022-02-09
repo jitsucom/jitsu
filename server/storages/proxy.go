@@ -6,6 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"go.uber.org/atomic"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -36,9 +37,10 @@ func newProxy(factoryMethod func(*Config) (Storage, error), config *Config) Stor
 //start runs a new goroutine for calling factoryMethod 1 time per 1 minute
 func (rsp *RetryableProxy) start() {
 	safego.RunWithRestart(func() {
+		var lastErr string
 		for {
 			if rsp.closed.Load() {
-				break
+				return
 			}
 
 			storage, err := rsp.factoryMethod(rsp.config)
@@ -46,12 +48,25 @@ func (rsp *RetryableProxy) start() {
 				err = storage.Processor().InitJavaScriptTemplates()
 			}
 			if err != nil {
-				logging.Errorf("[%s] Error initializing destination of type %s: %v. Retry after 1 minute", rsp.config.destinationID, rsp.config.destination.Type, err)
-				time.Sleep(1 * time.Minute)
+				//write logs only if new error or write every 20th
+				if err.Error() != lastErr || rand.Int31n(20) == 0 {
+					logging.Errorf("[%s] Error initializing destination of type %s: %v. Retry after 1 minute", rsp.config.destinationID, rsp.config.destination.Type, err)
+				}
+				time.Sleep(time.Minute)
 				continue
 			}
 
 			rsp.Lock()
+			//double check if closed
+			if rsp.closed.Load() {
+				if err := storage.Close(); err != nil {
+					logging.Errorf("[%s] error closing storage in proxy: %v", rsp.config.destinationID, err)
+				}
+
+				rsp.Unlock()
+				return
+			}
+
 			rsp.storage = storage
 			rsp.ready.Store(true)
 			rsp.Unlock()
@@ -103,9 +118,12 @@ func (rsp *RetryableProxy) GetGeoResolverID() string {
 
 //Close stops underlying goroutine and close the storage
 func (rsp *RetryableProxy) Close() error {
+	rsp.Lock()
 	rsp.closed.Store(true)
 	if rsp.storage != nil {
 		return rsp.storage.Close()
 	}
+	rsp.Unlock()
+
 	return nil
 }

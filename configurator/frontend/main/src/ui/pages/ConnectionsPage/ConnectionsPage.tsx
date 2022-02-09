@@ -21,8 +21,6 @@ import { destinationPageRoutes } from "../DestinationsPage/DestinationsPage.rout
 // @Styles
 import styles from "./ConnectionsPage.module.less"
 import { useServices } from "hooks/useServices"
-import { throttle } from "lodash"
-import Form from "antd/lib/form/Form"
 import { APIKeyUtil } from "../../../utils/apiKeys.utils"
 import { DestinationsUtils } from "../../../utils/destinations.utils"
 import { SourcesUtils } from "../../../utils/sources.utils"
@@ -32,11 +30,6 @@ const CONNECTION_LINE_COLOR = "#415969"
 const CONNECTION_LINE_HIGHLIGHTED_COLOR = "#878afc"
 
 const connectionLines: { [key: string]: LeaderLine } = {}
-
-const updateLinesPositions = () => {
-  // requestAnimationFrame(() => Object.values(connectionLines).forEach(line => line.position()))
-  // Object.values(connectionLines).forEach(line => line.position())
-}
 
 const ConnectionsPageComponent: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -90,14 +83,6 @@ const ConnectionsPageComponent: React.FC = () => {
       eraseLines()
     }
   }, [destinationsStore.destinations, sourcesStore.sources, apiKeysStore.apiKeys])
-
-  useEffect(() => {
-    // move the lines on scroll
-    // containerRef.current.addEventListener("scroll", updateLinesPositions, { capture: true })
-    return () => {
-      // containerRef.current.removeEventListener("scroll", updateLinesPositions, { capture: true })
-    }
-  }, [])
 
   return (
     <div ref={containerRef} className="relative flex justify-center w-full h-full overflow-y-auto">

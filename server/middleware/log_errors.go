@@ -23,6 +23,7 @@ func GinLogErrorBody(c *gin.Context) {
 	statusCode := c.Writer.Status()
 	if statusCode >= 400 {
 		//log error body response
-		logging.Errorf("[response] %q error: %s", c.Request.URL.String(), blw.body.String())
+		ip := ExtractIP(c)
+		logging.Errorf("[response] %q error: %s from: %s method: %s\n\t request: %v", c.Request.URL.String(), blw.body.String(), ip, c.Request.Method, c.Request)
 	}
 }

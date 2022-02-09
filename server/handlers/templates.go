@@ -141,7 +141,7 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (response 
 			response.UserResult = string(jsonBytes)
 		}
 
-		envls, err := storage.Processor().ProcessEvent(req.Object)
+		envls, err := storage.Processor().ProcessEvent(req.Object, false)
 		if err != nil {
 			if err == schema.ErrSkipObject {
 				response.Result = "SKIPPED"
