@@ -2,6 +2,9 @@ package storages
 
 import (
 	"fmt"
+	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/enrichment"
+	"github.com/jitsucom/jitsu/server/typing"
 	"math/rand"
 
 	"github.com/jitsucom/jitsu/server/config"
@@ -30,10 +33,13 @@ type Abstract struct {
 
 	tableHelpers []*TableHelper
 	sqlAdapters  []adapters.SQLAdapter
+	sqlTypes     typing.SQLTypes
 
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
 	cachingConfiguration *config.CachingConfiguration
+
+	streamingWorker *StreamingWorker
 
 	archiveLogger logging.ObjectLogger
 }
@@ -186,6 +192,11 @@ func (a *Abstract) Clean(tableName string) error {
 }
 
 func (a *Abstract) close() (multiErr error) {
+	if a.streamingWorker != nil {
+		if err := a.streamingWorker.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", a.ID(), err))
+		}
+	}
 	if a.fallbackLogger != nil {
 		if err := a.fallbackLogger.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", a.ID(), err))
@@ -201,6 +212,125 @@ func (a *Abstract) close() (multiErr error) {
 	}
 
 	return nil
+}
+
+func (a *Abstract) Init(config *Config) error {
+	//Abstract (SQLAdapters and tableHelpers are omitted)
+	a.destinationID = config.destinationID
+	a.eventsCache = config.eventsCache
+	a.uniqueIDField = config.uniqueIDField
+	a.staged = config.destination.Staged
+	a.cachingConfiguration = config.destination.CachingConfiguration
+	var err error
+	a.processor, a.sqlTypes, err = a.setupProcessor(config)
+	if err != nil {
+		return err
+	}
+	return a.Processor().InitJavaScriptTemplates()
+}
+
+func (a *Abstract) Start(config *Config) error {
+	a.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
+	a.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+
+	if a.streamingWorker != nil {
+		a.streamingWorker.start()
+	}
+	return nil
+}
+
+func (a *Abstract) setupProcessor(cfg *Config) (processor *schema.Processor, sqlTypes typing.SQLTypes, err error) {
+	destination := cfg.destination
+	destinationID := cfg.destinationID
+	storageType, ok := StorageTypes[destination.Type]
+	if !ok {
+		return nil, nil, ErrUnknownDestination
+	}
+	var tableName string
+	var oldStyleMappings []string
+	var newStyleMapping *config.Mapping
+	mappingFieldType := config.Default
+	uniqueIDField := appconfig.Instance.GlobalUniqueIDField
+	if destination.DataLayout != nil {
+		mappingFieldType = destination.DataLayout.MappingType
+		oldStyleMappings = destination.DataLayout.Mapping
+		newStyleMapping = destination.DataLayout.Mappings
+		if destination.DataLayout.TableNameTemplate != "" {
+			tableName = destination.DataLayout.TableNameTemplate
+		}
+	}
+
+	if tableName == "" {
+		tableName = storageType.defaultTableName
+	}
+	if tableName == "" {
+		tableName = defaultTableName
+		logging.Infof("[%s] uses default table: %s", destinationID, tableName)
+	}
+
+	if len(destination.Enrichment) == 0 {
+		logging.Warnf("[%s] doesn't have enrichment rules", destinationID)
+	} else {
+		logging.Infof("[%s] configured enrichment rules:", destinationID)
+	}
+
+	//default enrichment rules
+	enrichmentRules := []enrichment.Rule{
+		enrichment.CreateDefaultJsIPRule(cfg.geoService, destination.GeoDataResolverID),
+		enrichment.DefaultJsUaRule,
+	}
+
+	// ** Enrichment rules **
+	for _, ruleConfig := range destination.Enrichment {
+		logging.Infof("[%s] %s", destinationID, ruleConfig.String())
+
+		rule, err := enrichment.NewRule(ruleConfig, cfg.geoService, destination.GeoDataResolverID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("Error creating enrichment rule [%s]: %v", ruleConfig.String(), err)
+		}
+
+		enrichmentRules = append(enrichmentRules, rule)
+	}
+
+	// ** Mapping rules **
+	if len(oldStyleMappings) > 0 {
+		logging.Warnf("\n\t ** [%s] DEPRECATED mapping configuration. Read more about new configuration schema: https://jitsu.com/docs/configuration/schema-and-mappings **\n", destinationID)
+		var convertErr error
+		newStyleMapping, convertErr = schema.ConvertOldMappings(mappingFieldType, oldStyleMappings)
+		if convertErr != nil {
+			return nil, nil, convertErr
+		}
+	}
+	isSQLType := storageType.isSQLType(destination)
+	enrichAndLogMappings(destinationID, isSQLType, uniqueIDField, newStyleMapping)
+	fieldMapper, sqlTypes, err := schema.NewFieldMapper(newStyleMapping)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var flattener schema.Flattener
+	var typeResolver schema.TypeResolver
+	if isSQLType {
+		flattener = schema.NewFlattener()
+		typeResolver = schema.NewTypeResolver()
+	} else {
+		flattener = schema.NewDummyFlattener()
+		typeResolver = schema.NewDummyTypeResolver()
+	}
+
+	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
+	mappingsStyle := ""
+	if len(oldStyleMappings) > 0 {
+		mappingsStyle = "old"
+	} else if newStyleMapping != nil {
+		mappingsStyle = "new"
+	}
+	processor, err = schema.NewProcessor(destinationID, destination, isSQLType, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, uniqueIDField, maxColumnNameLength, mappingsStyle)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return processor, sqlTypes, nil
 }
 
 //assume that adapters quantity == tableHelpers quantity
