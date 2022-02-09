@@ -14,7 +14,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-const emptyGIFOnexOne = "R0lGODlhAQABAIAAAAAAAP8AACH5BAEAAAEALAAAAAABAAEAAAICTAEAOw=="
+const (
+	emptyGIFOnexOne       = "R0lGODlhAQABAIAAAAAAAP8AACH5BAEAAAEALAAAAAABAAEAAAICTAEAOw=="
+	localAirbyteConfigDir = "./airbyte_config"
+)
 
 //AppConfig is a main Application Global Configuration
 type AppConfig struct {
@@ -117,8 +120,6 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("airbyte-bridge.log.rotation_min", "1440")
 	viper.SetDefault("airbyte-bridge.log.max_backups", "30") //30 days = 1440 min * 30
 	viper.SetDefault("airbyte-bridge.batch_size", 10_000)
-
-	viper.SetDefault("server.volumes.workspace", "jitsu_workspace")
 
 	//User Recognition anonymous events default TTL 10080 min - 7 days
 	viper.SetDefault("meta.storage.redis.ttl_minutes.anonymous_events", 10080)
@@ -225,6 +226,7 @@ func setDefaultParams(containerized bool) {
 		viper.SetDefault("airbyte-bridge.config_dir", "/home/eventnative/data/airbyte")
 		viper.SetDefault("sql_debug_log.ddl.path", "/home/eventnative/data/logs")
 		viper.SetDefault("sql_debug_log.queries.path", "/home/eventnative/data/logs")
+		viper.SetDefault("server.volumes.workspace", "jitsu_workspace")
 	} else {
 		viper.SetDefault("server.static_files_dir", "./web")
 
@@ -237,7 +239,8 @@ func setDefaultParams(containerized bool) {
 		viper.SetDefault("singer-bridge.venv_dir", "./venv")
 		viper.SetDefault("singer-bridge.log.path", "./logs")
 		viper.SetDefault("airbyte-bridge.log.path", "./logs")
-		viper.SetDefault("airbyte-bridge.config_dir", "./airbyte_config")
+		viper.SetDefault("airbyte-bridge.config_dir", localAirbyteConfigDir)
+		viper.SetDefault("server.volumes.workspace", localAirbyteConfigDir) //should be the same as airbyte-bridge.config_dir
 	}
 }
 

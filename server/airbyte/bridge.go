@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"io"
 	"io/ioutil"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -19,9 +20,12 @@ const (
 	BridgeType                  = "airbyte_bridge"
 	DockerImageRepositoryPrefix = "airbyte/"
 
-	VolumeAlias   = "/tmp/airbyte/"
-	DockerCommand = "docker"
-	LatestVersion = "latest"
+	VolumeAlias     = "/tmp/airbyte/"
+	DockerCommand   = "docker"
+	LatestVersion   = "latest"
+	MountVolumeType = "volume"
+
+	mountDockerSockMsg = "For using Airbyte run Jitsu docker with: -v /var/run/docker.sock:/var/run/docker.sock"
 )
 
 var (
@@ -41,7 +45,7 @@ type Bridge struct {
 }
 
 //Init initializes airbyte Bridge
-func Init(ctx context.Context, configDir, workspaceVolume string, batchSize int, logWriter io.Writer) error {
+func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume string, batchSize int, logWriter io.Writer) error {
 	logging.Infof("Initializing Airbyte bridge. Batch size: %d", batchSize)
 
 	if logWriter == nil {
@@ -60,16 +64,17 @@ func Init(ctx context.Context, configDir, workspaceVolume string, batchSize int,
 
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return fmt.Errorf("error creating docker client: %v", err)
+		return fmt.Errorf("error creating docker client: %v. %s", err, mountDockerSockMsg)
 	}
+	defer cli.Close()
 
-	logging.Infof("Loading local airbyte docker images..")
+	logging.Infof("[airbyte] Loading local airbyte docker images..")
 	images, err := cli.ImageList(ctx, types.ImageListOptions{})
 	if err != nil {
-		return fmt.Errorf("error executing docker image ls: %v", err)
+		return fmt.Errorf("error executing docker image ls: %v. %s", err, mountDockerSockMsg)
 	}
 
-	logging.Debug("[Airbyte] pulled docker images:")
+	logging.Debug("[airbyte] pulled docker images:")
 	for _, image := range images {
 		if len(image.RepoTags) > 0 {
 			repoImageWithVersion := image.RepoTags[0]
@@ -78,7 +83,42 @@ func Init(ctx context.Context, configDir, workspaceVolume string, batchSize int,
 		}
 	}
 
+	logging.Infof("[airbyte] Checking mounted volume: %s ...", workspaceVolume)
+	if containerizedRun {
+		if err = Instance.checkVolume(ctx, cli); err != nil {
+			return err
+		}
+	} else {
+		if Instance.ConfigDir != workspaceVolume {
+			return fmt.Errorf("for non-docker Jitsu instances (started via binary file) 'airbyte-bridge.config_dir' parameter (current value: %s) should be equal to 'server.volumes.workspace' parameter (current value: %s) in config", Instance.ConfigDir, workspaceVolume)
+		}
+	}
+
+	logging.Infof("[airbyte] ✅ Mounted volume %s: OK", workspaceVolume)
+
 	return nil
+}
+
+//checkVolume checks if current image has a mounted volume with server.volumes.workspace value
+func (b *Bridge) checkVolume(ctx context.Context, cli *client.Client) error {
+	containerID, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("failed to get current docker container ID from hostname: %v", err)
+	}
+
+	container, err := cli.ContainerInspect(ctx, containerID)
+	if err != nil {
+		return fmt.Errorf("failed to inspect current docker container by containerID [%s]: %v", containerID, err)
+	}
+
+	for _, mount := range container.Mounts {
+		if mount.Name == b.WorkspaceVolume && mount.Type == MountVolumeType {
+			//workspace is a volume and has correct name
+			return nil
+		}
+	}
+
+	return fmt.Errorf("volume with name: %s hasn't been mounted to the current docker container. The volume is required for Airbyte integration. Please add -v %s:%s to your Jitsu container run", Instance.WorkspaceVolume, Instance.WorkspaceVolume, Instance.ConfigDir)
 }
 
 //IsImagePulled returns true if the image is pulled or start pulling the image asynchronously and returns false
