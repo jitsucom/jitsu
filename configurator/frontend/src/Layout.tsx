@@ -20,7 +20,7 @@ import Icon, {
   NotificationFilled,
   ApiFilled,
   ThunderboltFilled,
-  HomeFilled
+  HomeFilled,
 } from "@ant-design/icons"
 import { ReactComponent as JitsuLogo } from "icons/logo-responsive.svg"
 import { ReactComponent as Cross } from "icons/cross.svg"
