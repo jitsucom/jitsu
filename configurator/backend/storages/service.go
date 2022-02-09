@@ -6,6 +6,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/jitsucom/jitsu/configurator/openapi"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
