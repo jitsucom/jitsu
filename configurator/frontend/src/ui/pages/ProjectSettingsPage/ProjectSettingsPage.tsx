@@ -1,5 +1,5 @@
 /* eslint-disable */
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { loadProjectSettings, ProjectSettings, saveProjectSettings } from "../../../stores/projectSettings"
 import { CenteredError, CenteredSpin } from "../../../lib/components/components"
 import { actionNotification } from "../../components/ActionNotification/ActionNotification"
@@ -9,13 +9,15 @@ import { Button, Form, Input } from "antd"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
 import useForm from "antd/lib/form/hooks/useForm"
 import { flatten, unflatten } from "lib/commons/utils"
-import { ApiOutlined, SaveFilled } from "@ant-design/icons"
+import { ApiOutlined } from "@ant-design/icons"
 
 export default function ProjectSettingsPage() {
   let { error, data, setData, isLoading: loading } = useLoaderAsObject(loadProjectSettings)
   let [pending, setPending] = useState<boolean>()
   let [form] = useForm<ProjectSettings>()
-  form.setFieldsValue(flatten(data))
+  useEffect(() => {
+    form.setFieldsValue(flatten(data))
+  }, [data])
 
   let onSave = async () => {
     if (!form.isFieldsTouched()) {
@@ -57,9 +59,10 @@ export default function ProjectSettingsPage() {
       {!!error && !data && <CenteredError error={error} />}
       {!error && !!data && (
         <div className="flex justify-center w-full">
-          {form.isFieldsTouched() && <Prompt message={unsavedMessage} />}
+          {/*TODO see https://github.com/ant-design/ant-design/issues/33991*/}
+          {/*{form.isFieldsTouched() && <Prompt message={unsavedMessage}/>}*/}
           <div className="w-full pt-8 px-4" style={{ maxWidth: "1000px" }}>
-            <Form form={form} preserve>
+            <Form form={form} onFinish={onSave}>
               <FormLayout>
                 <div className="border-2 rounded-md border-white p-8">
                   <h2>Notifications</h2>
@@ -82,7 +85,7 @@ export default function ProjectSettingsPage() {
               </FormLayout>
               <FormActions>
                 <div className="pt-8 text-right w-full">
-                  <Button type="primary" size="large" onClick={onSave} loading={pending}>
+                  <Button type="primary" size="large" htmlType="submit" loading={pending}>
                     Save
                   </Button>
                 </div>
