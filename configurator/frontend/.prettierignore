@@ -20,3 +20,4 @@ package.json
 tailwind.config.js
 tsconfig.json
 tsconfig.paths.json
+src/generated
