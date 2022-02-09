@@ -14,6 +14,7 @@ type EventIdentifiers struct {
 }
 
 type EventKey struct {
+	TokenID       string
 	DestinationID string
 	AnonymousID   string
 }

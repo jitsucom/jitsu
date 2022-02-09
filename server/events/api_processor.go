@@ -17,7 +17,7 @@ func (ap *APIProcessor) Preprocess(event Event, requestContext *RequestContext) 
 }
 
 //Postprocess does nothing
-func (ap *APIProcessor) Postprocess(event Event, eventID string, destinationIDs []string) {
+func (ap *APIProcessor) Postprocess(event Event, eventID string, destinationIDs []string, tokenID string) {
 }
 
 //Type returns preprocessor type

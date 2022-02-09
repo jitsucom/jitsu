@@ -167,7 +167,7 @@ func (rs *RecognitionService) startIdentifiedObserver() {
 }
 
 //Event consumes events.Event and put it to the recognition queue
-func (rs *RecognitionService) Event(event events.Event, eventID string, destinationIDs []string) {
+func (rs *RecognitionService) Event(event events.Event, eventID string, destinationIDs []string, tokenID string) {
 	if rs.closed.Load() {
 		return
 	}
@@ -183,7 +183,7 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 		}
 	}
 
-	anonymousPayload, identified := rs.getDestinationsForRecognition(event, eventID, destinationIDs)
+	anonymousPayload, identified := rs.getDestinationsForRecognition(event, eventID, destinationIDs, tokenID)
 	if len(identified) == 0 && anonymousPayload == nil {
 		return
 	}
@@ -204,7 +204,7 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 
 }
 
-func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, eventID string, destinationIDs []string) (rp *AnonymousPayload, identified []*EventIdentifiers) {
+func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, eventID string, destinationIDs []string, tokenID string) (rp *AnonymousPayload, identified []*EventIdentifiers) {
 	identified = make([]*EventIdentifiers, 0, len(destinationIDs))
 	rp = nil
 	anonymousDestinationIDs := make([]EventKey, 0, len(destinationIDs))
@@ -250,9 +250,9 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 			}
 		}
 		if isAnyIdentificationValueFilled {
-			identified = append(identified, &EventIdentifiers{EventKey: EventKey{DestinationID: destinationID, AnonymousID: anonymousIDStr}, IdentificationValues: values})
+			identified = append(identified, &EventIdentifiers{EventKey: EventKey{DestinationID: destinationID, AnonymousID: anonymousIDStr, TokenID: tokenID}, IdentificationValues: values})
 		} else {
-			anonymousDestinationIDs = append(anonymousDestinationIDs, EventKey{DestinationID: destinationID, AnonymousID: anonymousIDStr})
+			anonymousDestinationIDs = append(anonymousDestinationIDs, EventKey{DestinationID: destinationID, AnonymousID: anonymousIDStr, TokenID: tokenID})
 		}
 	}
 	if len(anonymousDestinationIDs) > 0 {
@@ -294,7 +294,6 @@ func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, ident
 		event, err := rs.deserialize(storedSerializedEvent)
 		if err != nil {
 			return fmt.Errorf("[%s] error deserializing event [%s]: %v", destinationID, storedSerializedEvent, err)
-			continue
 		}
 
 		if err = configuration.IdentificationJSONPathes.Set(event, identificationValues); err != nil {
@@ -302,22 +301,12 @@ func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, ident
 				destinationID, storedSerializedEvent, configuration.IdentificationJSONPathes.String(), err)
 			continue
 		}
-
-		if err := storage.Update(event); err != nil {
-			rs.mutex.Lock()
-			rs.eventRetries[storedEventID]++
-			count, _ := rs.eventRetries[storedEventID]
-			rs.mutex.Unlock()
-
-			if count <= retryCount {
-				//retry
-				continue
-			}
-
-			logging.Infof("[%s] Error updating recognition event %s after %d retries: %v", destinationID, storedSerializedEvent, retryCount, err)
+		consumer, ok := rs.destinationService.GetEventsConsumerByDestinationID(destinationID)
+		if !ok {
+			return fmt.Errorf("User Recognition. Couldn't get consumer for destination with id: %s", destinationID)
 		}
+		consumer.Consume(event, eventsKey.TokenID)
 
-		// Pipeline goes only when event contains full identifiers according to settings,
 		if err = rs.storage.DeleteAnonymousEvent(destinationID, eventsKey.AnonymousID, storedEventID); err != nil {
 			return fmt.Errorf("error deleting anonymous events id [%s]: %v", storedEventID, err)
 		}
