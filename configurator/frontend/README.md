@@ -70,7 +70,7 @@ before building the app (or running it with `yarn start`)
 
 ## Troubleshooting
 
-- `rm -rf yarn.lock ./node_modules && yarn install`
+- `rm -rf ./node_modules && yarn install`
 
 ## Initial development setup setup
 

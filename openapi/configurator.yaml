@@ -413,6 +413,41 @@ paths:
         default:
           $ref: '#/components/responses/Error'
 
+  /api/v2/projects/{projectId}/settings:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+    get:
+      tags:
+        - configuration-management
+      operationId: 'Get project settings'
+      security:
+        - configurationManagementAuth: []
+      description: Get project settings for a given project ID
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      tags:
+        - configuration-management
+      operationId: 'Patch project settings'
+      security:
+        - configurationManagementAuth: []
+      description: > 
+        Updates a project settings for a given project ID. Object will be patched: request body properties will be merged into an original object, 
+        it's ok to send partial objects. Some fields might be ignored and overwritten. The method returns an updated object
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
   /api/v2/objects/{projectId}/{objectType}:
     parameters:
       - $ref: '#/components/parameters/projectId'

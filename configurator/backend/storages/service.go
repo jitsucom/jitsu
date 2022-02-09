@@ -2,8 +2,10 @@ package storages
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
@@ -13,8 +15,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/telemetry"
-	"io"
-	"time"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -24,6 +25,7 @@ const (
 	apiKeysCollection                    = "api_keys"
 	customDomainsCollection              = "custom_domains"
 	geoDataResolversCollection           = "geo_data_resolvers"
+	projectSettings                      = "project_settings"
 
 	telemetryCollection = "telemetry"
 	TelemetryGlobalID   = "global_configuration"
@@ -679,6 +681,51 @@ func (cs *ConfigurationsService) GetObjectWithLock(objectType, projectID, object
 	}
 
 	return nil, fmt.Errorf("object hasn't been found by id in path [%s] in the collection", objectArrayPath)
+}
+
+func (cs *ConfigurationsService) GetProjectSettings(projectID string) ([]byte, error) {
+	data, err := cs.getWithLock(projectSettings, projectID)
+	switch {
+	case err == nil:
+		// is ok
+	case errors.Is(err, ErrConfigurationNotFound):
+		data = []byte(`{}`)
+	default:
+		return nil, errors.Wrap(err, "get")
+	}
+
+	return data, nil
+}
+
+func (cs *ConfigurationsService) PatchProjectSettings(projectID string, patch map[string]interface{}) ([]byte, error) {
+	objectType := projectSettings
+	lock, err := cs.lockProjectObject(objectType, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer lock.Unlock()
+
+	data, err := cs.get(objectType, projectID)
+	switch {
+	case err == nil:
+		// is ok
+	case errors.Is(err, ErrConfigurationNotFound):
+		data = []byte(`{}`)
+	default:
+		return nil, errors.Wrap(err, "get")
+	}
+
+	object := make(map[string]interface{})
+	if err := json.Unmarshal(data, &object); err != nil {
+		return nil, errors.Wrap(err, "unmarshal")
+	}
+
+	data, err = cs.save(objectType, projectID, jsonutils.Merge(object, patch))
+	if err != nil {
+		return nil, errors.Wrap(err, "save")
+	}
+
+	return data, nil
 }
 
 func (cs *ConfigurationsService) Close() (multiErr error) {

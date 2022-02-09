@@ -3,11 +3,12 @@ package base
 import (
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/oauth"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/spf13/viper"
-	"time"
 )
 
 //StreamConfiguration is a dto for serialization selected streams configuration

@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/destinations"
@@ -37,8 +40,6 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/mitchellh/mapstructure"
 	"gopkg.in/yaml.v3"
-	"net/http"
-	"strings"
 )
 
 const (
@@ -1383,6 +1384,69 @@ func (oa *OpenAPI) GetUsersProjects(c *gin.Context) {
 		}
 
 		result = append(result, *object)
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+func (oa *OpenAPI) GetProjectSettings(c *gin.Context, projectIDI openapi.ProjectId) {
+	if c.IsAborted() {
+		return
+	}
+
+	projectID := string(projectIDI)
+
+	if !hasAccessToProject(c, projectID) {
+		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
+		return
+	}
+
+	object, err := oa.configurationsService.GetProjectSettings(projectID)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(fmt.Sprintf("failed to get project settings: %v", err), nil))
+		return
+	}
+
+	result, err := convertToObject(object)
+	if err != nil {
+		logging.Errorf("System error: malformed data %s: %v", string(object), err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(ErrMalformedData, nil))
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+func (oa *OpenAPI) PatchProjectSettings(c *gin.Context, projectIDI openapi.ProjectId) {
+	if c.IsAborted() {
+		return
+	}
+
+	projectID := string(projectIDI)
+	if !hasAccessToProject(c, projectID) {
+		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
+		return
+	}
+
+	req := &openapi.AnyObject{}
+	err := c.BindJSON(req)
+	if err != nil {
+		bodyExtractionErrorMessage := fmt.Sprintf("Failed to get patch objects body from request: %v", err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(bodyExtractionErrorMessage, nil))
+		return
+	}
+
+	newObject, err := oa.configurationsService.PatchProjectSettings(projectID, req.AdditionalProperties)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(fmt.Sprintf("failed to patch settings in project [%s]: %v", projectID, err), nil))
+		return
+	}
+
+	result, err := convertToObject(newObject)
+	if err != nil {
+		logging.Errorf("System error: malformed data %s: %v", string(newObject), err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(ErrMalformedData, nil))
+		return
 	}
 
 	c.JSON(http.StatusOK, result)

@@ -2,9 +2,10 @@ package middleware
 
 import (
 	"encoding/json"
-	"github.com/jitsucom/jitsu/server/cors"
 	"net/http"
 	"strings"
+
+	"github.com/jitsucom/jitsu/server/cors"
 )
 
 //Cors handles OPTIONS requests and check if request /event or dynamic event endpoint or static endpoint (/t /s /p)
@@ -54,7 +55,7 @@ func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) ht
 
 func writeDefaultCorsHeaders(w http.ResponseWriter) {
 	w.Header().Add("Access-Control-Max-Age", "86400")
-	w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE")
+	w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE, PATCH")
 	w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Host")
 	w.Header().Add("Access-Control-Allow-Credentials", "true")
 }
