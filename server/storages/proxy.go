@@ -45,7 +45,10 @@ func (rsp *RetryableProxy) start() {
 
 			storage, err := rsp.factoryMethod(rsp.config)
 			if err == nil {
-				err = storage.Processor().InitJavaScriptTemplates()
+				err = storage.Start(rsp.config)
+				if err != nil {
+					storage.Close()
+				}
 			}
 			if err != nil {
 				//write logs only if new error or write every 20th
@@ -73,7 +76,7 @@ func (rsp *RetryableProxy) start() {
 
 			logging.Infof("[%s] destination has been initialized!", rsp.config.destinationID)
 			telemetry.Destination(rsp.config.destinationID, rsp.config.destination.Type, rsp.config.destination.Mode,
-				rsp.config.mappingsStyle, len(rsp.config.pkFields) > 0, rsp.storage.GetUsersRecognition().IsEnabled())
+				rsp.storage.Processor().MappingStyle, len(rsp.config.pkFields) > 0, rsp.storage.GetUsersRecognition().IsEnabled())
 
 			break
 		}

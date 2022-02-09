@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+const (
+	AnonymousQueueName  = "users_recognition"
+	IdentifiedQueueName = "users_identified"
+)
+
 type Queue struct {
 	identifier string
 	queue      queue.Queue
@@ -18,7 +23,7 @@ type Queue struct {
 func newQueue(identifier string) *Queue {
 	inmemoryQueue := queue.NewInMemory()
 
-	metrics.InitialUsersRecognitionQueueSize(int(inmemoryQueue.Size()))
+	metrics.InitialUsersRecognitionQueueSize(identifier, int(inmemoryQueue.Size()))
 
 	q := &Queue{identifier: identifier, queue: inmemoryQueue, closed: make(chan struct{}, 1)}
 	safego.Run(q.startMonitor)
@@ -43,7 +48,7 @@ func (q *Queue) Enqueue(rp interface{}) error {
 		return err
 	}
 
-	metrics.EnqueuedRecognitionEvent()
+	metrics.EnqueuedRecognitionEvent(q.identifier)
 
 	return nil
 }
@@ -54,7 +59,7 @@ func (q *Queue) DequeueBlock() (interface{}, error) {
 		return nil, err
 	}
 
-	metrics.DequeuedRecognitionEvent()
+	metrics.DequeuedRecognitionEvent(q.identifier)
 
 	return rpi, nil
 }
