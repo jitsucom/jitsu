@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/singer"
 	"io"
+	"math"
 )
 
 const (
@@ -47,7 +48,7 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 
 	scanner := bufio.NewScanner(stdout)
 	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 1024*1024)
+	scanner.Buffer(buf, math.MaxInt/2)
 
 	records := 0
 	streamCleaned := map[string]bool{}
