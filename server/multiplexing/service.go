@@ -48,7 +48,7 @@ func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.R
 		//extract unique identifier
 		eventID := destinationStorages[0].GetUniqueIDField().Extract(payload)
 		if eventID == "" {
-			logging.SystemErrorf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), payload.Serialize())
+			logging.SystemErrorf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), payload.DebugString())
 		}
 
 		serializedPayload, _ := json.Marshal(payload)

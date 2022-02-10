@@ -62,6 +62,16 @@ func (f Event) Serialize() string {
 	return string(b)
 }
 
+//DebugString returns the same JSON string representation of the event as Serialize but limited to 1024 bytes
+func (f Event) DebugString() string {
+	limit := 1024
+	str := f.Serialize()
+	if len(str) <= limit {
+		return str
+	}
+	return str[:limit]
+}
+
 //Clone returns copy of event
 func (f Event) Clone() Event {
 	return maputils.CopyMap(f)
