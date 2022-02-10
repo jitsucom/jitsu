@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"sort"
 	"strings"
@@ -138,7 +139,11 @@ func (Snowflake) Type() string {
 func (s *Snowflake) OpenTx() (*Transaction, error) {
 	tx, err := s.dataSource.BeginTx(s.ctx, nil)
 	if err != nil {
-		return nil, err
+		err = checkErr(err)
+		return nil, errorj.BeginTransactionError.Wrap(err, "failed to begin transaction").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema: s.config.Schema,
+			})
 	}
 
 	return &Transaction{tx: tx, dbType: s.Type()}, nil
@@ -146,56 +151,88 @@ func (s *Snowflake) OpenTx() (*Transaction, error) {
 
 //CreateDbSchema create database schema instance if doesn't exist
 func (s *Snowflake) CreateDbSchema(dbSchemaName string) error {
-	wrappedTx, err := s.OpenTx()
-	if err != nil {
-		return err
+	query := fmt.Sprintf(createSFDbSchemaIfNotExistsTemplate, dbSchemaName)
+	s.queryLogger.LogDDL(query)
+
+	if _, err := s.dataSource.ExecContext(s.ctx, query); err != nil {
+		err = checkErr(err)
+
+		return errorj.CreateSchemaError.Wrap(err, "failed to create db schema").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    dbSchemaName,
+				Statement: query,
+			})
 	}
 
-	return createDbSchemaInTransaction(s.ctx, wrappedTx, createSFDbSchemaIfNotExistsTemplate,
-		dbSchemaName, s.queryLogger)
+	return nil
 }
 
 //CreateTable runs createTableInTransaction
-func (s *Snowflake) CreateTable(tableSchema *Table) error {
+func (s *Snowflake) CreateTable(table *Table) error {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
 		return err
 	}
 
-	if err = s.createTableInTransaction(wrappedTx, tableSchema); err != nil {
-		wrappedTx.Rollback(err)
-		return fmt.Errorf("Error creating [%s] table: %v", tableSchema.Name, err)
-	}
-	return wrappedTx.tx.Commit()
+	defer func() {
+		if err != nil {
+			rbErr := wrappedTx.Rollback()
+			if rbErr != nil {
+				err = errorj.Group(err, rbErr)
+			}
+		} else {
+			err = wrappedTx.Commit()
+		}
+	}()
+
+	return s.createTableInTransaction(wrappedTx, table)
 }
 
 //PatchTableSchema add new columns(from provided Table) to existing table
-func (s *Snowflake) PatchTableSchema(patchSchema *Table) error {
+func (s *Snowflake) PatchTableSchema(patchTable *Table) error {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
 		return err
 	}
 
-	for columnName, column := range patchSchema.Columns {
+	defer func() {
+		if err != nil {
+			rbErr := wrappedTx.Rollback()
+			if rbErr != nil {
+				err = errorj.Group(err, rbErr)
+			}
+		} else {
+			err = wrappedTx.Commit()
+		}
+	}()
+
+	for columnName, column := range patchTable.Columns {
 		columnDDL := s.columnDDL(columnName, column)
 
 		query := fmt.Sprintf(addSFColumnTemplate, s.config.Schema,
-			reformatValue(patchSchema.Name), columnDDL)
+			reformatValue(patchTable.Name), columnDDL)
 		s.queryLogger.LogDDL(query)
 		alterStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
 		if err != nil {
-			wrappedTx.Rollback(err)
-			return fmt.Errorf("Error preparing patching table %s schema statement: %v", patchSchema.Name, err)
+			return errorj.PatchTableError.Wrap(err, "failed to prepare patch table statement").
+				WithProperty(errorj.DBInfo, &ErrorPayload{
+					Schema:    s.config.Schema,
+					Table:     patchTable.Name,
+					Statement: query,
+				})
 		}
 
-		_, err = alterStmt.ExecContext(s.ctx)
-		if err != nil {
-			wrappedTx.Rollback(err)
-			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, column.Type, err)
+		if _, err = alterStmt.ExecContext(s.ctx); err != nil {
+			return errorj.PatchTableError.Wrap(err, "failed to patch table").
+				WithProperty(errorj.DBInfo, &ErrorPayload{
+					Schema:    s.config.Schema,
+					Table:     patchTable.Name,
+					Statement: query,
+				})
 		}
 	}
 
-	return wrappedTx.tx.Commit()
+	return nil
 }
 
 //GetTableSchema returns table (name,columns with name and types) representation wrapped in Table struct
@@ -204,13 +241,25 @@ func (s *Snowflake) GetTableSchema(tableName string) (*Table, error) {
 
 	countReqRows, err := s.dataSource.QueryContext(s.ctx, tableExistenceSFQuery, reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName)))
 	if err != nil {
-		return nil, fmt.Errorf("Error querying table [%s] existence: %v", tableName, err)
+		return nil, errorj.GetTableError.Wrap(err, "failed to get table existence").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    s.config.Schema,
+				Table:     table.Name,
+				Statement: tableExistenceSFQuery,
+				Values:    []interface{}{reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName))},
+			})
 	}
 	defer countReqRows.Close()
 	countReqRows.Next()
 	var count int
 	if err = countReqRows.Scan(&count); err != nil {
-		return nil, fmt.Errorf("Error scanning table [%s] existence: %v", tableName, err)
+		return nil, errorj.GetTableError.Wrap(err, "failed to scan existence result").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    s.config.Schema,
+				Table:     table.Name,
+				Statement: tableExistenceSFQuery,
+				Values:    []interface{}{reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName))},
+			})
 	}
 
 	//table doesn't exist
@@ -221,13 +270,23 @@ func (s *Snowflake) GetTableSchema(tableName string) (*Table, error) {
 	query := fmt.Sprintf(descSchemaSFQuery, reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName)))
 	rows, err := s.dataSource.QueryContext(s.ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
+		return nil, errorj.GetTableError.Wrap(err, "failed to get table columns").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    s.config.Schema,
+				Table:     table.Name,
+				Statement: query,
+			})
 	}
 	defer rows.Close()
 
 	columns, err := rows.Columns()
 	if err != nil {
-		return nil, fmt.Errorf("Error getting columns from query: %v", err)
+		return nil, errorj.GetTableError.Wrap(err, "failed to get columns from the result").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    s.config.Schema,
+				Table:     table.Name,
+				Statement: query,
+			})
 	}
 
 	for rows.Next() {
@@ -239,7 +298,12 @@ func (s *Snowflake) GetTableSchema(tableName string) (*Table, error) {
 
 		// Scan the result into the column pointers...
 		if err := rows.Scan(linePointers...); err != nil {
-			return nil, fmt.Errorf("Error scanning result: %v", err)
+			return nil, errorj.GetTableError.Wrap(err, "failed to scan result").
+				WithProperty(errorj.DBInfo, &ErrorPayload{
+					Schema:    s.config.Schema,
+					Table:     table.Name,
+					Statement: query,
+				})
 		}
 
 		columnName := fmt.Sprint(line[0])
@@ -248,7 +312,12 @@ func (s *Snowflake) GetTableSchema(tableName string) (*Table, error) {
 		table.Columns[strings.ToLower(columnName)] = typing.SQLColumn{Type: columnSnowflakeType}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("Last rows.Err: %v", err)
+		return nil, errorj.GetTableError.Wrap(err, "failed read last row").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    s.config.Schema,
+				Table:     table.Name,
+				Statement: query,
+			})
 	}
 
 	return table, nil
@@ -261,30 +330,31 @@ func (s *Snowflake) Copy(fileName, tableName string, header []string) error {
 		reformattedHeader = append(reformattedHeader, reformatValue(v))
 	}
 
-	wrappedTx, err := s.OpenTx()
-	if err != nil {
-		return err
-	}
-
 	statement := fmt.Sprintf(`COPY INTO %s.%s (%s) `, s.config.Schema, reformatValue(tableName), strings.Join(reformattedHeader, ","))
+	maskedCredentialsStatement := statement
 	if s.s3Config != nil {
 		//s3 integration stage
 		if s.s3Config.Folder != "" {
 			fileName = s.s3Config.Folder + "/" + fileName
 		}
 		statement += fmt.Sprintf(awsS3From, s.s3Config.Bucket, fileName, s.s3Config.AccessKeyID, s.s3Config.SecretKey, copyStatementFileFormat)
+		maskedCredentialsStatement += fmt.Sprintf(awsS3From, s.s3Config.Bucket, fileName, credentialsMask, credentialsMask, copyStatementFileFormat)
 	} else {
 		//gcp integration stage
 		statement += fmt.Sprintf(gcpFrom, s.config.Stage, copyStatementFileFormat, fileName)
+		maskedCredentialsStatement += fmt.Sprintf(gcpFrom, s.config.Stage, copyStatementFileFormat, fileName)
 	}
 
-	_, err = wrappedTx.tx.ExecContext(s.ctx, statement)
-	if err != nil {
-		wrappedTx.Rollback(err)
-		return err
+	if _, err := s.dataSource.ExecContext(s.ctx, statement); err != nil {
+		return errorj.CopyError.Wrap(err, "failed to copy data from stage").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    s.config.Schema,
+				Table:     tableName,
+				Statement: maskedCredentialsStatement,
+			})
 	}
 
-	return wrappedTx.DirectCommit()
+	return nil
 }
 
 //Insert inserts data with InsertContext as a single object or a batch into Snowflake
@@ -311,12 +381,19 @@ func (s *Snowflake) insertSingle(eventContext *EventContext) error {
 	header := strings.Join(columnNames, ", ")
 	placeholderStr := strings.Join(placeholders, ", ")
 
-	query := fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(eventContext.Table.Name), header, "("+placeholderStr+")")
-	s.queryLogger.LogQueryWithValues(query, values)
+	statement := fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(eventContext.Table.Name), header, "("+placeholderStr+")")
+	s.queryLogger.LogQueryWithValues(statement, values)
 
-	_, err := s.dataSource.ExecContext(s.ctx, query, values...)
+	_, err := s.dataSource.ExecContext(s.ctx, statement, values...)
 	if err != nil {
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, header, values, err)
+		return errorj.ExecuteInsertError.Wrap(err, "failed to execute single insert").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:      s.config.Schema,
+				Table:       eventContext.Table.Name,
+				PrimaryKeys: eventContext.Table.GetPKFields(),
+				Statement:   statement,
+				Values:      values,
+			})
 	}
 
 	return nil
@@ -324,16 +401,19 @@ func (s *Snowflake) insertSingle(eventContext *EventContext) error {
 
 //insertBatch deletes with deleteConditions and runs bulkMergeInTransaction
 func (s *Snowflake) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) (err error) {
-	wrappedTx, openTxErr := s.OpenTx()
-	if openTxErr != nil {
-		return openTxErr
+	wrappedTx, err := s.OpenTx()
+	if err != nil {
+		return err
 	}
 
 	defer func() {
 		if err != nil {
-			wrappedTx.Rollback(err)
+			rbErr := wrappedTx.Rollback()
+			if rbErr != nil {
+				err = errorj.Group(err, rbErr)
+			}
 		} else {
-			err = wrappedTx.DirectCommit()
+			err = wrappedTx.Commit()
 		}
 	}()
 
@@ -362,12 +442,18 @@ func (s *Snowflake) DropTable(table *Table) error {
 		return err
 	}
 
-	if err := s.dropTableInTransaction(wrappedTx, table); err != nil {
-		wrappedTx.Rollback(err)
-		return err
-	}
+	defer func() {
+		if err != nil {
+			rbErr := wrappedTx.Rollback()
+			if rbErr != nil {
+				err = errorj.Group(err, rbErr)
+			}
+		} else {
+			err = wrappedTx.Commit()
+		}
+	}()
 
-	return wrappedTx.DirectCommit()
+	return s.dropTableInTransaction(wrappedTx, table)
 }
 
 //Truncate deletes all records in tableName table
@@ -378,7 +464,16 @@ func (s *Snowflake) Truncate(tableName string) error {
 		ctx:         s.ctx,
 	}
 	statement := fmt.Sprintf(truncateSFTableTemplate, s.config.Db, tableName)
-	return sqlParams.commonTruncate(tableName, statement)
+	if err := sqlParams.commonTruncate(statement); err != nil {
+		return errorj.TruncateError.Wrap(err, "failed to truncate table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    s.config.Schema,
+				Table:     tableName,
+				Statement: statement,
+			})
+	}
+
+	return nil
 }
 
 //Update one record in Snowflake

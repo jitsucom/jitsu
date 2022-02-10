@@ -242,7 +242,7 @@ func (p *Postgres) CreateDbSchema(dbSchemaName string) error {
 func (p *Postgres) CreateTable(table *Table) (err error) {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
-		return checkErr(err)
+		return err
 	}
 
 	defer func() {
@@ -263,7 +263,7 @@ func (p *Postgres) CreateTable(table *Table) (err error) {
 func (p *Postgres) PatchTableSchema(patchTable *Table) (err error) {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
-		return checkErr(err)
+		return err
 	}
 
 	defer func() {
@@ -319,7 +319,7 @@ func (p *Postgres) Insert(insertContext *InsertContext) error {
 func (p *Postgres) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) (err error) {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
-		return checkErr(err)
+		return err
 	}
 
 	defer func() {
@@ -378,6 +378,7 @@ func (p *Postgres) insertSingle(eventContext *EventContext) error {
 				Table:       eventContext.Table.Name,
 				PrimaryKeys: eventContext.Table.GetPKFields(),
 				Statement:   statement,
+				Values:      values,
 			})
 	}
 
@@ -392,7 +393,16 @@ func (p *Postgres) Truncate(tableName string) error {
 		ctx:         p.ctx,
 	}
 	statement := fmt.Sprintf(postgresTruncateTableTemplate, p.config.Schema, tableName)
-	return sqlParams.commonTruncate(tableName, statement)
+	if err := sqlParams.commonTruncate(statement); err != nil {
+		return errorj.TruncateError.Wrap(err, "failed to truncate table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    p.config.Schema,
+				Table:     tableName,
+				Statement: statement,
+			})
+	}
+
+	return nil
 }
 
 func (p *Postgres) getTable(tableName string) (*Table, error) {
@@ -572,7 +582,7 @@ func (p *Postgres) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *
 func (p *Postgres) DropTable(table *Table) (err error) {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
-		return checkErr(err)
+		return err
 	}
 
 	defer func() {
@@ -938,22 +948,6 @@ func (p *Postgres) buildUpdateSection(header []string) string {
 
 func (p *Postgres) destinationId() interface{} {
 	return p.ctx.Value(CtxDestinationId)
-}
-
-//create database and commit transaction
-func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, statementTemplate,
-	dbSchemaName string, queryLogger *logging.QueryLogger) error {
-	query := fmt.Sprintf(statementTemplate, dbSchemaName)
-	queryLogger.LogDDL(query)
-	_, err := wrappedTx.tx.ExecContext(ctx, query)
-	if err != nil {
-		err = checkErr(err)
-		wrappedTx.Rollback()
-
-		return fmt.Errorf("Error creating [%s] db schema with statement [%s]: %v", dbSchemaName, query, err)
-	}
-
-	return checkErr(wrappedTx.tx.Commit())
 }
 
 //reformatMappings handles old (deprecated) mapping types //TODO remove someday

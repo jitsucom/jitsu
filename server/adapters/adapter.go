@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
 	"io"
 	"regexp"
@@ -37,14 +36,11 @@ type SqlParams struct {
 	queryLogger *logging.QueryLogger
 }
 
-func (sp *SqlParams) commonTruncate(tableName, statement string) error {
+func (sp *SqlParams) commonTruncate(statement string) error {
 	sp.queryLogger.LogDDL(statement)
 
-	_, err := sp.dataSource.ExecContext(sp.ctx, statement)
-
-	if err != nil {
-		errF := fmt.Errorf("Error truncating table %s using statement: %s: %v", tableName, statement, err)
-		return mapError(errF)
+	if _, err := sp.dataSource.ExecContext(sp.ctx, statement); err != nil {
+		return mapError(err)
 	}
 
 	return nil
