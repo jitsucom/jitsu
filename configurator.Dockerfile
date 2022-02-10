@@ -37,22 +37,24 @@ ENV SKIP_UI=$SKIP_UI_BUILD
 
 WORKDIR /frontend
 
-# We need to make sure empty 'build' directory exists if SKIP_UI_BUILD==true and yarn won't make it
-RUN mkdir build
-
-RUN if [ "$SKIP_UI" != "true" ]; then yarn install --prefer-offline --frozen-lockfile --network-timeout 1000000; fi
-
 # Copy project
 ADD configurator/frontend/. ./
 
+# We need to make sure empty 'build' directory exists if SKIP_UI_BUILD==true and yarn won't make it
+RUN mkdir -p ./main/build
+
 # write the output of the date command into a file called tmp_variable
-RUN free | awk 'FNR == 2 {print $2}' > ./build/mem
+RUN free | awk 'FNR == 2 {print $2}' > ./main/build/mem
 
 # Check RAM > 4gb else error (JS build requires >4gb RAM)
-RUN if [ $(cat ./build/mem) < "4000000" ]; then echo echo Docker build requires 4gb of RAM. Configure it in the machine Docker configuration && exit 1; else rm ./build/mem; fi
+RUN if [ $(cat ./main/build/mem) < "4000000" ]; then echo echo Docker build requires 4gb of RAM. Configure it in the machine Docker configuration && exit 1; else rm ./main/build/mem; fi
+
+# Install dependencies
+RUN if [ "$SKIP_UI" != "true" ]; then yarn install --prefer-offline --frozen-lockfile --network-timeout 1000000; fi
 
 # Build
-RUN if [ "$SKIP_UI" != "true" ]; then CI=false NODE_ENV=production ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build; fi
+RUN if [ "$SKIP_UI" != "true" ]; then CI=false ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build; fi
+
 
 #######################################
 # BUILD BACKEND STAGE
@@ -91,7 +93,7 @@ FROM main as final
 # copy static files from build-image
 COPY --from=builder /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend/build/dist /home/$CONFIGURATOR_USER/app
 
-COPY --from=jsbuilder /frontend/build /home/$CONFIGURATOR_USER/app/web
+COPY --from=jsbuilder /frontend/main/build /home/$CONFIGURATOR_USER/app/web
 
 RUN chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/app
 
