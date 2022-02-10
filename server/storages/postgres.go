@@ -19,7 +19,6 @@ type Postgres struct {
 	Abstract
 
 	adapter                       *adapters.Postgres
-	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 }
 
@@ -28,10 +27,16 @@ func init() {
 }
 
 //NewPostgres returns configured Postgres Destination
-func NewPostgres(config *Config) (Storage, error) {
+func NewPostgres(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	pgConfig := &adapters.DataSourceConfig{}
-	if err := config.destination.GetDestConfig(config.destination.DataSource, pgConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.DataSource, pgConfig); err != nil {
+		return
 	}
 	//enrich with default parameters
 	if pgConfig.Port == 0 {
@@ -48,51 +53,41 @@ func NewPostgres(config *Config) (Storage, error) {
 	}
 
 	dir := adapters.SSLDir(appconfig.Instance.ConfigPath, config.destinationID)
-	if err := adapters.ProcessSSL(dir, pgConfig); err != nil {
-		return nil, err
+	if err = adapters.ProcessSSL(dir, pgConfig); err != nil {
+		return
 	}
+	p := &Postgres{}
+	err = p.Init(config)
+	if err != nil {
+		return
+	}
+	storage = p
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	ctx := context.WithValue(config.ctx, adapters.CtxDestinationId, config.destinationID)
-	adapter, err := adapters.NewPostgres(ctx, pgConfig, queryLogger, config.sqlTypes)
+	adapter, err := adapters.NewPostgres(ctx, pgConfig, queryLogger, p.sqlTypes)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	//create db schema if doesn't exist
 	err = adapter.CreateDbSchema(pgConfig.Schema)
 	if err != nil {
 		adapter.Close()
-		return nil, err
+		return
 	}
 
 	tableHelper := NewTableHelper(pgConfig.Schema, adapter, config.coordinationService, config.pkFields, adapters.SchemaToPostgres, config.maxColumns, PostgresType)
 
-	p := &Postgres{
-		adapter:                       adapter,
-		usersRecognitionConfiguration: config.usersRecognition,
-	}
+	p.adapter = adapter
+	p.usersRecognitionConfiguration = config.usersRecognition
 
-	//Abstract
-	p.destinationID = config.destinationID
-	p.processor = config.processor
-	p.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	p.eventsCache = config.eventsCache
 	p.tableHelpers = []*TableHelper{tableHelper}
 	p.sqlAdapters = []adapters.SQLAdapter{adapter}
-	p.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	p.uniqueIDField = config.uniqueIDField
-	p.staged = config.destination.Staged
-	p.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	p.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, p, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	p.streamingWorker.start()
-
-	return p, nil
+	p.streamingWorker = newStreamingWorker(config.eventQueue, p, tableHelper)
+	return
 }
 
 //Store process events and stores with storeTable() func
@@ -215,13 +210,15 @@ func (p *Postgres) Type() string {
 
 //Close closes Postgres adapter, fallback logger and streaming worker
 func (p *Postgres) Close() (multiErr error) {
-	if err := p.adapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing postgres datasource: %v", p.ID(), err))
-	}
-
 	if p.streamingWorker != nil {
 		if err := p.streamingWorker.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", p.ID(), err))
+		}
+	}
+
+	if p.adapter != nil {
+		if err := p.adapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing postgres datasource: %v", p.ID(), err))
 		}
 	}
 

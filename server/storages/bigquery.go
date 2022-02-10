@@ -20,9 +20,8 @@ var disabledRecognitionConfiguration = &UserRecognitionConfiguration{enabled: fa
 type BigQuery struct {
 	Abstract
 
-	gcsAdapter      *adapters.GoogleCloudStorage
-	bqAdapter       *adapters.BigQuery
-	streamingWorker *StreamingWorker
+	gcsAdapter *adapters.GoogleCloudStorage
+	bqAdapter  *adapters.BigQuery
 }
 
 func init() {
@@ -30,14 +29,20 @@ func init() {
 }
 
 //NewBigQuery returns BigQuery configured instance
-func NewBigQuery(config *Config) (Storage, error) {
+func NewBigQuery(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	gConfig := &adapters.GoogleConfig{}
-	if err := config.destination.GetDestConfig(config.destination.Google, gConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.Google, gConfig); err != nil {
+		return
 	}
 	if !config.streamMode {
-		if err := gConfig.ValidateBatchMode(); err != nil {
-			return nil, err
+		if err = gConfig.ValidateBatchMode(); err != nil {
+			return
 		}
 	}
 	if gConfig.Project == "" {
@@ -52,56 +57,42 @@ func NewBigQuery(config *Config) (Storage, error) {
 
 	var gcsAdapter *adapters.GoogleCloudStorage
 	if !config.streamMode {
-		var err error
 		gcsAdapter, err = adapters.NewGoogleCloudStorage(config.ctx, gConfig)
 		if err != nil {
-			return nil, err
+			return
 		}
 	}
+	bq := &BigQuery{
+		gcsAdapter: gcsAdapter,
+	}
+	err = bq.Init(config)
+	if err != nil {
+		return
+	}
+	storage = bq
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	bigQueryAdapter, err := adapters.NewBigQuery(config.ctx, gConfig, queryLogger, config.sqlTypes)
+	bigQueryAdapter, err := adapters.NewBigQuery(config.ctx, gConfig, queryLogger, bq.sqlTypes)
 	if err != nil {
-		return nil, err
+		return
 	}
+	bq.bqAdapter = bigQueryAdapter
 
 	//create dataset if doesn't exist
 	err = bigQueryAdapter.CreateDataset(gConfig.Dataset)
 	if err != nil {
-		bigQueryAdapter.Close()
-		if gcsAdapter != nil {
-			gcsAdapter.Close()
-		}
-		return nil, err
+		return
 	}
 
 	tableHelper := NewTableHelper("", bigQueryAdapter, config.coordinationService, config.pkFields, adapters.SchemaToBigQueryString, config.maxColumns, BigQueryType)
 
-	bq := &BigQuery{
-		gcsAdapter: gcsAdapter,
-		bqAdapter:  bigQueryAdapter,
-	}
-
 	//Abstract
-	bq.destinationID = config.destinationID
-	bq.processor = config.processor
-	bq.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	bq.eventsCache = config.eventsCache
 	bq.tableHelpers = []*TableHelper{tableHelper}
 	bq.sqlAdapters = []adapters.SQLAdapter{bigQueryAdapter}
-	bq.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	bq.uniqueIDField = config.uniqueIDField
-	bq.staged = config.destination.Staged
-	bq.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	bq.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, bq, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	bq.streamingWorker.start()
-
-	return bq, nil
+	bq.streamingWorker = newStreamingWorker(config.eventQueue, bq, tableHelper)
+	return
 }
 
 //Store process events and stores with storeTable() func
@@ -249,19 +240,20 @@ func (bq *BigQuery) Type() string {
 
 //Close closes BigQuery adapter, fallback logger and streaming worker
 func (bq *BigQuery) Close() (multiErr error) {
+	if bq.streamingWorker != nil {
+		if err := bq.streamingWorker.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", bq.ID(), err))
+		}
+	}
 	if bq.gcsAdapter != nil {
 		if err := bq.gcsAdapter.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing google cloud storage client: %v", bq.ID(), err))
 		}
 	}
 
-	if err := bq.bqAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing BigQuery client: %v", bq.ID(), err))
-	}
-
-	if bq.streamingWorker != nil {
-		if err := bq.streamingWorker.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", bq.ID(), err))
+	if bq.bqAdapter != nil {
+		if err := bq.bqAdapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing BigQuery client: %v", bq.ID(), err))
 		}
 	}
 
