@@ -137,7 +137,7 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 	defer taskCreationLock.Unlock()
 
 	//get and check last task - if it has already been created
-	lastTask, getTaskErr := ts.metaStorage.GetLastTask(sourceID, collection)
+	lastTask, getTaskErr := ts.metaStorage.GetLastTask(sourceID, collection, 0)
 	if getTaskErr != nil {
 		if getTaskErr != meta.ErrTaskNotFound {
 			return "", fmt.Errorf("Unable to get last task: %v", getTaskErr)
