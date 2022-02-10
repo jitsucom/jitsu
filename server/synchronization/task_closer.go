@@ -77,13 +77,15 @@ func (tc *TaskCloser) CloseWithSuccess() error {
 }
 
 func (tc *TaskCloser) notify(status string) {
+	previousStatus := ""
 	previousTask, err := tc.metaStorage.GetLastTask(tc.Source, tc.Collection, 1)
 	if err != nil {
-		logging.SystemErrorf("Failed to get last completed task status for [%s]: %s", tc.ID, err)
-		return
+		logging.Warnf("[%s] Failed to get previous completed task status: %s", tc.ID, err)
+	} else {
+		previousStatus = previousTask.Status
 	}
 
-	if previousTask.Status != status {
+	if previousStatus != status {
 		go tc.notificationService.Notify(LoggedTask{tc.Task, tc.taskLogger, tc.notificationConfig, status})
 	}
 }
