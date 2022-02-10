@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/drivers"
@@ -14,9 +18,6 @@ import (
 	"github.com/jitsucom/jitsu/server/scheduling"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/viper"
-	"strings"
-	"sync"
-	"time"
 )
 
 const serviceName = "sources"
@@ -175,6 +176,7 @@ func (s *Service) init(sc map[string]driversbase.SourceConfig) {
 			DriverPerCollection:      driverPerCollection,
 			DestinationIDs:           sourceConfig.Destinations,
 			PostHandleDestinationIDs: sourceConfig.PostHandleDestinations,
+			Notifications:            sourceConfig.Notifications,
 			hash:                     hash,
 		}
 		s.Unlock()
