@@ -30,13 +30,19 @@ func init() {
 }
 
 //NewWebHook returns configured WebHook destination
-func NewWebHook(config *Config) (Storage, error) {
+func NewWebHook(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if !config.streamMode {
 		return nil, fmt.Errorf("WebHook destination doesn't support %s mode", BatchMode)
 	}
 
 	webHookConfig := &adapters.WebHookConfig{}
-	if err := config.destination.GetDestConfig(config.destination.WebHook, webHookConfig); err != nil {
+	if err = config.destination.GetDestConfig(config.destination.WebHook, webHookConfig); err != nil {
 		return nil, err
 	}
 
@@ -50,10 +56,11 @@ func NewWebHook(config *Config) (Storage, error) {
 	}
 
 	wh := &WebHook{}
-	err := wh.Init(config)
+	err = wh.Init(config)
 	if err != nil {
-		return nil, err
+		return
 	}
+	storage = wh
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	wbAdapter, err := adapters.NewWebHook(webHookConfig, &adapters.HTTPAdapterConfiguration{
@@ -67,7 +74,7 @@ func NewWebHook(config *Config) (Storage, error) {
 		SuccessHandler: wh.SuccessEvent,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	wh.adapter = wbAdapter
@@ -75,7 +82,7 @@ func NewWebHook(config *Config) (Storage, error) {
 	//streaming worker (queue reading)
 	wh.streamingWorker = newStreamingWorker(config.eventQueue, wh)
 
-	return wh, nil
+	return
 }
 
 //Type returns WebHook type

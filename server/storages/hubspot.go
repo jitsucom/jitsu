@@ -15,21 +15,28 @@ func init() {
 }
 
 //NewHubSpot returns configured HubSpot destination
-func NewHubSpot(config *Config) (Storage, error) {
+func NewHubSpot(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if !config.streamMode {
 		return nil, fmt.Errorf("HubSpot destination doesn't support %s mode", BatchMode)
 	}
 
 	hubspotConfig := &adapters.HubSpotConfig{}
-	if err := config.destination.GetDestConfig(config.destination.HubSpot, hubspotConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.HubSpot, hubspotConfig); err != nil {
+		return
 	}
 
 	h := &HubSpot{}
-	err := h.Init(config)
+	err = h.Init(config)
 	if err != nil {
-		return nil, err
+		return
 	}
+	storage = h
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	hAdapter, err := adapters.NewHubSpot(hubspotConfig, &adapters.HTTPAdapterConfiguration{
@@ -43,14 +50,14 @@ func NewHubSpot(config *Config) (Storage, error) {
 		SuccessHandler: h.SuccessEvent,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	h.adapter = hAdapter
 
 	//streaming worker (queue reading)
 	h.streamingWorker = newStreamingWorker(config.eventQueue, h)
-	return h, nil
+	return
 }
 
 //Type returns HubSpot type
