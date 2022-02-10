@@ -169,7 +169,7 @@ func (r *Runner) Read(dataConsumer base.CLIDataConsumer, streamsRepresentation m
 
 		err := asyncParser.parse(stdout)
 		if err != nil {
-			taskCloser.CloseWithError(fmt.Sprintf("Process error: %v. Process will be killed", err), false)
+			taskCloser.CloseWithError(fmt.Sprintf("Airbyte output line process error: %v. Process will be killed", err), false)
 			if killErr := r.Close(); killErr != nil && killErr != runner.ErrAirbyteAlreadyTerminated {
 				taskLogger.ERROR("Error closing airbyte runner: %v", killErr)
 				logging.Errorf("[%s] closing airbyte runner: %v", taskCloser.TaskID(), killErr)
