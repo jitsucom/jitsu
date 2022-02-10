@@ -10,6 +10,7 @@ type Unit struct {
 	DriverPerCollection      map[string]driversbase.Driver
 	DestinationIDs           []string
 	PostHandleDestinationIDs []string
+	Notifications            map[string]interface{}
 
 	hash uint64
 }
