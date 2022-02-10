@@ -412,13 +412,26 @@ func main() {
 			cronScheduler.Start(taskService.ScheduleSyncFunc)
 		}
 
-		//sources sync tasks pool size
-		stalledTasksThresholdSeconds := viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")
-		stalledLastLogThresholdMinutes := viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")
-		observeStalledTaskEverySeconds := viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")
+		notificationCtx := &synchronization.NotificationContext{
+			ServiceName: notifications.ServiceName,
+			Version:     tag,
+			ServerName:  appconfig.Instance.ServerName,
+			UIBaseURL:   viper.GetString("ui_base_url"),
+		}
+
+		taskExecutorContext := &synchronization.TaskExecutorContext{
+			SourceService:         sourceService,
+			DestinationService:    destinationsService,
+			MetaStorage:           metaStorage,
+			CoordinationService:   coordinationService,
+			StalledThreshold:      time.Duration(viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")) * time.Second,
+			LastActivityThreshold: time.Duration(viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")) * time.Minute,
+			ObserverStalledEvery:  time.Duration(viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")) * time.Second,
+			NotificationService:   synchronization.NewNotificationService(notificationCtx, viper.GetStringMap("notifications")),
+		}
 
 		//Create task executor
-		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, stalledTasksThresholdSeconds, stalledLastLogThresholdMinutes, observeStalledTaskEverySeconds, sourceService, destinationsService, metaStorage, coordinationService)
+		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, taskExecutorContext)
 		if err != nil {
 			logging.Fatal("Error creating sources sync task executor:", err)
 		}
