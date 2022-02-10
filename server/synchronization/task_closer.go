@@ -83,7 +83,7 @@ func (tc *TaskCloser) notify(status string) {
 		return
 	}
 
-	if previousTask.Status != tc.Status {
+	if previousTask.Status != status {
 		go tc.notificationService.Notify(LoggedTask{tc.Task, tc.taskLogger, tc.notificationConfig, status})
 	}
 }
