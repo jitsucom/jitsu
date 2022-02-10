@@ -27,21 +27,29 @@ func init() {
 }
 
 //NewDbtCloud returns configured DbtCloud destination
-func NewDbtCloud(config *Config) (Storage, error) {
+func NewDbtCloud(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if !config.streamMode {
 		return nil, fmt.Errorf("DbtCloud destination doesn't support %s mode", BatchMode)
 	}
 
 	dbtCloudConfig := &adapters.DbtCloudConfig{}
-	if err := config.destination.GetDestConfig(config.destination.DbtCloud, dbtCloudConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.DbtCloud, dbtCloudConfig); err != nil {
+		return
 	}
 
 	dbt := &DbtCloud{enabled: dbtCloudConfig.Enabled}
-	err := dbt.Init(config)
+	err = dbt.Init(config)
 	if err != nil {
-		return nil, err
+		return
 	}
+	storage = dbt
+
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	dbtAdapter, err := adapters.NewDbtCloud(dbtCloudConfig, &adapters.HTTPAdapterConfiguration{
 		DestinationID:  config.destinationID,
@@ -54,15 +62,14 @@ func NewDbtCloud(config *Config) (Storage, error) {
 		SuccessHandler: dbt.SuccessEvent,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	dbt.adapter = dbtAdapter
 
 	//streaming worker (queue reading)
 	dbt.streamingWorker = newStreamingWorker(config.eventQueue, dbt)
-
-	return dbt, nil
+	return
 }
 
 //SyncStore isn't supported silently

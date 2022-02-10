@@ -19,21 +19,29 @@ func init() {
 }
 
 //NewFacebook returns configured Facebook destination
-func NewFacebook(config *Config) (Storage, error) {
+func NewFacebook(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if !config.streamMode {
 		return nil, fmt.Errorf("Facebook destination doesn't support %s mode", BatchMode)
 	}
 	fbConfig := &adapters.FacebookConversionAPIConfig{}
-	if err := config.destination.GetDestConfig(config.destination.Facebook, fbConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.Facebook, fbConfig); err != nil {
+		return
 	}
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	fb := &Facebook{}
-	err := fb.Init(config)
+	err = fb.Init(config)
 	if err != nil {
-		return nil, err
+		return
 	}
+	storage = fb
+
 	fb.processor.AddJavaScript(facebookTransform)
 	fb.processor.SetDefaultUserTransform(`return toFacebook($)`)
 
@@ -48,14 +56,14 @@ func NewFacebook(config *Config) (Storage, error) {
 		SuccessHandler: fb.SuccessEvent,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
-	
+
 	fb.adapter = fbAdapter
 
 	//streaming worker (queue reading)
 	fb.streamingWorker = newStreamingWorker(config.eventQueue, fb)
-	return fb, nil
+	return
 }
 
 //Type returns Facebook type

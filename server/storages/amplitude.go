@@ -19,20 +19,27 @@ func init() {
 }
 
 //NewAmplitude returns configured Amplitude destination
-func NewAmplitude(config *Config) (Storage, error) {
+func NewAmplitude(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if !config.streamMode {
 		return nil, fmt.Errorf("Amplitude destination doesn't support %s mode", BatchMode)
 	}
 	amplitudeConfig := &adapters.AmplitudeConfig{}
-	if err := config.destination.GetDestConfig(config.destination.Amplitude, amplitudeConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.Amplitude, amplitudeConfig); err != nil {
+		return
 	}
 
 	a := &Amplitude{}
-	err := a.Init(config)
+	err = a.Init(config)
 	if err != nil {
-		return nil, err
+		return
 	}
+	storage = a
 
 	a.processor.AddJavaScript(amplitudeTransform)
 	a.processor.SetDefaultUserTransform(`return toAmplitude($)`)
@@ -49,14 +56,14 @@ func NewAmplitude(config *Config) (Storage, error) {
 		SuccessHandler: a.SuccessEvent,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
 	//HTTPStorage
 	a.adapter = aAdapter
 
 	//streaming worker (queue reading)
 	a.streamingWorker = newStreamingWorker(config.eventQueue, a)
-	return a, nil
+	return
 }
 
 //Type returns Amplitude type
