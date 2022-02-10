@@ -34,7 +34,13 @@ func init() {
 		}})
 }
 
-func NewS3(config *Config) (Storage, error) {
+func NewS3(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if config.streamMode {
 		if config.eventQueue != nil {
 			config.eventQueue.Close()
@@ -42,23 +48,23 @@ func NewS3(config *Config) (Storage, error) {
 		return nil, fmt.Errorf("S3 destination doesn't support %s mode", StreamMode)
 	}
 	s3Config := &adapters.S3Config{}
-	if err := config.destination.GetDestConfig(config.destination.S3, s3Config); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.S3, s3Config); err != nil {
+		return
 	}
+	s3 := &S3{}
+	err = s3.Init(config)
+	if err != nil {
+		return
+	}
+	storage = s3
 
 	s3Adapter, err := adapters.NewS3(s3Config)
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	s3 := &S3{
-		s3Adapter: s3Adapter,
-	}
-	err = s3.Init(config)
-	if err != nil {
-		return nil, err
-	}
-	return s3, nil
+	s3.s3Adapter = s3Adapter
+	return
 }
 
 func (s3 *S3) DryRun(events.Event) ([][]adapters.TableField, error) {
