@@ -24,7 +24,9 @@ var (
 	ExecuteInsertInBatchError = sqlError.NewSubtype("execute_insert_in_batch")
 	ExecuteInsertError        = sqlError.NewSubtype("execute_insert")
 	UpdateError               = sqlError.NewSubtype("update")
+	TruncateError             = sqlError.NewSubtype("truncate")
 	BulkMergeError            = sqlError.NewSubtype("bulk_merge")
+	CopyError                 = sqlError.NewSubtype("copy")
 
 	DBInfo          = errorx.RegisterPrintableProperty("db_info")
 	SystemErrorFlag = errorx.RegisterPrintableProperty("system_error")
@@ -41,6 +43,10 @@ func Decorate(err error, msg string, args ...interface{}) *errorx.Error {
 func Group(errs ...error) error {
 	if len(errs) == 0 {
 		return nil
+	}
+
+	if len(errs) == 1 {
+		return errs[0]
 	}
 
 	mainErr := errs[0]

@@ -55,7 +55,7 @@ func TestRedshiftBatchInsert(t *testing.T) {
 	require.Equal(t, count, 5)
 }
 
-func TestRedshiftBatchInsert(t *testing.T) {
+func TestRedshiftBatchUpdate(t *testing.T) {
 	dsConfig, skip := readRedshiftConfig(t)
 	if skip {
 		return

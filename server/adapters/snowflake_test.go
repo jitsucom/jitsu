@@ -139,7 +139,7 @@ func TestSFBatchInsert(t *testing.T) {
 	require.Equal(t, count, 5)
 }
 
-func TestSFBatchInsert(t *testing.T) {
+func TestSFBatchUpdate(t *testing.T) {
 	sfConfig, skip := readSFConfig(t)
 	if skip {
 		return
