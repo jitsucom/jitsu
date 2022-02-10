@@ -38,7 +38,8 @@ func IsConnectionError(err error) bool {
 		strings.Contains(err.Error(), "write: broken pipe") ||
 		strings.Contains(err.Error(), "context deadline exceeded") ||
 		strings.Contains(err.Error(), "connection reset by peer") ||
-		strings.Contains(err.Error(), "write: connection timed out")
+		strings.Contains(err.Error(), "write: connection timed out") ||
+		strings.Contains(err.Error(), "no such host")
 }
 
 // syncStoreImpl implements common behaviour used to storing chunk of pulled data to any storages with processing
