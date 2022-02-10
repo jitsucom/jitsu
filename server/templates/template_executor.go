@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"reflect"
 	"rogchap.com/v8go"
@@ -186,23 +185,23 @@ func NewV8TemplateExecutor(expression string, extraFunctions template.FuncMap, e
 	v8go.SetFlags("--stack-trace-limit", "100", "--stack-size", "100", "--max-heap-size", "1000")
 	iso := v8go.NewIsolate()
 	vte := &V8TemplateExecutor{sync.Mutex{}, iso, make(chan events.Event), make(chan struct{}), make(chan interface{}), expression, nil}
-	safego.RunWithRestart(func() {
-		ticker := time.NewTicker(time.Millisecond * 500)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				heapStat := iso.GetHeapStatistics()
-				if heapStat.TotalHeapSize > 50_000_000 {
-					logging.SystemErrorf("JavaScript heap usage limit reached: %+v", heapStat)
-					iso.TerminateExecution()
-					vte.Close()
-				}
-			case <-vte.closed:
-				return
-			}
-		}
-	})
+	//safego.RunWithRestart(func() {
+	//	ticker := time.NewTicker(time.Millisecond * 500)
+	//	defer ticker.Stop()
+	//	for {
+	//		select {
+	//		case <-ticker.C:
+	//			heapStat := iso.GetHeapStatistics()
+	//			if heapStat.TotalHeapSize > 900_000_000 {
+	//				logging.SystemErrorf("JavaScript heap usage limit reached: %+v", heapStat)
+	//				iso.TerminateExecution()
+	//				vte.Close()
+	//			}
+	//		case <-vte.closed:
+	//			return
+	//		}
+	//	}
+	//})
 	safego.RunWithRestart(func() { vte.start(extraFunctions, extraScripts...) })
 	_, err := vte.ProcessEvent(events.Event{"event_type": jsLoadingTest})
 	if err != nil && strings.HasPrefix(err.Error(), jsLoadingErrorText) {
