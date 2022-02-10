@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 	"io"
+	"math"
 )
 
 const (
@@ -43,7 +44,7 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 
 	scanner := bufio.NewScanner(stdout)
 	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 1024*1024)
+	scanner.Buffer(buf, math.MaxInt/2)
 
 	records := 0
 	for scanner.Scan() {
