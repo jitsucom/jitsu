@@ -28,6 +28,9 @@ var (
 	BulkMergeError            = sqlError.NewSubtype("bulk_merge")
 	CopyError                 = sqlError.NewSubtype("copy")
 
+	innerError             = reportedErrors.NewType("inner")
+	ManageMySQLPrimaryKeys = innerError.NewSubtype("manage_mysql_primary_keys")
+
 	DBInfo          = errorx.RegisterPrintableProperty("db_info")
 	SystemErrorFlag = errorx.RegisterPrintableProperty("system_error")
 
