@@ -119,11 +119,6 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (response 
 		}
 		defer storage.Close()
 
-		err = storage.Processor().InitJavaScriptTemplates()
-		if err != nil {
-			response.Error = fmt.Errorf("failed to init javascript template: %v", err).Error()
-			return
-		}
 		response.Format = "javascript"
 		tmpl := storage.Processor().GetTransformer()
 		if tmpl != nil {
@@ -141,7 +136,7 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (response 
 			response.UserResult = string(jsonBytes)
 		}
 
-		envls, err := storage.Processor().ProcessEvent(req.Object)
+		envls, err := storage.Processor().ProcessEvent(req.Object, false)
 		if err != nil {
 			if err == schema.ErrSkipObject {
 				response.Result = "SKIPPED"
@@ -196,6 +191,7 @@ func evaluateReformatted(req *EvaluateTemplateRequest) (response EvaluateTemplat
 		response.Error = err.Error()
 		return
 	}
+	defer tableNameExtractor.Close()
 	response.Format = tableNameExtractor.Format()
 	res, err := tableNameExtractor.Extract(req.Object)
 	if err != nil {

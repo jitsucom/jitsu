@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/templates"
 )
 
 //go:embed transform/facebook.js
@@ -20,25 +19,31 @@ func init() {
 }
 
 //NewFacebook returns configured Facebook destination
-func NewFacebook(config *Config) (Storage, error) {
+func NewFacebook(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if !config.streamMode {
 		return nil, fmt.Errorf("Facebook destination doesn't support %s mode", BatchMode)
 	}
 	fbConfig := &adapters.FacebookConversionAPIConfig{}
-	if err := config.destination.GetDestConfig(config.destination.Facebook, fbConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.Facebook, fbConfig); err != nil {
+		return
 	}
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-
-	es5transform, err := templates.Babelize(facebookTransform)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert transformation code to es5: %v", err)
-	}
-	config.processor.AddJavaScript(es5transform)
-	config.processor.SetDefaultUserTransform(`return toFacebook($)`)
-
 	fb := &Facebook{}
+	err = fb.Init(config)
+	if err != nil {
+		return
+	}
+	storage = fb
+
+	fb.processor.AddJavaScript(facebookTransform)
+	fb.processor.SetDefaultUserTransform(`return toFacebook($)`)
 
 	fbAdapter, err := adapters.NewFacebookConversion(fbConfig, &adapters.HTTPAdapterConfiguration{
 		DestinationID:  config.destinationID,
@@ -51,32 +56,14 @@ func NewFacebook(config *Config) (Storage, error) {
 		SuccessHandler: fb.SuccessEvent,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
-
-	tableHelper := NewTableHelper("", fbAdapter, config.coordinationService, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, FacebookType)
 
 	fb.adapter = fbAdapter
-	fb.tableHelper = tableHelper
-
-	//Abstract (SQLAdapters and tableHelpers are omitted)
-	fb.destinationID = config.destinationID
-	fb.processor = config.processor
-	fb.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	fb.eventsCache = config.eventsCache
-	fb.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	fb.uniqueIDField = config.uniqueIDField
-	fb.staged = config.destination.Staged
-	fb.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	fb.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, fb, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	fb.streamingWorker.start()
-
-	return fb, nil
+	fb.streamingWorker = newStreamingWorker(config.eventQueue, fb)
+	return
 }
 
 //Type returns Facebook type

@@ -564,7 +564,7 @@ class JitsuClientImpl implements JitsuClient {
       }${cookiePolicy}${ipPolicy}`;
     }
     let jsonString = JSON.stringify(json);
-    getLogger().warn(`Sending payload to ${url}`, jsonString);
+    getLogger().debug(`Sending payload to ${url}`, jsonString);
     return this.transport(url, jsonString, (code, body) =>
       this.postHandle(code, body)
     );

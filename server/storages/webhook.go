@@ -30,13 +30,19 @@ func init() {
 }
 
 //NewWebHook returns configured WebHook destination
-func NewWebHook(config *Config) (Storage, error) {
+func NewWebHook(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if !config.streamMode {
 		return nil, fmt.Errorf("WebHook destination doesn't support %s mode", BatchMode)
 	}
 
 	webHookConfig := &adapters.WebHookConfig{}
-	if err := config.destination.GetDestConfig(config.destination.WebHook, webHookConfig); err != nil {
+	if err = config.destination.GetDestConfig(config.destination.WebHook, webHookConfig); err != nil {
 		return nil, err
 	}
 
@@ -50,6 +56,11 @@ func NewWebHook(config *Config) (Storage, error) {
 	}
 
 	wh := &WebHook{}
+	err = wh.Init(config)
+	if err != nil {
+		return
+	}
+	storage = wh
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	wbAdapter, err := adapters.NewWebHook(webHookConfig, &adapters.HTTPAdapterConfiguration{
@@ -63,32 +74,15 @@ func NewWebHook(config *Config) (Storage, error) {
 		SuccessHandler: wh.SuccessEvent,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	tableHelper := NewTableHelper("", wbAdapter, config.coordinationService, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, WebHookType)
-
-	wh.tableHelper = tableHelper
 	wh.adapter = wbAdapter
 
-	//Abstract (SQLAdapters and tableHelpers are omitted)
-	wh.destinationID = config.destinationID
-	wh.processor = config.processor
-	wh.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	wh.eventsCache = config.eventsCache
-	wh.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	wh.uniqueIDField = config.uniqueIDField
-	wh.staged = config.destination.Staged
-	wh.cachingConfiguration = config.destination.CachingConfiguration
-
 	//streaming worker (queue reading)
-	wh.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, wh, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	wh.streamingWorker.start()
+	wh.streamingWorker = newStreamingWorker(config.eventQueue, wh)
 
-	return wh, nil
+	return
 }
 
 //Type returns WebHook type

@@ -77,13 +77,13 @@ func TestDiff(t *testing.T) {
 			"Diff with added primary keys",
 			&Table{Name: "some", Columns: Columns{"col1": typing.SQLColumn{Type: "text"}, "col4": typing.SQLColumn{Type: "text"}}},
 			&Table{Name: "some", Columns: Columns{"col1": typing.SQLColumn{Type: "text"}}, PKFields: map[string]bool{"col1": true}},
-			&Table{Name: "some", Columns: Columns{}, PKFields: map[string]bool{"col1": true}, DeletePkFields: false},
+			&Table{Name: "some", Columns: Columns{}, PKFields: map[string]bool{"col1": true}, PrimaryKeyName: "_some_pk", DeletePkFields: false},
 		},
 		{
 			"Diff with changed primary keys",
 			&Table{Name: "some", Columns: Columns{"col1": typing.SQLColumn{Type: "text"}, "col4": typing.SQLColumn{Type: "text"}}, PKFields: map[string]bool{"col1": true}},
 			&Table{Name: "some", Columns: Columns{"col1": typing.SQLColumn{Type: "text"}, "col4": typing.SQLColumn{Type: "text"}, "col5": typing.SQLColumn{Type: "text"}}, PKFields: map[string]bool{"col1": true, "col4": true}},
-			&Table{Name: "some", Columns: Columns{"col5": typing.SQLColumn{Type: "text"}}, PKFields: map[string]bool{"col1": true, "col4": true}, DeletePkFields: true},
+			&Table{Name: "some", Columns: Columns{"col5": typing.SQLColumn{Type: "text"}}, PKFields: map[string]bool{"col1": true, "col4": true}, PrimaryKeyName: "_some_pk", DeletePkFields: true},
 		},
 	}
 	for _, tt := range tests {

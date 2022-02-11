@@ -15,17 +15,28 @@ func init() {
 }
 
 //NewHubSpot returns configured HubSpot destination
-func NewHubSpot(config *Config) (Storage, error) {
+func NewHubSpot(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if !config.streamMode {
 		return nil, fmt.Errorf("HubSpot destination doesn't support %s mode", BatchMode)
 	}
 
 	hubspotConfig := &adapters.HubSpotConfig{}
-	if err := config.destination.GetDestConfig(config.destination.HubSpot, hubspotConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.HubSpot, hubspotConfig); err != nil {
+		return
 	}
 
 	h := &HubSpot{}
+	err = h.Init(config)
+	if err != nil {
+		return
+	}
+	storage = h
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	hAdapter, err := adapters.NewHubSpot(hubspotConfig, &adapters.HTTPAdapterConfiguration{
@@ -39,32 +50,14 @@ func NewHubSpot(config *Config) (Storage, error) {
 		SuccessHandler: h.SuccessEvent,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	tableHelper := NewTableHelper("", hAdapter, config.coordinationService, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, HubSpotType)
-
-	h.tableHelper = tableHelper
 	h.adapter = hAdapter
 
-	//Abstract (SQLAdapters and tableHelpers are omitted)
-	h.destinationID = config.destinationID
-	h.processor = config.processor
-	h.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	h.eventsCache = config.eventsCache
-	h.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	h.uniqueIDField = config.uniqueIDField
-	h.staged = config.destination.Staged
-	h.cachingConfiguration = config.destination.CachingConfiguration
-
 	//streaming worker (queue reading)
-	h.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, h, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	h.streamingWorker.start()
-
-	return h, nil
+	h.streamingWorker = newStreamingWorker(config.eventQueue, h)
+	return
 }
 
 //Type returns HubSpot type

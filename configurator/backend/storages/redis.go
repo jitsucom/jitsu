@@ -101,13 +101,30 @@ func (r *Redis) UpdateCollectionLastUpdated(collection string) error {
 	return nil
 }
 
-func (r *Redis) Store(collection string, key string, entity []byte) error {
+func (r *Redis) Store(collection string, id string, entity []byte) error {
 	connection := r.pool.Get()
 	defer connection.Close()
 
 	lastUpdatedTimestamp := entime.AsISOString(time.Now().UTC())
 
-	_, err := connection.Do("hset", toRedisKey(collection), key, string(entity))
+	_, err := connection.Do("hset", toRedisKey(collection), id, string(entity))
+	if err != nil {
+		return err
+	}
+	_, err = connection.Do("hset", lastUpdatedPerCollection, collection, lastUpdatedTimestamp)
+	if err != nil {
+		return fmt.Errorf("Error while updating configs#meta#last_updated collection for [%s]: %v", collection, err)
+	}
+	return nil
+}
+
+func (r *Redis) Delete(collection string, id string) error {
+	connection := r.pool.Get()
+	defer connection.Close()
+
+	lastUpdatedTimestamp := entime.AsISOString(time.Now().UTC())
+
+	_, err := connection.Do("hdel", toRedisKey(collection), id)
 	if err != nil {
 		return err
 	}

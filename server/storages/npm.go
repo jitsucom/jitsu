@@ -22,14 +22,20 @@ func init() {
 }
 
 //NewNpmDestination returns configured NpmDestination
-func NewNpmDestination(config *Config) (Storage, error) {
+func NewNpmDestination(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if !config.streamMode {
 		return nil, fmt.Errorf("NpmDestination destination doesn't support %s mode", BatchMode)
 	}
 
 	plugin, err := plugins.DownloadPlugin(config.destination.Package)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	transformFuncName := strcase.ToLowerCamel("to_" + plugin.Name)
@@ -53,9 +59,15 @@ func NewNpmDestination(config *Config) (Storage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to init builtin javascript code: %v", err)
 	}
-	config.processor.SetBuiltinTransformer(jsTemplate)
+	wh := &NpmDestination{}
+	err = wh.Init(config)
+	if err != nil {
+		jsTemplate.Close()
+		return
+	}
+	storage = wh
+	wh.processor.SetBuiltinTransformer(jsTemplate)
 
-	wh := WebHook{}
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	wbAdapter, err := adapters.NewNpm(&adapters.HTTPAdapterConfiguration{
 		DestinationID:  config.destinationID,
@@ -68,32 +80,14 @@ func NewNpmDestination(config *Config) (Storage, error) {
 		SuccessHandler: wh.SuccessEvent,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	tableHelper := NewTableHelper("", wbAdapter, config.coordinationService, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, WebHookType)
-
-	wh.tableHelper = tableHelper
 	wh.adapter = wbAdapter
 
-	//Abstract (SQLAdapters and tableHelpers are omitted)
-	wh.destinationID = config.destinationID
-	wh.processor = config.processor
-	wh.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	wh.eventsCache = config.eventsCache
-	wh.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	wh.uniqueIDField = config.uniqueIDField
-	wh.staged = config.destination.Staged
-	wh.cachingConfiguration = config.destination.CachingConfiguration
-
 	//streaming worker (queue reading)
-	wh.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, &wh, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	wh.streamingWorker.start()
-
-	return &NpmDestination{wh}, nil
+	wh.streamingWorker = newStreamingWorker(config.eventQueue, wh)
+	return
 }
 
 //Type returns NpmType type
