@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/uuid"
+	"math"
 	"sort"
 	"strings"
 
@@ -212,17 +213,8 @@ func (s *Snowflake) PatchTableSchema(patchTable *Table) error {
 		query := fmt.Sprintf(addSFColumnTemplate, s.config.Schema,
 			reformatValue(patchTable.Name), columnDDL)
 		s.queryLogger.LogDDL(query)
-		alterStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
-		if err != nil {
-			return errorj.PatchTableError.Wrap(err, "failed to prepare patch table statement").
-				WithProperty(errorj.DBInfo, &ErrorPayload{
-					Schema:    s.config.Schema,
-					Table:     patchTable.Name,
-					Statement: query,
-				})
-		}
 
-		if _, err = alterStmt.ExecContext(s.ctx); err != nil {
+		if _, err = wrappedTx.tx.ExecContext(s.ctx, query); err != nil {
 			return errorj.PatchTableError.Wrap(err, "failed to patch table").
 				WithProperty(errorj.DBInfo, &ErrorPayload{
 					Schema:    s.config.Schema,
@@ -531,54 +523,46 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 	for name := range table.Columns {
 		unformattedColumnNames = append(unformattedColumnNames, name)
 	}
-	maxValues := len(objects) * len(table.Columns)
+	valuesAmount := len(objects) * len(table.Columns)
+	maxValues := valuesAmount
 	if maxValues > postgresValuesLimit {
 		maxValues = postgresValuesLimit
 	}
 	valueArgs := make([]interface{}, 0, maxValues)
+	operation := 0
+	operations := int(math.Max(1, float64(valuesAmount)/float64(postgresValuesLimit)))
 	for _, row := range objects {
 		// if number of values exceeds limit, we have to execute insert query on processed rows
 		if len(valueArgs)+len(unformattedColumnNames) > postgresValuesLimit {
-			err := s.executeInsert(wrappedTx, table, unformattedColumnNames, removeLastComma(placeholdersBuilder.String()), valueArgs)
-			if err != nil {
-				return fmt.Errorf("Error executing insert: %v", err)
+			operation++
+			if err := s.executeInsertInTransaction(wrappedTx, table, unformattedColumnNames, removeLastComma(placeholdersBuilder.String()), valueArgs); err != nil {
+				return errorj.Decorate(err, "middle insert %d of %d in batch", operation, operations)
 			}
 
 			placeholdersBuilder.Reset()
 			valueArgs = make([]interface{}, 0, maxValues)
 		}
-		_, err := placeholdersBuilder.WriteString("(")
-		if err != nil {
-			return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
-		}
+		_, _ = placeholdersBuilder.WriteString("(")
 
 		for i, column := range unformattedColumnNames {
 			value, _ := row[column]
 			valueArgs = append(valueArgs, value)
 			castClause := s.getCastClause(column, table.Columns[column])
 
-			_, err = placeholdersBuilder.WriteString("?" + castClause)
-			if err != nil {
-				return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
-			}
+			_, _ = placeholdersBuilder.WriteString("?" + castClause)
 
 			if i < len(unformattedColumnNames)-1 {
-				_, err = placeholdersBuilder.WriteString(",")
-				if err != nil {
-					return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
-				}
+				_, _ = placeholdersBuilder.WriteString(",")
 			}
 		}
-		_, err = placeholdersBuilder.WriteString("),")
-		if err != nil {
-			return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
-		}
+		_, _ = placeholdersBuilder.WriteString("),")
 	}
 
 	if len(valueArgs) > 0 {
-		err := s.executeInsert(wrappedTx, table, unformattedColumnNames, removeLastComma(placeholdersBuilder.String()), valueArgs)
+		operation++
+		err := s.executeInsertInTransaction(wrappedTx, table, unformattedColumnNames, removeLastComma(placeholdersBuilder.String()), valueArgs)
 		if err != nil {
-			return fmt.Errorf("Error executing last insert in bulk: %v", err)
+			return errorj.Decorate(err, "last insert %d of %d in batch", operation, operations)
 		}
 	}
 
@@ -596,12 +580,12 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 
 	err := s.createTableInTransaction(wrappedTx, tmpTable)
 	if err != nil {
-		return fmt.Errorf("Error creating temporary table: %v", err)
+		return errorj.Decorate(err, "failed to create temporary table")
 	}
 
 	err = s.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
 	if err != nil {
-		return fmt.Errorf("Error inserting in temporary table: %v", err)
+		return errorj.Decorate(err, "failed to insert into temporary table")
 	}
 
 	//insert from select
@@ -626,13 +610,22 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 		tmpTable.Name, strings.Join(joinConditions, " AND "), strings.Join(updateSet, ", "), strings.Join(formattedColumnNames, ", "), strings.Join(tmpPreffixColumnNames, ", "))
 
 	s.queryLogger.LogQuery(insertFromSelectStatement)
-	_, err = wrappedTx.tx.ExecContext(s.ctx, insertFromSelectStatement)
-	if err != nil {
-		return fmt.Errorf("Error merging rows: %v", err)
+	if _, err = wrappedTx.tx.ExecContext(s.ctx, insertFromSelectStatement); err != nil {
+
+		return errorj.BulkMergeError.Wrap(err, "failed to bulk merge").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    s.config.Schema,
+				Table:     table.Name,
+				Statement: insertFromSelectStatement,
+			})
 	}
 
 	//delete tmp table
-	return s.dropTableInTransaction(wrappedTx, tmpTable)
+	if err := s.dropTableInTransaction(wrappedTx, tmpTable); err != nil {
+		return errorj.Decorate(err, "failed to drop temporary table")
+	}
+
+	return nil
 }
 
 //dropTableInTransaction drops a table in transaction
@@ -640,17 +633,20 @@ func (s *Snowflake) dropTableInTransaction(wrappedTx *Transaction, table *Table)
 	query := fmt.Sprintf(dropSFTableTemplate, s.config.Schema, table.Name)
 	s.queryLogger.LogDDL(query)
 
-	_, err := wrappedTx.tx.ExecContext(s.ctx, query)
-
-	if err != nil {
-		return fmt.Errorf("Error dropping [%s] table: %v", table.Name, err)
+	if _, err := wrappedTx.tx.ExecContext(s.ctx, query); err != nil {
+		return errorj.DropError.Wrap(err, "failed to drop table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    s.config.Schema,
+				Table:     table.Name,
+				Statement: query,
+			})
 	}
 
 	return nil
 }
 
-//executeInsert execute insert with insertTemplate
-func (s *Snowflake) executeInsert(wrappedTx *Transaction, table *Table, headerWithoutQuotes []string, placeholders string, valueArgs []interface{}) error {
+//executeInsertInTransaction execute insert with insertTemplate
+func (s *Snowflake) executeInsertInTransaction(wrappedTx *Transaction, table *Table, headerWithoutQuotes []string, placeholders string, valueArgs []interface{}) error {
 	var quotedHeader []string
 	for _, columnName := range headerWithoutQuotes {
 		quotedHeader = append(quotedHeader, reformatValue(columnName))
@@ -661,7 +657,12 @@ func (s *Snowflake) executeInsert(wrappedTx *Transaction, table *Table, headerWi
 	s.queryLogger.LogQueryWithValues(statement, valueArgs)
 
 	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
-		return err
+		return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute insert").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    s.config.Schema,
+				Table:     table.Name,
+				Statement: fmt.Sprintf(insertSFTemplate, s.config.Schema, table.Name, strings.Join(quotedHeader, ","), fmt.Sprintf("[values: %d. for intance the first element: %v]", len(valueArgs), valueArgs[0])),
+			})
 	}
 
 	return nil
@@ -675,7 +676,12 @@ func (s *Snowflake) deleteInTransaction(wrappedTx *Transaction, table *Table, de
 
 	_, err := wrappedTx.tx.ExecContext(s.ctx, query, values...)
 	if err != nil {
-		return fmt.Errorf("Error deleting in %s table with statement: %s values: %v: %v", table.Name, deleteCondition, values, err)
+		return errorj.DeleteFromTableError.Wrap(err, "failed to delete data").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    s.config.Schema,
+				Table:     table.Name,
+				Statement: query,
+			})
 	}
 
 	return nil

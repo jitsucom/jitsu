@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/lib/pq"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -55,12 +56,11 @@ WHERE tco.constraint_type = 'PRIMARY KEY' AND
 	updateStatement   = `UPDATE "%s"."%s" SET %s WHERE %s=$%d`
 	dropTableTemplate = `DROP TABLE "%s"."%s"`
 
-	copyColumnTemplate                 = `UPDATE "%s"."%s" SET %s = %s`
-	dropColumnTemplate                 = `ALTER TABLE "%s"."%s" DROP COLUMN %s`
-	renameColumnTemplate               = `ALTER TABLE "%s"."%s" RENAME COLUMN %s TO %s`
-	postgresTruncateTableTemplate      = `TRUNCATE "%s"."%s"`
-	placeholdersStringBuildErrTemplate = `Error building placeholders string: %v`
-	postgresValuesLimit                = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	copyColumnTemplate            = `UPDATE "%s"."%s" SET %s = %s`
+	dropColumnTemplate            = `ALTER TABLE "%s"."%s" DROP COLUMN %s`
+	renameColumnTemplate          = `ALTER TABLE "%s"."%s" RENAME COLUMN %s TO %s`
+	postgresTruncateTableTemplate = `TRUNCATE "%s"."%s"`
+	postgresValuesLimit           = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
 var (
@@ -75,6 +75,11 @@ var (
 )
 
 type ErrorPayload struct {
+	Dataset     string
+	Bucket      string
+	Project     string
+	Database    string
+	Cluster     string
 	Schema      string
 	Table       string
 	PrimaryKeys []string
@@ -84,6 +89,21 @@ type ErrorPayload struct {
 
 func (ep *ErrorPayload) String() string {
 	var msgParts []string
+	if ep.Dataset != "" {
+		msgParts = append(msgParts, fmt.Sprintf("dataset=%s", ep.Dataset))
+	}
+	if ep.Bucket != "" {
+		msgParts = append(msgParts, fmt.Sprintf("bucket=%s", ep.Bucket))
+	}
+	if ep.Project != "" {
+		msgParts = append(msgParts, fmt.Sprintf("project=%s", ep.Project))
+	}
+	if ep.Database != "" {
+		msgParts = append(msgParts, fmt.Sprintf("database=%s", ep.Dataset))
+	}
+	if ep.Cluster != "" {
+		msgParts = append(msgParts, fmt.Sprintf("cluster=%s", ep.Cluster))
+	}
 	if ep.Schema != "" {
 		msgParts = append(msgParts, fmt.Sprintf("schema=%s", ep.Schema))
 	}
@@ -622,7 +642,8 @@ func (p *Postgres) Update(table *Table, object map[string]interface{}, whereKey 
 				Schema:      p.config.Schema,
 				Table:       table.Name,
 				PrimaryKeys: table.GetPKFields(),
-				Statement:   fmt.Sprintf(updateStatement, p.config.Schema, table.Name, fmt.Sprintf("[columns: %d. for intance the first element: %v first object: %v]", len(columns), columns[0], values[0]), whereKey, i+1),
+				Statement:   statement,
+				Values:      values,
 			})
 	}
 
@@ -636,17 +657,21 @@ func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table,
 	for name := range table.Columns {
 		headerWithoutQuotes = append(headerWithoutQuotes, name)
 	}
-	maxValues := len(objects) * len(table.Columns)
+	valuesAmount := len(objects) * len(table.Columns)
+	maxValues := valuesAmount
 	if maxValues > valuesLimit {
 		maxValues = valuesLimit
 	}
 	valueArgs := make([]interface{}, 0, maxValues)
 	placeholdersCounter := 1
+	operation := 0
+	operations := int(math.Max(1, float64(valuesAmount)/float64(valuesLimit)))
 	for _, row := range objects {
 		// if number of values exceeds limit, we have to execute insert query on processed rows
 		if len(valueArgs)+len(headerWithoutQuotes) > valuesLimit {
+			operation++
 			if err := p.executeInsertInTransaction(wrappedTx, table, headerWithoutQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs); err != nil {
-				return errorj.Decorate(err, "middle insert")
+				return errorj.Decorate(err, "middle insert %d of %d in batch", operation, operations)
 			}
 
 			placeholdersBuilder.Reset()
@@ -678,11 +703,14 @@ func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table,
 		}
 		_, _ = placeholdersBuilder.WriteString("),")
 	}
+
 	if len(valueArgs) > 0 {
+		operation++
 		if err := p.executeInsertInTransaction(wrappedTx, table, headerWithoutQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs); err != nil {
-			return errorj.Decorate(err, "last insert")
+			return errorj.Decorate(err, "last insert %d of %d in batch", operation, operations)
 		}
 	}
+
 	return nil
 }
 
@@ -723,7 +751,7 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 				Schema:      p.config.Schema,
 				Table:       table.Name,
 				PrimaryKeys: table.GetPKFields(),
-				Statement:   fmt.Sprintf(bulkMergeTemplate, p.config.Schema, table.Name, strings.Join(headerWithQuotes, ", "), strings.Join(headerWithQuotes, ", "), p.config.Schema, tmpTable.Name, table.PrimaryKeyName, fmt.Sprintf("[values: %d. for intance the first element: %v]", len(setValues), setValues[0])),
+				Statement:   insertFromSelectStatement,
 			})
 	}
 
