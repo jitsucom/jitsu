@@ -5,7 +5,6 @@
     "start": "yarn --cwd ./main start",
     "build": "yarn install && yarn all:check && npx lerna run build",
     "build:dev": "npx lerna run build",
-    "build:openapi": "openapi -i ../../openapi/configurator.yaml -o main/src/generated/conf-openapi --exportCore false  --exportServices false  --exportModels true\n",
     "clean": "rm -rf ./main/node_modules/ ./main/build ./main/dist",
     "lerna:publish": "npx lerna publish --canary --no-private --no-verify-access --yes",
     "prettier:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run yarn prettier:fix!\" && exit 1)",

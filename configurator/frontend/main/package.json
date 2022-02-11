@@ -39,8 +39,9 @@
   },
   "scripts": {
     "clean": "rm -rf ./node_modules/ build dist",
-    "start": "NODE_ENV=development craco start",
-    "build": "NODE_ENV=production craco build",
+    "start": "yarn build:openapi && NODE_ENV=development craco start",
+    "build": "yarn build:openapi && NODE_ENV=production craco build",
+    "build:openapi": "openapi -i ../../openapi/configurator.yaml -o src/generated/conf-openapi --exportCore false  --exportServices false  --exportModels true\n",
     "stats": "rm -rf build && yarn build -- --stats",
     "bundle": "npx webpack-bundle-analyzer ./build/bundle-stats.json",
     "analyze": "source-map-explorer 'build/static/js/*.js' --no-border-checks",
