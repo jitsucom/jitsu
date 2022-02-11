@@ -180,7 +180,7 @@ func (jp *SingleJSONPath) setWithInnerCreation(obj map[string]interface{}, value
 				return fmt.Errorf("Value %d wasn't set into %s: %s node isn't an object", value, jp.String(), key)
 			}
 		} else if createInnerObjects {
-			subMap := map[string]interface{}{}
+			subMap := make(map[string]interface{}, 1)
 			obj[key] = subMap
 			obj = subMap
 		} else {

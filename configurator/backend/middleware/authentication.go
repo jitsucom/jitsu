@@ -60,6 +60,17 @@ func (a *Authenticator) BearerAuth(c *gin.Context) {
 	}
 
 	if access.adminAccess {
+		//add userID if self-hosted (for getting projects/users info)
+		if checkManagementAccess {
+			userID, err := a.service.GetOnlyUserID()
+			//set user id only if exist
+			if err != nil {
+				logging.Infof("error getting user ID with admin access: %v", err)
+			} else {
+				c.Set(UserIDKey, userID)
+			}
+		}
+
 		c.Set(Permissions, access)
 		return
 	}

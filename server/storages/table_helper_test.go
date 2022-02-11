@@ -106,7 +106,7 @@ return $
 `
 	destination := &config.DestinationConfig{Type: "google_analytics", BreakOnError: false,
 		DataLayout: &config.DataLayout{Transform: transformExpression}}
-	p, err := schema.NewProcessor("test", destination, false, `events`, fieldMapper, []enrichment.Rule{}, schema.NewFlattener(), schema.NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
+	p, err := schema.NewProcessor("test", destination, false, `events`, fieldMapper, []enrichment.Rule{}, schema.NewFlattener(), schema.NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, "new")
 	require.NoError(t, err)
 	err = p.InitJavaScriptTemplates()
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ return $
 			afterJson, err := parsers.ParseInterface(tt.input)
 			require.NoError(t, err)
 
-			envelopes, err := p.ProcessEvent(afterJson)
+			envelopes, err := p.ProcessEvent(afterJson, false)
 			if tt.expectedErr != "" {
 				require.Error(t, err)
 				require.Equal(t, tt.expectedErr, err.Error())

@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/templates"
 )
 
 //go:embed transform/amplitude.js
@@ -20,23 +19,30 @@ func init() {
 }
 
 //NewAmplitude returns configured Amplitude destination
-func NewAmplitude(config *Config) (Storage, error) {
+func NewAmplitude(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if !config.streamMode {
 		return nil, fmt.Errorf("Amplitude destination doesn't support %s mode", BatchMode)
 	}
 	amplitudeConfig := &adapters.AmplitudeConfig{}
-	if err := config.destination.GetDestConfig(config.destination.Amplitude, amplitudeConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.Amplitude, amplitudeConfig); err != nil {
+		return
 	}
-
-	es5transform, err := templates.Babelize(amplitudeTransform)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert transformation code to es5: %v", err)
-	}
-	config.processor.AddJavaScript(es5transform)
-	config.processor.SetDefaultUserTransform(`return toAmplitude($)`)
 
 	a := &Amplitude{}
+	err = a.Init(config)
+	if err != nil {
+		return
+	}
+	storage = a
+
+	a.processor.AddJavaScript(amplitudeTransform)
+	a.processor.SetDefaultUserTransform(`return toAmplitude($)`)
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	aAdapter, err := adapters.NewAmplitude(amplitudeConfig, &adapters.HTTPAdapterConfiguration{
@@ -50,33 +56,14 @@ func NewAmplitude(config *Config) (Storage, error) {
 		SuccessHandler: a.SuccessEvent,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
-
-	tableHelper := NewTableHelper("", aAdapter, config.coordinationService, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, AmplitudeType)
-
 	//HTTPStorage
-	a.tableHelper = tableHelper
 	a.adapter = aAdapter
 
-	//Abstract (SQLAdapters and tableHelpers are omitted)
-	a.destinationID = config.destinationID
-	a.processor = config.processor
-	a.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	a.eventsCache = config.eventsCache
-	a.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	a.uniqueIDField = config.uniqueIDField
-	a.staged = config.destination.Staged
-	a.cachingConfiguration = config.destination.CachingConfiguration
-
 	//streaming worker (queue reading)
-	a.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, a, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	a.streamingWorker.start()
-
-	return a, nil
+	a.streamingWorker = newStreamingWorker(config.eventQueue, a)
+	return
 }
 
 //Type returns Amplitude type

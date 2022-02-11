@@ -1,7 +1,6 @@
 package users
 
 import (
-	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/queue"
@@ -10,8 +9,8 @@ import (
 )
 
 const (
-	debugElementCountThreshold = 50
-	queueIdentifier            = "users_recognition"
+	AnonymousQueueName  = "users_recognition"
+	IdentifiedQueueName = "users_identified"
 )
 
 type Queue struct {
@@ -21,12 +20,12 @@ type Queue struct {
 	closed chan struct{}
 }
 
-func newQueue() *Queue {
+func newQueue(identifier string) *Queue {
 	inmemoryQueue := queue.NewInMemory()
 
-	metrics.InitialUsersRecognitionQueueSize(int(inmemoryQueue.Size()))
+	metrics.InitialUsersRecognitionQueueSize(identifier, int(inmemoryQueue.Size()))
 
-	q := &Queue{identifier: queueIdentifier, queue: inmemoryQueue, closed: make(chan struct{}, 1)}
+	q := &Queue{identifier: identifier, queue: inmemoryQueue, closed: make(chan struct{}, 1)}
 	safego.Run(q.startMonitor)
 	return q
 }
@@ -44,30 +43,29 @@ func (q *Queue) startMonitor() {
 	}
 }
 
-func (q *Queue) Enqueue(rp *RecognitionPayload) error {
+func (q *Queue) Enqueue(rp interface{}) error {
 	if err := q.queue.Push(rp); err != nil {
 		return err
 	}
 
-	metrics.EnqueuedRecognitionEvent()
+	metrics.EnqueuedRecognitionEvent(q.identifier)
 
 	return nil
 }
 
-func (q *Queue) DequeueBlock() (*RecognitionPayload, error) {
+func (q *Queue) DequeueBlock() (interface{}, error) {
 	rpi, err := q.queue.Pop()
 	if err != nil {
 		return nil, err
 	}
 
-	rp, ok := rpi.(*RecognitionPayload)
-	if !ok {
-		return nil, fmt.Errorf("wrong type of recognition payload dto in queue. Expected: *RecognitionPayload, actual: %T (%s)", rpi, rpi)
-	}
+	metrics.DequeuedRecognitionEvent(q.identifier)
 
-	metrics.DequeuedRecognitionEvent()
+	return rpi, nil
+}
 
-	return rp, nil
+func (q *Queue) Size() int64 {
+	return q.queue.Size()
 }
 
 //Close closes underlying queue

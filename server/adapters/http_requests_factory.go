@@ -41,6 +41,7 @@ func NewWebhookRequestFactory(destinationID, destinationType, httpMethod, urlTmp
 
 	bodyTmpl, err := templates.SmartParse("body", bodyTmplStr, templateFunctions)
 	if err != nil {
+		urlTmpl.Close()
 		return nil, fmt.Errorf("Error parsing body template [%s]: %v", bodyTmplStr, err)
 	}
 	return &WebhookRequestFactory{

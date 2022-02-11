@@ -163,6 +163,25 @@ func (rp *RedisProvider) SaveUser(user *User) error {
 	return nil
 }
 
+//GetOnlyUserID returns the only user ID.
+func (rp *RedisProvider) GetOnlyUserID() (string, error) {
+	conn := rp.pool.Get()
+	defer conn.Close()
+
+	//update index
+	values, err := redis.StringMap(conn.Do("HGETALL", userIndexKey))
+	if err != nil && err != redis.ErrNil {
+		return "", err
+	}
+
+	//get first ID
+	for _, id := range values {
+		return id, nil
+	}
+
+	return "", ErrNoUserExist
+}
+
 //ChangeUserEmail changes user's email
 //returns user ID and err
 func (rp *RedisProvider) ChangeUserEmail(oldEmail, newEmail string) (string, error) {
