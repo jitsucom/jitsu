@@ -28,7 +28,7 @@ type NotificationContext struct {
 	UIBaseURL   string
 }
 
-type NotificationChannel func(ctx context.Context, nctx *NotificationContext, configValue interface{}, task LoggedTask) error
+type NotificationChannel func(ctx context.Context, nctx *NotificationContext, configValue interface{}, global bool, task LoggedTask) error
 
 type NotificationService struct {
 	*NotificationContext
@@ -51,7 +51,7 @@ func (s *NotificationService) Notify(task LoggedTask) {
 	defer cancel()
 
 	for key, value := range task.Notifications {
-		if err := s.notify(ctx, key, value, task); err != nil {
+		if err := s.notify(ctx, key, value, false, task); err != nil {
 			logging.Warnf("[%s] Failed to notify %s: %s", task.ID, key, err)
 		}
 
@@ -61,7 +61,7 @@ func (s *NotificationService) Notify(task LoggedTask) {
 	}
 
 	for key, value := range s.globalConfig {
-		if err := s.notify(ctx, key, value, task); err != nil {
+		if err := s.notify(ctx, key, value, true, task); err != nil {
 			logging.Warnf("[%s] Failed to notify global %s: %s", task.ID, key, err)
 		}
 
@@ -71,13 +71,13 @@ func (s *NotificationService) Notify(task LoggedTask) {
 	}
 }
 
-func (s *NotificationService) notify(ctx context.Context, key string, config interface{}, task LoggedTask) error {
+func (s *NotificationService) notify(ctx context.Context, key string, config interface{}, global bool, task LoggedTask) error {
 	notify, ok := s.registry[key]
 	if !ok {
 		return errors.New("unsupported notification channel")
 	}
 
-	return notify(ctx, s.NotificationContext, config, task)
+	return notify(ctx, s.NotificationContext, config, global, task)
 }
 
 type Map map[string]interface{}
@@ -88,7 +88,7 @@ const (
 	grey  = "#808080"
 )
 
-var Slack NotificationChannel = func(ctx context.Context, nctx *NotificationContext, configValue interface{}, task LoggedTask) error {
+var Slack NotificationChannel = func(ctx context.Context, nctx *NotificationContext, configValue interface{}, global bool, task LoggedTask) error {
 	var config struct {
 		URL string `mapstructure:"url"`
 	}
@@ -101,16 +101,22 @@ var Slack NotificationChannel = func(ctx context.Context, nctx *NotificationCont
 		return errors.New("no slack webhook URL specified")
 	}
 
-	source := task.Source
-	if dot := strings.Index(source, "."); dot >= 0 && dot < len(source)-1 {
-		source = source[dot+1:]
+	projectText := ""
+	sourceID := task.Source
+	if dot := strings.Index(sourceID, "."); dot >= 0 && dot < len(sourceID)-1 {
+		if global {
+			projectText = fmt.Sprintf("*Project*: %s\n", sourceID[:dot])
+		}
+
+		sourceID = sourceID[dot+1:]
 	}
 
-	var logs string
+	var source, logs string
 	if nctx.UIBaseURL != "" {
-		source = fmt.Sprintf("<%s/sources/edit/%s|%s>", nctx.UIBaseURL, source, source)
-		logs = fmt.Sprintf("<%s/sources/logs/%s/%s|See logs>", nctx.UIBaseURL, source, task.ID)
+		source = fmt.Sprintf("<%s/sources/edit/%s|%s>", nctx.UIBaseURL, sourceID, sourceID)
+		logs = fmt.Sprintf("<%s/sources/logs/%s/%s|See logs>", nctx.UIBaseURL, sourceID, task.ID)
 	} else {
+		source = sourceID
 		logs = "*Logs:*\n" + strings.Join(task.Collect(), "\n")
 	}
 
@@ -140,8 +146,8 @@ var Slack NotificationChannel = func(ctx context.Context, nctx *NotificationCont
 						"type": "section",
 						"text": Map{
 							"type": "mrkdwn",
-							"text": fmt.Sprintf("*Connector type:* %s\n*Connector:* %s\n*Collection:* %s\n%s",
-								task.SourceType, source, task.Collection, logs),
+							"text": fmt.Sprintf("%s*Connector type:* %s\n*Connector:* %s\n*Collection:* %s\n%s",
+								projectText, task.SourceType, source, task.Collection, logs),
 						},
 					},
 				},

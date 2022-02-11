@@ -416,7 +416,7 @@ func main() {
 			ServiceName: notifications.ServiceName,
 			Version:     tag,
 			ServerName:  appconfig.Instance.ServerName,
-			UIBaseURL:   viper.GetString("ui_base_url"),
+			UIBaseURL:   viper.GetString("ui.base_url"),
 		}
 
 		taskExecutorContext := &synchronization.TaskExecutorContext{
