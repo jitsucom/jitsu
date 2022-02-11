@@ -74,6 +74,8 @@ require (
 	rogchap.com/v8go v0.7.0
 )
 
+require github.com/joomcode/errorx v1.1.0
+
 require (
 	cloud.google.com/go v0.93.3 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect

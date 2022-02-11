@@ -100,7 +100,7 @@ func TestReformatToParam(t *testing.T) {
 	}
 }
 
-func TestSFBulkInsert(t *testing.T) {
+func TestSFBatchInsert(t *testing.T) {
 	sfConfig, skip := readSFConfig(t)
 	if skip {
 		return
@@ -124,7 +124,7 @@ func TestSFBulkInsert(t *testing.T) {
 		tx.Commit()
 	}()
 
-	err = sf.BulkInsert(table, createObjectsWithFields([]string{"field1", "field2", "field3", "user", "default"}, 5))
+	err = sf.insertBatch(table, createObjectsWithFields([]string{"field1", "field2", "field3", "user", "default"}, 5), nil)
 	require.NoError(t, err, "Failed to bulk insert 5 objects")
 
 	rows, err := sf.dataSource.Query(fmt.Sprintf("SELECT count(*) from %s", table.Name))
@@ -139,7 +139,7 @@ func TestSFBulkInsert(t *testing.T) {
 	require.Equal(t, count, 5)
 }
 
-func TestSFBulkUpdate(t *testing.T) {
+func TestSFBatchUpdate(t *testing.T) {
 	sfConfig, skip := readSFConfig(t)
 	if skip {
 		return
@@ -170,7 +170,7 @@ func TestSFBulkUpdate(t *testing.T) {
 	objects = append(objects, objects[2])
 	objects = append(objects, objects[3])
 
-	err = sf.BulkUpdate(table, objects, nil)
+	err = sf.insertBatch(table, objects, nil)
 	require.NoError(t, err, "Failed to bulk update 8 objects")
 
 	rows, err := sf.dataSource.Query(fmt.Sprintf("SELECT count(*) from %s", table.Name))

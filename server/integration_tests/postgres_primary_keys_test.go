@@ -54,7 +54,7 @@ func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
-		err = pg.BulkInsert(ensuredWithMerge, []map[string]interface{}{data})
+		err = pg.Insert(adapters.NewBatchInsertContext(ensuredWithMerge, []map[string]interface{}{data}, nil))
 		if err != nil {
 			t.Fatal("failed to bulk insert", err)
 		}
@@ -75,7 +75,7 @@ func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
-		err = pg.BulkInsert(ensuredWithoutMerge, []map[string]interface{}{data})
+		err = pg.Insert(adapters.NewBatchInsertContext(ensuredWithoutMerge, []map[string]interface{}{data}, nil))
 		if err != nil {
 			t.Fatal("failed to bulk insert", err)
 		}
@@ -133,7 +133,7 @@ func TestPostgresNotManagedPrimaryKeyRemoval(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		data["name"] = fmt.Sprintf("%s_%d", name, i)
-		err = pg.BulkInsert(ensuredWithMerge, []map[string]interface{}{data})
+		err = pg.Insert(adapters.NewBatchInsertContext(ensuredWithMerge, []map[string]interface{}{data}, nil))
 		if err != nil {
 			t.Fatal("failed to bulk insert", err)
 		}
@@ -156,7 +156,7 @@ func TestPostgresNotManagedPrimaryKeyRemoval(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		data["name"] = fmt.Sprintf("%v_%d", name, i)
-		err = pg.BulkInsert(ensuredWithoutMerge, []map[string]interface{}{data})
+		err = pg.Insert(adapters.NewBatchInsertContext(ensuredWithoutMerge, []map[string]interface{}{data}, nil))
 		if err != nil {
 			t.Fatal("failed to bulk insert", err)
 		}

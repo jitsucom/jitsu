@@ -73,15 +73,15 @@ echo "=         Building Configurator UI...      ="
 echo "============================================"
 echo ""
 
-(cd configurator/frontend; rm -rf build && yarn clean && yarn install && CI=false NODE_ENV=production ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build) || { echo 'Building Configurator UI failed' ; exit 1; }
+(cd configurator/frontend; rm -rf main/build && yarn clean && CI=false ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build) || { echo 'Building Configurator UI failed' ; exit 1; }
 
 echo ""
 echo "============================================"
-echo "=         Packaging Configurator UI...     ="
+echo "=          Packaging Configurator...       ="
 echo "============================================"
 echo ""
 
-(cd configurator; rm -rf build/dist && mkdir -p build/dist/web; cp -r frontend/build/* build/dist/web/; cp backend/build/dist/* build/dist/) || { echo 'Packaging UI failed' ; exit 1; }
+(cd configurator; rm -rf build/dist && mkdir -p build/dist/web; cp -r frontend/main/build/* build/dist/web/; cp backend/build/dist/* build/dist/) || { echo 'Packaging UI failed' ; exit 1; }
 
 
 if [ "$docker_flag" == 'true' ]

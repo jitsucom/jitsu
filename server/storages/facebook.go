@@ -29,11 +29,13 @@ func NewFacebook(config *Config) (Storage, error) {
 	}
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-
-	config.processor.AddJavaScript(facebookTransform)
-	config.processor.SetDefaultUserTransform(`return toFacebook($)`)
-
 	fb := &Facebook{}
+	err := fb.Init(config)
+	if err != nil {
+		return nil, err
+	}
+	fb.processor.AddJavaScript(facebookTransform)
+	fb.processor.SetDefaultUserTransform(`return toFacebook($)`)
 
 	fbAdapter, err := adapters.NewFacebookConversion(fbConfig, &adapters.HTTPAdapterConfiguration{
 		DestinationID:  config.destinationID,
@@ -48,29 +50,11 @@ func NewFacebook(config *Config) (Storage, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	tableHelper := NewTableHelper("", fbAdapter, config.coordinationService, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, FacebookType)
-
+	
 	fb.adapter = fbAdapter
-	fb.tableHelper = tableHelper
-
-	//Abstract (SQLAdapters and tableHelpers are omitted)
-	fb.destinationID = config.destinationID
-	fb.processor = config.processor
-	fb.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	fb.eventsCache = config.eventsCache
-	fb.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	fb.uniqueIDField = config.uniqueIDField
-	fb.staged = config.destination.Staged
-	fb.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	fb.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, fb, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	fb.streamingWorker.start()
-
+	fb.streamingWorker = newStreamingWorker(config.eventQueue, fb)
 	return fb, nil
 }
 

@@ -16,7 +16,7 @@ const (
 	testRedshiftConfigVar = "TEST_REDSHIFT_CONFIG"
 )
 
-func TestRedshiftBulkInsert(t *testing.T) {
+func TestRedshiftBatchInsert(t *testing.T) {
 	dsConfig, skip := readRedshiftConfig(t)
 	if skip {
 		return
@@ -40,7 +40,7 @@ func TestRedshiftBulkInsert(t *testing.T) {
 		tx.Commit()
 	}()
 
-	err = redshift.BulkInsert(table, createObjectsWithFields([]string{"field1", "field2", "field3", "user", "default"}, 5))
+	err = redshift.insertBatch(table, createObjectsWithFields([]string{"field1", "field2", "field3", "user", "default"}, 5), nil)
 	require.NoError(t, err, "Failed to bulk insert 5 objects")
 
 	rows, err := redshift.dataSourceProxy.dataSource.Query(fmt.Sprintf("SELECT count(*) from %s", table.Name))
@@ -55,7 +55,7 @@ func TestRedshiftBulkInsert(t *testing.T) {
 	require.Equal(t, count, 5)
 }
 
-func TestRedshiftBulkUpdate(t *testing.T) {
+func TestRedshiftBatchUpdate(t *testing.T) {
 	dsConfig, skip := readRedshiftConfig(t)
 	if skip {
 		return
@@ -86,7 +86,7 @@ func TestRedshiftBulkUpdate(t *testing.T) {
 	objects = append(objects, objects[2])
 	objects = append(objects, objects[3])
 
-	err = redshift.BulkUpdate(table, objects, nil)
+	err = redshift.insertBatch(table, objects, nil)
 	require.NoError(t, err, "Failed to bulk update 8 objects")
 
 	rows, err := redshift.dataSourceProxy.dataSource.Query(fmt.Sprintf("SELECT count(*) from %s", table.Name))

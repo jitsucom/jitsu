@@ -7,5 +7,5 @@ type CustomDomain struct {
 
 type CustomDomains struct {
 	CertificateExpirationDate string          `firestore:"_certificateExpiration" json:"_certificateExpiration"`
-	Domains                   []*CustomDomain `firestore:"domains" json:"domains" json:"_certificateExpiration"`
+	Domains                   []*CustomDomain `firestore:"domains" json:"domains"`
 }

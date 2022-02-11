@@ -20,7 +20,6 @@ type MySQL struct {
 	Abstract
 
 	adapter                       *adapters.MySQL
-	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 }
 
@@ -29,10 +28,16 @@ func init() {
 }
 
 //NewMySQL returns configured MySQL Destination
-func NewMySQL(config *Config) (Storage, error) {
+func NewMySQL(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	mConfig := &adapters.DataSourceConfig{}
-	if err := config.destination.GetDestConfig(config.destination.DataSource, mConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.DataSource, mConfig); err != nil {
+		return
 	}
 	//enrich with default parameters
 	if mConfig.Port == 0 {
@@ -44,41 +49,32 @@ func NewMySQL(config *Config) (Storage, error) {
 	if _, ok := mConfig.Parameters["timeout"]; !ok {
 		mConfig.Parameters["timeout"] = "600s"
 	}
+	m := &MySQL{}
+	err = m.Init(config)
+	if err != nil {
+		return
+	}
+	storage = m
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	ctx := context.WithValue(config.ctx, adapters.CtxDestinationId, config.destinationID)
-	adapter, err := CreateMySQLAdapter(ctx, *mConfig, queryLogger, config.sqlTypes)
+	adapter, err := CreateMySQLAdapter(ctx, *mConfig, queryLogger, m.sqlTypes)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	tableHelper := NewTableHelper(mConfig.Schema, adapter, config.coordinationService, config.pkFields, adapters.SchemaToMySQL, config.maxColumns, MySQLType)
 
-	m := &MySQL{
-		adapter:                       adapter,
-		usersRecognitionConfiguration: config.usersRecognition,
-	}
+	m.adapter = adapter
+	m.usersRecognitionConfiguration = config.usersRecognition
 
 	//Abstract
-	m.destinationID = config.destinationID
-	m.processor = config.processor
-	m.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	m.eventsCache = config.eventsCache
 	m.tableHelpers = []*TableHelper{tableHelper}
 	m.sqlAdapters = []adapters.SQLAdapter{adapter}
-	m.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	m.uniqueIDField = config.uniqueIDField
-	m.staged = config.destination.Staged
-	m.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	m.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, m, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	m.streamingWorker.start()
-
-	return m, nil
+	m.streamingWorker = newStreamingWorker(config.eventQueue, m, tableHelper)
+	return
 }
 
 //CreateMySQLAdapter creates mysql adapter with database
@@ -185,7 +181,7 @@ func (m *MySQL) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) e
 	}
 
 	start := timestamp.Now()
-	if err := m.adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
+	if err := m.adapter.Insert(adapters.NewBatchInsertContext(dbSchema, fdata.GetPayload(), nil)); err != nil {
 		return err
 	}
 	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", m.ID(), len(fdata.GetPayload()), timestamp.Now().Sub(start).Seconds())
@@ -234,13 +230,15 @@ func (m *MySQL) Type() string {
 
 //Close closes MySQL adapter, fallback logger and streaming worker
 func (m *MySQL) Close() (multiErr error) {
-	if err := m.adapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing postgres datasource: %v", m.ID(), err))
-	}
-
 	if m.streamingWorker != nil {
 		if err := m.streamingWorker.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", m.ID(), err))
+		}
+	}
+
+	if m.adapter != nil {
+		if err := m.adapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing postgres datasource: %v", m.ID(), err))
 		}
 	}
 

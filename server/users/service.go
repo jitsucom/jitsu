@@ -191,14 +191,14 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 	if anonymousPayload != nil {
 		if err := rs.anonymousQueue.Enqueue(anonymousPayload); err != nil {
 			rpBytes, _ := json.Marshal(anonymousPayload)
-			rs.systemErrorf("Error saving recognition anonymous payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.Serialize(), err)
+			rs.systemErrorf("Error saving recognition anonymous payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.DebugString(), err)
 			return
 		}
 	}
 	if len(identified) > 0 {
 		if err := rs.identifiedQueue.Enqueue(identified); err != nil {
 			rpBytes, _ := json.Marshal(identified)
-			rs.systemErrorf("Error saving recognition identified payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.Serialize(), err)
+			rs.systemErrorf("Error saving recognition identified payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.DebugString(), err)
 			return
 		}
 	}
@@ -236,7 +236,7 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 
 		anonymousID, ok := configuration.AnonymousIDJSONPath.Get(event)
 		if !ok {
-			logging.Warnf("[%s] Event %s doesn't have anonymous id in path: %s", destinationID, event.Serialize(), configuration.AnonymousIDJSONPath.String())
+			logging.Warnf("[%s] Event %s doesn't have anonymous id in path: %s", destinationID, event.DebugString(), configuration.AnonymousIDJSONPath.String())
 			continue
 		}
 

@@ -15,19 +15,16 @@ import (
 type HTTPStorage struct {
 	Abstract
 
-	tableHelper     *TableHelper
-	streamingWorker *StreamingWorker
-
 	adapter adapters.Adapter
 }
 
 //Insert sends event into adapters.Adapter
 func (h *HTTPStorage) Insert(eventContext *adapters.EventContext) error {
-	return h.adapter.Insert(eventContext)
+	return h.adapter.Insert(adapters.NewSingleInsertContext(eventContext))
 }
 
 func (h *HTTPStorage) DryRun(payload events.Event) ([][]adapters.TableField, error) {
-	return dryRun(payload, h.processor, h.tableHelper)
+	return nil, nil
 }
 
 //Store isn't supported
@@ -67,13 +64,15 @@ func (h *HTTPStorage) Type() string {
 
 //Close closes adapter, fallback logger and streaming worker
 func (h *HTTPStorage) Close() (multiErr error) {
-	if err := h.adapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing %s client: %v", h.ID(), h.Type(), err))
-	}
-
 	if h.streamingWorker != nil {
 		if err := h.streamingWorker.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", h.ID(), err))
+		}
+	}
+
+	if h.adapter != nil {
+		if err := h.adapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing %s client: %v", h.ID(), h.Type(), err))
 		}
 	}
 
