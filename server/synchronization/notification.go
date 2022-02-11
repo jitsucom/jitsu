@@ -98,7 +98,8 @@ var Slack NotificationChannel = func(ctx context.Context, nctx *NotificationCont
 	}
 
 	if config.URL == "" {
-		return errors.New("no slack webhook URL specified")
+		// disabled
+		return nil
 	}
 
 	projectText := ""
