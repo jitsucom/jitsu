@@ -24,8 +24,9 @@ Our config file consists of the following sections:
 * `sources` — A set of data sources to synchronize from. see [Sources Configuration](/docs/sources-configuration)
 * `users_recognition` — Jitsu can update past events with user identifiers on user's identification event! see [Retroactive Users Recognition](/docs/other-features/retroactive-user-recognition)
 * `coordination` — coordination service configuration. It is used in cluster Jitsu deployments. see [Scaling Jitsu](/docs/other-features/scaling-eventnative)
-* `notifications` — notifier configuration. Server starts, system errors, and panics information will be sent to it. Currently, only Slack notifications are supported.
+* `notifications` — notifier configuration. Server starts, system errors, synchronization statuses, and panics information will be sent to it. Currently, only Slack notifications are supported.
 * `meta.storage` - meta storage is the main application storage and it is required for some features. At present Jitsu supports only Redis version 5 and higher.
+* `ui.base_url` – base Configurator UI URL for generating links in notifications
 
 **Example**:
 
@@ -70,6 +71,9 @@ coordination:
 notifications:
   slack:
     url: https://slack_web_hook_url
+
+ui:
+  base_url: https://your_configurator_ui_host:5555
 
 meta:
   storage:
