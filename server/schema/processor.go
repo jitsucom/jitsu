@@ -21,6 +21,19 @@ import (
 
 var ErrSkipObject = errors.New("Transform or table name filter marked object to be skipped. This object will be skipped.")
 
+const (
+	JitsuEnvelopParameter    = "JITSU_ENVELOP"
+	JitsuUserRecognizedEvent = "JITSU_UR_EVENT"
+)
+
+var (
+	EventSpecialParameters = []string{
+		templates.TableNameParameter,
+		JitsuEnvelopParameter,
+		JitsuUserRecognizedEvent,
+	}
+)
+
 //go:embed segment.js
 var segmentTransform string
 
@@ -271,6 +284,10 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		if newUniqueId == "" {
 			newUniqueId = uuid.New()
 		}
+		ur, ok := workingObject[JitsuUserRecognizedEvent]
+		if ok {
+			prObject[JitsuUserRecognizedEvent] = ur
+		}
 		if i > 0 {
 			//for event cache one to many mapping
 			newUniqueId = fmt.Sprintf("%s_%d", newUniqueId, i)
@@ -278,7 +295,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		}
 		if p.isSQLType {
 			prObject[p.uniqueIDField.GetFlatFieldName()] = newUniqueId
-			prObject[timestamp.Key] = object[timestamp.Key]
+			prObject[timestamp.Key] = workingObject[timestamp.Key]
 			if _, ok := object[timestamp.Key]; !ok {
 				prObject[timestamp.Key] = timestamp.NowUTC()
 			}

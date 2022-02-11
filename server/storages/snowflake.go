@@ -258,30 +258,22 @@ func (s *Snowflake) Clean(tableName string) error {
 }
 
 //Update updates record in Snowflake
-func (s *Snowflake) Update(object map[string]interface{}) error {
+func (s *Snowflake) Update(eventContext *adapters.EventContext) error {
 	_, tableHelper := s.getAdapters()
-	envelops, err := s.processor.ProcessEvent(object, false)
+	processedObject := eventContext.ProcessedEvent
+	table := eventContext.Table
+
+	dbSchema, err := tableHelper.EnsureTableWithCaching(s.ID(), table)
 	if err != nil {
 		return err
 	}
-	for _, envelop := range envelops {
-		batchHeader := envelop.Header
-		processedObject := envelop.Event
-		table := tableHelper.MapTableSchema(batchHeader)
 
-		dbSchema, err := tableHelper.EnsureTableWithCaching(s.ID(), table)
-		if err != nil {
-			return err
-		}
-
-		start := timestamp.Now()
-		if err = s.snowflakeAdapter.Update(dbSchema, processedObject, s.uniqueIDField.GetFlatFieldName(), s.uniqueIDField.Extract(object)); err != nil {
-			return err
-		}
-
-		logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", s.ID(), timestamp.Now().Sub(start).Seconds())
+	start := timestamp.Now()
+	if err = s.snowflakeAdapter.Update(dbSchema, processedObject, s.uniqueIDField.GetFlatFieldName(), s.uniqueIDField.Extract(processedObject)); err != nil {
+		return err
 	}
 
+	logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", s.ID(), timestamp.Now().Sub(start).Seconds())
 	return nil
 }
 

@@ -3,7 +3,7 @@ package adapters
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/utils"
 	"github.com/mitchellh/mapstructure"
@@ -62,11 +62,11 @@ func (wrf *WebhookRequestFactory) Create(object map[string]interface{}) (req *Re
 	var body []byte
 	headers := make(map[string]string)
 	var envelop Envelop
-	envl, ok := object[events.JitsuEnvelopParameter]
+	envl, ok := object[schema.JitsuEnvelopParameter]
 	if ok {
-		delete(object, events.JitsuEnvelopParameter)
+		delete(object, schema.JitsuEnvelopParameter)
 		if err := mapstructure.Decode(envl, &envelop); err != nil {
-			return nil, fmt.Errorf("cannot parse %s: %v", events.JitsuEnvelopParameter, err)
+			return nil, fmt.Errorf("cannot parse %s: %v", schema.JitsuEnvelopParameter, err)
 		}
 	}
 	if envelop.URL == "" {

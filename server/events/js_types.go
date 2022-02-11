@@ -8,11 +8,4 @@ const (
 
 	//MaskedParameterValue is used to detect when parameter is masked
 	MaskedParameterValue = "masked"
-
-	JitsuEnvelopParameter    = "JITSU_ENVELOP"
-	JitsuUserRecognizedEvent = "JITSU_UR_EVENT"
-)
-
-var (
-	EventSpecialParameters = []string{JitsuEnvelopParameter, JitsuUserRecognizedEvent}
 )

@@ -1,5 +1,13 @@
 import { modeParameter, tableName } from "./common"
-import { fileType, hiddenValue, intType, passwordType, selectionTypeWithOptions, stringType } from "../../sources/types"
+import {
+  booleanType,
+  fileType,
+  hiddenValue,
+  intType,
+  passwordType,
+  selectionTypeWithOptions,
+  stringType,
+} from "../../sources/types"
 
 const icon = (
   <svg viewBox="0 0 25.6 25.6" height="100%" width="100%" xmlns="http://www.w3.org/2000/svg">
@@ -174,6 +182,19 @@ const postgresDestination = {
       constant: hiddenValue("", cfg => {
         return cfg?.["_formData"]?.pgsslmode === "require" || cfg?.["_formData"]?.pgsslmode === "disable"
       }),
+    },
+    {
+      id: "_users_recognition._enabled",
+      displayName: "User Recognition",
+      documentation: (
+        <>
+          Jitsu can retroactively update events from anonymous users with user id after users identification. See{" "}
+          <a href="https://jitsu.com/docs/other-features/retroactive-user-recognition">Docs</a>.
+        </>
+      ),
+      required: false,
+      defaultValue: true,
+      type: booleanType,
     },
   ],
 } as const

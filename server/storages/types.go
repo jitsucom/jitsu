@@ -33,7 +33,7 @@ type Storage interface {
 	DryRun(payload events.Event) ([][]adapters.TableField, error)
 	Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error)
 	SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error
-	Update(object map[string]interface{}) error
+	//Update(object map[string]interface{}) error
 	Fallback(events ...*events.FailedEvent)
 	GetUsersRecognition() *UserRecognitionConfiguration
 	GetUniqueIDField() *identifiers.UniqueID

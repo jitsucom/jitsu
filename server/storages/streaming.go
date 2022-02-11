@@ -19,6 +19,8 @@ type StreamingStorage interface {
 	Storage
 	//Insert uses errCallback in async adapters (e.g. adapters.HTTPAdapter)
 	Insert(eventContext *adapters.EventContext) (err error)
+
+	Update(eventContext *adapters.EventContext) (err error)
 	//SuccessEvent writes metrics/counters/events cache, etc
 	SuccessEvent(eventCtx *adapters.EventContext)
 	//ErrorEvent writes metrics/counters/events cache, etc
@@ -127,15 +129,27 @@ func (sw *StreamingWorker) start() {
 					ProcessedEvent: flattenObject,
 					Table:          table,
 				}
+				_, ok := flattenObject[schema.JitsuUserRecognizedEvent]
+				if ok {
+					if err := sw.streamingStorage.Update(eventContext); err != nil {
+						logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.Serialize(), table.Name, err)
+						if IsConnectionError(err) {
+							//retry
+							sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(20*time.Second), tokenID)
+						}
 
-				if err := sw.streamingStorage.Insert(eventContext); err != nil {
-					logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.Serialize(), table.Name, err)
-					if IsConnectionError(err) {
-						//retry
-						sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(20*time.Second), tokenID)
+						continue
 					}
+				} else {
+					if err := sw.streamingStorage.Insert(eventContext); err != nil {
+						logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.Serialize(), table.Name, err)
+						if IsConnectionError(err) {
+							//retry
+							sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(20*time.Second), tokenID)
+						}
 
-					continue
+						continue
+					}
 				}
 			}
 		}

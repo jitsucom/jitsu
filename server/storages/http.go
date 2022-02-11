@@ -41,7 +41,7 @@ func (h *HTTPStorage) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 }
 
 //Update isn't supported
-func (h *HTTPStorage) Update(object map[string]interface{}) error {
+func (h *HTTPStorage) Update(eventContext *adapters.EventContext) error {
 	return fmt.Errorf("%s doesn't support Store() func", h.Type())
 }
 

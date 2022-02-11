@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"go.uber.org/atomic"
 	"strings"
@@ -305,6 +306,7 @@ func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, ident
 		if !ok {
 			return fmt.Errorf("User Recognition. Couldn't get consumer for destination with id: %s", destinationID)
 		}
+		event[schema.JitsuUserRecognizedEvent] = 1
 		consumer.Consume(event, eventsKey.TokenID)
 
 		if err = rs.storage.DeleteAnonymousEvent(destinationID, eventsKey.AnonymousID, storedEventID); err != nil {

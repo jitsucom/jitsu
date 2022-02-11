@@ -193,7 +193,7 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 }
 
 //Update isn't supported
-func (bq *BigQuery) Update(object map[string]interface{}) error {
+func (bq *BigQuery) Update(eventContext *adapters.EventContext) error {
 	return errors.New("BigQuery doesn't support updates")
 }
 
