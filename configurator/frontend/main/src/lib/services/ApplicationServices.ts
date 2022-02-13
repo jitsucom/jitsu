@@ -87,6 +87,10 @@ export default class ApplicationServices implements IApplicationServices {
     return this.userService.getUser().projects[0]
   }
 
+  get availableProjects(): IProject[] {
+    return this.userService.getUser().projects;
+  }
+
   get storageService(): ServerStorage {
     return this._storageService
   }
@@ -136,6 +140,23 @@ export default class ApplicationServices implements IApplicationServices {
   }
 
   private async loadBackendConfiguration(): Promise<FeatureSettings> {
+    let fullUrl = concatenateURLs(this._applicationConfiguration.backendApiBase, "/system/configuration")
+    let request: AxiosRequestConfig = {
+      method: "GET",
+      url: fullUrl,
+      transformResponse: JSON_FORMAT,
+    }
+
+    let response = await axios(request)
+
+    if (response.status == 200) {
+      return mapBackendConfigResponseToAppFeatures(response.data)
+    } else {
+      throw new APIError(response, request)
+    }
+  }
+
+  private async getAvailableProjects(): Promise<FeatureSettings> {
     let fullUrl = concatenateURLs(this._applicationConfiguration.backendApiBase, "/system/configuration")
     let request: AxiosRequestConfig = {
       method: "GET",

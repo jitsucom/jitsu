@@ -24,7 +24,6 @@ import { FormInstance } from "antd/es"
 import { Destination } from "@jitsu/catalog/destinations/types"
 import { Tab } from "ui/components/Tabs/TabsConfigurator"
 import { CommonDestinationPageProps } from "ui/pages/DestinationsPage/DestinationsPage"
-import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Routes
@@ -75,7 +74,6 @@ const DestinationEditor = ({
   editorMode,
   paramsByProps,
   disableForceUpdateOnSave,
-  setBreadcrumbs,
   onAfterSaveSucceded,
   onCancel,
   isOnboarding,
@@ -400,12 +398,12 @@ const DestinationEditor = ({
         />
       ),
     })
-    setBreadcrumbs(
-      withHome({
-        elements: breadCrumbs,
-      })
-    )
-  }, [destinationReference, setBreadcrumbs])
+    // setBreadcrumbs(
+    //   withHome({
+    //     elements: breadCrumbs,
+    //   })
+    // )
+  }, [destinationReference])
 
   return destinationReference ? (
     <>

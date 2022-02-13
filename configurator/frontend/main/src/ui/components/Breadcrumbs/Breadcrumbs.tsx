@@ -1,5 +1,9 @@
 import { ReactNode } from "react"
 import { NavLink } from "react-router-dom"
+import { observer } from "mobx-react-lite"
+import { currentPageHeaderStore } from "../../../stores/currentPageHeader"
+import { useServices } from "../../../hooks/useServices"
+import ProjectLink from "../../../lib/components/ProjectLink/ProjectLink"
 
 function join<T>(array: T[], separatorFactory: (id: number) => T): T[] {
   let res = []
@@ -12,33 +16,24 @@ function join<T>(array: T[], separatorFactory: (id: number) => T): T[] {
   return res
 }
 
-export type BreadcrumbsProps = {
-  elements: BreadcrumbElement[]
-}
-
-export type BreadcrumbElement = {
-  link?: string
-  title: ReactNode
-}
-
-export function withHome(props: BreadcrumbsProps): BreadcrumbsProps {
-  return {
-    elements: [{ link: "/", title: "Home" }, ...props.elements],
-  }
-}
-
-export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ elements }) => {
+const BreadcrumbsComponent: React.FC<{}> = () => {
+  const services = useServices()
+  let projectId = services.activeProject.id
   return (
     <div className="flex flex-row items-center text-base space-x-3">
       {join(
-        elements.map((bc, index) => (
+        currentPageHeaderStore.breadcrumbs.map((element, index) => (
           <div className="" key={`element-${index}`}>
-            {bc.link ? (
-              <NavLink to={bc.link} className="text-heading">
-                {bc.title}
-              </NavLink>
+            {element.link ? (
+              element.absolute ? (
+                <NavLink to={element.link} />
+              ) : (
+                <ProjectLink to={`/prj_${projectId}${element.link}`} className="text-heading">
+                  {element.title}
+                </ProjectLink>
+              )
             ) : (
-              bc.title
+              element.title
             )}
           </div>
         )),
@@ -51,3 +46,5 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ elements }) => {
     </div>
   )
 }
+
+export const Breadcrumbs = observer(BreadcrumbsComponent)

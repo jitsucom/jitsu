@@ -19,7 +19,6 @@ import { useServices } from "hooks/useServices"
 import { CombinedStatisticsDatePoint, IStatisticsService, StatisticsService } from "lib/services/stat"
 // @Utils
 import { useLoaderAsObject } from "hooks/useLoader"
-import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 // @Styles
 import { Destination } from "@jitsu/catalog/destinations/types"
 
@@ -63,7 +62,7 @@ function hourlyDataLoader(
   }
 }
 
-export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({ setBreadcrumbs }) => {
+export const DestinationStatistics: React.FC<CommonDestinationPageProps> = () => {
   const history = useHistory()
   const services = useServices()
   const params = useParams<StatisticsPageParams>()
@@ -116,7 +115,7 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({ se
         ),
       },
     ]
-    setBreadcrumbs(withHome({ elements: breadcrumbs }))
+    // setBreadcrumbs(withHome({ elements: breadcrumbs }))
   }, [])
 
   return destinationReference ? (

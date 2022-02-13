@@ -2,11 +2,12 @@
   "name": "root",
   "private": true,
   "scripts": {
+    "bootstrap": "lerna bootstrap",
     "start": "yarn --cwd ./main start",
-    "build": "yarn install && yarn all:check && npx lerna run build",
-    "build:dev": "npx lerna run build",
+    "build": "yarn install && yarn all:check && lerna run build",
+    "build:dev": "lerna run build",
     "clean": "rm -rf ./main/node_modules/ ./main/build ./main/dist",
-    "lerna:publish": "npx lerna publish --canary --no-private --no-verify-access --yes",
+    "lerna:publish": "lerna publish --canary --no-private --no-verify-access --yes",
     "prettier:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run yarn prettier:fix!\" && exit 1)",
     "prettier:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore ./",
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern **/node_modules/",
@@ -58,6 +59,7 @@
     "tailwindcss": "npm:@tailwindcss/postcss7-compat",
     "terser-webpack-plugin": "^5.1.1",
     "ts-jest": "^27.0.3",
+    "lerna": "^4.0.0",
     "typescript": "^4.4.3",
     "web-vitals": "^1.0.1",
     "webpack-bundle-analyzer": "^4.4.0"

@@ -7,9 +7,7 @@ import { useLoader } from "hooks/useLoader"
 import { useServices } from "hooks/useServices"
 import { CollectionSourceData } from "ui/pages/SourcesPage/SourcesPage"
 import React, { useEffect, useRef, useState } from "react"
-import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { PageHeader } from "ui/components/PageHeader/PageHeader"
-import { PageProps } from "navigation"
 import { allSources } from "@jitsu/catalog/sources/lib"
 import { SourceConnector } from "@jitsu/catalog/sources/types"
 import snakeCase from "lodash/snakeCase"
@@ -26,7 +24,7 @@ type TaskInfo = {
   task: Task
   source: SourceData
 }
-export const TaskLogViewer: React.FC<PageProps> = ({ setBreadcrumbs }) => {
+export const TaskLogViewer: React.FC = () => {
   let { sourceId, taskId } = useParams<{ sourceId: string; taskId: string }>()
   taskId = TaskId.decode(taskId)
   const services = useServices()
@@ -66,24 +64,24 @@ export const TaskLogViewer: React.FC<PageProps> = ({ setBreadcrumbs }) => {
         (candidate: SourceConnector) =>
           snakeCase(candidate.id) === taskInfo.source?.sourceProtoType ?? ({} as SourceConnector)
       )
-      setBreadcrumbs(
-        withHome({
-          elements: [
-            { title: "Sources", link: sourcesPageRoutes.root },
-            {
-              title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode="edit" />,
-              link: generatePath(sourcesPageRoutes.editExact, { sourceId }),
-            },
-            {
-              title: "Logs",
-              link: generatePath(taskLogsPageRoute, { sourceId }),
-            },
-            { title: "Task Log" },
-          ],
-        })
-      )
+      // setBreadcrumbs(
+      //   withHome({
+      //     elements: [
+      //       { title: "Sources", link: sourcesPageRoutes.root },
+      //       {
+      //         title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode="edit" />,
+      //         link: generatePath(sourcesPageRoutes.editExact, { sourceId }),
+      //       },
+      //       {
+      //         title: "Logs",
+      //         link: generatePath(taskLogsPageRoute, { sourceId }),
+      //       },
+      //       { title: "Task Log" },
+      //     ],
+      //   })
+      // )
     }
-  }, [setBreadcrumbs, sourceId, taskId, taskInfo])
+  }, [sourceId, taskId, taskInfo])
 
   useEffect(() => {
     if (viewerRef.current) {

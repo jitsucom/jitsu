@@ -12,7 +12,7 @@ import { sourcesStore } from "stores/sources"
 import { allSources as sourcesCatalog } from "@jitsu/catalog/sources/lib"
 // @Components
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
-import { createInitialSourceData, sourceEditorUtils, useBreadcrubmsEffect } from "./SourceEditor.utils"
+import { createInitialSourceData, sourceEditorUtils } from "./SourceEditor.utils"
 import { sourcePageUtils, TestConnectionResponse } from "ui/pages/SourcesPage/SourcePage.utils"
 import { firstToLower } from "lib/commons/utils"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
@@ -120,7 +120,7 @@ const initialState: SourceEditorState = {
 
 const disableControlsRequestsRegistry = new Map<string, { tooltipMessage?: string }>()
 
-const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcrumbs }) => {
+const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
   const history = useHistory()
   const allSourcesList = sourcesStore.sources
   const { source, sourceId } = useParams<{ source?: string; sourceId?: string }>()
@@ -286,7 +286,6 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
     if (streamsErrorsCount) throw new Error("some streams settings are invalid")
   }
 
-  useBreadcrubmsEffect({ editorMode, sourceDataFromCatalog, setBreadcrumbs })
 
   return (
     <SourceEditorView
