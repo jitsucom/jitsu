@@ -173,6 +173,23 @@ export default class ApplicationServices implements IApplicationServices {
     }
   }
 
+  private async getAvailableProjects(): Promise<FeatureSettings> {
+    let fullUrl = concatenateURLs(this._applicationConfiguration.backendApiBase, "/system/configuration")
+    let request: AxiosRequestConfig = {
+      method: "GET",
+      url: fullUrl,
+      transformResponse: JSON_FORMAT,
+    }
+
+    let response = await axios(request)
+
+    if (response.status == 200) {
+      return mapBackendConfigResponseToAppFeatures(response.data)
+    } else {
+      throw new APIError(response, request)
+    }
+  }
+
   public async initializeDefaultDestination(): Promise<{
     credentials: PgDatabaseCredentials
     destinations: DestinationData[]
