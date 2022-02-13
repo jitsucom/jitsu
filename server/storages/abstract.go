@@ -5,6 +5,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/errorj"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"math/rand"
 
@@ -27,6 +28,7 @@ import (
 //contains common destination funcs
 //aka abstract class
 type Abstract struct {
+	impl           Storage
 	destinationID  string
 	fallbackLogger logging.ObjectLogger
 	eventsCache    *caching.EventsCache
@@ -151,6 +153,95 @@ func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error)
 	return nil
 }
 
+//Store process events and stores with StoreTable() func
+//returns store result per table, failed events (group of events which are failed to process) and err
+func (a *Abstract) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+	flatData, recognizedFlatData, failedEvents, skippedEvents, err := a.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	//update cache with failed events
+	for _, failedEvent := range failedEvents.Events {
+		a.eventsCache.Error(a.IsCachingDisabled(), a.ID(), failedEvent.EventID, failedEvent.Error)
+	}
+	//update cache and counter with skipped events
+	for _, skipEvent := range skippedEvents.Events {
+		a.eventsCache.Skip(a.IsCachingDisabled(), a.ID(), skipEvent.EventID, skipEvent.Error)
+	}
+
+	storeFailedEvents := true
+	tableResults := map[string]*StoreResult{}
+	for _, fdata := range flatData {
+		table, err := a.impl.storeTable(fdata)
+		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
+		if err != nil {
+			storeFailedEvents = false
+		}
+
+		//events cache
+		for _, object := range fdata.GetPayload() {
+			if err != nil {
+				a.eventsCache.Error(a.IsCachingDisabled(), a.ID(), a.uniqueIDField.Extract(object), err.Error())
+			} else {
+				a.eventsCache.Succeed(&adapters.EventContext{
+					CacheDisabled:  a.IsCachingDisabled(),
+					DestinationID:  a.ID(),
+					EventID:        a.uniqueIDField.Extract(object),
+					ProcessedEvent: object,
+					Table:          table,
+				})
+			}
+		}
+	}
+
+	//store failed events to fallback only if other events have been inserted ok
+	if storeFailedEvents {
+		return tableResults, failedEvents, skippedEvents, nil
+	}
+
+	return tableResults, nil, skippedEvents, nil
+}
+
+//check table schema
+//and store data into one table
+func (a *Abstract) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error) {
+	adapter, tableHelper := a.getAdapters()
+	table := tableHelper.MapTableSchema(fdata.BatchHeader)
+	dbSchema, err := tableHelper.EnsureTableWithoutCaching(a.ID(), table)
+	if err != nil {
+		return table, err
+	}
+
+	start := timestamp.Now()
+	if err := adapter.Insert(adapters.NewBatchInsertContext(dbSchema, fdata.GetPayload(), nil)); err != nil {
+		return dbSchema, err
+	}
+	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", a.ID(), len(fdata.GetPayload()), timestamp.Now().Sub(start).Seconds())
+
+	return dbSchema, nil
+}
+
+//Update updates record
+func (a *Abstract) Update(eventContext *adapters.EventContext) error {
+	sqlAdapter, tableHelper := a.getAdapters()
+	processedObject := eventContext.ProcessedEvent
+	table := eventContext.Table
+
+	dbSchema, err := tableHelper.EnsureTableWithCaching(a.ID(), table)
+	if err != nil {
+		return err
+	}
+
+	start := timestamp.Now()
+	if err = sqlAdapter.Update(dbSchema, processedObject, a.uniqueIDField.GetFlatFieldName(), a.uniqueIDField.Extract(processedObject)); err != nil {
+		return err
+	}
+
+	logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", a.ID(), timestamp.Now().Sub(start).Seconds())
+	return nil
+}
+
 //retryInsert does retry if ensuring table or insert is failed
 func (a *Abstract) retryInsert(sqlAdapter adapters.SQLAdapter, tableHelper *TableHelper, eventContext *adapters.EventContext,
 	dbSchemaFromObject *adapters.Table) error {
@@ -215,7 +306,8 @@ func (a *Abstract) close() (multiErr error) {
 	return nil
 }
 
-func (a *Abstract) Init(config *Config) error {
+func (a *Abstract) Init(config *Config, impl Storage) error {
+	a.impl = impl
 	//Abstract (SQLAdapters and tableHelpers are omitted)
 	a.destinationID = config.destinationID
 	a.eventsCache = config.eventsCache

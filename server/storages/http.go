@@ -39,7 +39,7 @@ func (h *HTTPStorage) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 
 //Update isn't supported
 func (h *HTTPStorage) Update(eventContext *adapters.EventContext) error {
-	return fmt.Errorf("%s doesn't support Store() func", h.Type())
+	return fmt.Errorf("%s doesn't support Update() func", h.Type())
 }
 
 //GetUsersRecognition returns disabled users recognition configuration

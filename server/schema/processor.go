@@ -98,14 +98,15 @@ func (p *Processor) ProcessEvent(event map[string]interface{}, needCopyEvent boo
 //ProcessEvents processes events objects
 //returns array of processed objects per table like {"table1": []objects, "table2": []objects},
 //All failed events are moved to separate collection for sending to fallback
-func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*ProcessedFile, *events.FailedEvents, *events.SkippedEvents, error) {
+func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (flatData map[string]*ProcessedFile, recognizedFlatData map[string]*ProcessedFile, failedEvents *events.FailedEvents, skippedEvents *events.SkippedEvents, err error) {
 	if !p.transformInitialized {
 		err := fmt.Errorf("Destination: %s Attempt to use processor without running InitJavaScriptTemplates first", p.identifier)
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	skippedEvents := &events.SkippedEvents{}
-	failedEvents := events.NewFailedEvents()
-	filePerTable := map[string]*ProcessedFile{}
+	skippedEvents = &events.SkippedEvents{}
+	failedEvents = events.NewFailedEvents()
+	flatData = map[string]*ProcessedFile{}
+	recognizedFlatData = map[string]*ProcessedFile{}
 
 	for _, event := range objects {
 		envelops, err := p.processObject(event, alreadyUploadedTables, needCopyEvent)
@@ -119,7 +120,7 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 
 				skippedEvents.Events = append(skippedEvents.Events, &events.SkippedEvent{EventID: eventID, Error: ErrSkipObject.Error()})
 			} else if p.breakOnError {
-				return nil, nil, nil, err
+				return nil, nil, nil, nil, err
 			} else {
 				eventBytes, _ := json.Marshal(event)
 
@@ -138,16 +139,22 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 			batchHeader := envelop.Header
 			processedObject := envelop.Event
 			if batchHeader.Exists() {
-				f, ok := filePerTable[batchHeader.TableName]
+				var fData map[string]*ProcessedFile
+				_, recognized := processedObject[JitsuUserRecognizedEvent]
+				if recognized {
+					fData = recognizedFlatData
+				} else {
+					fData = flatData
+				}
+				f, ok := fData[batchHeader.TableName]
 				if !ok {
-					filePerTable[batchHeader.TableName] = &ProcessedFile{
+					fData[batchHeader.TableName] = &ProcessedFile{
 						FileName:    fileName,
 						BatchHeader: batchHeader,
 						payload:     []map[string]interface{}{processedObject},
 						eventsSrc:   map[string]int{events.ExtractSrc(event): 1},
 					}
 				} else {
-					f.BatchHeader.Fields.Merge(batchHeader.Fields)
 					f.payload = append(f.payload, processedObject)
 					f.eventsSrc[events.ExtractSrc(event)]++
 				}
@@ -155,7 +162,7 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 		}
 	}
 
-	return filePerTable, failedEvents, skippedEvents, nil
+	return flatData, recognizedFlatData, failedEvents, skippedEvents, nil
 }
 
 //ProcessPulledEvents processes events objects without applying mapping rules

@@ -33,13 +33,15 @@ type Storage interface {
 	DryRun(payload events.Event) ([][]adapters.TableField, error)
 	Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error)
 	SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error
+	storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error)
+
 	//Update(object map[string]interface{}) error
 	Fallback(events ...*events.FailedEvent)
 	GetUsersRecognition() *UserRecognitionConfiguration
 	GetUniqueIDField() *identifiers.UniqueID
 	getAdapters() (adapters.SQLAdapter, *TableHelper)
 	Processor() *schema.Processor
-	Init(config *Config) error
+	Init(config *Config, impl Storage) error
 	Start(config *Config) error
 	ID() string
 	Type() string

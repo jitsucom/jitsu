@@ -26,7 +26,7 @@ func NewHubSpot(config *Config) (Storage, error) {
 	}
 
 	h := &HubSpot{}
-	err := h.Init(config)
+	err := h.Init(config, h)
 	if err != nil {
 		return nil, err
 	}

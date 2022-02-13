@@ -50,7 +50,7 @@ func NewWebHook(config *Config) (Storage, error) {
 	}
 
 	wh := &WebHook{}
-	err := wh.Init(config)
+	err := wh.Init(config, wh)
 	if err != nil {
 		return nil, err
 	}

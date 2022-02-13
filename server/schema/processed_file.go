@@ -11,7 +11,9 @@ type ProcessedFile struct {
 	FileName    string
 	BatchHeader *BatchHeader
 
-	payload   []map[string]interface{}
+	payload            []map[string]interface{}
+	recognitionRayload []map[string]interface{}
+
 	eventsSrc map[string]int
 }
 

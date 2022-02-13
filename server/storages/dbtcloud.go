@@ -3,8 +3,6 @@ package storages
 import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/schema"
 )
 
 const (
@@ -38,7 +36,7 @@ func NewDbtCloud(config *Config) (Storage, error) {
 	}
 
 	dbt := &DbtCloud{enabled: dbtCloudConfig.Enabled}
-	err := dbt.Init(config)
+	err := dbt.Init(config, dbt)
 	if err != nil {
 		return nil, err
 	}
@@ -63,16 +61,6 @@ func NewDbtCloud(config *Config) (Storage, error) {
 	dbt.streamingWorker = newStreamingWorker(config.eventQueue, dbt)
 
 	return dbt, nil
-}
-
-//SyncStore isn't supported silently
-func (dbt *DbtCloud) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
-	return nil
-}
-
-//Store isn't supported silently
-func (dbt *DbtCloud) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
-	return nil, nil, nil, nil
 }
 
 //Enabled returns whether we should use this storage
