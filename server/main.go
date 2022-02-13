@@ -412,7 +412,7 @@ func main() {
 			cronScheduler.Start(taskService.ScheduleSyncFunc)
 		}
 
-		notificationCtx := &synchronization.NotificationContext{
+		notificationScene := &synchronization.NotificationScene{
 			ServiceName: notifications.ServiceName,
 			Version:     tag,
 			ServerName:  appconfig.Instance.ServerName,
@@ -427,7 +427,7 @@ func main() {
 			StalledThreshold:      time.Duration(viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")) * time.Second,
 			LastActivityThreshold: time.Duration(viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")) * time.Minute,
 			ObserverStalledEvery:  time.Duration(viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")) * time.Second,
-			NotificationService:   synchronization.NewNotificationService(notificationCtx, viper.GetStringMap("notifications")),
+			NotificationService:   synchronization.NewNotificationService(notificationScene, viper.GetStringMap("notifications")),
 		}
 
 		//Create task executor
