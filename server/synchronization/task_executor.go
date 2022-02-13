@@ -33,7 +33,7 @@ const (
 	collectionLockTimeout = time.Minute
 )
 
-type TaskExecutorBase struct {
+type TaskExecutorContext struct {
 	SourceService       *sources.Service
 	DestinationService  *destinations.Service
 	MetaStorage         meta.Storage
@@ -46,16 +46,16 @@ type TaskExecutorBase struct {
 }
 
 type TaskExecutor struct {
-	*TaskExecutorBase
+	*TaskExecutorContext
 	workersPool *ants.PoolWithFunc
 	closed      *atomic.Bool
 }
 
 //NewTaskExecutor returns TaskExecutor and starts 2 goroutines (monitoring and queue observer)
-func NewTaskExecutor(poolSize int, base *TaskExecutorBase) (*TaskExecutor, error) {
+func NewTaskExecutor(poolSize int, ctx *TaskExecutorContext) (*TaskExecutor, error) {
 	executor := &TaskExecutor{
-		TaskExecutorBase: base,
-		closed:           atomic.NewBool(false),
+		TaskExecutorContext: ctx,
+		closed:              atomic.NewBool(false),
 	}
 	pool, err := ants.NewPoolWithFunc(poolSize, executor.execute)
 	if err != nil {
