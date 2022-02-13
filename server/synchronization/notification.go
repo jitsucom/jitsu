@@ -115,7 +115,7 @@ var Slack NotificationChannel = func(ctx context.Context, scene *NotificationSce
 	}
 
 	var source, logs string
-	if scene.UIBaseURL != "" {
+	if scene.UIBaseURL != "" && !global {
 		source = fmt.Sprintf("<%s/sources/edit/%s|%s>", scene.UIBaseURL, sourceID, sourceID)
 		logs = fmt.Sprintf("<%s/sources/logs/%s/%s|See logs>", scene.UIBaseURL, sourceID, task.ID)
 	} else {
