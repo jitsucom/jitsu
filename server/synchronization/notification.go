@@ -97,6 +97,8 @@ var Slack NotificationChannel = func(ctx context.Context, nctx *NotificationCont
 		return errors.Wrapf(err, "decode config: %+v", configValue)
 	}
 
+	config.URL = strings.Trim(config.URL, " \n\t")
+
 	if config.URL == "" {
 		// disabled
 		return nil

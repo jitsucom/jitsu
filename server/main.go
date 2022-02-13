@@ -419,7 +419,7 @@ func main() {
 			UIBaseURL:   viper.GetString("ui.base_url"),
 		}
 
-		taskExecutorContext := &synchronization.TaskExecutorContext{
+		taskExecutorBase := &synchronization.TaskExecutorBase{
 			SourceService:         sourceService,
 			DestinationService:    destinationsService,
 			MetaStorage:           metaStorage,
@@ -431,7 +431,7 @@ func main() {
 		}
 
 		//Create task executor
-		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, taskExecutorContext)
+		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, taskExecutorBase)
 		if err != nil {
 			logging.Fatal("Error creating sources sync task executor:", err)
 		}
