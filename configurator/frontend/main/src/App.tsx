@@ -1,12 +1,12 @@
 /* eslint-disable */
-import React, { ComponentType, ExoticComponent, useEffect, useState } from "react"
+import React, { ExoticComponent, useEffect, useState } from "react"
 
 import { Redirect, Route, Switch, useLocation } from "react-router-dom"
 import { Button, Card, Form, Input, Modal, Typography } from "antd"
 
 import "./App.less"
 import ApplicationServices from "./lib/services/ApplicationServices"
-import { CenteredSpin, handleError, Preloader } from "./lib/components/components"
+import { handleError, Preloader } from "./lib/components/components"
 import { reloadPage, setDebugInfo } from "./lib/commons/utils"
 
 import { ApplicationPage } from "./Layout"
@@ -25,9 +25,8 @@ import SignupPage from "./ui/pages/GetStartedPage/SignupPage"
 import { StatusPage } from "./lib/components/StatusPage/StatusPage"
 import ExclamationCircleOutlined from "@ant-design/icons/ExclamationCircleOutlined"
 import { UserSettings } from "./lib/components/UserSettings/UserSettings"
-import { currentPageHeaderStore } from "./stores/currentPageHeader"
 
-const ApiKeysRouter = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/components/ApiKeys/ApiKeysRouter"))
+const ApiKeysRouter = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/components/ApiKeys/ApiKeys"))
 const CustomDomains = React.lazy(
   () => import(/* webpackPrefetch: true */ "./lib/components/CustomDomains/CustomDomains")
 )
@@ -195,27 +194,23 @@ type ProjectRoute = {
 }
 
 const projectRoutes: ProjectRoute[] = [
-  { pageTitle: "Connections", path: ["/", "/connections"], component: ConnectionsPage },
-  { pageTitle: "Live Events", path: "/events_stream", component: EventsStream, isPrefix: true },
-  { pageTitle: "Dashboard", path: "/dashboard", component: StatusPage },
-  { pageTitle: "DBT Cloud", path: "/dbtcloud", component: DbtCloudPage },
-  { pageTitle: "Dashboard", path: "/geo_data_resolver", component: GeoDataResolver },
-  { pageTitle: "Config Download", path: "/cfg_download", component: DownloadConfig },
-  { pageTitle: "Project Settings", path: "/project_settings", component: ProjectSettingsPage },
-  { pageTitle: "Api Keys", path: "/api-keys", component: ApiKeysRouter, isPrefix: true },
-  { pageTitle: "Custom Domains", path: "/domains", component: CustomDomains },
+  { pageTitle: "Jitsu : Connections", path: ["/", "/connections"], component: ConnectionsPage },
+  { pageTitle: "Jitsu : Dashboard", path: "/dashboard", component: StatusPage },
+  { pageTitle: "Jitsu : DBT Cloud", path: "/dbtcloud", component: DbtCloudPage },
+  { pageTitle: "Jitsu : Dashboard", path: "/geo_data_resolver", component: GeoDataResolver },
+  { pageTitle: "Jitsu : Config Download", path: "/cfg_download", component: DownloadConfig },
+  { pageTitle: "Jitsu : Project Settings", path: "/project_settings", component: ProjectSettingsPage },
+  { pageTitle: "Jitsu : Api Keys", path: "/api-keys", component: ApiKeysRouter, isPrefix: true },
+  { pageTitle: "Jitsu : Custom Domains", path: "/domains", component: CustomDomains },
 
-  { pageTitle: "Sources", path: "/sources", component: EventsStream, isPrefix: true },
-  { pageTitle: "Destinations", path: "/destinations", component: EventsStream, isPrefix: true },
-  { pageTitle: "Task Logs", path: "/sources/logs", component: EventsStream, isPrefix: true },
+  { pageTitle: "Jitsu : Sources", path: "/sources", component: EventsStream, isPrefix: true },
+  { pageTitle: "Jitsu : Destinations", path: "/destinations", component: EventsStream, isPrefix: true },
+  { pageTitle: "Jitsu : Task Logs", path: "/sources/logs", component: EventsStream, isPrefix: true },
 
-  { pageTitle: "User Settings", path: "/settings/user", component: UserSettings, isPrefix: true },
+  { pageTitle: "Jitsu : User Settings", path: "/settings/user", component: UserSettings, isPrefix: true },
 ]
 
 function RouteNotFound() {
-  useEffect(() => {
-    currentPageHeaderStore.breadcrumbs = [{title: "Not found"}];
-  })
   return (
     <div className="flex justify-center pt-12">
       <Card bordered={false}>
@@ -234,25 +229,11 @@ function RouteNotFound() {
             </span>
           }
           title={"Page Not Found"}
-        />
+        >
+        </Card.Meta>
       </Card>
     </div>
   )
-}
-
-const PageWrapper: React.FC<{pageTitle: string, component: ComponentType, pagePath: string}> = ({pageTitle, component, pagePath, ...rest}) => {
-  const services = useServices();
-  useEffect(() => {
-    services.analyticsService.onPageLoad({
-      pagePath: pagePath,
-    })
-    document["title"] = `Jitsu : ${pageTitle}`
-  })
-  let Component = component as ExoticComponent
-  return <React.Suspense fallback={<CenteredSpin />}>
-    <Component {...(rest as any)} />
-  </React.Suspense>
-
 }
 
 const ProjectRoute: React.FC<{}> = () => {
@@ -280,7 +261,14 @@ const ProjectRoute: React.FC<{}> = () => {
             <Route
               exact={!isPrefix}
               path={(typeof path === "string" ? [path] : path).map(path => `/prj_:projectId${path}`)}
-              render={page => <PageWrapper pageTitle={pageTitle} component={component} pagePath={page.location.key} {...page} />}
+              render={page => {
+                services.analyticsService.onPageLoad({
+                  pagePath: page.location.key || "/unknown",
+                })
+                document["title"] = { pageTitle: pageTitle }.pageTitle
+                let Component = component as ExoticComponent
+                return <Component {...(page as any)} />
+              }}
               key={`${path}-${pageTitle}`}
             />
           ))}
