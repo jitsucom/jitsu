@@ -28,7 +28,7 @@ const BreadcrumbsComponent: React.FC<{}> = () => {
               element.absolute ? (
                 <NavLink to={element.link} />
               ) : (
-                <ProjectLink to={`/prj_${projectId}${element.link}`} className="text-heading">
+                <ProjectLink to={element.link} className="text-heading">
                   {element.title}
                 </ProjectLink>
               )
