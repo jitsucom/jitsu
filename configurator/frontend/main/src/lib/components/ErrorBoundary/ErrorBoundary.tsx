@@ -7,7 +7,6 @@ type State = {
   error?: Error
 }
 
-const services = ApplicationServices.get()
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props) {
     super(props)
@@ -28,9 +27,15 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(err, info) {
-    // logErrorToMyService(error, info);
-    const error = this.toError(err)
-    services.analyticsService.onGlobalError(error)
+    try {
+      const error = this.toError(err)
+      let services = ApplicationServices.get()
+      if (services?.analyticsService) {
+        services.analyticsService.onGlobalError(error)
+      }
+    } catch (e) {
+      console.warn("Can't send error to monitoring", e)
+    }
   }
 
   render() {
@@ -38,7 +43,11 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex justify-center items-center w-full h-full">
           <div className="h-96 max-w-3xl px-16">
-            <ErrorCard title="Internal error occured" onReload={() => this.setState({ error: null })} />
+            <ErrorCard
+              title={"Internal error occurred: " + this.state.error.message}
+              onReload={() => this.setState({ error: null })}
+              stackTrace={this.state.error.stack}
+            />
           </div>
         </div>
       )

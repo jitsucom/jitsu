@@ -2,25 +2,24 @@
 // @Libs
 import * as React from "react"
 import { useState } from "react"
-import { NavLink, Redirect, Route, useHistory, useLocation, Switch } from "react-router-dom"
-import { Button, Dropdown, message, Modal, MessageArgsProps, Tooltip, notification, Popover } from "antd"
+import { useHistory, useLocation } from "react-router-dom"
+import { Button, Dropdown, message, MessageArgsProps, Modal, notification, Popover, Tooltip } from "antd"
 // @Components
-import { BreadcrumbsProps, withHome, Breadcrumbs } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { NotificationsWidget } from "lib/components/NotificationsWidget/NotificationsWidget"
 import { CurrentPlan, UpgradePlan } from "ui/components/CurrentPlan/CurrentPlan"
-import { CenteredSpin, handleError } from "lib/components/components"
+import { handleError } from "lib/components/components"
 // @Icons
 import Icon, {
-  SettingOutlined,
+  ApiFilled,
   AreaChartOutlined,
+  CloudFilled,
+  HomeFilled,
+  LogoutOutlined,
+  NotificationFilled,
+  SettingOutlined,
+  ThunderboltFilled,
   UserOutlined,
   UserSwitchOutlined,
-  LogoutOutlined,
-  CloudFilled,
-  NotificationFilled,
-  ApiFilled,
-  ThunderboltFilled,
-  HomeFilled,
 } from "@ant-design/icons"
 import { ReactComponent as JitsuLogo } from "icons/logo-responsive.svg"
 import { ReactComponent as Cross } from "icons/cross.svg"
@@ -33,7 +32,6 @@ import classNames from "classnames"
 import { Permission, User } from "lib/services/model"
 // @Utils
 import { reloadPage } from "lib/commons/utils"
-import { Page, usePageLocation } from "navigation"
 // @Services
 import { useServices } from "hooks/useServices"
 import { AnalyticsBlock } from "lib/services/analytics"
@@ -41,13 +39,13 @@ import { CurrentSubscription } from "lib/services/billing"
 // @Styles
 import styles from "./Layout.module.less"
 // @Misc
-import { settingsPageRoutes } from "./ui/pages/SettingsPage/SettingsPage"
 import { FeatureSettings } from "./lib/services/ApplicationServices"
 import { usePersistentState } from "./hooks/usePersistentState"
-import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
 import { SupportOptions } from "lib/components/SupportOptions/SupportOptions"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { useClickOutsideRef } from "hooks/useClickOutsideRef"
+import { Breadcrumbs } from "./ui/components/Breadcrumbs/Breadcrumbs"
+import ProjectLink from "./lib/components/ProjectLink/ProjectLink"
 
 type MenuItem = {
   icon: React.ReactNode
@@ -62,7 +60,7 @@ const makeItem = (
   title: React.ReactNode,
   link: string,
   color: string,
-  enabled = (f: FeatureSettings) => true
+  enabled: (f: FeatureSettings) => boolean = () => true
 ): MenuItem => {
   return { icon, title, link, color, enabled }
 }
@@ -81,9 +79,16 @@ const menuItems = [
   makeItem(<Icon component={DownloadIcon} />, "Download Config", "/cfg_download", "#14a76c"),
 ]
 
+export function usePageLocation(): string {
+  const location = useLocation().pathname
+  const canonicalPath = location === "/" || location === "" ? "/connections" : location
+  return canonicalPath.split("/")[1]
+}
+
+
 export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) => {
   const services = useServices()
-  const key = usePageLocation().mainMenuKey
+  const key = usePageLocation();
   const Wrapper = React.useMemo<React.FC<{ title?: string | React.ReactNode }>>(
     () =>
       expanded
@@ -103,7 +108,7 @@ export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) =
         const enabled = item.enabled(services.features)
         return (
           enabled && (
-            <NavLink to={item.link} key={item.link}>
+            <ProjectLink to={item.link} key={item.link}>
               <Wrapper title={item.title}>
                 <div
                   key={item.link}
@@ -116,7 +121,7 @@ export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) =
                   {expanded && <span className="pl-2 whitespace-nowrap">{item.title}</span>}
                 </div>
               </Wrapper>
-            </NavLink>
+            </ProjectLink>
           )
         )
       })}
@@ -228,7 +233,7 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
   const services = useServices()
   const history = useHistory()
 
-  const showSettings = React.useCallback<() => void>(() => history.push(settingsPageRoutes[0]), [history])
+  const showSettings = React.useCallback<() => void>(() => history.push('/user/settings'), [history])
 
   const becomeUser = async () => {
     let email = prompt("Please enter e-mail of the user", "")
@@ -283,13 +288,6 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
   )
 }
 
-export type ApplicationPageWrapperProps = {
-  pages: Page[]
-  extraForms?: JSX.Element[]
-  user: User
-  plan: CurrentSubscription
-  [propName: string]: any
-}
 
 function handleBillingMessage(params) {
   if (!params.get("billingMessage")) {
@@ -302,59 +300,20 @@ function handleBillingMessage(params) {
   })
 }
 
-export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, pages, user, extraForms }) => {
-  const location = useLocation()
-  const services = useServices()
-  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbsProps>(
-    withHome({ elements: [{ title: pages[0].pageHeader }] })
-  )
-
-  const routes = pages.map(page => {
-    const Component = page.component as React.ExoticComponent
-    return (
-      <Route
-        key={page.pageTitle}
-        path={page.getPrefixedPath()}
-        exact={true}
-        render={routeProps => {
-          services.analyticsService.onPageLoad({
-            pagePath: routeProps.location.hash,
-          })
-          document["title"] = page.pageTitle
-          // setBreadcrumbs(withHome({ elements: [{ title: page.pageHeader }] }))
-
-          return (
-            <ErrorBoundary>
-              <Component setBreadcrumbs={setBreadcrumbs} {...(routeProps as any)} />
-            </ErrorBoundary>
-          )
-        }}
-      />
-    )
-  })
-
-  routes.push(<Redirect key="dashboardRedirect" from="*" to="/dashboard" />)
+export const ApplicationPage: React.FC = ({ children }) => {
+  const services = useServices();
   handleBillingMessage(new URLSearchParams(useLocation().search))
-
-  React.useEffect(() => {
-    const pageMatchingPathname = pages.find(page => page.path.includes(location.pathname))
-    if (pageMatchingPathname) setBreadcrumbs(withHome({ elements: [{ title: pageMatchingPathname.pageHeader }] }))
-  }, [location.pathname])
-
   return (
     <div className={styles.applicationPage}>
       <div className={classNames(styles.sidebar)}>
         <ApplicationSidebar />
       </div>
       <div className={classNames(styles.rightbar)}>
-        <PageHeader user={user} plan={plan}>
-          <Breadcrumbs {...breadcrumbs} />
+        <PageHeader user={services.userService.getUser()} plan={services.currentSubscription}>
+          <Breadcrumbs />
         </PageHeader>
         <div className={styles.applicationPageComponent}>
-          <React.Suspense fallback={<CenteredSpin />}>
-            <Switch key={"appPagesSwitch"}>{routes}</Switch>
-            {extraForms}
-          </React.Suspense>
+          {children}
         </div>
       </div>
     </div>

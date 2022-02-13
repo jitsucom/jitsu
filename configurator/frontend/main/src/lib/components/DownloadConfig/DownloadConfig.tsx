@@ -4,7 +4,6 @@ import { CodeSnippet, LoadableComponent } from "../components"
 import ApplicationServices from "../../services/ApplicationServices"
 import "./DownloadConfig.less"
 import CloudDownloadOutlined from "@ant-design/icons/lib/icons/CloudDownloadOutlined"
-import { PageProps } from "navigation"
 
 type State = {
   code: string
@@ -23,10 +22,10 @@ function download(filename, text) {
   document.body.removeChild(element)
 }
 
-export default class DownloadConfig extends LoadableComponent<PageProps, State> {
+export default class DownloadConfig extends LoadableComponent<{}, State> {
   private readonly services: ApplicationServices = ApplicationServices.get()
 
-  constructor(props: Readonly<PageProps>, context) {
+  constructor(props: Readonly<{  }>, context) {
     super(props, context)
   }
 

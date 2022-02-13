@@ -9,7 +9,6 @@ import { sourcesStore } from "stores/sources"
 import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined"
 // @Types
 import { CommonSourcePageProps } from "ui/pages/SourcesPage/SourcesPage"
-import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 // @Styles
 import styles from "./SourcesList.module.less"
 // @Routes
@@ -17,25 +16,25 @@ import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 // @Utils
 import { SourceCard } from "../../../../components/SourceCard/SourceCard"
 
-const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
+const SourcesListComponent = () => {
   const history = useHistory()
 
   const handleAddClick = useCallback(() => {
     history.push(sourcesPageRoutes.add)
   }, [history])
 
-  useEffect(() => {
-    setBreadcrumbs(
-      withHome({
-        elements: [
-          { title: "Sources", link: sourcesPageRoutes.root },
-          {
-            title: "Sources List",
-          },
-        ],
-      })
-    )
-  }, [setBreadcrumbs])
+  // useEffect(() => {
+  //   setBreadcrumbs(
+  //     withHome({
+  //       elements: [
+  //         { title: "Sources", link: sourcesPageRoutes.root },
+  //         {
+  //           title: "Sources List",
+  //         },
+  //       ],
+  //     })
+  //   )
+  // }, [setBreadcrumbs])
 
   if (sourcesStore.sources.length === 0) {
     return (

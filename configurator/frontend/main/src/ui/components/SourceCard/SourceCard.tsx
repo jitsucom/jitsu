@@ -54,7 +54,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
 
   const history = useHistory()
   const services = useServices()
-  const editLink = generatePath(sourcesPageRoutes.editExact, { sourceId: src.sourceId })
+  const editLink = generatePath(sourcesPageRoutes.editExact, { projectId: services.activeProject.id, sourceId: src.sourceId })
   const viewLogsLink = generatePath(taskLogsPageRoute, { sourceId: src.sourceId })
 
   const rename = async (sourceId: string, newName: string) => {

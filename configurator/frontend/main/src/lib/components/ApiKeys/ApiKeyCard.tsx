@@ -47,7 +47,7 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
       },
     })
   }
-  let editLink = generatePath(apiKeysRoutes.editExact, { id: key.uid.replace(".", "-") })
+  let editLink = generatePath(apiKeysRoutes.editExact, { projectId: services.activeProject.id, id: key.uid.replace(".", "-") })
   return (
     <ConnectionCard
       loading={loading}
