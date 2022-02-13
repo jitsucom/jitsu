@@ -21,25 +21,25 @@ type LoggedTask struct {
 	Status        string
 }
 
-type NotificationContext struct {
+type NotificationScene struct {
 	ServiceName string
 	Version     string
 	ServerName  string
 	UIBaseURL   string
 }
 
-type NotificationChannel func(ctx context.Context, nctx *NotificationContext, configValue interface{}, global bool, task LoggedTask) error
+type NotificationChannel func(ctx context.Context, scene *NotificationScene, configValue interface{}, global bool, task LoggedTask) error
 
 type NotificationService struct {
-	*NotificationContext
+	*NotificationScene
 	globalConfig map[string]interface{}
 	registry     map[string]NotificationChannel
 }
 
-func NewNotificationService(nctx *NotificationContext, config map[string]interface{}) *NotificationService {
+func NewNotificationService(scene *NotificationScene, config map[string]interface{}) *NotificationService {
 	return &NotificationService{
-		NotificationContext: nctx,
-		globalConfig:        config,
+		NotificationScene: scene,
+		globalConfig:      config,
 		registry: map[string]NotificationChannel{
 			"slack": Slack,
 		},
@@ -77,7 +77,7 @@ func (s *NotificationService) notify(ctx context.Context, key string, config int
 		return errors.New("unsupported notification channel")
 	}
 
-	return notify(ctx, s.NotificationContext, config, global, task)
+	return notify(ctx, s.NotificationScene, config, global, task)
 }
 
 type Map map[string]interface{}
@@ -88,7 +88,7 @@ const (
 	grey  = "#808080"
 )
 
-var Slack NotificationChannel = func(ctx context.Context, nctx *NotificationContext, configValue interface{}, global bool, task LoggedTask) error {
+var Slack NotificationChannel = func(ctx context.Context, scene *NotificationScene, configValue interface{}, global bool, task LoggedTask) error {
 	var config struct {
 		URL string `mapstructure:"url"`
 	}
@@ -115,9 +115,9 @@ var Slack NotificationChannel = func(ctx context.Context, nctx *NotificationCont
 	}
 
 	var source, logs string
-	if nctx.UIBaseURL != "" {
-		source = fmt.Sprintf("<%s/sources/edit/%s|%s>", nctx.UIBaseURL, sourceID, sourceID)
-		logs = fmt.Sprintf("<%s/sources/logs/%s/%s|See logs>", nctx.UIBaseURL, sourceID, task.ID)
+	if scene.UIBaseURL != "" {
+		source = fmt.Sprintf("<%s/sources/edit/%s|%s>", scene.UIBaseURL, sourceID, sourceID)
+		logs = fmt.Sprintf("<%s/sources/logs/%s/%s|See logs>", scene.UIBaseURL, sourceID, task.ID)
 	} else {
 		source = sourceID
 		logs = "*Logs:*\n" + strings.Join(task.Collect(), "\n")
@@ -138,7 +138,7 @@ var Slack NotificationChannel = func(ctx context.Context, nctx *NotificationCont
 	return requests.URL(config.URL).
 		Method(http.MethodPost).
 		BodyJSON(Map{
-			"text": fmt.Sprintf("*%s %s* [%s]: Synchronization %s", nctx.ServiceName, nctx.Version, nctx.ServerName, task.Status),
+			"text": fmt.Sprintf("*%s %s* [%s]: Synchronization %s", scene.ServiceName, scene.Version, scene.ServerName, task.Status),
 			"attachments": []Map{{
 				"color": color,
 				"blocks": []Map{
