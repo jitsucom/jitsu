@@ -137,7 +137,7 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                 formFieldName="jsAuth"
                 formFieldLabel="Client-side (JS) key"
               >
-                The key that is user for client-side Jitsu libraries (JavaScript, iOS etc). You can consider this key as
+                The key that is used for client-side Jitsu libraries (JavaScript, iOS etc). You can consider this key as
                 'public' since it is visible to any end-user
               </SecretKey>
               <SecretKey

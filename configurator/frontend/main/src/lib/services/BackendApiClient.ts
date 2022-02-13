@@ -19,6 +19,10 @@ export type ApiRequestOptions = {
    * If set to true, Auth header should not be added
    */
   noauth?: boolean
+  /**
+   * Version replacement. Pretty hacky, but should be temporary.
+   */
+  version?: number
 }
 
 /**
@@ -42,6 +46,8 @@ export interface BackendApiClient {
   getRaw(url, opts?: ApiRequestOptions): Promise<string>
 
   get(url: string, opts?: ApiRequestOptions): Promise<any>
+
+  patch<T>(url: string, payload: Partial<T>, opts?: ApiRequestOptions): Promise<T>
 }
 
 export class APIError extends Error {
@@ -144,6 +150,11 @@ export class JWTBackendClient implements BackendApiClient {
     if (opts.proxy) {
       fullUrl = concatenateURLs(this.proxyUrl, url)
     }
+
+    if (opts.version) {
+      fullUrl = fullUrl.replace("/api/v1", `/api/v${opts.version}`)
+    }
+
     if (opts.urlParams) {
       fullUrl +=
         "?" +
@@ -229,6 +240,10 @@ export class JWTBackendClient implements BackendApiClient {
 
   post(url: string, data: any, opts?: ApiRequestOptions): Promise<any> {
     return this.exec("post", JSON_FORMAT, url, data, opts ?? {})
+  }
+
+  patch<T>(url: string, payload: Partial<T>, opts?: ApiRequestOptions): Promise<T> {
+    return this.exec("patch", JSON_FORMAT, url, payload, opts ?? {})
   }
 
   postRaw(url, data: any, opts?: ApiRequestOptions): Promise<string> {

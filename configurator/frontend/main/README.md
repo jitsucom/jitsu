@@ -5,6 +5,7 @@
 - `yarn install` - get all dependencies (run before any script)
 - `yarn start` - dev application (with hot reload) will be started on [http://localhost:9876](http://localhost:9876)
 - `yarn build` - build prod app, see build/ folder for results
+- `yarn build:openapi` - generate OpenAPI model definitions
 - `yarn add (-D)` - install and add package (-D - optional, use to install devDependency)
 - `yarn stats` - create a production build that can be further picked by bundle analyzers
 - `yarn explore` - analyze the bundle using `source-map-explorer` which [is a recommended tool for CRA](https://create-react-app.dev/docs/analyzing-the-bundle-size/)
@@ -70,7 +71,7 @@ before building the app (or running it with `yarn start`)
 
 ## Troubleshooting
 
-- `rm -rf yarn.lock ./node_modules && yarn install`
+- `rm -rf ./node_modules && yarn install`
 
 ## Initial development setup setup
 
