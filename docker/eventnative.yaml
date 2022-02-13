@@ -33,6 +33,9 @@ notifications:
   slack:
     url: '${env.SLACK_NOTIFICATIONS_WEBHOOK|}'
 
+ui:
+  base_url: '${env.JITSU_UI_BASE_URL|}'
+
 users_recognition:
   enabled: '${env.USER_RECOGNITION_ENABLED|false}'
   redis:
