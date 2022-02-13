@@ -6,7 +6,7 @@ import { CenteredError } from "../components"
 import { useForm } from "antd/es/form/Form"
 import { LabelEllipsis } from "../../../ui/components/LabelEllipsis/LabelEllipsis"
 import ReloadOutlined from "@ant-design/icons/lib/icons/ReloadOutlined"
-import React, { Children, ReactNode, useState } from "react"
+import React, { Children, ReactNode, useEffect, useState } from "react"
 import cn from "classnames"
 import { FormField, FormLayout, FormActions, unsavedMessage } from "../Form/Form"
 import { LabelWithTooltip } from "../../../ui/components/LabelWithTooltip/LabelWithTooltip"
@@ -103,7 +103,13 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
   const [saving, setSaving] = useState(false)
   const [form] = useForm<any>()
 
-  currentPageHeaderStore.breadcrumbs = [{link: '/api-keys', title: "API Keys"}, {title: initialApiKey.comment || initialApiKey.uid}]
+  useEffect(() => {
+    currentPageHeaderStore.breadcrumbs = [
+      { link: "/api-keys", title: "API Keys" },
+      { title: initialApiKey.comment || "Create New Key" },
+    ]
+  })
+
 
   form.setFieldsValue(editorObject)
   return (

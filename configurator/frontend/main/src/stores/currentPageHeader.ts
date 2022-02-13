@@ -32,7 +32,6 @@ class CurrentPageHeader implements ICurrentPageHeader {
   private _breadcrumbs: BreadcrumbElement[]
 
   constructor() {
-    this._breadcrumbs = [{ link: "/", title: "Home" }]
     makeAutoObservable(this)
   }
 
@@ -41,6 +40,7 @@ class CurrentPageHeader implements ICurrentPageHeader {
    * automatically
    */
   set breadcrumbs(breadcrumbs: BreadcrumbElement[]) {
+    console.log("Setting breadcrumbs", breadcrumbs)
     this._breadcrumbs =
       breadcrumbs.length > 0 && breadcrumbs[0].link === "/"
         ? breadcrumbs
@@ -48,6 +48,9 @@ class CurrentPageHeader implements ICurrentPageHeader {
   }
 
   get breadcrumbs(): BreadcrumbElement[] {
+    if (!this._breadcrumbs || this._breadcrumbs.length == 0) {
+      return [{ link: "/", title: "Home" }];
+    }
     return this._breadcrumbs
   }
 }
