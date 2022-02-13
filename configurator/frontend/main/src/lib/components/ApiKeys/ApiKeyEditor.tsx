@@ -11,7 +11,6 @@ import cn from "classnames"
 import { FormField, FormLayout, FormActions, unsavedMessage } from "../Form/Form"
 import { LabelWithTooltip } from "../../../ui/components/LabelWithTooltip/LabelWithTooltip"
 import TextArea from "antd/es/input/TextArea"
-import { BreadcrumbsProps, withHome } from "../../../ui/components/Breadcrumbs/Breadcrumbs"
 import { FormInstance } from "antd/es/form/hooks/useForm"
 import { confirmDelete } from "../../commons/deletionConfirmation"
 import { flowResult } from "mobx"
@@ -21,16 +20,15 @@ import { NavLink } from "react-router-dom"
 import { destinationsStore } from "../../../stores/destinations"
 import { DestinationPicker } from "./DestinationPicker"
 import union from "lodash/union"
+import { currentPageHeaderStore } from "../../../stores/currentPageHeader"
 
 export const apiKeysRoutes = {
-  newExact: "/api-keys/new",
-  listExact: "/api-keys",
-  editExact: "/api-keys/:id",
+  newExact: "/prj_:projectId/api-keys/new",
+  listExact: "/prj_:projectId/api-keys",
+  editExact: "/prj_:projectId/api-keys/:id",
 } as const
 
-type ApiKeyEditorProps = {
-  setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void
-}
+type ApiKeyEditorProps = {}
 
 function newKey(): APIKey {
   let uid = apiKeysStore.generateApiToken("", 6)
@@ -104,6 +102,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
   const [deleting, setDeleting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form] = useForm<any>()
+
+  currentPageHeaderStore.breadcrumbs = [{link: '/api-keys', title: "API Keys"}, {title: initialApiKey.comment || initialApiKey.uid}]
 
   form.setFieldsValue(editorObject)
   return (

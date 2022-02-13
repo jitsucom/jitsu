@@ -13,8 +13,6 @@ import { sourcesStore, SourcesStoreState } from "stores/sources"
 // @Styles
 import "./SourcesPage.less"
 // @Types
-import { BreadcrumbsProps } from "ui/components/Breadcrumbs/Breadcrumbs"
-import { PageProps } from "navigation"
 import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
 import { SourceEditor } from "./partials/SourceEditor/SourceEditor/SourceEditor"
 import { useServices } from "hooks/useServices"
@@ -26,14 +24,12 @@ export interface CollectionSourceData {
   _lastUpdated?: string
 }
 
-export type SetBreadcrumbs = (breadcrumbs: BreadcrumbsProps) => void
 
 export interface CommonSourcePageProps {
-  setBreadcrumbs: SetBreadcrumbs
   editorMode?: "edit" | "add"
 }
 
-const SourcesPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
+const SourcesPageComponent: React.FC = () => {
   const params = useParams<unknown>()
   const services = useServices()
 
@@ -52,10 +48,10 @@ const SourcesPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
     <ErrorBoundary>
       <Switch>
         <Route path={sourcesPageRoutes.root} exact>
-          <SourcesList {...{ setBreadcrumbs }} />
+          <SourcesList  />
         </Route>
         <Route path={sourcesPageRoutes.editExact} strict={false} exact>
-          <SourceEditor key={params?.["sourceId"] || "static_key"} {...{ setBreadcrumbs, editorMode: "edit" }} />
+          <SourceEditor key={params?.["sourceId"] || "static_key"} editorMode="edit" />
         </Route>
         <BillingCheckRedirect
           quotaExceededRedirectTo={sourcesPageRoutes.root}
@@ -66,7 +62,7 @@ const SourcesPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
         >
           <Switch>
             <Route path={sourcesPageRoutes.addExact} strict={false} exact>
-              <SourceEditor {...{ setBreadcrumbs, editorMode: "add" }} />
+              <SourceEditor editorMode="edit" />
             </Route>
             <Route path={sourcesPageRoutes.add} strict={false} exact>
               <AddSourceDialog />

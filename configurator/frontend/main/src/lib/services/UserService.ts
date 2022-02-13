@@ -15,7 +15,7 @@ export interface LoginFeatures {
   signupEnabled: boolean
 }
 
-type UserEmailStatus = { needsConfirmation: true; isConfirmed: boolean } | { needsConfirmation: false }
+export type UserEmailStatus = { needsConfirmation: true; isConfirmed: boolean } | { needsConfirmation: false }
 
 export type TelemetrySettings = {
   isTelemetryEnabled: boolean
@@ -65,7 +65,7 @@ export interface UserService {
    * Checks if current user's email needs confirmation and if it is confirmed.
    * @returns an object with the corresponding fields
    */
-  getUserEmailStatus(): Promise<UserEmailStatus>
+  getUserEmailStatus(): UserEmailStatus
 
   /**
    * Checks if any valid user is logged in.

@@ -146,13 +146,13 @@ const OnboardingTourAddDestinationComponent: React.FC<Props> = ({ handleGoNext, 
         return (
           <div className={styles.destinationEditorContainer}>
             <DestinationEditor
-              setBreadcrumbs={() => {}}
               editorMode="add"
               paramsByProps={{
                 type: destinationsReferenceMap[lifecycle]["id"],
                 id: "",
                 tabName: "tab",
               }}
+
               disableForceUpdateOnSave
               onAfterSaveSucceded={onAfterCustomDestinationCreated}
               onCancel={handleCancelDestinationSetup}

@@ -37,7 +37,7 @@ export class ApplicationConfiguration {
     ].join(";")
 
     console.log(
-      `App initialized. Backend: ${this._backendApiBase}. Env: ${this._appEnvironment}. Firebase configured: ${!!this
+      `App config initialized. Backend: ${this._backendApiBase}. Env: ${this._appEnvironment}. Firebase configured: ${!!this
         ._firebaseConfig}. Build info: ${this._buildId}. Billing API: ${this._billingApiBase}.`
     )
   }
@@ -90,7 +90,6 @@ export type RawConfigObject = {
 }
 
 function getRawApplicationConfig(): RawConfigObject {
-  console.log("FIREBASE", process.env.FIREBASE_CONFIG)
   return {
     env: process.env || {},
     firebase: parseJson(process.env.FIREBASE_CONFIG, null),
