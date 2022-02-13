@@ -6,7 +6,7 @@ import { cleanAuthorizationLocalStorage, concatenateURLs } from "lib/commons/uti
 import { getBaseUIPath } from "lib/commons/pathHelper"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
-import { LoginFeatures, TelemetrySettings, UserLoginStatus, UserService } from "./UserService"
+import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserLoginStatus, UserService } from "./UserService"
 
 export const LS_ACCESS_KEY = "en_access"
 export const LS_REFRESH_KEY = "en_refresh"
@@ -194,12 +194,12 @@ export class BackendUserService implements UserService {
 
   getUser(): User {
     if (!this.user) {
-      throw new Error("User is null")
+      throw new Error("User is null. Should you called services.userService.hasUser()?")
     }
     return this.user
   }
 
-  async getUserEmailStatus(): Promise<{ needsConfirmation: false }> {
+  getUserEmailStatus(): UserEmailStatus {
     return { needsConfirmation: false }
   }
 

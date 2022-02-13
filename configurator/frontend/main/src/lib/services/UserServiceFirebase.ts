@@ -24,7 +24,7 @@ import { initializeApp, FirebaseApp } from "firebase/app"
 import Marshal from "../commons/marshalling"
 import { reloadPage, setDebugInfo } from "../commons/utils"
 import { randomId } from "utils/numbers"
-import { LoginFeatures, TelemetrySettings, UserLoginStatus, UserService } from "./UserService"
+import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserLoginStatus, UserService } from "./UserService"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
 import AnalyticsService from "./analytics"
@@ -186,15 +186,12 @@ export class FirebaseUserService implements UserService {
 
   getUser(): User {
     if (!this.user) {
-      throw new Error("User is null")
+      throw new Error("User is null. Should you call services.userService.hasUser()?")
     }
     return this.user
   }
 
-  async getUserEmailStatus(): Promise<{
-    needsConfirmation: true
-    isConfirmed: boolean
-  }> {
+  getUserEmailStatus(): UserEmailStatus {
     return {
       needsConfirmation: true,
       isConfirmed: this.firebaseUser.emailVerified,

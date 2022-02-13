@@ -1,4 +1,3 @@
-import { PageProps } from "navigation"
 import { useHistory, useLocation, useParams } from "react-router-dom"
 import useLoader from "hooks/useLoader"
 import ApplicationServices from "lib/services/ApplicationServices"
@@ -10,7 +9,6 @@ import { useServices } from "hooks/useServices"
 import { colorMap, TaskStatus } from "./utils"
 import styles from "./TaskLogsPage.module.less"
 import moment from "moment"
-import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { allSources } from "@jitsu/catalog/sources/lib"
 import snakeCase from "lodash/snakeCase"
 import { SourceConnector } from "@jitsu/catalog/sources/types"
@@ -20,7 +18,7 @@ import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 
 export const taskLogsPageRoute = "/sources/logs/:sourceId"
 
-export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
+export const TaskLogsPage: React.FC = () => {
   const params = useParams<{ sourceId: string; taskId: string }>()
   const services = useServices()
   const location = useLocation()
@@ -50,20 +48,20 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
         (candidate: SourceConnector) => snakeCase(candidate.id) === source?.sourceProtoType ?? ({} as SourceConnector)
       )
 
-      setBreadcrumbs(
-        withHome({
-          elements: [
-            { title: "Sources", link: sourcesPageRoutes.root },
-            {
-              title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode="edit" />,
-              link: "/sources/edit/" + source.sourceId,
-            },
-            { title: "Logs" },
-          ],
-        })
-      )
+      // setBreadcrumbs(
+      //   withHome({
+      //     elements: [
+      //       { title: "Sources", link: sourcesPageRoutes.root },
+      //       {
+      //         title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode="edit" />,
+      //         link: "/sources/edit/" + source.sourceId,
+      //       },
+      //       { title: "Logs" },
+      //     ],
+      //   })
+      // )
     }
-  }, [source?.sourceId, setBreadcrumbs])
+  }, [source?.sourceId])
 
   const setFilter = (param, val, stateAction, toString?: (any) => string) => {
     toString = toString || (val => val + "")

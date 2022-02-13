@@ -90,7 +90,7 @@ const AddSourceDialogComponent = () => {
             app: services.features.appName,
             connector_id: src.id,
           })
-          history.push(generatePath(sourcesPageRoutes.addExact, { source: src.id }))
+          history.push(generatePath(sourcesPageRoutes.addExact, {projectId: services.activeProject.id, source: src.id }))
         },
       })
     }
@@ -166,7 +166,7 @@ const AddSourceDialogComponent = () => {
           .filter(src => showDeprecatedSources || !src.deprecated)
           .map((src: SourceConnector) => (
             <Link
-              to={generatePath(sourcesPageRoutes.addExact, { source: src.id })}
+              to={generatePath(sourcesPageRoutes.addExact, {projectId: services.activeProject.id, source: src.id })}
               key={src.id}
               className={`${styles.item} ${isAirbyteSourceOnHeroku(src) ? styles.item__disabled : ""}`}
               onClick={handleClick(src)}
