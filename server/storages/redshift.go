@@ -20,7 +20,6 @@ type AwsRedshift struct {
 
 	s3Adapter                     *adapters.S3
 	redshiftAdapter               *adapters.AwsRedshift
-	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 }
 
@@ -29,10 +28,16 @@ func init() {
 }
 
 //NewAwsRedshift returns AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
-func NewAwsRedshift(config *Config) (Storage, error) {
+func NewAwsRedshift(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	redshiftConfig := &adapters.DataSourceConfig{}
-	if err := config.destination.GetDestConfig(config.destination.DataSource, redshiftConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.DataSource, redshiftConfig); err != nil {
+		return
 	}
 	//enrich with default parameters
 	if redshiftConfig.Port == 0 {
@@ -49,77 +54,67 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	}
 
 	dir := adapters.SSLDir(appconfig.Instance.ConfigPath, config.destinationID)
-	if err := adapters.ProcessSSL(dir, redshiftConfig); err != nil {
-		return nil, err
+	if err = adapters.ProcessSSL(dir, redshiftConfig); err != nil {
+		return
 	}
 
 	var s3Adapter *adapters.S3
 	var s3config *adapters.S3Config
 	s3c, err := config.destination.GetConfig(redshiftConfig.S3, config.destination.S3, &adapters.S3Config{})
 	if err != nil {
-		return nil, err
+		return
 	}
 	s3config, ok := s3c.(*adapters.S3Config)
 	if !ok {
 		s3config = &adapters.S3Config{}
 	}
 	if !config.streamMode {
-		var err error
 		s3Adapter, err = adapters.NewS3(s3config)
 		if err != nil {
-			return nil, err
+			return
 		}
 	}
+	ar := &AwsRedshift{}
+	err = ar.Init(config)
+	if err != nil {
+		return
+	}
+	storage = ar
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	ctx := context.WithValue(config.ctx, adapters.CtxDestinationId, config.destinationID)
-	redshiftAdapter, err := adapters.NewAwsRedshift(ctx, redshiftConfig, s3config, queryLogger, config.sqlTypes)
+	redshiftAdapter, err := adapters.NewAwsRedshift(ctx, redshiftConfig, s3config, queryLogger, ar.sqlTypes)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	//create db schema if doesn't exist
 	err = redshiftAdapter.CreateDbSchema(redshiftConfig.Schema)
 	if err != nil {
 		redshiftAdapter.Close()
-		return nil, err
+		return
 	}
 
 	tableHelper := NewTableHelper(redshiftConfig.Schema, redshiftAdapter, config.coordinationService, config.pkFields, adapters.SchemaToRedshift, config.maxColumns, RedshiftType)
 
-	ar := &AwsRedshift{
-		s3Adapter:                     s3Adapter,
-		redshiftAdapter:               redshiftAdapter,
-		usersRecognitionConfiguration: config.usersRecognition,
-	}
+	ar.s3Adapter = s3Adapter
+	ar.redshiftAdapter = redshiftAdapter
+	ar.usersRecognitionConfiguration = config.usersRecognition
 
 	//Abstract
-	ar.destinationID = config.destinationID
-	ar.processor = config.processor
-	ar.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	ar.eventsCache = config.eventsCache
 	ar.tableHelpers = []*TableHelper{tableHelper}
 	ar.sqlAdapters = []adapters.SQLAdapter{redshiftAdapter}
-	ar.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	ar.uniqueIDField = config.uniqueIDField
-	ar.staged = config.destination.Staged
-	ar.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	ar.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, ar, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	ar.streamingWorker.start()
-
-	return ar, nil
+	ar.streamingWorker = newStreamingWorker(config.eventQueue, ar, tableHelper)
+	return
 }
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
 	_, tableHelper := ar.getAdapters()
-	flatData, failedEvents, skippedEvents, err := ar.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	flatData, failedEvents, skippedEvents, err := ar.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -193,8 +188,8 @@ func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile, table *adapters.T
 }
 
 // SyncStore is used in storing chunk of pulled data to AwsRedshift with processing
-func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return syncStoreImpl(ar, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
+func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
+	return syncStoreImpl(ar, overriddenDataSchema, objects, timeIntervalValue, cacheTable, needCopyEvent)
 }
 
 func (ar *AwsRedshift) Clean(tableName string) error {
@@ -204,7 +199,7 @@ func (ar *AwsRedshift) Clean(tableName string) error {
 //Update updates record in Redshift
 func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 	_, tableHelper := ar.getAdapters()
-	envelops, err := ar.processor.ProcessEvent(object)
+	envelops, err := ar.processor.ProcessEvent(object, false)
 	if err != nil {
 		return err
 	}
@@ -240,8 +235,10 @@ func (ar *AwsRedshift) Type() string {
 
 //Close closes AwsRedshift adapter, fallback logger and streaming worker
 func (ar *AwsRedshift) Close() (multiErr error) {
-	if err := ar.redshiftAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.ID(), err))
+	if ar.redshiftAdapter != nil {
+		if err := ar.redshiftAdapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.ID(), err))
+		}
 	}
 
 	if ar.streamingWorker != nil {

@@ -20,3 +20,4 @@
 **/tailwind.config.js
 **/tsconfig.json
 **/tsconfig.paths.json
+**/generated/

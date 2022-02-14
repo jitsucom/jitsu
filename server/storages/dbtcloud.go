@@ -27,17 +27,29 @@ func init() {
 }
 
 //NewDbtCloud returns configured DbtCloud destination
-func NewDbtCloud(config *Config) (Storage, error) {
+func NewDbtCloud(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if !config.streamMode {
 		return nil, fmt.Errorf("DbtCloud destination doesn't support %s mode", BatchMode)
 	}
 
 	dbtCloudConfig := &adapters.DbtCloudConfig{}
-	if err := config.destination.GetDestConfig(config.destination.DbtCloud, dbtCloudConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.DbtCloud, dbtCloudConfig); err != nil {
+		return
 	}
 
 	dbt := &DbtCloud{enabled: dbtCloudConfig.Enabled}
+	err = dbt.Init(config)
+	if err != nil {
+		return
+	}
+	storage = dbt
+
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	dbtAdapter, err := adapters.NewDbtCloud(dbtCloudConfig, &adapters.HTTPAdapterConfiguration{
 		DestinationID:  config.destinationID,
@@ -50,41 +62,23 @@ func NewDbtCloud(config *Config) (Storage, error) {
 		SuccessHandler: dbt.SuccessEvent,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	tableHelper := NewTableHelper("", dbtAdapter, config.coordinationService, config.pkFields, adapters.DefaultSchemaTypeMappings, 0, DbtCloudType)
-
-	dbt.tableHelper = tableHelper
 	dbt.adapter = dbtAdapter
 
-	//Abstract (SQLAdapters and tableHelpers are omitted)
-	dbt.destinationID = config.destinationID
-	dbt.processor = config.processor
-	dbt.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	dbt.eventsCache = config.eventsCache
-	dbt.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	dbt.uniqueIDField = config.uniqueIDField
-	dbt.staged = config.destination.Staged
-	dbt.cachingConfiguration = config.destination.CachingConfiguration
-
 	//streaming worker (queue reading)
-	dbt.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, dbt, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	dbt.streamingWorker.start()
-
-	return dbt, nil
+	dbt.streamingWorker = newStreamingWorker(config.eventQueue, dbt)
+	return
 }
 
 //SyncStore isn't supported silently
-func (dbt *DbtCloud) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
+func (dbt *DbtCloud) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
 	return nil
 }
 
 //Store isn't supported silently
-func (dbt *DbtCloud) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+func (dbt *DbtCloud) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
 	return nil, nil, nil, nil
 }
 

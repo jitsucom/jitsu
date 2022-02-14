@@ -22,7 +22,6 @@ type Snowflake struct {
 
 	stageAdapter                  adapters.Stage
 	snowflakeAdapter              *adapters.Snowflake
-	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 }
 
@@ -31,10 +30,16 @@ func init() {
 }
 
 //NewSnowflake returns Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
-func NewSnowflake(config *Config) (Storage, error) {
+func NewSnowflake(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	snowflakeConfig := &adapters.SnowflakeConfig{}
-	if err := config.destination.GetDestConfig(config.destination.Snowflake, snowflakeConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.Snowflake, snowflakeConfig); err != nil {
+		return
 	}
 	if snowflakeConfig.Schema == "" {
 		snowflakeConfig.Schema = "PUBLIC"
@@ -49,16 +54,16 @@ func NewSnowflake(config *Config) (Storage, error) {
 	var googleConfig *adapters.GoogleConfig
 	gc, err := config.destination.GetConfig(snowflakeConfig.Google, config.destination.Google, &adapters.GoogleConfig{})
 	if err != nil {
-		return nil, err
+		return
 	}
 	googleConfig, googleOk := gc.(*adapters.GoogleConfig)
 	if googleOk {
-		if err := googleConfig.Validate(); err != nil {
-			return nil, err
+		if err = googleConfig.Validate(); err != nil {
+			return
 		}
 		if !config.streamMode {
-			if err := googleConfig.ValidateBatchMode(); err != nil {
-				return nil, err
+			if err = googleConfig.ValidateBatchMode(); err != nil {
+				return
 			}
 		}
 
@@ -72,61 +77,46 @@ func NewSnowflake(config *Config) (Storage, error) {
 	var s3config *adapters.S3Config
 	s3c, err := config.destination.GetConfig(snowflakeConfig.S3, config.destination.S3, &adapters.S3Config{})
 	if err != nil {
-		return nil, err
+		return
 	}
 	s3config, s3ok := s3c.(*adapters.S3Config)
 	if !config.streamMode {
-		var err error
 		if s3ok {
 			stageAdapter, err = adapters.NewS3(s3config)
 			if err != nil {
-				return nil, err
+				return
 			}
 		} else {
 			stageAdapter, err = adapters.NewGoogleCloudStorage(config.ctx, googleConfig)
 			if err != nil {
-				return nil, err
+				return
 			}
 		}
 	}
-
-	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	snowflakeAdapter, err := CreateSnowflakeAdapter(config.ctx, s3config, *snowflakeConfig, queryLogger, config.sqlTypes)
+	snowflake := &Snowflake{stageAdapter: stageAdapter}
+	err = snowflake.Init(config)
 	if err != nil {
-		if stageAdapter != nil {
-			stageAdapter.Close()
-		}
-		return nil, err
+		return
+	}
+	storage = snowflake
+	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
+	snowflakeAdapter, err := CreateSnowflakeAdapter(config.ctx, s3config, *snowflakeConfig, queryLogger, snowflake.sqlTypes)
+	if err != nil {
+		return
 	}
 
 	tableHelper := NewTableHelper(snowflakeConfig.Schema, snowflakeAdapter, config.coordinationService, config.pkFields, adapters.SchemaToSnowflake, config.maxColumns, SnowflakeType)
 
-	snowflake := &Snowflake{
-		stageAdapter:                  stageAdapter,
-		snowflakeAdapter:              snowflakeAdapter,
-		usersRecognitionConfiguration: config.usersRecognition,
-	}
+	snowflake.snowflakeAdapter = snowflakeAdapter
+	snowflake.usersRecognitionConfiguration = config.usersRecognition
 
 	//Abstract
-	snowflake.destinationID = config.destinationID
-	snowflake.processor = config.processor
-	snowflake.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	snowflake.eventsCache = config.eventsCache
 	snowflake.tableHelpers = []*TableHelper{tableHelper}
 	snowflake.sqlAdapters = []adapters.SQLAdapter{snowflakeAdapter}
-	snowflake.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
-	snowflake.uniqueIDField = config.uniqueIDField
-	snowflake.staged = config.destination.Staged
-	snowflake.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
-	snowflake.streamingWorker, err = newStreamingWorker(config.eventQueue, config.processor, snowflake, tableHelper)
-	if err != nil {
-		return nil, err
-	}
-	snowflake.streamingWorker.start()
-
-	return snowflake, nil
+	snowflake.streamingWorker = newStreamingWorker(config.eventQueue, snowflake, tableHelper)
+	return
 }
 
 //CreateSnowflakeAdapter creates snowflake adapter with schema
@@ -140,23 +130,25 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 			if sferr.Number == sf.ErrObjectNotExistOrAuthorized {
 				snowflakeSchema := config.Schema
 				config.Schema = ""
-				snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
+				//create adapter without a certain schema
+				tmpSnowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
 				if err != nil {
 					return nil, err
 				}
+				defer tmpSnowflakeAdapter.Close()
+
 				config.Schema = snowflakeSchema
 				//create schema and reconnect
-				err = snowflakeAdapter.CreateDbSchema(config.Schema)
-				if err != nil {
+				if err = tmpSnowflakeAdapter.CreateDbSchema(config.Schema); err != nil {
 					return nil, err
 				}
-				snowflakeAdapter.Close()
 
-				snowflakeAdapter, err = adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
+				//create adapter with a certain schema
+				snowflakeAdapterWithSchema, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
 				if err != nil {
 					return nil, err
 				}
-				return snowflakeAdapter, nil
+				return snowflakeAdapterWithSchema, nil
 			}
 		}
 		return nil, err
@@ -166,9 +158,9 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
 	_, tableHelper := s.getAdapters()
-	flatData, failedEvents, skippedEvents, err := s.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	flatData, failedEvents, skippedEvents, err := s.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -247,8 +239,8 @@ func (s *Snowflake) GetUsersRecognition() *UserRecognitionConfiguration {
 }
 
 // SyncStore is used in storing chunk of pulled data to Snowflake with processing
-func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return syncStoreImpl(s, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
+func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
+	return syncStoreImpl(s, overriddenDataSchema, objects, timeIntervalValue, cacheTable, needCopyEvent)
 }
 
 func (s *Snowflake) Clean(tableName string) error {
@@ -258,7 +250,7 @@ func (s *Snowflake) Clean(tableName string) error {
 //Update updates record in Snowflake
 func (s *Snowflake) Update(object map[string]interface{}) error {
 	_, tableHelper := s.getAdapters()
-	envelops, err := s.processor.ProcessEvent(object)
+	envelops, err := s.processor.ProcessEvent(object, false)
 	if err != nil {
 		return err
 	}
@@ -290,19 +282,19 @@ func (s *Snowflake) Type() string {
 
 //Close closes Snowflake adapter, stage adapter, fallback logger and streaming worker
 func (s *Snowflake) Close() (multiErr error) {
-	if err := s.snowflakeAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake datasource: %v", s.ID(), err))
-	}
-
-	if s.stageAdapter != nil {
-		if err := s.stageAdapter.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake stage: %v", s.ID(), err))
-		}
-	}
-
 	if s.streamingWorker != nil {
 		if err := s.streamingWorker.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", s.ID(), err))
+		}
+	}
+	if s.snowflakeAdapter != nil {
+		if err := s.snowflakeAdapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake datasource: %v", s.ID(), err))
+		}
+	}
+	if s.stageAdapter != nil {
+		if err := s.stageAdapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake stage: %v", s.ID(), err))
 		}
 	}
 

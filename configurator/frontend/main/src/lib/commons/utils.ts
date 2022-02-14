@@ -3,6 +3,7 @@ import moment, { Duration, Moment } from "moment"
 import { LS_ACCESS_KEY, LS_REFRESH_KEY } from "lib/services/UserServiceBackend"
 import { assertHasOwnProperty, assertIsArray, assertIsObject } from "utils/typeCheck"
 import { ReactNode } from "react"
+import set from "lodash/set"
 
 export function concatenateURLs(baseUrl: string, url: string) {
   let base = baseUrl.endsWith("/") ? baseUrl.substr(0, baseUrl.length - 1) : baseUrl
@@ -276,4 +277,88 @@ export function trimMiddle(str: string, maxLen: number, ellisis = "...") {
   } else {
     return str.substr(0, maxLen / 2 - (ellisis.length - 1)) + ellisis + str.substr(str.length - maxLen / 2 + 1)
   }
+}
+
+/**
+ * Unflattens provided object.
+ *
+ * Example:
+ *   {
+ *     "x.y.z": 1,
+ *     "a.b": 2
+ *   }
+ * is transformed into
+ *   {
+ *     "x": {
+ *       "y": {
+ *         "z": 1
+ *        }
+ *      },
+ *      "a": {
+ *        "b": 2
+ *      }
+ *   }
+ *
+ * Useful for saving form values into nested objects.
+ *
+ * @param values usually form.getFieldsValue()
+ */
+export function unflatten<T>(values: any): T {
+  let result = {}
+  for (let key of Object.keys(values)) {
+    result = set(result, key, values[key])
+  }
+
+  return result as T
+}
+
+/**
+ * Flattens provided nested object.
+ *
+ * Example:
+ *   {
+ *     "x": {
+ *       "y": {
+ *         "z": 1
+ *        }
+ *      },
+ *      "a": {
+ *        "b": 2
+ *      }
+ *   }
+ * is transformed into
+ *   {
+ *     "x.y.z": 1,
+ *     "a.b": 2
+ *   }
+ *
+ * This is useful for setting form values
+ *
+ * @param data transfer object
+ */
+export function flatten(data: any): any {
+  if (!data) {
+    return
+  }
+
+  return Object.keys(data).reduce((acc, key) => {
+    if (typeof data[key] !== "object" || !data[key]) {
+      return {
+        ...acc,
+        [key]: data[key],
+      }
+    }
+
+    const child = flatten(data[key])
+    return {
+      ...acc,
+      ...Object.keys(child).reduce(
+        (childAcc, childKey) => ({
+          ...childAcc,
+          [`${key}.${childKey}`]: child[childKey],
+        }),
+        {}
+      ),
+    }
+  }, {})
 }

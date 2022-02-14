@@ -38,6 +38,7 @@ func TestPostgresRetroactiveUsersRecognition(t *testing.T) {
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken_ur"}]}`)
 	viper.Set("users_recognition.enabled", true)
+	viper.Set("sql_debug_log.ddl.enabled", false)
 
 	ctx := context.Background()
 

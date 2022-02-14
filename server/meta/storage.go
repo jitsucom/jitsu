@@ -1,10 +1,11 @@
 package meta
 
 import (
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/spf13/viper"
 	"io"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -44,7 +45,7 @@ type Storage interface {
 	// ** Sync Tasks **
 	CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error
 	GetAllTasks(sourceID, collection string, start, end time.Time, limit int) ([]Task, error)
-	GetLastTask(sourceID, collection string) (*Task, error)
+	GetLastTask(sourceID, collection string, offset int) (*Task, error)
 	GetTask(taskID string) (*Task, error)
 	GetAllTaskIDs(sourceID, collection string, descendingOrder bool) ([]string, error)
 	RemoveTasks(sourceID, collection string, taskIDs ...string) (int, error)

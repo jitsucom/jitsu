@@ -2,6 +2,8 @@ package synchronization
 
 import (
 	"fmt"
+	"sync"
+
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/timestamp"
@@ -16,11 +18,13 @@ const (
 type TaskLogger struct {
 	taskID      string
 	metaStorage meta.Storage
+	buf         []string
+	mu          sync.Mutex
 }
 
 //NewTaskLogger returns configured TaskLogger instance
 func NewTaskLogger(taskID string, metaStorage meta.Storage) *TaskLogger {
-	return &TaskLogger{taskID: taskID, metaStorage: metaStorage}
+	return &TaskLogger{taskID: taskID, metaStorage: metaStorage, buf: make([]string, 0)}
 }
 
 //Write writes Singer bytes as a record into meta.Storage
@@ -48,8 +52,25 @@ func (tl *TaskLogger) LOG(format, system string, level logging.Level, v ...inter
 	msg := "[" + tl.taskID + "] " + fmt.Sprintf(format, v...)
 	logging.Debug(msg)
 
-	err := tl.metaStorage.AppendTaskLog(tl.taskID, timestamp.Now().UTC(), system, msg, level.String())
+	now := timestamp.Now()
+	err := tl.metaStorage.AppendTaskLog(tl.taskID, now.UTC(), system, msg, level.String())
 	if err != nil {
 		logging.SystemErrorf("Error appending logs [%s] system [%s] level [%s]: %v", msg, system, level.String(), err)
 	}
+
+	tl.appendBuf(fmt.Sprintf("[%s] %s", level.String(), fmt.Sprintf(format, v...)))
+}
+
+func (tl *TaskLogger) appendBuf(msg string) {
+	tl.mu.Lock()
+	defer tl.mu.Unlock()
+	tl.buf = append(tl.buf, msg)
+}
+
+func (tl *TaskLogger) Collect() []string {
+	tl.mu.Lock()
+	defer tl.mu.Unlock()
+	result := make([]string, len(tl.buf))
+	copy(result, tl.buf)
+	return result
 }
