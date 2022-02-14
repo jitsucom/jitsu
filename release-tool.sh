@@ -46,11 +46,11 @@ function release_server() {
     docker buildx build --platform linux/amd64 --push -t ksense/eventnative:"$1" -t ksense/eventnative:latest -f server-release.Dockerfile --build-arg dhid=ksense . || fail 'ksense/eventnative dockerx build semver failed'
   else
     if [[ "$1" == "beta" ]]; then
-      echo "**** Server amd64 release [$1] ****"
-      docker buildx build --platform linux/amd64 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
+      echo "**** Server $2 release [$1] ****"
+      docker buildx build --platform $2 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
     else
-      echo "**** Server amd64/arm64 release [$1] ****"
-      docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
+      echo "**** Server $2 release [$1] ****"
+      docker buildx build --platform $2 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
     fi
   fi
 }
@@ -63,11 +63,11 @@ function release_configurator() {
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/configurator:"$1" -t jitsucom/configurator:latest --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || fail  'Configurator dockerx build semver failed'
   else
     if [[ "$1" == "beta" ]]; then
-      echo "**** Configurator amd64 release [$1] ****"
-      docker buildx build --platform linux/amd64 --push -t jitsucom/configurator:"$1" --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || fail  'Configurator dockerx build failed'
+      echo "**** Configurator $2 release [$1] ****"
+      docker buildx build --platform $2 --push -t jitsucom/configurator:"$1" --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || fail  'Configurator dockerx build failed'
     else
-      echo "**** Configurator amd64/arm64 release [$1] ****"
-      docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/configurator:"$1" --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || fail  'Configurator dockerx build failed'
+      echo "**** Configurator $2 release [$1] ****"
+      docker buildx build --platform $2 --push -t jitsucom/configurator:"$1" --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || fail  'Configurator dockerx build failed'
     fi
   fi
 }
