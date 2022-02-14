@@ -55,8 +55,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
   const viewLogsLink = generatePath(taskLogsPageRoute, { sourceId: src.sourceId })
 
   const rename = async (sourceId: string, newName: string) => {
-    await services.storageService.table("sources").patch(sourceId, { displayName: newName })
-    await flowResult(sourcesStore.pullSources())
+    await flowResult(sourcesStore.patch(sourceId, { displayName: newName }, { updateConnections: false }))
   }
 
   const scheduleTasks = async (src: SourceData, full = false) => {

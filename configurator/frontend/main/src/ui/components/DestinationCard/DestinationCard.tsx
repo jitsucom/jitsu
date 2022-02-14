@@ -20,10 +20,8 @@ export type DestinationCardProps = {
 
 export function DestinationCard({ dst }: DestinationCardProps) {
   const reference = destinationsReferenceMap[dst._type]
-  const services = useServices()
   const rename = async (newName: string) => {
-    await services.storageService.table("destinations").patch(dst._uid, { displayName: newName })
-    await flowResult(destinationsStore.pullDestinations())
+    await flowResult(destinationsStore.patch(dst._uid, { displayName: newName }, { updateConnections: false }))
   }
   let deleteAction = () => {
     Modal.confirm({

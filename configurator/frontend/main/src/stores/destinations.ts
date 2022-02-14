@@ -3,12 +3,13 @@ import { flowResult, makeAutoObservable } from "mobx"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Utils
-import { intersection, merge, remove, union, without } from "lodash"
+import { intersection, remove, union, without } from "lodash"
 import { toArrayIfNot } from "utils/arrays"
 import { ISourcesStore, sourcesStore } from "./sources"
 import { apiKeysStore, IApiKeysStore } from "./apiKeys"
 import { destinationsReferenceMap, DestinationReference } from "@jitsu/catalog/destinations/lib"
 import { EntitiesStoreState } from "stores/types.enums"
+import { getObjectDepth } from "lib/commons/utils"
 
 export interface IDestinationsStore extends EntitiesStore<DestinationData> {
   state: EntitiesStoreState
@@ -42,6 +43,7 @@ class DestinationsStore implements IDestinationsStore {
 
   constructor() {
     makeAutoObservable(this)
+    this.get = this.get.bind(this)
   }
 
   private setError(state: typeof GLOBAL_ERROR, message: string) {
@@ -55,9 +57,9 @@ class DestinationsStore implements IDestinationsStore {
   }
 
   /** Set a new destinations list in the UI */
-  private setDestinations(value: DestinationData[]) {
-    this._destinations = this.filterDestinations(value, false)
-    this._hiddenDestinations = this.filterDestinations(value, true)
+  private setDestinationsInStore(allDestinations: DestinationData[]) {
+    this._destinations = this.filterDestinations(allDestinations, false)
+    this._hiddenDestinations = this.filterDestinations(allDestinations, true)
   }
 
   private filterDestinations(destinations: DestinationData[], hidden: boolean) {
@@ -75,10 +77,8 @@ class DestinationsStore implements IDestinationsStore {
   }
 
   /** Patch a destination in the UI */
-  private patchInStore(id: string, patch: Partial<DestinationData>): DestinationData {
-    const destinationToPatch = this.get(id)
-    merge(destinationToPatch, patch)
-    return destinationToPatch
+  private patchInStore(id: string, patch: Partial<DestinationData>): void {
+    Object.assign(this.get(id), patch)
   }
 
   /** Replaces a destination data with a passed one in the UI */
@@ -98,7 +98,10 @@ class DestinationsStore implements IDestinationsStore {
       this._sourcesStore.list.forEach(source => {
         const sourceLinkedToDestination = !!source.destinations?.includes(destination._uid)
         const sourceNeedsToBeLinked = !!destination._sources?.includes(source.sourceId)
-        if (sourceLinkedToDestination === sourceNeedsToBeLinked) return
+        if (sourceLinkedToDestination === sourceNeedsToBeLinked) {
+          return
+        }
+
         const updatedSourcePatch = sourcesPatchesMap[source.sourceId] || { destinations: source.destinations }
         if (sourceNeedsToBeLinked) {
           sourcesPatchesMap[source.sourceId] = {
@@ -163,7 +166,7 @@ class DestinationsStore implements IDestinationsStore {
   }
 
   public get(id: string): DestinationData | null {
-    return this._destinations.find(({ _id }) => _id === id)
+    return this.list.find(({ _id }) => _id === id)
   }
 
   public getDestinationReferenceById(id: string): DestinationReference | null {
@@ -175,8 +178,8 @@ class DestinationsStore implements IDestinationsStore {
     this.resetError()
     this._state = showGlobalLoader ? GLOBAL_LOADING : BACKGROUND_LOADING
     try {
-      const { destinations } = yield services.storageService.table<DestinationData>("destinations").getAll()
-      this.setDestinations(destinations)
+      const destinations = yield services.storageService.table<DestinationData>("destinations").getAll()
+      this.setDestinationsInStore(destinations ?? [])
     } catch (error) {
       this.setError(GLOBAL_ERROR, `Failed to fetch destinations: ${error.message || error}`)
     } finally {
@@ -187,13 +190,17 @@ class DestinationsStore implements IDestinationsStore {
   public *add(destinationToAdd: DestinationData) {
     this.resetError()
     this._state = BACKGROUND_LOADING
-    const updatedDestinations = [...this.listIncludeHidden, destinationToAdd]
     try {
       const addedDestination = yield services.storageService
         .table<DestinationData>("destinations")
         .add(destinationToAdd)
+      if (!addedDestination) {
+        throw new Error(`Destinations store failed to add a new destination: ${destinationToAdd}`)
+      }
       this.addToStore(addedDestination)
       yield this.patchSourcesLinksByDestinationsUpdates(addedDestination)
+    } catch (error) {
+      console.error(error)
     } finally {
       this._state = IDLE
     }
@@ -204,8 +211,10 @@ class DestinationsStore implements IDestinationsStore {
     this._state = BACKGROUND_LOADING
     try {
       yield services.storageService.table<DestinationData>("destinations").delete(_uid)
-      this.deleteFromStore
+      this.deleteFromStore(_uid)
       yield this.unlinkDeletedDestinationsFromSources(_uid)
+    } catch (error) {
+      console.error(error)
     } finally {
       this._state = IDLE
     }
@@ -218,6 +227,8 @@ class DestinationsStore implements IDestinationsStore {
       yield services.storageService.table<DestinationData>("destinations").replace(destination._uid, destination)
       this.replaceDestination(destination._uid, destination)
       if (options.updateConnections) yield this.patchSourcesLinksByDestinationsUpdates(destination)
+    } catch (error) {
+      console.error(error)
     } finally {
       this._state = IDLE
     }
@@ -231,9 +242,14 @@ class DestinationsStore implements IDestinationsStore {
     this.resetError()
     this._state = BACKGROUND_LOADING
     try {
+      if (getObjectDepth(patch) > 2) {
+        throw new Error(`Destinations recursive patch is not supported`)
+      }
       yield services.storageService.table<DestinationData>("destinations").patch(id, patch)
-      const patched = this.patchInStore(id, patch)
-      if (options?.updateConnections) this.patchSourcesLinksByDestinationsUpdates(patched)
+      this.patchInStore(id, patch)
+      if (options?.updateConnections) this.patchSourcesLinksByDestinationsUpdates(this.get(id))
+    } catch (error) {
+      console.error(error)
     } finally {
       this._state = IDLE
     }
@@ -266,6 +282,35 @@ class DestinationsStore implements IDestinationsStore {
     yield Promise.all(
       Object.entries(destinationsPatches).map(([destinationUid, patch]) =>
         flowResult(this.patch(destinationUid, patch, { updateConnections: false }))
+      )
+    )
+  }
+
+  public *updateDestinationsLinksToKey(apiKeyUid: string, _linkedDestinationsUids: string | string[]) {
+    const linkedDestinationsUids = toArrayIfNot(_linkedDestinationsUids)
+    const destinationsPatches: { [uid: string]: Partial<DestinationData> } = {}
+    this._destinations.forEach(destination => {
+      const destinationIsLinkedToKey: boolean = destination._onlyKeys.includes(apiKeyUid)
+      const destinationShouldBeLinked: boolean = linkedDestinationsUids.includes(destination._uid)
+
+      if (destinationIsLinkedToKey === destinationShouldBeLinked) {
+        return
+      }
+
+      if (destinationShouldBeLinked) {
+        destinationsPatches[destination._uid] = {
+          _onlyKeys: [...destination._onlyKeys, apiKeyUid],
+        }
+      } else {
+        destinationsPatches[destination._uid] = {
+          _onlyKeys: destination._onlyKeys.filter(uid => uid !== apiKeyUid),
+        }
+      }
+    })
+
+    yield Promise.all(
+      Object.entries(destinationsPatches).map(([_uid, patch]) =>
+        flowResult(this.patch(_uid, patch, { updateConnections: false }))
       )
     )
   }
