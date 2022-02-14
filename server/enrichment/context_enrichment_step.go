@@ -35,7 +35,7 @@ func ContextEnrichmentStep(payload events.Event, token string, reqContext *event
 	}
 	//set into flat field
 	if err := uniqueIDField.Set(payload, fmt.Sprint(eventID)); err != nil {
-		logging.SystemError("Error setting flat unique ID into the object %s: %v", payload.Serialize(), err)
+		logging.SystemError("Error setting flat unique ID into the object %s: %v", payload.DebugString(), err)
 	}
 
 	//4. timestamp & api key

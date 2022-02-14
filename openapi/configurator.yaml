@@ -100,6 +100,18 @@ components:
       required:
         - version
         - builtAt
+    NotificationConfig:
+      type: object
+      properties:
+        slack:
+          type: object
+          properties:
+            url: { type: string }
+    ProjectSettings:
+      type: object
+      properties:
+        notifications:
+          $ref: "#/components/schemas/NotificationConfig"
     AnyObject:
       description: Any JSON Object
       type: object
@@ -145,7 +157,7 @@ components:
       type: object
       properties:
         projectID: { type: "string" }
-      required: [ 'projectID']
+      required: [ 'projectID' ]
 
   responses:
     Error:
@@ -178,6 +190,12 @@ components:
         "application/json":
           schema:
             $ref: "#/components/schemas/AnyArray"
+    ProjectSettingsResponse:
+      description: "Project settings"
+      content:
+        "application/json":
+          schema:
+            $ref: "#/components/schemas/ProjectSettings"
 
 paths:
   /api/v1/users/signin:
@@ -230,7 +248,7 @@ paths:
       operationId: 'User sign out'
       description: Delete token from DB
       security:
-        - configurationManagementAuth: []
+        - configurationManagementAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/StatusResponse'
@@ -315,7 +333,7 @@ paths:
       operationId: 'Get User info'
       description: 'Returns a current authenticated user'
       security:
-        - configurationManagementAuth: []
+        - configurationManagementAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -392,7 +410,7 @@ paths:
       operationId: 'Get geo data resolvers'
       description: Returns available geo resolvers
       security:
-        - clusterAdminAuth: []
+        - clusterAdminAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -413,6 +431,41 @@ paths:
         default:
           $ref: '#/components/responses/Error'
 
+  /api/v2/projects/{projectId}/settings:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+    get:
+      tags:
+        - configuration-management
+      operationId: 'Get project settings'
+      security:
+        - configurationManagementAuth: [ ]
+      description: Get project settings for a given project ID
+      responses:
+        '200':
+          $ref: '#/components/responses/ProjectSettingsResponse'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      tags:
+        - configuration-management
+      operationId: 'Patch project settings'
+      security:
+        - configurationManagementAuth: [ ]
+      description: >
+        Updates a project settings for a given project ID. Object will be patched: request body properties will be merged into an original object, 
+        it's ok to send partial objects. Some fields might be ignored and overwritten. The method returns an updated object
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectSettings'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProjectSettingsResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
   /api/v2/objects/{projectId}/{objectType}:
     parameters:
       - $ref: '#/components/parameters/projectId'
@@ -422,7 +475,7 @@ paths:
         - configuration-management
       operationId: 'Get objects by projectId and objectType'
       security:
-        - configurationManagementAuth: []
+        - configurationManagementAuth: [ ]
       description: Returns the list of objects of given type
       responses:
         '200':
@@ -437,7 +490,7 @@ paths:
         Create new object. The method returns newly created object. Some properties of
         newly created object might different from on which has been posted (for example, ID)
       security:
-        - configurationManagementAuth: []
+        - configurationManagementAuth: [ ]
       requestBody:
         content:
           application/json:
@@ -459,7 +512,7 @@ paths:
       operationId: 'Get object by uid'
       description: Get an object with given UID
       security:
-        - configurationManagementAuth: [  ]
+        - configurationManagementAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -481,10 +534,28 @@ paths:
     patch:
       tags:
         - configuration-management
-      operationId: "Update object by uid"
+      operationId: "Patch object by uid"
       description: >
-        Updates a object with given ID. Object will be patched: request body properties will be merged into an original object, it's ok to send partial objects
+        Patches object with given ID. Object will be patched: request body properties will be merged into an original object, it's ok to send partial objects
         Some fields might be ignored and overwritten. The method returns an updated object
+      security:
+        - configurationManagementAuth: [ ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnyObject'
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      tags:
+        - configuration-management
+      operationId: "Replace object by uid"
+      description: >
+        Save object with given ID. The whole object except id field will be overwritten. The method returns an updated object
       security:
         - configurationManagementAuth: [  ]
       requestBody:
@@ -504,7 +575,7 @@ paths:
       operationId: 'Get telemetry settings'
       description: Returns current telemetry configuration
       security:
-        - clusterAdminAuth: []
+        - clusterAdminAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -517,7 +588,7 @@ paths:
       operationId: 'Get sources configuration'
       description: Returns all configured sources
       security:
-        - clusterAdminAuth: []
+        - clusterAdminAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -533,7 +604,7 @@ paths:
         Test configured source connection. This method is used on Configurator UI on source save.
         Proxies request to Jitsu Server.
       security:
-        - configurationManagementAuth: []
+        - configurationManagementAuth: [ ]
       requestBody:
         content:
           application/json:
@@ -552,7 +623,7 @@ paths:
       operationId: 'Get destinations configuration'
       description: Returns all configured destinations
       security:
-        - clusterAdminAuth: []
+        - clusterAdminAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -568,7 +639,7 @@ paths:
         Test configured destination connection. This method is used on Configurator UI on destination save.
         Proxies request to Jitsu Server.
       security:
-        - configurationManagementAuth: []
+        - configurationManagementAuth: [ ]
       requestBody:
         content:
           application/json:
@@ -588,7 +659,7 @@ paths:
       description: >
         Evaluate destination Javascript transformation script and return the result.
       security:
-        - configurationManagementAuth: []
+        - configurationManagementAuth: [ ]
       requestBody:
         content:
           application/json:
@@ -607,7 +678,7 @@ paths:
       operationId: 'Get api keys configuration'
       description: Returns all configured api keys
       security:
-        - clusterAdminAuth: []
+        - clusterAdminAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -630,7 +701,7 @@ paths:
       description: >
         Initiate the reissue project SSL certificate pipeline. Method is only available on cloud.jitsu.com.
       security:
-        - configurationManagementAuth: []
+        - configurationManagementAuth: [ ]
       requestBody:
         content:
           application/json:
@@ -656,7 +727,7 @@ paths:
       description: >
         Initiate the reissue all configured SSL certificates pipeline. Method is only available on cloud.jitsu.com.
       security:
-        - clusterAdminAuth: []
+        - clusterAdminAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/StatusResponse'
@@ -672,7 +743,7 @@ paths:
       description: >
         Generate Jitsu Server yaml configuration payload for the current project (including api keys, sources, destinations configs)
       security:
-        - configurationManagementAuth: []
+        - configurationManagementAuth: [ ]
       responses:
         '200':
           description: "Response contains Jitsu Server yaml configuration"
@@ -704,7 +775,7 @@ paths:
             schema:
               $ref: '#/components/schemas/ProjectIdRequest'
       security:
-        - configurationManagementAuth: []
+        - configurationManagementAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/StatusResponse'
@@ -724,7 +795,7 @@ paths:
             schema:
               $ref: '#/components/schemas/ProjectIdRequest'
       security:
-        - configurationManagementAuth: []
+        - configurationManagementAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -745,7 +816,7 @@ paths:
       operationId: 'Become another cloud user'
       description: Authorize as another user. Method can only be used by admins and it is only available on cloud.jitsu.com.
       security:
-        - configurationManagementAuth: [  ]
+        - configurationManagementAuth: [ ]
       responses:
         '200':
           description: "Access token for desired user authorization"
@@ -762,7 +833,7 @@ paths:
       operationId: 'Send Custom payload notification asynchronously'
       description: Send custom payload Slack notification asynchronously. Method always returns 200 OK. There should be configured notifications.slack.url section in the Jitsu configuration.
       security:
-        - configurationManagementAuth: [  ]
+        - configurationManagementAuth: [ ]
       requestBody:
         content:
           application/json:

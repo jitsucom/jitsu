@@ -25,6 +25,9 @@ const DestinationsPage = React.lazy(
   () => import(/* webpackPrefetch: true */ "ui/pages/DestinationsPage/DestinationsPage")
 )
 const DbtCloudPage = React.lazy(() => import(/* webpackPrefetch: true */ "ui/pages/DbtCloud/DbtCloudPage"))
+const ProjectSettingsPage = React.lazy(
+  () => import(/* webpackPrefetch: true */ "ui/pages/ProjectSettingsPage/ProjectSettingsPage")
+)
 const GeoDataResolver = React.lazy(
   () => import(/* webpackPrefetch: true */ "./lib/components/GeoDataResolver/GeoDataResolver")
 )
@@ -134,6 +137,7 @@ export const PRIVATE_PAGES: Page[] = [
     "Edit destinations"
   ),
   new Page("dbt Cloud integration", "/dbtcloud", DbtCloudPage, "dbt Cloud"),
+  new Page("Jitsu | project settings", "/project_settings", ProjectSettingsPage, "Project settings"),
   new Page("Jitsu | geo data resolver", "/geo_data_resolver", GeoDataResolver, "Geo data resolver"),
   new Page("Jitsu | download config", "/cfg_download", DownloadConfig, "Download Jitsu Server configuration"),
   new Page("Jitsu | edit API keys", "/api-keys", ApiKeys, "API Keys"),

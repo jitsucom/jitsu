@@ -81,7 +81,7 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 
 	//parse airbyte catalog as file path
 	catalogPath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, base.CatalogFileName), config.Catalog)
-	if err != nil {
+	if err != nil && err != parsers.ErrValueIsNil {
 		return nil, fmt.Errorf("Error parsing airbyte catalog [%v]: %v", config.Catalog, err)
 	}
 
@@ -93,7 +93,7 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 
 	//parse airbyte state as file path
 	statePath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, base.StateFileName), config.InitialState)
-	if err != nil {
+	if err != nil && err != parsers.ErrValueIsNil {
 		return nil, fmt.Errorf("Error parsing airbyte initial state [%v]: %v", config.InitialState, err)
 	}
 
@@ -151,10 +151,11 @@ func TestAirbyte(sourceConfig *base.SourceConfig) error {
 	}
 	base.FillPreconfiguredOauth(config.DockerImage, config.Config)
 	airbyteRunner := airbyte.NewRunner(config.DockerImage, config.ImageVersion, "")
-	err := airbyteRunner.Check(config.Config)
-	if err != nil {
+
+	if err := airbyteRunner.Check(config.Config); err != nil {
 		return err
 	}
+
 	selectedStreamsWithNamespace := selectedStreamsWithNamespace(config)
 	if len(selectedStreamsWithNamespace) > 0 {
 		airbyteRunner = airbyte.NewRunner(config.DockerImage, config.ImageVersion, "")

@@ -55,6 +55,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		c.String(http.StatusOK, "pong")
 	})
 
+	maxEventSize := viper.GetInt("server.max_event_size")
+
 	publicURL := viper.GetString("server.public_url")
 	configuratorURN := viper.GetString("server.configurator_urn")
 
@@ -66,10 +68,10 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
-	jsEventHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewJitsuParser(), processorHolder.GetJSPreprocessor(), destinations, geoService)
-	apiEventHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewJitsuParser(), processorHolder.GetAPIPreprocessor(), destinations, geoService)
-	segmentHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewSegmentParser(segmentEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), processorHolder.GetSegmentPreprocessor(), destinations, geoService)
-	segmentCompatHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewSegmentCompatParser(segmentCompatEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), processorHolder.GetSegmentPreprocessor(), destinations, geoService)
+	jsEventHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewJitsuParser(maxEventSize), processorHolder.GetJSPreprocessor(), destinations, geoService)
+	apiEventHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewJitsuParser(maxEventSize), processorHolder.GetAPIPreprocessor(), destinations, geoService)
+	segmentHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewSegmentParser(segmentEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField, maxEventSize), processorHolder.GetSegmentPreprocessor(), destinations, geoService)
+	segmentCompatHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewSegmentCompatParser(segmentCompatEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField, maxEventSize), processorHolder.GetSegmentPreprocessor(), destinations, geoService)
 
 	taskHandler := handlers.NewTaskHandler(taskService, sourcesService)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)

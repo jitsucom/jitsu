@@ -1,17 +1,13 @@
 // @Libs
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect } from "react"
 import { useHistory } from "react-router-dom"
 import { Button } from "antd"
 import { observer } from "mobx-react-lite"
-import snakeCase from "lodash/snakeCase"
 // @Store
 import { sourcesStore } from "stores/sources"
 // @Icons
 import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined"
-// @Services
-import ApplicationServices from "lib/services/ApplicationServices"
 // @Types
-import { SourceConnector } from "@jitsu/catalog/sources/types"
 import { CommonSourcePageProps } from "ui/pages/SourcesPage/SourcesPage"
 import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 // @Styles
@@ -19,26 +15,12 @@ import styles from "./SourcesList.module.less"
 // @Routes
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 // @Utils
-import { showQuotaLimitModal } from "../../../../../lib/services/billing"
 import { SourceCard } from "../../../../components/SourceCard/SourceCard"
 
 const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
   const history = useHistory()
 
-  const services = useMemo(() => ApplicationServices.get(), [])
-
   const handleAddClick = useCallback(() => {
-    services.features.billingEnabled
-    if (
-      sourcesStore.list.length >= (services.currentSubscription?.currentPlan.quota.sources ?? 999) &&
-      !services.currentSubscription.doNotBlock
-    ) {
-      showQuotaLimitModal(
-        services.currentSubscription,
-        <>You current plan allows to have only {services.currentSubscription.currentPlan.quota.sources} sources</>
-      )
-      return
-    }
     history.push(sourcesPageRoutes.add)
   }, [history])
 

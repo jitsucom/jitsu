@@ -109,7 +109,6 @@ class ApiKeysStore implements IApiKeysStore {
   }
 
   public get list() {
-    debugger
     return this._apiKeys ?? []
   }
 
@@ -207,7 +206,5 @@ class ApiKeysStore implements IApiKeysStore {
     }
   }
 }
-
-
 
 export const apiKeysStore = new ApiKeysStore()

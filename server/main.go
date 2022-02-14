@@ -161,8 +161,8 @@ func main() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	if err := airbyte.Init(ctx, viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), viper.GetInt("airbyte-bridge.batch_size"), appconfig.Instance.AirbyteLogsWriter); err != nil {
-		logging.Errorf("❌ Airbyte integration is disabled: %v. For using Airbyte run Jitsu with: -v /var/run/docker.sock:/var/run/docker.sock", err)
+	if err := airbyte.Init(ctx, *containerizedRun, viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), viper.GetInt("airbyte-bridge.batch_size"), appconfig.Instance.AirbyteLogsWriter); err != nil {
+		logging.Errorf("❌ Airbyte integration is disabled: %v", err)
 	}
 
 	//GEO Resolvers
@@ -375,7 +375,7 @@ func main() {
 		logging.Fatalf("Error initializing users recognition storage: %v", err)
 	}
 
-	usersRecognitionService, err := users.NewRecognitionService(userRecognitionStorage, destinationsService, globalRecognitionConfiguration)
+	usersRecognitionService, err := users.NewRecognitionService(userRecognitionStorage, destinationsService, globalRecognitionConfiguration, viper.GetString("server.fields_configuration.user_agent_path"))
 	if err != nil {
 		logging.Fatal(err)
 	}
@@ -412,13 +412,26 @@ func main() {
 			cronScheduler.Start(taskService.ScheduleSyncFunc)
 		}
 
-		//sources sync tasks pool size
-		stalledTasksThresholdSeconds := viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")
-		stalledLastLogThresholdMinutes := viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")
-		observeStalledTaskEverySeconds := viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")
+		notificationScene := &synchronization.NotificationScene{
+			ServiceName: notifications.ServiceName,
+			Version:     tag,
+			ServerName:  appconfig.Instance.ServerName,
+			UIBaseURL:   viper.GetString("ui.base_url"),
+		}
+
+		taskExecutorBase := &synchronization.TaskExecutorBase{
+			SourceService:         sourceService,
+			DestinationService:    destinationsService,
+			MetaStorage:           metaStorage,
+			CoordinationService:   coordinationService,
+			StalledThreshold:      time.Duration(viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")) * time.Second,
+			LastActivityThreshold: time.Duration(viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")) * time.Minute,
+			ObserverStalledEvery:  time.Duration(viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")) * time.Second,
+			NotificationService:   synchronization.NewNotificationService(notificationScene, viper.GetStringMap("notifications")),
+		}
 
 		//Create task executor
-		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, stalledTasksThresholdSeconds, stalledLastLogThresholdMinutes, observeStalledTaskEverySeconds, sourceService, destinationsService, metaStorage, coordinationService)
+		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, taskExecutorBase)
 		if err != nil {
 			logging.Fatal("Error creating sources sync task executor:", err)
 		}

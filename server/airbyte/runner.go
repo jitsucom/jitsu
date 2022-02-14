@@ -169,7 +169,7 @@ func (r *Runner) Read(dataConsumer base.CLIDataConsumer, streamsRepresentation m
 
 		err := asyncParser.parse(stdout)
 		if err != nil {
-			taskCloser.CloseWithError(fmt.Sprintf("Process error: %v. Process will be killed", err), false)
+			taskCloser.CloseWithError(fmt.Sprintf("Airbyte output line process error: %v. Process will be killed", err), false)
 			if killErr := r.Close(); killErr != nil && killErr != runner.ErrAirbyteAlreadyTerminated {
 				taskLogger.ERROR("Error closing airbyte runner: %v", killErr)
 				logging.Errorf("[%s] closing airbyte runner: %v", taskCloser.TaskID(), killErr)
@@ -324,8 +324,7 @@ func saveConfig(airbyteSourceConfig interface{}) (string, string, error) {
 
 	absoluteFilePath := path.Join(absoluteDirPath, fileName)
 	//write airbyte config as file path
-	_, err := parsers.ParseJSONAsFile(absoluteFilePath, airbyteSourceConfig)
-	if err != nil {
+	if _, err := parsers.ParseJSONAsFile(absoluteFilePath, airbyteSourceConfig); err != nil {
 		return "", "", fmt.Errorf("Error writing airbyte config [%v]: %v", airbyteSourceConfig, err)
 	}
 

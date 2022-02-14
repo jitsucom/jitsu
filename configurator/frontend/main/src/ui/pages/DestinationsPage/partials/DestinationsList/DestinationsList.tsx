@@ -1,6 +1,6 @@
 // @Libs
 import { useCallback, useEffect } from "react"
-import { generatePath, useHistory } from "react-router-dom"
+import { useHistory } from "react-router-dom"
 import { Button } from "antd"
 import { observer } from "mobx-react-lite"
 // @Store
@@ -16,7 +16,6 @@ import { destinationPageRoutes } from "ui/pages/DestinationsPage/DestinationsPag
 // @Types
 import { CommonDestinationPageProps } from "ui/pages/DestinationsPage/DestinationsPage"
 import { useServices } from "../../../../../hooks/useServices"
-import { showQuotaLimitModal } from "../../../../../lib/services/billing"
 import { DestinationCard } from "../../../../components/DestinationCard/DestinationCard"
 
 const DestinationsListComponent = ({ setBreadcrumbs }: CommonDestinationPageProps) => {
@@ -24,16 +23,6 @@ const DestinationsListComponent = ({ setBreadcrumbs }: CommonDestinationPageProp
   const subscription = useServices().currentSubscription
 
   const handleAddClick = useCallback(() => {
-    if (
-      destinationsStore.listIncludeHidden.length >= subscription.currentPlan.quota.destinations &&
-      !subscription.doNotBlock
-    ) {
-      showQuotaLimitModal(
-        subscription,
-        <>You current plan allows to have only {subscription.currentPlan.quota.destinations} destinations</>
-      )
-      return
-    }
     history.push(destinationPageRoutes.add)
   }, [history, subscription])
 
@@ -64,7 +53,6 @@ const DestinationsListComponent = ({ setBreadcrumbs }: CommonDestinationPageProp
 
       <div className="flex flex-wrap justify-center">
         {destinationsStore.list.map((dst: DestinationData) => {
-          const statLink = generatePath(destinationPageRoutes.statisticsExact, { id: dst._id })
           return <DestinationCard key={dst._uid} dst={dst} />
         })}
       </div>

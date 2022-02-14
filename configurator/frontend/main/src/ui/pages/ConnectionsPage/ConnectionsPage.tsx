@@ -31,11 +31,6 @@ const CONNECTION_LINE_HIGHLIGHTED_COLOR = "#878afc"
 
 const connectionLines: { [key: string]: LeaderLine } = {}
 
-const updateLinesPositions = () => {
-  // requestAnimationFrame(() => Object.values(connectionLines).forEach(line => line.position()))
-  // Object.values(connectionLines).forEach(line => line.position())
-}
-
 const ConnectionsPageComponent: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -88,14 +83,6 @@ const ConnectionsPageComponent: React.FC = () => {
       eraseLines()
     }
   }, [destinationsStore.list, sourcesStore.list, apiKeysStore.list])
-
-  useEffect(() => {
-    // move the lines on scroll
-    // containerRef.current.addEventListener("scroll", updateLinesPositions, { capture: true })
-    return () => {
-      // containerRef.current.removeEventListener("scroll", updateLinesPositions, { capture: true })
-    }
-  }, [])
 
   return (
     <div ref={containerRef} className="relative flex justify-center w-full h-full overflow-y-auto">

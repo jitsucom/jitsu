@@ -31,6 +31,26 @@ export abstract class ServerStorage {
   abstract saveUserInfo(data: any): Promise<void>
 
   /**
+   * Adds an object by collectionId and collectionName
+   */
+  abstract add<T>(collectionId: string, collectionName: ObjectsApiTypes, data: any): Promise<T>
+
+  /**
+   * Deletes an object by collectionId, collectionName and object ID
+   */
+  abstract delete(collectionId: string, collectionName: string, id: string): Promise<void>
+
+  /**
+   * Replaces an object by collectionId, collectionName and object ID
+   */
+  abstract put<T>(collectionId: string, collectionName: string, id: string, data: any): Promise<T>
+
+  /**
+   * Patches an object by collectionId, collectionName and object ID
+   */
+  abstract patch<T>(collectionId: string, collectionName: string, id: string, patch: any): Promise<T>
+
+  /**
    * Returns a table-like structure for managing config. See ConfigurationEntitiesTable
    */
   table<T = any>(type: ObjectsApiTypes): ConfigurationEntitiesTable<T> {
@@ -146,30 +166,30 @@ function getEntitiesTable<T = any>(
       throw new Error("Not implemented")
     },
     async add<T>(object: T): Promise<T> {
-      return await this.backendApi.post(`/objects/${collectionId}/${collectionName}`, object, {version: 2})
+      return await storage.add(collectionId, collectionName, object)
     },
     async delete(id: string): Promise<void> {
-      return await this.backendApi.delete(`/objects/${collectionId}/${collectionName}/${id}`, {version: 2})
+      return await storage.delete(collectionId, collectionName, id)
     },
     async get(id: string): Promise<T> {
-      return await this.backendApi.get(`/objects/${collectionId}/${collectionName}/${id}`, {version: 2})
+      return await storage.get(collectionId, id)
     },
     async getAll(stripFields?: string[]): Promise<T[]> {
       if (stripFields) throw new Error(`stripFields is not implemented`)
       return await storage.get(collectionName, collectionId)
     },
     async patch<T>(id: string, patch: T): Promise<void> {
-      return await this.backendApi.patch(`/objects/${collectionId}/${collectionName}/${id}`, patch, {version: 2})
+      return await storage.patch(collectionId, collectionName, id, patch)
     },
     async replace<T>(id: string, object: T): Promise<void> {
-      return await this.backendApi.put(`/objects/${collectionId}/${collectionName}/${id}`, object, {version: 2})
+      return await storage.put(collectionId, collectionName, id, object)
     },
   }
 }
 
 export class HttpServerStorage extends ServerStorage {
   public static readonly USERS_INFO_PATH = "/users/info"
-  private backendApi: BackendApiClient
+  private readonly backendApi: BackendApiClient
 
   constructor(backendApi: BackendApiClient) {
     super()
@@ -190,6 +210,28 @@ export class HttpServerStorage extends ServerStorage {
 
   save(collectionName: string, data: any, key: string): Promise<void> {
     return this.backendApi.post(`/configurations/${collectionName}?id=${key}`, Marshal.toPureJson(data))
+  }
+
+  add<T>(collectionId: string, collectionName: string, data: any): Promise<T> {
+    return this.backendApi.post<T>(`/objects/${collectionId}/${collectionName}`, Marshal.toPureJson(data), {
+      version: 2,
+    })
+  }
+
+  delete(collectionId: string, collectionName: string, id: string): Promise<void> {
+    return this.backendApi.delete(`/objects/${collectionId}/${collectionName}/${id}`, { version: 2 })
+  }
+
+  put<T>(collectionId: string, collectionName: string, id: string, data: any): Promise<T> {
+    return this.backendApi.put(`/objects/${collectionId}/${collectionName}/${id}`, Marshal.toPureJson(data), {
+      version: 2,
+    })
+  }
+
+  patch<T>(collectionId: string, collectionName: string, id: string, patch: any): Promise<T> {
+    return this.backendApi.patch(`/objects/${collectionId}/${collectionName}/${id}`, Marshal.toPureJson(patch), {
+      version: 2,
+    })
   }
 }
 

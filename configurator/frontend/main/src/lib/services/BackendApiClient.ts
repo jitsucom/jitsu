@@ -20,12 +20,12 @@ export type ApiRequestOptions = {
    */
   noauth?: boolean
   /**
-   * API version
+   * API version, 1 by default
    */
   version?: number
 }
 
-const DEFAULT_OPTIONS: ApiRequestOptions = {version: 1} as const
+const DEFAULT_OPTIONS: ApiRequestOptions = { version: 1 } as const
 
 /**
  * Backend API client. Authorization is handled by implementation
@@ -38,7 +38,7 @@ export interface BackendApiClient {
    * @param payload payload
    * @param opts additional options
    */
-  post(url, payload: any, opts?: ApiRequestOptions): Promise<any>
+  post<T = any>(url, payload: any, opts?: ApiRequestOptions): Promise<T>
 
   /**
    * Same as post, but returns raw body
@@ -47,13 +47,13 @@ export interface BackendApiClient {
 
   getRaw(url, opts?: ApiRequestOptions): Promise<string>
 
-  get(url: string, opts?: ApiRequestOptions): Promise<any>
+  get<T = any>(url: string, opts?: ApiRequestOptions): Promise<T>
 
-  put(url, payload: unknown, opts?: ApiRequestOptions): Promise<any>
+  put<T = any>(url, payload: unknown, opts?: ApiRequestOptions): Promise<T>
 
-  patch(url, payload: unknown, opts?: ApiRequestOptions): Promise<any>
+  patch<T = any>(url, payload: unknown, opts?: ApiRequestOptions): Promise<T>
 
-  delete(url, opts?: ApiRequestOptions): Promise<any>
+  delete(url, opts?: ApiRequestOptions): Promise<void>
 }
 
 export class APIError extends Error {
@@ -152,7 +152,7 @@ export class JWTBackendClient implements BackendApiClient {
     payload: unknown,
     options: ApiRequestOptions = { version: 1 }
   ): Promise<any> {
-    const opts = {...DEFAULT_OPTIONS, ...(options ?? {})}
+    const opts = { ...DEFAULT_OPTIONS, ...(options ?? {}) }
     const baseUrl = opts.proxy ? this.proxyUrl : this.baseUrl
     const baseUrlWithApiVersion = concatenateURLs(baseUrl, `/v${opts.version}/`)
     let fullUrl = concatenateURLs(baseUrlWithApiVersion, url)
