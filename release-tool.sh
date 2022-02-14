@@ -86,9 +86,9 @@ function release_jitsu() {
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" -t jitsucom/jitsu:latest --build-arg dhid=jitsu --build-arg SRC_VERSION=latest . || { echo 'Jitsu dockerx build semver failed' ; exit 1; }
   else
     if [[ "$1" == "beta" ]]; then
-      docker buildx build --platform linux/amd64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION="$1" . || { echo 'Jitsu dockerx build failed' ; exit 1; }
+      docker buildx build --platform $2 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION="$1" . || { echo 'Jitsu dockerx build failed' ; exit 1; }
     else
-      docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION="$1" . || { echo 'Jitsu dockerx build failed' ; exit 1; }
+      docker buildx build --platform $2 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION="$1" . || { echo 'Jitsu dockerx build failed' ; exit 1; }
     fi
   fi
 
@@ -124,7 +124,12 @@ echo "   ✅ No local changes"
 [[ -z $(git cherry) ]] || fail "   ❌ Not all changes are pushed. Please run git diff HEAD^ HEAD to see them"
 echo "   ✅ No unpushed changes"
 
-
+platform="linux/amd64"
+if [[ $TARGET_ARCH == "arm" ]]; then
+  platform="linux/arm64"
+elif [[ $TARGET_ARCH == "both" ]]; then
+  platform="linux/amd64,linux/arm64"
+fi
 
 if [ $# -eq 2 ]; then
   version=$1
@@ -138,10 +143,10 @@ else
     version=${latest_tag//v/}
     echo "   ✅ Latest tag is $latest_tag, version is $version"
   elif [[ $( git branch --show-current) == "beta" ]]; then
-    echo "Releasing beta"
+    echo "Releasing beta. Target platform: $platform"
     version='beta'
   else
-    echo "Releasing custom branch: $( git branch --show-current)"
+    echo "Releasing custom branch: $( git branch --show-current) Target platform: $platform"
     while [ -z "$version" ]; do
       read -r -p "Please provide docker image tag for the custom branch release: " version
     done
@@ -155,18 +160,18 @@ chalk green "=== Release subsystem: $subsystem ==="
 case $subsystem in
     [s][e][r][v][e][r])
         build_server
-        release_server $version
+        release_server $version $platform
         ;;
     [c][o][n][f][i][g][u][r][a][t][o][r])
         build_configurator
-        release_configurator $version
+        release_configurator $version $platform
         ;;
     [j][i][t][s][u])
        build_server
        build_configurator
-       release_server $version
-       release_configurator $version
-       release_jitsu $version
+       release_server $version $platform
+       release_configurator $version $platform
+       release_jitsu $version $platform
        ;;
     *)
         echo "Invalid input service [$subsystem]..."
