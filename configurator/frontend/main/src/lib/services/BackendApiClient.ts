@@ -248,7 +248,7 @@ export class JWTBackendClient implements BackendApiClient {
   }
 
   patch(url: string, data: unknown, opts?: ApiRequestOptions): Promise<any> {
-    return this.exec("patch", JSON_FORMAT, url, data, opts)
+    return this.exec("PATCH", JSON_FORMAT, url, data, opts)
   }
 
   delete(url: string, opts?: ApiRequestOptions): Promise<any> {

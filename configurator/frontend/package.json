@@ -6,6 +6,7 @@
     "build": "yarn install && yarn all:check && npx lerna run build",
     "build:dev": "npx lerna run build",
     "clean": "rm -rf ./main/node_modules/ ./main/build ./main/dist",
+    "test": "lerna run test --stream",
     "lerna:publish": "npx lerna publish --canary --no-private --no-verify-access --yes",
     "prettier:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run yarn prettier:fix!\" && exit 1)",
     "prettier:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore ./",

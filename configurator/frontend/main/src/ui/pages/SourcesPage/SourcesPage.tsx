@@ -45,7 +45,10 @@ const SourcesPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   )
 
   if (sourcesStore.state === EntitiesStoreState.GLOBAL_ERROR) {
-    return <CenteredError error={sourcesStore.error} />
+    throw new Error(
+      sourcesStore.error ??
+        `Internal error occured in sources management tool. Please, contact support or file an issue.`
+    )
   } else if (sourcesStore.state === EntitiesStoreState.GLOBAL_LOADING) {
     return <CenteredSpin />
   }

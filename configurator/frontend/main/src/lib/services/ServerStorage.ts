@@ -7,6 +7,12 @@ import ApplicationServices from "./ApplicationServices"
  * A generic object storage
  */
 export abstract class ServerStorage {
+  protected readonly backendApi: BackendApiClient
+
+  constructor(backendApi: BackendApiClient) {
+    this.backendApi = backendApi
+  }
+
   /**
    * Returns an object by key. If key is not set, user id will be used as key
    */
@@ -17,7 +23,6 @@ export abstract class ServerStorage {
    */
   abstract getUserInfo(): Promise<User>
 
-  //  * @deprecated use `create`, `add`, `delete`, `patch` instead
   /**
    * Saves an object by key. If key is not set, user id will be used as key
    */
@@ -31,43 +36,23 @@ export abstract class ServerStorage {
   abstract saveUserInfo(data: any): Promise<void>
 
   /**
-   * Adds an object by collectionId and collectionName
-   */
-  abstract add<T>(collectionId: string, collectionName: ObjectsApiTypes, data: any): Promise<T>
-
-  /**
-   * Deletes an object by collectionId, collectionName and object ID
-   */
-  abstract delete(collectionId: string, collectionName: string, id: string): Promise<void>
-
-  /**
-   * Replaces an object by collectionId, collectionName and object ID
-   */
-  abstract put<T>(collectionId: string, collectionName: string, id: string, data: any): Promise<T>
-
-  /**
-   * Patches an object by collectionId, collectionName and object ID
-   */
-  abstract patch<T>(collectionId: string, collectionName: string, id: string, patch: any): Promise<T>
-
-  /**
    * Returns a table-like structure for managing config. See ConfigurationEntitiesTable
    */
   table<T = any>(type: ObjectsApiTypes): ConfigurationEntitiesTable<T> {
     let projectId = ApplicationServices.get().activeProject.id
     if (type === "api_keys") {
-      return getEntitiesTable<T>(this, type, projectId, {
+      return getEntitiesTable<T>(this.backendApi, type, projectId, {
         arrayNodePath: "keys",
         idFieldPath: "uid",
       })
     }
     if (type === "destinations") {
-      return getEntitiesTable<T>(this, type, projectId, {
+      return getEntitiesTable<T>(this.backendApi, type, projectId, {
         idFieldPath: "_uid",
       })
     }
     if (type === "sources") {
-      return getEntitiesTable<T>(this, "sources", projectId, {
+      return getEntitiesTable<T>(this.backendApi, "sources", projectId, {
         idFieldPath: "sourceId",
       })
     }
@@ -81,9 +66,9 @@ export abstract class ServerStorage {
  */
 export interface ConfigurationEntitiesTable<T = any> {
   /**
-   * Return all entities. stripFields - fields that should be removed from all entities
+   * Return all entities
    */
-  getAll(stripFields?: string[]): Promise<T[]>
+  getAll(): Promise<T[]>
 
   /**
    * @param id get entity by id
@@ -109,15 +94,10 @@ export interface ConfigurationEntitiesTable<T = any> {
    * Removes entity by id
    */
   delete(id: string): Promise<void>
-
-  /**
-   * Upserts the object. Creates a new one if the object with id doesn't exist or replaces an existing one
-   */
-  upsert(id: string, object: T): Promise<void>
 }
 
 function getEntitiesTable<T = any>(
-  storage: ServerStorage,
+  api: BackendApiClient,
   collectionName: ObjectsApiTypes,
   collectionId: string,
   dataLayout: {
@@ -127,73 +107,39 @@ function getEntitiesTable<T = any>(
     idFieldPath: string
   }
 ): ConfigurationEntitiesTable<T> {
-  const arrayNode = dataLayout.arrayNodePath ?? collectionName
-
-  async function getCollection() {
-    let collection = await storage.get(collectionName, collectionId)
-    if (!collection) {
-      throw new Error(`Can't find collection with id=${collectionId} @ ${collectionName}`)
-    }
-    return collection
-  }
-
-  const getArrayNode = collection => {
-    let objects = collection[arrayNode]
-    if (!objects) {
-      throw new Error(
-        `Can't find ${arrayNode} in ${collectionName} object collection. Available: ${Object.keys(collection)}`
-      )
-    }
-    return objects
-  }
-
-  /**
-   * Warning: this implementation is not complete. It has a certain caveats and serves
-   * as a temporary solution unless we have a logic implemented on the server. Caveats:
-   *   - Patch is not recursive
-   *   - arrayNode and idFieldPath are not treated as json paths (e.g. `a` will work, but `a.b` won't)
-   */
   return {
-    async upsert<T>(id: string, object: T): Promise<never> {
-      const collection = await getCollection()
-      const objects = getArrayNode(collection)
-      const objIndex = objects.findIndex(obj => obj[dataLayout.idFieldPath] === id)
-      if (objIndex < 0) {
-        this.table(collectionName).add(object)
-      } else {
-        this.table(collectionName).replace(id, object)
-      }
-      throw new Error("Not implemented")
-    },
     async add<T>(object: T): Promise<T> {
-      return await storage.add(collectionId, collectionName, object)
+      return await api.post<T>(`/objects/${collectionId}/${collectionName}`, object, {
+        version: 2,
+      })
     },
     async delete(id: string): Promise<void> {
-      return await storage.delete(collectionId, collectionName, id)
+      return await api.delete(`/objects/${collectionId}/${collectionName}/${id}`, { version: 2 })
     },
     async get(id: string): Promise<T> {
-      return await storage.get(collectionId, id)
+      return await api.get(`/objects/${collectionId}/${collectionName}/${id}`, { version: 2 })
     },
-    async getAll(stripFields?: string[]): Promise<T[]> {
-      if (stripFields) throw new Error(`stripFields is not implemented`)
-      return await storage.get(collectionName, collectionId)
+    async getAll(): Promise<T[]> {
+      return await api.get(`/objects/${collectionId}/${collectionName}`, { version: 2 })
     },
     async patch<T>(id: string, patch: T): Promise<void> {
-      return await storage.patch(collectionId, collectionName, id, patch)
+      return await api.patch(`/objects/${collectionId}/${collectionName}/${id}`, patch, {
+        version: 2,
+      })
     },
     async replace<T>(id: string, object: T): Promise<void> {
-      return await storage.put(collectionId, collectionName, id, object)
+      return await api.put(`/objects/${collectionId}/${collectionName}/${id}`, object, {
+        version: 2,
+      })
     },
   }
 }
 
 export class HttpServerStorage extends ServerStorage {
   public static readonly USERS_INFO_PATH = "/users/info"
-  private readonly backendApi: BackendApiClient
 
   constructor(backendApi: BackendApiClient) {
-    super()
-    this.backendApi = backendApi
+    super(backendApi)
   }
 
   getUserInfo(): Promise<User> {
@@ -210,28 +156,6 @@ export class HttpServerStorage extends ServerStorage {
 
   save(collectionName: string, data: any, key: string): Promise<void> {
     return this.backendApi.post(`/configurations/${collectionName}?id=${key}`, Marshal.toPureJson(data))
-  }
-
-  add<T>(collectionId: string, collectionName: string, data: any): Promise<T> {
-    return this.backendApi.post<T>(`/objects/${collectionId}/${collectionName}`, Marshal.toPureJson(data), {
-      version: 2,
-    })
-  }
-
-  delete(collectionId: string, collectionName: string, id: string): Promise<void> {
-    return this.backendApi.delete(`/objects/${collectionId}/${collectionName}/${id}`, { version: 2 })
-  }
-
-  put<T>(collectionId: string, collectionName: string, id: string, data: any): Promise<T> {
-    return this.backendApi.put(`/objects/${collectionId}/${collectionName}/${id}`, Marshal.toPureJson(data), {
-      version: 2,
-    })
-  }
-
-  patch<T>(collectionId: string, collectionName: string, id: string, patch: any): Promise<T> {
-    return this.backendApi.patch(`/objects/${collectionId}/${collectionName}/${id}`, Marshal.toPureJson(patch), {
-      version: 2,
-    })
   }
 }
 
