@@ -13,9 +13,7 @@ EventNative accepts the following parameters.
   <thead>
     <tr>
       <th>
-        Parameter
-        <br />
-        (data- parameter)
+        Parameter<br />(data-parameter)
       </th>
       <th>Value</th>
     </tr>
@@ -48,7 +46,7 @@ EventNative accepts the following parameters.
         <br />(<span style={{ whiteSpace: "nowrap" }}>data-cookie-name</span>)
       </td>
       <td>
-        Name of tracking cookie (<code inline="true">__eventn_id</code> by
+        Name of tracking cookie (`__eventn_id` by
         default)
       </td>
     </tr>
@@ -59,8 +57,8 @@ EventNative accepts the following parameters.
       </td>
       <td>
         Domain of the tracking cookie (by default this is{" "}
-        <code inline="true">location.hostname</code> with any{" "}
-        <code inline="true">www.</code> subdomain removed)
+        `location.hostname` with any{" "}
+        `www.` subdomain removed)
       </td>
     </tr>
     <tr>
@@ -100,21 +98,21 @@ EventNative accepts the following parameters.
         <br />(<span style={{ whiteSpace: "nowrap" }}>data-ip-policy</span>)
       </td>
       <td>
-        <code inline="true">['keep', 'comply', 'strict']</code> values are
-        supported. <code inline="true">keep</code> value is default.
-        <code inline="true">keep</code> - Jitsu extracts client IP address and stores
+        `['keep', 'comply', 'strict']` values are
+        supported. `keep` value is default.
+        `keep` - Jitsu extracts client IP address and stores
         it in every analytics event in 'source_ip' field.
-        <code inline="true">strict</code> - Jitsu replaces last octet in client
+        `strict` - Jitsu replaces last octet in client
         IP address with '1' on the backend side. like{" "}
-        <code inline="true">10.10.10.10 -> 10.10.10.1</code>
-        <code inline="true">comply</code> - Jitsu detects client country with <a href="/docs/other-features/geo-data-resolution#maxmind">
+        `10.10.10.10 -> 10.10.10.1`
+        `comply` - Jitsu detects client country with <a href="/docs/other-features/geo-data-resolution#maxmind">
           MaxMind
-        </a> (if MaxMind isn't provided the behavior will be like in <code inline="true">
+        </a> (if MaxMind isn't provided the behavior will be like in `
           strict
-        </code> mode) if client is from EU or UK then the behavior will be like in{" "}
-        <code inline="true">strict</code> mode. Otherwise like in <code inline="true">
+        ` mode) if client is from EU or UK then the behavior will be like in{" "}
+        `strict` mode. Otherwise like in `
           keep
-        </code> mode. Read more about <a href="/docs/sending-data/privacy-policy">Privacy Policy</a>
+        ` mode. Read more about <a href="/docs/sending-data/privacy-policy">Privacy Policy</a>
       </td>
     </tr>
     <tr>
@@ -123,22 +121,22 @@ EventNative accepts the following parameters.
         <br />(<span style={{ whiteSpace: "nowrap" }}>data-cookie-policy</span>)
       </td>
       <td>
-        <code inline="true">['keep', 'comply', 'strict']</code> values are
-        supported. <code inline="true">keep</code> value is default.
-        <code inline="true">keep</code> - Jitsu writes identification cookies and
+        `['keep', 'comply', 'strict']` values are
+        supported. `keep` value is default.
+        `keep` - Jitsu writes identification cookies and
         recognizes users with it.
-        <code inline="true">strict</code> - Jitsu doesn't write any cookies
+        `strict` - Jitsu doesn't write any cookies
         (including identification cookies and persistent properties). Instead of
         cookies, Jitsu will use fingerprinting (
-        <code inline="true">hash(client ip + user agent)</code> function).
-        <code inline="true">comply</code> - Jitsu detects client country with <a href="/docs/other-features/geo-data-resolution#maxmind">
+        `hash(client ip + user agent)` function).
+        `comply` - Jitsu detects client country with <a href="/docs/other-features/geo-data-resolution#maxmind">
           MaxMind
-        </a> (if MaxMind isn't provided the behavior will be like in <code inline="true">
+        </a> (if MaxMind isn't provided the behavior will be like in `
           strict
-        </code> mode) if client is from EU or UK then the behavior will be like in{" "}
-        <code inline="true">strict</code> mode. Otherwise like in <code inline="true">
+        ` mode) if client is from EU or UK then the behavior will be like in{" "}
+        `strict` mode. Otherwise like in `
           keep
-        </code> mode. Read more about <a href="/docs/sending-data/privacy-policy">Privacy Policy</a>
+        ` mode. Read more about <a href="/docs/sending-data/privacy-policy">Privacy Policy</a>
       </td>
     </tr>
     <tr>
@@ -147,14 +145,25 @@ EventNative accepts the following parameters.
         <br />(<span style={{ whiteSpace: "nowrap" }}>data-privacy-policy</span>)
       </td>
       <td>
-        This parameter is just shortcut for <code inline="true">strict</code>{" "}
-        configuration of <code inline="true">cookie_policy</code> and{" "}
-        <code inline="true">ip_policy</code>. If set to{" "}
-        <code inline="true">strict</code> value,{" "}
-        <code inline="true">cookie_policy</code> and{" "}
-        <code inline="true">ip_policy</code> will be set{" "}
-        <code inline="true">strict</code>. Read more about{" "}
+        This parameter is just shortcut for `strict`{" "}
+        configuration of `cookie_policy` and{" "}
+        `ip_policy`. If set to{" "}
+        `strict` value,{" "}
+        `cookie_policy` and{" "}
+        `ip_policy` will be set{" "}
+        `strict`. Read more about{" "}
         <a href="/docs/sending-data/privacy-mode">Privacy Mode</a>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        custom_headers
+      </td>
+      <td>
+        *(Not available as `data-` parameter in embedded environment; available only in npm lib)*
+
+        This parameter adds custom headers to each request. Can be either a static object (`Record<string, string>`) or
+        a function that returns an object
       </td>
     </tr>
   </tbody>
