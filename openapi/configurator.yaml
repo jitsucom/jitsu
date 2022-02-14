@@ -164,7 +164,8 @@ components:
       properties:
         id: { type: "string" }
         name: { type: "string" }
-      required: [ 'id', 'name' ]
+        planId: { type: "string" }
+      required: [ 'name' ]
 
     UserBasicInfo:
       description: 'Basic information about user'
@@ -561,8 +562,28 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/responses/Project'
-
+                  $ref: '#/components/schemas/Project'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      tags:
+        - configuration-management
+      operationId: "Create project and link user"
+      description: Creates a new project, links current user and returns the project with ID
+      security:
+        - configurationManagementAuth: [ ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Project'
+      responses:
+        '200':
+          description: "Created project"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/Project"
         default:
           $ref: '#/components/responses/Error'
 
