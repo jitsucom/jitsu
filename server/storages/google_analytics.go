@@ -20,20 +20,28 @@ func init() {
 
 //NewGoogleAnalytics return GoogleAnalytics instance
 //start streaming worker goroutine
-func NewGoogleAnalytics(config *Config) (Storage, error) {
+func NewGoogleAnalytics(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if !config.streamMode {
 		return nil, fmt.Errorf("Google Analytics destination doesn't support %s mode", BatchMode)
 	}
 	gaConfig := &adapters.GoogleAnalyticsConfig{}
-	if err := config.destination.GetDestConfig(config.destination.GoogleAnalytics, gaConfig); err != nil {
-		return nil, err
+	if err = config.destination.GetDestConfig(config.destination.GoogleAnalytics, gaConfig); err != nil {
+		return
 	}
 
 	ga := &GoogleAnalytics{}
-	err := ga.Init(config, ga)
+	err = ga.Init(config, ga)
 	if err != nil {
-		return nil, err
+		return
 	}
+	storage = ga
+
 	ga.processor.AddJavaScript(googleAnalyticsTransform)
 	ga.processor.SetDefaultUserTransform(`return toGoogleAnalytics($)`)
 
@@ -49,14 +57,14 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 		SuccessHandler: ga.SuccessEvent,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	ga.adapter = gaAdapter
 
 	//streaming worker (queue reading)
 	ga.streamingWorker = newStreamingWorker(config.eventQueue, ga)
-	return ga, nil
+	return
 }
 
 //Type returns Google Analytics type

@@ -22,14 +22,20 @@ func init() {
 }
 
 //NewNpmDestination returns configured NpmDestination
-func NewNpmDestination(config *Config) (Storage, error) {
+func NewNpmDestination(config *Config) (storage Storage, err error) {
+	defer func() {
+		if err != nil && storage != nil {
+			storage.Close()
+			storage = nil
+		}
+	}()
 	if !config.streamMode {
 		return nil, fmt.Errorf("NpmDestination destination doesn't support %s mode", BatchMode)
 	}
 
 	plugin, err := plugins.DownloadPlugin(config.destination.Package)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	transformFuncName := strcase.ToLowerCamel("to_" + plugin.Name)
@@ -56,8 +62,10 @@ func NewNpmDestination(config *Config) (Storage, error) {
 	wh := &NpmDestination{}
 	err = wh.Init(config, wh)
 	if err != nil {
-		return nil, err
+		jsTemplate.Close()
+		return
 	}
+	storage = wh
 	wh.processor.SetBuiltinTransformer(jsTemplate)
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
@@ -72,14 +80,14 @@ func NewNpmDestination(config *Config) (Storage, error) {
 		SuccessHandler: wh.SuccessEvent,
 	})
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	wh.adapter = wbAdapter
 
 	//streaming worker (queue reading)
 	wh.streamingWorker = newStreamingWorker(config.eventQueue, wh)
-	return wh, nil
+	return
 }
 
 //Type returns NpmType type

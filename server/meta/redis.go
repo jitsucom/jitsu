@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/timestamp"
-	"strconv"
-	"strings"
-	"time"
 )
 
 const (
@@ -688,12 +689,14 @@ func (r *Redis) GetAllTasks(sourceID, collection string, start, end time.Time, l
 }
 
 //GetLastTask returns last sync task
-func (r *Redis) GetLastTask(sourceID, collection string) (*Task, error) {
+func (r *Redis) GetLastTask(sourceID, collection string, offset int) (*Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
 	taskIndexKey := "sync_tasks_index:source#" + sourceID + ":collection#" + collection
-	taskValues, err := redis.Strings(conn.Do("ZREVRANGEBYSCORE", taskIndexKey, "+inf", "-inf", "LIMIT", "0", "1"))
+	limitStart := fmt.Sprintf("%d", offset)
+	limitEnd := fmt.Sprintf("%d", offset+1)
+	taskValues, err := redis.Strings(conn.Do("ZREVRANGEBYSCORE", taskIndexKey, "+inf", "-inf", "LIMIT", limitStart, limitEnd))
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return nil, err

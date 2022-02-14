@@ -407,7 +407,7 @@ func (p *Processor) InitJavaScriptTemplates() (err error) {
 	templateVariables = templates.EnrichedFuncMap(templateVariables)
 	tableNameExtractor, err := NewTableNameExtractor(p.tableNameFuncExpression, templateVariables)
 	if err != nil {
-		return err
+		return
 	}
 	p.tableNameExtractor = tableNameExtractor
 	p.AddJavaScriptVariables(templateVariables)
