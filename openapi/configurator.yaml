@@ -157,7 +157,22 @@ components:
       type: object
       properties:
         projectID: { type: "string" }
-      required: [ 'projectID' ]
+      required: [ 'projectID']
+    Project:
+      description: 'The object represents project'
+      type: object
+      properties:
+        id: { type: "string" }
+        name: { type: "string" }
+      required: [ 'id', 'name' ]
+
+    UserBasicInfo:
+      description: 'Basic information about user'
+      type: object
+      properties:
+        id: { type: "string" }
+        email: { type: "string" }
+      required: [ 'id', 'email' ]
 
   responses:
     Error:
@@ -417,17 +432,137 @@ paths:
         default:
           $ref: '#/components/responses/Error'
 
-  /api/v2/projects:
+  /api/v2/project/{projectId}/users:
     get:
+      parameters:
+        - name: projectId
+          description: Project id
+          in: path
+          required: true
+          schema:
+            type: string
       tags:
         - configuration-management
-      operationId: "Get users projects"
+      operationId: "Get users link to projects"
+      description: Returns users linked to project
+      security:
+        - configurationManagementAuth: [ ]
+      responses:
+        '200':
+          description: "List of users with access to given project"
+          content:
+            "application/json":
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserBasicInfo'
+
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v2/project/{projectId}/link:
+    get:
+      parameters:
+        - name: projectId
+          description: Project id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          description: User Id to link to the project. Alternatively, userEmail could be specified
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: userEmail
+          description: User email to link to the project. Alternatively, userId could be specified
+          in: query
+          required: false
+          schema:
+            type: string
+      tags:
+        - configuration-management
+      operationId: "Link user to project"
+      description: >
+        Links user to project. If userId is specified, the user should just be linked. If userEmail is specify, the logic should be as follows:
+         - Try to find user with userEmail. If user has been found, just link it
+         - If user is not found, the user should be created and linked to the project. Later we'll add email notification
+      security:
+        - configurationManagementAuth: [ ]
+      responses:
+        '200':
+          description: "List of users with access to given project"
+          content:
+            "application/json":
+              schema:
+                type: object
+                properties:
+                  userStatus:
+                    type: string
+                    description: existing if user has been found, or created if user has been created
+
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v2/project/{projectId}/unlink:
+    get:
+      parameters:
+        - name: projectId
+          description: Project id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          description: User Id to link to the project. Alternatively, userEmail could be specified
+          in: query
+          required: true
+          schema:
+            type: string
+      tags:
+        - configuration-management
+      operationId: "Unlink user from project"
+      description: >
+        Removes user from the project. Note: users can remove themselves from the project
+      security:
+        - configurationManagementAuth: [ ]
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+
+
+  /api/v2/projects:
+    get:
+      parameters:
+        - name: allProjects
+          description: >
+            Should the method return all projects, not only available to current user. Only users
+            authenticated with cluster-admin token (or users with cluster admin permission) can set this
+            to true. Otherwise, error will be thrown
+          in: query
+          required: false
+          schema:
+            type: boolean
+      tags:
+        - configuration-management
+      operationId: "Get projects"
       description: Returns a list of projects available for current user
       security:
         - configurationManagementAuth: [ ]
       responses:
         '200':
-          $ref: '#/components/responses/AnyArrayResponse'
+          description: "List of projects"
+          content:
+            "application/json":
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/responses/Project'
+
         default:
           $ref: '#/components/responses/Error'
 
@@ -453,7 +588,7 @@ paths:
       security:
         - configurationManagementAuth: [ ]
       description: >
-        Updates a project settings for a given project ID. Object will be patched: request body properties will be merged into an original object, 
+        Updates a project settings for a given project ID. Object will be patched: request body properties will be merged into an original object,
         it's ok to send partial objects. Some fields might be ignored and overwritten. The method returns an updated object
       requestBody:
         content:
@@ -762,25 +897,7 @@ paths:
                       server_secret: 'server_secret1'
         default:
           $ref: '#/components/responses/Error'
-  /api/v1/apikeys/default:
-    post:
-      tags:
-        - configuration-management
-      operationId: 'Generate default project api key'
-      description: >
-        Generate new project api key if no one exists. Otherwise do nothing.
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ProjectIdRequest'
-      security:
-        - configurationManagementAuth: [ ]
-      responses:
-        '200':
-          $ref: '#/components/responses/StatusResponse'
-        default:
-          $ref: '#/components/responses/Error'
+
   /api/v1/database:
     post:
       tags:
@@ -826,31 +943,3 @@ paths:
                 $ref: "#/components/schemas/TokenResponse"
         default:
           $ref: '#/components/responses/Error'
-  /api/v1/notify:
-    post:
-      tags:
-        - configuration-management
-      operationId: 'Send Custom payload notification asynchronously'
-      description: Send custom payload Slack notification asynchronously. Method always returns 200 OK. There should be configured notifications.slack.url section in the Jitsu configuration.
-      security:
-        - configurationManagementAuth: [ ]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AnyObject'
-      responses:
-        '200':
-          $ref: '#/components/responses/StatusResponse'
-
-
-
-
-#TODO
-
-#/api/v1/configurations/:collection (GET, POST) --- ignore, will be deprecated
-
-#future
-#/api/v2/projects (POST) - create a project
-#/api/v2/projects/users (POST) - add user to the project
-#/api/v2/projects/users (DELETE) - delete user from the project
