@@ -173,7 +173,7 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
               >
                 <Form.Item name="connectedDestinations">
                   <DestinationPicker
-                    allDestinations={destinationsStore.listIncludeHidden}
+                    allDestinations={destinationsStore.list}
                     isSelected={dst => dst._onlyKeys.includes(id)}
                   />
                 </Form.Item>
@@ -236,8 +236,7 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                     } else {
                       await flowResult(apiKeysStore.add(key))
                     }
-                    await flowResult(apiKeysStore.pullApiKeys())
-                    await flowResult(destinationsStore.linkApiKeysToDestinations(key.uid, connectedDestinations))
+                    await flowResult(destinationsStore.updateDestinationsLinksToKey(key.uid, connectedDestinations))
                     history.push(apiKeysRoutes.listExact)
                   } finally {
                     setSaving(false)

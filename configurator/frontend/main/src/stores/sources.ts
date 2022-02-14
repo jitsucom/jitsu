@@ -8,6 +8,7 @@ import ApplicationServices, { IApplicationServices } from "lib/services/Applicat
 import { intersection, merge, remove, without } from "lodash"
 import { toArrayIfNot } from "utils/arrays"
 import { EntitiesStoreState } from "stores/types.enums"
+import { getObjectDepth } from "lib/commons/utils"
 
 export interface ISourcesStore extends EntitiesStore<SourceData> {
   state: EntitiesStoreState
@@ -59,8 +60,7 @@ class SourcesStore implements ISourcesStore {
 
   /** Patch a source in the UI */
   private patchInStore(id: string, patch: Partial<SourceData>): void {
-    const sourceToPatch = this.get(id)
-    merge(sourceToPatch, patch)
+    Object.assign(this.get(id), patch)
   }
 
   /** Replaces a source data with a passed one in the UI */
@@ -144,8 +144,8 @@ class SourcesStore implements ISourcesStore {
     this.resetError()
     this._state = showGlobalLoader ? GLOBAL_LOADING : BACKGROUND_LOADING
     try {
-      const { sources } = yield this.services.storageService.table<SourceData>("sources").getAll()
-      this._sources = sources || []
+      const sources = yield this.services.storageService.table<SourceData>("sources").getAll()
+      this.setSourcesInStore(sources ?? [])
     } catch (error) {
       this.setError(GLOBAL_ERROR, `Failed to fetch sources: ${error.message || error}`)
     } finally {
@@ -158,8 +158,13 @@ class SourcesStore implements ISourcesStore {
     this._state = BACKGROUND_LOADING
     try {
       const addedSource = yield this.services.storageService.table<SourceData>("sources").add(sourceToAdd)
+      if (!addedSource) {
+        throw new Error(`Sources store failed to add a new source: ${sourceToAdd}`)
+      }
       this.addToStore(addedSource)
       yield this.patchDestinationsLinksBySourcesUpdates(addedSource)
+    } catch (error) {
+      console.error(error)
     } finally {
       this._state = IDLE
     }
@@ -173,6 +178,8 @@ class SourcesStore implements ISourcesStore {
       yield this.services.storageService.table<SourceData>("sources").delete(sourceId)
       this.deleteFromStore(sourceId)
       yield this.unlinkDeletedSourcesFromDestinations(sourceId)
+    } catch (error) {
+      console.error(error)
     } finally {
       this._state = IDLE
     }
@@ -185,6 +192,8 @@ class SourcesStore implements ISourcesStore {
       yield this.services.storageService.table("sources").replace(sourceToReplace.sourceId, sourceToReplace)
       this.replaceSource(sourceToReplace.sourceId, sourceToReplace)
       if (options.updateConnections) yield this.patchDestinationsLinksBySourcesUpdates(sourceToReplace)
+    } catch (error) {
+      console.error(error)
     } finally {
       this._state = IDLE
     }
@@ -198,8 +207,14 @@ class SourcesStore implements ISourcesStore {
     this.resetError()
     this._state = BACKGROUND_LOADING
     try {
+      if (getObjectDepth(patch) > 2) {
+        throw new Error(`Sources recursive patch is not supported`)
+      }
       yield this.services.storageService.table<SourceData>("sources").patch(id, patch)
       this.patchInStore(id, patch)
+      if (options.updateConnections) yield this.patchDestinationsLinksBySourcesUpdates(this.get(id))
+    } catch (error) {
+      console.error(error)
     } finally {
       this._state = IDLE
     }
