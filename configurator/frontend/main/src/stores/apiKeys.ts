@@ -6,8 +6,9 @@ import ApplicationServices from "lib/services/ApplicationServices"
 import { randomId } from "utils/numbers"
 import { toArrayIfNot } from "utils/arrays"
 import { IDestinationsStore } from "./destinations"
-import { intersection, merge, remove, without } from "lodash"
+import { intersection, remove, without } from "lodash"
 import { EntitiesStoreState } from "./types.enums"
+import { getObjectDepth } from "lib/commons/utils"
 
 type AddAPIKeyOptions = {
   note?: string
@@ -50,24 +51,23 @@ class ApiKeysStore implements IApiKeysStore {
   }
 
   /** Set a new apiKeys list in the UI */
-  private setApiKeys(apiKeysList: ApiKey[]): void {
+  private setApiKeysToStore(apiKeysList: ApiKey[]): void {
     this._apiKeys = apiKeysList
   }
 
   /** Add a apiKey in the UI */
-  private addApiKey(apiKey: ApiKey): void {
+  private addApiKeyToStore(apiKey: ApiKey): void {
     this._apiKeys.push(apiKey)
   }
 
   /** Delete a apiKey from the UI */
-  private deleteApiKey(id: string): void {
+  private deleteApiKeyFromStore(id: string): void {
     remove(this._apiKeys, apiKey => apiKey.uid === id)
   }
 
   /** Patch a apiKey in the UI */
-  private patchApiKey(id: string, patch: Partial<ApiKey>): void {
-    const apiKeyToPatch = this.get(id)
-    merge(apiKeyToPatch, patch)
+  private patchApiKeyInStore(id: string, patch: Partial<ApiKey>): void {
+    Object.assign(this.get(id), patch)
   }
 
   /** Replaces a apiKey data with a passed one in the UI */
@@ -148,8 +148,8 @@ class ApiKeysStore implements IApiKeysStore {
     this.resetError()
     this._state = showGlobalLoader ? GLOBAL_LOADING : BACKGROUND_LOADING
     try {
-      const { keys } = yield services.storageService.table<ApiKey>("api_keys").getAll()
-      this._apiKeys = keys || []
+      const keys = yield services.storageService.table<ApiKey>("api_keys").getAll()
+      this.setApiKeysToStore(keys ?? [])
     } catch (error) {
       this.setError(GLOBAL_ERROR, `Failed to fetch apiKeys: ${error.message || error}`)
     } finally {
@@ -159,7 +159,7 @@ class ApiKeysStore implements IApiKeysStore {
 
   public *generateAddInitialApiKeyIfNeeded(options?: AddAPIKeyOptions) {
     if (!!this.list.length) return
-    yield flowResult(this.add({ comment: options.note }))
+    yield flowResult(this.add({ comment: options?.note }))
   }
 
   public *add(key?: Partial<ApiKey>) {
@@ -168,7 +168,12 @@ class ApiKeysStore implements IApiKeysStore {
     const newApiKey: ApiKey = { ...this.generateApiKey(key.comment), ...(key ?? {}) }
     try {
       const addedApiKey = yield services.storageService.table<ApiKey>("api_keys").add(newApiKey)
-      this.addApiKey(addedApiKey)
+      if (!addedApiKey) {
+        throw new Error(`API keys store failed to add a new key: ${newApiKey}`)
+      }
+      this.addApiKeyToStore(addedApiKey)
+    } catch (error) {
+      console.error(error)
     } finally {
       this._state = IDLE
     }
@@ -179,8 +184,10 @@ class ApiKeysStore implements IApiKeysStore {
     this._state = BACKGROUND_LOADING
     try {
       yield services.storageService.table<ApiKey>("api_keys").delete(uid)
-      this.deleteApiKey(uid)
+      this.deleteApiKeyFromStore(uid)
       yield this.removeDeletedApiKeysFromDestinations(uid)
+    } catch (error) {
+      console.error(error)
     } finally {
       this._state = IDLE
     }
@@ -192,16 +199,24 @@ class ApiKeysStore implements IApiKeysStore {
     try {
       yield services.storageService.table<ApiKey>("api_keys").replace(apiKeyToUpdate.uid, apiKeyToUpdate)
       this.replaceApiKey(apiKeyToUpdate.uid, apiKeyToUpdate)
+    } catch (error) {
+      console.error(error)
     } finally {
       this._state = IDLE
     }
   }
 
   public *patch(uid: string, patch: Partial<ApiKey>) {
+    this.resetError()
     this._state = BACKGROUND_LOADING
     try {
+      if (getObjectDepth(patch) > 2) {
+        throw new Error(`API Keys recursive patch is not supported`)
+      }
       yield services.storageService.table<ApiKey>("api_keys").patch(uid, patch)
-      this.patchApiKey(uid, patch)
+      this.patchApiKeyInStore(uid, patch)
+    } catch (error) {
+      console.error(error)
     } finally {
       this._state = IDLE
     }

@@ -145,7 +145,7 @@ const DestinationEditorConnectorsComponent = ({ form, initialValues, destination
               {destination.syncFromSourcesStatus === "coming_soon" && (
                 <div className="text-secondaryText">
                   <b>{destination.displayName}</b> support is <i>coming soon!</i>. At the moment, Jitsu can't send data
-                  from connectors to {destination.displayName}. However, you can event streaming is available!
+                  from connectors to {destination.displayName}. However, event streaming is available!
                 </div>
               )}
               {destination.syncFromSourcesStatus === "not_supported" && (
