@@ -157,27 +157,31 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 //storeTable check table schema
 //and store data into one table via stage (google cloud storage or s3)
 func (s *Snowflake) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error) {
-	_, tableHelper := s.getAdapters()
-	table := tableHelper.MapTableSchema(fdata.BatchHeader)
-	dbTable, err := tableHelper.EnsureTableWithoutCaching(s.ID(), table)
-	if err != nil {
-		return table, err
-	}
+	if fdata.RecognitionRayload {
+		return s.Abstract.storeTable(fdata)
+	} else {
+		_, tableHelper := s.getAdapters()
+		table := tableHelper.MapTableSchema(fdata.BatchHeader)
+		dbTable, err := tableHelper.EnsureTableWithoutCaching(s.ID(), table)
+		if err != nil {
+			return table, err
+		}
 
-	b, header := fdata.GetPayloadBytesWithHeader(schema.VerticalBarSeparatedMarshallerInstance)
-	if err := s.stageAdapter.UploadBytes(fdata.FileName, b); err != nil {
-		return dbTable, err
-	}
+		b, header := fdata.GetPayloadBytesWithHeader(schema.VerticalBarSeparatedMarshallerInstance)
+		if err := s.stageAdapter.UploadBytes(fdata.FileName, b); err != nil {
+			return dbTable, err
+		}
 
-	if err := s.snowflakeAdapter.Copy(fdata.FileName, dbTable.Name, header); err != nil {
-		return dbTable, fmt.Errorf("Error copying file [%s] from stage to snowflake: %v", fdata.FileName, err)
-	}
+		if err := s.snowflakeAdapter.Copy(fdata.FileName, dbTable.Name, header); err != nil {
+			return dbTable, fmt.Errorf("Error copying file [%s] from stage to snowflake: %v", fdata.FileName, err)
+		}
 
-	if err := s.stageAdapter.DeleteObject(fdata.FileName); err != nil {
-		logging.SystemErrorf("[%s] file %s wasn't deleted from stage: %v", s.ID(), fdata.FileName, err)
-	}
+		if err := s.stageAdapter.DeleteObject(fdata.FileName); err != nil {
+			logging.SystemErrorf("[%s] file %s wasn't deleted from stage: %v", s.ID(), fdata.FileName, err)
+		}
 
-	return dbTable, nil
+		return dbTable, nil
+	}
 }
 
 //GetUsersRecognition returns users recognition configuration

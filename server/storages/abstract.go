@@ -163,11 +163,15 @@ func (a *Abstract) Store(fileName string, objects []map[string]interface{}, alre
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		a.eventsCache.Error(a.IsCachingDisabled(), a.ID(), failedEvent.EventID, failedEvent.Error)
+		if failedEvent.RecognizedEvent {
+			a.eventsCache.Error(a.IsCachingDisabled(), a.ID(), failedEvent.EventID, failedEvent.Error)
+		}
 	}
 	//update cache and counter with skipped events
 	for _, skipEvent := range skippedEvents.Events {
-		a.eventsCache.Skip(a.IsCachingDisabled(), a.ID(), skipEvent.EventID, skipEvent.Error)
+		if skipEvent.RecognizedEvent {
+			a.eventsCache.Skip(a.IsCachingDisabled(), a.ID(), skipEvent.EventID, skipEvent.Error)
+		}
 	}
 
 	storeFailedEvents := true
@@ -193,6 +197,10 @@ func (a *Abstract) Store(fileName string, objects []map[string]interface{}, alre
 				})
 			}
 		}
+	}
+	for _, fdata := range recognizedFlatData {
+		table, err := a.impl.storeTable(fdata)
+		logging.Errorf("Failed to store user recognition batch payload for %s table: %s err: %v", a.destinationID, table.Name, err)
 	}
 
 	//store failed events to fallback only if other events have been inserted ok

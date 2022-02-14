@@ -88,9 +88,10 @@ func (sw *StreamingWorker) start() {
 				Src:           events.ExtractSrc(fact),
 				RawEvent:      fact,
 			}
+			_, recognizedEvent := fact[schema.JitsuUserRecognizedEvent]
 
 			envelops, err := sw.streamingStorage.Processor().ProcessEvent(fact, true)
-			if err != nil {
+			if err != nil && !recognizedEvent {
 				if err == schema.ErrSkipObject {
 					if !appconfig.Instance.DisableSkipEventsWarn {
 						logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), err)
@@ -127,9 +128,8 @@ func (sw *StreamingWorker) start() {
 					ProcessedEvent: flattenObject,
 					Table:          table,
 				}
-				_, ok := flattenObject[schema.JitsuUserRecognizedEvent]
-				if ok {
-					if updateErr := sw.streamingStorage.Insert(eventContext); updateErr != nil {
+				if recognizedEvent {
+					if updateErr := sw.streamingStorage.Update(eventContext); updateErr != nil {
 						err := errorj.Decorate(updateErr, "failed to insert event").
 							WithProperty(errorj.DestinationID, sw.streamingStorage.ID()).
 							WithProperty(errorj.DestinationType, sw.streamingStorage.Type())

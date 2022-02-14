@@ -111,27 +111,31 @@ func NewAwsRedshift(config *Config) (storage Storage, err error) {
 //storeTable check table schema
 //and store data into one table via s3
 func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error) {
-	_, tableHelper := ar.getAdapters()
-	table := tableHelper.MapTableSchema(fdata.BatchHeader)
-	dbTable, err := tableHelper.EnsureTableWithoutCaching(ar.ID(), table)
-	if err != nil {
-		return table, err
-	}
+	if fdata.RecognitionRayload {
+		return ar.Abstract.storeTable(fdata)
+	} else {
+		_, tableHelper := ar.getAdapters()
+		table := tableHelper.MapTableSchema(fdata.BatchHeader)
+		dbTable, err := tableHelper.EnsureTableWithoutCaching(ar.ID(), table)
+		if err != nil {
+			return table, err
+		}
 
-	b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
-	if err := ar.s3Adapter.UploadBytes(fdata.FileName, b); err != nil {
-		return dbTable, err
-	}
+		b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
+		if err := ar.s3Adapter.UploadBytes(fdata.FileName, b); err != nil {
+			return dbTable, err
+		}
 
-	if err := ar.redshiftAdapter.Copy(fdata.FileName, dbTable.Name); err != nil {
-		return dbTable, fmt.Errorf("Error copying file [%s] from s3 to redshift: %v", fdata.FileName, err)
-	}
+		if err := ar.redshiftAdapter.Copy(fdata.FileName, dbTable.Name); err != nil {
+			return dbTable, fmt.Errorf("Error copying file [%s] from s3 to redshift: %v", fdata.FileName, err)
+		}
 
-	if err := ar.s3Adapter.DeleteObject(fdata.FileName); err != nil {
-		logging.SystemErrorf("[%s] file %s wasn't deleted from s3: %v", ar.ID(), fdata.FileName, err)
-	}
+		if err := ar.s3Adapter.DeleteObject(fdata.FileName); err != nil {
+			logging.SystemErrorf("[%s] file %s wasn't deleted from s3: %v", ar.ID(), fdata.FileName, err)
+		}
 
-	return dbTable, nil
+		return dbTable, nil
+	}
 }
 
 // SyncStore is used in storing chunk of pulled data to AwsRedshift with processing
