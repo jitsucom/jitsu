@@ -2,6 +2,7 @@ package migration
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/gomodule/redigo/redis"
@@ -11,8 +12,9 @@ import (
 )
 
 const (
-	usersInfoKey       = "config#users_info"
-	projectSettingsKey = "config#project_settings"
+	usersInfoKey        = "config#users_info"
+	projectSettingsKey  = "config#project_settings"
+	userProjectRelation = "user_project"
 )
 
 var MultiProjectSupport = multiProjectSupport{}
@@ -51,6 +53,13 @@ func (multiProjectSupport) Run(conn redis.Conn) error {
 					return errors.Wrapf(err, "unmarshal project settings for %s", project["id"])
 				}
 
+				// update project (settings)
+				if projectValue, err := json.Marshal(project); err != nil {
+					return errors.Wrapf(err, "marshal project %s", project["id"])
+				} else if _, err := conn.Do("HSET", projectSettingsKey, project["id"], projectValue); err != nil {
+					return errors.Wrapf(err, "update project %s", project["id"])
+				}
+
 			case redis.ErrNil:
 				// this is fine
 
@@ -58,20 +67,10 @@ func (multiProjectSupport) Run(conn redis.Conn) error {
 				return errors.Wrapf(err, "get project settings for %s", project["id"])
 			}
 
-			// update project (settings)
-			if projectValue, err := json.Marshal(project); err != nil {
-				return errors.Wrapf(err, "marshal project %s", project["id"])
-			} else if _, err := conn.Do("HSET", projectSettingsKey, project["id"], projectValue); err != nil {
-				return errors.Wrapf(err, "update project %s", project["id"])
-			}
-
-			// update user info with removed '_project' and set 'projects'
-			delete(user, "_project")
-			user["projects"] = []interface{}{project["id"]}
-			if userValue, err := json.Marshal(user); err != nil {
-				return errors.Wrapf(err, "marshal updated user info %s", userID)
-			} else if _, err := conn.Do("HSET", usersInfoKey, userID, userValue); err != nil {
-				return errors.Wrapf(err, "update user info %s", userID)
+			// link user to project
+			relationKey := fmt.Sprintf("relation#%s:%s", userProjectRelation, userID)
+			if _, err := conn.Do("SADD", relationKey, project["id"]); err != nil {
+				return errors.Wrapf(err, "link project %s to user %s", project["id"], userID)
 			}
 
 			logging.Infof("Successfully migrated project out of user info for %s / %s", userID, project["id"])

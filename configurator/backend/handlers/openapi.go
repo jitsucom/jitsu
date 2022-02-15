@@ -529,7 +529,7 @@ func (oa *OpenAPI) GenerateJitsuServerYamlConfiguration(c *gin.Context, params o
 		return
 	}
 
-	projectSettings, err := oa.configurationsService.GetProjectSettings(projectID)
+	projectSettings, err := oa.configurationsService.GetProject(projectID)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(ProjectSettingsGettingErrMsg, err))
 		return
@@ -630,7 +630,7 @@ func (oa *OpenAPI) GetSourcesConfiguration(c *gin.Context) {
 				postHandleDestinationIds = append(postHandleDestinationIds, projectID+"."+d.UID)
 			}
 		}
-		projectSettings, err := oa.configurationsService.GetProjectSettings(projectID)
+		projectSettings, err := oa.configurationsService.GetProject(projectID)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(ProjectSettingsGettingErrMsg, err))
 			return
@@ -904,36 +904,14 @@ func (oa *OpenAPI) GetUserInfo(c *gin.Context) {
 		return
 	}
 
+	userID := c.GetString(middleware.UserIDKey)
 	userInfoValues := make(map[string]interface{})
-	var userInfo struct {
-		Projects []string `mapstructure:"projects"`
-	}
-
-	if userInfoData, err := oa.configurationsService.GetConfigWithLock(authorization.UsersInfoCollection, c.GetString(middleware.UserIDKey)); err != nil {
+	if userInfoData, err := oa.configurationsService.GetConfigWithLock(authorization.UsersInfoCollection, userID); err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get user info", err))
 		return
 	} else if err := json.Unmarshal(userInfoData, &userInfoValues); err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("decode user info from json", err))
 		return
-	} else if err := mapstructure.Decode(userInfoValues, &userInfo); err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("decode user info projects", err))
-		return
-	}
-
-	// backwards compatibility
-	if len(userInfo.Projects) > 0 {
-		projectID := userInfo.Projects[0]
-		if project, err := oa.configurationsService.GetProjectSettings(projectID); err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get default user project", err))
-			return
-		} else {
-			userInfoValues["_project"] = map[string]interface{}{
-				"$type":   "Project",
-				"_id":     project.Id,
-				"_name":   project.Name,
-				"_planId": project.PlanId,
-			}
-		}
 	}
 
 	c.JSON(http.StatusOK, userInfoValues)
@@ -945,30 +923,16 @@ func (oa *OpenAPI) UpdateUserInfo(c *gin.Context) {
 	}
 
 	userID := c.GetString(middleware.UserIDKey)
-
-	req := &openapi.AnyObject{}
-	err := c.BindJSON(req)
-	if err != nil {
-		bodyExtractionErrorMessage := fmt.Sprintf("Failed to get user info body from request: %v", err)
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(bodyExtractionErrorMessage, nil))
+	userInfoValues := make(json.RawMessage, 0)
+	if err := c.BindJSON(&userInfoValues); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("bind request json", err))
 		return
-	}
-
-	savedData, err := oa.configurationsService.SaveConfigWithLock(authorization.UsersInfoCollection, userID, req)
-	if err != nil {
-		configStoreErrorMessage := fmt.Sprintf("Failed to save user info [%s]: %v", userID, err)
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(configStoreErrorMessage, nil))
+	} else if result, err := oa.configurationsService.SaveUserInfoWithProject(userID, userInfoValues); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("save user info with project", err))
 		return
+	} else {
+		c.JSON(http.StatusOK, result)
 	}
-
-	anyObject, err := convertToObject(savedData)
-	if err != nil {
-		logging.Errorf("System error: malformed data %s: %v", string(savedData), err)
-		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(ErrMalformedData, nil))
-		return
-	}
-
-	c.JSON(http.StatusOK, anyObject)
 }
 
 func (oa *OpenAPI) UserSignUp(c *gin.Context) {
@@ -1443,75 +1407,49 @@ func (oa *OpenAPI) GetUsersProjects(c *gin.Context) {
 		return
 	}
 
-	projects, err := oa.authService.GetUserProjects(c.GetString(middleware.UserIDKey))
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(fmt.Sprintf("failed to get user's projects: %v", err), nil))
+	userID := c.GetString(middleware.UserIDKey)
+	if projects, err := oa.configurationsService.GetUserProjects(userID); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("get user projects", err))
 		return
+	} else {
+		c.JSON(http.StatusOK, projects)
 	}
-
-	result := openapi.AnyArray{}
-	for _, project := range projects {
-		data, _ := json.Marshal(project)
-		object, err := convertToObject(data)
-		if err != nil {
-			logging.Errorf("System error: malformed data %s: %v", string(data), err)
-			c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(ErrMalformedData, nil))
-			return
-		}
-
-		result = append(result, *object)
-	}
-
-	c.JSON(http.StatusOK, result)
 }
 
-func (oa *OpenAPI) GetProjectSettings(c *gin.Context, projectIDI openapi.ProjectId) {
+func (oa *OpenAPI) GetProjectSettings(c *gin.Context, projectID openapi.ProjectId) {
 	if c.IsAborted() {
 		return
 	}
 
-	projectID := string(projectIDI)
-
-	if !hasAccessToProject(c, projectID) {
+	if projectID := string(projectID); !hasAccessToProject(c, projectID) {
 		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
 		return
-	}
-
-	result, err := oa.configurationsService.GetProjectSettings(projectID)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(fmt.Sprintf("failed to get project settings: %v", err), nil))
+	} else if result, err := oa.configurationsService.GetProject(projectID); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get project settings", err))
 		return
+	} else {
+		c.JSON(http.StatusOK, result)
 	}
-
-	c.JSON(http.StatusOK, result)
 }
 
-func (oa *OpenAPI) PatchProjectSettings(c *gin.Context, projectIDI openapi.ProjectId) {
+func (oa *OpenAPI) PatchProjectSettings(c *gin.Context, projectID openapi.ProjectId) {
 	if c.IsAborted() {
 		return
 	}
 
-	projectID := string(projectIDI)
-	if !hasAccessToProject(c, projectID) {
+	projectValues := make(map[string]interface{})
+	if projectID := string(projectID); !hasAccessToProject(c, projectID) {
 		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
 		return
-	}
-
-	req := &openapi.AnyObject{}
-	err := c.BindJSON(req)
-	if err != nil {
-		bodyExtractionErrorMessage := fmt.Sprintf("Failed to get patch objects body from request: %v", err)
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(bodyExtractionErrorMessage, nil))
+	} else if err := c.BindJSON(&projectValues); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("bind request project settings", err))
 		return
-	}
-
-	result, err := oa.configurationsService.PatchProjectSettings(projectID, req.AdditionalProperties)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(fmt.Sprintf("failed to patch settings in project [%s]: %v", projectID, err), nil))
+	} else if result, err := oa.configurationsService.PatchProject(projectID, projectValues); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("patch project settings", err))
 		return
+	} else {
+		c.JSON(http.StatusOK, result)
 	}
-
-	c.JSON(http.StatusOK, result)
 }
 
 func (oa *OpenAPI) LinkUserToProject(c *gin.Context, projectId string, params openapi.LinkUserToProjectParams) {
@@ -1534,26 +1472,13 @@ func (oa *OpenAPI) GetProjects(c *gin.Context, params openapi.GetProjectsParams)
 		return
 	}
 
-	projects, err := oa.authService.GetUserProjects(c.GetString(middleware.UserIDKey))
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(fmt.Sprintf("failed to get user's projects: %v", err), nil))
+	userID := c.GetString(middleware.UserIDKey)
+	if projects, err := oa.configurationsService.GetUserProjects(userID); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("get user projects", err))
 		return
+	} else {
+		c.JSON(http.StatusOK, projects)
 	}
-
-	result := openapi.AnyArray{}
-	for _, project := range projects {
-		data, _ := json.Marshal(project)
-		object, err := convertToObject(data)
-		if err != nil {
-			logging.Errorf("System error: malformed data %s: %v", string(data), err)
-			c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(ErrMalformedData, nil))
-			return
-		}
-
-		result = append(result, *object)
-	}
-
-	c.JSON(http.StatusOK, result)
 }
 
 func (oa *OpenAPI) CreateProjectAndLinkUser(c *gin.Context) {
