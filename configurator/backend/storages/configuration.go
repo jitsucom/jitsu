@@ -25,6 +25,8 @@ type ConfigurationsStorage interface {
 	//Delete deletes entity and also must update _lastUpdated field of the collection
 	Delete(collection string, id string) error
 
+	// GetRelationIndex returns all key IDs from the relation.
+	GetRelationIndex(relation string) ([]string, error)
 	// GetRelatedIDs returns a slice of related IDs from the relation.
 	GetRelatedIDs(relation, id string) ([]string, error)
 	// AddRelatedIDs adds related IDs to the relation.

@@ -184,6 +184,12 @@ func (r *Redis) Delete(collection string, id string) error {
 	return nil
 }
 
+func (r *Redis) GetRelationIndex(relation string) ([]string, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+	return redis.Strings(conn.Do("KEYS", getRelationKey(relation, "*")))
+}
+
 func (r *Redis) GetRelatedIDs(relation string, id string) ([]string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()

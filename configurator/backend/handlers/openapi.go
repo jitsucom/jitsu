@@ -1405,20 +1405,6 @@ func (oa *OpenAPI) ReplaceObjectByUid(c *gin.Context, projectIDI openapi.Project
 	c.JSON(http.StatusOK, result)
 }
 
-func (oa *OpenAPI) GetUsersProjects(c *gin.Context) {
-	if c.IsAborted() {
-		return
-	}
-
-	userID := c.GetString(middleware.UserIDKey)
-	if projects, err := oa.configurationsService.GetUserProjects(userID); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("get user projects", err))
-		return
-	} else {
-		c.JSON(http.StatusOK, projects)
-	}
-}
-
 func (oa *OpenAPI) GetProjectSettings(c *gin.Context, projectID openapi.ProjectId) {
 	if c.IsAborted() {
 		return
@@ -1455,9 +1441,16 @@ func (oa *OpenAPI) PatchProjectSettings(c *gin.Context, projectID openapi.Projec
 	}
 }
 
-func (oa *OpenAPI) LinkUserToProject(c *gin.Context, projectId string, params openapi.LinkUserToProjectParams) {
-	//TODO implement me
-	panic("implement me")
+func (oa *OpenAPI) LinkUserToProject(c *gin.Context, projectID string, params openapi.LinkUserToProjectParams) {
+	if c.IsAborted() {
+		return
+	}
+
+	if !hasAccessToProject(c, projectID) {
+		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
+		return
+	}
+
 }
 
 func (oa *OpenAPI) UnlinkUserFromProject(c *gin.Context, projectId string, params openapi.UnlinkUserFromProjectParams) {
@@ -1465,9 +1458,43 @@ func (oa *OpenAPI) UnlinkUserFromProject(c *gin.Context, projectId string, param
 	panic("implement me")
 }
 
-func (oa *OpenAPI) GetUsersLinkToProjects(c *gin.Context, projectId string) {
-	//TODO implement me
-	panic("implement me")
+func (oa *OpenAPI) GetUsersLinkToProjects(c *gin.Context, projectID string) {
+	if c.IsAborted() {
+		return
+	}
+
+	if !hasAccessToProject(c, projectID) {
+		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
+		return
+	}
+
+	userIDs, err := oa.configurationsService.GetProjectUsers(projectID)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get project users", err))
+		return
+	}
+
+	users := make([]openapi.UserBasicInfo, 0, len(userIDs))
+	for _, userID := range userIDs {
+		var userInfo struct {
+			Email string `json:"_email"`
+		}
+
+		if userInfoData, err := oa.configurationsService.GetConfigWithLock(authorization.UsersInfoCollection, userID); err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(fmt.Sprintf("get user info %s", userID), err))
+			return
+		} else if err := json.Unmarshal(userInfoData, &userInfo); err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(fmt.Sprintf("unmarshal user info %s", userID), err))
+			return
+		}
+
+		users = append(users, openapi.UserBasicInfo{
+			Id:    userID,
+			Email: userInfo.Email,
+		})
+	}
+
+	c.JSON(http.StatusOK, users)
 }
 
 func (oa *OpenAPI) GetProjects(c *gin.Context, params openapi.GetProjectsParams) {
@@ -1476,10 +1503,35 @@ func (oa *OpenAPI) GetProjects(c *gin.Context, params openapi.GetProjectsParams)
 	}
 
 	userID := c.GetString(middleware.UserIDKey)
-	if projects, err := oa.configurationsService.GetUserProjects(userID); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("get user projects", err))
+	if params.AllProjects != nil && *params.AllProjects {
+		if access, err := extractPermissions(c); err != nil {
+			c.AbortWithStatusJSON(http.StatusForbidden, ErrorResponse("extract permissions", err))
+			return
+		} else if !access.IsAdmin() {
+			c.AbortWithStatusJSON(http.StatusForbidden, ErrorResponse("user must be admin", nil))
+			return
+		} else if projects, err := oa.configurationsService.GetAllProjects(); err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get all projects", err))
+			return
+		} else {
+			c.JSON(http.StatusOK, projects)
+		}
+	}
+
+	if projectIDs, err := oa.authService.GetProjectIDs(userID); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get user projects ids", err))
 		return
 	} else {
+		projects := make([]openapi.Project, len(projectIDs))
+		for i, projectID := range projectIDs {
+			if project, err := oa.configurationsService.GetProject(projectID); err != nil {
+				c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(fmt.Sprintf("get project %s", projectID), err))
+				return
+			} else {
+				projects[i] = project.Project
+			}
+		}
+
 		c.JSON(http.StatusOK, projects)
 	}
 }

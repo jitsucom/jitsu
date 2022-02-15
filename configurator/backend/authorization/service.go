@@ -82,23 +82,9 @@ func (s *Service) Authenticate(token string) (string, error) {
 	return userID, nil
 }
 
-//GetProjectID return projectID from storage by userID
-func (s *Service) GetProjectID(userID string) (string, error) {
-	var userInfo struct {
-		Projects []string `json:"projects"`
-	}
-
-	if userInfoData, err := s.configurationsStorage.Get(UsersInfoCollection, userID); err != nil {
-		return "", errors.Wrap(err, "load user info")
-	} else if err := json.Unmarshal(userInfoData, &userInfo); err != nil {
-		return "", errors.Wrap(err, "unmarshal user info")
-	}
-
-	if len(userInfo.Projects) == 0 {
-		return "", errors.New("no 'projects' linked to user")
-	}
-
-	return userInfo.Projects[0], nil
+// GetProjectIDs returns linked project IDs for the user.
+func (s *Service) GetProjectIDs(userID string) ([]string, error) {
+	return s.configurationsStorage.GetRelatedIDs("user_projects", userID)
 }
 
 //GetOnlyUserID return the only userID. Works only in self-hosted (when authorization is via Redis)
