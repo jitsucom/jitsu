@@ -204,20 +204,7 @@ export class BackendUserService implements UserService {
   }
 
   update(user: User): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      if (user.projects == null) {
-        reject(new Error(`Can't update user without projects:` + JSON.stringify(user)))
-      }
-      if (user.projects.length != 1) {
-        reject(
-          new Error(`Can't update user projects ( ` + user.projects.length + `), should be 1` + JSON.stringify(user))
-        )
-      }
-      const userData: any = Marshal.toPureJson(user)
-      userData["_project"] = Marshal.toPureJson(user.projects[0])
-      delete userData["_projects"]
-      return this.storageService.saveUserInfo(userData).then(resolve)
-    })
+    return this.storageService.saveUserInfo(user)
   }
 
   sendPasswordReset(email?: string): Promise<void> {

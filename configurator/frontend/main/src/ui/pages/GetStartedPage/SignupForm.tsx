@@ -60,6 +60,7 @@ export function SignupForm({ supportOauth }) {
     setLoading(true)
     try {
       await services.userService.createUser(values["email"], values["password"])
+      await services.
       reloadPage()
     } catch (error) {
       handleError(error)
