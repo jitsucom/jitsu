@@ -40,8 +40,20 @@ func NewClickhouseContainer(ctx context.Context) (*ClickHouseContainer, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &ClickHouseContainer{Context: ctx, Dsns: []string{fmt.Sprintf(chDatasourceTemplate, port)},
-			Database: chDatabase, Port: port}, nil
+		dsn := fmt.Sprintf(chDatasourceTemplate, port)
+
+		datasource, err := sql.Open("clickhouse", dsn)
+		if err != nil {
+			return nil, err
+		}
+
+		return &ClickHouseContainer{
+			datasource: datasource,
+			Context:    ctx,
+			Dsns:       []string{dsn},
+			Database:   chDatabase,
+			Port:       port,
+		}, nil
 	}
 	dbURL := func(port nat.Port) string {
 		return fmt.Sprintf(chDatasourceTemplate, port.Int())
