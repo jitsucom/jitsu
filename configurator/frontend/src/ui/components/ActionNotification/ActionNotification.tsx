@@ -45,7 +45,7 @@ function messageFactory(type: ActionNotificationType): NotificationActionMethod 
         </span>
       ),
       type: type,
-      duration: 600,
+      duration: 10,
       className: styles.message,
       prefixCls: "jitsu-message",
     }
