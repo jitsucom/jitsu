@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/storages"
@@ -121,6 +122,7 @@ func (rs *RecognitionService) startAnonymousObserver() {
 		if !ok {
 			rs.systemErrorf("wrong type of recognition payload dto in queue. Expected: *AnonymousPayload, actual: %T (%s)", rpi, rpi)
 		}
+		metrics.RecognitionEvent(metrics.AnonymousEvents, rp.EventKey.TokenID, 1)
 		if err := rs.storage.SaveAnonymousEvent(rp.EventKey.TokenID, rp.EventKey.AnonymousID, rp.EventID, string(rp.EventBytes)); err != nil {
 			rs.systemErrorf("System error: [%s] Error saving event with anonymous id %s: %v", rp.EventKey.TokenID, rp.EventKey.AnonymousID, err)
 		}
@@ -146,17 +148,24 @@ func (rs *RecognitionService) getAggregatedIdentifiers() (map[EventKey]map[strin
 		if !ok {
 			return nil, fmt.Errorf("wrong type of recognition payload dto in queue. Expected: []*EventIdentifiers, actual: %T (%s)", identified, identified)
 		}
+		metrics.RecognitionEvent(metrics.IdentifiedEvents, ids.EventKey.TokenID, 1)
 		wasIdentified, ok := rs.identifiedIdsCache[ids.EventKey.AnonymousID]
-		if ok && (timestamp.Now().After(wasIdentified.Add(useIdentifiedCacheAfterMin)) &&
-			timestamp.Now().Before(wasIdentified.Add(time.Minute*time.Duration(rs.cacheTTLMin)))) {
-			//this anonymous user was already identified. cache hit
-			continue
+		if ok {
+			if timestamp.Now().After(wasIdentified.Add(time.Minute * time.Duration(rs.cacheTTLMin))) {
+				//ttl expired
+				rs.identifiedIdsCache[ids.EventKey.AnonymousID] = timestamp.Now()
+			} else if timestamp.Now().After(wasIdentified.Add(useIdentifiedCacheAfterMin)) {
+				//this anonymous user was already identified. cache hit
+				metrics.RecognitionEvent(metrics.IdentifiedCacheHits, ids.EventKey.TokenID, 1)
+				continue
+			}
+		} else {
+			rs.identifiedIdsCache[ids.EventKey.AnonymousID] = timestamp.Now()
 		}
 		if len(rs.identifiedIdsCache) > 10_000 {
 			//clear cache to avoid side effects and high memory consumption
 			rs.identifiedIdsCache = map[string]time.Time{}
 		}
-		rs.identifiedIdsCache[ids.EventKey.AnonymousID] = timestamp.Now()
 		notAggrSize = notAggrSize + 1
 		aggregatedIdentifiers[ids.EventKey] = ids.IdentificationValues
 	}
@@ -189,13 +198,14 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 	if rs.closed.Load() {
 		return
 	}
-
+	metrics.RecognitionEvent(metrics.TotalEvents, tokenID, 1)
 	userAgent, ok := rs.userAgentJSONPath.Get(event)
 	if ok {
 		userAgent, ok := userAgent.(string)
 		if ok {
 			lcUserAgent := strings.ToLower(userAgent)
 			if strings.Contains(lcUserAgent, "bot") || strings.Contains(lcUserAgent, "crawl") {
+				metrics.RecognitionEvent(metrics.BotEvents, tokenID, 1)
 				return
 			}
 		}
@@ -282,6 +292,7 @@ func (rs *RecognitionService) extractPayload(event events.Event, eventID string,
 
 func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, identificationValues map[string]interface{}) error {
 	tokenID := eventsKey.TokenID
+	metrics.RecognitionEvent(metrics.IdentifiedAggregatedEvents, tokenID, 1)
 
 	eventsMap, err := rs.storage.GetAnonymousEvents(tokenID, eventsKey.AnonymousID)
 	if err != nil {
@@ -303,6 +314,7 @@ func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, ident
 				tokenID, storedSerializedEvent, rs.configuration.IdentificationJSONPathes.String(), err)
 			continue
 		}
+		metrics.RecognitionEvent(metrics.RecognizedEvents, tokenID, 1)
 		consumers := rs.destinationService.GetConsumers(tokenID)
 		if len(consumers) == 0 {
 			return fmt.Errorf("User Recognition. Couldn't get consumer for tokenID: %s", tokenID)

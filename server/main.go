@@ -500,7 +500,7 @@ func main() {
 	systemService := system.NewService(systemConfigurationURL)
 
 	//event processors
-	apiProcessor := events.NewAPIProcessor()
+	apiProcessor := events.NewAPIProcessor(usersRecognitionService)
 	bulkProcessor := events.NewBulkProcessor()
 	jsProcessor := events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path"))
 	pixelProcessor := events.NewPixelProcessor()
