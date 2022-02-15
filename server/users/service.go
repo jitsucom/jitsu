@@ -302,6 +302,7 @@ func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, ident
 	if len(eventsMap) == 0 {
 		return nil
 	}
+	toDelete := make([]string, 0, len(eventsMap))
 
 	for storedEventID, storedSerializedEvent := range eventsMap {
 		event, err := rs.deserialize(storedSerializedEvent)
@@ -323,12 +324,13 @@ func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, ident
 		for _, consumer := range consumers {
 			consumer.Consume(event, eventsKey.TokenID)
 		}
-
-		if err = rs.storage.DeleteAnonymousEvent(tokenID, eventsKey.AnonymousID, storedEventID); err != nil {
-			return fmt.Errorf("error deleting anonymous events id [%s]: %v", storedEventID, err)
+		toDelete = append(toDelete, storedEventID)
+	}
+	if len(toDelete) > 0 {
+		if err = rs.storage.DeleteAnonymousEvent(tokenID, eventsKey.AnonymousID, toDelete...); err != nil {
+			return fmt.Errorf("error deleting anonymous events ids [%+v]: %v", toDelete, err)
 		}
 	}
-
 	return nil
 }
 

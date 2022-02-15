@@ -16,7 +16,7 @@ type Storage interface {
 	io.Closer
 	SaveAnonymousEvent(tokenID, anonymousID, eventID, payload string) error
 	GetAnonymousEvents(tokenID, anonymousID string) (map[string]string, error)
-	DeleteAnonymousEvent(tokenID, anonymousID, eventID string) error
+	DeleteAnonymousEvent(tokenID, anonymousID string, eventID ...string) error
 	Type() string
 }
 
@@ -28,7 +28,7 @@ func (d *Dummy) SaveAnonymousEvent(tokenID, anonymousID, eventID, payload string
 func (d *Dummy) GetAnonymousEvents(tokenID, anonymousID string) (map[string]string, error) {
 	return map[string]string{}, nil
 }
-func (d *Dummy) DeleteAnonymousEvent(tokenID, anonymousID, eventID string) error {
+func (d *Dummy) DeleteAnonymousEvent(tokenID, anonymousID string, eventID ...string) error {
 	return nil
 }
 func (d *Dummy) Type() string { return DummyStorageType }

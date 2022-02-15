@@ -64,14 +64,18 @@ func (r *Redis) GetAnonymousEvents(tokenID, anonymousID string) (map[string]stri
 }
 
 //DeleteAnonymousEvent deletes event with eventID
-func (r *Redis) DeleteAnonymousEvent(tokenID, anonymousID, eventID string) error {
+func (r *Redis) DeleteAnonymousEvent(tokenID, anonymousID string, eventID ...string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
 	//remove event
 	anonymousEventKey := "anonymous_events:token_id#" + tokenID + ":anonymous_id#" + anonymousID
-
-	_, err := conn.Do("HDEL", anonymousEventKey, eventID)
+	args := make([]interface{}, len(eventID)+1)
+	args[0] = anonymousEventKey
+	for i, id := range eventID {
+		args[i+1] = id
+	}
+	_, err := conn.Do("HDEL", args...)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return err
