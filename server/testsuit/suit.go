@@ -208,7 +208,7 @@ func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
 //performs ping check before return
 func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	//event processors
-	apiProcessor := events.NewAPIProcessor()
+	apiProcessor := events.NewAPIProcessor(sb.recognitionService)
 	bulkProcessor := events.NewBulkProcessor()
 	jsProcessor := events.NewJsProcessor(sb.recognitionService, viper.GetString("server.fields_configuration.user_agent_path"))
 	pixelProcessor := events.NewPixelProcessor()
