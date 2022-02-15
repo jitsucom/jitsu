@@ -95,7 +95,7 @@ const DestinationEditor = ({
   const [destinationSaving, setDestinationSaving] = useState<boolean>(false)
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false)
 
-  const sources = sourcesStore.sources
+  const sources = sourcesStore.list
   const destinationData = useRef<DestinationData>(getDestinationData(params))
 
   const destinationReference = useMemo<Destination | null | undefined>(() => {
@@ -334,9 +334,9 @@ const DestinationEditor = ({
         try {
           await destinationEditorUtils.testConnection(destinationData.current, true)
 
-          if (editorMode === "add") await flowResult(destinationsStore.addDestination(destinationData.current))
+          if (editorMode === "add") await flowResult(destinationsStore.add(destinationData.current))
 
-          if (editorMode === "edit") await flowResult(destinationsStore.editDestinations(destinationData.current))
+          if (editorMode === "edit") await flowResult(destinationsStore.replace(destinationData.current))
 
           destinationsTabs.forEach((tab: Tab) => (tab.touched = false))
 
@@ -482,11 +482,11 @@ DestinationEditor.displayName = "DestinationEditor"
 export { DestinationEditor }
 
 const getDestinationData = (params: { id?: string; type?: string }): DestinationData =>
-  destinationsStore.allDestinations.find(dst => dst._id === params.id) ||
+  destinationsStore.listIncludeHidden.find(dst => dst._id === params.id) ||
   ({
     _id: getUniqueAutoIncId(
       params.type,
-      destinationsStore.allDestinations.map(dst => dst._id)
+      destinationsStore.listIncludeHidden.map(dst => dst._id)
     ),
     _uid: randomId(),
     _type: params.type,

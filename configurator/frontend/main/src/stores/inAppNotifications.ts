@@ -36,9 +36,9 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
     makeAutoObservable(this)
   }
 
-  private get orphanApiKeys(): APIKey[] {
-    return this._apiKeysStore.apiKeys.filter(({ uid }) => {
-      const keyIsConnected = this._destinationsStore.destinations.reduce(
+  private get orphanApiKeys(): ApiKey[] {
+    return this._apiKeysStore.list.filter(({ uid }) => {
+      const keyIsConnected = this._destinationsStore.list.reduce(
         (isConnected, destination) => isConnected || destination._onlyKeys.some(keyUid => keyUid === uid),
         false
       )
@@ -47,13 +47,11 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
   }
 
   private get orphanDestinations(): DestinationData[] {
-    return this._destinationsStore.destinations.filter(
-      ({ _onlyKeys, _sources }) => !_onlyKeys?.length && !_sources?.length
-    )
+    return this._destinationsStore.list.filter(({ _onlyKeys, _sources }) => !_onlyKeys?.length && !_sources?.length)
   }
 
   private get orphanConnectors(): SourceData[] {
-    return this._connectorsStore.sources.filter(({ destinations }) => !destinations?.length)
+    return this._connectorsStore.list.filter(({ destinations }) => !destinations?.length)
   }
 
   public get notifications(): NotificationData[] {
