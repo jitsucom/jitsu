@@ -2,15 +2,26 @@ package storages
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/gomodule/redigo/redis"
+	"github.com/jitsucom/jitsu/configurator/storages/migration"
 	entime "github.com/jitsucom/jitsu/configurator/time"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
-	"time"
+	"github.com/pkg/errors"
 )
 
+var migrations = []Migration{
+	migration.MultiProjectSupport,
+}
+
 //TODO change to config#meta someday
-const lastUpdatedPerCollection = "configs#meta#last_updated"
+const (
+	lastUpdatedPerCollection = "configs#meta#last_updated"
+	metaKey                  = "meta#storage"
+	versionKey               = "version"
+)
 
 type Redis struct {
 	pool *meta.RedisPool
@@ -24,7 +35,45 @@ func NewRedis(factory *meta.RedisPoolFactory) (*Redis, error) {
 		return nil, err
 	}
 
-	return &Redis{pool: pool}, nil
+	storage := &Redis{pool: pool}
+	if err := storage.migrate(); err != nil {
+		pool.Close()
+		return nil, errors.Wrap(err, "migrate")
+	}
+
+	return storage, nil
+}
+
+func (r *Redis) migrate() error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	version, err := redis.Int(conn.Do("HGET", metaKey, versionKey))
+	switch err {
+	case nil:
+	case redis.ErrNil:
+		version = 0
+	default:
+		return errors.Wrap(err, "load db version")
+	}
+
+	for i, migration := range migrations {
+		if i < version {
+			continue
+		}
+
+		if err := migration.Run(conn); err != nil {
+			return errors.Wrapf(err, "run migration %d", i)
+		}
+
+		if _, err := conn.Do("HSET", metaKey, versionKey, i+1); err != nil {
+			return errors.Wrap(err, "update db version")
+		}
+
+		logging.Infof("Successfully migrated Redis storage to version %d", i+1)
+	}
+
+	return nil
 }
 
 func (r *Redis) Get(collection string, documentID string) ([]byte, error) {

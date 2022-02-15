@@ -1501,6 +1501,31 @@ func (oa *OpenAPI) PatchProjectSettings(c *gin.Context, projectIDI openapi.Proje
 	c.JSON(http.StatusOK, result)
 }
 
+func (oa *OpenAPI) LinkUserToProject(c *gin.Context, projectId string, params openapi.LinkUserToProjectParams) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (oa *OpenAPI) UnlinkUserFromProject(c *gin.Context, projectId string, params openapi.UnlinkUserFromProjectParams) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (oa *OpenAPI) GetUsersLinkToProjects(c *gin.Context, projectId string) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (oa *OpenAPI) GetProjects(c *gin.Context, params openapi.GetProjectsParams) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (oa *OpenAPI) CreateProjectAndLinkUser(c *gin.Context) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func hasAccessToProject(c *gin.Context, projectID string) bool {
 	permissions, ok := c.Get(middleware.Permissions)
 	if !ok {
