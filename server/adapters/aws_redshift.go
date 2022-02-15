@@ -35,7 +35,7 @@ const (
 				                     where tco.table_schema = $1 and tco.table_name = $2 and tco.constraint_type = 'PRIMARY KEY'
                                      order by kcu.ordinal_position`
 
-	redshiftValuesLimit = 32767 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	RedshiftValuesLimit = 32767 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 	credentialsMask     = "*****"
 )
 
@@ -159,7 +159,7 @@ func (ar *AwsRedshift) insertBatch(table *Table, objects []map[string]interface{
 	}
 
 	if len(table.PKFields) == 0 {
-		return ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, table, objects, redshiftValuesLimit)
+		return ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, table, objects, RedshiftValuesLimit)
 	}
 
 	//deduplication for bulkMerge success (it fails if there is any duplicate)
@@ -436,7 +436,7 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 		return errorj.Decorate(err, "failed to create temporary table")
 	}
 
-	err = ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, tmpTable, objects, redshiftValuesLimit)
+	err = ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, tmpTable, objects, RedshiftValuesLimit)
 	if err != nil {
 		return errorj.Decorate(err, "failed to insert into temporary table")
 	}

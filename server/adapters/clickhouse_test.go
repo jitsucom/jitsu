@@ -240,6 +240,7 @@ func createObjectsForClickHouse(num int) []map[string]interface{} {
 		object["field3"] = rand.Int()
 		object["user"] = fmt.Sprint(rand.Int())
 		object["_interval_start"] = timestamps[i%len(timestamps)]
+		object["eventn_ctx_event_id"] = uuid.NewV4()
 		objects = append(objects, object)
 	}
 	return objects

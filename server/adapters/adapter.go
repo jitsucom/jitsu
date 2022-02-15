@@ -23,6 +23,7 @@ type SQLAdapter interface {
 	PatchTableSchema(schemaToAdd *Table) error
 	Truncate(tableName string) error
 	Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error
+	DropTable(table *Table) (err error)
 }
 
 //Adapter is an adapter for all destinations
