@@ -332,6 +332,7 @@ func initializeTestSuite(t *testing.T, destinationType string) (*InsertTestSuite
 			Schema:     container.Schema,
 			Username:   container.Username,
 			Password:   container.Password,
+			Db:         container.Database,
 			Parameters: map[string]string{"sslmode": "disable"},
 		}
 
