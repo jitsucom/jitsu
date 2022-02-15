@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/jitsucom/jitsu/configurator/openapi"
 	"github.com/pkg/errors"
 
 	"github.com/jitsucom/jitsu/configurator/storages"
@@ -17,11 +16,10 @@ import (
 )
 
 const (
-	UsersInfoCollection       = "users_info"
-	ProjectSettingsCollection = "project_settings"
-	usersInfoEmailKey         = "_email"
-	RedisType                 = "redis"
-	FirebaseType              = "firebase"
+	UsersInfoCollection = "users_info"
+	usersInfoEmailKey   = "_email"
+	RedisType           = "redis"
+	FirebaseType        = "firebase"
 )
 
 var (
@@ -101,35 +99,6 @@ func (s *Service) GetProjectID(userID string) (string, error) {
 	}
 
 	return userInfo.Projects[0], nil
-}
-
-//GetUserProjects return projects array by userID
-func (s *Service) GetUserProjects(userID string) ([]openapi.Project, error) {
-	var userInfo struct {
-		Projects []string `json:"projects"`
-	}
-
-	if userInfoData, err := s.configurationsStorage.Get(UsersInfoCollection, userID); err != nil {
-		return nil, errors.Wrap(err, "load user info")
-	} else if err := json.Unmarshal(userInfoData, &userInfo); err != nil {
-		return nil, errors.Wrap(err, "unmarshal user info")
-	}
-
-	projects := make([]openapi.Project, 0, len(userInfo.Projects))
-	for _, projectID := range userInfo.Projects {
-		var project openapi.Project
-		if projectData, err := s.configurationsStorage.Get(ProjectSettingsCollection, projectID); err != nil {
-			logging.Warnf("Unable to find project settings with ID %s", projectID)
-			continue
-		} else if err := json.Unmarshal(projectData, &project); err != nil {
-			logging.Warnf("Failed to unmarshal project data for %s", projectID)
-			continue
-		}
-
-		projects = append(projects, project)
-	}
-
-	return projects, nil
 }
 
 //GetOnlyUserID return the only userID. Works only in self-hosted (when authorization is via Redis)

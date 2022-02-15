@@ -184,6 +184,48 @@ func (r *Redis) Delete(collection string, id string) error {
 	return nil
 }
 
+func (r *Redis) GetRelatedIDs(relation string, id string) ([]string, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+	return redis.Strings(conn.Do("SMEMBERS", getRelationKey(relation, id)))
+}
+
+func (r *Redis) AddRelatedIDs(relation string, id string, relatedIDs ...string) error {
+	if len(relatedIDs) == 0 {
+		return nil
+	}
+
+	conn := r.pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("SADD", getRelationArgs(relation, id, relatedIDs)...)
+	return err
+}
+
+func (r *Redis) DeleteRelatedIDs(relation string, id string, relatedIDs ...string) error {
+	if len(relatedIDs) == 0 {
+		return nil
+	}
+
+	conn := r.pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("SREM", getRelationArgs(relation, id, relatedIDs)...)
+	return err
+}
+
+func getRelationArgs(relation, id string, relatedIDs []string) []interface{} {
+	args := make([]interface{}, len(relatedIDs)+1)
+	args[0] = getRelationKey(relation, id)
+	for i, relatedID := range relatedIDs {
+		args[i+1] = relatedID
+	}
+
+	return args
+}
+
+func getRelationKey(relation string, id string) string {
+	return fmt.Sprintf("relation#%s:%s", relation, id)
+}
+
 func toRedisKey(collection string) string {
 	return meta.ConfigPrefix + collection
 }

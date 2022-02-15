@@ -6,6 +6,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/mitchellh/mapstructure"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
@@ -26,7 +28,9 @@ const (
 	apiKeysCollection                    = "api_keys"
 	customDomainsCollection              = "custom_domains"
 	geoDataResolversCollection           = "geo_data_resolvers"
-	projectSettings                      = "project_settings"
+	usersInfoCollection                  = "users_info"
+	projectSettingsCollection            = "project_settings"
+	userProjectRelation                  = "user_project"
 
 	telemetryCollection = "telemetry"
 	TelemetryGlobalID   = "global_configuration"
@@ -814,9 +818,53 @@ func (cs *ConfigurationsService) GetObjectWithLock(objectType, projectID, object
 	return nil, fmt.Errorf("object hasn't been found by id in path [%s] in the collection", objectArrayPath)
 }
 
-func (cs *ConfigurationsService) GetProjectSettings(projectID string) (result Project, err error) {
+func (cs *ConfigurationsService) SaveUserInfoWithProject(userID string, userInfoJSON json.RawMessage) (json.RawMessage, error) {
+	var userInfo struct {
+		Project struct {
+			ID     string  `json:"_id" mapstructure:"id"`
+			Name   string  `json:"_name" mapstructure:"name"`
+			PlanID *string `json:"_planId" mapstructure:"planId"`
+		} `json:"_project"`
+	}
+
+	projectValues := make(map[string]interface{})
+	if err := json.Unmarshal(userInfoJSON, &userInfo); err != nil {
+		return nil, errors.Wrapf(err, "unmarshal user info")
+	} else if err := mapstructure.Decode(userInfo.Project, &projectValues); err != nil {
+		return nil, errors.Wrapf(err, "decode project values")
+	} else if _, err := cs.PatchProject(userInfo.Project.ID, projectValues); err != nil {
+		return nil, errors.Wrapf(err, "patch project settings")
+	} else if err := cs.storage.AddRelatedIDs(userProjectRelation, userID, userInfo.Project.ID); err != nil {
+		return nil, errors.Wrapf(err, "link project to user")
+	} else if result, err := cs.SaveConfigWithLock(usersInfoCollection, userID, userInfoJSON); err != nil {
+		return nil, errors.Wrapf(err, "save user info")
+	} else {
+		return result, nil
+	}
+}
+
+func (cs *ConfigurationsService) GetUserProjects(userID string) ([]openapi.Project, error) {
+	projectIDs, err := cs.storage.GetRelatedIDs(userProjectRelation, userID)
+	if err != nil {
+		return nil, errors.Wrap(err, "get related projects")
+	}
+
+	projects := make([]openapi.Project, 0, len(projectIDs))
+	for _, projectID := range projectIDs {
+		if project, err := cs.GetProject(projectID); err != nil {
+			logging.Warnf("Failed to get project settings with ID %s: %s", projectID, err)
+			continue
+		} else {
+			projects = append(projects, project.Project)
+		}
+	}
+
+	return projects, nil
+}
+
+func (cs *ConfigurationsService) GetProject(projectID string) (result Project, err error) {
 	var data []byte
-	data, err = cs.getWithLock(projectSettings, projectID)
+	data, err = cs.getWithLock(projectSettingsCollection, projectID)
 	if err != nil {
 		return
 	}
@@ -825,8 +873,8 @@ func (cs *ConfigurationsService) GetProjectSettings(projectID string) (result Pr
 	return
 }
 
-func (cs *ConfigurationsService) PatchProjectSettings(projectID string, patch map[string]interface{}) (result Project, err error) {
-	objectType := projectSettings
+func (cs *ConfigurationsService) PatchProject(projectID string, patch map[string]interface{}) (result Project, err error) {
+	objectType := projectSettingsCollection
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
 		return
