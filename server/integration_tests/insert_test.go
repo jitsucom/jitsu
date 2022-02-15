@@ -17,6 +17,7 @@ import (
 	"github.com/jitsucom/jitsu/server/test"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/jitsucom/jitsu/server/uuid"
+	sf "github.com/snowflakedb/gosnowflake"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"math/rand"
@@ -138,6 +139,30 @@ func TestDestinationAdapterInsert(t *testing.T) {
 			adapters.RedshiftValuesLimit + rand.Intn(1000) + 1, //make sure that there will be 2 iterations on insert
 			rand.Intn(10),
 			adapters.RedshiftValuesLimit + rand.Intn(1000) + 1, //make sure that there will be 2 iterations on insert
+			rand.Intn(30_000) + 1,
+			10,
+			5,
+			10, //no deduplication on stream insert
+		},
+		{
+			"Insert into Clickhouse test",
+			storages.ClickHouseType,
+			adapters.SchemaToClickhouse,
+			rand.Intn(50_000) + 1,
+			rand.Intn(10),
+			rand.Intn(50_000) + 1,
+			rand.Intn(30_000) + 1,
+			10,
+			5,
+			5, //deduplication on stream insert
+		},
+		{
+			"Insert into Snowflake test",
+			storages.SnowflakeType,
+			adapters.SchemaToSnowflake,
+			adapters.PostgresValuesLimit + rand.Intn(1000) + 1, //make sure that there will be 2 iterations on insert
+			rand.Intn(10),
+			adapters.PostgresValuesLimit + rand.Intn(1000) + 1, //make sure that there will be 2 iterations on insert
 			rand.Intn(30_000) + 1,
 			10,
 			5,
@@ -348,6 +373,7 @@ func initializeTestSuite(t *testing.T, destinationType string) (*InsertTestSuite
 		}
 
 		if err = dataSource.Ping(); err != nil {
+			dataSource.Close()
 			redshift.Close()
 			return nil, fmt.Errorf("error ping datasource for asserts: %v", err)
 		}
@@ -357,6 +383,80 @@ func initializeTestSuite(t *testing.T, destinationType string) (*InsertTestSuite
 			adapter:    redshift,
 			datasource: dataSource,
 			Schema:     redshiftConfig.Schema,
+		}, nil
+
+	case storages.ClickHouseType:
+		container, err := test.NewClickhouseContainer(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize container: %v", err)
+		}
+
+		tsf, err := adapters.NewTableStatementFactory(&adapters.ClickHouseConfig{
+			Dsns:     container.Dsns,
+			Database: container.Database,
+			Cluster:  "",
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize table statement factory: %v", err)
+		}
+
+		adapter, err := adapters.NewClickHouse(ctx, container.Dsns[0], container.Database, "", nil, tsf, map[string]bool{},
+			&logging.QueryLogger{}, typing.SQLTypes{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create adapter: %v", err)
+		}
+
+		return &InsertTestSuite{
+			container:  container,
+			adapter:    adapter,
+			datasource: nil,
+			Schema:     container.Database,
+		}, nil
+
+	case storages.SnowflakeType:
+		snowflakeConfig, ok := adapters.ReadSFConfig(t)
+		if !ok {
+			return nil, ErrNotConfigured
+		}
+
+		snowflakeAdapter, err := adapters.NewSnowflake(context.Background(), snowflakeConfig, nil, &logging.QueryLogger{}, typing.SQLTypes{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create adapter: %v", err)
+		}
+
+		//initialize datasource for asserts
+		cfg := &sf.Config{
+			Account:   snowflakeConfig.Account,
+			User:      snowflakeConfig.Username,
+			Password:  snowflakeConfig.Password,
+			Port:      snowflakeConfig.Port,
+			Schema:    snowflakeConfig.Schema,
+			Database:  snowflakeConfig.Db,
+			Warehouse: snowflakeConfig.Warehouse,
+			Params:    snowflakeConfig.Parameters,
+		}
+		connectionString, err := sf.DSN(cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		dataSource, err := sql.Open("snowflake", connectionString)
+		if err != nil {
+			snowflakeAdapter.Close()
+			return nil, err
+		}
+
+		if err := dataSource.Ping(); err != nil {
+			snowflakeAdapter.Close()
+			dataSource.Close()
+			return nil, err
+		}
+
+		return &InsertTestSuite{
+			container:  nil,
+			adapter:    snowflakeAdapter,
+			datasource: dataSource,
+			Schema:     snowflakeConfig.Schema,
 		}, nil
 	default:
 		return nil, errors.New("unknown destination type for creating test suite")
