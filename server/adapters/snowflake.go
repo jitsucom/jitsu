@@ -415,6 +415,10 @@ func (s *Snowflake) insertBatch(table *Table, objects []map[string]interface{}, 
 		}
 	}
 
+	if len(table.PKFields) == 0 {
+		return s.bulkInsertInTransaction(wrappedTx, table, objects)
+	}
+
 	//deduplication for bulkMerge success (it fails if there is any duplicate)
 	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
 
