@@ -362,3 +362,7 @@ export function flatten(data: any): any {
     }
   }, {})
 }
+
+export function getObjectDepth(value: unknown): number {
+  return Object(value) === value ? 1 + Math.max(-1, ...Object.values(value).map(getObjectDepth)) : 0
+}

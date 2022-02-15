@@ -136,7 +136,7 @@ export default class ApplicationServices implements IApplicationServices {
   }
 
   private async loadBackendConfiguration(): Promise<FeatureSettings> {
-    let fullUrl = concatenateURLs(this._applicationConfiguration.backendApiBase, "/system/configuration")
+    let fullUrl = concatenateURLs(this._applicationConfiguration.backendApiBase, "/v1/system/configuration")
     let request: AxiosRequestConfig = {
       method: "GET",
       url: fullUrl,

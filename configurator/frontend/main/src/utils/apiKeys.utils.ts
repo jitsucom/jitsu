@@ -1,5 +1,5 @@
 export const APIKeyUtil = {
-  getDisplayName: (key: APIKey) => {
+  getDisplayName: (key: ApiKey) => {
     return key.comment || key.uid
   },
 }
