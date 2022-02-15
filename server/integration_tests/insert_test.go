@@ -241,7 +241,7 @@ func insertBatch(t *testing.T, processor *schema.Processor, adapter adapters.SQL
 	logging.Debugf("start inserting batch %d object into %s. It can take some time", len(data), destinationType)
 	start := time.Now()
 
-	firstBatch, fe, se, err := processor.ProcessEvents("testfile", data, map[string]bool{}, false)
+	firstBatch, _, fe, se, err := processor.ProcessEvents("testfile", data, map[string]bool{}, false)
 	require.NoError(t, err)
 	require.True(t, fe.IsEmpty())
 	require.True(t, se.IsEmpty())
