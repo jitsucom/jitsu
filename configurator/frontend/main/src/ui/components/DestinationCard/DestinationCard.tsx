@@ -20,10 +20,8 @@ export type DestinationCardProps = {
 
 export function DestinationCard({ dst }: DestinationCardProps) {
   const reference = destinationsReferenceMap[dst._type]
-  const services = useServices()
   const rename = async (newName: string) => {
-    await services.storageService.table("destinations").patch(dst._uid, { displayName: newName })
-    await flowResult(destinationsStore.pullDestinations())
+    await flowResult(destinationsStore.patch(dst._uid, { displayName: newName }, { updateConnections: false }))
   }
   let deleteAction = () => {
     Modal.confirm({
@@ -32,11 +30,10 @@ export function DestinationCard({ dst }: DestinationCardProps) {
       content: "Are you sure you want to delete " + dst._id + " destination?",
       okText: "Delete",
       cancelText: "Cancel",
-      onOk: () => {
-        const destinationToDelete = destinationsStore.getDestinationById(dst._id)
-
+      onOk: async () => {
+        const destinationToDelete = destinationsStore.get(dst._id)
         try {
-          destinationsStore.deleteDestination(destinationToDelete)
+          await flowResult(destinationsStore.delete(destinationToDelete._uid))
         } catch (errors) {
           handleError(errors, "Unable to delete destination at this moment, please try later.")
         }

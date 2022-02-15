@@ -3,14 +3,15 @@ import { observer } from "mobx-react-lite"
 // @Pages
 import { DestinationEditor } from "../DestinationsPage/partials/DestinationEditor/DestinationEditor"
 // @Store
-import { destinationsStore, DestinationsStoreState } from "stores/destinations"
-import { sourcesStore, SourcesStoreState } from "stores/sources"
+import { destinationsStore } from "stores/destinations"
+import { sourcesStore } from "stores/sources"
 // @Components
 import { CenteredError, CenteredSpin } from "lib/components/components"
 // @Types
 import { useState } from "react"
 import { useForceUpdate } from "../../../hooks/useForceUpdate"
 import dbtcloud from "@jitsu/catalog/destinations/lib/dbtcloud"
+import { EntitiesStoreState } from "stores/types.enums"
 
 export interface CollectionDestinationData {
   destinations: DestinationData[]
@@ -23,22 +24,22 @@ export interface CommonDestinationPageProps {
 
 const DbtCloudPageComponent: React.FC = () => {
   const [dbtCloudData, setDbtCloudData] = useState(
-    destinationsStore.hiddenDestinations.find(value => value._type == "dbtcloud")
+    destinationsStore.listHidden.find(value => value._type == "dbtcloud")
   )
   const [editorMode, setEditorMode] = useState((dbtCloudData ? "edit" : "add") as "edit" | "add")
 
   const forceUpdate = useForceUpdate()
 
-  if (destinationsStore.state === DestinationsStoreState.GLOBAL_ERROR) {
+  if (destinationsStore.state === EntitiesStoreState.GLOBAL_ERROR) {
     return <CenteredError error={destinationsStore.error} />
   } else if (
-    destinationsStore.state === DestinationsStoreState.GLOBAL_LOADING ||
-    sourcesStore.state === SourcesStoreState.GLOBAL_LOADING
+    destinationsStore.state === EntitiesStoreState.GLOBAL_LOADING ||
+    sourcesStore.state === EntitiesStoreState.GLOBAL_LOADING
   ) {
     return <CenteredSpin />
   }
   const onSaveSucceded = function () {
-    setDbtCloudData(destinationsStore.hiddenDestinations.find(value => value._type == "dbtcloud"))
+    setDbtCloudData(destinationsStore.listHidden.find(value => value._type == "dbtcloud"))
     setEditorMode("edit")
     forceUpdate()
   }

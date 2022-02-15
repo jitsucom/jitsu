@@ -136,7 +136,7 @@ export const createInitialSourceData = (sourceCatalogData: SourceConnector) =>
   ({
     sourceId: sourcePageUtils.getSourceId(
       sourceCatalogData.id,
-      sourcesStore.sources.map(source => source.sourceId)
+      sourcesStore.list.map(source => source.sourceId)
     ),
     schedule: COLLECTIONS_SCHEDULES[0].value,
     connected: false,
