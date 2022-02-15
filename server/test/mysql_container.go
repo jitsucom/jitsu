@@ -43,8 +43,24 @@ func NewMySQLContainer(ctx context.Context) (*MySQLContainer, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &MySQLContainer{Context: ctx, Host: "localhost", Port: port,
-			Database: mySQLDatabase, Username: mySQLUser, Password: mySQLPassword}, nil
+
+		// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
+		connectionString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+			mySQLUser, mySQLPassword, "localhpst", port, mySQLDatabase)
+		dataSource, err := sql.Open("mysql", connectionString)
+		if err != nil {
+			return nil, err
+		}
+
+		return &MySQLContainer{
+			datasource: dataSource,
+			Context:    ctx,
+			Host:       "localhost",
+			Port:       port,
+			Database:   mySQLDatabase,
+			Username:   mySQLUser,
+			Password:   mySQLPassword,
+		}, nil
 	}
 	dbSettings := make(map[string]string, 0)
 	dbSettings["MYSQL_ROOT_PASSWORD"] = mySQLRootPassword
