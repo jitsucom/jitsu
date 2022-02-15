@@ -21,7 +21,7 @@ export const hubspot = {
         properties: {
           api_key: {
             description:
-              'Hubspot API Key. See our <a href="https://docs.airbyte.io/integrations/sources/hubspot">docs</a> if you need help finding this key.',
+              'Hubspot API Key. See our <a target="_blank" href="https://docs.airbyte.io/integrations/sources/hubspot">docs</a> if you need help finding this key.',
             type: "string",
             airbyte_secret: true,
           },
@@ -135,7 +135,7 @@ export const mongodb = {
         title: "Authentication source",
         type: "string",
         description:
-          'Authentication source where user information is stored. See <a href="* [Authentication Source](https://docs.mongodb.com/manual/reference/connection-string/#mongodb-urioption-urioption.authSource)"> the Mongo docs</a> for more info.',
+          'Authentication source where user information is stored. See <a target="_blank" href="* [Authentication Source](https://docs.mongodb.com/manual/reference/connection-string/#mongodb-urioption-urioption.authSource)"> the Mongo docs</a> for more info.',
         default: "admin",
         examples: ["admin"],
         order: 5,
@@ -177,7 +177,7 @@ export const mailchimp = {
         type: "string",
         airbyte_secret: true,
         description:
-          'API Key. See the <a href="https://docs.airbyte.io/integrations/sources/mailchimp">docs</a> for information on how to generate this key.',
+          'API Key. See the <a target="_blank" href="https://docs.airbyte.io/integrations/sources/mailchimp">docs</a> for information on how to generate this key.',
       },
     },
   },
@@ -201,7 +201,7 @@ export const feshdesk = {
       api_key: {
         type: "string",
         description:
-          'Freshdesk API Key. See the <a href="https://docs.airbyte.io/integrations/sources/freshdesk">docs</a> for more information on how to obtain this key.',
+          'Freshdesk API Key. See the <a target="_blank" href="https://docs.airbyte.io/integrations/sources/freshdesk">docs</a> for more information on how to obtain this key.',
         airbyte_secret: true,
       },
       requests_per_minute: {
@@ -233,7 +233,7 @@ export const instagram = {
       access_token: {
         title: "Access Token",
         description:
-          'The value of the access token generated. See the <a href="https://docs.airbyte.io/integrations/sources/instagram">docs</a> for more information',
+          'The value of the access token generated. See the <a target="_blank" href="https://docs.airbyte.io/integrations/sources/instagram">docs</a> for more information',
         airbyte_secret: true,
         type: "string",
       },
@@ -261,27 +261,27 @@ export const googleAds = {
             type: "string",
             title: "Developer Token",
             description:
-              'Developer token granted by Google to use their APIs. More instruction on how to find this value in our <a href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
+              'Developer token granted by Google to use their APIs. More instruction on how to find this value in our <a target="_blank" href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
             airbyte_secret: true,
           },
           client_id: {
             type: "string",
             title: "Client Id",
             description:
-              'Google client id. More instruction on how to find this value in our <a href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
+              'Google client id. More instruction on how to find this value in our <a target="_blank" href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
           },
           client_secret: {
             type: "string",
             title: "Client Secret",
             description:
-              'Google client secret. More instruction on how to find this value in our <a href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
+              'Google client secret. More instruction on how to find this value in our <a target="_blank" href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
             airbyte_secret: true,
           },
           refresh_token: {
             type: "string",
             title: "Refresh Token",
             description:
-              'Refresh token generated using developer_token, oauth_client_id, and oauth_client_secret. More instruction on how to find this value in our <a href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
+              'Refresh token generated using developer_token, oauth_client_id, and oauth_client_secret. More instruction on how to find this value in our <a target="_blank" href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
             airbyte_secret: true,
           },
         },
@@ -290,13 +290,13 @@ export const googleAds = {
         title: "Customer Id",
         type: "string",
         description:
-          'Customer id must be specified as a 10-digit number without dashes. More instruction on how to find this value in our <a href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
+          'Customer id must be specified as a 10-digit number without dashes. More instruction on how to find this value in our <a target="_blank" href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
       },
       login_customer_id: {
         type: "string",
         title: "Login Customer ID",
         description:
-          'If your access to the customer account is through a manager account, this field is required and must be set to the customer ID of the manager account (10-digit number without dashes). More information about this field you can see <a href="https://developers.google.com/google-ads/api/docs/concepts/call-structure#cid">here</a>',
+          'If your access to the customer account is through a manager account, this field is required and must be set to the customer ID of the manager account (10-digit number without dashes). More information about this field you can see <a target="_blank" href="https://developers.google.com/google-ads/api/docs/concepts/call-structure#cid">here</a>',
       },
       start_date: {
         type: "string",
@@ -409,7 +409,7 @@ export const postgres = {
           {
             additionalProperties: false,
             description:
-              'Logical replication uses the Postgres write-ahead log (WAL) to detect inserts, updates, and deletes. This needs to be configured on the source database itself. Only available on Postgres 10 and above. Read the <a href="https://docs.airbyte.io/integrations/sources/postgres">Postgres Source</a> docs for more information.',
+              'Logical replication uses the Postgres write-ahead log (WAL) to detect inserts, updates, and deletes. This needs to be configured on the source database itself. Only available on Postgres 10 and above. Read the <a target="_blank" href="https://docs.airbyte.io/integrations/sources/postgres">Postgres Source</a> docs for more information.',
             properties: {
               method: {
                 const: "CDC",
@@ -421,7 +421,7 @@ export const postgres = {
               plugin: {
                 default: "pgoutput",
                 description:
-                  'A logical decoding plug-in installed on the PostgreSQL server. `pgoutput` plug-in is used by default.\nIf replication table contains a lot of big jsonb values it is recommended to use `wal2json` plug-in. For more information about `wal2json` plug-in read <a href="https://docs.airbyte.io/integrations/sources/postgres">Postgres Source</a> docs.',
+                  'A logical decoding plug-in installed on the PostgreSQL server. `pgoutput` plug-in is used by default.\nIf replication table contains a lot of big jsonb values it is recommended to use `wal2json` plug-in. For more information about `wal2json` plug-in read <a target="_blank" href="https://docs.airbyte.io/integrations/sources/postgres">Postgres Source</a> docs.',
                 enum: ["pgoutput", "wal2json"],
                 order: 1,
                 type: "string",
@@ -679,7 +679,7 @@ export const github = {
               personal_access_token: {
                 airbyte_secret: true,
                 description:
-                  'Log into Github and then generate a <a href="https://github.com/settings/tokens"> personal access token</a>. To load balance your API quota consumption across multiple API tokens, input multiple tokens separated with ","',
+                  'Log into Github and then generate a <a target="_blank" href="https://github.com/settings/tokens"> personal access token</a>. To load balance your API quota consumption across multiple API tokens, input multiple tokens separated with ","',
                 title: "Personal Access Tokens",
                 type: "string",
               },

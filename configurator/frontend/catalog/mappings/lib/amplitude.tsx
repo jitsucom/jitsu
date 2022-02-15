@@ -5,7 +5,7 @@ const mapping: DestinationConfigurationTemplate = {
   comment: (
     <>
       This templates converts incoming events to{" "}
-      <a href="https://developers.amplitude.com/docs/http-api-v2">Amplitude</a> API calls. Make sure you use Amplitude
+      <a target="_blank" href="https://developers.amplitude.com/docs/http-api-v2">Amplitude</a> API calls. Make sure you use Amplitude
       destination, otherwise configuration won't make much sense
     </>
   ),

@@ -89,7 +89,7 @@ const mixpanelDestination = {
       documentation: (
         <>
           ID of Mixpanel project. Can be found in the Project Details section of a project's settings overview page:{" "}
-          <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a>
+          <a target="_blank" href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a>
         </>
       ),
     },
@@ -100,9 +100,9 @@ const mixpanelDestination = {
       type: stringType,
       documentation: (
         <>
-          <a href="https://developer.mixpanel.com/reference/project-token">Project Token</a>. A project's token can be
+          <a target="_blank" href="https://developer.mixpanel.com/reference/project-token">Project Token</a>. A project's token can be
           found in the Access Keys section of a project's settings overview page:{" "}
-          <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a>
+          <a target="_blank" href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a>
         </>
       ),
     },
@@ -113,9 +113,9 @@ const mixpanelDestination = {
       type: stringType,
       documentation: (
         <>
-          <a href="https://developer.mixpanel.com/reference/project-secret">API Secret</a>. A project's API Secret can
+          <a target="_blank" href="https://developer.mixpanel.com/reference/project-secret">API Secret</a>. A project's API Secret can
           be found in the Access Keys section of a project's settings overview page:{" "}
-          <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a>
+          <a target="_blank" href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a>
         </>
       ),
     },
@@ -127,7 +127,7 @@ const mixpanelDestination = {
       documentation: (
         <>
           Enables Mixpanel destination to work with User Profiles. <br /> See{" "}
-          <a href="https://jitsu.com/docs/destinations-configuration/mixpanel#user-profiles">User Profiles</a> section
+          <a target="_blank" href="https://jitsu.com/docs/destinations-configuration/mixpanel#user-profiles">User Profiles</a> section
           of Documentation
         </>
       ),

@@ -54,7 +54,7 @@ const BillingBlockingModal = (props: BillingBlockingModalProps) => {
           the right to pause it at any moment
         </p>
         <p>
-          Please upgrade to any of the <a href="https://jitsu.com/pricing">following plans</a>:{" "}
+          Please upgrade to any of the <a target="_blank" href="https://jitsu.com/pricing">following plans</a>:{" "}
         </p>
         <UpgradePlan planStatus={props.subscription} />
       </div>

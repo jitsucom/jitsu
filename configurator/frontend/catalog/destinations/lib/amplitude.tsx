@@ -37,7 +37,7 @@ const amplitudeDestination = {
   description: (
     <>
       Jitsu can send events from JS SDK or Events API to{" "}
-      <a href="https://developers.amplitude.com/docs/http-api-v2>">Amplitude API</a>. Amplitude is an real-time
+      <a target="_blank" href="https://developers.amplitude.com/docs/http-api-v2>">Amplitude API</a>. Amplitude is an real-time
       analytics platform for marketers that can build dashboards to filter new users by country, user activity,
       retention rate and funnel audiences by custom events
     </>
@@ -66,7 +66,7 @@ return toAmplitude($)`,
       type: stringType,
       documentation: (
         <>
-          Your Amplitude API Key from <a href="https://analytics.amplitude.com/">Project Settings</a> page.
+          Your Amplitude API Key from <a target="_blank" href="https://analytics.amplitude.com/">Project Settings</a> page.
         </>
       ),
     },
