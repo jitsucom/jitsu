@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jitsucom/jitsu/configurator/common"
+
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/hashicorp/go-multierror"
@@ -850,23 +852,54 @@ func (cs *ConfigurationsService) SaveUserInfoWithProject(userID string, userInfo
 	}
 }
 
-func (cs *ConfigurationsService) GetUserProjects(userID string) ([]openapi.Project, error) {
-	projectIDs, err := cs.storage.GetRelatedIDs(userProjectRelation, userID)
+func (cs *ConfigurationsService) LinkUserToProject(userID, projectID string) error {
+	return cs.storage.AddRelatedIDs(userProjectRelation, userID, projectID)
+}
+
+func (cs *ConfigurationsService) UnlinkUserFromProject(userID, projectID string) error {
+	return cs.storage.DeleteRelatedIDs(userProjectRelation, userID, projectID)
+}
+
+func (cs *ConfigurationsService) GetAllProjects() ([]openapi.Project, error) {
+	projectsData, err := cs.storage.GetAllGroupedByID(projectSettingsCollection)
 	if err != nil {
-		return nil, errors.Wrap(err, "get related projects")
+		return nil, errors.Wrap(err, "load all projects")
 	}
 
-	projects := make([]openapi.Project, 0, len(projectIDs))
-	for _, projectID := range projectIDs {
-		if project, err := cs.GetProject(projectID); err != nil {
-			logging.Warnf("Failed to get project settings with ID %s: %s", projectID, err)
-			continue
-		} else {
-			projects = append(projects, project.Project)
+	projects := make([]openapi.Project, 0, len(projectsData))
+	for projectID, projectData := range projectsData {
+		var project openapi.Project
+		if err := json.Unmarshal(projectData, &project); err != nil {
+			return nil, errors.Wrapf(err, "unmarshal project %s", projectID)
 		}
+
+		projects = append(projects, project)
 	}
 
 	return projects, nil
+}
+
+func (cs *ConfigurationsService) GetProjectUsers(projectID string) ([]string, error) {
+	index, err := cs.storage.GetRelationIndex(userProjectRelation)
+	if err != nil {
+		return nil, errors.Wrap(err, "get user project relation index")
+	}
+
+	userIDs := make(common.StringSet)
+	for _, userID := range index {
+		if relatedProjectIDs, err := cs.storage.GetRelatedIDs(userProjectRelation, userID); err != nil {
+			return nil, errors.Wrapf(err, "get related projects for user %s", userID)
+		} else {
+			for _, relatedProjectID := range relatedProjectIDs {
+				if relatedProjectID == projectID {
+					userIDs[userID] = true
+					break
+				}
+			}
+		}
+	}
+
+	return userIDs.Values(), nil
 }
 
 func (cs *ConfigurationsService) GetProject(projectID string) (result Project, err error) {

@@ -2,14 +2,16 @@ package middleware
 
 import (
 	"fmt"
+	"net/http"
+	"regexp"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/authorization"
+	"github.com/jitsucom/jitsu/configurator/common"
 	"github.com/jitsucom/jitsu/configurator/openapi"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
-	"net/http"
-	"regexp"
 )
 
 const (
@@ -55,7 +57,6 @@ func (a *Authenticator) BearerAuth(c *gin.Context) {
 	c.Set(TokenKey, token)
 
 	access := &ProjectAccess{
-		projects:    map[string]bool{},
 		adminAccess: token == a.serverToken,
 	}
 
@@ -90,8 +91,8 @@ func (a *Authenticator) BearerAuth(c *gin.Context) {
 		}
 		c.Set(UserIDKey, userID)
 
-		if projectID, err := a.service.GetProjectID(userID); err == nil {
-			access.projects[projectID] = true
+		if projectIDs, err := a.service.GetProjectIDs(userID); err == nil {
+			access.projects = common.StringSetFrom(projectIDs)
 		}
 
 		//added permissions on global configuration
