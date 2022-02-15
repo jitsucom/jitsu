@@ -22,6 +22,7 @@ type SQLAdapter interface {
 	CreateTable(schemaToCreate *Table) error
 	PatchTableSchema(schemaToAdd *Table) error
 	Truncate(tableName string) error
+	DropTable(table *Table) (err error)
 }
 
 //Adapter is an adapter for all destinations

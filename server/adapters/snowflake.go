@@ -525,15 +525,15 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 	}
 	valuesAmount := len(objects) * len(table.Columns)
 	maxValues := valuesAmount
-	if maxValues > postgresValuesLimit {
-		maxValues = postgresValuesLimit
+	if maxValues > PostgresValuesLimit {
+		maxValues = PostgresValuesLimit
 	}
 	valueArgs := make([]interface{}, 0, maxValues)
 	operation := 0
-	operations := int(math.Max(1, float64(valuesAmount)/float64(postgresValuesLimit)))
+	operations := int(math.Max(1, float64(valuesAmount)/float64(PostgresValuesLimit)))
 	for _, row := range objects {
 		// if number of values exceeds limit, we have to execute insert query on processed rows
-		if len(valueArgs)+len(unformattedColumnNames) > postgresValuesLimit {
+		if len(valueArgs)+len(unformattedColumnNames) > PostgresValuesLimit {
 			operation++
 			if err := s.executeInsertInTransaction(wrappedTx, table, unformattedColumnNames, removeLastComma(placeholdersBuilder.String()), valueArgs); err != nil {
 				return errorj.Decorate(err, "middle insert %d of %d in batch", operation, operations)

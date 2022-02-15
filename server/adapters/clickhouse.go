@@ -422,7 +422,7 @@ func (ch *ClickHouse) Insert(insertContext *InsertContext) error {
 	} else {
 		if !insertContext.deleteConditions.IsEmpty() {
 			if err := ch.delete(insertContext.table, insertContext.deleteConditions); err != nil {
-				return errorj.Decorate(err, "failed to execute delete in insert", err)
+				return errorj.Decorate(err, "failed to execute delete in insert")
 			}
 		}
 		return ch.insert(insertContext.table, insertContext.objects...)

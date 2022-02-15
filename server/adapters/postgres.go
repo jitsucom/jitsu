@@ -60,7 +60,7 @@ WHERE tco.constraint_type = 'PRIMARY KEY' AND
 	dropColumnTemplate            = `ALTER TABLE "%s"."%s" DROP COLUMN %s`
 	renameColumnTemplate          = `ALTER TABLE "%s"."%s" RENAME COLUMN %s TO %s`
 	postgresTruncateTableTemplate = `TRUNCATE "%s"."%s"`
-	postgresValuesLimit           = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	PostgresValuesLimit           = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
 var (
@@ -99,7 +99,7 @@ func (ep *ErrorPayload) String() string {
 		msgParts = append(msgParts, fmt.Sprintf("project=%s", ep.Project))
 	}
 	if ep.Database != "" {
-		msgParts = append(msgParts, fmt.Sprintf("database=%s", ep.Dataset))
+		msgParts = append(msgParts, fmt.Sprintf("database=%s", ep.Database))
 	}
 	if ep.Cluster != "" {
 		msgParts = append(msgParts, fmt.Sprintf("cluster=%s", ep.Cluster))
@@ -360,7 +360,7 @@ func (p *Postgres) insertBatch(table *Table, objects []map[string]interface{}, d
 	}
 
 	if len(table.PKFields) == 0 {
-		return p.bulkInsertInTransaction(wrappedTx, table, objects, postgresValuesLimit)
+		return p.bulkInsertInTransaction(wrappedTx, table, objects, PostgresValuesLimit)
 	}
 
 	//deduplication for bulkMerge success (it fails if there is any duplicate)
@@ -728,7 +728,7 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 		return errorj.Decorate(err, "failed to create temporary table")
 	}
 
-	if err := p.bulkInsertInTransaction(wrappedTx, tmpTable, objects, postgresValuesLimit); err != nil {
+	if err := p.bulkInsertInTransaction(wrappedTx, tmpTable, objects, PostgresValuesLimit); err != nil {
 		return errorj.Decorate(err, "failed to insert into temporary table")
 	}
 
