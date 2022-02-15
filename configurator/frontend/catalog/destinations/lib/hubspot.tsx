@@ -26,7 +26,7 @@ const hubspotDestination = {
   description: (
     <>
       Jitsu can send events from JS SDK or Events API to{" "}
-      <a href="https://developers.hubspot.com/docs/api/overview">HubSpot</a>. HubSpot is a marketing and sales platform
+      <a target="_blank" href="https://developers.hubspot.com/docs/api/overview">HubSpot</a>. HubSpot is a marketing and sales platform
       that helps companies to track and account customers path from website visitors, leads to payment clients{" "}
     </>
   ),

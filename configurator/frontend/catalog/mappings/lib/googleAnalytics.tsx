@@ -5,7 +5,7 @@ const mapping: DestinationConfigurationTemplate = {
   comment: (
     <>
       This templates converts incoming events to{" "}
-      <a href="https://developers.google.com/analytics/devguides/collection/protocol/v1">
+      <a target="_blank" href="https://developers.google.com/analytics/devguides/collection/protocol/v1">
         Google Analytics Measurement API
       </a>{" "}
       calls. Make sure you use Google Analytics destination, otherwise configuration won't make much sense

@@ -36,7 +36,7 @@ export const hubspot: Parameter[] = [
       <span
         dangerouslySetInnerHTML={{
           __html:
-            'Hubspot API Key. See our <a href="https://docs.airbyte.io/integrations/sources/hubspot">docs</a> if you need help finding this key.',
+            'Hubspot API Key. See our <a target="_blank" href="https://docs.airbyte.io/integrations/sources/hubspot">docs</a> if you need help finding this key.',
         }}
       />
     ),
@@ -182,7 +182,7 @@ export const mongodb: Parameter[] = [
       <span
         dangerouslySetInnerHTML={{
           __html:
-            'Authentication source where user information is stored. See <a href="* [Authentication Source](https://docs.mongodb.com/manual/reference/connection-string/#mongodb-urioption-urioption.authSource)"> the Mongo docs</a> for more info.',
+            'Authentication source where user information is stored. See <a target="_blank" href="* [Authentication Source](https://docs.mongodb.com/manual/reference/connection-string/#mongodb-urioption-urioption.authSource)"> the Mongo docs</a> for more info.',
         }}
       />
     ),
@@ -228,7 +228,7 @@ export const googleAds: Parameter[] = [
       <span
         dangerouslySetInnerHTML={{
           __html:
-            'Developer token granted by Google to use their APIs. More instruction on how to find this value in our <a href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
+            'Developer token granted by Google to use their APIs. More instruction on how to find this value in our <a target="_blank" href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
         }}
       />
     ),
@@ -242,7 +242,7 @@ export const googleAds: Parameter[] = [
       <span
         dangerouslySetInnerHTML={{
           __html:
-            'Google client id. More instruction on how to find this value in our <a href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
+            'Google client id. More instruction on how to find this value in our <a target="_blank" href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
         }}
       />
     ),
@@ -256,7 +256,7 @@ export const googleAds: Parameter[] = [
       <span
         dangerouslySetInnerHTML={{
           __html:
-            'Google client secret. More instruction on how to find this value in our <a href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
+            'Google client secret. More instruction on how to find this value in our <a target="_blank" href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
         }}
       />
     ),
@@ -270,7 +270,7 @@ export const googleAds: Parameter[] = [
       <span
         dangerouslySetInnerHTML={{
           __html:
-            'Refresh token generated using developer_token, oauth_client_id, and oauth_client_secret. More instruction on how to find this value in our <a href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
+            'Refresh token generated using developer_token, oauth_client_id, and oauth_client_secret. More instruction on how to find this value in our <a target="_blank" href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
         }}
       />
     ),
@@ -284,7 +284,7 @@ export const googleAds: Parameter[] = [
       <span
         dangerouslySetInnerHTML={{
           __html:
-            'Customer id must be specified as a 10-digit number without dashes. More instruction on how to find this value in our <a href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
+            'Customer id must be specified as a 10-digit number without dashes. More instruction on how to find this value in our <a target="_blank" href="https://docs.airbyte.io/integrations/sources/google-adwords#setup-guide">docs</a>',
         }}
       />
     ),
@@ -298,7 +298,7 @@ export const googleAds: Parameter[] = [
       <span
         dangerouslySetInnerHTML={{
           __html:
-            'If your access to the customer account is through a manager account, this field is required and must be set to the customer ID of the manager account (10-digit number without dashes). More information about this field you can see <a href="https://developers.google.com/google-ads/api/docs/concepts/call-structure#cid">here</a>',
+            'If your access to the customer account is through a manager account, this field is required and must be set to the customer ID of the manager account (10-digit number without dashes). More information about this field you can see <a target="_blank" href="https://developers.google.com/google-ads/api/docs/concepts/call-structure#cid">here</a>',
         }}
       />
     ),
@@ -419,7 +419,7 @@ export const postgres: Parameter[] = [
       <span
         dangerouslySetInnerHTML={{
           __html:
-            'A logical decoding plug-in installed on the PostgreSQL server. `pgoutput` plug-in is used by default.\nIf replication table contains a lot of big jsonb values it is recommended to use `wal2json` plug-in. For more information about `wal2json` plug-in read <a href="https://docs.airbyte.io/integrations/sources/postgres">Postgres Source</a> docs.',
+            'A logical decoding plug-in installed on the PostgreSQL server. `pgoutput` plug-in is used by default.\nIf replication table contains a lot of big jsonb values it is recommended to use `wal2json` plug-in. For more information about `wal2json` plug-in read <a target="_blank" href="https://docs.airbyte.io/integrations/sources/postgres">Postgres Source</a> docs.',
         }}
       />
     ),
@@ -730,7 +730,7 @@ export const github: Parameter[] = [
       <span
         dangerouslySetInnerHTML={{
           __html:
-            'Log into Github and then generate a <a href="https://github.com/settings/tokens"> personal access token</a>. To load balance your API quota consumption across multiple API tokens, input multiple tokens separated with ","',
+            'Log into Github and then generate a <a target="_blank" href="https://github.com/settings/tokens"> personal access token</a>. To load balance your API quota consumption across multiple API tokens, input multiple tokens separated with ","',
         }}
       />
     ),
