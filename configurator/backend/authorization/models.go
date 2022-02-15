@@ -9,12 +9,7 @@ type User struct {
 
 // UserInfo and Project models are used only to extract _project._id
 type UserInfo struct {
-	Project Project `json:"_project"`
-}
-
-type Project struct {
-	ID   string `json:"_id"`
-	Name string `json:"_name"`
+	Projects []string `mapstructure:"projects"`
 }
 
 //TokenEntity is a Redis entity for storing authorization

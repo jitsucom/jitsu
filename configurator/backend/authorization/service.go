@@ -3,8 +3,11 @@ package authorization
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+
+	"github.com/jitsucom/jitsu/configurator/openapi"
+	"github.com/pkg/errors"
+
 	"github.com/jitsucom/jitsu/configurator/storages"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -14,10 +17,11 @@ import (
 )
 
 const (
-	UsersInfoCollection = "users_info"
-	usersInfoEmailKey   = "_email"
-	RedisType           = "redis"
-	FirebaseType        = "firebase"
+	UsersInfoCollection       = "users_info"
+	ProjectSettingsCollection = "project_settings"
+	usersInfoEmailKey         = "_email"
+	RedisType                 = "redis"
+	FirebaseType              = "firebase"
 )
 
 var (
@@ -82,38 +86,50 @@ func (s *Service) Authenticate(token string) (string, error) {
 
 //GetProjectID return projectID from storage by userID
 func (s *Service) GetProjectID(userID string) (string, error) {
-	usersInfoResponse, err := s.configurationsStorage.Get(UsersInfoCollection, userID)
-	if err != nil {
-		return "", err
+	var userInfo struct {
+		Projects []string `json:"projects"`
 	}
 
-	var userInfo UserInfo
-	err = json.Unmarshal(usersInfoResponse, &userInfo)
-	if err != nil {
-		return "", err
+	if userInfoData, err := s.configurationsStorage.Get(UsersInfoCollection, userID); err != nil {
+		return "", errors.Wrap(err, "load user info")
+	} else if err := json.Unmarshal(userInfoData, &userInfo); err != nil {
+		return "", errors.Wrap(err, "unmarshal user info")
 	}
 
-	if userInfo.Project.ID == "" {
-		return "", fmt.Errorf("_project._id is not set for user %s", userID)
+	if len(userInfo.Projects) == 0 {
+		return "", errors.New("no 'projects' linked to user")
 	}
 
-	return userInfo.Project.ID, nil
+	return userInfo.Projects[0], nil
 }
 
 //GetUserProjects return projects array by userID
-func (s *Service) GetUserProjects(userID string) ([]Project, error) {
-	usersInfoResponse, err := s.configurationsStorage.Get(UsersInfoCollection, userID)
-	if err != nil {
-		return nil, err
+func (s *Service) GetUserProjects(userID string) ([]openapi.Project, error) {
+	var userInfo struct {
+		Projects []string `json:"projects"`
 	}
 
-	userInfo := UserInfo{}
-	err = json.Unmarshal(usersInfoResponse, &userInfo)
-	if err != nil {
-		return nil, err
+	if userInfoData, err := s.configurationsStorage.Get(UsersInfoCollection, userID); err != nil {
+		return nil, errors.Wrap(err, "load user info")
+	} else if err := json.Unmarshal(userInfoData, &userInfo); err != nil {
+		return nil, errors.Wrap(err, "unmarshal user info")
 	}
 
-	return []Project{userInfo.Project}, nil
+	projects := make([]openapi.Project, 0, len(userInfo.Projects))
+	for _, projectID := range userInfo.Projects {
+		var project openapi.Project
+		if projectData, err := s.configurationsStorage.Get(ProjectSettingsCollection, projectID); err != nil {
+			logging.Warnf("Unable to find project settings with ID %s", projectID)
+			continue
+		} else if err := json.Unmarshal(projectData, &project); err != nil {
+			logging.Warnf("Failed to unmarshal project data for %s", projectID)
+			continue
+		}
+
+		projects = append(projects, project)
+	}
+
+	return projects, nil
 }
 
 //GetOnlyUserID return the only userID. Works only in self-hosted (when authorization is via Redis)

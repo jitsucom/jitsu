@@ -814,20 +814,18 @@ func (cs *ConfigurationsService) GetObjectWithLock(objectType, projectID, object
 	return nil, fmt.Errorf("object hasn't been found by id in path [%s] in the collection", objectArrayPath)
 }
 
-func (cs *ConfigurationsService) GetProjectSettings(projectID string) (result openapi.ProjectSettings, err error) {
+func (cs *ConfigurationsService) GetProjectSettings(projectID string) (result Project, err error) {
 	var data []byte
 	data, err = cs.getWithLock(projectSettings, projectID)
-	switch {
-	case err == nil:
-		err = json.Unmarshal(data, &result)
-	case errors.Is(err, ErrConfigurationNotFound):
-		err = nil
+	if err != nil {
+		return
 	}
 
+	err = json.Unmarshal(data, &result)
 	return
 }
 
-func (cs *ConfigurationsService) PatchProjectSettings(projectID string, patch map[string]interface{}) (result openapi.ProjectSettings, err error) {
+func (cs *ConfigurationsService) PatchProjectSettings(projectID string, patch map[string]interface{}) (result Project, err error) {
 	objectType := projectSettings
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
@@ -837,13 +835,7 @@ func (cs *ConfigurationsService) PatchProjectSettings(projectID string, patch ma
 	defer lock.Unlock()
 
 	data, err := cs.get(objectType, projectID)
-	switch {
-	case err == nil:
-		// is ok
-	case errors.Is(err, ErrConfigurationNotFound):
-		data = []byte(`{}`)
-		err = nil
-	default:
+	if err != nil {
 		return
 	}
 
