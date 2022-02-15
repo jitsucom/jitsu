@@ -46,8 +46,27 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &PostgresContainer{Context: ctx, Host: "localhost", Port: port,
-			Schema: pgSchema, Database: pgDatabase, Username: pgUser, Password: pgPassword}, nil
+
+		connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable",
+			"localhost", port, pgDatabase, pgUser, pgPassword)
+		dataSource, err := sql.Open("postgres", connectionString)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := dataSource.Ping(); err != nil {
+			return nil, err
+		}
+
+		return &PostgresContainer{
+			Context:  ctx,
+			Host:     "localhost",
+			Port:     port,
+			Schema:   pgSchema,
+			Database: pgDatabase,
+			Username: pgUser,
+			Password: pgPassword,
+		}, nil
 	}
 	dbSettings := make(map[string]string, 0)
 	dbSettings["POSTGRES_USER"] = pgUser

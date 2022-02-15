@@ -90,7 +90,7 @@ func NewClickhouseContainer(ctx context.Context) (*ClickHouseContainer, error) {
 //CountRows returns row count in DB table with name = table
 //or error if occurred
 func (ch *ClickHouseContainer) CountRows(table string) (int, error) {
-	rows, err := ch.datasource.Query(fmt.Sprintf("SELECT count(*) from %s", table))
+	rows, err := ch.datasource.Query(fmt.Sprintf("SELECT count(*) from %s final", table))
 	if err != nil {
 		return -1, err
 	}
@@ -117,7 +117,7 @@ func (ch *ClickHouseContainer) GetSortedRows(table, selectClause, whereClause, o
 }
 
 //Close terminates underlying docker container
-func (ch *ClickHouseContainer) Close() {
+func (ch *ClickHouseContainer) Close() error {
 	if ch.Container != nil {
 		if err := ch.Container.Terminate(ch.Context); err != nil {
 			logging.Errorf("Failed to stop ch container: %v", err)
@@ -129,4 +129,6 @@ func (ch *ClickHouseContainer) Close() {
 			logging.Errorf("failed to close datasource in clickhouse container: %v", err)
 		}
 	}
+
+	return nil
 }
