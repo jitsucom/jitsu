@@ -35,10 +35,9 @@ const (
 	mySQLBulkMergeTemplate           = "INSERT INTO `%s`.`%s` (%s) SELECT * FROM (SELECT %s FROM `%s`.`%s`) AS tmp ON DUPLICATE KEY UPDATE %s"
 	mySQLDeleteQueryTemplate         = "DELETE FROM `%s`.`%s` WHERE %s"
 	mySQLAddColumnTemplate           = "ALTER TABLE `%s`.`%s` ADD COLUMN %s"
-	mySQLDropPrimaryKeyTemplate      = "ALTER TABLE `%s`.`%s` DROP PRIMARY KEY"
 	mySQLDropTableTemplate           = "DROP TABLE `%s`.`%s`"
 	mySQLTruncateTableTemplate       = "TRUNCATE TABLE `%s`.`%s`"
-	mySQLValuesLimit                 = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	MySQLValuesLimit                 = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 	batchRetryAttempts               = 3     //number of additional tries to proceed batch update or insert.
 	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
 )
@@ -543,16 +542,16 @@ func (m *MySQL) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, ob
 	}
 	valuesAmount := len(objects) * len(table.Columns)
 	maxValues := valuesAmount
-	if maxValues > mySQLValuesLimit {
-		maxValues = mySQLValuesLimit
+	if maxValues > MySQLValuesLimit {
+		maxValues = MySQLValuesLimit
 	}
 	valueArgs := make([]interface{}, 0, maxValues)
 	placeholdersCounter := 1
 	operation := 0
-	operations := int(math.Max(1, float64(valuesAmount)/float64(mySQLValuesLimit)))
+	operations := int(math.Max(1, float64(valuesAmount)/float64(MySQLValuesLimit)))
 	for _, row := range objects {
 		// if number of values exceeds limit, we have to execute insert query on processed rows
-		if len(valueArgs)+len(headerWithoutQuotes) > mySQLValuesLimit {
+		if len(valueArgs)+len(headerWithoutQuotes) > MySQLValuesLimit {
 			operation++
 			err := m.executeInsertInTransaction(wrappedTx, table, headerWithoutQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
 			if err != nil {

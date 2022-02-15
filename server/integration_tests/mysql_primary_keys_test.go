@@ -80,5 +80,5 @@ func TestMySQLPrimaryKeyNotRemoved(t *testing.T) {
 
 	_, err = tableHelperWithoutPk.EnsureTableWithCaching("test", table)
 	require.Error(t, err)
-	require.Equal(t, err.Error(), "Jitsu can't manage MySQL primary key in [schema: test_database table: users]. Please add all columns from existent primary key to Jitsu MySQL destination configuration manually. Or you can delete primary key in the table then Jitsu will create it from primary_key_fields configuration. Read more about primary keys configuration https://jitsu.com/docs/configuration/primary-keys-configuration.")
+	require.Contains(t, err.Error(), "Jitsu can't manage MySQL primary key")
 }

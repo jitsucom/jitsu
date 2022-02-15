@@ -28,6 +28,10 @@ var (
 	BulkMergeError            = sqlError.NewSubtype("bulk_merge")
 	CopyError                 = sqlError.NewSubtype("copy")
 
+	stageErr             = reportedErrors.NewType("stage")
+	SaveOnStageError     = stageErr.NewSubtype("save_on_stage")
+	DeleteFromStageError = stageErr.NewSubtype("delete_from_stage")
+
 	innerError             = reportedErrors.NewType("inner")
 	ManageMySQLPrimaryKeys = innerError.NewSubtype("manage_mysql_primary_keys")
 
