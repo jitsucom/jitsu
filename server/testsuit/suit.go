@@ -120,6 +120,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		UserIDNode:          viper.GetString("users_recognition.user_id_node"),
 		PoolSize:            viper.GetInt("users_recognition.pool.size"),
 		Compression:         viper.GetString("users_recognition.compression"),
+		CacheTTLMin:         viper.GetInt("users_recognition.cache_ttl_min"),
 	}
 
 	err = globalRecognitionConfiguration.Validate()
@@ -220,7 +221,7 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		fallback.NewTestService(), coordination.NewInMemoryService(""), sb.eventsCache, sb.systemService,
-		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService, nil)
+		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService, nil, sb.globalUsersRecognitionConfig)
 
 	server := &http.Server{
 		Addr:              sb.httpAuthority,

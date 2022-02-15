@@ -11,7 +11,7 @@ import (
 	"github.com/jitsucom/jitsu/server/uuid"
 )
 
-var disabledRecognitionConfiguration = &UserRecognitionConfiguration{enabled: false}
+var disabledRecognitionConfiguration = &UserRecognitionConfiguration{Enabled: false}
 
 //BigQuery stores files to google BigQuery in two modes:
 //batch: via google cloud storage in batch mode (1 file = 1 operation)

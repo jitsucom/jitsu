@@ -200,7 +200,9 @@ func (a *Abstract) Store(fileName string, objects []map[string]interface{}, alre
 	}
 	for _, fdata := range recognizedFlatData {
 		table, err := a.impl.storeTable(fdata)
-		logging.Errorf("Failed to store user recognition batch payload for %s table: %s err: %v", a.destinationID, table.Name, err)
+		if err != nil {
+			logging.Errorf("Failed to store user recognition batch payload for %s table: %s err: %v", a.destinationID, table.Name, err)
+		}
 	}
 
 	//store failed events to fallback only if other events have been inserted ok

@@ -155,6 +155,7 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 						eventsSrc:          map[string]int{events.ExtractSrc(event): 1},
 					}
 				} else {
+					f.BatchHeader.Fields.Merge(batchHeader.Fields)
 					f.payload = append(f.payload, processedObject)
 					f.eventsSrc[events.ExtractSrc(event)]++
 				}

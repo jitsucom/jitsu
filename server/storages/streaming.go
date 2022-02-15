@@ -33,7 +33,6 @@ type StreamingStorage interface {
 //StreamingWorker reads events from queue and using events.StreamingStorage writes them
 type StreamingWorker struct {
 	eventQueue       events.Queue
-	processor        *schema.Processor
 	streamingStorage StreamingStorage
 	tableHelper      []*TableHelper
 

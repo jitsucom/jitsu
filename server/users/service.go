@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"go.uber.org/atomic"
 	"strings"
@@ -18,7 +19,7 @@ import (
 	"time"
 )
 
-const retryCount = 1
+const useIdentifiedCacheAfterMin = time.Minute * 5
 const sysErrFreqSec = 10
 
 //RecognitionService has a thread pool under the hood
@@ -29,15 +30,16 @@ type RecognitionService struct {
 	destinationService *destinations.Service
 	compressor         Compressor
 
-	mutex        *sync.Mutex
-	eventRetries map[string]int
-
+	mutex               *sync.Mutex
 	idsMutex            *sync.Mutex
+	identifiedIdsCache  map[string]time.Time
+	cacheTTLMin         int64
 	identifiedQueue     *Queue
 	anonymousQueue      *Queue
 	closed              *atomic.Bool
 	lastSystemErrorTime time.Time
 	userAgentJSONPath   jsonutils.JSONPath
+	configuration       *storages.UserRecognitionConfiguration
 }
 
 //NewRecognitionService creates a new RecognitionService if metaStorage configuration exists
@@ -70,12 +72,18 @@ func NewRecognitionService(storage Storage, destinationService *destinations.Ser
 		compressor:          compressor,
 		mutex:               &sync.Mutex{},
 		idsMutex:            &sync.Mutex{},
-		eventRetries:        map[string]int{},
+		identifiedIdsCache:  map[string]time.Time{},
+		cacheTTLMin:         int64(configuration.CacheTTLMin),
 		identifiedQueue:     newQueue(IdentifiedQueueName),
 		anonymousQueue:      newQueue(AnonymousQueueName),
 		closed:              atomic.NewBool(false),
 		lastSystemErrorTime: timestamp.Now().Add(time.Second * -sysErrFreqSec),
 		userAgentJSONPath:   jsonutils.NewJSONPath(userAgentPath),
+		configuration: &storages.UserRecognitionConfiguration{
+			Enabled:                  configuration.IsEnabled(),
+			AnonymousIDJSONPath:      jsonutils.NewJSONPath(configuration.AnonymousIDNode),
+			IdentificationJSONPathes: jsonutils.NewJSONPaths(configuration.IdentificationNodes),
+		},
 	}
 
 	for i := 0; i < configuration.PoolSize; i++ {
@@ -113,8 +121,8 @@ func (rs *RecognitionService) startAnonymousObserver() {
 		if !ok {
 			rs.systemErrorf("wrong type of recognition payload dto in queue. Expected: *AnonymousPayload, actual: %T (%s)", rpi, rpi)
 		}
-		if err := rs.processAnonymousPayload(rp); err != nil {
-			rs.systemErrorf("System error: %v", err)
+		if err := rs.storage.SaveAnonymousEvent(rp.EventKey.TokenID, rp.EventKey.AnonymousID, rp.EventID, string(rp.EventBytes)); err != nil {
+			rs.systemErrorf("System error: [%s] Error saving event with anonymous id %s: %v", rp.EventKey.TokenID, rp.EventKey.AnonymousID, err)
 		}
 	}
 }
@@ -134,14 +142,23 @@ func (rs *RecognitionService) getAggregatedIdentifiers() (map[EventKey]map[strin
 		if err != nil {
 			return nil, fmt.Errorf("Error reading recognition payload from queue: %v", err)
 		}
-		eventIdentifiers, ok := identified.([]*EventIdentifiers)
+		ids, ok := identified.(*EventIdentifiers)
 		if !ok {
 			return nil, fmt.Errorf("wrong type of recognition payload dto in queue. Expected: []*EventIdentifiers, actual: %T (%s)", identified, identified)
 		}
-		notAggrSize = notAggrSize + len(eventIdentifiers)
-		for _, ids := range eventIdentifiers {
-			aggregatedIdentifiers[ids.EventKey] = ids.IdentificationValues
+		wasIdentified, ok := rs.identifiedIdsCache[ids.EventKey.AnonymousID]
+		if ok && (timestamp.Now().After(wasIdentified.Add(useIdentifiedCacheAfterMin)) &&
+			timestamp.Now().Before(wasIdentified.Add(time.Minute*time.Duration(rs.cacheTTLMin)))) {
+			//this anonymous user was already identified. cache hit
+			continue
 		}
+		if len(rs.identifiedIdsCache) > 10_000 {
+			//clear cache to avoid side effects and high memory consumption
+			rs.identifiedIdsCache = map[string]time.Time{}
+		}
+		rs.identifiedIdsCache[ids.EventKey.AnonymousID] = timestamp.Now()
+		notAggrSize = notAggrSize + 1
+		aggregatedIdentifiers[ids.EventKey] = ids.IdentificationValues
 	}
 	logging.Debugf("Identified events total: %d aggregated: %d", notAggrSize, len(aggregatedIdentifiers))
 	return aggregatedIdentifiers, nil
@@ -184,8 +201,8 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 		}
 	}
 
-	anonymousPayload, identified := rs.getDestinationsForRecognition(event, eventID, destinationIDs, tokenID)
-	if len(identified) == 0 && anonymousPayload == nil {
+	anonymousPayload, identified := rs.extractPayload(event, eventID, destinationIDs, tokenID)
+	if identified == nil && anonymousPayload == nil {
 		return
 	}
 	if anonymousPayload != nil {
@@ -195,7 +212,7 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 			return
 		}
 	}
-	if len(identified) > 0 {
+	if identified != nil {
 		if err := rs.identifiedQueue.Enqueue(identified); err != nil {
 			rpBytes, _ := json.Marshal(identified)
 			rs.systemErrorf("Error saving recognition identified payload [%s] from event [%s] into the queue: %v", string(rpBytes), event.DebugString(), err)
@@ -205,10 +222,8 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 
 }
 
-func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, eventID string, destinationIDs []string, tokenID string) (rp *AnonymousPayload, identified []*EventIdentifiers) {
-	identified = make([]*EventIdentifiers, 0, len(destinationIDs))
-	rp = nil
-	anonymousDestinationIDs := make([]EventKey, 0, len(destinationIDs))
+func (rs *RecognitionService) extractPayload(event events.Event, eventID string, destinationIDs []string, tokenID string) (rp *AnonymousPayload, identified *EventIdentifiers) {
+	hasUserRecognitionEnabled := false
 	for _, destinationID := range destinationIDs {
 		storageProxy, ok := rs.destinationService.GetDestinationByID(destinationID)
 		if !ok {
@@ -230,61 +245,47 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 		configuration := storage.GetUsersRecognition()
 
 		//recognition disabled or wrong pk fields configuration
-		if !configuration.IsEnabled() {
-			continue
-		}
-
-		anonymousID, ok := configuration.AnonymousIDJSONPath.Get(event)
-		if !ok {
-			logging.Warnf("[%s] Event %s doesn't have anonymous id in path: %s", destinationID, event.DebugString(), configuration.AnonymousIDJSONPath.String())
-			continue
-		}
-
-		anonymousIDStr := fmt.Sprint(anonymousID)
-		isAnyIdentificationValueFilled := false
-
-		values, ok := configuration.IdentificationJSONPathes.Get(event)
-		for _, value := range values {
-			if value != nil {
-				isAnyIdentificationValueFilled = true
-				break
-			}
-		}
-		if isAnyIdentificationValueFilled {
-			identified = append(identified, &EventIdentifiers{EventKey: EventKey{DestinationID: destinationID, AnonymousID: anonymousIDStr, TokenID: tokenID}, IdentificationValues: values})
-		} else {
-			anonymousDestinationIDs = append(anonymousDestinationIDs, EventKey{DestinationID: destinationID, AnonymousID: anonymousIDStr, TokenID: tokenID})
+		if configuration.IsEnabled() {
+			hasUserRecognitionEnabled = true
+			break
 		}
 	}
-	if len(anonymousDestinationIDs) > 0 {
+	if !hasUserRecognitionEnabled {
+		return
+	}
+
+	anonymousID, ok := rs.configuration.AnonymousIDJSONPath.Get(event)
+	if !ok {
+		logging.Debugf("[%s] Event %s doesn't have anonymous id in path: %s", tokenID, event.DebugString(), rs.configuration.AnonymousIDJSONPath.String())
+		return
+	}
+
+	anonymousIDStr := fmt.Sprint(anonymousID)
+	isAnyIdentificationValueFilled := false
+
+	values, ok := rs.configuration.IdentificationJSONPathes.Get(event)
+
+	for _, value := range values {
+		if value != nil {
+			isAnyIdentificationValueFilled = true
+			break
+		}
+	}
+	if isAnyIdentificationValueFilled {
+		identified = &EventIdentifiers{EventKey: EventKey{AnonymousID: anonymousIDStr, TokenID: tokenID}, IdentificationValues: values}
+	} else {
 		compressedEvent := rs.compressor.Compress(event)
-		rp = &AnonymousPayload{EventID: eventID, EventBytes: compressedEvent, EventKeys: anonymousDestinationIDs}
+		rp = &AnonymousPayload{EventID: eventID, EventBytes: compressedEvent, EventKey: EventKey{AnonymousID: anonymousIDStr, TokenID: tokenID}}
 	}
 	return
 }
 
 func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, identificationValues map[string]interface{}) error {
-	destinationID := eventsKey.DestinationID
-	storageProxy, ok := rs.destinationService.GetDestinationByID(destinationID)
-	if !ok {
-		return fmt.Errorf("destination [%s] wasn't found", destinationID)
-	}
+	tokenID := eventsKey.TokenID
 
-	storage, ok := storageProxy.Get()
-	if !ok {
-		return fmt.Errorf("destination [%s] hasn't been initialized yet", destinationID)
-	}
-
-	configuration := storage.GetUsersRecognition()
-
-	//recognition disabled or wrong pk fields configuration
-	if !configuration.IsEnabled() {
-		return nil
-	}
-
-	eventsMap, err := rs.storage.GetAnonymousEvents(destinationID, eventsKey.AnonymousID)
+	eventsMap, err := rs.storage.GetAnonymousEvents(tokenID, eventsKey.AnonymousID)
 	if err != nil {
-		return fmt.Errorf("Error getting anonymous events by destinationID: [%s] and anonymousID: [%s] from storage: %v", destinationID, eventsKey.AnonymousID, err)
+		return fmt.Errorf("Error getting anonymous events by tokenID: [%s] and anonymousID: [%s] from storage: %v", tokenID, eventsKey.AnonymousID, err)
 	}
 
 	if len(eventsMap) == 0 {
@@ -294,39 +295,28 @@ func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, ident
 	for storedEventID, storedSerializedEvent := range eventsMap {
 		event, err := rs.deserialize(storedSerializedEvent)
 		if err != nil {
-			return fmt.Errorf("[%s] error deserializing event [%s]: %v", destinationID, storedSerializedEvent, err)
+			return fmt.Errorf("[%s] error deserializing event [%s]: %v", tokenID, storedSerializedEvent, err)
 		}
 
-		if err = configuration.IdentificationJSONPathes.Set(event, identificationValues); err != nil {
+		if err = rs.configuration.IdentificationJSONPathes.Set(event, identificationValues); err != nil {
 			logging.Errorf("[%s] Error setting recognized user id into event: %s with json path rule [%s]: %v",
-				destinationID, storedSerializedEvent, configuration.IdentificationJSONPathes.String(), err)
+				tokenID, storedSerializedEvent, rs.configuration.IdentificationJSONPathes.String(), err)
 			continue
 		}
-		consumer, ok := rs.destinationService.GetEventsConsumerByDestinationID(destinationID)
-		if !ok {
-			return fmt.Errorf("User Recognition. Couldn't get consumer for destination with id: %s", destinationID)
+		consumers := rs.destinationService.GetConsumers(tokenID)
+		if len(consumers) == 0 {
+			return fmt.Errorf("User Recognition. Couldn't get consumer for tokenID: %s", tokenID)
 		}
 		event[schema.JitsuUserRecognizedEvent] = 1
-		consumer.Consume(event, eventsKey.TokenID)
+		for _, consumer := range consumers {
+			consumer.Consume(event, eventsKey.TokenID)
+		}
 
-		if err = rs.storage.DeleteAnonymousEvent(destinationID, eventsKey.AnonymousID, storedEventID); err != nil {
+		if err = rs.storage.DeleteAnonymousEvent(tokenID, eventsKey.AnonymousID, storedEventID); err != nil {
 			return fmt.Errorf("error deleting anonymous events id [%s]: %v", storedEventID, err)
 		}
-
-		rs.mutex.Lock()
-		delete(rs.eventRetries, storedEventID)
-		rs.mutex.Unlock()
 	}
 
-	return nil
-}
-
-func (rs *RecognitionService) processAnonymousPayload(rp *AnonymousPayload) error {
-	for _, eventKey := range rp.EventKeys {
-		if err := rs.storage.SaveAnonymousEvent(eventKey.DestinationID, eventKey.AnonymousID, rp.EventID, string(rp.EventBytes)); err != nil {
-			return fmt.Errorf("[%s] Error saving event with anonymous id %s: %v", eventKey.DestinationID, eventKey.AnonymousID, err)
-		}
-	}
 	return nil
 }
 

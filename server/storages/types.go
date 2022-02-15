@@ -27,6 +27,20 @@ const (
 	DbtCloudType        = "dbtcloud"
 )
 
+type URSetup struct {
+	PKRequired bool
+}
+
+var (
+	UserRecognitionStorages = map[string]URSetup{
+		MySQLType:      {true},
+		PostgresType:   {true},
+		RedshiftType:   {true},
+		SnowflakeType:  {true},
+		ClickHouseType: {false},
+	}
+)
+
 //Storage is a destination representation
 type Storage interface {
 	io.Closer
@@ -74,10 +88,10 @@ type UserRecognitionConfiguration struct {
 	AnonymousIDJSONPath      jsonutils.JSONPath
 	IdentificationJSONPathes *jsonutils.JSONPaths
 
-	enabled bool
+	Enabled bool
 }
 
 //IsEnabled returns true if not nil and enabled
 func (urc *UserRecognitionConfiguration) IsEnabled() bool {
-	return urc != nil && urc.enabled
+	return urc != nil && urc.Enabled
 }

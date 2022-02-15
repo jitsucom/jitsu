@@ -3,7 +3,7 @@ package users
 //AnonymousPayload is a queue dto
 type AnonymousPayload struct {
 	EventID    string
-	EventKeys  []EventKey
+	EventKey   EventKey
 	EventBytes []byte
 }
 
@@ -14,7 +14,6 @@ type EventIdentifiers struct {
 }
 
 type EventKey struct {
-	TokenID       string
-	DestinationID string
-	AnonymousID   string
+	TokenID     string
+	AnonymousID string
 }

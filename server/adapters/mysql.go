@@ -19,7 +19,7 @@ import (
 const (
 	mySQLTableSchemaQuery = `SELECT
 									column_name AS name,
-									data_type AS column_type
+									column_type AS column_type
 								FROM information_schema.columns
 								WHERE table_schema = ? AND table_name = ?`
 	mySQLPrimaryKeyFieldsQuery = `SELECT

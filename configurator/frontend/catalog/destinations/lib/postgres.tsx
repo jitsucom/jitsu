@@ -94,7 +94,7 @@ const postgresDestination = {
       id: "$type",
       constant: "PostgresConfig",
     },
-    modeParameter("stream"),
+    modeParameter(),
     tableName(),
     {
       id: "_formData.pghost",

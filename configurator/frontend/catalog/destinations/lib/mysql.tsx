@@ -40,7 +40,7 @@ const mysqlDestination = {
       id: "$type",
       constant: "mysqlConfig",
     },
-    modeParameter("stream"),
+    modeParameter(),
     tableName(),
     {
       id: "_formData.mysqlHost",
