@@ -66,7 +66,7 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = () =>
   const history = useHistory()
   const services = useServices()
   const params = useParams<StatisticsPageParams>()
-  const destination = destinationsStore.getDestinationById(params.id)
+  const destination = destinationsStore.get(params.id)
   const destinationUid = destination?._uid
   const destinationReference = destinationsStore.getDestinationReferenceById(params.id)
   const statisticsService = useMemo<IStatisticsService>(

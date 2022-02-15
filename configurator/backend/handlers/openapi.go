@@ -1178,10 +1178,13 @@ func (oa *OpenAPI) GetObjectsByProjectIdAndObjectType(c *gin.Context, projectIDI
 	objects, err := oa.configurationsService.GetConfigWithLock(objectType, projectID)
 	if err != nil {
 		if err == storages.ErrConfigurationNotFound {
-			objects, _ = json.Marshal(make(map[string]interface{}))
+			ar := make(openapi.AnyArray, 0)
+			c.JSON(http.StatusOK, ar)
+			return
+		} else {
+			c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(fmt.Sprintf("failed to get objects for object type=[%s], projectID=[%s]: %v", objectType, projectID, err), nil))
+			return
 		}
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(fmt.Sprintf("failed to get objects for object type=[%s], projectID=[%s]: %v", objectType, projectID, err), nil))
-		return
 	}
 
 	result, err := convertToObjectsArray(objects, objectType, oa.configurationsService.GetObjectArrayPathByObjectType(objectType))

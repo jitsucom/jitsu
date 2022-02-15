@@ -36,6 +36,7 @@ const ApiKeysComponent: React.FC = () => {
   const keys = apiKeysStore.apiKeys
   const services = useServices()
   services.storageService.table("api_keys")
+  let keysBackend = services.storageService.table<ApiKey>("api_keys")
 
   const [loading, setLoading] = useState<LoadingState>(null)
   const [documentationDrawerKey, setDocumentationDrawerKey] = useState<APIKey>(null)
