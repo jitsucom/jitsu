@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { IProject, JSON_FORMAT, PgDatabaseCredentials } from "./model"
+import { JSON_FORMAT, PgDatabaseCredentials } from "./model"
 import axios, { AxiosRequestConfig } from "axios"
 import * as uuid from "uuid"
 import AnalyticsService from "./analytics"
@@ -15,11 +15,13 @@ import { ApplicationConfiguration } from "./ApplicationConfiguration"
 import { CurrentSubscription } from "./billing"
 import { ISlackApiService, SlackApiService } from "./slack"
 import { IOauthService, OauthService } from "./oauth"
+import { Project } from "../../generated/conf-openapi"
+import { createProjectService_v1, ProjectService } from "./ProjectService"
 
 export interface IApplicationServices {
   init(): Promise<void>
   userService: UserService
-  activeProject: IProject
+  activeProject: Project
   storageService: ServerStorage
   analyticsService: AnalyticsService
   backendApiClient: BackendApiClient
@@ -27,8 +29,10 @@ export interface IApplicationServices {
   applicationConfiguration: ApplicationConfiguration
   slackApiSercice: ISlackApiService
   oauthService: IOauthService
+  projectService: ProjectService
   showSelfHostedSignUp(): boolean
 }
+
 export default class ApplicationServices implements IApplicationServices {
   private readonly _applicationConfiguration: ApplicationConfiguration
   private readonly _analyticsService: AnalyticsService
@@ -36,6 +40,7 @@ export default class ApplicationServices implements IApplicationServices {
   private readonly _storageService: ServerStorage
   private readonly _slackApiService: ISlackApiService
   private readonly _oauthService: IOauthService
+  private readonly _projectService: ProjectService
 
   private _userService: UserService
   private _features: FeatureSettings
@@ -43,6 +48,7 @@ export default class ApplicationServices implements IApplicationServices {
   public onboardingNotCompleteErrorMessage =
     "Onboarding process hasn't been fully completed. Please, contact the support"
   private _currentSubscription: CurrentSubscription
+  private _activeProject: Project
 
   constructor() {
     this._applicationConfiguration = new ApplicationConfiguration()
@@ -56,9 +62,15 @@ export default class ApplicationServices implements IApplicationServices {
     this._storageService = new HttpServerStorage(this._backendApiClient)
     this._slackApiService = new SlackApiService(() => this._userService.getUser().apiAccess)
     this._oauthService = new OauthService(this._applicationConfiguration.oauthApiBase, this._backendApiClient)
+    this._projectService = createProjectService_v1(this._userService, this._backendApiClient);
   }
 
-  //load backend configuration and create user service depend on authorization type
+
+  get projectService(): ProjectService {
+    return this._projectService
+  }
+
+//load backend configuration and create user service depend on authorization type
   async init() {
     let configuration = await this.loadBackendConfiguration()
     this._features = configuration
@@ -83,13 +95,10 @@ export default class ApplicationServices implements IApplicationServices {
     return this._userService
   }
 
-  get activeProject(): IProject {
-    return this.userService.getUser().projects[0]
+  get activeProject(): Project {
+    return this._activeProject;
   }
 
-  get availableProjects(): IProject[] {
-    return this.userService.getUser().projects;
-  }
 
   get storageService(): ServerStorage {
     return this._storageService
@@ -156,38 +165,9 @@ export default class ApplicationServices implements IApplicationServices {
     }
   }
 
-  private async getAvailableProjects(): Promise<FeatureSettings> {
-    let fullUrl = concatenateURLs(this._applicationConfiguration.backendApiBase, "/system/configuration")
-    let request: AxiosRequestConfig = {
-      method: "GET",
-      url: fullUrl,
-      transformResponse: JSON_FORMAT,
-    }
+  private async getAvailableProjects(): Promise<void> {
+    return Promise.resolve();
 
-    let response = await axios(request)
-
-    if (response.status == 200) {
-      return mapBackendConfigResponseToAppFeatures(response.data)
-    } else {
-      throw new APIError(response, request)
-    }
-  }
-
-  private async getAvailableProjects(): Promise<FeatureSettings> {
-    let fullUrl = concatenateURLs(this._applicationConfiguration.backendApiBase, "/system/configuration")
-    let request: AxiosRequestConfig = {
-      method: "GET",
-      url: fullUrl,
-      transformResponse: JSON_FORMAT,
-    }
-
-    let response = await axios(request)
-
-    if (response.status == 200) {
-      return mapBackendConfigResponseToAppFeatures(response.data)
-    } else {
-      throw new APIError(response, request)
-    }
   }
 
   public async initializeDefaultDestination(): Promise<{

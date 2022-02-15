@@ -6,8 +6,8 @@ import { observer } from "mobx-react-lite"
 import { DestinationsList } from "./partials/DestinationsList/DestinationsList"
 import { DestinationEditor } from "./partials/DestinationEditor/DestinationEditor"
 // @Store
-import { destinationsStore, DestinationsStoreState } from "stores/destinations"
-import { sourcesStore, SourcesStoreState } from "stores/sources"
+import { destinationsStore } from "stores/destinations"
+import { sourcesStore } from "stores/sources"
 // @Routes
 import { destinationPageRoutes } from "./DestinationsPage.routes"
 // @Components
@@ -18,6 +18,7 @@ import { useServices } from "hooks/useServices"
 import { DestinationStatistics } from "./partials/DestinationStatistics/DestinationStatistics"
 import { ErrorBoundary } from "../../../lib/components/ErrorBoundary/ErrorBoundary"
 import { AddDestinationDialog } from "./partials/AddDestinationDialog/AddDestinationDialog"
+import { EntitiesStoreState } from "stores/types.enums"
 import { CurrentSubscription } from "lib/services/billing"
 import { BillingCheckRedirect } from "lib/components/BillingCheckRedirect/BillingCheckRedirect"
 
@@ -35,15 +36,15 @@ const DestinationsPageComponent: React.FC = () => {
   const services = useServices()
 
   const isDestinationsLimitReached = useCallback<(subscription?: CurrentSubscription) => boolean>(
-    subscription => destinationsStore.destinations.length >= (subscription?.currentPlan.quota.destinations ?? 999),
-    [destinationsStore.destinations.length]
+    subscription => destinationsStore.list.length >= (subscription?.currentPlan.quota.destinations ?? 999),
+    [destinationsStore.list.length]
   )
 
-  if (destinationsStore.state === DestinationsStoreState.GLOBAL_ERROR) {
+  if (destinationsStore.state === EntitiesStoreState.GLOBAL_ERROR) {
     return <CenteredError error={destinationsStore.error} />
   } else if (
-    destinationsStore.state === DestinationsStoreState.GLOBAL_LOADING ||
-    sourcesStore.state === SourcesStoreState.GLOBAL_LOADING
+    destinationsStore.state === EntitiesStoreState.GLOBAL_LOADING ||
+    sourcesStore.state === EntitiesStoreState.GLOBAL_LOADING
   ) {
     return <CenteredSpin />
   }
@@ -65,7 +66,7 @@ const DestinationsPageComponent: React.FC = () => {
           />
         </Route>
         <Route path={destinationPageRoutes.statisticsExact} strict={false} exact>
-          <DestinationStatistics />
+          <DestinationStatistics  />
         </Route>
         <BillingCheckRedirect
           quotaExceededRedirectTo={destinationPageRoutes.root}

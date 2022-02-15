@@ -33,13 +33,12 @@ import { Link } from "react-router-dom"
 type LoadingState = number | "NEW" | null
 
 const ApiKeysComponent: React.FC = () => {
-  const keys = apiKeysStore.apiKeys
+  const keys = apiKeysStore.list
   const services = useServices()
   services.storageService.table("api_keys")
-  let keysBackend = services.storageService.table<ApiKey>("api_keys")
 
   const [loading, setLoading] = useState<LoadingState>(null)
-  const [documentationDrawerKey, setDocumentationDrawerKey] = useState<APIKey>(null)
+  const [documentationDrawerKey, setDocumentationDrawerKey] = useState<ApiKey>(null)
 
   const header = (
     <div className="flex flex-row mb-5 items-start justify between">
@@ -98,7 +97,7 @@ export function getDomainsSelectionByEnv(env: string) {
 }
 
 type KeyDocumentationProps = {
-  token: APIKey
+  token: ApiKey
   displayDomainDropdown?: boolean
 }
 
@@ -112,12 +111,12 @@ export const KeyDocumentation: React.FC<KeyDocumentationProps> = function ({ tok
   )
   const [error, domains] = services.features.enableCustomDomains
     ? useLoader(async () => {
-        const result = await services.storageService.get("custom_domains", services.activeProject.id)
-        const customDomains = result?.domains?.map(domain => "https://" + domain.name) || []
-        const newDomains = [...customDomains, "https://t.jitsu.com"]
-        setSelectedDomain(newDomains[0])
-        return newDomains
-      })
+      const result = await services.storageService.get("custom_domains", services.activeProject.id)
+      const customDomains = result?.domains?.map(domain => "https://" + domain.name) || []
+      const newDomains = [...customDomains, "https://t.jitsu.com"]
+      setSelectedDomain(newDomains[0])
+      return newDomains
+    })
     : [null, staticDomains]
 
   if (error) {
