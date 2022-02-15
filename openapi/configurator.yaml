@@ -359,7 +359,9 @@ paths:
       tags:
         - configuration-management
       operationId: "Update user info"
-      description: 'Replaces users settings with a new user settings. Changes to some fields (such as security settings), will not have an effect'
+      description: >
+        Merge (patch) users settings with into an existing user object. Changes to some fields (such as security settings), will not have an effect. All fields
+        will be ignored, except: _emailOptout, _name, _forcePasswordChange, _name, _onboarded, _suggestedInfo
       security:
         - configurationManagementAuth: [ ]
       requestBody:
