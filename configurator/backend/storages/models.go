@@ -2,6 +2,7 @@ package storages
 
 import (
 	"github.com/gomodule/redigo/redis"
+	"github.com/jitsucom/jitsu/configurator/openapi"
 )
 
 //PatchPayload is a dto for patch request
@@ -19,4 +20,9 @@ type ObjectMeta struct {
 
 type Migration interface {
 	Run(conn redis.Conn) error
+}
+
+type Project struct {
+	openapi.Project
+	openapi.ProjectSettings
 }
