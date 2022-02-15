@@ -40,7 +40,7 @@ func (rg *RandomGenerator) GenerateDataWithUniqueIDs(columns int, rows int, uniq
 	}
 
 	for i := 0; i < rows; i++ {
-		obj := make(map[string]interface{}, columns)
+		obj := map[string]interface{}{timestamp.Key: timestamp.NowUTC()}
 		for j := 0; j < columns; j++ {
 			columnName := columnNamesCache[j]
 			columnType := columnTypesCache[columnName]
