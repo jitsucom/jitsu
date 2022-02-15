@@ -1,5 +1,9 @@
 package storages
 
+import (
+	"github.com/gomodule/redigo/redis"
+)
+
 //PatchPayload is a dto for patch request
 type PatchPayload struct {
 	ObjectArrayPath string                 `json:"arrayPath,omitempty"`
@@ -11,4 +15,8 @@ type PatchPayload struct {
 type ObjectMeta struct {
 	IDFieldPath string `json:"idFieldPath,omitempty"`
 	Value       string `json:"value,omitempty"`
+}
+
+type Migration interface {
+	Run(conn redis.Conn) error
 }
