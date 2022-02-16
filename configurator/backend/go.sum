@@ -651,6 +651,8 @@ github.com/mailru/easyjson v0.7.0/go.mod h1:KAzv3t3aY1NaHWoQz1+4F1ccyAH66Jk7yos7
 github.com/mailru/go-clickhouse v1.3.0 h1:KPtNyrSpOlx5Cfq2xoA2GN95kRA7V7xjXqXgR3XMq9o=
 github.com/mailru/go-clickhouse v1.3.0/go.mod h1:MRUTPjUvZIjSa0dop27y1HVKBTQ7kt27BD9TpIrgWjw=
 github.com/marstr/guid v1.1.0/go.mod h1:74gB1z2wpxxInTG6yaqA7KrtM0NZ+RbrcqDvYHefzho=
+github.com/martinlindhe/base36 v1.1.0 h1:cIwvvwYse/0+1CkUPYH5ZvVIYG3JrILmQEIbLuar02Y=
+github.com/martinlindhe/base36 v1.1.0/go.mod h1:+AtEs8xrBpCeYgSLoY/aJ6Wf37jtBuR0s35750M27+8=
 github.com/matryer/moq v0.0.0-20190312154309-6cfb0558e1bd/go.mod h1:9ELz6aaclSIGnZBoaSLZ3NAl1VTufbOrXBPvtcy6WiQ=
 github.com/mattn/go-colorable v0.0.9/go.mod h1:9vuHe8Xs5qXnSaW/c/ABM9alt+Vo+STaOChaDxuIBZU=
 github.com/mattn/go-colorable v0.1.11 h1:nQ+aFkoE2TMGc0b68U2OKSexC+eq46+XwZzWXHRmPYs=

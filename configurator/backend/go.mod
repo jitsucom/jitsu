@@ -89,6 +89,7 @@ require (
 	github.com/magiconair/properties v1.8.5 // indirect
 	github.com/mailru/easyjson v0.7.0 // indirect
 	github.com/mailru/go-clickhouse v1.3.0 // indirect
+	github.com/martinlindhe/base36 v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.11 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect

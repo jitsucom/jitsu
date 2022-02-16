@@ -1453,9 +1453,22 @@ func (oa *OpenAPI) LinkUserToProject(c *gin.Context, projectID string, params op
 
 }
 
-func (oa *OpenAPI) UnlinkUserFromProject(c *gin.Context, projectId string, params openapi.UnlinkUserFromProjectParams) {
-	//TODO implement me
-	panic("implement me")
+func (oa *OpenAPI) UnlinkUserFromProject(c *gin.Context, projectID string, params openapi.UnlinkUserFromProjectParams) {
+	if c.IsAborted() {
+		return
+	}
+
+	if !hasAccessToProject(c, projectID) {
+		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
+		return
+	}
+
+	if err := oa.configurationsService.UnlinkUserFromProject(params.UserId, projectID); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("unlink user from project", err))
+		return
+	}
+
+	c.Status(http.StatusOK)
 }
 
 func (oa *OpenAPI) GetUsersLinkToProjects(c *gin.Context, projectID string) {
@@ -1516,9 +1529,7 @@ func (oa *OpenAPI) GetProjects(c *gin.Context, params openapi.GetProjectsParams)
 		} else {
 			c.JSON(http.StatusOK, projects)
 		}
-	}
-
-	if projectIDs, err := oa.authService.GetProjectIDs(userID); err != nil {
+	} else if projectIDs, err := oa.authService.GetProjectIDs(userID); err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get user projects ids", err))
 		return
 	} else {
@@ -1537,8 +1548,20 @@ func (oa *OpenAPI) GetProjects(c *gin.Context, params openapi.GetProjectsParams)
 }
 
 func (oa *OpenAPI) CreateProjectAndLinkUser(c *gin.Context) {
-	//TODO implement me
-	panic("implement me")
+	userID := c.GetString(middleware.UserIDKey)
+	var project openapi.Project
+	if err := c.BindJSON(&project); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("bind request project", err))
+		return
+	} else if project, err := oa.configurationsService.CreateProject(project); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("create project", err))
+		return
+	} else if err := oa.configurationsService.LinkUserToProject(userID, *project.Id); err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("link user to project", err))
+		return
+	} else {
+		c.JSON(http.StatusOK, project)
+	}
 }
 
 func hasAccessToProject(c *gin.Context, projectID string) bool {
