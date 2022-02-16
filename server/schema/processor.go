@@ -156,7 +156,7 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 					fData[batchHeader.TableName] = &ProcessedFile{
 						FileName:           fileName,
 						BatchHeader:        batchHeader,
-						RecognitionRayload: recognizedEvent,
+						RecognitionPayload: recognizedEvent,
 						payload:            []map[string]interface{}{processedObject},
 						eventsSrc:          map[string]int{events.ExtractSrc(event): 1},
 					}
