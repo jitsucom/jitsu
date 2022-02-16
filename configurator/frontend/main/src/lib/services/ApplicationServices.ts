@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { JSON_FORMAT, PgDatabaseCredentials } from "./model"
+import { ApiAccess, JSON_FORMAT, PgDatabaseCredentials } from "./model"
 import axios, { AxiosRequestConfig } from "axios"
 import * as uuid from "uuid"
 import AnalyticsService from "./analytics"
@@ -56,11 +56,11 @@ export default class ApplicationServices implements IApplicationServices {
     this._backendApiClient = new JWTBackendClient(
       this._applicationConfiguration.backendApiBase,
       this._applicationConfiguration.backendApiProxyBase,
-      () => this._userService.getUser().apiAccess,
+      () => this._userService.apiAccess(),
       this._analyticsService
     )
     this._storageService = new HttpServerStorage(this._backendApiClient)
-    this._slackApiService = new SlackApiService(() => this._userService.getUser().apiAccess)
+    this._slackApiService = new SlackApiService(() => this._userService.apiAccess())
     this._oauthService = new OauthService(this._applicationConfiguration.oauthApiBase, this._backendApiClient)
     this._projectService = createProjectService_v1(this._userService, this._backendApiClient);
   }
@@ -99,6 +99,10 @@ export default class ApplicationServices implements IApplicationServices {
     return this._activeProject;
   }
 
+
+  set activeProject(value: Project) {
+    this._activeProject = value
+  }
 
   get storageService(): ServerStorage {
     return this._storageService

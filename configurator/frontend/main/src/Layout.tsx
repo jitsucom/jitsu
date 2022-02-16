@@ -269,7 +269,7 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
         <Button type="text" className="text-left" key="settings" icon={<SettingOutlined />} onClick={showSettings}>
           Settings
         </Button>
-        {services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER) && (
+        {(services.userService.getUser().email === 'reg@ksense.io' || services.userService.getUser().email.endsWith("@jitsu.com")) && (
           <Button className="text-left" type="text" key="become" icon={<UserSwitchOutlined />} onClick={becomeUser}>
             Become User
           </Button>

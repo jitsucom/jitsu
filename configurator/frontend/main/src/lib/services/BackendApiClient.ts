@@ -146,6 +146,7 @@ export class JWTBackendClient implements BackendApiClient {
     payload: any,
     opts: ApiRequestOptions
   ): Promise<any> {
+
     let fullUrl = concatenateURLs(this.baseUrl, url)
     if (opts.proxy) {
       fullUrl = concatenateURLs(this.proxyUrl, url)

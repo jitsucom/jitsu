@@ -8,12 +8,12 @@ import { BackendApiClient } from "./BackendApiClient"
 // @Types
 import { IDestinationsStore } from "../../stores/destinations"
 import { ISourcesStore } from "../../stores/sources"
-import { IProject } from "lib/services/model"
 import { DatePoint, StatisticsService } from "lib/services/stat"
 // @Utils
 import { withQueryParams } from "utils/queryParams"
 import { numberFormat } from "../commons/utils"
 import { UpgradePlan } from "../../ui/components/CurrentPlan/CurrentPlan"
+import { Project } from "../../generated/conf-openapi"
 
 export type PricingPlanId = "opensource" | "free" | "growth" | "premium" | "enterprise"
 
@@ -239,7 +239,7 @@ async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
 }
 
 export async function getCurrentSubscription(
-  project: IProject,
+  project: Project,
   backendApiClient: BackendApiClient,
   destinationsStore: IDestinationsStore,
   sourcesStore: ISourcesStore

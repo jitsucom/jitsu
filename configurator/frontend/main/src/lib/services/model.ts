@@ -49,6 +49,7 @@ export type User = {
   created: string
   emailOptout: boolean
   forcePasswordChange: boolean
+  suggestedCompanyName: string
 }
 /**
  * User internal representation. This class is here for backward compatibility
@@ -63,15 +64,16 @@ export type UserDTO = {
   _lastUpdated: string
   _onboarded: boolean
   _suggestedInfo: {
-    companyName: string
-    email: string
-    name: string
+    companyName?: string
+    email?: string
+    name?: string
   }
   _project?: {
     $type: "Project"
     _id: string
     _name: string | null
     _planId: string | null
+    _setupCompleted?: boolean
   }
 }
 
@@ -81,7 +83,11 @@ export function userToDTO(user: User): UserDTO {
     _emailOptout: user.emailOptout || false,
     _forcePasswordChange: user.forcePasswordChange || false,
     _lastUpdated: new Date().toISOString(),
-    _suggestedInfo: { companyName: "", email: "", name: "" },
+    _suggestedInfo: {
+      companyName: user.suggestedCompanyName || undefined,
+      email: user.email || undefined,
+      name: user.name || undefined,
+    },
     $type: "User",
     _created: user.created,
     _email: user.email,
@@ -98,6 +104,7 @@ export function userFromDTO(dto: UserDTO): User {
     name: dto._name || dto._suggestedInfo?.name,
     onboarded: dto._onboarded || true,
     uid: "",
+    suggestedCompanyName: dto._suggestedInfo?.companyName,
   }
 }
 

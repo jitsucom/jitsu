@@ -11,7 +11,7 @@ import Icon from "@ant-design/icons"
 import githubLogo from "../../../icons/github.svg"
 import { default as googleLogo } from "../../../icons/google.svg"
 
-export function SignupForm({ supportOauth }) {
+export function SignupForm() {
   const [tosAgree, setTosAgree] = useState(false)
   const [tosHighlight, setTosHighlight] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -60,7 +60,6 @@ export function SignupForm({ supportOauth }) {
     setLoading(true)
     try {
       await services.userService.createUser(values["email"], values["password"])
-      await services.
       reloadPage()
     } catch (error) {
       handleError(error)

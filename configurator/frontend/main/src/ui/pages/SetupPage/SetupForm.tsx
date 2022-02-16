@@ -79,7 +79,12 @@ export default function SetupForm() {
         })
       }
       await appService.analyticsService.track("selfhosted_signup", { emailOptout })
-      await appService.userService.setupUser({ ...nonSensitiveUserData, password: values["password"] })
+      await appService.userService.createUser(values["email"], values["email"])
+      await appService.storageService.saveUserInfo({
+        _emailOptout: emailOptout,
+        _name: values["name"],
+        _suggestedInfo: { companyName: values["company_name"], name: values["name"] },
+      })
 
       reloadPage()
     } catch (error) {

@@ -10,7 +10,7 @@ import { CenteredSpin, handleError, Preloader } from "./lib/components/component
 import { reloadPage, setDebugInfo } from "./lib/commons/utils"
 
 import { ApplicationPage } from "./Layout"
-import { CurrentSubscription, getCurrentSubscription, paymentPlans } from "lib/services/billing"
+import { checkQuotas, CurrentSubscription, getCurrentSubscription, paymentPlans } from "lib/services/billing"
 import { initializeAllStores } from "stores/_initializeAllStores"
 import { destinationsStore } from "./stores/destinations"
 import { sourcesStore } from "./stores/sources"
@@ -26,6 +26,8 @@ import { StatusPage } from "./lib/components/StatusPage/StatusPage"
 import ExclamationCircleOutlined from "@ant-design/icons/ExclamationCircleOutlined"
 import { UserSettings } from "./lib/components/UserSettings/UserSettings"
 import { currentPageHeaderStore } from "./stores/currentPageHeader"
+import { Project } from "./generated/conf-openapi"
+import { OnboardingTourLazyLoader } from "./lib/components/Onboarding/OnboardingTourLazyLoader"
 
 const ApiKeysRouter = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/components/ApiKeys/ApiKeysRouter"))
 const CustomDomains = React.lazy(
@@ -54,17 +56,17 @@ const DownloadConfig = React.lazy(
 export const initializeApplication = async (): Promise<ApplicationServices> => {
   const services = ApplicationServices.get()
   await services.init()
-  const { user } = await services.userService.waitForUser()
-  setDebugInfo("user", user)
-  if (user) {
-    services.analyticsService.onUserKnown(user)
+  await services.userService.waitForUser()
+  if (services.userService.hasUser()) {
+    setDebugInfo("user", services.userService.getUser())
+    services.analyticsService.onUserKnown(services.userService.getUser())
   }
 
   let paymentPlanStatus: CurrentSubscription
   await Promise.all([
     initializeAllStores(),
     (async () => {
-      if (user && services.features.billingEnabled) {
+      if (services.userService.hasUser() && services.features.billingEnabled) {
         if (services.activeProject) {
           paymentPlanStatus = await getCurrentSubscription(
             services.activeProject,
@@ -114,14 +116,38 @@ function normalizePath(path: string) {
 
 export const Application: React.FC = function () {
   const [services, setServices] = useState<ApplicationServices>()
+  const [projects, setProjects] = useState<Project[]>(null)
   const [error, setError] = useState<Error>()
   useEffect(() => {
-    initializeApplication().then(setServices).catch(setError)
+    ;(async () => {
+      try {
+        let application = await initializeApplication()
+        if (application.userService.hasUser()) {
+          let projects = await application.projectService.getAvailableProjects()
+          if (projects.length === 0) {
+            let newProject = await application.projectService.createProject(
+              application.userService.getUser().suggestedCompanyName
+            )
+            setProjects([newProject])
+          } else {
+            setProjects(projects)
+          }
+          setServices(services)
+        }
+      } catch (e) {
+        setError(e)
+      }
+    })()
   })
   if (!error && !services) {
     return <Preloader />
   } else if (error) {
-    services.analyticsService.onGlobalError(new Error("Failed to initialize application: " + error.message))
+    console.error("Initialization error", error)
+    if (services?.analyticsService) {
+      services.analyticsService.onGlobalError(error, true)
+    } else {
+      console.error("Failed to send error to analytics service, it's not defined yet")
+    }
     return <ErrorCard description={"Failed to load Jitsu application:" + error.message} stackTrace={error.stack} />
   }
 
@@ -135,13 +161,13 @@ export const Application: React.FC = function () {
               key="login"
               path="/login-link/:emailEncoded?"
               exact
-              render={pageOf(LoginLink, { pageTitle: "Jitsu : login with magic link" })}
+              render={pageOf(LoginLink, { pageTitle: "Jitsu : Sign In with magic link" })}
             />
             <Route
               key="signin"
               path={["/", "/dashboard", "/login", "/signin"]}
               exact
-              render={pageOf(LoginPage, { pageTitle: "Jitsu : login with magic link" })}
+              render={pageOf(LoginPage, { pageTitle: "Jitsu : Sign In" })}
             />
             <Route
               key="signup"
@@ -166,10 +192,10 @@ export const Application: React.FC = function () {
     <>
       <Switch>
         <Route path={"/prj_:projectId"} exact={false}>
-          <ProjectRoute />
+          <ProjectRoute projects={projects} />
         </Route>
         <Route>
-          <ProjectRedirect />
+          <ProjectRedirect projects={projects} />
         </Route>
       </Switch>
     </>
@@ -214,7 +240,7 @@ const projectRoutes: ProjectRoute[] = [
 
 function RouteNotFound() {
   useEffect(() => {
-    currentPageHeaderStore.breadcrumbs = [{title: "Not found"}];
+    currentPageHeaderStore.breadcrumbs = [{ title: "Not found" }]
   })
   return (
     <div className="flex justify-center pt-12">
@@ -240,8 +266,13 @@ function RouteNotFound() {
   )
 }
 
-const PageWrapper: React.FC<{pageTitle: string, component: ComponentType, pagePath: string}> = ({pageTitle, component, pagePath, ...rest}) => {
-  const services = useServices();
+const PageWrapper: React.FC<{ pageTitle: string; component: ComponentType; pagePath: string }> = ({
+  pageTitle,
+  component,
+  pagePath,
+  ...rest
+}) => {
+  const services = useServices()
   useEffect(() => {
     services.analyticsService.onPageLoad({
       pagePath: pagePath,
@@ -249,16 +280,17 @@ const PageWrapper: React.FC<{pageTitle: string, component: ComponentType, pagePa
     document["title"] = `Jitsu : ${pageTitle}`
   })
   let Component = component as ExoticComponent
-  return <React.Suspense fallback={<CenteredSpin />}>
-    <Component {...(rest as any)} />
-  </React.Suspense>
-
+  return (
+    <React.Suspense fallback={<CenteredSpin />}>
+      <Component {...(rest as any)} />
+    </React.Suspense>
+  )
 }
 
-const ProjectRoute: React.FC<{}> = () => {
+const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
   const services = useServices()
   const { projectId } = useParams<{ projectId: string }>()
-  let project = services.availableProjects.find(project => project.id === projectId)
+  let project = projects.find(project => project.id === projectId)
 
   if (!project) {
     return (
@@ -266,12 +298,18 @@ const ProjectRoute: React.FC<{}> = () => {
         <ErrorCard
           title={`Can't find project with id ${projectId}`}
           description={`The project either do not exist, or you don't have access to it. Available projects: ${JSON.stringify(
-            services.availableProjects
+            projects
           )}`}
         />
       </div>
     )
   }
+
+  if (services.currentSubscription) {
+    checkQuotas(services.currentSubscription)
+  }
+
+  services.activeProject = project
   return (
     <>
       <ApplicationPage>
@@ -280,7 +318,9 @@ const ProjectRoute: React.FC<{}> = () => {
             <Route
               exact={!isPrefix}
               path={(typeof path === "string" ? [path] : path).map(path => `/prj_:projectId${path}`)}
-              render={page => <PageWrapper pageTitle={pageTitle} component={component} pagePath={page.location.key} {...page} />}
+              render={page => (
+                <PageWrapper pageTitle={pageTitle} component={component} pagePath={page.location.key} {...page} />
+              )}
               key={`${path}-${pageTitle}`}
             />
           ))}
@@ -289,15 +329,19 @@ const ProjectRoute: React.FC<{}> = () => {
           </Route>
         </Switch>
       </ApplicationPage>
+      {!project.setupCompleted && <OnboardingTourLazyLoader project={project} />}
+      {services.userService.getUser().forcePasswordChange && <SetNewPassword onCompleted={async () => reloadPage()} />}
     </>
   )
 }
 
-const ProjectRedirect: React.FC = () => {
-  const services = useServices()
+const ProjectRedirect: React.FC<{ projects: Project[] }> = ({ projects }) => {
   const location = useLocation()
-  let projectId = services.availableProjects[0].id
-  return <Redirect to={`/prj_${projectId}${location.pathname}`} />
+  if (projects.length > 0) {
+    return <Redirect to={`/prj_${projects[0].id}${location.pathname}`} />
+  } else {
+    return <ErrorCard title="Invalid state" description="projects.length should be greater than zero" />
+  }
 }
 
 const LOGIN_TIMEOUT = 5000
@@ -486,9 +530,8 @@ function SetNewPassword({ onCompleted }: { onCompleted: () => Promise<void> }) {
                 let newPassword = values["password"]
                 await services.userService.changePassword(newPassword)
                 await services.userService.login(services.userService.getUser().email, newPassword)
-                let user = (await services.userService.waitForUser()).user
-                user.forcePasswordChange = false
-                //await services.userService.update(user);
+                await services.userService.waitForUser()
+                await services.storageService.saveUserInfo({ _forcePasswordChange: false })
                 await onCompleted()
               } catch (e) {
                 if ("auth/requires-recent-login" === e.code) {

@@ -24,7 +24,7 @@ import { initializeApp, FirebaseApp } from "firebase/app"
 import Marshal from "../commons/marshalling"
 import { reloadPage, setDebugInfo } from "../commons/utils"
 import { randomId } from "utils/numbers"
-import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserLoginStatus, UserService } from "./UserService"
+import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserService } from "./UserService"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
 import AnalyticsService from "./analytics"
@@ -34,7 +34,7 @@ import { use } from "msw/lib/types/utils/internal/requestHandlerUtils"
 export class FirebaseUserService implements UserService {
   private firebaseApp: FirebaseApp
   private user?: User
-  private apiAccess: ApiAccess
+  private _apiAccess: ApiAccess
   private firebaseUser: FirebaseUser
   private backendApi: BackendApiClient
   private readonly storageService: ServerStorage
@@ -96,14 +96,12 @@ export class FirebaseUserService implements UserService {
     })
   }
 
-  login(email: string, password: string): Promise<any> {
-    let fbLogin = signInWithEmailAndPassword(getAuth(), email, password)
-    return new Promise<any>((resolve, reject) => {
-      fbLogin.then(login => resolve(login)).catch(error => reject(error))
-    })
+  async login(email: string, password: string): Promise<any> {
+    let fbLogin = await signInWithEmailAndPassword(getAuth(), email, password)
+    this._apiAccess = new ApiAccess(await fbLogin.user.getIdToken(false), null, () => {})
   }
 
-  public async waitForUser(): Promise<UserLoginStatus> {
+  public async waitForUser(): Promise<void> {
     let fbUserPromise = new Promise<FirebaseUser>((resolve, reject) => {
       let unregister = onAuthStateChanged(
         getAuth(),
@@ -125,16 +123,14 @@ export class FirebaseUserService implements UserService {
 
     let fbUser = await fbUserPromise
     if (fbUser) {
-      await this.refreshToken(fbUser, false)
-      let userDTO = await this.storageService.getUserInfo();
-      let user = userFromDTO(userDTO);
-      user.uid = fbUser.uid;
-      user.email = fbUser.email;
-      user.name = user.name || fbUser.displayName;
-      this.user = user;
-      return { user: this.user, loggedIn: false }
+      this._apiAccess = new ApiAccess(await fbUser.getIdToken(false), null, () => {})
+      let userDTO = await this.storageService.getUserInfo()
+      let user = userFromDTO(userDTO)
+      user.uid = fbUser.uid
+      user.email = fbUser.email
+      user.name = user.name || fbUser.displayName
+      this.user = user
     }
-    return { user: null, loggedIn: false }
   }
 
   removeAuth(callback: () => void) {
@@ -161,7 +157,7 @@ export class FirebaseUserService implements UserService {
     console.log(
       `Firebase token (force=${forceRefresh}) which expire at ${tokenInfo.expirationTime} in ${expirationMs}ms=(${tokenInfo.expirationTime})`
     )
-    this.apiAccess = new ApiAccess(tokenInfo.token, null, () => {})
+    this._apiAccess = new ApiAccess(tokenInfo.token, null, () => {})
     setTimeout(() => this.refreshToken(firebaseUser, true), expirationMs / 2)
   }
 
@@ -169,8 +165,10 @@ export class FirebaseUserService implements UserService {
     let firebaseUser = await createUserWithEmailAndPassword(getAuth(), email.trim(), password.trim())
 
     await this.refreshToken(firebaseUser.user, false)
+    this._apiAccess = new ApiAccess(await firebaseUser.user.getIdToken(false), null, () => {})
 
     let user: User = {
+      suggestedCompanyName: undefined,
       uid: firebaseUser.user.uid,
       name: firebaseUser.user.displayName,
       email: firebaseUser.user.email,
@@ -181,10 +179,6 @@ export class FirebaseUserService implements UserService {
     }
     await this.storageService.saveUserInfo(userToDTO(user))
     await this.trackSignup(email, "email")
-  }
-
-  setupUser(_): Promise<void> {
-    throw new Error("Firebase doesn't support initial user setup")
   }
 
   hasUser(): boolean {
@@ -206,7 +200,7 @@ export class FirebaseUserService implements UserService {
   async changeEmail(newEmail: string): Promise<void> {
     await updateEmail(this.firebaseUser, newEmail)
     this.user.email = newEmail
-    await this.update(this.user)
+    await this.storageService.saveUserInfo({ _email: newEmail })
   }
 
   async changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void> {
@@ -244,5 +238,9 @@ export class FirebaseUserService implements UserService {
 
   async getIdToken(): Promise<string> {
     return await getIdToken(this.firebaseUser)
+  }
+
+  apiAccess(): ApiAccess {
+    return this._apiAccess;
   }
 }
