@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { ApiAccess, Project, SuggestedUserInfo, User } from "./model"
+import { ApiAccess, SuggestedUserInfo, User, userFromDTO, userToDTO } from "./model"
 import {
   getAuth,
   User as FirebaseUser,
@@ -29,6 +29,7 @@ import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
 import AnalyticsService from "./analytics"
 import { FeatureSettings } from "./ApplicationServices"
+import { use } from "msw/lib/types/utils/internal/requestHandlerUtils"
 
 export class FirebaseUserService implements UserService {
   private firebaseApp: FirebaseApp
@@ -102,15 +103,7 @@ export class FirebaseUserService implements UserService {
     })
   }
 
-  public waitForUser(): Promise<UserLoginStatus> {
-    setDebugInfo(
-      "loginAs",
-      async token => {
-        await signInWithCustomToken(getAuth(), token)
-      },
-      false
-    )
-
+  public async waitForUser(): Promise<UserLoginStatus> {
     let fbUserPromise = new Promise<FirebaseUser>((resolve, reject) => {
       let unregister = onAuthStateChanged(
         getAuth(),
@@ -118,18 +111,6 @@ export class FirebaseUserService implements UserService {
           if (user) {
             this.firebaseUser = user
             setDebugInfo("firebaseUser", user)
-            setDebugInfo(
-              "updateEmail",
-              async email => {
-                try {
-                  let updateResult = await updateEmail(user, email)
-                  console.log(`Attempt to update email to ${email}. Result`, updateResult)
-                } catch (e) {
-                  console.log(`Attempt to update email to ${email} failed`, e)
-                }
-              },
-              false
-            )
             resolve(user)
           } else {
             resolve(null)
@@ -141,43 +122,19 @@ export class FirebaseUserService implements UserService {
         }
       )
     })
-    return fbUserPromise.then((user: FirebaseUser) => {
-      if (user != null) {
-        return this.restoreUser(user).then(user => {
-          return { user: user, loggedIn: true, loginErrorMessage: null }
-        })
-      } else {
-        return { user: null, loggedIn: false }
-      }
-    })
-  }
 
-  private async restoreUser(fbUser: FirebaseUser): Promise<User> {
-    //initialize authorization
-    await this.refreshToken(fbUser, false)
-    this.user = new User(fbUser.uid, () => this.apiAccess, {} as SuggestedUserInfo)
-
-    const userInfo = await this.storageService.getUserInfo()
-    const suggestedInfo = {
-      email: fbUser.email,
-      name: fbUser.displayName,
+    let fbUser = await fbUserPromise
+    if (fbUser) {
+      await this.refreshToken(fbUser, false)
+      let userDTO = await this.storageService.getUserInfo();
+      let user = userFromDTO(userDTO);
+      user.uid = fbUser.uid;
+      user.email = fbUser.email;
+      user.name = user.name || fbUser.displayName;
+      this.user = user;
+      return { user: this.user, loggedIn: false }
     }
-    if (Object.keys(userInfo).length !== 0) {
-      this.user = new User(fbUser.uid, () => this.apiAccess, suggestedInfo, userInfo)
-      //Fix a bug where created date is not set for a new user
-      if (!this.user.created) {
-        this.user.created = new Date()
-        await this.update(this.user)
-      }
-    } else {
-      // creates new user with a fresh project
-      this.user = new User(fbUser.uid, () => this.apiAccess, suggestedInfo, {
-        _project: new Project(randomId(), null),
-      })
-      this.user.created = new Date()
-      await this.update(this.user)
-    }
-    return this.user
+    return { user: null, loggedIn: false }
   }
 
   removeAuth(callback: () => void) {
@@ -198,23 +155,6 @@ export class FirebaseUserService implements UserService {
     }
   }
 
-  update(user: User): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      if (user.projects == null) {
-        reject(new Error(`Can't update user without projects:` + JSON.stringify(user)))
-      }
-      if (user.projects.length != 1) {
-        reject(
-          new Error(`Can't update user projects ( ` + user.projects.length + `), should be 1` + JSON.stringify(user))
-        )
-      }
-      let userData: any = Marshal.toPureJson(user)
-      userData["_project"] = Marshal.toPureJson(user.projects[0])
-      delete userData["_projects"]
-      return this.storageService.saveUserInfo(userData).then(resolve)
-    })
-  }
-
   async refreshToken(firebaseUser: FirebaseUser, forceRefresh: boolean) {
     const tokenInfo = await firebaseUser.getIdTokenResult(forceRefresh)
     const expirationMs = new Date(tokenInfo.expirationTime).getTime() - Date.now()
@@ -230,22 +170,16 @@ export class FirebaseUserService implements UserService {
 
     await this.refreshToken(firebaseUser.user, false)
 
-    let user = new User(
-      firebaseUser.user.uid,
-      () => this.apiAccess,
-      { name: null, email: email },
-      {
-        _name: name,
-        _project: new Project(randomId(), null),
-      }
-    )
-
-    user.created = new Date()
-
-    this.user = user
-
-    await this.update(user)
-
+    let user: User = {
+      uid: firebaseUser.user.uid,
+      name: firebaseUser.user.displayName,
+      email: firebaseUser.user.email,
+      onboarded: false,
+      emailOptout: false,
+      forcePasswordChange: false,
+      created: new Date().toISOString(),
+    }
+    await this.storageService.saveUserInfo(userToDTO(user))
     await this.trackSignup(email, "email")
   }
 

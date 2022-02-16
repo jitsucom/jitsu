@@ -1,7 +1,10 @@
 import Marshal from "lib/commons/marshalling"
 import { BackendApiClient } from "./BackendApiClient"
-import { User } from "./model"
+import { User, UserDTO } from "./model"
 import ApplicationServices from "./ApplicationServices"
+import { merge } from "lodash-es"
+import { sanitize } from "../commons/utils"
+import { Project } from "../../generated/conf-openapi"
 
 /**
  * A generic object storage
@@ -15,7 +18,7 @@ export abstract class ServerStorage {
   /**
    * Returns user info object (user id is got from authorization token)
    */
-  abstract getUserInfo(): Promise<User>
+  abstract getUserInfo(): Promise<UserDTO>
 
   //  * @deprecated use `create`, `add`, `delete`, `patch` instead
   /**
@@ -24,11 +27,18 @@ export abstract class ServerStorage {
   abstract save(collectionName: string, data: any, key: string): Promise<void>
 
   /**
-   * Saves users information required for system (on-boarding status, user projects, etc.)
-   * (user id is got from authorization token)
-   * @param data User JSON representation
+   * Saves user info. The data will be merged in into existing user info. Updates on some fields (such as project, etc)
+   * will be ignored. See implementation for details
    */
-  abstract saveUserInfo(data: any): Promise<void>
+  abstract saveUserInfo(data: Partial<UserDTO>): Promise<void>
+
+  /**
+   * Sets project for user. Temporary method. Later, should be replaced with /project/link call
+   *
+   * Existing project will be rewritten
+   *
+   */
+  abstract setProject(project: Project): Promise<void>
 
   /**
    * Returns a table-like structure for managing config. See ConfigurationEntitiesTable
@@ -168,7 +178,6 @@ function getEntitiesTable<T = any>(
 }
 
 export class HttpServerStorage extends ServerStorage {
-  public static readonly USERS_INFO_PATH = "/users/info"
   private backendApi: BackendApiClient
 
   constructor(backendApi: BackendApiClient) {
@@ -176,12 +185,20 @@ export class HttpServerStorage extends ServerStorage {
     this.backendApi = backendApi
   }
 
-  getUserInfo(): Promise<User> {
-    return this.backendApi.get(`${HttpServerStorage.USERS_INFO_PATH}`)
+  getUserInfo(): Promise<UserDTO> {
+    return this.backendApi.get(`/users/info`)
   }
 
-  saveUserInfo(data: any): Promise<void> {
-    return this.backendApi.post(`${HttpServerStorage.USERS_INFO_PATH}`, Marshal.toPureJson(data))
+  async saveUserInfo(data: UserDTO): Promise<void> {
+    let current: UserDTO = await this.backendApi.get(`/users/info`)
+    let mergedUserInfo = merge(
+      current,
+      sanitize(data, {
+        allow: ["_emailOptout", "_name", "_forcePasswordChange", "_name", "_onboarded", "_suggestedInfo"],
+      })
+    )
+    console.log("Saving user info", mergedUserInfo)
+    return this.backendApi.post(`/users/info`, mergedUserInfo)
   }
 
   get(collectionName: string, key: string): Promise<any> {
@@ -190,6 +207,12 @@ export class HttpServerStorage extends ServerStorage {
 
   save(collectionName: string, data: any, key: string): Promise<void> {
     return this.backendApi.post(`/configurations/${collectionName}?id=${key}`, Marshal.toPureJson(data))
+  }
+
+  async setProject(project: Project): Promise<void> {
+    let current: UserDTO = await this.backendApi.get(`/users/info`)
+    current._project = {$type: "Project", _id: project.id, _name: project.name, _planId: project.planId || "free"}
+    return this.backendApi.post(`/users/info`, current)
   }
 }
 
