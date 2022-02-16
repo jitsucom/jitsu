@@ -29,7 +29,7 @@ const { IDLE, GLOBAL_LOADING, BACKGROUND_LOADING, GLOBAL_ERROR } = EntitiesStore
 
 const services = ApplicationServices.get()
 
-class ApiKeysStore implements IApiKeysStore {
+export class ApiKeysStore implements IApiKeysStore {
   private _apiKeys: ApiKey[] = []
   private _state: EntitiesStoreState = GLOBAL_LOADING
   private _errorMessage: string = ""
