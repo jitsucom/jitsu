@@ -913,6 +913,18 @@ func (cs *ConfigurationsService) GetProject(projectID string) (result Project, e
 	return
 }
 
+func (cs *ConfigurationsService) CreateProject(project openapi.Project) (result Project, err error) {
+	projectID := common.GenerateProjectID()
+	project.Id = &projectID
+	if projectData, err := cs.saveWithLock(projectSettingsCollection, projectID, project); err != nil {
+		err = errors.Wrapf(err, "create project")
+	} else if err := json.Unmarshal(projectData, &result); err != nil {
+		err = errors.Wrapf(err, "unmarshal project")
+	}
+
+	return
+}
+
 func (cs *ConfigurationsService) PatchProject(projectID string, patch map[string]interface{}) (result Project, err error) {
 	objectType := projectSettingsCollection
 	lock, err := cs.lockProjectObject(objectType, projectID)
@@ -923,7 +935,12 @@ func (cs *ConfigurationsService) PatchProject(projectID string, patch map[string
 	defer lock.Unlock()
 
 	data, err := cs.get(objectType, projectID)
-	if err != nil {
+	switch err {
+	case nil:
+	// is ok
+	case ErrConfigurationNotFound:
+		data = []byte("{}")
+	default:
 		return
 	}
 

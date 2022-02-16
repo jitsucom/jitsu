@@ -18,6 +18,7 @@ import (
 const (
 	UsersInfoCollection = "users_info"
 	usersInfoEmailKey   = "_email"
+	userProjectRelation = "user_project"
 	RedisType           = "redis"
 	FirebaseType        = "firebase"
 )
@@ -84,7 +85,7 @@ func (s *Service) Authenticate(token string) (string, error) {
 
 // GetProjectIDs returns linked project IDs for the user.
 func (s *Service) GetProjectIDs(userID string) ([]string, error) {
-	return s.configurationsStorage.GetRelatedIDs("user_projects", userID)
+	return s.configurationsStorage.GetRelatedIDs(userProjectRelation, userID)
 }
 
 //GetOnlyUserID return the only userID. Works only in self-hosted (when authorization is via Redis)
