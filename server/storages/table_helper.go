@@ -238,13 +238,13 @@ func (th *TableHelper) getOrCreate(dataSchema *adapters.Table) (*adapters.Table,
 	//Get schema
 	dbTableSchema, err := th.sqlAdapter.GetTableSchema(dataSchema.Name)
 	if err != nil {
-		return nil, fmt.Errorf("Error getting table %s schema: %v", dataSchema.Name, err)
+		return nil, err
 	}
 
 	//create new
 	if !dbTableSchema.Exists() {
 		if err := th.sqlAdapter.CreateTable(dataSchema); err != nil {
-			return nil, fmt.Errorf("Error creating table %s: %v", dataSchema.Name, err)
+			return nil, err
 		}
 
 		dbTableSchema.Schema = dataSchema.Schema
