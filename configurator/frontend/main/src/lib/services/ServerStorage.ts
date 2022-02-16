@@ -2,7 +2,7 @@ import Marshal from "lib/commons/marshalling"
 import { BackendApiClient } from "./BackendApiClient"
 import { User, UserDTO } from "./model"
 import ApplicationServices from "./ApplicationServices"
-import { merge } from "lodash-es"
+import { merge } from "lodash"
 import { sanitize } from "../commons/utils"
 import { Project } from "../../generated/conf-openapi"
 
@@ -194,7 +194,7 @@ export class HttpServerStorage extends ServerStorage {
     let mergedUserInfo = merge(
       current,
       sanitize(data, {
-        allow: ["_emailOptout", "_name", "_forcePasswordChange", "_name", "_onboarded", "_suggestedInfo"],
+        allow: ["_emailOptout", "_name", "_forcePasswordChange", "_name", "_onboarded", "_suggestedInfo", "_project"],
       })
     )
     console.log("Saving user info", mergedUserInfo)
@@ -211,6 +211,9 @@ export class HttpServerStorage extends ServerStorage {
 
   async setProject(project: Project): Promise<void> {
     let current: UserDTO = await this.backendApi.get(`/users/info`)
+    if (current._project) {
+      throw new Error(`User ${current._email} already has a linked project: ${JSON.stringify(current._project)}`)
+    }
     current._project = {$type: "Project", _id: project.id, _name: project.name, _planId: project.planId || "free"}
     return this.backendApi.post(`/users/info`, current)
   }

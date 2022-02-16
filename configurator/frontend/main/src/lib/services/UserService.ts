@@ -1,13 +1,8 @@
-import { User } from "./model"
+import { ApiAccess, User } from "./model"
 
 /**
  * User Service
  */
-
-export type UserLoginStatus = {
-  user?: User
-  loggedIn: boolean
-}
 
 export interface LoginFeatures {
   oauth: boolean
@@ -30,10 +25,6 @@ export interface SetupUserProps {
 }
 
 
-
-
-
-
 export interface UserService {
   /**
    * Logs in user. On success user must reload
@@ -51,6 +42,8 @@ export interface UserService {
    */
   initiateGoogleLogin(redirect?: string): Promise<string>
 
+  apiAccess(): ApiAccess
+
   /**
    * Initiates google login
    */
@@ -59,7 +52,7 @@ export interface UserService {
   /**
    * Get (wait for) logged in user (or null if user is not logged in).
    */
-  waitForUser(): Promise<UserLoginStatus>
+  waitForUser(): Promise<void>
 
   /**
    * Get current logged in user. Throws exception if user is not available
@@ -104,13 +97,11 @@ export interface UserService {
    */
   changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void>
 
-  update(user: User)
 
   removeAuth(callback: () => void)
 
   createUser(email: string, password: string): Promise<void>
 
-  setupUser(userProps: SetupUserProps): Promise<void>
 
   becomeUser(email: string): Promise<void>
 

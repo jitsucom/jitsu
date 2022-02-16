@@ -145,7 +145,7 @@ export default function GetStartedPage(props: GetStartedPageProps) {
         {props.login ? (
           <LoginForm supportOauth={props.oauthSupport} />
         ) : (
-          <SignupForm supportOauth={props.oauthSupport} />
+          <SignupForm />
         )}
       </div>
     </div>

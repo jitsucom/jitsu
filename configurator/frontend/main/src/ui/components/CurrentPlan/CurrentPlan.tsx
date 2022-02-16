@@ -114,7 +114,7 @@ export const UpgradePlan: React.FC<{
       })
       const user = services.userService.getUser()
       window.location.href = generateCheckoutLink({
-        project_id: user.projects[0].id,
+        project_id: services.activeProject.id,
         user_email: user.email,
         plan_id: planId,
         redirect_base: window.location.href,

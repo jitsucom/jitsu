@@ -7,13 +7,15 @@ import { BankOutlined, UserOutlined } from "@ant-design/icons"
 import { handleError } from "lib/components/components"
 import { randomId } from "utils/numbers"
 // @Types
-import { User, Project } from "lib/services/model"
+import { User } from "lib/services/model"
 // @Styles
 import styles from "./OnboardingTourNames.module.less"
 import ApplicationServices from "lib/services/ApplicationServices"
+import { useServices } from "../../../../../hooks/useServices"
 
 type OnboardingTourNamesStepProps = {
   user: User
+  companyName: string | null | undefined
   handleGoNext: () => void
 }
 
@@ -25,19 +27,22 @@ type OnboardingTourNamesFormValues = {
 
 const services = ApplicationServices.get()
 
-export const OnboardingTourNames: React.FC<OnboardingTourNamesStepProps> = function ({ user, handleGoNext }) {
+export const OnboardingTourNames: React.FC<OnboardingTourNamesStepProps> = function ({
+  user,
+  companyName,
+  handleGoNext,
+}) {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [form] = Form.useForm<OnboardingTourNamesFormValues>()
 
   const initialValues = useMemo<OnboardingTourNamesFormValues>(() => {
-    const userProjectName = user.projects?.length ? user.projects[0].name : ""
-    const suggestedProjectName = user.suggestedInfo.companyName
     return {
-      userDisplayName: user.name || user.suggestedInfo.name || "",
-      projectName: userProjectName || suggestedProjectName || "",
+      userDisplayName: user.name,
+      projectName: companyName,
       emailsOptIn: true,
     }
-  }, [user.name, user.projects, user.suggestedInfo.name, user.suggestedInfo.companyName])
+  }, [user.name, companyName])
+  const services = useServices()
 
   const handleSubmit = useCallback(async () => {
     setIsSubmitting(true)
@@ -51,19 +56,11 @@ export const OnboardingTourNames: React.FC<OnboardingTourNamesStepProps> = funct
     }
     try {
       // for rare case if user arrived without a project
-      if (!user.projects || !user.projects.length) {
-        user.projects = [new Project(randomId(5), values.projectName)]
-      }
-      // user may not have the project name after the sign up
-      else if (!user.projects[0].name) {
-        user.projects[0].name = values.projectName
-      }
-      if (!user.created) {
-        user.created = new Date()
-      }
       user.name = values.userDisplayName
       user.emailOptout = !values.emailsOptIn
-      await ApplicationServices.get().userService.update(user)
+      await services.storageService.saveUserInfo({ _emailOptout: !values.emailsOptIn, _name: values.userDisplayName })
+      await services.projectService.updateProject({ id: services.activeProject.id, name: values.userDisplayName })
+
       handleGoNext()
     } catch (error) {
       handleError(error, "Can't save project data")

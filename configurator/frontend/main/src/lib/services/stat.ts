@@ -1,6 +1,6 @@
 import moment, { Moment, unitOfTime } from "moment"
-import { IProject } from "lib/services/model"
 import { BackendApiClient } from "./BackendApiClient"
+import { Project } from "../../generated/conf-openapi"
 /**
  * Events that come directly from sources are in the `source` namespace.
  * When events are processed internally in Jitsu thay may get multiplexed
@@ -191,11 +191,11 @@ function index(series: DatePoint[]): Record<string, number> {
 export class StatisticsService implements IStatisticsService {
   private readonly api: BackendApiClient
 
-  private readonly project: IProject
+  private readonly project: Project
 
   private readonly timeInUTC: boolean
 
-  constructor(api: BackendApiClient, project: IProject, timeInUTC: boolean) {
+  constructor(api: BackendApiClient, project: Project, timeInUTC: boolean) {
     this.api = api
     this.project = project
     this.timeInUTC = timeInUTC

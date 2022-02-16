@@ -1,22 +1,22 @@
 /* eslint-disable */
-import { ApiAccess, Project, User } from "./model"
+import { ApiAccess, User, userFromDTO, userToDTO } from "./model"
 import Marshal from "../commons/marshalling"
 import { randomId } from "utils/numbers"
 import { cleanAuthorizationLocalStorage, concatenateURLs } from "lib/commons/utils"
 import { getBaseUIPath } from "lib/commons/pathHelper"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
-import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserLoginStatus, UserService } from "./UserService"
+import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserService } from "./UserService"
 
 export const LS_ACCESS_KEY = "en_access"
 export const LS_REFRESH_KEY = "en_refresh"
 
 export class BackendUserService implements UserService {
   private user?: User
-  private apiAccess: ApiAccess
   private backendApi: BackendApiClient
   private readonly storageService: ServerStorage
   private readonly smtpConfigured: boolean
+  private _apiAccess: ApiAccess
 
   constructor(backendApi: BackendApiClient, storageService: ServerStorage, smtpConfigured: boolean) {
     this.backendApi = backendApi
@@ -40,18 +40,10 @@ export class BackendUserService implements UserService {
     throw new Error("Email verification currently not supported in self-hosted version")
   }
 
-  login(email: string, password: string): Promise<any> {
-    return new Promise<any>((resolve, reject) => {
-      this.backendApi
-        .post("/users/signin", { email: email, password: password }, { noauth: true })
-        .then(response => {
-          this.apiAccess = new ApiAccess(response["access_token"], response["refresh_token"], this.setTokens)
-          this.setTokens(response["access_token"], response["refresh_token"])
-
-          resolve(response)
-        })
-        .catch(error => reject(error))
-    })
+  async login(email: string, password: string): Promise<void> {
+    let response = await this.backendApi.post("/users/signin", { email, password }, { noauth: true })
+    this._apiAccess = new ApiAccess(response["access_token"], response["refresh_token"], this.setTokens)
+    this.setTokens(response["access_token"], response["refresh_token"])
   }
 
   async createUser(email: string, password: string): Promise<void> {
@@ -61,108 +53,39 @@ export class BackendUserService implements UserService {
     }
 
     const response = await this.backendApi.post("/users/signup", signUpPayload, { noauth: true })
+    this.user = {
+      suggestedCompanyName: undefined,
+      created: new Date().toISOString(),
+      uid: response["user_id"],
+      emailOptout: false,
+      forcePasswordChange: false,
+      name: undefined,
+      onboarded: false,
+      email: email,
+    }
+    await this.storageService.saveUserInfo(userToDTO(this.user))
 
-    this.apiAccess = new ApiAccess(response["access_token"], response["refresh_token"], this.setTokens)
-    this.setTokens(response["access_token"], response["refresh_token"])
-
-    const user = new User(
-      response["user_id"],
-      () => this.apiAccess,
-      {
-        name: null,
-        email: email,
-        companyName: null,
-      },
-      {
-        _name: name,
-        _project: new Project(randomId(), null),
-      }
+    this._apiAccess = new ApiAccess(response["access_token"], response["refresh_token"], (accessToken, refreshToken) =>
+      this.setTokens(accessToken, refreshToken)
     )
-
-    user.created = new Date()
-
-    this.user = user
-
-    await this.update(user)
   }
 
-  async setupUser({ email, password, name, company = "", emailOptout = false }): Promise<void> {
-    if (!name || name === "") {
-      throw new Error("Name is not set")
-    }
-    const signUpPayload = {
-      email,
-      password,
-      name,
-      company,
-      emailOptout,
-      usageOptout: false,
-    }
-    const response = await this.backendApi.post("/users/onboarded/signup", signUpPayload, { noauth: true })
-
-    this.apiAccess = new ApiAccess(response["access_token"], response["refresh_token"], this.setTokens)
-    this.setTokens(response["access_token"], response["refresh_token"])
-
-    const user = new User(
-      response["user_id"],
-      () => this.apiAccess,
-      {
-        name: name,
-        email: email,
-        companyName: company,
-      },
-      {
-        _name: name,
-        _project: new Project(randomId(), company),
-      }
-    )
-
-    user.created = new Date()
-    user.emailOptout = emailOptout
-    user.onboarded = true
-
-    this.user = user
-
-    await this.update(user)
-  }
-
-  public async waitForUser(): Promise<UserLoginStatus> {
+  public async waitForUser(): Promise<void> {
     if (this.user) {
-      return { user: this.user, loggedIn: true }
+      return;
     }
 
     try {
-      const user = await this.restoreUser()
-      if (user) {
-        return { user: user, loggedIn: true }
-      } else {
-        return { user: null, loggedIn: false }
+      const { accessToken, refreshToken } = this.getTokens()
+      //not authorized
+      if (!accessToken) {
+        return;
       }
+      let userDTO = await this.storageService.getUserInfo()
+      this.user = userFromDTO(userDTO);
     } catch (error) {
       this.clearTokens()
       throw new Error(error)
-    }
-  }
-
-  private async restoreUser(): Promise<User> {
-    const { accessToken, refreshToken } = this.getTokens()
-
-    //not authorized
-    if (!accessToken) {
-      return null
-    }
-
-    //initialize authorization for getting users info (auth required)
-    this.apiAccess = new ApiAccess(accessToken, refreshToken, this.setTokens)
-    this.user = new User(null, () => this.apiAccess, null, null)
-
-    let userInfo = await this.storageService.getUserInfo()
-
-    if (Object.keys(userInfo).length !== 0) {
-      this.user = new User(userInfo["_uid"], () => this.apiAccess, userInfo["_suggestedInfo"], userInfo)
-      return this.user
-    } else {
-      throw new Error("User info wasn't found")
     }
   }
 
@@ -201,10 +124,6 @@ export class BackendUserService implements UserService {
 
   getUserEmailStatus(): UserEmailStatus {
     return { needsConfirmation: false }
-  }
-
-  update(user: User): Promise<void> {
-    return this.storageService.saveUserInfo(user)
   }
 
   sendPasswordReset(email?: string): Promise<void> {
@@ -292,5 +211,9 @@ export class BackendUserService implements UserService {
 
   async getIdToken(): Promise<string> {
     throw new Error("getIdToken is not supporteb by self-hosted user service")
+  }
+
+  apiAccess(): ApiAccess {
+    return this._apiAccess;
   }
 }

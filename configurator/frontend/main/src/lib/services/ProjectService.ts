@@ -5,6 +5,8 @@ import { Project } from "../../generated/conf-openapi"
 import { UserService } from "./UserService"
 import { BackendApiClient } from "./BackendApiClient"
 import { randomId } from "../../utils/numbers"
+import { UserDTO } from "./model"
+import { assert } from "../../utils/typeCheck"
 
 export interface ProjectService {
   /**
@@ -19,12 +21,14 @@ export interface ProjectService {
   getAvailableProjects(): Promise<Project[]>
 
   getProjectById(projectId: string): Promise<Project>
+
+  updateProject(project: Partial<Project>): Promise<void>
 }
 
 export function createProjectService_v1(userService: UserService, backend: BackendApiClient): ProjectService {
   return {
     async createProject(projectName: string, planId: string = "free"): Promise<Project> {
-      let userInfo = await this.backendApi.get(`/users/info`)
+      let userInfo: UserDTO = await backend.get(`/users/info`)
       if (userInfo._project && userInfo._project) {
         throw new Error(
           `At the moment, user can have only one project. Current user has linked ${JSON.stringify(userInfo._project)}`
@@ -33,30 +37,53 @@ export function createProjectService_v1(userService: UserService, backend: Backe
       let newId = randomId()
       userInfo._project = {
         $type: "Project",
+        _setupCompleted: false,
         _id: newId,
         _name: projectName,
         _planId: planId,
       }
-      return { id: newId, name: projectName, planId: planId }
+      await backend.post(`/users/info`, userInfo)
+      return { id: newId, name: projectName, planId: planId, setupCompleted: false }
     },
+
     async getAvailableProjects(): Promise<Project[]> {
-      let userInfo = await this.backendApi.get(`/users/info`)
+      let userInfo: UserDTO = await backend.get(`/users/info`)
       if (!userInfo._project) {
         return []
       } else {
         return [
-          { id: userInfo._project._id, name: userInfo._project._name, planId: userInfo._project._planId || "free" },
+          {
+            id: userInfo._project._id,
+            name: userInfo._project._name,
+            planId: userInfo._project._planId || "free",
+            setupCompleted: userInfo._project._setupCompleted === undefined ? true : userInfo._project._setupCompleted,
+          },
         ]
       }
     },
+    async updateProject(project: Partial<Project>): Promise<void> {
+      assert(!!project.id, "Project id is required")
+      let userInfo: UserDTO = await backend.get(`/users/info`)
+      assert(!!userInfo._project, "User doesn't have attached project")
+      assert(
+        userInfo._project._id === project.id,
+        `Project id doesn't match, local: ${project.id}, server: ${userInfo._project._id}`
+      )
+      userInfo._project = {
+        $type: "Project",
+        _id: project.id,
+        _name: project.name || userInfo._project._name,
+        _planId: project.planId || userInfo._project._planId,
+      }
+      await backend.post(`/users/info`, userInfo);
+    },
     async getProjectById(projectId: string): Promise<Project | null> {
-      let userInfo = await this.backendApi.get(`/users/info`);
+      let userInfo = await backend.get(`/users/info`)
       if (!userInfo._project || userInfo._project._id !== projectId) {
-        return null;
+        return null
       } else {
-        return { id: userInfo._project._id, name: userInfo._project._name, planId: userInfo._project._planId || "free" };
+        return { id: userInfo._project._id, name: userInfo._project._name, planId: userInfo._project._planId || "free" }
       }
     },
-
   }
 }
