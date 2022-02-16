@@ -182,7 +182,7 @@ type V8TemplateExecutor struct {
 
 func NewV8TemplateExecutor(expression string, extraFunctions template.FuncMap, extraScripts ...string) (*V8TemplateExecutor, error) {
 	expression = Wrap(expression, functionName)
-	v8go.SetFlags("--stack-trace-limit", "100", "--stack-size", "100", "--max-heap-size", "1000")
+	v8go.SetFlags("--stack-trace-limit", "100", "--stack-size", "100", "--always-compact", "true")
 	iso := v8go.NewIsolate()
 	vte := &V8TemplateExecutor{sync.Mutex{}, iso, make(chan events.Event), make(chan struct{}), make(chan interface{}), expression, nil}
 	//safego.RunWithRestart(func() {
