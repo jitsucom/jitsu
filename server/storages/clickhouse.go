@@ -156,7 +156,7 @@ func (ch *ClickHouse) storeTable(adapter adapters.SQLAdapter, tableHelper *Table
 		return err
 	}
 
-	if err := adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
+	if err := adapter.Insert(adapters.NewBatchInsertContext(dbSchema, fdata.GetPayload(), nil)); err != nil {
 		return err
 	}
 

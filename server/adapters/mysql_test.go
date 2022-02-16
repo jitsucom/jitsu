@@ -27,42 +27,21 @@ var timestamps = [...]time.Time{
 	time.Date(1910, time.July, 10, 10, 50, 10, 17, time.UTC),
 }
 
-func TestMySQLBulkInsert(t *testing.T) {
-	recordsCount := len(timestamps)
-	table := &Table{
-		Name: "test_insert",
-		Columns: Columns{
-			"field1":          typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
-			"field2":          typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
-			"field3":          typing.SQLColumn{Type:SchemaToMySQL[typing.INT64]},
-			"user":            typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
-			"_interval_start": typing.SQLColumn{Type:SchemaToMySQL[typing.TIMESTAMP]},
-		},
-	}
-	container, mySQL := setupMySQLDatabase(t, table)
-	defer container.Close()
-	err := mySQL.BulkInsert(table, createObjectsForMySQL(recordsCount))
-	require.NoError(t, err, fmt.Sprintf("Failed to bulk insert %d objects", recordsCount))
-	rows, err := container.CountRows(table.Name)
-	require.NoError(t, err, "Failed to count objects at "+table.Name)
-	assert.Equal(t, rows, recordsCount)
-}
-
 func TestMySQLTruncateExistingTable(t *testing.T) {
 	recordsCount := len(timestamps)
 	table := &Table{
 		Name: "test_truncate_existing_table",
 		Columns: Columns{
-			"field1":          typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
-			"field2":          typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
-			"field3":          typing.SQLColumn{Type:SchemaToMySQL[typing.INT64]},
-			"user":            typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
-			"_interval_start": typing.SQLColumn{Type:SchemaToMySQL[typing.TIMESTAMP]},
+			"field1":          typing.SQLColumn{Type: SchemaToMySQL[typing.STRING]},
+			"field2":          typing.SQLColumn{Type: SchemaToMySQL[typing.STRING]},
+			"field3":          typing.SQLColumn{Type: SchemaToMySQL[typing.INT64]},
+			"user":            typing.SQLColumn{Type: SchemaToMySQL[typing.STRING]},
+			"_interval_start": typing.SQLColumn{Type: SchemaToMySQL[typing.TIMESTAMP]},
 		},
 	}
 	container, mySQL := setupMySQLDatabase(t, table)
 	defer container.Close()
-	err := mySQL.BulkInsert(table, createObjectsForMySQL(recordsCount))
+	err := mySQL.insertBatch(table, createObjectsForMySQL(recordsCount), nil)
 	require.NoError(t, err, fmt.Sprintf("Failed to bulk insert %d objects", recordsCount))
 	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
@@ -78,34 +57,7 @@ func TestMySQLTruncateNonexistentTable(t *testing.T) {
 	container, mySQL := setupMySQLDatabase(t, nil)
 	defer container.Close()
 	err := mySQL.Truncate(uuid.NewV4().String())
-	require.ErrorIs(t, err, ErrTableNotExist)
-}
-
-func TestMySQLBulkMerge(t *testing.T) {
-	recordsCount := len(timestamps)
-	table := &Table{
-		Name: "test_merge",
-		Columns: Columns{
-			"field1":          typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
-			"field2":          typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
-			"field3":          typing.SQLColumn{Type:SchemaToMySQL[typing.INT64]},
-			"user":            typing.SQLColumn{Type:SchemaToMySQL[typing.STRING]},
-			"_interval_start": typing.SQLColumn{Type:SchemaToMySQL[typing.TIMESTAMP]},
-		},
-		PKFields: map[string]bool{"field1": true},
-	}
-	container, mySQL := setupMySQLDatabase(t, table)
-	defer container.Close()
-	// store recordsCount + 3 objects with 3 id duplications, the result must be recordsCount objects
-	objects := createObjectsForMySQL(recordsCount)
-	objects = append(objects, objects[0])
-	objects = append(objects, objects[2])
-	objects = append(objects, objects[3])
-	err := mySQL.BulkInsert(table, objects)
-	require.NoError(t, err, "Failed to bulk merge objects")
-	rows, err := container.CountRows(table.Name)
-	require.NoError(t, err, "Failed to count objects at "+table.Name)
-	assert.Equal(t, rows, recordsCount)
+	require.Contains(t, err.Error(), "table doesn't exist")
 }
 
 func setupMySQLDatabase(t *testing.T, table *Table) (*test.MySQLContainer, *MySQL) {

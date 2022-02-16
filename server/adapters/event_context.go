@@ -2,6 +2,31 @@ package adapters
 
 import "github.com/jitsucom/jitsu/server/events"
 
+//InsertContext is used as a dto for insert operation
+type InsertContext struct {
+	// -- single --
+	eventContext *EventContext
+
+	// -- batch --
+	objects          []map[string]interface{}
+	table            *Table
+	deleteConditions *DeleteConditions
+}
+
+func NewSingleInsertContext(eventContext *EventContext) *InsertContext {
+	return &InsertContext{
+		eventContext: eventContext,
+	}
+}
+
+func NewBatchInsertContext(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) *InsertContext {
+	return &InsertContext{
+		objects:          objects,
+		table:            table,
+		deleteConditions: deleteConditions,
+	}
+}
+
 //EventContext is an extracted serializable event identifiers
 //it is used in counters/metrics/cache
 type EventContext struct {
@@ -14,6 +39,6 @@ type EventContext struct {
 	ProcessedEvent events.Event
 	Table          *Table
 
-	//HTTPRequest applicable only for HTTP events
+	//HTTPRequest is applicable only for HTTP events
 	HTTPRequest *Request
 }

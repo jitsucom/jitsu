@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/enrichment"
+	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/typing"
 	"math/rand"
 
@@ -141,7 +142,7 @@ func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error)
 
 	eventContext.Table = dbTable
 
-	err = sqlAdapter.Insert(eventContext)
+	err = sqlAdapter.Insert(adapters.NewSingleInsertContext(eventContext))
 	if err != nil {
 		//renew current db schema and retry
 		return a.retryInsert(sqlAdapter, tableHelper, eventContext, dbSchemaFromObject)
@@ -155,19 +156,19 @@ func (a *Abstract) retryInsert(sqlAdapter adapters.SQLAdapter, tableHelper *Tabl
 	dbSchemaFromObject *adapters.Table) error {
 	dbTable, err := tableHelper.RefreshTableSchema(a.ID(), dbSchemaFromObject)
 	if err != nil {
-		return err
+		return errorj.Decorate(err, "failed to refresh table schema")
 	}
 
 	dbTable, err = tableHelper.EnsureTableWithCaching(a.ID(), dbSchemaFromObject)
 	if err != nil {
-		return err
+		return errorj.Decorate(err, "failed to ensure table")
 	}
 
 	eventContext.Table = dbTable
 
-	err = sqlAdapter.Insert(eventContext)
+	err = sqlAdapter.Insert(adapters.NewSingleInsertContext(eventContext))
 	if err != nil {
-		return err
+		return errorj.Decorate(err, "failed to execute adapter insert")
 	}
 
 	return nil

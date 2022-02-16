@@ -176,16 +176,16 @@ func TestClickhouseTruncateExistingTable(t *testing.T) {
 	table := &Table{
 		Name: "test_truncate_existing_table",
 		Columns: Columns{
-			"eventn_ctx_event_id": typing.SQLColumn{Type:SchemaToClickhouse[typing.STRING]},
-			"field2":              typing.SQLColumn{Type:SchemaToClickhouse[typing.STRING]},
-			"field3":              typing.SQLColumn{Type:SchemaToClickhouse[typing.INT64]},
-			"user":                typing.SQLColumn{Type:SchemaToClickhouse[typing.STRING]},
-			"_timestamp":          typing.SQLColumn{Type:SchemaToClickhouse[typing.TIMESTAMP]},
+			"eventn_ctx_event_id": typing.SQLColumn{Type: SchemaToClickhouse[typing.STRING]},
+			"field2":              typing.SQLColumn{Type: SchemaToClickhouse[typing.STRING]},
+			"field3":              typing.SQLColumn{Type: SchemaToClickhouse[typing.INT64]},
+			"user":                typing.SQLColumn{Type: SchemaToClickhouse[typing.STRING]},
+			"_timestamp":          typing.SQLColumn{Type: SchemaToClickhouse[typing.TIMESTAMP]},
 		},
 	}
 	container, clickHouse := setupClickHouseDatabase(t, table)
 	defer container.Close()
-	err := clickHouse.BulkInsert(table, createObjectsForClickHouse(recordsCount))
+	err := clickHouse.insert(table, createObjectsForClickHouse(recordsCount)...)
 	require.NoError(t, err, fmt.Sprintf("Failed to bulk insert %d objects", recordsCount))
 	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
@@ -240,6 +240,7 @@ func createObjectsForClickHouse(num int) []map[string]interface{} {
 		object["field3"] = rand.Int()
 		object["user"] = fmt.Sprint(rand.Int())
 		object["_interval_start"] = timestamps[i%len(timestamps)]
+		object["eventn_ctx_event_id"] = uuid.NewV4()
 		objects = append(objects, object)
 	}
 	return objects
