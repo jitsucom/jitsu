@@ -192,7 +192,7 @@ func (oa *OpenAPI) BecomeAnotherCloudUser(c *gin.Context, params openapi.BecomeA
 	if !pem.IsAdmin() {
 		//check user email via authService.IsAdmin()
 		userID := c.GetString(middleware.UserIDKey)
-		isAdmin, err := oa.authService.IsAdmin(userID)
+		isAdmin, err := oa.authService.IsAdmin(c, userID)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(err.Error(), nil))
 			return
@@ -204,7 +204,7 @@ func (oa *OpenAPI) BecomeAnotherCloudUser(c *gin.Context, params openapi.BecomeA
 		}
 	}
 
-	userToken, err := oa.authService.GenerateUserToken(params.UserId)
+	userToken, err := oa.authService.GenerateUserToken(c, params.UserId)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(err.Error(), nil))
 		return
@@ -966,7 +966,7 @@ func (oa *OpenAPI) UserSignUp(c *gin.Context) {
 		return
 	}
 
-	td, err := oa.authService.SignUp(req.Email, req.Password)
+	td, err := oa.authService.SignUp(c, req.Email, req.Password)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(err.Error(), nil))
 		return
@@ -1019,7 +1019,7 @@ func (oa *OpenAPI) UserPasswordChange(c *gin.Context) {
 		token = middleware.ExtractTokenFromDeprecatedParameters(c)
 	}
 
-	td, err := oa.authService.ChangePassword(req.ResetId, token, *req.NewPassword)
+	td, err := oa.authService.ChangePassword(c, req.ResetId, token, *req.NewPassword)
 	if err != nil {
 		if err == authorization.ErrResetIDNotFound {
 			c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("The link has been expired!", nil))
@@ -1063,7 +1063,7 @@ func (oa *OpenAPI) UserPasswordReset(c *gin.Context) {
 		return
 	}
 
-	resetID, email, err := oa.authService.CreateResetID(req.Email)
+	resetID, email, err := oa.authService.CreateResetID(c, req.Email)
 	if err != nil {
 		if err == authorization.ErrUserNotFound {
 			c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse(err.Error(), nil))
@@ -1104,7 +1104,7 @@ func (oa *OpenAPI) UserSignIn(c *gin.Context) {
 		return
 	}
 
-	td, err := oa.authService.SignIn(req.Email, req.Password)
+	td, err := oa.authService.SignIn(c, req.Email, req.Password)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorResponse(err.Error(), nil))
 		return
@@ -1405,162 +1405,164 @@ func (oa *OpenAPI) ReplaceObjectByUid(c *gin.Context, projectIDI openapi.Project
 	c.JSON(http.StatusOK, result)
 }
 
-func (oa *OpenAPI) GetProjectSettings(c *gin.Context, projectID openapi.ProjectId) {
-	if c.IsAborted() {
+func (oa *OpenAPI) GetProjectSettings(ctx *gin.Context, projectID openapi.ProjectId) {
+	if ctx.IsAborted() {
 		return
 	}
 
-	if projectID := string(projectID); !hasAccessToProject(c, projectID) {
-		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
-		return
+	if projectID := string(projectID); !hasAccessToProject(ctx, projectID) {
+		ctx.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
 	} else if result, err := oa.configurationsService.GetProject(projectID); err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get project settings", err))
-		return
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get project settings", err))
 	} else {
-		c.JSON(http.StatusOK, result)
+		ctx.JSON(http.StatusOK, result)
 	}
 }
 
-func (oa *OpenAPI) PatchProjectSettings(c *gin.Context, projectID openapi.ProjectId) {
-	if c.IsAborted() {
+func (oa *OpenAPI) PatchProjectSettings(ctx *gin.Context, projectID openapi.ProjectId) {
+	if ctx.IsAborted() {
 		return
 	}
 
 	projectValues := make(map[string]interface{})
-	if projectID := string(projectID); !hasAccessToProject(c, projectID) {
-		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
-		return
-	} else if err := c.BindJSON(&projectValues); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("bind request project settings", err))
-		return
+	if projectID := string(projectID); !hasAccessToProject(ctx, projectID) {
+		ctx.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
+	} else if err := ctx.BindJSON(&projectValues); err != nil {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("bind request project settings", err))
 	} else if result, err := oa.configurationsService.PatchProject(projectID, projectValues); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("patch project settings", err))
-		return
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("patch project settings", err))
 	} else {
-		c.JSON(http.StatusOK, result)
+		ctx.JSON(http.StatusOK, result)
 	}
 }
 
-func (oa *OpenAPI) LinkUserToProject(c *gin.Context, projectID string, params openapi.LinkUserToProjectParams) {
-	if c.IsAborted() {
+func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string, params openapi.LinkUserToProjectParams) {
+	if ctx.IsAborted() {
 		return
 	}
 
-	if !hasAccessToProject(c, projectID) {
-		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
+	if !hasAccessToProject(ctx, projectID) {
+		ctx.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
 		return
 	}
 
-}
+	var userID string
+	if params.UserId != nil {
+		userID = *params.UserId
+	} else {
+		// try to find user by email
+		if user, err := oa.authService.GetUserByEmail(ctx, *params.UserEmail); errors.Is(err, authorization.ErrUserNotFound) {
 
-func (oa *OpenAPI) UnlinkUserFromProject(c *gin.Context, projectID string, params openapi.UnlinkUserFromProjectParams) {
-	if c.IsAborted() {
-		return
-	}
-
-	if !hasAccessToProject(c, projectID) {
-		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
-		return
-	}
-
-	if err := oa.configurationsService.UnlinkUserFromProject(params.UserId, projectID); err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("unlink user from project", err))
-		return
-	}
-
-	c.Status(http.StatusOK)
-}
-
-func (oa *OpenAPI) GetUsersLinkToProjects(c *gin.Context, projectID string) {
-	if c.IsAborted() {
-		return
-	}
-
-	if !hasAccessToProject(c, projectID) {
-		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
-		return
-	}
-
-	userIDs, err := oa.configurationsService.GetProjectUsers(projectID)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get project users", err))
-		return
-	}
-
-	users := make([]openapi.UserBasicInfo, 0, len(userIDs))
-	for _, userID := range userIDs {
-		var userInfo struct {
-			Email string `json:"_email"`
-		}
-
-		if userInfoData, err := oa.configurationsService.GetConfigWithLock(authorization.UsersInfoCollection, userID); err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(fmt.Sprintf("get user info %s", userID), err))
+		} else if err != nil {
+			ctx.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get user by email", err))
 			return
-		} else if err := json.Unmarshal(userInfoData, &userInfo); err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(fmt.Sprintf("unmarshal user info %s", userID), err))
+		} else if err := oa.configurationsService.LinkUserToProject(user.ID, projectID); err != nil {
+			ctx.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("link user to project", err))
 			return
 		}
-
-		users = append(users, openapi.UserBasicInfo{
-			Id:    userID,
-			Email: userInfo.Email,
-		})
 	}
 
-	c.JSON(http.StatusOK, users)
+	if err := oa.configurationsService.LinkUserToProject(userID, projectID); err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("link user to project", err))
+	} else {
+		oa.GetUsersLinkToProjects(ctx, projectID)
+	}
 }
 
-func (oa *OpenAPI) GetProjects(c *gin.Context, params openapi.GetProjectsParams) {
-	if c.IsAborted() {
+func (oa *OpenAPI) UnlinkUserFromProject(ctx *gin.Context, projectID string, params openapi.UnlinkUserFromProjectParams) {
+	if ctx.IsAborted() {
 		return
 	}
 
-	userID := c.GetString(middleware.UserIDKey)
+	if !hasAccessToProject(ctx, projectID) {
+		ctx.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
+	} else if err := oa.configurationsService.UnlinkUserFromProject(params.UserId, projectID); err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("unlink user from project", err))
+	} else {
+		ctx.Status(http.StatusOK)
+	}
+}
+
+func (oa *OpenAPI) GetUsersLinkToProjects(ctx *gin.Context, projectID string) {
+	if ctx.IsAborted() {
+		return
+	}
+
+	if !hasAccessToProject(ctx, projectID) {
+		ctx.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
+	} else if userIDs, err := oa.configurationsService.GetProjectUsers(projectID); err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get project users", err))
+	} else {
+		users := make([]openapi.UserBasicInfo, 0, len(userIDs))
+		for _, userID := range userIDs {
+			var userInfo struct {
+				Email string `json:"_email"`
+			}
+
+			if userInfoData, err := oa.configurationsService.GetConfigWithLock(authorization.UsersInfoCollection, userID); err != nil {
+				ctx.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(fmt.Sprintf("get user info %s", userID), err))
+			} else if err := json.Unmarshal(userInfoData, &userInfo); err != nil {
+				ctx.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(fmt.Sprintf("unmarshal user info %s", userID), err))
+			} else {
+				users = append(users, openapi.UserBasicInfo{
+					Id:    userID,
+					Email: userInfo.Email,
+				})
+
+				continue
+			}
+
+			return
+		}
+
+		ctx.JSON(http.StatusOK, users)
+	}
+}
+
+func (oa *OpenAPI) GetProjects(ctx *gin.Context, params openapi.GetProjectsParams) {
+	if ctx.IsAborted() {
+		return
+	}
+
+	userID := ctx.GetString(middleware.UserIDKey)
 	if params.AllProjects != nil && *params.AllProjects {
-		if access, err := extractPermissions(c); err != nil {
-			c.AbortWithStatusJSON(http.StatusForbidden, ErrorResponse("extract permissions", err))
-			return
+		if access, err := extractPermissions(ctx); err != nil {
+			ctx.AbortWithStatusJSON(http.StatusForbidden, ErrorResponse("extract permissions", err))
 		} else if !access.IsAdmin() {
-			c.AbortWithStatusJSON(http.StatusForbidden, ErrorResponse("user must be admin", nil))
-			return
+			ctx.AbortWithStatusJSON(http.StatusForbidden, ErrorResponse("user must be admin", nil))
 		} else if projects, err := oa.configurationsService.GetAllProjects(); err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get all projects", err))
-			return
+			ctx.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get all projects", err))
 		} else {
-			c.JSON(http.StatusOK, projects)
+			ctx.JSON(http.StatusOK, projects)
 		}
 	} else if projectIDs, err := oa.authService.GetProjectIDs(userID); err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get user projects ids", err))
-		return
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("get user projects ids", err))
 	} else {
 		projects := make([]openapi.Project, len(projectIDs))
 		for i, projectID := range projectIDs {
 			if project, err := oa.configurationsService.GetProject(projectID); err != nil {
-				c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(fmt.Sprintf("get project %s", projectID), err))
+				ctx.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse(fmt.Sprintf("get project %s", projectID), err))
 				return
 			} else {
 				projects[i] = project.Project
 			}
 		}
 
-		c.JSON(http.StatusOK, projects)
+		ctx.JSON(http.StatusOK, projects)
 	}
 }
 
-func (oa *OpenAPI) CreateProjectAndLinkUser(c *gin.Context) {
-	userID := c.GetString(middleware.UserIDKey)
+func (oa *OpenAPI) CreateProjectAndLinkUser(ctx *gin.Context) {
+	userID := ctx.GetString(middleware.UserIDKey)
 	var project openapi.Project
-	if err := c.BindJSON(&project); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("bind request project", err))
-		return
+	if err := ctx.BindJSON(&project); err != nil {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, ErrorResponse("bind request project", err))
 	} else if project, err := oa.configurationsService.CreateProject(project); err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("create project", err))
-		return
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("create project", err))
 	} else if err := oa.configurationsService.LinkUserToProject(userID, *project.Id); err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("link user to project", err))
-		return
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, ErrorResponse("link user to project", err))
 	} else {
-		c.JSON(http.StatusOK, project)
+		ctx.JSON(http.StatusOK, project)
 	}
 }
 

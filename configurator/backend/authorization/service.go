@@ -74,8 +74,8 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 }
 
 //Authenticate verify access token and return user id
-func (s *Service) Authenticate(token string) (string, error) {
-	userID, err := s.authProvider.VerifyAccessToken(token)
+func (s *Service) Authenticate(ctx context.Context, token string) (string, error) {
+	userID, err := s.authProvider.VerifyAccessToken(ctx, token)
 	if err != nil {
 		return "", err
 	}
@@ -94,19 +94,19 @@ func (s *Service) GetOnlyUserID() (string, error) {
 }
 
 //GenerateUserToken generate access token for userID
-func (s *Service) GenerateUserToken(userID string) (string, error) {
-	return s.authProvider.GenerateUserAccessToken(userID)
+func (s *Service) GenerateUserToken(ctx context.Context, userID string) (string, error) {
+	return s.authProvider.GenerateUserAccessToken(ctx, userID)
 }
 
 //IsAdmin return true if the user id admin
-func (s *Service) IsAdmin(userID string) (bool, error) {
-	return s.authProvider.IsAdmin(userID)
+func (s *Service) IsAdmin(ctx context.Context, userID string) (bool, error) {
+	return s.authProvider.IsAdmin(ctx, userID)
 }
 
 //SignUp check existence of the email and create a new User
 //return TokenDetails with JWT access token and refresh token
-func (s *Service) SignUp(email, password string) (*TokenDetails, error) {
-	_, err := s.authProvider.GetUserByEmail(email)
+func (s *Service) SignUp(ctx context.Context, email, password string) (*TokenDetails, error) {
+	_, err := s.authProvider.GetUserByEmail(ctx, email)
 	if err == nil {
 		return nil, ErrUserExists
 	}
@@ -121,7 +121,7 @@ func (s *Service) SignUp(email, password string) (*TokenDetails, error) {
 	}
 
 	userID := "user-" + uuid.NewV4().String()
-	err = s.authProvider.SaveUser(&User{
+	err = s.authProvider.SaveUser(ctx, &User{
 		ID:             userID,
 		Email:          email,
 		HashedPassword: hashedPassword,
@@ -133,9 +133,13 @@ func (s *Service) SignUp(email, password string) (*TokenDetails, error) {
 	return s.authProvider.CreateTokens(userID)
 }
 
+func (s *Service) GetUserByEmail(ctx context.Context, email string) (*User, error) {
+	return s.authProvider.GetUserByEmail(ctx, email)
+}
+
 //SignIn check email and password and return TokenDetails with JWT access token and refresh token
-func (s *Service) SignIn(email, password string) (*TokenDetails, error) {
-	user, err := s.authProvider.GetUserByEmail(email)
+func (s *Service) SignIn(ctx context.Context, email, password string) (*TokenDetails, error) {
+	user, err := s.authProvider.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
@@ -154,8 +158,8 @@ func (s *Service) SignOut(token string) error {
 }
 
 //CreateResetID return rest id and email
-func (s *Service) CreateResetID(email string) (string, string, error) {
-	user, err := s.authProvider.GetUserByEmail(email)
+func (s *Service) CreateResetID(ctx context.Context, email string) (string, string, error) {
+	user, err := s.authProvider.GetUserByEmail(ctx, email)
 	if err != nil {
 		return "", "", err
 	}
@@ -198,7 +202,7 @@ func (s *Service) ChangeEmail(oldEmail, newEmail string) error {
 
 //ChangePassword gets user by reset ID or by authorization token
 //changes user password and delete all tokens
-func (s *Service) ChangePassword(resetID *string, clientAuthToken, newPassword string) (*TokenDetails, error) {
+func (s *Service) ChangePassword(ctx context.Context, resetID *string, clientAuthToken, newPassword string) (*TokenDetails, error) {
 	var user *User
 	var err error
 	if resetID != nil {
@@ -207,7 +211,7 @@ func (s *Service) ChangePassword(resetID *string, clientAuthToken, newPassword s
 			return nil, err
 		}
 	} else {
-		userID, err := s.Authenticate(clientAuthToken)
+		userID, err := s.Authenticate(ctx, clientAuthToken)
 		if err != nil {
 			return nil, err
 		}
@@ -229,7 +233,7 @@ func (s *Service) ChangePassword(resetID *string, clientAuthToken, newPassword s
 		return nil, err
 	}
 
-	err = s.authProvider.SaveUser(user)
+	err = s.authProvider.SaveUser(ctx, user)
 	if err != nil {
 		return nil, err
 	}
