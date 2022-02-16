@@ -366,3 +366,16 @@ export function flatten(data: any): any {
 export function getObjectDepth(value: unknown): number {
   return Object(value) === value ? 1 + Math.max(-1, ...Object.values(value).map(getObjectDepth)) : 0
 }
+
+export function sanitize<T>(obj: T, opts: { allow: string[]; block?: never } | { block: string[]; allow?: never }): Partial<T> {
+  const filter: ((val) => boolean) = opts.allow ? ([key]) => opts.allow.includes(key) : ([key]) => !opts.block.includes(key);
+  return Object.entries(obj)
+    .filter(filter)
+    .reduce(
+      (res, [key, value]) => ({
+        ...res,
+        [key]: value,
+      }),
+      {}
+    )
+}

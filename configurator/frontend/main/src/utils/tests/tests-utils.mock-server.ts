@@ -1,5 +1,4 @@
 // @Libs
-import { HttpServerStorage } from "lib/services/ServerStorage"
 import { rest } from "msw"
 import { setupServer, SetupServerApi } from "msw/node"
 // @Mock Responses
@@ -36,7 +35,7 @@ const mockObligatoryEndpoints = {
   userInfo: {
     responseData: mockUserInfo,
     requestFactory: (mockData: unknown) =>
-      rest.get(`*${HttpServerStorage.USERS_INFO_PATH}*`, (req, res, ctx) => {
+      rest.get(`*/users/info*`, (req, res, ctx) => {
         return res(ctx.json(mockData))
       }),
   },
