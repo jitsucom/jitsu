@@ -15,12 +15,12 @@ import (
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"go.uber.org/atomic"
+	"hash/maphash"
 	"strings"
-	"sync"
 	"time"
 )
 
-const useIdentifiedCacheAfterMin = time.Minute * 5
+const useIdentifiedCacheAfterMin = time.Minute * 1
 const sysErrFreqSec = 10
 
 //RecognitionService has a thread pool under the hood
@@ -31,11 +31,12 @@ type RecognitionService struct {
 	destinationService *destinations.Service
 	compressor         Compressor
 
-	mutex               *sync.Mutex
-	idsMutex            *sync.Mutex
-	identifiedIdsCache  map[string]time.Time
-	cacheTTLMin         int64
-	identifiedQueue     *Queue
+	identifiedIdsCache map[string]time.Time
+	cacheTTLMin        int64
+	identifiedQueue    *Queue
+	aggregatedQueues   []*Queue
+	//to select aggregatedQueue based on hash from anonymousId
+	hasher              maphash.Hash
 	anonymousQueue      *Queue
 	closed              *atomic.Bool
 	lastSystemErrorTime time.Time
@@ -67,15 +68,18 @@ func NewRecognitionService(storage Storage, destinationService *destinations.Ser
 		compressor = &DummyCompressor{}
 	}
 
+	aggregatedQueues := make([]*Queue, configuration.PoolSize)
+	for i := 0; i < configuration.PoolSize; i++ {
+		aggregatedQueues[i] = newQueue(AggregatedQueueName)
+	}
 	service := &RecognitionService{
 		destinationService:  destinationService,
 		storage:             storage,
 		compressor:          compressor,
-		mutex:               &sync.Mutex{},
-		idsMutex:            &sync.Mutex{},
 		identifiedIdsCache:  map[string]time.Time{},
 		cacheTTLMin:         int64(configuration.CacheTTLMin),
 		identifiedQueue:     newQueue(IdentifiedQueueName),
+		aggregatedQueues:    aggregatedQueues,
 		anonymousQueue:      newQueue(AnonymousQueueName),
 		closed:              atomic.NewBool(false),
 		lastSystemErrorTime: timestamp.Now().Add(time.Second * -sysErrFreqSec),
@@ -87,9 +91,13 @@ func NewRecognitionService(storage Storage, destinationService *destinations.Ser
 		},
 	}
 
+	safego.RunWithRestart(service.startIdentifiedObserver)
 	for i := 0; i < configuration.PoolSize; i++ {
 		safego.RunWithRestart(service.startAnonymousObserver)
-		safego.RunWithRestart(service.startIdentifiedObserver)
+		queueNum := i
+		safego.RunWithRestart(func() {
+			service.startAggregatedIdentifiedObserver(aggregatedQueues[queueNum])
+		})
 	}
 
 	return service, nil
@@ -130,9 +138,6 @@ func (rs *RecognitionService) startAnonymousObserver() {
 }
 
 func (rs *RecognitionService) getAggregatedIdentifiers() (map[EventKey]map[string]interface{}, error) {
-	rs.idsMutex.Lock()
-	defer rs.idsMutex.Unlock()
-
 	size := rs.identifiedQueue.Size()
 	if size == 0 {
 		size = 1
@@ -183,12 +188,44 @@ func (rs *RecognitionService) startIdentifiedObserver() {
 			rs.systemErrorf("System error: %v", err)
 			continue
 		}
-
 		for eventKey, values := range aggregatedIdentifiers {
-			if err := rs.reprocessAnonymousEvents(eventKey, values); err != nil {
-				rs.systemErrorf("System error: %v", err)
-				break
+			rs.hasher.WriteString(eventKey.AnonymousID)
+			aggregated := &EventIdentifiers{EventKey: eventKey, IdentificationValues: values}
+			//we need to avoid processing of events of the same user concurrently because we don't work with redis in atomic fashion
+			queueNum := rs.hasher.Sum64() % uint64(len(rs.aggregatedQueues))
+			logging.Infof("QueueNum %d for %s", queueNum, eventKey.AnonymousID)
+			rs.hasher.Reset()
+			if err := rs.aggregatedQueues[queueNum].Enqueue(aggregated); err != nil {
+				rpBytes, _ := json.Marshal(aggregated)
+				rs.systemErrorf("Error saving recognition identified payload [%s] from anonynous id [%s] into the queue: %v", string(rpBytes), eventKey.AnonymousID, err)
+				return
 			}
+		}
+		//wait a little to collect IDs to increase effectiveness of aggregation
+		time.Sleep(time.Second * 10)
+	}
+}
+
+func (rs *RecognitionService) startAggregatedIdentifiedObserver(queue *Queue) {
+	for {
+		if rs.closed.Load() {
+			break
+		}
+		eventIdentifiers, err := queue.DequeueBlock()
+		if err != nil {
+			if rs.closed.Load() {
+				continue
+			}
+			rs.systemErrorf("Error reading recognition payload from queue: %v", err)
+			continue
+		}
+		ids, ok := eventIdentifiers.(*EventIdentifiers)
+		if !ok {
+			rs.systemErrorf("wrong type of recognition payload dto in queue. Expected: *EventIdentifiers, actual: %T (%s)", eventIdentifiers, eventIdentifiers)
+		}
+		if err := rs.reprocessAnonymousEvents(ids.EventKey, ids.IdentificationValues); err != nil {
+			rs.systemErrorf("System error: %v", err)
+			break
 		}
 	}
 }
