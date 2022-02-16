@@ -157,7 +157,7 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 //storeTable check table schema
 //and store data into one table via stage (google cloud storage or s3)
 func (s *Snowflake) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error) {
-	if fdata.RecognitionRayload {
+	if fdata.RecognitionPayload {
 		return s.Abstract.storeTable(fdata)
 	} else {
 		_, tableHelper := s.getAdapters()

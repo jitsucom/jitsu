@@ -111,7 +111,7 @@ func NewAwsRedshift(config *Config) (storage Storage, err error) {
 //storeTable check table schema
 //and store data into one table via s3
 func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error) {
-	if fdata.RecognitionRayload {
+	if fdata.RecognitionPayload {
 		return ar.Abstract.storeTable(fdata)
 	} else {
 		_, tableHelper := ar.getAdapters()
