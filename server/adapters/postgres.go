@@ -639,30 +639,6 @@ func (p *Postgres) DropTable(table *Table) (err error) {
 	return p.dropTableInTransaction(wrappedTx, table)
 }
 
-//
-//func (p *Postgres) Update(eventContext *EventContext) error {
-//	object := eventContext.ProcessedEvent
-//	columns := make([]string, len(object), len(object))
-//	values := make([]interface{}, len(object)+1, len(object)+1)
-//	i := 0
-//	for name, value := range object {
-//		columns[i] = name + "= $" + strconv.Itoa(i+1) //$0 - wrong
-//		values[i] = value
-//		i++
-//	}
-//	p.uniqueIDField.GetFlatFieldName(), p.uniqueIDField.Extract(object)
-//	values[i] = whereValue
-//	statement := fmt.Sprintf(updateStatement, p.config.Schema, eventContext.Table.Name, strings.Join(columns, ", "), whereKey, i+1)
-//	p.queryLogger.LogQueryWithValues(statement, values)
-//	_, err := p.dataSource.ExecContext(p.ctx, statement, values...)
-//	if err != nil {
-//		err = checkErr(err)
-//		return fmt.Errorf("Error updating %s table with statement: %s values: %v: %v", table.Name, statement, values, err)
-//	}
-//
-//	return nil
-//}
-
 //Update one record in Postgres
 func (p *Postgres) Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error {
 	columns := make([]string, len(object), len(object))

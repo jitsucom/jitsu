@@ -33,13 +33,13 @@ import { Link } from "react-router-dom"
 type LoadingState = number | "NEW" | null
 
 const ApiKeysComponent: React.FC = () => {
-  const keys = apiKeysStore.apiKeys
+  const keys = apiKeysStore.list
   const services = useServices()
   services.storageService.table("api_keys")
-  let keysBackend = services.storageService.table<APIKey>("api_keys")
+  let keysBackend = services.storageService.table<ApiKey>("api_keys")
 
   const [loading, setLoading] = useState<LoadingState>(null)
-  const [documentationDrawerKey, setDocumentationDrawerKey] = useState<APIKey>(null)
+  const [documentationDrawerKey, setDocumentationDrawerKey] = useState<ApiKey>(null)
 
   const header = (
     <div className="flex flex-row mb-5 items-start justify between">
@@ -98,7 +98,7 @@ export function getDomainsSelectionByEnv(env: string) {
 }
 
 type KeyDocumentationProps = {
-  token: APIKey
+  token: ApiKey
   displayDomainDropdown?: boolean
 }
 

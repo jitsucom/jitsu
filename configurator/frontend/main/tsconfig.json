@@ -20,8 +20,7 @@
     "preserveConstEnums": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "noFallthroughCasesInSwitch": true,
-    "experimentalDecorators": true
+    "noFallthroughCasesInSwitch": true
   },
   "include": [
     "src",
