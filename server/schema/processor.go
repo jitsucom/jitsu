@@ -62,12 +62,12 @@ type Processor struct {
 	javaScripts             []string
 	jsVariables             map[string]interface{}
 	//indicate that we didn't forget to init JavaScript transform
-	transformInitialized bool
-	MappingStyle         string
+	transformInitialized   bool
+	MappingStyle           string
+	userRecognitionEnabled bool
 }
 
-func NewProcessor(destinationID string, destinationConfig *config.DestinationConfig, isSQLType bool, tableNameFuncExpression string,
-	fieldMapper events.Mapper, enrichmentRules []enrichment.Rule, flattener Flattener, typeResolver TypeResolver, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int, mappingStyle string) (*Processor, error) {
+func NewProcessor(destinationID string, destinationConfig *config.DestinationConfig, isSQLType bool, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule, flattener Flattener, typeResolver TypeResolver, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int, mappingStyle string, userRecognitionEnabled bool) (*Processor, error) {
 	return &Processor{
 		identifier:              destinationID,
 		destinationConfig:       destinationConfig,
@@ -84,6 +84,7 @@ func NewProcessor(destinationID string, destinationConfig *config.DestinationCon
 		javaScripts:             []string{},
 		jsVariables:             map[string]interface{}{},
 		MappingStyle:            mappingStyle,
+		userRecognitionEnabled:  userRecognitionEnabled,
 	}, nil
 }
 
@@ -111,6 +112,10 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 
 	for _, event := range objects {
 		_, recognizedEvent := event[JitsuUserRecognizedEvent]
+		if recognizedEvent && !p.userRecognitionEnabled {
+			//skip recognized event for storages with disabled/not supported UR
+			continue
+		}
 		envelops, err := p.processObject(event, alreadyUploadedTables, needCopyEvent)
 		if err != nil {
 			//handle skip object functionality

@@ -78,6 +78,10 @@ func (sw *StreamingWorker) start() {
 				continue
 			}
 			_, recognizedEvent := fact[schema.JitsuUserRecognizedEvent]
+			if recognizedEvent && !sw.streamingStorage.GetUsersRecognition().IsEnabled() {
+				//skip recognized event for storages with disabled/not supported UR
+				continue
+			}
 
 			//is used in writing counters/metrics/events cache
 			preliminaryEventContext := &adapters.EventContext{

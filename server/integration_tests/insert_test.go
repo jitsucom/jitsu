@@ -182,9 +182,7 @@ func TestDestinationAdapterInsert(t *testing.T) {
 
 			tableHelperWithoutPK := storages.NewTableHelper(testsuit.Schema, testsuit.adapter, coordination.NewInMemoryService(""), map[string]bool{}, tt.types, 0, tt.destinationType)
 
-			processor, err := schema.NewProcessor("test", &config.DestinationConfig{}, true,
-				"replace_me", schema.DummyMapper{}, nil, schema.NewFlattener(),
-				schema.NewTypeResolver(), appconfig.Instance.GlobalUniqueIDField, 0, "new")
+			processor, err := schema.NewProcessor("test", &config.DestinationConfig{}, true, "replace_me", schema.DummyMapper{}, nil, schema.NewFlattener(), schema.NewTypeResolver(), appconfig.Instance.GlobalUniqueIDField, 0, "new", false)
 			require.NoError(t, err)
 			require.NotNil(t, processor)
 			err = processor.InitJavaScriptTemplates()

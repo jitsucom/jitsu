@@ -430,7 +430,7 @@ func (a *Abstract) setupProcessor(cfg *Config) (processor *schema.Processor, sql
 	} else if newStyleMapping != nil {
 		mappingsStyle = "new"
 	}
-	processor, err = schema.NewProcessor(destinationID, destination, isSQLType, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, uniqueIDField, maxColumnNameLength, mappingsStyle)
+	processor, err = schema.NewProcessor(destinationID, destination, isSQLType, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, uniqueIDField, maxColumnNameLength, mappingsStyle, cfg.usersRecognition.IsEnabled())
 	if err != nil {
 		return nil, nil, err
 	}
