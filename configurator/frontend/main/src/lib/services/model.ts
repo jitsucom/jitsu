@@ -72,7 +72,6 @@ export type UserDTO = {
     $type: "Project"
     _id: string
     _name: string | null
-    _planId: string | null
     _setupCompleted?: boolean
   }
 }

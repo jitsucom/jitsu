@@ -5,6 +5,8 @@ import { Redirect, Route, Switch, useLocation } from "react-router-dom"
 import { Button, Card, Form, Input, Modal, Typography } from "antd"
 
 import "./App.less"
+import { NavLink } from "react-router-dom"
+
 import ApplicationServices from "./lib/services/ApplicationServices"
 import { CenteredSpin, handleError, Preloader } from "./lib/components/components"
 import { reloadPage, setDebugInfo } from "./lib/commons/utils"
@@ -28,6 +30,7 @@ import { UserSettings } from "./lib/components/UserSettings/UserSettings"
 import { currentPageHeaderStore } from "./stores/currentPageHeader"
 import { Project } from "./generated/conf-openapi"
 import { OnboardingTourLazyLoader } from "./lib/components/Onboarding/OnboardingTourLazyLoader"
+import { TaskLogsPage } from "./ui/pages/TaskLogs/TaskLogsPage"
 
 const ApiKeysRouter = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/components/ApiKeys/ApiKeysRouter"))
 const CustomDomains = React.lazy(
@@ -56,57 +59,37 @@ const DownloadConfig = React.lazy(
 export const initializeApplication = async (): Promise<ApplicationServices> => {
   const services = ApplicationServices.get()
   await services.init()
+  console.log("Waiting for user")
   await services.userService.waitForUser()
   if (services.userService.hasUser()) {
     setDebugInfo("user", services.userService.getUser())
     services.analyticsService.onUserKnown(services.userService.getUser())
   }
 
-  let paymentPlanStatus: CurrentSubscription
-  await Promise.all([
-    initializeAllStores(),
-    (async () => {
-      if (services.userService.hasUser() && services.features.billingEnabled) {
-        if (services.activeProject) {
-          paymentPlanStatus = await getCurrentSubscription(
-            services.activeProject,
-            services.backendApiClient,
-            destinationsStore,
-            sourcesStore
-          )
-        } else {
-          /** project is not initialized yet, return mock result */
-          paymentPlanStatus = {
-            autorenew: false,
-            expiration: moment().add(1, "M"),
-            usage: {
-              events: 0,
-              sources: 0,
-              destinations: 0,
-            },
-            currentPlan: paymentPlans.free,
-            quotaPeriodStart: moment(),
-            doNotBlock: true,
-          }
-        }
-      } else {
-        /** for opensource (self-hosted) only */
-        paymentPlanStatus = {
-          autorenew: false,
-          expiration: moment().add(1, "M"),
-          usage: {
-            events: 0,
-            sources: 0,
-            destinations: 0,
-          },
-          currentPlan: paymentPlans.opensource,
-          quotaPeriodStart: moment(),
-          doNotBlock: true,
-        }
-      }
-    })(),
-  ])
-  services.currentSubscription = paymentPlanStatus
+  let currenSubscription: CurrentSubscription
+  if (services.userService.hasUser() && services.features.billingEnabled && services.activeProject) {
+    currenSubscription = await getCurrentSubscription(
+      services.activeProject,
+      services.backendApiClient,
+      destinationsStore,
+      sourcesStore
+    )
+  } else {
+    currenSubscription = {
+      autorenew: false,
+      expiration: moment().add(1, "M"),
+      usage: {
+        events: 0,
+        sources: 0,
+        destinations: 0,
+      },
+      currentPlan: paymentPlans.free,
+      quotaPeriodStart: moment(),
+      doNotBlock: true,
+    }
+  }
+  services.currentSubscription = currenSubscription
+  console.log("Services initialized", services)
   return services
 }
 
@@ -117,6 +100,7 @@ function normalizePath(path: string) {
 export const Application: React.FC = function () {
   const [services, setServices] = useState<ApplicationServices>()
   const [projects, setProjects] = useState<Project[]>(null)
+  const [initialized, setInitialized] = useState(false)
   const [error, setError] = useState<Error>()
   useEffect(() => {
     ;(async () => {
@@ -132,14 +116,16 @@ export const Application: React.FC = function () {
           } else {
             setProjects(projects)
           }
-          setServices(services)
         }
+        setServices(application)
+        setInitialized(true)
       } catch (e) {
+        console.log("Error initialization", e)
         setError(e)
       }
     })()
-  })
-  if (!error && !services) {
+  }, [])
+  if (!error && !initialized) {
     return <Preloader />
   } else if (error) {
     console.error("Initialization error", error)
@@ -191,6 +177,23 @@ export const Application: React.FC = function () {
   return (
     <>
       <Switch>
+        <Route
+          path={"/user/settings"}
+          exact={true}
+          render={() => (
+            <div className="flex flex-row justify-center pt-12 w-full">
+              <div className="w-1/2">
+                <NavLink to="/">
+                  <Button size="large" type="primary">
+                    Back to Jitsu →
+                  </Button>
+                </NavLink>
+
+                <UserSettings />
+              </div>
+            </div>
+          )}
+        />
         <Route path={"/prj_:projectId"} exact={false}>
           <ProjectRoute projects={projects} />
         </Route>
@@ -221,7 +224,7 @@ type ProjectRoute = {
 }
 
 const projectRoutes: ProjectRoute[] = [
-  { pageTitle: "Connections", path: ["/", "/connections"], component: ConnectionsPage },
+  { pageTitle: "Connections", path: ["/", "/connections", "/signup"], component: ConnectionsPage },
   { pageTitle: "Live Events", path: "/events_stream", component: EventsStream, isPrefix: true },
   { pageTitle: "Dashboard", path: "/dashboard", component: StatusPage },
   { pageTitle: "DBT Cloud", path: "/dbtcloud", component: DbtCloudPage },
@@ -231,9 +234,9 @@ const projectRoutes: ProjectRoute[] = [
   { pageTitle: "Api Keys", path: "/api-keys", component: ApiKeysRouter, isPrefix: true },
   { pageTitle: "Custom Domains", path: "/domains", component: CustomDomains },
 
-  { pageTitle: "Sources", path: "/sources", component: EventsStream, isPrefix: true },
-  { pageTitle: "Destinations", path: "/destinations", component: EventsStream, isPrefix: true },
-  { pageTitle: "Task Logs", path: "/sources/logs", component: EventsStream, isPrefix: true },
+  { pageTitle: "Sources", path: "/sources", component: SourcesPage, isPrefix: true },
+  { pageTitle: "Destinations", path: "/destinations", component: DestinationsPage, isPrefix: true },
+  { pageTitle: "Task Logs", path: "/sources/logs", component: TaskLogsPage, isPrefix: true },
 
   { pageTitle: "User Settings", path: "/settings/user", component: UserSettings, isPrefix: true },
 ]
@@ -289,18 +292,34 @@ const PageWrapper: React.FC<{ pageTitle: string; component: ComponentType; pageP
 
 const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
   const services = useServices()
+  const [initialized, setInitialized] = useState(false)
+  const [error, setError] = useState<Error | undefined>(undefined)
+  const [project, setProject] = useState<Project>()
   const { projectId } = useParams<{ projectId: string }>()
-  let project = projects.find(project => project.id === projectId)
+  useEffect(() => {
+    ;(async () => {
+      let project = projects.find(project => project.id === projectId)
+      if (!project) {
+        setError(new Error(`Can't find project with id ${projectId}. Available projects: ${JSON.stringify(projects)}`))
+      } else {
+        services.activeProject = project
+        setProject(project)
+        try {
+          await initializeAllStores()
+          setInitialized(true)
+        } catch (e) {
+          setError(e)
+        }
+      }
+    })()
+  }, [])
 
-  if (!project) {
+  if (!error && !initialized) {
+    return <Preloader text="Loading project data..." />
+  } else if (error) {
     return (
       <div className="flex items-start pt-12 justify-center w-full">
-        <ErrorCard
-          title={`Can't find project with id ${projectId}`}
-          description={`The project either do not exist, or you don't have access to it. Available projects: ${JSON.stringify(
-            projects
-          )}`}
-        />
+        <ErrorCard title={"Failed to load project data"} description={error.message} stackTrace={error.stack} />
       </div>
     )
   }

@@ -26,6 +26,8 @@ export const UserSettings: React.FC<Props> = () => {
   const [isEmailConfirmed, setIsEmailConfirmed] = useState<boolean>(true)
   const [isTelemetryEnabled, setIsTelemetryEnabled] = useState<boolean>(false)
   const [confirmationEmailStatus, setConfirmationEmailStatus] = useState<ConfirmationEmailStatus>("not-required")
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | undefined>()
 
   const needToDisplayTelemetrySettings = useMemo<boolean>(() => {
     return services.features.appName !== "jitsu_cloud"
@@ -81,6 +83,24 @@ export const UserSettings: React.FC<Props> = () => {
   }
 
   useEffect(() => {
+    (async () => {
+      try {
+        const email = await services.userService.getUserEmailStatus()
+        if (email.needsConfirmation && !email.isConfirmed) {
+          setIsEmailConfirmed(email.isConfirmed)
+          setConfirmationEmailStatus("ready")
+        }
+        const response = await services.backendApiClient.get("/configurations/telemetry?id=global_configuration")
+        setIsTelemetryEnabled(!response["disabled"]?.["usage"])
+      } catch (e) {
+        //So far we're ignoring error, the error, backend needs to be fixed first
+        console.log(e)
+      } finally {
+        setLoading(false)
+      }
+
+
+    })();
     const getEmailSettings = async () => {
       const email = await services.userService.getUserEmailStatus()
       if (email.needsConfirmation && !email.isConfirmed) {
@@ -89,8 +109,6 @@ export const UserSettings: React.FC<Props> = () => {
       }
     }
     const getTelemetryStatus = async () => {
-      const response = await services.backendApiClient.get("/configurations/telemetry?id=global_configuration")
-      setIsTelemetryEnabled(!response["disabled"]?.["usage"])
     }
 
     getEmailSettings()

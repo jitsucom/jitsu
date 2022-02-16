@@ -14,6 +14,7 @@ import { values } from "mobx"
 import { useServices } from "../../../hooks/useServices"
 import ApplicationServices from "../../../lib/services/ApplicationServices"
 import UserOutlined from "@ant-design/icons/lib/icons/UserOutlined"
+import { handleError } from "../../../lib/components/components"
 
 export function LoginForm({ supportOauth }) {
   const services = useServices()
@@ -172,33 +173,22 @@ export function LoginForm({ supportOauth }) {
 
 function PasswordResetForm({ visible, onSuccess, close }) {
   let services = ApplicationServices.get()
-  const [state, setState] = useState({
-    loading: false,
-    errorMessage: null,
-  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<Error | undefined>()
   const [form] = Form.useForm()
 
-  const onSubmit = () => {
-    setState({ loading: true, errorMessage: null })
-    form
-      .validateFields()
-      .then(values => {
-        services.userService
-          .sendPasswordReset(values["email"])
-          .then(() => {
-            onSuccess()
-            close()
-            setState({ loading: false, errorMessage: null })
-          })
-          .catch(error => {
-            message.error(error.message)
-            setState({ loading: false, errorMessage: error.message })
-          })
-      })
-      .catch(error => {
-        message.error(error.message)
-        setState({ loading: false, errorMessage: error.message })
-      })
+  const onSubmit = async () => {
+    setLoading(true)
+    try {
+      const values = await form.validateFields()
+      await services.userService.sendPasswordReset(values["email"])
+      onSuccess()
+      close()
+    } catch (e) {
+      setError(e)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -207,14 +197,16 @@ function PasswordResetForm({ visible, onSuccess, close }) {
       visible={visible}
       closable={true}
       onCancel={close}
-      footer={[
-        <Button key="close" onClick={close}>
-          Cancel
-        </Button>,
-        <Button key="submit" type="primary" loading={state.loading} onClick={onSubmit}>
-          Submit
-        </Button>,
-      ]}
+      footer={
+        <>
+          <Button key="close" onClick={close}>
+            Cancel
+          </Button>
+          <Button key="submit" type="primary" loading={loading} onClick={onSubmit}>
+            Submit
+          </Button>
+        </>
+      }
     >
       <Form layout="vertical" form={form} name="password-reset-form" className="password-reset-form">
         <Form.Item
@@ -228,6 +220,7 @@ function PasswordResetForm({ visible, onSuccess, close }) {
         >
           <Input prefix={<UserOutlined className="site-form-item-icon" />} placeholder="E-mail" />
         </Form.Item>
+        <div className={`text-error ${error ? 'visible' : 'invisible'}`}>{error?.message || '-'}</div>
       </Form>
     </Modal>
   )

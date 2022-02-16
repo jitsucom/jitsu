@@ -164,7 +164,6 @@ components:
       properties:
         id: { type: "string" }
         name: { type: "string" }
-        planId: { type: "string" }
         setupCompleted: { type: "boolean" }
       required: [ 'name' ]
 

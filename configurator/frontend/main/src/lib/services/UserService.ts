@@ -75,7 +75,7 @@ export interface UserService {
    * @param email - email to send the link to
    */
   sendPasswordReset(email?: string)
-
+  
   sendConfirmationEmail(): Promise<void>
 
   /**
@@ -113,5 +113,8 @@ export interface UserService {
 
   loginWithLink(email: string, href: string): Promise<void>
 
+  /**
+   * Returns a token which can be user by external services to perform authorization.
+   */
   getIdToken(): Promise<string>
 }

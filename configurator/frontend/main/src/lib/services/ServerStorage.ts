@@ -1,7 +1,9 @@
 import Marshal from "lib/commons/marshalling"
 import { BackendApiClient } from "./BackendApiClient"
-import { User } from "./model"
+import { User, UserDTO } from "./model"
 import ApplicationServices from "./ApplicationServices"
+import { merge } from "lodash"
+import { sanitize } from "../commons/utils"
 
 /**
  * A generic object storage
@@ -21,7 +23,7 @@ export abstract class ServerStorage {
   /**
    * Returns user info object (user id is got from authorization token)
    */
-  abstract getUserInfo(): Promise<User>
+  abstract getUserInfo(): Promise<UserDTO>
 
   /**
    * Saves an object by key. If key is not set, user id will be used as key
@@ -33,7 +35,7 @@ export abstract class ServerStorage {
    * (user id is got from authorization token)
    * @param data User JSON representation
    */
-  abstract saveUserInfo(data: any): Promise<void>
+  abstract saveUserInfo(userInfo: Partial<UserDTO>): Promise<void>
 
   /**
    * Returns a table-like structure for managing config. See ConfigurationEntitiesTable
@@ -142,12 +144,20 @@ export class HttpServerStorage extends ServerStorage {
     super(backendApi)
   }
 
-  getUserInfo(): Promise<User> {
-    return this.backendApi.get(`${HttpServerStorage.USERS_INFO_PATH}`)
+  getUserInfo(): Promise<UserDTO> {
+    return this.backendApi.get(`/users/info`)
   }
 
-  saveUserInfo(data: any): Promise<void> {
-    return this.backendApi.post(`${HttpServerStorage.USERS_INFO_PATH}`, Marshal.toPureJson(data))
+  async saveUserInfo(data: Partial<UserDTO>): Promise<void> {
+    let current: UserDTO = await this.backendApi.get(`/users/info`)
+    let mergedUserInfo = merge(
+      current,
+      sanitize(data, {
+        allow: ["_emailOptout", "_name", "_forcePasswordChange", "_name", "_onboarded", "_suggestedInfo", "_project"],
+      })
+    )
+    console.log("Saving user info", mergedUserInfo)
+    return this.backendApi.post(`/users/info`, mergedUserInfo)
   }
 
   get(collectionName: string, key: string): Promise<any> {

@@ -75,8 +75,13 @@ export function firstToLower(string: string) {
 /**
  * Fully reloads current page
  */
-export function reloadPage() {
-  location.reload()
+export function reloadPage(destination?: string) {
+  if (!destination) {
+    location.reload();
+  } else {
+    window.location.href = destination;
+  }
+
 }
 
 /**
