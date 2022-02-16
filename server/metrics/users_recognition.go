@@ -36,6 +36,11 @@ func initUsersRecognitionQueue() {
 		Subsystem: "users_identified",
 		Name:      "queue_size",
 	}, []string{})
+	recognitionQueueSize["users_aggregated"] = NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "eventnative",
+		Subsystem: "users_aggregated",
+		Name:      "queue_size",
+	}, []string{})
 	recognitionEvents = make([]*prometheus.CounterVec, Dummy)
 	eventsNameMap := map[RecognitionMetric]string{
 		TotalEvents:                "total_events",
