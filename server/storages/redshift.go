@@ -159,15 +159,15 @@ func (ar *AwsRedshift) Type() string {
 
 //Close closes AwsRedshift adapter, fallback logger and streaming worker
 func (ar *AwsRedshift) Close() (multiErr error) {
-	if ar.redshiftAdapter != nil {
-		if err := ar.redshiftAdapter.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.ID(), err))
-		}
-	}
-
 	if ar.streamingWorker != nil {
 		if err := ar.streamingWorker.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", ar.ID(), err))
+		}
+	}
+
+	if ar.redshiftAdapter != nil {
+		if err := ar.redshiftAdapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.ID(), err))
 		}
 	}
 
