@@ -1,6 +1,6 @@
 // @Libs
 import ReactDOM from "react-dom"
-import { BrowserRouter, Switch, Route } from "react-router-dom"
+import { BrowserRouter } from "react-router-dom"
 // @App component
 import  { Application } from "./App"
 // @Styles

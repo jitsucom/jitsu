@@ -152,7 +152,7 @@ func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table
 	}
 
 	start := timestamp.Now()
-	if err := p.adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
+	if err := p.adapter.Insert(adapters.NewBatchInsertContext(dbSchema, fdata.GetPayload(), nil)); err != nil {
 		return err
 	}
 	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.ID(), len(fdata.GetPayload()), timestamp.Now().Sub(start).Seconds())

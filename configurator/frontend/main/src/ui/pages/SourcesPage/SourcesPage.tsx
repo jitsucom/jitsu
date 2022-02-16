@@ -43,7 +43,7 @@ const SourcesPageComponent: React.FC<CommonSourcePageProps> = () => {
   if (sourcesStore.state === EntitiesStoreState.GLOBAL_ERROR) {
     throw new Error(
       sourcesStore.error ??
-      `Internal error occured in sources management tool. Please, contact support or file an issue.`
+        `Internal error occured in sources management tool. Please, contact support or file an issue.`
     )
   } else if (sourcesStore.state === EntitiesStoreState.GLOBAL_LOADING) {
     return <CenteredSpin />
