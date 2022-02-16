@@ -405,26 +405,6 @@ func (p *Postgres) insertSingle(eventContext *EventContext) error {
 	return nil
 }
 
-////Update updates record in Postgres
-//func (p *Postgres) Update(eventContext *EventContext) error {
-//	_, tableHelper := p.getAdapters()
-//	processedObject := eventContext.ProcessedEvent
-//	table := eventContext.Table
-//
-//	dbSchema, err := tableHelper.EnsureTableWithCaching(p.ID(), table)
-//	if err != nil {
-//		return err
-//	}
-//
-//	start := timestamp.Now()
-//	if err = p.Update(dbSchema, processedObject, p.uniqueIDField.GetFlatFieldName(), p.uniqueIDField.Extract(processedObject)); err != nil {
-//		return err
-//	}
-//
-//	logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", p.ID(), timestamp.Now().Sub(start).Seconds())
-//	return nil
-//}
-
 //Truncate deletes all records in tableName table
 func (p *Postgres) Truncate(tableName string) error {
 	sqlParams := SqlParams{

@@ -28,7 +28,7 @@ import (
 //contains common destination funcs
 //aka abstract class
 type Abstract struct {
-	impl           Storage
+	implementation Storage
 	destinationID  string
 	fallbackLogger logging.ObjectLogger
 	eventsCache    *caching.EventsCache
@@ -123,12 +123,14 @@ func (a *Abstract) Fallback(failedEvents ...*events.FailedEvent) {
 //Insert ensures table and sends input event to Destination (with 1 retry if error)
 func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error) {
 	defer func() {
-		//metrics/counters/cache/fallback
-		a.AccountResult(eventContext, insertErr)
+		if !eventContext.RecognizedEvent {
+			//metrics/counters/cache/fallback
+			a.AccountResult(eventContext, insertErr)
 
-		//archive
-		if insertErr == nil {
-			a.archiveLogger.Consume(eventContext.RawEvent, eventContext.TokenID)
+			//archive
+			if insertErr == nil {
+				a.archiveLogger.Consume(eventContext.RawEvent, eventContext.TokenID)
+			}
 		}
 	}()
 
@@ -163,13 +165,13 @@ func (a *Abstract) Store(fileName string, objects []map[string]interface{}, alre
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		if failedEvent.RecognizedEvent {
+		if !failedEvent.RecognizedEvent {
 			a.eventsCache.Error(a.IsCachingDisabled(), a.ID(), failedEvent.EventID, failedEvent.Error)
 		}
 	}
 	//update cache and counter with skipped events
 	for _, skipEvent := range skippedEvents.Events {
-		if skipEvent.RecognizedEvent {
+		if !skipEvent.RecognizedEvent {
 			a.eventsCache.Skip(a.IsCachingDisabled(), a.ID(), skipEvent.EventID, skipEvent.Error)
 		}
 	}
@@ -177,7 +179,7 @@ func (a *Abstract) Store(fileName string, objects []map[string]interface{}, alre
 	storeFailedEvents := true
 	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
-		table, err := a.impl.storeTable(fdata)
+		table, err := a.implementation.storeTable(fdata)
 		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
 		if err != nil {
 			storeFailedEvents = false
@@ -199,7 +201,7 @@ func (a *Abstract) Store(fileName string, objects []map[string]interface{}, alre
 		}
 	}
 	for _, fdata := range recognizedFlatData {
-		table, err := a.impl.storeTable(fdata)
+		table, err := a.implementation.storeTable(fdata)
 		if err != nil {
 			logging.Errorf("Failed to store user recognition batch payload for %s table: %s err: %v", a.destinationID, table.Name, err)
 		}
@@ -317,7 +319,7 @@ func (a *Abstract) close() (multiErr error) {
 }
 
 func (a *Abstract) Init(config *Config, impl Storage) error {
-	a.impl = impl
+	a.implementation = impl
 	//Abstract (SQLAdapters and tableHelpers are omitted)
 	a.destinationID = config.destinationID
 	a.eventsCache = config.eventsCache

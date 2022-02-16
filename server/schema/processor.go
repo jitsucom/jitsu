@@ -295,7 +295,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		if newUniqueId == "" {
 			newUniqueId = uuid.New()
 		}
-		delete(workingObject, JitsuEnvelopParameter)
+		delete(prObject, JitsuUserRecognizedEvent)
 		if i > 0 {
 			//for event cache one to many mapping
 			newUniqueId = fmt.Sprintf("%s_%d", newUniqueId, i)

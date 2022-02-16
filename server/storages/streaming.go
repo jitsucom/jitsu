@@ -77,17 +77,18 @@ func (sw *StreamingWorker) start() {
 				sw.eventQueue.ConsumeTimed(fact, dequeuedTime, tokenID)
 				continue
 			}
+			_, recognizedEvent := fact[schema.JitsuUserRecognizedEvent]
 
 			//is used in writing counters/metrics/events cache
 			preliminaryEventContext := &adapters.EventContext{
-				CacheDisabled: sw.streamingStorage.IsCachingDisabled(),
-				DestinationID: sw.streamingStorage.ID(),
-				EventID:       sw.streamingStorage.GetUniqueIDField().Extract(fact),
-				TokenID:       tokenID,
-				Src:           events.ExtractSrc(fact),
-				RawEvent:      fact,
+				CacheDisabled:   sw.streamingStorage.IsCachingDisabled(),
+				DestinationID:   sw.streamingStorage.ID(),
+				EventID:         sw.streamingStorage.GetUniqueIDField().Extract(fact),
+				TokenID:         tokenID,
+				Src:             events.ExtractSrc(fact),
+				RawEvent:        fact,
+				RecognizedEvent: recognizedEvent,
 			}
-			_, recognizedEvent := fact[schema.JitsuUserRecognizedEvent]
 
 			envelops, err := sw.streamingStorage.Processor().ProcessEvent(fact, true)
 			if err != nil && !recognizedEvent {
@@ -121,22 +122,23 @@ func (sw *StreamingWorker) start() {
 					DestinationID: sw.streamingStorage.ID(),
 					EventID: utils.NvlString(sw.streamingStorage.GetUniqueIDField().Extract(flattenObject),
 						sw.streamingStorage.GetUniqueIDField().Extract(fact)),
-					TokenID:        tokenID,
-					Src:            events.ExtractSrc(fact),
-					RawEvent:       fact,
-					ProcessedEvent: flattenObject,
-					Table:          table,
+					TokenID:         tokenID,
+					Src:             events.ExtractSrc(fact),
+					RawEvent:        fact,
+					ProcessedEvent:  flattenObject,
+					Table:           table,
+					RecognizedEvent: recognizedEvent,
 				}
 				if recognizedEvent {
 					if updateErr := sw.streamingStorage.Update(eventContext); updateErr != nil {
-						err := errorj.Decorate(updateErr, "failed to insert event").
+						err := errorj.Decorate(updateErr, "failed to update event").
 							WithProperty(errorj.DestinationID, sw.streamingStorage.ID()).
 							WithProperty(errorj.DestinationType, sw.streamingStorage.Type())
 
 						var retryInfoInLog string
 						retry := IsConnectionError(err)
 						if retry {
-							retryInfoInLog = "connection problem. event will be re-inserted after 20 seconds\n"
+							retryInfoInLog = "connection problem. event will be re-updated after 20 seconds\n"
 						}
 						if errorj.IsSystemError(err) {
 							logging.SystemErrorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())

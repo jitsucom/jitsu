@@ -301,7 +301,7 @@ func testClickHouse(config *config.DestinationConfig, eventContext *adapters.Eve
 				if config.DataLayout != nil && config.DataLayout.UniqueIDField != "" {
 					uniqueIDField = identifiers.NewUniqueID(config.DataLayout.UniqueIDField).GetFlatFieldName()
 				}
-				if len(engine.OrderFields) != 1 && engine.OrderFields[0].Field != uniqueIDField {
+				if !(len(engine.OrderFields) == 1 && engine.OrderFields[0].Field == uniqueIDField) {
 					return fmt.Errorf("UsersRecognition for ClickHouse requires ORDER BY Clause to contain single UniqueIDField: %s. Provided: %+v", uniqueIDField, engine.OrderFields)
 				}
 			}
