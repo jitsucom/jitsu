@@ -206,14 +206,18 @@ export class BackendUserService implements UserService {
   }
 
   loginWithLink(email: string, href: string): Promise<void> {
-    throw new Error("loginWithLink is not supporteb by self-hosted user service")
+    throw new Error("loginWithLink is not supported by self-hosted user service")
   }
 
   async getIdToken(): Promise<string> {
-    throw new Error("getIdToken is not supporteb by self-hosted user service")
+    throw new Error("getIdToken is not supported by self-hosted user service")
   }
 
   apiAccess(): ApiAccess {
     return this._apiAccess;
+  }
+
+  refreshAuth(): Promise<void> {
+    return Promise.resolve();
   }
 }

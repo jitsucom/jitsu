@@ -40,10 +40,9 @@ export function createProjectService_v1(userService: UserService, backend: Backe
         _setupCompleted: false,
         _id: newId,
         _name: projectName,
-        _planId: planId,
       }
       await backend.post(`/users/info`, userInfo)
-      return { id: newId, name: projectName, planId: planId, setupCompleted: false }
+      return { id: newId, name: projectName, setupCompleted: false }
     },
 
     async getAvailableProjects(): Promise<Project[]> {
@@ -55,7 +54,6 @@ export function createProjectService_v1(userService: UserService, backend: Backe
           {
             id: userInfo._project._id,
             name: userInfo._project._name,
-            planId: userInfo._project._planId || "free",
             setupCompleted: userInfo._project._setupCompleted === undefined ? true : userInfo._project._setupCompleted,
           },
         ]
@@ -70,10 +68,10 @@ export function createProjectService_v1(userService: UserService, backend: Backe
         `Project id doesn't match, local: ${project.id}, server: ${userInfo._project._id}`
       )
       userInfo._project = {
+        ...(userInfo._project || {}),
         $type: "Project",
         _id: project.id,
-        _name: project.name || userInfo._project._name,
-        _planId: project.planId || userInfo._project._planId,
+        _name: project.name || userInfo._project._name
       }
       await backend.post(`/users/info`, userInfo);
     },
@@ -82,7 +80,7 @@ export function createProjectService_v1(userService: UserService, backend: Backe
       if (!userInfo._project || userInfo._project._id !== projectId) {
         return null
       } else {
-        return { id: userInfo._project._id, name: userInfo._project._name, planId: userInfo._project._planId || "free" }
+        return { id: userInfo._project._id, name: userInfo._project._name }
       }
     },
   }

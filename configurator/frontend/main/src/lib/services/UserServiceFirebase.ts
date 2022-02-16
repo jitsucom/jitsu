@@ -1,35 +1,30 @@
-/* eslint-disable */
-import { ApiAccess, SuggestedUserInfo, User, userFromDTO, userToDTO } from "./model"
-import {
-  getAuth,
-  User as FirebaseUser,
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  signInWithCustomToken,
-  signInWithEmailLink,
-  signOut,
-  createUserWithEmailAndPassword,
-  GithubAuthProvider,
-  GoogleAuthProvider,
-  onAuthStateChanged,
-  sendPasswordResetEmail,
-  sendEmailVerification,
-  sendSignInLinkToEmail,
-  isSignInWithEmailLink,
-  updateEmail,
-  updatePassword,
-  getIdToken,
-} from "firebase/auth"
-import { initializeApp, FirebaseApp } from "firebase/app"
-import Marshal from "../commons/marshalling"
-import { reloadPage, setDebugInfo } from "../commons/utils"
-import { randomId } from "utils/numbers"
 import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserService } from "./UserService"
+import { FirebaseApp, initializeApp } from "firebase/app"
+import { ApiAccess, User, userFromDTO, userToDTO } from "./model"
+import { User as FirebaseUser } from "@firebase/auth"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
 import AnalyticsService from "./analytics"
 import { FeatureSettings } from "./ApplicationServices"
-import { use } from "msw/lib/types/utils/internal/requestHandlerUtils"
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  GithubAuthProvider,
+  GoogleAuthProvider,
+  isSignInWithEmailLink,
+  onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  sendSignInLinkToEmail,
+  signInWithCustomToken,
+  signInWithEmailAndPassword,
+  signInWithEmailLink,
+  signInWithPopup,
+  signOut,
+  updateEmail,
+  updatePassword,
+} from "firebase/auth"
+import { reloadPage, setDebugInfo } from "../commons/utils"
 
 export class FirebaseUserService implements UserService {
   private firebaseApp: FirebaseApp
@@ -186,7 +181,7 @@ export class FirebaseUserService implements UserService {
   }
 
   sendPasswordReset(email?: string): Promise<void> {
-    return sendPasswordResetEmail(getAuth(), email ? email : this.getUser().email)
+    return sendPasswordResetEmail(getAuth(), email ? email : this.getUser().email, {url: window.location.href})
   }
 
   async sendConfirmationEmail(): Promise<void> {
@@ -236,11 +231,16 @@ export class FirebaseUserService implements UserService {
     return signInWithEmailLink(getAuth(), email, href).then()
   }
 
-  async getIdToken(): Promise<string> {
-    return await getIdToken(this.firebaseUser)
-  }
 
   apiAccess(): ApiAccess {
-    return this._apiAccess;
+    return this._apiAccess
+  }
+
+  refreshAuth(): Promise<void> {
+    return this.refreshToken(this.firebaseUser, true);
+  }
+
+  getIdToken(): Promise<string> {
+    return Promise.resolve("");
   }
 }

@@ -59,7 +59,7 @@ export const OnboardingTourNames: React.FC<OnboardingTourNamesStepProps> = funct
       user.name = values.userDisplayName
       user.emailOptout = !values.emailsOptIn
       await services.storageService.saveUserInfo({ _emailOptout: !values.emailsOptIn, _name: values.userDisplayName })
-      await services.projectService.updateProject({ id: services.activeProject.id, name: values.userDisplayName })
+      await services.projectService.updateProject({ id: services.activeProject.id, name: values.projectName })
 
       handleGoNext()
     } catch (error) {

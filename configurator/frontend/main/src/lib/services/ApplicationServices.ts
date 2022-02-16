@@ -3,7 +3,6 @@ import { ApiAccess, JSON_FORMAT, PgDatabaseCredentials } from "./model"
 import axios, { AxiosRequestConfig } from "axios"
 import * as uuid from "uuid"
 import AnalyticsService from "./analytics"
-import { FirebaseUserService } from "./UserServiceFirebase"
 import { BackendUserService } from "./UserServiceBackend"
 import { randomId } from "utils/numbers"
 import { concatenateURLs } from "lib/commons/utils"
@@ -17,6 +16,7 @@ import { ISlackApiService, SlackApiService } from "./slack"
 import { IOauthService, OauthService } from "./oauth"
 import { Project } from "../../generated/conf-openapi"
 import { createProjectService_v1, ProjectService } from "./ProjectService"
+import { FirebaseUserService } from "./UserServiceFirebase"
 
 export interface IApplicationServices {
   init(): Promise<void>
@@ -169,10 +169,6 @@ export default class ApplicationServices implements IApplicationServices {
     }
   }
 
-  private async getAvailableProjects(): Promise<void> {
-    return Promise.resolve();
-
-  }
 
   public async initializeDefaultDestination(): Promise<{
     credentials: PgDatabaseCredentials
