@@ -84,7 +84,7 @@ func (a *Authenticator) BearerAuth(c *gin.Context) {
 	}
 
 	if checkManagementAccess {
-		userID, err := a.service.Authenticate(token)
+		userID, err := a.service.Authenticate(c, token)
 		if err != nil {
 			errAuthenticate(c, token, err)
 			return

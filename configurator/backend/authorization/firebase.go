@@ -1,16 +1,17 @@
 package authorization
 
 import (
-	"cloud.google.com/go/firestore"
 	"context"
-	"errors"
-	"firebase.google.com/go/v4"
-	"firebase.google.com/go/v4/auth"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"google.golang.org/api/option"
 	"io"
 	"strings"
+
+	"cloud.google.com/go/firestore"
+	firebase "firebase.google.com/go/v4"
+	"firebase.google.com/go/v4/auth"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/pkg/errors"
+	"google.golang.org/api/option"
 )
 
 var ErrNoUserExist = errors.New("no users exist")
@@ -18,17 +19,17 @@ var ErrNoUserExist = errors.New("no users exist")
 type Provider interface {
 	//both authorization types
 	io.Closer
-	VerifyAccessToken(token string) (string, error)
-	IsAdmin(userID string) (bool, error)
-	GenerateUserAccessToken(userID string) (string, error)
+	VerifyAccessToken(ctx context.Context, token string) (string, error)
+	IsAdmin(ctx context.Context, userID string) (bool, error)
+	GenerateUserAccessToken(ctx context.Context, userID string) (string, error)
+	GetUserByEmail(ctx context.Context, email string) (*User, error)
+	SaveUser(ctx context.Context, user *User) error
 
 	UsersExist() (bool, error)
 	Type() string
 
 	//only in-house
 	GetUserByID(userID string) (*User, error)
-	GetUserByEmail(email string) (*User, error)
-	SaveUser(user *User) error
 	GetOnlyUserID() (string, error)
 	ChangeUserEmail(oldEmail, newEmail string) (string, error)
 	CreateTokens(userID string) (*TokenDetails, error)
@@ -41,7 +42,6 @@ type Provider interface {
 }
 
 type FirebaseProvider struct {
-	ctx             context.Context
 	adminDomain     string
 	adminUsers      map[string]bool
 	authClient      *auth.Client
@@ -71,7 +71,6 @@ func NewFirebaseProvider(ctx context.Context, projectID, credentialsFile, adminD
 	}
 
 	return &FirebaseProvider{
-		ctx:             ctx,
 		adminDomain:     adminDomain,
 		adminUsers:      adminUsersMap,
 		authClient:      authClient,
@@ -79,8 +78,8 @@ func NewFirebaseProvider(ctx context.Context, projectID, credentialsFile, adminD
 	}, nil
 }
 
-func (fp *FirebaseProvider) VerifyAccessToken(token string) (string, error) {
-	verifiedToken, err := fp.authClient.VerifyIDToken(fp.ctx, token)
+func (fp *FirebaseProvider) VerifyAccessToken(ctx context.Context, token string) (string, error) {
+	verifiedToken, err := fp.authClient.VerifyIDToken(ctx, token)
 	if err != nil {
 		return "", err
 	}
@@ -91,8 +90,8 @@ func (fp *FirebaseProvider) VerifyAccessToken(token string) (string, error) {
 //IsAdmin return true only if
 // 1. input user is in viper 'auth.admin_users' list
 // 2. input user has admin domain in email and auth type is Google
-func (fp *FirebaseProvider) IsAdmin(userID string) (bool, error) {
-	authUserInfo, err := fp.authClient.GetUser(fp.ctx, userID)
+func (fp *FirebaseProvider) IsAdmin(ctx context.Context, userID string) (bool, error) {
+	authUserInfo, err := fp.authClient.GetUser(ctx, userID)
 	if err != nil {
 		return false, fmt.Errorf("Failed to get authorization data for user_id [%s]", userID)
 	}
@@ -128,12 +127,12 @@ func (fp *FirebaseProvider) IsAdmin(userID string) (bool, error) {
 	return true, nil
 }
 
-func (fp *FirebaseProvider) GenerateUserAccessToken(userID string) (string, error) {
-	user, err := fp.authClient.GetUserByEmail(fp.ctx, userID)
+func (fp *FirebaseProvider) GenerateUserAccessToken(ctx context.Context, userID string) (string, error) {
+	user, err := fp.authClient.GetUserByEmail(ctx, userID)
 	if err != nil {
 		return "", err
 	}
-	return fp.authClient.CustomToken(fp.ctx, user.UID)
+	return fp.authClient.CustomToken(ctx, user.UID)
 }
 
 //UsersExist returns always true
@@ -159,16 +158,24 @@ func (fp *FirebaseProvider) GetUserByID(userID string) (*User, error) {
 	return nil, errors.New(errMsg)
 }
 
-func (fp *FirebaseProvider) GetUserByEmail(email string) (*User, error) {
-	errMsg := fmt.Sprintf("GetUserByEmail isn't supported in authorization FirebaseProvider. email: %s", email)
-	logging.SystemError(errMsg)
-	return nil, errors.New(errMsg)
+func (fp *FirebaseProvider) GetUserByEmail(ctx context.Context, email string) (*User, error) {
+	if record, err := fp.authClient.GetUserByEmail(ctx, email); err != nil {
+		// pretty stupid, but Google doesn't know any better, apparently
+		if strings.Contains(err.Error(), "NOT_FOUND") {
+			return nil, ErrUserNotFound
+		} else {
+			return nil, errors.Wrapf(err, "get user from firebase")
+		}
+	} else {
+		return &User{
+			ID:    record.UID,
+			Email: email,
+		}, nil
+	}
 }
 
-func (fp *FirebaseProvider) SaveUser(user *User) error {
-	errMsg := fmt.Sprintf("SaveUser isn't supported in authorization FirebaseProvider. email: %s", user.Email)
-	logging.SystemError(errMsg)
-	return errors.New(errMsg)
+func (fp *FirebaseProvider) SaveUser(ctx context.Context, user *User) error {
+	panic("TODO")
 }
 
 func (fp *FirebaseProvider) GetOnlyUserID() (string, error) {

@@ -1,9 +1,11 @@
 package authorization
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -56,7 +58,7 @@ func NewRedisProvider(factory *meta.RedisPoolFactory) (*RedisProvider, error) {
 
 //VerifyAccessToken verifies token
 //returns user id if token is valid
-func (rp *RedisProvider) VerifyAccessToken(accessToken string) (string, error) {
+func (rp *RedisProvider) VerifyAccessToken(_ context.Context, accessToken string) (string, error) {
 	tokenEntity, err := rp.getTokenData(accessToken, authAccessTokensKey)
 	if err != nil {
 		return "", err
@@ -110,7 +112,7 @@ func (rp *RedisProvider) GetUserByID(userID string) (*User, error) {
 }
 
 //GetUserByEmail returns User by email
-func (rp *RedisProvider) GetUserByEmail(email string) (*User, error) {
+func (rp *RedisProvider) GetUserByEmail(_ context.Context, email string) (*User, error) {
 	conn := rp.pool.Get()
 	defer conn.Close()
 
@@ -144,7 +146,7 @@ func (rp *RedisProvider) GetUserByEmail(email string) (*User, error) {
 }
 
 //SaveUser save user in Redis and update users index
-func (rp *RedisProvider) SaveUser(user *User) error {
+func (rp *RedisProvider) SaveUser(_ context.Context, user *User) error {
 	conn := rp.pool.Get()
 	defer conn.Close()
 
@@ -467,12 +469,12 @@ func (rp *RedisProvider) Close() error {
 }
 
 //IsAdmin isn't supported as Google Authorization isn't supported
-func (rp *RedisProvider) IsAdmin(userID string) (bool, error) {
+func (rp *RedisProvider) IsAdmin(_ context.Context, userID string) (bool, error) {
 	logging.SystemErrorf("IsAdmin isn't supported in authorization RedisProvider. userID: %s", userID)
 	return false, nil
 }
 
-func (rp *RedisProvider) GenerateUserAccessToken(userID string) (string, error) {
+func (rp *RedisProvider) GenerateUserAccessToken(_ context.Context, userID string) (string, error) {
 	errMsg := fmt.Sprintf("GenerateUserToken isn't supported in authorization RedisProvider. userID: %s", userID)
 	logging.SystemError(errMsg)
 	return "", errors.New(errMsg)
