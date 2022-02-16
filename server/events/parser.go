@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/timestamp"
-	"io"
-	"io/ioutil"
-	"time"
 )
 
 const (
@@ -69,7 +70,7 @@ func (jp *jitsuParser) ParseEventsBody(c *gin.Context) ([]Event, error) {
 		if err := decoder.Decode(&inputEvents); err != nil {
 			return nil, fmt.Errorf("error parsing HTTP body: %v", err)
 		}
-		if len(body) > jp.maxEventSize*len(inputEvents) {
+		if len(inputEvents) > 0 && len(body) > jp.maxEventSize*len(inputEvents) {
 			return nil, fmt.Errorf("Size of one of events exceeds limit: %d", jp.maxEventSize)
 		}
 		return inputEvents, nil
@@ -263,7 +264,7 @@ func (sp *segmentParser) parseSegmentBody(body io.ReadCloser) ([]map[string]inte
 
 		inputEvents = append(inputEvents, batchElementObj)
 	}
-	if len(bytes) > sp.maxEventSize*len(inputEvents) {
+	if len(inputEvents) > 0 && len(bytes) > sp.maxEventSize*len(inputEvents) {
 		return nil, fmt.Errorf("Size of one of events exceeds limit: %d", sp.maxEventSize)
 	}
 	return inputEvents, nil
