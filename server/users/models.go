@@ -1,15 +1,10 @@
 package users
 
-//AnonymousPayload is a queue dto
-type AnonymousPayload struct {
-	EventID    string
-	EventKey   EventKey
-	EventBytes []byte
-}
-
-//EventIdentifiers is used for holding event identifiers
-type EventIdentifiers struct {
+//RecognitionPayload is a queue dto
+type RecognitionPayload struct {
+	EventID              string
 	EventKey             EventKey
+	AnonymousEventBytes  []byte
 	IdentificationValues map[string]interface{}
 }
 
