@@ -181,7 +181,7 @@ func (m *MySQL) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) e
 	}
 
 	start := timestamp.Now()
-	if err := m.adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
+	if err := m.adapter.Insert(adapters.NewBatchInsertContext(dbSchema, fdata.GetPayload(), nil)); err != nil {
 		return err
 	}
 	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", m.ID(), len(fdata.GetPayload()), timestamp.Now().Sub(start).Seconds())

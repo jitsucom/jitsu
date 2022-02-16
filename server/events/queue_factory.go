@@ -34,11 +34,6 @@ func NewQueueFactory(redisPool *meta.RedisPool, redisReadTimeout time.Duration) 
 }
 
 func (qf *QueueFactory) CreateEventsQueue(subsystem, identifier string) (Queue, error) {
-	//DEPRECATED
-	//queueName = "queue.dst="+destinationID,  logEventPath = f.logEventPath
-	//return NewDQueBasedQueue(identifier, queueName, logEventPath)
-	//return NewLevelDBQueue(identifier, queueName, logEventPath)
-
 	var underlyingQueue queue.Queue
 	if qf.redisPool != nil {
 		logging.Infof("[%s] initializing redis events queue", identifier)
