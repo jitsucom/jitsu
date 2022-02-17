@@ -7,16 +7,15 @@ import styles from "./OnboardingTourSuccess.module.less"
 
 type Props = {
   handleRestartTour?: () => void
-  handleFinishOnboarding: () => void
+  handleFinishOnboarding: () => void | Promise<void>
 }
 
 const services = ApplicationServices.get()
 
 export const OnboardingTourSuccess: React.FC<Props> = function ({ handleRestartTour, handleFinishOnboarding }) {
   const handleClickFinish = async (): Promise<void> => {
-    await services.storageService.save("onboarding_tour_completed", { completed: true }, services.activeProject.id)
     await services.analyticsService.track("onboarding_finished")
-    handleFinishOnboarding()
+    await handleFinishOnboarding()
   }
   return (
     <div className={styles.mainContainer}>

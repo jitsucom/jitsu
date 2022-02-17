@@ -40,7 +40,8 @@ const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => 
     return !!config && !userClosedTour
   }, [config, userClosedTour])
 
-  const handleCloseTour = () => {
+  const handleFinishOnboarding = async () => {
+    await services.projectService.updateProject({ id: project.id, setupCompleted: true })
     setUserClosedTour(true)
   }
 
@@ -126,7 +127,7 @@ const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => 
 
     // Success Screen
     steps.push({
-      content: <OnboardingTourSuccess handleFinishOnboarding={handleCloseTour} />,
+      content: <OnboardingTourSuccess handleFinishOnboarding={handleFinishOnboarding} />,
     })
 
     return steps
