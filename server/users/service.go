@@ -140,19 +140,19 @@ func (rs *RecognitionService) startAnonymousObserver() {
 			}
 		} else {
 			metrics.RecognitionEvent(metrics.AnonymousEvents, rp.EventKey.TokenID, 1)
-			if err := rs.storage.SaveAnonymousEvent(rp.EventKey.TokenID, rp.EventKey.AnonymousID, rp.EventID, string(rp.AnonymousEventBytes)); err != nil {
+			if err := rs.storage.SaveAnonymousEvent(rp.EventKey.TokenID, rp.EventKey.AnonymousID, rp.EventID, rp.AnonymousEventBytes); err != nil {
 				rs.systemErrorf("System error: [%s] Error saving event with anonymous id %s: %v", rp.EventKey.TokenID, rp.EventKey.AnonymousID, err)
 			}
 		}
 	}
 }
 
-func (rs *RecognitionService) getAggregatedIdentifiers() (map[EventKey]*map[string]interface{}, error) {
+func (rs *RecognitionService) getAggregatedIdentifiers() (map[EventKey]map[string]interface{}, error) {
 	size := rs.identifiedQueue.Size()
 	if size == 0 {
 		size = 1
 	}
-	aggregatedIdentifiers := map[EventKey]*map[string]interface{}{}
+	aggregatedIdentifiers := map[EventKey]map[string]interface{}{}
 	notAggrSize := 0
 	for i := int64(0); i < size; i++ {
 		identified, err := rs.identifiedQueue.DequeueBlock()
@@ -316,15 +316,15 @@ func (rs *RecognitionService) extractPayload(event events.Event, eventID string,
 		}
 	}
 	if isAnyIdentificationValueFilled {
-		rp = &RecognitionPayload{EventID: eventID, EventKey: EventKey{AnonymousID: anonymousIDStr, TokenID: tokenID}, IdentificationValues: &values}
+		rp = &RecognitionPayload{EventID: eventID, EventKey: EventKey{AnonymousID: anonymousIDStr, TokenID: tokenID}, IdentificationValues: values}
 	} else {
 		compressedEvent := rs.compressor.Compress(event)
-		rp = &RecognitionPayload{EventID: eventID, AnonymousEventBytes: compressedEvent, EventKey: EventKey{AnonymousID: anonymousIDStr, TokenID: tokenID}}
+		rp = &RecognitionPayload{EventID: eventID, AnonymousEventBytes: string(compressedEvent), EventKey: EventKey{AnonymousID: anonymousIDStr, TokenID: tokenID}}
 	}
 	return
 }
 
-func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, identificationValues *map[string]interface{}) error {
+func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, identificationValues map[string]interface{}) error {
 	tokenID := eventsKey.TokenID
 	metrics.RecognitionEvent(metrics.IdentifiedAggregatedEvents, tokenID, 1)
 
@@ -344,7 +344,7 @@ func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, ident
 			return fmt.Errorf("[%s] error deserializing event [%s]: %v", tokenID, storedSerializedEvent, err)
 		}
 
-		if err = rs.configuration.IdentificationJSONPathes.Set(event, *identificationValues); err != nil {
+		if err = rs.configuration.IdentificationJSONPathes.Set(event, identificationValues); err != nil {
 			logging.Errorf("[%s] Error setting recognized user id into event: %s with json path rule [%s]: %v",
 				tokenID, storedSerializedEvent, rs.configuration.IdentificationJSONPathes.String(), err)
 			continue
