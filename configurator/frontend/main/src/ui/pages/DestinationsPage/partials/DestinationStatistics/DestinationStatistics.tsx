@@ -21,7 +21,8 @@ import { CombinedStatisticsDatePoint, IStatisticsService, StatisticsService } fr
 import { useLoaderAsObject } from "hooks/useLoader"
 // @Styles
 import { Destination } from "@jitsu/catalog/destinations/types"
-import { projectLink } from "../../../../../lib/components/ProjectLink/ProjectLink"
+import { projectRoute } from "../../../../../lib/components/ProjectLink/ProjectLink"
+import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
 
 type StatisticsPageParams = {
   id: string
@@ -104,8 +105,8 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = () =>
     lastDayPullEvents.isLoading
 
   useEffect(() => {
-    const breadcrumbs = [
-      { title: "Destinations", link: destinationPageRoutes.root },
+    currentPageHeaderStore.setBreadcrumbs(
+      { title: "Destinations", link: projectRoute(destinationPageRoutes.root) },
       {
         title: (
           <PageHeader
@@ -114,9 +115,8 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = () =>
             mode={destinationReference ? "statistics" : null}
           />
         ),
-      },
-    ]
-    // setBreadcrumbs(withHome({ elements: breadcrumbs }))
+      });
+
   }, [])
 
   return destinationReference ? (
@@ -128,7 +128,7 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = () =>
           size="large"
           onClick={() =>
             history.push(
-              projectLink(destinationPageRoutes.editExact, {
+              projectRoute(destinationPageRoutes.editExact, {
                 id: params.id,
               })
             )

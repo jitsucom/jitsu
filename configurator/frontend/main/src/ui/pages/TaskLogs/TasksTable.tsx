@@ -14,6 +14,7 @@ import { comparator } from "../../../lib/commons/utils"
 import { isAtLeastOneStreamSelected } from "utils/sources/sourcesUtils"
 import { NoStreamsSelectedMessage } from "ui/components/NoStreamsSelectedMessage/NoStreamsSelectedMessage"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+import { projectRoute } from "../../../lib/components/ProjectLink/ProjectLink"
 
 export type TasksTableProps = {
   source: SourceData
@@ -155,7 +156,7 @@ const columns: ColumnData[] = [
             {" • "}
             <NavLink
               className="border-b border-dashed"
-              to={generatePath(taskLogsViewerRoute, {
+              to={projectRoute(taskLogsViewerRoute, {
                 sourceId: props.source.sourceId,
                 taskId: TaskId.encode(t.logs.taskId),
               })}

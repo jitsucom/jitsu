@@ -15,6 +15,8 @@ import { destinationPageRoutes } from "ui/pages/DestinationsPage/DestinationsPag
 import { CommonDestinationPageProps } from "ui/pages/DestinationsPage/DestinationsPage"
 import { useServices } from "../../../../../hooks/useServices"
 import { DestinationCard } from "../../../../components/DestinationCard/DestinationCard"
+import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
+import { projectRoute } from "../../../../../lib/components/ProjectLink/ProjectLink"
 
 const DestinationsListComponent = () => {
   const history = useHistory()
@@ -24,18 +26,9 @@ const DestinationsListComponent = () => {
     history.push(destinationPageRoutes.add)
   }, [history, subscription])
 
-  // useEffect(() => {
-  //   setBreadcrumbs(
-  //     withHome({
-  //       elements: [
-  //         { title: "Destinations", link: destinationPageRoutes.root },
-  //         {
-  //           title: "Destinations List",
-  //         },
-  //       ],
-  //     })
-  //   )
-  // }, [setBreadcrumbs])
+  useEffect(() => {
+    currentPageHeaderStore.setBreadcrumbs("Destinations");
+  }, [])
 
   if (destinationsStore.list.length === 0) {
     return <EmptyList handleAddClick={handleAddClick} title="Destinations list is still empty" unit="destination" />
