@@ -51,6 +51,10 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		c.AbortWithStatus(http.StatusInternalServerError)
 	}))
 
+	if viper.GetBool("server.log_http_errors") {
+		router.Use(middleware.ErrorLogWriter)
+	}
+
 	router.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
