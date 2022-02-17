@@ -6,6 +6,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/jitsucom/jitsu/configurator/common"
+
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
@@ -65,14 +67,9 @@ func NewFirebaseProvider(ctx context.Context, projectID, credentialsFile, adminD
 		return nil, err
 	}
 
-	adminUsersMap := map[string]bool{}
-	for _, user := range adminUsers {
-		adminUsersMap[user] = true
-	}
-
 	return &FirebaseProvider{
 		adminDomain:     adminDomain,
-		adminUsers:      adminUsersMap,
+		adminUsers:      common.StringSetFrom(adminUsers),
 		authClient:      authClient,
 		firestoreClient: firestoreClient,
 	}, nil

@@ -58,6 +58,7 @@ func (a *Authenticator) BearerAuth(c *gin.Context) {
 
 	access := &ProjectAccess{
 		adminAccess: token == a.serverToken,
+		projects:    make(common.StringSet),
 	}
 
 	if access.adminAccess {
@@ -92,12 +93,12 @@ func (a *Authenticator) BearerAuth(c *gin.Context) {
 		c.Set(UserIDKey, userID)
 
 		if projectIDs, err := a.service.GetProjectIDs(userID); err == nil {
-			access.projects = common.StringSetFrom(projectIDs)
+			access.projects.AddAll(projectIDs...)
 		}
 
 		//added permissions on global configuration
 		if a.selfhosted {
-			access.projects[storages.TelemetryGlobalID] = true
+			access.projects.Add(storages.TelemetryGlobalID)
 		}
 	}
 
