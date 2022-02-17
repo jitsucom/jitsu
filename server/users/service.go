@@ -157,6 +157,9 @@ func (rs *RecognitionService) getAggregatedIdentifiers() (map[EventKey]map[strin
 	for i := int64(0); i < size; i++ {
 		identified, err := rs.identifiedQueue.DequeueBlock()
 		if err != nil {
+			if rs.closed.Load() {
+				break
+			}
 			return nil, fmt.Errorf("Error reading recognition payload from queue: %v", err)
 		}
 		ids, ok := identified.(*RecognitionPayload)
