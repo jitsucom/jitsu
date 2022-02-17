@@ -39,10 +39,15 @@ export interface ProjectService {
    * @param projectId
    */
   getProjectUsers(projectId: string): Promise<UserBasicInfo[]>
+
+  unlinkFromProject(projectId: string, userId: string): Promise<void>
 }
 
 export function createProjectService_v1(userService: UserService, backend: BackendApiClient): ProjectService {
   return {
+    unlinkFromProject(projectId: string, userId: string): Promise<void> {
+      return Promise.reject(new Error("Method is not implemented"))
+    },
     async getProjectUsers(projectId: string): Promise<UserBasicInfo[]> {
       let userInfo: UserDTO = await backend.get(`/users/info`)
       return [{ id: userInfo._uid, email: userInfo._email }]
