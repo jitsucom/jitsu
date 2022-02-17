@@ -388,6 +388,12 @@ func (rs *RecognitionService) Close() (multiErr error) {
 		}
 	}
 
+	for i, queue := range rs.aggregatedQueues {
+		if err := queue.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("error closing users recognition aggregated queue #%d: %v", i, err))
+		}
+	}
+
 	if rs.storage != nil {
 		if err := rs.storage.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("error closing users recognition storage: %v", err))
