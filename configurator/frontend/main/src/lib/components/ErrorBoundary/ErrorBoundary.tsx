@@ -2,7 +2,10 @@ import ApplicationServices from "lib/services/ApplicationServices"
 import { Component } from "react"
 import { ErrorCard } from "../ErrorCard/ErrorCard"
 
-type Props = {}
+type Props = {
+  hideError?: boolean
+  onAfterErrorOccured?: (error: Error) => void
+}
 type State = {
   error?: Error
 }
@@ -30,15 +33,16 @@ export class ErrorBoundary extends Component<Props, State> {
     try {
       const error = this.toError(err)
       let services = ApplicationServices.get()
-      if (services?.analyticsService) {
-        services.analyticsService.onGlobalError(error)
-      }
+      services?.analyticsService?.onGlobalError?.(error)
+      this.props.onAfterErrorOccured(error)
     } catch (e) {
       console.warn("Can't send error to monitoring", e)
     }
   }
 
   render() {
+    if (this.state.error && this.props.hideError) return null
+
     if (this.state.error) {
       return (
         <div className="flex justify-center items-center w-full h-full">

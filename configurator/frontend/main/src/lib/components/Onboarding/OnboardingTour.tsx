@@ -1,8 +1,6 @@
 // @Libs
 import React, { useEffect, useMemo, useState } from "react"
-import { observer } from "mobx-react-lite"
 import { flowResult } from "mobx"
-import { message } from "antd"
 import moment from "moment"
 // @Store
 import { apiKeysStore } from "stores/apiKeys"
@@ -19,8 +17,8 @@ import { OnboardingTourSuccess } from "./steps/OnboardingTourSuccess/OnboardingT
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Hooks
 import { formatTimeOfRawUserEvents, getLatestUserEvent, userEventWasTimeAgo } from "lib/commons/utils"
-import { randomId } from "utils/numbers"
 import { Project } from "../../../generated/conf-openapi"
+import { ErrorBoundary } from "../ErrorBoundary/ErrorBoundary"
 
 type OnboardingConfig = {
   showDestinationsSetupStep: boolean
@@ -28,15 +26,13 @@ type OnboardingConfig = {
   showEventListenerStep: boolean
 }
 
-const USER_EVENT_EXPIRATION_THRESHOLD = moment.duration(1, "months")
+type OnboardingTourProps = { project: Project }
 
-export function showOnboardingError(msg?: string): void {
-  message.error(`Onboarding caught error${msg ? ": " + msg : ""}`)
-}
+const USER_EVENT_EXPIRATION_THRESHOLD = moment.duration(1, "months")
 
 const services = ApplicationServices.get()
 
-const OnboardingTour: React.FC<{ project: Project }> = ({ project }) => {
+const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => {
   const [config, setConfig] = useState<OnboardingConfig | null>(null)
   const [userClosedTour, setUserClosedTour] = useState<boolean>(false)
 
@@ -62,12 +58,21 @@ const OnboardingTour: React.FC<{ project: Project }> = ({ project }) => {
     })
 
     // User and Company Names Step
-    const user = services.userService.getUser()
-    steps.push({
-      content: ({ goTo }) => {
-        return <OnboardingTourNames user={user} companyName={project.name || user.suggestedCompanyName} handleGoNext={() => goTo(steps.length + 1)} />
-      },
-    })
+    {
+      const user = services.userService.getUser()
+      const next = steps.length + 1
+      steps.push({
+        content: ({ goTo }) => {
+          return (
+            <OnboardingTourNames
+              user={user}
+              companyName={project.name || user.suggestedCompanyName}
+              handleGoNext={() => goTo(next)}
+            />
+          )
+        },
+      })
+    }
 
     // Add destinations
     if (config.showDestinationsSetupStep) {
@@ -121,9 +126,7 @@ const OnboardingTour: React.FC<{ project: Project }> = ({ project }) => {
 
     // Success Screen
     steps.push({
-      content: ({ goTo }) => {
-        return <OnboardingTourSuccess handleFinishOnboarding={handleCloseTour} />
-      },
+      content: <OnboardingTourSuccess handleFinishOnboarding={handleCloseTour} />,
     })
 
     return steps
@@ -187,6 +190,14 @@ function calculateAmountOfSteps(config: OnboardingConfig): number {
   return Object.values(config).reduce((accumulator, current) => {
     return accumulator + +current
   }, 0)
+}
+
+const OnboardingTour: React.FC<OnboardingTourProps> = props => {
+  return (
+    <ErrorBoundary hideError={true} onAfterErrorOccured={error => console.error(`Onboarding tour error: ${error}`)}>
+      <OnboardingTourComponent {...props} />
+    </ErrorBoundary>
+  )
 }
 
 OnboardingTour.displayName = "OnboardingTour"
