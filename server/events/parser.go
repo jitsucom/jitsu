@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/timestamp"
 )
@@ -52,6 +53,7 @@ func (jp *jitsuParser) ParseEventsBody(c *gin.Context) ([]Event, error) {
 	switch body[0] {
 	case '{':
 		if len(body) > jp.maxEventSize {
+			logging.Errorf("Failed to parse event via %s %s: '%s'", c.Request.Method, c.Request.URL.String(), string(body))
 			return nil, fmt.Errorf("Event size %d exceeds limit: %d", len(body), jp.maxEventSize)
 		}
 		event := Event{}
