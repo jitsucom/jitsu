@@ -238,7 +238,7 @@ func (vte *V8TemplateExecutor) start() {
 					if err != nil {
 						vte.loadingError = fmt.Errorf("%s: %v\ntransformed function:\n%v\n", jsLoadingErrorText, err, vte.transformedExpression)
 					}
-					logging.Infof("Reload duration: %s", heapSize, timestamp.Now().Sub(start))
+					logging.Infof("Reload duration: %s", timestamp.Now().Sub(start))
 				}
 			case event = <-vte.incoming:
 				break Loop
