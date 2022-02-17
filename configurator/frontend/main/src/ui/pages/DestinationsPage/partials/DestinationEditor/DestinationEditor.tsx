@@ -40,6 +40,8 @@ import { useForceUpdate } from "hooks/useForceUpdate"
 // @Icons
 import { AreaChartOutlined, WarningOutlined } from "@ant-design/icons"
 import { actionNotification } from "../../../../components/ActionNotification/ActionNotification"
+import { projectLink } from "../../../../../lib/components/ProjectLink/ProjectLink"
+import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
 
 type DestinationTabKey = "config" | "transform" | "mappings" | "sources" | "settings" | "statistics"
 
@@ -283,7 +285,7 @@ const DestinationEditor = ({
 
   const handleViewStatistics = () =>
     history.push(
-      generatePath(destinationPageRoutes.statisticsExact, {
+      projectLink(destinationPageRoutes.statisticsExact, {
         id: destinationData.current._id,
       })
     )
@@ -386,7 +388,7 @@ const DestinationEditor = ({
     if (!params.standalone) {
       breadCrumbs.push({
         title: "Destinations",
-        link: destinationPageRoutes.root,
+        link: projectLink(destinationPageRoutes.root),
       })
     }
     breadCrumbs.push({
@@ -398,11 +400,7 @@ const DestinationEditor = ({
         />
       ),
     })
-    // setBreadcrumbs(
-    //   withHome({
-    //     elements: breadCrumbs,
-    //   })
-    // )
+    currentPageHeaderStore.breadcrumbs = breadCrumbs;
   }, [destinationReference])
 
   return destinationReference ? (

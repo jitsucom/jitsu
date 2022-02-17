@@ -21,6 +21,7 @@ import { CombinedStatisticsDatePoint, IStatisticsService, StatisticsService } fr
 import { useLoaderAsObject } from "hooks/useLoader"
 // @Styles
 import { Destination } from "@jitsu/catalog/destinations/types"
+import { projectLink } from "../../../../../lib/components/ProjectLink/ProjectLink"
 
 type StatisticsPageParams = {
   id: string
@@ -127,7 +128,7 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = () =>
           size="large"
           onClick={() =>
             history.push(
-              generatePath(destinationPageRoutes.editExact, {
+              projectLink(destinationPageRoutes.editExact, {
                 id: params.id,
               })
             )

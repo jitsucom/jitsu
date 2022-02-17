@@ -1,7 +1,7 @@
 export const sourcesPageRoutes = {
-  root: "/prj_:projectId/sources",
-  add: "/prj_:projectId/sources/add",
-  edit: "/prj_:projectId/sources/edit",
-  addExact: "/prj_:projectId/sources/add/:source/:tabName?",
-  editExact: "/prj_:projectId/sources/edit/:sourceId",
+  root: "/prj-:projectId/sources",
+  add: "/prj-:projectId/sources/add",
+  edit: "/prj-:projectId/sources/edit",
+  addExact: "/prj-:projectId/sources/add/:source/:tabName?",
+  editExact: "/prj-:projectId/sources/edit/:sourceId",
 } as const

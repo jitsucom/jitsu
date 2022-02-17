@@ -24,6 +24,7 @@ import { useServices } from "hooks/useServices"
 import { APIKeyUtil } from "../../../utils/apiKeys.utils"
 import { DestinationsUtils } from "../../../utils/destinations.utils"
 import { SourcesUtils } from "../../../utils/sources.utils"
+import { projectLink } from "../../../lib/components/ProjectLink/ProjectLink"
 
 const CONNECTION_LINE_SIZE = 3
 const CONNECTION_LINE_COLOR = "#415969"
@@ -169,7 +170,7 @@ const ConnectionsPageComponent: React.FC = () => {
                           title: dst.displayName,
                           id: dst.id,
                           icon: dst.ui.icon,
-                          link: generatePath(destinationPageRoutes.newExact, {
+                          link: projectLink(destinationPageRoutes.newExact, {
                             type: dst.id,
                           }),
                         }

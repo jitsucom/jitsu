@@ -40,7 +40,7 @@ class CurrentPageHeader implements ICurrentPageHeader {
    * automatically
    */
   set breadcrumbs(breadcrumbs: BreadcrumbElement[]) {
-    console.log("Setting breadcrumbs", breadcrumbs)
+    console.log("Setting breadcrumbs", breadcrumbs);
     this._breadcrumbs =
       breadcrumbs.length > 0 && breadcrumbs[0].link === "/"
         ? breadcrumbs

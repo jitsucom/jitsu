@@ -29,7 +29,7 @@ import { ReactComponent as DownloadIcon } from "icons/download.svg"
 import { ReactComponent as GlobeIcon } from "icons/globe.svg"
 import classNames from "classnames"
 // @Model
-import { Permission, User } from "lib/services/model"
+import { Permission } from "lib/services/model"
 // @Utils
 import { reloadPage } from "lib/commons/utils"
 // @Services
@@ -46,6 +46,7 @@ import { actionNotification } from "ui/components/ActionNotification/ActionNotif
 import { useClickOutsideRef } from "hooks/useClickOutsideRef"
 import { Breadcrumbs } from "./ui/components/Breadcrumbs/Breadcrumbs"
 import ProjectLink from "./lib/components/ProjectLink/ProjectLink"
+import { User } from "./generated/conf-openapi"
 
 type MenuItem = {
   icon: React.ReactNode

@@ -1,4 +1,4 @@
-import { ReactNode } from "react"
+import { createContext, ReactNode } from "react"
 import { NavLink } from "react-router-dom"
 import { observer } from "mobx-react-lite"
 import { currentPageHeaderStore } from "../../../stores/currentPageHeader"
@@ -17,8 +17,6 @@ function join<T>(array: T[], separatorFactory: (id: number) => T): T[] {
 }
 
 const BreadcrumbsComponent: React.FC<{}> = () => {
-  const services = useServices()
-  let projectId = services.activeProject.id
   return (
     <div className="flex flex-row items-center text-base space-x-3">
       {join(

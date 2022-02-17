@@ -207,7 +207,7 @@ async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
   }
 
   const project_id = services.activeProject.id
-  const user_id = services.userService.getUser().uid
+  const user_id = services.userService.getUser().id
   const id_token = await services.userService.getIdToken()
 
   try {
