@@ -69,16 +69,16 @@ const makeItem = (
 
 const menuItems = [
   makeItem(<HomeFilled />, "Home", "/connections", "#77c593"),
-  makeItem(<ThunderboltFilled />, "Live Events", "/events_stream", "#fccd04"),
+  makeItem(<ThunderboltFilled />, "Live Events", "/events-stream", "#fccd04"),
   makeItem(<AreaChartOutlined />, "Statistics", "/dashboard", "#88bdbc"),
   makeItem(<Icon component={KeyIcon} />, "API Keys", "/api-keys", "#d79922"),
   makeItem(<ApiFilled />, "Sources", "/sources", "#d83f87"),
   makeItem(<NotificationFilled />, "Destinations", "/destinations", "#4056a1"),
   makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud", "#e76e52"),
-  makeItem(<SettingOutlined />, "Project settings", "/project_settings", "#0d6050"),
-  makeItem(<Icon component={GlobeIcon} />, "Geo data resolver", "/geo_data_resolver", "#41b3a3"),
+  makeItem(<SettingOutlined />, "Project settings", "/project-settings", "#0d6050"),
+  makeItem(<Icon component={GlobeIcon} />, "Geo data resolver", "/geo-data-resolver", "#41b3a3"),
   makeItem(<CloudFilled />, "Custom Domains", "/domains", "#5ab9ea", f => f.enableCustomDomains),
-  makeItem(<Icon component={DownloadIcon} />, "Download Config", "/cfg_download", "#14a76c"),
+  makeItem(<Icon component={DownloadIcon} />, "Download Config", "/cfg-download", "#14a76c"),
 ]
 
 export function usePageLocation(): string {

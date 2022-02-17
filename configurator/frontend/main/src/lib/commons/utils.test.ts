@@ -1,4 +1,4 @@
-import { flatten, getObjectDepth, numberFormat, unflatten } from "./utils"
+import { flatten, getObjectDepth, numberFormat, sanitize, unflatten } from "./utils"
 
 test("numberFormat", () => {
   expect(numberFormat(1000)).toBe("1,000")
