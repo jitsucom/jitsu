@@ -22,7 +22,10 @@ export interface ProjectService {
 
   getProjectById(projectId: string): Promise<Project>
 
-  updateProject(project: Partial<Project>): Promise<void>
+  /**
+   * Patches the project with provided data. Project ID field is required.
+   */
+  updateProject(project: Partial<Project> & { id: string }): Promise<void>
 }
 
 export function createProjectService_v1(userService: UserService, backend: BackendApiClient): ProjectService {
@@ -59,7 +62,7 @@ export function createProjectService_v1(userService: UserService, backend: Backe
         ]
       }
     },
-    async updateProject(project: Partial<Project>): Promise<void> {
+    async updateProject(project: Partial<Project> & { id: string }): Promise<void> {
       assert(!!project.id, "Project id is required")
       let userInfo: UserDTO = await backend.get(`/users/info`)
       assert(!!userInfo._project, "User doesn't have attached project")
@@ -71,9 +74,10 @@ export function createProjectService_v1(userService: UserService, backend: Backe
         ...(userInfo._project || {}),
         $type: "Project",
         _id: project.id,
-        _name: project.name || userInfo._project._name
+        _name: project.name || userInfo._project._name,
+        _setupCompleted: project.setupCompleted || userInfo._project._setupCompleted,
       }
-      await backend.post(`/users/info`, userInfo);
+      await backend.post(`/users/info`, userInfo)
     },
     async getProjectById(projectId: string): Promise<Project | null> {
       let userInfo = await backend.get(`/users/info`)

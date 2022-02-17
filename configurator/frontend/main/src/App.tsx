@@ -348,7 +348,9 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
           </Route>
         </Switch>
       </ApplicationPage>
-      {!project.setupCompleted && <OnboardingTourLazyLoader project={project} />}
+      {!project.setupCompleted && project.setupCompleted !== undefined && (
+        <OnboardingTourLazyLoader project={project} />
+      )}
       {services.userService.getUser().forcePasswordChange && <SetNewPassword onCompleted={async () => reloadPage()} />}
     </>
   )
