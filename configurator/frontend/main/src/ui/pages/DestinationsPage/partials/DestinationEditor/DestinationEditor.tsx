@@ -40,7 +40,7 @@ import { useForceUpdate } from "hooks/useForceUpdate"
 // @Icons
 import { AreaChartOutlined, WarningOutlined } from "@ant-design/icons"
 import { actionNotification } from "../../../../components/ActionNotification/ActionNotification"
-import { projectLink } from "../../../../../lib/components/ProjectLink/ProjectLink"
+import { projectRoute } from "../../../../../lib/components/ProjectLink/ProjectLink"
 import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
 
 type DestinationTabKey = "config" | "transform" | "mappings" | "sources" | "settings" | "statistics"
@@ -285,7 +285,7 @@ const DestinationEditor = ({
 
   const handleViewStatistics = () =>
     history.push(
-      projectLink(destinationPageRoutes.statisticsExact, {
+      projectRoute(destinationPageRoutes.statisticsExact, {
         id: destinationData.current._id,
       })
     )
@@ -384,14 +384,14 @@ const DestinationEditor = ({
     !destinationsReferenceMap[params.type]?.hidden
 
   useEffect(() => {
-    let breadCrumbs = []
+    let breadcrumbs = []
     if (!params.standalone) {
-      breadCrumbs.push({
+      breadcrumbs.push({
         title: "Destinations",
-        link: projectLink(destinationPageRoutes.root),
+        link: projectRoute(destinationPageRoutes.root),
       })
     }
-    breadCrumbs.push({
+    breadcrumbs.push({
       title: (
         <PageHeader
           title={destinationReference?.displayName ?? "Not Found"}
@@ -400,7 +400,7 @@ const DestinationEditor = ({
         />
       ),
     })
-    currentPageHeaderStore.breadcrumbs = breadCrumbs;
+    currentPageHeaderStore.setBreadcrumbs(...breadcrumbs);
   }, [destinationReference])
 
   return destinationReference ? (

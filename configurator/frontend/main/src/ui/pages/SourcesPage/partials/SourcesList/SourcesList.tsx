@@ -15,6 +15,7 @@ import styles from "./SourcesList.module.less"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 // @Utils
 import { SourceCard } from "../../../../components/SourceCard/SourceCard"
+import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
 
 const SourcesListComponent = () => {
   const history = useHistory()
@@ -23,18 +24,9 @@ const SourcesListComponent = () => {
     history.push(sourcesPageRoutes.add)
   }, [history])
 
-  // useEffect(() => {
-  //   setBreadcrumbs(
-  //     withHome({
-  //       elements: [
-  //         { title: "Sources", link: sourcesPageRoutes.root },
-  //         {
-  //           title: "Sources List",
-  //         },
-  //       ],
-  //     })
-  //   )
-  // }, [setBreadcrumbs])
+  useEffect(() => {
+    currentPageHeaderStore.setBreadcrumbs('Sources')
+  }, [])
 
   if (sourcesStore.list.length === 0) {
     return (

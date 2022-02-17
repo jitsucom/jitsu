@@ -18,8 +18,10 @@ import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import moment from "moment"
 import ReloadOutlined from "@ant-design/icons/lib/icons/ReloadOutlined"
 import { actionNotification } from "../../components/ActionNotification/ActionNotification"
+import { currentPageHeaderStore } from "../../../stores/currentPageHeader"
+import { projectRoute } from "../../../lib/components/ProjectLink/ProjectLink"
 
-export const taskLogsViewerRoute = "/sources/logs/:sourceId/:taskId"
+export const taskLogsViewerRoute = "/prj-:projectId/sources/logs/:sourceId/:taskId"
 type TaskInfo = {
   task: Task
   source: SourceData
@@ -64,22 +66,18 @@ export const TaskLogViewer: React.FC = () => {
         (candidate: SourceConnector) =>
           snakeCase(candidate.id) === taskInfo.source?.sourceProtoType ?? ({} as SourceConnector)
       )
-      // setBreadcrumbs(
-      //   withHome({
-      //     elements: [
-      //       { title: "Sources", link: sourcesPageRoutes.root },
-      //       {
-      //         title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode="edit" />,
-      //         link: generatePath(sourcesPageRoutes.editExact, { sourceId }),
-      //       },
-      //       {
-      //         title: "Logs",
-      //         link: generatePath(taskLogsPageRoute, { sourceId }),
-      //       },
-      //       { title: "Task Log" },
-      //     ],
-      //   })
-      // )
+      currentPageHeaderStore.setBreadcrumbs(
+            { title: "Sources", link: sourcesPageRoutes.root },
+            {
+              title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode="edit" />,
+              link: projectRoute(sourcesPageRoutes.editExact, { sourceId }),
+            },
+            {
+              title: "Logs",
+              link: projectRoute(taskLogsPageRoute, { sourceId }),
+            },
+            { title: "Task Log" },
+      )
     }
   }, [sourceId, taskId, taskInfo])
 
@@ -102,7 +100,7 @@ export const TaskLogViewer: React.FC = () => {
           <Button
             type="primary"
             icon={<ArrowLeftOutlined />}
-            onClick={() => history.push(generatePath(taskLogsPageRoute, { sourceId }))}
+            onClick={() => history.push(projectRoute(taskLogsPageRoute, { sourceId }))}
           >
             Back to task list
           </Button>

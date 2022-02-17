@@ -30,7 +30,7 @@ import { UserSettings } from "./lib/components/UserSettings/UserSettings"
 import { currentPageHeaderStore } from "./stores/currentPageHeader"
 import { Project } from "./generated/conf-openapi"
 import { OnboardingTourLazyLoader } from "./lib/components/Onboarding/OnboardingTourLazyLoader"
-import { TaskLogsPage } from "./ui/pages/TaskLogs/TaskLogsPage"
+import { TaskLogsPage, taskLogsPageRoute } from "./ui/pages/TaskLogs/TaskLogsPage"
 import { UserProps } from "./lib/services/analytics"
 
 const ApiKeysRouter = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/components/ApiKeys/ApiKeysRouter"))
@@ -237,14 +237,14 @@ const projectRoutes: ProjectRoute[] = [
 
   { pageTitle: "Sources", path: "/sources", component: SourcesPage, isPrefix: true },
   { pageTitle: "Destinations", path: "/destinations", component: DestinationsPage, isPrefix: true },
-  { pageTitle: "Task Logs", path: "/sources/logs", component: TaskLogsPage, isPrefix: true },
+  { pageTitle: "Task Logs", path: taskLogsPageRoute, component: TaskLogsPage, isPrefix: true },
 
   { pageTitle: "User Settings", path: "/settings/user", component: UserSettings, isPrefix: true },
 ]
 
 function RouteNotFound() {
   useEffect(() => {
-    currentPageHeaderStore.breadcrumbs = [{ title: "Not found" }]
+    currentPageHeaderStore.setBreadcrumbs("Not found")
   })
   return (
     <div className="flex justify-center pt-12">
@@ -282,8 +282,8 @@ const PageWrapper: React.FC<{ pageTitle: string; component: ComponentType; pageP
       pagePath: pagePath,
     })
     document["title"] = `Jitsu : ${pageTitle}`
-    currentPageHeaderStore.breadcrumbs = [{ title: pageTitle }]
-  })
+    currentPageHeaderStore.setBreadcrumbs(pageTitle)
+  }, [])
   let Component = component as ExoticComponent
   return (
     <React.Suspense fallback={<CenteredSpin />}>
@@ -338,7 +338,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
           {projectRoutes.map(({ component, pageTitle, path, isPrefix }) => (
             <Route
               exact={!isPrefix}
-              path={(typeof path === "string" ? [path] : path).map(path => `/prj-:projectId${path}`)}
+              path={(typeof path === "string" ? [path] : path).map(path => path.indexOf('/prj-') >= 0 ? path : `/prj-:projectId${path}`)}
               render={page => (
                 <PageWrapper pageTitle={pageTitle} component={component} pagePath={page.location.key} {...page} />
               )}

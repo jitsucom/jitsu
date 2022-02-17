@@ -20,7 +20,9 @@ export type BreadcrumbElement = {
 }
 
 interface ICurrentPageHeader {
-  breadcrumbs: BreadcrumbElement[]
+  setBreadcrumbs(...breadcrumbs: (BreadcrumbElement | string)[])
+
+  getBreadcrumbs(): BreadcrumbElement[]
 }
 
 /**
@@ -39,17 +41,16 @@ class CurrentPageHeader implements ICurrentPageHeader {
    * Sets breadcrumbs. If first element doesn't point to project home, it will be added
    * automatically
    */
-  set breadcrumbs(breadcrumbs: BreadcrumbElement[]) {
-    console.log("Setting breadcrumbs", breadcrumbs);
+  setBreadcrumbs(...breadcrumbs: (BreadcrumbElement | string)[]) {
+    console.log("Setting breadcrumbs", breadcrumbs)
+    let normalized: BreadcrumbElement[] = breadcrumbs.map(b => (typeof b === "string" ? { title: b } : b))
     this._breadcrumbs =
-      breadcrumbs.length > 0 && breadcrumbs[0].link === "/"
-        ? breadcrumbs
-        : [{ link: "/", title: "Home" }, ...breadcrumbs]
+      normalized.length > 0 && normalized[0].link === "/" ? normalized : [{ link: "/", title: "Home" }, ...normalized]
   }
 
-  get breadcrumbs(): BreadcrumbElement[] {
+  getBreadcrumbs(): BreadcrumbElement[] {
     if (!this._breadcrumbs || this._breadcrumbs.length == 0) {
-      return [{ link: "/", title: "Home" }];
+      return [{ link: "/", title: "Home" }]
     }
     return this._breadcrumbs
   }

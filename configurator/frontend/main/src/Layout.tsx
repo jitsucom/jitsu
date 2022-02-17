@@ -47,6 +47,7 @@ import { useClickOutsideRef } from "hooks/useClickOutsideRef"
 import { Breadcrumbs } from "./ui/components/Breadcrumbs/Breadcrumbs"
 import ProjectLink from "./lib/components/ProjectLink/ProjectLink"
 import { User } from "./generated/conf-openapi"
+import { showProjectSwitchModal } from "./lib/components/ProjectSwitcher/ProjectSwitch"
 
 type MenuItem = {
   icon: React.ReactNode
@@ -259,6 +260,12 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
       <div className="py-2 border-b border-main px-5 flex flex-col items-start">
         <div>
           Project: <b>{services.activeProject.name || "Unspecified"}</b>
+          <div className="text-xs">
+            <a onClick={() => {
+              hideMenu();
+              showProjectSwitchModal()
+            }}>Switch project</a>
+          </div>
         </div>
       </div>
       {services.features.billingEnabled && services.applicationConfiguration.billingUrl && (

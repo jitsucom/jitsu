@@ -15,8 +15,10 @@ import { SourceConnector } from "@jitsu/catalog/sources/types"
 import { CollectionSourceData } from "ui/pages/SourcesPage/SourcesPage"
 import { PageHeader } from "ui/components/PageHeader/PageHeader"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
+import { currentPageHeaderStore } from "../../../stores/currentPageHeader"
+import { projectRoute } from "../../../lib/components/ProjectLink/ProjectLink"
 
-export const taskLogsPageRoute = "/sources/logs/:sourceId"
+export const taskLogsPageRoute = "/prj-:projectId/sources/logs/:sourceId"
 
 export const TaskLogsPage: React.FC = () => {
   const params = useParams<{ sourceId: string; taskId: string }>()
@@ -48,18 +50,14 @@ export const TaskLogsPage: React.FC = () => {
         (candidate: SourceConnector) => snakeCase(candidate.id) === source?.sourceProtoType ?? ({} as SourceConnector)
       )
 
-      // setBreadcrumbs(
-      //   withHome({
-      //     elements: [
-      //       { title: "Sources", link: sourcesPageRoutes.root },
-      //       {
-      //         title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode="edit" />,
-      //         link: "/sources/edit/" + source.sourceId,
-      //       },
-      //       { title: "Logs" },
-      //     ],
-      //   })
-      // )
+      currentPageHeaderStore.setBreadcrumbs(
+        { title: "Sources", link: projectRoute(sourcesPageRoutes.root) },
+        {
+          title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode="edit" />,
+          link: "/sources/edit/" + source.sourceId,
+        },
+        { title: "Logs" }
+      )
     }
   }, [source?.sourceId])
 
@@ -74,7 +72,7 @@ export const TaskLogsPage: React.FC = () => {
     if (queryStr.length > 0) {
       queryStr = "?" + queryStr
     }
-    history.push(`/sources/logs/${source.sourceId}${queryStr}`)
+    history.push(`/prj-${services.activeProject.id}/sources/logs/${source.sourceId}${queryStr}`)
     stateAction(val)
   }
 
