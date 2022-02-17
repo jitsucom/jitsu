@@ -1,6 +1,6 @@
 import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserService } from "./UserService"
 import { FirebaseApp, initializeApp } from "firebase/app"
-import { ApiAccess, User, userFromDTO, userToDTO } from "./model"
+import { ApiAccess, userFromDTO, userToDTO } from "./model"
 import { User as FirebaseUser } from "@firebase/auth"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
@@ -25,6 +25,7 @@ import {
   updatePassword,
 } from "firebase/auth"
 import { reloadPage, setDebugInfo } from "../commons/utils"
+import { User } from "../../generated/conf-openapi"
 
 export class FirebaseUserService implements UserService {
   private firebaseApp: FirebaseApp
@@ -121,7 +122,7 @@ export class FirebaseUserService implements UserService {
       this._apiAccess = new ApiAccess(await fbUser.getIdToken(false), null, () => {})
       let userDTO = await this.storageService.getUserInfo()
       let user = userFromDTO(userDTO)
-      user.uid = fbUser.uid
+      user.id = fbUser.uid
       user.email = fbUser.email
       user.name = user.name || fbUser.displayName
       this.user = user
@@ -164,10 +165,9 @@ export class FirebaseUserService implements UserService {
 
     let user: User = {
       suggestedCompanyName: undefined,
-      uid: firebaseUser.user.uid,
+      id: firebaseUser.user.uid,
       name: firebaseUser.user.displayName,
       email: firebaseUser.user.email,
-      onboarded: false,
       emailOptout: false,
       forcePasswordChange: false,
       created: new Date().toISOString(),

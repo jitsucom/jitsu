@@ -164,8 +164,8 @@ components:
       properties:
         id: { type: "string" }
         name: { type: "string" }
-        setupCompleted: { type: "boolean" }
-      required: [ 'name' ]
+        requiresSetup: { type: "boolean" }
+      required: [ 'name', 'id' ]
 
     UserBasicInfo:
       description: 'Basic information about user'
@@ -174,6 +174,18 @@ components:
         id: { type: "string" }
         email: { type: "string" }
       required: [ 'id', 'email' ]
+
+    User:
+        allOf:     # Combines the BasicErrorModel and the inline model
+          - $ref: '#/components/schemas/UserBasicInfo'
+          - type: object
+            properties:
+              name: { type: "string" }
+              created: { type: "string" }
+              emailOptout: { type: "boolean" }
+              forcePasswordChange: {type: "boolean"}
+              suggestedCompanyName: {type: "string"}
+            required: [ 'created']
 
   responses:
     Error:

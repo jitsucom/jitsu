@@ -6,12 +6,11 @@ import { BankOutlined, UserOutlined } from "@ant-design/icons"
 // @Utils
 import { handleError } from "lib/components/components"
 import { randomId } from "utils/numbers"
-// @Types
-import { User } from "lib/services/model"
 // @Styles
 import styles from "./OnboardingTourNames.module.less"
 import ApplicationServices from "lib/services/ApplicationServices"
 import { useServices } from "../../../../../hooks/useServices"
+import { User } from "../../../../../generated/conf-openapi"
 
 type OnboardingTourNamesStepProps = {
   user: User
@@ -25,7 +24,6 @@ type OnboardingTourNamesFormValues = {
   emailsOptIn: boolean
 }
 
-const services = ApplicationServices.get()
 
 export const OnboardingTourNames: React.FC<OnboardingTourNamesStepProps> = function ({
   user,

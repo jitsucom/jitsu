@@ -1,6 +1,6 @@
 /* eslint-disable */
 import Marshal from "../commons/marshalling"
-import { Project } from "../../generated/conf-openapi"
+import { Project, User } from "../../generated/conf-openapi"
 
 /**
  * Structure of /database API response
@@ -38,25 +38,12 @@ export enum Permission {
 }
 
 /**
- * User object
- */
-export type User = {
-  uid: string
-  name: string | null
-  onboarded: boolean
-  email: string
-  //ISO timestamp
-  created: string
-  emailOptout: boolean
-  forcePasswordChange: boolean
-  suggestedCompanyName: string
-}
-/**
  * User internal representation. This class is here for backward compatibility
  */
 export type UserDTO = {
   $type: "User"
   _created: string
+  _uid: string,
   _name: string
   _email: string
   _emailOptout: boolean
@@ -72,12 +59,13 @@ export type UserDTO = {
     $type: "Project"
     _id: string
     _name: string | null
-    _setupCompleted?: boolean
+    _requireSetup?: boolean
   }
 }
 
 export function userToDTO(user: User): UserDTO {
   return {
+    _uid: user.id,
     _name: user.name,
     _emailOptout: user.emailOptout || false,
     _forcePasswordChange: user.forcePasswordChange || false,
@@ -88,9 +76,9 @@ export function userToDTO(user: User): UserDTO {
       name: user.name || undefined,
     },
     $type: "User",
-    _created: user.created,
+    _created: user.created || new Date().toISOString(),
     _email: user.email,
-    _onboarded: user.onboarded || false,
+    _onboarded: true,
   }
 }
 
@@ -101,8 +89,7 @@ export function userFromDTO(dto: UserDTO): User {
     emailOptout: dto._emailOptout || false,
     forcePasswordChange: dto._forcePasswordChange || false,
     name: dto._name || dto._suggestedInfo?.name,
-    onboarded: dto._onboarded || true,
-    uid: "",
+    id: dto._uid,
     suggestedCompanyName: dto._suggestedInfo?.companyName,
   }
 }
