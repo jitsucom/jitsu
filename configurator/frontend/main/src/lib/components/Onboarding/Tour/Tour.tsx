@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react"
 import { Modal } from "antd"
 // @Styles
 import styles from "./Tour.module.less"
+import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
 
 type TourStepContentArgs = {
   goTo: (step: number) => void
@@ -40,7 +41,7 @@ export const Tour: React.FC<Props> = function ({
   const currentStepRender = useMemo<React.ReactNode>(() => {
     if (!steps.length) return null
 
-    const content = steps[currentStepIdx].content
+    const content = steps[currentStepIdx]?.content ?? null
 
     if (typeof content !== "function") return content
     return content({ goTo: setCurrentStepIdx })
@@ -53,7 +54,7 @@ export const Tour: React.FC<Props> = function ({
   return (
     <Modal
       key="onboardingTourComponent"
-      visible={showTour}
+      visible={showTour && !!currentStepRender}
       footer={null}
       closable={closable}
       maskClosable={maskClosable}
