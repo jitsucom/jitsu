@@ -272,6 +272,7 @@ func (sp *segmentParser) parseSegmentBody(body io.ReadCloser) ([]map[string]inte
 
 //readBytes returns body bytes, json decoder, err if occurred
 func readBytes(bodyReader io.ReadCloser) ([]byte, *json.Decoder, error) {
+	defer bodyReader.Close()
 	body, err := ioutil.ReadAll(bodyReader)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading HTTP body: %v", err)
