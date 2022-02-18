@@ -196,10 +196,11 @@ func NewV8TemplateExecutor(expression string, extraFunctions template.FuncMap, e
 		results:               make(chan interface{}),
 	}
 	safego.RunWithRestart(func() { vte.start() })
+
+	//we need to test that js function is properly loaded because loading happens in goroutine above
 	_, err := vte.ProcessEvent(events.Event{"event_type": jsLoadingTest})
 	if err != nil && strings.HasPrefix(err.Error(), jsLoadingErrorText) {
 		vte.Close()
-		//we need to test that js function is properly loaded because that happens in JsTemplateExecutor's goroutine
 		return nil, err
 	}
 	return vte, nil
@@ -231,14 +232,15 @@ func (vte *V8TemplateExecutor) start() {
 				heapStat := iso.GetHeapStatistics()
 				heapSize := heapStat.TotalHeapSize
 				if heapSize > 100_000_000 {
-					logging.Infof("JavaScript heap usage limit reached %s %s: %d . Reloading V8 vm", destinationId, destinationType, heapStat.TotalHeapSize)
+					logging.Debugf("JavaScript heap usage limit reached %s %s: %d . Reloading V8 vm", destinationId, destinationType, heapStat.TotalHeapSize)
 					iso.Dispose()
 					iso = v8go.NewIsolate()
 					function, err = V8LoadTemplateScript(iso, vte.transformedExpression, vte.extraFunctions, vte.extraScripts...)
 					if err != nil {
-						vte.loadingError = fmt.Errorf("%s: %v\ntransformed function:\n%v\n", jsLoadingErrorText, err, vte.transformedExpression)
+						logging.SystemErrorf("Reloading v8 failed: %v", err)
+						vte.loadingError = fmt.Errorf("%s: Reloading v8 failed: %v\n", jsLoadingErrorText, err)
 					}
-					logging.Infof("Reload duration: %s", timestamp.Now().Sub(start))
+					logging.Debugf("Reload duration: %s", timestamp.Now().Sub(start))
 				}
 			case event = <-vte.incoming:
 				break Loop
