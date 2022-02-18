@@ -30,14 +30,15 @@ func NewBatchInsertContext(table *Table, objects []map[string]interface{}, delet
 //EventContext is an extracted serializable event identifiers
 //it is used in counters/metrics/cache
 type EventContext struct {
-	CacheDisabled  bool
-	DestinationID  string
-	EventID        string
-	TokenID        string
-	Src            string
-	RawEvent       events.Event
-	ProcessedEvent events.Event
-	Table          *Table
+	CacheDisabled   bool
+	DestinationID   string
+	EventID         string
+	TokenID         string
+	Src             string
+	RawEvent        events.Event
+	ProcessedEvent  events.Event
+	Table           *Table
+	RecognizedEvent bool
 
 	SerializedOriginalEvent string
 

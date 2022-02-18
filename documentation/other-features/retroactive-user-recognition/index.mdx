@@ -49,26 +49,11 @@ Those settings can be redefined on global level of config file:
 
 ```yaml
 users_recognition:
-  enabled: true #Disabled by default.
+  enabled: true #Enabled by default.
   anonymous_id_node: /user/anonymous_id
   identification_nodes:
     - /user/id
     - /user/email
-```
-
-or on destination level
-
-```yaml
-destinations:
-  my_postgres:
-    type: postgres
-      ...
-    users_recognition: #Optional
-      enabled: true
-      anonymous_id_node: /user/anonymous_id
-      identification_nodes:
-        - /user/id
-        - /user/email
 ```
 
 Those settings cannot be configured with env variables at the moment :(

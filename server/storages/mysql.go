@@ -9,7 +9,6 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 )
 
@@ -50,7 +49,7 @@ func NewMySQL(config *Config) (storage Storage, err error) {
 		mConfig.Parameters["timeout"] = "600s"
 	}
 	m := &MySQL{}
-	err = m.Init(config)
+	err = m.Init(config, m)
 	if err != nil {
 		return
 	}
@@ -119,64 +118,6 @@ func (m *MySQL) DryRun(payload events.Event) ([][]adapters.TableField, error) {
 	return dryRun(payload, m.processor, tableHelper)
 }
 
-//Store process events and stores with storeTable() func
-//returns store result per table, failed events (group of events which are failed to process) and err
-func (m *MySQL) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
-	_, tableHelper := m.getAdapters()
-	flatData, failedEvents, skippedEvents, err := m.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	//update cache with failed events
-	for _, failedEvent := range failedEvents.Events {
-		m.eventsCache.Error(m.IsCachingDisabled(), m.ID(), string(failedEvent.Event), failedEvent.Error)
-	}
-	//update cache and counter with skipped events
-	for _, skipEvent := range skippedEvents.Events {
-		m.eventsCache.Skip(m.IsCachingDisabled(), m.ID(), string(skipEvent.Event), skipEvent.Error)
-	}
-
-	storeFailedEvents := true
-	tableResults := map[string]*StoreResult{}
-	for _, fdata := range flatData {
-		table := tableHelper.MapTableSchema(fdata.BatchHeader)
-		err := m.storeTable(fdata, table)
-		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
-		if err != nil {
-			storeFailedEvents = false
-		}
-
-		//events cache
-		writeEventsToCache(m, m.eventsCache, table, fdata, err)
-	}
-
-	//store failed events to fallback only if other events have been inserted ok
-	if storeFailedEvents {
-		return tableResults, failedEvents, skippedEvents, nil
-	}
-
-	return tableResults, nil, skippedEvents, nil
-}
-
-//check table schema
-//and store data into one table
-func (m *MySQL) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
-	_, tableHelper := m.getAdapters()
-	dbSchema, err := tableHelper.EnsureTableWithoutCaching(m.ID(), table)
-	if err != nil {
-		return err
-	}
-
-	start := timestamp.Now()
-	if err := m.adapter.Insert(adapters.NewBatchInsertContext(dbSchema, fdata.GetPayload(), nil)); err != nil {
-		return err
-	}
-	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", m.ID(), len(fdata.GetPayload()), timestamp.Now().Sub(start).Seconds())
-
-	return nil
-}
-
 //SyncStore is used in storing chunk of pulled data to Postgres with processing
 func (m *MySQL) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
 	return syncStoreImpl(m, overriddenDataSchema, objects, timeIntervalValue, cacheTable, needCopyEvent)
@@ -184,34 +125,6 @@ func (m *MySQL) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []ma
 
 func (m *MySQL) Clean(tableName string) error {
 	return cleanImpl(m, tableName)
-}
-
-//Update updates record in MySQL
-func (m *MySQL) Update(object map[string]interface{}) error {
-	_, tableHelper := m.getAdapters()
-	envelops, err := m.processor.ProcessEvent(object, false)
-	if err != nil {
-		return err
-	}
-
-	for _, envelop := range envelops {
-		batchHeader := envelop.Header
-		processedObject := envelop.Event
-		table := tableHelper.MapTableSchema(batchHeader)
-
-		dbSchema, err := tableHelper.EnsureTableWithCaching(m.ID(), table)
-		if err != nil {
-			return err
-		}
-
-		start := timestamp.Now()
-		if err = m.adapter.Update(dbSchema, processedObject, m.uniqueIDField.GetFlatFieldName(), m.uniqueIDField.Extract(object)); err != nil {
-			return err
-		}
-		logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", m.ID(), timestamp.Now().Sub(start).Seconds())
-	}
-
-	return nil
 }
 
 //GetUsersRecognition returns users recognition configuration

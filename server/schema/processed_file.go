@@ -12,6 +12,7 @@ type ProcessedFile struct {
 	BatchHeader *BatchHeader
 
 	payload           []map[string]interface{}
+	RecognitionPayload bool
 	originalRawEvents []string
 	eventsSrc         map[string]int
 }

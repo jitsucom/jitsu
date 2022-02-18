@@ -1,6 +1,7 @@
 package routers
 
 import (
+	"github.com/jitsucom/jitsu/server/config"
 	"net/http"
 	"net/http/pprof"
 	"runtime/debug"
@@ -32,7 +33,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	taskService *synchronization.TaskService, fallbackService *fallback.Service, coordinationService *coordination.Service,
 	eventsCache *caching.EventsCache, systemService *system.Service, segmentEndpointFieldMapper, segmentCompatEndpointFieldMapper events.Mapper,
 	processorHolder *events.ProcessorHolder, multiplexingService *multiplexing.Service, walService *wal.Service, geoService *geo.Service,
-	pluginsRepository plugins.PluginsRepository) *gin.Engine {
+	pluginsRepository plugins.PluginsRepository, userRecognition *config.UsersRecognition) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -50,6 +51,10 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		logging.SystemErrorf("Panic:\n%s\n%s", err, string(debug.Stack()))
 		c.AbortWithStatus(http.StatusInternalServerError)
 	}))
+
+	if viper.GetBool("server.log_http_errors") {
+		router.Use(middleware.ErrorLogWriter)
+	}
 
 	router.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
@@ -94,6 +99,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.POST("/events", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 		//server endpoint
 		apiV1.POST("/s2s/event", middleware.TokenTwoFuncAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, "The token isn't a server secret token. Please use an s2s integration token"))
+		apiV1.POST("/s2s/event/", middleware.TokenTwoFuncAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, "The token isn't a server secret token. Please use an s2s integration token"))
 		apiV1.POST("/s2s/events", middleware.TokenTwoFuncAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, "The token isn't a server secret token. Please use an s2s integration token"))
 		//Segment API
 		apiV1.POST("/segment/v1/batch", middleware.TokenFuncAuth(segmentHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, ""))
@@ -111,7 +117,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 
 		apiV1.GET("/geo_data_resolvers/editions", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.EditionsHandler))
 		apiV1.POST("/geo_data_resolvers/test", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.TestHandler))
-		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler))
+		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.NewDestinationsHandler(userRecognition).Handler))
 		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.NewEventTemplateHandler(pluginsRepository, destinations.GetFactory()).Handler))
 
 		sourcesRoute := apiV1.Group("/sources")
