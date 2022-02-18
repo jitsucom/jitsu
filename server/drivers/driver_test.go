@@ -45,8 +45,12 @@ func TestSemiAutoDriver(t *testing.T) {
 		intervals, err := driver.GetAllAvailableIntervals()
 		require.NoError(t, err)
 		require.NotEmpty(t, intervals)
-
-		objects, err := driver.GetObjectsFor(intervals[0])
+		var objects []map[string]interface{}
+		objectsLoader := func(o []map[string]interface{}, pos int, total int, percent int) error {
+			objects = o
+			return nil
+		}
+		err = driver.GetObjectsFor(intervals[0], objectsLoader)
 		require.NoError(t, err)
 
 		resultFile, err := os.Create(fmt.Sprintf("test_output/%s.log", driver.GetCollectionTable()))

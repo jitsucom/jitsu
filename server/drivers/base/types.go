@@ -142,7 +142,7 @@ type Driver interface {
 	GetRefreshWindow() (time.Duration, error)
 
 	//GetObjectsFor returns slice of objects per time interval. Each slice element is one object from the data source.
-	GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error)
+	GetObjectsFor(interval *TimeInterval, objectsLoader func(objects []map[string]interface{}, pos int, total int, percent int) error) error
 
 	//Type returns string type of driver. Should be unique among drivers
 	Type() string
