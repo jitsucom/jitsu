@@ -192,11 +192,11 @@ func NewTableStatementFactory(config *ClickHouseConfig) (*TableStatementFactory,
 	var engineStatementFormat bool
 	if config.Cluster != "" {
 		//create engine statement with ReplicatedReplacingMergeTree() engine. We need to replace %s with tableName on creating statement
-		engineStatement = `ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/` + config.Database + `/%s', '{replica}', _timestamp)`
+		engineStatement = `ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/` + config.Database + `/%s', '{replica}')`
 		engineStatementFormat = true
 	} else {
 		//create table template with ReplacingMergeTree() engine
-		engineStatement = `ENGINE = ReplacingMergeTree(_timestamp)`
+		engineStatement = `ENGINE = ReplacingMergeTree()`
 	}
 
 	return &TableStatementFactory{
@@ -685,4 +685,9 @@ func extractStatement(fieldConfigs []FieldConfig) string {
 		parameters = append(parameters, fieldConfig.Field)
 	}
 	return strings.Join(parameters, ",")
+}
+
+func (ch *ClickHouse) Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error {
+	//TODO Add Sign property for CollapcingMergeTree
+	return ch.insert(table, object)
 }
