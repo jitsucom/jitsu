@@ -18,9 +18,9 @@ import { DestinationPicker } from "./DestinationPicker"
 import union from "lodash/union"
 
 export const apiKeysRoutes = {
-  newExact: "/prj_:projectId/api-keys/new",
-  listExact: "/prj_:projectId/api-keys",
-  editExact: "/prj_:projectId/api-keys/:id",
+  newExact: "/prj-:projectId/api-keys/new",
+  listExact: "/prj-:projectId/api-keys",
+  editExact: "/prj-:projectId/api-keys/:id",
 } as const
 
 

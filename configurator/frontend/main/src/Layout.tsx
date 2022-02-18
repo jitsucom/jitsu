@@ -29,7 +29,7 @@ import { ReactComponent as DownloadIcon } from "icons/download.svg"
 import { ReactComponent as GlobeIcon } from "icons/globe.svg"
 import classNames from "classnames"
 // @Model
-import { Permission, User } from "lib/services/model"
+import { Permission } from "lib/services/model"
 // @Utils
 import { reloadPage } from "lib/commons/utils"
 // @Services
@@ -46,6 +46,8 @@ import { actionNotification } from "ui/components/ActionNotification/ActionNotif
 import { useClickOutsideRef } from "hooks/useClickOutsideRef"
 import { Breadcrumbs } from "./ui/components/Breadcrumbs/Breadcrumbs"
 import ProjectLink from "./lib/components/ProjectLink/ProjectLink"
+import { User } from "./generated/conf-openapi"
+import { showProjectSwitchModal } from "./lib/components/ProjectSwitcher/ProjectSwitch"
 
 type MenuItem = {
   icon: React.ReactNode
@@ -67,16 +69,16 @@ const makeItem = (
 
 const menuItems = [
   makeItem(<HomeFilled />, "Home", "/connections", "#77c593"),
-  makeItem(<ThunderboltFilled />, "Live Events", "/events_stream", "#fccd04"),
+  makeItem(<ThunderboltFilled />, "Live Events", "/events-stream", "#fccd04"),
   makeItem(<AreaChartOutlined />, "Statistics", "/dashboard", "#88bdbc"),
   makeItem(<Icon component={KeyIcon} />, "API Keys", "/api-keys", "#d79922"),
   makeItem(<ApiFilled />, "Sources", "/sources", "#d83f87"),
   makeItem(<NotificationFilled />, "Destinations", "/destinations", "#4056a1"),
   makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud", "#e76e52"),
-  makeItem(<SettingOutlined />, "Project settings", "/project_settings", "#0d6050"),
-  makeItem(<Icon component={GlobeIcon} />, "Geo data resolver", "/geo_data_resolver", "#41b3a3"),
+  makeItem(<SettingOutlined />, "Project settings", "/project-settings", "#0d6050"),
+  makeItem(<Icon component={GlobeIcon} />, "Geo data resolver", "/geo-data-resolver", "#41b3a3"),
   makeItem(<CloudFilled />, "Custom Domains", "/domains", "#5ab9ea", f => f.enableCustomDomains),
-  makeItem(<Icon component={DownloadIcon} />, "Download Config", "/cfg_download", "#14a76c"),
+  makeItem(<Icon component={DownloadIcon} />, "Download Config", "/cfg-download", "#14a76c"),
 ]
 
 export function usePageLocation(): string {
@@ -258,6 +260,12 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
       <div className="py-2 border-b border-main px-5 flex flex-col items-start">
         <div>
           Project: <b>{services.activeProject.name || "Unspecified"}</b>
+          <div className="text-xs">
+            <a onClick={() => {
+              hideMenu();
+              showProjectSwitchModal()
+            }}>Switch project</a>
+          </div>
         </div>
       </div>
       {services.features.billingEnabled && services.applicationConfiguration.billingUrl && (

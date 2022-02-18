@@ -1,4 +1,5 @@
-import { ApiAccess, User } from "./model"
+import { ApiAccess } from "./model"
+import { User } from "../../generated/conf-openapi"
 
 /**
  * User Service
@@ -75,7 +76,7 @@ export interface UserService {
    * @param email - email to send the link to
    */
   sendPasswordReset(email?: string)
-  
+
   sendConfirmationEmail(): Promise<void>
 
   /**
