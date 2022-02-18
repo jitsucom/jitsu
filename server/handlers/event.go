@@ -82,6 +82,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	eventsArray, err := eh.parser.ParseEventsBody(c)
 	if err != nil {
 		msg := fmt.Sprintf("Error parsing events body: %v", err)
+		logging.Error(msg)
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(msg, nil))
 		return
 	}
