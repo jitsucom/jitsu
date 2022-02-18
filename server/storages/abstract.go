@@ -81,7 +81,7 @@ func (a *Abstract) ErrorEvent(fallback bool, eventCtx *adapters.EventContext, er
 	telemetry.Error(eventCtx.TokenID, a.destinationID, eventCtx.Src, "", 1)
 
 	//cache
-	a.eventsCache.Error(eventCtx.CacheDisabled, a.destinationID, eventCtx.EventID, err.Error())
+	a.eventsCache.Error(eventCtx.CacheDisabled, a.ID(), eventCtx.GetSerializedOriginalEvent(), err.Error())
 
 	if fallback {
 		a.Fallback(&events.FailedEvent{
@@ -108,7 +108,7 @@ func (a *Abstract) SkipEvent(eventCtx *adapters.EventContext, err error) {
 	metrics.SkipTokenEvent(eventCtx.TokenID, a.Processor().DestinationType(), a.destinationID)
 
 	//cache
-	a.eventsCache.Skip(eventCtx.CacheDisabled, a.destinationID, eventCtx.EventID, err.Error())
+	a.eventsCache.Skip(eventCtx.CacheDisabled, a.destinationID, eventCtx.GetSerializedOriginalEvent(), err.Error())
 }
 
 //Fallback logs event with error to fallback logger

@@ -318,14 +318,19 @@ func main() {
 	//events cache
 	eventsCacheEnabled := viper.GetBool("server.cache.enabled")
 	eventsCacheSize := viper.GetInt("server.cache.events.size")
+	timeWindowSeconds := viper.GetInt("server.cache.events.time_window_sec")
 	eventsCacheTrimIntervalMs := viper.GetInt("server.cache.events.trim_interval_ms")
 	eventsCachePoolSize := viper.GetInt("server.cache.pool.size")
+	if timeWindowSeconds == 0 {
+		timeWindowSeconds = 1
+		logging.Infof("server.cache.events.time_window_sec can't be 0. Using default value=1 instead")
+	}
 	if eventsCachePoolSize == 0 {
 		eventsCachePoolSize = 1
 		logging.Infof("server.cache.pool.size can't be 0. Using default value=1 instead")
 
 	}
-	eventsCache := caching.NewEventsCache(eventsCacheEnabled, metaStorage, eventsCacheSize, eventsCachePoolSize, eventsCacheTrimIntervalMs)
+	eventsCache := caching.NewEventsCache(eventsCacheEnabled, metaStorage, eventsCacheSize, eventsCachePoolSize, eventsCacheTrimIntervalMs, timeWindowSeconds)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
 	// ** Retroactive users recognition
@@ -506,7 +511,7 @@ func main() {
 	segmentProcessor := events.NewSegmentProcessor(usersRecognitionService)
 	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor, bulkProcessor)
 
-	multiplexingService := multiplexing.NewService(destinationsService, eventsCache)
+	multiplexingService := multiplexing.NewService(destinationsService)
 	walService := wal.NewService(logEventPath, loggerFactory.CreateWriteAheadLogger(), multiplexingService, processorHolder)
 	appconfig.Instance.ScheduleWriteAheadLogClosing(walService)
 

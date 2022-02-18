@@ -11,8 +11,14 @@ type ProcessedFile struct {
 	FileName    string
 	BatchHeader *BatchHeader
 
-	payload   []map[string]interface{}
-	eventsSrc map[string]int
+	payload           []map[string]interface{}
+	originalRawEvents []string
+	eventsSrc         map[string]int
+}
+
+//GetOriginalRawEvents return payload as is
+func (pf *ProcessedFile) GetOriginalRawEvents() []string {
+	return pf.originalRawEvents
 }
 
 //GetPayload return payload as is

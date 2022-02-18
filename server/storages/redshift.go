@@ -121,11 +121,11 @@ func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, 
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		ar.eventsCache.Error(ar.IsCachingDisabled(), ar.ID(), failedEvent.EventID, failedEvent.Error)
+		ar.eventsCache.Error(ar.IsCachingDisabled(), ar.ID(), string(failedEvent.Event), failedEvent.Error)
 	}
 	//update cache and counter with skipped events
 	for _, skipEvent := range skippedEvents.Events {
-		ar.eventsCache.Skip(ar.IsCachingDisabled(), ar.ID(), skipEvent.EventID, skipEvent.Error)
+		ar.eventsCache.Skip(ar.IsCachingDisabled(), ar.ID(), string(skipEvent.Event), skipEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -139,19 +139,7 @@ func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, 
 		}
 
 		//events cache
-		for _, object := range fdata.GetPayload() {
-			if err != nil {
-				ar.eventsCache.Error(ar.IsCachingDisabled(), ar.ID(), ar.uniqueIDField.Extract(object), err.Error())
-			} else {
-				ar.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  ar.IsCachingDisabled(),
-					DestinationID:  ar.ID(),
-					EventID:        ar.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          table,
-				})
-			}
-		}
+		writeEventsToCache(ar, ar.eventsCache, table, fdata, err)
 	}
 
 	//store failed events to fallback only if other events have been inserted ok

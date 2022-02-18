@@ -39,6 +39,20 @@ type EventContext struct {
 	ProcessedEvent events.Event
 	Table          *Table
 
+	SerializedOriginalEvent string
+
 	//HTTPRequest is applicable only for HTTP events
 	HTTPRequest *Request
+}
+
+func (ec *EventContext) GetSerializedOriginalEvent() string {
+	if ec.SerializedOriginalEvent != "" {
+		return ec.SerializedOriginalEvent
+	}
+
+	if ec.RawEvent != nil {
+		return ec.RawEvent.Serialize()
+	}
+
+	return ""
 }

@@ -167,11 +167,11 @@ func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alr
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		s.eventsCache.Error(s.IsCachingDisabled(), s.ID(), failedEvent.EventID, failedEvent.Error)
+		s.eventsCache.Error(s.IsCachingDisabled(), s.ID(), string(failedEvent.Event), failedEvent.Error)
 	}
 	//update cache and counter with skipped events
 	for _, skipEvent := range skippedEvents.Events {
-		s.eventsCache.Skip(s.IsCachingDisabled(), s.ID(), skipEvent.EventID, skipEvent.Error)
+		s.eventsCache.Skip(s.IsCachingDisabled(), s.ID(), string(skipEvent.Event), skipEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -185,19 +185,7 @@ func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alr
 		}
 
 		//events cache
-		for _, object := range fdata.GetPayload() {
-			if err != nil {
-				s.eventsCache.Error(s.IsCachingDisabled(), s.ID(), s.uniqueIDField.Extract(object), err.Error())
-			} else {
-				s.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  s.IsCachingDisabled(),
-					DestinationID:  s.ID(),
-					EventID:        s.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          table,
-				})
-			}
-		}
+		writeEventsToCache(s, s.eventsCache, table, fdata, err)
 	}
 
 	//store failed events to fallback only if other events have been inserted ok
