@@ -233,27 +233,28 @@ func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string
 		if destination.UsersRecognition != nil {
 			logging.Errorf("[%s] Users recognition requires 'meta.storage' configuration", destinationID)
 		}
-		return &UserRecognitionConfiguration{enabled: false}, nil
+		return &UserRecognitionConfiguration{Enabled: false}, nil
+	}
+
+	URSetup, ok := UserRecognitionStorages[destination.Type]
+	if !ok {
+		return &UserRecognitionConfiguration{Enabled: false}, nil
 	}
 
 	//validates or overrides with the global one
 	if destination.UsersRecognition != nil {
 		if destination.UsersRecognition.IsEnabled() && !f.globalConfiguration.IsEnabled() {
-			return nil, fmt.Errorf("Error enabling user recognition for destination %s. Global user recognition configuration can't be disabled when destination has enabled one. Please add global user_recognition.enabled: true", destinationID)
+			return nil, fmt.Errorf("Error enabling user recognition for destination %s. Global user recognition configuration must be enabled first. Please add global user_recognition.enabled: true", destinationID)
 		}
 		//partly overriding
-		if destination.UsersRecognition.UserIDNode == "" {
-			destination.UsersRecognition.UserIDNode = f.globalConfiguration.UserIDNode
+		if destination.UsersRecognition.UserIDNode != "" ||
+			len(destination.UsersRecognition.IdentificationNodes) > 0 ||
+			destination.UsersRecognition.AnonymousIDNode != "" {
+			logging.Errorf("@@@@ [%s] Configuring Users Recognition ID nodes no longer supported on destination level!\n@@@@ Please set id nodes on global level: https://jitsu.com/docs/other-features/retroactive-user-recognition", destinationID)
 		}
-		if len(destination.UsersRecognition.IdentificationNodes) == 0 {
-			destination.UsersRecognition.IdentificationNodes = f.globalConfiguration.IdentificationNodes
-		}
-		if destination.UsersRecognition.AnonymousIDNode == "" {
-			destination.UsersRecognition.AnonymousIDNode = f.globalConfiguration.AnonymousIDNode
-		}
-		if err := destination.UsersRecognition.Validate(); err != nil {
-			return nil, fmt.Errorf("Error validating destination users_recognition configuration: %v", err)
-		}
+		destination.UsersRecognition.UserIDNode = f.globalConfiguration.UserIDNode
+		destination.UsersRecognition.IdentificationNodes = f.globalConfiguration.IdentificationNodes
+		destination.UsersRecognition.AnonymousIDNode = f.globalConfiguration.AnonymousIDNode
 	} else {
 		//completely overriding
 		destination.UsersRecognition = f.globalConfiguration
@@ -261,13 +262,13 @@ func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string
 
 	//disabled
 	if !destination.UsersRecognition.IsEnabled() {
-		return &UserRecognitionConfiguration{enabled: false}, nil
+		return &UserRecognitionConfiguration{Enabled: false}, nil
 	}
 
 	//check primary fields
-	if (destination.Type == PostgresType || destination.Type == RedshiftType || destination.Type == MySQLType) && len(pkFields) == 0 {
-		logging.Errorf("[%s] retroactive users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", destinationID)
-		return &UserRecognitionConfiguration{enabled: false}, nil
+	if URSetup.PKRequired && len(pkFields) == 0 {
+		logging.Errorf("[%s] Retroactive Users Recognition was DISABLED: primary_key_fields must be configured (otherwise data duplication will occurred)", destinationID)
+		return &UserRecognitionConfiguration{Enabled: false}, nil
 	}
 
 	logging.Infof("[%s] configured retroactive users recognition", destinationID)
@@ -279,7 +280,7 @@ func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string
 	}
 
 	return &UserRecognitionConfiguration{
-		enabled:                  destination.UsersRecognition.IsEnabled(),
+		Enabled:                  destination.UsersRecognition.IsEnabled(),
 		AnonymousIDJSONPath:      jsonutils.NewJSONPath(destination.UsersRecognition.AnonymousIDNode),
 		IdentificationJSONPathes: jsonutils.NewJSONPaths(destination.UsersRecognition.IdentificationNodes),
 	}, nil

@@ -104,7 +104,7 @@ func (pp *PixelProcessor) Preprocess(event Event, reqContext *RequestContext) {
 	event[SrcKey] = "jitsu_gif"
 }
 
-func (pp *PixelProcessor) Postprocess(event Event, eventID string, destinationIDs []string) {
+func (pp *PixelProcessor) Postprocess(event Event, eventID string, destinationIDs []string, tokenID string) {
 }
 
 // Type returns preprocessor type
