@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { ApiAccess, Project, SuggestedUserInfo, User } from "./model"
 import {
   getAuth,

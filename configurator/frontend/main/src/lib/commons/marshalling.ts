@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * Helper classes to serialize things to JSON and back
  */

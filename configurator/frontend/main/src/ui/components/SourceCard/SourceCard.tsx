@@ -26,6 +26,7 @@ import { SourcesUtils } from "../../../utils/sources.utils"
 import { isAtLeastOneStreamSelected } from "utils/sources/sourcesUtils"
 import { NoStreamsSelectedMessage } from "../NoStreamsSelectedMessage/NoStreamsSelectedMessage"
 import styles from "./SourceCard.module.less"
+import { connectionsHelper } from "stores/helpers"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator, current) => ({
@@ -55,7 +56,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
   const viewLogsLink = generatePath(taskLogsPageRoute, { sourceId: src.sourceId })
 
   const rename = async (sourceId: string, newName: string) => {
-    await flowResult(sourcesStore.patch(sourceId, { displayName: newName }, { updateConnections: false }))
+    await flowResult(sourcesStore.patch(sourceId, { displayName: newName }))
   }
 
   const scheduleTasks = async (src: SourceData, full = false) => {
@@ -118,6 +119,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
       onOk: async () => {
         try {
           await sourcesStore.delete(src.sourceId)
+          await connectionsHelper.unconnectDeletedSource(src.sourceId)
           actionNotification.success("Sources list successfully updated")
         } catch (error) {
           handleError(error, "Unable to delete source at this moment, please try later.")

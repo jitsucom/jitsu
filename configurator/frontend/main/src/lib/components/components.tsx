@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * Library of small components that are usefull for different purposes
  */

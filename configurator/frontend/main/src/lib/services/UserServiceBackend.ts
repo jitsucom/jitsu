@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { ApiAccess, Project, User } from "./model"
 import Marshal from "../commons/marshalling"
 import { randomId } from "utils/numbers"

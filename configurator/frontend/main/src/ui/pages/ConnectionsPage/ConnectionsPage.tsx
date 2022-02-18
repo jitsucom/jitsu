@@ -105,7 +105,7 @@ const ConnectionsPageComponent: React.FC = () => {
             </div>
           }
         >
-          {apiKeysStore.hasApiKeys || !!sourcesStore.list.length ? (
+          {!!apiKeysStore.list.length || !!sourcesStore.list.length ? (
             [
               ...apiKeysStore.list.map(apiKey => {
                 return (

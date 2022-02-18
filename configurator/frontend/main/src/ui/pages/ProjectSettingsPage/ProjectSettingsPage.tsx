@@ -1,4 +1,3 @@
-/* eslint-disable */
 import React, { useEffect, useState } from "react"
 import { loadProjectSettings, ProjectSettings, saveProjectSettings } from "../../../utils/projectSettings"
 import { CenteredError, CenteredSpin } from "../../../lib/components/components"

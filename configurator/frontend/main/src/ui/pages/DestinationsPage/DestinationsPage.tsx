@@ -20,9 +20,9 @@ import { BreadcrumbsProps } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { DestinationStatistics } from "./partials/DestinationStatistics/DestinationStatistics"
 import { ErrorBoundary } from "../../../lib/components/ErrorBoundary/ErrorBoundary"
 import { AddDestinationDialog } from "./partials/AddDestinationDialog/AddDestinationDialog"
-import { EntitiesStoreState } from "stores/types.enums"
 import { CurrentSubscription } from "lib/services/billing"
 import { BillingCheckRedirect } from "lib/components/BillingCheckRedirect/BillingCheckRedirect"
+import { EntitiesStoreStatus } from "stores/entitiesStore"
 
 export interface CollectionDestinationData {
   destinations: DestinationData[]
@@ -43,11 +43,11 @@ const DestinationsPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
     [destinationsStore.list.length]
   )
 
-  if (destinationsStore.state === EntitiesStoreState.GLOBAL_ERROR) {
-    return <CenteredError error={destinationsStore.error} />
+  if (destinationsStore.status === EntitiesStoreStatus.GLOBAL_ERROR) {
+    return <CenteredError error={destinationsStore.errorMessage} />
   } else if (
-    destinationsStore.state === EntitiesStoreState.GLOBAL_LOADING ||
-    sourcesStore.state === EntitiesStoreState.GLOBAL_LOADING
+    destinationsStore.status === EntitiesStoreStatus.GLOBAL_LOADING ||
+    sourcesStore.status === EntitiesStoreStatus.GLOBAL_LOADING
   ) {
     return <CenteredSpin />
   }

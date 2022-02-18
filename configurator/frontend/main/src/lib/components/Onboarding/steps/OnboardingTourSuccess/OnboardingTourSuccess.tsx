@@ -2,6 +2,7 @@
 import { Button } from "antd"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
+import { BACKEND_ONBOARDING_COLLECTION_NAME } from "../../OnboardingSwitch"
 // @styles
 import styles from "./OnboardingTourSuccess.module.less"
 
@@ -14,7 +15,10 @@ const services = ApplicationServices.get()
 
 export const OnboardingTourSuccess: React.FC<Props> = function ({ handleRestartTour, handleFinishOnboarding }) {
   const handleClickFinish = async (): Promise<void> => {
-    await services.storageService.save("onboarding_tour_completed", { completed: true }, services.activeProject.id)
+    await services.backendApiClient.post(
+      `/configurations/${BACKEND_ONBOARDING_COLLECTION_NAME}?id=${services.activeProject.id}`,
+      { completed: true }
+    )
     await services.analyticsService.track("onboarding_finished")
     handleFinishOnboarding()
   }

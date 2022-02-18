@@ -1,4 +1,3 @@
-/* eslint-disable */
 import * as React from "react"
 import { Simulate } from "react-dom/test-utils"
 import { useState } from "react"

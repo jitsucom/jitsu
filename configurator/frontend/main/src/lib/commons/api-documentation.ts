@@ -1,5 +1,3 @@
-/* eslint-disable */
-
 function formatCode(code: string) {
   let lines: string[] = code.split("\n")
   while (lines.length > 0 && lines[0].trim() === "") {

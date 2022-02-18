@@ -1,32 +1,43 @@
-import { Button, Tag } from "antd"
-import ArrowLeftOutlined from "@ant-design/icons/lib/icons/ArrowLeftOutlined"
-import { generatePath, NavLink, useHistory, useParams } from "react-router-dom"
-import { CenteredError, CenteredSpin, handleError } from "lib/components/components"
-import { Task, TaskId, TaskLogEntry } from "./utils"
-import { useLoader } from "hooks/useLoader"
-import { useServices } from "hooks/useServices"
-import { CollectionSourceData } from "ui/pages/SourcesPage/SourcesPage"
-import React, { useEffect, useRef, useState } from "react"
-import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
-import { PageHeader } from "ui/components/PageHeader/PageHeader"
-import { PageProps } from "navigation"
-import { allSources } from "@jitsu/catalog/sources/lib"
-import { SourceConnector } from "@jitsu/catalog/sources/types"
-import snakeCase from "lodash/snakeCase"
-import { taskLogsPageRoute } from "ui/pages/TaskLogs/TaskLogsPage"
-import styles from "./TaskLogsPage.module.less"
-import classNames from "classnames"
-import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
+// @Libs
 import moment from "moment"
+import { Button, Tag } from "antd"
+import classNames from "classnames"
+import snakeCase from "lodash/snakeCase"
+import { observer } from "mobx-react-lite"
+import React, { useEffect, useRef, useState } from "react"
+import { generatePath, useHistory, useParams } from "react-router-dom"
+// @Hooks
+import { useServices } from "hooks/useServices"
+import { useLoaderAsObject } from "hooks/useLoader"
+import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
+// @Components
+import { PageHeader } from "ui/components/PageHeader/PageHeader"
+import { CenteredError, CenteredSpin, handleError } from "lib/components/components"
+// @Icons
+import ArrowLeftOutlined from "@ant-design/icons/lib/icons/ArrowLeftOutlined"
 import ReloadOutlined from "@ant-design/icons/lib/icons/ReloadOutlined"
-import { actionNotification } from "../../components/ActionNotification/ActionNotification"
+// @Lib
+import { allSources } from "@jitsu/catalog/sources/lib"
+// @Routes
+import { taskLogsPageRoute } from "ui/pages/TaskLogs/TaskLogsPage"
+import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
+// @Utils
+import { Task, TaskId, TaskLogEntry } from "./utils"
+// @Types
+import type { PageProps } from "navigation"
+import type { SourceConnector } from "@jitsu/catalog/sources/types"
+// @Styles
+import styles from "./TaskLogsPage.module.less"
+import { sourcesStore } from "stores/sources"
 
-export const taskLogsViewerRoute = "/sources/logs/:sourceId/:taskId"
 type TaskInfo = {
   task: Task
   source: SourceData
 }
-export const TaskLogViewer: React.FC<PageProps> = ({ setBreadcrumbs }) => {
+
+export const taskLogsViewerRoute = "/sources/logs/:sourceId/:taskId"
+
+const TaskLogViewerComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   let { sourceId, taskId } = useParams<{ sourceId: string; taskId: string }>()
   taskId = TaskId.decode(taskId)
   const services = useServices()
@@ -44,15 +55,18 @@ export const TaskLogViewer: React.FC<PageProps> = ({ setBreadcrumbs }) => {
     )["logs"]
   }
 
-  const [taskLogsError, taskLogs, setTaskLogs] = useLoader<TaskLogEntry[]>(async () => {
+  const {
+    error: taskLogsError,
+    data: taskLogs,
+    setData: setTaskLogs,
+  } = useLoaderAsObject<TaskLogEntry[]>(async () => {
     return await fetchLogs()
   })
-  const [error, taskInfo] = useLoader<TaskInfo>(async () => {
-    const data: CollectionSourceData = await services.storageService.get("sources", services.activeProject.id)
-    if (!data.sources) {
-      throw new Error(`Invalid response of "sources" collection: ${JSON.stringify(data)}`)
-    }
-    const source = data.sources.find((source: SourceData) => source.sourceId === sourceId)
+
+  const { error, data: taskInfo } = useLoaderAsObject<TaskInfo>(async () => {
+    const source = sourcesStore.get(sourceId)
+    if (!source) throw new Error(`Source with ID ${sourceId} not found.`)
+
     const task = await services.backendApiClient.get(
       `/tasks/${encodeURIComponent(taskId)}?project_id=${services.activeProject.id}`,
       { proxy: true }
@@ -163,3 +177,9 @@ export const TaskLogViewer: React.FC<PageProps> = ({ setBreadcrumbs }) => {
     </div>
   )
 }
+
+const TaskLogViewer = observer(TaskLogViewerComponent)
+
+TaskLogViewer.displayName = "TaskLogViewer"
+
+export { TaskLogViewer }

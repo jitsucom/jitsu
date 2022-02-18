@@ -1,4 +1,3 @@
-/* eslint-disable */
 import * as React from "react"
 import { Button, Card, Form, Input, message } from "antd"
 import "./PasswordForm.less"
