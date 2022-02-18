@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"io"
 	"io/ioutil"
 	"net/http"
 
@@ -28,7 +29,8 @@ func ErrorLogWriter(ctx *gin.Context) {
 	body := []byte("")
 	if ctx.Request.Body != nil && ctx.Request.ContentLength > 0 && ctx.Request.ContentLength < 1000 {
 		var err error
-		body, err = ioutil.ReadAll(ctx.Request.Body)
+		body, err = io.ReadAll(ctx.Request.Body)
+		_ = ctx.Request.Body.Close()
 		if err != nil {
 			logging.Warnf("Failed to buffer HTTP request body for %s %s with content length %d",
 				ctx.Request.Method, ctx.Request.URL.String(), ctx.Request.ContentLength)
