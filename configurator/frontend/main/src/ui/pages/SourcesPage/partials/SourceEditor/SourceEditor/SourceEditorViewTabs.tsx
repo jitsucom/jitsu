@@ -11,6 +11,7 @@ import { TabName } from "ui/components/Tabs/TabName"
 import { HandleSaveSource, HandleValidateTestConnection, SourceEditorDisabledTabs } from "./SourceEditor"
 import { ErrorDetailed } from "lib/commons/errors"
 import { uniqueId } from "lodash"
+import { projectRoute } from "../../../../../../lib/components/ProjectLink/ProjectLink"
 
 type Tab = {
   key: string
@@ -166,7 +167,7 @@ const TabsExtra: React.FC<{
   return (
     <span className="uppercase">
       <NavLink
-        to={generatePath(taskLogsPageRoute, {
+        to={projectRoute(taskLogsPageRoute, {
           sourceId: sourceDataFromCatalog.id ?? "not_found",
         })}
       >

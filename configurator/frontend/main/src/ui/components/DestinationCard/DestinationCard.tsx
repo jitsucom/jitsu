@@ -13,6 +13,7 @@ import DeleteOutlined from "@ant-design/icons/lib/icons/DeleteOutlined"
 import CodeOutlined from "@ant-design/icons/lib/icons/CodeOutlined"
 import { flowResult } from "mobx"
 import { DestinationsUtils } from "../../../utils/destinations.utils"
+import { projectRoute } from "../../../lib/components/ProjectLink/ProjectLink"
 
 export type DestinationCardProps = {
   dst: DestinationData
@@ -40,8 +41,8 @@ export function DestinationCard({ dst }: DestinationCardProps) {
       },
     })
   }
-  let editLink = generatePath(destinationPageRoutes.editExact, { id: dst._id })
-  const statLink = generatePath(destinationPageRoutes.statisticsExact, { id: dst._id })
+  let editLink = projectRoute(destinationPageRoutes.editExact, {id: dst._id })
+  const statLink = projectRoute(destinationPageRoutes.statisticsExact, { id: dst._id })
   return (
     <ConnectionCard
       title={DestinationsUtils.getDisplayName(dst)}

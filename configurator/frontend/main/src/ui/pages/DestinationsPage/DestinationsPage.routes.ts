@@ -1,9 +1,9 @@
 export const destinationPageRoutes = {
-  root: "/destinations",
-  add: "/destinations/add",
-  edit: "/destinations/edit",
-  statistics: "/destinations/statistics",
-  newExact: "/destinations/new/:type/:tabName?",
-  editExact: "/destinations/edit/:id/:tabName?",
-  statisticsExact: "/destinations/statistics/:id",
+  root: "/prj-:projectId/destinations",
+  add: "/prj-:projectId/destinations/add",
+  edit: "/prj-:projectId/destinations/edit",
+  statistics: "/prj-:projectId/destinations/statistics",
+  newExact: "/prj-:projectId/destinations/new/:type/:tabName?",
+  editExact: "/prj-:projectId/destinations/edit/:id/:tabName?",
+  statisticsExact: "/prj-:projectId/destinations/statistics/:id",
 } as const

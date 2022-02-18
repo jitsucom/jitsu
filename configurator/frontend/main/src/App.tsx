@@ -30,7 +30,8 @@ import { UserSettings } from "./lib/components/UserSettings/UserSettings"
 import { currentPageHeaderStore } from "./stores/currentPageHeader"
 import { Project } from "./generated/conf-openapi"
 import { OnboardingTourLazyLoader } from "./lib/components/Onboarding/OnboardingTourLazyLoader"
-import { TaskLogsPage } from "./ui/pages/TaskLogs/TaskLogsPage"
+import { TaskLogsPage, taskLogsPageRoute } from "./ui/pages/TaskLogs/TaskLogsPage"
+import { UserProps } from "./lib/services/analytics"
 
 const ApiKeysRouter = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/components/ApiKeys/ApiKeysRouter"))
 const CustomDomains = React.lazy(
@@ -63,7 +64,7 @@ export const initializeApplication = async (): Promise<ApplicationServices> => {
   await services.userService.waitForUser()
   if (services.userService.hasUser()) {
     setDebugInfo("user", services.userService.getUser())
-    services.analyticsService.onUserKnown(services.userService.getUser())
+    services.analyticsService.onUserKnown(services.userService.getUser() as UserProps)
   }
 
   let currenSubscription: CurrentSubscription
@@ -194,7 +195,7 @@ export const Application: React.FC = function () {
             </div>
           )}
         />
-        <Route path={"/prj_:projectId"} exact={false}>
+        <Route path={"/prj-:projectId"} exact={false}>
           <ProjectRoute projects={projects} />
         </Route>
         <Route>
@@ -225,25 +226,25 @@ type ProjectRoute = {
 
 const projectRoutes: ProjectRoute[] = [
   { pageTitle: "Connections", path: ["/", "/connections", "/signup"], component: ConnectionsPage },
-  { pageTitle: "Live Events", path: "/events_stream", component: EventsStream, isPrefix: true },
+  { pageTitle: "Live Events", path: ["/events_stream", "/events-stream"], component: EventsStream, isPrefix: true },
   { pageTitle: "Dashboard", path: "/dashboard", component: StatusPage },
   { pageTitle: "DBT Cloud", path: "/dbtcloud", component: DbtCloudPage },
-  { pageTitle: "Dashboard", path: "/geo_data_resolver", component: GeoDataResolver },
-  { pageTitle: "Config Download", path: "/cfg_download", component: DownloadConfig },
-  { pageTitle: "Project Settings", path: "/project_settings", component: ProjectSettingsPage },
-  { pageTitle: "Api Keys", path: "/api-keys", component: ApiKeysRouter, isPrefix: true },
+  { pageTitle: "Dashboard", path: ["/geo_data_resolver", "/geo-data-resolver"], component: GeoDataResolver },
+  { pageTitle: "Config Download", path: ["/cfg-download", "/cfg_download"], component: DownloadConfig },
+  { pageTitle: "Project Settings", path: ["/project-settings", "/project_settings"], component: ProjectSettingsPage },
+  { pageTitle: "Api Keys", path: ["/api-keys"], component: ApiKeysRouter, isPrefix: true },
   { pageTitle: "Custom Domains", path: "/domains", component: CustomDomains },
 
   { pageTitle: "Sources", path: "/sources", component: SourcesPage, isPrefix: true },
   { pageTitle: "Destinations", path: "/destinations", component: DestinationsPage, isPrefix: true },
-  { pageTitle: "Task Logs", path: "/sources/logs", component: TaskLogsPage, isPrefix: true },
+  { pageTitle: "Task Logs", path: taskLogsPageRoute, component: TaskLogsPage, isPrefix: true },
 
   { pageTitle: "User Settings", path: "/settings/user", component: UserSettings, isPrefix: true },
 ]
 
 function RouteNotFound() {
   useEffect(() => {
-    currentPageHeaderStore.breadcrumbs = [{ title: "Not found" }]
+    currentPageHeaderStore.setBreadcrumbs("Not found")
   })
   return (
     <div className="flex justify-center pt-12">
@@ -281,7 +282,8 @@ const PageWrapper: React.FC<{ pageTitle: string; component: ComponentType; pageP
       pagePath: pagePath,
     })
     document["title"] = `Jitsu : ${pageTitle}`
-  })
+    currentPageHeaderStore.setBreadcrumbs(pageTitle)
+  }, [])
   let Component = component as ExoticComponent
   return (
     <React.Suspense fallback={<CenteredSpin />}>
@@ -336,7 +338,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
           {projectRoutes.map(({ component, pageTitle, path, isPrefix }) => (
             <Route
               exact={!isPrefix}
-              path={(typeof path === "string" ? [path] : path).map(path => `/prj_:projectId${path}`)}
+              path={(typeof path === "string" ? [path] : path).map(path => path.indexOf('/prj-') >= 0 ? path : `/prj-:projectId${path}`)}
               render={page => (
                 <PageWrapper pageTitle={pageTitle} component={component} pagePath={page.location.key} {...page} />
               )}
@@ -348,9 +350,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
           </Route>
         </Switch>
       </ApplicationPage>
-      {!project.setupCompleted && project.setupCompleted !== undefined && (
-        <OnboardingTourLazyLoader project={project} />
-      )}
+      {project.requiresSetup && <OnboardingTourLazyLoader project={project} />}
       {services.userService.getUser().forcePasswordChange && <SetNewPassword onCompleted={async () => reloadPage()} />}
     </>
   )
@@ -359,7 +359,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
 const ProjectRedirect: React.FC<{ projects: Project[] }> = ({ projects }) => {
   const location = useLocation()
   if (projects.length > 0) {
-    return <Redirect to={`/prj_${projects[0].id}${location.pathname}`} />
+    return <Redirect to={`/prj-${projects[0].id}${location.pathname}`} />
   } else {
     return <ErrorCard title="Invalid state" description="projects.length should be greater than zero" />
   }

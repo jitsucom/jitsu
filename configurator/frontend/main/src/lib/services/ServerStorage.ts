@@ -1,6 +1,6 @@
 import Marshal from "lib/commons/marshalling"
 import { BackendApiClient } from "./BackendApiClient"
-import { User, UserDTO } from "./model"
+import { UserDTO } from "./model"
 import ApplicationServices from "./ApplicationServices"
 import { merge } from "lodash"
 import { sanitize } from "../commons/utils"

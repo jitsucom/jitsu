@@ -26,6 +26,7 @@ import { SourcesUtils } from "../../../utils/sources.utils"
 import { isAtLeastOneStreamSelected } from "utils/sources/sourcesUtils"
 import { NoStreamsSelectedMessage } from "../NoStreamsSelectedMessage/NoStreamsSelectedMessage"
 import styles from "./SourceCard.module.less"
+import { projectRoute } from "../../../lib/components/ProjectLink/ProjectLink"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator, current) => ({
@@ -51,8 +52,8 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
 
   const history = useHistory()
   const services = useServices()
-  const editLink = generatePath(sourcesPageRoutes.editExact, { projectId: services.activeProject.id, sourceId: src.sourceId })
-  const viewLogsLink = generatePath(taskLogsPageRoute, { sourceId: src.sourceId })
+  const editLink = projectRoute(sourcesPageRoutes.editExact, { projectId: services.activeProject.id, sourceId: src.sourceId })
+  const viewLogsLink = projectRoute(taskLogsPageRoute, { sourceId: src.sourceId })
 
   const rename = async (sourceId: string, newName: string) => {
     await flowResult(sourcesStore.patch(sourceId, { displayName: newName }, { updateConnections: false }))
@@ -102,7 +103,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
             },
           })
         }
-        history.push(generatePath(taskLogsPageRoute, { sourceId: src.sourceId }))
+        history.push(projectRoute(taskLogsPageRoute, { sourceId: src.sourceId }))
       },
     })
   }
@@ -230,7 +231,7 @@ function LastTaskStatus({ sourceId }) {
   return (
     <span>
       <NavLink
-        to={generatePath(taskLogsViewerRoute, {
+        to={projectRoute(taskLogsViewerRoute, {
           sourceId: sourceId,
           taskId: TaskId.encode(task.id),
         })}

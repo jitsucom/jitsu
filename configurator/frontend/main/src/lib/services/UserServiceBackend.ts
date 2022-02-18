@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { ApiAccess, User, userFromDTO, userToDTO } from "./model"
+import { ApiAccess, userFromDTO, userToDTO } from "./model"
 import Marshal from "../commons/marshalling"
 import { randomId } from "utils/numbers"
 import { cleanAuthorizationLocalStorage, concatenateURLs } from "lib/commons/utils"
@@ -7,6 +7,7 @@ import { getBaseUIPath } from "lib/commons/pathHelper"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
 import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserService } from "./UserService"
+import { User } from "../../generated/conf-openapi"
 
 export const LS_ACCESS_KEY = "en_access"
 export const LS_REFRESH_KEY = "en_refresh"
@@ -56,11 +57,10 @@ export class BackendUserService implements UserService {
     this.user = {
       suggestedCompanyName: undefined,
       created: new Date().toISOString(),
-      uid: response["user_id"],
+      id: response["user_id"],
       emailOptout: false,
       forcePasswordChange: false,
       name: undefined,
-      onboarded: false,
       email: email,
     }
     await this.storageService.saveUserInfo(userToDTO(this.user))
