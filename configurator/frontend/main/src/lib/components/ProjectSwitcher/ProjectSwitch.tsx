@@ -17,12 +17,12 @@ export type ProjectSwitchProps = {
 
 function getRenderedProjects(projects: Project[]) {
   return  projects;
-  // const res = [...projects]
-  // const prj = projects[0]
-  // for (let i = 0; i <= 1000; i++) {
-  //   res.push({ id: prj.id + ("_" + i), name: prj.name + ("_" + i) })
-  // }
-  // return res
+//   const res = [...projects]
+//   const prj = projects[0]
+//   for (let i = 0; i <= 1000; i++) {
+//     res.push({ id: prj.id + ("_" + i), name: prj.name + ("_" + i) })
+//   }
+//   return res
 }
 
 const ProjectList: React.FC<ProjectSwitchProps> = ({ onSelect }) => {
