@@ -209,7 +209,7 @@ func NewV8TemplateExecutor(expression string, extraFunctions template.FuncMap, e
 func (vte *V8TemplateExecutor) start() {
 	var function func(map[string]interface{}) (interface{}, error)
 	iso := v8go.NewIsolate()
-	defer iso.Dispose()
+	defer func() { iso.Dispose() }()
 	destinationId, _ := vte.extraFunctions["destinationId"].(string)
 	destinationType, _ := vte.extraFunctions["destinationType"].(string)
 
