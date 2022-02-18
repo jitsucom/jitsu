@@ -576,22 +576,39 @@ paths:
       requestBody:
         description: >
           Email and (optional) password. If password is not set, a random one
-          will be generated and returned with response
+          will be generated and returned with response. If projectName is specified, the project
+          linked to the user will be automatically created and its id will be returned
         content:
           "application/json":
             schema:
               type: object
               properties:
-                email: {type: "string"}
-                password: {type: "string"}
+                email: {type: string}
+                password: {type: string}
+                projectName: {type: string}
+
               required: ['email']
       responses:
         '200':
-          description: New user. Fields created, created, emailOptout, forcePasswordChange will be assined automatically
+          description: >
+            New user. Some fields (created, emailOptout, forcePasswordChange) will be assigned automatically. If projectId was supplied
+            a new project will be returned as well
+
           content:
             "application/json":
               schema:
-                $ref: '#/components/schemas/User'
+                type: object
+                properties:
+                  user:
+                    type: object
+                    items:
+                      $ref: '#/components/schemas/Project'
+                  project:
+                    type: object
+                    items:
+                      $ref: '#/components/schemas/User'
+                required: ['user']
+
         default:
           $ref: '#/components/responses/Error'
   /api/v2/users/{userId}:
