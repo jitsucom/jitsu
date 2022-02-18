@@ -165,7 +165,7 @@ components:
         id: { type: "string" }
         name: { type: "string" }
         requiresSetup: { type: "boolean" }
-      required: [ 'name', 'id' ]
+      required: [ ]
 
     UserBasicInfo:
       description: 'Basic information about user'
@@ -317,6 +317,7 @@ paths:
           "application/json":
             schema:
               title: UserPasswordResetRequest
+              description: callback field will be used in a password reset email as reset link URL
               type: object
               properties:
                 email: { type: string }
@@ -548,7 +549,105 @@ paths:
         default:
           $ref: '#/components/responses/Error'
 
+  /api/v2/users:
+    get:
+      description: Get all users. Available only for Redis-backed authorization
+      tags:
+        - configuration-management
+      security:
+        - configurationManagementAuth: [ ]
+      responses:
+        '200':
+          description: List of users
+          content:
+            "application/json":
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      description: Create new user
+      tags:
+        - configuration-management
+      security:
+        - configurationManagementAuth: [ ]
+      requestBody:
+        description: >
+          Email and (optional) password. If password is not set, a random one
+          will be generated and returned with response
+        content:
+          "application/json":
+            schema:
+              type: object
+              properties:
+                email: {type: "string"}
+                password: {type: "string"}
+              required: ['email']
+      responses:
+        '200':
+          description: New user. Fields created, created, emailOptout, forcePasswordChange will be assined automatically
+          content:
+            "application/json":
+              schema:
+                $ref: '#/components/schemas/User'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v2/users/{userId}:
+    delete:
+      tags:
+        - configuration-management
+      description: Delete user by id
+      security:
+        - configurationManagementAuth: [ ]
+      parameters:
+        - name: userId
+          description: Id of the user
+          in: path
+          required: true
+          schema:
+            type: boolean
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      tags:
+        - configuration-management
+      description: Update user information.
+      security:
+        - configurationManagementAuth: [ ]
+      parameters:
+        - name: userId
+          description: Id of the user
+          in: path
+          required: true
+          schema:
+            type: boolean
+      requestBody:
+        description: >
+          Any combination of the fields should be present. Only fields present in request will be updated
 
+        content:
+          "application/json":
+            schema:
+              type: object
+              properties:
+                name: {type: "string"}
+                forcePasswordChange:
+                  type: string
+                  description: if set to true, user will be forced to change the password during next login
+                password:
+                  type: string
+                  description: New password to assign a user
+
+      responses:
+        '200':
+          $ref: '#/components/responses/AnyObjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
 
   /api/v2/projects:
     get:
@@ -583,7 +682,9 @@ paths:
       tags:
         - configuration-management
       operationId: "Create project and link user"
-      description: Creates a new project, links current user and returns the project with ID
+      description: >
+        Creates a new project, links current user and returns the project with ID.
+        If id is present in request body, it should be ignored
       security:
         - configurationManagementAuth: [ ]
       requestBody:
