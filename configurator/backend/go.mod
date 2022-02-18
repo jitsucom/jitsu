@@ -15,6 +15,7 @@ require (
 	github.com/jitsucom/jitsu/server v1.37.3
 	github.com/lib/pq v1.10.2
 	github.com/mitchellh/mapstructure v1.4.1
+	github.com/pkg/errors v0.9.1
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/viper v1.8.1
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
@@ -98,7 +99,6 @@ require (
 	github.com/pelletier/go-toml v1.9.3 // indirect
 	github.com/pierrec/lz4/v4 v4.1.6 // indirect
 	github.com/pkg/browser v0.0.0-20180916011732-0a3d74bf9ce4 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.11.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
