@@ -46,6 +46,9 @@ const (
 
 	ConfigPrefix = "config#"
 	SystemKey    = "system"
+
+	EventsTokenNamespace       = "token"
+	EventsDestinationNamespace = "destination"
 )
 
 var (
@@ -81,9 +84,9 @@ type Redis struct {
 //daily_events:push_source#sourceID:month#yyyymm:success            [day] - hashtable with success events counter by day
 //hourly_events:push_source#sourceID:day#yyyymmdd:success           [hour] - hashtable with success events counter by hour
 //
-//** Last events cache**
-//last_events:destination#destinationID:id#unique_id_field [original, success, error] - hashtable with original event json, processed with schema json, error json
-//last_events_index:destination#destinationID [timestamp_long unique_id_field] - sorted set of eventIDs and timestamps
+//** Events cache**
+//events_cache:destination#destinationID - sorted (desc by inserted time) list of destination Events that have statuses (success, failed, skip).
+//events_cache:token#tokenID - sorted (desc by inserted time) list of token raw JSON Events that don't have statuses
 //
 //** Sources Synchronization **
 // - task_id = $source_$collection_$UUID
@@ -189,38 +192,17 @@ func (r *Redis) IncrementEventsCount(id, namespace, eventType, status string, no
 
 //AddEvent saves event JSON string into Redis and ensures that event ID is in index by destination ID
 //returns index length
-func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) error {
-	conn := r.pool.Get()
-	defer conn.Close()
-	//add event
-	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
-	field := "original"
-	_, err := conn.Do("HSET", lastEventsKey, field, payload)
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
+func (r *Redis) AddEvent(namespace, id string, entity *Event) error {
+	serialized, err := json.Marshal(entity)
+	if err != nil {
+		return fmt.Errorf("failed to serialize event entity [%v]: %v", entity, err)
 	}
-
-	//enrich index
-	lastEventsIndexKey := "last_events_index:destination#" + destinationID
-	_, err = conn.Do("ZADD", lastEventsIndexKey, now.Unix(), eventID)
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
-	}
-	return nil
-}
-
-//UpdateSucceedEvent updates event record in Redis with success field = JSON of succeed event
-func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error {
-	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
-	lastEventsIndexKey := "last_events_index:destination#" + destinationID
-	originalEventKey := "last_events:destination#" + destinationID + ":id#" + extractOriginalEventId(eventID)
 
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "success", success, "error", "", "destination_id", destinationID, lastEventsIndexKey, timestamp.Now().UTC().Unix(), eventID, originalEventKey)
+	eventsKey := fmt.Sprintf("events_cache:%s#%s", namespace, id)
+	_, err = conn.Do("LPUSH", eventsKey, serialized)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return err
@@ -229,16 +211,13 @@ func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error
 	return nil
 }
 
-//UpdateErrorEvent updates event record in Redis with error field = error string
-func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
-	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
-	lastEventsIndexKey := "last_events_index:destination#" + destinationID
-	originalEventKey := "last_events:destination#" + destinationID + ":id#" + extractOriginalEventId(eventID)
-
+//TrimEvents keeps only last capacity events in Redis list key with trim function
+func (r *Redis) TrimEvents(namespace, id string, capacity int) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "error", error, "destination_id", destinationID, lastEventsIndexKey, timestamp.Now().UTC().Unix(), eventID, originalEventKey)
+	eventsKey := fmt.Sprintf("events_cache:%s#%s", namespace, id)
+	_, err := conn.Do("LTRIM", eventsKey, 0, capacity-1)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return err
@@ -247,102 +226,38 @@ func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
 	return nil
 }
 
-//UpdateSkipEvent updates event record in Redis with skip field = error string
-func (r *Redis) UpdateSkipEvent(destinationID, eventID, error string) error {
-	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
-	lastEventsIndexKey := "last_events_index:destination#" + destinationID
-	originalEventKey := "last_events:destination#" + destinationID + ":id#" + extractOriginalEventId(eventID)
+//GetEvents returns last n events from namespace with id
+func (r *Redis) GetEvents(namespace, id string, limit int) ([]Event, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "skip", error, "error", "", "destination_id", destinationID, lastEventsIndexKey, timestamp.Now().UTC().Unix(), eventID, originalEventKey)
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
-	}
-
-	return nil
-}
-
-//TrimEvents removes events from index that exceed provided capacity Redis
-func (r *Redis) TrimEvents(destinationID string, capacity int) error {
-	conn := r.pool.Get()
-	defer conn.Close()
-	//remove last event from index
-	lastEventsIndexKey := "last_events_index:destination#" + destinationID
-	//get index length
-	count, err := redis.Int(conn.Do("ZCOUNT", lastEventsIndexKey, "-inf", "+inf"))
-	if err != nil && err != redis.ErrNil {
-		r.errorMetrics.NoticeError(err)
-		return err
-	}
-	if count > capacity {
-		values, err := redis.Values(conn.Do("ZPOPMIN", lastEventsIndexKey, count-capacity))
-		if err != nil && err != redis.ErrNil {
-			r.errorMetrics.NoticeError(err)
-			return err
-		}
-		logging.Debugf("[events cache] destination: %s exceed by: %d", destinationID, len(values)/2)
-
-		keys := make([]interface{}, 0, len(values))
-		for i, eventID := range values {
-			if i%2 == 0 {
-				keys = append(keys, fmt.Sprintf("last_events:destination#%s:id#%s", destinationID, eventID))
-			}
-		}
-		count, err := redis.Int(conn.Do("DEL", keys...))
-		if err != nil && err != redis.ErrNil {
-			r.errorMetrics.NoticeError(err)
-			return err
-		}
-		logging.Debugf("[events cache] destination: %s deleted: %d", destinationID, count)
-	}
-	return nil
-}
-
-//GetEvents returns destination's last events with time criteria
-func (r *Redis) GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error) {
-	conn := r.pool.Get()
-	defer conn.Close()
-
-	//get index
-	lastEventsIndexKey := "last_events_index:destination#" + destinationID
-	eventIDs, err := redis.Strings(conn.Do("ZRANGEBYSCORE", lastEventsIndexKey, start.Unix(), end.Unix(), "LIMIT", 0, n))
+	eventsCacheKey := fmt.Sprintf("events_cache:%s#%s", namespace, id)
+	eventsArr, err := redis.Strings(conn.Do("LRANGE", eventsCacheKey, 0, limit-1))
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return nil, err
 	}
 
-	events := []Event{}
-	for _, eventID := range eventIDs {
-		lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
-		event, err := redis.Values(conn.Do("HGETALL", lastEventsKey))
-		if err != nil && err != redis.ErrNil {
-			r.errorMetrics.NoticeError(err)
-			return nil, err
+	events := make([]Event, 0, len(eventsArr))
+	for _, redisEvent := range eventsArr {
+		eventObj := Event{}
+		if err := json.Unmarshal([]byte(redisEvent), &eventObj); err != nil {
+			return nil, fmt.Errorf("failed to deserialize event from list key: %s [%v]: %v", eventsCacheKey, redisEvent, err)
 		}
 
-		if len(event) > 0 {
-			eventObj := Event{}
-			err := redis.ScanStruct(event, &eventObj)
-			if err != nil {
-				return nil, fmt.Errorf("Error deserializing event struct key [%s]: %v", lastEventsKey, err)
-			}
-
-			events = append(events, eventObj)
-		}
+		events = append(events, eventObj)
 	}
 
 	return events, nil
 }
 
 //GetTotalEvents returns total of cached events
-func (r *Redis) GetTotalEvents(destinationID string) (int, error) {
+func (r *Redis) GetTotalEvents(namespace, id string) (int, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	lastEventsIndexKey := "last_events_index:destination#" + destinationID
-	count, err := redis.Int(conn.Do("ZCOUNT", lastEventsIndexKey, "-inf", "+inf"))
+	eventsCacheKey := fmt.Sprintf("events_cache:%s#%s", namespace, id)
+	count, err := redis.Int(conn.Do("LLEN", eventsCacheKey))
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return 0, err

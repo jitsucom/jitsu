@@ -130,11 +130,11 @@ func (m *MySQL) Store(fileName string, objects []map[string]interface{}, already
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		m.eventsCache.Error(m.IsCachingDisabled(), m.ID(), failedEvent.EventID, failedEvent.Error)
+		m.eventsCache.Error(m.IsCachingDisabled(), m.ID(), string(failedEvent.Event), failedEvent.Error)
 	}
 	//update cache and counter with skipped events
 	for _, skipEvent := range skippedEvents.Events {
-		m.eventsCache.Skip(m.IsCachingDisabled(), m.ID(), skipEvent.EventID, skipEvent.Error)
+		m.eventsCache.Skip(m.IsCachingDisabled(), m.ID(), string(skipEvent.Event), skipEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -148,19 +148,7 @@ func (m *MySQL) Store(fileName string, objects []map[string]interface{}, already
 		}
 
 		//events cache
-		for _, object := range fdata.GetPayload() {
-			if err != nil {
-				m.eventsCache.Error(m.IsCachingDisabled(), m.ID(), m.uniqueIDField.Extract(object), err.Error())
-			} else {
-				m.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  m.IsCachingDisabled(),
-					DestinationID:  m.ID(),
-					EventID:        m.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          table,
-				})
-			}
-		}
+		writeEventsToCache(m, m.eventsCache, table, fdata, err)
 	}
 
 	//store failed events to fallback only if other events have been inserted ok

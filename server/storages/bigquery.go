@@ -106,11 +106,11 @@ func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alr
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		bq.eventsCache.Error(bq.IsCachingDisabled(), bq.ID(), failedEvent.EventID, failedEvent.Error)
+		bq.eventsCache.Error(bq.IsCachingDisabled(), bq.ID(), string(failedEvent.Event), failedEvent.Error)
 	}
 	//update cache and counter with skipped events
 	for _, skipEvent := range skippedEvents.Events {
-		bq.eventsCache.Skip(bq.IsCachingDisabled(), bq.ID(), skipEvent.EventID, skipEvent.Error)
+		bq.eventsCache.Skip(bq.IsCachingDisabled(), bq.ID(), string(skipEvent.Event), skipEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -124,19 +124,7 @@ func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alr
 		}
 
 		//events cache
-		for _, object := range fdata.GetPayload() {
-			if err != nil {
-				bq.eventsCache.Error(bq.IsCachingDisabled(), bq.ID(), bq.uniqueIDField.Extract(object), err.Error())
-			} else {
-				bq.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  bq.IsCachingDisabled(),
-					DestinationID:  bq.ID(),
-					EventID:        bq.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          table,
-				})
-			}
-		}
+		writeEventsToCache(bq, bq.eventsCache, table, fdata, err)
 	}
 
 	//store failed events to fallback only if other events have been inserted ok

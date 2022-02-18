@@ -101,11 +101,11 @@ func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alre
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		p.eventsCache.Error(p.IsCachingDisabled(), p.ID(), failedEvent.EventID, failedEvent.Error)
+		p.eventsCache.Error(p.IsCachingDisabled(), p.ID(), string(failedEvent.Event), failedEvent.Error)
 	}
 	//update cache and counter with skipped events
 	for _, skipEvent := range skippedEvents.Events {
-		p.eventsCache.Skip(p.IsCachingDisabled(), p.ID(), skipEvent.EventID, skipEvent.Error)
+		p.eventsCache.Skip(p.IsCachingDisabled(), p.ID(), string(skipEvent.Event), skipEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -119,19 +119,7 @@ func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alre
 		}
 
 		//events cache
-		for _, object := range fdata.GetPayload() {
-			if err != nil {
-				p.eventsCache.Error(p.IsCachingDisabled(), p.ID(), p.uniqueIDField.Extract(object), err.Error())
-			} else {
-				p.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  p.IsCachingDisabled(),
-					DestinationID:  p.ID(),
-					EventID:        p.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          table,
-				})
-			}
-		}
+		writeEventsToCache(p, p.eventsCache, table, fdata, err)
 	}
 
 	//store failed events to fallback only if other events have been inserted ok

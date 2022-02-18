@@ -106,11 +106,11 @@ func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, a
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		ch.eventsCache.Error(ch.IsCachingDisabled(), ch.ID(), failedEvent.EventID, failedEvent.Error)
+		ch.eventsCache.Error(ch.IsCachingDisabled(), ch.ID(), string(failedEvent.Event), failedEvent.Error)
 	}
 	//update cache and counter with skipped events
 	for _, skipEvent := range skippedEvents.Events {
-		ch.eventsCache.Skip(ch.IsCachingDisabled(), ch.ID(), skipEvent.EventID, skipEvent.Error)
+		ch.eventsCache.Skip(ch.IsCachingDisabled(), ch.ID(), string(skipEvent.Event), skipEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -125,19 +125,7 @@ func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, a
 		}
 
 		//events cache
-		for _, object := range fdata.GetPayload() {
-			if err != nil {
-				ch.eventsCache.Error(ch.IsCachingDisabled(), ch.ID(), ch.uniqueIDField.Extract(object), err.Error())
-			} else {
-				ch.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  ch.IsCachingDisabled(),
-					DestinationID:  ch.ID(),
-					EventID:        ch.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          table,
-				})
-			}
-		}
+		writeEventsToCache(ch, ch.eventsCache, table, fdata, err)
 	}
 
 	//store failed events to fallback only if other events have been inserted ok

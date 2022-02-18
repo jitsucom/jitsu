@@ -76,6 +76,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.disable_skip_events_warn", false)
 	viper.SetDefault("server.cache.enabled", true)
 	viper.SetDefault("server.cache.events.size", 100)
+	viper.SetDefault("server.cache.events.time_window_sec", 60)
 	viper.SetDefault("server.cache.events.trim_interval_ms", 500)
 	viper.SetDefault("server.cache.pool.size", 10)
 	viper.SetDefault("server.strict_auth_tokens", false)

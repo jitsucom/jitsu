@@ -19,18 +19,10 @@ func (d *Dummy) GetEventsWithGranularity(namespace, status, eventType string, id
 	return nil, nil
 }
 
-func (d *Dummy) AddEvent(destinationID, eventID, payload string, now time.Time) error {
-	return nil
-}
-func (d *Dummy) UpdateSucceedEvent(destinationID, eventID, success string) error { return nil }
-func (d *Dummy) UpdateErrorEvent(destinationID, eventID, error string) error     { return nil }
-func (d *Dummy) UpdateSkipEvent(destinationID, eventID, error string) error      { return nil }
-func (d *Dummy) TrimEvents(destinationID string, capacity int) error             { return nil }
-
-func (d *Dummy) GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error) {
-	return []Event{}, nil
-}
-func (d *Dummy) GetTotalEvents(destinationID string) (int, error) { return 0, nil }
+func (d *Dummy) AddEvent(namespace, id string, entity *Event) error         { return nil }
+func (d *Dummy) TrimEvents(namespace, id string, capacity int) error        { return nil }
+func (d *Dummy) GetEvents(namespace, id string, limit int) ([]Event, error) { return []Event{}, nil }
+func (d *Dummy) GetTotalEvents(namespace, id string) (int, error)           { return 0, nil }
 
 func (d *Dummy) CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error {
 	return nil
