@@ -16,6 +16,7 @@ import { NavLink } from "react-router-dom"
 import { destinationsStore } from "../../../stores/destinations"
 import { DestinationPicker } from "./DestinationPicker"
 import union from "lodash/union"
+import { connectionsHelper } from "stores/helpers"
 
 export const apiKeysRoutes = {
   newExact: "/api-keys/new",
@@ -25,17 +26,6 @@ export const apiKeysRoutes = {
 
 type ApiKeyEditorProps = {
   setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void
-}
-
-function newKey(): ApiKey {
-  let uid = apiKeysStore.generateApiToken("", 6)
-  return {
-    uid: uid,
-    serverAuth: apiKeysStore.generateApiToken("s2s"),
-    jsAuth: apiKeysStore.generateApiToken("js"),
-    comment: "New API Key",
-    origins: [],
-  }
 }
 
 const SecretKey: React.FC<{
@@ -88,7 +78,7 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
   if (id) {
     id = id.replace("-", ".")
   }
-  const initialApiKey = id ? apiKeysStore.get(id) : newKey()
+  const initialApiKey = id ? apiKeysStore.get(id) : apiKeysStore.generateApiKey()
   if (!initialApiKey) {
     return <CenteredError error={new Error(`Key with id ${id} not found`)} />
   }
@@ -236,7 +226,7 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                     } else {
                       await flowResult(apiKeysStore.add(key))
                     }
-                    await flowResult(destinationsStore.updateDestinationsLinksToKey(key.uid, connectedDestinations))
+                    await connectionsHelper.updateDestinationsConnectionsToApiKey(key.uid, connectedDestinations)
                     history.push(apiKeysRoutes.listExact)
                   } finally {
                     setSaving(false)

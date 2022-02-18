@@ -41,6 +41,7 @@ import { useForceUpdate } from "hooks/useForceUpdate"
 // @Icons
 import { AreaChartOutlined, WarningOutlined } from "@ant-design/icons"
 import { actionNotification } from "../../../../components/ActionNotification/ActionNotification"
+import { connectionsHelper } from "stores/helpers"
 
 type DestinationTabKey = "config" | "transform" | "mappings" | "sources" | "settings" | "statistics"
 
@@ -335,8 +336,11 @@ const DestinationEditor = ({
           await destinationEditorUtils.testConnection(destinationData.current, true)
 
           if (editorMode === "add") await flowResult(destinationsStore.add(destinationData.current))
-
           if (editorMode === "edit") await flowResult(destinationsStore.replace(destinationData.current))
+          await connectionsHelper.updateSourcesConnectionsToDestination(
+            destinationData.current._uid,
+            destinationData.current._sources
+          )
 
           destinationsTabs.forEach((tab: Tab) => (tab.touched = false))
 

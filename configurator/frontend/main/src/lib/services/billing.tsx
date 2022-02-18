@@ -6,9 +6,9 @@ import moment, { Moment } from "moment"
 import ApplicationServices from "./ApplicationServices"
 import { BackendApiClient } from "./BackendApiClient"
 // @Types
-import { IDestinationsStore } from "../../stores/destinations"
-import { ISourcesStore } from "../../stores/sources"
-import { IProject } from "lib/services/model"
+import type { DestinationsStore } from "../../stores/destinations"
+import type { SourcesStore } from "../../stores/sources"
+import type { IProject } from "lib/services/model"
 import { DatePoint, StatisticsService } from "lib/services/stat"
 // @Utils
 import { withQueryParams } from "utils/queryParams"
@@ -241,8 +241,8 @@ async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
 export async function getCurrentSubscription(
   project: IProject,
   backendApiClient: BackendApiClient,
-  destinationsStore: IDestinationsStore,
-  sourcesStore: ISourcesStore
+  destinationsStore: DestinationsStore,
+  sourcesStore: SourcesStore
 ): Promise<CurrentSubscription> {
   const statService = new StatisticsService(backendApiClient, project, true)
 

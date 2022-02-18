@@ -18,6 +18,7 @@ import { firstToLower } from "lib/commons/utils"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { SourceEditorView } from "./SourceEditorView"
 import { ErrorDetailed } from "lib/commons/errors"
+import { connectionsHelper } from "stores/helpers"
 // @Utils
 
 /** Accumulated state of all forms that is transformed and sent to backend on source save */
@@ -259,8 +260,12 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode, setBreadcru
         ...testConnectionResults,
       }
 
-      if (editorMode === "add") sourcesStore.add(sourceDataToSave)
-      if (editorMode === "edit") sourcesStore.replace(sourceDataToSave)
+      if (editorMode === "add") await sourcesStore.add(sourceDataToSave)
+      if (editorMode === "edit") await sourcesStore.replace(sourceDataToSave)
+      await connectionsHelper.updateDestinationsConnectionsToSource(
+        sourceDataToSave.sourceId,
+        sourceDataToSave.destinations
+      )
 
       handleLeaveEditor({ goToSourcesList: true })
 

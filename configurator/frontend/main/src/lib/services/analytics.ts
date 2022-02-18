@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { FeatureSettings } from "./ApplicationServices"
 import { User } from "./model"
 // @ts-ignore

@@ -1,7 +1,7 @@
 import Marshal from "lib/commons/marshalling"
+import ApplicationServices from "./ApplicationServices"
 import { BackendApiClient } from "./BackendApiClient"
 import { User } from "./model"
-import ApplicationServices from "./ApplicationServices"
 
 /**
  * A generic object storage
@@ -14,19 +14,9 @@ export abstract class ServerStorage {
   }
 
   /**
-   * Returns an object by key. If key is not set, user id will be used as key
-   */
-  abstract get(collectionName: string, key: string): Promise<any>
-
-  /**
    * Returns user info object (user id is got from authorization token)
    */
   abstract getUserInfo(): Promise<User>
-
-  /**
-   * Saves an object by key. If key is not set, user id will be used as key
-   */
-  abstract save(collectionName: string, data: any, key: string): Promise<void>
 
   /**
    * Saves users information required for system (on-boarding status, user projects, etc.)
@@ -150,13 +140,13 @@ export class HttpServerStorage extends ServerStorage {
     return this.backendApi.post(`${HttpServerStorage.USERS_INFO_PATH}`, Marshal.toPureJson(data))
   }
 
-  get(collectionName: string, key: string): Promise<any> {
-    return this.backendApi.get(`/configurations/${collectionName}?id=${key}`)
-  }
+  // get(collectionName: string, key: string): Promise<any> {
+  //   return this.backendApi.get(`/configurations/${collectionName}?id=${key}`)
+  // }
 
-  save(collectionName: string, data: any, key: string): Promise<void> {
-    return this.backendApi.post(`/configurations/${collectionName}?id=${key}`, Marshal.toPureJson(data))
-  }
+  // save(collectionName: string, data: any, key: string): Promise<void> {
+  //   return this.backendApi.post(`/configurations/${collectionName}?id=${key}`, Marshal.toPureJson(data))
+  // }
 }
 
 type ObjectsApiTypes = "destinations" | "sources" | "api_keys"

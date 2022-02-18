@@ -1,4 +1,3 @@
-/* eslint-disable */
 import React, { ExoticComponent, useState } from "react"
 
 import { Redirect, Route, Switch } from "react-router-dom"

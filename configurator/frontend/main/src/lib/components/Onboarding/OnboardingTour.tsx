@@ -21,6 +21,7 @@ import ApplicationServices from "lib/services/ApplicationServices"
 import { formatTimeOfRawUserEvents, getLatestUserEvent, userEventWasTimeAgo } from "lib/commons/utils"
 import { Project } from "lib/services/model"
 import { randomId } from "utils/numbers"
+import { destinationsStore } from "stores/destinations"
 
 type OnboardingConfig = {
   showUserAndCompanyNamesStep: boolean
@@ -37,7 +38,7 @@ export function showOnboardingError(msg?: string): void {
 
 const services = ApplicationServices.get()
 
-const OnboardingTour: React.FC = () => {
+const OnboardingTourComponent: React.FC = () => {
   const [config, setConfig] = useState<OnboardingConfig | null>(null)
   const [userClosedTour, setUserClosedTour] = useState<boolean>(false)
 
@@ -144,7 +145,7 @@ const OnboardingTour: React.FC = () => {
 
       const [user, destinations, events] = await Promise.all([
         services.userService.getUser(),
-        services.storageService.get("destinations", services.activeProject.id),
+        destinationsStore.list,
         services.backendApiClient.get(`/events/cache?project_id=${services.activeProject.id}&limit=5`, { proxy: true }),
       ])
 
@@ -154,7 +155,7 @@ const OnboardingTour: React.FC = () => {
       const showUserAndCompanyNamesStep = !userName || !companyName
 
       // destinations
-      const _destinations: DestinationData[] = destinations?.destinations ?? []
+      const _destinations: DestinationData[] = destinations ?? []
       const showDestinationsSetupStep = _destinations.length === 0
 
       // jitsu client configuration docs and first event detection
@@ -201,6 +202,8 @@ function calculateAmountOfSteps(config: OnboardingConfig): number {
     return accumulator + +current
   }, 0)
 }
+
+const OnboardingTour = observer(OnboardingTourComponent)
 
 OnboardingTour.displayName = "OnboardingTour"
 

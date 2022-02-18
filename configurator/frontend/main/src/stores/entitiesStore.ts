@@ -1,43 +1,39 @@
 import ApplicationServices from "lib/services/ApplicationServices"
 import { remove } from "lodash"
-import { flowResult, makeAutoObservable } from "mobx"
-import { toArrayIfNot } from "utils/arrays"
-import { EntitiesStoreState } from "./types.enums"
+import { makeObservable, observable, computed, action, flow } from "mobx"
 import { getObjectDepth } from "lib/commons/utils"
 
-type EntityType = "api_keys" | "sources" | "destinations"
-type EntityData = ApiKey | SourceData | DestinationData
-type ConnectableEntityData<T extends EntityData> = Exclude<EntityData, T>
+export type EntityType = "api_keys" | "sources" | "destinations"
+export type EntityData = ApiKey | SourceData | DestinationData
+export enum EntitiesStoreStatus {
+  "IDLE" = "IDLE",
+  "GLOBAL_LOADING" = "GLOBAL_LOADING",
+  "BACKGROUND_LOADING" = "BACKGROUND_LOADING",
+  "GLOBAL_ERROR" = "GLOBAL_ERROR",
+}
 
 type EntitySchema<T extends EntityData> = {
   /** Unique id field of the entity */
   idField: string
-  /** Field with a list IDs of connected entities. */
-  connectedEntitiesFields?: Partial<Record<EntityType, string>>
   /** Tells which entities to exclude from the `store.list` list*/
   hideElements?: (entity: T) => boolean
 }
 
 // (!) TO DO: move type to this file
-const EDIT_ENTITY_DEFAULT_OPTIONS: EntityUpdateOptions = {
-  updateConnections: true,
-}
-
-// (!) TO DO: move type to this file
-const { IDLE, GLOBAL_LOADING, BACKGROUND_LOADING, GLOBAL_ERROR } = EntitiesStoreState
+const { IDLE, GLOBAL_LOADING, BACKGROUND_LOADING, GLOBAL_ERROR } = EntitiesStoreStatus
 
 const services = ApplicationServices.get()
 
 /**
  * Generic entities store class for manipulating objects.
- * 
+ *
  * Methods of this class both make API calls and update the subscribed UI components.
- * 
+ *
  * For creating a new store either instantiate this class or a class that extends this one:
  * @example
  * // Using EntitiesStore class
  * const apiKeysStore = new EntitiesStore("api_keys", {idField: "uid"})
- * 
+ *
  * // Using an extended class
  * const destinationsStore = new DestinationsStore()
  * class DestinationsStore extends EntitiesStore<DestinationData> {
@@ -48,130 +44,56 @@ const services = ApplicationServices.get()
  *       hideElements: dst => destinationsReferenceMap[dst._type]?.hidden,
  *     })
  *   }
- * 
+ *
  *   public someDestinationsSpecificMethod() {
  *    // logic
  *   }
  * }
  **/
 export class EntitiesStore<T extends EntityData> {
-  protected _entities: T[] = []
-  protected _state: EntitiesStoreState = GLOBAL_ERROR
-  protected _errorMessage: string = ""
-  protected _connectedStores: EntitiesStore<ConnectableEntityData<T>>[]
-  public readonly type: EntityType
-  public readonly schema: EntitySchema<T>
+  protected _entities: T[] = observable([])
+  protected _state: { status: EntitiesStoreStatus; errorMessage: string } = observable({
+    status: IDLE,
+    errorMessage: "",
+  })
+  protected readonly type: EntityType
+  protected readonly schema: EntitySchema<T>
 
   constructor(type: EntityType, schema: EntitySchema<T>) {
     this.type = type
     this.schema = schema
     this.get = this.get.bind(this)
-    makeAutoObservable(this)
+    makeObservable(this, {
+      status: computed,
+      errorMessage: computed,
+      list: computed,
+      listHidden: computed,
+      listIncludeHidden: computed,
+      get: action,
+      pullAll: flow,
+      add: flow,
+      delete: flow,
+      replace: flow,
+      patch: flow,
+    })
   }
 
-  protected setError(state: typeof GLOBAL_ERROR, message: string) {
-    this._state = state
-    this._errorMessage = message
+  protected setStatus(status: EntitiesStoreStatus) {
+    this._state.status = status
+  }
+
+  protected setError(message: string) {
+    this._state.status = GLOBAL_ERROR
+    this._state.errorMessage = message
   }
 
   protected resetError() {
-    this._errorMessage = ""
-    if (this._state === EntitiesStoreState.GLOBAL_ERROR) this._state = IDLE
+    this._state.errorMessage = ""
+    this._state.status = IDLE
   }
 
   protected getId(entity: T): string {
     return entity[this.schema.idField]
-  }
-
-  /** Set a new entities list in the UI */
-  protected setEntitiesInStore(allEntities: T[]) {
-    this._entities = allEntities
-  }
-
-  /** Add a entity in the UI */
-  protected addToStore(entity: T): void {
-    this._entities.push(entity)
-  }
-
-  /** Delete a entity from the UI */
-  protected deleteFromStore(id: string): void {
-    remove(this._entities, entity => this.getId(entity) === id)
-  }
-
-  /** Patch a entity in the UI */
-  protected patchInStore(id: string, patch: Partial<T>): void {
-    Object.assign(this.get(id), patch)
-  }
-
-  /** Replaces a entity data with a passed one in the UI */
-  protected replaceEntityInStore(id: string, entity: T) {
-    const index = this._entities.findIndex(entity => this.getId(entity) === id)
-    if (index >= 0) {
-      this._entities[index] = entity
-    }
-  }
-
-  /**
-   * Goes through all entities from connected stores and updates their connections
-   * @param _updatedStoreEntities
-   * @returns
-   */
-  private async patchConnectedEntities(_updatedStoreEntities: T | T[]): Promise<void> {
-    if (!this._connectedStores) return
-
-    const updatedStoreEntities = toArrayIfNot(_updatedStoreEntities)
-    const linkedStoresPatchesMap: { [storeType: string]: { [entityId: string]: Partial<EntityData> } } = {}
-    updatedStoreEntities.forEach(entity => {
-      this._connectedStores.forEach(store => {
-        const linkedEntitiesPatchesMap = linkedStoresPatchesMap[store.type]
-        const linkedEntitiesConnectionsField = store.schema.connectedEntitiesFields[this.type]
-        store.list.forEach(connectableEntity => {
-          const sourceConnectedToEntity = !!source.entities?.includes(entity._uid)
-          const sourceNeedsToBeConnected = !!entity._sources?.includes(source.sourceId)
-          if (sourceConnectedToEntity === sourceNeedsToBeConnected) {
-            return
-          }
-
-          const updatedSourcePatch = linkedEntitiesPatchesMap[source.sourceId] || { entities: source.entities }
-          if (sourceNeedsToBeConnected) {
-            linkedEntitiesPatchesMap[source.sourceId] = {
-              entities: [...(updatedSourcePatch.entities || []), entity._uid],
-            }
-          } else {
-            linkedEntitiesPatchesMap[source.sourceId] = {
-              entities: (updatedSourcePatch.entities || []).filter(entityUid => entityUid !== entity._uid),
-            }
-          }
-        })
-      })
-    })
-    await Promise.all(
-      Object.entries(linkedStoresPatchesMap).map(([sourceId, patch]) =>
-        flowResult(this._sourcesStore.patch(sourceId, patch, { updateConnections: false }))
-      )
-    )
-  }
-
-  private async unlinkDeletedFromConnectedEntities(_uids: string | string[]): Promise<void> {
-    const entitiesToDeleteUids = toArrayIfNot(_uids)
-    const sourcesPatches: { [sourceId: string]: Partial<SourceData> } = {}
-    sourcesStore.list.forEach(source => {
-      const sourceHasDeletedEntity: boolean = !!intersection(source.entities, entitiesToDeleteUids).length
-      if (sourceHasDeletedEntity) {
-        sourcesPatches[source.sourceId] = {
-          entities: without(source.entities || [], ...entitiesToDeleteUids),
-        }
-      }
-    })
-    await Promise.all(
-      Object.entries(sourcesPatches).map(([sourceId, patch]) =>
-        flowResult(this._sourcesStore.patch(sourceId, patch, { updateConnections: false }))
-      )
-    )
-  }
-
-  public init(connectableEntitiesStores: EntitiesStore<ConnectableEntityData<T>>[]) {
-    this._connectedStores = connectableEntitiesStores
   }
 
   public get list() {
@@ -188,90 +110,84 @@ export class EntitiesStore<T extends EntityData> {
     return this._entities
   }
 
-  public get state() {
-    return this._state
+  public get status() {
+    return this._state.status
   }
 
-  public get error() {
-    return this._errorMessage
-  }
-
-  public *pullAll(showGlobalLoader?: boolean) {
-    this.resetError()
-    this._state = showGlobalLoader ? GLOBAL_LOADING : BACKGROUND_LOADING
-    try {
-      const entities = yield services.storageService.table<T>(this.type).getAll()
-      this.setEntitiesInStore(entities ?? [])
-    } catch (error) {
-      this.setError(GLOBAL_ERROR, `Failed to fetch entities: ${error.message || error}`)
-    } finally {
-      this._state = IDLE
-    }
+  public get errorMessage() {
+    return this._state.errorMessage
   }
 
   public get(id: string): T | null {
     return this.list.find(entity => this.getId(entity) === id)
   }
 
+  public *pullAll(options?: { showGlobalLoader?: boolean }) {
+    const { showGlobalLoader } = options ?? { showGlobalLoader: false }
+    this.resetError()
+    this.setStatus(showGlobalLoader ? GLOBAL_LOADING : BACKGROUND_LOADING)
+    try {
+      const entities = yield services.storageService.table<T>(this.type).getAll()
+      this._entities = entities ?? []
+    } catch (error) {
+      this.setError(`Failed to fetch ${this.type}: ${error.message || error}`)
+    } finally {
+      this.setStatus(IDLE)
+    }
+  }
+
   public *add(entityToAdd: T) {
     this.resetError()
-    this._state = BACKGROUND_LOADING
+    this.setStatus(BACKGROUND_LOADING)
     try {
       const addedEntity = yield services.storageService.table<T>(this.type).add(entityToAdd)
       if (!addedEntity) {
-        throw new Error(`Entities store failed to add a new entity: ${entityToAdd}`)
+        throw new Error(`Error: '${this.type}' store failed to add an entity ${entityToAdd}`)
       }
-      this.addToStore(addedEntity)
-      yield this.patchConnectedEntities(addedEntity)
-    } catch (error) {
-      console.error(error)
+      this._entities.push(entityToAdd)
     } finally {
-      this._state = IDLE
+      this.setStatus(IDLE)
     }
   }
 
   public *delete(id: string) {
     this.resetError()
-    this._state = BACKGROUND_LOADING
+    this.setStatus(BACKGROUND_LOADING)
     try {
       yield services.storageService.table<T>(this.type).delete(id)
-      this.deleteFromStore(id)
-      yield this.unlinkDeletedFromConnectedEntities(id)
-    } catch (error) {
-      console.error(error)
+      remove(this._entities, entity => this.getId(entity) === id)
     } finally {
-      this._state = IDLE
+      this.setStatus(IDLE)
     }
   }
 
-  public *replace(entity: T, options: EntityUpdateOptions = EDIT_ENTITY_DEFAULT_OPTIONS) {
+  public *replace(entity: T) {
     this.resetError()
-    this._state = BACKGROUND_LOADING
+    this.setStatus(BACKGROUND_LOADING)
     try {
       yield services.storageService.table<T>(this.type).replace(this.getId(entity), entity)
-      this.replaceEntityInStore(this.getId(entity), entity)
-      if (options.updateConnections) yield this.patchConnectedEntities(entity)
-    } catch (error) {
-      console.error(error)
+      const index = this._entities.findIndex(item => this.getId(item) === this.getId(entity))
+      if (index >= 0) {
+        this._entities[index] = entity
+      } else {
+        throw new Error(`Error: ${this.type} store failed to replace entity in store. Entity: ${entity}`)
+      }
     } finally {
-      this._state = IDLE
+      this.setStatus(IDLE)
     }
   }
 
-  public *patch(id: string, patch: Partial<T>, options: EntityUpdateOptions = EDIT_ENTITY_DEFAULT_OPTIONS) {
+  public *patch(id: string, patch: Partial<T>) {
     this.resetError()
-    this._state = BACKGROUND_LOADING
+    this.setStatus(BACKGROUND_LOADING)
     try {
       if (getObjectDepth(patch) > 2) {
         throw new Error(`Entities recursive patch is not supported`)
       }
       yield services.storageService.table<T>(this.type).patch(id, patch)
-      this.patchInStore(id, patch)
-      if (options?.updateConnections) this.patchConnectedEntities(this.get(id))
-    } catch (error) {
-      console.error(error)
+      Object.assign(this.get(id), patch)
     } finally {
-      this._state = IDLE
+      this.setStatus(IDLE)
     }
   }
 }

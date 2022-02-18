@@ -1,4 +1,3 @@
-/* eslint-disable */
 import Marshal from "../commons/marshalling"
 
 export interface IProject {
