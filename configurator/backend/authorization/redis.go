@@ -19,6 +19,8 @@ const (
 	authAccessTokensKey  = "auth_access_tokens"
 	authRefreshTokensKey = "auth_refresh_tokens"
 
+	ssoTokensKey = "sso_tokens"
+
 	userIndexKey = "users_index"
 )
 
@@ -451,6 +453,36 @@ func (rp *RedisProvider) deleteToken(tokenEntity *TokenEntity) error {
 	}
 
 	_, err = conn.Do("HDEL", authRefreshTokensKey, tokenEntity.RefreshToken)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	_, err = conn.Do("HDEL", ssoTokensKey, tokenEntity.UserID)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
+func (rp *RedisProvider) SaveSSOUserToken(userId string, ssoToken *SSOToken) error {
+	conn := rp.pool.Get()
+	defer conn.Close()
+
+	b, _ := json.Marshal(ssoToken)
+	_, err := conn.Do("HSET", ssoTokensKey, userId, b)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
+func (rp *RedisProvider) DeleteSSOUserToken(userId string) error {
+	conn := rp.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("HDEL", ssoTokensKey, userId)
 	if err != nil && err != redis.ErrNil {
 		return err
 	}

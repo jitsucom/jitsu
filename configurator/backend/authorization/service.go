@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/go-playground/validator/v10"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/bcrypt"
+	"os"
+	"time"
 )
 
 const (
@@ -29,15 +32,34 @@ var (
 	ErrUnknownToken      = errors.New("Unknown token")
 )
 
-type Service struct {
-	authProvider Provider
+type SSOToken struct {
+	AccessToken  string `json:"access_token" redis:"access_token"`
+	RefreshToken string `json:"refresh_token" redis:"refresh_token"`
+	UserID       string `json:"user_id,omitempty" redis:"user_id"`
+	Provider     string `json:"provider,omitempty" redis:"provider"`
+}
 
+type SSOConfig struct {
+	Provider       string        `json:"provider" validate:"required"`
+	Tenant         string        `json:"tenant" validate:"required"`
+	Product        string        `json:"product" validate:"required"`
+	TokenUrl       string        `json:"token_url" validate:"required"`
+	ProfileUrl     string        `json:"profile_url" validate:"required"`
+	AuthUrl        string        `json:"auth_url" validate:"required"`
+	AccessTokenTTL time.Duration `json:"access_token_ttl" validate:"required"`
+}
+
+type Service struct {
+	authProvider          Provider
+	ssoAuthProvider       SSOProvider
 	configurationsStorage storages.ConfigurationsStorage
 }
 
 func NewService(ctx context.Context, vp *viper.Viper, storage storages.ConfigurationsStorage) (*Service, error) {
 	var authProvider Provider
+	var ssoAuthProvider SSOProvider
 	var err error
+
 	if vp.IsSet("auth.firebase.project_id") {
 		authProvider, err = NewFirebaseProvider(ctx, vp.GetString("auth.firebase.project_id"), vp.GetString("auth.firebase.credentials_file"), vp.GetString("auth.admin_domain"), vp.GetStringSlice("auth.admin_users"))
 		if err != nil {
@@ -63,11 +85,64 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 		if err != nil {
 			return nil, err
 		}
+
+		ssoAuthProvider = CreateSSOProvider(vp)
 	} else {
 		return nil, errors.New("Unknown 'auth' section type. Supported: firebase, redis")
 	}
 
-	return &Service{authProvider: authProvider, configurationsStorage: storage}, nil
+	return &Service{authProvider: authProvider, ssoAuthProvider: ssoAuthProvider, configurationsStorage: storage}, nil
+}
+
+func CreateSSOProvider(vp *viper.Viper) SSOProvider {
+	var ssoProvider SSOProvider
+	var err error
+
+	ssoConfig := &SSOConfig{}
+	envConfig := os.Getenv("SSO_CONFIG")
+
+	if envConfig == "" {
+		vpSSO := vp.Sub("sso")
+		if vpSSO == nil {
+			logging.Info("No SSO config provided, skipping initialize SSO Auth")
+			return nil
+		}
+
+		ssoConfig = &SSOConfig{
+			Provider:       vpSSO.GetString("provider"),
+			Tenant:         vpSSO.GetString("tenant"),
+			Product:        vpSSO.GetString("product"),
+			TokenUrl:       vpSSO.GetString("tokenUrl"),
+			ProfileUrl:     vpSSO.GetString("profileUrl"),
+			AuthUrl:        vpSSO.GetString("authUrl"),
+			AccessTokenTTL: vpSSO.GetDuration("accessTokenTTL"),
+		}
+	} else {
+		err = json.Unmarshal([]byte(envConfig), ssoConfig)
+		if err != nil {
+			logging.Errorf("Can't unmarshal SSO_CONFIG from env variables: %v", err)
+			return nil
+		}
+	}
+
+	validate := validator.New()
+	err = validate.Struct(ssoConfig)
+	if err != nil {
+		logging.Errorf("Missed required SSO config params: %v", err)
+		return nil
+	}
+
+	if ssoConfig.Provider == "boxyhq" {
+		ssoProvider, err = NewBoxyHQProvider(ssoConfig)
+		if err != nil {
+			logging.Error(err)
+			return nil
+		}
+		return ssoProvider
+	} else {
+		logging.Errorf("Provider %s not supported", ssoConfig.Provider)
+		return nil
+	}
 }
 
 //Authenticate verify access token and return user id
@@ -280,8 +355,58 @@ func (s *Service) UsersExist() (bool, error) {
 	return s.authProvider.UsersExist()
 }
 
+func (s *Service) GetUserByEmail(email string) (*User, error) {
+	return s.authProvider.GetUserByEmail(email)
+}
+
 func (s *Service) GetAuthorizationType() string {
 	return s.authProvider.Type()
+}
+
+func (s *Service) SSOAuthenticate(code string) (*TokenDetails, error) {
+	if s.authProvider.Type() != RedisType {
+		msg := fmt.Sprintf("SSO Auth is not supported for %s auth provider", s.authProvider.Type())
+		return nil, errors.New(msg)
+	}
+
+	if s.ssoAuthProvider == nil {
+		return nil, errors.New("SSO Auth is not configured")
+	}
+
+	ssoUser, err := s.ssoAuthProvider.GetUser(code)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := s.GetUserByEmail(ssoUser.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	td, err := s.authProvider.CreateTokens(user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	ssoToken := SSOToken{
+		AccessToken: ssoUser.AccessToken,
+		UserID:      ssoUser.ID,
+		Provider:    s.ssoAuthProvider.Name(),
+	}
+
+	err = s.authProvider.SaveSSOUserToken(user.ID, &ssoToken)
+	if err != nil {
+		return nil, err
+	}
+
+	return td, nil
+}
+
+func (s *Service) GetSSOAuthorizationLink() string {
+	if s.ssoAuthProvider == nil {
+		return ""
+	}
+	return s.ssoAuthProvider.AuthLink()
 }
 
 func (s *Service) Close() error {

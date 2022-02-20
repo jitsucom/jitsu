@@ -293,6 +293,9 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 		c.String(http.StatusOK, "pong")
 	})
 
+	ssoAuthHandler := handlers.NewSSOAuthHandler(authService)
+	router.GET("/sso-auth-callback", ssoAuthHandler.Handler)
+
 	proxyHandler := handlers.NewProxyHandler(jitsuService, map[string]jitsu.APIDecorator{
 		//write here custom decorators for a certain HTTP URN paths
 		"/proxy/api/v1/events/cache":        jitsu.NewEventsCacheDecorator(configurationsService).Decorate,
