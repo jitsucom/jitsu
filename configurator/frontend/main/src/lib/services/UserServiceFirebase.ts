@@ -292,6 +292,10 @@ export class FirebaseUserService implements UserService {
     return { oauth: true, password: true, signupEnabled: true }
   }
 
+  getSSOAuthLink(): string {
+    throw new Error("Not Available")
+  }
+
   sendLoginLink(email: string): Promise<void> {
     return sendSignInLinkToEmail(getAuth(), email, {
       url: document.location.protocol + "//" + document.location.host + "/login-link/" + btoa(email),

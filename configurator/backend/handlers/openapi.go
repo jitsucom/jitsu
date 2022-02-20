@@ -807,6 +807,7 @@ func (oa *OpenAPI) GetSystemConfiguration(c *gin.Context) {
 
 	currentConfiguration := jsystem.Configuration{
 		Authorization:               oa.authService.GetAuthorizationType(),
+		SSOAuthLink:                 oa.authService.GetSSOAuthorizationLink(),
 		Users:                       exist,
 		SMTP:                        oa.systemConfiguration.SMTP,
 		SelfHosted:                  oa.systemConfiguration.SelfHosted,

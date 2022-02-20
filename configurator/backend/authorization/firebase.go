@@ -38,6 +38,8 @@ type Provider interface {
 	DeletePasswordResetID(resetID string) error
 	GetUserByResetID(resetID string) (*User, error)
 	RefreshTokens(refreshToken string) (*TokenDetails, error)
+	SaveSSOUserToken(userId string, ssoToken *SSOToken) error
+	DeleteSSOUserToken(userId string) error
 }
 
 type FirebaseProvider struct {
@@ -222,4 +224,16 @@ func (fp *FirebaseProvider) RefreshTokens(refreshToken string) (*TokenDetails, e
 	errMsg := "RefreshTokens isn't supported in authorization FirebaseProvider"
 	logging.SystemError(errMsg)
 	return nil, errors.New(errMsg)
+}
+
+func (fp *FirebaseProvider) SaveSSOUserToken(userId string, ssoToken *SSOToken) error {
+	errMsg := "SaveSSOUserToken isn't supported in authorization FirebaseProvider"
+	logging.SystemError(errMsg)
+	return errors.New(errMsg)
+}
+
+func (fp *FirebaseProvider) DeleteSSOUserToken(userId string) error {
+	errMsg := "DeleteSSOUserToken isn't supported in authorization FirebaseProvider"
+	logging.SystemError(errMsg)
+	return errors.New(errMsg)
 }
