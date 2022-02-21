@@ -20,7 +20,7 @@ import { validatePassword } from "lib/commons/passwordValidator"
 
 import CloseOutlined from "@ant-design/icons/lib/icons/CloseOutlined"
 import CheckOutlined from "@ant-design/icons/lib/icons/CheckOutlined"
-import {SignupRequest} from "../../../generated/conf-openapi";
+import { SignupRequest } from "../../../generated/conf-openapi"
 
 type State = {
   loading?: boolean

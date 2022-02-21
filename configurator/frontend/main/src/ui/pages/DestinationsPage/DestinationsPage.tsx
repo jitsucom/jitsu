@@ -66,7 +66,7 @@ const DestinationsPageComponent: React.FC = () => {
           />
         </Route>
         <Route path={destinationPageRoutes.statisticsExact} strict={false} exact>
-          <DestinationStatistics  />
+          <DestinationStatistics />
         </Route>
         <BillingCheckRedirect
           quotaExceededRedirectTo={destinationPageRoutes.root}

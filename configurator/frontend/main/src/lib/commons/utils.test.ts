@@ -21,12 +21,10 @@ test("object depth", () => {
   expect(getObjectDepth({ foo: {} })).toBe(2)
 })
 
-
-
 test("sanitize with allow list", () => {
-  expect(sanitize({a: 1, b: 2, c: 3}, {allow: ["a", "b"]})).toStrictEqual({a: 1, b: 2})
-});
+  expect(sanitize({ a: 1, b: 2, c: 3 }, { allow: ["a", "b"] })).toStrictEqual({ a: 1, b: 2 })
+})
 
 test("sanitize with block list", () => {
-  expect(sanitize({a: 1, b: 2, c: 3}, {block: ["a", "b"]})).toStrictEqual({c: 3})
-});
+  expect(sanitize({ a: 1, b: 2, c: 3 }, { block: ["a", "b"] })).toStrictEqual({ c: 3 })
+})

@@ -115,8 +115,8 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = () =>
             mode={destinationReference ? "statistics" : null}
           />
         ),
-      });
-
+      }
+    )
   }, [])
 
   return destinationReference ? (

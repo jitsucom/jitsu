@@ -21,7 +21,7 @@ type ApiKeyCardProps = {
 }
 
 export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) {
-  const services = useServices();
+  const services = useServices()
   const [loading, setLoading] = useState(false)
   const rotateKey = async (key: ApiKey, type: "jsAuth" | "serverAuth"): Promise<string> => {
     let newKey = apiKeysStore.generateApiToken(type === "jsAuth" ? "js" : "s2s")
@@ -45,7 +45,10 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
       },
     })
   }
-  let editLink = generatePath(apiKeysRoutes.editExact, { projectId: services.activeProject.id, id: key.uid.replace(".", "-") })
+  let editLink = generatePath(apiKeysRoutes.editExact, {
+    projectId: services.activeProject.id,
+    id: key.uid.replace(".", "-"),
+  })
   return (
     <ConnectionCard
       loading={loading}

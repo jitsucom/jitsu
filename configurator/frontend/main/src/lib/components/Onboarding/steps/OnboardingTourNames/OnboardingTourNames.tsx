@@ -24,7 +24,6 @@ type OnboardingTourNamesFormValues = {
   emailsOptIn: boolean
 }
 
-
 export const OnboardingTourNames: React.FC<OnboardingTourNamesStepProps> = function ({
   user,
   companyName,

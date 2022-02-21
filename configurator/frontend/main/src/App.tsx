@@ -338,7 +338,9 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
           {projectRoutes.map(({ component, pageTitle, path, isPrefix }) => (
             <Route
               exact={!isPrefix}
-              path={(typeof path === "string" ? [path] : path).map(path => path.indexOf('/prj-') >= 0 ? path : `/prj-:projectId${path}`)}
+              path={(typeof path === "string" ? [path] : path).map(path =>
+                path.indexOf("/prj-") >= 0 ? path : `/prj-:projectId${path}`
+              )}
               render={page => (
                 <PageWrapper pageTitle={pageTitle} component={component} pagePath={page.location.key} {...page} />
               )}

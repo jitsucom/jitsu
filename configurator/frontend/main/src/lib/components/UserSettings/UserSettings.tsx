@@ -83,7 +83,7 @@ export const UserSettings: React.FC<Props> = () => {
   }
 
   useEffect(() => {
-    (async () => {
+    ;(async () => {
       try {
         const email = await services.userService.getUserEmailStatus()
         if (email.needsConfirmation && !email.isConfirmed) {
@@ -98,9 +98,7 @@ export const UserSettings: React.FC<Props> = () => {
       } finally {
         setLoading(false)
       }
-
-
-    })();
+    })()
     const getEmailSettings = async () => {
       const email = await services.userService.getUserEmailStatus()
       if (email.needsConfirmation && !email.isConfirmed) {
@@ -108,8 +106,7 @@ export const UserSettings: React.FC<Props> = () => {
         setConfirmationEmailStatus("ready")
       }
     }
-    const getTelemetryStatus = async () => {
-    }
+    const getTelemetryStatus = async () => {}
 
     getEmailSettings()
     getTelemetryStatus()

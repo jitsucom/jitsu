@@ -131,7 +131,6 @@ const InviteUserForm: React.FC<{ invite: (email: string) => Promise<void> }> = (
           <Button
             type="primary"
             size="large"
-
             disabled={false}
             loading={pending}
             onClick={async () => {

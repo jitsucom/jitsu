@@ -16,13 +16,13 @@ export type ProjectSwitchProps = {
 }
 
 function getRenderedProjects(projects: Project[]) {
-  return  projects;
-//   const res = [...projects]
-//   const prj = projects[0]
-//   for (let i = 0; i <= 1000; i++) {
-//     res.push({ id: prj.id + ("_" + i), name: prj.name + ("_" + i) })
-//   }
-//   return res
+  return projects
+  //   const res = [...projects]
+  //   const prj = projects[0]
+  //   for (let i = 0; i <= 1000; i++) {
+  //     res.push({ id: prj.id + ("_" + i), name: prj.name + ("_" + i) })
+  //   }
+  //   return res
 }
 
 const ProjectList: React.FC<ProjectSwitchProps> = ({ onSelect }) => {
@@ -50,9 +50,11 @@ const ProjectList: React.FC<ProjectSwitchProps> = ({ onSelect }) => {
 
   return (
     <>
-      {getRenderedProjects(projects).length >= 5 && <div className="mb-6">
-        <Input autoFocus onChange={handleSearchChange} placeholder="Search" />
-      </div>}
+      {getRenderedProjects(projects).length >= 5 && (
+        <div className="mb-6">
+          <Input autoFocus onChange={handleSearchChange} placeholder="Search" />
+        </div>
+      )}
       <div className="overflow-y-auto" style={{ maxHeight: "25rem" }}>
         {getRenderedProjects(projects)
           .filter(

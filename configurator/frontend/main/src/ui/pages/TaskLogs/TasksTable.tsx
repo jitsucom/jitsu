@@ -26,7 +26,10 @@ export type TasksTableProps = {
 }
 export const TasksTable: React.FC<TasksTableProps> = props => {
   const appServices = useServices()
-  const editSourceLink = generatePath(sourcesPageRoutes.editExact, {projectId: appServices.activeProject.id, sourceId: props.source.sourceId })
+  const editSourceLink = generatePath(sourcesPageRoutes.editExact, {
+    projectId: appServices.activeProject.id,
+    sourceId: props.source.sourceId,
+  })
 
   const [taskRuns, setTaskRuns] = useState(0) //to trigger reload on manual task run
   const [loadingError, tasksSorted] = useLoader<Task[]>(async () => {
@@ -86,7 +89,12 @@ export const TasksTable: React.FC<TasksTableProps> = props => {
     return (
       <div className="text-center text-secondaryText pt-8">
         No destinations is configured for this source. Synchronization tasks will not run. Configure destinations on{" "}
-        <NavLink to={generatePath(sourcesPageRoutes.editExact, {projectId: appServices.activeProject.id, sourceId: props.source.sourceId })}>
+        <NavLink
+          to={generatePath(sourcesPageRoutes.editExact, {
+            projectId: appServices.activeProject.id,
+            sourceId: props.source.sourceId,
+          })}
+        >
           Linked Destinations tab
         </NavLink>
       </div>

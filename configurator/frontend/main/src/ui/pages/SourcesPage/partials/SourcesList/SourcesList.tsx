@@ -25,7 +25,7 @@ const SourcesListComponent = () => {
   }, [history])
 
   useEffect(() => {
-    currentPageHeaderStore.setBreadcrumbs('Sources')
+    currentPageHeaderStore.setBreadcrumbs("Sources")
   }, [])
 
   if (sourcesStore.list.length === 0) {

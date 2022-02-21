@@ -25,7 +25,7 @@ function download(filename, text) {
 export default class DownloadConfig extends LoadableComponent<{}, State> {
   private readonly services: ApplicationServices = ApplicationServices.get()
 
-  constructor(props: Readonly<{  }>, context) {
+  constructor(props: Readonly<{}>, context) {
     super(props, context)
   }
 

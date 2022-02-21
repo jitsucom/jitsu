@@ -37,8 +37,11 @@ export class ApplicationConfiguration {
     ].join(";")
 
     console.log(
-      `App config initialized. Backend: ${this._backendApiBase}. Env: ${this._appEnvironment}. Firebase configured: ${!!this
-        ._firebaseConfig}. Build info: ${this._buildId}. Billing API: ${this._billingApiBase}.`
+      `App config initialized. Backend: ${this._backendApiBase}. Env: ${
+        this._appEnvironment
+      }. Firebase configured: ${!!this._firebaseConfig}. Build info: ${this._buildId}. Billing API: ${
+        this._billingApiBase
+      }.`
     )
   }
 
