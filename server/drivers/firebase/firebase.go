@@ -163,13 +163,21 @@ func (f *Firebase) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil
 }
 
-func (f *Firebase) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
+func (f *Firebase) GetObjectsFor(interval *base.TimeInterval, objectsLoader func(objects []map[string]interface{}, pos int, total int, percent int) error) error {
 	if f.collection.Type == FirestoreCollection {
-		return f.loadCollection()
+		array, err := f.loadCollection()
+		if err != nil {
+			return err
+		}
+		return objectsLoader(array, 0, len(array), 0)
 	} else if f.collection.Type == UsersCollection {
-		return f.loadUsers()
+		array, err := f.loadUsers()
+		if err != nil {
+			return err
+		}
+		return objectsLoader(array, 0, len(array), 0)
 	}
-	return nil, fmt.Errorf("Unknown stream type: %s", f.collection.Type)
+	return fmt.Errorf("Unknown stream type: %s", f.collection.Type)
 }
 
 //loadCollection gets the exact firestore key or by path with wildcard:
