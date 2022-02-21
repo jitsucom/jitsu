@@ -67,7 +67,7 @@ const SourcesPageComponent: React.FC<CommonSourcePageProps> = () => {
         >
           <Switch>
             <Route path={sourcesPageRoutes.addExact} strict={false} exact>
-              <SourceEditor editorMode="edit" />
+              <SourceEditor editorMode="add" />
             </Route>
             <Route path={sourcesPageRoutes.add} strict={false} exact>
               <AddSourceDialog />
