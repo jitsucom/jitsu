@@ -253,7 +253,7 @@ paths:
         #All error responses
         default:
           $ref: '#/components/responses/Error'
-  /api/v1/users/onboarded/signup:
+  /api/v1/users/signup:
     post:
       tags:
         - configuration-management

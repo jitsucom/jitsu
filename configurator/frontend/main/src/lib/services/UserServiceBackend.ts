@@ -63,11 +63,9 @@ export class BackendUserService implements UserService {
       name: undefined,
       email: email,
     }
-    await this.storageService.saveUserInfo(userToDTO(this.user))
 
-    this._apiAccess = new ApiAccess(response["access_token"], response["refresh_token"], (accessToken, refreshToken) =>
-      this.setTokens(accessToken, refreshToken)
-    )
+    this._apiAccess = new ApiAccess(response["access_token"], response["refresh_token"], this.setTokens)
+    await this.storageService.saveUserInfo(userToDTO(this.user))
   }
 
   public async waitForUser(): Promise<void> {
@@ -81,6 +79,8 @@ export class BackendUserService implements UserService {
       if (!accessToken) {
         return;
       }
+
+      this._apiAccess = new ApiAccess(accessToken, refreshToken, this.setTokens)
       let userDTO = await this.storageService.getUserInfo()
       this.user = userFromDTO(userDTO);
     } catch (error) {
