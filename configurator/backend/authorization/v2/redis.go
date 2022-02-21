@@ -319,7 +319,7 @@ func (r *Redis) ChangeEmail(ctx context.Context, oldEmail, newEmail string) (str
 		"email", newEmail,
 	); err != nil {
 		return "", errors.Wrap(err, "update email")
-	} else if _, err := conn.Do("HSET", usersIndexKey, newEmail, userKey); err != nil {
+	} else if _, err := conn.Do("HSET", usersIndexKey, newEmail, userID); err != nil {
 		return "", errors.Wrapf(err, "update %s", usersIndexKey)
 	} else if _, err := conn.Do("HDEL", usersIndexKey, oldEmail); err != nil {
 		return "", errors.Wrapf(err, "remove previous email association from %s", usersIndexKey)
@@ -432,15 +432,15 @@ func (r *Redis) revokeTokens(conn redis.Conn, userID string) error {
 }
 
 func (r *Redis) revokeTokenType(conn redis.Conn, userID string, tokenType redisTokenType) error {
-	if data, err := redis.ByteSlices(conn.Do("HGETALL", tokenType.key())); errors.Is(err, redis.ErrNil) {
+	if data, err := redis.StringMap(conn.Do("HGETALL", tokenType.key())); errors.Is(err, redis.ErrNil) {
 		return nil
 	} else if err != nil {
 		return errors.Wrap(err, "get tokens")
 	} else {
 		for _, data := range data {
 			var token redisToken
-			if err := json.Unmarshal(data, &token); err != nil {
-				err = errors.Wrapf(err, "malformed token data [%s] for user [%s]", string(data), userID)
+			if err := json.Unmarshal([]byte(data), &token); err != nil {
+				err = errors.Wrapf(err, "malformed token data [%s] for user [%s]", data, userID)
 				logging.Info(err)
 				return err
 			} else if token.UserID != userID {
