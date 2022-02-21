@@ -544,7 +544,7 @@ func (oa *OpenAPI) UserEmailChange(ctx *gin.Context) {
 		values["_email"] = req.NewEmail
 		if suggestedInfo, ok := values["_suggestedInfo"]; ok {
 			if suggestedInfo, ok := suggestedInfo.(map[string]interface{}); ok {
-				suggestedInfo["_email"] = req.NewEmail
+				suggestedInfo["email"] = req.NewEmail
 			}
 		}
 
