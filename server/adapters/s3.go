@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"net/http"
@@ -118,9 +119,12 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	params.ContentType = aws.String(fileType)
 	params.Key = aws.String(fileName)
 	params.Body = bytes.NewReader(fileBytes)
-	_, err := a.client.PutObject(params)
-	if err != nil {
-		return fmt.Errorf("Error uploading file to s3 %v", err)
+	if _, err := a.client.PutObject(params); err != nil {
+		return errorj.SaveOnStageError.Wrap(err, "failed to write file to s3").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Bucket:    a.config.Bucket,
+				Statement: fmt.Sprintf("file: %s", fileName),
+			})
 	}
 	return nil
 }
@@ -146,11 +150,19 @@ func (a *S3) DeleteObject(key string) error {
 	input := &s3.DeleteObjectInput{Bucket: &a.config.Bucket, Key: &key}
 	output, err := a.client.DeleteObject(input)
 	if err != nil {
-		return fmt.Errorf("Error deleting file %s from s3 %v", key, err)
+		return errorj.SaveOnStageError.Wrap(err, "failed to delete from s3").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Bucket:    a.config.Bucket,
+				Statement: fmt.Sprintf("file: %s", key),
+			})
 	}
 
 	if output != nil && output.DeleteMarker != nil && !*(output.DeleteMarker) {
-		return fmt.Errorf("Key %s wasn't deleted from s3", key)
+		return errorj.SaveOnStageError.Wrap(err, "file hasn't been deleted from s3").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Bucket:    a.config.Bucket,
+				Statement: fmt.Sprintf("file: %s", key),
+			})
 	}
 
 	return nil

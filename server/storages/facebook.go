@@ -36,7 +36,7 @@ func NewFacebook(config *Config) (storage Storage, err error) {
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	fb := &Facebook{}
-	err = fb.Init(config)
+	err = fb.Init(config, fb)
 	if err != nil {
 		return
 	}

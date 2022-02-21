@@ -17,6 +17,7 @@ import (
 )
 
 //TestMySQLStreamInsert stores two events into MySQL (without/with parsed ua and geo)
+//tests full cycle of event processing
 func TestMySQLStreamInsert(t *testing.T) {
 	viper.Set("server.log.path", "")
 	viper.Set("log.path", "")
@@ -116,7 +117,7 @@ func TestMySQLStreamInsert(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	objects, err := mc.GetAllSortedRows("events", "order by utc_time")
+	objects, err := mc.GetSortedRows("events", "*", "", "order by utc_time")
 	require.NoError(t, err, "Error selecting all events")
 	require.Equal(t, 2, len(objects), "Rows count must be 2")
 
