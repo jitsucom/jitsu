@@ -52,7 +52,7 @@ func NewS3(config *Config) (storage Storage, err error) {
 		return
 	}
 	s3 := &S3{}
-	err = s3.Init(config)
+	err = s3.Init(config, s3)
 	if err != nil {
 		return
 	}
@@ -74,7 +74,7 @@ func (s3 *S3) DryRun(events.Event) ([][]adapters.TableField, error) {
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
-	processedFiles, failedEvents, skippedEvents, err := s3.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
+	processedFiles, _, failedEvents, skippedEvents, err := s3.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
 	if err != nil {
 		return nil, nil, nil, err
 	}

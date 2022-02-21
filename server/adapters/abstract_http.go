@@ -10,33 +10,9 @@ func (a *AbstractHTTP) Insert(insertContext *InsertContext) error {
 	return a.httpAdapter.SendAsync(insertContext.eventContext)
 }
 
-//GetTableSchema always returns empty table
-func (a *AbstractHTTP) GetTableSchema(tableName string) (*Table, error) {
-	return &Table{
-		Name:           tableName,
-		Columns:        Columns{},
-		PKFields:       map[string]bool{},
-		DeletePkFields: false,
-	}, nil
-}
-
-//CreateTable returns nil
-func (a *AbstractHTTP) CreateTable(schemaToCreate *Table) error {
-	return nil
-}
-
-//PatchTableSchema returns nil
-func (a *AbstractHTTP) PatchTableSchema(schemaToAdd *Table) error {
-	return nil
-}
-
 //Type returns adapter type. Should be overridden in every implementation
 func (a *AbstractHTTP) Type() string {
 	return "AbstractHTTP"
-}
-
-func (a *AbstractHTTP) Truncate(tableName string) error {
-	return nil
 }
 
 //Close closes underlying HTTPAdapter

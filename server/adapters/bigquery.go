@@ -441,3 +441,7 @@ func (bqi *BQItem) Save() (row map[string]bigquery.Value, insertID string, err e
 
 	return
 }
+
+func (bq *BigQuery) Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error {
+	return errors.New("BigQuery doesn't support updates")
+}

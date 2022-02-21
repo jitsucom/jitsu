@@ -182,9 +182,7 @@ func TestDestinationAdapterInsert(t *testing.T) {
 
 			tableHelperWithoutPK := storages.NewTableHelper(testsuit.Schema, testsuit.adapter, coordination.NewInMemoryService(""), map[string]bool{}, tt.types, 0, tt.destinationType)
 
-			processor, err := schema.NewProcessor("test", &config.DestinationConfig{}, true,
-				"replace_me", schema.DummyMapper{}, nil, schema.NewFlattener(),
-				schema.NewTypeResolver(), appconfig.Instance.GlobalUniqueIDField, 0, "new")
+			processor, err := schema.NewProcessor("test", &config.DestinationConfig{}, true, "replace_me", schema.DummyMapper{}, nil, schema.NewFlattener(), schema.NewTypeResolver(), appconfig.Instance.GlobalUniqueIDField, 0, "new", false)
 			require.NoError(t, err)
 			require.NotNil(t, processor)
 			err = processor.InitJavaScriptTemplates()
@@ -241,7 +239,7 @@ func insertBatch(t *testing.T, processor *schema.Processor, adapter adapters.SQL
 	logging.Debugf("start inserting batch %d object into %s. It can take some time", len(data), destinationType)
 	start := time.Now()
 
-	firstBatch, fe, se, err := processor.ProcessEvents("testfile", data, map[string]bool{}, false)
+	firstBatch, _, fe, se, err := processor.ProcessEvents("testfile", data, map[string]bool{}, false)
 	require.NoError(t, err)
 	require.True(t, fe.IsEmpty())
 	require.True(t, se.IsEmpty())

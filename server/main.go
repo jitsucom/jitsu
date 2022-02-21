@@ -336,6 +336,7 @@ func main() {
 		UserIDNode:          viper.GetString("users_recognition.user_id_node"),
 		PoolSize:            viper.GetInt("users_recognition.pool.size"),
 		Compression:         viper.GetString("users_recognition.compression"),
+		CacheTTLMin:         viper.GetInt("users_recognition.cache_ttl_min"),
 	}
 
 	if err := globalRecognitionConfiguration.Validate(); err != nil {
@@ -499,7 +500,7 @@ func main() {
 	systemService := system.NewService(systemConfigurationURL)
 
 	//event processors
-	apiProcessor := events.NewAPIProcessor()
+	apiProcessor := events.NewAPIProcessor(usersRecognitionService)
 	bulkProcessor := events.NewBulkProcessor()
 	jsProcessor := events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path"))
 	pixelProcessor := events.NewPixelProcessor()
@@ -512,7 +513,7 @@ func main() {
 
 	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, fallbackService,
 		coordinationService, eventsCache, systemService, segmentRequestFieldsMapper, segmentCompatRequestFieldsMapper, processorHolder,
-		multiplexingService, walService, geoService, pluginsRepository)
+		multiplexingService, walService, geoService, pluginsRepository, globalRecognitionConfiguration)
 
 	telemetry.ServerStart()
 	notifications.ServerStart(systemInfo)
