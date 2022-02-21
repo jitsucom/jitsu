@@ -380,6 +380,7 @@ export const envs: Envs = {
 const xmlHttpTransport: Transport = (
   url: string,
   jsonPayload: string,
+  additionalHeaders: Record<string, string>,
   handler = (code, body) => {}
 ) => {
   let req = new window.XMLHttpRequest();
@@ -406,6 +407,7 @@ const xmlHttpTransport: Transport = (
     };
     req.open("POST", url);
     req.setRequestHeader("Content-Type", "application/json");
+    Object.entries(additionalHeaders || {}).forEach(([key, val]) => req.setRequestHeader(key, val))
     req.send(jsonPayload);
     getLogger().debug("sending json", jsonPayload);
   });
@@ -415,6 +417,7 @@ const fetchTransport: (fetch: any) => Transport = (fetch) => {
   return async (
     url: string,
     jsonPayload: string,
+    additionalHeaders: Record<string, string>,
     handler = (code, body) => {}
   ) => {
     let res: any;
@@ -424,6 +427,7 @@ const fetchTransport: (fetch: any) => Transport = (fetch) => {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
+          ...(additionalHeaders || {})
         },
         body: jsonPayload,
       });
@@ -458,6 +462,7 @@ const fetchTransport: (fetch: any) => Transport = (fetch) => {
 export type Transport = (
   url: string,
   jsonPayload: string,
+  additionalHeaders: Record<string, string>,
   handler?: (statusCode: number, responseBody: any) => void
 ) => Promise<void>;
 
@@ -484,6 +489,7 @@ class JitsuClientImpl implements JitsuClient {
   private ipPolicy: Policy = "keep";
   private beaconApi: boolean = false;
   private transport: Transport = xmlHttpTransport;
+  private customHeaders: (() => Record<string, string>) = () => ({});
 
   id(props: UserProps, doNotSendEvent?: boolean): Promise<void> {
     this.userProperties = { ...this.userProperties, ...props };
@@ -502,7 +508,7 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   rawTrack(payload: any) {
-    this.sendJson(payload);
+    return this.sendJson(payload);
   }
 
   makeEvent(
@@ -565,7 +571,7 @@ class JitsuClientImpl implements JitsuClient {
     }
     let jsonString = JSON.stringify(json);
     getLogger().debug(`Sending payload to ${url}`, jsonString);
-    return this.transport(url, jsonString, (code, body) =>
+    return this.transport(url, jsonString, this.customHeaders(), (code, body) =>
       this.postHandle(code, body)
     );
   }
@@ -653,12 +659,20 @@ class JitsuClientImpl implements JitsuClient {
       this.transport = fetchTransport(options.fetch || globalThis.fetch);
     }
 
+    if (options.custom_headers && typeof options.custom_headers === "function") {
+      this.customHeaders = options.custom_headers;
+    } else if (options.custom_headers) {
+      this.customHeaders = () => options.custom_headers as Record<string, string>;
+    }
+
     if (options.tracking_host === "echo") {
       getLogger().warn(
         'jitsuClient is configured with "echo" transport. Outgoing requests will be written to console'
       );
       this.transport = echoTransport;
     }
+
+
 
     if (options.ip_policy) {
       this.ipPolicy = options.ip_policy;
