@@ -31,20 +31,13 @@ export abstract class ServerStorage {
   table<T = any>(type: ObjectsApiTypes): ConfigurationEntitiesTable<T> {
     let projectId = ApplicationServices.get().activeProject.id
     if (type === "api_keys") {
-      return getEntitiesTable<T>(this.backendApi, type, projectId, {
-        arrayNodePath: "keys",
-        idFieldPath: "uid",
-      })
+      return getEntitiesTable<T>(this.backendApi, type, projectId)
     }
     if (type === "destinations") {
-      return getEntitiesTable<T>(this.backendApi, type, projectId, {
-        idFieldPath: "_uid",
-      })
+      return getEntitiesTable<T>(this.backendApi, type, projectId)
     }
     if (type === "sources") {
-      return getEntitiesTable<T>(this.backendApi, "sources", projectId, {
-        idFieldPath: "sourceId",
-      })
+      return getEntitiesTable<T>(this.backendApi, "sources", projectId)
     }
 
     throw new Error(`Unknown table type ${type}`)
@@ -59,11 +52,6 @@ export interface ConfigurationEntitiesTable<T = any> {
    * Return all entities
    */
   getAll(): Promise<T[]>
-
-  /**
-   * @param id get entity by id
-   */
-  get(id: string): Promise<T>
 
   /**
    * Patches the entity by id (merges current version with object)
@@ -89,13 +77,7 @@ export interface ConfigurationEntitiesTable<T = any> {
 function getEntitiesTable<T = any>(
   api: BackendApiClient,
   collectionName: ObjectsApiTypes,
-  collectionId: string,
-  dataLayout: {
-    //root array node. If not set, should be equal to collectionName
-    arrayNodePath?: string
-    //Path to collectionId field
-    idFieldPath: string
-  }
+  collectionId: string
 ): ConfigurationEntitiesTable<T> {
   return {
     async add<T>(object: T): Promise<T> {
@@ -105,9 +87,6 @@ function getEntitiesTable<T = any>(
     },
     async delete(id: string): Promise<void> {
       return await api.delete(`/objects/${collectionId}/${collectionName}/${id}`, { version: 2 })
-    },
-    async get(id: string): Promise<T> {
-      return await api.get(`/objects/${collectionId}/${collectionName}/${id}`, { version: 2 })
     },
     async getAll(): Promise<T[]> {
       return await api.get(`/objects/${collectionId}/${collectionName}`, { version: 2 })
@@ -139,14 +118,6 @@ export class HttpServerStorage extends ServerStorage {
   saveUserInfo(data: any): Promise<void> {
     return this.backendApi.post(`${HttpServerStorage.USERS_INFO_PATH}`, Marshal.toPureJson(data))
   }
-
-  // get(collectionName: string, key: string): Promise<any> {
-  //   return this.backendApi.get(`/configurations/${collectionName}?id=${key}`)
-  // }
-
-  // save(collectionName: string, data: any, key: string): Promise<void> {
-  //   return this.backendApi.post(`/configurations/${collectionName}?id=${key}`, Marshal.toPureJson(data))
-  // }
 }
 
 type ObjectsApiTypes = "destinations" | "sources" | "api_keys"
