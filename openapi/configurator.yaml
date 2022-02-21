@@ -579,7 +579,7 @@ paths:
       tags:
         - user-provisioning
       security:
-        - configurationManagementAuth: [ ]
+        - clusterAdminAuth: [ ]
       requestBody:
         description: >
           Email and (optional) password. If password is not set, a random one

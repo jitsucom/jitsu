@@ -42,7 +42,7 @@ func (ch *ConfigurationHandler) GetConfig(ctx *gin.Context) {
 	} else if config, err := ch.getConfig(collection, projectID); err != nil {
 		mw.BadRequest(ctx, "get config error", err)
 	} else {
-		ctx.JSON(http.StatusOK, config)
+		ctx.Data(http.StatusOK, jsonContentType, config)
 	}
 }
 

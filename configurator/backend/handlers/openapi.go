@@ -157,7 +157,7 @@ func (oa *OpenAPI) GenerateDefaultProjectApiKey(ctx *gin.Context) {
 	} else if err := oa.Configurations.CreateDefaultAPIKey(req.ProjectID); err != nil {
 		mw.BadRequest(ctx, "Failed to create default key for project", err)
 	} else {
-		ctx.JSON(http.StatusOK, mw.OkResponse)
+		mw.StatusOk(ctx)
 	}
 }
 
@@ -509,7 +509,7 @@ func (oa *OpenAPI) GetTelemetrySettings(ctx *gin.Context) {
 		result = data
 	}
 
-	ctx.JSON(http.StatusOK, result)
+	ctx.Data(http.StatusOK, jsonContentType, result)
 }
 
 func (oa *OpenAPI) UserEmailChange(ctx *gin.Context) {
@@ -545,7 +545,7 @@ func (oa *OpenAPI) GetUserInfo(ctx *gin.Context) {
 	} else if err != nil {
 		mw.InternalError(ctx, "get config with lock", err)
 	} else {
-		ctx.JSON(http.StatusOK, data)
+		ctx.Data(http.StatusOK, jsonContentType, data)
 	}
 }
 
@@ -564,7 +564,7 @@ func (oa *OpenAPI) UpdateUserInfo(ctx *gin.Context) {
 	} else if result, err := oa.Configurations.SaveUserInfoWithProject(authority.UserID, userInfoData); err != nil {
 		mw.InternalError(ctx, "save user info failed", err)
 	} else {
-		ctx.JSON(http.StatusOK, result)
+		ctx.Data(http.StatusOK, jsonContentType, result)
 	}
 }
 
@@ -661,7 +661,7 @@ func (oa *OpenAPI) UserPasswordReset(ctx *gin.Context) {
 	} else if err := authorizator.SendResetPasswordLink(ctx, req.Email, *req.Callback); err != nil {
 		mw.BadRequest(ctx, "send reset password link", err)
 	} else {
-		ctx.JSON(http.StatusOK, mw.OkResponse)
+		mw.StatusOk(ctx)
 	}
 }
 
@@ -700,7 +700,7 @@ func (oa *OpenAPI) UserSignOut(ctx *gin.Context) {
 	} else if err := authorizator.SignOut(ctx, authority.Token); err != nil {
 		mw.BadRequest(ctx, "sign out failed", err)
 	} else {
-		ctx.JSON(http.StatusOK, mw.OkResponse)
+		mw.StatusOk(ctx)
 	}
 }
 
@@ -734,12 +734,21 @@ func (oa *OpenAPI) GetObjectsByProjectIdAndObjectType(ctx *gin.Context, projectI
 		mw.ForbiddenProject(ctx, projectID)
 	} else {
 		objectType := string(objectType)
-		if objects, err := oa.Configurations.GetConfigWithLock(objectType, projectID); errors.Is(err, storages.ErrConfigurationNotFound) {
+		if objectsData, err := oa.Configurations.GetConfigWithLock(objectType, projectID); errors.Is(err, storages.ErrConfigurationNotFound) {
 			ctx.Data(http.StatusOK, jsonContentType, []byte("[]"))
 		} else if err != nil {
 			mw.BadRequest(ctx, fmt.Sprintf("failed to get objects for object type=[%s], projectID=[%s]", objectType, projectID), err)
+		} else if objectsPath := oa.Configurations.GetObjectArrayPathByObjectType(objectType); objectsPath == "" {
+			ctx.Data(http.StatusOK, jsonContentType, objectsData)
 		} else {
-			ctx.JSON(http.StatusOK, objects)
+			objectsValue := make(map[string]json.RawMessage)
+			if err := json.Unmarshal(objectsData, &objectsValue); err != nil {
+				mw.BadRequest(ctx, fmt.Sprintf("failed to deserialize objects for object type=[%s], projectID=[%s]", objectType, projectID), err)
+			} else if objects, ok := objectsValue[objectsPath]; !ok {
+				mw.BadRequest(ctx, fmt.Sprintf("failed to read %s objects node for object type=[%s], projectID=[%s]", objectsPath, objectType, projectID), err)
+			} else {
+				ctx.Data(http.StatusOK, jsonContentType, objects)
+			}
 		}
 	}
 }
@@ -759,7 +768,7 @@ func (oa *OpenAPI) CreateObjectInProject(ctx *gin.Context, projectID openapi.Pro
 	} else if newObject, err := oa.Configurations.CreateObjectWithLock(string(objectType), projectID, &req); err != nil {
 		mw.BadRequest(ctx, fmt.Sprintf("failed to create object [%s], project id=[%s]", objectType, projectID), err)
 	} else {
-		ctx.JSON(http.StatusOK, newObject)
+		ctx.Data(http.StatusOK, jsonContentType, newObject)
 	}
 }
 
@@ -786,7 +795,7 @@ func (oa *OpenAPI) DeleteObjectByUid(ctx *gin.Context, projectID openapi.Project
 		if deletedObject, err := oa.Configurations.DeleteObjectWithLock(objectType, projectID, payload); err != nil {
 			mw.BadRequest(ctx, fmt.Sprintf("failed to delete object [%s] in project [%s], id=[%s]", objectType, projectID, objectUID), err)
 		} else {
-			ctx.JSON(http.StatusOK, deletedObject)
+			ctx.Data(http.StatusOK, jsonContentType, deletedObject)
 		}
 	}
 }
@@ -811,7 +820,7 @@ func (oa *OpenAPI) GetObjectByUid(ctx *gin.Context, projectID openapi.ProjectId,
 		if object, err := oa.Configurations.GetObjectWithLock(objectType, projectID, objectArrayPath, objectMeta); err != nil {
 			mw.BadRequest(ctx, fmt.Sprintf("failed to get object [%s] in project [%s], id=[%s]", objectType, projectID, objectUID), err)
 		} else {
-			ctx.JSON(http.StatusOK, object)
+			ctx.Data(http.StatusOK, jsonContentType, object)
 		}
 	}
 }
@@ -842,7 +851,7 @@ func (oa *OpenAPI) PatchObjectByUid(ctx *gin.Context, projectID openapi.ProjectI
 		if newObject, err := oa.Configurations.PatchObjectWithLock(objectType, projectID, patch); err != nil {
 			mw.BadRequest(ctx, fmt.Sprintf("failed to patch object [%s] in project [%s], id=[%s]", objectType, projectID, objectUID), err)
 		} else {
-			ctx.JSON(http.StatusOK, newObject)
+			ctx.Data(http.StatusOK, jsonContentType, newObject)
 		}
 	}
 }
@@ -873,7 +882,7 @@ func (oa *OpenAPI) ReplaceObjectByUid(ctx *gin.Context, projectID openapi.Projec
 		if newObject, err := oa.Configurations.ReplaceObjectWithLock(objectType, projectID, patch); err != nil {
 			mw.BadRequest(ctx, fmt.Sprintf("failed to patch object [%s] in project [%s], id=[%s]", objectType, projectID, objectUID), err)
 		} else {
-			ctx.JSON(http.StatusOK, newObject)
+			ctx.Data(http.StatusOK, jsonContentType, newObject)
 		}
 	}
 }
