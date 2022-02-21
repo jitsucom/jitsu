@@ -429,45 +429,59 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 
 		taskLogger.INFO("Running [%s] synchronization", intervalToSync.String())
 
-		objects, err := driver.GetObjectsFor(intervalToSync)
+		objectsLoader := func(objects []map[string]interface{}, pos, total, percent int) error {
+			totalString := ""
+			if total > 0 {
+				totalString = fmt.Sprintf(" of %d", total)
+			}
+			taskLogger.INFO("%d%% Loading objects [%d..%d]%s to destinations ...", percent, pos+1, pos+len(objects), totalString)
+			//Note: we assume that destinations connected to 1 source can't have different unique ID configuration
+			uniqueIDField := destinationStorages[0].GetUniqueIDField()
+			for _, object := range objects {
+				//enrich with values
+				object[events.SrcKey] = srcSource
+				object[timestamp.Key] = timestamp.NowUTC()
+				if err := uniqueIDField.Set(object, uuid.GetHash(object)); err != nil {
+					b, _ := json.Marshal(object)
+					return fmt.Errorf("Error setting unique ID field into %s: %v", string(b), err)
+				}
+				events.EnrichWithCollection(object, task.Collection)
+				events.EnrichWithTimeInterval(object, intervalToSync.String(), intervalToSync.LowerEndpoint(), intervalToSync.UpperEndpoint())
+			}
+			rowsCount := len(objects)
+			needCopyEvent := len(destinationStorages) > 1
+			deleteConditions := ""
+			if pos == 0 {
+				//first chunk deletes full data from previous  load
+				deleteConditions = intervalToSync.String()
+			}
+			for _, storage := range destinationStorages {
+				err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTableName}, objects, deleteConditions, false, needCopyEvent)
+				if err != nil {
+					metrics.ErrorSourceEvents(task.SourceType, metrics.EmptySourceTap, task.Source, storage.Type(), storage.ID(), rowsCount)
+					metrics.ErrorObjects(task.SourceType, metrics.EmptySourceTap, task.Source, rowsCount)
+					telemetry.Error(task.Source, storage.ID(), srcSource, driver.GetDriversInfo().SourceType, rowsCount)
+					counters.ErrorPullDestinationEvents(storage.ID(), int64(rowsCount))
+					counters.ErrorPullSourceEvents(task.Source, int64(rowsCount))
+					return fmt.Errorf("Error storing %d source objects in [%s] destination: %v. All %d objects haven't been stored", rowsCount, storage.ID(), err, rowsCount)
+				}
+
+				metrics.SuccessSourceEvents(task.SourceType, metrics.EmptySourceTap, task.Source, storage.Type(), storage.ID(), rowsCount)
+				metrics.SuccessObjects(task.SourceType, metrics.EmptySourceTap, task.Source, rowsCount)
+				telemetry.Event(task.Source, storage.ID(), srcSource, driver.GetDriversInfo().SourceType, rowsCount)
+				counters.SuccessPullDestinationEvents(storage.ID(), int64(rowsCount))
+			}
+
+			counters.SuccessPullSourceEvents(task.Source, int64(rowsCount))
+			taskLogger.INFO("Chunk loaded.")
+
+			return nil
+		}
+
+		err := driver.GetObjectsFor(intervalToSync, objectsLoader)
 		if err != nil {
 			return fmt.Errorf("Error [%s] synchronization: %v", intervalToSync.String(), err)
 		}
-
-		//Note: we assume that destinations connected to 1 source can't have different unique ID configuration
-		uniqueIDField := destinationStorages[0].GetUniqueIDField()
-		for _, object := range objects {
-			//enrich with values
-			object[events.SrcKey] = srcSource
-			object[timestamp.Key] = timestamp.NowUTC()
-			if err := uniqueIDField.Set(object, uuid.GetHash(object)); err != nil {
-				b, _ := json.Marshal(object)
-				return fmt.Errorf("Error setting unique ID field into %s: %v", string(b), err)
-			}
-			events.EnrichWithCollection(object, task.Collection)
-			events.EnrichWithTimeInterval(object, intervalToSync.String(), intervalToSync.LowerEndpoint(), intervalToSync.UpperEndpoint())
-		}
-		rowsCount := len(objects)
-		needCopyEvent := len(destinationStorages) > 1
-
-		for _, storage := range destinationStorages {
-			err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTableName}, objects, intervalToSync.String(), false, needCopyEvent)
-			if err != nil {
-				metrics.ErrorSourceEvents(task.SourceType, metrics.EmptySourceTap, task.Source, storage.Type(), storage.ID(), rowsCount)
-				metrics.ErrorObjects(task.SourceType, metrics.EmptySourceTap, task.Source, rowsCount)
-				telemetry.Error(task.Source, storage.ID(), srcSource, driver.GetDriversInfo().SourceType, rowsCount)
-				counters.ErrorPullDestinationEvents(storage.ID(), int64(rowsCount))
-				counters.ErrorPullSourceEvents(task.Source, int64(rowsCount))
-				return fmt.Errorf("Error storing %d source objects in [%s] destination: %v. All %d objects haven't been stored", rowsCount, storage.ID(), err, rowsCount)
-			}
-
-			metrics.SuccessSourceEvents(task.SourceType, metrics.EmptySourceTap, task.Source, storage.Type(), storage.ID(), rowsCount)
-			metrics.SuccessObjects(task.SourceType, metrics.EmptySourceTap, task.Source, rowsCount)
-			telemetry.Event(task.Source, storage.ID(), srcSource, driver.GetDriversInfo().SourceType, rowsCount)
-			counters.SuccessPullDestinationEvents(storage.ID(), int64(rowsCount))
-		}
-
-		counters.SuccessPullSourceEvents(task.Source, int64(rowsCount))
 
 		if err := te.MetaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now, refreshWindow)); err != nil {
 			logging.SystemErrorf("Unable to save source: [%s] collection: [%s] meta key: [%s] signature: %v", task.Source, task.Collection, collectionMetaKey, err)
