@@ -66,11 +66,11 @@ export default class ApplicationServices implements IApplicationServices {
 
     if (configuration.authorization == "redis" || !this._applicationConfiguration.firebaseConfig) {
       this._userService = new BackendUserService(
-          this._backendApiClient,
-          this._storageService,
-          configuration.smtp,
-          this._features.ssoAuthLink,
-          this._applicationConfiguration.backendApiBase
+        this._backendApiClient,
+        this._storageService,
+        configuration.smtp,
+        this._features.ssoAuthLink,
+        this._applicationConfiguration.backendApiBase
       )
     } else if (configuration.authorization == "firebase") {
       this._userService = new FirebaseUserService(
@@ -217,13 +217,12 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     environment = "docker" as const
   }
 
-
-  let ssoAuthLink = "";
-  if (typeof responseData.sso_auth_link === 'string') {
+  let ssoAuthLink = ""
+  if (typeof responseData.sso_auth_link === "string") {
     ssoAuthLink = responseData.sso_auth_link
   }
 
-  assert(responseData.authorization === "redis" || responseData.authorization === "sso" || responseData.authorization === "firebase")
+  assert(responseData.authorization === "redis" || responseData.authorization === "firebase")
 
   assert(typeof responseData.smtp === "boolean")
 
