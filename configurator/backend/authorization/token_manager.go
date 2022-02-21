@@ -11,26 +11,23 @@ const (
 	AccessTokenType = "access_token"
 	//RefreshTokenType is a token type only for debugging purpose
 	RefreshTokenType = "refresh_token"
-
-	AccessTokenTTL  = time.Hour
-	RefreshTokenTTL = time.Hour * 24 * 7
 )
 
 type TokenManager struct{}
 
-func (tm *TokenManager) CreateAccessToken(userID string) *TokenEntity {
+func (tm *TokenManager) CreateAccessToken(userID string, accessTokenTTL time.Duration) *TokenEntity {
 	return &TokenEntity{
 		UserID:      userID,
-		ExpiredAt:   timestamp.ToISOFormat(timestamp.Now().UTC().Add(AccessTokenTTL)),
+		ExpiredAt:   timestamp.ToISOFormat(timestamp.Now().UTC().Add(accessTokenTTL)),
 		AccessToken: uuid.NewV4().String(),
 		TokenType:   AccessTokenType,
 	}
 }
 
-func (tm *TokenManager) CreateRefreshToken(userID string) *TokenEntity {
+func (tm *TokenManager) CreateRefreshToken(userID string, refreshTokenTTL time.Duration) *TokenEntity {
 	return &TokenEntity{
 		UserID:       userID,
-		ExpiredAt:    timestamp.ToISOFormat(timestamp.Now().UTC().Add(RefreshTokenTTL)),
+		ExpiredAt:    timestamp.ToISOFormat(timestamp.Now().UTC().Add(refreshTokenTTL)),
 		RefreshToken: uuid.NewV4().String(),
 		TokenType:    RefreshTokenType,
 	}

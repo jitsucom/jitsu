@@ -233,7 +233,7 @@ func (s *Service) SignUp(email, password string) (*TokenDetails, error) {
 		return nil, err
 	}
 
-	return s.authProvider.CreateTokens(userID)
+	return s.authProvider.CreateTokens(CreateTokenParams{UserID: userID})
 }
 
 //SignIn check email and password and return TokenDetails with JWT access token and refresh token
@@ -248,7 +248,7 @@ func (s *Service) SignIn(email, password string) (*TokenDetails, error) {
 		return nil, ErrIncorrectPassword
 	}
 
-	return s.authProvider.CreateTokens(user.ID)
+	return s.authProvider.CreateTokens(CreateTokenParams{UserID: user.ID})
 }
 
 //SignOut delete token from authorization storage
@@ -344,7 +344,7 @@ func (s *Service) ChangePassword(resetID *string, clientAuthToken, newPassword s
 		}
 	}
 
-	return s.authProvider.CreateTokens(user.ID)
+	return s.authProvider.CreateTokens(CreateTokenParams{UserID: user.ID})
 }
 
 func (s *Service) Refresh(refreshToken string) (*TokenDetails, error) {
@@ -383,7 +383,14 @@ func (s *Service) SSOAuthenticate(code string) (*TokenDetails, error) {
 		return nil, err
 	}
 
-	td, err := s.authProvider.CreateTokens(user.ID)
+	accessTokenTTL := time.Hour * 24 * 2
+	refreshTokenTTL := time.Second
+
+	td, err := s.authProvider.CreateTokens(CreateTokenParams{
+		UserID:          user.ID,
+		AccessTokenTTL:  &accessTokenTTL,
+		RefreshTokenTTL: &refreshTokenTTL,
+	})
 	if err != nil {
 		return nil, err
 	}

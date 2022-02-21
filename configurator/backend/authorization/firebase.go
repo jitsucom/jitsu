@@ -31,7 +31,7 @@ type Provider interface {
 	SaveUser(user *User) error
 	GetOnlyUserID() (string, error)
 	ChangeUserEmail(oldEmail, newEmail string) (string, error)
-	CreateTokens(userID string) (*TokenDetails, error)
+	CreateTokens(params CreateTokenParams) (*TokenDetails, error)
 	DeleteAccessToken(token string) error
 	DeleteAllTokens(userID string) error
 	SavePasswordResetID(resetID, userID string) error
@@ -184,8 +184,8 @@ func (fp *FirebaseProvider) ChangeUserEmail(oldEmail, newEmail string) (string, 
 	return "", errors.New(errMsg)
 }
 
-func (fp *FirebaseProvider) CreateTokens(userID string) (*TokenDetails, error) {
-	errMsg := fmt.Sprintf("CreateTokens isn't supported in authorization FirebaseProvider. userID: %s", userID)
+func (fp *FirebaseProvider) CreateTokens(params CreateTokenParams) (*TokenDetails, error) {
+	errMsg := fmt.Sprintf("CreateTokens isn't supported in authorization FirebaseProvider. userID: %s", params.UserID)
 	logging.SystemError(errMsg)
 	return nil, errors.New(errMsg)
 }

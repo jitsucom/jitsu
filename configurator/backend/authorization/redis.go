@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"time"
 )
 
 const (
@@ -22,6 +23,9 @@ const (
 	ssoTokensKey = "sso_tokens"
 
 	userIndexKey = "users_index"
+
+	AccessTokenTTL  = time.Hour
+	RefreshTokenTTL = time.Hour * 24 * 7
 )
 
 //** redis key [variables] - description **
@@ -40,6 +44,12 @@ const (
 type RedisProvider struct {
 	tokenManager *TokenManager
 	pool         *meta.RedisPool
+}
+
+type CreateTokenParams struct {
+	UserID          string
+	AccessTokenTTL  *time.Duration
+	RefreshTokenTTL *time.Duration
 }
 
 func NewRedisProvider(factory *meta.RedisPoolFactory) (*RedisProvider, error) {
@@ -267,9 +277,18 @@ func (rp *RedisProvider) deleteAllUsersTokens(userID, redisTokenKey string) erro
 	return nil
 }
 
-func (rp *RedisProvider) CreateTokens(userID string) (*TokenDetails, error) {
-	accessTokenEntity := rp.tokenManager.CreateAccessToken(userID)
-	refreshTokenEntity := rp.tokenManager.CreateRefreshToken(userID)
+func (rp *RedisProvider) CreateTokens(params CreateTokenParams) (*TokenDetails, error) {
+	accessTokenTTL := AccessTokenTTL
+	refreshTokenTTL := RefreshTokenTTL
+	if params.AccessTokenTTL != nil {
+		accessTokenTTL = *params.AccessTokenTTL
+	}
+	if params.RefreshTokenTTL != nil {
+		refreshTokenTTL = *params.AccessTokenTTL
+	}
+
+	accessTokenEntity := rp.tokenManager.CreateAccessToken(params.UserID, accessTokenTTL)
+	refreshTokenEntity := rp.tokenManager.CreateRefreshToken(params.UserID, refreshTokenTTL)
 
 	//link access token to refresh token
 	accessTokenEntity.RefreshToken = refreshTokenEntity.RefreshToken
@@ -314,7 +333,7 @@ func (rp *RedisProvider) RefreshTokens(refreshToken string) (*TokenDetails, erro
 		return nil, err
 	}
 
-	return rp.CreateTokens(tokenEntity.UserID)
+	return rp.CreateTokens(CreateTokenParams{UserID: tokenEntity.UserID})
 }
 
 //SavePasswordResetID save reset id with ttl 1 hour
