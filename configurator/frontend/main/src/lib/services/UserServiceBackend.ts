@@ -20,17 +20,17 @@ export class BackendUserService implements UserService {
   private readonly ssoAuthLink: string
 
   constructor(
-      backendApi: BackendApiClient,
-      storageService: ServerStorage,
-      smtpConfigured: boolean,
-      ssoAuthLink: string,
-      backendApiBase: string,
+    backendApi: BackendApiClient,
+    storageService: ServerStorage,
+    smtpConfigured: boolean,
+    ssoAuthLink: string,
+    backendApiBase: string
   ) {
     this.backendApi = backendApi
     this.storageService = storageService
     this.smtpConfigured = smtpConfigured
-    if (ssoAuthLink !== '') {
-      this.ssoAuthLink = `${ssoAuthLink}&redirect_uri=${encodeURI(backendApiBase)}/sso-auth-callback`;
+    if (ssoAuthLink !== "") {
+      this.ssoAuthLink = `${ssoAuthLink}&redirect_uri=${encodeURI(backendApiBase)}/sso-auth-callback`
     }
   }
 
@@ -298,7 +298,7 @@ export class BackendUserService implements UserService {
   }
 
   getSSOAuthLink(): string {
-    return this.ssoAuthLink ?? "";
+    return this.ssoAuthLink ?? ""
   }
 
   sendLoginLink(email: string): Promise<void> {
