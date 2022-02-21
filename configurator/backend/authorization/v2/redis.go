@@ -293,22 +293,28 @@ func (r *Redis) ChangePassword(ctx context.Context, userID, newPassword string) 
 	}
 }
 
-func (r *Redis) ChangeEmail(ctx context.Context, oldEmail, newEmail string) error {
+func (r *Redis) ChangeEmail(ctx context.Context, oldEmail, newEmail string) (string, error) {
 	conn, err := r.redisPool.GetContext(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	defer closeQuietly(conn)
 
-	if userID, err := r.getUserIDByEmail(conn, oldEmail); err != nil {
-		return errors.Wrap(err, "get user by old email")
-	} else if _, err := conn.Do("HSET", userKey(userID),
+	userID, err := r.getUserIDByEmail(conn, oldEmail)
+	if err != nil {
+		return "", errors.Wrap(err, "get user by old email")
+	}
+
+	userKey := userKey(userID)
+	if _, err := conn.Do("HSET", userKey,
 		"email", newEmail,
 	); err != nil {
-		return errors.Wrap(err, "update email")
+		return "", errors.Wrap(err, "update email")
+	} else if _, err := conn.Do("HSET", usersIndexKey, userKey, newEmail); err != nil {
+		return "", errors.Wrapf(err, "update %s", usersIndexKey)
 	} else {
-		return nil
+		return userID, nil
 	}
 }
 

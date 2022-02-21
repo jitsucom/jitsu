@@ -100,7 +100,7 @@ type LocalAuthorizator interface {
 	SendResetPasswordLink(ctx context.Context, email, callback string) error
 	ResetPassword(ctx context.Context, resetID, newPassword string) (*openapi.TokensResponse, error)
 	ChangePassword(ctx context.Context, userID, newPassword string) (*openapi.TokensResponse, error)
-	ChangeEmail(ctx context.Context, oldEmail, newEmail string) error
+	ChangeEmail(ctx context.Context, oldEmail, newEmail string) (userID string, err error)
 }
 
 type CloudAuthorizator interface {
@@ -526,10 +526,33 @@ func (oa *OpenAPI) UserEmailChange(ctx *gin.Context) {
 		mw.RequiredField(ctx, "old_email")
 	} else if req.NewEmail == "" {
 		mw.RequiredField(ctx, "new_email")
-	} else if err := authorizator.ChangeEmail(ctx, req.OldEmail, req.NewEmail); err != nil {
+	} else if userID, err := authorizator.ChangeEmail(ctx, req.OldEmail, req.NewEmail); err != nil {
 		mw.InternalError(ctx, "email update failed", err)
 	} else {
-		mw.StatusOk(ctx)
+		data, err := oa.Configurations.GetConfigWithLock(authorization.UsersInfoCollection, userID)
+		if errors.Is(err, storages.ErrConfigurationNotFound) {
+			logging.Warnf("failed to find user info for id %s", userID)
+			data = []byte("{}")
+		}
+
+		values := make(map[string]interface{})
+		if err := json.Unmarshal(data, &values); err != nil {
+			mw.InternalError(ctx, "unmarshal user info failed", err)
+			return
+		}
+
+		values["_email"] = req.NewEmail
+		if suggestedInfo, ok := values["_suggestedInfo"]; ok {
+			if suggestedInfo, ok := suggestedInfo.(map[string]interface{}); ok {
+				suggestedInfo["_email"] = req.NewEmail
+			}
+		}
+
+		if _, err := oa.Configurations.SaveConfigWithLock(authorization.UsersInfoCollection, userID, values); err != nil {
+			mw.InternalError(ctx, "update user info failed", err)
+		} else {
+			mw.StatusOk(ctx)
+		}
 	}
 }
 
