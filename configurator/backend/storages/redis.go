@@ -2,6 +2,7 @@ package storages
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
@@ -187,7 +188,21 @@ func (r *Redis) Delete(collection string, id string) error {
 func (r *Redis) GetRelationIndex(relation string) ([]string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
-	return redis.Strings(conn.Do("KEYS", getRelationKey(relation, "*")))
+	if values, err := redis.Strings(conn.Do("KEYS", getRelationKey(relation, "*"))); err != nil {
+		return nil, errors.Wrap(err, "get keys")
+	} else {
+		result := make([]string, len(values))
+		relationKeyPrefix := getRelationKeyPrefix(relation)
+		for i, value := range values {
+			if strings.HasPrefix(value, relationKeyPrefix) {
+				value = value[len(relationKeyPrefix):]
+			}
+
+			result[i] = value
+		}
+
+		return result, nil
+	}
 }
 
 func (r *Redis) GetRelatedIDs(relation string, id string) ([]string, error) {
@@ -229,7 +244,11 @@ func getRelationArgs(relation, id string, relatedIDs []string) []interface{} {
 }
 
 func getRelationKey(relation string, id string) string {
-	return fmt.Sprintf("relation#%s:%s", relation, id)
+	return getRelationKeyPrefix(relation) + id
+}
+
+func getRelationKeyPrefix(relation string) string {
+	return "relation#" + relation + ":"
 }
 
 func toRedisKey(collection string) string {
