@@ -131,10 +131,7 @@ export const ApplicationSidebar: React.FC<{}> = () => {
     <div className={`relative ${styles.sideBarContent}`}>
       <div className="flex flex-col items-stretch h-full">
         <div className={`pb-3 ${styles.sideBarContent_item__withRightBorder}`}>
-          <NavLink
-            to="/"
-            className={`text-center block pt-5 h-14 overflow-hidden ${expanded ? "" : "w-12 pl-3"}`}
-          >
+          <NavLink to="/" className={`text-center block pt-5 h-14 overflow-hidden ${expanded ? "" : "w-12 pl-3"}`}>
             <JitsuLogo className={`h-8 w-40`} />
           </NavLink>
         </div>
