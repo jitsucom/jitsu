@@ -306,13 +306,23 @@ func (r *Redis) ChangeEmail(ctx context.Context, oldEmail, newEmail string) (str
 		return "", errors.Wrap(err, "get user by old email")
 	}
 
+	if _, err := r.getUserIDByEmail(conn, newEmail); errors.Is(err, ErrUserNotFound) {
+		// is ok
+	} else if err != nil {
+		return "", errors.Wrapf(err, "verify new email not used")
+	} else {
+		return "", ErrUserExists
+	}
+
 	userKey := userKey(userID)
 	if _, err := conn.Do("HSET", userKey,
 		"email", newEmail,
 	); err != nil {
 		return "", errors.Wrap(err, "update email")
-	} else if _, err := conn.Do("HSET", usersIndexKey, userKey, newEmail); err != nil {
+	} else if _, err := conn.Do("HSET", usersIndexKey, newEmail, userKey); err != nil {
 		return "", errors.Wrapf(err, "update %s", usersIndexKey)
+	} else if _, err := conn.Do("HDEL", usersIndexKey, oldEmail); err != nil {
+		return "", errors.Wrapf(err, "remove previous email association from %s", usersIndexKey)
 	} else {
 		return userID, nil
 	}
