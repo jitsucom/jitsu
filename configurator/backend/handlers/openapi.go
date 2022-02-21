@@ -92,6 +92,11 @@ type Authorizator interface {
 	Cloud() (CloudAuthorizator, error)
 }
 
+type CreatedUser struct {
+	ID      string
+	ResetID string
+}
+
 type LocalAuthorizator interface {
 	SignUp(ctx context.Context, email, password string) (*openapi.TokensResponse, error)
 	SignIn(ctx context.Context, email, password string) (*openapi.TokensResponse, error)
@@ -101,6 +106,8 @@ type LocalAuthorizator interface {
 	ResetPassword(ctx context.Context, resetID, newPassword string) (*openapi.TokensResponse, error)
 	ChangePassword(ctx context.Context, userID, newPassword string) (*openapi.TokensResponse, error)
 	ChangeEmail(ctx context.Context, oldEmail, newEmail string) (userID string, err error)
+	ListUsers(ctx context.Context) ([]openapi.UserBasicInfo, error)
+	CreateUser(ctx context.Context, email string) (*CreatedUser, error)
 }
 
 type CloudAuthorizator interface {
@@ -961,7 +968,7 @@ func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string, params 
 	var userID string
 	if params.UserId != nil && *params.UserId != "" {
 		userID = *params.UserId
-	} else if params.UserEmail == nil && *params.UserEmail != "" {
+	} else if params.UserEmail != nil && *params.UserEmail != "" {
 		var err error
 		// TODO callback?
 		if userID, err = oa.Authorizator.AutoSignUp(ctx, *params.UserEmail, ""); err != nil {
@@ -974,9 +981,11 @@ func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string, params 
 	}
 
 	if err := oa.Configurations.LinkUserToProject(userID, projectID); err != nil {
-		mw.InternalError(ctx, "link user to project failed", err)
+		mw.BadRequest(ctx, "link user to project failed", err)
+	} else if users, err := oa.getProjectUsers(projectID); err != nil {
+		mw.BadRequest(ctx, "get project users", err)
 	} else {
-		oa.GetUsersLinkToProjects(ctx, projectID)
+		ctx.JSON(http.StatusOK, users)
 	}
 }
 
@@ -1005,29 +1014,9 @@ func (oa *OpenAPI) GetUsersLinkToProjects(ctx *gin.Context, projectID string) {
 		mw.Unauthorized(ctx, err)
 	} else if !authority.Allow(projectID) {
 		mw.ForbiddenProject(ctx, projectID)
-	} else if userIDs, err := oa.Configurations.GetProjectUsers(projectID); err != nil {
-		mw.InternalError(ctx, "get project users failed", err)
+	} else if users, err := oa.getProjectUsers(projectID); err != nil {
+		mw.BadRequest(ctx, "get project users failed", err)
 	} else {
-		users := make([]openapi.UserBasicInfo, len(userIDs))
-		for i, userID := range userIDs {
-			var userInfo struct {
-				Email string `json:"_email"`
-			}
-
-			if userInfoData, err := oa.Configurations.GetConfigWithLock(authorization.UsersInfoCollection, userID); err != nil {
-				mw.InternalError(ctx, fmt.Sprintf("get user info %s failed", userID), err)
-				return
-			} else if err := json.Unmarshal(userInfoData, &userInfo); err != nil {
-				mw.InternalError(ctx, fmt.Sprintf("unmarshal user info %s failed", userID), err)
-				return
-			} else {
-				users[i] = openapi.UserBasicInfo{
-					Id:    userID,
-					Email: userInfo.Email,
-				}
-			}
-		}
-
 		ctx.JSON(http.StatusOK, users)
 	}
 }
@@ -1083,16 +1072,73 @@ func (oa *OpenAPI) CreateProjectAndLinkUser(ctx *gin.Context) {
 	} else {
 		ctx.JSON(http.StatusOK, project)
 	}
+
+	// TODO create user info
 }
 
-func (oa *OpenAPI) ListUsers(c *gin.Context) {
-	//TODO implement me
-	panic("implement me")
+func (oa *OpenAPI) ListUsers(ctx *gin.Context) {
+	if ctx.IsAborted() {
+		return
+	}
+
+	if authorizator, err := oa.Authorizator.Local(); err != nil {
+		mw.Unauthorized(ctx, err)
+	} else if users, err := authorizator.ListUsers(ctx); err != nil {
+		mw.BadRequest(ctx, "list users failed", err)
+	} else {
+		ctx.JSON(http.StatusOK, users)
+	}
 }
 
-func (oa *OpenAPI) CreateNewUser(c *gin.Context) {
-	//TODO implement me
-	panic("implement me")
+func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
+	if ctx.IsAborted() {
+		return
+	}
+
+	var req openapi.CreateUserRequest
+	if authorizator, err := oa.Authorizator.Local(); err != nil {
+		mw.Unauthorized(ctx, err)
+	} else if err := ctx.BindJSON(&req); err != nil {
+		mw.InvalidInputJSON(ctx, err)
+	} else if req.ProjectId == nil && req.ProjectName == nil {
+		mw.RequiredField(ctx, "either projectId or projectName")
+	} else if createdUser, err := authorizator.CreateUser(ctx, req.Email); err != nil {
+		mw.BadRequest(ctx, "failed to create user", err)
+	} else {
+		var (
+			project storages.Project
+			err     error
+		)
+
+		if req.ProjectId != nil {
+			project, err = oa.Configurations.GetProject(*req.ProjectId)
+		} else {
+			project, err = oa.Configurations.CreateProject(openapi.Project{Name: req.ProjectName})
+		}
+
+		if err != nil {
+			mw.BadRequest(ctx, "failed to get or create project", err)
+			return
+		}
+
+		if err := oa.Configurations.LinkUserToProject(createdUser.ID, *project.Id); err != nil {
+			mw.BadRequest(ctx, "failed to link user to new project", err)
+			return
+		}
+
+		ctx.JSON(http.StatusOK, openapi.CreateUserResponse{
+			User: openapi.User{
+				UserBasicInfo: openapi.UserBasicInfo{
+					Id:    createdUser.ID,
+					Email: req.Email,
+				},
+			},
+			Project: project.Project,
+			ResetId: createdUser.ResetID,
+		})
+	}
+
+	// TODO create user info
 }
 
 func (oa *OpenAPI) DeleteUser(c *gin.Context, userId bool) {

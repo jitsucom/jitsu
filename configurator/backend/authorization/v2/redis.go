@@ -316,9 +316,9 @@ func (r *Redis) ChangeEmail(ctx context.Context, oldEmail, newEmail string) (str
 
 	userKey := userKey(userID)
 	if _, err := conn.Do("HSET", userKey,
-		"email", newEmail,
+		userEmailField, newEmail,
 	); err != nil {
-		return "", errors.Wrap(err, "update email")
+		return "", errors.Wrapf(err, "update %s", userEmailField)
 	} else if _, err := conn.Do("HSET", usersIndexKey, newEmail, userID); err != nil {
 		return "", errors.Wrapf(err, "update %s", usersIndexKey)
 	} else if _, err := conn.Do("HDEL", usersIndexKey, oldEmail); err != nil {
@@ -328,14 +328,65 @@ func (r *Redis) ChangeEmail(ctx context.Context, oldEmail, newEmail string) (str
 	}
 }
 
+func (r *Redis) ListUsers(ctx context.Context) ([]openapi.UserBasicInfo, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer closeQuietly(conn)
+
+	if values, err := redis.StringMap(conn.Do("HGETALL", usersIndexKey)); err != nil {
+		return nil, errors.Wrapf(err, "get all users")
+	} else {
+		result := make([]openapi.UserBasicInfo, 0, len(values))
+		for email, userID := range values {
+			result = append(result, openapi.UserBasicInfo{
+				Id:    userID,
+				Email: email,
+			})
+		}
+
+		return result, nil
+	}
+}
+
+func (r *Redis) CreateUser(ctx context.Context, email string) (*handlers.CreatedUser, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer closeQuietly(conn)
+
+	if userID, err := r.createUser(conn, email, uuid.NewV4().String(), false); err != nil {
+		return nil, errors.Wrapf(err, "create user")
+	} else if resetID, err := r.generateResetID(conn, userID); err != nil {
+		return nil, errors.Wrapf(err, "generate reset password id")
+	} else {
+		return &handlers.CreatedUser{
+			ID:      userID,
+			ResetID: resetID,
+		}, nil
+	}
+}
+
 func (r *Redis) sendResetPasswordLink(conn redis.Conn, userID, email, callback string) error {
-	resetID := "reset-" + uuid.NewV4().String()
-	if _, err := conn.Do("SET", resetKey(resetID), userID, "EX", resetIDTTL); err != nil {
-		return errors.Wrap(err, "persist reset id")
+	if resetID, err := r.generateResetID(conn, userID); err != nil {
+		return errors.Wrap(err, "generate reset id")
 	} else if err := r.mailSender.SendResetPassword(email, strings.ReplaceAll(callback, "{{token}}", resetID)); err != nil {
 		return errors.Wrap(err, "send reset password")
 	} else {
 		return nil
+	}
+}
+
+func (r *Redis) generateResetID(conn redis.Conn, userID string) (string, error) {
+	resetID := "reset-" + uuid.NewV4().String()
+	if _, err := conn.Do("SET", resetKey(resetID), userID, "EX", resetIDTTL); err != nil {
+		return "", errors.Wrap(err, "persist reset id")
+	} else {
+		return resetID, nil
 	}
 }
 

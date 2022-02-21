@@ -162,7 +162,7 @@ components:
       type: object
       properties:
         projectID: { type: "string" }
-      required: [ 'projectID']
+      required: [ 'projectID' ]
     Project:
       description: 'The object represents project'
       type: object
@@ -181,16 +181,24 @@ components:
       required: [ 'id', 'email' ]
 
     User:
-        allOf:     # Combines the BasicErrorModel and the inline model
-          - $ref: '#/components/schemas/UserBasicInfo'
-          - type: object
-            properties:
-              name: { type: "string" }
-              created: { type: "string" }
-              emailOptout: { type: "boolean" }
-              forcePasswordChange: {type: "boolean"}
-              suggestedCompanyName: {type: "string"}
-            required: [ 'created']
+      allOf: # Combines the BasicErrorModel and the inline model
+        - $ref: '#/components/schemas/UserBasicInfo'
+        - type: object
+          properties:
+            name: { type: "string" }
+            created: { type: "string" }
+            emailOptout: { type: "boolean" }
+            forcePasswordChange: { type: "boolean" }
+            suggestedCompanyName: { type: "string" }
+          required: [ 'created' ]
+    CreateUserRequest:
+      type: object
+      properties:
+        email: { type: string }
+        password: { type: string }
+        projectName: { type: string }
+        projectId: { type: string }
+      required: [ 'email' ]
 
   responses:
     Error:
@@ -229,7 +237,22 @@ components:
         "application/json":
           schema:
             $ref: "#/components/schemas/ProjectSettings"
-
+    CreateUserResponse:
+      description: >
+        New user. Some fields (created, emailOptout, forcePasswordChange) will be assigned automatically. If new project is created,
+        the project node will contain an id with new project. Otherwise project node will be present too, but it will contain
+        the linked project object
+      content:
+        "application/json":
+          schema:
+            type: object
+            properties:
+              user:
+                $ref: "#/components/schemas/User"
+              project:
+                $ref: "#/components/schemas/Project"
+              resetId: { type: string }
+            required: [ user, project, resetId ]
 paths:
   /api/v1/users/signin:
     post:
@@ -341,8 +364,6 @@ paths:
         - configuration-management
       operationId: 'User password change'
       description: 'Change password'
-      security:
-        - configurationManagementAuth: [ ]
       requestBody:
         content:
           "application/json":
@@ -561,9 +582,9 @@ paths:
       operationId: List users
       description: Get all users. Available only for Redis-backed authorization
       tags:
-        - configuration-management
+        - user-provisioning
       security:
-        - configurationManagementAuth: [ ]
+        - clusterAdminAuth: [ ]
       responses:
         '200':
           description: List of users
@@ -593,35 +614,10 @@ paths:
         content:
           "application/json":
             schema:
-              type: object
-              properties:
-                email: {type: string}
-                password: {type: string}
-                projectName: {type: string}
-                projectId: {type: string}
-
-              required: ['email']
+              $ref: '#/components/schemas/CreateUserRequest'
       responses:
         '200':
-          description: >
-            New user. Some fields (created, emailOptout, forcePasswordChange) will be assigned automatically. If new project is created,
-            the project node will contain an id with new project. Otherwise project node will be present too, but it will contain
-            the linked project object
-          content:
-            "application/json":
-              schema:
-                type: object
-                properties:
-                  user:
-                    type: object
-                    items:
-                      $ref: '#/components/schemas/Project'
-                  project:
-                    type: object
-                    items:
-                      $ref: '#/components/schemas/User'
-                required: ['user']
-
+          $ref: '#/components/responses/CreateUserResponse'
         default:
           $ref: '#/components/responses/Error'
   /api/v2/users/{userId}:
@@ -631,7 +627,7 @@ paths:
       operationId: Delete User
       description: Delete user by id. Available only for Redis-backed authorization
       security:
-        - configurationManagementAuth: [ ]
+        - clusterAdminAuth: [ ]
       parameters:
         - name: userId
           description: Id of the user
@@ -650,7 +646,7 @@ paths:
       operationId: Update user
       description: Update user. See documentation on request body. Available only for Redis-backed authorization
       security:
-        - configurationManagementAuth: [ ]
+        - clusterAdminAuth: [ ]
       parameters:
         - name: userId
           description: Id of the user
@@ -667,7 +663,7 @@ paths:
             schema:
               type: object
               properties:
-                name: {type: "string"}
+                name: { type: "string" }
                 forcePasswordChange:
                   type: string
                   description: if set to true, user will be forced to change the password during next login
@@ -860,7 +856,7 @@ paths:
       description: >
         Save object with given ID. The whole object except id field will be overwritten. The method returns an updated object
       security:
-        - configurationManagementAuth: [  ]
+        - configurationManagementAuth: [ ]
       requestBody:
         content:
           application/json:

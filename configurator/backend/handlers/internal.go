@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 
+	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/openapi"
@@ -18,6 +19,32 @@ import (
 	jstorages "github.com/jitsucom/jitsu/server/storages"
 	"github.com/pkg/errors"
 )
+
+func (oa *OpenAPI) getProjectUsers(projectID string) ([]openapi.UserBasicInfo, error) {
+	if userIDs, err := oa.Configurations.GetProjectUsers(projectID); err != nil {
+		return nil, errors.Wrap(err, "get project users")
+	} else {
+		users := make([]openapi.UserBasicInfo, len(userIDs))
+		for i, userID := range userIDs {
+			var userInfo struct {
+				Email string `json:"_email"`
+			}
+
+			if userInfoData, err := oa.Configurations.GetConfigWithLock(authorization.UsersInfoCollection, userID); err != nil {
+				return nil, errors.Wrapf(err, "get user info for %s", userID)
+			} else if err := json.Unmarshal(userInfoData, &userInfo); err != nil {
+				return nil, errors.Wrapf(err, "unmarshal user %s info", userID)
+			} else {
+				users[i] = openapi.UserBasicInfo{
+					Id:    userID,
+					Email: userInfo.Email,
+				}
+			}
+		}
+
+		return users, nil
+	}
+}
 
 func (oa *OpenAPI) mapDestinationsConfiguration(
 	apiKeysPerProjectByID map[string]map[string]entities.APIKey,
