@@ -15,6 +15,11 @@ tags:
     x-displayName: Configuration Management
     description: >
       API for managing Jitsu configuration: sources, destinations, API keys etc
+  - name: user-provisioning
+    x-displayName: User Provisioning
+    description: >
+      API for provisioning users. Works only for clusters with Redis-backed authorization, not
+      for Firebase-backed. Requires authorization with cluster admin token
   - name: cluster-admin
     x-displayName: Cluster Admin
     description: >
@@ -498,7 +503,7 @@ paths:
           schema:
             type: string
       tags:
-        - configuration-management
+        - user-provisioning
       operationId: "Link user to project"
       description: >
         Links user to project. If userId is specified, the user should just be linked. If userEmail is specify, the logic should be as follows:
@@ -537,7 +542,7 @@ paths:
           schema:
             type: string
       tags:
-        - configuration-management
+        - user-provisioning
       operationId: "Unlink user from project"
       description: >
         Removes user from the project. Note: users can remove themselves from the project
@@ -551,6 +556,7 @@ paths:
 
   /api/v2/users:
     get:
+      operationId: List users
       description: Get all users. Available only for Redis-backed authorization
       tags:
         - configuration-management
@@ -568,37 +574,60 @@ paths:
         default:
           $ref: '#/components/responses/Error'
     post:
-      description: Create new user
+      operationId: Create new user
+      description: Create new user. Available only for Redis-backed authorization
       tags:
-        - configuration-management
+        - user-provisioning
       security:
         - configurationManagementAuth: [ ]
       requestBody:
         description: >
           Email and (optional) password. If password is not set, a random one
-          will be generated and returned with response
+          will be generated and returned with response.
+
+          projectId or projectName should be specified. If projectId is set, user will be linked to
+          existing project (project with such id should exist). Otherwise a new project will be created
+          with name=projectName
         content:
           "application/json":
             schema:
               type: object
               properties:
-                email: {type: "string"}
-                password: {type: "string"}
+                email: {type: string}
+                password: {type: string}
+                projectName: {type: string}
+                projectId: {type: string}
+
               required: ['email']
       responses:
         '200':
-          description: New user. Fields created, created, emailOptout, forcePasswordChange will be assined automatically
+          description: >
+            New user. Some fields (created, emailOptout, forcePasswordChange) will be assigned automatically. If new project is created,
+            the project node will contain an id with new project. Otherwise project node will be present too, but it will contain
+            the linked project object
           content:
             "application/json":
               schema:
-                $ref: '#/components/schemas/User'
+                type: object
+                properties:
+                  user:
+                    type: object
+                    items:
+                      $ref: '#/components/schemas/Project'
+                  project:
+                    type: object
+                    items:
+                      $ref: '#/components/schemas/User'
+                required: ['user']
+
         default:
           $ref: '#/components/responses/Error'
   /api/v2/users/{userId}:
     delete:
       tags:
-        - configuration-management
-      description: Delete user by id
+        - user-provisioning
+      operationId: Delete User
+      description: Delete user by id. Available only for Redis-backed authorization
       security:
         - configurationManagementAuth: [ ]
       parameters:
@@ -615,8 +644,9 @@ paths:
           $ref: '#/components/responses/Error'
     patch:
       tags:
-        - configuration-management
-      description: Update user information.
+        - user-provisioning
+      operationId: Update user
+      description: Update user. See documentation on request body. Available only for Redis-backed authorization
       security:
         - configurationManagementAuth: [ ]
       parameters:
