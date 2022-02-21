@@ -452,6 +452,7 @@ const DestinationsFilter: React.FC<{
   return (
     <Popover
       visible={popoverVisible}
+      onVisibleChange={setPopoverVisible}
       placement="bottom"
       title={null}
       content={
