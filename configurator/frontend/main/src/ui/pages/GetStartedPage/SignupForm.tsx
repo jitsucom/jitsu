@@ -10,7 +10,7 @@ import LockOutlined from "@ant-design/icons/lib/icons/LockOutlined"
 import Icon from "@ant-design/icons"
 import githubLogo from "../../../icons/github.svg"
 import { default as googleLogo } from "../../../icons/google.svg"
-import {SignupRequest} from "../../../generated/conf-openapi";
+import { SignupRequest } from "../../../generated/conf-openapi"
 
 export function SignupForm() {
   const [tosAgree, setTosAgree] = useState(false)

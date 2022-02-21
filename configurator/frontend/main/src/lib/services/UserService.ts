@@ -1,5 +1,5 @@
 import { ApiAccess } from "./model"
-import {SignupRequest, User} from "../../generated/conf-openapi"
+import { SignupRequest, User } from "../../generated/conf-openapi"
 
 /**
  * User Service
@@ -24,7 +24,6 @@ export interface SetupUserProps {
   company?: string
   emailOptout?: boolean
 }
-
 
 export interface UserService {
   /**
@@ -98,11 +97,9 @@ export interface UserService {
    */
   changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void>
 
-
   removeAuth(callback: () => void)
 
   createUser(signup: SignupRequest): Promise<void>
-
 
   becomeUser(email: string): Promise<void>
 

@@ -2,7 +2,7 @@
 import ReactDOM from "react-dom"
 import { BrowserRouter } from "react-router-dom"
 // @App component
-import  { Application } from "./App"
+import { Application } from "./App"
 // @Styles
 import "./index.less"
 import { getBaseUIPath } from "lib/commons/pathHelper"

@@ -25,7 +25,7 @@ import {
   updatePassword,
 } from "firebase/auth"
 import { reloadPage, setDebugInfo } from "../commons/utils"
-import {SignupRequest, User} from "../../generated/conf-openapi"
+import { SignupRequest, User } from "../../generated/conf-openapi"
 
 export class FirebaseUserService implements UserService {
   private firebaseApp: FirebaseApp
@@ -181,7 +181,7 @@ export class FirebaseUserService implements UserService {
   }
 
   sendPasswordReset(email?: string): Promise<void> {
-    return sendPasswordResetEmail(getAuth(), email ? email : this.getUser().email, {url: window.location.href})
+    return sendPasswordResetEmail(getAuth(), email ? email : this.getUser().email, { url: window.location.href })
   }
 
   async sendConfirmationEmail(): Promise<void> {
@@ -231,16 +231,15 @@ export class FirebaseUserService implements UserService {
     return signInWithEmailLink(getAuth(), email, href).then()
   }
 
-
   apiAccess(): ApiAccess {
     return this._apiAccess
   }
 
   refreshAuth(): Promise<void> {
-    return this.refreshToken(this.firebaseUser, true);
+    return this.refreshToken(this.firebaseUser, true)
   }
 
   getIdToken(): Promise<string> {
-    return Promise.resolve("");
+    return Promise.resolve("")
   }
 }

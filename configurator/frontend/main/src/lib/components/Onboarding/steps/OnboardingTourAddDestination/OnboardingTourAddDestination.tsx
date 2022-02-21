@@ -153,7 +153,6 @@ const OnboardingTourAddDestinationComponent: React.FC<Props> = ({ handleGoNext, 
                 id: "",
                 tabName: "tab",
               }}
-
               disableForceUpdateOnSave
               onAfterSaveSucceded={onAfterCustomDestinationCreated}
               onCancel={handleCancelDestinationSetup}

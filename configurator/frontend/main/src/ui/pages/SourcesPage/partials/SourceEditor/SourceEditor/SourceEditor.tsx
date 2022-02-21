@@ -286,7 +286,6 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
     if (streamsErrorsCount) throw new Error("some streams settings are invalid")
   }
 
-
   return (
     <SourceEditorView
       state={state}

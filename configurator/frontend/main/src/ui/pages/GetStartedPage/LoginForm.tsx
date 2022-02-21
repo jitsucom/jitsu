@@ -220,7 +220,7 @@ function PasswordResetForm({ visible, onSuccess, close }) {
         >
           <Input prefix={<UserOutlined className="site-form-item-icon" />} placeholder="E-mail" />
         </Form.Item>
-        <div className={`text-error ${error ? 'visible' : 'invisible'}`}>{error?.message || '-'}</div>
+        <div className={`text-error ${error ? "visible" : "invisible"}`}>{error?.message || "-"}</div>
       </Form>
     </Modal>
   )

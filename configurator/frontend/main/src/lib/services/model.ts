@@ -43,7 +43,7 @@ export enum Permission {
 export type UserDTO = {
   $type: "User"
   _created: string
-  _uid: string,
+  _uid: string
   _name: string
   _email: string
   _emailOptout: boolean

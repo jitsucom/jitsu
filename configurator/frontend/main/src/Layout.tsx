@@ -87,10 +87,9 @@ export function usePageLocation(): string {
   return canonicalPath.split("/")[1]
 }
 
-
 export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) => {
   const services = useServices()
-  const key = usePageLocation();
+  const key = usePageLocation()
   const Wrapper = React.useMemo<React.FC<{ title?: string | React.ReactNode }>>(
     () =>
       expanded
@@ -235,7 +234,7 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
   const services = useServices()
   const history = useHistory()
 
-  const showSettings = React.useCallback<() => void>(() => history.push('/user/settings'), [history])
+  const showSettings = React.useCallback<() => void>(() => history.push("/user/settings"), [history])
 
   const becomeUser = async () => {
     let email = prompt("Please enter e-mail of the user", "")
@@ -261,10 +260,14 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
         <div>
           Project: <b>{services.activeProject.name || "Unspecified"}</b>
           <div className="text-xs">
-            <a onClick={() => {
-              hideMenu();
-              showProjectSwitchModal()
-            }}>Switch project</a>
+            <a
+              onClick={() => {
+                hideMenu()
+                showProjectSwitchModal()
+              }}
+            >
+              Switch project
+            </a>
           </div>
         </div>
       </div>
@@ -277,7 +280,8 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
         <Button type="text" className="text-left" key="settings" icon={<SettingOutlined />} onClick={showSettings}>
           Settings
         </Button>
-        {(services.userService.getUser().email === 'reg@ksense.io' || services.userService.getUser().email.endsWith("@jitsu.com")) && (
+        {(services.userService.getUser().email === "reg@ksense.io" ||
+          services.userService.getUser().email.endsWith("@jitsu.com")) && (
           <Button className="text-left" type="text" key="become" icon={<UserSwitchOutlined />} onClick={becomeUser}>
             Become User
           </Button>
@@ -296,7 +300,6 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
   )
 }
 
-
 function handleBillingMessage(params) {
   if (!params.get("billingMessage")) {
     return
@@ -309,7 +312,7 @@ function handleBillingMessage(params) {
 }
 
 export const ApplicationPage: React.FC = ({ children }) => {
-  const services = useServices();
+  const services = useServices()
   handleBillingMessage(new URLSearchParams(useLocation().search))
   return (
     <div className={styles.applicationPage}>
@@ -320,9 +323,7 @@ export const ApplicationPage: React.FC = ({ children }) => {
         <PageHeader user={services.userService.getUser()} plan={services.currentSubscription}>
           <Breadcrumbs />
         </PageHeader>
-        <div className={styles.applicationPageComponent}>
-          {children}
-        </div>
+        <div className={styles.applicationPageComponent}>{children}</div>
       </div>
     </div>
   )

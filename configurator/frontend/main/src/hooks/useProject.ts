@@ -6,6 +6,6 @@ import { Project } from "../generated/conf-openapi"
  * is not in the context
  */
 export default function useProject(): Project | undefined {
-  const services = useServices();
-  return services.activeProject;
+  const services = useServices()
+  return services.activeProject
 }

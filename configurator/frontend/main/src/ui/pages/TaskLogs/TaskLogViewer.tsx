@@ -67,16 +67,16 @@ export const TaskLogViewer: React.FC = () => {
           snakeCase(candidate.id) === taskInfo.source?.sourceProtoType ?? ({} as SourceConnector)
       )
       currentPageHeaderStore.setBreadcrumbs(
-            { title: "Sources", link: sourcesPageRoutes.root },
-            {
-              title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode="edit" />,
-              link: projectRoute(sourcesPageRoutes.editExact, { sourceId }),
-            },
-            {
-              title: "Logs",
-              link: projectRoute(taskLogsPageRoute, { sourceId }),
-            },
-            { title: "Task Log" },
+        { title: "Sources", link: sourcesPageRoutes.root },
+        {
+          title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode="edit" />,
+          link: projectRoute(sourcesPageRoutes.editExact, { sourceId }),
+        },
+        {
+          title: "Logs",
+          link: projectRoute(taskLogsPageRoute, { sourceId }),
+        },
+        { title: "Task Log" }
       )
     }
   }, [sourceId, taskId, taskInfo])

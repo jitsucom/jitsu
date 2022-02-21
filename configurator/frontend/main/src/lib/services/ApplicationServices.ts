@@ -62,15 +62,14 @@ export default class ApplicationServices implements IApplicationServices {
     this._storageService = new HttpServerStorage(this._backendApiClient)
     this._slackApiService = new SlackApiService(() => this._userService.apiAccess())
     this._oauthService = new OauthService(this._applicationConfiguration.oauthApiBase, this._backendApiClient)
-    this._projectService = createProjectService_v1(this._userService, this._backendApiClient);
+    this._projectService = createProjectService_v1(this._userService, this._backendApiClient)
   }
-
 
   get projectService(): ProjectService {
     return this._projectService
   }
 
-//load backend configuration and create user service depend on authorization type
+  //load backend configuration and create user service depend on authorization type
   async init() {
     let configuration = await this.loadBackendConfiguration()
     this._features = configuration
@@ -96,9 +95,8 @@ export default class ApplicationServices implements IApplicationServices {
   }
 
   get activeProject(): Project {
-    return this._activeProject;
+    return this._activeProject
   }
-
 
   set activeProject(value: Project) {
     this._activeProject = value
@@ -168,7 +166,6 @@ export default class ApplicationServices implements IApplicationServices {
       throw new APIError(response, request)
     }
   }
-
 
   public async initializeDefaultDestination(): Promise<{
     credentials: PgDatabaseCredentials

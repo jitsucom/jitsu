@@ -150,7 +150,7 @@ class ApiKeysStore implements IApiKeysStore {
       const keys = yield services.storageService.table<ApiKey>("api_keys").getAll()
       this.setApiKeysToStore(keys ?? [])
     } catch (error) {
-      console.error(error);
+      console.error(error)
       this.setError(GLOBAL_ERROR, `Failed to fetch apiKeys: ${error.message || error}`)
     } finally {
       this._state = IDLE
@@ -222,7 +222,5 @@ class ApiKeysStore implements IApiKeysStore {
     }
   }
 }
-
-
 
 export const apiKeysStore = new ApiKeysStore()

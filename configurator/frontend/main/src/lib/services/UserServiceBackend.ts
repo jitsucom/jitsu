@@ -7,7 +7,7 @@ import { getBaseUIPath } from "lib/commons/pathHelper"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
 import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserService } from "./UserService"
-import {SignupRequest, User} from "../../generated/conf-openapi"
+import { SignupRequest, User } from "../../generated/conf-openapi"
 
 export const LS_ACCESS_KEY = "en_access"
 export const LS_REFRESH_KEY = "en_refresh"
@@ -65,19 +65,19 @@ export class BackendUserService implements UserService {
 
   public async waitForUser(): Promise<void> {
     if (this.user) {
-      return;
+      return
     }
 
     try {
       const { accessToken, refreshToken } = this.getTokens()
       //not authorized
       if (!accessToken) {
-        return;
+        return
       }
 
       this._apiAccess = new ApiAccess(accessToken, refreshToken, this.setTokens)
       let userDTO = await this.storageService.getUserInfo()
-      this.user = userFromDTO(userDTO);
+      this.user = userFromDTO(userDTO)
     } catch (error) {
       this.clearTokens()
       throw new Error(error)
@@ -209,10 +209,10 @@ export class BackendUserService implements UserService {
   }
 
   apiAccess(): ApiAccess {
-    return this._apiAccess;
+    return this._apiAccess
   }
 
   refreshAuth(): Promise<void> {
-    return Promise.resolve();
+    return Promise.resolve()
   }
 }

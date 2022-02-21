@@ -77,11 +77,10 @@ export function firstToLower(string: string) {
  */
 export function reloadPage(destination?: string) {
   if (!destination) {
-    location.reload();
+    location.reload()
   } else {
-    window.location.href = destination;
+    window.location.href = destination
   }
-
 }
 
 /**
@@ -372,8 +371,13 @@ export function getObjectDepth(value: unknown): number {
   return Object(value) === value ? 1 + Math.max(-1, ...Object.values(value).map(getObjectDepth)) : 0
 }
 
-export function sanitize<T>(obj: T, opts: { allow: string[]; block?: never } | { block: string[]; allow?: never }): Partial<T> {
-  const filter: ((val) => boolean) = opts.allow ? ([key]) => opts.allow.includes(key) : ([key]) => !opts.block.includes(key);
+export function sanitize<T>(
+  obj: T,
+  opts: { allow: string[]; block?: never } | { block: string[]; allow?: never }
+): Partial<T> {
+  const filter: (val) => boolean = opts.allow
+    ? ([key]) => opts.allow.includes(key)
+    : ([key]) => !opts.block.includes(key)
   return Object.entries(obj)
     .filter(filter)
     .reduce(

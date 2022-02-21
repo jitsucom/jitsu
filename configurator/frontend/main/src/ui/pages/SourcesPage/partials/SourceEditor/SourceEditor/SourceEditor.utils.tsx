@@ -142,4 +142,3 @@ export const createInitialSourceData = (sourceCatalogData: SourceConnector) =>
     connected: false,
     connectedErrorMessage: "",
   } as const)
-

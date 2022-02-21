@@ -18,7 +18,6 @@ function join<T>(array: T[], separatorFactory: (id: number) => T): T[] {
   return res
 }
 
-
 function Delimiter() {
   return (
     <svg
@@ -37,10 +36,14 @@ function Delimiter() {
 }
 
 const BreadcrumbsComponent: React.FC<{}> = () => {
-  const project = useProject();
+  const project = useProject()
   return (
     <div className="flex flex-row items-center text-base space-x-1">
-      <div key="main" className="hover:bg-bgSecondary px-3 py-1 rounded-lg text-heading cursor-pointer" onClick={showProjectSwitchModal}>
+      <div
+        key="main"
+        className="hover:bg-bgSecondary px-3 py-1 rounded-lg text-heading cursor-pointer"
+        onClick={showProjectSwitchModal}
+      >
         {project.name}
       </div>
       <Delimiter key={"delim"} />
@@ -49,7 +52,9 @@ const BreadcrumbsComponent: React.FC<{}> = () => {
           <div className={`${element.link && "hover:bg-bgSecondary"} px-3 py-1 rounded-lg`} key={`element-${index}`}>
             {element.link ? (
               element.absolute || element.link.indexOf("/prj-") >= 0 ? (
-                <NavLink className="text-heading hover:text-heading" to={element.link}>{element.title}</NavLink>
+                <NavLink className="text-heading hover:text-heading" to={element.link}>
+                  {element.title}
+                </NavLink>
               ) : (
                 <ProjectLink to={element.link} className="text-heading hover:text-heading">
                   {element.title}
@@ -60,7 +65,9 @@ const BreadcrumbsComponent: React.FC<{}> = () => {
             )}
           </div>
         )),
-        (num) => <Delimiter key={"delim" + num} />
+        num => (
+          <Delimiter key={"delim" + num} />
+        )
       )}
     </div>
   )

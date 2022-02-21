@@ -400,7 +400,7 @@ const DestinationEditor = ({
         />
       ),
     })
-    currentPageHeaderStore.setBreadcrumbs(...breadcrumbs);
+    currentPageHeaderStore.setBreadcrumbs(...breadcrumbs)
   }, [destinationReference])
 
   return destinationReference ? (

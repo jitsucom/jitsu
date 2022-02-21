@@ -27,7 +27,7 @@ const DestinationsListComponent = () => {
   }, [history, subscription])
 
   useEffect(() => {
-    currentPageHeaderStore.setBreadcrumbs("Destinations");
+    currentPageHeaderStore.setBreadcrumbs("Destinations")
   }, [])
 
   if (destinationsStore.list.length === 0) {

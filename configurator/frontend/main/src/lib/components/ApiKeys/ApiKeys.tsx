@@ -112,12 +112,12 @@ export const KeyDocumentation: React.FC<KeyDocumentationProps> = function ({ tok
   )
   const [error, domains] = services.features.enableCustomDomains
     ? useLoader(async () => {
-      const result = await services.storageService.get("custom_domains", services.activeProject.id)
-      const customDomains = result?.domains?.map(domain => "https://" + domain.name) || []
-      const newDomains = [...customDomains, "https://t.jitsu.com"]
-      setSelectedDomain(newDomains[0])
-      return newDomains
-    })
+        const result = await services.storageService.get("custom_domains", services.activeProject.id)
+        const customDomains = result?.domains?.map(domain => "https://" + domain.name) || []
+        const newDomains = [...customDomains, "https://t.jitsu.com"]
+        setSelectedDomain(newDomains[0])
+        return newDomains
+      })
     : [null, staticDomains]
 
   if (error) {

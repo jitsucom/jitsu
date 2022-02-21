@@ -26,7 +26,6 @@ export interface CollectionSourceData {
   _lastUpdated?: string
 }
 
-
 export interface CommonSourcePageProps {
   editorMode?: "edit" | "add"
 }
@@ -53,7 +52,7 @@ const SourcesPageComponent: React.FC<CommonSourcePageProps> = () => {
     <ErrorBoundary>
       <Switch>
         <Route path={sourcesPageRoutes.root} exact>
-          <SourcesList  />
+          <SourcesList />
         </Route>
         <Route path={sourcesPageRoutes.editExact} strict={false} exact>
           <SourceEditor key={params?.["sourceId"] || "static_key"} editorMode="edit" />

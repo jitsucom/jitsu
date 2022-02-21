@@ -41,7 +41,7 @@ export function DestinationCard({ dst }: DestinationCardProps) {
       },
     })
   }
-  let editLink = projectRoute(destinationPageRoutes.editExact, {id: dst._id })
+  let editLink = projectRoute(destinationPageRoutes.editExact, { id: dst._id })
   const statLink = projectRoute(destinationPageRoutes.statisticsExact, { id: dst._id })
   return (
     <ConnectionCard

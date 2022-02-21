@@ -23,7 +23,6 @@ export const apiKeysRoutes = {
   editExact: "/prj-:projectId/api-keys/:id",
 } as const
 
-
 function newKey(): ApiKey {
   let uid = apiKeysStore.generateApiToken("", 6)
   return {
@@ -41,12 +40,12 @@ const SecretKey: React.FC<{
   children: ReactNode
   onGenerate: () => void
 }> = ({
-        //children is tooltip
-        children,
-        onGenerate,
-        formFieldName,
-        formFieldLabel,
-      }) => {
+  //children is tooltip
+  children,
+  onGenerate,
+  formFieldName,
+  formFieldLabel,
+}) => {
   return (
     <FormField label={formFieldLabel} tooltip={children}>
       <div className="flex flex-nowrap space-x-1 items-center">
@@ -106,9 +105,9 @@ const ApiKeyEditorComponent: React.FC = props => {
               style={
                 deleting || saving
                   ? {
-                    opacity: "0.5",
-                    pointerEvents: "none",
-                  }
+                      opacity: "0.5",
+                      pointerEvents: "none",
+                    }
                   : {}
               }
             >
