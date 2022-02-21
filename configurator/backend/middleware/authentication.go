@@ -1,9 +1,10 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
 	"regexp"
+
+	"github.com/pkg/errors"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/authorization"
@@ -130,7 +131,7 @@ func getToken(c *gin.Context) (string, bool) {
 		token, ok = ExtractBearerToken(c)
 		if !ok {
 			c.Writer.Header().Set("WWW-Authenticate", "Bearer realm=\"invalid_token\" error=\"invalid_token\"")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, middleware.ErrResponse("Token is invalid in Header: "+bearerAuthHeader+". Request should contain 'Authorization: Bearer <token>' header.", nil))
+			Unauthorized(c, errors.Errorf("Token is invalid in header: %s. Request should contain 'Authorization: Bearer <token>' header.", bearerAuthHeader))
 			return "", false
 		}
 	} else {
@@ -140,7 +141,7 @@ func getToken(c *gin.Context) (string, bool) {
 
 	if token == "" {
 		c.Writer.Header().Set("WWW-Authenticate", "Bearer realm=\"token_required\"")
-		c.AbortWithStatusJSON(http.StatusUnauthorized, middleware.ErrResponse("Missing Header: "+bearerAuthHeader, nil))
+		Unauthorized(c, errors.Errorf("Missing header: %s", bearerAuthHeader))
 		return "", false
 	}
 
@@ -185,13 +186,4 @@ func errProjectID(c *gin.Context, token string, err error) {
 	logging.SystemErrorf("Project id error in token %s: %v", token, err)
 	c.Writer.Header().Set("WWW-Authenticate", "Bearer realm=\"token_required\" error=\"not_allowed\"")
 	c.AbortWithStatusJSON(http.StatusForbidden, middleware.ErrResponse("Forbidden", err))
-}
-
-//ForbiddenProject returns forbidden project error wrappered into openapi error response
-func ForbiddenProject(projectID string) *openapi.ErrorObject {
-	eo := &openapi.ErrorObject{
-		Message: fmt.Sprintf("User does not have access to the project: %s", projectID),
-	}
-
-	return eo
 }

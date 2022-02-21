@@ -146,7 +146,7 @@ func (cs *ConfigurationsService) SaveConfigWithLock(objectType string, projectID
 }
 
 //GetConfigWithLock proxies call to getWithLock
-func (cs *ConfigurationsService) GetConfigWithLock(objectType string, projectID string) ([]byte, error) {
+func (cs *ConfigurationsService) GetConfigWithLock(objectType string, projectID string) (json.RawMessage, error) {
 	return cs.getWithLock(objectType, projectID)
 }
 
@@ -877,6 +877,10 @@ func (cs *ConfigurationsService) GetAllProjects() ([]openapi.Project, error) {
 	}
 
 	return projects, nil
+}
+
+func (cs *ConfigurationsService) GetUserProjects(userID string) ([]string, error) {
+	return cs.storage.GetRelatedIDs(userProjectRelation, userID)
 }
 
 func (cs *ConfigurationsService) GetProjectUsers(projectID string) ([]string, error) {

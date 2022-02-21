@@ -1,11 +1,12 @@
 package appconfig
 
 import (
+	"io"
+	"os"
+
 	jcors "github.com/jitsucom/jitsu/server/cors"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/spf13/viper"
-	"io"
-	"os"
 )
 
 type AppConfig struct {
@@ -72,8 +73,10 @@ func Init(containerized bool) error {
 	return nil
 }
 
-func (a *AppConfig) ScheduleClosing(c io.Closer) {
-	a.closeMe = append(a.closeMe, c)
+func (a *AppConfig) ScheduleClosing(c interface{}) {
+	if c, ok := c.(io.Closer); ok {
+		a.closeMe = append(a.closeMe, c)
+	}
 }
 
 func (a *AppConfig) Close() {
