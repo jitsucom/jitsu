@@ -450,8 +450,8 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 		rowsCount := len(objects)
 		needCopyEvent := len(destinationStorages) > 1
 
-		for i, storage := range destinationStorages {
-			err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTableName}, objects, intervalToSync.String(), false, needCopyEvent && i > 0)
+		for _, storage := range destinationStorages {
+			err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTableName}, objects, intervalToSync.String(), false, needCopyEvent)
 			if err != nil {
 				metrics.ErrorSourceEvents(task.SourceType, metrics.EmptySourceTap, task.Source, storage.Type(), storage.ID(), rowsCount)
 				metrics.ErrorObjects(task.SourceType, metrics.EmptySourceTap, task.Source, rowsCount)

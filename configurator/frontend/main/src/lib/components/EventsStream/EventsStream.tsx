@@ -1,27 +1,23 @@
 import { destinationsStore } from "../../../stores/destinations"
 import { observer } from "mobx-react-lite"
 import { useServices } from "../../../hooks/useServices"
-import useLoader from "../../../hooks/useLoader"
-import { NavLink, useHistory, useLocation, useParams } from "react-router-dom"
-import { ErrorCard } from "../ErrorCard/ErrorCard"
-import { CenteredError, CenteredSpin, CodeInline, CodeSnippet, Preloader } from "../components"
-import { Badge, Button, Checkbox, Popover, Skeleton, Table, Tabs, Tooltip, Typography } from "antd"
+import { useLoaderAsObject } from "../../../hooks/useLoader"
+import { NavLink, useHistory, useLocation } from "react-router-dom"
+import { CenteredError, CenteredSpin, CodeInline } from "../components"
+import { Badge, Button, Checkbox, Popover, Table, Tabs, Tooltip } from "antd"
 import { jitsuClientLibraries, default as JitsuClientLibraryCard } from "../JitsuClientLibrary/JitsuClientLibrary"
 import { Moment, default as moment } from "moment"
 import orderBy from "lodash/orderBy"
 import CheckCircleOutlined from "@ant-design/icons/lib/icons/CheckCircleOutlined"
-import { useState, ReactElement, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
 import styles from "./EventsSteam.module.less"
 import murmurhash from "murmurhash"
 import RightCircleOutlined from "@ant-design/icons/lib/icons/RightCircleOutlined"
-import { DownCircleOutlined, ExclamationCircleOutlined, QuestionCircleOutlined } from "@ant-design/icons"
+import { ExclamationCircleOutlined, QuestionCircleOutlined } from "@ant-design/icons"
 import { Code } from "../Code/Code"
-import classNames from "classnames"
 import cn from "classnames"
 import { reactElementToString } from "../../commons/utils"
-import { useForceUpdate } from "../../../hooks/useForceUpdate"
-import { body } from "msw/lib/types/context"
 
 type Event = {
   timestamp: Moment
@@ -316,25 +312,29 @@ const EventsList: React.FC<{ destinationsFilter: string[]; reloadCount: number }
     return index
   }, {})
 
-  const promises = Object.values(destinationsMap)
-    .filter(dst => destinationsFilter === null || destinationsFilter.includes(dst._uid))
-    .map(dst => {
-      return services.backendApiClient
-        .get(
-          `/events/cache?project_id=${services.activeProject.id}&limit=500&destination_ids=${services.activeProject.id}.${dst._uid}`,
-          { proxy: true }
-        )
-        .then(events => {
-          return { events, destinationId: dst._uid }
-        })
-    })
-  const [error, data, , reload] = useLoader(() => Promise.all(promises), [destinationsFilter, reloadCount])
+  const { data, error } = useLoaderAsObject(() => {
+    const promises = Object.values(destinationsMap)
+      .filter(dst => destinationsFilter === null || destinationsFilter.includes(dst._uid))
+      .map(dst => {
+        return services.backendApiClient
+          .get(
+            `/events/cache?project_id=${services.activeProject.id}&limit=500&destination_ids=${services.activeProject.id}.${dst._uid}`,
+            { proxy: true }
+          )
+          .then(events => {
+            return { events, destinationId: dst._uid }
+          })
+      })
+    return Promise.all(promises)
+  }, [destinationsFilter, reloadCount])
+
   if (error) {
     return <CenteredError error={error} />
   } else if (!data) {
     return <CenteredSpin />
   }
-  let events = processEvents(data)
+
+  const events = processEvents(data)
 
   if (events.length === 0) {
     return <NoDataFlowing />
@@ -429,7 +429,7 @@ const EventStreamComponent = () => {
           size="large"
           type="primary"
           onClick={() => {
-            setReloadCount(reloadCount + 1)
+            setReloadCount(count => count + 1)
           }}
         >
           Reload
