@@ -141,7 +141,10 @@ type Driver interface {
 	//Necessary for Sources where data may change retroactively (analytics, ads)
 	GetRefreshWindow() (time.Duration, error)
 
-	//GetObjectsFor returns slice of objects per time interval. Each slice element is one object from the data source.
+	/*GetObjectsFor returns slice of objects per time interval. Each slice element is one object from the data source.
+	pos - current position (object number)
+	total - number of objects available to load. -1 is there is no way to know exact number in advance
+	percent - percent of total object processed [0..100]. estimated value when there is no way to know exact number in advance*/
 	GetObjectsFor(interval *TimeInterval, objectsLoader func(objects []map[string]interface{}, pos int, total int, percent int) error) error
 
 	//Type returns string type of driver. Should be unique among drivers

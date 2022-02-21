@@ -138,7 +138,7 @@ func (r *Redis) GetObjectsFor(interval *base.TimeInterval, objectsLoader func(ob
 	}
 
 	loaded := 0
-	pos := 0
+	progress := 0
 	var result []map[string]interface{}
 
 	for i, redisKey := range matchedKeys {
@@ -151,18 +151,18 @@ func (r *Redis) GetObjectsFor(interval *base.TimeInterval, objectsLoader func(ob
 			object[keyField] = redisKey.name()
 			result = append(result, object)
 			if len(result) == objectsChunkSize {
-				err = objectsLoader(result, loaded, -1, 100*pos/len(matchedKeys))
+				err = objectsLoader(result, loaded, -1, 100*progress/len(matchedKeys))
 				if err != nil {
 					return err
 				}
 				loaded += len(result)
 				result = nil
-				pos = i
+				progress = i
 			}
 		}
 	}
 	if len(result) > 0 {
-		err = objectsLoader(result, loaded, -1, 100*pos/len(matchedKeys))
+		err = objectsLoader(result, loaded, -1, 100*progress/len(matchedKeys))
 		if err != nil {
 			return err
 		}
