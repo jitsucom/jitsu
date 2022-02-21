@@ -1,0 +1,56 @@
+---
+title: Clickhouse specifics
+---
+
+# Retroactive User Recognition on Clickhouse
+
+Retroactive User Recognition feature needs to update data that was already loaded to a data warehouse
+Clickhouse by its nature doesn't support `UPDATE` queries, but it provides different solutions with important specifics.
+
+## Data Deduplication
+
+Retroactive User Recognition on Clickhouse works with tables using [ReplacingMergeTree](https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/replacingmergetree/) or ReplicatedReplacingMergeTree engines
+and relies on its data deduplication mechanism.
+
+<Hint>
+Data deduplication occurs in the background at an unknown time, so you can’t plan for it.
+Some data may remain unprocessed.
+</Hint>
+
+Basically speaking, that means that `SELECT` query will contain some duplicated rows when query time period intersects with
+User Recognition anonymous events TTL period ([Read more on TTL](/docs/other-features/retroactive-user-recognition/redis-optimization))
+
+To avoid duplicated data in results you need to use `FINAL` modifier after table name:
+
+```sql
+select * from events_with_user_recognition FINAL order by _timestamp desc;
+```
+
+When `FINAL` is specified, ClickHouse fully merges the data before returning the result and thus performs all data transformations that happen during merges for the given table engine.
+
+## Configuration
+
+When Jitsu creates table in Clickhouse it automatically setups table engine compatible with Retroactive User Recognition.
+
+If you need Retroactive User Recognition to work with existing table you need to make sure that correct `ENGINE` and sorting key (`ORDER BY`)
+are set for table:
+
+`ENGINE = ReplacingMergeTree` or `ENGINE = ReplicatedReplacingMergeTree`<br/>
+`ORDER_BY eventn_ctx_event_id`
+
+Otherwise, User Recognition needs to be turned off for that destination to avoid data duplication.
+
+Example:
+```sql
+CREATE TABLE jitsu.events_with_user_recognition
+(
+    `_timestamp` DateTime,
+    `api_key` String,
+    `event_type` String,
+    ...
+)
+ENGINE = ReplacingMergeTree
+PARTITION BY toYYYYMM(_timestamp)
+ORDER BY eventn_ctx_event_id
+SETTINGS index_granularity = 8192
+```
