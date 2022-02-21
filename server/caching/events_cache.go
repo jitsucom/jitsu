@@ -20,8 +20,8 @@ type EventsCache struct {
 
 	capacityPerTokenOrDestination int
 	poolSize                      int
-	timeWindowSeconds             time.Duration
-	trimIntervalMs                time.Duration
+	timeWindow                    time.Duration
+	trimInterval                  time.Duration
 	rateLimiters                  sync.Map
 	lastDestinations              sync.Map
 	lastTokens                    sync.Map
@@ -69,8 +69,8 @@ func NewEventsCache(enabled bool, storage meta.Storage, capacityPerTokenOrDestin
 		lastTokens:                    sync.Map{},
 		rateLimiters:                  sync.Map{},
 		poolSize:                      poolSize,
-		timeWindowSeconds:             time.Second * time.Duration(timeWindowSeconds),
-		trimIntervalMs:                time.Duration(trimIntervalMs),
+		timeWindow:                    time.Second * time.Duration(timeWindowSeconds),
+		trimInterval:                  time.Millisecond * time.Duration(trimIntervalMs),
 
 		done:     done,
 		doneOnce: doneOnce,
@@ -101,7 +101,7 @@ func (ec *EventsCache) start() {
 				continue
 			}
 
-			if err := ec.putEventWithStatus(cf.destinationID, eventEntity); err != nil {
+			if err := ec.putEventWithStatus(eventEntity); err != nil {
 				logging.SystemErrorf("[%s] failed to save meta event entity [%v] into the cache: %v", cf.successEventContext.DestinationID, cf, err)
 				continue
 			}
@@ -112,7 +112,7 @@ func (ec *EventsCache) start() {
 //start goroutine for trimming events cache by deleting old cached events
 func (ec *EventsCache) startTrimmer() {
 	safego.RunWithRestart(func() {
-		ticker := time.NewTicker(time.Millisecond * ec.trimIntervalMs)
+		ticker := time.NewTicker(ec.trimInterval)
 		for {
 			select {
 			case <-ec.done:
@@ -220,12 +220,12 @@ func (ec *EventsCache) putRawEvent(tokenID string, serializedPayload []byte) {
 }
 
 //putEventWithStatus saves processed JSON event with status into the storage by destinationID
-func (ec *EventsCache) putEventWithStatus(destinationID string, entity *meta.Event) error {
-	if err := ec.storage.AddEvent(meta.EventsDestinationNamespace, destinationID, entity); err != nil {
+func (ec *EventsCache) putEventWithStatus(entity *meta.Event) error {
+	if err := ec.storage.AddEvent(meta.EventsDestinationNamespace, entity.DestinationID, entity); err != nil {
 		return err
 	}
 
-	ec.lastDestinations.LoadOrStore(destinationID, true)
+	ec.lastDestinations.LoadOrStore(entity.DestinationID, true)
 	return nil
 }
 
@@ -343,6 +343,11 @@ func (ec *EventsCache) GetTotal(namespace, id string) int {
 	return total
 }
 
+//GetCacheCapacityAndIntervalWindow returns cache capacity and window interval seconds
+func (ec *EventsCache) GetCacheCapacityAndIntervalWindow() (int, int) {
+	return ec.capacityPerTokenOrDestination, int(ec.timeWindow.Seconds())
+}
+
 //Close stops all underlying goroutines
 func (ec *EventsCache) Close() error {
 	if ec.isActive() {
@@ -365,13 +370,13 @@ func (ec *EventsCache) isActive() bool {
 }
 
 func (ec *EventsCache) isRateLimiterAllowed(id string) bool {
-	rateLimiterIface, _ := ec.rateLimiters.LoadOrStore(id, NewRateLimiter(uint64(ec.capacityPerTokenOrDestination), ec.timeWindowSeconds))
+	rateLimiterIface, _ := ec.rateLimiters.LoadOrStore(id, NewRefillableRateLimiter(uint64(ec.capacityPerTokenOrDestination), ec.timeWindow))
 	rateLimiter, _ := rateLimiterIface.(RateLimiter)
 	return rateLimiter.Allow()
 }
 
 func (ec *EventsCache) getLastMinuteLimited(id string) uint64 {
-	rateLimiterIface, _ := ec.rateLimiters.LoadOrStore(id, NewRateLimiter(uint64(ec.capacityPerTokenOrDestination), ec.timeWindowSeconds))
+	rateLimiterIface, _ := ec.rateLimiters.LoadOrStore(id, NewRefillableRateLimiter(uint64(ec.capacityPerTokenOrDestination), ec.timeWindow))
 	rateLimiter, _ := rateLimiterIface.(RateLimiter)
 	return rateLimiter.GetLastMinuteLimited()
 }
