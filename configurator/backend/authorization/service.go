@@ -383,7 +383,7 @@ func (s *Service) SSOAuthenticate(code string) (*TokenDetails, error) {
 		return nil, err
 	}
 
-	accessTokenTTL := time.Hour * 24 * 2
+	accessTokenTTL := s.ssoAuthProvider.AccessTokenTTL()
 	refreshTokenTTL := time.Second
 
 	td, err := s.authProvider.CreateTokens(CreateTokenParams{
