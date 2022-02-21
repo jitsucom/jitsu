@@ -7,7 +7,7 @@ import { getBaseUIPath } from "lib/commons/pathHelper"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
 import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserService } from "./UserService"
-import { User } from "../../generated/conf-openapi"
+import {SignupRequest, User} from "../../generated/conf-openapi"
 
 export const LS_ACCESS_KEY = "en_access"
 export const LS_REFRESH_KEY = "en_refresh"
@@ -47,21 +47,16 @@ export class BackendUserService implements UserService {
     this.setTokens(response["access_token"], response["refresh_token"])
   }
 
-  async createUser(email: string, password: string): Promise<void> {
-    const signUpPayload = {
-      email: email,
-      password: password,
-    }
-
-    const response = await this.backendApi.post("/users/signup", signUpPayload, { noauth: true })
+  async createUser(signup: SignupRequest): Promise<void> {
+    const response = await this.backendApi.post("/users/signup", signup, { noauth: true })
     this.user = {
-      suggestedCompanyName: undefined,
+      suggestedCompanyName: signup.company,
       created: new Date().toISOString(),
       id: response["user_id"],
-      emailOptout: false,
+      emailOptout: signup.emailOptout,
       forcePasswordChange: false,
-      name: undefined,
-      email: email,
+      name: signup.name,
+      email: signup.email,
     }
 
     this._apiAccess = new ApiAccess(response["access_token"], response["refresh_token"], this.setTokens)

@@ -1,5 +1,5 @@
 import { ApiAccess } from "./model"
-import { User } from "../../generated/conf-openapi"
+import {SignupRequest, User} from "../../generated/conf-openapi"
 
 /**
  * User Service
@@ -101,7 +101,7 @@ export interface UserService {
 
   removeAuth(callback: () => void)
 
-  createUser(email: string, password: string): Promise<void>
+  createUser(signup: SignupRequest): Promise<void>
 
 
   becomeUser(email: string): Promise<void>

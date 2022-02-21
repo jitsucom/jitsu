@@ -85,7 +85,7 @@ export function userToDTO(user: User): UserDTO {
 export function userFromDTO(dto: UserDTO): User {
   return {
     created: dto._created || new Date().toISOString(),
-    email: dto._email,
+    email: dto._email || dto._suggestedInfo?.email,
     emailOptout: dto._emailOptout || false,
     forcePasswordChange: dto._forcePasswordChange || false,
     name: dto._name || dto._suggestedInfo?.name,

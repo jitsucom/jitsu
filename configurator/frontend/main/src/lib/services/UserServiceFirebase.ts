@@ -25,7 +25,7 @@ import {
   updatePassword,
 } from "firebase/auth"
 import { reloadPage, setDebugInfo } from "../commons/utils"
-import { User } from "../../generated/conf-openapi"
+import {SignupRequest, User} from "../../generated/conf-openapi"
 
 export class FirebaseUserService implements UserService {
   private firebaseApp: FirebaseApp
@@ -157,8 +157,8 @@ export class FirebaseUserService implements UserService {
     setTimeout(() => this.refreshToken(firebaseUser, true), expirationMs / 2)
   }
 
-  async createUser(email: string, password: string): Promise<void> {
-    let firebaseUser = await createUserWithEmailAndPassword(getAuth(), email.trim(), password.trim())
+  async createUser(signup: SignupRequest): Promise<void> {
+    let firebaseUser = await createUserWithEmailAndPassword(getAuth(), signup.email.trim(), signup.password.trim())
 
     await this.refreshToken(firebaseUser.user, false)
     this._apiAccess = new ApiAccess(await firebaseUser.user.getIdToken(false), null, () => {})
@@ -173,7 +173,7 @@ export class FirebaseUserService implements UserService {
       created: new Date().toISOString(),
     }
     await this.storageService.saveUserInfo(userToDTO(user))
-    await this.trackSignup(email, "email")
+    await this.trackSignup(signup.email, "email")
   }
 
   hasUser(): boolean {
