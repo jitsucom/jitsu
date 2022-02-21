@@ -294,7 +294,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 	})
 
 	ssoAuthHandler := handlers.NewSSOAuthHandler(authService)
-	router.GET("/sso-auth-callback", ssoAuthHandler.Handler)
+	router.GET("/api/v1/sso-auth-callback", ssoAuthHandler.Handler)
 
 	proxyHandler := handlers.NewProxyHandler(jitsuService, map[string]jitsu.APIDecorator{
 		//write here custom decorators for a certain HTTP URN paths
