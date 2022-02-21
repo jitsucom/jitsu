@@ -56,51 +56,57 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 		return
 	}
 
+	var authority *Authority
 	if token, ok := getToken(ctx); !ok {
-		invalidToken(ctx)
-		Unauthorized(ctx, errTokenMismatch)
+		invalidToken(ctx, errTokenMismatch)
+		return
 	} else if i.ServerToken == token {
-		authority := &Authority{
+		authority = &Authority{
 			Token:   token,
 			IsAdmin: true,
 		}
 
-		if managementScope {
-			if userID, err := i.Authorizator.FindAnyUserID(ctx); err != nil {
-				Unauthorized(ctx, err)
-				return
-			} else {
-				authority.UserID = userID
-			}
+		if !managementScope {
+			ctx.Set(authorityKey, authority)
+			return
 		}
 
-		ctx.Set(authorityKey, authority)
+		if userID, err := i.Authorizator.FindAnyUserID(ctx); err != nil {
+			invalidToken(ctx, errTokenMismatch)
+			return
+		} else {
+			authority.UserID = userID
+		}
 	} else if clusterAdminScope {
 		logging.SystemErrorf("server request [%s] with [%s] token has been denied: token mismatch", ctx.Request.URL.String(), token)
-		invalidToken(ctx)
-		Unauthorized(ctx, errServerTokenMismatch)
-	} else if authority, err := i.Authorizator.Authorize(ctx, token); err != nil {
+		invalidToken(ctx, errServerTokenMismatch)
+		return
+	} else if auth, err := i.Authorizator.Authorize(ctx, token); err != nil {
 		logging.Errorf("failed to authenticate with token %s: %s", token, err)
-		invalidToken(ctx)
-		Unauthorized(ctx, errTokenMismatch)
+		invalidToken(ctx, errTokenMismatch)
+		return
 	} else {
+		authority = auth
 		authority.Token = token
-		authority.ProjectIDs = make(common.StringSet)
+	}
 
-		if managementScope {
+	authority.ProjectIDs = make(common.StringSet)
+
+	if managementScope {
+		if !authority.IsAnonymous() {
 			if projectIDs, err := i.Configurations.GetUserProjects(authority.UserID); err != nil {
 				logging.Warnf("failed to get projects for user %s: %s", authority.UserID, err)
 			} else {
 				authority.ProjectIDs.AddAll(projectIDs...)
 			}
-
-			if i.IsSelfHosted {
-				authority.ProjectIDs.Add(storages.TelemetryGlobalID)
-			}
 		}
 
-		ctx.Set(authorityKey, authority)
+		if i.IsSelfHosted {
+			authority.ProjectIDs.Add(storages.TelemetryGlobalID)
+		}
 	}
+
+	ctx.Set(authorityKey, authority)
 }
 
 func (i *AuthorizationInterceptor) ManagementWrapper(body gin.HandlerFunc) gin.HandlerFunc {
@@ -113,8 +119,9 @@ func (i *AuthorizationInterceptor) ManagementWrapper(body gin.HandlerFunc) gin.H
 	}
 }
 
-func invalidToken(ctx *gin.Context) {
+func invalidToken(ctx *gin.Context, err error) {
 	ctx.Writer.Header().Set("WWW-Authenticate", "Bearer realm=\"token_required\" error=\"invalid_token\"")
+	Unauthorized(ctx, err)
 }
 
 func GetAuthority(ctx *gin.Context) (*Authority, error) {

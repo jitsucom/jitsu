@@ -352,8 +352,8 @@ func (oa *OpenAPI) GenerateJitsuServerYamlConfiguration(ctx *gin.Context, params
 		encoder := yaml.NewEncoder(ctx.Writer)
 		defer encoder.Close()
 		encoder.SetIndent(2)
-		if err := encoder.Encode(response); err != nil {
-			mw.BadRequest(ctx, "Failed write response", err)
+		if err := encoder.Encode(&response); err != nil {
+			mw.BadRequest(ctx, "Failed to write response", err)
 		}
 	}
 }
@@ -1027,7 +1027,9 @@ func (oa *OpenAPI) GetProjects(ctx *gin.Context, params openapi.GetProjectsParam
 	} else {
 		projects := make([]openapi.Project, 0, len(authority.ProjectIDs))
 		for projectID := range authority.ProjectIDs {
-			if project, err := oa.Configurations.GetProject(projectID); err != nil {
+			if project, err := oa.Configurations.GetProject(projectID); errors.Is(err, storages.ErrConfigurationNotFound) {
+				continue
+			} else if err != nil {
 				mw.InternalError(ctx, fmt.Sprintf("get project %s failed", projectID), err)
 				return
 			} else {

@@ -82,8 +82,8 @@ func (r *Redis) Authorize(ctx context.Context, token string) (*middleware.Author
 	if token, err := r.getToken(conn, tokenType, token); err != nil {
 		return nil, errors.Wrap(err, "find token")
 	} else if err := token.validate(); err != nil {
-		if err := r.revokeTokenType(conn, token.UserID, tokenType); err != nil {
-			logging.SystemErrorf("revoke expired %s [%s] failed: %s", tokenType.name(), token.AccessToken, err)
+		if err := r.deleteToken(conn, tokenType, token); err != nil {
+			logging.SystemErrorf("revoke expired %s [%s] failed: %s", tokenType.name(), tokenType.get(token), err)
 		}
 
 		return nil, errors.Wrap(err, "validate token")
@@ -108,7 +108,7 @@ func (r *Redis) FindAnyUserID(ctx context.Context) (string, error) {
 	} else if err != nil {
 		return "", errors.Wrap(err, "find users")
 	} else {
-		for userID := range userIDs {
+		for _, userID := range userIDs {
 			return userID, nil
 		}
 
@@ -441,10 +441,18 @@ func (r *Redis) revokeTokenType(conn redis.Conn, userID string, tokenType redisT
 }
 
 func (r *Redis) revokeToken(conn redis.Conn, token *redisToken) error {
-	if _, err := conn.Do("HDEL", accessTokenType.key(), accessTokenType.get(token)); err != nil {
-		return errors.Wrapf(err, "revoke %s", accessTokenType.name())
-	} else if _, err := conn.Do("HDEL", refreshTokenType.key(), refreshTokenType.get(token)); err != nil {
-		return errors.Wrapf(err, "revoke %s", refreshTokenType.name())
+	if err := r.deleteToken(conn, accessTokenType, token); err != nil {
+		return err
+	} else if err := r.deleteToken(conn, refreshTokenType, token); err != nil {
+		return err
+	} else {
+		return nil
+	}
+}
+
+func (r *Redis) deleteToken(conn redis.Conn, tokenType redisTokenType, token *redisToken) error {
+	if _, err := conn.Do("HDEL", tokenType.key(), tokenType.get(token)); err != nil {
+		return errors.Wrapf(err, "delete %s", tokenType.name())
 	} else {
 		return nil
 	}
