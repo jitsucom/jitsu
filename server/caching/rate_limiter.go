@@ -10,47 +10,47 @@ import (
 type RateLimiter interface {
 	Allow() bool
 	GetLastMinuteLimited() uint64
-	Close() error
 }
 
-//RefillableRateLimiter is a RateLimiter which has underlying goroutine for refill current allowance level
-//the goroutine increments available value every incrementallyRefillEvery time.
+//RefillableRateLimiter is a refillable buckets RateLimiter which has capacity and current available value.
+//refills (increment by 1) available value every = timeWindow / capacity.
+//e.g. capacity = 100, timeWindow = 60 seconds, so every 100/60=1.66 second available value will be incremented by 1
+//refill happens on Allow() call
 type RefillableRateLimiter struct {
 	counterMu                *sync.Mutex
-	doneOnce                 *sync.Once
-	closed                   chan struct{}
 	capacity                 uint64
 	incrementallyRefillEvery time.Duration
+	available                uint64
+	lastRefillTime           time.Time
 
-	available      uint64
-	lastRefillTime time.Time
-
-	lastLimitedMu     *sync.Mutex
-	lastLimitedTime   time.Time
-	lastMinuteLimited []uint64
+	oneMinuteSecondsCircleBuffer []*BucketCounter
 }
 
-func NewRateLimiter(capacity uint64, timeWindowSeconds time.Duration) *RefillableRateLimiter {
+func NewRefillableRateLimiter(capacity uint64, timeWindow time.Duration) RateLimiter {
 	//get recharge time for increments
-	incrementallyRefillEvery := time.Duration(float64(timeWindowSeconds) / math.Max(float64(capacity), 1))
+	incrementallyRefillEvery := time.Duration(float64(timeWindow) / math.Max(float64(capacity), 1))
+
+	now := timestamp.Now()
+	seconds := int(time.Minute.Seconds())
+	oneMinuteSecondsCircleBuffer := make([]*BucketCounter, seconds)
+	for i := 0; i < seconds; i++ {
+		oneMinuteSecondsCircleBuffer[i] = newBucketCounter(i, now)
+	}
 	srl := &RefillableRateLimiter{
-		counterMu:                &sync.Mutex{},
-		doneOnce:                 &sync.Once{},
-		closed:                   make(chan struct{}),
-		capacity:                 capacity,
-		available:                capacity,
-		incrementallyRefillEvery: incrementallyRefillEvery,
-
-		lastRefillTime: timestamp.Now().UTC(),
-
-		lastLimitedMu:     &sync.Mutex{},
-		lastLimitedTime:   timestamp.Now().UTC(),
-		lastMinuteLimited: make([]uint64, 60, 60),
+		counterMu:                    &sync.Mutex{},
+		capacity:                     capacity,
+		available:                    capacity,
+		incrementallyRefillEvery:     incrementallyRefillEvery,
+		lastRefillTime:               timestamp.Now().UTC(),
+		oneMinuteSecondsCircleBuffer: oneMinuteSecondsCircleBuffer,
 	}
 
 	return srl
 }
 
+//Allow checks if available > 0 then just decrement and returns true
+//if available == 0 checks how much we can refill based on last refill time
+//or return false and counts limited
 func (brl *RefillableRateLimiter) Allow() bool {
 	brl.counterMu.Lock()
 	defer brl.counterMu.Unlock()
@@ -76,43 +76,20 @@ func (brl *RefillableRateLimiter) Allow() bool {
 	}
 }
 
+//GetLastMinuteLimited returns quantity of limits in the last minute
 func (brl *RefillableRateLimiter) GetLastMinuteLimited() uint64 {
-	brl.lastLimitedMu.Lock()
-	defer brl.lastLimitedMu.Unlock()
-
 	now := timestamp.Now().UTC()
-	if now.Sub(brl.lastLimitedTime).Seconds() > time.Minute.Seconds() {
-		//cut all values because there was another time window
-		brl.lastMinuteLimited = make([]uint64, 60, 60)
-		return 0
-	}
 
 	v := uint64(0)
-	for _, secondCounter := range brl.lastMinuteLimited {
-		v += secondCounter
+	for _, oneSecondBucketCounter := range brl.oneMinuteSecondsCircleBuffer {
+		v += oneSecondBucketCounter.Get(now)
 	}
 
 	return v
 }
 
+//countLimited takes limited into account in lastMinuteLimited
 func (brl *RefillableRateLimiter) countLimited() {
-	brl.lastLimitedMu.Lock()
-	defer brl.lastLimitedMu.Unlock()
-
 	now := timestamp.Now().UTC()
-	if now.Sub(brl.lastLimitedTime).Seconds() > time.Minute.Seconds() {
-		//cut all values because there was another time window
-		brl.lastMinuteLimited = make([]uint64, 60, 60)
-	}
-
-	brl.lastMinuteLimited[now.Second()] += 1
-	brl.lastLimitedTime = now
-}
-
-func (brl *RefillableRateLimiter) Close() error {
-	brl.doneOnce.Do(func() {
-		close(brl.closed)
-	})
-
-	return nil
+	brl.oneMinuteSecondsCircleBuffer[now.Second()].Increment(now)
 }

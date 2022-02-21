@@ -41,15 +41,17 @@ type CachedEvent struct {
 	Error         string          `json:"error,omitempty"`
 	Skip          string          `json:"skip,omitempty"`
 	DestinationID string          `json:"destination_id"`
-	TokenID       string          `json:"token_ID"`
+	TokenID       string          `json:"token_id"`
 }
 
 //CachedEventsResponse dto for events cache response
 type CachedEventsResponse struct {
-	TotalEvents       int           `json:"total_events"`
-	LastMinuteLimited uint64        `json:"last_minute_limited"`
-	ResponseEvents    int           `json:"response_events"`
-	Events            []CachedEvent `json:"events"`
+	TotalEvents              int           `json:"total_events"`
+	LastMinuteLimited        uint64        `json:"last_minute_limited"`
+	CacheCapacityPerInterval int           `json:"cache_capacity_per_interval"`
+	IntervalSeconds          int           `json:"interval_seconds"`
+	ResponseEvents           int           `json:"response_events"`
+	Events                   []CachedEvent `json:"events"`
 }
 
 //EventHandler accepts all events
@@ -178,7 +180,12 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 		}
 	}
 
-	response := CachedEventsResponse{Events: []CachedEvent{}}
+	cacheCapacity, intervalSeconds := eh.eventsCache.GetCacheCapacityAndIntervalWindow()
+	response := CachedEventsResponse{
+		Events:                   []CachedEvent{},
+		CacheCapacityPerInterval: cacheCapacity,
+		IntervalSeconds:          intervalSeconds,
+	}
 	for _, id := range strings.Split(ids, ",") {
 		eventsArray, lastMinuteLimited := eh.eventsCache.GetByNamespaceAndID(namespace, id, limit)
 		for _, event := range eventsArray {
@@ -190,6 +197,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 					Error:         event.Error,
 					Skip:          event.Skip,
 					DestinationID: event.DestinationID,
+					TokenID:       event.TokenID,
 				})
 			}
 		}
