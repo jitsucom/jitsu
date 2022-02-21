@@ -42,7 +42,7 @@ const (
 	AdsCollection      = "ads"
 	fbMaxAttempts      = 2
 
-	fbMarketingAPIVersion      = "v12.0"
+	fbMarketingAPIVersion      = "v13.0"
 	defaultFacebookReportLevel = "ad"
 )
 
