@@ -70,7 +70,7 @@ func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.R
 		}
 
 		//Retroactive users recognition
-		processor.Postprocess(payload, eventID, destinationIDs)
+		processor.Postprocess(payload, eventID, destinationIDs, tokenID)
 
 		counters.SuccessPushSourceEvents(tokenID, 1)
 	}
