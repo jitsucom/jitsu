@@ -41,8 +41,8 @@ func Unauthorized(ctx *gin.Context, err error) {
 	Error(ctx, http.StatusUnauthorized, "authorization failed", err)
 }
 
-func MethodNotAllowed(ctx *gin.Context, err error) {
-	Error(ctx, http.StatusMethodNotAllowed, "not implemented", err)
+func Unsupported(ctx *gin.Context, err error) {
+	Error(ctx, http.StatusMethodNotAllowed, "unsupported", err)
 }
 
 func Forbidden(ctx *gin.Context, msg string) {

@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/common"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
@@ -47,7 +46,8 @@ If executed out of our docker container and batch destinations are used, set up 
 log:
   path: <path to event logs directory>
 `
-	jsonContentType = "application/json"
+	jsonContentType    = "application/json"
+	userInfoCollection = "users_info"
 )
 
 //stubS3Config is used in generate Jitsu Server yaml config
@@ -177,7 +177,7 @@ func (oa *OpenAPI) BecomeAnotherCloudUser(ctx *gin.Context, params openapi.Becom
 	}
 
 	if authorizator, err := oa.Authorizator.Cloud(); err != nil {
-		mw.MethodNotAllowed(ctx, err)
+		mw.Unsupported(ctx, err)
 	} else if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
 	} else if !authority.IsAdmin {
@@ -411,7 +411,7 @@ func (oa *OpenAPI) ReissueProjectSSLCertificates(ctx *gin.Context, params openap
 	}
 
 	if updater := oa.UpdateExecutor; updater == nil {
-		mw.MethodNotAllowed(ctx, errSSLNotConfigured)
+		mw.Unsupported(ctx, errSSLNotConfigured)
 	} else if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
 	} else if projectID := string(params.ProjectId); !authority.Allow(projectID) {
@@ -438,7 +438,7 @@ func (oa *OpenAPI) ReissueAllConfiguredSSLCertificates(ctx *gin.Context, params 
 	}
 
 	if updater := oa.UpdateExecutor; updater == nil {
-		mw.MethodNotAllowed(ctx, errSSLNotConfigured)
+		mw.Unsupported(ctx, errSSLNotConfigured)
 	} else if params.Async != nil && *params.Async {
 		safego.Run(func() {
 			if err := updater.Run(); err != nil {
@@ -529,7 +529,7 @@ func (oa *OpenAPI) UserEmailChange(ctx *gin.Context) {
 
 	var req openapi.UserEmailChangeJSONBody
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.MethodNotAllowed(ctx, err)
+		mw.Unsupported(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.OldEmail == "" {
@@ -539,7 +539,7 @@ func (oa *OpenAPI) UserEmailChange(ctx *gin.Context) {
 	} else if userID, err := authorizator.ChangeEmail(ctx, req.OldEmail, req.NewEmail); err != nil {
 		mw.BadRequest(ctx, "email update failed", err)
 	} else {
-		data, err := oa.Configurations.GetConfigWithLock(authorization.UsersInfoCollection, userID)
+		data, err := oa.Configurations.GetConfigWithLock(userInfoCollection, userID)
 		if errors.Is(err, storages.ErrConfigurationNotFound) {
 			logging.Warnf("failed to find user info for id %s", userID)
 			data = []byte("{}")
@@ -558,7 +558,7 @@ func (oa *OpenAPI) UserEmailChange(ctx *gin.Context) {
 			}
 		}
 
-		if _, err := oa.Configurations.SaveConfigWithLock(authorization.UsersInfoCollection, userID, values); err != nil {
+		if _, err := oa.Configurations.SaveConfigWithLock(userInfoCollection, userID, values); err != nil {
 			mw.InternalError(ctx, "update user info failed", err)
 		} else {
 			mw.StatusOk(ctx)
@@ -573,7 +573,7 @@ func (oa *OpenAPI) GetUserInfo(ctx *gin.Context) {
 
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if data, err := oa.Configurations.GetConfigWithLock(authorization.UsersInfoCollection, authority.UserID); errors.Is(err, storages.ErrConfigurationNotFound) {
+	} else if data, err := oa.Configurations.GetConfigWithLock(userInfoCollection, authority.UserID); errors.Is(err, storages.ErrConfigurationNotFound) {
 		ctx.Data(http.StatusOK, jsonContentType, []byte("{}"))
 	} else if err != nil {
 		mw.BadRequest(ctx, "get config with lock", err)
@@ -608,7 +608,7 @@ func (oa *OpenAPI) UserSignUp(ctx *gin.Context) {
 
 	var req openapi.UserSignUpJSONRequestBody
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.MethodNotAllowed(ctx, err)
+		mw.Unsupported(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.Email == "" {
@@ -650,7 +650,7 @@ func (oa *OpenAPI) UserPasswordChange(ctx *gin.Context) {
 
 	var req openapi.UserPasswordChangeJSONBody
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.MethodNotAllowed(ctx, err)
+		mw.Unsupported(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.NewPassword == nil {
@@ -684,7 +684,7 @@ func (oa *OpenAPI) UserPasswordReset(ctx *gin.Context) {
 
 	var req openapi.UserPasswordResetJSONRequestBody
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.MethodNotAllowed(ctx, err)
+		mw.Unsupported(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.Email == "" {
@@ -705,7 +705,7 @@ func (oa *OpenAPI) UserSignIn(ctx *gin.Context) {
 
 	var req openapi.UserSignInJSONRequestBody
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.MethodNotAllowed(ctx, err)
+		mw.Unsupported(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.Email == "" {
@@ -725,7 +725,7 @@ func (oa *OpenAPI) UserSignOut(ctx *gin.Context) {
 	}
 
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.MethodNotAllowed(ctx, err)
+		mw.Unsupported(ctx, err)
 	} else if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
 	} else if authority.IsAnonymous() {
@@ -744,7 +744,7 @@ func (oa *OpenAPI) UserAuthorizationTokenRefresh(ctx *gin.Context) {
 
 	var req openapi.UserAuthorizationTokenRefreshJSONRequestBody
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.MethodNotAllowed(ctx, err)
+		mw.Unsupported(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.RefreshToken == "" {
@@ -793,7 +793,7 @@ func (oa *OpenAPI) CreateObjectInProject(ctx *gin.Context, projectID openapi.Pro
 
 	var req openapi.AnyObject
 	if authority, err := mw.GetAuthority(ctx); err != nil {
-		mw.MethodNotAllowed(ctx, err)
+		mw.Unsupported(ctx, err)
 	} else if projectID := string(projectID); !authority.Allow(projectID) {
 		mw.ForbiddenProject(ctx, projectID)
 	} else if err := ctx.BindJSON(&req); err != nil {
@@ -1087,7 +1087,7 @@ func (oa *OpenAPI) ListUsers(ctx *gin.Context) {
 	}
 
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.MethodNotAllowed(ctx, err)
+		mw.Unsupported(ctx, err)
 	} else if users, err := authorizator.ListUsers(ctx); err != nil {
 		mw.BadRequest(ctx, "list users failed", err)
 	} else {
@@ -1102,7 +1102,7 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 
 	var req openapi.CreateUserRequest
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.MethodNotAllowed(ctx, err)
+		mw.Unsupported(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.ProjectId == nil && req.ProjectName == nil {
@@ -1152,7 +1152,7 @@ func (oa *OpenAPI) DeleteUser(ctx *gin.Context, userID string) {
 	}
 
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.MethodNotAllowed(ctx, err)
+		mw.Unsupported(ctx, err)
 	} else if err := authorizator.DeleteUser(ctx, userID); err != nil {
 		mw.BadRequest(ctx, "delete user failed", err)
 	} else {
@@ -1169,7 +1169,7 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 
 	var req openapi.PatchUserRequest
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.MethodNotAllowed(ctx, err)
+		mw.Unsupported(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if err := authorizator.UpdateUser(ctx, userID, req.Password,

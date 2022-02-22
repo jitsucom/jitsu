@@ -12,11 +12,12 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/jitsucom/jitsu/configurator/authorization"
+
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/jitsu/configurator/appconfig"
-	v2 "github.com/jitsucom/jitsu/configurator/authorization/v2"
 	"github.com/jitsucom/jitsu/configurator/cors"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/emails"
@@ -265,9 +266,9 @@ func main() {
 	logging.Fatal(server.ListenAndServe())
 }
 
-func newAuthorizator(ctx context.Context, vp *viper.Viper, mailSender v2.MailSender) (Authorizator, error) {
+func newAuthorizator(ctx context.Context, vp *viper.Viper, mailSender authorization.MailSender) (Authorizator, error) {
 	if vp.IsSet("auth.firebase.project_id") {
-		return v2.NewFirebase(ctx, v2.FirebaseInit{
+		return authorization.NewFirebase(ctx, authorization.FirebaseInit{
 			ProjectID:       vp.GetString("auth.firebase.project_id"),
 			CredentialsFile: vp.GetString("auth.firebase.credentials_file"),
 			AdminDomain:     vp.GetString("auth.admin_domain"),
@@ -289,7 +290,7 @@ func newAuthorizator(ctx context.Context, vp *viper.Viper, mailSender v2.MailSen
 			logging.Infof("auth.redis.port isn't configured. Will be used default: %d", defaultPort)
 		}
 
-		return v2.NewRedis(v2.RedisInit{
+		return authorization.NewRedis(authorization.RedisInit{
 			PoolFactory: redisPoolFactory,
 			MailSender:  mailSender,
 		})
