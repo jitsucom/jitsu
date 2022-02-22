@@ -39,7 +39,7 @@ const DestinationsListComponent = ({ setBreadcrumbs }: CommonDestinationPageProp
     )
   }, [setBreadcrumbs])
 
-  if (destinationsStore.destinations.length === 0) {
+  if (destinationsStore.list.length === 0) {
     return <EmptyList handleAddClick={handleAddClick} title="Destinations list is still empty" unit="destination" />
   }
 
@@ -52,7 +52,7 @@ const DestinationsListComponent = ({ setBreadcrumbs }: CommonDestinationPageProp
       </div>
 
       <div className="flex flex-wrap justify-center">
-        {destinationsStore.destinations.map((dst: DestinationData) => {
+        {destinationsStore.list.map((dst: DestinationData) => {
           return <DestinationCard key={dst._uid} dst={dst} />
         })}
       </div>

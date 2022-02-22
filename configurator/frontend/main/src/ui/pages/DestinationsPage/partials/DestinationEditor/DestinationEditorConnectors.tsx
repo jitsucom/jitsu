@@ -9,9 +9,6 @@ import { sourcesStore } from "stores/sources"
 import useLoader from "hooks/useLoader"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
-// @Utils
-import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
-import { destinationEditorUtils } from "ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils"
 // @Components
 import { NameWithPicture, ConnectedItems, ConnectedItem } from "ui/components/ConnectedItems/ConnectedItems"
 import { CenteredError, CenteredSpin } from "lib/components/components"
@@ -37,7 +34,7 @@ export interface Props {
 const DestinationEditorConnectorsComponent = ({ form, initialValues, destination, handleTouchAnyField }: Props) => {
   const service = ApplicationServices.get()
 
-  const sources = sourcesStore.sources
+  const sources = sourcesStore.list
   const sourcesError = sourcesStore.error
 
   const [apiKeysError, apiKeysData] = useLoader(
@@ -63,7 +60,7 @@ const DestinationEditorConnectorsComponent = ({ form, initialValues, destination
   const apiKeysList = useMemo<ConnectedItem[]>(
     () =>
       apiKeysData?.keys
-        ? apiKeysData.keys.map((key: APIKey) => ({
+        ? apiKeysData.keys.map((key: ApiKey) => ({
             title: <span>{APIKeyUtil.getDisplayName(key)}</span>,
             id: key.uid,
           }))
@@ -148,7 +145,7 @@ const DestinationEditorConnectorsComponent = ({ form, initialValues, destination
               {destination.syncFromSourcesStatus === "coming_soon" && (
                 <div className="text-secondaryText">
                   <b>{destination.displayName}</b> support is <i>coming soon!</i>. At the moment, Jitsu can't send data
-                  from connectors to {destination.displayName}. However, you can event streaming is available!
+                  from connectors to {destination.displayName}. However, event streaming is available!
                 </div>
               )}
               {destination.syncFromSourcesStatus === "not_supported" && (

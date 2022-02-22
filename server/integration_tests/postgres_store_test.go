@@ -16,6 +16,7 @@ import (
 )
 
 //TestPostgresStreamInsert stores two events into postgres (without/with parsed ua and geo)
+//tests full cycle of event processing
 func TestPostgresStreamInsert(t *testing.T) {
 	viper.Set("server.log.path", "")
 	viper.Set("log.path", "")

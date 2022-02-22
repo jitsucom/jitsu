@@ -19,7 +19,7 @@ func (bp *BulkProcessor) Preprocess(event Event, requestContext *RequestContext)
 }
 
 //Postprocess does nothing
-func (bp *BulkProcessor) Postprocess(event Event, eventID string, destinationIDs []string) {
+func (bp *BulkProcessor) Postprocess(event Event, eventID string, destinationIDs []string, tokenID string) {
 }
 
 //Type returns preprocessor type

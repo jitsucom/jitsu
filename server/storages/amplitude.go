@@ -35,7 +35,7 @@ func NewAmplitude(config *Config) (storage Storage, err error) {
 	}
 
 	a := &Amplitude{}
-	err = a.Init(config)
+	err = a.Init(config, a)
 	if err != nil {
 		return
 	}

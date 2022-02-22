@@ -28,7 +28,7 @@ export interface ConnectedItem {
 const CONNECTIONS_SOURCEDATA_PATH = "destinations"
 
 const SourceEditorFormConnectionsComponent: React.FC<Props> = ({ initialSourceData, setSourceEditorState }) => {
-  const destinations = destinationsStore.destinations
+  const destinations = destinationsStore.list
 
   const destinationsList = useMemo<ConnectedItem[]>(
     () =>
