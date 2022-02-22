@@ -568,24 +568,6 @@ paths:
           $ref: '#/components/responses/AnyObjectResponse'
         default:
           $ref: '#/components/responses/Error'
-    put:
-      tags:
-        - configuration-management
-      operationId: "Replace object by uid"
-      description: >
-        Save object with given ID. The whole object except id field will be overwritten. The method returns an updated object
-      security:
-        - configurationManagementAuth: [  ]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AnyObject'
-      responses:
-        '200':
-          $ref: '#/components/responses/AnyObjectResponse'
-        default:
-          $ref: '#/components/responses/Error'
   /api/v1/telemetry:
     get:
       tags:
