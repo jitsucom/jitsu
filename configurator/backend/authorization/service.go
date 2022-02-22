@@ -40,13 +40,11 @@ type SSOToken struct {
 }
 
 type SSOConfig struct {
-	Provider       string        `json:"provider" validate:"required"`
-	Tenant         string        `json:"tenant" validate:"required"`
-	Product        string        `json:"product" validate:"required"`
-	TokenUrl       string        `json:"token_url" validate:"required"`
-	ProfileUrl     string        `json:"profile_url" validate:"required"`
-	AuthUrl        string        `json:"auth_url" validate:"required"`
-	AccessTokenTTL time.Duration `json:"access_token_ttl" validate:"required"`
+	Provider              string        `json:"provider" validate:"required"`
+	Tenant                string        `json:"tenant" validate:"required"`
+	Product               string        `json:"product" validate:"required"`
+	Host                  string        `json:"host" validate:"required"`
+	AccessTokenTTLSeconds time.Duration `json:"access_token_ttl_seconds" validate:"required"`
 }
 
 type Service struct {
@@ -109,13 +107,11 @@ func CreateSSOProvider(vp *viper.Viper) SSOProvider {
 		}
 
 		ssoConfig = &SSOConfig{
-			Provider:       vpSSO.GetString("provider"),
-			Tenant:         vpSSO.GetString("tenant"),
-			Product:        vpSSO.GetString("product"),
-			TokenUrl:       vpSSO.GetString("tokenUrl"),
-			ProfileUrl:     vpSSO.GetString("profileUrl"),
-			AuthUrl:        vpSSO.GetString("authUrl"),
-			AccessTokenTTL: vpSSO.GetDuration("accessTokenTTL"),
+			Provider:              vpSSO.GetString("provider"),
+			Tenant:                vpSSO.GetString("tenant"),
+			Product:               vpSSO.GetString("product"),
+			Host:                  vpSSO.GetString("host"),
+			AccessTokenTTLSeconds: vpSSO.GetDuration("accessTokenTTLSeconds"),
 		}
 	} else {
 		err = json.Unmarshal([]byte(envConfig), ssoConfig)
@@ -131,6 +127,8 @@ func CreateSSOProvider(vp *viper.Viper) SSOProvider {
 		logging.Errorf("Missed required SSO config params: %v", err)
 		return nil
 	}
+
+	ssoConfig.AccessTokenTTLSeconds *= time.Second
 
 	if ssoConfig.Provider == "boxyhq" {
 		ssoProvider, err = NewBoxyHQProvider(ssoConfig)
