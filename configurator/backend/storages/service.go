@@ -11,8 +11,6 @@ import (
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/openapi"
-	"github.com/jitsucom/jitsu/configurator/openapi"
-	"github.com/jitsucom/jitsu/configurator/random"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/locks"
 	"github.com/jitsucom/jitsu/server/logging"
