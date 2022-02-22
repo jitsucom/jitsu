@@ -81,7 +81,9 @@ export const CurrentPlanComponent: React.FC<CurrentPlanProps> = ({ planStatus, o
             planStatus.stripeCustomerId && <a href={customerPortalLink}>Manage Subscription</a>
           )}
 
-          <a target="_blank" href="https://jitsu.com/pricing">Pricing Info</a>
+          <a target="_blank" href="https://jitsu.com/pricing">
+            Pricing Info
+          </a>
         </div>
       </div>
       <Modal

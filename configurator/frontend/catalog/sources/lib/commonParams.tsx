@@ -2,7 +2,11 @@ import { jsonType, oauthSecretType, Parameter, selectionType, stringType } from 
 
 const oauthParamDocumentation = (
   <>
-    Use <a target="_blank" href="https://github.com/jitsucom/oauthcli">Jitsu OAuth CLI Util</a> to obtain oauth credentials
+    Use{" "}
+    <a target="_blank" href="https://github.com/jitsucom/oauthcli">
+      Jitsu OAuth CLI Util
+    </a>{" "}
+    to obtain oauth credentials
   </>
 )
 
@@ -59,7 +63,9 @@ export const googleAuthConfigParameters = ({
             <li>
               <b>OAuth</b> — you'll need to provide Client Secret / Client Id (you can obtain in in Google Cloud
               Console) and get a refresh token. Jitsu developed a small{" "}
-              <a target="_blank" href="https://github.com/jitsucom/oauthcli">CLI utility to obtain those tokens</a>
+              <a target="_blank" href="https://github.com/jitsucom/oauthcli">
+                CLI utility to obtain those tokens
+              </a>
             </li>
             <li>
               <b>Service Account</b> — you'll a){" "}

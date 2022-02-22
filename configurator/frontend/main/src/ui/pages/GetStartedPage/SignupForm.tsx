@@ -124,8 +124,14 @@ export function SignupForm({ supportOauth }) {
             onChange={() => setTosAgree(!tosAgree)}
           >
             <span>
-              I agree to <a target="_blank" href="https://jitsu.com/tos">Terms of Services</a> and{" "}
-              <a target="_blank" href="https://jitsu.com/privacy">Privacy Policy</a>
+              I agree to{" "}
+              <a target="_blank" href="https://jitsu.com/tos">
+                Terms of Services
+              </a>{" "}
+              and{" "}
+              <a target="_blank" href="https://jitsu.com/privacy">
+                Privacy Policy
+              </a>
             </span>
           </Checkbox>
         </Form.Item>
