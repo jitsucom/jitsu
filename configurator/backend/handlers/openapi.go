@@ -108,6 +108,8 @@ type LocalAuthorizator interface {
 	ChangeEmail(ctx context.Context, oldEmail, newEmail string) (userID string, err error)
 	ListUsers(ctx context.Context) ([]openapi.UserBasicInfo, error)
 	CreateUser(ctx context.Context, email string) (*CreatedUser, error)
+	DeleteUser(ctx context.Context, userID string) error
+	UpdateUser(ctx context.Context, userID string, newPassword *string, forcePasswordChange bool) error
 }
 
 type CloudAuthorizator interface {
@@ -975,6 +977,8 @@ func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string, params 
 			mw.InternalError(ctx, "auto sign up failed", err)
 			return
 		}
+
+		// TODO also create user info?
 	} else {
 		mw.RequiredField(ctx, "either userId or userEmail")
 		return
@@ -1141,12 +1145,38 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 	// TODO create user info
 }
 
-func (oa *OpenAPI) DeleteUser(c *gin.Context, userId bool) {
-	//TODO implement me
-	panic("implement me")
+func (oa *OpenAPI) DeleteUser(ctx *gin.Context, userID string) {
+	if ctx.IsAborted() {
+		return
+	}
+
+	if authorizator, err := oa.Authorizator.Local(); err != nil {
+		mw.Unauthorized(ctx, err)
+	} else if err := authorizator.DeleteUser(ctx, userID); err != nil {
+		mw.BadRequest(ctx, "delete user failed", err)
+	} else {
+		mw.StatusOk(ctx)
+	}
+
+	// TODO remove user info
 }
 
-func (oa *OpenAPI) UpdateUser(c *gin.Context, userId bool) {
-	//TODO implement me
-	panic("implement me")
+func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
+	if ctx.IsAborted() {
+		return
+	}
+
+	var req openapi.PatchUserRequest
+	if authorizator, err := oa.Authorizator.Local(); err != nil {
+		mw.Unauthorized(ctx, err)
+	} else if err := ctx.BindJSON(&req); err != nil {
+		mw.InvalidInputJSON(ctx, err)
+	} else if err := authorizator.UpdateUser(ctx, userID, req.Password,
+		req.ForcePasswordChange != nil && *req.ForcePasswordChange); err != nil {
+		mw.BadRequest(ctx, "update user failed", err)
+	} else {
+		mw.StatusOk(ctx)
+	}
+
+	// TODO update user info
 }

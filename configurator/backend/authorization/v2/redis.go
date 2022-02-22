@@ -23,11 +23,12 @@ var (
 )
 
 const (
-	usersIndexKey           = "users_index"
-	userIDField             = "id"
-	userEmailField          = "email"
-	userHashedPasswordField = "hashed_password"
-	resetIDTTL              = 3600
+	usersIndexKey                = "users_index"
+	userIDField                  = "id"
+	userEmailField               = "email"
+	userHashedPasswordField      = "hashed_password"
+	userForceChangePasswordField = "force_change_password"
+	resetIDTTL                   = 3600
 )
 
 type RedisInit struct {
@@ -371,6 +372,72 @@ func (r *Redis) CreateUser(ctx context.Context, email string) (*handlers.Created
 	}
 }
 
+func (r *Redis) DeleteUser(ctx context.Context, userID string) error {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer closeQuietly(conn)
+
+	userKey := userKey(userID)
+	if email, err := redis.String(conn.Do("HGET", userKey, userEmailField)); errors.Is(err, redis.ErrNil) {
+		return ErrUserNotFound
+	} else if err := r.revokeTokens(conn, userID); err != nil {
+		return errors.Wrap(err, "revoke tokens")
+	} else if err != nil {
+		return errors.Wrap(err, "get user email by id")
+	} else if _, err := conn.Do("DEL", userKey); err != nil {
+		return errors.Wrap(err, "remove user data")
+	} else if _, err := conn.Do("HDEL", usersIndexKey, email); err != nil {
+		return errors.Wrapf(err, "remove %s from %s", email, usersIndexKey)
+	} else {
+		return nil
+	}
+}
+
+func (r *Redis) UpdateUser(ctx context.Context, userID string, newPassword *string, forcePasswordChange bool) error {
+	if newPassword == nil && !forcePasswordChange {
+		return nil
+	}
+
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer closeQuietly(conn)
+
+	userKey := userKey(userID)
+	if _, err := conn.Do("HGET", userKey, userHashedPasswordField); errors.Is(err, redis.ErrNil) {
+		return ErrUserNotFound
+	}
+
+	args := make([]interface{}, 1, 3)
+	args[0] = userKey
+	if forcePasswordChange {
+		args = append(args, userForceChangePasswordField, true)
+	}
+
+	if newPassword != nil {
+		if hashedPassword, err := r.passwordEncoder.Encode(*newPassword); err != nil {
+			return errors.Wrap(err, "encode new password")
+		} else {
+			args = append(args, userHashedPasswordField, hashedPassword)
+		}
+
+		if err := r.revokeTokens(conn, userID); err != nil {
+			return errors.Wrap(err, "revoke tokens")
+		}
+	}
+
+	if _, err := conn.Do("HSET", args...); err != nil {
+		return errors.Wrap(err, "update user data")
+	} else {
+		return nil
+	}
+}
+
 func (r *Redis) sendResetPasswordLink(conn redis.Conn, userID, email, callback string) error {
 	if resetID, err := r.generateResetID(conn, userID); err != nil {
 		return errors.Wrap(err, "generate reset id")
@@ -422,6 +489,7 @@ func (r *Redis) changePassword(conn redis.Conn, userID, newPassword string) (*op
 		return nil, errors.Wrap(err, "revoke user tokens")
 	} else if _, err := conn.Do("HSET", userKey(userID),
 		userHashedPasswordField, hashedPassword,
+		userForceChangePasswordField, false,
 	); err != nil {
 		return nil, errors.Wrap(err, "update password")
 	} else if tokenPair, err := r.generateTokenPair(conn, userID); err != nil {

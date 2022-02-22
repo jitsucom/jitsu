@@ -199,6 +199,16 @@ components:
         projectName: { type: string }
         projectId: { type: string }
       required: [ 'email' ]
+    PatchUserRequest:
+      type: object
+      properties:
+        name: { type: "string" }
+        forcePasswordChange:
+          type: boolean
+          description: if set to true, user will be forced to change the password during next login
+        password:
+          type: string
+          description: New password to assign a user
 
   responses:
     Error:
@@ -634,7 +644,7 @@ paths:
           in: path
           required: true
           schema:
-            type: boolean
+            type: string
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
@@ -653,24 +663,14 @@ paths:
           in: path
           required: true
           schema:
-            type: boolean
+            type: string
       requestBody:
         description: >
           Any combination of the fields should be present. Only fields present in request will be updated
-
         content:
           "application/json":
             schema:
-              type: object
-              properties:
-                name: { type: "string" }
-                forcePasswordChange:
-                  type: string
-                  description: if set to true, user will be forced to change the password during next login
-                password:
-                  type: string
-                  description: New password to assign a user
-
+              $ref: "#/components/schemas/PatchUserRequest"
       responses:
         '200':
           $ref: '#/components/responses/AnyObjectResponse'
