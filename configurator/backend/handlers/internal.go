@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 
-	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/openapi"
@@ -30,7 +29,7 @@ func (oa *OpenAPI) getProjectUsers(projectID string) ([]openapi.UserBasicInfo, e
 				Email string `json:"_email"`
 			}
 
-			if userInfoData, err := oa.Configurations.GetConfigWithLock(authorization.UsersInfoCollection, userID); err != nil {
+			if userInfoData, err := oa.Configurations.GetConfigWithLock(userInfoCollection, userID); err != nil {
 				return nil, errors.Wrapf(err, "get user info for %s", userID)
 			} else if err := json.Unmarshal(userInfoData, &userInfo); err != nil {
 				return nil, errors.Wrapf(err, "unmarshal user %s info", userID)

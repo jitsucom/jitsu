@@ -2,228 +2,136 @@ package authorization
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"strings"
 
-	"github.com/jitsucom/jitsu/configurator/common"
-
-	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
+	"github.com/jitsucom/jitsu/configurator/common"
+	"github.com/jitsucom/jitsu/configurator/handlers"
+	"github.com/jitsucom/jitsu/configurator/middleware"
+	"github.com/jitsucom/jitsu/configurator/openapi"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/pkg/errors"
+	uuid "github.com/satori/go.uuid"
 	"google.golang.org/api/option"
 )
 
-var ErrNoUserExist = errors.New("no users exist")
-
-type Provider interface {
-	//both authorization types
-	io.Closer
-	VerifyAccessToken(ctx context.Context, token string) (string, error)
-	IsAdmin(ctx context.Context, userID string) (bool, error)
-	GenerateUserAccessToken(ctx context.Context, userID string) (string, error)
-	GetUserByEmail(ctx context.Context, email string) (*User, error)
-	SaveUser(ctx context.Context, user *User) error
-
-	UsersExist() (bool, error)
-	Type() string
-
-	//only in-house
-	GetUserByID(userID string) (*User, error)
-	GetOnlyUserID() (string, error)
-	ChangeUserEmail(oldEmail, newEmail string) (string, error)
-	CreateTokens(userID string) (*TokenDetails, error)
-	DeleteAccessToken(token string) error
-	DeleteAllTokens(userID string) error
-	SavePasswordResetID(resetID, userID string) error
-	DeletePasswordResetID(resetID string) error
-	GetUserByResetID(resetID string) (*User, error)
-	RefreshTokens(refreshToken string) (*TokenDetails, error)
+type FirebaseInit struct {
+	AdminDomain     string
+	AdminEmails     []string
+	ProjectID       string
+	CredentialsFile string
+	MailSender      MailSender
 }
 
-type FirebaseProvider struct {
-	adminDomain     string
-	adminUsers      map[string]bool
-	authClient      *auth.Client
-	firestoreClient *firestore.Client
+type Firebase struct {
+	adminDomain string
+	adminEmails common.StringSet
+	authClient  *auth.Client
+	mailSender  MailSender
 }
 
-func NewFirebaseProvider(ctx context.Context, projectID, credentialsFile, adminDomain string, adminUsers []string) (*FirebaseProvider, error) {
+func NewFirebase(ctx context.Context, init FirebaseInit) (*Firebase, error) {
 	logging.Infof("Initializing firebase authorization storage..")
-	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID}, option.WithCredentialsFile(credentialsFile))
-	if err != nil {
-		return nil, err
-	}
-
-	authClient, err := app.Auth(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	firestoreClient, err := app.Firestore(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &FirebaseProvider{
-		adminDomain:     adminDomain,
-		adminUsers:      common.StringSetFrom(adminUsers),
-		authClient:      authClient,
-		firestoreClient: firestoreClient,
-	}, nil
-}
-
-func (fp *FirebaseProvider) VerifyAccessToken(ctx context.Context, token string) (string, error) {
-	verifiedToken, err := fp.authClient.VerifyIDToken(ctx, token)
-	if err != nil {
-		return "", err
-	}
-
-	return verifiedToken.UID, nil
-}
-
-//IsAdmin return true only if
-// 1. input user is in viper 'auth.admin_users' list
-// 2. input user has admin domain in email and auth type is Google
-func (fp *FirebaseProvider) IsAdmin(ctx context.Context, userID string) (bool, error) {
-	authUserInfo, err := fp.authClient.GetUser(ctx, userID)
-	if err != nil {
-		return false, fmt.Errorf("Failed to get authorization data for user_id [%s]", userID)
-	}
-
-	//** Check admin_users
-	if _, ok := fp.adminUsers[authUserInfo.Email]; ok {
-		return true, nil
-	}
-
-	//** Check email domain
-	emailSplit := strings.Split(authUserInfo.Email, "@")
-	if len(emailSplit) != 2 {
-		return false, fmt.Errorf("Invalid email string %s: should contain exactly one '@' character", authUserInfo.Email)
-	}
-
-	if emailSplit[1] != fp.adminDomain {
-		return false, fmt.Errorf("Domain %s is not allowed to use this API", emailSplit[1])
-	}
-
-	// authorization method validation
-	isGoogleAuth := false
-	for _, providerInfo := range authUserInfo.ProviderUserInfo {
-		if providerInfo.ProviderID == "google.com" {
-			isGoogleAuth = true
-			break
-		}
-	}
-
-	if !isGoogleAuth {
-		return false, fmt.Errorf("Only users with Google authorization have access to this API")
-	}
-
-	return true, nil
-}
-
-func (fp *FirebaseProvider) GenerateUserAccessToken(ctx context.Context, userID string) (string, error) {
-	user, err := fp.authClient.GetUserByEmail(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	return fp.authClient.CustomToken(ctx, user.UID)
-}
-
-//UsersExist returns always true
-func (fp *FirebaseProvider) UsersExist() (bool, error) {
-	return true, nil
-}
-
-func (fp *FirebaseProvider) Type() string {
-	return FirebaseType
-}
-
-func (fp *FirebaseProvider) Close() error {
-	if err := fp.firestoreClient.Close(); err != nil {
-		return fmt.Errorf("Error closing firestore client: %v", err)
-	}
-
-	return nil
-}
-
-func (fp *FirebaseProvider) GetUserByID(userID string) (*User, error) {
-	errMsg := fmt.Sprintf("GetUserByID isn't supported in authorization FirebaseProvider. userID: %s", userID)
-	logging.SystemError(errMsg)
-	return nil, errors.New(errMsg)
-}
-
-func (fp *FirebaseProvider) GetUserByEmail(ctx context.Context, email string) (*User, error) {
-	if record, err := fp.authClient.GetUserByEmail(ctx, email); err != nil {
-		// pretty stupid, but Google doesn't know any better, apparently
-		if strings.Contains(err.Error(), "NOT_FOUND") {
-			return nil, ErrUserNotFound
-		} else {
-			return nil, errors.Wrapf(err, "get user from firebase")
-		}
+	if app, err := firebase.NewApp(ctx,
+		&firebase.Config{ProjectID: init.ProjectID},
+		option.WithCredentialsFile(init.CredentialsFile)); err != nil {
+		return nil, errors.Wrap(err, "init firebase app")
+	} else if authClient, err := app.Auth(ctx); err != nil {
+		return nil, errors.Wrap(err, "init firebase auth client")
 	} else {
-		return &User{
-			ID:    record.UID,
-			Email: email,
+		return &Firebase{
+			adminDomain: init.AdminDomain,
+			adminEmails: common.StringSetFrom(init.AdminEmails),
+			authClient:  authClient,
+			mailSender:  init.MailSender,
 		}, nil
 	}
 }
 
-func (fp *FirebaseProvider) SaveUser(ctx context.Context, user *User) error {
-	panic("TODO")
+func (fb *Firebase) AuthorizationType() string {
+	return "firebase"
 }
 
-func (fp *FirebaseProvider) GetOnlyUserID() (string, error) {
-	errMsg := fmt.Sprintf("GetOnlyUserID() isn't supported in authorization FirebaseProvider.")
-	return "", errors.New(errMsg)
+func (fb *Firebase) Local() (handlers.LocalAuthorizator, error) {
+	return nil, handlers.ErrIsCloud
 }
 
-func (fp *FirebaseProvider) ChangeUserEmail(oldEmail, newEmail string) (string, error) {
-	errMsg := fmt.Sprintf("ChangeUserEmail isn't supported in authorization FirebaseProvider. old email: %s", oldEmail)
-	logging.SystemError(errMsg)
-	return "", errors.New(errMsg)
+func (fb *Firebase) Cloud() (handlers.CloudAuthorizator, error) {
+	return fb, nil
 }
 
-func (fp *FirebaseProvider) CreateTokens(userID string) (*TokenDetails, error) {
-	errMsg := fmt.Sprintf("CreateTokens isn't supported in authorization FirebaseProvider. userID: %s", userID)
-	logging.SystemError(errMsg)
-	return nil, errors.New(errMsg)
+func (fb *Firebase) Authorize(ctx context.Context, token string) (*middleware.Authority, error) {
+	if resp, err := fb.authClient.VerifyIDToken(ctx, token); err != nil {
+		return nil, errors.Wrap(err, "verify ID token")
+	} else if user, err := fb.authClient.GetUser(ctx, resp.UID); err != nil {
+		return nil, errors.Wrap(err, "get user")
+	} else {
+		var isAdmin bool
+		if _, ok := fb.adminEmails[user.Email]; ok {
+			isAdmin = true
+		} else if email := strings.Split(user.Email, "@"); len(email) != 2 {
+			// nope
+		} else if domain := email[1]; domain != fb.adminDomain {
+			// nope
+		} else if !isProvidedByGoogle(user.ProviderUserInfo) {
+			// nope
+		} else {
+			isAdmin = true
+		}
+
+		return &middleware.Authority{
+			UserID:  user.UID,
+			IsAdmin: isAdmin,
+		}, nil
+	}
 }
 
-func (fp *FirebaseProvider) DeleteAccessToken(token string) error {
-	errMsg := "DeleteAccessToken isn't supported in authorization FirebaseProvider"
-	logging.SystemError(errMsg)
-	return errors.New(errMsg)
+func (fb *Firebase) FindAnyUserID(_ context.Context) (string, error) {
+	return "", nil
 }
 
-func (fp *FirebaseProvider) SavePasswordResetID(resetID, userID string) error {
-	errMsg := "SavePasswordResetID isn't supported in authorization FirebaseProvider"
-	logging.SystemError(errMsg)
-	return errors.New(errMsg)
+func (fb *Firebase) HasUsers(_ context.Context) (bool, error) {
+	return true, nil
 }
 
-func (fp *FirebaseProvider) DeletePasswordResetID(resetID string) error {
-	errMsg := "DeletePasswordResetID isn't supported in authorization FirebaseProvider"
-	logging.SystemError(errMsg)
-	return errors.New(errMsg)
+func isProvidedByGoogle(info []*auth.UserInfo) bool {
+	for _, info := range info {
+		if info.ProviderID == "google.com" {
+			return true
+		}
+	}
+
+	return false
 }
 
-func (fp *FirebaseProvider) GetUserByResetID(resetID string) (*User, error) {
-	errMsg := fmt.Sprintf("GetUserByResetID isn't supported in authorization FirebaseProvider. resetID: %s", resetID)
-	logging.SystemError(errMsg)
-	return nil, errors.New(errMsg)
+func (fb *Firebase) AutoSignUp(ctx context.Context, email, _ string) (string, error) {
+	req := new(auth.UserToCreate).
+		Email(email).
+		Password(uuid.NewV4().String())
+	if resp, err := fb.authClient.GetUserByEmail(ctx, email); err != nil && !strings.Contains(err.Error(), "NOT_FOUND") {
+		return "", errors.Wrap(err, "get user by email")
+	} else if err == nil {
+		return resp.UID, ErrUserExists
+	} else if !fb.mailSender.IsConfigured() {
+		return "", errMailServiceNotConfigured
+	} else if resp, err := fb.authClient.CreateUser(ctx, req); err != nil {
+		return "", errors.Wrap(err, "create user")
+	} else if link, err := fb.authClient.PasswordResetLink(ctx, email); err != nil {
+		return "", errors.Wrap(err, "password reset link")
+	} else if err := fb.mailSender.SendResetPassword(email, link); err != nil {
+		return "", errors.Wrap(err, "send reset password")
+	} else {
+		return resp.UID, nil
+	}
 }
 
-func (fp *FirebaseProvider) DeleteAllTokens(userID string) error {
-	errMsg := fmt.Sprintf("DeleteAllTokens isn't supported in authorization FirebaseProvider. userID: %s", userID)
-	logging.SystemError(errMsg)
-	return errors.New(errMsg)
-}
-
-func (fp *FirebaseProvider) RefreshTokens(refreshToken string) (*TokenDetails, error) {
-	errMsg := "RefreshTokens isn't supported in authorization FirebaseProvider"
-	logging.SystemError(errMsg)
-	return nil, errors.New(errMsg)
+func (fb *Firebase) SignInAs(ctx context.Context, email string) (*openapi.TokenResponse, error) {
+	if resp, err := fb.authClient.GetUserByEmail(ctx, email); err != nil {
+		return nil, errors.Wrap(err, "get user by email")
+	} else if token, err := fb.authClient.CustomToken(ctx, resp.UID); err != nil {
+		return nil, errors.Wrap(err, "custom token")
+	} else {
+		return &openapi.TokenResponse{Token: token}, nil
+	}
 }
