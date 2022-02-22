@@ -94,7 +94,11 @@ function JitsuCloudHero() {
         <h2 className="text-center lg:text-left text-textPale font-heading font-bold tracking-wider mt-12">
           Interested in self-hosting?
         </h2>
-        <a target="_blank" href="https://jitsu.com/docs/deployment" className="text-text hover:text-text flex flex-row items-center">
+        <a
+          target="_blank"
+          href="https://jitsu.com/docs/deployment"
+          className="text-text hover:text-text flex flex-row items-center"
+        >
           <div className="text-text pr-4">
             <GitHubLogo />
           </div>

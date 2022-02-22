@@ -135,7 +135,10 @@ export const KeyDocumentation: React.FC<KeyDocumentationProps> = function ({ tok
           documentation={
             <>
               Check if you want to intercept events from Segment (
-              <a target="_blank" href="https://jitsu.com/docs/sending-data/js-sdk/snippet#intercepting-segment-events">Read more</a>)
+              <a target="_blank" href="https://jitsu.com/docs/sending-data/js-sdk/snippet#intercepting-segment-events">
+                Read more
+              </a>
+              )
             </>
           }
           render="Intercept Segment events"
@@ -169,8 +172,10 @@ export const KeyDocumentation: React.FC<KeyDocumentationProps> = function ({ tok
         <p className="api-keys-documentation-tab-description">
           Easiest way to start tracking events within your web app is to add following snippet to{" "}
           <CodeInline>&lt;head&gt;</CodeInline> section of your html file.{" "}
-          <a target="_blank" href="https://jitsu.com/docs/sending-data/js-sdk/">Read more</a> about JavaScript integration on our
-          documentation website
+          <a target="_blank" href="https://jitsu.com/docs/sending-data/js-sdk/">
+            Read more
+          </a>{" "}
+          about JavaScript integration on our documentation website
         </p>
         <Code className="bg-bgSecondary py-3 px-5 rounded-xl mb-2" language="html">
           {getEmbeddedHtml(segment, token.jsAuth, documentationDomain)}
@@ -181,7 +186,9 @@ export const KeyDocumentation: React.FC<KeyDocumentationProps> = function ({ tok
         <p className="api-keys-documentation-tab-description">
           Use <CodeInline>npm install --save @jitsu/sdk-js</CodeInline> or{" "}
           <CodeInline>yarn add @jitsu/sdk-js</CodeInline>. Read more{" "}
-          <a target="_blank" href="https://jitsu.com/docs/sending-data/js-sdk/package">about configuration properties</a>
+          <a target="_blank" href="https://jitsu.com/docs/sending-data/js-sdk/package">
+            about configuration properties
+          </a>
         </p>
         <Code className="bg-bgSecondary py-3 px-5 rounded-xl mb-2" language="javascript">
           {getNPMDocumentation(token.jsAuth, documentationDomain)}

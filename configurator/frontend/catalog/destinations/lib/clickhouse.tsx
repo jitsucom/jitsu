@@ -19,7 +19,9 @@ const destination = {
     <>
       ClickHouse is a fast and scalable database developed by Yandex. ClickHouse is not easy to mainatain, however the
       performance is remarkable. Managed services can be obtained from{" "}
-      <a target="_blank" href="https://altinity.com/cloud-database/">Altinity.Cloud</a>
+      <a target="_blank" href="https://altinity.com/cloud-database/">
+        Altinity.Cloud
+      </a>
     </>
   ),
   syncFromSourcesStatus: "supported",
@@ -63,7 +65,10 @@ const destination = {
         <>
           <p>
             Cluster name. See{" "}
-            <a target="_blank" href="https://jitsu.com/docs/destinations-configuration/clickhouse-destination#clickhouse">
+            <a
+              target="_blank"
+              href="https://jitsu.com/docs/destinations-configuration/clickhouse-destination#clickhouse"
+            >
               documentation
             </a>
             .
