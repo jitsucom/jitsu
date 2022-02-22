@@ -78,8 +78,9 @@ type SystemConfiguration struct {
 }
 
 var (
-	ErrIsLocal = errors.New("supported only for cloud authorization")
-	ErrIsCloud = errors.New("supported only for local authorization")
+	ErrIsLocal          = errors.New("supported only for cloud authorization")
+	ErrIsCloud          = errors.New("supported only for local authorization")
+	errSSLNotConfigured = errors.New("ssl isn't configured in Jitsu configuration")
 )
 
 type UserID string
@@ -176,7 +177,7 @@ func (oa *OpenAPI) BecomeAnotherCloudUser(ctx *gin.Context, params openapi.Becom
 	}
 
 	if authorizator, err := oa.Authorizator.Cloud(); err != nil {
-		mw.Unauthorized(ctx, err)
+		mw.MethodNotAllowed(ctx, err)
 	} else if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
 	} else if !authority.IsAdmin {
@@ -184,7 +185,7 @@ func (oa *OpenAPI) BecomeAnotherCloudUser(ctx *gin.Context, params openapi.Becom
 	} else if params.UserId == "" {
 		mw.RequiredField(ctx, "user_id")
 	} else if token, err := authorizator.SignInAs(ctx, params.UserId); err != nil {
-		mw.InternalError(ctx, "sign in failed", err)
+		mw.BadRequest(ctx, "sign in failed", err)
 	} else {
 		ctx.JSON(http.StatusOK, token)
 	}
@@ -409,12 +410,12 @@ func (oa *OpenAPI) ReissueProjectSSLCertificates(ctx *gin.Context, params openap
 		return
 	}
 
-	if authority, err := mw.GetAuthority(ctx); err != nil {
+	if updater := oa.UpdateExecutor; updater == nil {
+		mw.MethodNotAllowed(ctx, errSSLNotConfigured)
+	} else if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
 	} else if projectID := string(params.ProjectId); !authority.Allow(projectID) {
 		mw.ForbiddenProject(ctx, projectID)
-	} else if updater := oa.UpdateExecutor; updater == nil {
-		mw.InternalError(ctx, "ssl isn't configured in Jitsu configuration", nil)
 	} else if params.Async != nil && *params.Async {
 		safego.Run(func() {
 			if err := updater.RunForProject(projectID); err != nil {
@@ -437,7 +438,7 @@ func (oa *OpenAPI) ReissueAllConfiguredSSLCertificates(ctx *gin.Context, params 
 	}
 
 	if updater := oa.UpdateExecutor; updater == nil {
-		mw.InternalError(ctx, "ssl isn't configured in Jitsu configuration", nil)
+		mw.MethodNotAllowed(ctx, errSSLNotConfigured)
 	} else if params.Async != nil && *params.Async {
 		safego.Run(func() {
 			if err := updater.Run(); err != nil {
@@ -512,7 +513,7 @@ func (oa *OpenAPI) GetTelemetrySettings(ctx *gin.Context) {
 	if data, err := oa.Configurations.GetTelemetry(); errors.Is(err, storages.ErrConfigurationNotFound) {
 		result = json.RawMessage("{}")
 	} else if err != nil {
-		mw.InternalError(ctx, "error getting telemetry configuration", err)
+		mw.BadRequest(ctx, "error getting telemetry configuration", err)
 		return
 	} else {
 		result = data
@@ -528,7 +529,7 @@ func (oa *OpenAPI) UserEmailChange(ctx *gin.Context) {
 
 	var req openapi.UserEmailChangeJSONBody
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.Unauthorized(ctx, err)
+		mw.MethodNotAllowed(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.OldEmail == "" {
@@ -536,7 +537,7 @@ func (oa *OpenAPI) UserEmailChange(ctx *gin.Context) {
 	} else if req.NewEmail == "" {
 		mw.RequiredField(ctx, "new_email")
 	} else if userID, err := authorizator.ChangeEmail(ctx, req.OldEmail, req.NewEmail); err != nil {
-		mw.InternalError(ctx, "email update failed", err)
+		mw.BadRequest(ctx, "email update failed", err)
 	} else {
 		data, err := oa.Configurations.GetConfigWithLock(authorization.UsersInfoCollection, userID)
 		if errors.Is(err, storages.ErrConfigurationNotFound) {
@@ -575,7 +576,7 @@ func (oa *OpenAPI) GetUserInfo(ctx *gin.Context) {
 	} else if data, err := oa.Configurations.GetConfigWithLock(authorization.UsersInfoCollection, authority.UserID); errors.Is(err, storages.ErrConfigurationNotFound) {
 		ctx.Data(http.StatusOK, jsonContentType, []byte("{}"))
 	} else if err != nil {
-		mw.InternalError(ctx, "get config with lock", err)
+		mw.BadRequest(ctx, "get config with lock", err)
 	} else {
 		ctx.Data(http.StatusOK, jsonContentType, data)
 	}
@@ -594,7 +595,7 @@ func (oa *OpenAPI) UpdateUserInfo(ctx *gin.Context) {
 	} else if err := ctx.BindJSON(&userInfoData); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if result, err := oa.Configurations.SaveUserInfoWithProject(authority.UserID, userInfoData); err != nil {
-		mw.InternalError(ctx, "save user info failed", err)
+		mw.BadRequest(ctx, "save user info failed", err)
 	} else {
 		ctx.Data(http.StatusOK, jsonContentType, result)
 	}
@@ -607,7 +608,7 @@ func (oa *OpenAPI) UserSignUp(ctx *gin.Context) {
 
 	var req openapi.UserSignUpJSONRequestBody
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.Unauthorized(ctx, err)
+		mw.MethodNotAllowed(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.Email == "" {
@@ -649,7 +650,7 @@ func (oa *OpenAPI) UserPasswordChange(ctx *gin.Context) {
 
 	var req openapi.UserPasswordChangeJSONBody
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.Unauthorized(ctx, err)
+		mw.MethodNotAllowed(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.NewPassword == nil {
@@ -683,7 +684,7 @@ func (oa *OpenAPI) UserPasswordReset(ctx *gin.Context) {
 
 	var req openapi.UserPasswordResetJSONRequestBody
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.Unauthorized(ctx, err)
+		mw.MethodNotAllowed(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.Email == "" {
@@ -704,7 +705,7 @@ func (oa *OpenAPI) UserSignIn(ctx *gin.Context) {
 
 	var req openapi.UserSignInJSONRequestBody
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.Unauthorized(ctx, err)
+		mw.MethodNotAllowed(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.Email == "" {
@@ -724,7 +725,7 @@ func (oa *OpenAPI) UserSignOut(ctx *gin.Context) {
 	}
 
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.Unauthorized(ctx, err)
+		mw.MethodNotAllowed(ctx, err)
 	} else if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
 	} else if authority.IsAnonymous() {
@@ -743,7 +744,7 @@ func (oa *OpenAPI) UserAuthorizationTokenRefresh(ctx *gin.Context) {
 
 	var req openapi.UserAuthorizationTokenRefreshJSONRequestBody
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.Unauthorized(ctx, err)
+		mw.MethodNotAllowed(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.RefreshToken == "" {
@@ -792,7 +793,7 @@ func (oa *OpenAPI) CreateObjectInProject(ctx *gin.Context, projectID openapi.Pro
 
 	var req openapi.AnyObject
 	if authority, err := mw.GetAuthority(ctx); err != nil {
-		mw.Unauthorized(ctx, err)
+		mw.MethodNotAllowed(ctx, err)
 	} else if projectID := string(projectID); !authority.Allow(projectID) {
 		mw.ForbiddenProject(ctx, projectID)
 	} else if err := ctx.BindJSON(&req); err != nil {
@@ -929,7 +930,7 @@ func (oa *OpenAPI) GetProjectSettings(ctx *gin.Context, projectID openapi.Projec
 	} else if projectID := string(projectID); !authority.Allow(projectID) {
 		mw.ForbiddenProject(ctx, projectID)
 	} else if result, err := oa.Configurations.GetProject(projectID); err != nil {
-		mw.InternalError(ctx, "get project settings failed", err)
+		mw.BadRequest(ctx, "get project settings failed", err)
 	} else {
 		ctx.JSON(http.StatusOK, result)
 	}
@@ -948,7 +949,7 @@ func (oa *OpenAPI) PatchProjectSettings(ctx *gin.Context, projectID openapi.Proj
 	} else if err := ctx.BindJSON(&projectValues); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if result, err := oa.Configurations.PatchProject(projectID, projectValues); err != nil {
-		mw.InternalError(ctx, "patch project settings failed", err)
+		mw.BadRequest(ctx, "patch project settings failed", err)
 	} else {
 		ctx.JSON(http.StatusOK, result)
 	}
@@ -1003,7 +1004,7 @@ func (oa *OpenAPI) UnlinkUserFromProject(ctx *gin.Context, projectID string, par
 	} else if !authority.Allow(projectID) {
 		mw.ForbiddenProject(ctx, projectID)
 	} else if err := oa.Configurations.UnlinkUserFromProject(params.UserId, projectID); err != nil {
-		mw.InternalError(ctx, "unlink user from project failed", err)
+		mw.BadRequest(ctx, "unlink user from project failed", err)
 	} else {
 		ctx.JSON(http.StatusOK, mw.OkResponse)
 	}
@@ -1072,7 +1073,7 @@ func (oa *OpenAPI) CreateProjectAndLinkUser(ctx *gin.Context) {
 	} else if authority.IsAnonymous() {
 		ctx.JSON(http.StatusOK, project)
 	} else if err := oa.Configurations.LinkUserToProject(authority.UserID, *project.Id); err != nil {
-		mw.InternalError(ctx, "link user to project failed", err)
+		mw.BadRequest(ctx, "link user to project failed", err)
 	} else {
 		ctx.JSON(http.StatusOK, project)
 	}
@@ -1086,7 +1087,7 @@ func (oa *OpenAPI) ListUsers(ctx *gin.Context) {
 	}
 
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.Unauthorized(ctx, err)
+		mw.MethodNotAllowed(ctx, err)
 	} else if users, err := authorizator.ListUsers(ctx); err != nil {
 		mw.BadRequest(ctx, "list users failed", err)
 	} else {
@@ -1101,7 +1102,7 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 
 	var req openapi.CreateUserRequest
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.Unauthorized(ctx, err)
+		mw.MethodNotAllowed(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.ProjectId == nil && req.ProjectName == nil {
@@ -1151,7 +1152,7 @@ func (oa *OpenAPI) DeleteUser(ctx *gin.Context, userID string) {
 	}
 
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.Unauthorized(ctx, err)
+		mw.MethodNotAllowed(ctx, err)
 	} else if err := authorizator.DeleteUser(ctx, userID); err != nil {
 		mw.BadRequest(ctx, "delete user failed", err)
 	} else {
@@ -1168,7 +1169,7 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 
 	var req openapi.PatchUserRequest
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.Unauthorized(ctx, err)
+		mw.MethodNotAllowed(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 	} else if err := authorizator.UpdateUser(ctx, userID, req.Password,
