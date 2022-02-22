@@ -38,8 +38,8 @@ func (jp *JsProcessor) Preprocess(event Event, reqContext *RequestContext) {
 }
 
 //Postprocess puts event into recognition Service
-func (jp *JsProcessor) Postprocess(event Event, eventID string, destinationIDs []string) {
-	jp.usersRecognition.Event(event, eventID, destinationIDs)
+func (jp *JsProcessor) Postprocess(event Event, eventID string, destinationIDs []string, tokenID string) {
+	jp.usersRecognition.Event(event, eventID, destinationIDs, tokenID)
 }
 
 //Type returns preprocessor type

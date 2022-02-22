@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	eventsURLTemplate = "https://graph.facebook.com/v12.0/%s/events?access_token=%s&locale=en_EN"
+	eventsURLTemplate = "https://graph.facebook.com/v13.0/%s/events?access_token=%s&locale=en_EN"
 )
 
 var (

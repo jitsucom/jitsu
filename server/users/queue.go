@@ -11,6 +11,7 @@ import (
 const (
 	AnonymousQueueName  = "users_recognition"
 	IdentifiedQueueName = "users_identified"
+	AggregatedQueueName = "users_aggregated"
 )
 
 type Queue struct {

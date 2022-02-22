@@ -140,7 +140,7 @@ func (s *Service) Replay(fileName, destinationID string, rawFile, skipMalformed 
 		}
 
 		eventsConsumer.Consume(object, apiKey)
-		s.usersRecognition.Event(object, eventID, []string{destinationID})
+		s.usersRecognition.Event(object, eventID, []string{destinationID}, apiKey)
 	}
 
 	return nil

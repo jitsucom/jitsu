@@ -36,7 +36,7 @@ func NewGoogleAnalytics(config *Config) (storage Storage, err error) {
 	}
 
 	ga := &GoogleAnalytics{}
-	err = ga.Init(config)
+	err = ga.Init(config, ga)
 	if err != nil {
 		return
 	}

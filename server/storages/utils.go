@@ -38,7 +38,8 @@ func IsConnectionError(err error) bool {
 		strings.Contains(err.Error(), "write: broken pipe") ||
 		strings.Contains(err.Error(), "context deadline exceeded") ||
 		strings.Contains(err.Error(), "connection reset by peer") ||
-		strings.Contains(err.Error(), "write: connection timed out")
+		strings.Contains(err.Error(), "write: connection timed out") ||
+		strings.Contains(err.Error(), "no such host")
 }
 
 // syncStoreImpl implements common behaviour used to storing chunk of pulled data to any storages with processing
@@ -65,7 +66,7 @@ func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, ob
 		}
 
 		start := timestamp.Now()
-		if err = adapter.BulkUpdate(dbSchema, flatData.GetPayload(), deleteConditions); err != nil {
+		if err = adapter.Insert(adapters.NewBatchInsertContext(dbSchema, flatData.GetPayload(), deleteConditions)); err != nil {
 			return err
 		}
 		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", storage.ID(), flatData.GetPayloadLen(), timestamp.Now().Sub(start).Seconds())
@@ -102,7 +103,7 @@ func processData(storage Storage, overriddenDataSchema *schema.BatchHeader, obje
 	}
 
 	//Update call with single object or bulk uploading
-	flatDataPerTable, failedEvents, _, err := processor.ProcessEvents(timeIntervalValue, objects, map[string]bool{}, needCopyEvent)
+	flatDataPerTable, _, failedEvents, _, err := processor.ProcessEvents(timeIntervalValue, objects, map[string]bool{}, needCopyEvent)
 	if err != nil {
 		return nil, err
 	}

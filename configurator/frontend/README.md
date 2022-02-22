@@ -10,6 +10,6 @@ Before starting the frontend locally or building for production, run `lerna boot
 
 Refer to `README.md` in the `main` folder
 
-## Test your changes locally
+### Notes
 
-## Deploying your changes
+- Resolution to `react-error-overlay` of version 6.0.9 in `package.json` is needed to overcome the [CRA issue](https://github.com/facebook/create-react-app/issues/11771#issuecomment-995904234). Feel free to remove the resolution once migrated to `react-scripts` v5.

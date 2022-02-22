@@ -20,7 +20,7 @@ type HTTPStorage struct {
 
 //Insert sends event into adapters.Adapter
 func (h *HTTPStorage) Insert(eventContext *adapters.EventContext) error {
-	return h.adapter.Insert(eventContext)
+	return h.adapter.Insert(adapters.NewSingleInsertContext(eventContext))
 }
 
 func (h *HTTPStorage) DryRun(payload events.Event) ([][]adapters.TableField, error) {
@@ -38,8 +38,8 @@ func (h *HTTPStorage) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 }
 
 //Update isn't supported
-func (h *HTTPStorage) Update(object map[string]interface{}) error {
-	return fmt.Errorf("%s doesn't support Store() func", h.Type())
+func (h *HTTPStorage) Update(eventContext *adapters.EventContext) error {
+	return fmt.Errorf("%s doesn't support Update() func", h.Type())
 }
 
 //GetUsersRecognition returns disabled users recognition configuration

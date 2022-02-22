@@ -21,21 +21,23 @@ const (
 	configuratorURLKey     = "__JITSU_CONFIGURATOR_URL__"
 )
 
-var blankPage = `<html><head><title>Jitsu edge server ver [VERSION]</title></head><body><pre><small><b>Jitsu edge server ver [VERSION]</b></small></pre></body></html>`
+var signaturePage = `<html><head><title>Jitsu edge server ver [VERSION]</title></head><body><pre><small><b>Jitsu edge server ver [VERSION]</b></small></pre></body></html>`
+var blankPage = `<html><head></head><body></body></html>`
 
 //RootPathHandler serves:
 // HTTP redirect to Configurator
 // HTML Welcome page or blanc page
 type RootPathHandler struct {
-	service         *system.Service
-	configuratorURN string
-	welcome         *template.Template
-	redirectToHttps bool
+	service          *system.Service
+	configuratorURN  string
+	welcome          *template.Template
+	disableSignature bool
+	redirectToHttps  bool
 }
 
 //NewRootPathHandler reads sourceDir and returns RootPathHandler instance
-func NewRootPathHandler(service *system.Service, sourceDir, configuratorURN string, disableWelcomePage, redirectToHttps bool) *RootPathHandler {
-	rph := &RootPathHandler{service: service, configuratorURN: configuratorURN, redirectToHttps: redirectToHttps}
+func NewRootPathHandler(service *system.Service, sourceDir, configuratorURN string, disableWelcomePage, redirectToHttps, disableSignature bool) *RootPathHandler {
+	rph := &RootPathHandler{service: service, configuratorURN: configuratorURN, redirectToHttps: redirectToHttps, disableSignature: disableSignature}
 
 	if service.IsConfigured() {
 		return rph
@@ -88,7 +90,11 @@ func (rph *RootPathHandler) Handler(c *gin.Context) {
 	c.Header("Content-type", htmlContentType)
 
 	if rph.welcome == nil {
-		c.Writer.Write([]byte(strings.ReplaceAll(blankPage, "[VERSION]", appconfig.RawVersion+" / "+appconfig.BuiltAt)))
+		if !rph.disableSignature {
+			c.Writer.Write([]byte(strings.ReplaceAll(signaturePage, "[VERSION]", appconfig.RawVersion+" / "+appconfig.BuiltAt)))
+		} else {
+			c.Writer.Write([]byte(blankPage))
+		}
 		return
 	}
 

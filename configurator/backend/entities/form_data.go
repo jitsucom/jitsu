@@ -41,9 +41,9 @@ type PostgresFormData struct {
 
 //ClickHouseFormData entity is stored in main storage (Firebase/Redis)
 type ClickHouseFormData struct {
-	Mode      string `firestore:"mode" json:"mode"`
-	TableName string `firestore:"tableName" json:"tableName"`
-
+	Mode       string   `firestore:"mode" json:"mode"`
+	TableName  string   `firestore:"tableName" json:"tableName"`
+	ChTLS      string   `firestore:"ch_tls" json:"ch_tls"`
 	ChCluster  string   `firestore:"ch_cluster" json:"ch_cluster"`
 	ChDb       string   `firestore:"ch_database" json:"ch_database"`
 	ChDsns     string   `firestore:"ch_dsns" json:"ch_dsns"`

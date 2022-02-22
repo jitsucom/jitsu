@@ -14,21 +14,21 @@ const (
 
 type Storage interface {
 	io.Closer
-	SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error
-	GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error)
-	DeleteAnonymousEvent(destinationID, anonymousID string, eventID string) error
+	SaveAnonymousEvent(tokenID, anonymousID, eventID, payload string) error
+	GetAnonymousEvents(tokenID, anonymousID string) (map[string]string, error)
+	DeleteAnonymousEvent(tokenID, anonymousID string, eventID ...string) error
 	Type() string
 }
 
 type Dummy struct{}
 
-func (d *Dummy) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error {
+func (d *Dummy) SaveAnonymousEvent(tokenID, anonymousID, eventID, payload string) error {
 	return nil
 }
-func (d *Dummy) GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error) {
+func (d *Dummy) GetAnonymousEvents(tokenID, anonymousID string) (map[string]string, error) {
 	return map[string]string{}, nil
 }
-func (d *Dummy) DeleteAnonymousEvent(destinationID, anonymousID string, eventID string) error {
+func (d *Dummy) DeleteAnonymousEvent(tokenID, anonymousID string, eventID ...string) error {
 	return nil
 }
 func (d *Dummy) Type() string { return DummyStorageType }
