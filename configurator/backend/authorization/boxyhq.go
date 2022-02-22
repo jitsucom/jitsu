@@ -51,7 +51,7 @@ func (bp *BoxyHQProvider) GetUser(code string) (*UserEntity, error) {
 		ClientID:       "dummy",
 		ClientSecret:   "dummy",
 		EndpointParams: url.Values{"tenant": {bp.ssoConfig.Tenant}, "product": {bp.ssoConfig.Product}, "grant_type": {"authorization_code"}, "code": {code}},
-		TokenURL:       bp.ssoConfig.TokenUrl,
+		TokenURL:       bp.ssoConfig.Host + "/api/oauth/token",
 		AuthStyle:      oauth2.AuthStyleInParams,
 	}
 
@@ -77,7 +77,7 @@ func (bp *BoxyHQProvider) GetUser(code string) (*UserEntity, error) {
 
 func (bp *BoxyHQProvider) GetUserInfo(conf *clientcredentials.Config) (*UserInfoEntity, error) {
 	client := conf.Client(context.Background())
-	response, err := client.Get(bp.ssoConfig.ProfileUrl)
+	response, err := client.Get(bp.ssoConfig.Host + "/api/oauth/userinfo")
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (bp *BoxyHQProvider) GetUserInfo(conf *clientcredentials.Config) (*UserInfo
 func (bp *BoxyHQProvider) AuthLink() string {
 	authLink := fmt.Sprintf(
 		"%s?response_type=code&provider=saml&client_id=dummy&tenant=%s&product=%s&state=%s",
-		bp.ssoConfig.AuthUrl,
+		bp.ssoConfig.Host+"/api/oauth/authorize",
 		bp.ssoConfig.Tenant,
 		bp.ssoConfig.Product,
 		bp.randomString(10),
@@ -114,7 +114,7 @@ func (bp *BoxyHQProvider) Name() string {
 }
 
 func (bp *BoxyHQProvider) AccessTokenTTL() time.Duration {
-	return bp.ssoConfig.AccessTokenTTL
+	return bp.ssoConfig.AccessTokenTTLSeconds
 }
 
 func (bp *BoxyHQProvider) randomString(length int) string {
