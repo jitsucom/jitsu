@@ -29,7 +29,7 @@ type TokenEntity struct {
 type SSOTokenEntity struct {
 	UserID      string `json:"user_id,omitempty" redis:"user_id"`
 	ExpiredAt   string `json:"expired_at,omitempty" redis:"expired_at"`
-	SSOProvider string `json:"token_type,omitempty" redis:"token_type"`
+	SSOProvider string `json:"sso_provider,omitempty" redis:"sso_provider"`
 	AccessToken string `json:"access_token,omitempty" redis:"access_token"`
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/bcrypt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -111,7 +112,7 @@ func CreateSSOProvider(vp *viper.Viper) SSOProvider {
 			Tenant:                vpSSO.GetString("tenant"),
 			Product:               vpSSO.GetString("product"),
 			Host:                  vpSSO.GetString("host"),
-			AccessTokenTTLSeconds: vpSSO.GetDuration("accessTokenTTLSeconds"),
+			AccessTokenTTLSeconds: vpSSO.GetDuration("access_token_ttl_seconds"),
 		}
 	} else {
 		err = json.Unmarshal([]byte(envConfig), ssoConfig)
@@ -130,7 +131,7 @@ func CreateSSOProvider(vp *viper.Viper) SSOProvider {
 
 	ssoConfig.AccessTokenTTLSeconds *= time.Second
 
-	if ssoConfig.Provider == "boxyhq" {
+	if ssoConfig.Provider == BoxyHQ {
 		ssoProvider, err = NewBoxyHQProvider(ssoConfig)
 		if err != nil {
 			logging.Error(err)
@@ -138,7 +139,12 @@ func CreateSSOProvider(vp *viper.Viper) SSOProvider {
 		}
 		return ssoProvider
 	} else {
-		logging.Errorf("Provider %s not supported", ssoConfig.Provider)
+		supportedProviders := []string{BoxyHQ}
+		logging.Errorf(
+			"Provider %s is not supported. Jitsu supports only: %s",
+			ssoConfig.Provider,
+			strings.Join(supportedProviders, ", "),
+		)
 		return nil
 	}
 }
@@ -363,8 +369,7 @@ func (s *Service) GetAuthorizationType() string {
 
 func (s *Service) SSOAuthenticate(code string) (*TokenDetails, error) {
 	if s.authProvider.Type() != RedisType {
-		msg := fmt.Sprintf("SSO Auth is not supported for %s auth provider", s.authProvider.Type())
-		return nil, errors.New(msg)
+		return nil, fmt.Errorf("SSO Auth is not supported for %s auth provider", s.authProvider.Type())
 	}
 
 	if s.ssoAuthProvider == nil {
