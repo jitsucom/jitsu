@@ -661,16 +661,12 @@ func (s *Snowflake) executeInsertInTransaction(wrappedTx *Transaction, table *Ta
 	s.queryLogger.LogQueryWithValues(statement, valueArgs)
 
 	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
-		var firstObjectValues strings.Builder
-		for i, name := range headerWithoutQuotes {
-			firstObjectValues.WriteString(name + ": " + fmt.Sprint(valueArgs[i]) + "\n")
-		}
 		return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute insert").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
 				Schema:          s.config.Schema,
 				Table:           table.Name,
 				Statement:       statement,
-				ValuesMapString: firstObjectValues.String(),
+				ValuesMapString: ObjectValuesToString(headerWithoutQuotes, valueArgs),
 			})
 	}
 
