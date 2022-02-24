@@ -8,7 +8,7 @@ import (
 )
 
 //** Retroactive user recognition **
-//anonymous_events:destination_id#${destination_id}:anonymous_id#${cookies_anonymous_id} [event_id] {event JSON} - hashtable with all anonymous events
+//anonymous_events:token_id#${tokenID}:anonymous_id#${cookies_anonymous_id} [event_id] {event JSON} - hashtable with all anonymous events
 
 type Redis struct {
 	pool                      *meta.RedisPool
@@ -24,12 +24,12 @@ func NewRedis(pool *meta.RedisPool, anonymousEventsMinutesTTL int) *Redis {
 	}
 }
 
-//SaveAnonymousEvent saves event JSON by destination ID and user anonymous ID key
-func (r *Redis) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error {
+//SaveAnonymousEvent saves event JSON by tokenID and user anonymous ID key
+func (r *Redis) SaveAnonymousEvent(tokenID, anonymousID, eventID, payload string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 	//add event
-	anonymousEventKey := "anonymous_events:destination_id#" + destinationID + ":anonymous_id#" + anonymousID
+	anonymousEventKey := "anonymous_events:token_id#" + tokenID + ":anonymous_id#" + anonymousID
 	_, err := conn.Do("HSET", anonymousEventKey, eventID, payload)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
@@ -48,11 +48,11 @@ func (r *Redis) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload 
 }
 
 //GetAnonymousEvents returns events JSON per event ID map
-func (r *Redis) GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error) {
+func (r *Redis) GetAnonymousEvents(tokenID, anonymousID string) (map[string]string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 	//get events
-	anonymousEventKey := "anonymous_events:destination_id#" + destinationID + ":anonymous_id#" + anonymousID
+	anonymousEventKey := "anonymous_events:token_id#" + tokenID + ":anonymous_id#" + anonymousID
 
 	eventsMap, err := redis.StringMap(conn.Do("HGETALL", anonymousEventKey))
 	if err != nil && err != redis.ErrNil {
@@ -64,14 +64,18 @@ func (r *Redis) GetAnonymousEvents(destinationID, anonymousID string) (map[strin
 }
 
 //DeleteAnonymousEvent deletes event with eventID
-func (r *Redis) DeleteAnonymousEvent(destinationID, anonymousID string, eventID string) error {
+func (r *Redis) DeleteAnonymousEvent(tokenID, anonymousID string, eventID ...string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
 	//remove event
-	anonymousEventKey := "anonymous_events:destination_id#" + destinationID + ":anonymous_id#" + anonymousID
-
-	_, err := conn.Do("HDEL", anonymousEventKey, eventID)
+	anonymousEventKey := "anonymous_events:token_id#" + tokenID + ":anonymous_id#" + anonymousID
+	args := make([]interface{}, len(eventID)+1)
+	args[0] = anonymousEventKey
+	for i, id := range eventID {
+		args[i+1] = id
+	}
+	_, err := conn.Do("HDEL", args...)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return err

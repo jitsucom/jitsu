@@ -16,7 +16,7 @@ interface Props {
   handleClick: (ev: Event) => () => void
 }
 
-const destinationIds = destinationsStore.destinations.map(dest => dest._uid)
+const destinationIds = destinationsStore.list.map(dest => dest._uid)
 destinationIds.length = 5
 
 const DebugEvents = ({ handleClick }: Props) => {

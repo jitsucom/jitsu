@@ -1,0 +1,6 @@
+export enum EntitiesStoreState {
+  "IDLE" = "IDLE",
+  "GLOBAL_LOADING" = "GLOBAL_LOADING",
+  "BACKGROUND_LOADING" = "BACKGROUND_LOADING",
+  "GLOBAL_ERROR" = "GLOBAL_ERROR",
+}

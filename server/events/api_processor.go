@@ -2,11 +2,12 @@ package events
 
 //APIProcessor preprocess server 2 server integration events
 type APIProcessor struct {
+	usersRecognition Recognition
 }
 
 //NewAPIProcessor returns new API preprocessor
-func NewAPIProcessor() *APIProcessor {
-	return &APIProcessor{}
+func NewAPIProcessor(usersRecognition Recognition) *APIProcessor {
+	return &APIProcessor{usersRecognition: usersRecognition}
 }
 
 //Preprocess puts src = api if doesn't exist
@@ -17,7 +18,8 @@ func (ap *APIProcessor) Preprocess(event Event, requestContext *RequestContext) 
 }
 
 //Postprocess does nothing
-func (ap *APIProcessor) Postprocess(event Event, eventID string, destinationIDs []string) {
+func (ap *APIProcessor) Postprocess(event Event, eventID string, destinationIDs []string, tokenID string) {
+	ap.usersRecognition.Event(event, eventID, destinationIDs, tokenID)
 }
 
 //Type returns preprocessor type

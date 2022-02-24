@@ -3,6 +3,7 @@ package storages
 import (
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
@@ -19,6 +20,8 @@ type StreamingStorage interface {
 	Storage
 	//Insert uses errCallback in async adapters (e.g. adapters.HTTPAdapter)
 	Insert(eventContext *adapters.EventContext) (err error)
+
+	Update(eventContext *adapters.EventContext) (err error)
 	//SuccessEvent writes metrics/counters/events cache, etc
 	SuccessEvent(eventCtx *adapters.EventContext)
 	//ErrorEvent writes metrics/counters/events cache, etc
@@ -30,7 +33,6 @@ type StreamingStorage interface {
 //StreamingWorker reads events from queue and using events.StreamingStorage writes them
 type StreamingWorker struct {
 	eventQueue       events.Queue
-	processor        *schema.Processor
 	streamingStorage StreamingStorage
 	tableHelper      []*TableHelper
 
@@ -75,28 +77,34 @@ func (sw *StreamingWorker) start() {
 				sw.eventQueue.ConsumeTimed(fact, dequeuedTime, tokenID)
 				continue
 			}
+			_, recognizedEvent := fact[schema.JitsuUserRecognizedEvent]
+			if recognizedEvent && !sw.streamingStorage.GetUsersRecognition().IsEnabled() {
+				//skip recognized event for storages with disabled/not supported UR
+				continue
+			}
 
 			//is used in writing counters/metrics/events cache
-			eventContext := &adapters.EventContext{
-				CacheDisabled: sw.streamingStorage.IsCachingDisabled(),
-				DestinationID: sw.streamingStorage.ID(),
-				EventID:       sw.streamingStorage.GetUniqueIDField().Extract(fact),
-				TokenID:       tokenID,
-				Src:           events.ExtractSrc(fact),
-				RawEvent:      fact,
+			preliminaryEventContext := &adapters.EventContext{
+				CacheDisabled:   sw.streamingStorage.IsCachingDisabled(),
+				DestinationID:   sw.streamingStorage.ID(),
+				EventID:         sw.streamingStorage.GetUniqueIDField().Extract(fact),
+				TokenID:         tokenID,
+				Src:             events.ExtractSrc(fact),
+				RawEvent:        fact,
+				RecognizedEvent: recognizedEvent,
 			}
 
 			envelops, err := sw.streamingStorage.Processor().ProcessEvent(fact, true)
-			if err != nil {
+			if err != nil && !recognizedEvent {
 				if err == schema.ErrSkipObject {
 					if !appconfig.Instance.DisableSkipEventsWarn {
 						logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), err)
 					}
 
-					sw.streamingStorage.SkipEvent(eventContext, err)
+					sw.streamingStorage.SkipEvent(preliminaryEventContext, err)
 				} else {
 					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.ID(), fact.DebugString(), err)
-					sw.streamingStorage.ErrorEvent(true, eventContext, err)
+					sw.streamingStorage.ErrorEvent(true, preliminaryEventContext, err)
 				}
 
 				continue
@@ -118,21 +126,57 @@ func (sw *StreamingWorker) start() {
 					DestinationID: sw.streamingStorage.ID(),
 					EventID: utils.NvlString(sw.streamingStorage.GetUniqueIDField().Extract(flattenObject),
 						sw.streamingStorage.GetUniqueIDField().Extract(fact)),
-					TokenID:        tokenID,
-					Src:            events.ExtractSrc(fact),
-					RawEvent:       fact,
-					ProcessedEvent: flattenObject,
-					Table:          table,
+					TokenID:         tokenID,
+					Src:             events.ExtractSrc(fact),
+					RawEvent:        fact,
+					ProcessedEvent:  flattenObject,
+					Table:           table,
+					RecognizedEvent: recognizedEvent,
 				}
+				if recognizedEvent {
+					if updateErr := sw.streamingStorage.Update(eventContext); updateErr != nil {
+						err := errorj.Decorate(updateErr, "failed to update event").
+							WithProperty(errorj.DestinationID, sw.streamingStorage.ID()).
+							WithProperty(errorj.DestinationType, sw.streamingStorage.Type())
 
-				if err := sw.streamingStorage.Insert(eventContext); err != nil {
-					logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.DebugString(), table.Name, err)
-					if IsConnectionError(err) {
-						//retry
-						sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(20*time.Second), tokenID)
+						var retryInfoInLog string
+						retry := IsConnectionError(err)
+						if retry {
+							retryInfoInLog = "connection problem. event will be re-updated after 20 seconds\n"
+						}
+						if errorj.IsSystemError(err) {
+							logging.SystemErrorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
+						} else {
+							logging.Errorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
+						}
+
+						if retry {
+							//retry
+							sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(20*time.Second), tokenID)
+						}
 					}
+				} else {
+					if insertErr := sw.streamingStorage.Insert(eventContext); insertErr != nil {
+						err := errorj.Decorate(insertErr, "failed to insert event").
+							WithProperty(errorj.DestinationID, sw.streamingStorage.ID()).
+							WithProperty(errorj.DestinationType, sw.streamingStorage.Type())
 
-					continue
+						var retryInfoInLog string
+						retry := IsConnectionError(err)
+						if retry {
+							retryInfoInLog = "connection problem. event will be re-inserted after 20 seconds\n"
+						}
+						if errorj.IsSystemError(err) {
+							logging.SystemErrorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
+						} else {
+							logging.Errorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
+						}
+
+						if retry {
+							//retry
+							sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(20*time.Second), tokenID)
+						}
+					}
 				}
 			}
 		}

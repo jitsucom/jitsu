@@ -1,6 +1,7 @@
 package events
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/timestamp"
 )
+
+var ErrQueueClosed = errors.New("queue is closed")
 
 // TimedEventBuilder creates and returns a new *events.TimedEvent (must be pointer).
 // This is used on deserialization

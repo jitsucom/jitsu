@@ -26,7 +26,7 @@ export type JitsuClient = {
   //  * additional detection (user-agent, url and so on will be done). No payload structure is enforced
   //  * @param payload
   //  */
-  rawTrack: (payload: any) => void
+  rawTrack: (payload: any) => Promise<void>
 
   /**
    * Sets a user data
@@ -196,6 +196,11 @@ export type JitsuOptions = {
    * Log level. 'WARN' if not set
    */
   log_level?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'NONE';
+
+  /**
+   * Headers that should be added to each request. Could be either static dict or function that returns the dict
+   */
+  custom_headers?: Record<string, string> | (() => Record<string, string>)
 
   //NOTE: If any property is added here, please make sure it's added to browser.ts jitsuProps as well
 };
