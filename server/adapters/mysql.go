@@ -599,17 +599,13 @@ func (m *MySQL) executeInsertInTransaction(wrappedTx *Transaction, table *Table,
 	m.queryLogger.LogQueryWithValues(statement, valueArgs)
 
 	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
-		var firstObjectValues strings.Builder
-		for i, name := range headerWithoutQuotes {
-			firstObjectValues.WriteString(name + ": " + fmt.Sprint(valueArgs[i]) + "\n")
-		}
 		return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute insert").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
 				Database:        m.config.Db,
 				Table:           table.Name,
 				PrimaryKeys:     table.GetPKFields(),
 				Statement:       statement,
-				ValuesMapString: firstObjectValues.String(),
+				ValuesMapString: ObjectValuesToString(headerWithoutQuotes, valueArgs),
 			})
 	}
 
