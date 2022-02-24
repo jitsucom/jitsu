@@ -23,9 +23,10 @@ type SucceedHTTPEvent struct {
 
 //channel dto
 type rawEvent struct {
-	tokenID           string
-	serializedPayload []byte
-	error             string
+	tokenID                    string
+	serializedPayload          []byte
+	serializedMalformedPayload []byte
+	error                      string
 
 	eventMetaStatus string
 }

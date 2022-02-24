@@ -59,14 +59,19 @@ func (jp *jitsuParser) ParseEventsBody(c *gin.Context) ([]Event, *ParsingError) 
 		return nil, parsingError(nil, err)
 	}
 
+	maxCachedEventsErrSize := jp.maxCachedEventsErrSize
+	if len(body) < jp.maxCachedEventsErrSize {
+		maxCachedEventsErrSize = len(body)
+	}
+
 	switch body[0] {
 	case '{':
 		if len(body) > jp.maxEventSize {
-			return nil, parsingError(body[:jp.maxCachedEventsErrSize], fmt.Errorf("Event size %d exceeds limit: %d", len(body), jp.maxEventSize))
+			return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("Event size %d exceeds limit: %d", len(body), jp.maxEventSize))
 		}
 		event := Event{}
 		if err := decoder.Decode(&event); err != nil {
-			return nil, parsingError(body[:jp.maxCachedEventsErrSize], fmt.Errorf("error parsing HTTP body: %v", err))
+			return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("error parsing HTTP body: %v", err))
 		}
 
 		eventsArray, ok := jp.parseTemplateEvents(event)
@@ -78,14 +83,14 @@ func (jp *jitsuParser) ParseEventsBody(c *gin.Context) ([]Event, *ParsingError) 
 	case '[':
 		inputEvents := []Event{}
 		if err := decoder.Decode(&inputEvents); err != nil {
-			return nil, parsingError(body[:jp.maxCachedEventsErrSize], fmt.Errorf("error parsing HTTP body: %v", err))
+			return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("error parsing HTTP body: %v", err))
 		}
 		if len(inputEvents) > 0 && len(body) > jp.maxEventSize*len(inputEvents) {
-			return nil, parsingError(body[:jp.maxCachedEventsErrSize], fmt.Errorf("Size of one of events exceeds limit: %d", jp.maxEventSize))
+			return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("Size of one of events exceeds limit: %d", jp.maxEventSize))
 		}
 		return inputEvents, nil
 	default:
-		return nil, parsingError(body[:jp.maxCachedEventsErrSize], fmt.Errorf("malformed JSON body begins with: %q", string(body[0])))
+		return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("malformed JSON body begins with: %q", string(body[0])))
 	}
 }
 
@@ -248,15 +253,20 @@ func (sp *segmentParser) parseSegmentBody(requestBody io.ReadCloser) ([]map[stri
 		return nil, parsingError(nil, err)
 	}
 
+	maxCachedEventsErrSize := sp.maxCachedEventsErrSize
+	if len(body) < sp.maxCachedEventsErrSize {
+		maxCachedEventsErrSize = len(body)
+	}
+
 	inputEvent := map[string]interface{}{}
 	if err := decoder.Decode(&inputEvent); err != nil {
-		return nil, parsingError(body[:sp.maxCachedEventsErrSize], fmt.Errorf("error parsing HTTP body: %v", err))
+		return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("error parsing HTTP body: %v", err))
 	}
 
 	batchPayload, ok := inputEvent[batchKey]
 	if !ok {
 		if len(body) > sp.maxEventSize {
-			return nil, parsingError(body[:sp.maxCachedEventsErrSize], fmt.Errorf("Event size %d exceeds limit: %d", len(body), sp.maxEventSize))
+			return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("Event size %d exceeds limit: %d", len(body), sp.maxEventSize))
 		}
 		//isn't batch request
 		return []map[string]interface{}{inputEvent}, nil
@@ -265,20 +275,20 @@ func (sp *segmentParser) parseSegmentBody(requestBody io.ReadCloser) ([]map[stri
 	//batch request
 	batchArray, ok := batchPayload.([]interface{})
 	if !ok {
-		return nil, parsingError(body[:sp.maxCachedEventsErrSize], malformedSegmentBatch)
+		return nil, parsingError(body[:maxCachedEventsErrSize], malformedSegmentBatch)
 	}
 
 	var inputEvents []map[string]interface{}
 	for _, batchElement := range batchArray {
 		batchElementObj, ok := batchElement.(map[string]interface{})
 		if !ok {
-			return nil, parsingError(body[:sp.maxCachedEventsErrSize], malformedSegmentBatch)
+			return nil, parsingError(body[:maxCachedEventsErrSize], malformedSegmentBatch)
 		}
 
 		inputEvents = append(inputEvents, batchElementObj)
 	}
 	if len(inputEvents) > 0 && len(body) > sp.maxEventSize*len(inputEvents) {
-		return nil, parsingError(body[:sp.maxCachedEventsErrSize], fmt.Errorf("Size of one of events exceeds limit: %d", sp.maxEventSize))
+		return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("Size of one of events exceeds limit: %d", sp.maxEventSize))
 	}
 	return inputEvents, nil
 }

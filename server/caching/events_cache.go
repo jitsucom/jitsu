@@ -93,7 +93,7 @@ func NewEventsCache(enabled bool, storage meta.Storage, capacityPerTokenOrDestin
 func (ec *EventsCache) start() {
 	safego.RunWithRestart(func() {
 		for cf := range ec.rawEventsChannel {
-			ec.saveTokenEvent(cf.tokenID, cf.serializedPayload, cf.error, cf.eventMetaStatus)
+			ec.saveTokenEvent(cf.tokenID, cf.serializedPayload, cf.serializedMalformedPayload, cf.error, cf.eventMetaStatus)
 		}
 	})
 
@@ -180,14 +180,14 @@ func (ec *EventsCache) RawEvent(disabled bool, tokenID string, serializedPayload
 }
 
 //RawErrorEvent puts value into channel which will be read and written to storage
-func (ec *EventsCache) RawErrorEvent(disabled bool, tokenID string, serializedPayload []byte, err error) {
+func (ec *EventsCache) RawErrorEvent(disabled bool, tokenID string, serializedMalformedPayload []byte, err error) {
 	if !disabled && ec.isActive() {
 		if !ec.isRateLimiterAllowed(tokenID, meta.EventsErrorStatus) {
 			return
 		}
 
 		select {
-		case ec.rawEventsChannel <- &rawEvent{tokenID: tokenID, serializedPayload: serializedPayload, error: err.Error(), eventMetaStatus: meta.EventsErrorStatus}:
+		case ec.rawEventsChannel <- &rawEvent{tokenID: tokenID, serializedMalformedPayload: serializedMalformedPayload, error: err.Error(), eventMetaStatus: meta.EventsErrorStatus}:
 		default:
 			if rand.Int31n(1000) == 0 {
 				logging.Debugf("[events cache] raw error events queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
@@ -257,8 +257,8 @@ func (ec *EventsCache) Skip(cacheDisabled bool, destinationID, originEvent strin
 
 //saveTokenEvent saves raw JSON event into the storage by token
 //and saves to token error collection if error
-func (ec *EventsCache) saveTokenEvent(tokenID string, serializedPayload []byte, errMsg, eventMetaStatus string) {
-	entity := &meta.Event{Original: string(serializedPayload), TokenID: tokenID, Error: errMsg}
+func (ec *EventsCache) saveTokenEvent(tokenID string, serializedPayload, serializedMalformedPayload []byte, errMsg, eventMetaStatus string) {
+	entity := &meta.Event{Original: string(serializedPayload), Malformed: string(serializedMalformedPayload), TokenID: tokenID, Error: errMsg}
 
 	if eventMetaStatus == meta.EventsPureStatus {
 		err := ec.storage.AddEvent(meta.EventsTokenNamespace, tokenID, meta.EventsPureStatus, entity)

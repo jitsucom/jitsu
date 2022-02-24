@@ -1,6 +1,7 @@
 package meta
 
 type Event struct {
+	Malformed     string `json:"malformed,omitempty" redis:"malformed"`
 	Original      string `json:"original,omitempty" redis:"original"`
 	Success       string `json:"success,omitempty" redis:"success"`
 	Error         string `json:"error,omitempty" redis:"error"`
