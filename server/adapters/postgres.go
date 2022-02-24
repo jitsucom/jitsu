@@ -125,10 +125,23 @@ func (ep *ErrorPayload) String() string {
 		msgParts = append(msgParts, fmt.Sprintf("objects count=%d", ep.TotalObjects))
 	}
 	if ep.ValuesMapString != "" {
-		msgParts = append(msgParts, fmt.Sprintf("values map of 1st object=\n%s", ep.ValuesMapString))
+		msgParts = append(msgParts, fmt.Sprintf("values map of 1st object=%s", ep.ValuesMapString))
 	}
 
 	return strings.Join(msgParts, ", ")
+}
+
+func ObjectValuesToString(header []string, valueArgs []interface{}) string {
+	var firstObjectValues strings.Builder
+	firstObjectValues.WriteString("{")
+	for i, name := range header {
+		if i != 0 {
+			firstObjectValues.WriteString(", ")
+		}
+		firstObjectValues.WriteString(name + ": " + fmt.Sprint(valueArgs[i]))
+	}
+	firstObjectValues.WriteString("}")
+	return firstObjectValues.String()
 }
 
 //DataSourceConfig dto for deserialized datasource config (e.g. in Postgres or AwsRedshift destination)
@@ -836,17 +849,13 @@ func (p *Postgres) executeInsertInTransaction(wrappedTx *Transaction, table *Tab
 
 	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
 		err = checkErr(err)
-		var firstObjectValues strings.Builder
-		for i, name := range headerWithoutQuotes {
-			firstObjectValues.WriteString(name + ": " + fmt.Sprint(valueArgs[i]) + "\n")
-		}
 		return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute insert").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
 				Schema:          p.config.Schema,
 				Table:           table.Name,
 				PrimaryKeys:     table.GetPKFields(),
 				Statement:       statement,
-				ValuesMapString: firstObjectValues.String(),
+				ValuesMapString: ObjectValuesToString(headerWithoutQuotes, valueArgs),
 			})
 	}
 
