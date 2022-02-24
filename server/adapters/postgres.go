@@ -845,7 +845,7 @@ func (p *Postgres) executeInsertInTransaction(wrappedTx *Transaction, table *Tab
 				Schema:          p.config.Schema,
 				Table:           table.Name,
 				PrimaryKeys:     table.GetPKFields(),
-				Statement:       fmt.Sprintf(insertTemplate, p.config.Schema, table.Name, strings.Join(quotedHeader, ","), placeholders),
+				Statement:       statement,
 				ValuesMapString: firstObjectValues.String(),
 			})
 	}

@@ -669,7 +669,7 @@ func (s *Snowflake) executeInsertInTransaction(wrappedTx *Transaction, table *Ta
 			WithProperty(errorj.DBInfo, &ErrorPayload{
 				Schema:          s.config.Schema,
 				Table:           table.Name,
-				Statement:       fmt.Sprintf(insertSFTemplate, s.config.Schema, table.Name, strings.Join(quotedHeader, ","), placeholders),
+				Statement:       statement,
 				ValuesMapString: firstObjectValues.String(),
 			})
 	}

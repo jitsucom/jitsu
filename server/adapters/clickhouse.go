@@ -569,7 +569,7 @@ func (ch *ClickHouse) executeInsert(table *Table, headerWithQuotes []string, pla
 				Cluster:         ch.cluster,
 				Table:           table.Name,
 				PrimaryKeys:     table.GetPKFields(),
-				Statement:       fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(headerWithQuotes, ", "), placeholders),
+				Statement:       statement,
 				ValuesMapString: firstObjectValues.String(),
 				TotalObjects:    objectsCount,
 			})
