@@ -49,6 +49,8 @@ const (
 
 	EventsTokenNamespace       = "token"
 	EventsDestinationNamespace = "destination"
+	EventsErrorStatus          = "error"
+	EventsPureStatus           = ""
 )
 
 var (
@@ -190,9 +192,8 @@ func (r *Redis) IncrementEventsCount(id, namespace, eventType, status string, no
 	return nil
 }
 
-//AddEvent saves event JSON string into Redis and ensures that event ID is in index by destination ID
-//returns index length
-func (r *Redis) AddEvent(namespace, id string, entity *Event) error {
+//AddEvent saves event JSON string into Redis
+func (r *Redis) AddEvent(namespace, id, status string, entity *Event) error {
 	serialized, err := json.Marshal(entity)
 	if err != nil {
 		return fmt.Errorf("failed to serialize event entity [%v]: %v", entity, err)
@@ -201,7 +202,7 @@ func (r *Redis) AddEvent(namespace, id string, entity *Event) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	eventsKey := fmt.Sprintf("events_cache:%s#%s", namespace, id)
+	eventsKey := getCachedEventsKey(namespace, id, status)
 	_, err = conn.Do("LPUSH", eventsKey, serialized)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
@@ -212,11 +213,11 @@ func (r *Redis) AddEvent(namespace, id string, entity *Event) error {
 }
 
 //TrimEvents keeps only last capacity events in Redis list key with trim function
-func (r *Redis) TrimEvents(namespace, id string, capacity int) error {
+func (r *Redis) TrimEvents(namespace, id, status string, capacity int) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	eventsKey := fmt.Sprintf("events_cache:%s#%s", namespace, id)
+	eventsKey := getCachedEventsKey(namespace, id, status)
 	_, err := conn.Do("LTRIM", eventsKey, 0, capacity-1)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
@@ -227,12 +228,12 @@ func (r *Redis) TrimEvents(namespace, id string, capacity int) error {
 }
 
 //GetEvents returns last n events from namespace with id
-func (r *Redis) GetEvents(namespace, id string, limit int) ([]Event, error) {
+func (r *Redis) GetEvents(namespace, id, status string, limit int) ([]Event, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	eventsCacheKey := fmt.Sprintf("events_cache:%s#%s", namespace, id)
-	eventsArr, err := redis.Strings(conn.Do("LRANGE", eventsCacheKey, 0, limit-1))
+	eventsKey := getCachedEventsKey(namespace, id, status)
+	eventsArr, err := redis.Strings(conn.Do("LRANGE", eventsKey, 0, limit-1))
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return nil, err
@@ -242,7 +243,7 @@ func (r *Redis) GetEvents(namespace, id string, limit int) ([]Event, error) {
 	for _, redisEvent := range eventsArr {
 		eventObj := Event{}
 		if err := json.Unmarshal([]byte(redisEvent), &eventObj); err != nil {
-			return nil, fmt.Errorf("failed to deserialize event from list key: %s [%v]: %v", eventsCacheKey, redisEvent, err)
+			return nil, fmt.Errorf("failed to deserialize event from list key: %s [%v]: %v", eventsKey, redisEvent, err)
 		}
 
 		events = append(events, eventObj)
@@ -252,12 +253,12 @@ func (r *Redis) GetEvents(namespace, id string, limit int) ([]Event, error) {
 }
 
 //GetTotalEvents returns total of cached events
-func (r *Redis) GetTotalEvents(namespace, id string) (int, error) {
+func (r *Redis) GetTotalEvents(namespace, id, status string) (int, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	eventsCacheKey := fmt.Sprintf("events_cache:%s#%s", namespace, id)
-	count, err := redis.Int(conn.Do("LLEN", eventsCacheKey))
+	eventsKey := getCachedEventsKey(namespace, id, status)
+	count, err := redis.Int(conn.Do("LLEN", eventsKey))
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return 0, err
@@ -1033,15 +1034,23 @@ func getCoveredMonths(start, end time.Time) []string {
 	return months
 }
 
+func getCachedEventsKey(namespace, id, status string) string {
+	var statusPart string
+	if status != "" {
+		statusPart = ":" + status
+	}
+	return fmt.Sprintf("events_cache:%s#%s%s", namespace, id, statusPart)
+}
+
 func getHourlyEventsKey(id, namespace, eventType, day, status string) string {
-	return getEventsKey("hourly_events", id, namespace, eventType, "day#"+day, status)
+	return getEventsCounterKey("hourly_events", id, namespace, eventType, "day#"+day, status)
 }
 
 func getDailyEventsKey(id, namespace, eventType, month, status string) string {
-	return getEventsKey("daily_events", id, namespace, eventType, "month#"+month, status)
+	return getEventsCounterKey("daily_events", id, namespace, eventType, "month#"+month, status)
 }
 
-func getEventsKey(prefix, id, namespace, eventType, timeKey, status string) string {
+func getEventsCounterKey(prefix, id, namespace, eventType, timeKey, status string) string {
 	//536-issue DEPRECATED
 	//backward compatibility
 	if eventType != "" {
@@ -1049,11 +1058,4 @@ func getEventsKey(prefix, id, namespace, eventType, timeKey, status string) stri
 	}
 
 	return fmt.Sprintf("%s:%s#%s%s:%s:%s", prefix, namespace, id, eventType, timeKey, status)
-}
-
-func extractOriginalEventId(eventId string) string {
-	if parts := strings.Split(eventId, "_"); len(parts) == 2 {
-		return parts[0]
-	}
-	return eventId
 }

@@ -27,6 +27,11 @@ func (ecd *EventsCacheDecorator) Decorate(c *gin.Context) (*Request, error) {
 		namespace = meta.EventsDestinationNamespace
 	}
 
+	status := c.Query("status")
+	if status != "" && status != meta.EventsErrorStatus {
+		return nil, fmt.Errorf("unknown status: %s. Only %s is supported", status, meta.EventsErrorStatus)
+	}
+
 	if ids == "" {
 		if namespace == meta.EventsDestinationNamespace {
 			ids, err = ecd.getProjectDestinations(projectID)
