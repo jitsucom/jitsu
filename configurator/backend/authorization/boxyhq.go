@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/configurator/random"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 	"io/ioutil"
-	"math/rand"
 	"net/url"
 	"time"
 )
@@ -43,10 +43,6 @@ func NewBoxyHQProvider(ssoConfig *SSOConfig) (*BoxyHQProvider, error) {
 }
 
 func (bp *BoxyHQProvider) GetUser(code string) (*UserEntity, error) {
-	if code == "" {
-		return nil, fmt.Errorf("missed required query param: code")
-	}
-
 	conf := &clientcredentials.Config{
 		ClientID:       "dummy",
 		ClientSecret:   "dummy",
@@ -103,7 +99,7 @@ func (bp *BoxyHQProvider) AuthLink() string {
 		bp.ssoConfig.Host+"/api/oauth/authorize",
 		bp.ssoConfig.Tenant,
 		bp.ssoConfig.Product,
-		bp.randomString(10),
+		random.String(10),
 	)
 
 	return authLink
@@ -115,11 +111,4 @@ func (bp *BoxyHQProvider) Name() string {
 
 func (bp *BoxyHQProvider) AccessTokenTTL() time.Duration {
 	return bp.ssoConfig.AccessTokenTTLSeconds
-}
-
-func (bp *BoxyHQProvider) randomString(length int) string {
-	rand.Seed(time.Now().UnixNano())
-	b := make([]byte, length)
-	rand.Read(b)
-	return fmt.Sprintf("%x", b)[:length]
 }
