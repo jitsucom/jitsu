@@ -318,7 +318,7 @@ const EventsList: React.FC<{ destinationsFilter: string[]; reloadCount: number }
       .map(dst => {
         return services.backendApiClient
           .get(
-            `/events/cache?project_id=${services.activeProject.id}&limit=500&destination_ids=${services.activeProject.id}.${dst._uid}`,
+            `/events/cache?project_id=${services.activeProject.id}&limit=500&namespace=destination&ids=${services.activeProject.id}.${dst._uid}`,
             { proxy: true }
           )
           .then(events => {

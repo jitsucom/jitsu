@@ -36,6 +36,7 @@ type EventResponse struct {
 
 //CachedEvent is a dto for events cache
 type CachedEvent struct {
+	Malformed     string          `json:"malformed,omitempty"`
 	Original      json.RawMessage `json:"original,omitempty"`
 	Success       json.RawMessage `json:"success,omitempty"`
 	Error         string          `json:"error,omitempty"`
@@ -197,17 +198,15 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 	for _, id := range strings.Split(ids, ",") {
 		eventsArray, lastMinuteLimited := eh.eventsCache.Get(namespace, id, status, limit)
 		for _, event := range eventsArray {
-			m := make(map[string]interface{})
-			if err := json.Unmarshal([]byte(event.Original), &m); err == nil {
-				response.Events = append(response.Events, CachedEvent{
-					Original:      []byte(event.Original),
-					Success:       []byte(event.Success),
-					Error:         event.Error,
-					Skip:          event.Skip,
-					DestinationID: event.DestinationID,
-					TokenID:       event.TokenID,
-				})
-			}
+			response.Events = append(response.Events, CachedEvent{
+				Original:      []byte(event.Original),
+				Success:       []byte(event.Success),
+				Malformed:     event.Malformed,
+				Error:         event.Error,
+				Skip:          event.Skip,
+				DestinationID: event.DestinationID,
+				TokenID:       event.TokenID,
+			})
 		}
 		response.ResponseEvents += len(eventsArray)
 		response.LastMinuteLimited += lastMinuteLimited
