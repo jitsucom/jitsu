@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/schema"
 	"strings"
 
@@ -102,18 +103,26 @@ func NewGoogleCloudStorage(ctx context.Context, config *GoogleConfig) (*GoogleCl
 	return &GoogleCloudStorage{client: client, config: config, ctx: ctx}, nil
 }
 
-//Create named file on google cloud storage with payload
+//UploadBytes creates named file on google cloud storage with payload
 func (gcs *GoogleCloudStorage) UploadBytes(fileName string, fileBytes []byte) error {
 	bucket := gcs.client.Bucket(gcs.config.Bucket)
 	object := bucket.Object(fileName)
 	w := object.NewWriter(gcs.ctx)
 
 	if _, err := w.Write(fileBytes); err != nil {
-		return fmt.Errorf("Error writing file to google cloud storage: %v", err)
+		return errorj.SaveOnStageError.Wrap(err, "failed to write file to google cloud storage").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Bucket:    gcs.config.Bucket,
+				Statement: fmt.Sprintf("file: %s", fileName),
+			})
 	}
 
 	if err := w.Close(); err != nil {
-		return fmt.Errorf("Error closing file writer to google cloud storage: %v", err)
+		return errorj.SaveOnStageError.Wrap(err, "failed to close google cloud writer").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Bucket:    gcs.config.Bucket,
+				Statement: fmt.Sprintf("file: %s", fileName),
+			})
 	}
 
 	return nil
@@ -125,7 +134,11 @@ func (gcs *GoogleCloudStorage) DeleteObject(key string) error {
 	obj := bucket.Object(key)
 
 	if err := obj.Delete(gcs.ctx); err != nil {
-		return fmt.Errorf("Error deleting file %s from google cloud storage %v", key, err)
+		return errorj.SaveOnStageError.Wrap(err, "failed to delete from google cloud").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Bucket:    gcs.config.Bucket,
+				Statement: fmt.Sprintf("file: %s", key),
+			})
 	}
 
 	return nil

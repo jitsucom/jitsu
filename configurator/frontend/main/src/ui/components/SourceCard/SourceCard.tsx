@@ -1,34 +1,31 @@
-import styles from "./SourceCard.module.less"
-import React from "react"
 import { SourceConnector } from "@jitsu/catalog/sources/types"
 import { allSources } from "@jitsu/catalog/sources/lib"
 import snakeCase from "lodash/snakeCase"
 import EditOutlined from "@ant-design/icons/lib/icons/EditOutlined"
 import DeleteOutlined from "@ant-design/icons/lib/icons/DeleteOutlined"
-import { Badge, Button, Dropdown, Menu, Modal, Skeleton, Spin, Tag, Tooltip } from "antd"
+import { Badge, Menu, Modal, Skeleton, Tag, Tooltip } from "antd"
 import SubMenu from "antd/lib/menu/SubMenu"
 import CodeOutlined from "@ant-design/icons/lib/icons/CodeOutlined"
 import SyncOutlined from "@ant-design/icons/lib/icons/SyncOutlined"
-import { generatePath, useHistory, NavLink, Link } from "react-router-dom"
+import { generatePath, useHistory, NavLink } from "react-router-dom"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { taskLogsPageRoute } from "../../pages/TaskLogs/TaskLogsPage"
 import { sourcesStore } from "../../../stores/sources"
 import ExclamationCircleOutlined from "@ant-design/icons/lib/icons/ExclamationCircleOutlined"
 import { handleError, withProgressBar } from "../../../lib/components/components"
 import { useServices } from "../../../hooks/useServices"
-import { EditableName } from "../EditableName/EditableName"
-import useLoader, { useLoaderAsObject } from "../../../hooks/useLoader"
+import { useLoaderAsObject } from "../../../hooks/useLoader"
 import { Task, TaskId } from "../../pages/TaskLogs/utils"
 import moment from "moment"
 import { taskLogsViewerRoute } from "../../pages/TaskLogs/TaskLogViewer"
 import { comparator } from "../../../lib/commons/utils"
 import { ConnectionCard } from "../ConnectionCard/ConnectionCard"
 import { flowResult } from "mobx"
-import { destinationsStore } from "../../../stores/destinations"
 import { actionNotification } from "../ActionNotification/ActionNotification"
 import { SourcesUtils } from "../../../utils/sources.utils"
 import { isAtLeastOneStreamSelected } from "utils/sources/sourcesUtils"
 import { NoStreamsSelectedMessage } from "../NoStreamsSelectedMessage/NoStreamsSelectedMessage"
+import styles from "./SourceCard.module.less"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator, current) => ({
@@ -58,8 +55,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
   const viewLogsLink = generatePath(taskLogsPageRoute, { sourceId: src.sourceId })
 
   const rename = async (sourceId: string, newName: string) => {
-    await services.storageService.table("sources").patch(sourceId, { displayName: newName })
-    await flowResult(sourcesStore.pullSources())
+    await flowResult(sourcesStore.patch(sourceId, { displayName: newName }, { updateConnections: false }))
   }
 
   const scheduleTasks = async (src: SourceData, full = false) => {
@@ -121,7 +117,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
       onCancel: () => {},
       onOk: async () => {
         try {
-          await sourcesStore.deleteSource(src)
+          await sourcesStore.delete(src.sourceId)
           actionNotification.success("Sources list successfully updated")
         } catch (error) {
           handleError(error, "Unable to delete source at this moment, please try later.")

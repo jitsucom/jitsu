@@ -71,8 +71,8 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 	} else {
 		//default primary keys for enabling users recognition
 		//for disabling this feature set destination.DisableDefaultPrimaryKeyFields on a certain destination
-		if !destination.DisableDefaultPrimaryKeyFields &&
-			(destination.Type == enstorages.PostgresType || destination.Type == enstorages.MySQLType || destination.Type == enstorages.RedshiftType || destination.Type == enstorages.SnowflakeType) {
+		URSetup, ok := enstorages.UserRecognitionStorages[destination.Type]
+		if !destination.DisableDefaultPrimaryKeyFields && ok && URSetup.PKRequired {
 			if config.DataLayout == nil {
 				config.DataLayout = &enconfig.DataLayout{}
 			}
@@ -311,10 +311,21 @@ func mapClickhouse(chDestinations *entities.Destination) (*enconfig.DestinationC
 	if len(dsns) == 0 {
 		dsns = strings.Split(chFormData.ChDsns, ",")
 	}
+	tlss := map[string]string{}
+	for i, pair := range strings.Split(chFormData.ChTLS, "&") {
+		cert := strings.Split(pair, "=")
+		if len(cert) == 2 {
+			tlss[cert[0]] = cert[1]
+		} else {
+			tlss[fmt.Sprintf("cert_%d", i)] = cert[0]
+		}
+	}
+
 	cfg := &enadapters.ClickHouseConfig{
 		Dsns:     dsns,
 		Database: chFormData.ChDb,
 		Cluster:  chFormData.ChCluster,
+		TLS:      tlss,
 	}
 	cfgMap := map[string]interface{}{}
 	err = mapstructure.Decode(cfg, &cfgMap)
