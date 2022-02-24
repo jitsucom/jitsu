@@ -608,7 +608,7 @@ func (m *MySQL) executeInsertInTransaction(wrappedTx *Transaction, table *Table,
 				Database:        m.config.Db,
 				Table:           table.Name,
 				PrimaryKeys:     table.GetPKFields(),
-				Statement:       fmt.Sprintf(mySQLInsertTemplate, m.config.Db, table.Name, strings.Join(quotedHeader, ","), placeholders),
+				Statement:       statement,
 				ValuesMapString: firstObjectValues.String(),
 			})
 	}
