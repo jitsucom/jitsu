@@ -75,16 +75,18 @@ var (
 )
 
 type ErrorPayload struct {
-	Dataset     string
-	Bucket      string
-	Project     string
-	Database    string
-	Cluster     string
-	Schema      string
-	Table       string
-	PrimaryKeys []string
-	Statement   string
-	Values      []interface{}
+	Dataset         string
+	Bucket          string
+	Project         string
+	Database        string
+	Cluster         string
+	Schema          string
+	Table           string
+	PrimaryKeys     []string
+	Statement       string
+	Values          []interface{}
+	ValuesMapString string
+	TotalObjects    int
 }
 
 func (ep *ErrorPayload) String() string {
@@ -117,7 +119,13 @@ func (ep *ErrorPayload) String() string {
 		msgParts = append(msgParts, fmt.Sprintf("statement=%s", ep.Statement))
 	}
 	if len(ep.Values) > 0 {
-		msgParts = append(msgParts, fmt.Sprintf(", values=%v", ep.Values))
+		msgParts = append(msgParts, fmt.Sprintf("values=%v", ep.Values))
+	}
+	if ep.TotalObjects > 1 {
+		msgParts = append(msgParts, fmt.Sprintf("objects count=%d", ep.TotalObjects))
+	}
+	if ep.ValuesMapString != "" {
+		msgParts = append(msgParts, fmt.Sprintf("values map of 1st object=\n%s", ep.ValuesMapString))
 	}
 
 	return strings.Join(msgParts, ", ")
@@ -828,13 +836,17 @@ func (p *Postgres) executeInsertInTransaction(wrappedTx *Transaction, table *Tab
 
 	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
 		err = checkErr(err)
-
+		var firstObjectValues strings.Builder
+		for i, name := range headerWithoutQuotes {
+			firstObjectValues.WriteString(name + ": " + fmt.Sprint(valueArgs[i]) + "\n")
+		}
 		return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute insert").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
-				Schema:      p.config.Schema,
-				Table:       table.Name,
-				PrimaryKeys: table.GetPKFields(),
-				Statement:   fmt.Sprintf(insertTemplate, p.config.Schema, table.Name, strings.Join(quotedHeader, ","), fmt.Sprintf("[values: %d. for intance the first element: %v]", len(valueArgs), valueArgs[0])),
+				Schema:          p.config.Schema,
+				Table:           table.Name,
+				PrimaryKeys:     table.GetPKFields(),
+				Statement:       statement,
+				ValuesMapString: firstObjectValues.String(),
 			})
 	}
 
