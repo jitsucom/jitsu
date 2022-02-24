@@ -57,8 +57,7 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 	}
 
 	var authority *Authority
-	if token, ok := getToken(ctx); !ok {
-		invalidToken(ctx, errTokenMismatch)
+	if token := GetToken(ctx); ctx.IsAborted() {
 		return
 	} else if i.ServerToken == token {
 		authority = &Authority{
@@ -117,11 +116,6 @@ func (i *AuthorizationInterceptor) ManagementWrapper(body gin.HandlerFunc) gin.H
 			body(ctx)
 		}
 	}
-}
-
-func invalidToken(ctx *gin.Context, err error) {
-	ctx.Writer.Header().Set("WWW-Authenticate", "Bearer realm=\"token_required\" error=\"invalid_token\"")
-	Unauthorized(ctx, err)
 }
 
 func GetAuthority(ctx *gin.Context) (*Authority, error) {

@@ -3,6 +3,7 @@ package storages
 import (
 	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/configurator/openapi"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 //PatchPayload is a dto for patch request
@@ -22,7 +23,35 @@ type Migration interface {
 	Run(conn redis.Conn) error
 }
 
+type CollectionItem interface {
+	Collection() string
+}
+
+type OnCreateHandler interface {
+	CollectionItem
+	OnCreate(id string)
+}
+
 type Project struct {
 	openapi.Project
 	openapi.ProjectSettings
+}
+
+func (p *Project) Collection() string {
+	return "project_settings"
+}
+
+func (p *Project) OnCreate(id string) {
+	p.Id = id
+}
+
+type RedisUserInfo openapi.UserInfo
+
+func (i *RedisUserInfo) OnCreate(id string) {
+	i.Uid = id
+	i.Created = timestamp.Now().Format(timestamp.Layout)
+}
+
+func (*RedisUserInfo) Collection() string {
+	return "users_info"
 }

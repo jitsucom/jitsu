@@ -164,13 +164,17 @@ components:
         projectID: { type: "string" }
       required: [ 'projectID' ]
     Project:
-      description: 'The object represents project'
       type: object
       properties:
         id: { type: "string" }
         name: { type: "string" }
         requiresSetup: { type: "boolean" }
-      required: [ ]
+      required: [ 'id', 'name' ]
+    CreateProjectRequest:
+      type: object
+      properties:
+        name: { type: string }
+      required: [ 'name' ]
 
     UserBasicInfo:
       description: 'Basic information about user'
@@ -195,7 +199,6 @@ components:
       type: object
       properties:
         email: { type: string }
-        password: { type: string }
         projectName: { type: string }
         projectId: { type: string }
       required: [ 'email' ]
@@ -209,6 +212,48 @@ components:
         password:
           type: string
           description: New password to assign a user
+    ProjectInfo:
+      type: object
+      properties:
+        _id: { type: string }
+        _name: { type: string }
+        _planId:
+          type: string
+          nullable: true
+      required: ['_id', '_name', '_planId']
+    SuggestedInfo:
+      type: object
+      properties:
+        companyName: { type: string }
+        email: { type: string }
+        name: { type: string }
+    UserInfo:
+      type: object
+      properties:
+        _uid: { type: string }
+        _created: { type: string }
+        _email: { type: string }
+        _emailOptout: { type: boolean }
+        _name: { type: string }
+        _forcePasswordChange: { type: boolean }
+        _onboarded: { type: boolean }
+        _suggestedInfo:
+          $ref: '#/components/schemas/SuggestedInfo'
+        _project:
+          $ref: '#/components/schemas/ProjectInfo'
+      required: ['_uid', '_created', '_email']
+    UpdateUserInfoRequest:
+      type: object
+      properties:
+        _email: { type: string }
+        _emailOptout: { type: boolean }
+        _name: { type: string }
+        _forcePasswordChange: { type: boolean }
+        _onboarded: { type: boolean }
+        _suggestedInfo:
+          $ref: '#/components/schemas/SuggestedInfo'
+        _project:
+          $ref: '#/components/schemas/ProjectInfo'
 
   responses:
     Error:
@@ -383,6 +428,7 @@ paths:
               properties:
                 new_password: { type: string }
                 reset_id: { type: string }
+              required: [ 'new_password' ]
       responses:
         "200":
           description: 'Success password changing'
@@ -403,7 +449,11 @@ paths:
         - configurationManagementAuth: [ ]
       responses:
         '200':
-          $ref: '#/components/responses/AnyObjectResponse'
+          description: "User info"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/UserInfo"
         default:
           $ref: '#/components/responses/Error'
     post:
@@ -419,10 +469,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AnyObject'
+              $ref: '#/components/schemas/UpdateUserInfoRequest'
       responses:
         '200':
-          $ref: '#/components/responses/AnyObjectResponse'
+          description: "Updated user info"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
         default:
           $ref: '#/components/responses/Error'
   /api/v1/users/email/change:
@@ -673,7 +727,11 @@ paths:
               $ref: "#/components/schemas/PatchUserRequest"
       responses:
         '200':
-          $ref: '#/components/responses/AnyObjectResponse'
+          description: Updated user data
+          content:
+            "application/json":
+              schema:
+                $ref: '#/components/schemas/User'
         default:
           $ref: '#/components/responses/Error'
 
@@ -719,7 +777,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Project'
+              $ref: '#/components/schemas/CreateProjectRequest'
       responses:
         '200':
           description: "Created project"

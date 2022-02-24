@@ -19,6 +19,15 @@ import (
 	"github.com/pkg/errors"
 )
 
+func userInfoEmailUpdate(email string) map[string]interface{} {
+	return map[string]interface{}{
+		"_email": email,
+		"_suggestedInfo": map[string]interface{}{
+			"email": email,
+		},
+	}
+}
+
 func (oa *OpenAPI) getProjectUsers(projectID string) ([]openapi.UserBasicInfo, error) {
 	if userIDs, err := oa.Configurations.GetProjectUsers(projectID); err != nil {
 		return nil, errors.Wrap(err, "get project users")
@@ -120,8 +129,8 @@ func (oa *OpenAPI) mapSourcesConfiguration(sourcesByProjectID map[string]*entiti
 			}
 		}
 
-		project, err := oa.Configurations.GetProject(projectID)
-		if err != nil {
+		var project storages.Project
+		if err := oa.Configurations.Load(projectID, &project); err != nil {
 			return nil, errors.Wrapf(err, "get project for id %s", projectID)
 		}
 

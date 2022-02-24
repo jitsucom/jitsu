@@ -7,11 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jitsucom/jitsu/configurator/common"
-
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/configurator/common"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/openapi"
@@ -827,31 +824,6 @@ func (cs *ConfigurationsService) GetObjectWithLock(objectType, projectID, object
 	return nil, fmt.Errorf("object hasn't been found by id in path [%s] in the collection", objectArrayPath)
 }
 
-func (cs *ConfigurationsService) SaveUserInfoWithProject(userID string, userInfoJSON json.RawMessage) (json.RawMessage, error) {
-	var userInfo struct {
-		Project struct {
-			ID     string  `json:"_id" mapstructure:"id"`
-			Name   string  `json:"_name" mapstructure:"name"`
-			PlanID *string `json:"_planId" mapstructure:"planId"`
-		} `json:"_project"`
-	}
-
-	projectValues := make(map[string]interface{})
-	if err := json.Unmarshal(userInfoJSON, &userInfo); err != nil {
-		return nil, errors.Wrapf(err, "unmarshal user info")
-	} else if err := mapstructure.Decode(userInfo.Project, &projectValues); err != nil {
-		return nil, errors.Wrapf(err, "decode project values")
-	} else if _, err := cs.PatchProject(userInfo.Project.ID, projectValues); err != nil {
-		return nil, errors.Wrapf(err, "patch project settings")
-	} else if err := cs.storage.AddRelatedIDs(userProjectRelation, userID, userInfo.Project.ID); err != nil {
-		return nil, errors.Wrapf(err, "link project to user")
-	} else if result, err := cs.SaveConfigWithLock(usersInfoCollection, userID, userInfoJSON); err != nil {
-		return nil, errors.Wrapf(err, "save user info")
-	} else {
-		return result, nil
-	}
-}
-
 func (cs *ConfigurationsService) LinkUserToProject(userID, projectID string) error {
 	return cs.storage.AddRelatedIDs(userProjectRelation, userID, projectID)
 }
@@ -906,60 +878,95 @@ func (cs *ConfigurationsService) GetProjectUsers(projectID string) ([]string, er
 	return userIDs.Values(), nil
 }
 
-func (cs *ConfigurationsService) GetProject(projectID string) (result Project, err error) {
-	var data []byte
-	data, err = cs.getWithLock(projectSettingsCollection, projectID)
-	if err != nil {
-		return
+func (cs *ConfigurationsService) Create(value CollectionItem, patch interface{}) error {
+	if err := cs.Patch(common.GenerateProjectID(), value, patch, false); err != nil {
+		return errors.Wrapf(err, "patch %s", value.Collection())
+	} else {
+		return nil
 	}
-
-	err = json.Unmarshal(data, &result)
-	return
 }
 
-func (cs *ConfigurationsService) CreateProject(project openapi.Project) (result Project, err error) {
-	projectID := common.GenerateProjectID()
-	project.Id = &projectID
-	if projectData, err := cs.saveWithLock(projectSettingsCollection, projectID, project); err != nil {
-		err = errors.Wrapf(err, "create project")
-	} else if err := json.Unmarshal(projectData, &result); err != nil {
-		err = errors.Wrapf(err, "unmarshal project")
+func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*RedisUserInfo, error) {
+	var result RedisUserInfo
+	if err := cs.Patch(id, &result, patch, false); err != nil {
+		return nil, errors.Wrap(err, "patch user info")
 	}
 
-	return
+	if projectInfo := result.Project; projectInfo != nil {
+		projectID := projectInfo.Id
+		patch := map[string]interface{}{"name": projectInfo.Name}
+		if err := cs.Patch(projectID, new(Project), patch, false); err != nil {
+			return nil, errors.Wrap(err, "patch project")
+		} else if err := cs.LinkUserToProject(id, projectID); err != nil {
+			return nil, errors.Wrap(err, "link user to project")
+		}
+	}
+
+	return &result, nil
 }
 
-func (cs *ConfigurationsService) PatchProject(projectID string, patch map[string]interface{}) (result Project, err error) {
-	objectType := projectSettingsCollection
-	lock, err := cs.lockProjectObject(objectType, projectID)
+func (cs *ConfigurationsService) Load(id string, value CollectionItem) error {
+	if data, err := cs.get(value.Collection(), id); err != nil {
+		return errors.Wrapf(err, "get %s with lock", value.Collection())
+	} else if err := json.Unmarshal(data, value); err != nil {
+		return errors.Wrapf(err, "unmarshal %s value", value.Collection())
+	} else {
+		return nil
+	}
+}
+
+// Patch patches the collection item.
+//   `value` should be an empty initialized pointer to the value of the target type.
+//   `id` is the ID of the collection item.
+//	 `patch` may be anything that is decodable with mapstructure. JSON field notation is expected.
+func (cs *ConfigurationsService) Patch(id string, value CollectionItem, patch interface{}, requireExist bool) error {
+	if lock, err := cs.lockProjectObject(value.Collection(), id); err != nil {
+		return errors.Wrapf(err, "lock %s", value.Collection())
+	} else {
+		defer lock.Unlock()
+	}
+
+	var isCreated bool
+	data, err := cs.get(value.Collection(), id)
 	if err != nil {
-		return
+		if errors.Is(err, ErrConfigurationNotFound) {
+			if requireExist {
+				return ErrConfigurationNotFound
+			} else {
+				isCreated = true
+			}
+
+			data = []byte("{}")
+		} else {
+			return errors.Wrapf(err, "get %s", value.Collection())
+		}
 	}
 
-	defer lock.Unlock()
+	if err := json.Unmarshal(data, value); err != nil {
+		return errors.Wrapf(err, "unmarshal %s value", value.Collection())
+	} else if err := common.DecodeAsJSON(patch, value, false); err != nil {
+		return errors.Wrapf(err, "apply patch for %s", value.Collection())
+	} else {
+		if isCreated {
+			if handler, ok := value.(OnCreateHandler); ok {
+				handler.OnCreate(id)
+			}
+		}
 
-	data, err := cs.get(objectType, projectID)
-	switch err {
-	case nil:
-	// is ok
-	case ErrConfigurationNotFound:
-		data = []byte("{}")
-	default:
-		return
+		if _, err := cs.save(value.Collection(), id, value); err != nil {
+			return errors.Wrapf(err, "save patched value %s", value.Collection())
+		} else {
+			return nil
+		}
 	}
+}
 
-	object := make(map[string]interface{})
-	if err = json.Unmarshal(data, &object); err != nil {
-		return
+func (cs *ConfigurationsService) Delete(id string, value CollectionItem) error {
+	if err := cs.delete(value.Collection(), id); err != nil {
+		return errors.Wrapf(err, "delete %s", value.Collection())
+	} else {
+		return nil
 	}
-
-	data, err = cs.save(objectType, projectID, jsonutils.Merge(object, patch))
-	if err != nil {
-		return
-	}
-
-	err = json.Unmarshal(data, &result)
-	return
 }
 
 func (cs *ConfigurationsService) Close() (multiErr error) {
