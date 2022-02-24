@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-const capacity = 100_000
+const capacity = 1_000_000
 
 var (
 	ErrQueueOverflow = fmt.Errorf("queue reached max capacity: %d", capacity)
