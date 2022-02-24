@@ -65,7 +65,7 @@ func (s *Service) SendResetPassword(email, link string) error {
 	m := gomail.NewMessage()
 
 	// Set E-Mail sender
-	m.SetHeader("From", "fskrypter@yandex.ru")
+	m.SetHeader("From", "support@jitsu.com")
 
 	// Set E-Mail receivers
 	m.SetHeader("To", email)
