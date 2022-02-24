@@ -5,22 +5,21 @@ import (
 	"fmt"
 )
 
-const capacity = 1_000_000
-
 var (
-	ErrQueueOverflow = fmt.Errorf("queue reached max capacity: %d", capacity)
-	ErrQueueEmpty    = errors.New("queue is empty")
+	ErrQueueEmpty = errors.New("queue is empty")
 )
 
 type InMemory struct {
-	queue  chan interface{}
-	closed chan struct{}
+	capacity int
+	queue    chan interface{}
+	closed   chan struct{}
 }
 
-func NewInMemory() Queue {
+func NewInMemory(capacity int) Queue {
 	im := &InMemory{
-		queue:  make(chan interface{}, capacity),
-		closed: make(chan struct{}, 1),
+		capacity: capacity,
+		queue:    make(chan interface{}, capacity),
+		closed:   make(chan struct{}, 1),
 	}
 
 	return im
@@ -35,7 +34,7 @@ func (im *InMemory) Push(value interface{}) error {
 	case im.queue <- value:
 		return nil
 	default:
-		return ErrQueueOverflow
+		return fmt.Errorf("queue reached max capacity: %d", im.capacity)
 	}
 
 }
