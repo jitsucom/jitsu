@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"text/template"
+
 	"github.com/jitsucom/jitsu/server/logging"
 	gomail "gopkg.in/mail.v2"
-	"text/template"
 )
 
 var ErrSMTPNotConfigured = errors.New("SMTP isn't configured")
@@ -64,7 +65,7 @@ func (s *Service) SendResetPassword(email, link string) error {
 	m := gomail.NewMessage()
 
 	// Set E-Mail sender
-	m.SetHeader("From", "support@jitsu.com")
+	m.SetHeader("From", "fskrypter@yandex.ru")
 
 	// Set E-Mail receivers
 	m.SetHeader("To", email)

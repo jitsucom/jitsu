@@ -5,10 +5,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-func DecodeAsJSON(source interface{}, target interface{}) error {
+func DecodeAsJSON(source interface{}, target interface{}, zero bool) error {
 	config := &mapstructure.DecoderConfig{
-		TagName: "json",
-		Result:  target,
+		TagName:    "json",
+		Result:     target,
+		Squash:     true,
+		ZeroFields: zero,
 	}
 
 	if decoder, err := mapstructure.NewDecoder(config); err != nil {
