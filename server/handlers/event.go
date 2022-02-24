@@ -82,29 +82,15 @@ func NewEventHandler(writeAheadLogService *wal.Service, multiplexingService *mul
 
 //PostHandler accepts all events according to token
 func (eh *EventHandler) PostHandler(c *gin.Context) {
-	eventsArray, err := eh.parser.ParseEventsBody(c)
-	if err != nil {
-		msg := fmt.Sprintf("Error parsing events body: %v", err)
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(msg, nil))
-		return
-	}
-
 	iface, ok := c.Get(middleware.TokenName)
 	if !ok {
 		logging.SystemError("Token wasn't found in the context")
 		return
 	}
 	token := iface.(string)
-
-	//get geo resolver
-	geoResolver := eh.geoService.GetGlobalGeoResolver()
 	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
 	destinationStorages := eh.destinationService.GetDestinations(tokenID)
-	if len(destinationStorages) > 0 {
-		geoResolver = eh.geoService.GetGeoResolver(destinationStorages[0].GetGeoResolverID())
-	}
 
-	// ** Event Cache **
 	cachingDisabled := false
 	for _, destinationStorage := range destinationStorages {
 		if destinationStorage.IsCachingDisabled() {
@@ -112,6 +98,22 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 			break
 		}
 	}
+
+	eventsArray, parsingErr := eh.parser.ParseEventsBody(c)
+	if parsingErr != nil {
+		eh.eventsCache.RawErrorEvent(cachingDisabled, tokenID, parsingErr.LimitedPayload, parsingErr.Err)
+		msg := fmt.Sprintf("Error parsing events body: %v", parsingErr.Err)
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(msg, nil))
+		return
+	}
+
+	//get geo resolver
+	geoResolver := eh.geoService.GetGlobalGeoResolver()
+	if len(destinationStorages) > 0 {
+		geoResolver = eh.geoService.GetGeoResolver(destinationStorages[0].GetGeoResolverID())
+	}
+
+	// ** Event Cache **
 	for _, e := range eventsArray {
 		serializedPayload, _ := json.Marshal(e)
 		eh.eventsCache.RawEvent(cachingDisabled, tokenID, serializedPayload)
@@ -126,7 +128,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		return
 	}
 
-	err = eh.multiplexingService.AcceptRequest(eh.processor, reqContext, token, eventsArray)
+	err := eh.multiplexingService.AcceptRequest(eh.processor, reqContext, token, eventsArray)
 	if err != nil {
 		code := http.StatusBadRequest
 		if err == multiplexing.ErrNoDestinations {
@@ -167,6 +169,12 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 		return
 	}
 
+	status := c.Query("status")
+	if status != "" && status != meta.EventsErrorStatus {
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(fmt.Sprintf("status query parameter can be only 'error' or not specified. Current value: %s", status), nil))
+		return
+	}
+
 	limitStr := c.Query("limit")
 	var limit int
 	if limitStr == "" {
@@ -187,7 +195,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 		IntervalSeconds:          intervalSeconds,
 	}
 	for _, id := range strings.Split(ids, ",") {
-		eventsArray, lastMinuteLimited := eh.eventsCache.GetByNamespaceAndID(namespace, id, limit)
+		eventsArray, lastMinuteLimited := eh.eventsCache.Get(namespace, id, status, limit)
 		for _, event := range eventsArray {
 			m := make(map[string]interface{})
 			if err := json.Unmarshal([]byte(event.Original), &m); err == nil {
@@ -203,7 +211,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 		}
 		response.ResponseEvents += len(eventsArray)
 		response.LastMinuteLimited += lastMinuteLimited
-		response.TotalEvents += eh.eventsCache.GetTotal(namespace, id)
+		response.TotalEvents += eh.eventsCache.GetTotal(namespace, id, status)
 	}
 
 	c.JSON(http.StatusOK, response)

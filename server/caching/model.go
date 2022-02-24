@@ -25,6 +25,9 @@ type SucceedHTTPEvent struct {
 type rawEvent struct {
 	tokenID           string
 	serializedPayload []byte
+	error             string
+
+	eventMetaStatus string
 }
 
 //channel dto
@@ -33,6 +36,8 @@ type statusEvent struct {
 	originEvent   string
 	error         string
 	skip          bool
+
+	eventMetaStatus string
 
 	successEventContext *adapters.EventContext
 }

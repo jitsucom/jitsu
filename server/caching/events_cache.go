@@ -22,9 +22,11 @@ type EventsCache struct {
 	poolSize                      int
 	timeWindow                    time.Duration
 	trimInterval                  time.Duration
-	rateLimiters                  sync.Map
 	lastDestinations              sync.Map
 	lastTokens                    sync.Map
+	lastDestinationsErrors        sync.Map
+	lastTokensErrors              sync.Map
+	rateLimiters                  sync.Map
 
 	doneOnce *sync.Once
 	done     chan struct{}
@@ -67,6 +69,8 @@ func NewEventsCache(enabled bool, storage meta.Storage, capacityPerTokenOrDestin
 		capacityPerTokenOrDestination: capacityPerTokenOrDestination,
 		lastDestinations:              sync.Map{},
 		lastTokens:                    sync.Map{},
+		lastDestinationsErrors:        sync.Map{},
+		lastTokensErrors:              sync.Map{},
 		rateLimiters:                  sync.Map{},
 		poolSize:                      poolSize,
 		timeWindow:                    time.Second * time.Duration(timeWindowSeconds),
@@ -89,7 +93,7 @@ func NewEventsCache(enabled bool, storage meta.Storage, capacityPerTokenOrDestin
 func (ec *EventsCache) start() {
 	safego.RunWithRestart(func() {
 		for cf := range ec.rawEventsChannel {
-			ec.putRawEvent(cf.tokenID, cf.serializedPayload)
+			ec.saveTokenEvent(cf.tokenID, cf.serializedPayload, cf.error, cf.eventMetaStatus)
 		}
 	})
 
@@ -101,7 +105,7 @@ func (ec *EventsCache) start() {
 				continue
 			}
 
-			if err := ec.putEventWithStatus(eventEntity); err != nil {
+			if err := ec.saveDestinationEventWithStatus(eventEntity, cf.eventMetaStatus); err != nil {
 				logging.SystemErrorf("[%s] failed to save meta event entity [%v] into the cache: %v", cf.successEventContext.DestinationID, cf, err)
 				continue
 			}
@@ -120,7 +124,7 @@ func (ec *EventsCache) startTrimmer() {
 			case <-ticker.C:
 				ec.lastDestinations.Range(func(destinationID interface{}, value interface{}) bool {
 					ec.lastDestinations.Delete(destinationID)
-					err := ec.storage.TrimEvents(meta.EventsDestinationNamespace, destinationID.(string), ec.capacityPerTokenOrDestination)
+					err := ec.storage.TrimEvents(meta.EventsDestinationNamespace, destinationID.(string), meta.EventsPureStatus, ec.capacityPerTokenOrDestination)
 					if err != nil {
 						logging.Warnf("failed to trim events cache events for %s destination: %v", destinationID, err)
 					}
@@ -129,9 +133,27 @@ func (ec *EventsCache) startTrimmer() {
 
 				ec.lastTokens.Range(func(tokenID interface{}, value interface{}) bool {
 					ec.lastTokens.Delete(tokenID)
-					err := ec.storage.TrimEvents(meta.EventsTokenNamespace, tokenID.(string), ec.capacityPerTokenOrDestination)
+					err := ec.storage.TrimEvents(meta.EventsTokenNamespace, tokenID.(string), meta.EventsPureStatus, ec.capacityPerTokenOrDestination)
 					if err != nil {
 						logging.Warnf("failed to trim events cache events for %s token: %v", tokenID, err)
+					}
+					return true
+				})
+
+				ec.lastDestinationsErrors.Range(func(destinationID interface{}, value interface{}) bool {
+					ec.lastDestinationsErrors.Delete(destinationID)
+					err := ec.storage.TrimEvents(meta.EventsDestinationNamespace, destinationID.(string), meta.EventsErrorStatus, ec.capacityPerTokenOrDestination)
+					if err != nil {
+						logging.Warnf("failed to trim events cache error events for %s destination: %v", destinationID, err)
+					}
+					return true
+				})
+
+				ec.lastTokensErrors.Range(func(tokenID interface{}, value interface{}) bool {
+					ec.lastTokensErrors.Delete(tokenID)
+					err := ec.storage.TrimEvents(meta.EventsTokenNamespace, tokenID.(string), meta.EventsErrorStatus, ec.capacityPerTokenOrDestination)
+					if err != nil {
+						logging.Warnf("failed to trim events cache error events for %s token: %v", tokenID, err)
 					}
 					return true
 				})
@@ -143,12 +165,12 @@ func (ec *EventsCache) startTrimmer() {
 //RawEvent puts value into channel which will be read and written to storage
 func (ec *EventsCache) RawEvent(disabled bool, tokenID string, serializedPayload []byte) {
 	if !disabled && ec.isActive() {
-		if !ec.isRateLimiterAllowed(tokenID) {
+		if !ec.isRateLimiterAllowed(tokenID, meta.EventsPureStatus) {
 			return
 		}
 
 		select {
-		case ec.rawEventsChannel <- &rawEvent{tokenID: tokenID, serializedPayload: serializedPayload}:
+		case ec.rawEventsChannel <- &rawEvent{tokenID: tokenID, serializedPayload: serializedPayload, eventMetaStatus: meta.EventsPureStatus}:
 		default:
 			if rand.Int31n(1000) == 0 {
 				logging.Debugf("[events cache] raw events queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
@@ -157,10 +179,27 @@ func (ec *EventsCache) RawEvent(disabled bool, tokenID string, serializedPayload
 	}
 }
 
+//RawErrorEvent puts value into channel which will be read and written to storage
+func (ec *EventsCache) RawErrorEvent(disabled bool, tokenID string, serializedPayload []byte, err error) {
+	if !disabled && ec.isActive() {
+		if !ec.isRateLimiterAllowed(tokenID, meta.EventsErrorStatus) {
+			return
+		}
+
+		select {
+		case ec.rawEventsChannel <- &rawEvent{tokenID: tokenID, serializedPayload: serializedPayload, error: err.Error(), eventMetaStatus: meta.EventsErrorStatus}:
+		default:
+			if rand.Int31n(1000) == 0 {
+				logging.Debugf("[events cache] raw error events queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+			}
+		}
+	}
+}
+
 //Succeed puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Succeed(eventContext *adapters.EventContext) {
 	if !eventContext.CacheDisabled && ec.isActive() {
-		if !ec.isRateLimiterAllowed(eventContext.DestinationID) {
+		if !ec.isRateLimiterAllowed(eventContext.DestinationID, meta.EventsPureStatus) {
 			return
 		}
 
@@ -177,15 +216,23 @@ func (ec *EventsCache) Succeed(eventContext *adapters.EventContext) {
 //Error puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Error(cacheDisabled bool, destinationID, originEvent string, errMsg string) {
 	if !cacheDisabled && ec.isActive() {
-		if !ec.isRateLimiterAllowed(destinationID) {
-			return
+		if !ec.isRateLimiterAllowed(destinationID, meta.EventsPureStatus) {
+			select {
+			case ec.statusEventsChannel <- &statusEvent{originEvent: originEvent, destinationID: destinationID, error: errMsg}:
+			default:
+				if rand.Int31n(1000) == 0 {
+					logging.Debugf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+				}
+			}
 		}
 
-		select {
-		case ec.statusEventsChannel <- &statusEvent{originEvent: originEvent, destinationID: destinationID, error: errMsg}:
-		default:
-			if rand.Int31n(1000) == 0 {
-				logging.Debugf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+		if ec.isRateLimiterAllowed(destinationID, meta.EventsErrorStatus) {
+			select {
+			case ec.statusEventsChannel <- &statusEvent{originEvent: originEvent, destinationID: destinationID, error: errMsg, eventMetaStatus: meta.EventsErrorStatus}:
+			default:
+				if rand.Int31n(1000) == 0 {
+					logging.Debugf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+				}
 			}
 		}
 	}
@@ -194,7 +241,7 @@ func (ec *EventsCache) Error(cacheDisabled bool, destinationID, originEvent stri
 //Skip puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Skip(cacheDisabled bool, destinationID, originEvent string, errMsg string) {
 	if !cacheDisabled && ec.isActive() {
-		if !ec.isRateLimiterAllowed(destinationID) {
+		if !ec.isRateLimiterAllowed(destinationID, meta.EventsPureStatus) {
 			return
 		}
 
@@ -208,24 +255,46 @@ func (ec *EventsCache) Skip(cacheDisabled bool, destinationID, originEvent strin
 	}
 }
 
-//putRawEvent saves raw JSON event into the storage by token
-func (ec *EventsCache) putRawEvent(tokenID string, serializedPayload []byte) {
-	entity := &meta.Event{Original: string(serializedPayload), TokenID: tokenID}
-	err := ec.storage.AddEvent(meta.EventsTokenNamespace, tokenID, entity)
-	if err != nil {
-		logging.SystemErrorf("failed to save raw JSON event %v by tokenID %s in meta.storage: %v", string(serializedPayload), tokenID, err)
-		return
+//saveTokenEvent saves raw JSON event into the storage by token
+//and saves to token error collection if error
+func (ec *EventsCache) saveTokenEvent(tokenID string, serializedPayload []byte, errMsg, eventMetaStatus string) {
+	entity := &meta.Event{Original: string(serializedPayload), TokenID: tokenID, Error: errMsg}
+
+	if eventMetaStatus == meta.EventsPureStatus {
+		err := ec.storage.AddEvent(meta.EventsTokenNamespace, tokenID, meta.EventsPureStatus, entity)
+		if err != nil {
+			logging.SystemErrorf("failed to save raw JSON event %v by tokenID %s in meta.storage: %v", string(serializedPayload), tokenID, err)
+			return
+		}
+		ec.lastTokens.LoadOrStore(tokenID, true)
+	} else if eventMetaStatus == meta.EventsErrorStatus {
+		err := ec.storage.AddEvent(meta.EventsTokenNamespace, tokenID, meta.EventsErrorStatus, entity)
+		if err != nil {
+			logging.SystemErrorf("failed to save raw JSON event with error %v by tokenID %s in meta.storage: %v", string(serializedPayload), tokenID, err)
+			return
+		}
+
+		ec.lastTokensErrors.LoadOrStore(tokenID, true)
 	}
-	ec.lastTokens.LoadOrStore(tokenID, true)
 }
 
-//putEventWithStatus saves processed JSON event with status into the storage by destinationID
-func (ec *EventsCache) putEventWithStatus(entity *meta.Event) error {
-	if err := ec.storage.AddEvent(meta.EventsDestinationNamespace, entity.DestinationID, entity); err != nil {
-		return err
+//saveDestinationEventWithStatus saves processed JSON event in the storage by destinationID into processed collection and
+//if error into error collection
+func (ec *EventsCache) saveDestinationEventWithStatus(entity *meta.Event, metaStatus string) error {
+	if metaStatus == meta.EventsPureStatus {
+		if err := ec.storage.AddEvent(meta.EventsDestinationNamespace, entity.DestinationID, meta.EventsPureStatus, entity); err != nil {
+			return err
+		}
+		ec.lastDestinations.LoadOrStore(entity.DestinationID, true)
 	}
 
-	ec.lastDestinations.LoadOrStore(entity.DestinationID, true)
+	if metaStatus == meta.EventsErrorStatus {
+		if err := ec.storage.AddEvent(meta.EventsDestinationNamespace, entity.DestinationID, meta.EventsErrorStatus, entity); err != nil {
+			return err
+		}
+		ec.lastDestinationsErrors.LoadOrStore(entity.DestinationID, true)
+	}
+
 	return nil
 }
 
@@ -318,12 +387,12 @@ func (ec *EventsCache) createEventEntity(statusEvent *statusEvent) (*meta.Event,
 	}, nil
 }
 
-//GetByNamespaceAndID returns
+//Get returns
 // 1. last [token, destination] namespace raw JSON events with limit
 // 2. amount of rate limited events
-func (ec *EventsCache) GetByNamespaceAndID(namespace, id string, limit int) ([]meta.Event, uint64) {
-	metaEvents, err := ec.storage.GetEvents(namespace, id, limit)
-	lastMinuteLimited := ec.getLastMinuteLimited(id)
+func (ec *EventsCache) Get(namespace, id, status string, limit int) ([]meta.Event, uint64) {
+	metaEvents, err := ec.storage.GetEvents(namespace, id, status, limit)
+	lastMinuteLimited := ec.getLastMinuteLimited(id, status)
 	if err != nil {
 		logging.SystemErrorf("Error getting %d cached events for [%s] %s: %v", limit, id, namespace, err)
 		return []meta.Event{}, lastMinuteLimited
@@ -333,8 +402,8 @@ func (ec *EventsCache) GetByNamespaceAndID(namespace, id string, limit int) ([]m
 }
 
 //GetTotal returns total amount of destination events in storage
-func (ec *EventsCache) GetTotal(namespace, id string) int {
-	total, err := ec.storage.GetTotalEvents(namespace, id)
+func (ec *EventsCache) GetTotal(namespace, id, status string) int {
+	total, err := ec.storage.GetTotalEvents(namespace, id, status)
 	if err != nil {
 		logging.SystemErrorf("Error getting total events for [%s] %s: %v", id, namespace, err)
 		return 0
@@ -369,14 +438,18 @@ func (ec *EventsCache) isActive() bool {
 	}
 }
 
-func (ec *EventsCache) isRateLimiterAllowed(id string) bool {
-	rateLimiterIface, _ := ec.rateLimiters.LoadOrStore(id, NewRefillableRateLimiter(uint64(ec.capacityPerTokenOrDestination), ec.timeWindow))
+func (ec *EventsCache) isRateLimiterAllowed(id, status string) bool {
+	rateLimiterIface, _ := ec.rateLimiters.LoadOrStore(getRateLimiterIdentifier(id, status), NewRefillableRateLimiter(uint64(ec.capacityPerTokenOrDestination), ec.timeWindow))
 	rateLimiter, _ := rateLimiterIface.(RateLimiter)
 	return rateLimiter.Allow()
 }
 
-func (ec *EventsCache) getLastMinuteLimited(id string) uint64 {
-	rateLimiterIface, _ := ec.rateLimiters.LoadOrStore(id, NewRefillableRateLimiter(uint64(ec.capacityPerTokenOrDestination), ec.timeWindow))
+func (ec *EventsCache) getLastMinuteLimited(id, status string) uint64 {
+	rateLimiterIface, _ := ec.rateLimiters.LoadOrStore(getRateLimiterIdentifier(id, status), NewRefillableRateLimiter(uint64(ec.capacityPerTokenOrDestination), ec.timeWindow))
 	rateLimiter, _ := rateLimiterIface.(RateLimiter)
 	return rateLimiter.GetLastMinuteLimited()
+}
+
+func getRateLimiterIdentifier(id string, status string) string {
+	return fmt.Sprintf("%s_%s", id, status)
 }

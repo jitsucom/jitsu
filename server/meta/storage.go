@@ -33,10 +33,10 @@ type Storage interface {
 
 	//** Events Cache **
 	//events caching
-	AddEvent(namespace, id string, entity *Event) error
-	TrimEvents(namespace, id string, capacity int) error
-	GetEvents(namespace, id string, limit int) ([]Event, error)
-	GetTotalEvents(namespace, id string) (int, error)
+	AddEvent(namespace, id, status string, entity *Event) error
+	TrimEvents(namespace, id, status string, capacity int) error
+	GetEvents(namespace, id, status string, limit int) ([]Event, error)
+	GetTotalEvents(namespace, id, status string) (int, error)
 
 	// ** Sync Tasks **
 	CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error

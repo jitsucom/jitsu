@@ -78,6 +78,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.cache.events.size", 100)
 	viper.SetDefault("server.cache.events.time_window_sec", 60)
 	viper.SetDefault("server.cache.events.trim_interval_ms", 500)
+	viper.SetDefault("server.cache.events.max_event_size_bytes", 10_000)
 	viper.SetDefault("server.cache.pool.size", 10)
 	viper.SetDefault("server.strict_auth_tokens", false)
 	viper.SetDefault("server.max_columns", 100)
