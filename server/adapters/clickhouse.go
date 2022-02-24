@@ -559,13 +559,19 @@ func (ch *ClickHouse) executeInsert(table *Table, headerWithQuotes []string, pla
 	ch.queryLogger.LogQueryWithValues(statement, valueArgs)
 
 	if _, err := ch.dataSource.Exec(statement, valueArgs...); err != nil {
+		var firstObjectValues strings.Builder
+		for i, name := range headerWithQuotes {
+			firstObjectValues.WriteString(strings.Trim(name, "\"") + ": " + fmt.Sprint(valueArgs[i]) + "\n")
+		}
 		return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute insert").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
-				Database:    ch.database,
-				Cluster:     ch.cluster,
-				Table:       table.Name,
-				PrimaryKeys: table.GetPKFields(),
-				Statement:   fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(headerWithQuotes, ", "), fmt.Sprintf("[objects: %d. for intance the first element: %v]", objectsCount, valueArgs[0])),
+				Database:        ch.database,
+				Cluster:         ch.cluster,
+				Table:           table.Name,
+				PrimaryKeys:     table.GetPKFields(),
+				Statement:       statement,
+				ValuesMapString: firstObjectValues.String(),
+				TotalObjects:    objectsCount,
 			})
 	}
 
