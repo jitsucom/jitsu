@@ -46,8 +46,7 @@ If executed out of our docker container and batch destinations are used, set up 
 log:
   path: <path to event logs directory>
 `
-	jsonContentType    = "application/json"
-	userInfoCollection = "users_info"
+	jsonContentType = "application/json"
 )
 
 //stubS3Config is used in generate Jitsu Server yaml config
@@ -1112,6 +1111,7 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 		}
 
 		if userInfo, err := oa.Configurations.UpdateUserInfo(createdUser.ID, openapi.UpdateUserInfoRequest{
+			Name: req.Name,
 			Project: &openapi.ProjectInfo{
 				Id:           project.Id,
 				Name:         project.Name,
@@ -1127,6 +1127,7 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 						Email: req.Email,
 					},
 					Created: userInfo.Created,
+					Name:    req.Name,
 				},
 				Project: project.Project,
 				ResetId: createdUser.ResetID,
@@ -1169,12 +1170,14 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 	}
 
 	var req openapi.PatchUserRequest
+	if err := ctx.BindJSON(&req); err != nil {
+		mw.InvalidInputJSON(ctx, err)
+		return
+	}
+
 	if req.Password != nil {
 		if authorizator, err := oa.Authorizator.Local(); err != nil {
 			mw.Unsupported(ctx, err)
-			return
-		} else if err := ctx.BindJSON(&req); err != nil {
-			mw.InvalidInputJSON(ctx, err)
 			return
 		} else if err := authorizator.UpdatePassword(ctx, userID, *req.Password); err != nil {
 			mw.BadRequest(ctx, "update user failed", err)

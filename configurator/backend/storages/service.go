@@ -903,12 +903,10 @@ func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*
 				RequiresSetup: projectInfo.RequireSetup,
 			}
 
-			if patched, err := cs.Patch(projectID, new(Project), patch, false); err != nil {
+			if _, err := cs.Patch(projectID, new(Project), patch, false); err != nil {
 				return nil, errors.Wrap(err, "patch project")
-			} else if patched {
-				if err := cs.LinkUserToProject(id, projectID); err != nil {
-					return nil, errors.Wrap(err, "link user to project")
-				}
+			} else if err := cs.LinkUserToProject(id, projectID); err != nil {
+				return nil, errors.Wrap(err, "link user to project")
 			}
 		}
 	}
