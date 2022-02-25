@@ -192,10 +192,12 @@ func main() {
 	var smtp *emails.SMTPConfiguration
 	if viper.IsSet("smtp.host") {
 		smtp = &emails.SMTPConfiguration{
-			Host:     viper.GetString("smtp.host"),
-			Port:     viper.GetInt("smtp.port"),
-			User:     viper.GetString("smtp.user"),
-			Password: viper.GetString("smtp.password"),
+			Host:      viper.GetString("smtp.host"),
+			Port:      viper.GetInt("smtp.port"),
+			User:      viper.GetString("smtp.user"),
+			Password:  viper.GetString("smtp.password"),
+			From:      viper.GetString("smtp.from"),
+			Signature: viper.GetString("smtp.signature"),
 		}
 
 		err := smtp.Validate()

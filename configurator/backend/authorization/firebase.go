@@ -120,7 +120,7 @@ func (fb *Firebase) AutoSignUp(ctx context.Context, email, _ string) (string, er
 		return "", errors.Wrap(err, "create user")
 	} else if link, err := fb.authClient.PasswordResetLink(ctx, email); err != nil {
 		return "", errors.Wrap(err, "password reset link")
-	} else if err := fb.mailSender.SendResetPassword(email, link); err != nil {
+	} else if err := fb.mailSender.SendAccountCreated(email, link); err != nil {
 		return "", errors.Wrap(err, "send reset password")
 	} else {
 		return resp.UID, nil
