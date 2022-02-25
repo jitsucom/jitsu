@@ -29,7 +29,7 @@ func (ecd *EventsCacheDecorator) Decorate(c *gin.Context) (*Request, error) {
 
 	status := c.Query("status")
 	if status != "" && status != meta.EventsErrorStatus {
-		return nil, fmt.Errorf("unknown status: %s. Only %s is supported", status, meta.EventsErrorStatus)
+		return nil, fmt.Errorf("status query parameter can be only %q or not specified. Current value: %s", meta.EventsErrorStatus, status)
 	}
 
 	if ids == "" {
@@ -48,7 +48,7 @@ func (ecd *EventsCacheDecorator) Decorate(c *gin.Context) (*Request, error) {
 		}
 	}
 
-	return BuildRequestWithQueryParams(c, map[string]string{"ids": ids, "namespace": namespace}), nil
+	return BuildRequestWithQueryParams(c, map[string]string{"ids": ids, "namespace": namespace, "status": status}), nil
 }
 
 func (ecd *EventsCacheDecorator) getProjectDestinations(projectID string) (string, error) {

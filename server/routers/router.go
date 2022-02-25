@@ -61,7 +61,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	})
 
 	maxEventSize := viper.GetInt("server.max_event_size")
-	maxCachedEventsErrSize := viper.GetInt("server.cache.events.max_event_size_bytes")
+	maxCachedEventsErrSize := viper.GetInt("server.cache.events.max_malformed_event_size_bytes")
 	if maxEventSize < maxCachedEventsErrSize {
 		maxCachedEventsErrSize = maxEventSize
 	}
