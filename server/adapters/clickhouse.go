@@ -509,7 +509,12 @@ func (ch *ClickHouse) toDeleteQuery(table *Table, conditions *DeleteConditions) 
 func (ch *ClickHouse) insert(table *Table, objects ...map[string]interface{}) error {
 	var placeholdersBuilder strings.Builder
 	var headerWithoutQuotes, headerWithQuotes []string
+	columns := make([]string, 0, len(table.Columns))
 	for name := range table.Columns {
+		columns = append(columns, name)
+	}
+	sort.Strings(columns)
+	for _, name := range columns {
 		headerWithoutQuotes = append(headerWithoutQuotes, name)
 		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
 	}
