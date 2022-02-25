@@ -222,7 +222,7 @@ components:
           type: string
           nullable: true
         _requireSetup: { type: boolean }
-      required: ['_id', '_name', '_planId']
+      required: [ '_id', '_name', '_planId' ]
     SuggestedInfo:
       type: object
       properties:
@@ -244,7 +244,7 @@ components:
           $ref: '#/components/schemas/SuggestedInfo'
         _project:
           $ref: '#/components/schemas/ProjectInfo'
-      required: ['_uid', '_created', '_email']
+      required: [ '_uid', '_created', '_email' ]
     UpdateUserInfoRequest:
       type: object
       properties:
@@ -256,6 +256,20 @@ components:
           $ref: '#/components/schemas/SuggestedInfo'
         _project:
           $ref: '#/components/schemas/ProjectInfo'
+    LinkProjectRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: User Id to link to the project. Alternatively, userEmail could be specified
+        userEmail:
+          type: string
+          description: User email to link to the project. Alternatively, userId could be specified
+        callback:
+          type: string
+          description: >
+            Callback URL will be used for generating reset password links 
+            when creating a new user (only on Redis-backed authorization).
 
   responses:
     Error:
@@ -571,24 +585,12 @@ paths:
           $ref: '#/components/responses/Error'
 
   /api/v2/project/{projectId}/link:
-    get:
+    post:
       parameters:
         - name: projectId
           description: Project id
           in: path
           required: true
-          schema:
-            type: string
-        - name: userId
-          description: User Id to link to the project. Alternatively, userEmail could be specified
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: userEmail
-          description: User email to link to the project. Alternatively, userId could be specified
-          in: query
-          required: false
           schema:
             type: string
       tags:
@@ -600,6 +602,11 @@ paths:
          - If user is not found, the user should be created and linked to the project. Later we'll add email notification
       security:
         - configurationManagementAuth: [ ]
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              $ref: '#/components/schemas/LinkProjectRequest'
       responses:
         '200':
           description: "List of users with access to given project"
