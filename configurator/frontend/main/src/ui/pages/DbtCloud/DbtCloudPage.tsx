@@ -10,8 +10,7 @@ import { CenteredError, CenteredSpin } from "lib/components/components"
 // @Types
 import { useState } from "react"
 import { useForceUpdate } from "../../../hooks/useForceUpdate"
-import dbtcloud from "@jitsu/catalog/destinations/lib/dbtcloud"
-import { EntitiesStoreState } from "stores/types.enums"
+import { EntitiesStoreStatus } from "stores/entitiesStore"
 
 export interface CollectionDestinationData {
   destinations: DestinationData[]
@@ -30,11 +29,11 @@ const DbtCloudPageComponent: React.FC = () => {
 
   const forceUpdate = useForceUpdate()
 
-  if (destinationsStore.state === EntitiesStoreState.GLOBAL_ERROR) {
-    return <CenteredError error={destinationsStore.error} />
+  if (destinationsStore.status === EntitiesStoreStatus.GLOBAL_ERROR) {
+    return <CenteredError error={destinationsStore.errorMessage} />
   } else if (
-    destinationsStore.state === EntitiesStoreState.GLOBAL_LOADING ||
-    sourcesStore.state === EntitiesStoreState.GLOBAL_LOADING
+    destinationsStore.status === EntitiesStoreStatus.GLOBAL_LOADING ||
+    sourcesStore.status === EntitiesStoreStatus.GLOBAL_LOADING
   ) {
     return <CenteredSpin />
   }

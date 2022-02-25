@@ -1,8 +1,6 @@
 import { useHistory, useLocation, useParams } from "react-router-dom"
-import useLoader from "hooks/useLoader"
-import ApplicationServices from "lib/services/ApplicationServices"
 import React, { useEffect, useState } from "react"
-import { CenteredError, CenteredSpin } from "lib/components/components"
+import { CenteredSpin } from "lib/components/components"
 import { DatePicker, Select, Tag } from "antd"
 import { TasksTable } from "ui/pages/TaskLogs/TasksTable"
 import { useServices } from "hooks/useServices"
@@ -12,15 +10,16 @@ import moment from "moment"
 import { allSources } from "@jitsu/catalog/sources/lib"
 import snakeCase from "lodash/snakeCase"
 import { SourceConnector } from "@jitsu/catalog/sources/types"
-import { CollectionSourceData } from "ui/pages/SourcesPage/SourcesPage"
 import { PageHeader } from "ui/components/PageHeader/PageHeader"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { currentPageHeaderStore } from "../../../stores/currentPageHeader"
 import { projectRoute } from "../../../lib/components/ProjectLink/ProjectLink"
+import { sourcesStore } from "stores/sources"
+import { observer } from "mobx-react-lite"
 
 export const taskLogsPageRoute = "/prj-:projectId/sources/logs/:sourceId"
 
-export const TaskLogsPage: React.FC = () => {
+const TaskLogsPageComponent: React.FC = () => {
   const params = useParams<{ sourceId: string; taskId: string }>()
   const services = useServices()
   const location = useLocation()
@@ -35,14 +34,7 @@ export const TaskLogsPage: React.FC = () => {
   const [filterEnd, setFilterEnd] = useState(
     query.get("end") ? moment.utc(query.get("end")) : moment.utc().endOf("day")
   )
-  const [loadingError, source] = useLoader(async () => {
-    const appServices = ApplicationServices.get()
-    const data: CollectionSourceData = await appServices.storageService.get("sources", appServices.activeProject.id)
-    if (!data.sources) {
-      throw new Error(`Invalid response of "sources" collection: ${JSON.stringify(data)}`)
-    }
-    return data.sources.find((source: SourceData) => source.sourceId === params.sourceId)
-  }, [params.sourceId])
+  const source = sourcesStore.get(params.sourceId)
 
   useEffect(() => {
     if (source) {
@@ -76,9 +68,7 @@ export const TaskLogsPage: React.FC = () => {
     stateAction(val)
   }
 
-  if (loadingError) {
-    return <CenteredError error={loadingError} />
-  } else if (!source) {
+  if (!source) {
     return <CenteredSpin />
   }
   return (
@@ -159,8 +149,8 @@ export const TaskLogsPage: React.FC = () => {
   )
 }
 
-function plusDays(d: Date, days: number) {
-  let dCopy = new Date(d.getTime())
-  dCopy.setDate(d.getDate() + days)
-  return dCopy
-}
+const TaskLogsPage = observer(TaskLogsPageComponent)
+
+TaskLogsPage.displayName = "TaskLogsPage"
+
+export { TaskLogsPage }

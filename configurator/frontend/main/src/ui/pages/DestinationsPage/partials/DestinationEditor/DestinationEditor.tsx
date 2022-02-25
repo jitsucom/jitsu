@@ -1,6 +1,6 @@
 // @Libs
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { generatePath, Prompt, useHistory, useParams } from "react-router-dom"
+import { Prompt, useHistory, useParams } from "react-router-dom"
 import { Button, Card, Form } from "antd"
 import { flowResult } from "mobx"
 import cn from "classnames"
@@ -12,7 +12,6 @@ import { DestinationEditorConfig } from "./DestinationEditorConfig"
 import { DestinationEditorTransform } from "./DestinationEditorTransform"
 import { DestinationEditorConnectors } from "./DestinationEditorConnectors"
 import { DestinationEditorMappings } from "./DestinationEditorMappings"
-import { DestinationEditorMappingsLibrary } from "./DestinationEditorMappingsLibrary"
 import { DestinationNotFound } from "../DestinationNotFound/DestinationNotFound"
 // @Store
 import { sourcesStore } from "stores/sources"
@@ -39,9 +38,10 @@ import { firstToLower } from "lib/commons/utils"
 import { useForceUpdate } from "hooks/useForceUpdate"
 // @Icons
 import { AreaChartOutlined, WarningOutlined } from "@ant-design/icons"
-import { actionNotification } from "../../../../components/ActionNotification/ActionNotification"
-import { projectRoute } from "../../../../../lib/components/ProjectLink/ProjectLink"
-import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
+import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
+import { currentPageHeaderStore } from "stores/currentPageHeader"
+import { connectionsHelper } from "stores/helpers"
 
 type DestinationTabKey = "config" | "transform" | "mappings" | "sources" | "settings" | "statistics"
 
@@ -335,8 +335,11 @@ const DestinationEditor = ({
           await destinationEditorUtils.testConnection(destinationData.current, true)
 
           if (editorMode === "add") await flowResult(destinationsStore.add(destinationData.current))
-
           if (editorMode === "edit") await flowResult(destinationsStore.replace(destinationData.current))
+          await connectionsHelper.updateSourcesConnectionsToDestination(
+            destinationData.current._uid,
+            destinationData.current._sources
+          )
 
           destinationsTabs.forEach((tab: Tab) => (tab.touched = false))
 

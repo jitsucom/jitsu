@@ -1,4 +1,3 @@
-/* eslint-disable */
 import moment, { Duration, Moment } from "moment"
 import { LS_ACCESS_KEY, LS_REFRESH_KEY } from "lib/services/UserServiceBackend"
 import { assertHasOwnProperty, assertIsArray, assertIsObject } from "utils/typeCheck"

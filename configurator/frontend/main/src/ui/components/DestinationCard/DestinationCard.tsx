@@ -4,9 +4,8 @@ import { Badge, Menu, Modal } from "antd"
 import { ExclamationCircleOutlined } from "@ant-design/icons"
 import { destinationsStore } from "../../../stores/destinations"
 import { handleError } from "../../../lib/components/components"
-import { generatePath, NavLink } from "react-router-dom"
+import { NavLink } from "react-router-dom"
 import { destinationPageRoutes } from "../../pages/DestinationsPage/DestinationsPage.routes"
-import { useServices } from "../../../hooks/useServices"
 import Tooltip from "antd/es/tooltip"
 import EditOutlined from "@ant-design/icons/lib/icons/EditOutlined"
 import DeleteOutlined from "@ant-design/icons/lib/icons/DeleteOutlined"
@@ -14,6 +13,7 @@ import CodeOutlined from "@ant-design/icons/lib/icons/CodeOutlined"
 import { flowResult } from "mobx"
 import { DestinationsUtils } from "../../../utils/destinations.utils"
 import { projectRoute } from "../../../lib/components/ProjectLink/ProjectLink"
+import { connectionsHelper } from "stores/helpers"
 
 export type DestinationCardProps = {
   dst: DestinationData
@@ -22,7 +22,7 @@ export type DestinationCardProps = {
 export function DestinationCard({ dst }: DestinationCardProps) {
   const reference = destinationsReferenceMap[dst._type]
   const rename = async (newName: string) => {
-    await flowResult(destinationsStore.patch(dst._uid, { displayName: newName }, { updateConnections: false }))
+    await flowResult(destinationsStore.patch(dst._uid, { displayName: newName }))
   }
   let deleteAction = () => {
     Modal.confirm({
@@ -32,9 +32,9 @@ export function DestinationCard({ dst }: DestinationCardProps) {
       okText: "Delete",
       cancelText: "Cancel",
       onOk: async () => {
-        const destinationToDelete = destinationsStore.get(dst._id)
         try {
-          await flowResult(destinationsStore.delete(destinationToDelete._uid))
+          await flowResult(destinationsStore.delete(dst._uid))
+          await connectionsHelper.unconnectDeletedDestination(dst._uid)
         } catch (errors) {
           handleError(errors, "Unable to delete destination at this moment, please try later.")
         }

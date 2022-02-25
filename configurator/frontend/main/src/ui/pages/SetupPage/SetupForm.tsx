@@ -1,4 +1,3 @@
-/* eslint-disable */
 import * as React from "react"
 import { Button, Form, Switch } from "antd"
 import styles from "./SetupForm.module.less"
