@@ -934,7 +934,7 @@ func (oa *OpenAPI) PatchProjectSettings(ctx *gin.Context, projectID openapi.Proj
 		mw.ForbiddenProject(ctx, projectID)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
-	} else if err := oa.Configurations.Patch(projectID, &result, req, false); err != nil {
+	} else if _, err := oa.Configurations.Patch(projectID, &result, req, false); err != nil {
 		mw.BadRequest(ctx, "patch project settings failed", err)
 	} else {
 		ctx.JSON(http.StatusOK, result.ProjectSettings)
