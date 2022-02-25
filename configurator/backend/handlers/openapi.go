@@ -88,7 +88,7 @@ type Authorizator interface {
 	AuthorizationType() string
 	GetUserEmail(ctx context.Context, userID string) (string, error)
 	HasUsers(ctx context.Context) (bool, error)
-	AutoSignUp(ctx context.Context, email, callback string) (string, error)
+	AutoSignUp(ctx context.Context, email string, callback *string) (string, error)
 	Local() (LocalAuthorizator, error)
 	Cloud() (CloudAuthorizator, error)
 }
@@ -940,26 +940,30 @@ func (oa *OpenAPI) PatchProjectSettings(ctx *gin.Context, projectID openapi.Proj
 	}
 }
 
-func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string, params openapi.LinkUserToProjectParams) {
+func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string) {
 	if ctx.IsAborted() {
 		return
 	}
 
+	var req openapi.LinkProjectRequest
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
 		return
 	} else if !authority.Allow(projectID) {
 		mw.ForbiddenProject(ctx, projectID)
 		return
+	} else if err := ctx.BindJSON(&req); err != nil {
+		mw.InvalidInputJSON(ctx, err)
+		return
 	}
 
 	var userID string
-	if params.UserId != nil && *params.UserId != "" {
-		userID = *params.UserId
-	} else if params.UserEmail != nil && *params.UserEmail != "" {
+	if req.UserId != nil && *req.UserId != "" {
+		userID = *req.UserId
+	} else if req.UserEmail != nil && *req.UserEmail != "" {
 		var err error
 		// TODO callback
-		if userID, err = oa.Authorizator.AutoSignUp(ctx, *params.UserEmail, ""); err != nil {
+		if userID, err = oa.Authorizator.AutoSignUp(ctx, *req.UserEmail, req.Callback); err != nil {
 			mw.InternalError(ctx, "auto sign up failed", err)
 			return
 		}

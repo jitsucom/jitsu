@@ -106,7 +106,7 @@ func (fb *Firebase) GetUserEmail(ctx context.Context, userID string) (string, er
 	}
 }
 
-func (fb *Firebase) AutoSignUp(ctx context.Context, email, _ string) (string, error) {
+func (fb *Firebase) AutoSignUp(ctx context.Context, email string, _ *string) (string, error) {
 	req := new(auth.UserToCreate).
 		Email(email).
 		Password(uuid.NewV4().String())
