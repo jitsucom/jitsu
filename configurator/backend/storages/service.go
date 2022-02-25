@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"time"
 
@@ -28,7 +29,6 @@ const (
 	apiKeysCollection                    = "api_keys"
 	customDomainsCollection              = "custom_domains"
 	geoDataResolversCollection           = "geo_data_resolvers"
-	usersInfoCollection                  = "users_info"
 	projectSettingsCollection            = "project_settings"
 	userProjectRelation                  = "user_project"
 
@@ -832,6 +832,10 @@ func (cs *ConfigurationsService) UnlinkUserFromProject(userID, projectID string)
 	return cs.storage.DeleteRelatedIDs(userProjectRelation, userID, projectID)
 }
 
+func (cs *ConfigurationsService) UnlinkUserFromAllProjects(userID string) error {
+	return cs.storage.DeleteRelation(userProjectRelation, userID)
+}
+
 func (cs *ConfigurationsService) GetAllProjects() ([]openapi.Project, error) {
 	projectsData, err := cs.storage.GetAllGroupedByID(projectSettingsCollection)
 	if err != nil {
@@ -894,7 +898,12 @@ func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*
 
 	if projectInfo := result.Project; projectInfo != nil {
 		projectID := projectInfo.Id
-		patch := map[string]interface{}{"name": projectInfo.Name}
+		patch := openapi.Project{
+			Id:            projectID,
+			Name:          projectInfo.Name,
+			RequiresSetup: projectInfo.RequireSetup,
+		}
+
 		if err := cs.Patch(projectID, new(Project), patch, false); err != nil {
 			return nil, errors.Wrap(err, "patch project")
 		} else if err := cs.LinkUserToProject(id, projectID); err != nil {
@@ -916,9 +925,9 @@ func (cs *ConfigurationsService) Load(id string, value CollectionItem) error {
 }
 
 // Patch patches the collection item.
-//   `value` should be an empty initialized pointer to the value of the target type.
 //   `id` is the ID of the collection item.
-//	 `patch` may be anything that is decodable with mapstructure. JSON field notation is expected.
+//   `value` should be an empty initialized pointer to the value of the target type. Slices are currently not supported.
+//	 `patch` may be anything that is acceptable for json.Marshal. Must define an object (not array or value).
 func (cs *ConfigurationsService) Patch(id string, value CollectionItem, patch interface{}, requireExist bool) error {
 	if lock, err := cs.lockProjectObject(value.Collection(), id); err != nil {
 		return errors.Wrapf(err, "lock %s", value.Collection())
@@ -942,14 +951,27 @@ func (cs *ConfigurationsService) Patch(id string, value CollectionItem, patch in
 		}
 	}
 
+	var initialValues map[string]interface{}
 	if err := json.Unmarshal(data, value); err != nil {
 		return errors.Wrapf(err, "unmarshal %s value", value.Collection())
-	} else if err := common.DecodeAsJSON(patch, value, false); err != nil {
+	} else if err := common.DecodeAsJSON(value, &initialValues); err != nil {
+		return errors.Wrapf(err, "decode %s value", value.Collection())
+	} else if err := common.DecodeAsJSON(patch, value); err != nil {
 		return errors.Wrapf(err, "apply patch for %s", value.Collection())
 	} else {
 		if isCreated {
 			if handler, ok := value.(OnCreateHandler); ok {
 				handler.OnCreate(id)
+			}
+		} else {
+			var updatedValues map[string]interface{}
+			if err := common.DecodeAsJSON(value, &updatedValues); err != nil {
+				return errors.Wrapf(err, "decode updated %s value", value.Collection())
+			} else if reflect.DeepEqual(initialValues, updatedValues) {
+				// no need to update
+				return nil
+			} else if handler, ok := value.(OnUpdateHandler); ok {
+				handler.OnUpdate()
 			}
 		}
 

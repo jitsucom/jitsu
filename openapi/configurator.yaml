@@ -220,6 +220,7 @@ components:
         _planId:
           type: string
           nullable: true
+        _requireSetup: { type: boolean }
       required: ['_id', '_name', '_planId']
     SuggestedInfo:
       type: object
@@ -232,6 +233,7 @@ components:
       properties:
         _uid: { type: string }
         _created: { type: string }
+        _lastUpdated: { type: string }
         _email: { type: string }
         _emailOptout: { type: boolean }
         _name: { type: string }
@@ -245,7 +247,6 @@ components:
     UpdateUserInfoRequest:
       type: object
       properties:
-        _email: { type: string }
         _emailOptout: { type: boolean }
         _name: { type: string }
         _forcePasswordChange: { type: boolean }

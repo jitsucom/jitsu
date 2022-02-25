@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/jitsucom/jitsu/configurator/destinations"
@@ -19,34 +20,19 @@ import (
 	"github.com/pkg/errors"
 )
 
-func userInfoEmailUpdate(email string) map[string]interface{} {
-	return map[string]interface{}{
-		"_email": email,
-		"_suggestedInfo": map[string]interface{}{
-			"email": email,
-		},
-	}
-}
-
-func (oa *OpenAPI) getProjectUsers(projectID string) ([]openapi.UserBasicInfo, error) {
+func (oa *OpenAPI) getProjectUsers(ctx context.Context, projectID string) ([]openapi.UserBasicInfo, error) {
 	if userIDs, err := oa.Configurations.GetProjectUsers(projectID); err != nil {
 		return nil, errors.Wrap(err, "get project users")
 	} else {
-		users := make([]openapi.UserBasicInfo, len(userIDs))
-		for i, userID := range userIDs {
-			var userInfo struct {
-				Email string `json:"_email"`
-			}
-
-			if userInfoData, err := oa.Configurations.GetConfigWithLock(userInfoCollection, userID); err != nil {
-				return nil, errors.Wrapf(err, "get user info for %s", userID)
-			} else if err := json.Unmarshal(userInfoData, &userInfo); err != nil {
-				return nil, errors.Wrapf(err, "unmarshal user %s info", userID)
+		users := make([]openapi.UserBasicInfo, 0, len(userIDs))
+		for _, userID := range userIDs {
+			if email, err := oa.Authorizator.GetUserEmail(ctx, userID); err != nil {
+				logging.Warnf("Failed to find user email for ID %s: %s", userID, err)
 			} else {
-				users[i] = openapi.UserBasicInfo{
+				users = append(users, openapi.UserBasicInfo{
 					Id:    userID,
-					Email: userInfo.Email,
-				}
+					Email: email,
+				})
 			}
 		}
 

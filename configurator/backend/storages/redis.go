@@ -205,6 +205,13 @@ func (r *Redis) GetRelationIndex(relation string) ([]string, error) {
 	}
 }
 
+func (r *Redis) DeleteRelation(relation, id string) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("DEL", getRelationKey(relation, id))
+	return err
+}
+
 func (r *Redis) GetRelatedIDs(relation string, id string) ([]string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
