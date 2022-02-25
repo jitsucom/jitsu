@@ -1,10 +1,8 @@
 package multiplexing
 
 import (
-	"encoding/json"
 	"errors"
 	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
@@ -19,14 +17,12 @@ var (
 //Service is a service for accepting, multiplexing events and sending to consumers
 type Service struct {
 	destinationService *destinations.Service
-	eventsCache        *caching.EventsCache
 }
 
 //NewService returns configured Service instance
-func NewService(destinationService *destinations.Service, eventsCache *caching.EventsCache) *Service {
+func NewService(destinationService *destinations.Service) *Service {
 	return &Service{
 		destinationService: destinationService,
-		eventsCache:        eventsCache,
 	}
 }
 
@@ -51,13 +47,6 @@ func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.R
 			logging.SystemErrorf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), payload.DebugString())
 		}
 
-		serializedPayload, _ := json.Marshal(payload)
-		var destinationIDs []string
-		for _, destinationProxy := range destinationStorages {
-			destinationIDs = append(destinationIDs, destinationProxy.ID())
-			s.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, serializedPayload)
-		}
-
 		//** Multiplexing **
 		consumers := s.destinationService.GetConsumers(tokenID)
 		if len(consumers) == 0 {
@@ -69,6 +58,10 @@ func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.R
 			consumer.Consume(payload, tokenID)
 		}
 
+		var destinationIDs []string
+		for _, destinationProxy := range destinationStorages {
+			destinationIDs = append(destinationIDs, destinationProxy.ID())
+		}
 		//Retroactive users recognition
 		processor.Postprocess(payload, eventID, destinationIDs, tokenID)
 

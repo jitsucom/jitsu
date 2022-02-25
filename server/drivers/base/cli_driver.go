@@ -151,8 +151,8 @@ func (acd *AbstractCLIDriver) GetAllAvailableIntervals() ([]*TimeInterval, error
 }
 
 //GetObjectsFor unsupported
-func (acd *AbstractCLIDriver) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
-	return nil, fmt.Errorf("%s driver doesn't support GetObjectsFor() func", acd.Type())
+func (acd *AbstractCLIDriver) GetObjectsFor(interval *TimeInterval, objectsLoader func(objects []map[string]interface{}, pos int, total int, percent int) error) error {
+	return fmt.Errorf("%s driver doesn't support GetObjectsFor() func", acd.Type())
 }
 
 //Type returns CLI Driver type. Should be overridden in every implementation

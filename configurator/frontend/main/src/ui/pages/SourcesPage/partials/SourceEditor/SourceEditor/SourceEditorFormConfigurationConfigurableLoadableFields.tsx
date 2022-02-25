@@ -18,7 +18,6 @@ import { toTitleCase } from "utils/strings"
 import { uniqueId } from "lodash"
 import { withQueryParams } from "utils/queryParams"
 import { mapAirbyteSpecToSourceConnectorConfig } from "@jitsu/catalog/sources/lib/airbyte.helper"
-import { ArrowDownOutlined, DownOutlined } from "@ant-design/icons"
 
 type Props = {
   editorMode: "add" | "edit"

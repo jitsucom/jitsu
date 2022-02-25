@@ -663,9 +663,10 @@ func (s *Snowflake) executeInsertInTransaction(wrappedTx *Transaction, table *Ta
 	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
 		return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute insert").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
-				Schema:    s.config.Schema,
-				Table:     table.Name,
-				Statement: fmt.Sprintf(insertSFTemplate, s.config.Schema, table.Name, strings.Join(quotedHeader, ","), fmt.Sprintf("[values: %d. for intance the first element: %v]", len(valueArgs), valueArgs[0])),
+				Schema:          s.config.Schema,
+				Table:           table.Name,
+				Statement:       statement,
+				ValuesMapString: ObjectValuesToString(headerWithoutQuotes, valueArgs),
 			})
 	}
 
