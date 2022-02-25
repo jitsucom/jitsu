@@ -1,9 +1,11 @@
 // @Libs
 import React, { useEffect, useMemo, useState } from "react"
+import { observer } from "mobx-react-lite"
 import { flowResult } from "mobx"
 import moment from "moment"
 // @Store
 import { apiKeysStore } from "stores/apiKeys"
+import { destinationsStore } from "stores/destinations"
 // @Components
 import { Tour, TourStep } from "./Tour/Tour"
 import { OnboardingTourGreeting } from "./steps/OnboardingTourGreeting/OnboardingTourGreeting"
@@ -137,8 +139,8 @@ const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => 
     const initialPrepareConfig = async (): Promise<void> => {
       const [user, destinations, events] = await Promise.all([
         services.userService.getUser(),
-        services.storageService.get("destinations", services.activeProject.id),
-        services.backendApiClient.get(`/events/cache?project_id=${project.id}&limit=5`, { proxy: true }),
+        destinationsStore.list,
+        services.backendApiClient.get(`/events/cache?project_id=${services.activeProject.id}&limit=5`, { proxy: true }),
       ])
 
       // user and company name
@@ -146,7 +148,7 @@ const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => 
       const companyName = project.name
 
       // destinations
-      const _destinations: DestinationData[] = destinations?.destinations ?? []
+      const _destinations: DestinationData[] = destinations ?? []
       const showDestinationsSetupStep = _destinations.length === 0
 
       // jitsu client configuration docs and first event detection
@@ -193,13 +195,13 @@ function calculateAmountOfSteps(config: OnboardingConfig): number {
   }, 0)
 }
 
-const OnboardingTour: React.FC<OnboardingTourProps> = props => {
+const OnboardingTour: React.FC<OnboardingTourProps> = observer(props => {
   return (
     <ErrorBoundary hideError={true} onAfterErrorOccured={error => console.error(`Onboarding tour error: ${error}`)}>
       <OnboardingTourComponent {...props} />
     </ErrorBoundary>
   )
-}
+})
 
 OnboardingTour.displayName = "OnboardingTour"
 

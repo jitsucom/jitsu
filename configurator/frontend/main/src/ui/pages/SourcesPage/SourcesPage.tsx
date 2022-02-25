@@ -9,7 +9,7 @@ import { useServices } from "hooks/useServices"
 // @Components
 import { SourcesList } from "./partials/SourcesList/SourcesList"
 import { AddSourceDialog } from "./partials/AddSourceDialog/AddSourceDialog"
-import { CenteredError, CenteredSpin } from "lib/components/components"
+import { CenteredSpin } from "lib/components/components"
 import { BillingCheckRedirect } from "lib/components/BillingCheckRedirect/BillingCheckRedirect"
 // @Store
 import { sourcesStore } from "stores/sources"
@@ -18,8 +18,8 @@ import "./SourcesPage.less"
 // @Types
 import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
 import { SourceEditor } from "./partials/SourceEditor/SourceEditor/SourceEditor"
-import { EntitiesStoreState } from "stores/types.enums"
 import { CurrentSubscription } from "lib/services/billing"
+import { EntitiesStoreStatus } from "stores/entitiesStore"
 
 export interface CollectionSourceData {
   sources: SourceData[]
@@ -39,12 +39,12 @@ const SourcesPageComponent: React.FC<CommonSourcePageProps> = () => {
     [sourcesStore.list.length]
   )
 
-  if (sourcesStore.state === EntitiesStoreState.GLOBAL_ERROR) {
+  if (sourcesStore.status === EntitiesStoreStatus.GLOBAL_ERROR) {
     throw new Error(
-      sourcesStore.error ??
+      sourcesStore.errorMessage ??
         `Internal error occured in sources management tool. Please, contact support or file an issue.`
     )
-  } else if (sourcesStore.state === EntitiesStoreState.GLOBAL_LOADING) {
+  } else if (sourcesStore.status === EntitiesStoreStatus.GLOBAL_LOADING) {
     return <CenteredSpin />
   }
 

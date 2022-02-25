@@ -8,31 +8,18 @@ import ReloadOutlined from "@ant-design/icons/lib/icons/ReloadOutlined"
 import React, { ReactNode, useState } from "react"
 import { FormField, FormLayout, FormActions, unsavedMessage } from "../Form/Form"
 import TextArea from "antd/es/input/TextArea"
-import { FormInstance } from "antd/es/form/hooks/useForm"
 import { confirmDelete } from "../../commons/deletionConfirmation"
 import { flowResult } from "mobx"
-import { useServices } from "../../../hooks/useServices"
 import { NavLink } from "react-router-dom"
 import { destinationsStore } from "../../../stores/destinations"
 import { DestinationPicker } from "./DestinationPicker"
-import union from "lodash/union"
+import { connectionsHelper } from "stores/helpers"
 
 export const apiKeysRoutes = {
   newExact: "/prj-:projectId/api-keys/new",
   listExact: "/prj-:projectId/api-keys",
   editExact: "/prj-:projectId/api-keys/:id",
 } as const
-
-function newKey(): ApiKey {
-  let uid = apiKeysStore.generateApiToken("", 6)
-  return {
-    uid: uid,
-    serverAuth: apiKeysStore.generateApiToken("s2s"),
-    jsAuth: apiKeysStore.generateApiToken("js"),
-    comment: "New API Key",
-    origins: [],
-  }
-}
 
 const SecretKey: React.FC<{
   formFieldName: string
@@ -84,7 +71,7 @@ const ApiKeyEditorComponent: React.FC = props => {
   if (id) {
     id = id.replace("-", ".")
   }
-  const initialApiKey = id ? apiKeysStore.get(id) : newKey()
+  const initialApiKey = id ? apiKeysStore.get(id) : apiKeysStore.generateApiKey()
   if (!initialApiKey) {
     return <CenteredError error={new Error(`Key with id ${id} not found`)} />
   }
@@ -232,7 +219,7 @@ const ApiKeyEditorComponent: React.FC = props => {
                     } else {
                       await flowResult(apiKeysStore.add(key))
                     }
-                    await flowResult(destinationsStore.updateDestinationsLinksToKey(key.uid, connectedDestinations))
+                    await connectionsHelper.updateDestinationsConnectionsToApiKey(key.uid, connectedDestinations)
                     history.push(apiKeysRoutes.listExact)
                   } finally {
                     setSaving(false)

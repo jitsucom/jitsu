@@ -1,4 +1,3 @@
-/* eslint-disable */
 // @Libs
 import React from "react"
 import moment from "moment"

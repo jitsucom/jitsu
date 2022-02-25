@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { FeatureSettings } from "./ApplicationServices"
 // @ts-ignore
 import LogRocket from "logrocket"

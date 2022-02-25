@@ -1,7 +1,5 @@
 /* eslint-disable */
 import { ApiAccess, userFromDTO, userToDTO } from "./model"
-import Marshal from "../commons/marshalling"
-import { randomId } from "utils/numbers"
 import { cleanAuthorizationLocalStorage, concatenateURLs } from "lib/commons/utils"
 import { getBaseUIPath } from "lib/commons/pathHelper"
 import { BackendApiClient } from "./BackendApiClient"

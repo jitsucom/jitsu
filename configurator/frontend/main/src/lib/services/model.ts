@@ -1,6 +1,4 @@
-/* eslint-disable */
-import Marshal from "../commons/marshalling"
-import { Project, User } from "../../generated/conf-openapi"
+import { User } from "../../generated/conf-openapi"
 
 /**
  * Structure of /database API response

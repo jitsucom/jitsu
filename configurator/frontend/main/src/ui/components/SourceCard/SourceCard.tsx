@@ -7,7 +7,7 @@ import { Badge, Menu, Modal, Skeleton, Tag, Tooltip } from "antd"
 import SubMenu from "antd/lib/menu/SubMenu"
 import CodeOutlined from "@ant-design/icons/lib/icons/CodeOutlined"
 import SyncOutlined from "@ant-design/icons/lib/icons/SyncOutlined"
-import { generatePath, useHistory, NavLink } from "react-router-dom"
+import { useHistory, NavLink } from "react-router-dom"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { taskLogsPageRoute } from "../../pages/TaskLogs/TaskLogsPage"
 import { sourcesStore } from "../../../stores/sources"
@@ -25,8 +25,9 @@ import { actionNotification } from "../ActionNotification/ActionNotification"
 import { SourcesUtils } from "../../../utils/sources.utils"
 import { isAtLeastOneStreamSelected } from "utils/sources/sourcesUtils"
 import { NoStreamsSelectedMessage } from "../NoStreamsSelectedMessage/NoStreamsSelectedMessage"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
+import { connectionsHelper } from "stores/helpers"
 import styles from "./SourceCard.module.less"
-import { projectRoute } from "../../../lib/components/ProjectLink/ProjectLink"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator, current) => ({
@@ -59,7 +60,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
   const viewLogsLink = projectRoute(taskLogsPageRoute, { sourceId: src.sourceId })
 
   const rename = async (sourceId: string, newName: string) => {
-    await flowResult(sourcesStore.patch(sourceId, { displayName: newName }, { updateConnections: false }))
+    await flowResult(sourcesStore.patch(sourceId, { displayName: newName }))
   }
 
   const scheduleTasks = async (src: SourceData, full = false) => {
@@ -122,6 +123,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
       onOk: async () => {
         try {
           await sourcesStore.delete(src.sourceId)
+          await connectionsHelper.unconnectDeletedSource(src.sourceId)
           actionNotification.success("Sources list successfully updated")
         } catch (error) {
           handleError(error, "Unable to delete source at this moment, please try later.")

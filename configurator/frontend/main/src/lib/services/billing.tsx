@@ -6,14 +6,14 @@ import moment, { Moment } from "moment"
 import ApplicationServices from "./ApplicationServices"
 import { BackendApiClient } from "./BackendApiClient"
 // @Types
-import { IDestinationsStore } from "../../stores/destinations"
-import { ISourcesStore } from "../../stores/sources"
+import type { destinationsStore as DestinationsStore } from "../../stores/destinations"
+import type { sourcesStore as SourcesStore } from "../../stores/sources"
+import type { Project } from "generated/conf-openapi"
 import { DatePoint, StatisticsService } from "lib/services/stat"
 // @Utils
 import { withQueryParams } from "utils/queryParams"
 import { numberFormat } from "../commons/utils"
 import { UpgradePlan } from "../../ui/components/CurrentPlan/CurrentPlan"
-import { Project } from "../../generated/conf-openapi"
 
 export type PricingPlanId = "opensource" | "free" | "growth" | "premium" | "enterprise"
 
@@ -241,8 +241,8 @@ async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
 export async function getCurrentSubscription(
   project: Project,
   backendApiClient: BackendApiClient,
-  destinationsStore: IDestinationsStore,
-  sourcesStore: ISourcesStore
+  destinationsStore: typeof DestinationsStore,
+  sourcesStore: typeof SourcesStore
 ): Promise<CurrentSubscription> {
   const statService = new StatisticsService(backendApiClient, project, true)
 

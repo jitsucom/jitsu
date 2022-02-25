@@ -1,8 +1,8 @@
-/* eslint-disable */
-import * as React from "react"
-import ApplicationServices from "../../services/ApplicationServices"
+// @Libs
 import { Button, Form, Input, message, Modal, Table, Tag } from "antd"
-
+// @Services
+import ApplicationServices from "../../services/ApplicationServices"
+// @icons
 import CheckOutlined from "@ant-design/icons/lib/icons/CheckOutlined"
 import ClockCircleOutlined from "@ant-design/icons/lib/icons/ClockCircleOutlined"
 import CloudOutlined from "@ant-design/icons/lib/icons/CloudOutlined"
@@ -10,10 +10,11 @@ import DeleteOutlined from "@ant-design/icons/lib/icons/DeleteOutlined"
 import ExclamationCircleOutlined from "@ant-design/icons/lib/icons/ExclamationCircleOutlined"
 import RightCircleOutlined from "@ant-design/icons/lib/icons/RightCircleOutlined"
 import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined"
-
+// @Components
 import { LoadableComponent, withProgressBar } from "../components"
 import "./CustomDomains.less"
-import { Domain } from "../../services/model"
+// @Types
+import type { Domain } from "../../services/model"
 
 const CNAME = "hosting.jitsu.com"
 
@@ -32,7 +33,9 @@ export default class CustomDomains extends LoadableComponent<any, State> {
   }
 
   protected async load() {
-    let result = await this.services.storageService.get("custom_domains", this.services.activeProject.id)
+    let result = await this.services.backendApiClient.get(
+      `/configurations/custom_domains?id=${this.services.activeProject.id}`
+    )
     return {
       certificateExpiration:
         result && result._certificateExpiration && result._certificateExpiration.length > 0
@@ -159,10 +162,9 @@ export default class CustomDomains extends LoadableComponent<any, State> {
                   onOk: () => {
                     this.reload(async () => {
                       let newDomains: Domain[] = this.state.domains.filter(element => element.name != domain.name)
-                      await this.services.storageService.save(
-                        "custom_domains",
-                        { domains: newDomains },
-                        this.services.activeProject.id
+                      await this.services.backendApiClient.post(
+                        `/configurations/custom_domains?id=${this.services.activeProject.id}`,
+                        { domains: newDomains }
                       )
                       message.success("Domain deleted!")
                       return {
@@ -208,10 +210,9 @@ export default class CustomDomains extends LoadableComponent<any, State> {
             onReady={text => {
               this.reload(async () => {
                 let newDomains: Domain[] = [...this.state.domains, { name: text, status: "pending" }]
-                await this.services.storageService.save(
-                  "custom_domains",
-                  { domains: newDomains },
-                  this.services.activeProject.id
+                await this.services.backendApiClient.post(
+                  `/configurations/custom_domains?id=${this.services.activeProject.id}`,
+                  { domains: newDomains }
                 )
                 await this.services.backendApiClient.post(
                   `/ssl?project_id=${this.services.activeProject.id}&async=${true}`,
