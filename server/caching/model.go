@@ -22,11 +22,23 @@ type SucceedHTTPEvent struct {
 }
 
 //channel dto
+type rawEvent struct {
+	tokenID                    string
+	serializedPayload          []byte
+	serializedMalformedPayload []byte
+	error                      string
+
+	eventMetaStatus string
+}
+
+//channel dto
 type statusEvent struct {
-	eventType         string
-	destinationID     string
-	eventID           string
-	serializedPayload []byte
-	eventContext      *adapters.EventContext
-	error             string
+	destinationID string
+	originEvent   string
+	error         string
+	skip          bool
+
+	eventMetaStatus string
+
+	successEventContext *adapters.EventContext
 }

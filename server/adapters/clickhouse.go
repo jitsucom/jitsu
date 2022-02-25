@@ -561,11 +561,13 @@ func (ch *ClickHouse) executeInsert(table *Table, headerWithQuotes []string, pla
 	if _, err := ch.dataSource.Exec(statement, valueArgs...); err != nil {
 		return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute insert").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
-				Database:    ch.database,
-				Cluster:     ch.cluster,
-				Table:       table.Name,
-				PrimaryKeys: table.GetPKFields(),
-				Statement:   fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(headerWithQuotes, ", "), fmt.Sprintf("[objects: %d. for intance the first element: %v]", objectsCount, valueArgs[0])),
+				Database:        ch.database,
+				Cluster:         ch.cluster,
+				Table:           table.Name,
+				PrimaryKeys:     table.GetPKFields(),
+				Statement:       statement,
+				ValuesMapString: ObjectValuesToString(headerWithQuotes, valueArgs),
+				TotalObjects:    objectsCount,
 			})
 	}
 

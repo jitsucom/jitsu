@@ -38,8 +38,9 @@ var (
 var segmentTransform string
 
 type Envelope struct {
-	Header *BatchHeader
-	Event  events.Event
+	Header        *BatchHeader
+	Event         events.Event
+	OriginalEvent string
 }
 
 type Processor struct {
@@ -124,17 +125,20 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 				if !appconfig.Instance.DisableSkipEventsWarn {
 					logging.Warnf("[%s] Event [%s]: %v", p.identifier, eventID, err)
 				}
-				skippedEvents.Events = append(skippedEvents.Events, &events.SkippedEvent{EventID: eventID, Error: ErrSkipObject.Error(), RecognizedEvent: recognizedEvent})
+
+				originalEventBytes, _ := json.Marshal(event)
+				skippedEvents.Events = append(skippedEvents.Events, &events.SkippedEvent{Event: originalEventBytes, Error: ErrSkipObject.Error(), RecognizedEvent: recognizedEvent})
 			} else if p.breakOnError {
 				return nil, nil, nil, nil, err
 			} else {
-				eventBytes, _ := json.Marshal(event)
+				originalEventBytes, _ := json.Marshal(event)
 
-				logging.Warnf("Unable to process object %s: %v. This line will be stored in fallback.", string(eventBytes), err)
+				logging.Warnf("Unable to process object %s: %v. This line will be stored in fallback.", string(originalEventBytes), err)
+
 				failedEvents.Events = append(failedEvents.Events, &events.FailedEvent{
-					Event:           eventBytes,
-					Error:           err.Error(),
-					EventID:         p.uniqueIDField.Extract(event),
+					Event:   originalEventBytes,
+					Error:   err.Error(),
+					EventID: p.uniqueIDField.Extract(event),
 					RecognizedEvent: recognizedEvent,
 				})
 				failedEvents.Src[events.ExtractSrc(event)]++
@@ -144,6 +148,7 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 			//don't process empty and skipped object (batchHeader.Exists() func is nil-protected)
 			batchHeader := envelop.Header
 			processedObject := envelop.Event
+			rawOriginalEvent := envelop.OriginalEvent
 			if batchHeader.Exists() {
 				var fData map[string]*ProcessedFile
 				if recognizedEvent {
@@ -151,18 +156,21 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 				} else {
 					fData = flatData
 				}
+
 				f, ok := fData[batchHeader.TableName]
 				if !ok {
 					fData[batchHeader.TableName] = &ProcessedFile{
-						FileName:           fileName,
-						BatchHeader:        batchHeader,
+						FileName:    fileName,
+						BatchHeader: batchHeader,
 						RecognitionPayload: recognizedEvent,
-						payload:            []map[string]interface{}{processedObject},
-						eventsSrc:          map[string]int{events.ExtractSrc(event): 1},
+						payload:     []map[string]interface{}{processedObject},
+						originalRawEvents: []string{rawOriginalEvent},
+						eventsSrc:   map[string]int{events.ExtractSrc(event): 1},
 					}
 				} else {
 					f.BatchHeader.Fields.Merge(batchHeader.Fields)
 					f.payload = append(f.payload, processedObject)
+					f.originalRawEvents = append(f.originalRawEvents, rawOriginalEvent)
 					f.eventsSrc[events.ExtractSrc(event)]++
 				}
 			}
@@ -294,7 +302,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", transformed)
 	}
 	envelops := make([]Envelope, 0, len(toProcess))
-
+	originalEvent, _ := json.Marshal(object)
 	for i, prObject := range toProcess {
 		newUniqueId := p.uniqueIDField.Extract(object)
 		if newUniqueId == "" {
@@ -336,7 +344,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		if err != nil {
 			return nil, fmt.Errorf("failed to process long fields: %v", err)
 		}
-		envelops = append(envelops, Envelope{bh, obj})
+		envelops = append(envelops, Envelope{Header: bh, Event: obj, OriginalEvent: string(originalEvent)})
 	}
 
 	return envelops, nil

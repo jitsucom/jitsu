@@ -24,7 +24,7 @@ type AsyncLogger struct {
 func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool, poolSize int) *AsyncLogger {
 	logger := &AsyncLogger{
 		writer:             writer,
-		queue:              queue.NewInMemory(),
+		queue:              queue.NewInMemory(100_000),
 		showInGlobalLogger: showInGlobalLogger,
 		closed:             atomic.NewBool(false),
 	}

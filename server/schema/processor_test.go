@@ -109,7 +109,7 @@ func TestProcessFilePayload(t *testing.T) {
 				},
 			},
 			[]events.FailedEvent{{Event: []byte(`{"_geo_data":{},"event_type":"views","key1000":"super value"}`), Error: "error extracting table name: _timestamp field doesn't exist"}},
-			[]events.SkippedEvent{{EventID: "qoow1", Error: "Transform or table name filter marked object to be skipped. This object will be skipped."}},
+			[]events.SkippedEvent{{Event: []byte(`{"_geo_data":{"city":"New York","country":"US"},"_timestamp":"2020-08-02T18:23:56.291383Z","event_type":"skipped","eventn_ctx_event_id":"qoow1","key1":{"key2":"splu"},"key10":{"sib1":{"1":"k"}}}`), Error: "Transform or table name filter marked object to be skipped. This object will be skipped."}},
 		},
 		{
 			"Input fallback file",

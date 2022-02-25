@@ -9,7 +9,25 @@ This feature requires meta.storage configuration.
 
 ```yaml
 server:
-...
+  cache:
+    #true by default. If false Jitsu doesn't cache any events
+    enabled: true
+    events:
+      #default value. Amount of events which are saved per token or destination.
+      #If there are more events, old ones will be replaced with new ones.
+      size: 100
+      #by default Jitsu applies rate limiting for not saving all events into the cache.
+      #Jitsu saves in cache ${size} events per ${time_window_sec}. Other events are skipped.
+      time_window_sec: 60
+      #Every ${trim_interval_ms} value Jitsu will delete events from cache
+      #if size of the cache collection by token or destination is greater than ${size}
+      trim_interval_ms: 500
+      #When Jitsu receives malformed event JSON, event will be cut to ${max_malformed_event_size_bytes} bytes (10KB) and saved to cache
+      max_malformed_event_size_bytes: 10000
+    pool:
+      #number of goroutines which are process events cache
+      size: 10
+
 
 destinations:
 ...
@@ -28,6 +46,7 @@ meta:
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
+| **malformed** | string | Malformed event as a string in case when Jitsu can't parse input JSON events because it is not valid JSON |
 | **original** | json object | Raw event. |
 | **success** | json object | Successfully processed event \(after enrichments, flattening, mappings, typecasting\). Contains **destination\_id**_,_ **table\_name**, and array of **fields** where every field contains **name**, **type**, **value.** |
 | **error** | string | Error if occurred. |
@@ -40,11 +59,11 @@ Method returns last events per destination in time interval with limit
 
 <APIParam dataType="integer" required={false} type="queryString" name="limit" description={<>Limit per destination</>} />
 
-<APIParam dataType="string" required={false} type="queryString" name="destination_ids" description="Comma-separated destination ids array" />
+<APIParam dataType="string" required={false} type="queryString" name="ids" description="Comma-separated api keys or destination ids array" />
 
-<APIParam dataType="string" required={false} type="queryString" name="start" description="start of interval in ISO 8601 ('2006-01-02T15:04:05.000000Z') format. Default value: Unix start epoch (1970-01-01..)" />
+<APIParam dataType="string" required={false} type="queryString" name="namespace" description="Namespace of the events. Can be destination or token constants. Default value is destination." />
 
-<APIParam dataType="string" required={false} type="queryString" name="end" description="end of interval in ISO 8601 ('2006-01-02T15:04:05.000000Z') format. Default value: time.Now() UTC" />
+<APIParam dataType="string" required={false} type="queryString" name="status" description="Events status filter. If no status provided all events will be returned. Available value is 'error'. If error provided - only events with error status will be returned." />
 
 
 ### Response
@@ -53,6 +72,9 @@ Return last events with DB schema and errors
 
 ```yaml
 {
+  "last_minute_limited": 0,
+  "cache_capacity_per_interval": 100,
+  "interval_seconds": 60,
   "total_events": 95,
   "response_events": 2,
   "events": [

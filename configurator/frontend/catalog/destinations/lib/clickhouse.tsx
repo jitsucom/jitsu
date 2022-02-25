@@ -94,7 +94,15 @@ const destination = {
       documentation: (
         <>
           Jitsu can retroactively update events from anonymous users with user id after users identification. See{" "}
-          <a href="https://jitsu.com/docs/other-features/retroactive-user-recognition">Docs</a>.
+          <a href="https://jitsu.com/docs/other-features/retroactive-user-recognition">Docs</a>.<br />
+          User Recognition support for Clickhouse is limited to ReplacingMergeTree and ReplicatedReplacingMergeTree
+          engine.
+          <br />
+          Clickhouse handles data mutation differently. Please read{" "}
+          <a href="https://jitsu.com/docs/other-features/retroactive-user-recognition/clickhouse">
+            Clickhouse specifics
+          </a>{" "}
+          to avoid unexpected results of Retroactive User Recognition on Clickhouse data tables.
         </>
       ),
       required: false,
