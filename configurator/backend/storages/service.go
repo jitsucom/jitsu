@@ -883,7 +883,7 @@ func (cs *ConfigurationsService) GetProjectUsers(projectID string) ([]string, er
 }
 
 func (cs *ConfigurationsService) Create(value CollectionItem, patch interface{}) error {
-	if err := cs.Patch(common.GenerateProjectID(), value, patch, false); err != nil {
+	if _, err := cs.Patch(common.GenerateProjectID(), value, patch, false); err != nil {
 		return errors.Wrapf(err, "patch %s", value.Collection())
 	} else {
 		return nil
@@ -892,22 +892,24 @@ func (cs *ConfigurationsService) Create(value CollectionItem, patch interface{})
 
 func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*RedisUserInfo, error) {
 	var result RedisUserInfo
-	if err := cs.Patch(id, &result, patch, false); err != nil {
+	if patched, err := cs.Patch(id, &result, patch, false); err != nil {
 		return nil, errors.Wrap(err, "patch user info")
-	}
+	} else if patched {
+		if projectInfo := result.Project; projectInfo != nil {
+			projectID := projectInfo.Id
+			patch := openapi.Project{
+				Id:            projectID,
+				Name:          projectInfo.Name,
+				RequiresSetup: projectInfo.RequireSetup,
+			}
 
-	if projectInfo := result.Project; projectInfo != nil {
-		projectID := projectInfo.Id
-		patch := openapi.Project{
-			Id:            projectID,
-			Name:          projectInfo.Name,
-			RequiresSetup: projectInfo.RequireSetup,
-		}
-
-		if err := cs.Patch(projectID, new(Project), patch, false); err != nil {
-			return nil, errors.Wrap(err, "patch project")
-		} else if err := cs.LinkUserToProject(id, projectID); err != nil {
-			return nil, errors.Wrap(err, "link user to project")
+			if patched, err := cs.Patch(projectID, new(Project), patch, false); err != nil {
+				return nil, errors.Wrap(err, "patch project")
+			} else if patched {
+				if err := cs.LinkUserToProject(id, projectID); err != nil {
+					return nil, errors.Wrap(err, "link user to project")
+				}
+			}
 		}
 	}
 
@@ -928,9 +930,9 @@ func (cs *ConfigurationsService) Load(id string, value CollectionItem) error {
 //   `id` is the ID of the collection item.
 //   `value` should be an empty initialized pointer to the value of the target type. Slices are currently not supported.
 //	 `patch` may be anything that is acceptable for json.Marshal. Must define an object (not array or value).
-func (cs *ConfigurationsService) Patch(id string, value CollectionItem, patch interface{}, requireExist bool) error {
+func (cs *ConfigurationsService) Patch(id string, value CollectionItem, patch interface{}, requireExist bool) (bool, error) {
 	if lock, err := cs.lockProjectObject(value.Collection(), id); err != nil {
-		return errors.Wrapf(err, "lock %s", value.Collection())
+		return false, errors.Wrapf(err, "lock %s", value.Collection())
 	} else {
 		defer lock.Unlock()
 	}
@@ -940,24 +942,24 @@ func (cs *ConfigurationsService) Patch(id string, value CollectionItem, patch in
 	if err != nil {
 		if errors.Is(err, ErrConfigurationNotFound) {
 			if requireExist {
-				return ErrConfigurationNotFound
+				return false, ErrConfigurationNotFound
 			} else {
 				isCreated = true
 			}
 
 			data = []byte("{}")
 		} else {
-			return errors.Wrapf(err, "get %s", value.Collection())
+			return false, errors.Wrapf(err, "get %s", value.Collection())
 		}
 	}
 
 	var initialValues map[string]interface{}
 	if err := json.Unmarshal(data, value); err != nil {
-		return errors.Wrapf(err, "unmarshal %s value", value.Collection())
+		return false, errors.Wrapf(err, "unmarshal %s value", value.Collection())
 	} else if err := common.DecodeAsJSON(value, &initialValues); err != nil {
-		return errors.Wrapf(err, "decode %s value", value.Collection())
+		return false, errors.Wrapf(err, "decode %s value", value.Collection())
 	} else if err := common.DecodeAsJSON(patch, value); err != nil {
-		return errors.Wrapf(err, "apply patch for %s", value.Collection())
+		return false, errors.Wrapf(err, "apply patch for %s", value.Collection())
 	} else {
 		if isCreated {
 			if handler, ok := value.(OnCreateHandler); ok {
@@ -966,19 +968,19 @@ func (cs *ConfigurationsService) Patch(id string, value CollectionItem, patch in
 		} else {
 			var updatedValues map[string]interface{}
 			if err := common.DecodeAsJSON(value, &updatedValues); err != nil {
-				return errors.Wrapf(err, "decode updated %s value", value.Collection())
+				return false, errors.Wrapf(err, "decode updated %s value", value.Collection())
 			} else if reflect.DeepEqual(initialValues, updatedValues) {
 				// no need to update
-				return nil
+				return false, nil
 			} else if handler, ok := value.(OnUpdateHandler); ok {
 				handler.OnUpdate()
 			}
 		}
 
 		if _, err := cs.save(value.Collection(), id, value); err != nil {
-			return errors.Wrapf(err, "save patched value %s", value.Collection())
+			return false, errors.Wrapf(err, "save patched value %s", value.Collection())
 		} else {
-			return nil
+			return true, nil
 		}
 	}
 }
