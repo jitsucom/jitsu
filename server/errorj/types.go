@@ -42,6 +42,12 @@ var (
 	DestinationType = errorx.RegisterPrintableProperty("destination_type")
 )
 
+/*
+func Wrap(err error, errorType *errorx.Type, message, propertyKey string, property interface{}) *errorx.Error{
+	return errorType.Wrap(err, message).
+		WithProperty(propertyKey, property)
+}*/
+
 func Decorate(err error, msg string, args ...interface{}) *errorx.Error {
 	return errorx.Decorate(err, msg, args...)
 }

@@ -13,8 +13,8 @@ type Event map[string]interface{}
 
 //SkippedEvent is a dto for serialization in events cache
 type SkippedEvent struct {
-	Error           string `json:"error,omitempty"`
-	EventID         string `json:"event_id,omitempty"`
+	Event           json.RawMessage `json:"event,omitempty"`
+	Error           string          `json:"error,omitempty"`
 	RecognizedEvent bool
 }
 
