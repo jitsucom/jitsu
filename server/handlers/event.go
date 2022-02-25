@@ -172,7 +172,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 
 	status := c.Query("status")
 	if status != "" && status != meta.EventsErrorStatus {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(fmt.Sprintf("status query parameter can be only 'error' or not specified. Current value: %s", status), nil))
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(fmt.Sprintf("status query parameter can be only %q or not specified. Current value: %s", meta.EventsErrorStatus, status), nil))
 		return
 	}
 

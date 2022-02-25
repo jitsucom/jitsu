@@ -221,7 +221,7 @@ func (ec *EventsCache) Error(cacheDisabled bool, destinationID, originEvent stri
 			case ec.statusEventsChannel <- &statusEvent{originEvent: originEvent, destinationID: destinationID, error: errMsg}:
 			default:
 				if rand.Int31n(1000) == 0 {
-					logging.Debugf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+					logging.Debugf("[events cache] status events queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
 				}
 			}
 		}
@@ -231,7 +231,7 @@ func (ec *EventsCache) Error(cacheDisabled bool, destinationID, originEvent stri
 			case ec.statusEventsChannel <- &statusEvent{originEvent: originEvent, destinationID: destinationID, error: errMsg, eventMetaStatus: meta.EventsErrorStatus}:
 			default:
 				if rand.Int31n(1000) == 0 {
-					logging.Debugf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+					logging.Debugf("[events cache] error status events queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
 				}
 			}
 		}
@@ -249,7 +249,7 @@ func (ec *EventsCache) Skip(cacheDisabled bool, destinationID, originEvent strin
 		case ec.statusEventsChannel <- &statusEvent{skip: true, originEvent: originEvent, destinationID: destinationID, error: errMsg}:
 		default:
 			if rand.Int31n(1000) == 0 {
-				logging.Debugf("[events cache] queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+				logging.Debugf("[events cache] status events queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
 			}
 		}
 	}
@@ -373,10 +373,8 @@ func (ec *EventsCache) createEventEntity(statusEvent *statusEvent) (*meta.Event,
 		return nil, fmt.Errorf("failed to serialize processed event [%v]: %v", succeedPayload, err)
 	}
 
-	serializedOriginalEvent := eventContext.SerializedOriginalEvent
-	if serializedOriginalEvent == "" {
-		serializedOriginalEvent = eventContext.RawEvent.Serialize()
-	}
+	serializedOriginalEvent := eventContext.GetSerializedOriginalEvent()
+
 	return &meta.Event{
 		Original:      serializedOriginalEvent,
 		Success:       string(serializedSucceedPayload),
