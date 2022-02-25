@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/configurator/random"
+	"github.com/jitsucom/jitsu/server/random"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 	"io/ioutil"
