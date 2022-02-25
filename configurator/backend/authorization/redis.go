@@ -202,7 +202,7 @@ func (r *Redis) AutoSignUp(ctx context.Context, email, callback string) (string,
 		return userID, nil
 	} else if err != nil {
 		return "", errors.Wrap(err, "create user")
-	} else if err := r.sendResetPasswordLink(conn, userID, email, callback); err != nil {
+	} else if err := r.sendResetPasswordLink(conn, userID, email, callback, r.mailSender.SendAccountCreated); err != nil {
 		return userID, errors.Wrap(err, "send reset password link")
 	} else {
 		return userID, nil
@@ -266,7 +266,7 @@ func (r *Redis) SendResetPasswordLink(ctx context.Context, email, callback strin
 
 	if userID, err := r.getUserIDByEmail(conn, email); err != nil {
 		return errors.Wrap(err, "get user id by email")
-	} else if err := r.sendResetPasswordLink(conn, userID, email, callback); err != nil {
+	} else if err := r.sendResetPasswordLink(conn, userID, email, callback, r.mailSender.SendResetPassword); err != nil {
 		return errors.Wrap(err, "send reset password link")
 	} else {
 		return nil
@@ -442,10 +442,10 @@ func (r *Redis) getUserEmail(conn redis.Conn, userID string) (string, error) {
 	}
 }
 
-func (r *Redis) sendResetPasswordLink(conn redis.Conn, userID, email, callback string) error {
+func (r *Redis) sendResetPasswordLink(conn redis.Conn, userID, email, callback string, send func(email, link string) error) error {
 	if resetID, err := r.generateResetID(conn, userID); err != nil {
 		return errors.Wrap(err, "generate reset id")
-	} else if err := r.mailSender.SendResetPassword(email, strings.ReplaceAll(callback, "{{token}}", resetID)); err != nil {
+	} else if err := send(email, strings.ReplaceAll(callback, "{{token}}", resetID)); err != nil {
 		return errors.Wrap(err, "send reset password")
 	} else {
 		return nil

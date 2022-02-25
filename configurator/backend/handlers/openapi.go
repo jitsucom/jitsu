@@ -959,13 +959,11 @@ func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string, params 
 		userID = *params.UserId
 	} else if params.UserEmail != nil && *params.UserEmail != "" {
 		var err error
-		// TODO callback?
+		// TODO callback
 		if userID, err = oa.Authorizator.AutoSignUp(ctx, *params.UserEmail, ""); err != nil {
 			mw.InternalError(ctx, "auto sign up failed", err)
 			return
 		}
-
-		// TODO also create user info?
 	} else {
 		mw.RequiredField(ctx, "either userId or userEmail")
 		return
@@ -1113,7 +1111,7 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 			return
 		}
 
-		if _, err := oa.Configurations.UpdateUserInfo(createdUser.ID, openapi.UpdateUserInfoRequest{
+		if userInfo, err := oa.Configurations.UpdateUserInfo(createdUser.ID, openapi.UpdateUserInfoRequest{
 			Project: &openapi.ProjectInfo{
 				Id:           project.Id,
 				Name:         project.Name,
@@ -1128,6 +1126,7 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 						Id:    createdUser.ID,
 						Email: req.Email,
 					},
+					Created: userInfo.Created,
 				},
 				Project: project.Project,
 				ResetId: createdUser.ResetID,
@@ -1163,15 +1162,21 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 		return
 	}
 
+	email, err := oa.Authorizator.GetUserEmail(ctx, userID)
+	if err != nil {
+		mw.BadRequest(ctx, "get user email", err)
+		return
+	}
+
 	var req openapi.PatchUserRequest
-	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.Unsupported(ctx, err)
-		return
-	} else if err := ctx.BindJSON(&req); err != nil {
-		mw.InvalidInputJSON(ctx, err)
-		return
-	} else if req.Password != nil {
-		if err := authorizator.UpdatePassword(ctx, userID, *req.Password); err != nil {
+	if req.Password != nil {
+		if authorizator, err := oa.Authorizator.Local(); err != nil {
+			mw.Unsupported(ctx, err)
+			return
+		} else if err := ctx.BindJSON(&req); err != nil {
+			mw.InvalidInputJSON(ctx, err)
+			return
+		} else if err := authorizator.UpdatePassword(ctx, userID, *req.Password); err != nil {
 			mw.BadRequest(ctx, "update user failed", err)
 			return
 		}
@@ -1185,8 +1190,8 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 	} else {
 		result := &openapi.User{
 			UserBasicInfo: openapi.UserBasicInfo{
-				Id:    userInfo.Uid,
-				Email: userInfo.Email,
+				Id:    userID,
+				Email: email,
 			},
 			EmailOptout:         userInfo.EmailOptout,
 			ForcePasswordChange: userInfo.ForcePasswordChange,

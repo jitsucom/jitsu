@@ -12,4 +12,5 @@ var (
 type MailSender interface {
 	IsConfigured() bool
 	SendResetPassword(email, link string) error
+	SendAccountCreated(email, link string) error
 }
