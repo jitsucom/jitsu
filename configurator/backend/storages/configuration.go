@@ -27,6 +27,8 @@ type ConfigurationsStorage interface {
 
 	// GetRelationIndex returns all key IDs from the relation.
 	GetRelationIndex(relation string) ([]string, error)
+	// DeleteRelation removes all related IDs for the relation.
+	DeleteRelation(relation, id string) error
 	// GetRelatedIDs returns a slice of related IDs from the relation.
 	GetRelatedIDs(relation, id string) ([]string, error)
 	// AddRelatedIDs adds related IDs to the relation.

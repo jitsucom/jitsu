@@ -87,6 +87,7 @@ type UserID string
 
 type Authorizator interface {
 	AuthorizationType() string
+	GetUserEmail(ctx context.Context, userID string) (string, error)
 	HasUsers(ctx context.Context) (bool, error)
 	AutoSignUp(ctx context.Context, email, callback string) (string, error)
 	Local() (LocalAuthorizator, error)
@@ -244,7 +245,7 @@ func (oa *OpenAPI) EvaluateDestinationJSTransformationScript(ctx *gin.Context) {
 			Config *entities.Destination `json:"config"`
 		}
 
-		if err := common.DecodeAsJSON(req.AdditionalProperties, &wrapper, true); err != nil {
+		if err := common.DecodeAsJSON(req.AdditionalProperties, &wrapper); err != nil {
 			mw.BadRequest(ctx, "Failed to unmarshal destination config", nil)
 			return
 		} else if wrapper.Config == nil {
@@ -542,7 +543,7 @@ func (oa *OpenAPI) UserEmailChange(ctx *gin.Context) {
 		mw.RequiredField(ctx, "new_email")
 	} else if userID, err := authorizator.ChangeEmail(ctx, req.OldEmail, req.NewEmail); err != nil {
 		mw.BadRequest(ctx, "email update failed", err)
-	} else if _, err := oa.Configurations.UpdateUserInfo(userID, userInfoEmailUpdate(req.NewEmail)); err != nil {
+	} else if _, err := oa.Configurations.UpdateUserInfo(userID, mw.UserInfoEmailUpdate{Email: req.NewEmail}); err != nil {
 		mw.BadRequest(ctx, "update user info", err)
 	} else {
 		mw.StatusOk(ctx)
@@ -557,7 +558,9 @@ func (oa *OpenAPI) GetUserInfo(ctx *gin.Context) {
 	var result storages.RedisUserInfo
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if err := oa.Configurations.Load(authority.UserID, &result); errors.Is(err, storages.ErrConfigurationNotFound) {
+	} else if authority.IsAnonymous() {
+		mw.Forbidden(ctx, "user must be non-anonymous")
+	} else if err := oa.Configurations.Load(authority.UserInfo.Id, &result); errors.Is(err, storages.ErrConfigurationNotFound) {
 		ctx.Data(http.StatusOK, jsonContentType, []byte("{}"))
 	} else if err != nil {
 		mw.BadRequest(ctx, "load user info", err)
@@ -578,7 +581,7 @@ func (oa *OpenAPI) UpdateUserInfo(ctx *gin.Context) {
 		mw.Forbidden(ctx, "user must be non-anonymous")
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
-	} else if result, err := oa.Configurations.UpdateUserInfo(authority.UserID, req); err != nil {
+	} else if result, err := oa.Configurations.UpdateUserInfo(authority.UserInfo.Id, req); err != nil {
 		mw.BadRequest(ctx, "patch user info failed", err)
 	} else {
 		ctx.JSON(http.StatusOK, result)
@@ -970,7 +973,7 @@ func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string, params 
 
 	if err := oa.Configurations.LinkUserToProject(userID, projectID); err != nil {
 		mw.BadRequest(ctx, "link user to project failed", err)
-	} else if users, err := oa.getProjectUsers(projectID); err != nil {
+	} else if users, err := oa.getProjectUsers(ctx, projectID); err != nil {
 		mw.BadRequest(ctx, "get project users", err)
 	} else {
 		ctx.JSON(http.StatusOK, users)
@@ -1002,7 +1005,7 @@ func (oa *OpenAPI) GetUsersLinkToProjects(ctx *gin.Context, projectID string) {
 		mw.Unauthorized(ctx, err)
 	} else if !authority.Allow(projectID) {
 		mw.ForbiddenProject(ctx, projectID)
-	} else if users, err := oa.getProjectUsers(projectID); err != nil {
+	} else if users, err := oa.getProjectUsers(ctx, projectID); err != nil {
 		mw.BadRequest(ctx, "get project users failed", err)
 	} else {
 		ctx.JSON(http.StatusOK, users)
@@ -1060,7 +1063,7 @@ func (oa *OpenAPI) CreateProjectAndLinkUser(ctx *gin.Context) {
 		mw.BadRequest(ctx, "create project failed", err)
 	} else {
 		if !authority.IsAnonymous() {
-			if err := oa.Configurations.LinkUserToProject(authority.UserID, result.Id); err != nil {
+			if err := oa.Configurations.LinkUserToProject(authority.UserInfo.Id, result.Id); err != nil {
 				mw.BadRequest(ctx, "link user to project failed", err)
 				return
 			}
@@ -1110,14 +1113,11 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 			return
 		}
 
-		if userInfo, err := oa.Configurations.UpdateUserInfo(createdUser.ID, openapi.UpdateUserInfoRequest{
-			Email: &req.Email,
+		if _, err := oa.Configurations.UpdateUserInfo(createdUser.ID, openapi.UpdateUserInfoRequest{
 			Project: &openapi.ProjectInfo{
-				Id:   project.Id,
-				Name: project.Name,
-			},
-			SuggestedInfo: &openapi.SuggestedInfo{
-				Email: &req.Email,
+				Id:           project.Id,
+				Name:         project.Name,
+				RequireSetup: project.RequiresSetup,
 			},
 		}); err != nil {
 			mw.BadRequest(ctx, "update user info", err)
@@ -1125,8 +1125,8 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 			ctx.JSON(http.StatusOK, openapi.CreateUserResponse{
 				User: openapi.User{
 					UserBasicInfo: openapi.UserBasicInfo{
-						Id:    userInfo.Uid,
-						Email: userInfo.Email,
+						Id:    createdUser.ID,
+						Email: req.Email,
 					},
 				},
 				Project: project.Project,
@@ -1148,6 +1148,10 @@ func (oa *OpenAPI) DeleteUser(ctx *gin.Context, userID string) {
 	} else {
 		if err := oa.Configurations.Delete(userID, new(storages.RedisUserInfo)); err != nil {
 			logging.Warnf("failed to delete user info for id %s: %s", userID, err)
+		}
+
+		if err := oa.Configurations.UnlinkUserFromAllProjects(userID); err != nil {
+			logging.Warnf("failed to unlink user %s from all projects: %s", err)
 		}
 
 		mw.StatusOk(ctx)

@@ -19,6 +19,8 @@ type ObjectMeta struct {
 	Value       string `json:"value,omitempty"`
 }
 
+var UserInfoTimestampFormat = "2006-01-02T15:04:05.000Z"
+
 type Migration interface {
 	Run(conn redis.Conn) error
 }
@@ -30,6 +32,10 @@ type CollectionItem interface {
 type OnCreateHandler interface {
 	CollectionItem
 	OnCreate(id string)
+}
+
+type OnUpdateHandler interface {
+	OnUpdate()
 }
 
 type Project struct {
@@ -49,7 +55,12 @@ type RedisUserInfo openapi.UserInfo
 
 func (i *RedisUserInfo) OnCreate(id string) {
 	i.Uid = id
-	i.Created = timestamp.Now().Format(timestamp.Layout)
+	i.Created = timestamp.Now().Format(UserInfoTimestampFormat)
+}
+
+func (i *RedisUserInfo) OnUpdate() {
+	value := timestamp.Now().Format(UserInfoTimestampFormat)
+	i.LastUpdated = &value
 }
 
 func (*RedisUserInfo) Collection() string {

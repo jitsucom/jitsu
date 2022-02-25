@@ -81,35 +81,36 @@ func (fb *Firebase) Authorize(ctx context.Context, token string) (*middleware.Au
 		}
 
 		return &middleware.Authority{
-			UserID:  user.UID,
+			UserInfo: &openapi.UserBasicInfo{
+				Id:    user.UID,
+				Email: user.Email,
+			},
 			IsAdmin: isAdmin,
 		}, nil
 	}
 }
 
-func (fb *Firebase) FindAnyUserID(_ context.Context) (string, error) {
-	return "", nil
+func (fb *Firebase) FindAnyUser(_ context.Context) (*openapi.UserBasicInfo, error) {
+	return nil, nil
 }
 
 func (fb *Firebase) HasUsers(_ context.Context) (bool, error) {
 	return true, nil
 }
 
-func isProvidedByGoogle(info []*auth.UserInfo) bool {
-	for _, info := range info {
-		if info.ProviderID == "google.com" {
-			return true
-		}
+func (fb *Firebase) GetUserEmail(ctx context.Context, userID string) (string, error) {
+	if resp, err := fb.authClient.GetUser(ctx, userID); err != nil {
+		return "", errors.Wrap(err, "get firebase user")
+	} else {
+		return resp.Email, nil
 	}
-
-	return false
 }
 
 func (fb *Firebase) AutoSignUp(ctx context.Context, email, _ string) (string, error) {
 	req := new(auth.UserToCreate).
 		Email(email).
 		Password(uuid.NewV4().String())
-	if resp, err := fb.authClient.GetUserByEmail(ctx, email); err != nil && !strings.Contains(err.Error(), "NOT_FOUND") {
+	if resp, err := fb.authClient.GetUserByEmail(ctx, email); err != nil && !strings.Contains(err.Error(), "no user exists") {
 		return "", errors.Wrap(err, "get user by email")
 	} else if err == nil {
 		return resp.UID, ErrUserExists
@@ -134,4 +135,14 @@ func (fb *Firebase) SignInAs(ctx context.Context, email string) (*openapi.TokenR
 	} else {
 		return &openapi.TokenResponse{Token: token}, nil
 	}
+}
+
+func isProvidedByGoogle(info []*auth.UserInfo) bool {
+	for _, info := range info {
+		if info.ProviderID == "google.com" {
+			return true
+		}
+	}
+
+	return false
 }

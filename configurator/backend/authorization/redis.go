@@ -87,43 +87,60 @@ func (r *Redis) Authorize(ctx context.Context, token string) (*middleware.Author
 		}
 
 		return nil, errors.Wrap(err, "validate token")
+	} else if email, err := r.getUserEmail(conn, token.UserID); err != nil {
+		return nil, errors.Wrap(err, "get user email")
 	} else {
 		return &middleware.Authority{
-			UserID:  token.UserID,
-			IsAdmin: false,
+			UserInfo: &openapi.UserBasicInfo{
+				Id:    token.UserID,
+				Email: email,
+			},
 		}, nil
 	}
 }
 
-func (r *Redis) FindAnyUserID(ctx context.Context) (string, error) {
+func (r *Redis) FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error) {
 	conn, err := r.redisPool.GetContext(ctx)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	defer closeQuietly(conn)
 
 	if userIDs, err := redis.StringMap(conn.Do("HGETALL", usersIndexKey)); errors.Is(err, redis.ErrNil) {
-		return "", ErrUserNotFound
+		return nil, ErrUserNotFound
 	} else if err != nil {
-		return "", errors.Wrap(err, "find users")
+		return nil, errors.Wrap(err, "find users")
 	} else {
-		for _, userID := range userIDs {
-			return userID, nil
+		for email, userID := range userIDs {
+			return &openapi.UserBasicInfo{
+				Id:    userID,
+				Email: email,
+			}, nil
 		}
 
-		return "", ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
 }
 
 func (r *Redis) HasUsers(ctx context.Context) (bool, error) {
-	if _, err := r.FindAnyUserID(ctx); errors.Is(err, ErrUserNotFound) {
+	if _, err := r.FindAnyUser(ctx); errors.Is(err, ErrUserNotFound) {
 		return false, nil
 	} else if err != nil {
 		return false, errors.Wrap(err, "find any user id")
 	} else {
 		return true, nil
 	}
+}
+
+func (r *Redis) GetUserEmail(ctx context.Context, userID string) (string, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	defer closeQuietly(conn)
+	return r.getUserEmail(conn, userID)
 }
 
 func (r *Redis) RefreshToken(ctx context.Context, token string) (*openapi.TokensResponse, error) {
@@ -412,6 +429,16 @@ func (r *Redis) DeleteUser(ctx context.Context, userID string) error {
 		return errors.Wrapf(err, "remove %s from %s", email, usersIndexKey)
 	} else {
 		return nil
+	}
+}
+
+func (r *Redis) getUserEmail(conn redis.Conn, userID string) (string, error) {
+	if email, err := redis.String(conn.Do("HGET", userKey(userID), userEmailField)); errors.Is(err, redis.ErrNil) {
+		return "", ErrUserNotFound
+	} else if err != nil {
+		return "", errors.Wrap(err, "get user email")
+	} else {
+		return email, nil
 	}
 }
 

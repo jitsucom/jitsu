@@ -1,22 +1,19 @@
 package common
 
 import (
-	"github.com/mitchellh/mapstructure"
+	"encoding/json"
+
 	"github.com/pkg/errors"
 )
 
-func DecodeAsJSON(source interface{}, target interface{}, zero bool) error {
-	config := &mapstructure.DecoderConfig{
-		TagName:    "json",
-		Result:     target,
-		Squash:     true,
-		ZeroFields: zero,
-	}
-
-	if decoder, err := mapstructure.NewDecoder(config); err != nil {
-		return errors.Wrap(err, "mapstructure.NewDecoder")
-	} else if err := decoder.Decode(source); err != nil {
-		return errors.Wrap(err, "mapstructure.Decode")
+// DecodeAsJSON is basically the same as mapstructure.Decode,
+// but it uses stdlib encoding/json package to marshal & unmarshal value.
+// This provides the benefit of "honest" struct-to-recursive map decoding.
+func DecodeAsJSON(source interface{}, target interface{}) error {
+	if data, err := json.Marshal(source); err != nil {
+		return errors.Wrap(err, "marshal")
+	} else if err := json.Unmarshal(data, &target); err != nil {
+		return errors.Wrap(err, "unmarshal")
 	} else {
 		return nil
 	}

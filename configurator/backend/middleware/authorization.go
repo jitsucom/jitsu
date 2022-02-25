@@ -3,12 +3,11 @@ package middleware
 import (
 	"context"
 
-	"github.com/jitsucom/jitsu/server/logging"
-
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/common"
 	"github.com/jitsucom/jitsu/configurator/openapi"
 	"github.com/jitsucom/jitsu/configurator/storages"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/pkg/errors"
 )
 
@@ -24,13 +23,13 @@ const (
 
 type Authority struct {
 	Token      string
-	UserID     string
+	UserInfo   *openapi.UserBasicInfo
 	IsAdmin    bool
 	ProjectIDs common.StringSet
 }
 
 func (a *Authority) IsAnonymous() bool {
-	return a.UserID == ""
+	return a.UserInfo == nil
 }
 
 func (a *Authority) Allow(projectID string) bool {
@@ -39,7 +38,7 @@ func (a *Authority) Allow(projectID string) bool {
 
 type Authorizator interface {
 	Authorize(ctx context.Context, token string) (*Authority, error)
-	FindAnyUserID(ctx context.Context) (string, error)
+	FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 }
 
 type AuthorizationInterceptor struct {
@@ -70,11 +69,11 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 			return
 		}
 
-		if userID, err := i.Authorizator.FindAnyUserID(ctx); err != nil {
+		if userInfo, err := i.Authorizator.FindAnyUser(ctx); err != nil {
 			invalidToken(ctx, errTokenMismatch)
 			return
 		} else {
-			authority.UserID = userID
+			authority.UserInfo = userInfo
 		}
 	} else if clusterAdminScope {
 		logging.SystemErrorf("server request [%s] with [%s] token has been denied: token mismatch", ctx.Request.URL.String(), token)
@@ -89,12 +88,18 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 		authority.Token = token
 	}
 
+	if basicInfo := authority.UserInfo; basicInfo != nil {
+		if _, err := i.Configurations.UpdateUserInfo(basicInfo.Id, UserInfoEmailUpdate{Email: basicInfo.Email}); err != nil {
+			logging.Errorf("failed to update user info for id [%s] with email [%s]: %s", basicInfo.Id, basicInfo.Email, err)
+		}
+	}
+
 	authority.ProjectIDs = make(common.StringSet)
 
 	if managementScope {
 		if !authority.IsAnonymous() {
-			if projectIDs, err := i.Configurations.GetUserProjects(authority.UserID); err != nil {
-				logging.Warnf("failed to get projects for user %s: %s", authority.UserID, err)
+			if projectIDs, err := i.Configurations.GetUserProjects(authority.UserInfo.Id); err != nil {
+				logging.Warnf("failed to get projects for user %s: %s", authority.UserInfo.Id, err)
 			} else {
 				authority.ProjectIDs.AddAll(projectIDs...)
 			}
@@ -126,4 +131,8 @@ func GetAuthority(ctx *gin.Context) (*Authority, error) {
 	} else {
 		return authority, nil
 	}
+}
+
+type UserInfoEmailUpdate struct {
+	Email string `json:"_email"`
 }
