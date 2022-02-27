@@ -101,11 +101,11 @@ type CreatedUser struct {
 type LocalAuthorizator interface {
 	SignUp(ctx context.Context, email, password string) (*openapi.TokensResponse, error)
 	SignIn(ctx context.Context, email, password string) (*openapi.TokensResponse, error)
-	SignOut(ctx context.Context, token string) error
-	RefreshToken(ctx context.Context, token string) (*openapi.TokensResponse, error)
+	SignOut(ctx context.Context, accessToken string) error
+	RefreshToken(ctx context.Context, refreshToken string) (*openapi.TokensResponse, error)
 	SendResetPasswordLink(ctx context.Context, email, callback string) error
 	ResetPassword(ctx context.Context, resetID, newPassword string) (*openapi.TokensResponse, error)
-	ChangePassword(ctx context.Context, token, newPassword string) (*openapi.TokensResponse, error)
+	ChangePassword(ctx context.Context, accessToken, newPassword string) (*openapi.TokensResponse, error)
 	ChangeEmail(ctx context.Context, oldEmail, newEmail string) (userID string, err error)
 	ListUsers(ctx context.Context) ([]openapi.UserBasicInfo, error)
 	CreateUser(ctx context.Context, email string) (*CreatedUser, error)
@@ -962,7 +962,6 @@ func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string) {
 		userID = *req.UserId
 	} else if req.UserEmail != nil && *req.UserEmail != "" {
 		var err error
-		// TODO callback
 		if userID, err = oa.Authorizator.AutoSignUp(ctx, *req.UserEmail, req.Callback); err != nil {
 			mw.InternalError(ctx, "auto sign up failed", err)
 			return
