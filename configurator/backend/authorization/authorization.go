@@ -1,11 +1,12 @@
 package authorization
 
 import (
+	"github.com/jitsucom/jitsu/configurator/handlers"
 	"github.com/pkg/errors"
 )
 
 var (
-	ErrUserExists   = errors.New("user exists")
+	ErrUserExists   = handlers.ErrUserExists
 	ErrUserNotFound = errors.New("user not found")
 )
 

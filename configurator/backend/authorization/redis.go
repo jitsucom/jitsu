@@ -121,14 +121,23 @@ func (r *Redis) FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 		return nil, errors.Wrap(err, "find users")
 	}
 
+	var first *openapi.UserBasicInfo = nil
 	for email, userID := range userIDs {
-		return &openapi.UserBasicInfo{
-			Id:    userID,
-			Email: email,
-		}, nil
+		if first != nil {
+			return nil, errors.New("more than 1 user found")
+		} else {
+			first = &openapi.UserBasicInfo{
+				Id:    userID,
+				Email: email,
+			}
+		}
 	}
 
-	return nil, ErrUserNotFound
+	if first == nil {
+		return nil, ErrUserNotFound
+	}
+
+	return first, nil
 }
 
 func (r *Redis) HasUsers(ctx context.Context) (bool, error) {
@@ -221,11 +230,12 @@ func (r *Redis) AutoSignUp(ctx context.Context, email string, callback *string) 
 	defer closeQuietly(conn)
 
 	precondition := func() error {
-		if callback == nil || *callback == "" {
+		switch {
+		case callback == nil || *callback == "":
 			return errors.New("callback URL is required")
-		} else if !r.mailSender.IsConfigured() {
+		case !r.mailSender.IsConfigured():
 			return errMailServiceNotConfigured
-		} else {
+		default:
 			return nil
 		}
 	}
@@ -233,7 +243,7 @@ func (r *Redis) AutoSignUp(ctx context.Context, email string, callback *string) 
 	userID, err := r.createUser(conn, email, uuid.NewV4().String(), precondition)
 	switch {
 	case errors.Is(err, ErrUserExists):
-		return userID, nil
+		return userID, ErrUserExists
 	case err != nil:
 		return "", errors.Wrap(err, "create user")
 	}
