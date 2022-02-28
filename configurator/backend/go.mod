@@ -3,7 +3,6 @@ module github.com/jitsucom/jitsu/configurator
 go 1.17
 
 require (
-	cloud.google.com/go/firestore v1.6.1
 	firebase.google.com/go/v4 v4.7.1
 	github.com/bramvdbogaerde/go-scp v0.0.0-20200820121624-ded9ee94aef5
 	github.com/deepmap/oapi-codegen v1.9.1
@@ -21,6 +20,7 @@ require (
 	github.com/spf13/viper v1.8.1
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	google.golang.org/api v0.69.0
+	gopkg.in/guregu/null.v3 v3.5.0
 	gopkg.in/mail.v2 v2.3.1
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
@@ -29,6 +29,7 @@ require (
 	cloud.google.com/go v0.100.2 // indirect
 	cloud.google.com/go/bigquery v1.8.0 // indirect
 	cloud.google.com/go/compute v1.3.0 // indirect
+	cloud.google.com/go/firestore v1.6.1 // indirect
 	cloud.google.com/go/iam v0.2.0 // indirect
 	cloud.google.com/go/storage v1.20.0 // indirect
 	github.com/FZambia/sentinel v1.1.0 // indirect

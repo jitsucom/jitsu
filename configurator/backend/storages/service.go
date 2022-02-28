@@ -908,6 +908,8 @@ func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*
 			} else if err := cs.LinkUserToProject(id, projectID); err != nil {
 				return nil, errors.Wrap(err, "link user to project")
 			}
+		} else if err := cs.UnlinkUserFromAllProjects(id); err != nil {
+			return nil, errors.Wrap(err, "unlink user from projects")
 		}
 	}
 

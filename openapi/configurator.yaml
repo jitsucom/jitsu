@@ -218,11 +218,9 @@ components:
       properties:
         _id: { type: string }
         _name: { type: string }
-        _planId:
-          type: string
-          nullable: true
+        _planId: { type: string }
         _requireSetup: { type: boolean }
-      required: [ '_id', '_name', '_planId' ]
+      required: [ '_id', '_name' ]
     SuggestedInfo:
       type: object
       properties:
@@ -245,17 +243,30 @@ components:
         _project:
           $ref: '#/components/schemas/ProjectInfo'
       required: [ '_uid', '_created', '_email' ]
+    ProjectInfoUpdate:
+      type: object
+      properties:
+        _id: { type: string }
+        _name: { type: string }
+        _planId:
+          type: string
+          x-go-type: null.String
+          nullable: true
+        _requireSetup: { type: boolean }
     UpdateUserInfoRequest:
       type: object
       properties:
         _emailOptout: { type: boolean }
-        _name: { type: string }
+        _name:
+          type: string
+          x-go-type: null.String
+          nullable: true
         _forcePasswordChange: { type: boolean }
         _onboarded: { type: boolean }
         _suggestedInfo:
           $ref: '#/components/schemas/SuggestedInfo'
         _project:
-          $ref: '#/components/schemas/ProjectInfo'
+          $ref: '#/components/schemas/ProjectInfoUpdate'
     LinkProjectRequest:
       type: object
       properties:
@@ -324,6 +335,20 @@ components:
                 $ref: "#/components/schemas/Project"
               resetId: { type: string }
             required: [ user, project, resetId ]
+    LinkProjectResponse:
+      description: "List of users with access to given project"
+      content:
+        "application/json":
+          schema:
+            type: object
+            properties:
+              projectUsers:
+                type: array
+                items: { $ref: '#/components/schemas/UserBasicInfo' }
+              userStatus:
+                type: string
+                description: existing if user has been found, or created if user has been created
+            required: ['projectUsers', 'userStatus']
 paths:
   /api/v1/users/signin:
     post:
@@ -343,8 +368,6 @@ paths:
             "application/json":
               schema:
                 $ref: '#/components/schemas/TokensResponse'
-
-        #All error responses
         default:
           $ref: '#/components/responses/Error'
   /api/v1/users/signup:
@@ -365,7 +388,6 @@ paths:
             "application/json":
               schema:
                 $ref: '#/components/schemas/TokensResponse'
-        #All error responses
         default:
           $ref: '#/components/responses/Error'
   /api/v1/users/signout:
@@ -422,11 +444,9 @@ paths:
                 email: { type: string }
                 callback: { type: string }
               required: [ email ]
-
       responses:
         "200":
           $ref: '#/components/responses/StatusResponse'
-        #All error responses
         default:
           $ref: '#/components/responses/Error'
   /api/v1/users/password/change:
@@ -452,7 +472,6 @@ paths:
             "application/json":
               schema:
                 $ref: '#/components/schemas/TokensResponse'
-        #All error responses
         default:
           $ref: '#/components/responses/Error'
   /api/v1/users/info:
@@ -516,7 +535,6 @@ paths:
       responses:
         "200":
           $ref: '#/components/responses/StatusResponse'
-        #All error responses
         default:
           $ref: '#/components/responses/Error'
   /api/v1/system/configuration:
@@ -609,16 +627,7 @@ paths:
               $ref: '#/components/schemas/LinkProjectRequest'
       responses:
         '200':
-          description: "List of users with access to given project"
-          content:
-            "application/json":
-              schema:
-                type: object
-                properties:
-                  userStatus:
-                    type: string
-                    description: existing if user has been found, or created if user has been created
-
+          $ref: '#/components/responses/LinkProjectResponse'
         default:
           $ref: '#/components/responses/Error'
 
@@ -646,7 +655,7 @@ paths:
         - configurationManagementAuth: [ ]
       responses:
         '200':
-          $ref: '#/components/responses/AnyObjectResponse'
+          $ref: '#/components/responses/StatusResponse'
         default:
           $ref: '#/components/responses/Error'
 
@@ -710,7 +719,7 @@ paths:
             type: string
       responses:
         '200':
-          $ref: '#/components/responses/AnyObjectResponse'
+          $ref: '#/components/responses/StatusResponse'
         default:
           $ref: '#/components/responses/Error'
     patch:
