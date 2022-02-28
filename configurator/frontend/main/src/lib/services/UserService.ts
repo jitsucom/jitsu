@@ -40,6 +40,8 @@ export interface UserService {
 
   getLoginFeatures(): LoginFeatures
 
+  getSSOAuthLink(): string
+
   /**
    * Initiates google login. Returns promise on email of the user . On success user must reload
    * page.

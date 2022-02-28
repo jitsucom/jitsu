@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useHistory } from "react-router-dom"
 import { Button, Form, Input, message, Modal } from "antd"
 import { FloatingLabelInput } from "../../components/FloatingLabelInput/FloatingLabelInput"
@@ -15,11 +15,21 @@ import { useServices } from "../../../hooks/useServices"
 import ApplicationServices from "../../../lib/services/ApplicationServices"
 import UserOutlined from "@ant-design/icons/lib/icons/UserOutlined"
 
-export function LoginForm({ supportOauth }) {
+const SSO_ERROR_LS_KEY = "sso_error"
+
+export function LoginForm({ supportOauth, ssoAuthLink }) {
   const services = useServices()
   const [loading, setLoading] = useState(false)
   const history = useHistory()
   const [showPasswordResetForm, setShowPasswordResetForm] = useState(false)
+
+  useEffect(() => {
+    const ssoError = localStorage.getItem(SSO_ERROR_LS_KEY)
+    if (ssoError) {
+      message.error(ssoError)
+      localStorage.removeItem(SSO_ERROR_LS_KEY)
+    }
+  }, [])
 
   const githubSignIn = async () => {
     try {
@@ -140,6 +150,13 @@ export function LoginForm({ supportOauth }) {
               Login
             </Button>
           </div>
+          {ssoAuthLink && (
+            <div className="mb-4">
+              <Button href={ssoAuthLink} size="large" className="w-full">
+                Continue with SSO
+              </Button>
+            </div>
+          )}
           <div>
             <a onClick={() => setShowPasswordResetForm(true)}>Forgot password?</a>
           </div>

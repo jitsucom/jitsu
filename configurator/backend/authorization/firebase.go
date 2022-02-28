@@ -31,13 +31,15 @@ type Provider interface {
 	SaveUser(user *User) error
 	GetOnlyUserID() (string, error)
 	ChangeUserEmail(oldEmail, newEmail string) (string, error)
-	CreateTokens(userID string) (*TokenDetails, error)
+	CreateTokens(params CreateTokenParams) (*TokenDetails, error)
 	DeleteAccessToken(token string) error
 	DeleteAllTokens(userID string) error
 	SavePasswordResetID(resetID, userID string) error
 	DeletePasswordResetID(resetID string) error
 	GetUserByResetID(resetID string) (*User, error)
 	RefreshTokens(refreshToken string) (*TokenDetails, error)
+	SaveSSOUserToken(userId string, ssoToken *SSOToken) error
+	DeleteSSOUserToken(userId string) error
 }
 
 type FirebaseProvider struct {
@@ -182,8 +184,8 @@ func (fp *FirebaseProvider) ChangeUserEmail(oldEmail, newEmail string) (string, 
 	return "", errors.New(errMsg)
 }
 
-func (fp *FirebaseProvider) CreateTokens(userID string) (*TokenDetails, error) {
-	errMsg := fmt.Sprintf("CreateTokens isn't supported in authorization FirebaseProvider. userID: %s", userID)
+func (fp *FirebaseProvider) CreateTokens(params CreateTokenParams) (*TokenDetails, error) {
+	errMsg := fmt.Sprintf("CreateTokens isn't supported in authorization FirebaseProvider. userID: %s", params.UserID)
 	logging.SystemError(errMsg)
 	return nil, errors.New(errMsg)
 }
@@ -222,4 +224,16 @@ func (fp *FirebaseProvider) RefreshTokens(refreshToken string) (*TokenDetails, e
 	errMsg := "RefreshTokens isn't supported in authorization FirebaseProvider"
 	logging.SystemError(errMsg)
 	return nil, errors.New(errMsg)
+}
+
+func (fp *FirebaseProvider) SaveSSOUserToken(userId string, ssoToken *SSOToken) error {
+	errMsg := "SaveSSOUserToken isn't supported in authorization FirebaseProvider"
+	logging.SystemError(errMsg)
+	return errors.New(errMsg)
+}
+
+func (fp *FirebaseProvider) DeleteSSOUserToken(userId string) error {
+	errMsg := "DeleteSSOUserToken isn't supported in authorization FirebaseProvider"
+	logging.SystemError(errMsg)
+	return errors.New(errMsg)
 }
