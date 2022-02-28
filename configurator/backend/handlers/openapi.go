@@ -79,6 +79,7 @@ type SystemConfiguration struct {
 var (
 	ErrIsLocal          = errors.New("supported only for cloud authorization")
 	ErrIsCloud          = errors.New("supported only for local authorization")
+	ErrUserExists       = errors.New("user exists")
 	errSSLNotConfigured = errors.New("ssl isn't configured in Jitsu configuration")
 )
 
@@ -88,7 +89,7 @@ type Authorizator interface {
 	AuthorizationType() string
 	GetUserEmail(ctx context.Context, userID string) (string, error)
 	HasUsers(ctx context.Context) (bool, error)
-	AutoSignUp(ctx context.Context, email string, callback *string) (string, error)
+	AutoSignUp(ctx context.Context, email string, callback *string) (userID string, err error)
 	Local() (LocalAuthorizator, error)
 	Cloud() (CloudAuthorizator, error)
 }
@@ -957,13 +958,19 @@ func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string) {
 		return
 	}
 
-	var userID string
+	var (
+		userID     string
+		userStatus = "created"
+	)
+
 	if req.UserId != nil && *req.UserId != "" {
 		userID = *req.UserId
 	} else if req.UserEmail != nil && *req.UserEmail != "" {
 		var err error
-		if userID, err = oa.Authorizator.AutoSignUp(ctx, *req.UserEmail, req.Callback); err != nil {
-			mw.InternalError(ctx, "auto sign up failed", err)
+		if userID, err = oa.Authorizator.AutoSignUp(ctx, *req.UserEmail, req.Callback); errors.Is(err, ErrUserExists) {
+			userStatus = "existing"
+		} else if err != nil {
+			mw.BadRequest(ctx, "auto sign up failed", err)
 			return
 		}
 	} else {
@@ -976,7 +983,10 @@ func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string) {
 	} else if users, err := oa.getProjectUsers(ctx, projectID); err != nil {
 		mw.BadRequest(ctx, "get project users", err)
 	} else {
-		ctx.JSON(http.StatusOK, users)
+		ctx.JSON(http.StatusOK, openapi.LinkProjectResponse{
+			ProjectUsers: users,
+			UserStatus:   userStatus,
+		})
 	}
 }
 
