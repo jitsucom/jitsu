@@ -188,21 +188,36 @@ func (r *Redis) Delete(collection string, id string) error {
 func (r *Redis) GetRelationIndex(relation string) ([]string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
-	if values, err := redis.Strings(conn.Do("KEYS", getRelationKey(relation, "*"))); err != nil {
-		return nil, errors.Wrap(err, "get keys")
-	} else {
-		result := make([]string, len(values))
-		relationKeyPrefix := getRelationKeyPrefix(relation)
-		for i, value := range values {
-			if strings.HasPrefix(value, relationKeyPrefix) {
-				value = value[len(relationKeyPrefix):]
-			}
 
-			result[i] = value
+	var (
+		relatedIDs        []string
+		cursor            int
+		relationKeyPrefix = getRelationKeyPrefix(relation)
+	)
+
+	for {
+		if reply, err := redis.Values(redis.Values(conn.Do("SCAN", cursor, "MATCH", getRelationKey(relation, "*")))); err != nil {
+			return nil, errors.Wrap(err, "scan keys")
+		} else if cursor, err = redis.Int(reply[0], nil); err != nil {
+			return nil, errors.Wrap(err, "parse cursor value")
+		} else if values, err := redis.Strings(reply[1], nil); err != nil {
+			return nil, errors.Wrap(err, "parse values")
+		} else {
+			for _, value := range values {
+				if strings.HasPrefix(value, relationKeyPrefix) {
+					value = value[len(relationKeyPrefix):]
+				}
+
+				relatedIDs = append(relatedIDs, value)
+			}
 		}
 
-		return result, nil
+		if cursor == 0 {
+			break
+		}
 	}
+
+	return relatedIDs, nil
 }
 
 func (r *Redis) DeleteRelation(relation, id string) error {

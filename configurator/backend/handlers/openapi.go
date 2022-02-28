@@ -46,8 +46,7 @@ If executed out of our docker container and batch destinations are used, set up 
 log:
   path: <path to event logs directory>
 `
-	jsonContentType    = "application/json"
-	userInfoCollection = "users_info"
+	jsonContentType = "application/json"
 )
 
 //stubS3Config is used in generate Jitsu Server yaml config
@@ -89,7 +88,7 @@ type Authorizator interface {
 	AuthorizationType() string
 	GetUserEmail(ctx context.Context, userID string) (string, error)
 	HasUsers(ctx context.Context) (bool, error)
-	AutoSignUp(ctx context.Context, email, callback string) (string, error)
+	AutoSignUp(ctx context.Context, email string, callback *string) (string, error)
 	Local() (LocalAuthorizator, error)
 	Cloud() (CloudAuthorizator, error)
 }
@@ -102,11 +101,11 @@ type CreatedUser struct {
 type LocalAuthorizator interface {
 	SignUp(ctx context.Context, email, password string) (*openapi.TokensResponse, error)
 	SignIn(ctx context.Context, email, password string) (*openapi.TokensResponse, error)
-	SignOut(ctx context.Context, token string) error
-	RefreshToken(ctx context.Context, token string) (*openapi.TokensResponse, error)
+	SignOut(ctx context.Context, accessToken string) error
+	RefreshToken(ctx context.Context, refreshToken string) (*openapi.TokensResponse, error)
 	SendResetPasswordLink(ctx context.Context, email, callback string) error
 	ResetPassword(ctx context.Context, resetID, newPassword string) (*openapi.TokensResponse, error)
-	ChangePassword(ctx context.Context, token, newPassword string) (*openapi.TokensResponse, error)
+	ChangePassword(ctx context.Context, accessToken, newPassword string) (*openapi.TokensResponse, error)
 	ChangeEmail(ctx context.Context, oldEmail, newEmail string) (userID string, err error)
 	ListUsers(ctx context.Context) ([]openapi.UserBasicInfo, error)
 	CreateUser(ctx context.Context, email string) (*CreatedUser, error)
@@ -941,31 +940,32 @@ func (oa *OpenAPI) PatchProjectSettings(ctx *gin.Context, projectID openapi.Proj
 	}
 }
 
-func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string, params openapi.LinkUserToProjectParams) {
+func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string) {
 	if ctx.IsAborted() {
 		return
 	}
 
+	var req openapi.LinkProjectRequest
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
 		return
 	} else if !authority.Allow(projectID) {
 		mw.ForbiddenProject(ctx, projectID)
 		return
+	} else if err := ctx.BindJSON(&req); err != nil {
+		mw.InvalidInputJSON(ctx, err)
+		return
 	}
 
 	var userID string
-	if params.UserId != nil && *params.UserId != "" {
-		userID = *params.UserId
-	} else if params.UserEmail != nil && *params.UserEmail != "" {
+	if req.UserId != nil && *req.UserId != "" {
+		userID = *req.UserId
+	} else if req.UserEmail != nil && *req.UserEmail != "" {
 		var err error
-		// TODO callback?
-		if userID, err = oa.Authorizator.AutoSignUp(ctx, *params.UserEmail, ""); err != nil {
+		if userID, err = oa.Authorizator.AutoSignUp(ctx, *req.UserEmail, req.Callback); err != nil {
 			mw.InternalError(ctx, "auto sign up failed", err)
 			return
 		}
-
-		// TODO also create user info?
 	} else {
 		mw.RequiredField(ctx, "either userId or userEmail")
 		return
@@ -1113,7 +1113,8 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 			return
 		}
 
-		if _, err := oa.Configurations.UpdateUserInfo(createdUser.ID, openapi.UpdateUserInfoRequest{
+		if userInfo, err := oa.Configurations.UpdateUserInfo(createdUser.ID, openapi.UpdateUserInfoRequest{
+			Name: req.Name,
 			Project: &openapi.ProjectInfo{
 				Id:           project.Id,
 				Name:         project.Name,
@@ -1128,6 +1129,8 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 						Id:    createdUser.ID,
 						Email: req.Email,
 					},
+					Created: userInfo.Created,
+					Name:    req.Name,
 				},
 				Project: project.Project,
 				ResetId: createdUser.ResetID,
@@ -1163,15 +1166,23 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 		return
 	}
 
-	var req openapi.PatchUserRequest
-	if authorizator, err := oa.Authorizator.Local(); err != nil {
-		mw.Unsupported(ctx, err)
+	email, err := oa.Authorizator.GetUserEmail(ctx, userID)
+	if err != nil {
+		mw.BadRequest(ctx, "get user email", err)
 		return
-	} else if err := ctx.BindJSON(&req); err != nil {
+	}
+
+	var req openapi.PatchUserRequest
+	if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 		return
-	} else if req.Password != nil {
-		if err := authorizator.UpdatePassword(ctx, userID, *req.Password); err != nil {
+	}
+
+	if req.Password != nil {
+		if authorizator, err := oa.Authorizator.Local(); err != nil {
+			mw.Unsupported(ctx, err)
+			return
+		} else if err := authorizator.UpdatePassword(ctx, userID, *req.Password); err != nil {
 			mw.BadRequest(ctx, "update user failed", err)
 			return
 		}
@@ -1185,8 +1196,8 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 	} else {
 		result := &openapi.User{
 			UserBasicInfo: openapi.UserBasicInfo{
-				Id:    userInfo.Uid,
-				Email: userInfo.Email,
+				Id:    userID,
+				Email: email,
 			},
 			EmailOptout:         userInfo.EmailOptout,
 			ForcePasswordChange: userInfo.ForcePasswordChange,

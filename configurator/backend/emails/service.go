@@ -2,21 +2,22 @@ package emails
 
 import (
 	"bytes"
-	"errors"
-	"fmt"
 	"text/template"
 
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/pkg/errors"
 	gomail "gopkg.in/mail.v2"
 )
 
 var ErrSMTPNotConfigured = errors.New("SMTP isn't configured")
 
 type SMTPConfiguration struct {
-	Host     string
-	Port     int
-	User     string
-	Password string
+	Host      string
+	Port      int
+	User      string
+	Password  string
+	From      string
+	Signature string
 }
 
 func (sc *SMTPConfiguration) Validate() error {
@@ -32,70 +33,81 @@ func (sc *SMTPConfiguration) Validate() error {
 		return errors.New("smtp user is required")
 	}
 
+	if sc.From == "" {
+		sc.From = "support@jitsu.com"
+	}
+
+	if sc.Signature == "" {
+		sc.Signature = "Your Jitsu - an open-source data collection platform team"
+	}
+
 	return nil
 }
 
 type Service struct {
-	smtp               *SMTPConfiguration
-	resetPasswordEmail *template.Template
+	smtp      *SMTPConfiguration
+	templates map[templateSubject]*template.Template
 }
 
 func NewService(smtp *SMTPConfiguration) (*Service, error) {
-	if smtp != nil {
-		logging.Info("Initializing SMTP email service..")
+	if smtp == nil {
+		return nil, nil
 	}
 
-	t, err := template.New("reset_password_email").Parse(resetPasswordTemplate)
+	logging.Info("Initializing SMTP email service..")
+	templates, err := parseTemplates()
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing reset password email template: %v", err)
+		return nil, errors.Wrap(err, "parse templates")
 	}
 
-	return &Service{smtp: smtp, resetPasswordEmail: t}, nil
+	return &Service{
+		smtp:      smtp,
+		templates: templates,
+	}, nil
 }
 
 func (s *Service) IsConfigured() bool {
-	return s.smtp != nil
+	return s != nil
 }
 
-func (s *Service) SendResetPassword(email, link string) error {
-	if s.smtp == nil {
+func (s *Service) send(subject templateSubject, email, link string) error {
+	if !s.IsConfigured() {
 		return ErrSMTPNotConfigured
 	}
 
-	m := gomail.NewMessage()
-
-	// Set E-Mail sender
-	m.SetHeader("From", "support@jitsu.com")
-
-	// Set E-Mail receivers
-	m.SetHeader("To", email)
-
-	// Set E-Mail subject
-	m.SetHeader("Subject", "Reset your password for Jitsu - an open-source data collection platform")
-
-	var body bytes.Buffer
-	err := s.resetPasswordEmail.Execute(&body, struct {
-		Email string
-		Link  string
-	}{
-		Email: email,
-		Link:  link,
-	})
-
-	if err != nil {
-		return err
+	tmplt, ok := s.templates[subject]
+	if !ok {
+		return errors.Errorf("unknown email template: '%s'", subject)
 	}
 
-	// Set E-Mail body. You can set plain text or html with text/html
-	m.SetBody("text/html", body.String())
+	msg := gomail.NewMessage()
+	msg.SetHeader("From", s.smtp.From)
+	msg.SetHeader("To", email)
+	msg.SetHeader("Subject", subject.String())
 
-	// Settings for SMTP server
-	d := gomail.NewDialer(s.smtp.Host, s.smtp.Port, s.smtp.User, s.smtp.Password)
+	var body bytes.Buffer
+	if err := tmplt.Execute(&body, templateValues{
+		Email:     email,
+		Link:      link,
+		Signature: s.smtp.Signature,
+	}); err != nil {
+		return errors.Wrap(err, "execute template")
+	}
 
-	// Now send E-Mail
-	if err := d.DialAndSend(m); err != nil {
-		return fmt.Errorf("Error sending email to %s: %v", email, err)
+	msg.SetBody("text/html", body.String())
+
+	dialer := gomail.NewDialer(s.smtp.Host, s.smtp.Port, s.smtp.User, s.smtp.Password)
+	if err := dialer.DialAndSend(msg); err != nil {
+		return errors.Wrap(err, "dial and send")
 	}
 
 	return nil
+}
+
+func (s *Service) SendResetPassword(email, link string) error {
+	return s.send(resetPassword, email, link)
+}
+
+func (s *Service) SendAccountCreated(email, link string) error {
+	return s.send(accountCreated, email, link)
 }
