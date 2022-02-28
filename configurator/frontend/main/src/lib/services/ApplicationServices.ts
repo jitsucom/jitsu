@@ -76,7 +76,13 @@ export default class ApplicationServices implements IApplicationServices {
     this._analyticsService.configure(this._features)
 
     if (configuration.authorization == "redis" || !this._applicationConfiguration.firebaseConfig) {
-      this._userService = new BackendUserService(this._backendApiClient, this._storageService, configuration.smtp)
+      this._userService = new BackendUserService(
+        this._backendApiClient,
+        this._storageService,
+        configuration.smtp,
+        this._features.ssoAuthLink,
+        this._applicationConfiguration.backendApiBase
+      )
     } else if (configuration.authorization == "firebase") {
       this._userService = new FirebaseUserService(
         this._applicationConfiguration.firebaseConfig,
@@ -226,6 +232,11 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     environment = "docker" as const
   }
 
+  let ssoAuthLink = ""
+  if (typeof responseData.sso_auth_link === "string") {
+    ssoAuthLink = responseData.sso_auth_link
+  }
+
   assert(responseData.authorization === "redis" || responseData.authorization === "firebase")
 
   assert(typeof responseData.smtp === "boolean")
@@ -240,6 +251,7 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     chatSupportType: responseData.selfhosted ? "slack" : "chat",
     billingEnabled: !responseData.selfhosted,
     authorization: responseData.authorization,
+    ssoAuthLink,
     smtp: responseData.smtp,
     environment: environment,
     onlyAdminCanChangeUserEmail: !!responseData.only_admin_can_change_user_email,
@@ -255,7 +267,13 @@ export type FeatureSettings = {
   /**
    * Authorization type
    */
-  authorization: "redis" | "firebase"
+  authorization: "redis" | "sso" | "firebase"
+
+  /**
+   * Link for SSO authorization
+   */
+  ssoAuthLink: string
+
   /**
    * If is there any users in backend DB (no users means we need to run a setup flow)
    */
