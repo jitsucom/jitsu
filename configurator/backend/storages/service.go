@@ -903,12 +903,10 @@ func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*
 				RequiresSetup: projectInfo.RequireSetup,
 			}
 
-			if patched, err := cs.Patch(projectID, new(Project), patch, false); err != nil {
+			if _, err := cs.Patch(projectID, new(Project), patch, false); err != nil {
 				return nil, errors.Wrap(err, "patch project")
-			} else if patched {
-				if err := cs.LinkUserToProject(id, projectID); err != nil {
-					return nil, errors.Wrap(err, "link user to project")
-				}
+			} else if err := cs.LinkUserToProject(id, projectID); err != nil {
+				return nil, errors.Wrap(err, "link user to project")
 			}
 		}
 	}
@@ -926,63 +924,111 @@ func (cs *ConfigurationsService) Load(id string, value CollectionItem) error {
 	}
 }
 
+// patchHandler defines a strategy during Patch.
+// A handler is responsible for unmarshaling of the stored object as well as calling the value handlers.
+type patchHandler interface {
+	// beforePatch is called before the patch is applied to the value.
+	beforePatch(data []byte, value CollectionItem) error
+	// afterPatch is called after the patch is applied to the value.
+	// apply should be false if the value is not to be persisted.
+	afterPatch(value CollectionItem) (apply bool, err error)
+}
+
+type createPatchHandler struct {
+	id string
+}
+
+func (createPatchHandler) beforePatch([]byte, CollectionItem) error {
+	return nil
+}
+
+func (h createPatchHandler) afterPatch(value CollectionItem) (bool, error) {
+	if handler, ok := value.(OnCreateHandler); ok {
+		handler.OnCreate(h.id)
+	}
+
+	return true, nil
+}
+
+// updatePatchHandler is a map containing original state of the object.
+// This is a type alias for brevity of instantiation.
+type updatePatchHandler map[string]interface{}
+
+func (h updatePatchHandler) unmask() map[string]interface{} {
+	return h
+}
+
+func (h updatePatchHandler) beforePatch(data []byte, value CollectionItem) error {
+	if err := json.Unmarshal(data, value); err != nil {
+		return errors.Wrap(err, "unmarshal")
+	}
+
+	if err := common.DecodeAsJSON(value, &h); err != nil {
+		return errors.Wrap(err, "decode original values")
+	}
+
+	return nil
+}
+
+func (h updatePatchHandler) afterPatch(value CollectionItem) (apply bool, err error) {
+	var values map[string]interface{}
+	if err := common.DecodeAsJSON(value, &values); err != nil {
+		return false, errors.Wrap(err, "decode updated values")
+	}
+
+	if reflect.DeepEqual(h.unmask(), values) {
+		return false, nil
+	}
+
+	if handler, ok := value.(OnUpdateHandler); ok {
+		handler.OnUpdate()
+	}
+
+	return true, nil
+}
+
 // Patch patches the collection item.
 //   `id` is the ID of the collection item.
 //   `value` should be an empty initialized pointer to the value of the target type. Slices are currently not supported.
 //	 `patch` may be anything that is acceptable for json.Marshal. Must define an object (not array or value).
+//	 `requireExist` indicates if the object with the specified ID must already exist. See patchHandler docs for more info.
 func (cs *ConfigurationsService) Patch(id string, value CollectionItem, patch interface{}, requireExist bool) (bool, error) {
 	if lock, err := cs.lockProjectObject(value.Collection(), id); err != nil {
-		return false, errors.Wrapf(err, "lock %s", value.Collection())
+		return false, err
 	} else {
 		defer lock.Unlock()
 	}
 
-	var isCreated bool
+	var handler patchHandler
 	data, err := cs.get(value.Collection(), id)
-	if err != nil {
-		if errors.Is(err, ErrConfigurationNotFound) {
-			if requireExist {
-				return false, ErrConfigurationNotFound
-			} else {
-				isCreated = true
-			}
-
-			data = []byte("{}")
-		} else {
-			return false, errors.Wrapf(err, "get %s", value.Collection())
-		}
+	switch {
+	case err == nil:
+		handler = updatePatchHandler{}
+	case errors.Is(err, ErrConfigurationNotFound) && !requireExist:
+		handler = createPatchHandler{id}
+	default:
+		return false, errors.Wrap(err, "get")
 	}
 
-	var initialValues map[string]interface{}
-	if err := json.Unmarshal(data, value); err != nil {
-		return false, errors.Wrapf(err, "unmarshal %s value", value.Collection())
-	} else if err := common.DecodeAsJSON(value, &initialValues); err != nil {
-		return false, errors.Wrapf(err, "decode %s value", value.Collection())
-	} else if err := common.DecodeAsJSON(patch, value); err != nil {
-		return false, errors.Wrapf(err, "apply patch for %s", value.Collection())
-	} else {
-		if isCreated {
-			if handler, ok := value.(OnCreateHandler); ok {
-				handler.OnCreate(id)
-			}
-		} else {
-			var updatedValues map[string]interface{}
-			if err := common.DecodeAsJSON(value, &updatedValues); err != nil {
-				return false, errors.Wrapf(err, "decode updated %s value", value.Collection())
-			} else if reflect.DeepEqual(initialValues, updatedValues) {
-				// no need to update
-				return false, nil
-			} else if handler, ok := value.(OnUpdateHandler); ok {
-				handler.OnUpdate()
-			}
-		}
-
-		if _, err := cs.save(value.Collection(), id, value); err != nil {
-			return false, errors.Wrapf(err, "save patched value %s", value.Collection())
-		} else {
-			return true, nil
-		}
+	if err := handler.beforePatch(data, value); err != nil {
+		return false, errors.Wrap(err, "before patch")
 	}
+
+	if err := common.DecodeAsJSON(patch, value); err != nil {
+		return false, errors.Wrap(err, "apply patch")
+	}
+
+	if apply, err := handler.afterPatch(value); err != nil {
+		return false, errors.Wrap(err, "after patch")
+	} else if !apply {
+		return false, nil
+	}
+
+	if _, err := cs.save(value.Collection(), id, value); err != nil {
+		return false, errors.Wrap(err, "save")
+	}
+
+	return true, nil
 }
 
 func (cs *ConfigurationsService) Delete(id string, value CollectionItem) error {
