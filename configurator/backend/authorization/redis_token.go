@@ -8,6 +8,16 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
+type tokenPairTTL struct {
+	access  time.Duration
+	refresh time.Duration
+}
+
+var defaultTokenPairTTL = tokenPairTTL{
+	access:  time.Hour,
+	refresh: 7 * 24 * time.Hour,
+}
+
 type redisToken struct {
 	UserID       string `json:"user_id"`
 	ExpiredAt    string `json:"expired_at"`
@@ -29,7 +39,6 @@ func (t *redisToken) validate() error {
 type redisTokenType interface {
 	key() string
 	name() string
-	ttl() time.Duration
 	get(token *redisToken) string
 	set(token *redisToken, value string)
 }
@@ -38,7 +47,6 @@ type _accessTokenType struct{}
 
 func (_accessTokenType) key() string                         { return "auth_access_tokens" }
 func (_accessTokenType) name() string                        { return "access_token" }
-func (_accessTokenType) ttl() time.Duration                  { return time.Hour }
 func (_accessTokenType) get(token *redisToken) string        { return token.AccessToken }
 func (_accessTokenType) set(token *redisToken, value string) { token.AccessToken = value }
 
@@ -46,7 +54,6 @@ type _refreshTokenType struct{}
 
 func (_refreshTokenType) key() string                         { return "auth_refresh_tokens" }
 func (_refreshTokenType) name() string                        { return "refresh_token" }
-func (_refreshTokenType) ttl() time.Duration                  { return 7 * 24 * time.Hour }
 func (_refreshTokenType) get(token *redisToken) string        { return token.RefreshToken }
 func (_refreshTokenType) set(token *redisToken, value string) { token.RefreshToken = value }
 
@@ -55,13 +62,20 @@ var (
 	refreshTokenType redisTokenType = _refreshTokenType{}
 )
 
-func newRedisToken(now time.Time, userID string, tokenType redisTokenType) *redisToken {
+func newRedisToken(now time.Time, userID string, tokenType redisTokenType, ttl time.Duration) *redisToken {
 	token := &redisToken{
 		UserID:    userID,
-		ExpiredAt: timestamp.ToISOFormat(now.UTC().Add(tokenType.ttl())),
+		ExpiredAt: timestamp.ToISOFormat(now.UTC().Add(ttl)),
 		TokenType: tokenType.name(),
 	}
 
 	tokenType.set(token, uuid.NewV4().String())
 	return token
+}
+
+type ssoRedisToken struct {
+	Provider     string `json:"provider"`
+	UserID       string `json:"user_id"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token,omitempty"`
 }

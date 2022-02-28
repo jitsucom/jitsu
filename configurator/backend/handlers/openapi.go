@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -76,50 +75,9 @@ type SystemConfiguration struct {
 	BuiltAt     string
 }
 
-var (
-	ErrIsLocal          = errors.New("supported only for cloud authorization")
-	ErrIsCloud          = errors.New("supported only for local authorization")
-	ErrUserExists       = errors.New("user exists")
-	errSSLNotConfigured = errors.New("ssl isn't configured in Jitsu configuration")
-)
-
-type UserID string
-
-type Authorizator interface {
-	AuthorizationType() string
-	GetUserEmail(ctx context.Context, userID string) (string, error)
-	HasUsers(ctx context.Context) (bool, error)
-	AutoSignUp(ctx context.Context, email string, callback *string) (userID string, err error)
-	Local() (LocalAuthorizator, error)
-	Cloud() (CloudAuthorizator, error)
-}
-
-type CreatedUser struct {
-	ID      string
-	ResetID string
-}
-
-type LocalAuthorizator interface {
-	SignUp(ctx context.Context, email, password string) (*openapi.TokensResponse, error)
-	SignIn(ctx context.Context, email, password string) (*openapi.TokensResponse, error)
-	SignOut(ctx context.Context, accessToken string) error
-	RefreshToken(ctx context.Context, refreshToken string) (*openapi.TokensResponse, error)
-	SendResetPasswordLink(ctx context.Context, email, callback string) error
-	ResetPassword(ctx context.Context, resetID, newPassword string) (*openapi.TokensResponse, error)
-	ChangePassword(ctx context.Context, accessToken, newPassword string) (*openapi.TokensResponse, error)
-	ChangeEmail(ctx context.Context, oldEmail, newEmail string) (userID string, err error)
-	ListUsers(ctx context.Context) ([]openapi.UserBasicInfo, error)
-	CreateUser(ctx context.Context, email string) (*CreatedUser, error)
-	DeleteUser(ctx context.Context, userID string) error
-	UpdatePassword(ctx context.Context, userID, password string) error
-}
-
-type CloudAuthorizator interface {
-	SignInAs(ctx context.Context, email string) (*openapi.TokenResponse, error)
-}
-
 type OpenAPI struct {
 	Authorizator   Authorizator
+	SSOProvider    SSOProvider
 	Configurations *storages.ConfigurationsService
 	SystemConfig   *SystemConfiguration
 	JitsuService   *jitsu.Service
@@ -492,6 +450,10 @@ func (oa *OpenAPI) GetSystemConfiguration(ctx *gin.Context) {
 			OnlyAdminCanChangeUserEmail: oa.SystemConfig.SelfHosted,
 			Tag:                         oa.SystemConfig.Tag,
 			BuiltAt:                     oa.SystemConfig.BuiltAt,
+		}
+
+		if oa.SSOProvider != nil {
+			result.SSOAuthLink = oa.SSOProvider.AuthLink()
 		}
 
 		ctx.JSON(http.StatusOK, result)
