@@ -218,11 +218,9 @@ components:
       properties:
         _id: { type: string }
         _name: { type: string }
-        _planId:
-          type: string
-          nullable: true
+        _planId: { type: string }
         _requireSetup: { type: boolean }
-      required: [ '_id', '_name', '_planId' ]
+      required: [ '_id', '_name' ]
     SuggestedInfo:
       type: object
       properties:
@@ -245,17 +243,30 @@ components:
         _project:
           $ref: '#/components/schemas/ProjectInfo'
       required: [ '_uid', '_created', '_email' ]
+    ProjectInfoUpdate:
+      type: object
+      properties:
+        _id: { type: string }
+        _name: { type: string }
+        _planId:
+          type: string
+          x-go-type: null.String
+          nullable: true
+        _requireSetup: { type: boolean }
     UpdateUserInfoRequest:
       type: object
       properties:
         _emailOptout: { type: boolean }
-        _name: { type: string }
+        _name:
+          type: string
+          x-go-type: null.String
+          nullable: true
         _forcePasswordChange: { type: boolean }
         _onboarded: { type: boolean }
         _suggestedInfo:
           $ref: '#/components/schemas/SuggestedInfo'
         _project:
-          $ref: '#/components/schemas/ProjectInfo'
+          $ref: '#/components/schemas/ProjectInfoUpdate'
     LinkProjectRequest:
       type: object
       properties:

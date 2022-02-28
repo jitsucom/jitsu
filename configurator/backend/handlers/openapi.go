@@ -1114,10 +1114,10 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 		}
 
 		if userInfo, err := oa.Configurations.UpdateUserInfo(createdUser.ID, openapi.UpdateUserInfoRequest{
-			Name: req.Name,
-			Project: &openapi.ProjectInfo{
-				Id:           project.Id,
-				Name:         project.Name,
+			Name: common.NilOrString(req.Name),
+			Project: &openapi.ProjectInfoUpdate{
+				Id:           &project.Id,
+				Name:         &project.Name,
 				RequireSetup: project.RequiresSetup,
 			},
 		}); err != nil {
@@ -1189,7 +1189,7 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 	}
 
 	if userInfo, err := oa.Configurations.UpdateUserInfo(userID, openapi.UpdateUserInfoRequest{
-		Name:                req.Name,
+		Name:                common.NilOrString(req.Name),
 		ForcePasswordChange: req.ForcePasswordChange,
 	}); err != nil {
 		mw.BadRequest(ctx, "update user info", err)
