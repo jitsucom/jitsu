@@ -17,11 +17,21 @@ export class BackendUserService implements UserService {
   private backendApi: BackendApiClient
   private readonly storageService: ServerStorage
   private readonly smtpConfigured: boolean
+  private readonly ssoAuthLink: string
 
-  constructor(backendApi: BackendApiClient, storageService: ServerStorage, smtpConfigured: boolean) {
+  constructor(
+    backendApi: BackendApiClient,
+    storageService: ServerStorage,
+    smtpConfigured: boolean,
+    ssoAuthLink: string,
+    backendApiBase: string
+  ) {
     this.backendApi = backendApi
     this.storageService = storageService
     this.smtpConfigured = smtpConfigured
+    if (ssoAuthLink !== "") {
+      this.ssoAuthLink = `${ssoAuthLink}&redirect_uri=${encodeURI(backendApiBase)}/sso-auth-callback`
+    }
   }
 
   initiateGithubLogin(): Promise<string> {
@@ -285,6 +295,10 @@ export class BackendUserService implements UserService {
 
   getLoginFeatures(): LoginFeatures {
     return { oauth: false, password: true, signupEnabled: false }
+  }
+
+  getSSOAuthLink(): string {
+    return this.ssoAuthLink ?? ""
   }
 
   sendLoginLink(email: string): Promise<void> {

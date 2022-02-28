@@ -5,12 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/go-playground/validator/v10"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/bcrypt"
+	"os"
+	"strings"
+	"time"
 )
 
 const (
@@ -29,15 +33,32 @@ var (
 	ErrUnknownToken      = errors.New("Unknown token")
 )
 
-type Service struct {
-	authProvider Provider
+type SSOToken struct {
+	AccessToken  string `json:"access_token" redis:"access_token"`
+	RefreshToken string `json:"refresh_token" redis:"refresh_token"`
+	UserID       string `json:"user_id,omitempty" redis:"user_id"`
+	Provider     string `json:"provider,omitempty" redis:"provider"`
+}
 
+type SSOConfig struct {
+	Provider              string        `json:"provider" validate:"required"`
+	Tenant                string        `json:"tenant" validate:"required"`
+	Product               string        `json:"product" validate:"required"`
+	Host                  string        `json:"host" validate:"required"`
+	AccessTokenTTLSeconds time.Duration `json:"access_token_ttl_seconds" validate:"required"`
+}
+
+type Service struct {
+	authProvider          Provider
+	ssoAuthProvider       SSOProvider
 	configurationsStorage storages.ConfigurationsStorage
 }
 
 func NewService(ctx context.Context, vp *viper.Viper, storage storages.ConfigurationsStorage) (*Service, error) {
 	var authProvider Provider
+	var ssoAuthProvider SSOProvider
 	var err error
+
 	if vp.IsSet("auth.firebase.project_id") {
 		authProvider, err = NewFirebaseProvider(ctx, vp.GetString("auth.firebase.project_id"), vp.GetString("auth.firebase.credentials_file"), vp.GetString("auth.admin_domain"), vp.GetStringSlice("auth.admin_users"))
 		if err != nil {
@@ -63,11 +84,69 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 		if err != nil {
 			return nil, err
 		}
+
+		ssoAuthProvider = CreateSSOProvider(vp)
 	} else {
 		return nil, errors.New("Unknown 'auth' section type. Supported: firebase, redis")
 	}
 
-	return &Service{authProvider: authProvider, configurationsStorage: storage}, nil
+	return &Service{authProvider: authProvider, ssoAuthProvider: ssoAuthProvider, configurationsStorage: storage}, nil
+}
+
+func CreateSSOProvider(vp *viper.Viper) SSOProvider {
+	var ssoProvider SSOProvider
+	var err error
+
+	ssoConfig := &SSOConfig{}
+	envConfig := os.Getenv("SSO_CONFIG")
+
+	if envConfig == "" {
+		vpSSO := vp.Sub("sso")
+		if vpSSO == nil {
+			logging.Info("No SSO config provided, skipping initialize SSO Auth")
+			return nil
+		}
+
+		ssoConfig = &SSOConfig{
+			Provider:              vpSSO.GetString("provider"),
+			Tenant:                vpSSO.GetString("tenant"),
+			Product:               vpSSO.GetString("product"),
+			Host:                  vpSSO.GetString("host"),
+			AccessTokenTTLSeconds: vpSSO.GetDuration("access_token_ttl_seconds"),
+		}
+	} else {
+		err = json.Unmarshal([]byte(envConfig), ssoConfig)
+		if err != nil {
+			logging.Errorf("Can't unmarshal SSO_CONFIG from env variables: %v", err)
+			return nil
+		}
+	}
+
+	validate := validator.New()
+	err = validate.Struct(ssoConfig)
+	if err != nil {
+		logging.Errorf("Missed required SSO config params: %v", err)
+		return nil
+	}
+
+	ssoConfig.AccessTokenTTLSeconds *= time.Second
+
+	if ssoConfig.Provider == BoxyHQ {
+		ssoProvider, err = NewBoxyHQProvider(ssoConfig)
+		if err != nil {
+			logging.Error(err)
+			return nil
+		}
+		return ssoProvider
+	} else {
+		supportedProviders := []string{BoxyHQ}
+		logging.Errorf(
+			"Provider %s is not supported. Jitsu supports only: %s",
+			ssoConfig.Provider,
+			strings.Join(supportedProviders, ", "),
+		)
+		return nil
+	}
 }
 
 //Authenticate verify access token and return user id
@@ -158,7 +237,7 @@ func (s *Service) SignUp(email, password string) (*TokenDetails, error) {
 		return nil, err
 	}
 
-	return s.authProvider.CreateTokens(userID)
+	return s.authProvider.CreateTokens(CreateTokenParams{UserID: userID})
 }
 
 //SignIn check email and password and return TokenDetails with JWT access token and refresh token
@@ -173,7 +252,7 @@ func (s *Service) SignIn(email, password string) (*TokenDetails, error) {
 		return nil, ErrIncorrectPassword
 	}
 
-	return s.authProvider.CreateTokens(user.ID)
+	return s.authProvider.CreateTokens(CreateTokenParams{UserID: user.ID})
 }
 
 //SignOut delete token from authorization storage
@@ -269,7 +348,7 @@ func (s *Service) ChangePassword(resetID *string, clientAuthToken, newPassword s
 		}
 	}
 
-	return s.authProvider.CreateTokens(user.ID)
+	return s.authProvider.CreateTokens(CreateTokenParams{UserID: user.ID})
 }
 
 func (s *Service) Refresh(refreshToken string) (*TokenDetails, error) {
@@ -280,8 +359,64 @@ func (s *Service) UsersExist() (bool, error) {
 	return s.authProvider.UsersExist()
 }
 
+func (s *Service) GetUserByEmail(email string) (*User, error) {
+	return s.authProvider.GetUserByEmail(email)
+}
+
 func (s *Service) GetAuthorizationType() string {
 	return s.authProvider.Type()
+}
+
+func (s *Service) SSOAuthenticate(code string) (*TokenDetails, error) {
+	if s.authProvider.Type() != RedisType {
+		return nil, fmt.Errorf("SSO Auth is not supported for %s auth provider", s.authProvider.Type())
+	}
+
+	if s.ssoAuthProvider == nil {
+		return nil, errors.New("SSO Auth is not configured")
+	}
+
+	ssoUser, err := s.ssoAuthProvider.GetUser(code)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := s.GetUserByEmail(ssoUser.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	accessTokenTTL := s.ssoAuthProvider.AccessTokenTTL()
+	refreshTokenTTL := time.Second
+
+	td, err := s.authProvider.CreateTokens(CreateTokenParams{
+		UserID:          user.ID,
+		AccessTokenTTL:  &accessTokenTTL,
+		RefreshTokenTTL: &refreshTokenTTL,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ssoToken := SSOToken{
+		AccessToken: ssoUser.AccessToken,
+		UserID:      ssoUser.ID,
+		Provider:    s.ssoAuthProvider.Name(),
+	}
+
+	err = s.authProvider.SaveSSOUserToken(user.ID, &ssoToken)
+	if err != nil {
+		return nil, err
+	}
+
+	return td, nil
+}
+
+func (s *Service) GetSSOAuthorizationLink() string {
+	if s.ssoAuthProvider == nil {
+		return ""
+	}
+	return s.ssoAuthProvider.AuthLink()
 }
 
 func (s *Service) Close() error {

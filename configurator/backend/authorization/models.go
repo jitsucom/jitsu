@@ -26,6 +26,13 @@ type TokenEntity struct {
 	RefreshToken string `json:"refresh_token,omitempty" redis:"refresh_token"`
 }
 
+type SSOTokenEntity struct {
+	UserID      string `json:"user_id,omitempty" redis:"user_id"`
+	ExpiredAt   string `json:"expired_at,omitempty" redis:"expired_at"`
+	SSOProvider string `json:"sso_provider,omitempty" redis:"sso_provider"`
+	AccessToken string `json:"access_token,omitempty" redis:"access_token"`
+}
+
 //TokenDetails is a dto for both access and refresh tokens
 type TokenDetails struct {
 	AccessTokenEntity  *TokenEntity
