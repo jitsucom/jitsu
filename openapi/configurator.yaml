@@ -257,10 +257,7 @@ components:
       type: object
       properties:
         _emailOptout: { type: boolean }
-        _name:
-          type: string
-          x-go-type: null.String
-          nullable: true
+        _name: { type: string }
         _forcePasswordChange: { type: boolean }
         _onboarded: { type: boolean }
         _suggestedInfo:
