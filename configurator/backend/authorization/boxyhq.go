@@ -19,6 +19,7 @@ const (
 type SSOProvider interface {
 	GetUser(code string) (*UserEntity, error)
 	AuthLink() string
+	GetConfiguration() *SSOConfig
 	AccessTokenTTL() time.Duration
 	Name() string
 }
@@ -103,6 +104,10 @@ func (bp *BoxyHQProvider) AuthLink() string {
 	)
 
 	return authLink
+}
+
+func (bp *BoxyHQProvider) GetConfiguration() *SSOConfig {
+	return bp.ssoConfig
 }
 
 func (bp *BoxyHQProvider) Name() string {
