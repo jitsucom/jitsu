@@ -883,7 +883,7 @@ func (cs *ConfigurationsService) GetProjectUsers(projectID string) ([]string, er
 }
 
 func (cs *ConfigurationsService) Create(value CollectionItem, patch interface{}) error {
-	if _, err := cs.Patch(random.String(12), value, patch, false); err != nil {
+	if _, err := cs.Patch(random.String(22), value, patch, false); err != nil {
 		return errors.Wrapf(err, "patch %s", value.Collection())
 	} else {
 		return nil
