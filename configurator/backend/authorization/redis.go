@@ -419,7 +419,7 @@ func (r *Redis) ChangePassword(ctx context.Context, accessToken, newPassword str
 		return nil, errors.Wrap(err, "change password")
 	}
 
-	tokenPair, err := r.generateTokenPair(conn, token.UserID, tokenPairTTL{})
+	tokenPair, err := r.generateTokenPair(conn, token.UserID, defaultTokenPairTTL)
 	if err != nil {
 		return nil, errors.Wrap(err, "generate token pair")
 	}
