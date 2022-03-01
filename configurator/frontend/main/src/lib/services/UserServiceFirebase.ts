@@ -213,7 +213,7 @@ export class FirebaseUserService implements UserService {
   }
 
   getSSOAuthLink(): string {
-    throw new Error("Not Available")
+    return ""
   }
 
   sendLoginLink(email: string): Promise<void> {
