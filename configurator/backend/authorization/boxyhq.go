@@ -2,13 +2,12 @@ package authorization
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/carlmjohnson/requests"
 	"github.com/jitsucom/jitsu/configurator/handlers"
 	"github.com/jitsucom/jitsu/server/random"
 	"github.com/pkg/errors"
@@ -47,40 +46,20 @@ func (p *BoxyHQ) GetSSOSession(ctx context.Context, code string) (*handlers.SSOS
 		return nil, errors.Wrap(err, "get sso token")
 	}
 
-	userInfo, err := p.getUserInfo(ctx, conf)
-	if err != nil {
-		return nil, errors.Wrap(err, "get user info from boxyhq")
+	var info boxyHQUserInfo
+	if err := requests.URL(p.Config.Host + "/api/oauth/userinfo").
+		Client(conf.Client(ctx)).
+		CheckStatus(http.StatusOK).
+		ToJSON(&info).
+		Fetch(ctx); err != nil {
+		return nil, errors.Wrap(err, "get user info")
 	}
 
 	return &handlers.SSOSession{
-		UserID:      userInfo.ID,
-		Email:       userInfo.Email,
+		UserID:      info.ID,
+		Email:       info.Email,
 		AccessToken: token.AccessToken,
 	}, nil
-}
-
-func (p *BoxyHQ) getUserInfo(ctx context.Context, conf *clientcredentials.Config) (*boxyHQUserInfo, error) {
-	resp, err := conf.Client(ctx).Get(p.Config.Host + "/api/oauth/userinfo")
-	switch {
-	case err != nil:
-		return nil, err
-	case resp.StatusCode != http.StatusOK:
-		return nil, errors.Errorf("unexpected status code from boxyhq: %d", resp.StatusCode)
-	}
-
-	defer closeQuietly(resp.Body)
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, errors.Wrap(err, "read boxyhq user info response")
-	}
-
-	var info boxyHQUserInfo
-	if err := json.Unmarshal(body, &info); err != nil {
-		return nil, errors.Wrap(err, "unmarshal boxyhq user info")
-	}
-
-	return &info, nil
 }
 
 func (p *BoxyHQ) AuthLink() string {

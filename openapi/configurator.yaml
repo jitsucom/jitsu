@@ -257,10 +257,7 @@ components:
       type: object
       properties:
         _emailOptout: { type: boolean }
-        _name:
-          type: string
-          x-go-type: null.String
-          nullable: true
+        _name: { type: string }
         _forcePasswordChange: { type: boolean }
         _onboarded: { type: boolean }
         _suggestedInfo:
@@ -333,7 +330,9 @@ components:
                 $ref: "#/components/schemas/User"
               project:
                 $ref: "#/components/schemas/Project"
-              resetId: { type: string }
+              resetId:
+                type: string
+                description: The reset ID may further be submitted to /api/v1/users/password/change in order to set user password.
             required: [ user, project, resetId ]
     LinkProjectResponse:
       description: "List of users with access to given project"
