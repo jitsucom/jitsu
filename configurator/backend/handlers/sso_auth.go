@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/authorization"
+	"github.com/spf13/viper"
 	"net/http"
 )
 
@@ -39,18 +40,15 @@ func (oh *SSOAuthHandler) Handler(c *gin.Context) {
 		return
 	}
 
-	crp := oh.authService.GetConfiguratorRootPath()
-	if crp == "" {
-		crp = "/"
-	}
+	uiBaseUrl := viper.GetString("UI_BASE_URL")
 
 	td, err := oh.authService.SSOAuthenticate(code)
 	if err != nil {
-		c.String(http.StatusOK, errorTmpl, err, crp)
+		c.String(http.StatusOK, errorTmpl, err, uiBaseUrl)
 		return
 	}
 
-	c.String(http.StatusOK, successTmpl, td.AccessTokenEntity.AccessToken, td.RefreshTokenEntity.RefreshToken, crp)
+	c.String(http.StatusOK, successTmpl, td.AccessTokenEntity.AccessToken, td.RefreshTokenEntity.RefreshToken, uiBaseUrl)
 
 	return
 }
