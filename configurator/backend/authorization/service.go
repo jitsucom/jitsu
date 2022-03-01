@@ -46,7 +46,6 @@ type SSOConfig struct {
 	Product               string        `json:"product" validate:"required"`
 	Host                  string        `json:"host" validate:"required"`
 	AccessTokenTTLSeconds time.Duration `json:"access_token_ttl_seconds" validate:"required"`
-	ConfiguratorRootPath  string        `json:"configurator_root_path"`
 }
 
 type Service struct {
@@ -99,7 +98,7 @@ func CreateSSOProvider(vp *viper.Viper) SSOProvider {
 	var err error
 
 	ssoConfig := &SSOConfig{}
-	envConfig := os.Getenv("SSO_CONFIG")
+	envConfig := os.Getenv("JITSU_SSO_CONFIG")
 
 	if envConfig == "" {
 		vpSSO := vp.Sub("sso")
@@ -114,12 +113,11 @@ func CreateSSOProvider(vp *viper.Viper) SSOProvider {
 			Product:               vpSSO.GetString("product"),
 			Host:                  vpSSO.GetString("host"),
 			AccessTokenTTLSeconds: vpSSO.GetDuration("access_token_ttl_seconds"),
-			ConfiguratorRootPath:  vpSSO.GetString("configurator_root_path"),
 		}
 	} else {
 		err = json.Unmarshal([]byte(envConfig), ssoConfig)
 		if err != nil {
-			logging.Errorf("Can't unmarshal SSO_CONFIG from env variables: %v", err)
+			logging.Errorf("Can't unmarshal JITSU_SSO_CONFIG from env variables: %v", err)
 			return nil
 		}
 	}
@@ -419,13 +417,6 @@ func (s *Service) GetSSOAuthorizationLink() string {
 		return ""
 	}
 	return s.ssoAuthProvider.AuthLink()
-}
-
-func (s *Service) GetConfiguratorRootPath() string {
-	if s.ssoAuthProvider == nil {
-		return ""
-	}
-	return s.ssoAuthProvider.GetConfiguration().ConfiguratorRootPath
 }
 
 func (s *Service) Close() error {

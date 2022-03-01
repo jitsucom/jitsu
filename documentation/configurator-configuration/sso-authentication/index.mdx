@@ -24,10 +24,10 @@ sso:
   configurator_root_path: '/configurator'
 ```
 
-or you can configure it with env variable SSO_CONFIG:
+or you can configure it with env variable `JITSU_SSO_CONFIG`:
 
 ```
-export SSO_CONFIG='{"provider": "boxyhq", "host": "https://boxyhq.com", "tenant": "boxyhq.com", "product": "jitsu", "access_token_ttl_seconds": 86400, "configurator_root_path": "/configurator"}'
+export JITSU_SSO_CONFIG='{"provider": "boxyhq", "host": "https://boxyhq.com", "tenant": "boxyhq.com", "product": "jitsu", "access_token_ttl_seconds": 86400, "configurator_root_path": "/configurator"}'
 ```
 
 After you have configured the SSO auth, the "Continue with SSO" button will appear on the authorization page.
