@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -76,50 +75,9 @@ type SystemConfiguration struct {
 	BuiltAt     string
 }
 
-var (
-	ErrIsLocal          = errors.New("supported only for cloud authorization")
-	ErrIsCloud          = errors.New("supported only for local authorization")
-	ErrUserExists       = errors.New("user exists")
-	errSSLNotConfigured = errors.New("ssl isn't configured in Jitsu configuration")
-)
-
-type UserID string
-
-type Authorizator interface {
-	AuthorizationType() string
-	GetUserEmail(ctx context.Context, userID string) (string, error)
-	HasUsers(ctx context.Context) (bool, error)
-	AutoSignUp(ctx context.Context, email string, callback *string) (userID string, err error)
-	Local() (LocalAuthorizator, error)
-	Cloud() (CloudAuthorizator, error)
-}
-
-type CreatedUser struct {
-	ID      string
-	ResetID string
-}
-
-type LocalAuthorizator interface {
-	SignUp(ctx context.Context, email, password string) (*openapi.TokensResponse, error)
-	SignIn(ctx context.Context, email, password string) (*openapi.TokensResponse, error)
-	SignOut(ctx context.Context, accessToken string) error
-	RefreshToken(ctx context.Context, refreshToken string) (*openapi.TokensResponse, error)
-	SendResetPasswordLink(ctx context.Context, email, callback string) error
-	ResetPassword(ctx context.Context, resetID, newPassword string) (*openapi.TokensResponse, error)
-	ChangePassword(ctx context.Context, accessToken, newPassword string) (*openapi.TokensResponse, error)
-	ChangeEmail(ctx context.Context, oldEmail, newEmail string) (userID string, err error)
-	ListUsers(ctx context.Context) ([]openapi.UserBasicInfo, error)
-	CreateUser(ctx context.Context, email string) (*CreatedUser, error)
-	DeleteUser(ctx context.Context, userID string) error
-	UpdatePassword(ctx context.Context, userID, password string) error
-}
-
-type CloudAuthorizator interface {
-	SignInAs(ctx context.Context, email string) (*openapi.TokenResponse, error)
-}
-
 type OpenAPI struct {
 	Authorizator   Authorizator
+	SSOProvider    SSOProvider
 	Configurations *storages.ConfigurationsService
 	SystemConfig   *SystemConfiguration
 	JitsuService   *jitsu.Service
@@ -492,6 +450,10 @@ func (oa *OpenAPI) GetSystemConfiguration(ctx *gin.Context) {
 			OnlyAdminCanChangeUserEmail: oa.SystemConfig.SelfHosted,
 			Tag:                         oa.SystemConfig.Tag,
 			BuiltAt:                     oa.SystemConfig.BuiltAt,
+		}
+
+		if oa.SSOProvider != nil {
+			result.SSOAuthLink = oa.SSOProvider.AuthLink()
 		}
 
 		ctx.JSON(http.StatusOK, result)
@@ -1102,51 +1064,63 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 		return
 	}
 
-	var req openapi.CreateUserRequest
-	if authorizator, err := oa.Authorizator.Local(); err != nil {
+	authorizator, err := oa.Authorizator.Local()
+	if err != nil {
 		mw.Unsupported(ctx, err)
-	} else if err := ctx.BindJSON(&req); err != nil {
+		return
+	}
+
+	var req openapi.CreateUserRequest
+	if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
+		return
 	} else if req.ProjectId == nil && req.ProjectName == nil {
 		mw.RequiredField(ctx, "either projectId or projectName")
-	} else if createdUser, err := authorizator.CreateUser(ctx, req.Email); err != nil {
-		mw.BadRequest(ctx, "failed to create user", err)
-	} else {
-		var project storages.Project
-		if req.ProjectId != nil {
-			if err := oa.Configurations.Load(*req.ProjectId, &project); err != nil {
-				mw.BadRequest(ctx, "load project by id", err)
-				return
-			}
-		} else if err := oa.Configurations.Create(&project, openapi.CreateProjectRequest{Name: *req.ProjectName}); err != nil {
-			mw.BadRequest(ctx, "create new project with name", err)
+		return
+	}
+
+	var project storages.Project
+	if req.ProjectId != nil {
+		if err := oa.Configurations.Load(*req.ProjectId, &project); err != nil {
+			mw.BadRequest(ctx, "load project by id", err)
 			return
 		}
-
-		if userInfo, err := oa.Configurations.UpdateUserInfo(createdUser.ID, openapi.UpdateUserInfoRequest{
-			Name: common.NilOrString(req.Name),
-			Project: &openapi.ProjectInfoUpdate{
-				Id:           &project.Id,
-				Name:         &project.Name,
-				RequireSetup: project.RequiresSetup,
-			},
-		}); err != nil {
-			mw.BadRequest(ctx, "update user info", err)
-		} else {
-			ctx.JSON(http.StatusOK, openapi.CreateUserResponse{
-				User: openapi.User{
-					UserBasicInfo: openapi.UserBasicInfo{
-						Id:    createdUser.ID,
-						Email: req.Email,
-					},
-					Created: userInfo.Created,
-					Name:    req.Name,
-				},
-				Project: project.Project,
-				ResetId: createdUser.ResetID,
-			})
-		}
+	} else if err := oa.Configurations.Create(&project, openapi.CreateProjectRequest{Name: *req.ProjectName}); err != nil {
+		mw.BadRequest(ctx, "create new project with name", err)
+		return
 	}
+
+	createdUser, err := authorizator.CreateUser(ctx, req.Email)
+	if err != nil {
+		mw.BadRequest(ctx, "failed to create user", err)
+		return
+	}
+
+	userInfo, err := oa.Configurations.UpdateUserInfo(createdUser.ID, openapi.UpdateUserInfoRequest{
+		Name: common.NilOrString(req.Name),
+		Project: &openapi.ProjectInfoUpdate{
+			Id:           &project.Id,
+			Name:         &project.Name,
+			RequireSetup: project.RequiresSetup,
+		},
+	})
+	if err != nil {
+		mw.BadRequest(ctx, "update user info", err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, openapi.CreateUserResponse{
+		User: openapi.User{
+			UserBasicInfo: openapi.UserBasicInfo{
+				Id:    createdUser.ID,
+				Email: req.Email,
+			},
+			Created: userInfo.Created,
+			Name:    req.Name,
+		},
+		Project: project.Project,
+		ResetId: createdUser.ResetID,
+	})
 }
 
 func (oa *OpenAPI) DeleteUser(ctx *gin.Context, userID string) {
