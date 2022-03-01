@@ -198,7 +198,7 @@ func (oa *OpenAPI) EvaluateDestinationJSTransformationScript(ctx *gin.Context) {
 	if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
 		return
-	} else if field, ok := req.Get("field"); ok && fmt.Sprint(field) == "__transform" {
+	} else if field, ok := req.Get("field"); ok && fmt.Sprint(field) == "_transform" {
 		var wrapper struct {
 			Config *entities.Destination `json:"config"`
 		}
@@ -667,13 +667,11 @@ func (oa *OpenAPI) UserSignOut(ctx *gin.Context) {
 		return
 	}
 
-	if authorizator, err := oa.Authorizator.Local(); err != nil {
+	if token := mw.GetToken(ctx); ctx.IsAborted() {
+		return
+	} else if authorizator, err := oa.Authorizator.Local(); err != nil {
 		mw.Unsupported(ctx, err)
-	} else if authority, err := mw.GetAuthority(ctx); err != nil {
-		mw.Unauthorized(ctx, err)
-	} else if authority.IsAnonymous() {
-		mw.Forbidden(ctx, "user must be non-anonymous")
-	} else if err := authorizator.SignOut(ctx, authority.Token); err != nil {
+	} else if err := authorizator.SignOut(ctx, token); err != nil {
 		mw.BadRequest(ctx, "sign out failed", err)
 	} else {
 		mw.StatusOk(ctx)
