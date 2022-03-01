@@ -10,12 +10,12 @@ import (
 const (
 	errorTmpl = `<script>
 	  window.localStorage.setItem("sso_error", "SSO Auth error! %v")
-	  window.location.href = "/"
+	  window.location.href = "%s"
 	</script>`
 	successTmpl = `<script>
 	  window.localStorage.setItem("en_access", "%s")
 	  window.localStorage.setItem("en_refresh", "%s")
-	  window.location.href = "/"
+	  window.location.href = "%s"
 	</script>`
 )
 
@@ -39,13 +39,18 @@ func (oh *SSOAuthHandler) Handler(c *gin.Context) {
 		return
 	}
 
+	crp := oh.authService.GetConfiguratorRootPath()
+	if crp == "" {
+		crp = "/"
+	}
+
 	td, err := oh.authService.SSOAuthenticate(code)
 	if err != nil {
-		c.String(http.StatusOK, errorTmpl, err)
+		c.String(http.StatusOK, errorTmpl, err, crp)
 		return
 	}
 
-	c.String(http.StatusOK, successTmpl, td.AccessTokenEntity.AccessToken, td.RefreshTokenEntity.RefreshToken)
+	c.String(http.StatusOK, successTmpl, td.AccessTokenEntity.AccessToken, td.RefreshTokenEntity.RefreshToken, crp)
 
 	return
 }

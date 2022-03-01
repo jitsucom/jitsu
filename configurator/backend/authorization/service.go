@@ -46,6 +46,7 @@ type SSOConfig struct {
 	Product               string        `json:"product" validate:"required"`
 	Host                  string        `json:"host" validate:"required"`
 	AccessTokenTTLSeconds time.Duration `json:"access_token_ttl_seconds" validate:"required"`
+	ConfiguratorRootPath  string        `json:"configurator_root_path"`
 }
 
 type Service struct {
@@ -113,6 +114,7 @@ func CreateSSOProvider(vp *viper.Viper) SSOProvider {
 			Product:               vpSSO.GetString("product"),
 			Host:                  vpSSO.GetString("host"),
 			AccessTokenTTLSeconds: vpSSO.GetDuration("access_token_ttl_seconds"),
+			ConfiguratorRootPath:  vpSSO.GetString("configurator_root_path"),
 		}
 	} else {
 		err = json.Unmarshal([]byte(envConfig), ssoConfig)
@@ -417,6 +419,13 @@ func (s *Service) GetSSOAuthorizationLink() string {
 		return ""
 	}
 	return s.ssoAuthProvider.AuthLink()
+}
+
+func (s *Service) GetConfiguratorRootPath() string {
+	if s.ssoAuthProvider == nil {
+		return ""
+	}
+	return s.ssoAuthProvider.GetConfiguration().ConfiguratorRootPath
 }
 
 func (s *Service) Close() error {
