@@ -98,7 +98,7 @@ func CreateSSOProvider(vp *viper.Viper) SSOProvider {
 	var err error
 
 	ssoConfig := &SSOConfig{}
-	envConfig := os.Getenv("SSO_CONFIG")
+	envConfig := os.Getenv("JITSU_SSO_CONFIG")
 
 	if envConfig == "" {
 		vpSSO := vp.Sub("sso")
@@ -117,7 +117,7 @@ func CreateSSOProvider(vp *viper.Viper) SSOProvider {
 	} else {
 		err = json.Unmarshal([]byte(envConfig), ssoConfig)
 		if err != nil {
-			logging.Errorf("Can't unmarshal SSO_CONFIG from env variables: %v", err)
+			logging.Errorf("Can't unmarshal JITSU_SSO_CONFIG from env variables: %v", err)
 			return nil
 		}
 	}
