@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/configurator/handlers"
@@ -28,6 +29,7 @@ const (
 	userEmailField          = "email"
 	userHashedPasswordField = "hashed_password"
 	resetIDTTLSeconds       = 3600
+	ssoTokensKey            = "sso_tokens"
 )
 
 type RedisInit struct {
@@ -63,7 +65,7 @@ func (r *Redis) Local() (handlers.LocalAuthorizator, error) {
 }
 
 func (r *Redis) Cloud() (handlers.CloudAuthorizator, error) {
-	return nil, handlers.ErrIsLocal
+	return nil, errIsLocal
 }
 
 func (r *Redis) Close() error {
@@ -116,7 +118,7 @@ func (r *Redis) FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 	userIDs, err := redis.StringMap(conn.Do("HGETALL", usersIndexKey))
 	switch {
 	case errors.Is(err, redis.ErrNil):
-		return nil, ErrUserNotFound
+		return nil, errUserNotFound
 	case err != nil:
 		return nil, errors.Wrap(err, "find users")
 	}
@@ -124,7 +126,7 @@ func (r *Redis) FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 	var first *openapi.UserBasicInfo = nil
 	for email, userID := range userIDs {
 		if first != nil {
-			return nil, errors.New("more than 1 user found")
+			return nil, errMultipleUsers
 		} else {
 			first = &openapi.UserBasicInfo{
 				Id:    userID,
@@ -134,7 +136,7 @@ func (r *Redis) FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 	}
 
 	if first == nil {
-		return nil, ErrUserNotFound
+		return nil, errUserNotFound
 	}
 
 	return first, nil
@@ -143,8 +145,10 @@ func (r *Redis) FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 func (r *Redis) HasUsers(ctx context.Context) (bool, error) {
 	_, err := r.FindAnyUser(ctx)
 	switch {
-	case errors.Is(err, ErrUserNotFound):
+	case errors.Is(err, errUserNotFound):
 		return false, nil
+	case errors.Is(err, errMultipleUsers):
+		return true, nil
 	case err != nil:
 		return false, errors.Wrap(err, "find any user")
 	default:
@@ -190,7 +194,7 @@ func (r *Redis) RefreshToken(ctx context.Context, refreshToken string) (*openapi
 		return nil, errors.Wrap(err, "revoke token")
 	}
 
-	tokenPair, err := r.generateTokenPair(conn, token.UserID)
+	tokenPair, err := r.generateTokenPair(conn, token.UserID, defaultTokenPairTTL)
 	if err != nil {
 		return nil, errors.Wrap(err, "generate token pair")
 	}
@@ -272,7 +276,7 @@ func (r *Redis) SignIn(ctx context.Context, email, password string) (*openapi.To
 	switch {
 	case errors.Is(err, redis.ErrNil):
 		logging.SystemErrorf("User [%s] exists in [%s], but not under [%s]", userID, usersIndexKey, userKey(userID))
-		return nil, ErrUserNotFound
+		return nil, errUserNotFound
 	case err != nil:
 		return nil, errors.Wrap(err, "get user data by id")
 	}
@@ -281,9 +285,40 @@ func (r *Redis) SignIn(ctx context.Context, email, password string) (*openapi.To
 		return nil, errors.Wrap(err, "check password")
 	}
 
-	tokenPair, err := r.generateTokenPair(conn, userID)
+	tokenPair, err := r.generateTokenPair(conn, userID, defaultTokenPairTTL)
 	if err != nil {
 		return nil, errors.Wrap(err, "generate token pair")
+	}
+
+	return tokenPair, nil
+}
+
+func (r *Redis) SignInSSO(ctx context.Context, provider string, sso *handlers.SSOSession, ttl time.Duration) (*openapi.TokensResponse, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer closeQuietly(conn)
+
+	userID, err := r.getUserIDByEmail(conn, sso.Email)
+	if err != nil {
+		return nil, errors.Wrap(err, "get user id by email")
+	}
+
+	tokenPair, err := r.generateTokenPair(conn, userID, tokenPairTTL{access: ttl, refresh: time.Second})
+	if err != nil {
+		return nil, errors.Wrap(err, "generate token pair")
+	}
+
+	if ssoToken, err := json.Marshal(ssoRedisToken{
+		Provider:    provider,
+		UserID:      sso.UserID,
+		AccessToken: sso.AccessToken,
+	}); err != nil {
+		return nil, errors.Wrap(err, "marshal sso token")
+	} else if _, err := conn.Do("HSET", ssoTokensKey, userID, ssoToken); err != nil {
+		return nil, errors.Wrap(err, "persist sso token")
 	}
 
 	return tokenPair, nil
@@ -302,7 +337,7 @@ func (r *Redis) SignUp(ctx context.Context, email, password string) (*openapi.To
 		return nil, errors.Wrap(err, "create user")
 	}
 
-	tokenPair, err := r.generateTokenPair(conn, userID)
+	tokenPair, err := r.generateTokenPair(conn, userID, defaultTokenPairTTL)
 	if err != nil {
 		return nil, errors.Wrap(err, "generate token pair")
 	}
@@ -359,7 +394,7 @@ func (r *Redis) ResetPassword(ctx context.Context, resetID, newPassword string) 
 		return nil, errors.Wrap(err, "delete reset id")
 	}
 
-	tokenPair, err := r.generateTokenPair(conn, userID)
+	tokenPair, err := r.generateTokenPair(conn, userID, defaultTokenPairTTL)
 	if err != nil {
 		return nil, errors.Wrap(err, "generate token pair")
 	}
@@ -384,7 +419,7 @@ func (r *Redis) ChangePassword(ctx context.Context, accessToken, newPassword str
 		return nil, errors.Wrap(err, "change password")
 	}
 
-	tokenPair, err := r.generateTokenPair(conn, token.UserID)
+	tokenPair, err := r.generateTokenPair(conn, token.UserID, tokenPairTTL{})
 	if err != nil {
 		return nil, errors.Wrap(err, "generate token pair")
 	}
@@ -421,7 +456,7 @@ func (r *Redis) ChangeEmail(ctx context.Context, oldEmail, newEmail string) (str
 
 	_, err = r.getUserIDByEmail(conn, newEmail)
 	switch {
-	case errors.Is(err, ErrUserNotFound):
+	case errors.Is(err, errUserNotFound):
 	// is ok
 	case err != nil:
 		return "", errors.Wrapf(err, "verify new email not used")
@@ -525,7 +560,7 @@ func (r *Redis) getUserEmail(conn redis.Conn, userID string) (string, error) {
 	email, err := redis.String(conn.Do("HGET", userKey(userID), userEmailField))
 	switch {
 	case errors.Is(err, redis.ErrNil):
-		return "", ErrUserNotFound
+		return "", errUserNotFound
 	case err != nil:
 		return "", errors.Wrap(err, "get user email")
 	}
@@ -560,7 +595,7 @@ func (r *Redis) createUser(conn redis.Conn, email, password string, precondition
 	switch {
 	case err == nil:
 		return userID, ErrUserExists
-	case !errors.Is(err, ErrUserNotFound):
+	case !errors.Is(err, errUserNotFound):
 		return "", errors.Wrap(err, "get user by email")
 	}
 
@@ -606,10 +641,10 @@ func (r *Redis) changePassword(conn redis.Conn, userID, newPassword string) erro
 	return nil
 }
 
-func (r *Redis) generateTokenPair(conn redis.Conn, userID string) (*openapi.TokensResponse, error) {
+func (r *Redis) generateTokenPair(conn redis.Conn, userID string, ttl tokenPairTTL) (*openapi.TokensResponse, error) {
 	now := timestamp.Now()
-	access := newRedisToken(now, userID, accessTokenType)
-	refresh := newRedisToken(now, userID, refreshTokenType)
+	access := newRedisToken(now, userID, accessTokenType, ttl.access)
+	refresh := newRedisToken(now, userID, refreshTokenType, ttl.refresh)
 
 	// link tokens
 	access.RefreshToken, refresh.AccessToken = refresh.RefreshToken, access.AccessToken
@@ -633,7 +668,7 @@ func (r *Redis) getUserIDByEmail(conn redis.Conn, email string) (string, error) 
 	userID, err := redis.String(conn.Do("HGET", usersIndexKey, email))
 	switch {
 	case errors.Is(err, redis.ErrNil):
-		return "", ErrUserNotFound
+		return "", errUserNotFound
 	case err != nil:
 		return "", errors.Wrap(err, "find user by email")
 	}
@@ -700,13 +735,11 @@ func (r *Redis) revokeTokenType(conn redis.Conn, userID string, tokenType redisT
 func (r *Redis) revokeToken(conn redis.Conn, token *redisToken) error {
 	if err := r.deleteToken(conn, accessTokenType, token); err != nil {
 		return err
-	}
-
-	if err := r.deleteToken(conn, refreshTokenType, token); err != nil {
+	} else if err := r.deleteToken(conn, refreshTokenType, token); err != nil {
 		return err
+	} else {
+		return nil
 	}
-
-	return nil
 }
 
 func (r *Redis) deleteToken(conn redis.Conn, tokenType redisTokenType, token *redisToken) error {
@@ -743,10 +776,6 @@ func userKey(userID string) string {
 
 func resetKey(resetID string) string {
 	return "password_reset#" + resetID
-}
-
-func closeQuietly(conn redis.Conn) {
-	_ = conn.Close()
 }
 
 func always() error {
