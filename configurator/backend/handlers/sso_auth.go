@@ -40,7 +40,7 @@ func (oh *SSOAuthHandler) Handler(c *gin.Context) {
 		return
 	}
 
-	uiBaseUrl := viper.GetString("UI_BASE_URL")
+	uiBaseUrl := viper.GetString("ui.base_url")
 
 	td, err := oh.authService.SSOAuthenticate(code)
 	if err != nil {
