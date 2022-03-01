@@ -67,6 +67,7 @@ trap graceful_exit SIGQUIT SIGTERM SIGINT SIGHUP
 # ENV variables
 export JITSU_CONFIGURATOR_URL=http://localhost:7000
 export JITSU_SERVER_URL=http://localhost:8001
+export UI_BASE_URL=/configurator
 ## Backward compatibility (Joint image has enabled user recognition by default)
 export USER_RECOGNITION_ENABLED=${USER_RECOGNITION_ENABLED:=true}
 

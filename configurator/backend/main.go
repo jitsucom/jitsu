@@ -273,9 +273,9 @@ func main() {
 
 func newSSOProvider(vp *viper.Viper) handlers.SSOProvider {
 	var config authorization.SSOConfig
-	if data := os.Getenv("SSO_CONFIG"); data != "" {
+	if data := os.Getenv("JITSU_SSO_CONFIG"); data != "" {
 		if err := json.Unmarshal([]byte(data), &config); err != nil {
-			logging.Errorf("Can't unmarshal SSO_CONFIG from env variables: %v", err)
+			logging.Errorf("Can't unmarshal JITSU_SSO_CONFIG from env variables: %v", err)
 			return nil
 		}
 	} else if vp := vp.Sub("sso"); vp != nil {
@@ -381,6 +381,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 	ssoAuthHandler := &handlers.SSOAuthHandler{
 		Authorizator: authorizator,
 		Provider:     ssoProvider,
+		UIBaseURL:    viper.GetString("ui.base_url"),
 	}
 
 	router.GET("/api/v1/sso-auth-callback", ssoAuthHandler.Handle)

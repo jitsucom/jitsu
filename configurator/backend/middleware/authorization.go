@@ -38,7 +38,7 @@ func (a *Authority) Allow(projectID string) bool {
 
 type Authorizator interface {
 	Authorize(ctx context.Context, token string) (*Authority, error)
-	FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
+	FindOnlyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 }
 
 type AuthorizationInterceptor struct {
@@ -69,7 +69,7 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 			return
 		}
 
-		if userInfo, err := i.Authorizator.FindAnyUser(ctx); err != nil {
+		if userInfo, err := i.Authorizator.FindOnlyUser(ctx); err != nil {
 			invalidToken(ctx, errTokenMismatch)
 			return
 		} else {

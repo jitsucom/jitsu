@@ -99,7 +99,7 @@ func (fb *Firebase) Authorize(ctx context.Context, accessToken string) (*middlew
 	}, nil
 }
 
-func (fb *Firebase) FindAnyUser(_ context.Context) (*openapi.UserBasicInfo, error) {
+func (fb *Firebase) FindOnlyUser(_ context.Context) (*openapi.UserBasicInfo, error) {
 	return nil, nil
 }
 

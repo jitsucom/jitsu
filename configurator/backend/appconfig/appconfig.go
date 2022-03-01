@@ -24,6 +24,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.self_hosted", true)
 	viper.SetDefault("server.log.level", "info")
 	viper.SetDefault("server.allowed_domains", []string{"localhost", jcors.AppTopLevelDomainTemplate})
+	viper.SetDefault("ui.base_url", "/")
 
 	if containerized {
 		viper.SetDefault("server.log.path", "/home/configurator/data/logs")
