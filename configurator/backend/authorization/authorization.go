@@ -12,8 +12,11 @@ const (
 )
 
 var (
-	ErrUserExists   = handlers.ErrUserExists
-	ErrUserNotFound = errors.New("user not found")
+	ErrUserExists    = handlers.ErrUserExists
+	errIsLocal       = errors.New("supported only for cloud authorization")
+	errIsCloud       = errors.New("supported only for local authorization")
+	errUserNotFound  = errors.New("user not found")
+	errMultipleUsers = errors.New("multiple users found")
 )
 
 type MailSender interface {

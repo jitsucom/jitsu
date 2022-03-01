@@ -65,7 +65,7 @@ func (r *Redis) Local() (handlers.LocalAuthorizator, error) {
 }
 
 func (r *Redis) Cloud() (handlers.CloudAuthorizator, error) {
-	return nil, handlers.ErrIsLocal
+	return nil, errIsLocal
 }
 
 func (r *Redis) Close() error {
@@ -118,7 +118,7 @@ func (r *Redis) FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 	userIDs, err := redis.StringMap(conn.Do("HGETALL", usersIndexKey))
 	switch {
 	case errors.Is(err, redis.ErrNil):
-		return nil, ErrUserNotFound
+		return nil, errUserNotFound
 	case err != nil:
 		return nil, errors.Wrap(err, "find users")
 	}
@@ -126,7 +126,7 @@ func (r *Redis) FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 	var first *openapi.UserBasicInfo = nil
 	for email, userID := range userIDs {
 		if first != nil {
-			return nil, errors.New("more than 1 user found")
+			return nil, errMultipleUsers
 		} else {
 			first = &openapi.UserBasicInfo{
 				Id:    userID,
@@ -136,7 +136,7 @@ func (r *Redis) FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 	}
 
 	if first == nil {
-		return nil, ErrUserNotFound
+		return nil, errUserNotFound
 	}
 
 	return first, nil
@@ -145,8 +145,10 @@ func (r *Redis) FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 func (r *Redis) HasUsers(ctx context.Context) (bool, error) {
 	_, err := r.FindAnyUser(ctx)
 	switch {
-	case errors.Is(err, ErrUserNotFound):
+	case errors.Is(err, errUserNotFound):
 		return false, nil
+	case errors.Is(err, errMultipleUsers):
+		return true, nil
 	case err != nil:
 		return false, errors.Wrap(err, "find any user")
 	default:
@@ -274,7 +276,7 @@ func (r *Redis) SignIn(ctx context.Context, email, password string) (*openapi.To
 	switch {
 	case errors.Is(err, redis.ErrNil):
 		logging.SystemErrorf("User [%s] exists in [%s], but not under [%s]", userID, usersIndexKey, userKey(userID))
-		return nil, ErrUserNotFound
+		return nil, errUserNotFound
 	case err != nil:
 		return nil, errors.Wrap(err, "get user data by id")
 	}
@@ -454,7 +456,7 @@ func (r *Redis) ChangeEmail(ctx context.Context, oldEmail, newEmail string) (str
 
 	_, err = r.getUserIDByEmail(conn, newEmail)
 	switch {
-	case errors.Is(err, ErrUserNotFound):
+	case errors.Is(err, errUserNotFound):
 	// is ok
 	case err != nil:
 		return "", errors.Wrapf(err, "verify new email not used")
@@ -558,7 +560,7 @@ func (r *Redis) getUserEmail(conn redis.Conn, userID string) (string, error) {
 	email, err := redis.String(conn.Do("HGET", userKey(userID), userEmailField))
 	switch {
 	case errors.Is(err, redis.ErrNil):
-		return "", ErrUserNotFound
+		return "", errUserNotFound
 	case err != nil:
 		return "", errors.Wrap(err, "get user email")
 	}
@@ -593,7 +595,7 @@ func (r *Redis) createUser(conn redis.Conn, email, password string, precondition
 	switch {
 	case err == nil:
 		return userID, ErrUserExists
-	case !errors.Is(err, ErrUserNotFound):
+	case !errors.Is(err, errUserNotFound):
 		return "", errors.Wrap(err, "get user by email")
 	}
 
@@ -666,7 +668,7 @@ func (r *Redis) getUserIDByEmail(conn redis.Conn, email string) (string, error) 
 	userID, err := redis.String(conn.Do("HGET", usersIndexKey, email))
 	switch {
 	case errors.Is(err, redis.ErrNil):
-		return "", ErrUserNotFound
+		return "", errUserNotFound
 	case err != nil:
 		return "", errors.Wrap(err, "find user by email")
 	}

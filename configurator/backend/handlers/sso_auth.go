@@ -32,11 +32,11 @@ func (h *SSOAuthHandler) Handle(ctx *gin.Context) {
 	ctx.Header("content-type", "text/html")
 	if provider := h.Provider; provider == nil {
 		ctx.String(http.StatusOK, errorTmpl, errors.New("sso is not configured"))
+	} else if authorizator, err := h.Authorizator.Local(); err != nil {
+		ctx.String(http.StatusOK, errorTmpl, err)
 	} else if code := ctx.Query("code"); code == "" {
 		ctx.String(http.StatusOK, errorTmpl, errors.New("missed required query param: code"))
-	} else if session, err := provider.GetUser(ctx, code); err != nil {
-		ctx.String(http.StatusOK, errorTmpl, err)
-	} else if authorizator, err := h.Authorizator.Local(); err != nil {
+	} else if session, err := provider.GetSSOSession(ctx, code); err != nil {
 		ctx.String(http.StatusOK, errorTmpl, err)
 	} else if tokenPair, err := authorizator.SignInSSO(ctx, provider.Name(), session, provider.AccessTokenTTL()); err != nil {
 		ctx.String(http.StatusOK, errorTmpl, err)

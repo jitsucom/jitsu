@@ -33,20 +33,25 @@ type Firebase struct {
 
 func NewFirebase(ctx context.Context, init FirebaseInit) (*Firebase, error) {
 	logging.Infof("Initializing firebase authorization storage..")
-	if app, err := firebase.NewApp(ctx,
+
+	app, err := firebase.NewApp(ctx,
 		&firebase.Config{ProjectID: init.ProjectID},
-		option.WithCredentialsFile(init.CredentialsFile)); err != nil {
+		option.WithCredentialsFile(init.CredentialsFile))
+	if err != nil {
 		return nil, errors.Wrap(err, "init firebase app")
-	} else if authClient, err := app.Auth(ctx); err != nil {
-		return nil, errors.Wrap(err, "init firebase auth client")
-	} else {
-		return &Firebase{
-			adminDomain: init.AdminDomain,
-			adminEmails: common.StringSetFrom(init.AdminEmails),
-			authClient:  authClient,
-			mailSender:  init.MailSender,
-		}, nil
 	}
+
+	authClient, err := app.Auth(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "init firebase auth client")
+	}
+
+	return &Firebase{
+		adminDomain: init.AdminDomain,
+		adminEmails: common.StringSetFrom(init.AdminEmails),
+		authClient:  authClient,
+		mailSender:  init.MailSender,
+	}, nil
 }
 
 func (fb *Firebase) AuthorizationType() string {
@@ -54,40 +59,44 @@ func (fb *Firebase) AuthorizationType() string {
 }
 
 func (fb *Firebase) Local() (handlers.LocalAuthorizator, error) {
-	return nil, handlers.ErrIsCloud
+	return nil, errIsCloud
 }
 
 func (fb *Firebase) Cloud() (handlers.CloudAuthorizator, error) {
 	return fb, nil
 }
 
-func (fb *Firebase) Authorize(ctx context.Context, token string) (*middleware.Authority, error) {
-	if resp, err := fb.authClient.VerifyIDToken(ctx, token); err != nil {
+func (fb *Firebase) Authorize(ctx context.Context, accessToken string) (*middleware.Authority, error) {
+	token, err := fb.authClient.VerifyIDToken(ctx, accessToken)
+	if err != nil {
 		return nil, errors.Wrap(err, "verify ID token")
-	} else if user, err := fb.authClient.GetUser(ctx, resp.UID); err != nil {
-		return nil, errors.Wrap(err, "get user")
-	} else {
-		var isAdmin bool
-		if _, ok := fb.adminEmails[user.Email]; ok {
-			isAdmin = true
-		} else if email := strings.Split(user.Email, "@"); len(email) != 2 {
-			// nope
-		} else if domain := email[1]; domain != fb.adminDomain {
-			// nope
-		} else if !isProvidedByGoogle(user.ProviderUserInfo) {
-			// nope
-		} else {
-			isAdmin = true
-		}
-
-		return &middleware.Authority{
-			UserInfo: &openapi.UserBasicInfo{
-				Id:    user.UID,
-				Email: user.Email,
-			},
-			IsAdmin: isAdmin,
-		}, nil
 	}
+
+	user, err := fb.authClient.GetUser(ctx, token.UID)
+	if err != nil {
+		return nil, errors.Wrap(err, "get user")
+	}
+
+	var isAdmin bool
+	if _, ok := fb.adminEmails[user.Email]; ok {
+		isAdmin = true
+	} else if email := strings.Split(user.Email, "@"); len(email) != 2 {
+		// nope
+	} else if domain := email[1]; domain != fb.adminDomain {
+		// nope
+	} else if !isProvidedByGoogle(user.ProviderUserInfo) {
+		// nope
+	} else {
+		isAdmin = true
+	}
+
+	return &middleware.Authority{
+		UserInfo: &openapi.UserBasicInfo{
+			Id:    user.UID,
+			Email: user.Email,
+		},
+		IsAdmin: isAdmin,
+	}, nil
 }
 
 func (fb *Firebase) FindAnyUser(_ context.Context) (*openapi.UserBasicInfo, error) {
@@ -107,34 +116,51 @@ func (fb *Firebase) GetUserEmail(ctx context.Context, userID string) (string, er
 }
 
 func (fb *Firebase) AutoSignUp(ctx context.Context, email string, _ *string) (string, error) {
-	req := new(auth.UserToCreate).
+	user, err := fb.authClient.GetUserByEmail(ctx, email)
+	switch {
+	case err != nil && !strings.Contains(err.Error(), "no user exists"):
+		return "", errors.Wrap(err, "get user by email")
+	case err == nil:
+		return user.UID, ErrUserExists
+	}
+
+	if !fb.mailSender.IsConfigured() {
+		return "", errMailServiceNotConfigured
+	}
+
+	userToCreate := new(auth.UserToCreate).
 		Email(email).
 		Password(uuid.NewV4().String())
-	if resp, err := fb.authClient.GetUserByEmail(ctx, email); err != nil && !strings.Contains(err.Error(), "no user exists") {
-		return "", errors.Wrap(err, "get user by email")
-	} else if err == nil {
-		return resp.UID, ErrUserExists
-	} else if !fb.mailSender.IsConfigured() {
-		return "", errMailServiceNotConfigured
-	} else if resp, err := fb.authClient.CreateUser(ctx, req); err != nil {
+
+	createdUser, err := fb.authClient.CreateUser(ctx, userToCreate)
+	if err != nil {
 		return "", errors.Wrap(err, "create user")
-	} else if link, err := fb.authClient.PasswordResetLink(ctx, email); err != nil {
-		return "", errors.Wrap(err, "password reset link")
-	} else if err := fb.mailSender.SendAccountCreated(email, link); err != nil {
-		return "", errors.Wrap(err, "send reset password")
-	} else {
-		return resp.UID, nil
 	}
+
+	resetLink, err := fb.authClient.PasswordResetLink(ctx, email)
+	if err != nil {
+		return "", errors.Wrap(err, "password reset link")
+	}
+
+	if err := fb.mailSender.SendAccountCreated(email, resetLink); err != nil {
+		return "", errors.Wrap(err, "send reset password")
+	}
+
+	return createdUser.UID, nil
 }
 
 func (fb *Firebase) SignInAs(ctx context.Context, email string) (*openapi.TokenResponse, error) {
-	if resp, err := fb.authClient.GetUserByEmail(ctx, email); err != nil {
+	user, err := fb.authClient.GetUserByEmail(ctx, email)
+	if err != nil {
 		return nil, errors.Wrap(err, "get user by email")
-	} else if token, err := fb.authClient.CustomToken(ctx, resp.UID); err != nil {
-		return nil, errors.Wrap(err, "custom token")
-	} else {
-		return &openapi.TokenResponse{Token: token}, nil
 	}
+
+	token, err := fb.authClient.CustomToken(ctx, user.UID)
+	if err != nil {
+		return nil, errors.Wrap(err, "custom token")
+	}
+
+	return &openapi.TokenResponse{Token: token}, nil
 }
 
 func isProvidedByGoogle(info []*auth.UserInfo) bool {
