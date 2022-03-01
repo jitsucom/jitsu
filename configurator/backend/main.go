@@ -217,6 +217,7 @@ func main() {
 	}
 	appconfig.Instance.ScheduleClosing(authorizator)
 	ssoProvider := newSSOProvider(viper.GetViper())
+	appconfig.Instance.ScheduleClosing(ssoProvider)
 
 	//** Jitsu server configuration **
 	jitsuConfig := &jitsu.Config{

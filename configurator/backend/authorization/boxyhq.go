@@ -28,7 +28,7 @@ func (p *BoxyHQ) AccessTokenTTL() time.Duration {
 	return time.Duration(p.Config.AccessTokenTTLSeconds) * time.Second
 }
 
-func (p *BoxyHQ) GetUser(ctx context.Context, code string) (*handlers.SSOSession, error) {
+func (p *BoxyHQ) GetSSOSession(ctx context.Context, code string) (*handlers.SSOSession, error) {
 	conf := &clientcredentials.Config{
 		ClientID:     "dummy",
 		ClientSecret: "dummy",

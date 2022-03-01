@@ -9,8 +9,6 @@ import (
 )
 
 var (
-	ErrIsLocal          = errors.New("supported only for cloud authorization")
-	ErrIsCloud          = errors.New("supported only for local authorization")
 	ErrUserExists       = errors.New("user exists")
 	errSSLNotConfigured = errors.New("ssl isn't configured in Jitsu configuration")
 )
@@ -58,6 +56,6 @@ type CloudAuthorizator interface {
 type SSOProvider interface {
 	Name() string
 	AccessTokenTTL() time.Duration
-	GetUser(ctx context.Context, code string) (*SSOSession, error)
+	GetSSOSession(ctx context.Context, code string) (*SSOSession, error)
 	AuthLink() string
 }

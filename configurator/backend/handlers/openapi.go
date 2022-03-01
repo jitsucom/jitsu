@@ -1064,51 +1064,63 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 		return
 	}
 
-	var req openapi.CreateUserRequest
-	if authorizator, err := oa.Authorizator.Local(); err != nil {
+	authorizator, err := oa.Authorizator.Local()
+	if err != nil {
 		mw.Unsupported(ctx, err)
-	} else if err := ctx.BindJSON(&req); err != nil {
+		return
+	}
+
+	var req openapi.CreateUserRequest
+	if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
+		return
 	} else if req.ProjectId == nil && req.ProjectName == nil {
 		mw.RequiredField(ctx, "either projectId or projectName")
-	} else if createdUser, err := authorizator.CreateUser(ctx, req.Email); err != nil {
-		mw.BadRequest(ctx, "failed to create user", err)
-	} else {
-		var project storages.Project
-		if req.ProjectId != nil {
-			if err := oa.Configurations.Load(*req.ProjectId, &project); err != nil {
-				mw.BadRequest(ctx, "load project by id", err)
-				return
-			}
-		} else if err := oa.Configurations.Create(&project, openapi.CreateProjectRequest{Name: *req.ProjectName}); err != nil {
-			mw.BadRequest(ctx, "create new project with name", err)
+		return
+	}
+
+	var project storages.Project
+	if req.ProjectId != nil {
+		if err := oa.Configurations.Load(*req.ProjectId, &project); err != nil {
+			mw.BadRequest(ctx, "load project by id", err)
 			return
 		}
-
-		if userInfo, err := oa.Configurations.UpdateUserInfo(createdUser.ID, openapi.UpdateUserInfoRequest{
-			Name: common.NilOrString(req.Name),
-			Project: &openapi.ProjectInfoUpdate{
-				Id:           &project.Id,
-				Name:         &project.Name,
-				RequireSetup: project.RequiresSetup,
-			},
-		}); err != nil {
-			mw.BadRequest(ctx, "update user info", err)
-		} else {
-			ctx.JSON(http.StatusOK, openapi.CreateUserResponse{
-				User: openapi.User{
-					UserBasicInfo: openapi.UserBasicInfo{
-						Id:    createdUser.ID,
-						Email: req.Email,
-					},
-					Created: userInfo.Created,
-					Name:    req.Name,
-				},
-				Project: project.Project,
-				ResetId: createdUser.ResetID,
-			})
-		}
+	} else if err := oa.Configurations.Create(&project, openapi.CreateProjectRequest{Name: *req.ProjectName}); err != nil {
+		mw.BadRequest(ctx, "create new project with name", err)
+		return
 	}
+
+	createdUser, err := authorizator.CreateUser(ctx, req.Email)
+	if err != nil {
+		mw.BadRequest(ctx, "failed to create user", err)
+		return
+	}
+
+	userInfo, err := oa.Configurations.UpdateUserInfo(createdUser.ID, openapi.UpdateUserInfoRequest{
+		Name: common.NilOrString(req.Name),
+		Project: &openapi.ProjectInfoUpdate{
+			Id:           &project.Id,
+			Name:         &project.Name,
+			RequireSetup: project.RequiresSetup,
+		},
+	})
+	if err != nil {
+		mw.BadRequest(ctx, "update user info", err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, openapi.CreateUserResponse{
+		User: openapi.User{
+			UserBasicInfo: openapi.UserBasicInfo{
+				Id:    createdUser.ID,
+				Email: req.Email,
+			},
+			Created: userInfo.Created,
+			Name:    req.Name,
+		},
+		Project: project.Project,
+		ResetId: createdUser.ResetID,
+	})
 }
 
 func (oa *OpenAPI) DeleteUser(ctx *gin.Context, userID string) {
