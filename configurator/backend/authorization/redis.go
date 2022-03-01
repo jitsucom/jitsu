@@ -107,7 +107,7 @@ func (r *Redis) Authorize(ctx context.Context, accessToken string) (*middleware.
 	}, nil
 }
 
-func (r *Redis) FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error) {
+func (r *Redis) FindOnlyUser(ctx context.Context) (*openapi.UserBasicInfo, error) {
 	conn, err := r.redisPool.GetContext(ctx)
 	if err != nil {
 		return nil, err
@@ -143,7 +143,7 @@ func (r *Redis) FindAnyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 }
 
 func (r *Redis) HasUsers(ctx context.Context) (bool, error) {
-	_, err := r.FindAnyUser(ctx)
+	_, err := r.FindOnlyUser(ctx)
 	switch {
 	case errors.Is(err, errUserNotFound):
 		return false, nil
