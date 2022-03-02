@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/gomodule/redigo/redis"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 )
@@ -53,18 +52,18 @@ func (multiProjectSupport) Run(conn redis.Conn) error {
 					return errors.Wrapf(err, "unmarshal project settings for %s", project["id"])
 				}
 
-				// update project (settings)
-				if projectValue, err := json.Marshal(project); err != nil {
-					return errors.Wrapf(err, "marshal project %s", project["id"])
-				} else if _, err := conn.Do("HSET", projectSettingsKey, project["id"], projectValue); err != nil {
-					return errors.Wrapf(err, "update project %s", project["id"])
-				}
-
 			case redis.ErrNil:
 				// this is fine
 
 			default:
 				return errors.Wrapf(err, "get project settings for %s", project["id"])
+			}
+
+			// update project (settings)
+			if projectValue, err := json.Marshal(project); err != nil {
+				return errors.Wrapf(err, "marshal project %s", project["id"])
+			} else if _, err := conn.Do("HSET", projectSettingsKey, project["id"], projectValue); err != nil {
+				return errors.Wrapf(err, "update project %s", project["id"])
 			}
 
 			// link user to project
@@ -73,10 +72,8 @@ func (multiProjectSupport) Run(conn redis.Conn) error {
 				return errors.Wrapf(err, "link project %s to user %s", project["id"], userID)
 			}
 
-			logging.Infof("Successfully migrated project out of user info for %s / %s", userID, project["id"])
 		}
 	}
 
-	logging.Infof("Successfully migrated projects out of users")
 	return nil
 }
