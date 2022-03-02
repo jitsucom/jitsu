@@ -914,6 +914,28 @@ func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*
 	return &result, nil
 }
 
+func (cs *ConfigurationsService) GetUserInfo(id string) (*RedisUserInfo, error) {
+	var result RedisUserInfo
+	if err := cs.Load(id, &result); err != nil {
+		return nil, errors.Wrap(err, "load user info")
+	}
+
+	if projectInfo := result.Project; projectInfo != nil {
+		var project Project
+		if err := cs.Load(projectInfo.Id, &project); err != nil {
+			return nil, errors.Wrap(err, "load project from user info")
+		}
+
+		result.Project = &openapi.ProjectInfo{
+			Id:           project.Id,
+			Name:         project.Name,
+			RequireSetup: project.RequiresSetup,
+		}
+	}
+
+	return &result, nil
+}
+
 func (cs *ConfigurationsService) Load(id string, value CollectionItem) error {
 	if data, err := cs.get(value.Collection(), id); err != nil {
 		return errors.Wrapf(err, "get %s with lock", value.Collection())
