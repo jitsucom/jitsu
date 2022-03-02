@@ -64,3 +64,7 @@ func InvalidInputJSON(ctx *gin.Context, err error) {
 func RequiredField(ctx *gin.Context, field string) {
 	BadRequest(ctx, fmt.Sprintf("%s is required", field), nil)
 }
+
+func UserRequired(ctx *gin.Context, err error) {
+	Error(ctx, http.StatusForbidden, "non-server token required", err)
+}

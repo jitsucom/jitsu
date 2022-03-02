@@ -517,12 +517,11 @@ func (oa *OpenAPI) GetUserInfo(ctx *gin.Context) {
 		return
 	}
 
-	var result storages.RedisUserInfo
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if authority.IsAnonymous() {
-		mw.Forbidden(ctx, "user must be non-anonymous")
-	} else if err := oa.Configurations.Load(authority.UserInfo.Id, &result); errors.Is(err, storages.ErrConfigurationNotFound) {
+	} else if user, err := authority.User(); err != nil {
+		mw.UserRequired(ctx, err)
+	} else if result, err := oa.Configurations.GetUserInfo(user.Id); errors.Is(err, storages.ErrConfigurationNotFound) {
 		ctx.Data(http.StatusOK, jsonContentType, []byte("{}"))
 	} else if err != nil {
 		mw.BadRequest(ctx, "load user info", err)
@@ -539,11 +538,11 @@ func (oa *OpenAPI) UpdateUserInfo(ctx *gin.Context) {
 	var req openapi.UpdateUserInfoRequest
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if authority.IsAnonymous() {
-		mw.Forbidden(ctx, "user must be non-anonymous")
+	} else if user, err := authority.User(); err != nil {
+		mw.UserRequired(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
-	} else if result, err := oa.Configurations.UpdateUserInfo(authority.UserInfo.Id, req); err != nil {
+	} else if result, err := oa.Configurations.UpdateUserInfo(user.Id, req); err != nil {
 		mw.BadRequest(ctx, "patch user info failed", err)
 	} else {
 		ctx.JSON(http.StatusOK, result)
@@ -987,32 +986,43 @@ func (oa *OpenAPI) GetProjects(ctx *gin.Context, params openapi.GetProjectsParam
 		return
 	}
 
-	if authority, err := mw.GetAuthority(ctx); err != nil {
+	authority, err := mw.GetAuthority(ctx)
+	if err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if authority.IsAdmin && (authority.IsAnonymous() || params.AllProjects != nil && *params.AllProjects) {
-		if projects, err := oa.Configurations.GetAllProjects(); err != nil {
-			mw.InternalError(ctx, "get all projects failed", err)
-		} else {
-			ctx.JSON(http.StatusOK, projects)
-		}
-	} else if params.AllProjects != nil && *params.AllProjects {
-		mw.Forbidden(ctx, "admin required")
-	} else {
-		projects := make([]openapi.Project, 0, len(authority.ProjectIDs))
-		for projectID := range authority.ProjectIDs {
-			var project storages.Project
-			if err := oa.Configurations.Load(projectID, &project); errors.Is(err, storages.ErrConfigurationNotFound) {
-				continue
-			} else if err != nil {
-				mw.BadRequest(ctx, fmt.Sprintf("get project %s failed", projectID), err)
+		return
+	}
+
+	if authority.IsAdmin {
+		if _, err := authority.User(); err != nil || params.AllProjects != nil && *params.AllProjects {
+			if projects, err := oa.Configurations.GetAllProjects(); err != nil {
+				mw.BadRequest(ctx, "get all projects failed", err)
 				return
 			} else {
-				projects = append(projects, project.Project)
+				ctx.JSON(http.StatusOK, projects)
+				return
 			}
 		}
-
-		ctx.JSON(http.StatusOK, projects)
 	}
+
+	if params.AllProjects != nil && *params.AllProjects {
+		mw.Forbidden(ctx, "admin required")
+		return
+	}
+
+	projects := make([]openapi.Project, 0, len(authority.ProjectIDs))
+	for projectID := range authority.ProjectIDs {
+		var project storages.Project
+		if err := oa.Configurations.Load(projectID, &project); errors.Is(err, storages.ErrConfigurationNotFound) {
+			continue
+		} else if err != nil {
+			mw.BadRequest(ctx, fmt.Sprintf("get project %s failed", projectID), err)
+			return
+		} else {
+			projects = append(projects, project.Project)
+		}
+	}
+
+	ctx.JSON(http.StatusOK, projects)
 }
 
 func (oa *OpenAPI) CreateProjectAndLinkUser(ctx *gin.Context) {
@@ -1032,13 +1042,37 @@ func (oa *OpenAPI) CreateProjectAndLinkUser(ctx *gin.Context) {
 	} else if err := oa.Configurations.Create(&result, req); err != nil {
 		mw.BadRequest(ctx, "create project failed", err)
 	} else {
-		if !authority.IsAnonymous() {
-			if err := oa.Configurations.LinkUserToProject(authority.UserInfo.Id, result.Id); err != nil {
+		if user, err := authority.User(); err == nil {
+			if err := oa.Configurations.LinkUserToProject(user.Id, result.Id); err != nil {
 				mw.BadRequest(ctx, "link user to project failed", err)
 				return
 			}
 		}
 
+		ctx.JSON(http.StatusOK, result.Project)
+	}
+}
+
+func (oa *OpenAPI) PatchProject(ctx *gin.Context, _projectID openapi.ProjectId) {
+	if ctx.IsAborted() {
+		return
+	}
+
+	var (
+		projectID = string(_projectID)
+		req       openapi.PatchProjectRequest
+		result    storages.Project
+	)
+
+	if authority, err := mw.GetAuthority(ctx); err != nil {
+		mw.Unauthorized(ctx, err)
+	} else if !authority.Allow(projectID) {
+		mw.ForbiddenProject(ctx, projectID)
+	} else if err := ctx.BindJSON(&req); err != nil {
+		mw.InvalidInputJSON(ctx, err)
+	} else if _, err := oa.Configurations.Patch(projectID, &result, req, true); err != nil {
+		mw.BadRequest(ctx, "patch project failed", err)
+	} else {
 		ctx.JSON(http.StatusOK, result.Project)
 	}
 }

@@ -72,7 +72,7 @@ func (r *Redis) Close() error {
 	return r.redisPool.Close()
 }
 
-func (r *Redis) Authorize(ctx context.Context, accessToken string) (*middleware.Authority, error) {
+func (r *Redis) Authorize(ctx context.Context, accessToken string) (*middleware.Authorization, error) {
 	conn, err := r.redisPool.GetContext(ctx)
 	if err != nil {
 		return nil, err
@@ -99,8 +99,8 @@ func (r *Redis) Authorize(ctx context.Context, accessToken string) (*middleware.
 		return nil, errors.Wrap(err, "get user email")
 	}
 
-	return &middleware.Authority{
-		UserInfo: &openapi.UserBasicInfo{
+	return &middleware.Authorization{
+		User: openapi.UserBasicInfo{
 			Id:    token.UserID,
 			Email: email,
 		},
