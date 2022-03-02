@@ -66,7 +66,7 @@ func (fb *Firebase) Cloud() (handlers.CloudAuthorizator, error) {
 	return fb, nil
 }
 
-func (fb *Firebase) Authorize(ctx context.Context, accessToken string) (*middleware.Authority, error) {
+func (fb *Firebase) Authorize(ctx context.Context, accessToken string) (*middleware.Authorization, error) {
 	token, err := fb.authClient.VerifyIDToken(ctx, accessToken)
 	if err != nil {
 		return nil, errors.Wrap(err, "verify ID token")
@@ -90,8 +90,8 @@ func (fb *Firebase) Authorize(ctx context.Context, accessToken string) (*middlew
 		isAdmin = true
 	}
 
-	return &middleware.Authority{
-		UserInfo: &openapi.UserBasicInfo{
+	return &middleware.Authorization{
+		User: openapi.UserBasicInfo{
 			Id:    user.UID,
 			Email: user.Email,
 		},
