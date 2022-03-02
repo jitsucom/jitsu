@@ -218,7 +218,6 @@ components:
       properties:
         _id: { type: string }
         _name: { type: string }
-        _planId: { type: string }
         _requireSetup: { type: boolean }
       required: [ '_id', '_name' ]
     SuggestedInfo:
@@ -248,10 +247,6 @@ components:
       properties:
         _id: { type: string }
         _name: { type: string }
-        _planId:
-          type: string
-          x-go-type: null.String
-          nullable: true
         _requireSetup: { type: boolean }
     UpdateUserInfoRequest:
       type: object
@@ -278,6 +273,11 @@ components:
           description: >
             Callback URL will be used for generating reset password links 
             when creating a new user (only on Redis-backed authorization).
+    PatchProjectRequest:
+      type: object
+      properties:
+        name: { type: "string" }
+        requiresSetup: { type: "boolean" }
 
   responses:
     Error:
@@ -802,6 +802,33 @@ paths:
             "application/json":
               schema:
                 $ref: "#/components/schemas/Project"
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v2/projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+    patch:
+      tags:
+        - configuration-management
+      operationId: 'Patch project'
+      security:
+        - configurationManagementAuth: [ ]
+      description: >
+        Updates a project for a given project ID. Object will be patched: request body properties will be merged into an original object,
+        it's ok to send partial objects. Some fields might be ignored and overwritten.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchProjectRequest'
+      responses:
+        '200':
+          description: "Updated project"
+          content:
+            "application/json":
+              schema:
+                $ref: '#/components/schemas/Project'
         default:
           $ref: '#/components/responses/Error'
 

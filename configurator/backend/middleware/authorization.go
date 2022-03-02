@@ -21,23 +21,32 @@ const (
 	authorityKey = "__authority"
 )
 
-type Authority struct {
-	Token      string
-	UserInfo   *openapi.UserBasicInfo
-	IsAdmin    bool
-	ProjectIDs common.StringSet
+type Authorization struct {
+	User    openapi.UserBasicInfo
+	IsAdmin bool
 }
 
-func (a *Authority) IsAnonymous() bool {
-	return a.UserInfo == nil
+type Authority struct {
+	Token      string
+	IsAdmin    bool
+	ProjectIDs common.StringSet
+	user       *openapi.UserBasicInfo
 }
 
 func (a *Authority) Allow(projectID string) bool {
 	return a.IsAdmin || a.ProjectIDs[projectID]
 }
 
+func (a *Authority) User() (*openapi.UserBasicInfo, error) {
+	if a.user != nil {
+		return a.user, nil
+	} else {
+		return nil, ErrIsAnonymous
+	}
+}
+
 type Authorizator interface {
-	Authorize(ctx context.Context, token string) (*Authority, error)
+	Authorize(ctx context.Context, token string) (*Authorization, error)
 	FindOnlyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 }
 
@@ -55,11 +64,11 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 		return
 	}
 
-	var authority *Authority
+	var authority Authority
 	if token := GetToken(ctx); ctx.IsAborted() {
 		return
 	} else if i.ServerToken == token {
-		authority = &Authority{
+		authority = Authority{
 			Token:   token,
 			IsAdmin: true,
 		}
@@ -69,11 +78,11 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 			return
 		}
 
-		if userInfo, err := i.Authorizator.FindOnlyUser(ctx); err != nil {
+		if user, err := i.Authorizator.FindOnlyUser(ctx); err != nil {
 			invalidToken(ctx, errTokenMismatch)
 			return
 		} else {
-			authority.UserInfo = userInfo
+			authority.user = user
 		}
 	} else if clusterAdminScope {
 		logging.SystemErrorf("server request [%s] with [%s] token has been denied: token mismatch", ctx.Request.URL.String(), token)
@@ -84,22 +93,25 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 		invalidToken(ctx, errTokenMismatch)
 		return
 	} else {
-		authority = auth
-		authority.Token = token
+		authority = Authority{
+			Token:   token,
+			IsAdmin: auth.IsAdmin,
+			user:    &auth.User,
+		}
 	}
 
-	if basicInfo := authority.UserInfo; basicInfo != nil {
-		if _, err := i.Configurations.UpdateUserInfo(basicInfo.Id, UserInfoEmailUpdate{Email: basicInfo.Email}); err != nil {
-			logging.Errorf("failed to update user info for id [%s] with email [%s]: %s", basicInfo.Id, basicInfo.Email, err)
+	if user := authority.user; user != nil {
+		if _, err := i.Configurations.UpdateUserInfo(user.Id, UserInfoEmailUpdate{Email: user.Email}); err != nil {
+			logging.Errorf("failed to update user info for id [%s] with email [%s]: %s", user.Id, user.Email, err)
 		}
 	}
 
 	authority.ProjectIDs = make(common.StringSet)
 
 	if managementScope {
-		if !authority.IsAnonymous() {
-			if projectIDs, err := i.Configurations.GetUserProjects(authority.UserInfo.Id); err != nil {
-				logging.Warnf("failed to get projects for user %s: %s", authority.UserInfo.Id, err)
+		if user := authority.user; user != nil {
+			if projectIDs, err := i.Configurations.GetUserProjects(user.Id); err != nil {
+				logging.Warnf("failed to get projects for user %s: %s", user.Id, err)
 			} else {
 				authority.ProjectIDs.AddAll(projectIDs...)
 			}
@@ -110,7 +122,7 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 		}
 	}
 
-	ctx.Set(authorityKey, authority)
+	ctx.Set(authorityKey, &authority)
 }
 
 func (i *AuthorizationInterceptor) ManagementWrapper(body gin.HandlerFunc) gin.HandlerFunc {
