@@ -68,7 +68,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/segmentio/analytics-go.v3 v3.1.0
 	gotest.tools v2.2.0+incompatible
-	rogchap.com/v8go v0.7.0
+	rogchap.com/v8go v0.7.1-0.20220112220650-5e91d3d9dcab
 )
 
 require github.com/joomcode/errorx v1.1.0
