@@ -139,7 +139,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	rogchap.com/v8go v0.7.0 // indirect
+	rogchap.com/v8go v0.7.1-0.20220112220650-5e91d3d9dcab // indirect
 )
 
 replace (
