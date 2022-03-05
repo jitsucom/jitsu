@@ -67,11 +67,11 @@ func (r *Redis) migrate() error {
 			return errors.Wrapf(err, "run migration %d", i)
 		}
 
-		//if _, err := conn.Do("HSET", metaKey, versionKey, i+1); err != nil {
-		//	return errors.Wrap(err, "update db version")
-		//}
-		//
-		//logging.Infof("Successfully migrated Redis storage to version %d", i+1)
+		if _, err := conn.Do("HSET", metaKey, versionKey, i+1); err != nil {
+			return errors.Wrap(err, "update db version")
+		}
+
+		logging.Infof("Successfully migrated Redis storage to version %d", i+1)
 	}
 
 	return nil
