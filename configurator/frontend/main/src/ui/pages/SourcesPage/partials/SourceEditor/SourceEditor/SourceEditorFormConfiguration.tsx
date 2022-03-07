@@ -98,7 +98,6 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
         return {
           backendId: airbyteId,
           hideOauthFields: true,
-          onlyManualAuth: false,
           loadableFieldsEndpoint: "test",
           invisibleStaticFields: {
             "config.docker_image": sourceDataFromCatalog.id.replace("airbyte-", ""),
@@ -109,7 +108,6 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
         return {
           backendId: tapId,
           hideOauthFields: true,
-          onlyManualAuth: false,
           configurableFields: sourceDataFromCatalog.configParameters,
           invisibleStaticFields: {
             "config.tap": tapId,
@@ -121,7 +119,6 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
         return {
           backendId: id,
           hideOauthFields: true,
-          onlyManualAuth: false,
           configurableFields: sourceDataFromCatalog.configParameters,
         }
     }
@@ -205,10 +202,8 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   }, [])
 
   const isLoadingOauth = !isOauthStatusReady || isLoadingBackendSecrets
-
   useEffect(() => {
-    if (sourceConfigurationSchema.onlyManualAuth) return
-    else if (isLoadingOauth) handleSetControlsDisabled(true, "byOauthFlow")
+    if (isLoadingOauth) handleSetControlsDisabled(true, "byOauthFlow")
     else if (fillAuthDataManually) handleSetControlsDisabled(false, "byOauthFlow")
     else if (!isOauthFlowCompleted) {
       handleSetControlsDisabled("Please, either grant Jitsu access or fill auth credentials manually", "byOauthFlow")
@@ -229,7 +224,6 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           key="oauth"
           sourceDataFromCatalog={sourceDataFromCatalog}
           disabled={disabled}
-          onlyManualAuth={sourceConfigurationSchema.onlyManualAuth}
           isSignedIn={isOauthFlowCompleted}
           onIsOauthSupportedCheckSuccess={handleOauthSupportedStatusChange}
           onFillAuthDataManuallyChange={handleFillAuthDataManuallyChange}
