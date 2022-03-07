@@ -6,7 +6,7 @@ import { useHistory, useLocation } from "react-router-dom"
 import { Button, Dropdown, message, MessageArgsProps, Modal, notification, Popover, Tooltip } from "antd"
 // @Components
 import { NotificationsWidget } from "lib/components/NotificationsWidget/NotificationsWidget"
-import { CurrentPlan, UpgradePlan } from "ui/components/CurrentPlan/CurrentPlan"
+import { BillingCurrentPlan } from "lib/components/BillingCurrentPlan/BillingCurrentPlan"
 import { handleError } from "lib/components/components"
 // @Icons
 import Icon, {
@@ -47,7 +47,8 @@ import { useClickOutsideRef } from "hooks/useClickOutsideRef"
 import { Breadcrumbs } from "./ui/components/Breadcrumbs/Breadcrumbs"
 import ProjectLink from "./lib/components/ProjectLink/ProjectLink"
 import { User } from "./generated/conf-openapi"
-import { showProjectSwitchModal } from "./lib/components/ProjectSwitcher/ProjectSwitch"
+import { showProjectSwitchModal } from "./lib/components/ProjectSwitch/ProjectSwitch"
+import { BillingPlanOptions, BillingPlanOptionsModal } from "lib/components/BillingPlanOptions/BillingPlanOptions"
 
 type MenuItem = {
   icon: React.ReactNode
@@ -273,7 +274,7 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
       </div>
       {services.features.billingEnabled && services.applicationConfiguration.billingUrl && (
         <div className="py-5 border-b border-main px-5 flex flex-col items-start">
-          <CurrentPlan planStatus={plan} onPlanChangeModalOpen={hideMenu} />
+          <BillingCurrentPlan planStatus={plan} onPlanChangeModalOpen={hideMenu} />
         </div>
       )}
       <div className="p-2 flex flex-col items-stretch">
@@ -432,18 +433,13 @@ export const SlackChatWidget: React.FC<{}> = () => {
           </span>
         </div>
       </Popover>
-      <Modal
-        destroyOnClose={true}
-        width={800}
-        title={<h1 className="text-xl m-0 p-0">Upgrade subscription</h1>}
-        visible={upgradeDialogVisible}
+      <BillingPlanOptionsModal
+        planStatus={services.currentSubscription}
         onCancel={() => {
           setUpgradeDialogVisible(false)
         }}
-        footer={null}
-      >
-        <UpgradePlan planStatus={services.currentSubscription} />
-      </Modal>
+        visible={upgradeDialogVisible}
+      />
     </>
   )
 }

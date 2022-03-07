@@ -204,9 +204,15 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     ssoAuthLink = responseData.sso_auth_link
   }
 
-  assert(responseData.authorization === "redis" || responseData.authorization === "firebase")
+  assert(
+    responseData.authorization === "redis" || responseData.authorization === "firebase",
+    `Assertion error in mapBackendConfigResponseToAppFeatures: authorization field can be either "redis" or "firebase", but received ${responseData.authorization}`
+  )
 
-  assert(typeof responseData.smtp === "boolean")
+  assert(
+    typeof responseData.smtp === "boolean",
+    `Assertion error in mapBackendConfigResponseToAppFeatures: smtp field must be a boolean, but received ${responseData.smtp}`
+  )
 
   return {
     ...responseData,

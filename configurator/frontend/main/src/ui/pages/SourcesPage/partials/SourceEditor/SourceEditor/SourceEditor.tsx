@@ -19,6 +19,7 @@ import { actionNotification } from "ui/components/ActionNotification/ActionNotif
 import { SourceEditorView } from "./SourceEditorView"
 import { ErrorDetailed } from "lib/commons/errors"
 import { connectionsHelper } from "stores/helpers"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 // @Utils
 
 /** Accumulated state of all forms that is transformed and sent to backend on source save */
@@ -283,7 +284,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
   )
 
   const handleLeaveEditor = useCallback<(options?: { goToSourcesList?: boolean }) => void>(options => {
-    options.goToSourcesList ? history.push(sourcesPageRoutes.root) : history.goBack()
+    options.goToSourcesList ? history.push(projectRoute(sourcesPageRoutes.root)) : history.goBack()
   }, [])
 
   const handleValidateStreams = async (): Promise<void> => {

@@ -14,12 +14,8 @@ import { NavLink } from "react-router-dom"
 import { destinationsStore } from "../../../stores/destinations"
 import { DestinationPicker } from "./DestinationPicker"
 import { connectionsHelper } from "stores/helpers"
-
-export const apiKeysRoutes = {
-  newExact: "/prj-:projectId/api-keys/new",
-  listExact: "/prj-:projectId/api-keys",
-  editExact: "/prj-:projectId/api-keys/:id",
-} as const
+import { apiKeysRoutes } from "./ApiKeysRouter"
+import { projectRoute } from "../ProjectLink/ProjectLink"
 
 const SecretKey: React.FC<{
   formFieldName: string
@@ -177,7 +173,7 @@ const ApiKeyEditorComponent: React.FC = props => {
                         setDeleting(true)
                         try {
                           await flowResult(apiKeysStore.delete(id))
-                          await history.push(apiKeysRoutes.listExact)
+                          await history.push(projectRoute(apiKeysRoutes.listExact))
                         } finally {
                           setDeleting(false)
                         }
@@ -195,10 +191,10 @@ const ApiKeyEditorComponent: React.FC = props => {
                 onClick={() => {
                   if (form.isFieldsTouched()) {
                     if (confirm(unsavedMessage)) {
-                      history.push(apiKeysRoutes.listExact)
+                      history.push(projectRoute(apiKeysRoutes.listExact))
                     }
                   } else {
-                    history.push(apiKeysRoutes.listExact)
+                    history.push(projectRoute(apiKeysRoutes.listExact))
                   }
                 }}
               >
@@ -220,7 +216,7 @@ const ApiKeyEditorComponent: React.FC = props => {
                       await flowResult(apiKeysStore.add(key))
                     }
                     await connectionsHelper.updateDestinationsConnectionsToApiKey(key.uid, connectedDestinations)
-                    history.push(apiKeysRoutes.listExact)
+                    history.push(projectRoute(apiKeysRoutes.listExact))
                   } finally {
                     setSaving(false)
                   }

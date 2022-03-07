@@ -1,5 +1,5 @@
 // @Libs
-import { flowResult } from "mobx"
+import { flow, flowResult, makeObservable } from "mobx"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Stores
@@ -20,6 +20,9 @@ export class DestinationsStore extends EntitiesStore<DestinationData> {
     super("destinations", {
       idField: "_uid",
       hideElements: dst => destinationsReferenceMap[dst._type]?.hidden,
+    })
+    makeObservable(this, {
+      createFreeDatabase: flow,
     })
   }
 

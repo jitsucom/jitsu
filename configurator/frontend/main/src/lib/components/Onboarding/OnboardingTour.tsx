@@ -43,7 +43,7 @@ const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => 
   }, [config, userClosedTour])
 
   const handleFinishOnboarding = async () => {
-    await services.projectService.updateProject({ id: project.id, requiresSetup: false })
+    await services.projectService.updateProject(project.id, { requiresSetup: false })
     setUserClosedTour(true)
   }
 

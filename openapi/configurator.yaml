@@ -614,7 +614,7 @@ paths:
         - user-provisioning
       operationId: "Link user to project"
       description: >
-        Links user to project. If userId is specified, the user should just be linked. If userEmail is specify, the logic should be as follows:
+        Links user to project. If userId is specified, the user should just be linked. If userEmail is specified, the logic should be as follows:
          - Try to find user with userEmail. If user has been found, just link it
          - If user is not found, the user should be created and linked to the project. Later we'll add email notification
       security:

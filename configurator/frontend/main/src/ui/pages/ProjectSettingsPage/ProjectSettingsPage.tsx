@@ -89,18 +89,18 @@ const UsersSettings: React.FC<{}> = () => {
       ))}
       <div className="pt-6">
         <InviteUserForm
-          invite={async email => {
-            let result = await services.projectService.linkUserToProject(email)
+          invite={async userEmail => {
+            let result = await services.projectService.linkUserToProject(services.activeProject.id, { userEmail })
             if (result == "invitation_sent") {
               actionNotification.success(
                 <>
-                  Invitation has been sent to <b>{email}</b>. The user will need to create account first
+                  Invitation has been sent to <b>{userEmail}</b>. The user will need to create account first
                 </>
               )
             } else {
               actionNotification.success(
                 <>
-                  User <b>{email}</b> already has an account, she has been granted with access to your project
+                  User <b>{userEmail}</b> already has an account, she has been granted with access to your project
                 </>
               )
             }

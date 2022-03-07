@@ -105,6 +105,10 @@ const DestinationEditor = ({
     return destinationsReferenceMap[getDestinationData(params)._type]
   }, [params.type, params.id])
 
+  if (!destinationReference) {
+    return <DestinationNotFound destinationId={params.id} />
+  }
+
   const submittedOnce = useRef<boolean>(false)
 
   const handleUseLibrary = async (newMappings: DestinationMapping, newTableName?: string) => {
@@ -280,7 +284,7 @@ const DestinationEditor = ({
   )
 
   const handleCancel = useCallback(() => {
-    onCancel ? onCancel() : history.push(destinationPageRoutes.root)
+    onCancel ? onCancel() : history.push(projectRoute(destinationPageRoutes.root))
   }, [history, onCancel])
 
   const handleViewStatistics = () =>
@@ -406,7 +410,7 @@ const DestinationEditor = ({
     currentPageHeaderStore.setBreadcrumbs(...breadcrumbs)
   }, [destinationReference])
 
-  return destinationReference ? (
+  return (
     <>
       <div className={cn("flex flex-col items-stretch flex-auto", styles.wrapper)}>
         <div className={styles.mainArea} id="dst-editor-tabs">
@@ -471,8 +475,6 @@ const DestinationEditor = ({
 
       <Prompt message={destinationEditorUtils.getPromptMessage(destinationsTabs)} />
     </>
-  ) : (
-    <DestinationNotFound destinationId={params.id} />
   )
 }
 

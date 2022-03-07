@@ -1,9 +1,9 @@
 import { ReactElement, useState } from "react"
-import { Button, Modal, Typography } from "antd"
-import { UpgradePlan } from "../../../ui/components/CurrentPlan/CurrentPlan"
+import { Button, Modal } from "antd"
 import { CurrentSubscription } from "../../services/billing"
 import { useServices } from "../../../hooks/useServices"
 import { reloadPage } from "../../commons/utils"
+import { BillingPlanOptions } from "../BillingPlanOptions/BillingPlanOptions"
 
 export type BillingBlockingModalProps = {
   /**
@@ -21,7 +21,7 @@ export type BillingBlockingModalProps = {
  * @param props
  * @constructor
  */
-const BillingBlockingModal = (props: BillingBlockingModalProps) => {
+const BillingBlockingModal: React.FC<BillingBlockingModalProps> = props => {
   const [visible, setVisible] = useState(true)
   const services = useServices()
   return (
@@ -56,7 +56,7 @@ const BillingBlockingModal = (props: BillingBlockingModalProps) => {
         <p>
           Please upgrade to any of the <a href="https://jitsu.com/pricing">following plans</a>:{" "}
         </p>
-        <UpgradePlan planStatus={props.subscription} />
+        <BillingPlanOptions planStatus={props.subscription} />
       </div>
     </Modal>
   )
