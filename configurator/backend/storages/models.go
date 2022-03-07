@@ -49,6 +49,8 @@ func (p *Project) Collection() string {
 
 func (p *Project) OnCreate(id string) {
 	p.Id = id
+	requiresSetup := true
+	p.RequiresSetup = &requiresSetup
 }
 
 type RedisUserInfo openapi.UserInfo
