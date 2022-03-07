@@ -1,37 +1,44 @@
-/* eslint-disable */
+// @Libs
 import React, { ComponentType, ExoticComponent, useEffect, useState } from "react"
-
-import { Redirect, Route, Switch, useLocation } from "react-router-dom"
-import { Button, Card, Form, Input, Modal, Typography } from "antd"
-
-import "./App.less"
-import { NavLink } from "react-router-dom"
-
+import { Redirect, Route, Switch, useHistory, useLocation, NavLink } from "react-router-dom"
+import { Button, Card, Typography } from "antd"
+import { useParams } from "react-router"
+import moment from "moment"
+// @Services
 import ApplicationServices from "./lib/services/ApplicationServices"
-import { CenteredSpin, handleError, Preloader } from "./lib/components/components"
-import { reloadPage, setDebugInfo } from "./lib/commons/utils"
-
-import { ApplicationPage } from "./Layout"
-import { checkQuotas, CurrentSubscription, getCurrentSubscription, paymentPlans } from "lib/services/billing"
+import { UserProps } from "./lib/services/analytics"
+import { CurrentSubscription, getCurrentSubscription, paymentPlans } from "lib/services/billing"
+// @Stores
 import { initializeAllStores } from "stores/_initializeAllStores"
+import { currentPageHeaderStore } from "./stores/currentPageHeader"
 import { destinationsStore } from "./stores/destinations"
 import { sourcesStore } from "./stores/sources"
-import moment from "moment"
-import { UpgradePlan } from "./ui/components/CurrentPlan/CurrentPlan"
-import { useServices } from "./hooks/useServices"
+// @Components
+import { ApplicationPage } from "./Layout"
+import { CenteredSpin, Preloader } from "./lib/components/components"
+import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+import { SetNewPasswordModal } from "lib/components/SetNewPasswordModal/SetNewPasswordModal"
+import { BillingGlobalGuard } from "lib/components/BillingGlobalGuard/BillingGlobalGuard"
+import { OnboardingTourLazyLoader } from "./lib/components/Onboarding/OnboardingTourLazyLoader"
 import { ErrorCard } from "./lib/components/ErrorCard/ErrorCard"
 import { LoginLink } from "./lib/components/LoginLink/LoginLink"
-import { useParams } from "react-router"
+// @Icons
+import { ExclamationCircleOutlined } from "@ant-design/icons"
+// @Hooks
+import { useServices } from "./hooks/useServices"
+// @Utils
+import { reloadPage, setDebugInfo } from "./lib/commons/utils"
+// @Types
+import { Project } from "./generated/conf-openapi"
+// @Pages
 import LoginPage from "./ui/pages/GetStartedPage/LoginPage"
 import SignupPage from "./ui/pages/GetStartedPage/SignupPage"
 import { StatusPage } from "./lib/components/StatusPage/StatusPage"
-import ExclamationCircleOutlined from "@ant-design/icons/ExclamationCircleOutlined"
 import { UserSettings } from "./lib/components/UserSettings/UserSettings"
-import { currentPageHeaderStore } from "./stores/currentPageHeader"
-import { Project } from "./generated/conf-openapi"
-import { OnboardingTourLazyLoader } from "./lib/components/Onboarding/OnboardingTourLazyLoader"
 import { TaskLogsPage, taskLogsPageRoute } from "./ui/pages/TaskLogs/TaskLogsPage"
-import { UserProps } from "./lib/services/analytics"
+// @Styles
+import "./App.less"
+// @Unsorted
 
 const ApiKeysRouter = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/components/ApiKeys/ApiKeysRouter"))
 const CustomDomains = React.lazy(
@@ -56,6 +63,8 @@ const PasswordForm = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/
 const DownloadConfig = React.lazy(
   () => import(/* webpackPrefetch: true */ "./lib/components/DownloadConfig/DownloadConfig")
 )
+
+const LOGIN_TIMEOUT = 5000
 
 export const initializeApplication = async (): Promise<ApplicationServices> => {
   const services = ApplicationServices.get()
@@ -94,15 +103,12 @@ export const initializeApplication = async (): Promise<ApplicationServices> => {
   return services
 }
 
-function normalizePath(path: string) {
-  return path.startsWith("/") ? path : "/" + path
-}
-
 export const Application: React.FC = function () {
   const [services, setServices] = useState<ApplicationServices>()
   const [projects, setProjects] = useState<Project[]>(null)
   const [initialized, setInitialized] = useState(false)
   const [error, setError] = useState<Error>()
+
   useEffect(() => {
     ;(async () => {
       try {
@@ -126,6 +132,7 @@ export const Application: React.FC = function () {
       }
     })()
   }, [])
+
   if (!error && !initialized) {
     return <Preloader />
   } else if (error) {
@@ -206,25 +213,28 @@ export const Application: React.FC = function () {
   )
 }
 
+/**
+ * Component decorator that enables analytics services and sets a correct document title
+ */
 function pageOf(component: React.ComponentType<any>, opts: { pageTitle: string }) {
   return page => {
     ApplicationServices.get().analyticsService.onPageLoad({
       pagePath: page.location.key || "/unknown",
     })
     document["title"] = opts.pageTitle
-    let Component = component as ExoticComponent
+    const Component = component as ExoticComponent
     return <Component {...(page as any)} />
   }
 }
 
-type ProjectRoute = {
+type ProjectRouteData = {
   pageTitle: string
   path: string | string[]
   component: React.ComponentType
   isPrefix?: boolean
 }
 
-const projectRoutes: ProjectRoute[] = [
+const projectRoutes: ProjectRouteData[] = [
   { pageTitle: "Connections", path: ["/", "/connections", "/signup"], component: ConnectionsPage },
   { pageTitle: "Live Events", path: ["/events_stream", "/events-stream"], component: EventsStream, isPrefix: true },
   { pageTitle: "Dashboard", path: "/dashboard", component: StatusPage },
@@ -242,7 +252,7 @@ const projectRoutes: ProjectRoute[] = [
   { pageTitle: "User Settings", path: "/settings/user", component: UserSettings, isPrefix: true },
 ]
 
-function RouteNotFound() {
+const RouteNotFound: React.FC = () => {
   useEffect(() => {
     currentPageHeaderStore.setBreadcrumbs("Not found")
   })
@@ -284,7 +294,7 @@ const PageWrapper: React.FC<{ pageTitle: string; component: ComponentType; pageP
     document["title"] = `Jitsu : ${pageTitle}`
     currentPageHeaderStore.setBreadcrumbs(pageTitle)
   }, [])
-  let Component = component as ExoticComponent
+  const Component = component as ExoticComponent
   return (
     <React.Suspense fallback={<CenteredSpin />}>
       <Component {...(rest as any)} />
@@ -294,24 +304,32 @@ const PageWrapper: React.FC<{ pageTitle: string; component: ComponentType; pageP
 
 const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
   const services = useServices()
+  const history = useHistory()
+  const location = useLocation()
   const [initialized, setInitialized] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
-  const [project, setProject] = useState<Project>()
+  const [project, setProject] = useState<Project | undefined | null>()
   const { projectId } = useParams<{ projectId: string }>()
+
   useEffect(() => {
     ;(async () => {
       let project = projects.find(project => project.id === projectId)
       if (!project) {
-        setError(new Error(`Can't find project with id ${projectId}. Available projects: ${JSON.stringify(projects)}`))
-      } else {
-        services.activeProject = project
-        setProject(project)
-        try {
-          await initializeAllStores()
-          setInitialized(true)
-        } catch (e) {
-          setError(e)
-        }
+        actionNotification.warn(
+          <>
+            Project with ID <b>{projectId}</b> not found. Redirected to <b>{projects[0].name}</b> project.
+          </>
+        )
+        history.push(`/${location.pathname.split("/").slice(2).join("/")}`) // removes `prj-{id}` from the path
+        project = projects[0]
+      }
+      services.activeProject = project
+      setProject(project)
+      try {
+        await initializeAllStores()
+        setInitialized(true)
+      } catch (e) {
+        setError(e)
       }
     })()
   }, [])
@@ -326,11 +344,8 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
     )
   }
 
-  if (services.currentSubscription) {
-    checkQuotas(services.currentSubscription)
-  }
-
   services.activeProject = project
+
   return (
     <>
       <ApplicationPage>
@@ -352,25 +367,26 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
           </Route>
         </Switch>
       </ApplicationPage>
+      <BillingGlobalGuard />
       {project.requiresSetup && <OnboardingTourLazyLoader project={project} />}
-      {services.userService.getUser().forcePasswordChange && <SetNewPassword onCompleted={async () => reloadPage()} />}
+      {services.userService.getUser().forcePasswordChange && (
+        <SetNewPasswordModal onCompleted={async () => reloadPage()} />
+      )}
     </>
   )
 }
 
 const ProjectRedirect: React.FC<{ projects: Project[] }> = ({ projects }) => {
   const location = useLocation()
-  if (projects.length > 0) {
-    return <Redirect to={`/prj-${projects[0].id}${location.pathname}`} />
-  } else {
+  if (!projects?.length) {
     return <ErrorCard title="Invalid state" description="projects.length should be greater than zero" />
   }
+  return <Redirect to={`/prj-${projects[0].id}${location.pathname}`} />
 }
 
-const LOGIN_TIMEOUT = 5000
 // export default class App extends React.Component<{ projectId?: string }, AppState> {
 //   private readonly services: ApplicationServices
-//
+
 //   constructor(props: any, context: any) {
 //     super(props, context)
 //     this.services = ApplicationServices.get()
@@ -380,21 +396,21 @@ const LOGIN_TIMEOUT = 5000
 //       extraControls: null,
 //     }
 //   }
-//
+
 //   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
 //     this.services.analyticsService.onGlobalError(error)
 //   }
-//
+
 //   public async componentDidMount() {
 //     try {
 //       const { user, paymentPlanStatus } = await initializeApplication(this.services)
-//
+
 //       this.setState({
 //         lifecycle: user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
 //         user: user,
 //         paymentPlanStatus: paymentPlanStatus,
 //       })
-//
+
 //       if (user) {
 //         const email = await this.services.userService.getUserEmailStatus()
 //         email.needsConfirmation && !email.isConfirmed && message.warn(emailIsNotConfirmedMessageConfig)
@@ -409,7 +425,7 @@ const LOGIN_TIMEOUT = 5000
 //       this.setState({ lifecycle: AppLifecycle.ERROR })
 //       return
 //     }
-//
+
 //     window.setTimeout(() => {
 //       if (this.state.lifecycle == AppLifecycle.LOADING) {
 //         this.services.analyticsService.onGlobalError(new Error("Login timeout"))
@@ -417,7 +433,7 @@ const LOGIN_TIMEOUT = 5000
 //       }
 //     }, LOGIN_TIMEOUT)
 //   }
-//
+
 //   private getRenderComponent() {
 //     alert(this.props)
 //     switch (this.state.lifecycle) {
@@ -460,11 +476,11 @@ const LOGIN_TIMEOUT = 5000
 //         return <Preloader />
 //     }
 //   }
-//
+
 //   public render() {
 //     return <React.Suspense fallback={<CenteredSpin />}>{this.getRenderComponent()}</React.Suspense>
 //   }
-//
+
 //   appLayout() {
 //     const extraForms = [<OnboardingSwitch key="onboardingTour" />]
 //     if (this.services.userService.getUser().forcePasswordChange) {
@@ -500,118 +516,3 @@ const LOGIN_TIMEOUT = 5000
 //     )
 //   }
 // }
-
-function UpgradePlanDialog({ subscription }) {
-  const [visible, setVisible] = useState(true)
-  return (
-    <Modal
-      destroyOnClose={true}
-      visible={visible}
-      width={800}
-      onCancel={() => setVisible(false)}
-      title={<h1 className="text-xl m-0 p-0">Upgrade subscription</h1>}
-      footer={null}
-    >
-      <UpgradePlan planStatus={subscription} />
-    </Modal>
-  )
-}
-
-function SetNewPassword({ onCompleted }: { onCompleted: () => Promise<void> }) {
-  let [loading, setLoading] = useState(false)
-  let services = ApplicationServices.get()
-  let [form] = Form.useForm()
-  return (
-    <Modal
-      title="Please, set a new password"
-      visible={true}
-      closable={false}
-      footer={
-        <>
-          <Button
-            onClick={() => {
-              services.userService.removeAuth(reloadPage)
-            }}
-          >
-            Logout
-          </Button>
-          <Button
-            type="primary"
-            loading={loading}
-            onClick={async () => {
-              setLoading(true)
-              let values
-              try {
-                values = await form.validateFields()
-              } catch (e) {
-                //error will be displayed on the form, not need for special handling
-                setLoading(false)
-                return
-              }
-
-              try {
-                let newPassword = values["password"]
-                await services.userService.changePassword(newPassword)
-                await services.userService.login(services.userService.getUser().email, newPassword)
-                await services.userService.waitForUser()
-                await services.storageService.saveUserInfo({ _forcePasswordChange: false })
-                await onCompleted()
-              } catch (e) {
-                if ("auth/requires-recent-login" === e.code) {
-                  services.userService.removeAuth(() => {
-                    reloadPage()
-                  })
-                } else {
-                  handleError(e)
-                }
-              } finally {
-                setLoading(false)
-              }
-            }}
-          >
-            Set new password
-          </Button>
-        </>
-      }
-    >
-      <Form form={form} layout="vertical" requiredMark={false}>
-        <Form.Item
-          name="password"
-          label="Password"
-          rules={[
-            {
-              required: true,
-              message: "Please input your password!",
-            },
-          ]}
-          hasFeedback
-        >
-          <Input.Password />
-        </Form.Item>
-
-        <Form.Item
-          name="confirm"
-          label="Confirm Password"
-          dependencies={["password"]}
-          hasFeedback
-          rules={[
-            {
-              required: true,
-              message: "Please confirm your password!",
-            },
-            ({ getFieldValue }) => ({
-              validator(rule, value) {
-                if (!value || getFieldValue("password") === value) {
-                  return Promise.resolve()
-                }
-                return Promise.reject("The two passwords that you entered do not match!")
-              },
-            }),
-          ]}
-        >
-          <Input.Password />
-        </Form.Item>
-      </Form>
-    </Modal>
-  )
-}

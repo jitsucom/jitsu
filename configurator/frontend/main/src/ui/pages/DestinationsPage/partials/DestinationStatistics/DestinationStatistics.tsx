@@ -140,7 +140,7 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = () =>
           type="ghost"
           icon={<UnorderedListOutlined />}
           size="large"
-          onClick={() => history.push(destinationPageRoutes.root)}
+          onClick={() => history.push(projectRoute(destinationPageRoutes.root))}
         >
           {"Destinations List"}
         </Button>

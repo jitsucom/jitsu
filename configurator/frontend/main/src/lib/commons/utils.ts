@@ -165,29 +165,33 @@ export type TimeFormattedUserEvent = {
  * @throws assertion error (if raw event data model is not supported)
  */
 export function formatTimeOfRawUserEvents(rawEvents: unknown): TimeFormattedUserEvent[] {
-  assertIsObject(rawEvents)
-  assertHasOwnProperty(
-    rawEvents,
-    "events",
-    "Time formatting of raw event failed because the event doesn't have `events` property"
-  )
+  const ASSERTION_ERROR_PREDICATE = "Assertion error in formatTimeOfRawUserEvents function"
+
+  assertIsObject(rawEvents, `${ASSERTION_ERROR_PREDICATE}: raw events is not an object`)
+  assertHasOwnProperty(rawEvents, "events", `${ASSERTION_ERROR_PREDICATE}: raw events 'events' property not found`)
   const events = rawEvents.events
 
-  assertIsArray(events)
-  return events.map((rawEvent: unknown): TimeFormattedUserEvent => {
-    assertIsObject(rawEvent)
+  assertIsArray(events, `${ASSERTION_ERROR_PREDICATE}: events content is not an array`)
+  return events.map((rawEvent, index): TimeFormattedUserEvent => {
+    assertIsObject(
+      rawEvent,
+      `${ASSERTION_ERROR_PREDICATE}: can not map raw events, raw event at index ${index} is not an object`
+    )
     assertHasOwnProperty(
       rawEvent,
       "original",
-      "Time formatting of raw event failed because the event doesn't have `original` property"
+      `${ASSERTION_ERROR_PREDICATE}: 'original' property not found in raw event at index ${index}`
     )
 
     const original = rawEvent.original
-    assertIsObject(original)
+    assertIsObject(
+      original,
+      `${ASSERTION_ERROR_PREDICATE}: 'original' field of raw event at index ${index} is not an object`
+    )
     assertHasOwnProperty(
       original,
       "_timestamp",
-      "Time formatting of raw event failed because the event doesn't have `_timestamp` property"
+      `${ASSERTION_ERROR_PREDICATE}:  '_timestamp' property not found in raw event at index ${index}`
     )
 
     return {

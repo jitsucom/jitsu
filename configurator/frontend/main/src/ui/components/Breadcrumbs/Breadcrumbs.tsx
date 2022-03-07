@@ -1,11 +1,9 @@
-import { createContext, ReactNode } from "react"
 import { NavLink } from "react-router-dom"
 import { observer } from "mobx-react-lite"
-import { BreadcrumbElement, currentPageHeaderStore } from "../../../stores/currentPageHeader"
-import { useServices } from "../../../hooks/useServices"
-import ProjectLink from "../../../lib/components/ProjectLink/ProjectLink"
-import useProject from "../../../hooks/useProject"
-import { showProjectSwitchModal } from "../../../lib/components/ProjectSwitcher/ProjectSwitch"
+import { currentPageHeaderStore } from "stores/currentPageHeader"
+import ProjectLink from "lib/components/ProjectLink/ProjectLink"
+import useProject from "hooks/useProject"
+import { showProjectSwitchModal } from "lib/components/ProjectSwitch/ProjectSwitch"
 
 function join<T>(array: T[], separatorFactory: (id: number) => T): T[] {
   let res = []

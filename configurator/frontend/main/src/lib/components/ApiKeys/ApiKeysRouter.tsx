@@ -1,6 +1,12 @@
 import { Route, Switch } from "react-router-dom"
-import { ApiKeyEditor, apiKeysRoutes } from "./ApiKeyEditor"
+import { ApiKeyEditor } from "./ApiKeyEditor"
 import ApiKeys from "./ApiKeys"
+
+export const apiKeysRoutes = {
+  newExact: "/prj-:projectId/api-keys/new",
+  listExact: "/prj-:projectId/api-keys",
+  editExact: "/prj-:projectId/api-keys/:id",
+} as const
 
 const ApiKeysRouter: React.FC<{}> = () => {
   return (

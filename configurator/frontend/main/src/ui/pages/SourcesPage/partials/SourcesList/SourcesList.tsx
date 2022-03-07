@@ -7,8 +7,6 @@ import { observer } from "mobx-react-lite"
 import { sourcesStore } from "stores/sources"
 // @Icons
 import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined"
-// @Types
-import { CommonSourcePageProps } from "ui/pages/SourcesPage/SourcesPage"
 // @Styles
 import styles from "./SourcesList.module.less"
 // @Routes
@@ -16,14 +14,9 @@ import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 // @Utils
 import { SourceCard } from "../../../../components/SourceCard/SourceCard"
 import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
+import ProjectLink from "lib/components/ProjectLink/ProjectLink"
 
 const SourcesListComponent = () => {
-  const history = useHistory()
-
-  const handleAddClick = useCallback(() => {
-    history.push(sourcesPageRoutes.add)
-  }, [history])
-
   useEffect(() => {
     currentPageHeaderStore.setBreadcrumbs("Sources")
   }, [])
@@ -33,9 +26,11 @@ const SourcesListComponent = () => {
       <div className={styles.empty}>
         <h3 className="text-2xl">Sources list is still empty</h3>
         <div>
-          <Button type="primary" size="large" icon={<PlusOutlined />} onClick={handleAddClick}>
-            Add source
-          </Button>
+          <ProjectLink to={sourcesPageRoutes.add}>
+            <Button type="primary" size="large" icon={<PlusOutlined />}>
+              Add source
+            </Button>
+          </ProjectLink>
         </div>
       </div>
     )
@@ -44,9 +39,11 @@ const SourcesListComponent = () => {
   return (
     <>
       <div className="mb-5">
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddClick}>
-          Add source
-        </Button>
+        <ProjectLink to={sourcesPageRoutes.add}>
+          <Button type="primary" icon={<PlusOutlined />}>
+            Add source
+          </Button>
+        </ProjectLink>
       </div>
 
       <div className="flex flex-wrap justify-center">

@@ -9,11 +9,11 @@ import { DeleteOutlined, EditOutlined } from "@ant-design/icons"
 import { copyToClipboard, reactElementToString, trimMiddle } from "../../commons/utils"
 import styles from "./ApiKeys.module.less"
 import { generatePath, NavLink } from "react-router-dom"
-import { apiKeysRoutes } from "./ApiKeyEditor"
 import { confirmDelete } from "../../commons/deletionConfirmation"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { APIKeyUtil } from "../../../utils/apiKeys.utils"
 import { handleError } from "../components"
+import { apiKeysRoutes } from "./ApiKeysRouter"
 
 type ApiKeyCardProps = {
   apiKey: ApiKey

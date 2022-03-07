@@ -122,7 +122,16 @@ export class HttpServerStorage extends ServerStorage {
       current,
       sanitize(data, {
         // TODO _email is temporary
-        allow: ["_emailOptout", "_name", "_forcePasswordChange", "_name", "_onboarded", "_suggestedInfo", "_project", "_email"],
+        allow: [
+          "_emailOptout",
+          "_name",
+          "_forcePasswordChange",
+          "_name",
+          "_onboarded",
+          "_suggestedInfo",
+          "_project",
+          "_email",
+        ],
       })
     )
     console.log("Saving user info", mergedUserInfo)

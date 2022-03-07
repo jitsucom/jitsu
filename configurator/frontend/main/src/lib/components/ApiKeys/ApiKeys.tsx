@@ -37,43 +37,41 @@ const ApiKeysComponent: React.FC = () => {
   const [loading, setLoading] = useState<LoadingState>(null)
   const [documentationDrawerKey, setDocumentationDrawerKey] = useState<ApiKey>(null)
 
-  const header = (
-    <div className="flex flex-row mb-5 items-start justify between">
-      <div className="flex-grow flex text-secondaryText">
-        Jitsu supports many{" "}
-        <Popover
-          trigger="click"
-          placement="bottom"
-          title={null}
-          content={
-            <div className="w-96 flex-wrap flex justify-center">
-              {Object.values(jitsuClientLibraries).map(props => (
-                <div className="mx-3 my-4" key={props.name}>
-                  <JitsuClientLibraryCard {...props} />
-                </div>
-              ))}
-            </div>
-          }
-        >
-          {"\u00A0"}
-          <a>languages and frameworks</a>
-          {"\u00A0"}
-        </Popover>
-        !
-      </div>
-      <div className="flex-shrink">
-        <Link to={"/api-keys/new"}>
-          <Button type="primary" size="large" icon={<PlusOutlined />} loading={"NEW" === loading}>
-            Generate New Key
-          </Button>
-        </Link>
-      </div>
-    </div>
-  )
 
   return (
     <>
-      {header}
+      <div className="flex flex-row mb-5 items-start justify between">
+        <div className="flex-grow flex text-secondaryText">
+          Jitsu supports many{" "}
+          <Popover
+            trigger="click"
+            placement="bottom"
+            title={null}
+            content={
+              <div className="w-96 flex-wrap flex justify-center">
+                {Object.values(jitsuClientLibraries).map(props => (
+                  <div className="mx-3 my-4" key={props.name}>
+                    <JitsuClientLibraryCard {...props} />
+                  </div>
+                ))}
+              </div>
+            }
+          >
+            {"\u00A0"}
+            <a>languages and frameworks</a>
+            {"\u00A0"}
+          </Popover>
+          !
+        </div>
+        <div className="flex-shrink">
+          <Link to={"/api-keys/new"}>
+            <Button type="primary" size="large" icon={<PlusOutlined />} loading={"NEW" === loading}>
+              Generate New Key
+            </Button>
+          </Link>
+        </div>
+      </div>
+
       <div className="flex flex-wrap justify-center">
         {keys
           .slice()
@@ -82,6 +80,7 @@ const ApiKeysComponent: React.FC = () => {
             <ApiKeyCard apiKey={key} key={key.uid} showDocumentation={() => setDocumentationDrawerKey(key)} />
           ))}
       </div>
+
       <Drawer width="70%" visible={!!documentationDrawerKey} onClose={() => setDocumentationDrawerKey(null)}>
         {documentationDrawerKey && <KeyDocumentation token={documentationDrawerKey} />}
       </Drawer>

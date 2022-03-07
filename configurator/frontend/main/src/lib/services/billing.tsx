@@ -13,7 +13,7 @@ import { DatePoint, StatisticsService } from "lib/services/stat"
 // @Utils
 import { withQueryParams } from "utils/queryParams"
 import { numberFormat } from "../commons/utils"
-import { UpgradePlan } from "../../ui/components/CurrentPlan/CurrentPlan"
+import { BillingPlanOptions } from "lib/components/BillingPlanOptions/BillingPlanOptions"
 
 export type PricingPlanId = "opensource" | "free" | "growth" | "premium" | "enterprise"
 
@@ -346,7 +346,7 @@ export function showQuotaLimitModal(subscription: CurrentSubscription, msg: Reac
     content: (
       <div>
         <div className="text-lg text-center pt-4">{msg}</div>
-        <UpgradePlan planStatus={subscription} />
+        <BillingPlanOptions planStatus={subscription} />
       </div>
     ),
     closable: true,
