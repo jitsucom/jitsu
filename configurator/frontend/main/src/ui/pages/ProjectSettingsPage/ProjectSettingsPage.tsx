@@ -49,7 +49,25 @@ const UsersSettings: React.FC<{}> = () => {
     return <ErrorCard title="Users list is empty" />
   }
 
-  function unlinkUser({ id, email }) {
+  const linkUser = async (userEmail: string) => {
+    const result = await services.projectService.linkUserToProject(services.activeProject.id, { userEmail })
+    if (result == "invitation_sent") {
+      actionNotification.success(
+        <>
+          Invitation has been sent to <b>{userEmail}</b>. The user will need to create account first
+        </>
+      )
+    } else {
+      actionNotification.success(
+        <>
+          User <b>{userEmail}</b> already has an account, they has been granted with access to this project
+        </>
+      )
+    }
+    await reloader()
+  }
+
+  const unlinkUser = ({ id, email }) => {
     if (id === services.userService.getUser().id) {
       alert("You can't unlink yourself from the project!")
       return
@@ -76,7 +94,7 @@ const UsersSettings: React.FC<{}> = () => {
   return (
     <div>
       {users.map(user => (
-        <div key={user.id} className="w-full flex justify-between">
+        <div key={user.id} className="w-full flex justify-between -ml-2 p-2 rounded-md hover:bg-bgComponent">
           <div key="email" className="text-secondaryText text-lg font-bold">
             {user.email}
           </div>
@@ -88,24 +106,7 @@ const UsersSettings: React.FC<{}> = () => {
         </div>
       ))}
       <div className="pt-6">
-        <InviteUserForm
-          invite={async userEmail => {
-            let result = await services.projectService.linkUserToProject(services.activeProject.id, { userEmail })
-            if (result == "invitation_sent") {
-              actionNotification.success(
-                <>
-                  Invitation has been sent to <b>{userEmail}</b>. The user will need to create account first
-                </>
-              )
-            } else {
-              actionNotification.success(
-                <>
-                  User <b>{userEmail}</b> already has an account, she has been granted with access to your project
-                </>
-              )
-            }
-          }}
-        />
+        <InviteUserForm invite={linkUser} />
       </div>
     </div>
   )

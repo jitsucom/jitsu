@@ -130,7 +130,7 @@ export class FirebaseUserService implements UserService {
   }
 
   removeAuth(callback: () => void) {
-    signOut(getAuth()).then(callback).catch(callback)
+    signOut(getAuth()).finally(callback)
   }
 
   getUser(): User {

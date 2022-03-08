@@ -48,7 +48,7 @@ import { Breadcrumbs } from "./ui/components/Breadcrumbs/Breadcrumbs"
 import ProjectLink from "./lib/components/ProjectLink/ProjectLink"
 import { User } from "./generated/conf-openapi"
 import { showProjectSwitchModal } from "./lib/components/ProjectSwitch/ProjectSwitch"
-import { BillingPlanOptions, BillingPlanOptionsModal } from "lib/components/BillingPlanOptions/BillingPlanOptions"
+import { BillingPlanOptionsModal } from "lib/components/BillingPlanOptions/BillingPlanOptions"
 
 type MenuItem = {
   icon: React.ReactNode
@@ -210,9 +210,10 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
       <div className="flex-shrink flex justify-center items-center">
         <Dropdown
           trigger={["click"]}
-          onVisibleChange={vis => setDropdownVisible(vis)}
           visible={dropdownVisible}
+          destroyPopupOnHide={true}
           overlay={<DropdownMenu user={user} plan={plan} hideMenu={() => setDropdownVisible(false)} />}
+          onVisibleChange={vis => setDropdownVisible(vis)}
         >
           <Button
             className="ml-1 border-primary border-2 hover:border-text text-text hover:text-text"
@@ -259,7 +260,11 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
       </div>
       <div className="py-2 border-b border-main px-5 flex flex-col items-start">
         <div>
-          Project: <b>{services.activeProject.name || "Unspecified"}</b>
+          {services.activeProject?.name && (
+            <>
+              Project: <b>{services.activeProject.name}</b>
+            </>
+          )}
           <div className="text-xs">
             <a
               onClick={() => {

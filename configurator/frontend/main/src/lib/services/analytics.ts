@@ -134,7 +134,7 @@ function isError(obj: any) {
 }
 
 export type UserProps = {
-  name: string
+  name?: string
   email: string
   id: string
 }

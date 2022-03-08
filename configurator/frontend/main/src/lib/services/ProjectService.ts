@@ -7,6 +7,8 @@ import { BackendApiClient } from "./BackendApiClient"
 import { assertHasAllProperties, assertIsArray, assertIsObject } from "utils/typeCheck"
 import { assert } from "../../utils/typeCheck"
 import { withQueryParams } from "utils/queryParams"
+import { concatenateURLs } from "lib/commons/utils"
+import { getFullUiPath } from "lib/commons/pathHelper"
 
 export interface ProjectService {
   /**
@@ -46,7 +48,7 @@ export interface ProjectService {
    * @param projectId
    * @param userId
    */
-  unlinkFromProject(userId: string, projectId: string): Promise<void>
+  unlinkFromProject(projectId: string, userId: string): Promise<void>
 }
 
 export function createProjectService_v1(userService: UserService, backend: BackendApiClient): ProjectService {
@@ -55,28 +57,35 @@ export function createProjectService_v1(userService: UserService, backend: Backe
       const response = await backend.get<unknown>(`/project/${projectId}/users`, { version: 2 })
       assertIsArray(response, "Assertion error in getProjectUsers: response is not an array")
       return response.map((value, index) => {
-        assertIsUserBasicInfo(value, `Assertion error in getProjectUsers: element with index ${index} is not a valid UserBasicInfo object`)
+        assertIsUserBasicInfo(
+          value,
+          `Assertion error in getProjectUsers: element with index ${index} is not a valid UserBasicInfo object`
+        )
         return value
       })
     },
 
     async linkUserToProject(projectId, link): Promise<"invitation_sent" | "user_linked"> {
-      const response = await backend.post<unknown>(`/project/${projectId}/link`, link, { version: 2 })
+      const response = await backend.post<unknown>(
+        `/project/${projectId}/link`,
+        { ...link, callback: concatenateURLs(getFullUiPath(), `/reset_password/{{token}}`) },
+        { version: 2 }
+      )
       assertIsObject(response, `Assertion error in linkUserToProject: response is not an object`)
       assert(
-        response.status === "existing" || response.status === "created",
-        `Assertion error in linkUserToProject: response.status can only be "existing" or "created" but received ${response.status}`
+        response.userStatus === "existing" || response.userStatus === "created",
+        `Assertion error in linkUserToProject: response.userStatus can only be "existing" or "created" but received ${response.userStatus}`
       )
-      switch (response.status) {
-        case "created":
-          return "user_linked"
+      switch (response.userStatus) {
         case "existing":
+          return "user_linked"
+        case "created":
           return "invitation_sent"
       }
     },
 
-    async unlinkFromProject(userId: string, projectId: string): Promise<void> {
-      await backend.get<unknown>(withQueryParams(`/project/${projectId}/link`, { userId }), { version: 2 })
+    async unlinkFromProject(projectId: string, userId: string): Promise<void> {
+      await backend.get<unknown>(withQueryParams(`/project/${projectId}/unlink`, { userId }), { version: 2 })
       return
     },
 
@@ -85,7 +94,7 @@ export function createProjectService_v1(userService: UserService, backend: Backe
       assertIsProject(response, "Assertion error in createProject: value returned by POST is not a ProjectInfo object")
 
       // TEMP - remove once backend does set `requiresSetup: true` for a new project
-      await backend.patch<unknown>(`/projects/${response.id}`, {requiresSetup: true}, { version: 2 })
+      await backend.patch<unknown>(`/projects/${response.id}`, { requiresSetup: true }, { version: 2 })
 
       return response
     },
@@ -122,39 +131,3 @@ function assertIsUserBasicInfo(value: unknown, message: string): asserts value i
   assertHasAllProperties(value, ["id", "email"], `${message}\nError in assertIsProject`)
   return
 }
-
-// /**
-//  * Temporary method. Will get deprecated once API v2 starts returning `Project` type instead of `ProjectInfo` type.
-//  *
-//  * Casts `ProjectInfo` or `Project` input to a `Project` type by removing "_" in the beginning of each property name.
-//  * If partial info is passed, the corresponding partial will be returned
-//  * @param infoOrProject
-//  * @returns
-//  */
-// function toProject<T extends Partial<ProjectInfo>>(
-//   infoOrProject: T
-// ): T extends ProjectInfo ? Project : Partial<Project> {
-//   return Object.fromEntries(
-//     Object.entries(infoOrProject).map(([key, value]) => {
-//       if (key.startsWith("_")) return [key.slice(1), value]
-//       if (key === "_requireSetup") return ["requiresSetup", value]
-//       return [key, value]
-//     })
-//   ) as any
-// }
-
-// /**
-//  * Temporary method. Will get deprecated once API v2 starts returning `Project` type instead of `ProjectInfo` type.
-//  *
-//  * Casts `Project` input to a `ProjectInfo` type by adding "_" in the beginning of each property name.
-//  * If partial info is passed, the corresponding partial will be returned
-//  * @param infoOrProject
-//  * @returns
-//  */
-// function toProjectInfo<T extends Partial<Project>>(
-//   infoOrProject: T
-// ): T extends Project ? ProjectInfo : Partial<ProjectInfo> {
-//   return Object.fromEntries(
-//     Object.entries(infoOrProject).map(([key, value]) => [key.startsWith("_") ? key : `_${key}`, value])
-//   ) as any
-// }

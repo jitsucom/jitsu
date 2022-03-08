@@ -37,14 +37,18 @@ const BreadcrumbsComponent: React.FC<{}> = () => {
   const project = useProject()
   return (
     <div className="flex flex-row items-center text-base space-x-1">
-      <div
-        key="main"
-        className="hover:bg-bgSecondary px-3 py-1 rounded-lg text-heading cursor-pointer"
-        onClick={showProjectSwitchModal}
-      >
-        {project.name}
-      </div>
-      <Delimiter key={"delim"} />
+      {project?.name && (
+        <>
+          <div
+            key="main"
+            className="hover:bg-bgSecondary px-3 py-1 rounded-lg text-heading cursor-pointer"
+            onClick={showProjectSwitchModal}
+          >
+            {project.name}
+          </div>
+          <Delimiter key={"delim"} />
+        </>
+      )}
       {join(
         currentPageHeaderStore.getBreadcrumbs().map((element, index) => (
           <div className={`${element.link && "hover:bg-bgSecondary"} px-3 py-1 rounded-lg`} key={`element-${index}`}>
