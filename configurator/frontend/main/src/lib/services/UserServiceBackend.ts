@@ -1,7 +1,7 @@
 /* eslint-disable */
 import { ApiAccess, userFromDTO, userToDTO } from "./model"
 import { cleanAuthorizationLocalStorage, concatenateURLs } from "lib/commons/utils"
-import { getBaseUIPath } from "lib/commons/pathHelper"
+import { getFullUiPath } from "lib/commons/pathHelper"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
 import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserService } from "./UserService"
@@ -115,7 +115,7 @@ export class BackendUserService implements UserService {
       callback()
     }
 
-    this.backendApi.post("/users/signout", {}).then(cleaningCallback).catch(cleaningCallback)
+    this.backendApi.post("/users/signout", {}).finally(cleaningCallback)
   }
 
   getUser(): User {
@@ -140,20 +140,11 @@ export class BackendUserService implements UserService {
       email = this.getUser().email
     }
 
-    let appPath = ""
-    const baseUIPath = getBaseUIPath()
-    if (baseUIPath !== undefined) {
-      appPath = baseUIPath
-    }
-
     return this.backendApi.post(
       "/users/password/reset",
       {
         email: email,
-        callback: concatenateURLs(
-          `${window.location.protocol}//${window.location.host}`,
-          concatenateURLs(appPath, `/reset_password/{{token}}`)
-        ),
+        callback: concatenateURLs(getFullUiPath(), `/reset_password/{{token}}`),
       },
       { noauth: true }
     )

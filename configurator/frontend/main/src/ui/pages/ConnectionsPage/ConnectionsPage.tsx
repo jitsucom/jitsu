@@ -85,6 +85,9 @@ const ConnectionsPageComponent: React.FC = () => {
     }
   }, [destinationsStore.list, sourcesStore.list, apiKeysStore.list])
 
+  apiKeysStore.list
+  debugger
+
   return (
     <div ref={containerRef} className="relative flex justify-center w-full h-full overflow-y-auto">
       <div className="flex items-stretch w-full h-full max-w-3xl">

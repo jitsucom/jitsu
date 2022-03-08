@@ -6,7 +6,6 @@ import { useParams } from "react-router"
 import moment from "moment"
 // @Services
 import ApplicationServices from "./lib/services/ApplicationServices"
-import { UserProps } from "./lib/services/analytics"
 import { CurrentSubscription, getCurrentSubscription, paymentPlans } from "lib/services/billing"
 // @Stores
 import { initializeAllStores } from "stores/_initializeAllStores"
@@ -73,7 +72,7 @@ export const initializeApplication = async (): Promise<ApplicationServices> => {
   await services.userService.waitForUser()
   if (services.userService.hasUser()) {
     setDebugInfo("user", services.userService.getUser())
-    services.analyticsService.onUserKnown(services.userService.getUser() as UserProps)
+    services.analyticsService.onUserKnown(services.userService.getUser())
   }
 
   let currenSubscription: CurrentSubscription
@@ -150,33 +149,35 @@ export const Application: React.FC = function () {
       <>
         {services.showSelfHostedSignUp() && <SetupForm />}
         {!services.showSelfHostedSignUp() && (
-          <Switch>
-            <Route
-              key="login"
-              path="/login-link/:emailEncoded?"
-              exact
-              render={pageOf(LoginLink, { pageTitle: "Jitsu : Sign In with magic link" })}
-            />
-            <Route
-              key="signin"
-              path={["/", "/dashboard", "/login", "/signin"]}
-              exact
-              render={pageOf(LoginPage, { pageTitle: "Jitsu : Sign In" })}
-            />
-            <Route
-              key="signup"
-              path={["/register", "/signup"]}
-              exact
-              render={pageOf(SignupPage, { pageTitle: "Jitsu : Sign Up" })}
-            />
-            <Route
-              key="reset"
-              path={["/reset_password/:resetId"]}
-              exact
-              render={pageOf(PasswordForm, { pageTitle: "Jitsu : Reset Password" })}
-            />
-            <Redirect to="/" />
-          </Switch>
+          <React.Suspense fallback={<CenteredSpin />}>
+            <Switch>
+              <Route
+                key="login"
+                path="/login-link/:emailEncoded?"
+                exact
+                render={pageOf(LoginLink, { pageTitle: "Jitsu : Sign In with magic link" })}
+              />
+              <Route
+                key="signin"
+                path={["/", "/dashboard", "/login", "/signin"]}
+                exact
+                render={pageOf(LoginPage, { pageTitle: "Jitsu : Sign In" })}
+              />
+              <Route
+                key="signup"
+                path={["/register", "/signup"]}
+                exact
+                render={pageOf(SignupPage, { pageTitle: "Jitsu : Sign Up" })}
+              />
+              <Route
+                key="reset"
+                path={["/reset_password/:resetId"]}
+                exact
+                render={pageOf(PasswordForm, { pageTitle: "Jitsu : Reset Password" })}
+              />
+              <Redirect to="/" />
+            </Switch>
+          </React.Suspense>
         )}
       </>
     )
@@ -315,6 +316,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
     ;(async () => {
       let project = projects.find(project => project.id === projectId)
       if (!project) {
+        if (projects.length === 0) services.userService.removeAuth(reloadPage)
         actionNotification.warn(
           <>
             Project with ID <b>{projectId}</b> not found. Redirected to <b>{projects[0].name}</b> project.
