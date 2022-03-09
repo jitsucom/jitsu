@@ -216,7 +216,7 @@ func (ec *EventsCache) Succeed(eventContext *adapters.EventContext) {
 //Error puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Error(cacheDisabled bool, destinationID, originEvent string, errMsg string) {
 	if !cacheDisabled && ec.isActive() {
-		if !ec.isRateLimiterAllowed(destinationID, meta.EventsPureStatus) {
+		if ec.isRateLimiterAllowed(destinationID, meta.EventsPureStatus) {
 			select {
 			case ec.statusEventsChannel <- &statusEvent{originEvent: originEvent, destinationID: destinationID, error: errMsg}:
 			default:
