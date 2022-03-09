@@ -1,6 +1,6 @@
 // @Libs
 import React, { ComponentType, ExoticComponent, useEffect, useState } from "react"
-import { Redirect, Route, Switch, useHistory, useLocation, NavLink } from "react-router-dom"
+import { Redirect, Route, Switch, useLocation, NavLink } from "react-router-dom"
 import { Button, Card, Typography } from "antd"
 import { useParams } from "react-router"
 import moment from "moment"

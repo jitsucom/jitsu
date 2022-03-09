@@ -23,6 +23,7 @@ import {
   signOut,
   updateEmail,
   updatePassword,
+  getIdToken,
 } from "firebase/auth"
 import { reloadPage, setDebugInfo } from "../commons/utils"
 import { SignupRequest, User } from "../../generated/conf-openapi"
@@ -243,7 +244,7 @@ export class FirebaseUserService implements UserService {
     return this.refreshToken(this.firebaseUser, true)
   }
 
-  getIdToken(): Promise<string> {
-    return Promise.resolve("")
+  async getIdToken(): Promise<string> {
+    return await getIdToken(this.firebaseUser)
   }
 }

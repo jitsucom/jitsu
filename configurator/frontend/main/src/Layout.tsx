@@ -209,6 +209,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
       </div>
       <div className="flex-shrink flex justify-center items-center">
         <Dropdown
+          key={"userMenuDropdown"}
           trigger={["click"]}
           visible={dropdownVisible}
           destroyPopupOnHide={true}
@@ -382,10 +383,8 @@ export const SlackChatWidget: React.FC<{}> = () => {
   return (
     <>
       <Popover
-        // ref={ref}
         trigger="click"
         placement="leftBottom"
-        // destroyTooltipOnHide={{ keepParent: false }}
         visible={popoverVisible}
         content={
           <SupportOptions
