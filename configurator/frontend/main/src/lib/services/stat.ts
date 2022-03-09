@@ -191,13 +191,13 @@ function index(series: DatePoint[]): Record<string, number> {
 export class StatisticsService implements IStatisticsService {
   private readonly api: BackendApiClient
 
-  private readonly project: Project
+  private readonly projectId: string
 
   private readonly timeInUTC: boolean
 
-  constructor(api: BackendApiClient, project: Project, timeInUTC: boolean) {
+  constructor(api: BackendApiClient, projectId: string, timeInUTC: boolean) {
     this.api = api
-    this.project = project
+    this.projectId = projectId
     this.timeInUTC = timeInUTC
   }
 
@@ -235,7 +235,7 @@ export class StatisticsService implements IStatisticsService {
     destinationId?: string
   ): string {
     const queryParams = [
-      ["project_id", this.project.id],
+      ["project_id", this.projectId],
       ["start", start.toISOString()],
       ["end", end.toISOString()],
       ["granularity", granularity],

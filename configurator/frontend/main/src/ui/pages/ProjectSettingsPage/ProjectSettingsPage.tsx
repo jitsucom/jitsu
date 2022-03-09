@@ -4,13 +4,38 @@ import { loadProjectSettings, ProjectSettings, saveProjectSettings } from "../..
 import { CenteredError, CenteredSpin, handleError } from "../../../lib/components/components"
 import { actionNotification } from "../../components/ActionNotification/ActionNotification"
 import { FormActions, FormField, FormLayout } from "../../../lib/components/Form/Form"
-import { Badge, Button, Form, Input, Modal } from "antd"
+import { Badge, Button, Form, Input, Modal, Tooltip } from "antd"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
 import useForm from "antd/lib/form/hooks/useForm"
 import { flatten, unflatten } from "lib/commons/utils"
 import { useServices } from "../../../hooks/useServices"
 import useProject from "../../../hooks/useProject"
 import { ErrorCard } from "../../../lib/components/ErrorCard/ErrorCard"
+import { BilledButton } from "lib/components/BilledButton/BilledButton"
+
+export default function ProjectSettingsPage() {
+  return (
+    <div>
+      <SettingsPanel
+        title={"Notifications"}
+        documentation={
+          <>
+            Configure{" "}
+            <a href="https://api.slack.com/messaging/webhooks" target="_blank">
+              slack webhook
+            </a>{" "}
+            to receive notifications about synchronization tasks statuses
+          </>
+        }
+      >
+        <SlackSettings />
+      </SettingsPanel>
+      <SettingsPanel title={"Users"} documentation={<>Share your project with other users</>}>
+        <UsersSettings />
+      </SettingsPanel>
+    </div>
+  )
+}
 
 const SettingsPanel: React.FC<{ title: ReactNode; documentation: ReactNode }> = ({
   title,
@@ -94,7 +119,10 @@ const UsersSettings: React.FC<{}> = () => {
   return (
     <div>
       {users.map(user => (
-        <div key={user.id} className="w-full flex justify-between -ml-2 p-2 rounded-md hover:bg-bgComponent">
+        <div
+          key={user.id}
+          className="w-full flex justify-between items-center -ml-2 p-2 rounded-md hover:bg-bgComponent"
+        >
           <div key="email" className="text-secondaryText text-lg font-bold">
             {user.email}
           </div>
@@ -117,6 +145,8 @@ const InviteUserForm: React.FC<{ invite: (email: string) => Promise<void> }> = (
   const [pending, setPending] = useState(false)
   const [email, setEmail] = useState<string>()
   const [errorMessage, setErrorMessage] = useState<string>()
+  const blacklistedPlans = ["free"] as const
+
   return (
     <>
       <div className="flex transition-all duration-1000">
@@ -127,58 +157,32 @@ const InviteUserForm: React.FC<{ invite: (email: string) => Promise<void> }> = (
           disabled={pending}
           className={`${inputVisible ? "opacity-100 w-full mr-4" : "opacity-0 w-0 m-0 p-0 invisible"}`}
         />
-        <Badge count="Coming soon" color="green">
-          <Button
-            type="primary"
-            size="large"
-            disabled={false}
-            loading={pending}
-            onClick={async () => {
-              if (!inputVisible) {
-                setInputVisible(true)
-              } else {
-                setPending(true)
-                try {
-                  await invite(email)
-                  setInputVisible(false)
-                } catch (e) {
-                  setErrorMessage("Failed to add user to the project: " + e.message)
-                } finally {
-                  setPending(false)
-                }
+        <BilledButton
+          plansBlacklist={blacklistedPlans}
+          type="primary"
+          size="large"
+          loading={pending}
+          onClick={async () => {
+            if (!inputVisible) {
+              setInputVisible(true)
+            } else {
+              setPending(true)
+              try {
+                await invite(email)
+                setInputVisible(false)
+              } catch (e) {
+                setErrorMessage("Failed to add user to the project: " + e.message)
+              } finally {
+                setPending(false)
               }
-            }}
-          >
-            {inputVisible ? "Send invitation" : "Add user to the project"}
-          </Button>
-        </Badge>
+            }
+          }}
+        >
+          {inputVisible ? "Send invitation" : "Add user to the project"}
+        </BilledButton>
       </div>
       <div className={`text-error ${errorMessage ? "visible" : "invisible"}`}>{errorMessage || "-"}</div>
     </>
-  )
-}
-
-export default function ProjectSettingsPage() {
-  return (
-    <div>
-      <SettingsPanel
-        title={"Notifications"}
-        documentation={
-          <>
-            Configure{" "}
-            <a href="https://api.slack.com/messaging/webhooks" target="_blank">
-              slack webhook
-            </a>{" "}
-            to receive notifications about synchronization tasks statuses
-          </>
-        }
-      >
-        <SlackSettings />
-      </SettingsPanel>
-      <SettingsPanel title={"Users"} documentation={<>Share your project with other users</>}>
-        <UsersSettings />
-      </SettingsPanel>
-    </div>
   )
 }
 
