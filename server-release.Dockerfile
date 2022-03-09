@@ -56,7 +56,6 @@ RUN go mod download
 #Copy backend
 ADD server/. ./.
 ADD .git ./.git
-ADD dlv ./dlv
 
 # Build backend and copy binary
 RUN make docker_assemble && \
