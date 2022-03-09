@@ -43,7 +43,7 @@ deps_backend:
 	go mod download
 
 build_backend:
-	$(GOBUILD_PREFIX) go build -ldflags "-X main.commit=${commit} -X main.builtAt=${built_at} -X main.tag=${tag}" -o $(APPLICATION)
+	$(GOBUILD_PREFIX) go build -ldflags "-X main.commit=${commit} -X main.builtAt=${built_at} -X main.tag=${tag}" -gcflags="all=-N -l" -o $(APPLICATION)
 
 test_backend:
 	go test -failfast -v -parallel=1 ./...
