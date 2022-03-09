@@ -24,6 +24,8 @@ export const BillingCurrentPlanComponent: React.FC<CurrentPlanProps> = ({ planSt
   const [upgradeDialogVisible, setUpgradeDialogVisible] = useState(
     location.search && !!new URLSearchParams(location.search).get("planUpgrade")
   )
+  debugger
+
   const services = useServices()
   const usagaPct = (planStatus.usage.events / planStatus.currentPlan.quota.events) * 100
   let customerPortalLink = generateCustomerPortalLink({
@@ -75,10 +77,11 @@ export const BillingCurrentPlanComponent: React.FC<CurrentPlanProps> = ({ planSt
           {planStatus.currentPlan.id === "free" ? (
             <a
               onClick={() => {
-                onPlanChangeModalOpen()
-                onPlanChangeModalOpen()
                 services.analyticsService.track("upgrade_plan_requested")
-                setUpgradeDialogVisible(true)
+                setUpgradeDialogVisible(() => {
+                  onPlanChangeModalOpen()
+                  return true
+                })
               }}
             >
               <b>Upgrade</b>
@@ -91,11 +94,12 @@ export const BillingCurrentPlanComponent: React.FC<CurrentPlanProps> = ({ planSt
         </div>
       </div>
       <BillingPlanOptionsModal
+        key={"upgradeOptionsModal"}
         planStatus={planStatus}
         visible={upgradeDialogVisible}
-        onCancel={() => {
-          setUpgradeDialogVisible(false)
-        }}
+        // onCancel={() => {
+        //   setUpgradeDialogVisible(false)
+        // }}
       />
     </>
   )

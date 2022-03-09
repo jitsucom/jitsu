@@ -15,7 +15,7 @@ export const BillingPlanOptionsModal: React.FC<{ planStatus: CurrentSubscription
 }) => {
   return (
     <Modal
-      destroyOnClose={true}
+      destroyOnClose={false}
       width={800}
       title={<h1 className="text-xl m-0 p-0">Upgrade subscription</h1>}
       footer={null}

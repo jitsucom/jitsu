@@ -1,8 +1,6 @@
 // @Libs
 import { useEffect, useMemo, useState } from "react"
-import { message, Modal } from "antd"
-// @Icons
-import { ExclamationCircleOutlined } from "@ant-design/icons/lib/icons/"
+import { message } from "antd"
 // @View
 import { UserSettingsViewComponent } from "./UserSettingsView"
 // @Utils
@@ -27,7 +25,6 @@ export const UserSettings: React.FC<Props> = () => {
   const [isTelemetryEnabled, setIsTelemetryEnabled] = useState<boolean>(false)
   const [confirmationEmailStatus, setConfirmationEmailStatus] = useState<ConfirmationEmailStatus>("not-required")
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | undefined>()
 
   const needToDisplayTelemetrySettings = useMemo<boolean>(() => {
     return services.features.appName !== "jitsu_cloud"
@@ -52,7 +49,8 @@ export const UserSettings: React.FC<Props> = () => {
     }
   }
 
-  const onlyAdminCanChangeUserEmail = services.features.onlyAdminCanChangeUserEmail
+  const onlyAdminCanChangeUserEmail =
+    services.features.authorization === "redis" && services.features.onlyAdminCanChangeUserEmail
 
   const handleChangeEmail = async (newEmail: string) => {
     try {

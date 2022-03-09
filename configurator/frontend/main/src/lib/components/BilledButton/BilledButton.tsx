@@ -41,7 +41,7 @@ export const BilledButton: React.FC<Props> = ({
 
   return (
     <Wrapper>
-      <Button disabled={isButtonBlocked} {...buttonProps}>
+      <Button {...buttonProps} disabled={isButtonBlocked}>
         {children}
       </Button>
     </Wrapper>

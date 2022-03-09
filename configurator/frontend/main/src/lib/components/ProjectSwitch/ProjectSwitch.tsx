@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useState } from "react"
-import { Badge, Button, Input, Modal } from "antd"
+import { Input, Modal } from "antd"
 import { debounce } from "lodash"
 // @Components
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
@@ -15,6 +15,7 @@ import { useServices } from "hooks/useServices"
 import { useLoaderAsObject } from "hooks/useLoader"
 // @Types
 import type { Project } from "generated/conf-openapi"
+import { BilledButton } from "../BilledButton/BilledButton"
 
 export type ProjectSwitchProps = {
   onAfterProjectSelected: (project: Project, activeProject: Project) => void
@@ -78,11 +79,15 @@ const ProjectSwitch: React.FC<ProjectSwitchProps> = () => {
       <div className="flex flex-row justify-between">
         <div className="text-xl">Select project</div>
         <div>
-          <Badge count="Available in paid plans" color="blue">
-            <Button type="default" icon={<PlusOutlined />} onClick={onCreateNewProject} disabled={false}>
-              New Project
-            </Button>
-          </Badge>
+          <BilledButton
+            plansBlacklist={["free"] as const}
+            type="default"
+            icon={<PlusOutlined />}
+            onClick={onCreateNewProject}
+            disabled={false}
+          >
+            New Project
+          </BilledButton>
         </div>
       </div>
       <div className="py-6">

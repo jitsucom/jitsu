@@ -9,6 +9,8 @@ import { assert } from "../../utils/typeCheck"
 import { withQueryParams } from "utils/queryParams"
 import { concatenateURLs } from "lib/commons/utils"
 import { getFullUiPath } from "lib/commons/pathHelper"
+import { FeatureSettings } from "./ApplicationServices"
+import { errorIncludes } from "utils/errorIncludes"
 
 export interface ProjectService {
   /**
@@ -51,7 +53,7 @@ export interface ProjectService {
   unlinkFromProject(projectId: string, userId: string): Promise<void>
 }
 
-export function createProjectService_v1(userService: UserService, backend: BackendApiClient): ProjectService {
+export function createProjectService(backend: BackendApiClient): ProjectService {
   return {
     async getProjectUsers(projectId: string): Promise<UserBasicInfo[]> {
       const response = await backend.get<unknown>(`/project/${projectId}/users`, { version: 2 })
@@ -66,11 +68,19 @@ export function createProjectService_v1(userService: UserService, backend: Backe
     },
 
     async linkUserToProject(projectId, link): Promise<"invitation_sent" | "user_linked"> {
-      const response = await backend.post<unknown>(
-        `/project/${projectId}/link`,
-        { ...link, callback: concatenateURLs(getFullUiPath(), `/reset_password/{{token}}`) },
-        { version: 2 }
-      )
+      const response = await backend
+        .post<unknown>(
+          `/project/${projectId}/link`,
+          { ...link, callback: concatenateURLs(getFullUiPath(), `/reset_password/{{token}}`) },
+          { version: 2 }
+        )
+        .catch(error => {
+          if (errorIncludes(error, "mail service")) {
+            throw new Error(`SMTP is not configured on the server or the configuration is invalid.\nDetails: ${error}`)
+          }
+          throw error
+        })
+
       assertIsObject(response, `Assertion error in linkUserToProject: response is not an object`)
       assert(
         response.userStatus === "existing" || response.userStatus === "created",

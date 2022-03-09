@@ -14,7 +14,7 @@ import { CurrentSubscription } from "./billing"
 import { ISlackApiService, SlackApiService } from "./slack"
 import { IOauthService, OauthService } from "./oauth"
 import { Project } from "../../generated/conf-openapi"
-import { createProjectService_v1, ProjectService } from "./ProjectService"
+import { createProjectService, ProjectService } from "./ProjectService"
 import { FirebaseUserService } from "./UserServiceFirebase"
 
 export interface IApplicationServices {
@@ -61,11 +61,7 @@ export default class ApplicationServices implements IApplicationServices {
     this._storageService = new HttpServerStorage(this._backendApiClient)
     this._slackApiService = new SlackApiService(() => this._userService.apiAccess())
     this._oauthService = new OauthService(this._applicationConfiguration.oauthApiBase, this._backendApiClient)
-    this._projectService = createProjectService_v1(this._userService, this._backendApiClient)
-  }
-
-  get projectService(): ProjectService {
-    return this._projectService
+    this._projectService = createProjectService(this._backendApiClient)
   }
 
   //load backend configuration and create user service depend on authorization type
@@ -93,6 +89,10 @@ export default class ApplicationServices implements IApplicationServices {
     } else {
       throw new Error(`Unknown backend configuration authorization type: ${configuration.authorization}`)
     }
+  }
+
+  get projectService(): ProjectService {
+    return this._projectService
   }
 
   get userService(): UserService {
