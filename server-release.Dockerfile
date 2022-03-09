@@ -53,7 +53,6 @@ WORKDIR /go/src/github.com/jitsucom/jitsu/server
 ADD server/go.mod ./
 RUN go mod download
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
-RUN eval $(go env | grep GOPATH) && cp $GOPATH/bin/dlv .
 
 #Copy backend
 ADD server/. ./.
@@ -61,8 +60,12 @@ ADD .git ./.git
 ADD dlv ./dlv
 
 # Build backend and copy binary
-RUN make docker_assemble &&\
+RUN make docker_assemble && \
     cp ./build/dist/eventnative /app/
+
+# Install & copy delve for debug
+RUN go install github.com/go-delve/delve/cmd/dlv@latest && \
+    eval $(go env | grep GOPATH) && cp $GOPATH/bin/dlv /app/
 
 #######################################
 # FINAL STAGE
@@ -70,6 +73,7 @@ FROM main as final
 
 ADD server/build/dist/ /home/$EVENTNATIVE_USER/app/
 COPY --from=builder /app/eventnative /home/$EVENTNATIVE_USER/app/
+COPY --from=builder /app/dlv /home/$EVENTNATIVE_USER/app/
 
 WORKDIR /home/$EVENTNATIVE_USER/app
 
