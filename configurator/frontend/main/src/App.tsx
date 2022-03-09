@@ -63,9 +63,7 @@ const DownloadConfig = React.lazy(
   () => import(/* webpackPrefetch: true */ "./lib/components/DownloadConfig/DownloadConfig")
 )
 
-const LOGIN_TIMEOUT = 5000
-
-export const initializeApplication = async (): Promise<ApplicationServices> => {
+export const initializeApplication = async (projectId: string): Promise<ApplicationServices> => {
   const services = ApplicationServices.get()
   await services.init()
   console.log("Waiting for user")
@@ -74,32 +72,41 @@ export const initializeApplication = async (): Promise<ApplicationServices> => {
     setDebugInfo("user", services.userService.getUser())
     services.analyticsService.onUserKnown(services.userService.getUser())
   }
-
-  let currenSubscription: CurrentSubscription
-  if (services.userService.hasUser() && services.features.billingEnabled && services.activeProject) {
-    currenSubscription = await getCurrentSubscription(
-      services.activeProject,
-      services.backendApiClient,
-      destinationsStore,
-      sourcesStore
-    )
-  } else {
-    currenSubscription = {
-      autorenew: false,
-      expiration: moment().add(1, "M"),
-      usage: {
-        events: 0,
-        sources: 0,
-        destinations: 0,
-      },
-      currentPlan: paymentPlans.free,
-      quotaPeriodStart: moment(),
-      doNotBlock: true,
-    }
-  }
-  services.currentSubscription = currenSubscription
-  console.log("Services initialized", services)
   return services
+}
+
+const initializeProject = async (projectId: string, projects: Project[]): Promise<Project | null> => {
+  const project = projects.find(project => project.id === projectId) ?? null
+  if (project) {
+    const services = ApplicationServices.get()
+
+    services.activeProject = project
+
+    let currenSubscription: CurrentSubscription
+    if (services.userService.hasUser() && services.features.billingEnabled && projectId) {
+      currenSubscription = await getCurrentSubscription(
+        projectId,
+        services.backendApiClient,
+        destinationsStore,
+        sourcesStore
+      )
+    } else {
+      currenSubscription = {
+        autorenew: false,
+        expiration: moment().add(1, "M"),
+        usage: {
+          events: 0,
+          sources: 0,
+          destinations: 0,
+        },
+        currentPlan: paymentPlans.opensource,
+        quotaPeriodStart: moment(),
+        doNotBlock: true,
+      }
+    }
+    services.currentSubscription = currenSubscription
+  }
+  return project
 }
 
 export const Application: React.FC = function () {
@@ -107,15 +114,16 @@ export const Application: React.FC = function () {
   const [projects, setProjects] = useState<Project[]>(null)
   const [initialized, setInitialized] = useState(false)
   const [error, setError] = useState<Error>()
+  const { projectId } = useParams<{ projectId: string }>()
 
   useEffect(() => {
     ;(async () => {
       try {
-        let application = await initializeApplication()
+        const application = await initializeApplication(projectId)
         if (application.userService.hasUser()) {
-          let projects = await application.projectService.getAvailableProjects()
+          const projects = await application.projectService.getAvailableProjects()
           if (projects.length === 0) {
-            let newProject = await application.projectService.createProject(
+            const newProject = await application.projectService.createProject(
               application.userService.getUser().suggestedCompanyName
             )
             setProjects([newProject])
@@ -146,40 +154,38 @@ export const Application: React.FC = function () {
 
   if (!services.userService.hasUser()) {
     return (
-      <>
+      <React.Suspense fallback={<CenteredSpin />}>
         {services.showSelfHostedSignUp() && <SetupForm />}
         {!services.showSelfHostedSignUp() && (
-          <React.Suspense fallback={<CenteredSpin />}>
-            <Switch>
-              <Route
-                key="login"
-                path="/login-link/:emailEncoded?"
-                exact
-                render={pageOf(LoginLink, { pageTitle: "Jitsu : Sign In with magic link" })}
-              />
-              <Route
-                key="signin"
-                path={["/", "/dashboard", "/login", "/signin"]}
-                exact
-                render={pageOf(LoginPage, { pageTitle: "Jitsu : Sign In" })}
-              />
-              <Route
-                key="signup"
-                path={["/register", "/signup"]}
-                exact
-                render={pageOf(SignupPage, { pageTitle: "Jitsu : Sign Up" })}
-              />
-              <Route
-                key="reset"
-                path={["/reset_password/:resetId"]}
-                exact
-                render={pageOf(PasswordForm, { pageTitle: "Jitsu : Reset Password" })}
-              />
-              <Redirect to="/" />
-            </Switch>
-          </React.Suspense>
+          <Switch>
+            <Route
+              key="login"
+              path="/login-link/:emailEncoded?"
+              exact
+              render={pageOf(LoginLink, { pageTitle: "Jitsu : Sign In with magic link" })}
+            />
+            <Route
+              key="signin"
+              path={["/", "/dashboard", "/login", "/signin"]}
+              exact
+              render={pageOf(LoginPage, { pageTitle: "Jitsu : Sign In" })}
+            />
+            <Route
+              key="signup"
+              path={["/register", "/signup"]}
+              exact
+              render={pageOf(SignupPage, { pageTitle: "Jitsu : Sign Up" })}
+            />
+            <Route
+              key="reset"
+              path={["/reset_password/:resetId"]}
+              exact
+              render={pageOf(PasswordForm, { pageTitle: "Jitsu : Reset Password" })}
+            />
+            <Redirect to="/" />
+          </Switch>
         )}
-      </>
+      </React.Suspense>
     )
   }
 
@@ -305,8 +311,6 @@ const PageWrapper: React.FC<{ pageTitle: string; component: ComponentType; pageP
 
 const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
   const services = useServices()
-  const history = useHistory()
-  const location = useLocation()
   const [initialized, setInitialized] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
   const [project, setProject] = useState<Project | undefined | null>()
@@ -314,18 +318,13 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
 
   useEffect(() => {
     ;(async () => {
-      let project = projects.find(project => project.id === projectId)
+      let project = await initializeProject(projectId, projects)
       if (!project) {
         if (projects.length === 0) services.userService.removeAuth(reloadPage)
-        actionNotification.warn(
-          <>
-            Project with ID <b>{projectId}</b> not found. Redirected to <b>{projects[0].name}</b> project.
-          </>
-        )
-        history.push(`/${location.pathname.split("/").slice(2).join("/")}`) // removes `prj-{id}` from the path
-        project = projects[0]
+        window.sessionStorage.setItem("redirectedFromProjectId", projectId)
+        window.location.replace(window.location.href.replace(projectId, projects[0].id))
+        return
       }
-      services.activeProject = project
       setProject(project)
       try {
         await initializeAllStores()
@@ -336,6 +335,18 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
     })()
   }, [])
 
+  useEffect(() => {
+    const redirectedFromProjectId = window.sessionStorage.getItem("redirectedFromProjectId")
+    if (redirectedFromProjectId && project?.name) {
+      window.sessionStorage.removeItem("redirectedFromProjectId")
+      actionNotification.warn(
+        <>
+          Project with ID <b>{redirectedFromProjectId}</b> not found. Redirected to <b>{project.name}</b> project.
+        </>
+      )
+    }
+  }, [project?.name])
+
   if (!error && !initialized) {
     return <Preloader text="Loading project data..." />
   } else if (error) {
@@ -345,8 +356,6 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
       </div>
     )
   }
-
-  services.activeProject = project
 
   return (
     <>
@@ -385,136 +394,3 @@ const ProjectRedirect: React.FC<{ projects: Project[] }> = ({ projects }) => {
   }
   return <Redirect to={`/prj-${projects[0].id}${location.pathname}`} />
 }
-
-// export default class App extends React.Component<{ projectId?: string }, AppState> {
-//   private readonly services: ApplicationServices
-
-//   constructor(props: any, context: any) {
-//     super(props, context)
-//     this.services = ApplicationServices.get()
-//     setDebugInfo("applicationServices", this.services, false)
-//     this.state = {
-//       lifecycle: AppLifecycle.LOADING,
-//       extraControls: null,
-//     }
-//   }
-
-//   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-//     this.services.analyticsService.onGlobalError(error)
-//   }
-
-//   public async componentDidMount() {
-//     try {
-//       const { user, paymentPlanStatus } = await initializeApplication(this.services)
-
-//       this.setState({
-//         lifecycle: user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
-//         user: user,
-//         paymentPlanStatus: paymentPlanStatus,
-//       })
-
-//       if (user) {
-//         const email = await this.services.userService.getUserEmailStatus()
-//         email.needsConfirmation && !email.isConfirmed && message.warn(emailIsNotConfirmedMessageConfig)
-//       }
-//     } catch (error) {
-//       console.error("Failed to initialize ApplicationServices", error)
-//       if (this.services.analyticsService) {
-//         this.services.analyticsService.onGlobalError(error, true)
-//       } else {
-//         console.error("Failed to send error to analytics service, it's not defined yet")
-//       }
-//       this.setState({ lifecycle: AppLifecycle.ERROR })
-//       return
-//     }
-
-//     window.setTimeout(() => {
-//       if (this.state.lifecycle == AppLifecycle.LOADING) {
-//         this.services.analyticsService.onGlobalError(new Error("Login timeout"))
-//         this.setState({ lifecycle: AppLifecycle.ERROR, globalErrorDetails: "Timeout" })
-//       }
-//     }, LOGIN_TIMEOUT)
-//   }
-
-//   private getRenderComponent() {
-//     alert(this.props)
-//     switch (this.state.lifecycle) {
-//       case AppLifecycle.REQUIRES_LOGIN:
-//         let pages = this.services.showSelfHostedSignUp() ? SELFHOSTED_PAGES : PUBLIC_PAGES
-//         return (
-//           <>
-//             <Switch>
-//               {pages.map(route => {
-//                 let Component = route.component as ExoticComponent
-//                 return (
-//                   <Route
-//                     key={route.getPrefixedPath().join("")}
-//                     path={route.getPrefixedPath()}
-//                     exact
-//                     render={routeProps => {
-//                       this.services.analyticsService.onPageLoad({
-//                         pagePath: routeProps.location.key || "/unknown",
-//                       })
-//                       document["title"] = route.pageTitle
-//                       return <Component {...(routeProps as any)} />
-//                     }}
-//                   />
-//                 )
-//               })}
-//               <Redirect key="rootRedirect" to="/" />
-//             </Switch>
-//           </>
-//         )
-//       case AppLifecycle.APP:
-//         return (
-//           <>
-//             {this.appLayout()}
-//             {<SlackChatWidget />}
-//           </>
-//         )
-//       case AppLifecycle.ERROR:
-//         return <GlobalError />
-//       case AppLifecycle.LOADING:
-//         return <Preloader />
-//     }
-//   }
-
-//   public render() {
-//     return <React.Suspense fallback={<CenteredSpin />}>{this.getRenderComponent()}</React.Suspense>
-//   }
-
-//   appLayout() {
-//     const extraForms = [<OnboardingSwitch key="onboardingTour" />]
-//     if (this.services.userService.getUser().forcePasswordChange) {
-//       return (
-//         <SetNewPassword
-//           onCompleted={async () => {
-//             reloadPage()
-//           }}
-//         />
-//       )
-//     } else if (this.state.paymentPlanStatus) {
-//       const quotasMessage = checkQuotas(this.state.paymentPlanStatus)
-//       if (quotasMessage) {
-//         extraForms.push(
-//           <BillingBlockingModal
-//             key="billingBlockingModal"
-//             blockingReason={quotasMessage}
-//             subscription={this.state.paymentPlanStatus}
-//           />
-//         )
-//       } else if (this.state.paymentPlanStatus && window.location.search.indexOf("upgradeDialog=true") >= 0) {
-//         extraForms.push(<UpgradePlanDialog subscription={this.state.paymentPlanStatus} />)
-//       }
-//     }
-//     return (
-//       <ApplicationPage
-//         key="applicationPage"
-//         user={this.state.user}
-//         plan={this.state.paymentPlanStatus}
-//         pages={PRIVATE_PAGES}
-//         extraForms={extraForms}
-//       />
-//     )
-//   }
-// }

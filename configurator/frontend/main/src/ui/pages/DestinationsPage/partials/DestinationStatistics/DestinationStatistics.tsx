@@ -1,7 +1,7 @@
 // @Libs
 import { Button, Card, Col, Row } from "antd"
 import { useEffect, useMemo } from "react"
-import { generatePath, useHistory, useParams } from "react-router-dom"
+import { useHistory, useParams } from "react-router-dom"
 // @Store
 import { destinationsStore } from "stores/destinations"
 // @Components
@@ -72,7 +72,7 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = () =>
   const destinationUid = destination?._uid
   const destinationReference = destinationsStore.getDestinationReferenceById(params.id)
   const statisticsService = useMemo<IStatisticsService>(
-    () => new StatisticsService(services.backendApiClient, services.activeProject, true),
+    () => new StatisticsService(services.backendApiClient, services.activeProject.id, true),
     []
   )
 

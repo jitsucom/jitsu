@@ -222,7 +222,7 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     anonymizeUsers: !!responseData.selfhosted,
     appName: responseData.selfhosted ? "selfhosted" : "jitsu_cloud",
     chatSupportType: responseData.selfhosted ? "slack" : "chat",
-    billingEnabled: !responseData.selfhosted,
+    billingEnabled: responseData.authorization === "firebase" && !!process.env.BILLING_API_BASE_URL,
     authorization: responseData.authorization,
     ssoAuthLink,
     smtp: responseData.smtp,

@@ -239,12 +239,12 @@ async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
 }
 
 export async function getCurrentSubscription(
-  project: Project,
+  projectId: string,
   backendApiClient: BackendApiClient,
   destinationsStore: typeof DestinationsStore,
   sourcesStore: typeof SourcesStore
 ): Promise<CurrentSubscription> {
-  const statService = new StatisticsService(backendApiClient, project, true)
+  const statService = new StatisticsService(backendApiClient, projectId, true)
 
   const subscription = await fetchCurrentSubscription()
 
