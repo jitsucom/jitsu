@@ -52,7 +52,6 @@ WORKDIR /go/src/github.com/jitsucom/jitsu/server
 #Caching dependencies
 ADD server/go.mod ./
 RUN go mod download
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
 #Copy backend
 ADD server/. ./.
