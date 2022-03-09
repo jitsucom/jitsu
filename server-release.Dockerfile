@@ -18,6 +18,7 @@ ARG dhid
 ENV DOCKER_HUB_ID=$dhid
 ENV TZ=UTC
 ENV EVENTNATIVE_USER=eventnative
+ENV DLV_DEBUG_PORT=21234
 
 RUN echo "$EVENTNATIVE_USER     ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
     && addgroup --system $EVENTNATIVE_USER \
@@ -51,10 +52,13 @@ WORKDIR /go/src/github.com/jitsucom/jitsu/server
 #Caching dependencies
 ADD server/go.mod ./
 RUN go mod download
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN eval $(go env | grep GOPATH) && cp $GOPATH/bin/dlv .
 
 #Copy backend
 ADD server/. ./.
 ADD .git ./.git
+ADD dlv ./dlv
 
 # Build backend and copy binary
 RUN make docker_assemble &&\
