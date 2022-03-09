@@ -5,14 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/errorj"
-	"github.com/jitsucom/jitsu/server/uuid"
 	"math"
 	"sort"
 	"strings"
 
+	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
+	"github.com/jitsucom/jitsu/server/uuid"
 	sf "github.com/snowflakedb/gosnowflake"
 )
 
@@ -666,6 +666,7 @@ func (s *Snowflake) executeInsertInTransaction(wrappedTx *Transaction, table *Ta
 				Schema:          s.config.Schema,
 				Table:           table.Name,
 				Statement:       statement,
+				Values:          valueArgs,
 				ValuesMapString: ObjectValuesToString(headerWithoutQuotes, valueArgs),
 			})
 	}
