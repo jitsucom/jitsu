@@ -31,7 +31,7 @@ function normalizeEvent(type: EventType, id: string, status: EventStatus, data: 
   let original = data.original ?? data
   return {
     type: type,
-    timestamp: original._timestamp ? moment.utc(original._timestamp) : moment.utc(new Date(2020, 1, 1)),
+    timestamp: original._timestamp ? moment.utc(original._timestamp) : moment.utc(original.utc_time),
     eventId: getEventId(type, original),
     rawJson: original,
     id: id,
@@ -318,7 +318,7 @@ export const EventsList: React.FC<{
                   </Tooltip>
                 </div>
                 <div className={`text-xxs whitespace-nowrap text-secondaryText px-1 ${styles.jsonPreview}`} key="time">
-                  <div>{event.timestamp.format("YYYY-MM-DD hh:mm:ss")} UTC</div>
+                  <div>{event.timestamp.format("YYYY-MM-DD HH:mm:ss")} UTC</div>
                   <div className="text-xxs">{event.timestamp.fromNow()}</div>
                 </div>
                 <div
