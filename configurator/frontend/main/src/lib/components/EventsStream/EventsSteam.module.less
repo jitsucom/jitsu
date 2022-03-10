@@ -1,0 +1,49 @@
+@import "theme.less";
+
+.eventsList {
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.eventsTabs {
+  height: 100%;
+
+  :global {
+    .ant-tabs-content {
+      height: 100%;
+    }
+  }
+}
+
+.eventsListTab {
+  display: flex;
+  flex-direction: column;
+}
+
+.filters {
+  align-items: center;
+}
+
+.filterOption {
+  .icon {
+    padding-right: 5px;
+    & > svg {
+      vertical-align: middle;
+      margin-top: -3px;
+    }
+  }
+}
+
+.reloadBtn {
+  margin-left: auto;
+}
+
+.autoReloadInfo {
+  font-size: 13px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  background: @bgSecondary;
+  border-radius: @border-radius-base @border-radius-base 0 0;
+}
