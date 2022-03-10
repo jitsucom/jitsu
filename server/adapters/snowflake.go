@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -589,7 +590,8 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 
 	err = s.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
 	if err != nil {
-		return errorj.Decorate(err, "failed to insert into temporary table")
+		return errorj.Decorate(err, "failed to insert into temporary table").
+			WithProperty(errorj.DBObjects, dbObjects(objects))
 	}
 
 	//insert from select
@@ -632,6 +634,29 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 	return nil
 }
 
+type dbObjects []map[string]interface{}
+
+func (o dbObjects) String() string {
+	if len(o) == 0 {
+		return "[]"
+	}
+
+	var b strings.Builder
+	b.WriteRune('[')
+	for i, object := range o {
+		if i < 2000 {
+			data, _ := json.Marshal(object)
+			b.WriteString("\n  " + string(data) + ",")
+		} else {
+			b.WriteString(fmt.Sprintf("\n  // ... omitted %d objects ...", len(o)-i))
+			break
+		}
+	}
+
+	b.WriteString("\n]")
+	return b.String()
+}
+
 //dropTableInTransaction drops a table in transaction
 func (s *Snowflake) dropTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	query := fmt.Sprintf(dropSFTableTemplate, s.config.Schema, table.Name)
@@ -666,7 +691,6 @@ func (s *Snowflake) executeInsertInTransaction(wrappedTx *Transaction, table *Ta
 				Schema:          s.config.Schema,
 				Table:           table.Name,
 				Statement:       statement,
-				Values:          valueArgs,
 				ValuesMapString: ObjectValuesToString(headerWithoutQuotes, valueArgs),
 			})
 	}
