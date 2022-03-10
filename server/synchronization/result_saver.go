@@ -101,7 +101,6 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 				if err != nil {
 					logging.Warnf("[%s] storage table %s cleaning failed, ignoring: %v", storage.ID(), stream.BatchHeader.TableName, err)
 				}
-				stream.NeedClean = false
 			}
 			err := storage.SyncStore(stream.BatchHeader, stream.Objects, "", false, needCopyEvent)
 			if err != nil {
