@@ -18,7 +18,7 @@ graceful_exit() {
 trap graceful_exit SIGQUIT SIGTERM SIGINT SIGHUP
 
 # run application with debug
-~/app/dlv --listen=:$DLV_DEBUG_PORT --headless=true --api-version=2 exec ~/app/eventnative -- \
+~/app/dlv --listen=:$DLV_DEBUG_PORT --headless=true --api-version=2 --continue=true --log=true exec ~/app/eventnative -- \
 -cfg=/home/$EVENTNATIVE_USER/data/config/eventnative.yaml -cr=true -dhid="$DOCKER_HUB_ID" &
 
 PID_SERVER=$!
