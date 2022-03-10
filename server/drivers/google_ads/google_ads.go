@@ -157,7 +157,7 @@ func (g *GoogleAds) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	return intervals, nil
 }
 
-func (g *GoogleAds) GetObjectsFor(interval *base.TimeInterval, objectsLoader func(objects []map[string]interface{}, pos int, total int, percent int) error) error {
+func (g *GoogleAds) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	gaql := "SELECT " + strings.Join(g.fields, ",") + " FROM " + g.collection.Type
 	if !interval.IsAll() {
 		gaql += fmt.Sprintf(" WHERE segments.date BETWEEN '%s' AND '%s'", interval.LowerEndpoint().Format(dayLayout), interval.UpperEndpoint().Format(dayLayout))

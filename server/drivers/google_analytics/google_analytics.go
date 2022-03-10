@@ -163,7 +163,7 @@ func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*base.TimeInterval, erro
 	return intervals, nil
 }
 
-func (g *GoogleAnalytics) GetObjectsFor(interval *base.TimeInterval, objectsLoader func(objects []map[string]interface{}, pos int, total int, percent int) error) error {
+func (g *GoogleAnalytics) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	logging.Debug("Sync time interval:", interval.String())
 	dateRanges := []*ga.DateRange{
 		{StartDate: interval.LowerEndpoint().Format(dayLayout),
