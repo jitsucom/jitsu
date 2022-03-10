@@ -178,7 +178,7 @@ func (gp *GooglePlay) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	return intervals, nil
 }
 
-func (gp *GooglePlay) GetObjectsFor(interval *base.TimeInterval, objectsLoader func(objects []map[string]interface{}, pos int, total int, percent int) error) error {
+func (gp *GooglePlay) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	bucketName := getBucketName(gp.config.AccountID)
 	bucket := gp.client.Bucket(bucketName)
 

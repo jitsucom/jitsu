@@ -431,10 +431,14 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 
 		objectsLoader := func(objects []map[string]interface{}, pos, total, percent int) error {
 			totalString := ""
+			percentString := ""
 			if total > 0 {
 				totalString = fmt.Sprintf(" of %d", total)
 			}
-			taskLogger.INFO("%d%% Loading objects [%d..%d]%s to destinations ...", percent, pos+1, pos+len(objects), totalString)
+			if percent >= 0 {
+				percentString = fmt.Sprintf("%d%% ", percent)
+			}
+			taskLogger.INFO("%sLoading objects [%d..%d]%s to destinations ...", percentString, pos+1, pos+len(objects), totalString)
 			//Note: we assume that destinations connected to 1 source can't have different unique ID configuration
 			uniqueIDField := destinationStorages[0].GetUniqueIDField()
 			for _, object := range objects {
