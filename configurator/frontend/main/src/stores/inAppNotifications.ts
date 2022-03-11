@@ -12,6 +12,8 @@ import { destinationsStore } from "./destinations"
 import { apiKeysStore } from "./apiKeys"
 import { sourcesStore } from "./sources"
 import { apiKeysReferenceMap } from "@jitsu/catalog/apiKeys/lib"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
+import { apiKeysRoutes } from "lib/components/ApiKeys/ApiKeysRouter"
 
 export type NotificationData = {
   id: string
@@ -62,7 +64,7 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
         message: `The destination does not have any linked Connectors or API keys and thus will not recieve data.`,
         type: "danger" as const,
         icon: destinationsReferenceMap[_type].ui.icon,
-        editEntityRoute: `${destinationPageRoutes.edit}/${_id}`,
+        editEntityRoute: projectRoute(`${destinationPageRoutes.editExact}`, { id: _id }),
       })),
       ...this.orphanApiKeys.map(({ uid }) => ({
         id: uid,
@@ -70,7 +72,7 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
         message: `The API key is not linked to any destination. Events from pixels using this key will be lost.`,
         type: "danger" as const,
         icon: apiKeysReferenceMap.js.icon,
-        editEntityRoute: `/api_keys`,
+        editEntityRoute: projectRoute(apiKeysRoutes.editExact, { id: uid }),
       })),
       ...this.orphanConnectors.map(({ sourceId, sourceProtoType }) => ({
         id: sourceId,
@@ -78,7 +80,7 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
         message: `The source does not have a linked destination to send events to. Data sync is stopped.`,
         type: "danger" as const,
         icon: allSourcesMap[sourceProtoType]?.pic,
-        editEntityRoute: `${sourcesPageRoutes.edit}/${sourceId}`,
+        editEntityRoute: projectRoute(`${sourcesPageRoutes.editExact}`, { sourceId }),
       })),
     ]
   }

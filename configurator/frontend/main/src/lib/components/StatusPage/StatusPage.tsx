@@ -1,4 +1,3 @@
-/* eslint-disable */
 // @Libs
 import React from "react"
 import moment from "moment"
@@ -30,7 +29,7 @@ interface Props {
 
 export const StatusPage: React.FC<{}> = () => {
   const services = useServices()
-  const stats = new StatisticsService(services.backendApiClient, services.activeProject, true)
+  const stats = new StatisticsService(services.backendApiClient, services.activeProject.id, true)
   const isSelfHosted = services.features.environment !== "jitsu_cloud"
   const now = new Date()
   const dayAgo = addSeconds(now, -24 * 60 * 60)

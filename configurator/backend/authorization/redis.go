@@ -1,530 +1,783 @@
 package authorization
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
+	"strings"
+	"time"
+
 	"github.com/gomodule/redigo/redis"
+	"github.com/jitsucom/jitsu/configurator/handlers"
+	"github.com/jitsucom/jitsu/configurator/middleware"
+	"github.com/jitsucom/jitsu/configurator/openapi"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/timestamp"
-	"time"
+	"github.com/pkg/errors"
+	uuid "github.com/satori/go.uuid"
+)
+
+var (
+	errUnknownToken             = errors.New("unknown token")
+	errExpiredToken             = errors.New("expired token")
+	errMailServiceNotConfigured = errors.New("mail service not configured")
 )
 
 const (
-	//DEPRECATED
-	accessTokensPrefix = "jwt_access_tokens"
-	//DEPRECATED
-	refreshTokensPrefix = "jwt_refresh_tokens"
-
-	authAccessTokensKey  = "auth_access_tokens"
-	authRefreshTokensKey = "auth_refresh_tokens"
-
-	ssoTokensKey = "sso_tokens"
-
-	userIndexKey = "users_index"
-
-	AccessTokenTTL  = time.Hour
-	RefreshTokenTTL = time.Hour * 24 * 7
+	usersIndexKey           = "users_index"
+	userIDField             = "id"
+	userEmailField          = "email"
+	userHashedPasswordField = "hashed_password"
+	resetIDTTLSeconds       = 3600
+	ssoTokensKey            = "sso_tokens"
 )
 
-//** redis key [variables] - description **
-//user#userID [email, salt.passwordhash] -
-//users_index [email, id, email, id] hashtable where field = email and value = id
-//password_reset#reset_id user_id 1 hour - key contains user_id with ttl = 1 hour
-
-//auth_access_tokens [access_token] hashtable with JSON string value = {user_id, expired_at, paired_token}
-//auth_refresh_tokens [refresh_token] hashtable with JSON string value = {user_id, expired_at, paired_token}
-
-//DEPRECATED
-//jwt_access_tokens:user#userID [access_token_id, refresh_token_id, access_token_id, refresh_token_id] hashtable where field = access_token_id and value = refresh_token_id (TTL RefreshTokenTTL)
-//jwt_refresh_tokens:user#userID [refresh_token_id, access_token_id, refresh_token_id, access_token_id] hashtable where field = refresh_token_id and value = access_token_id (TTL RefreshTokenTTL)
-
-//RedisProvider provides authorization storage
-type RedisProvider struct {
-	tokenManager *TokenManager
-	pool         *meta.RedisPool
+type RedisInit struct {
+	PoolFactory *meta.RedisPoolFactory
+	MailSender  MailSender
 }
 
-type CreateTokenParams struct {
-	UserID          string
-	AccessTokenTTL  *time.Duration
-	RefreshTokenTTL *time.Duration
+type Redis struct {
+	passwordEncoder PasswordEncoder
+	redisPool       *meta.RedisPool
+	mailSender      MailSender
 }
 
-func NewRedisProvider(factory *meta.RedisPoolFactory) (*RedisProvider, error) {
-	logging.Infof("Initializing redis authorization storage [%s]...", factory.Details())
-
-	pool, err := factory.Create()
+func NewRedis(init RedisInit) (*Redis, error) {
+	redisPool, err := init.PoolFactory.Create()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "create redis pool")
 	}
 
-	return &RedisProvider{
-		tokenManager: &TokenManager{},
-		pool:         pool,
+	return &Redis{
+		passwordEncoder: _bcrypt{},
+		redisPool:       redisPool,
+		mailSender:      init.MailSender,
 	}, nil
 }
 
-//VerifyAccessToken verifies token
-//returns user id if token is valid
-func (rp *RedisProvider) VerifyAccessToken(accessToken string) (string, error) {
-	tokenEntity, err := rp.getTokenData(accessToken, authAccessTokensKey)
+func (r *Redis) AuthorizationType() string {
+	return "redis"
+}
+
+func (r *Redis) Local() (handlers.LocalAuthorizator, error) {
+	return r, nil
+}
+
+func (r *Redis) Cloud() (handlers.CloudAuthorizator, error) {
+	return nil, errIsLocal
+}
+
+func (r *Redis) Close() error {
+	return r.redisPool.Close()
+}
+
+func (r *Redis) Authorize(ctx context.Context, accessToken string) (*middleware.Authorization, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer closeQuietly(conn)
+
+	tokenType := accessTokenType
+	token, err := r.getToken(conn, tokenType, accessToken)
+	if err != nil {
+		return nil, errors.Wrap(err, "find token")
+	}
+
+	if err := token.validate(); err != nil {
+		if err := r.deleteToken(conn, tokenType, token); err != nil {
+			logging.SystemErrorf("revoke expired %s [%s] failed: %s", tokenType.name(), tokenType.get(token), err)
+		}
+
+		return nil, errors.Wrap(err, "validate token")
+	}
+
+	email, err := r.getUserEmail(conn, token.UserID)
+	if err != nil {
+		return nil, errors.Wrap(err, "get user email")
+	}
+
+	return &middleware.Authorization{
+		User: openapi.UserBasicInfo{
+			Id:    token.UserID,
+			Email: email,
+		},
+	}, nil
+}
+
+func (r *Redis) FindOnlyUser(ctx context.Context) (*openapi.UserBasicInfo, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer closeQuietly(conn)
+
+	userIDs, err := redis.StringMap(conn.Do("HGETALL", usersIndexKey))
+	switch {
+	case errors.Is(err, redis.ErrNil):
+		return nil, errUserNotFound
+	case err != nil:
+		return nil, errors.Wrap(err, "find users")
+	}
+
+	var first *openapi.UserBasicInfo = nil
+	for email, userID := range userIDs {
+		if first != nil {
+			return nil, errMultipleUsers
+		} else {
+			first = &openapi.UserBasicInfo{
+				Id:    userID,
+				Email: email,
+			}
+		}
+	}
+
+	if first == nil {
+		return nil, errUserNotFound
+	}
+
+	return first, nil
+}
+
+func (r *Redis) HasUsers(ctx context.Context) (bool, error) {
+	_, err := r.FindOnlyUser(ctx)
+	switch {
+	case errors.Is(err, errUserNotFound):
+		return false, nil
+	case errors.Is(err, errMultipleUsers):
+		return true, nil
+	case err != nil:
+		return false, errors.Wrap(err, "find any user")
+	default:
+		return true, nil
+	}
+}
+
+func (r *Redis) GetUserEmail(ctx context.Context, userID string) (string, error) {
+	conn, err := r.redisPool.GetContext(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	expiredAt, err := timestamp.ParseISOFormat(tokenEntity.ExpiredAt)
-	if err != nil {
-		return "", err
-	}
-
-	if timestamp.Now().After(expiredAt) {
-		return "", ErrExpiredToken
-	}
-
-	return tokenEntity.UserID, nil
+	defer closeQuietly(conn)
+	return r.getUserEmail(conn, userID)
 }
 
-func (rp *RedisProvider) UsersExist() (bool, error) {
-	conn := rp.pool.Get()
-	defer conn.Close()
-
-	exists, err := redis.Bool(conn.Do("EXISTS", userIndexKey))
-	if err != nil && err != redis.ErrNil {
-		return false, err
-	}
-
-	return exists, nil
-}
-
-//GetUserByID returns User by user ID
-func (rp *RedisProvider) GetUserByID(userID string) (*User, error) {
-	conn := rp.pool.Get()
-	defer conn.Close()
-
-	userValues, err := redis.Values(conn.Do("HGETALL", "user#"+userID))
+func (r *Redis) RefreshToken(ctx context.Context, refreshToken string) (*openapi.TokensResponse, error) {
+	conn, err := r.redisPool.GetContext(ctx)
 	if err != nil {
-		if err == redis.ErrNil {
-			return nil, ErrUserNotFound
-		}
-
 		return nil, err
 	}
 
-	user := &User{}
-	err = redis.ScanStruct(userValues, user)
+	defer closeQuietly(conn)
+
+	tokenType := refreshTokenType
+	token, err := r.getToken(conn, tokenType, refreshToken)
 	if err != nil {
-		return nil, fmt.Errorf("Error deserializing user entity [%s]: %v", userID, err)
+		return nil, errors.Wrap(err, "find token")
 	}
 
-	return user, nil
-}
-
-//GetUserByEmail returns User by email
-func (rp *RedisProvider) GetUserByEmail(email string) (*User, error) {
-	conn := rp.pool.Get()
-	defer conn.Close()
-
-	//get userID from index
-	userID, err := redis.String(conn.Do("HGET", userIndexKey, email))
-	if err != nil {
-		if err == redis.ErrNil {
-			return nil, ErrUserNotFound
+	if err := token.validate(); err != nil {
+		if errors.Is(err, errExpiredToken) {
+			if err := r.revokeToken(conn, token); err != nil {
+				logging.SystemErrorf("revoke expired %s [%s] failed: %s", tokenType.name(), token, err)
+			}
 		}
 
-		return nil, err
+		return nil, errors.Wrap(err, "validate token")
 	}
 
-	userValues, err := redis.Values(conn.Do("HGETALL", "user#"+userID))
+	if err := r.revokeToken(conn, token); err != nil {
+		return nil, errors.Wrap(err, "revoke token")
+	}
+
+	tokenPair, err := r.generateTokenPair(conn, token.UserID, defaultTokenPairTTL)
 	if err != nil {
-		if err == redis.ErrNil {
-			logging.SystemErrorf("User with id: %s exists in %s but doesn't exist in user#%s record", userID, userIndexKey, userID)
-			return nil, ErrUserNotFound
-		}
-
-		return nil, err
+		return nil, errors.Wrap(err, "generate token pair")
 	}
 
-	user := &User{}
-	err = redis.ScanStruct(userValues, user)
-	if err != nil {
-		return nil, fmt.Errorf("Error deserializing user entity [%s]: %v", userID, err)
-	}
-
-	return user, nil
+	return tokenPair, nil
 }
 
-//SaveUser save user in Redis and update users index
-func (rp *RedisProvider) SaveUser(user *User) error {
-	conn := rp.pool.Get()
-	defer conn.Close()
-
-	//save user
-	_, err := conn.Do("HSET", "user#"+user.ID, "id", user.ID, "email", user.Email, "hashed_password", user.HashedPassword)
-	if err != nil && err != redis.ErrNil {
+func (r *Redis) SignOut(ctx context.Context, accessToken string) error {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
 		return err
 	}
 
-	//update index
-	_, err = conn.Do("HSET", userIndexKey, user.Email, user.ID)
-	if err != nil && err != redis.ErrNil {
-		return err
+	defer closeQuietly(conn)
+
+	token, err := r.getToken(conn, accessTokenType, accessToken)
+	switch {
+	case errors.Is(err, errUnknownToken):
+		return nil
+	case err != nil:
+		return errors.Wrap(err, "get token")
+	}
+
+	if err := r.revokeToken(conn, token); err != nil {
+		return errors.Wrap(err, "revoke token")
 	}
 
 	return nil
 }
 
-//GetOnlyUserID returns the only user ID.
-func (rp *RedisProvider) GetOnlyUserID() (string, error) {
-	conn := rp.pool.Get()
-	defer conn.Close()
-
-	//update index
-	values, err := redis.StringMap(conn.Do("HGETALL", userIndexKey))
-	if err != nil && err != redis.ErrNil {
-		return "", err
-	}
-
-	//get first ID
-	for _, id := range values {
-		return id, nil
-	}
-
-	return "", ErrNoUserExist
-}
-
-//ChangeUserEmail changes user's email
-//returns user ID and err
-func (rp *RedisProvider) ChangeUserEmail(oldEmail, newEmail string) (string, error) {
-	conn := rp.pool.Get()
-	defer conn.Close()
-
-	//get userID from index
-	userID, err := redis.String(conn.Do("HGET", userIndexKey, oldEmail))
+func (r *Redis) AutoSignUp(ctx context.Context, email string, callback *string) (string, error) {
+	conn, err := r.redisPool.GetContext(ctx)
 	if err != nil {
-		if err == redis.ErrNil {
-			return "", ErrUserNotFound
+		return "", err
+	}
+
+	defer closeQuietly(conn)
+
+	precondition := func() error {
+		switch {
+		case callback == nil || *callback == "":
+			return errors.New("callback URL is required")
+		case !r.mailSender.IsConfigured():
+			return errMailServiceNotConfigured
+		default:
+			return nil
 		}
-
-		return "", err
 	}
 
-	//save new email into user record
-	_, err = conn.Do("HSET", "user#"+userID, "email", newEmail)
-	if err != nil && err != redis.ErrNil {
-		return "", err
+	userID, err := r.createUser(conn, email, uuid.NewV4().String(), precondition)
+	switch {
+	case errors.Is(err, ErrUserExists):
+		return userID, ErrUserExists
+	case err != nil:
+		return "", errors.Wrap(err, "create user")
 	}
 
-	//update index with new email
-	_, err = conn.Do("HSET", userIndexKey, newEmail, userID)
-	if err != nil && err != redis.ErrNil {
-		logging.SystemErrorf("can't change user email from %s to %s: error updating email in index: %v", oldEmail, newEmail, err)
-		return "", err
-	}
-
-	//remove old email from index
-	_, err = conn.Do("HDEL", userIndexKey, oldEmail)
-	if err != nil && err != redis.ErrNil {
-		logging.SystemErrorf("failed to remove old user email [%s] from index: %v", oldEmail, err)
-		return "", err
+	if err := r.sendResetPasswordLink(conn, userID, email, *callback, r.mailSender.SendAccountCreated); err != nil {
+		return userID, errors.Wrap(err, "send reset password link")
 	}
 
 	return userID, nil
 }
 
-//DeleteAllTokens removes both access and refresh tokens from Redis by userIDs
-func (rp *RedisProvider) DeleteAllTokens(userID string) error {
-	conn := rp.pool.Get()
-	defer conn.Close()
-
-	if err := rp.deleteAllUsersTokens(userID, authAccessTokensKey); err != nil {
-		return fmt.Errorf("error deleting access tokens: %v", err)
+func (r *Redis) SignIn(ctx context.Context, email, password string) (*openapi.TokensResponse, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	if err := rp.deleteAllUsersTokens(userID, authRefreshTokensKey); err != nil {
-		return fmt.Errorf("error deleting refresh tokens: %v", err)
+	defer closeQuietly(conn)
+
+	userID, err := r.getUserIDByEmail(conn, email)
+	if err != nil {
+		return nil, errors.Wrap(err, "find user id by email")
 	}
 
-	return nil
+	hashedPassword, err := redis.String(conn.Do("HGET", userKey(userID), userHashedPasswordField))
+	switch {
+	case errors.Is(err, redis.ErrNil):
+		logging.SystemErrorf("User [%s] exists in [%s], but not under [%s]", userID, usersIndexKey, userKey(userID))
+		return nil, errUserNotFound
+	case err != nil:
+		return nil, errors.Wrap(err, "get user data by id")
+	}
+
+	if err := r.passwordEncoder.Compare(hashedPassword, password); err != nil {
+		return nil, errors.Wrap(err, "check password")
+	}
+
+	tokenPair, err := r.generateTokenPair(conn, userID, defaultTokenPairTTL)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate token pair")
+	}
+
+	return tokenPair, nil
 }
 
-//deleteAllUsersTokens iterates through token types and if token belongs to user - delete it
-func (rp *RedisProvider) deleteAllUsersTokens(userID, redisTokenKey string) error {
-	conn := rp.pool.Get()
-	defer conn.Close()
+func (r *Redis) SignInSSO(ctx context.Context, provider string, sso *handlers.SSOSession, ttl time.Duration) (*openapi.TokensResponse, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	tokenEntitiesStrs, err := redis.Strings(conn.Do("HGETALL", redisTokenKey))
-	if err != nil && err != redis.ErrNil {
+	defer closeQuietly(conn)
+
+	userID, err := r.getUserIDByEmail(conn, sso.Email)
+	if err != nil {
+		return nil, errors.Wrap(err, "get user id by email")
+	}
+
+	tokenPair, err := r.generateTokenPair(conn, userID, tokenPairTTL{access: ttl, refresh: time.Second})
+	if err != nil {
+		return nil, errors.Wrap(err, "generate token pair")
+	}
+
+	if ssoToken, err := json.Marshal(ssoRedisToken{
+		Provider:    provider,
+		UserID:      sso.UserID,
+		AccessToken: sso.AccessToken,
+	}); err != nil {
+		return nil, errors.Wrap(err, "marshal sso token")
+	} else if _, err := conn.Do("HSET", ssoTokensKey, userID, ssoToken); err != nil {
+		return nil, errors.Wrap(err, "persist sso token")
+	}
+
+	return tokenPair, nil
+}
+
+func (r *Redis) SignUp(ctx context.Context, email, password string) (*openapi.TokensResponse, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer closeQuietly(conn)
+
+	userID, err := r.createUser(conn, email, password, always)
+	if err != nil {
+		return nil, errors.Wrap(err, "create user")
+	}
+
+	tokenPair, err := r.generateTokenPair(conn, userID, defaultTokenPairTTL)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate token pair")
+	}
+
+	return tokenPair, nil
+}
+
+func (r *Redis) SendResetPasswordLink(ctx context.Context, email, callback string) error {
+	if !r.mailSender.IsConfigured() {
+		return errMailServiceNotConfigured
+	}
+
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
 		return err
 	}
 
-	for _, tokenEntityStr := range tokenEntitiesStrs {
-		tokenEntity := &TokenEntity{}
-		if err := json.Unmarshal([]byte(tokenEntityStr), tokenEntity); err != nil {
-			logging.Infof("error unmarshal token entity [%v] for [%s] userID: %v", tokenEntityStr, userID, err)
-			return err
-		}
+	defer closeQuietly(conn)
 
-		if tokenEntity.UserID == userID {
-			if err := rp.deleteToken(tokenEntity); err != nil {
-				logging.Infof("error deleting token %v: %v", tokenEntity, err)
-				return err
-			}
-		}
+	userID, err := r.getUserIDByEmail(conn, email)
+	if err != nil {
+		return errors.Wrap(err, "get user id by email")
+	}
+
+	if err := r.sendResetPasswordLink(conn, userID, email, callback, r.mailSender.SendResetPassword); err != nil {
+		return errors.Wrap(err, "send reset password link")
 	}
 
 	return nil
 }
 
-func (rp *RedisProvider) CreateTokens(params CreateTokenParams) (*TokenDetails, error) {
-	accessTokenTTL := AccessTokenTTL
-	refreshTokenTTL := RefreshTokenTTL
-	if params.AccessTokenTTL != nil {
-		accessTokenTTL = *params.AccessTokenTTL
-	}
-	if params.RefreshTokenTTL != nil {
-		refreshTokenTTL = *params.AccessTokenTTL
+func (r *Redis) ResetPassword(ctx context.Context, resetID, newPassword string) (*openapi.TokensResponse, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	accessTokenEntity := rp.tokenManager.CreateAccessToken(params.UserID, accessTokenTTL)
-	refreshTokenEntity := rp.tokenManager.CreateRefreshToken(params.UserID, refreshTokenTTL)
+	defer closeQuietly(conn)
 
-	//link access token to refresh token
-	accessTokenEntity.RefreshToken = refreshTokenEntity.RefreshToken
-	refreshTokenEntity.AccessToken = accessTokenEntity.AccessToken
-
-	if err := rp.saveToken(authAccessTokensKey, accessTokenEntity.AccessToken, accessTokenEntity); err != nil {
-		return nil, fmt.Errorf("error saving %s: %v", authAccessTokensKey, err)
+	resetKey := resetKey(resetID)
+	userID, err := redis.String(conn.Do("GET", resetKey))
+	switch {
+	case errors.Is(err, redis.ErrNil):
+		return nil, errors.New("unknown reset id")
+	case err != nil:
+		return nil, errors.Wrap(err, "get user id by reset id")
 	}
 
-	if err := rp.saveToken(authRefreshTokensKey, accessTokenEntity.RefreshToken, refreshTokenEntity); err != nil {
-		return nil, fmt.Errorf("error saving %s: %v", refreshTokenEntity, err)
+	if err := r.changePassword(conn, userID, newPassword); err != nil {
+		return nil, errors.Wrap(err, "change password")
 	}
 
-	return &TokenDetails{
-		AccessTokenEntity:  accessTokenEntity,
-		RefreshTokenEntity: refreshTokenEntity,
+	if _, err := conn.Do("DEL", resetKey); err != nil {
+		return nil, errors.Wrap(err, "delete reset id")
+	}
+
+	tokenPair, err := r.generateTokenPair(conn, userID, defaultTokenPairTTL)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate token pair")
+	}
+
+	return tokenPair, nil
+}
+
+func (r *Redis) ChangePassword(ctx context.Context, accessToken, newPassword string) (*openapi.TokensResponse, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer closeQuietly(conn)
+
+	token, err := r.getToken(conn, accessTokenType, accessToken)
+	if err != nil {
+		return nil, errors.Wrap(err, "find access token")
+	}
+
+	if err := r.changePassword(conn, token.UserID, newPassword); err != nil {
+		return nil, errors.Wrap(err, "change password")
+	}
+
+	tokenPair, err := r.generateTokenPair(conn, token.UserID, defaultTokenPairTTL)
+	if err != nil {
+		return nil, errors.Wrap(err, "generate token pair")
+	}
+
+	return tokenPair, nil
+}
+
+func (r *Redis) UpdatePassword(ctx context.Context, userID, newPassword string) error {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer closeQuietly(conn)
+	if err := r.changePassword(conn, userID, newPassword); err != nil {
+		return errors.Wrap(err, "update user password")
+	}
+
+	return nil
+}
+
+func (r *Redis) ChangeEmail(ctx context.Context, oldEmail, newEmail string) (string, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	defer closeQuietly(conn)
+
+	userID, err := r.getUserIDByEmail(conn, oldEmail)
+	if err != nil {
+		return "", errors.Wrap(err, "get user by old email")
+	}
+
+	_, err = r.getUserIDByEmail(conn, newEmail)
+	switch {
+	case errors.Is(err, errUserNotFound):
+	// is ok
+	case err != nil:
+		return "", errors.Wrapf(err, "verify new email not used")
+	default:
+		return "", ErrUserExists
+	}
+
+	userKey := userKey(userID)
+	if _, err := conn.Do("HSET", userKey, userEmailField, newEmail); err != nil {
+		return "", errors.Wrapf(err, "update %s", userEmailField)
+	}
+
+	if _, err := conn.Do("HSET", usersIndexKey, newEmail, userID); err != nil {
+		return "", errors.Wrapf(err, "update %s", usersIndexKey)
+	}
+
+	if _, err := conn.Do("HDEL", usersIndexKey, oldEmail); err != nil {
+		return "", errors.Wrapf(err, "remove previous email association from %s", usersIndexKey)
+	}
+
+	return userID, nil
+}
+
+func (r *Redis) ListUsers(ctx context.Context) ([]openapi.UserBasicInfo, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer closeQuietly(conn)
+
+	values, err := redis.StringMap(conn.Do("HGETALL", usersIndexKey))
+	if err != nil {
+		return nil, errors.Wrapf(err, "get all users")
+	}
+
+	result := make([]openapi.UserBasicInfo, 0, len(values))
+	for email, userID := range values {
+		result = append(result, openapi.UserBasicInfo{
+			Id:    userID,
+			Email: email,
+		})
+	}
+
+	return result, nil
+}
+
+func (r *Redis) CreateUser(ctx context.Context, email string) (*handlers.CreatedUser, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer closeQuietly(conn)
+
+	userID, err := r.createUser(conn, email, uuid.NewV4().String(), always)
+	if err != nil {
+		return nil, errors.Wrapf(err, "create user")
+	}
+
+	resetID, err := r.generateResetID(conn, userID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "generate reset password id")
+	}
+
+	return &handlers.CreatedUser{
+		ID:      userID,
+		ResetID: resetID,
 	}, nil
 }
 
-func (rp *RedisProvider) RefreshTokens(refreshToken string) (*TokenDetails, error) {
-	tokenEntity, err := rp.getTokenData(refreshToken, authRefreshTokensKey)
+func (r *Redis) DeleteUser(ctx context.Context, userID string) error {
+	conn, err := r.redisPool.GetContext(ctx)
 	if err != nil {
-		return nil, err
-	}
-
-	expiredAt, err := timestamp.ParseISOFormat(tokenEntity.ExpiredAt)
-	if err != nil {
-		return nil, err
-	}
-
-	if timestamp.Now().After(expiredAt) {
-		if err := rp.deleteToken(tokenEntity); err != nil {
-			logging.Errorf("error deleting expired token %s: %v", refreshToken, err)
-		}
-
-		return nil, ErrExpiredToken
-	}
-
-	//delete tokens
-	err = rp.deleteToken(tokenEntity)
-	if err != nil {
-		return nil, err
-	}
-
-	return rp.CreateTokens(CreateTokenParams{UserID: tokenEntity.UserID})
-}
-
-//SavePasswordResetID save reset id with ttl 1 hour
-func (rp *RedisProvider) SavePasswordResetID(resetID, userID string) error {
-	conn := rp.pool.Get()
-	defer conn.Close()
-
-	_, err := conn.Do("SET", "password_reset#"+resetID, userID, "EX", 3600)
-	if err != nil && err != redis.ErrNil {
 		return err
+	}
+
+	defer closeQuietly(conn)
+
+	email, err := r.getUserEmail(conn, userID)
+	if err != nil {
+		return errors.Wrap(err, "get user email")
+	}
+
+	if err := r.revokeTokens(conn, userID); err != nil {
+		return errors.Wrap(err, "revoke tokens")
+	}
+
+	if _, err := conn.Do("DEL", userKey); err != nil {
+		return errors.Wrap(err, "remove user data")
+	}
+
+	if _, err := conn.Do("HDEL", usersIndexKey, email); err != nil {
+		return errors.Wrapf(err, "remove %s from %s", email, usersIndexKey)
 	}
 
 	return nil
 }
 
-//DeletePasswordResetID delete reset id
-func (rp *RedisProvider) DeletePasswordResetID(resetID string) error {
-	conn := rp.pool.Get()
-	defer conn.Close()
+func (r *Redis) getUserEmail(conn redis.Conn, userID string) (string, error) {
+	email, err := redis.String(conn.Do("HGET", userKey(userID), userEmailField))
+	switch {
+	case errors.Is(err, redis.ErrNil):
+		return "", errUserNotFound
+	case err != nil:
+		return "", errors.Wrap(err, "get user email")
+	}
 
-	_, err := conn.Do("DEL", "password_reset#"+resetID)
-	if err != nil && err != redis.ErrNil {
-		return err
+	return email, nil
+}
+
+func (r *Redis) sendResetPasswordLink(conn redis.Conn, userID, email, callback string, send func(email, link string) error) error {
+	resetID, err := r.generateResetID(conn, userID)
+	if err != nil {
+		return errors.Wrap(err, "generate reset id")
+	}
+
+	if err := send(email, strings.ReplaceAll(callback, "{{token}}", resetID)); err != nil {
+		return errors.Wrap(err, "send reset password")
 	}
 
 	return nil
 }
 
-//GetUserByResetID return user from Redis
-func (rp *RedisProvider) GetUserByResetID(resetID string) (*User, error) {
-	conn := rp.pool.Get()
-	defer conn.Close()
-
-	//get userID
-	userID, err := redis.String(conn.Do("GET", "password_reset#"+resetID))
-	if err != nil {
-		if err == redis.ErrNil {
-			return nil, ErrResetIDNotFound
-		}
-
-		return nil, err
+func (r *Redis) generateResetID(conn redis.Conn, userID string) (string, error) {
+	resetID := "reset-" + uuid.NewV4().String()
+	if _, err := conn.Do("SET", resetKey(resetID), userID, "EX", resetIDTTLSeconds); err != nil {
+		return "", errors.Wrap(err, "persist reset id")
 	}
 
-	//get user
-	userValues, err := redis.Values(conn.Do("HGETALL", "user#"+userID))
-	if err != nil {
-		if err == redis.ErrNil {
-			logging.SystemErrorf("User with id: %s exists in reset password record [%s] but doesn't exist in user#%s record", userID, resetID, userID)
-			return nil, err
-		}
-
-		return nil, err
-	}
-
-	user := &User{}
-	err = redis.ScanStruct(userValues, user)
-	if err != nil {
-		return nil, fmt.Errorf("Error deserializing user entity [%s]: %v", userID, err)
-	}
-
-	return user, nil
+	return resetID, nil
 }
 
-//saveToken saves JSON token entity under redis KEY into hashtable
-func (rp *RedisProvider) saveToken(tokenRedisKey, token string, tokenEntity *TokenEntity) error {
-	conn := rp.pool.Get()
-	defer conn.Close()
+func (r *Redis) createUser(conn redis.Conn, email, password string, precondition func() error) (string, error) {
+	userID, err := r.getUserIDByEmail(conn, email)
+	switch {
+	case err == nil:
+		return userID, ErrUserExists
+	case !errors.Is(err, errUserNotFound):
+		return "", errors.Wrap(err, "get user by email")
+	}
 
-	b, _ := json.Marshal(tokenEntity)
-	_, err := conn.Do("HSET", tokenRedisKey, token, b)
-	if err != nil && err != redis.ErrNil {
-		return err
+	if err := precondition(); err != nil {
+		return "", errors.Wrap(err, "create user precondition failed")
+	}
+
+	hashedPassword, err := r.passwordEncoder.Encode(password)
+	if err != nil {
+		return "", errors.Wrap(err, "encode password")
+	}
+
+	id := "user-" + uuid.NewV4().String()
+	if _, err := conn.Do("HSET", userKey(id),
+		userIDField, id,
+		userEmailField, email,
+		userHashedPasswordField, hashedPassword,
+	); err != nil {
+		return "", errors.Wrap(err, "create user")
+	}
+
+	if _, err := conn.Do("HSET", usersIndexKey, email, id); err != nil {
+		return "", errors.Wrapf(err, "update %s", usersIndexKey)
+	}
+
+	return id, nil
+}
+
+func (r *Redis) changePassword(conn redis.Conn, userID, newPassword string) error {
+	hashedPassword, err := r.passwordEncoder.Encode(newPassword)
+	if err != nil {
+		return errors.Wrap(err, "encode password")
+	}
+
+	if _, err := conn.Do("HSET", userKey(userID), userHashedPasswordField, hashedPassword); err != nil {
+		return errors.Wrap(err, "update password")
+	}
+
+	if err := r.revokeTokens(conn, userID); err != nil {
+		return errors.Wrap(err, "revoke user tokens")
 	}
 
 	return nil
 }
 
-func (rp *RedisProvider) getTokenData(token, tokenType string) (*TokenEntity, error) {
-	conn := rp.pool.Get()
-	defer conn.Close()
+func (r *Redis) generateTokenPair(conn redis.Conn, userID string, ttl tokenPairTTL) (*openapi.TokensResponse, error) {
+	now := timestamp.Now()
+	access := newRedisToken(now, userID, accessTokenType, ttl.access)
+	refresh := newRedisToken(now, userID, refreshTokenType, ttl.refresh)
 
-	tokenDataStr, err := redis.String(conn.Do("HGET", tokenType, token))
-	if err != nil {
-		if err == redis.ErrNil {
-			return nil, ErrUnknownToken
-		}
+	// link tokens
+	access.RefreshToken, refresh.AccessToken = refresh.RefreshToken, access.AccessToken
 
-		return nil, err
+	if err := r.saveToken(conn, accessTokenType, access); err != nil {
+		return nil, errors.Wrapf(err, "save %s", accessTokenType.name())
 	}
 
-	if len(tokenDataStr) == 0 {
-		return nil, ErrUnknownToken
+	if err := r.saveToken(conn, refreshTokenType, refresh); err != nil {
+		return nil, errors.Wrapf(err, "save %s", refreshTokenType.name())
 	}
 
-	tokenEntity := &TokenEntity{}
-	if err := json.Unmarshal([]byte(tokenDataStr), tokenEntity); err != nil {
-		msg := fmt.Sprintf("malformed token [%s] data [%v]: %v", token, tokenDataStr, err)
-		logging.SystemError(msg)
-		return nil, errors.New(msg)
-	}
-
-	return tokenEntity, nil
+	return &openapi.TokensResponse{
+		UserId:       userID,
+		AccessToken:  access.AccessToken,
+		RefreshToken: refresh.RefreshToken,
+	}, nil
 }
 
-func (rp *RedisProvider) DeleteAccessToken(token string) error {
-	conn := rp.pool.Get()
-	defer conn.Close()
-
-	tokenDataStr, err := redis.String(conn.Do("HGET", authAccessTokensKey, token))
-	if err != nil && err != redis.ErrNil {
-		return err
+func (r *Redis) getUserIDByEmail(conn redis.Conn, email string) (string, error) {
+	userID, err := redis.String(conn.Do("HGET", usersIndexKey, email))
+	switch {
+	case errors.Is(err, redis.ErrNil):
+		return "", errUserNotFound
+	case err != nil:
+		return "", errors.Wrap(err, "find user by email")
 	}
 
-	if len(tokenDataStr) == 0 {
+	return userID, nil
+}
+
+func (r *Redis) saveToken(conn redis.Conn, tokenType redisTokenType, token *redisToken) error {
+	data, err := json.Marshal(token)
+	if err != nil {
+		return errors.Wrap(err, "marshal token")
+	}
+
+	if _, err := conn.Do("HSET", tokenType.key(), tokenType.get(token), data); err != nil {
+		return errors.Wrap(err, "persist token")
+	}
+
+	return nil
+}
+
+func (r *Redis) revokeTokens(conn redis.Conn, userID string) error {
+	if err := r.revokeTokenType(conn, userID, accessTokenType); err != nil {
+		return errors.Wrap(err, "revoke access tokens")
+	}
+
+	if err := r.revokeTokenType(conn, userID, refreshTokenType); err != nil {
+		return errors.Wrap(err, "revoke refresh tokens")
+	}
+
+	return nil
+}
+
+func (r *Redis) revokeTokenType(conn redis.Conn, userID string, tokenType redisTokenType) error {
+	data, err := redis.StringMap(conn.Do("HGETALL", tokenType.key()))
+	switch {
+	case errors.Is(err, redis.ErrNil):
+		return nil
+	case err != nil:
+		return errors.Wrap(err, "get tokens")
+	}
+
+	for _, data := range data {
+		var token redisToken
+		if err := json.Unmarshal([]byte(data), &token); err != nil {
+			err = errors.Wrapf(err, "malformed token data [%s] for user [%s]", data, userID)
+			logging.Info(err)
+			return err
+		}
+
+		if token.UserID != userID {
+			continue
+		}
+
+		if err := r.revokeToken(conn, &token); err != nil {
+			err = errors.Wrapf(err, "revoke token [%v]", token)
+			logging.Info(err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *Redis) revokeToken(conn redis.Conn, token *redisToken) error {
+	if err := r.deleteToken(conn, accessTokenType, token); err != nil {
+		return err
+	} else if err := r.deleteToken(conn, refreshTokenType, token); err != nil {
+		return err
+	} else {
 		return nil
 	}
-
-	tokenEntity := &TokenEntity{}
-	if err := json.Unmarshal([]byte(tokenDataStr), tokenEntity); err != nil {
-		msg := fmt.Sprintf("malformed token [%s] data [%v]: %v", token, tokenDataStr, err)
-		logging.SystemError(msg)
-		return errors.New(msg)
-	}
-
-	return rp.deleteToken(tokenEntity)
 }
 
-//deleteToken removes access and refresh (access and refresh) tokens from Redis
-func (rp *RedisProvider) deleteToken(tokenEntity *TokenEntity) error {
-	conn := rp.pool.Get()
-	defer conn.Close()
+func (r *Redis) deleteToken(conn redis.Conn, tokenType redisTokenType, token *redisToken) error {
+	_, err := conn.Do("HDEL", tokenType.key(), tokenType.get(token))
+	return err
+}
 
-	_, err := conn.Do("HDEL", authAccessTokensKey, tokenEntity.AccessToken)
-	if err != nil && err != redis.ErrNil {
-		return err
+func (r *Redis) getToken(conn redis.Conn, tokenType redisTokenType, token string) (*redisToken, error) {
+	data, err := redis.Bytes(conn.Do("HGET", tokenType.key(), token))
+	switch {
+	case errors.Is(err, redis.ErrNil):
+		return nil, errUnknownToken
+	case err != nil:
+		return nil, errors.Wrap(err, "get token")
 	}
 
-	_, err = conn.Do("HDEL", authRefreshTokensKey, tokenEntity.RefreshToken)
-	if err != nil && err != redis.ErrNil {
-		return err
+	if len(data) == 0 {
+		return nil, errUnknownToken
 	}
 
-	_, err = conn.Do("HDEL", ssoTokensKey, tokenEntity.UserID)
-	if err != nil && err != redis.ErrNil {
-		return err
+	var result redisToken
+	if err := json.Unmarshal(data, &result); err != nil {
+		err = errors.Wrapf(err, "malformed token [%s] data [%s]", token, string(data))
+		logging.SystemError(err)
+		return nil, err
 	}
 
+	return &result, nil
+}
+
+func userKey(userID string) string {
+	return "user#" + userID
+}
+
+func resetKey(resetID string) string {
+	return "password_reset#" + resetID
+}
+
+func always() error {
 	return nil
-}
-
-func (rp *RedisProvider) SaveSSOUserToken(userId string, ssoToken *SSOToken) error {
-	conn := rp.pool.Get()
-	defer conn.Close()
-
-	b, _ := json.Marshal(ssoToken)
-	_, err := conn.Do("HSET", ssoTokensKey, userId, b)
-	if err != nil && err != redis.ErrNil {
-		return err
-	}
-
-	return nil
-}
-
-func (rp *RedisProvider) DeleteSSOUserToken(userId string) error {
-	conn := rp.pool.Get()
-	defer conn.Close()
-
-	_, err := conn.Do("HDEL", ssoTokensKey, userId)
-	if err != nil && err != redis.ErrNil {
-		return err
-	}
-
-	return nil
-}
-
-func (rp *RedisProvider) Type() string {
-	return RedisType
-}
-
-func (rp *RedisProvider) Close() error {
-	return rp.pool.Close()
-}
-
-//IsAdmin isn't supported as Google Authorization isn't supported
-func (rp *RedisProvider) IsAdmin(userID string) (bool, error) {
-	logging.SystemErrorf("IsAdmin isn't supported in authorization RedisProvider. userID: %s", userID)
-	return false, nil
-}
-
-func (rp *RedisProvider) GenerateUserAccessToken(userID string) (string, error) {
-	errMsg := fmt.Sprintf("GenerateUserToken isn't supported in authorization RedisProvider. userID: %s", userID)
-	logging.SystemError(errMsg)
-	return "", errors.New(errMsg)
 }

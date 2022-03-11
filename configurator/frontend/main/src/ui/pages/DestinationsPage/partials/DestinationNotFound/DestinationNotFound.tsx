@@ -1,4 +1,5 @@
 import { Button } from "antd"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 import { useHistory } from "react-router-dom"
 import { destinationPageRoutes } from "../../DestinationsPage.routes"
 
@@ -16,7 +17,7 @@ export const DestinationNotFound: React.FC<Props> = ({ destinationId }) => {
       <h3 className="text-4xl">
         Destination {destinationId && <span className="font-extrabold">{destinationId}</span>} not found
       </h3>
-      <Button type="primary" size="large" onClick={() => history.push(destinationPageRoutes.root)}>
+      <Button type="primary" size="large" onClick={() => history.push(projectRoute(destinationPageRoutes.root))}>
         {"Go to Destinations List"}
       </Button>
     </section>

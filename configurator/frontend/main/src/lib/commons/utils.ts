@@ -1,4 +1,3 @@
-/* eslint-disable */
 import moment, { Duration, Moment } from "moment"
 import { LS_ACCESS_KEY, LS_REFRESH_KEY } from "lib/services/UserServiceBackend"
 import { assertHasOwnProperty, assertIsArray, assertIsObject } from "utils/typeCheck"
@@ -75,8 +74,12 @@ export function firstToLower(string: string) {
 /**
  * Fully reloads current page
  */
-export function reloadPage() {
-  location.reload()
+export function reloadPage(destination?: string) {
+  if (!destination) {
+    location.reload()
+  } else {
+    window.location.href = destination
+  }
 }
 
 /**
@@ -162,29 +165,33 @@ export type TimeFormattedUserEvent = {
  * @throws assertion error (if raw event data model is not supported)
  */
 export function formatTimeOfRawUserEvents(rawEvents: unknown): TimeFormattedUserEvent[] {
-  assertIsObject(rawEvents)
-  assertHasOwnProperty(
-    rawEvents,
-    "events",
-    "Time formatting of raw event failed because the event doesn't have `events` property"
-  )
+  const ASSERTION_ERROR_PREDICATE = "Assertion error in formatTimeOfRawUserEvents function"
+
+  assertIsObject(rawEvents, `${ASSERTION_ERROR_PREDICATE}: raw events is not an object`)
+  assertHasOwnProperty(rawEvents, "events", `${ASSERTION_ERROR_PREDICATE}: raw events 'events' property not found`)
   const events = rawEvents.events
 
-  assertIsArray(events)
-  return events.map((rawEvent: unknown): TimeFormattedUserEvent => {
-    assertIsObject(rawEvent)
+  assertIsArray(events, `${ASSERTION_ERROR_PREDICATE}: events content is not an array`)
+  return events.map((rawEvent, index): TimeFormattedUserEvent => {
+    assertIsObject(
+      rawEvent,
+      `${ASSERTION_ERROR_PREDICATE}: can not map raw events, raw event at index ${index} is not an object`
+    )
     assertHasOwnProperty(
       rawEvent,
       "original",
-      "Time formatting of raw event failed because the event doesn't have `original` property"
+      `${ASSERTION_ERROR_PREDICATE}: 'original' property not found in raw event at index ${index}`
     )
 
     const original = rawEvent.original
-    assertIsObject(original)
+    assertIsObject(
+      original,
+      `${ASSERTION_ERROR_PREDICATE}: 'original' field of raw event at index ${index} is not an object`
+    )
     assertHasOwnProperty(
       original,
       "_timestamp",
-      "Time formatting of raw event failed because the event doesn't have `_timestamp` property"
+      `${ASSERTION_ERROR_PREDICATE}:  '_timestamp' property not found in raw event at index ${index}`
     )
 
     return {
@@ -365,4 +372,22 @@ export function flatten(data: any): any {
 
 export function getObjectDepth(value: unknown): number {
   return Object(value) === value ? 1 + Math.max(-1, ...Object.values(value).map(getObjectDepth)) : 0
+}
+
+export function sanitize<T>(
+  obj: T,
+  opts: { allow: string[]; block?: never } | { block: string[]; allow?: never }
+): Partial<T> {
+  const filter: (val) => boolean = opts.allow
+    ? ([key]) => opts.allow.includes(key)
+    : ([key]) => !opts.block.includes(key)
+  return Object.entries(obj)
+    .filter(filter)
+    .reduce(
+      (res, [key, value]) => ({
+        ...res,
+        [key]: value,
+      }),
+      {}
+    )
 }

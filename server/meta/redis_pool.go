@@ -1,10 +1,13 @@
 package meta
 
 import (
+	"context"
 	"fmt"
+
 	"github.com/FZambia/sentinel"
 	"github.com/gomodule/redigo/redis"
 	"github.com/hashicorp/go-multierror"
+	"github.com/pkg/errors"
 )
 
 //RedisPool is a wrapper for keeping redis.Pool and sentinel.Sentinel and close them
@@ -21,6 +24,14 @@ func (rp *RedisPool) GetPool() *redis.Pool {
 //Get returns a connection from the pool
 func (rp *RedisPool) Get() redis.Conn {
 	return rp.pool.Get()
+}
+
+func (rp *RedisPool) GetContext(ctx context.Context) (redis.Conn, error) {
+	if conn, err := rp.pool.GetContext(ctx); err != nil {
+		return nil, errors.Wrap(err, "get redis conn")
+	} else {
+		return conn, nil
+	}
 }
 
 //Close closes redis pool and sentinel if configured

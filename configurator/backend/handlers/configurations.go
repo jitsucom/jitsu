@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/jitsu/configurator/middleware"
+	mw "github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	jmiddleware "github.com/jitsucom/jitsu/server/middleware"
-	"net/http"
 )
 
 //DEPRECATED
@@ -26,42 +27,41 @@ func NewConfigurationsHandler(configurationsService *storages.ConfigurationsServ
 //DEPRECATED
 //GetConfig returns JSON with configuration entities by project ID and object type
 //id = projectID and collection = objectType
-func (ch *ConfigurationHandler) GetConfig(c *gin.Context) {
-	projectID := c.Query("id")
-	if projectID == "" {
-		c.AbortWithStatusJSON(http.StatusBadRequest, jmiddleware.ErrResponse("Required query parameter [id] is empty", nil))
+func (ch *ConfigurationHandler) GetConfig(ctx *gin.Context) {
+	if ctx.IsAborted() {
 		return
 	}
 
-	if !hasAccessToProject(c, projectID) {
-		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
-		return
+	collection := ctx.Param("collection")
+	if authority, err := mw.GetAuthority(ctx); err != nil {
+		mw.Unauthorized(ctx, err)
+	} else if projectID := ctx.Query("id"); projectID == "" {
+		mw.BadRequest(ctx, "Required query parameter [id] is empty", nil)
+	} else if !authority.Allow(projectID) {
+		mw.ForbiddenProject(ctx, projectID)
+	} else if config, err := ch.getConfig(collection, projectID); err != nil {
+		mw.BadRequest(ctx, "get config error", err)
+	} else {
+		ctx.Data(http.StatusOK, jsonContentType, config)
 	}
-
-	collection := c.Param("collection")
-	config, err := ch.getConfig(collection, projectID)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, jmiddleware.ErrResponse(err.Error(), nil))
-		return
-	}
-	writeResponse(c, config)
 }
 
 //DEPRECATED
-func (ch *ConfigurationHandler) StoreConfig(c *gin.Context) {
-	projectID := c.Query("id")
-	if projectID == "" {
-		c.AbortWithStatusJSON(http.StatusBadRequest, jmiddleware.ErrResponse("Required query parameter [id] is empty", nil))
+func (ch *ConfigurationHandler) StoreConfig(ctx *gin.Context) {
+	if ctx.IsAborted() {
 		return
 	}
 
-	if !hasAccessToProject(c, projectID) {
-		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
-		return
+	collection := ctx.Param("collection")
+	if authority, err := mw.GetAuthority(ctx); err != nil {
+		mw.Unauthorized(ctx, err)
+	} else if projectID := ctx.Query("id"); projectID == "" {
+		mw.BadRequest(ctx, "Required query parameter [id] is empty", nil)
+	} else if !authority.Allow(projectID) {
+		mw.ForbiddenProject(ctx, projectID)
+	} else {
+		ch.saveConfig(ctx, collection, projectID)
 	}
-
-	collection := c.Param("collection")
-	ch.saveConfig(c, collection, projectID)
 }
 
 func (ch *ConfigurationHandler) getConfig(collection string, id string) ([]byte, error) {

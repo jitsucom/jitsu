@@ -1,172 +1,29 @@
 // @Libs
-import { flowResult, makeAutoObservable } from "mobx"
+import { flow, flowResult, makeObservable } from "mobx"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
-// @Utils
-import { intersection, remove, union, without } from "lodash"
-import { toArrayIfNot } from "utils/arrays"
-import { ISourcesStore, sourcesStore } from "./sources"
-import { apiKeysStore, IApiKeysStore } from "./apiKeys"
+// @Stores
+import { EntitiesStore } from "./entitiesStore"
+import { apiKeysStore, ApiKeysStore } from "./apiKeys"
+// @Catalog
 import { destinationsReferenceMap, DestinationReference } from "@jitsu/catalog/destinations/lib"
-import { EntitiesStoreState } from "stores/types.enums"
-import { getObjectDepth } from "lib/commons/utils"
-
-export interface IDestinationsStore extends EntitiesStore<DestinationData> {
-  state: EntitiesStoreState
-  error: string
-  listHidden: DestinationData[]
-  listIncludeHidden: DestinationData[]
-  injectSourcesStore: (sourcesStore: ISourcesStore) => void
-  getDestinationReferenceById: (id: string) => DestinationReference | null
-  pullDestinations: (showGlobalLoader: boolean) => Generator<Promise<unknown>, void, unknown>
-  createFreeDatabase: () => Generator<Promise<unknown>, void, unknown>
-  linkApiKeysToDestinations: (
-    apiKeysUids: string | string[],
-    destinationsUids: string | string[]
-  ) => Generator<Promise<unknown>, void, unknown>
-}
-
-const EDIT_DESTINATIONS_DEFAULT_OPTIONS: EntityUpdateOptions = {
-  updateConnections: true,
-}
-
-const { IDLE, GLOBAL_LOADING, BACKGROUND_LOADING, GLOBAL_ERROR } = EntitiesStoreState
+// @Utils
+import { randomId } from "utils/numbers"
+// @Types
+import type { PgDatabaseCredentials } from "lib/services/model"
 
 const services = ApplicationServices.get()
-class DestinationsStore implements IDestinationsStore {
-  private _destinations: DestinationData[] = []
-  private _hiddenDestinations: DestinationData[] = []
-  private _state: EntitiesStoreState = GLOBAL_ERROR
-  private _errorMessage: string = ""
-  private _sourcesStore: ISourcesStore | undefined
-  private _apiKeysStore: IApiKeysStore = apiKeysStore
+export class DestinationsStore extends EntitiesStore<DestinationData> {
+  private readonly apiKeysStore: ApiKeysStore = apiKeysStore
 
   constructor() {
-    makeAutoObservable(this)
-    this.get = this.get.bind(this)
-  }
-
-  private setError(state: typeof GLOBAL_ERROR, message: string) {
-    this._state = state
-    this._errorMessage = message
-  }
-
-  private resetError() {
-    this._errorMessage = ""
-    if (this._state === EntitiesStoreState.GLOBAL_ERROR) this._state = IDLE
-  }
-
-  /** Set a new destinations list in the UI */
-  private setDestinationsInStore(allDestinations: DestinationData[]) {
-    this._destinations = this.filterDestinations(allDestinations, false)
-    this._hiddenDestinations = this.filterDestinations(allDestinations, true)
-  }
-
-  private filterDestinations(destinations: DestinationData[], hidden: boolean) {
-    return destinations ? destinations.filter(v => destinationsReferenceMap[v._type]?.hidden == hidden) : []
-  }
-
-  /** Add a destination in the UI */
-  private addToStore(destination: DestinationData): void {
-    this._destinations.push(destination)
-  }
-
-  /** Delete a destination from the UI */
-  private deleteFromStore(id: string): void {
-    remove(this._destinations, ({ _uid }) => _uid === id)
-  }
-
-  /** Patch a destination in the UI */
-  private patchInStore(id: string, patch: Partial<DestinationData>): void {
-    Object.assign(this.get(id), patch)
-  }
-
-  /** Replaces a destination data with a passed one in the UI */
-  private replaceDestination(id: string, destination: DestinationData) {
-    const index = this._destinations.findIndex(({ _uid }) => _uid === id)
-    if (index >= 0) {
-      this._destinations[index] = destination
-    }
-  }
-
-  private async patchSourcesLinksByDestinationsUpdates(
-    _updatedDestinations: DestinationData | DestinationData[]
-  ): Promise<void> {
-    const updatedDestinations = toArrayIfNot(_updatedDestinations)
-    const sourcesPatchesMap: { [key: string]: Partial<SourceData> } = {}
-    updatedDestinations.forEach(destination => {
-      this._sourcesStore.list.forEach(source => {
-        const sourceLinkedToDestination = !!source.destinations?.includes(destination._uid)
-        const sourceNeedsToBeLinked = !!destination._sources?.includes(source.sourceId)
-        if (sourceLinkedToDestination === sourceNeedsToBeLinked) {
-          return
-        }
-
-        const updatedSourcePatch = sourcesPatchesMap[source.sourceId] || { destinations: source.destinations }
-        if (sourceNeedsToBeLinked) {
-          sourcesPatchesMap[source.sourceId] = {
-            destinations: [...(updatedSourcePatch.destinations || []), destination._uid],
-          }
-        } else {
-          sourcesPatchesMap[source.sourceId] = {
-            destinations: (updatedSourcePatch.destinations || []).filter(
-              destinationUid => destinationUid !== destination._uid
-            ),
-          }
-        }
-      })
+    super("destinations", {
+      idField: "_uid",
+      hideElements: dst => destinationsReferenceMap[dst._type]?.hidden,
     })
-    await Promise.all(
-      Object.entries(sourcesPatchesMap).map(([sourceId, patch]) =>
-        flowResult(this._sourcesStore.patch(sourceId, patch, { updateConnections: false }))
-      )
-    )
-  }
-
-  private async unlinkDeletedDestinationsFromSources(_uids: string | string[]): Promise<void> {
-    const destinationsToDeleteUids = toArrayIfNot(_uids)
-    const sourcesPatches: { [sourceId: string]: Partial<SourceData> } = {}
-    sourcesStore.list.forEach(source => {
-      const sourceHasDeletedDestination: boolean = !!intersection(source.destinations, destinationsToDeleteUids).length
-      if (sourceHasDeletedDestination) {
-        sourcesPatches[source.sourceId] = {
-          destinations: without(source.destinations || [], ...destinationsToDeleteUids),
-        }
-      }
+    makeObservable(this, {
+      createFreeDatabase: flow,
     })
-    await Promise.all(
-      Object.entries(sourcesPatches).map(([sourceId, patch]) =>
-        flowResult(this._sourcesStore.patch(sourceId, patch, { updateConnections: false }))
-      )
-    )
-  }
-
-  public injectSourcesStore(sourcesStore: ISourcesStore): void {
-    this._sourcesStore = sourcesStore
-  }
-
-  public get list() {
-    return this._destinations
-  }
-
-  public get listHidden() {
-    return this._hiddenDestinations
-  }
-
-  public get listIncludeHidden() {
-    return [...this._destinations, ...this._hiddenDestinations]
-  }
-
-  public get state() {
-    return this._state
-  }
-
-  public get error() {
-    return this._errorMessage
-  }
-
-  public get(id: string): DestinationData | null {
-    return this.list.find(({ _id }) => _id === id)
   }
 
   public getDestinationReferenceById(id: string): DestinationReference | null {
@@ -174,145 +31,36 @@ class DestinationsStore implements IDestinationsStore {
     return destination ? destinationsReferenceMap[destination._type] : null
   }
 
-  public *pullDestinations(showGlobalLoader?: boolean) {
-    this.resetError()
-    this._state = showGlobalLoader ? GLOBAL_LOADING : BACKGROUND_LOADING
-    try {
-      const destinations = yield services.storageService.table<DestinationData>("destinations").getAll()
-      this.setDestinationsInStore(destinations ?? [])
-    } catch (error) {
-      this.setError(GLOBAL_ERROR, `Failed to fetch destinations: ${error.message || error}`)
-    } finally {
-      this._state = IDLE
-    }
-  }
-
-  public *add(destinationToAdd: DestinationData) {
-    this.resetError()
-    this._state = BACKGROUND_LOADING
-    try {
-      const addedDestination = yield services.storageService
-        .table<DestinationData>("destinations")
-        .add(destinationToAdd)
-      if (!addedDestination) {
-        throw new Error(`Destinations store failed to add a new destination: ${destinationToAdd}`)
-      }
-      this.addToStore(addedDestination)
-      yield this.patchSourcesLinksByDestinationsUpdates(addedDestination)
-    } catch (error) {
-      console.error(error)
-    } finally {
-      this._state = IDLE
-    }
-  }
-
-  public *delete(_uid: string) {
-    this.resetError()
-    this._state = BACKGROUND_LOADING
-    try {
-      yield services.storageService.table<DestinationData>("destinations").delete(_uid)
-      this.deleteFromStore(_uid)
-      yield this.unlinkDeletedDestinationsFromSources(_uid)
-    } catch (error) {
-      console.error(error)
-    } finally {
-      this._state = IDLE
-    }
-  }
-
-  public *replace(destination: DestinationData, options: EntityUpdateOptions = EDIT_DESTINATIONS_DEFAULT_OPTIONS) {
-    this.resetError()
-    this._state = BACKGROUND_LOADING
-    try {
-      yield services.storageService.table<DestinationData>("destinations").replace(destination._uid, destination)
-      this.replaceDestination(destination._uid, destination)
-      if (options.updateConnections) yield this.patchSourcesLinksByDestinationsUpdates(destination)
-    } catch (error) {
-      console.error(error)
-    } finally {
-      this._state = IDLE
-    }
-  }
-
-  public *patch(
-    id: string,
-    patch: Partial<DestinationData>,
-    options: EntityUpdateOptions = EDIT_DESTINATIONS_DEFAULT_OPTIONS
-  ) {
-    this.resetError()
-    this._state = BACKGROUND_LOADING
-    try {
-      if (getObjectDepth(patch) > 2) {
-        throw new Error(`Destinations recursive patch is not supported`)
-      }
-      yield services.storageService.table<DestinationData>("destinations").patch(id, patch)
-      this.patchInStore(id, patch)
-      if (options?.updateConnections) this.patchSourcesLinksByDestinationsUpdates(this.get(id))
-    } catch (error) {
-      console.error(error)
-    } finally {
-      this._state = IDLE
-    }
-  }
-
   public *createFreeDatabase() {
-    const { destinations } = (yield services.initializeDefaultDestination()) as {
-      destinations: DestinationData[]
+    const credentials: PgDatabaseCredentials = yield services.backendApiClient.post("/database", {
+      projectId: services.activeProject.id,
+    })
+    const freeDatabaseDestination: DestinationData = {
+      _type: "postgres",
+      _comment:
+        "We set up a test postgres database for you. It's hosted by us and has a 10,000 rows limitation. It's ok" +
+        " to try with service with it. However, don't use it in production setup. To reveal credentials, click on the 'Edit' button",
+      _id: "demo_postgres",
+      _uid: randomId(),
+      _mappings: null,
+      _onlyKeys: [],
+      _connectionTestOk: true,
+      _sources: [],
+      _formData: {
+        pguser: credentials["User"],
+        pgpassword: credentials["Password"],
+        pghost: credentials["Host"],
+        pgport: credentials["Port"],
+        pgdatabase: credentials["Database"],
+        mode: "stream",
+      },
     }
-    const freeDatabaseDestination = destinations[0]
-    yield flowResult(this._apiKeysStore.generateAddInitialApiKeyIfNeeded())
+    yield flowResult(this.apiKeysStore.generateAddInitialApiKeyIfNeeded())
     const linkedFreeDatabaseDestination: DestinationData = {
       ...freeDatabaseDestination,
-      _onlyKeys: [this._apiKeysStore.list[0].uid],
+      _onlyKeys: [this.apiKeysStore.list[0].uid],
     }
     yield flowResult(this.add(linkedFreeDatabaseDestination))
-  }
-
-  public *linkApiKeysToDestinations(_apiKeysUids: string | string[], _destinationsUids: string | string[]) {
-    const apiKeysUids = toArrayIfNot(_apiKeysUids)
-    const destinations = toArrayIfNot(_destinationsUids).map(this.get)
-    const destinationsPatches: { [destinationUid: string]: Partial<DestinationData> } = {}
-
-    destinations.forEach(destination => {
-      destinationsPatches[destination._uid] = {
-        _onlyKeys: union(destination._onlyKeys, apiKeysUids),
-      }
-    })
-
-    yield Promise.all(
-      Object.entries(destinationsPatches).map(([destinationUid, patch]) =>
-        flowResult(this.patch(destinationUid, patch, { updateConnections: false }))
-      )
-    )
-  }
-
-  public *updateDestinationsLinksToKey(apiKeyUid: string, _linkedDestinationsUids: string | string[]) {
-    const linkedDestinationsUids = toArrayIfNot(_linkedDestinationsUids)
-    const destinationsPatches: { [uid: string]: Partial<DestinationData> } = {}
-    this._destinations.forEach(destination => {
-      const destinationIsLinkedToKey: boolean = destination._onlyKeys.includes(apiKeyUid)
-      const destinationShouldBeLinked: boolean = linkedDestinationsUids.includes(destination._uid)
-
-      if (destinationIsLinkedToKey === destinationShouldBeLinked) {
-        return
-      }
-
-      if (destinationShouldBeLinked) {
-        destinationsPatches[destination._uid] = {
-          _onlyKeys: [...destination._onlyKeys, apiKeyUid],
-        }
-      } else {
-        destinationsPatches[destination._uid] = {
-          _onlyKeys: destination._onlyKeys.filter(uid => uid !== apiKeyUid),
-        }
-      }
-    })
-
-    yield Promise.all(
-      Object.entries(destinationsPatches).map(([_uid, patch]) =>
-        flowResult(this.patch(_uid, patch, { updateConnections: false }))
-      )
-    )
   }
 }
 

@@ -1,4 +1,4 @@
-import { flatten, getObjectDepth, numberFormat, unflatten } from "./utils"
+import { flatten, getObjectDepth, numberFormat, sanitize, unflatten } from "./utils"
 
 test("numberFormat", () => {
   expect(numberFormat(1000)).toBe("1,000")
@@ -19,4 +19,12 @@ test("object depth", () => {
   expect(getObjectDepth({})).toBe(0)
   expect(getObjectDepth({ foo: 1 })).toBe(1)
   expect(getObjectDepth({ foo: {} })).toBe(2)
+})
+
+test("sanitize with allow list", () => {
+  expect(sanitize({ a: 1, b: 2, c: 3 }, { allow: ["a", "b"] })).toStrictEqual({ a: 1, b: 2 })
+})
+
+test("sanitize with block list", () => {
+  expect(sanitize({ a: 1, b: 2, c: 3 }, { block: ["a", "b"] })).toStrictEqual({ c: 3 })
 })

@@ -18,6 +18,7 @@ type TaskCloser struct {
 	metaStorage         meta.Storage
 	notificationService *NotificationService
 	notificationConfig  map[string]interface{}
+	projectName         string
 }
 
 //TaskID returns task ID
@@ -86,6 +87,12 @@ func (tc *TaskCloser) notify(status string) {
 	}
 
 	if previousStatus != status {
-		go tc.notificationService.Notify(LoggedTask{tc.Task, tc.taskLogger, tc.notificationConfig, status})
+		go tc.notificationService.Notify(LoggedTask{
+			Task:          tc.Task,
+			TaskLogger:    tc.taskLogger,
+			Notifications: tc.notificationConfig,
+			ProjectName:   tc.projectName,
+			Status:        status,
+		})
 	}
 }

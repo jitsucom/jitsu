@@ -24,6 +24,7 @@ import { useServices } from "hooks/useServices"
 import { APIKeyUtil } from "../../../utils/apiKeys.utils"
 import { DestinationsUtils } from "../../../utils/destinations.utils"
 import { SourcesUtils } from "../../../utils/sources.utils"
+import { projectRoute } from "../../../lib/components/ProjectLink/ProjectLink"
 
 const CONNECTION_LINE_SIZE = 3
 const CONNECTION_LINE_COLOR = "#415969"
@@ -39,6 +40,7 @@ const ConnectionsPageComponent: React.FC = () => {
       ;[..._onlyKeys, ..._sources].forEach(sourceId => {
         const start = document.getElementById(sourceId)
         const end = document.getElementById(_uid)
+
         if (start && end && !connectionLines[`${sourceId}-${_uid}`])
           connectionLines[`${sourceId}-${_uid}`] = new LeaderLine(start, end, {
             endPlug: "behind",
@@ -105,7 +107,7 @@ const ConnectionsPageComponent: React.FC = () => {
             </div>
           }
         >
-          {apiKeysStore.hasApiKeys || !!sourcesStore.list.length ? (
+          {!!apiKeysStore.list.length || !!sourcesStore.list.length ? (
             [
               ...apiKeysStore.list.map(apiKey => {
                 return (
@@ -169,7 +171,7 @@ const ConnectionsPageComponent: React.FC = () => {
                           title: dst.displayName,
                           id: dst.id,
                           icon: dst.ui.icon,
-                          link: generatePath(destinationPageRoutes.newExact, {
+                          link: projectRoute(destinationPageRoutes.newExact, {
                             type: dst.id,
                           }),
                         }

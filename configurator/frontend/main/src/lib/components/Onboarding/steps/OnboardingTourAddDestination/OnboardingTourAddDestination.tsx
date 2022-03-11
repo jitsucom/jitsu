@@ -22,7 +22,9 @@ import {
 import { useServices } from "hooks/useServices"
 // @Utils
 import { flowResult } from "mobx"
-import { EntitiesStoreState } from "stores/types.enums"
+import { connectionsHelper } from "stores/helpers"
+import { EntitiesStoreStatus } from "stores/entitiesStore"
+
 type ExtractDatabaseOrWebhook<T> = T extends { readonly type: "database" }
   ? T
   : T extends { readonly id: "webhook" }
@@ -58,8 +60,8 @@ const OnboardingTourAddDestinationComponent: React.FC<Props> = ({ handleGoNext, 
   const userSources = sourcesStore.list
   const userDestinations = destinationsStore.list
 
-  const isLoadingUserSources = sourcesStore.state === EntitiesStoreState.GLOBAL_LOADING
-  const isLoadingUserDestinations = destinationsStore.state === EntitiesStoreState.GLOBAL_LOADING
+  const isLoadingUserSources = sourcesStore.status === EntitiesStoreStatus.GLOBAL_LOADING
+  const isLoadingUserDestinations = destinationsStore.status === EntitiesStoreStatus.GLOBAL_LOADING
 
   const handleCancelDestinationSetup = useCallback<() => void>(() => {
     setLifecycle("setup_choice")
@@ -85,7 +87,7 @@ const OnboardingTourAddDestinationComponent: React.FC<Props> = ({ handleGoNext, 
     // user might have multiple keys - we are using the first one
     await flowResult(apiKeysStore.generateAddInitialApiKeyIfNeeded({ note: "Auto-generated during the onboarding" }))
     const key = apiKeysStore.list[0]
-    await flowResult(destinationsStore.linkApiKeysToDestinations(key.uid, destination._uid))
+    await connectionsHelper.updateDestinationsConnectionsToApiKey(key.uid, [destination._uid])
 
     handleGoNext()
   }, [services, handleGoNext])
@@ -147,7 +149,6 @@ const OnboardingTourAddDestinationComponent: React.FC<Props> = ({ handleGoNext, 
         return (
           <div className={styles.destinationEditorContainer}>
             <DestinationEditor
-              setBreadcrumbs={() => {}}
               editorMode="add"
               paramsByProps={{
                 type: destinationsReferenceMap[lifecycle]["id"],

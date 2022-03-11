@@ -15,14 +15,13 @@ import { CenteredError, CenteredSpin } from "lib/components/components"
 // @Hooks
 import { useServices } from "hooks/useServices"
 // @Types
-import { PageProps } from "navigation"
-import { BreadcrumbsProps } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { DestinationStatistics } from "./partials/DestinationStatistics/DestinationStatistics"
 import { ErrorBoundary } from "../../../lib/components/ErrorBoundary/ErrorBoundary"
 import { AddDestinationDialog } from "./partials/AddDestinationDialog/AddDestinationDialog"
-import { EntitiesStoreState } from "stores/types.enums"
 import { CurrentSubscription } from "lib/services/billing"
 import { BillingCheckRedirect } from "lib/components/BillingCheckRedirect/BillingCheckRedirect"
+import { EntitiesStoreStatus } from "stores/entitiesStore"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 
 export interface CollectionDestinationData {
   destinations: DestinationData[]
@@ -30,11 +29,10 @@ export interface CollectionDestinationData {
 }
 
 export interface CommonDestinationPageProps {
-  setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void
   editorMode?: "edit" | "add"
 }
 
-const DestinationsPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
+const DestinationsPageComponent: React.FC = () => {
   const params = useParams<unknown>()
   const services = useServices()
 
@@ -43,11 +41,11 @@ const DestinationsPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
     [destinationsStore.list.length]
   )
 
-  if (destinationsStore.state === EntitiesStoreState.GLOBAL_ERROR) {
-    return <CenteredError error={destinationsStore.error} />
+  if (destinationsStore.status === EntitiesStoreStatus.GLOBAL_ERROR) {
+    return <CenteredError error={destinationsStore.errorMessage} />
   } else if (
-    destinationsStore.state === EntitiesStoreState.GLOBAL_LOADING ||
-    sourcesStore.state === EntitiesStoreState.GLOBAL_LOADING
+    destinationsStore.status === EntitiesStoreStatus.GLOBAL_LOADING ||
+    sourcesStore.status === EntitiesStoreStatus.GLOBAL_LOADING
   ) {
     return <CenteredSpin />
   }
@@ -56,7 +54,7 @@ const DestinationsPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
     <ErrorBoundary>
       <Switch>
         <Route path={destinationPageRoutes.root} exact>
-          <DestinationsList setBreadcrumbs={setBreadcrumbs} />
+          <DestinationsList />
         </Route>
         <Route path={destinationPageRoutes.editExact} strict={false} exact>
           <DestinationEditor
@@ -65,14 +63,14 @@ const DestinationsPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
              * to assemble a fresh form
              */
             key={params?.["id"] || "static_key"}
-            {...{ setBreadcrumbs, editorMode: "edit" }}
+            editorMode="edit"
           />
         </Route>
         <Route path={destinationPageRoutes.statisticsExact} strict={false} exact>
-          <DestinationStatistics setBreadcrumbs={setBreadcrumbs} />
+          <DestinationStatistics />
         </Route>
         <BillingCheckRedirect
-          quotaExceededRedirectTo={destinationPageRoutes.root}
+          quotaExceededRedirectTo={projectRoute(destinationPageRoutes.root)}
           quotaExceedeMessage={
             <>
               You current plan allows to have only {services.currentSubscription.currentPlan.quota.destinations}{" "}
@@ -86,7 +84,7 @@ const DestinationsPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
               <AddDestinationDialog />
             </Route>
             <Route path={destinationPageRoutes.newExact} strict={false} exact>
-              <DestinationEditor {...{ setBreadcrumbs, editorMode: "add" }} />
+              <DestinationEditor editorMode="add" />
             </Route>
           </Switch>
         </BillingCheckRedirect>

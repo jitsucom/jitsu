@@ -1,6 +1,4 @@
-/* eslint-disable */
 import { FeatureSettings } from "./ApplicationServices"
-import { User } from "./model"
 // @ts-ignore
 import LogRocket from "logrocket"
 import murmurhash from "murmurhash"
@@ -136,9 +134,9 @@ function isError(obj: any) {
 }
 
 export type UserProps = {
-  name: string
+  name?: string
   email: string
-  uid: string
+  id: string
 }
 
 export function getErrorPayload(error: Error) {
@@ -206,7 +204,7 @@ export default class AnalyticsService {
     this.user = userProps
     this.ensureLogRocketInitialized()
     if (this.appConfig.rawConfig.keys.logrocket) {
-      LogRocket.identify(userProps.uid, {
+      LogRocket.identify(userProps.id, {
         email: userProps.email,
       })
     }
@@ -217,15 +215,15 @@ export default class AnalyticsService {
       initIntercom(this.appConfig.rawConfig.keys.intercom, {
         email: userProps.email,
         name: userProps.name,
-        user_id: userProps.uid,
+        user_id: userProps.id,
       })
     }
   }
 
-  public getJitsuIdPayload({ email, uid }) {
+  public getJitsuIdPayload({ email, id }) {
     return {
       email: this._anonymizeUsers ? "masked" : email,
-      internal_id: this._anonymizeUsers ? "hid_" + murmurhash.v3(email || uid) : uid,
+      internal_id: this._anonymizeUsers ? "hid_" + murmurhash.v3(email || id) : id,
     }
   }
 

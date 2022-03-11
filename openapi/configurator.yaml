@@ -15,6 +15,11 @@ tags:
     x-displayName: Configuration Management
     description: >
       API for managing Jitsu configuration: sources, destinations, API keys etc
+  - name: user-provisioning
+    x-displayName: User Provisioning
+    description: >
+      API for provisioning users. Works only for clusters with Redis-backed authorization, not
+      for Firebase-backed. Requires authorization with cluster admin token
   - name: cluster-admin
     x-displayName: Cluster Admin
     description: >
@@ -158,6 +163,121 @@ components:
       properties:
         projectID: { type: "string" }
       required: [ 'projectID' ]
+    Project:
+      type: object
+      properties:
+        id: { type: "string" }
+        name: { type: "string" }
+        requiresSetup: { type: "boolean" }
+      required: [ 'id', 'name' ]
+    CreateProjectRequest:
+      type: object
+      properties:
+        name: { type: string }
+      required: [ 'name' ]
+
+    UserBasicInfo:
+      description: 'Basic information about user'
+      type: object
+      properties:
+        id: { type: "string" }
+        email: { type: "string" }
+      required: [ 'id', 'email' ]
+
+    User:
+      allOf: # Combines the BasicErrorModel and the inline model
+        - $ref: '#/components/schemas/UserBasicInfo'
+        - type: object
+          properties:
+            name: { type: "string" }
+            created: { type: "string" }
+            emailOptout: { type: "boolean" }
+            forcePasswordChange: { type: "boolean" }
+            suggestedCompanyName: { type: "string" }
+          required: [ 'created' ]
+    CreateUserRequest:
+      type: object
+      properties:
+        name: { type: string }
+        email: { type: string }
+        projectName: { type: string }
+        projectId: { type: string }
+      required: [ 'email' ]
+    PatchUserRequest:
+      type: object
+      properties:
+        name: { type: "string" }
+        forcePasswordChange:
+          type: boolean
+          description: if set to true, user will be forced to change the password during next login
+        password:
+          type: string
+          description: New password to assign a user
+    ProjectInfo:
+      type: object
+      properties:
+        _id: { type: string }
+        _name: { type: string }
+        _requireSetup: { type: boolean }
+      required: [ '_id', '_name' ]
+    SuggestedInfo:
+      type: object
+      properties:
+        companyName: { type: string }
+        email: { type: string }
+        name: { type: string }
+    UserInfo:
+      type: object
+      properties:
+        _uid: { type: string }
+        _created: { type: string }
+        _lastUpdated: { type: string }
+        _email: { type: string }
+        _emailOptout: { type: boolean }
+        _name: { type: string }
+        _forcePasswordChange: { type: boolean }
+        _onboarded: { type: boolean }
+        _suggestedInfo:
+          $ref: '#/components/schemas/SuggestedInfo'
+        _project:
+          $ref: '#/components/schemas/ProjectInfo'
+      required: [ '_uid', '_created', '_email' ]
+    ProjectInfoUpdate:
+      type: object
+      properties:
+        _id: { type: string }
+        _name: { type: string }
+        _requireSetup: { type: boolean }
+    UpdateUserInfoRequest:
+      type: object
+      properties:
+        _emailOptout: { type: boolean }
+        _name: { type: string }
+        _forcePasswordChange: { type: boolean }
+        _onboarded: { type: boolean }
+        _suggestedInfo:
+          $ref: '#/components/schemas/SuggestedInfo'
+        _project:
+          $ref: '#/components/schemas/ProjectInfoUpdate'
+    LinkProjectRequest:
+      type: object
+      properties:
+        userId:
+          type: string
+          description: User Id to link to the project. Alternatively, userEmail could be specified
+        userEmail:
+          type: string
+          description: User email to link to the project. Alternatively, userId could be specified
+        callback:
+          type: string
+          description: >
+            Callback URL will be used for generating reset password links 
+            when creating a new user (only on Redis-backed authorization).
+    PatchProjectRequest:
+      type: object
+      properties:
+        name: { type: "string" }
+        requiresSetup: { type: "boolean" }
 
   responses:
     Error:
@@ -196,7 +316,38 @@ components:
         "application/json":
           schema:
             $ref: "#/components/schemas/ProjectSettings"
-
+    CreateUserResponse:
+      description: >
+        New user. Some fields (created, emailOptout, forcePasswordChange) will be assigned automatically. If new project is created,
+        the project node will contain an id with new project. Otherwise project node will be present too, but it will contain
+        the linked project object
+      content:
+        "application/json":
+          schema:
+            type: object
+            properties:
+              user:
+                $ref: "#/components/schemas/User"
+              project:
+                $ref: "#/components/schemas/Project"
+              resetId:
+                type: string
+                description: The reset ID may further be submitted to /api/v1/users/password/change in order to set user password.
+            required: [ user, project, resetId ]
+    LinkProjectResponse:
+      description: "List of users with access to given project"
+      content:
+        "application/json":
+          schema:
+            type: object
+            properties:
+              projectUsers:
+                type: array
+                items: { $ref: '#/components/schemas/UserBasicInfo' }
+              userStatus:
+                type: string
+                description: existing if user has been found, or created if user has been created
+            required: ['projectUsers', 'userStatus']
 paths:
   /api/v1/users/signin:
     post:
@@ -216,11 +367,9 @@ paths:
             "application/json":
               schema:
                 $ref: '#/components/schemas/TokensResponse'
-
-        #All error responses
         default:
           $ref: '#/components/responses/Error'
-  /api/v1/users/onboarded/signup:
+  /api/v1/users/signup:
     post:
       tags:
         - configuration-management
@@ -238,7 +387,6 @@ paths:
             "application/json":
               schema:
                 $ref: '#/components/schemas/TokensResponse'
-        #All error responses
         default:
           $ref: '#/components/responses/Error'
   /api/v1/users/signout:
@@ -289,16 +437,15 @@ paths:
           "application/json":
             schema:
               title: UserPasswordResetRequest
+              description: callback field will be used in a password reset email as reset link URL
               type: object
               properties:
                 email: { type: string }
                 callback: { type: string }
               required: [ email ]
-
       responses:
         "200":
           $ref: '#/components/responses/StatusResponse'
-        #All error responses
         default:
           $ref: '#/components/responses/Error'
   /api/v1/users/password/change:
@@ -316,6 +463,7 @@ paths:
               properties:
                 new_password: { type: string }
                 reset_id: { type: string }
+              required: [ 'new_password' ]
       responses:
         "200":
           description: 'Success password changing'
@@ -323,7 +471,6 @@ paths:
             "application/json":
               schema:
                 $ref: '#/components/schemas/TokensResponse'
-        #All error responses
         default:
           $ref: '#/components/responses/Error'
   /api/v1/users/info:
@@ -336,24 +483,34 @@ paths:
         - configurationManagementAuth: [ ]
       responses:
         '200':
-          $ref: '#/components/responses/AnyObjectResponse'
+          description: "User info"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/UserInfo"
         default:
           $ref: '#/components/responses/Error'
     post:
       tags:
         - configuration-management
       operationId: "Update user info"
-      description: 'Replaces users settings with a new user settings. Changes to some fields (such as security settings), will not have an effect'
+      description: >
+        Merge (patch) users settings with into an existing user object. Changes to some fields (such as security settings), will not have an effect. All fields
+        will be ignored, except: _emailOptout, _name, _forcePasswordChange, _name, _onboarded, _suggestedInfo, _project
       security:
         - configurationManagementAuth: [ ]
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AnyObject'
+              $ref: '#/components/schemas/UpdateUserInfoRequest'
       responses:
         '200':
-          $ref: '#/components/responses/AnyObjectResponse'
+          description: "Updated user info"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
         default:
           $ref: '#/components/responses/Error'
   /api/v1/users/email/change:
@@ -377,7 +534,6 @@ paths:
       responses:
         "200":
           $ref: '#/components/responses/StatusResponse'
-        #All error responses
         default:
           $ref: '#/components/responses/Error'
   /api/v1/system/configuration:
@@ -417,17 +573,262 @@ paths:
         default:
           $ref: '#/components/responses/Error'
 
-  /api/v2/projects:
+  /api/v2/project/{projectId}/users:
     get:
+      parameters:
+        - name: projectId
+          description: Project id
+          in: path
+          required: true
+          schema:
+            type: string
       tags:
         - configuration-management
-      operationId: "Get users projects"
+      operationId: "Get users link to projects"
+      description: Returns users linked to project
+      security:
+        - configurationManagementAuth: [ ]
+      responses:
+        '200':
+          description: "List of users with access to given project"
+          content:
+            "application/json":
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserBasicInfo'
+
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v2/project/{projectId}/link:
+    post:
+      parameters:
+        - name: projectId
+          description: Project id
+          in: path
+          required: true
+          schema:
+            type: string
+      tags:
+        - user-provisioning
+      operationId: "Link user to project"
+      description: >
+        Links user to project. If userId is specified, the user should just be linked. If userEmail is specified, the logic should be as follows:
+         - Try to find user with userEmail. If user has been found, just link it
+         - If user is not found, the user should be created and linked to the project. Later we'll add email notification
+      security:
+        - configurationManagementAuth: [ ]
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              $ref: '#/components/schemas/LinkProjectRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/LinkProjectResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v2/project/{projectId}/unlink:
+    get:
+      parameters:
+        - name: projectId
+          description: Project id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          description: User Id to link to the project. Alternatively, userEmail could be specified
+          in: query
+          required: true
+          schema:
+            type: string
+      tags:
+        - user-provisioning
+      operationId: "Unlink user from project"
+      description: >
+        Removes user from the project. Note: users can remove themselves from the project
+      security:
+        - configurationManagementAuth: [ ]
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v2/users:
+    get:
+      operationId: List users
+      description: Get all users. Available only for Redis-backed authorization
+      tags:
+        - user-provisioning
+      security:
+        - clusterAdminAuth: [ ]
+      responses:
+        '200':
+          description: List of users
+          content:
+            "application/json":
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: Create new user
+      description: Create new user. Available only for Redis-backed authorization
+      tags:
+        - user-provisioning
+      security:
+        - clusterAdminAuth: [ ]
+      requestBody:
+        description: >
+          Email and (optional) password. If password is not set, a random one
+          will be generated and returned with response.
+
+          projectId or projectName should be specified. If projectId is set, user will be linked to
+          existing project (project with such id should exist). Otherwise a new project will be created
+          with name=projectName
+        content:
+          "application/json":
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/CreateUserResponse'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v2/users/{userId}:
+    delete:
+      tags:
+        - user-provisioning
+      operationId: Delete User
+      description: Delete user by id. Available only for Redis-backed authorization
+      security:
+        - clusterAdminAuth: [ ]
+      parameters:
+        - name: userId
+          description: Id of the user
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusResponse'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      tags:
+        - user-provisioning
+      operationId: Update user
+      description: Update user. See documentation on request body. Available only for Redis-backed authorization
+      security:
+        - clusterAdminAuth: [ ]
+      parameters:
+        - name: userId
+          description: Id of the user
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: >
+          Any combination of the fields should be present. Only fields present in request will be updated
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/PatchUserRequest"
+      responses:
+        '200':
+          description: Updated user data
+          content:
+            "application/json":
+              schema:
+                $ref: '#/components/schemas/User'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v2/projects:
+    get:
+      parameters:
+        - name: allProjects
+          description: >
+            Should the method return all projects, not only available to current user. Only users
+            authenticated with cluster-admin token (or users with cluster admin permission) can set this
+            to true. Otherwise, error will be thrown
+          in: query
+          required: false
+          schema:
+            type: boolean
+      tags:
+        - configuration-management
+      operationId: "Get projects"
       description: Returns a list of projects available for current user
       security:
         - configurationManagementAuth: [ ]
       responses:
         '200':
-          $ref: '#/components/responses/AnyArrayResponse'
+          description: "List of projects"
+          content:
+            "application/json":
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      tags:
+        - configuration-management
+      operationId: "Create project and link user"
+      description: >
+        Creates a new project, links current user and returns the project with ID.
+        If id is present in request body, it should be ignored
+      security:
+        - configurationManagementAuth: [ ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '200':
+          description: "Created project"
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/Project"
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v2/projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+    patch:
+      tags:
+        - configuration-management
+      operationId: 'Patch project'
+      security:
+        - configurationManagementAuth: [ ]
+      description: >
+        Updates a project for a given project ID. Object will be patched: request body properties will be merged into an original object,
+        it's ok to send partial objects. Some fields might be ignored and overwritten.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchProjectRequest'
+      responses:
+        '200':
+          description: "Updated project"
+          content:
+            "application/json":
+              schema:
+                $ref: '#/components/schemas/Project'
         default:
           $ref: '#/components/responses/Error'
 
@@ -453,7 +854,7 @@ paths:
       security:
         - configurationManagementAuth: [ ]
       description: >
-        Updates a project settings for a given project ID. Object will be patched: request body properties will be merged into an original object, 
+        Updates a project settings for a given project ID. Object will be patched: request body properties will be merged into an original object,
         it's ok to send partial objects. Some fields might be ignored and overwritten. The method returns an updated object
       requestBody:
         content:
@@ -557,7 +958,7 @@ paths:
       description: >
         Save object with given ID. The whole object except id field will be overwritten. The method returns an updated object
       security:
-        - configurationManagementAuth: [  ]
+        - configurationManagementAuth: [ ]
       requestBody:
         content:
           application/json:
@@ -762,25 +1163,7 @@ paths:
                       server_secret: 'server_secret1'
         default:
           $ref: '#/components/responses/Error'
-  /api/v1/apikeys/default:
-    post:
-      tags:
-        - configuration-management
-      operationId: 'Generate default project api key'
-      description: >
-        Generate new project api key if no one exists. Otherwise do nothing.
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ProjectIdRequest'
-      security:
-        - configurationManagementAuth: [ ]
-      responses:
-        '200':
-          $ref: '#/components/responses/StatusResponse'
-        default:
-          $ref: '#/components/responses/Error'
+
   /api/v1/database:
     post:
       tags:
@@ -826,31 +1209,3 @@ paths:
                 $ref: "#/components/schemas/TokenResponse"
         default:
           $ref: '#/components/responses/Error'
-  /api/v1/notify:
-    post:
-      tags:
-        - configuration-management
-      operationId: 'Send Custom payload notification asynchronously'
-      description: Send custom payload Slack notification asynchronously. Method always returns 200 OK. There should be configured notifications.slack.url section in the Jitsu configuration.
-      security:
-        - configurationManagementAuth: [ ]
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AnyObject'
-      responses:
-        '200':
-          $ref: '#/components/responses/StatusResponse'
-
-
-
-
-#TODO
-
-#/api/v1/configurations/:collection (GET, POST) --- ignore, will be deprecated
-
-#future
-#/api/v2/projects (POST) - create a project
-#/api/v2/projects/users (POST) - add user to the project
-#/api/v2/projects/users (DELETE) - delete user from the project
