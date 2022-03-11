@@ -748,9 +748,9 @@ func (s *Snowflake) getCastClause(name string, column typing.SQLColumn) string {
 	}
 	if ok {
 		return "::" + castType.Type
+	} else {
+		return "::" + column.DDLType()
 	}
-
-	return ""
 }
 
 //columnDDL returns column DDL (column name, mapped sql type)
