@@ -588,6 +588,13 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 		return errorj.Decorate(err, "failed to create temporary table")
 	}
 
+	defer func() {
+		//delete tmp table
+		if err := s.dropTableInTransaction(wrappedTx, tmpTable); err != nil {
+			logging.Warnf("[snowflake] Failed to drop temporary table '%s': %v", tmpTable.Name, err)
+		}
+	}()
+
 	err = s.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
 	if err != nil {
 		return errorj.Decorate(err, "failed to insert into temporary table").
@@ -624,11 +631,6 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 				Table:     table.Name,
 				Statement: insertFromSelectStatement,
 			})
-	}
-
-	//delete tmp table
-	if err := s.dropTableInTransaction(wrappedTx, tmpTable); err != nil {
-		return errorj.Decorate(err, "failed to drop temporary table")
 	}
 
 	return nil
@@ -747,7 +749,7 @@ func (s *Snowflake) getCastClause(name string, column typing.SQLColumn) string {
 		return "::" + castType.Type
 	}
 
-	return ""
+	return "::" + column.DDLType()
 }
 
 //columnDDL returns column DDL (column name, mapped sql type)
