@@ -8,7 +8,6 @@ import { BackendApiClient } from "./BackendApiClient"
 // @Types
 import type { destinationsStore as DestinationsStore } from "../../stores/destinations"
 import type { sourcesStore as SourcesStore } from "../../stores/sources"
-import type { Project } from "generated/conf-openapi"
 import { DatePoint, StatisticsService } from "lib/services/stat"
 // @Utils
 import { withQueryParams } from "utils/queryParams"
@@ -320,7 +319,6 @@ export function generateCheckoutLink(params: {
 }): string {
   const billingUrl = ApplicationServices.get().applicationConfiguration.billingUrl
   const link = withQueryParams(`${billingUrl}/api/init-checkout`, params, { encode: ["user_email"] })
-  debugger
   return link
 }
 

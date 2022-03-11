@@ -33,9 +33,6 @@ const DestinationsListComponent = () => {
     return <EmptyList handleAddClick={handleAddClick} title="Destinations list is still empty" unit="destination" />
   }
 
-  const list = destinationsStore.list
-  debugger
-
   return (
     <>
       <div className="mb-5">
