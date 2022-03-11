@@ -5,14 +5,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/errorj"
-	"github.com/jitsucom/jitsu/server/uuid"
-	"github.com/lib/pq"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/errorj"
+	"github.com/jitsucom/jitsu/server/uuid"
+	"github.com/lib/pq"
 
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
@@ -60,7 +61,7 @@ WHERE tco.constraint_type = 'PRIMARY KEY' AND
 	dropColumnTemplate            = `ALTER TABLE "%s"."%s" DROP COLUMN %s`
 	renameColumnTemplate          = `ALTER TABLE "%s"."%s" RENAME COLUMN %s TO %s`
 	postgresTruncateTableTemplate = `TRUNCATE "%s"."%s"`
-	PostgresValuesLimit           = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	PostgresValuesLimit           = 200 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
 var (
