@@ -25,7 +25,7 @@ const (
 	firestoreDocumentIDField = "_firestore_document_id"
 
 	batchSize        = 100
-	objectsChunkSize = 1000
+	objectsChunkSize = 10000
 )
 
 type subCollectionResult struct {
