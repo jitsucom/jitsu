@@ -536,6 +536,7 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 	valueArgs := make([]interface{}, 0, maxValues)
 	operation := 0
 	operations := int(math.Max(1, float64(valuesAmount)/float64(PostgresValuesLimit)))
+	batch := make([]map[string]interface{}, 0)
 	for _, row := range objects {
 		// if number of values exceeds limit, we have to execute insert query on processed rows
 		if len(valueArgs)+len(unformattedColumnNames) > PostgresValuesLimit {
@@ -546,6 +547,7 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 
 			placeholdersBuilder.Reset()
 			valueArgs = make([]interface{}, 0, maxValues)
+			batch = make([]map[string]interface{}, 0)
 		}
 		_, _ = placeholdersBuilder.WriteString("(")
 
@@ -559,6 +561,8 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 			if i < len(unformattedColumnNames)-1 {
 				_, _ = placeholdersBuilder.WriteString(",")
 			}
+
+			batch = append(batch, row)
 		}
 		_, _ = placeholdersBuilder.WriteString("),")
 	}
