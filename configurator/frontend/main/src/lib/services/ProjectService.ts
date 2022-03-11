@@ -2,14 +2,12 @@
  * Class for working with projects and users
  */
 import { Project, UserBasicInfo } from "../../generated/conf-openapi"
-import { UserService } from "./UserService"
 import { BackendApiClient } from "./BackendApiClient"
 import { assertHasAllProperties, assertIsArray, assertIsObject } from "utils/typeCheck"
 import { assert } from "../../utils/typeCheck"
 import { withQueryParams } from "utils/queryParams"
 import { concatenateURLs } from "lib/commons/utils"
 import { getFullUiPath } from "lib/commons/pathHelper"
-import { FeatureSettings } from "./ApplicationServices"
 import { errorIncludes } from "utils/errorIncludes"
 
 export interface ProjectService {
@@ -106,7 +104,6 @@ export function createProjectService(backend: BackendApiClient): ProjectService 
 
       // TEMPORARY - remove once backend does set `requiresSetup: true` for a new project
       const result = await backend.patch<unknown>(`/projects/${response.id}`, { requiresSetup: true }, { version: 2 })
-      debugger
       assertIsProject(result, "Assertion error in createProject: value returned by PATCH is not a ProjectInfo object")
       return result
     },
