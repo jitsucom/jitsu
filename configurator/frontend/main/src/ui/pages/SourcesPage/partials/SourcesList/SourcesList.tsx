@@ -1,5 +1,5 @@
 // @Libs
-import { useCallback, useEffect } from "react"
+import { useEffect } from "react"
 import { useHistory } from "react-router-dom"
 import { Button } from "antd"
 import { observer } from "mobx-react-lite"
@@ -14,7 +14,7 @@ import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 // @Utils
 import { SourceCard } from "../../../../components/SourceCard/SourceCard"
 import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
-import ProjectLink, { projectRoute } from "lib/components/ProjectLink/ProjectLink"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 
 const SourcesListComponent = () => {
   const history = useHistory()
@@ -28,7 +28,6 @@ const SourcesListComponent = () => {
       <div className={styles.empty}>
         <h3 className="text-2xl">Sources list is still empty</h3>
         <div>
-          {/* <ProjectLink to={sourcesPageRoutes.add.split("/").slice(2).join("/")}> */}
           <Button
             type="primary"
             size="large"
@@ -37,7 +36,6 @@ const SourcesListComponent = () => {
           >
             Add source
           </Button>
-          {/* </ProjectLink> */}
         </div>
       </div>
     )
@@ -46,7 +44,6 @@ const SourcesListComponent = () => {
   return (
     <>
       <div className="mb-5">
-        {/* <ProjectLink to={sourcesPageRoutes.add.split("/").slice(2).join("/")}> */}
         <Button
           type="primary"
           icon={<PlusOutlined />}
@@ -54,7 +51,6 @@ const SourcesListComponent = () => {
         >
           Add source
         </Button>
-        {/* </ProjectLink> */}
       </div>
 
       <div className="flex flex-wrap justify-center">
