@@ -319,7 +319,9 @@ export function generateCheckoutLink(params: {
   redirect_base: string
 }): string {
   const billingUrl = ApplicationServices.get().applicationConfiguration.billingUrl
-  return withQueryParams(`${billingUrl}/api/init-checkout`, params)
+  const link = withQueryParams(`${billingUrl}/api/init-checkout`, params, { encode: ["user_email"] })
+  debugger
+  return link
 }
 
 export function generateCustomerPortalLink(

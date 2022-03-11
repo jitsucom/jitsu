@@ -1,5 +1,5 @@
 /**
- * Utilities for working with path. 
+ * Utilities for working with path.
  * Includes few hacks to make configurator work within heroku environment
  */
 import { concatenateURLs } from "lib/commons/utils"

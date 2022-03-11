@@ -212,7 +212,6 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
           key={"userMenuDropdown"}
           trigger={["click"]}
           visible={dropdownVisible}
-          destroyPopupOnHide={true}
           overlay={<DropdownMenu user={user} plan={plan} hideMenu={() => setDropdownVisible(false)} />}
           onVisibleChange={vis => setDropdownVisible(vis)}
         >
