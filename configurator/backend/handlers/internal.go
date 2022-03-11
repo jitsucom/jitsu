@@ -127,7 +127,7 @@ func (oa *OpenAPI) mapSourcesConfiguration(sourcesByProjectID map[string]*entiti
 				destinationIDs[i] = projectID + "." + destinationID
 			}
 
-			sourceConfig, err := mapSourceConfig(source, destinationIDs, postHandleDestinationIDs, project.ProjectSettings)
+			sourceConfig, err := mapSourceConfig(source, destinationIDs, postHandleDestinationIDs, project)
 			if err != nil {
 				return nil, errors.Wrapf(err, "map source %s config", sourceID)
 			}
@@ -166,7 +166,7 @@ func mapYamlSources(projectSources []*entities.Source, postHandleDestinationIDs 
 	for _, source := range projectSources {
 		sourceID := source.SourceID
 		destinationIDs := source.Destinations
-		sourceConfig, err := mapSourceConfig(source, destinationIDs, postHandleDestinationIDs, project.ProjectSettings)
+		sourceConfig, err := mapSourceConfig(source, destinationIDs, postHandleDestinationIDs, project)
 		if err != nil {
 			return nil, errors.Wrapf(err, "map config for source [%s]", sourceID)
 		}
@@ -179,7 +179,7 @@ func mapYamlSources(projectSources []*entities.Source, postHandleDestinationIDs 
 
 //mapSourceConfig mapped configurator source into server format
 //puts table names if not set
-func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, postHandleDestinations []string, projectSettings openapi.ProjectSettings) (jdriversbase.SourceConfig, error) {
+func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, postHandleDestinations []string, projectSettings storages.Project) (jdriversbase.SourceConfig, error) {
 	var notificationConfig map[string]interface{}
 	if projectSettings.Notifications != nil {
 		notificationConfig = map[string]interface{}{
@@ -196,6 +196,7 @@ func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, pos
 		Config:                 source.Config,
 		Schedule:               source.Schedule,
 		Notifications:          notificationConfig,
+		ProjectName:            projectSettings.Name,
 	}
 
 	if source.SourceType == jdriversbase.SingerType {

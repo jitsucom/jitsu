@@ -355,7 +355,7 @@ func (oa *OpenAPI) TestSourceConfiguration(ctx *gin.Context) {
 	var source entities.Source
 	if err := ctx.BindJSON(&source); err != nil {
 		mw.InvalidInputJSON(ctx, err)
-	} else if sourceConfig, err := mapSourceConfig(&source, []string{}, []string{}, openapi.ProjectSettings{}); err != nil {
+	} else if sourceConfig, err := mapSourceConfig(&source, []string{}, []string{}, storages.Project{}); err != nil {
 		mw.BadRequest(ctx, fmt.Sprintf("Failed to map [%s] config to Jitsu Server format", source.SourceType), err)
 	} else if sourceConfigData, err := json.Marshal(sourceConfig); err != nil {
 		mw.BadRequest(ctx, "Failed to serialize source config", err)

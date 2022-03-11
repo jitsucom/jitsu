@@ -230,6 +230,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 		metaStorage:         te.MetaStorage,
 		notificationService: te.NotificationService,
 		notificationConfig:  sourceUnit.Notifications,
+		projectName:         sourceUnit.ProjectName,
 	}
 
 	if taskCloser.HandleCanceling() == ErrTaskHasBeenCanceled {
