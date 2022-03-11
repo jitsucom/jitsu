@@ -18,7 +18,6 @@ import ReloadOutlined from "@ant-design/icons/lib/icons/ReloadOutlined"
 // @Lib
 import { allSources } from "@jitsu/catalog/sources/lib"
 // @Routes
-import { taskLogsPageRoute } from "ui/pages/TaskLogs/TaskLogsPage"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 // @Utils
 import { Task, TaskId, TaskLogEntry } from "./utils"
@@ -34,8 +33,6 @@ type TaskInfo = {
   task: Task
   source: SourceData
 }
-
-export const taskLogsViewerRoute = "/sources/logs/:sourceId/:taskId"
 
 const TaskLogViewerComponent: React.FC = () => {
   let { sourceId, taskId } = useParams<{ sourceId: string; taskId: string }>()
@@ -88,7 +85,7 @@ const TaskLogViewerComponent: React.FC = () => {
         },
         {
           title: "Logs",
-          link: projectRoute(taskLogsPageRoute, { sourceId }),
+          link: projectRoute(sourcesPageRoutes.logs, { sourceId }),
         },
         { title: "Task Log" }
       )
@@ -114,7 +111,7 @@ const TaskLogViewerComponent: React.FC = () => {
           <Button
             type="primary"
             icon={<ArrowLeftOutlined />}
-            onClick={() => history.push(projectRoute(taskLogsPageRoute, { sourceId }))}
+            onClick={() => history.push(projectRoute(sourcesPageRoutes.logs, { sourceId }))}
           >
             Back to task list
           </Button>

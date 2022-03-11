@@ -34,7 +34,6 @@ import LoginPage from "./ui/pages/GetStartedPage/LoginPage"
 import SignupPage from "./ui/pages/GetStartedPage/SignupPage"
 import { StatusPage } from "./lib/components/StatusPage/StatusPage"
 import { UserSettings } from "./lib/components/UserSettings/UserSettings"
-import { TaskLogsPage, taskLogsPageRoute } from "./ui/pages/TaskLogs/TaskLogsPage"
 // @Styles
 import "./App.less"
 // @Unsorted
@@ -254,7 +253,6 @@ const projectRoutes: ProjectRouteData[] = [
 
   { pageTitle: "Sources", path: "/sources", component: SourcesPage, isPrefix: true },
   { pageTitle: "Destinations", path: "/destinations", component: DestinationsPage, isPrefix: true },
-  { pageTitle: "Task Logs", path: taskLogsPageRoute, component: TaskLogsPage, isPrefix: true },
 
   { pageTitle: "User Settings", path: "/settings/user", component: UserSettings, isPrefix: true },
 ]
