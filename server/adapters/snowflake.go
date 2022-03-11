@@ -561,10 +561,9 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 			if i < len(unformattedColumnNames)-1 {
 				_, _ = placeholdersBuilder.WriteString(",")
 			}
-
-			batch = append(batch, row)
 		}
 		_, _ = placeholdersBuilder.WriteString("),")
+		batch = append(batch, row)
 	}
 
 	if len(valueArgs) > 0 {
