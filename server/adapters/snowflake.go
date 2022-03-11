@@ -540,6 +540,12 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 		// if number of values exceeds limit, we have to execute insert query on processed rows
 		if len(valueArgs)+len(unformattedColumnNames) > PostgresValuesLimit {
 			operation++
+			if err := s.executeInsertInTransaction(wrappedTx, table, unformattedColumnNames, removeLastComma(placeholdersBuilder.String()), valueArgs); err != nil {
+				return errorj.Decorate(err, "middle insert %d of %d in batch", operation, operations)
+			}
+
+			placeholdersBuilder.Reset()
+			valueArgs = make([]interface{}, 0, maxValues)
 		}
 		_, _ = placeholdersBuilder.WriteString("(")
 
@@ -555,13 +561,6 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 			}
 		}
 		_, _ = placeholdersBuilder.WriteString("),")
-
-		if err := s.executeInsertInTransaction(wrappedTx, table, unformattedColumnNames, removeLastComma(placeholdersBuilder.String()), valueArgs); err != nil {
-			return errorj.Decorate(err, "middle insert %d of %d in batch", operation, operations)
-		}
-
-		placeholdersBuilder.Reset()
-		valueArgs = make([]interface{}, 0, maxValues)
 	}
 
 	if len(valueArgs) > 0 {
