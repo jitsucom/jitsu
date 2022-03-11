@@ -34,16 +34,6 @@ const USER_EVENT_EXPIRATION_THRESHOLD = moment.duration(1, "months")
 
 const services = ApplicationServices.get()
 
-async function getEvents(): Promise<any> {
-  try {
-    await services.backendApiClient.get(`/events/cache?project_id=${services.activeProject.id}&limit=5`, {
-      proxy: true,
-    })
-  } catch (e) {
-    return undefined
-  }
-}
-
 const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => {
   const [config, setConfig] = useState<OnboardingConfig | null>(null)
   const [userClosedTour, setUserClosedTour] = useState<boolean>(false)
@@ -147,7 +137,7 @@ const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => 
 
   useEffect(() => {
     const initialPrepareConfig = async (): Promise<void> => {
-      const [user, destinations, events] = await Promise.all([
+      const [user, destinations, eventsResponse] = await Promise.all([
         services.userService.getUser(),
         destinationsStore.list,
         getEvents(),
@@ -162,7 +152,7 @@ const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => 
       const showDestinationsSetupStep = _destinations.length === 0
 
       // jitsu client configuration docs and first event detection
-      const showJitsuClientDocsStep: boolean = !events ? false : needShowJitsuClientConfigSteps(events)
+      const showJitsuClientDocsStep: boolean = !!eventsResponse ? needShowJitsuClientConfigSteps(eventsResponse) : true
 
       const needToShowTour = !userName || !companyName || showDestinationsSetupStep || showJitsuClientDocsStep
 
@@ -203,6 +193,16 @@ function calculateAmountOfSteps(config: OnboardingConfig): number {
   return Object.values(config).reduce((accumulator, current) => {
     return accumulator + +current
   }, 0)
+}
+
+async function getEvents(): Promise<any> {
+  try {
+    await services.backendApiClient.get(`/events/cache?project_id=${services.activeProject.id}&limit=5`, {
+      proxy: true,
+    })
+  } catch (e) {
+    return undefined
+  }
 }
 
 const OnboardingTour: React.FC<OnboardingTourProps> = observer(props => {
