@@ -12,18 +12,17 @@ import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined"
 // @Routes
 import { destinationPageRoutes } from "ui/pages/DestinationsPage/DestinationsPage.routes"
 // @Types
-import { CommonDestinationPageProps } from "ui/pages/DestinationsPage/DestinationsPage"
 import { useServices } from "../../../../../hooks/useServices"
 import { DestinationCard } from "../../../../components/DestinationCard/DestinationCard"
 import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
-import { projectRoute } from "../../../../../lib/components/ProjectLink/ProjectLink"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 
 const DestinationsListComponent = () => {
   const history = useHistory()
   const subscription = useServices().currentSubscription
 
   const handleAddClick = useCallback(() => {
-    history.push(destinationPageRoutes.add)
+    history.push(projectRoute(destinationPageRoutes.add))
   }, [history, subscription])
 
   useEffect(() => {
@@ -33,6 +32,9 @@ const DestinationsListComponent = () => {
   if (destinationsStore.list.length === 0) {
     return <EmptyList handleAddClick={handleAddClick} title="Destinations list is still empty" unit="destination" />
   }
+
+  const list = destinationsStore.list
+  debugger
 
   return (
     <>

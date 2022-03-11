@@ -358,7 +358,7 @@ const DestinationEditor = ({
             )
           }
 
-          onAfterSaveSucceded ? onAfterSaveSucceded() : history.push(destinationPageRoutes.root)
+          onAfterSaveSucceded ? onAfterSaveSucceded() : history.push(projectRoute(destinationPageRoutes.root))
         } catch (errors) {}
       })
       .catch(() => {

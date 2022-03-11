@@ -51,30 +51,31 @@ const services = ApplicationServices.get()
  * }
  **/
 export class EntitiesStore<T extends EntityData> {
-  protected _entities: T[] = observable([])
   protected _state: { status: EntitiesStoreStatus; errorMessage: string } = observable({
     status: IDLE,
     errorMessage: "",
   })
   protected readonly type: EntityType
   protected readonly schema: EntitySchema<T>
+  _entities: T[] = []
 
   constructor(type: EntityType, schema: EntitySchema<T>) {
     this.type = type
     this.schema = schema
     this.get = this.get.bind(this)
     makeObservable(this, {
+      _entities: observable,
       status: computed,
       errorMessage: computed,
       list: computed,
       listHidden: computed,
       listIncludeHidden: computed,
-      get: action,
-      pullAll: flow,
-      add: flow,
-      delete: flow,
-      replace: flow,
-      patch: flow,
+      get: action.bound,
+      pullAll: flow.bound,
+      add: flow.bound,
+      delete: flow.bound,
+      replace: flow.bound,
+      patch: flow.bound,
     })
   }
 
@@ -144,7 +145,7 @@ export class EntitiesStore<T extends EntityData> {
       if (!addedEntity) {
         throw new Error(`Error: '${this.type}' store failed to add an entity ${entityToAdd}`)
       }
-      this._entities.push(entityToAdd)
+      this._entities.push(addedEntity)
     } finally {
       this.setStatus(IDLE)
     }
@@ -165,7 +166,6 @@ export class EntitiesStore<T extends EntityData> {
     this.resetError()
     this.setStatus(BACKGROUND_LOADING)
     try {
-      yield services.storageService.table<T>(this.type).replace(this.getId(entity), entity)
       const index = this._entities.findIndex(item => this.getId(item) === this.getId(entity))
       if (index >= 0) {
         this._entities[index] = entity

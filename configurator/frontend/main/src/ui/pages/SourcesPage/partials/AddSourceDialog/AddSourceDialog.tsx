@@ -17,7 +17,7 @@ import { StarOutlined, StarFilled, ExclamationCircleOutlined } from "@ant-design
 // @Routes
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { useServices } from "hooks/useServices"
-import Checkbox from "antd/es/checkbox/Checkbox"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 
 /**
  * All sources which are available for adding. Some filtering & sorting is applied
@@ -90,9 +90,7 @@ const AddSourceDialogComponent = () => {
             app: services.features.appName,
             connector_id: src.id,
           })
-          history.push(
-            generatePath(sourcesPageRoutes.addExact, { projectId: services.activeProject.id, source: src.id })
-          )
+          history.push(projectRoute(sourcesPageRoutes.addExact, { source: src.id }))
         },
       })
     }
