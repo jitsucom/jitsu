@@ -1,5 +1,5 @@
 // @Libs
-import { flowResult, makeObservable, flow } from "mobx"
+import { flowResult, makeObservable, flow, override } from "mobx"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Utils
@@ -11,6 +11,7 @@ export class ApiKeysStore extends EntitiesStore<ApiKey> {
   constructor() {
     super("api_keys", { idField: "uid" })
     makeObservable(this, {
+      add: override,
       generateAddInitialApiKeyIfNeeded: flow,
     })
   }
