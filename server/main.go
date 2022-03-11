@@ -418,14 +418,14 @@ func main() {
 			cronScheduler.Start(taskService.ScheduleSyncFunc)
 		}
 
-		notificationScene := &synchronization.NotificationScene{
+		notificationCtx := &synchronization.NotificationContext{
 			ServiceName: notifications.ServiceName,
 			Version:     tag,
 			ServerName:  appconfig.Instance.ServerName,
 			UIBaseURL:   viper.GetString("ui.base_url"),
 		}
 
-		taskExecutorBase := &synchronization.TaskExecutorBase{
+		taskExecutorContext := &synchronization.TaskExecutorContext{
 			SourceService:         sourceService,
 			DestinationService:    destinationsService,
 			MetaStorage:           metaStorage,
@@ -433,11 +433,11 @@ func main() {
 			StalledThreshold:      time.Duration(viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")) * time.Second,
 			LastActivityThreshold: time.Duration(viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")) * time.Minute,
 			ObserverStalledEvery:  time.Duration(viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")) * time.Second,
-			NotificationService:   synchronization.NewNotificationService(notificationScene, viper.GetStringMap("notifications")),
+			NotificationService:   synchronization.NewNotificationService(notificationCtx, viper.GetStringMap("notifications")),
 		}
 
 		//Create task executor
-		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, taskExecutorBase)
+		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, taskExecutorContext)
 		if err != nil {
 			logging.Fatal("Error creating sources sync task executor:", err)
 		}

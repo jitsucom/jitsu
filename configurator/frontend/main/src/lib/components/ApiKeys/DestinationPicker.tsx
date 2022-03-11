@@ -24,7 +24,7 @@ const DestinationPickerComponent: React.FC<DestinationPickerProps> = props => {
       }}
     >
       {props.allDestinations.map(dst => (
-        <Select.Option key={dst._uid} value={dst._uid}>
+        <Select.Option value={dst._uid} key={dst._uid}>
           <div className="flex flex-nowrap space-x-1 items-center">
             {destinationsReferenceMap[dst._type]?.ui?.icon && (
               <span className="w-6 h-6">{destinationsReferenceMap[dst._type]?.ui?.icon}</span>

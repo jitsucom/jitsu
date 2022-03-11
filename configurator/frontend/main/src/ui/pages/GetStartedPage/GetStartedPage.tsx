@@ -146,11 +146,7 @@ export default function GetStartedPage(props: GetStartedPageProps) {
         <a href="https://jitsu.com" className="block mb-6 lg:hidden">
           <img className="mt-8 h-8" src={logo} />
         </a>
-        {props.login ? (
-          <LoginForm supportOauth={props.oauthSupport} ssoAuthLink={props.ssoAuthLink} />
-        ) : (
-          <SignupForm supportOauth={props.oauthSupport} />
-        )}
+        {props.login ? <LoginForm supportOauth={props.oauthSupport} ssoAuthLink={props.ssoAuthLink} /> : <SignupForm />}
       </div>
     </div>
   )

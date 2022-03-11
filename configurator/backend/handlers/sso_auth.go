@@ -1,11 +1,10 @@
 package handlers
 
 import (
-	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/jitsu/configurator/authorization"
-	"github.com/spf13/viper"
+	"errors"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -21,34 +20,28 @@ const (
 )
 
 type SSOAuthHandler struct {
-	authService *authorization.Service
+	Authorizator Authorizator
+	Provider     SSOProvider
+	UIBaseURL    string
 }
 
-func NewSSOAuthHandler(authService *authorization.Service) *SSOAuthHandler {
-	return &SSOAuthHandler{
-		authService,
-	}
-}
-
-func (oh *SSOAuthHandler) Handler(c *gin.Context) {
-	code := c.Query("code")
-
-	c.Header("content-type", "text/html")
-
-	if code == "" {
-		c.String(http.StatusOK, errorTmpl, fmt.Errorf("missed required query param: code"))
+func (h *SSOAuthHandler) Handle(ctx *gin.Context) {
+	if ctx.IsAborted() {
 		return
 	}
 
-	uiBaseUrl := viper.GetString("ui.base_url")
-
-	td, err := oh.authService.SSOAuthenticate(code)
-	if err != nil {
-		c.String(http.StatusOK, errorTmpl, err, uiBaseUrl)
-		return
+	ctx.Header("content-type", "text/html")
+	if provider := h.Provider; provider == nil {
+		ctx.String(http.StatusOK, errorTmpl, errors.New("sso is not configured"), h.UIBaseURL)
+	} else if authorizator, err := h.Authorizator.Local(); err != nil {
+		ctx.String(http.StatusOK, errorTmpl, err, h.UIBaseURL)
+	} else if code := ctx.Query("code"); code == "" {
+		ctx.String(http.StatusOK, errorTmpl, errors.New("missed required query param: code"), h.UIBaseURL)
+	} else if session, err := provider.GetSSOSession(ctx, code); err != nil {
+		ctx.String(http.StatusOK, errorTmpl, err, h.UIBaseURL)
+	} else if tokenPair, err := authorizator.SignInSSO(ctx, provider.Name(), session, provider.AccessTokenTTL()); err != nil {
+		ctx.String(http.StatusOK, errorTmpl, err, h.UIBaseURL)
+	} else {
+		ctx.String(http.StatusOK, successTmpl, tokenPair.AccessToken, tokenPair.RefreshToken, h.UIBaseURL)
 	}
-
-	c.String(http.StatusOK, successTmpl, td.AccessTokenEntity.AccessToken, td.RefreshTokenEntity.RefreshToken, uiBaseUrl)
-
-	return
 }

@@ -8,35 +8,14 @@ import ReloadOutlined from "@ant-design/icons/lib/icons/ReloadOutlined"
 import React, { ReactNode, useState } from "react"
 import { FormField, FormLayout, FormActions, unsavedMessage } from "../Form/Form"
 import TextArea from "antd/es/input/TextArea"
-import { BreadcrumbsProps } from "../../../ui/components/Breadcrumbs/Breadcrumbs"
 import { confirmDelete } from "../../commons/deletionConfirmation"
 import { flowResult } from "mobx"
-import { useServices } from "../../../hooks/useServices"
 import { NavLink } from "react-router-dom"
 import { destinationsStore } from "../../../stores/destinations"
 import { DestinationPicker } from "./DestinationPicker"
-import union from "lodash/union"
-
-export const apiKeysRoutes = {
-  newExact: "/api-keys/new",
-  listExact: "/api-keys",
-  editExact: "/api-keys/:id",
-} as const
-
-type ApiKeyEditorProps = {
-  setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void
-}
-
-function newKey(): ApiKey {
-  let uid = apiKeysStore.generateApiToken("", 6)
-  return {
-    uid: uid,
-    serverAuth: apiKeysStore.generateApiToken("s2s"),
-    jsAuth: apiKeysStore.generateApiToken("js"),
-    comment: "New API Key",
-    origins: [],
-  }
-}
+import { connectionsHelper } from "stores/helpers"
+import { apiKeysRoutes } from "./ApiKeysRouter"
+import { projectRoute } from "../ProjectLink/ProjectLink"
 
 const SecretKey: React.FC<{
   formFieldName: string
@@ -83,12 +62,12 @@ function getKey({ originsText, connectedDestinations, ...rest }: EditorObject, i
   }
 }
 
-const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
+const ApiKeyEditorComponent: React.FC = props => {
   let { id = undefined } = useParams<{ id?: string }>()
   if (id) {
     id = id.replace("-", ".")
   }
-  const initialApiKey = id ? apiKeysStore.get(id) : newKey()
+  const initialApiKey = id ? apiKeysStore.get(id) : apiKeysStore.generateApiKey()
   if (!initialApiKey) {
     return <CenteredError error={new Error(`Key with id ${id} not found`)} />
   }
@@ -194,7 +173,7 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                         setDeleting(true)
                         try {
                           await flowResult(apiKeysStore.delete(id))
-                          await history.push(apiKeysRoutes.listExact)
+                          await history.push(projectRoute(apiKeysRoutes.listExact))
                         } finally {
                           setDeleting(false)
                         }
@@ -212,10 +191,10 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                 onClick={() => {
                   if (form.isFieldsTouched()) {
                     if (confirm(unsavedMessage)) {
-                      history.push(apiKeysRoutes.listExact)
+                      history.push(projectRoute(apiKeysRoutes.listExact))
                     }
                   } else {
-                    history.push(apiKeysRoutes.listExact)
+                    history.push(projectRoute(apiKeysRoutes.listExact))
                   }
                 }}
               >
@@ -236,8 +215,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                     } else {
                       await flowResult(apiKeysStore.add(key))
                     }
-                    await flowResult(destinationsStore.updateDestinationsLinksToKey(key.uid, connectedDestinations))
-                    history.push(apiKeysRoutes.listExact)
+                    await connectionsHelper.updateDestinationsConnectionsToApiKey(key.uid, connectedDestinations)
+                    history.push(projectRoute(apiKeysRoutes.listExact))
                   } finally {
                     setSaving(false)
                   }

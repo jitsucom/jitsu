@@ -24,6 +24,18 @@ type ConfigurationsStorage interface {
 	Store(collection string, id string, entity []byte) error
 	//Delete deletes entity and also must update _lastUpdated field of the collection
 	Delete(collection string, id string) error
+
+	// GetRelationIndex returns all key IDs from the relation.
+	GetRelationIndex(relation string) ([]string, error)
+	// DeleteRelation removes all related IDs for the relation.
+	DeleteRelation(relation, id string) error
+	// GetRelatedIDs returns a slice of related IDs from the relation.
+	GetRelatedIDs(relation, id string) ([]string, error)
+	// AddRelatedIDs adds related IDs to the relation.
+	AddRelatedIDs(relation, id string, relatedIDs ...string) error
+	// DeleteRelatedIDs deletes related IDs from the relation.
+	DeleteRelatedIDs(relation, id string, relatedIDs ...string) error
+
 	//Close frees all the resources used by the storage (close connections etc.)
 	Close() error
 }

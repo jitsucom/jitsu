@@ -2,9 +2,10 @@ package system
 
 import (
 	"encoding/json"
-	"github.com/jitsucom/jitsu/server/resources"
 	"sync"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/resources"
 )
 
 const serviceName = "system"

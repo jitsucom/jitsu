@@ -4,9 +4,6 @@ import { destinationsStore } from "./destinations"
 import { sourcesStore } from "./sources"
 
 export const initializeAllStores = async (): Promise<void> => {
-  apiKeysStore.injectDestinationsStore(destinationsStore)
-  destinationsStore.injectSourcesStore(sourcesStore)
-  sourcesStore.injectDestinationsStore(destinationsStore)
   await initalizeStoresData()
 }
 
@@ -14,7 +11,7 @@ const initalizeStoresData = (): Promise<
   [PromiseSettledResult<void>, PromiseSettledResult<void>, PromiseSettledResult<void>]
 > =>
   Promise.allSettled([
-    flowResult(apiKeysStore.pullApiKeys(true)),
-    flowResult(destinationsStore.pullDestinations(true)),
-    flowResult(sourcesStore.pullSources(true)),
+    flowResult(apiKeysStore.pullAll({ showGlobalLoader: true })),
+    flowResult(destinationsStore.pullAll({ showGlobalLoader: true })),
+    flowResult(sourcesStore.pullAll({ showGlobalLoader: true })),
   ])

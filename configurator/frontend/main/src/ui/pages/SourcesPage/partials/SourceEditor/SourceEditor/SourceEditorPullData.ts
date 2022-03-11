@@ -26,7 +26,7 @@ export const pullAllAirbyteStreams = async (
   const config = sourceData.config.config
   const image_version = sourceData.config.image_version
   const baseUrl = sourceDataFromCatalog.staticStreamsConfigEndpoint
-  const project_id = services.userService.getUser().projects[0].id
+  const project_id = services.activeProject.id
 
   const response = await services.backendApiClient.post(
     withQueryParams(baseUrl, { project_id, image_version }),
@@ -112,7 +112,7 @@ export const pullAllSingerStreams = async (
   const services = ApplicationServices.get()
   const sourceData = await handleBringSourceData()
   const config = sourceData.config.config
-  const project_id = services.userService.getUser().projects[0].id
+  const project_id = services.activeProject.id
   const tap = sourceDataFromCatalog.id.replace("singer-", "")
   const baseUrl = `/singer/${tap}/catalog`
 
