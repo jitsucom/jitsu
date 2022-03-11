@@ -199,6 +199,7 @@ func main() {
 			Password:  viper.GetString("smtp.password"),
 			From:      viper.GetString("smtp.from"),
 			Signature: viper.GetString("smtp.signature"),
+			ReplyTo:   viper.GetString("smtp.reply_to"),
 		}
 
 		err := smtp.Validate()
