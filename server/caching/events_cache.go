@@ -7,6 +7,8 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"math/rand"
 	"sync"
 	"time"
@@ -216,7 +218,7 @@ func (ec *EventsCache) Succeed(eventContext *adapters.EventContext) {
 //Error puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Error(cacheDisabled bool, destinationID, originEvent string, errMsg string) {
 	if !cacheDisabled && ec.isActive() {
-		if !ec.isRateLimiterAllowed(destinationID, meta.EventsPureStatus) {
+		if ec.isRateLimiterAllowed(destinationID, meta.EventsPureStatus) {
 			select {
 			case ec.statusEventsChannel <- &statusEvent{originEvent: originEvent, destinationID: destinationID, error: errMsg}:
 			default:
@@ -258,7 +260,14 @@ func (ec *EventsCache) Skip(cacheDisabled bool, destinationID, originEvent strin
 //saveTokenEvent saves raw JSON event into the storage by token
 //and saves to token error collection if error
 func (ec *EventsCache) saveTokenEvent(tokenID string, serializedPayload, serializedMalformedPayload []byte, errMsg, eventMetaStatus string) {
-	entity := &meta.Event{Original: string(serializedPayload), Malformed: string(serializedMalformedPayload), TokenID: tokenID, Error: errMsg}
+	entity := &meta.Event{
+		Original:  string(serializedPayload),
+		Malformed: string(serializedMalformedPayload),
+		TokenID:   tokenID,
+		Error:     errMsg,
+		Timestamp: timestamp.NowUTC(),
+		UID:       uuid.New(),
+	}
 
 	if eventMetaStatus == meta.EventsPureStatus {
 		err := ec.storage.AddEvent(meta.EventsTokenNamespace, tokenID, meta.EventsPureStatus, entity)

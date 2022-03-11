@@ -33,6 +33,8 @@ const (
 	DefaultDaysBackToLoad = 365
 )
 
+type ObjectsLoader = func(objects []map[string]interface{}, pos int, total int, percent int) error
+
 var (
 	DriverConstructors        = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
 	DriverTestConnectionFuncs = make(map[string]func(config *SourceConfig) error)
@@ -145,7 +147,7 @@ type Driver interface {
 	pos - current position (object number)
 	total - number of objects available to load. -1 is there is no way to know exact number in advance
 	percent - percent of total object processed [0..100]. estimated value when there is no way to know exact number in advance*/
-	GetObjectsFor(interval *TimeInterval, objectsLoader func(objects []map[string]interface{}, pos int, total int, percent int) error) error
+	GetObjectsFor(interval *TimeInterval, objectsLoader ObjectsLoader) error
 
 	//Type returns string type of driver. Should be unique among drivers
 	Type() string
