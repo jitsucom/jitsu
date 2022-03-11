@@ -104,10 +104,8 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 			}
 
 			//remove already persisted objects
-			//sets needClean = false because clean should be executed only 1 time
 			for _, stream := range output.Streams {
 				stream.Objects = []map[string]interface{}{}
-				stream.NeedClean = false
 			}
 			records = 0
 		}
