@@ -115,7 +115,7 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 			}
 
 			//remove already persisted objects
-			//sets needClean = false because clean should be executed only 1 time
+			//remember streams that has tables cleaned already.
 			for _, stream := range outputPortion.Streams {
 				stream.Objects = []map[string]interface{}{}
 				streamCleaned[stream.StreamName] = !stream.NeedClean
