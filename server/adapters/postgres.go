@@ -61,7 +61,7 @@ WHERE tco.constraint_type = 'PRIMARY KEY' AND
 	dropColumnTemplate            = `ALTER TABLE "%s"."%s" DROP COLUMN %s`
 	renameColumnTemplate          = `ALTER TABLE "%s"."%s" RENAME COLUMN %s TO %s`
 	postgresTruncateTableTemplate = `TRUNCATE "%s"."%s"`
-	PostgresValuesLimit           = 200 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	PostgresValuesLimit           = 100 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
 var (
