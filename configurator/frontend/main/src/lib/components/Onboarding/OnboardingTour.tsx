@@ -34,6 +34,15 @@ const USER_EVENT_EXPIRATION_THRESHOLD = moment.duration(1, "months")
 
 const services = ApplicationServices.get()
 
+async function getEvents(): Promise<any> {
+  try {
+    await services.backendApiClient.get(`/events/cache?project_id=${services.activeProject.id}&limit=5`, { proxy: true });
+  } catch (e) {
+    return undefined;
+  }
+
+}
+
 const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => {
   const [config, setConfig] = useState<OnboardingConfig | null>(null)
   const [userClosedTour, setUserClosedTour] = useState<boolean>(false)
@@ -140,7 +149,7 @@ const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => 
       const [user, destinations, events] = await Promise.all([
         services.userService.getUser(),
         destinationsStore.list,
-        services.backendApiClient.get(`/events/cache?project_id=${services.activeProject.id}&limit=5`, { proxy: true }),
+        getEvents(),
       ])
 
       // user and company name
