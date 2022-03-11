@@ -35,7 +35,7 @@ const EventStreamComponent = () => {
       <Tabs.TabPane className={styles.eventsListTab} tab="Incoming events" key={EventType.Token}>
         <EventsList type={EventType.Token} filterOptions={apiKeysOptions} />
       </Tabs.TabPane>
-      <Tabs.TabPane className={styles.eventsListTab} tab="Precessed events" key={EventType.Destination}>
+      <Tabs.TabPane className={styles.eventsListTab} tab="Processed events" key={EventType.Destination}>
         <EventsList type={EventType.Destination} filterOptions={destinationsOptions} />
       </Tabs.TabPane>
     </Tabs>
