@@ -18,6 +18,7 @@ type SMTPConfiguration struct {
 	Password  string
 	From      string
 	Signature string
+	ReplyTo   string
 }
 
 func (sc *SMTPConfiguration) Validate() error {
@@ -34,11 +35,7 @@ func (sc *SMTPConfiguration) Validate() error {
 	}
 
 	if sc.From == "" {
-		sc.From = "support@jitsu.com"
-	}
-
-	if sc.Signature == "" {
-		sc.Signature = "Your Jitsu - an open-source data collection platform team"
+		return errors.New("smtp from is required")
 	}
 
 	return nil
@@ -90,6 +87,9 @@ func (s *Service) send(subject templateSubject, email, link string) error {
 	msg.SetHeader("From", s.smtp.From)
 	msg.SetHeader("To", email)
 	msg.SetHeader("Subject", subject.String())
+	if s.smtp.ReplyTo != "" {
+		msg.SetHeader("Reply-To", s.smtp.ReplyTo)
+	}
 
 	var body bytes.Buffer
 	if err := tmplt.Execute(&body, templateValues{
