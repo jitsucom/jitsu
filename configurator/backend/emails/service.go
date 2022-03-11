@@ -55,6 +55,12 @@ func NewService(smtp *SMTPConfiguration) (*Service, error) {
 	}
 
 	logging.Info("Initializing SMTP email service..")
+	if sc, err := dialer(smtp).Dial(); err != nil {
+		logging.Warnf("Invalid SMTP configuration – service is disabled: %v", err)
+	} else {
+		_ = sc.Close()
+	}
+
 	templates, err := parseTemplates()
 	if err != nil {
 		return nil, errors.Wrap(err, "parse templates")
@@ -110,4 +116,8 @@ func (s *Service) SendResetPassword(email, link string) error {
 
 func (s *Service) SendAccountCreated(email, link string) error {
 	return s.send(accountCreated, email, link)
+}
+
+func dialer(cfg *SMTPConfiguration) *gomail.Dialer {
+	return gomail.NewDialer(cfg.Host, cfg.Port, cfg.User, cfg.Password)
 }
