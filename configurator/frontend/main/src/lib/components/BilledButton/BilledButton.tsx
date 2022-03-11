@@ -35,7 +35,7 @@ export const BilledButton: React.FC<Props> = ({
 
   const Wrapper = isButtonBlocked
     ? ({ children }) => (
-        <Tooltip title={tooltipTitle ?? "This feature is not available in your subscription plan"}>{children}</Tooltip>
+        <Tooltip title={tooltipTitle ?? "This feature is not available in your subscription"}>{children}</Tooltip>
       )
     : ({ children }) => <>{children}</>
 
