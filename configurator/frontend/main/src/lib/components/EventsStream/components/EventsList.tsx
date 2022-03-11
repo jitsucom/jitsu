@@ -317,7 +317,10 @@ export const EventsList: React.FC<{
                     )}
                   </Tooltip>
                 </div>
-                <div className={`text-xxs whitespace-nowrap text-secondaryText px-1 ${styles.timestampColumn}`} key="time">
+                <div
+                  className={`text-xxs whitespace-nowrap text-secondaryText px-1 ${styles.timestampColumn}`}
+                  key="time"
+                >
                   <div>{event.timestamp.format("YYYY-MM-DD HH:mm:ss")} UTC</div>
                   <div className="text-xxs">{event.timestamp.fromNow()}</div>
                 </div>
