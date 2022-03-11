@@ -58,17 +58,17 @@ class ConnectionsHelper {
     const { connectedEntitiesIdsField } = connectedEntitiesSchema
     connectedEntitiesSchema.store.list.forEach(entity => {
       const entityShouldBeConnected = connectedEntitiesIds.includes(entity[connectedEntitiesSchema.idField])
-      const entityIsConnected = entity[connectedEntitiesIdsField].includes(entityId)
+      const entityIsConnected = !!entity[connectedEntitiesIdsField]?.includes(entityId)
 
       if (entityIsConnected === entityShouldBeConnected) return
 
       if (entityShouldBeConnected) {
         patches[entity[connectedEntitiesSchema.idField]] = {
-          [connectedEntitiesIdsField]: [...entity[connectedEntitiesIdsField], entityId],
+          [connectedEntitiesIdsField]: [...(entity[connectedEntitiesIdsField] ?? []), entityId],
         } as any
       } else {
         patches[entity[connectedEntitiesSchema.idField]] = {
-          [connectedEntitiesIdsField]: without(entity[connectedEntitiesIdsField], entityId),
+          [connectedEntitiesIdsField]: without(entity[connectedEntitiesIdsField] ?? [], entityId),
         } as any
       }
     })
