@@ -102,11 +102,13 @@ export function createProjectService(backend: BackendApiClient): ProjectService 
     async createProject(name: string): Promise<Project> {
       const response = await backend.post<unknown>("/projects", { name }, { version: 2 })
       assertIsProject(response, "Assertion error in createProject: value returned by POST is not a ProjectInfo object")
+      // return response
 
-      // TEMP - remove once backend does set `requiresSetup: true` for a new project
-      await backend.patch<unknown>(`/projects/${response.id}`, { requiresSetup: true }, { version: 2 })
-
-      return response
+      // TEMPORARY - remove once backend does set `requiresSetup: true` for a new project
+      const result = await backend.patch<unknown>(`/projects/${response.id}`, { requiresSetup: true }, { version: 2 })
+      debugger
+      assertIsProject(result, "Assertion error in createProject: value returned by PATCH is not a ProjectInfo object")
+      return result
     },
 
     async getAvailableProjects(): Promise<Project[]> {
