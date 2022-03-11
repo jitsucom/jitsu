@@ -14,9 +14,11 @@ import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 // @Utils
 import { SourceCard } from "../../../../components/SourceCard/SourceCard"
 import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
-import ProjectLink from "lib/components/ProjectLink/ProjectLink"
+import ProjectLink, { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 
 const SourcesListComponent = () => {
+  const history = useHistory()
+
   useEffect(() => {
     currentPageHeaderStore.setBreadcrumbs("Sources")
   }, [])
@@ -26,11 +28,16 @@ const SourcesListComponent = () => {
       <div className={styles.empty}>
         <h3 className="text-2xl">Sources list is still empty</h3>
         <div>
-          <ProjectLink to={sourcesPageRoutes.add}>
-            <Button type="primary" size="large" icon={<PlusOutlined />}>
-              Add source
-            </Button>
-          </ProjectLink>
+          {/* <ProjectLink to={sourcesPageRoutes.add.split("/").slice(2).join("/")}> */}
+          <Button
+            type="primary"
+            size="large"
+            icon={<PlusOutlined />}
+            onClick={() => history.push(projectRoute(sourcesPageRoutes.add))}
+          >
+            Add source
+          </Button>
+          {/* </ProjectLink> */}
         </div>
       </div>
     )
@@ -39,11 +46,15 @@ const SourcesListComponent = () => {
   return (
     <>
       <div className="mb-5">
-        <ProjectLink to={sourcesPageRoutes.add}>
-          <Button type="primary" icon={<PlusOutlined />}>
-            Add source
-          </Button>
-        </ProjectLink>
+        {/* <ProjectLink to={sourcesPageRoutes.add.split("/").slice(2).join("/")}> */}
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => history.push(projectRoute(sourcesPageRoutes.add))}
+        >
+          Add source
+        </Button>
+        {/* </ProjectLink> */}
       </div>
 
       <div className="flex flex-wrap justify-center">
