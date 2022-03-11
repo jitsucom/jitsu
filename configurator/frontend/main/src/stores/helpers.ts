@@ -59,7 +59,6 @@ class ConnectionsHelper {
     connectedEntitiesSchema.store.list.forEach(entity => {
       const entityShouldBeConnected = connectedEntitiesIds.includes(entity[connectedEntitiesSchema.idField])
       const entityIsConnected = !!entity[connectedEntitiesIdsField]?.includes(entityId)
-      debugger
       if (entityIsConnected === entityShouldBeConnected) return
 
       if (entityShouldBeConnected) {
@@ -72,8 +71,6 @@ class ConnectionsHelper {
         } as any
       }
     })
-
-    debugger
 
     await Promise.all(
       Object.entries(patches).map(([entityId, patch]) => {

@@ -17,8 +17,6 @@ import { projectRoute } from "../../../lib/components/ProjectLink/ProjectLink"
 import { sourcesStore } from "stores/sources"
 import { observer } from "mobx-react-lite"
 
-export const taskLogsPageRoute = "/prj-:projectId/sources/logs/:sourceId"
-
 const TaskLogsPageComponent: React.FC = () => {
   const params = useParams<{ sourceId: string; taskId: string }>()
   const services = useServices()

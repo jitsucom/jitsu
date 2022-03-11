@@ -168,6 +168,7 @@ export class EntitiesStore<T extends EntityData> {
     try {
       const index = this._entities.findIndex(item => this.getId(item) === this.getId(entity))
       if (index >= 0) {
+        yield services.storageService.table<T>(this.type).replace(this.getId(entity), entity)
         this._entities[index] = entity
       } else {
         throw new Error(`Error: ${this.type} store failed to replace entity in store. Entity: ${entity}`)

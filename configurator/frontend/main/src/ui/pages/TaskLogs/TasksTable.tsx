@@ -6,7 +6,6 @@ import RedoOutlined from "@ant-design/icons/lib/icons/RedoOutlined"
 import CloseCircleOutlined from "@ant-design/icons/lib/icons/CloseCircleOutlined"
 import moment, { Moment } from "moment"
 import { colorMap, Task, TaskId, TaskStatus } from "ui/pages/TaskLogs/utils"
-import { taskLogsViewerRoute } from "ui/pages/TaskLogs/TaskLogViewer"
 import useLoader from "hooks/useLoader"
 import { useServices } from "hooks/useServices"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
@@ -164,7 +163,7 @@ const columns: ColumnData[] = [
             {" • "}
             <NavLink
               className="border-b border-dashed"
-              to={projectRoute(taskLogsViewerRoute, {
+              to={projectRoute(sourcesPageRoutes.task, {
                 sourceId: props.source.sourceId,
                 taskId: TaskId.encode(t.logs.taskId),
               })}

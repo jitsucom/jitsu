@@ -9,7 +9,6 @@ import CodeOutlined from "@ant-design/icons/lib/icons/CodeOutlined"
 import SyncOutlined from "@ant-design/icons/lib/icons/SyncOutlined"
 import { useHistory, NavLink } from "react-router-dom"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
-import { taskLogsPageRoute } from "../../pages/TaskLogs/TaskLogsPage"
 import { sourcesStore } from "../../../stores/sources"
 import ExclamationCircleOutlined from "@ant-design/icons/lib/icons/ExclamationCircleOutlined"
 import { handleError, withProgressBar } from "../../../lib/components/components"
@@ -17,7 +16,6 @@ import { useServices } from "../../../hooks/useServices"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
 import { Task, TaskId } from "../../pages/TaskLogs/utils"
 import moment from "moment"
-import { taskLogsViewerRoute } from "../../pages/TaskLogs/TaskLogViewer"
 import { comparator } from "../../../lib/commons/utils"
 import { ConnectionCard } from "../ConnectionCard/ConnectionCard"
 import { flowResult } from "mobx"
@@ -27,7 +25,6 @@ import { isAtLeastOneStreamSelected } from "utils/sources/sourcesUtils"
 import { NoStreamsSelectedMessage } from "../NoStreamsSelectedMessage/NoStreamsSelectedMessage"
 import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 import { connectionsHelper } from "stores/helpers"
-import styles from "./SourceCard.module.less"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator, current) => ({
@@ -57,7 +54,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
     projectId: services.activeProject.id,
     sourceId: src.sourceId,
   })
-  const viewLogsLink = projectRoute(taskLogsPageRoute, { sourceId: src.sourceId })
+  const viewLogsLink = projectRoute(sourcesPageRoutes.logs, { sourceId: src.sourceId })
 
   const rename = async (sourceId: string, newName: string) => {
     await flowResult(sourcesStore.patch(sourceId, { displayName: newName }))
@@ -107,7 +104,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
             },
           })
         }
-        history.push(projectRoute(taskLogsPageRoute, { sourceId: src.sourceId }))
+        history.push(projectRoute(sourcesPageRoutes.logs, { sourceId: src.sourceId }))
       },
     })
   }
@@ -236,7 +233,7 @@ function LastTaskStatus({ sourceId }) {
   return (
     <span>
       <NavLink
-        to={projectRoute(taskLogsViewerRoute, {
+        to={projectRoute(sourcesPageRoutes.task, {
           sourceId: sourceId,
           taskId: TaskId.encode(task.id),
         })}
