@@ -24,7 +24,6 @@ export const BillingCurrentPlanComponent: React.FC<CurrentPlanProps> = ({ planSt
   const [upgradeDialogVisible, setUpgradeDialogVisible] = useState(
     location.search && !!new URLSearchParams(location.search).get("planUpgrade")
   )
-  debugger
 
   const services = useServices()
   const usagaPct = (planStatus.usage.events / planStatus.currentPlan.quota.events) * 100
@@ -97,9 +96,9 @@ export const BillingCurrentPlanComponent: React.FC<CurrentPlanProps> = ({ planSt
         key={"upgradeOptionsModal"}
         planStatus={planStatus}
         visible={upgradeDialogVisible}
-        // onCancel={() => {
-        //   setUpgradeDialogVisible(false)
-        // }}
+        onCancel={() => {
+          setUpgradeDialogVisible(false)
+        }}
       />
     </>
   )

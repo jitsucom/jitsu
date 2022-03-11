@@ -36,11 +36,12 @@ const services = ApplicationServices.get()
 
 async function getEvents(): Promise<any> {
   try {
-    await services.backendApiClient.get(`/events/cache?project_id=${services.activeProject.id}&limit=5`, { proxy: true });
+    await services.backendApiClient.get(`/events/cache?project_id=${services.activeProject.id}&limit=5`, {
+      proxy: true,
+    })
   } catch (e) {
-    return undefined;
+    return undefined
   }
-
 }
 
 const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => {

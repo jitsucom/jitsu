@@ -37,7 +37,6 @@ const ApiKeysComponent: React.FC = () => {
   const [loading, setLoading] = useState<LoadingState>(null)
   const [documentationDrawerKey, setDocumentationDrawerKey] = useState<ApiKey>(null)
 
-
   return (
     <>
       <div className="flex flex-row mb-5 items-start justify between">
