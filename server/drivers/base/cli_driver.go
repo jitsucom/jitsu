@@ -151,7 +151,7 @@ func (acd *AbstractCLIDriver) GetAllAvailableIntervals() ([]*TimeInterval, error
 }
 
 //GetObjectsFor unsupported
-func (acd *AbstractCLIDriver) GetObjectsFor(interval *TimeInterval, objectsLoader func(objects []map[string]interface{}, pos int, total int, percent int) error) error {
+func (acd *AbstractCLIDriver) GetObjectsFor(interval *TimeInterval, objectsLoader ObjectsLoader) error {
 	return fmt.Errorf("%s driver doesn't support GetObjectsFor() func", acd.Type())
 }
 

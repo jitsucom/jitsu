@@ -3,16 +3,17 @@ package adapters
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/errorj"
-	"github.com/jitsucom/jitsu/server/uuid"
 	"math"
 	"sort"
 	"strings"
 
+	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
+	"github.com/jitsucom/jitsu/server/uuid"
 	sf "github.com/snowflakedb/gosnowflake"
 )
 
@@ -587,9 +588,17 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 		return errorj.Decorate(err, "failed to create temporary table")
 	}
 
+	defer func() {
+		//delete tmp table
+		if err := s.dropTableInTransaction(wrappedTx, tmpTable); err != nil {
+			logging.Warnf("[snowflake] Failed to drop temporary table '%s': %v", tmpTable.Name, err)
+		}
+	}()
+
 	err = s.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
 	if err != nil {
-		return errorj.Decorate(err, "failed to insert into temporary table")
+		return errorj.Decorate(err, "failed to insert into temporary table").
+			WithProperty(errorj.DBObjects, dbObjects(objects))
 	}
 
 	//insert from select
@@ -624,12 +633,30 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 			})
 	}
 
-	//delete tmp table
-	if err := s.dropTableInTransaction(wrappedTx, tmpTable); err != nil {
-		return errorj.Decorate(err, "failed to drop temporary table")
+	return nil
+}
+
+type dbObjects []map[string]interface{}
+
+func (o dbObjects) String() string {
+	if len(o) == 0 {
+		return "[]"
 	}
 
-	return nil
+	var b strings.Builder
+	b.WriteRune('[')
+	for i, object := range o {
+		if i < 2000 {
+			data, _ := json.Marshal(object)
+			b.WriteString("\n  " + string(data) + ",")
+		} else {
+			b.WriteString(fmt.Sprintf("\n  // ... omitted %d objects ...", len(o)-i))
+			break
+		}
+	}
+
+	b.WriteString("\n]")
+	return b.String()
 }
 
 //dropTableInTransaction drops a table in transaction
@@ -722,7 +749,7 @@ func (s *Snowflake) getCastClause(name string, column typing.SQLColumn) string {
 		return "::" + castType.Type
 	}
 
-	return ""
+	return "::" + column.DDLType()
 }
 
 //columnDDL returns column DDL (column name, mapped sql type)

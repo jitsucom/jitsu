@@ -163,7 +163,7 @@ func (a *Amplitude) GetCollectionTable() string {
 	return a.collection.GetTableName()
 }
 
-func (a *Amplitude) GetObjectsFor(interval *base.TimeInterval, objectsLoader func(objects []map[string]interface{}, pos int, total int, percent int) error) error {
+func (a *Amplitude) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	var err error
 	var array []map[string]interface{}
 

@@ -37,6 +37,7 @@ export function getEmbeddedHtml(segment: boolean, key: string, host: string) {
     <script src="${host}/s/lib.js"
             data-key="${key}"${segment ? '\n            data-segment-hook="true"' : ""}
             data-init-only="${segment ? "true" : "false"}"${!segment ? "\n            defer" : ""}></script>
+    <script>window.jitsu = window.jitsu || (function(){(window.jitsuQ = window.jitsuQ || []).push(arguments);})</script>
     `)
 }
 

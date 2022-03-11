@@ -41,6 +41,8 @@ type CachedEvent struct {
 	Success       json.RawMessage `json:"success,omitempty"`
 	Error         string          `json:"error,omitempty"`
 	Skip          string          `json:"skip,omitempty"`
+	Timestamp     string          `json:"timestamp,omitempty"`
+	UID           string          `json:"uid,omitempty"`
 	DestinationID string          `json:"destination_id"`
 	TokenID       string          `json:"token_id"`
 }
@@ -204,6 +206,8 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 				Malformed:     event.Malformed,
 				Error:         event.Error,
 				Skip:          event.Skip,
+				Timestamp:     event.Timestamp,
+				UID:           event.UID,
 				DestinationID: event.DestinationID,
 				TokenID:       event.TokenID,
 			})

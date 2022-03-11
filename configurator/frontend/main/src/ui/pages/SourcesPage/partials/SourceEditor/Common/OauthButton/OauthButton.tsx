@@ -26,7 +26,6 @@ export const OauthButton: React.FC<Props> = ({
   className,
   disabled,
   icon,
-  isGoogle,
   children,
   setAuthSecrets,
   onIsOauthSuppotedStatusChecked,
@@ -63,26 +62,19 @@ export const OauthButton: React.FC<Props> = ({
   }
 
   useEffect(() => {
-    !forceNotSupported &&
-      services.oauthService.checkIfOauthSupported(service).then(supported => {
-        if (supported) {
-          setIsOauthSupported(supported)
-        }
-        onIsOauthSuppotedStatusChecked(supported)
-      })
+    if (forceNotSupported) {
+      onIsOauthSuppotedStatusChecked(false)
+      return
+    }
+    services.oauthService.checkIfOauthSupported(service).then(supported => {
+      supported && setIsOauthSupported(supported)
+      onIsOauthSuppotedStatusChecked(supported)
+    })
   }, [])
 
   return (
     <div className={`transiton-transform duration-300 transform ${isOauthSupported ? "" : "scale-105)"}`}>
       <div className={`transition-opacity duration-700 ${className} ${isOauthSupported ? "" : "hidden opacity-0"}`}>
-        {/* {isGoogle ? (
-          <GoogleSignInButton
-            disabled={disabled || isLoading}
-            type="dark"
-            onClick={handleClick}
-            style={{ margin: "3px" }}
-          />
-        ) : ( */}
         <Button
           type="default"
           loading={isLoading}
