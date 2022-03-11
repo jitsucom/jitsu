@@ -54,10 +54,6 @@ func NewResultSaver(task *meta.Task, tap, collectionMetaKey, tableNamePrefix str
 //Consume consumes result batch and writes it to destinations and saves the State
 func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentation) error {
 	for streamName, stream := range representation.Streams {
-		//airbyte can have empty objects
-		if len(stream.Objects) == 0 {
-			continue
-		}
 
 		tableName, ok := rs.streamTableNames[streamName]
 		if !ok {
@@ -67,6 +63,21 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 
 		rs.taskLogger.INFO("Stream [%s] Table name [%s] key fields [%s] objects [%d]", streamName, tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
 
+		if stream.NeedClean {
+			for _, storage := range rs.destinations {
+				rs.taskLogger.INFO("Stream [%s] Clearing table [%s] in storage [%s] before adding new data", streamName, tableName, storage.ID())
+				err := storage.Clean(stream.BatchHeader.TableName)
+				if err != nil {
+					return fmt.Errorf("[%s] storage table %s cleaning failed: %v", storage.ID(), tableName, err)
+				}
+			}
+			stream.NeedClean = false
+		}
+
+		//airbyte can have empty objects
+		if len(stream.Objects) == 0 {
+			continue
+		}
 		//Note: we assume that destinations connected to 1 source can't have different unique ID configuration
 		uniqueIDField := rs.destinations[0].GetUniqueIDField()
 		stream.BatchHeader.Fields[uniqueIDField.GetFlatFieldName()] = schema.NewField(typing.STRING)
@@ -96,13 +107,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		rowsCount := len(stream.Objects)
 		//Sync stream
 		for _, storage := range rs.destinations {
-			if stream.NeedClean {
-				err := storage.Clean(stream.BatchHeader.TableName)
-				if err != nil {
-					logging.Warnf("[%s] storage table %s cleaning failed, ignoring: %v", storage.ID(), stream.BatchHeader.TableName, err)
-				}
-				stream.NeedClean = false
-			}
+			rs.taskLogger.INFO("Stream [%s] Storing data to destination table [%s] in storage [%s]", streamName, tableName, storage.ID())
 			err := storage.SyncStore(stream.BatchHeader, stream.Objects, "", false, needCopyEvent)
 			if err != nil {
 				errMsg := fmt.Sprintf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
