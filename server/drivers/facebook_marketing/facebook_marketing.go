@@ -126,7 +126,7 @@ func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*base.TimeInterval, e
 	return intervals, nil
 }
 
-func (fm *FacebookMarketing) GetObjectsFor(interval *base.TimeInterval, objectsLoader func(objects []map[string]interface{}, pos int, total int, percent int) error) error {
+func (fm *FacebookMarketing) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	switch fm.collection.Type {
 	case AdsCollection:
 		array, err := fm.syncAdsReport(interval)

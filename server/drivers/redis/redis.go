@@ -128,7 +128,7 @@ func (r *Redis) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 
 //GetObjectsFor iterates over keys by mask and parses hash,string,list,set,zset types
 //returns all parsed object or err if occurred
-func (r *Redis) GetObjectsFor(interval *base.TimeInterval, objectsLoader func(objects []map[string]interface{}, pos int, total int, percent int) error) error {
+func (r *Redis) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	conn := r.connectionPool.Get()
 	defer conn.Close()
 
