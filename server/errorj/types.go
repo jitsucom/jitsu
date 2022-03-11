@@ -36,6 +36,7 @@ var (
 	ManageMySQLPrimaryKeys = innerError.NewSubtype("manage_mysql_primary_keys")
 
 	DBInfo          = errorx.RegisterPrintableProperty("db_info")
+	DBObjects       = errorx.RegisterPrintableProperty("db_objects")
 	SystemErrorFlag = errorx.RegisterPrintableProperty("system_error")
 
 	DestinationID   = errorx.RegisterPrintableProperty("destination_id")
