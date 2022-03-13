@@ -62,8 +62,6 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		}
 		stream.BatchHeader.TableName = schema.Reformat(tableName)
 
-		rs.taskLogger.INFO("Stream [%s] Table name [%s] key fields [%s] objects [%d]", streamName, tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
-
 		if stream.NeedClean {
 			for _, storage := range rs.destinations {
 				rs.taskLogger.INFO("Stream [%s] Clearing table [%s] in storage [%s] before adding new data", streamName, tableName, storage.ID())
@@ -83,6 +81,8 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		if len(stream.Objects) == 0 {
 			continue
 		}
+		rs.taskLogger.INFO("Stream [%s] Table name [%s] key fields [%s] objects [%d]", streamName, tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
+
 		//Note: we assume that destinations connected to 1 source can't have different unique ID configuration
 		uniqueIDField := rs.destinations[0].GetUniqueIDField()
 		stream.BatchHeader.Fields[uniqueIDField.GetFlatFieldName()] = schema.NewField(typing.STRING)
