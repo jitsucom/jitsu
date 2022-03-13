@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/adapters"
 	"io/ioutil"
 	"strings"
 
@@ -68,7 +69,11 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 				rs.taskLogger.INFO("Stream [%s] Clearing table [%s] in storage [%s] before adding new data", streamName, tableName, storage.ID())
 				err := storage.Clean(stream.BatchHeader.TableName)
 				if err != nil {
-					return fmt.Errorf("[%s] storage table %s cleaning failed: %v", storage.ID(), tableName, err)
+					if strings.Contains(err.Error(), adapters.ErrTableNotExist.Error()) {
+						rs.taskLogger.INFO("Stream [%s] Table [%s] doesn't exist in storage [%s]", streamName, tableName, storage.ID())
+					} else {
+						return fmt.Errorf("[%s] storage table %s cleaning failed: %v", storage.ID(), tableName, err)
+					}
 				}
 			}
 			stream.NeedClean = false
