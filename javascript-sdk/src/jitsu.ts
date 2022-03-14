@@ -642,7 +642,7 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   init(options: JitsuOptions) {
-    if (isWindowAvailable()) {
+    if (isWindowAvailable() && !options.force_use_fetch) {
       if (options.fetch) {
         getLogger().warn(
           "Custom fetch implementation is provided to Jitsu. However, it will be ignored since Jitsu runs in browser"
