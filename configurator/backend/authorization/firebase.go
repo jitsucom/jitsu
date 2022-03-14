@@ -2,6 +2,7 @@ package authorization
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 
 	firebase "firebase.google.com/go/v4"
@@ -32,6 +33,10 @@ type Firebase struct {
 }
 
 func NewFirebase(ctx context.Context, init FirebaseInit) (*Firebase, error) {
+	if !filepath.IsAbs(init.CredentialsFile) {
+		return nil, errors.New("auth.firebase.credentials_file must be an absolute path")
+	}
+
 	logging.Infof("Initializing firebase authorization storage..")
 
 	app, err := firebase.NewApp(ctx,
