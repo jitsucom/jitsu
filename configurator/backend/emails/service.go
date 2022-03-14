@@ -12,13 +12,13 @@ import (
 var ErrSMTPNotConfigured = errors.New("SMTP isn't configured")
 
 type SMTPConfiguration struct {
-	Host      string
-	Port      int
-	User      string
-	Password  string
-	From      string
-	Signature string
-	ReplyTo   string
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	User      string `json:"user"`
+	Password  string `json:"password"`
+	From      string `json:"from"`
+	Signature string `json:"signature"`
+	ReplyTo   string `json:"reply_to"`
 }
 
 func (sc *SMTPConfiguration) Validate() error {
