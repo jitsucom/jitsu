@@ -104,6 +104,11 @@ export type JitsuOptions = {
   fetch?: any,
 
   /**
+   * Forces Jitsu SDK to use the fetch implementation (custom or default) even in browser
+   */
+  force_use_fetch?: any,
+
+  /**
    * If Jitsu should work in compatibility mode. If set to true:
    *  - event_type will be set to 'eventn' instead of 'jitsu'
    *  - EventCtx should be written in eventn_ctx node as opposed to to event root
