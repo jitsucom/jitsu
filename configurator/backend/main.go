@@ -190,24 +190,7 @@ func main() {
 	appconfig.Instance.ScheduleClosing(configurationsService)
 
 	//** SMTP (email service) **
-	var smtp *emails.SMTPConfiguration
-	if viper.IsSet("smtp.host") {
-		smtp = &emails.SMTPConfiguration{
-			Host:      viper.GetString("smtp.host"),
-			Port:      viper.GetInt("smtp.port"),
-			User:      viper.GetString("smtp.user"),
-			Password:  viper.GetString("smtp.password"),
-			From:      viper.GetString("smtp.from"),
-			Signature: viper.GetString("smtp.signature"),
-			ReplyTo:   viper.GetString("smtp.reply_to"),
-		}
-
-		err := smtp.Validate()
-		if err != nil {
-			logging.Fatalf("Error smtp configuration: %v", err)
-		}
-	}
-	emailsService, err := emails.NewService(smtp)
+	emailsService, err := newEmailService(viper.GetViper())
 	if err != nil {
 		logging.Fatalf("Error creating emails service: %v", err)
 	}
@@ -270,6 +253,33 @@ func main() {
 		IdleTimeout:       time.Second * 65,
 	}
 	logging.Fatal(server.ListenAndServe())
+}
+
+func newEmailService(vp *viper.Viper) (*emails.Service, error) {
+	var config emails.SMTPConfiguration
+	if data := os.Getenv("JITSU_SMTP_CONFIG"); data != "" {
+		if err := json.Unmarshal([]byte(data), &config); err != nil {
+			return nil, errors.Wrap(err, "unmarshal smtp config")
+		}
+	} else if vp.IsSet("smtp.host") {
+		config = emails.SMTPConfiguration{
+			Host:      viper.GetString("smtp.host"),
+			Port:      viper.GetInt("smtp.port"),
+			User:      viper.GetString("smtp.user"),
+			Password:  viper.GetString("smtp.password"),
+			From:      viper.GetString("smtp.from"),
+			Signature: viper.GetString("smtp.signature"),
+			ReplyTo:   viper.GetString("smtp.reply_to"),
+		}
+	} else {
+		return nil, nil
+	}
+
+	if err := config.Validate(); err != nil {
+		return nil, errors.Wrap(err, "validate smtp config")
+	}
+
+	return emails.NewService(&config)
 }
 
 func newSSOProvider(vp *viper.Viper) handlers.SSOProvider {

@@ -13,7 +13,7 @@ The file consists of the following sections:
 * `auth` — UI Authorization storage configuration. Storage for storing UI authorization flow data.
 * `storage` — Main Storage. Configurator UI stores all users configuration such as configured destinations, api keys, sources into the storage.
 * `notifications` — notifier configuration. Configurator starts, system errors, and panics information will be sent to it. Currently, only Slack notifications are supported.
-* `smtp` – email sender configuration. If not specified, email sender will be disabled.
+* `smtp` – email sender configuration. If not specified, email sender will be disabled. The config may also be passed as JSON via `JITSU_SMTP_CONFIG` with the same layout as YAML configuration.
 
 **Example**:
 

@@ -5,6 +5,7 @@ go 1.17
 require (
 	firebase.google.com/go/v4 v4.7.1
 	github.com/bramvdbogaerde/go-scp v0.0.0-20200820121624-ded9ee94aef5
+	github.com/carlmjohnson/requests v0.22.1
 	github.com/deepmap/oapi-codegen v1.9.1
 	github.com/gin-gonic/contrib v0.0.0-20201101042839-6a891bf89f19
 	github.com/gin-gonic/gin v1.7.4
@@ -21,7 +22,6 @@ require (
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	google.golang.org/api v0.69.0
-	gopkg.in/guregu/null.v3 v3.5.0
 	gopkg.in/mail.v2 v2.3.1
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
@@ -41,7 +41,6 @@ require (
 	github.com/apache/thrift v0.13.1-0.20201008052519-daf620915714 // indirect
 	github.com/aws/aws-sdk-go v1.34.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/carlmjohnson/requests v0.22.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/charmbracelet/lipgloss v0.2.1 // indirect
