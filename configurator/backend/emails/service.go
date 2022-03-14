@@ -34,6 +34,14 @@ func (sc *SMTPConfiguration) Validate() error {
 		return errors.New("smtp user is required")
 	}
 
+	if sc.From == "" {
+		sc.From = "support@jitsu.com"
+	}
+
+	if sc.Signature == "" {
+		sc.Signature = "Your Jitsu - an open-source data collection platform team"
+	}
+
 	return nil
 }
 
