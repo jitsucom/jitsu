@@ -173,7 +173,11 @@ const columns: ColumnData[] = [
     title: "Duration",
     render: (t, props) => {
       if (t.date?.started && t.date?.finished) {
-        return moment(moment.utc(t.date?.finished).diff(moment.utc(t.date?.started))).format("m[m] s[s]")
+        if (moment(t.date?.finished).diff(moment(t.date?.started), "hours") >= 1) {
+          return moment.utc(moment(t.date?.finished).diff(moment(t.date?.started))).format("H[h] m[m] s[s]")
+        } else {
+          return moment.utc(moment(t.date?.finished).diff(moment(t.date?.started))).format("m[m] s[s]")
+        }
       } else {
         return " n/a "
       }
