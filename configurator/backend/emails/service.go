@@ -34,10 +34,6 @@ func (sc *SMTPConfiguration) Validate() error {
 		return errors.New("smtp user is required")
 	}
 
-	if sc.From == "" {
-		return errors.New("smtp from is required")
-	}
-
 	return nil
 }
 
