@@ -312,12 +312,14 @@ func mapClickhouse(chDestinations *entities.Destination) (*enconfig.DestinationC
 		dsns = strings.Split(chFormData.ChDsns, ",")
 	}
 	tlss := map[string]string{}
-	for i, pair := range strings.Split(chFormData.ChTLS, "&") {
-		cert := strings.Split(pair, "=")
-		if len(cert) == 2 {
-			tlss[cert[0]] = cert[1]
-		} else {
-			tlss[fmt.Sprintf("cert_%d", i)] = cert[0]
+	if chFormData.ChTLS != "" {
+		for i, pair := range strings.Split(chFormData.ChTLS, "&") {
+			cert := strings.SplitN(pair, "=", 2)
+			if len(cert) == 2 {
+				tlss[cert[0]] = cert[1]
+			} else if len(cert) == 1 {
+				tlss[fmt.Sprintf("cert_%d", i)] = cert[0]
+			}
 		}
 	}
 
