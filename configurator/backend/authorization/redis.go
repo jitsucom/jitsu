@@ -20,7 +20,7 @@ import (
 var (
 	errUnknownToken             = errors.New("unknown token")
 	errExpiredToken             = errors.New("expired token")
-	errMailServiceNotConfigured = errors.New("mail service not configured")
+	errMailServiceNotConfigured = errors.New("SMTP service is not configured")
 )
 
 const (
@@ -83,7 +83,10 @@ func (r *Redis) Authorize(ctx context.Context, accessToken string) (*middleware.
 	tokenType := accessTokenType
 	token, err := r.getToken(conn, tokenType, accessToken)
 	if err != nil {
-		return nil, errors.Wrap(err, "find token")
+		return nil, middleware.ReadableError{
+			Description: "Failed to load user access token from Redis",
+			Cause:       err,
+		}
 	}
 
 	if err := token.validate(); err != nil {
@@ -91,12 +94,18 @@ func (r *Redis) Authorize(ctx context.Context, accessToken string) (*middleware.
 			logging.SystemErrorf("revoke expired %s [%s] failed: %s", tokenType.name(), tokenType.get(token), err)
 		}
 
-		return nil, errors.Wrap(err, "validate token")
+		return nil, middleware.ReadableError{
+			Description: "User access token is invalid",
+			Cause:       err,
+		}
 	}
 
 	email, err := r.getUserEmail(conn, token.UserID)
 	if err != nil {
-		return nil, errors.Wrap(err, "get user email")
+		return nil, middleware.ReadableError{
+			Description: "Failed to load user email from Redis",
+			Cause:       err,
+		}
 	}
 
 	return &middleware.Authorization{
@@ -120,7 +129,10 @@ func (r *Redis) FindOnlyUser(ctx context.Context) (*openapi.UserBasicInfo, error
 	case errors.Is(err, redis.ErrNil):
 		return nil, errUserNotFound
 	case err != nil:
-		return nil, errors.Wrap(err, "find users")
+		return nil, middleware.ReadableError{
+			Description: "Failed to load users from Redis",
+			Cause:       err,
+		}
 	}
 
 	var first *openapi.UserBasicInfo = nil
@@ -150,7 +162,7 @@ func (r *Redis) HasUsers(ctx context.Context) (bool, error) {
 	case errors.Is(err, errMultipleUsers):
 		return true, nil
 	case err != nil:
-		return false, errors.Wrap(err, "find any user")
+		return false, err
 	default:
 		return true, nil
 	}
@@ -163,7 +175,15 @@ func (r *Redis) GetUserEmail(ctx context.Context, userID string) (string, error)
 	}
 
 	defer closeQuietly(conn)
-	return r.getUserEmail(conn, userID)
+	email, err := r.getUserEmail(conn, userID)
+	if err != nil {
+		return "", middleware.ReadableError{
+			Description: "Failed to load user email from Redis",
+			Cause:       err,
+		}
+	}
+
+	return email, nil
 }
 
 func (r *Redis) RefreshToken(ctx context.Context, refreshToken string) (*openapi.TokensResponse, error) {
@@ -177,7 +197,10 @@ func (r *Redis) RefreshToken(ctx context.Context, refreshToken string) (*openapi
 	tokenType := refreshTokenType
 	token, err := r.getToken(conn, tokenType, refreshToken)
 	if err != nil {
-		return nil, errors.Wrap(err, "find token")
+		return nil, middleware.ReadableError{
+			Description: "Failed to load user refresh token from Redis",
+			Cause:       err,
+		}
 	}
 
 	if err := token.validate(); err != nil {
@@ -187,16 +210,25 @@ func (r *Redis) RefreshToken(ctx context.Context, refreshToken string) (*openapi
 			}
 		}
 
-		return nil, errors.Wrap(err, "validate token")
+		return nil, middleware.ReadableError{
+			Description: "Failed to validate user refresh token",
+			Cause:       err,
+		}
 	}
 
 	if err := r.revokeToken(conn, token); err != nil {
-		return nil, errors.Wrap(err, "revoke token")
+		return nil, middleware.ReadableError{
+			Description: "Failed to revoke previous user token",
+			Cause:       err,
+		}
 	}
 
 	tokenPair, err := r.generateTokenPair(conn, token.UserID, defaultTokenPairTTL)
 	if err != nil {
-		return nil, errors.Wrap(err, "generate token pair")
+		return nil, middleware.ReadableError{
+			Description: "Failed to generate new token pair in Redis",
+			Cause:       err,
+		}
 	}
 
 	return tokenPair, nil
@@ -215,11 +247,17 @@ func (r *Redis) SignOut(ctx context.Context, accessToken string) error {
 	case errors.Is(err, errUnknownToken):
 		return nil
 	case err != nil:
-		return errors.Wrap(err, "get token")
+		return middleware.ReadableError{
+			Description: "Failed to load user access token from Redis",
+			Cause:       err,
+		}
 	}
 
 	if err := r.revokeToken(conn, token); err != nil {
-		return errors.Wrap(err, "revoke token")
+		return middleware.ReadableError{
+			Description: "Failed to revoke user token",
+			Cause:       err,
+		}
 	}
 
 	return nil
@@ -249,11 +287,22 @@ func (r *Redis) AutoSignUp(ctx context.Context, email string, callback *string) 
 	case errors.Is(err, ErrUserExists):
 		return userID, ErrUserExists
 	case err != nil:
-		return "", errors.Wrap(err, "create user")
+		return "", middleware.ReadableError{
+			Description: "Failed to create user",
+			Cause:       err,
+		}
 	}
 
-	if err := r.sendResetPasswordLink(conn, userID, email, *callback, r.mailSender.SendAccountCreated); err != nil {
-		return userID, errors.Wrap(err, "send reset password link")
+	err = r.sendResetPasswordLink(conn, userID, email, *callback, r.mailSender.SendAccountCreated)
+	if err != nil {
+		if err := r.DeleteUser(ctx, userID); err != nil {
+			logging.SystemErrorf("Failed to rollback Redis user creation for [%s] with ID [%s]: %v", email, userID, err)
+		}
+
+		return "", middleware.ReadableError{
+			Description: "Failed to send user invitation email due to an error (user won't be added)",
+			Cause:       err,
+		}
 	}
 
 	return userID, nil
@@ -269,7 +318,10 @@ func (r *Redis) SignIn(ctx context.Context, email, password string) (*openapi.To
 
 	userID, err := r.getUserIDByEmail(conn, email)
 	if err != nil {
-		return nil, errors.Wrap(err, "find user id by email")
+		return nil, middleware.ReadableError{
+			Description: "Failed to load user ID from Redis",
+			Cause:       err,
+		}
 	}
 
 	hashedPassword, err := redis.String(conn.Do("HGET", userKey(userID), userHashedPasswordField))
@@ -278,16 +330,22 @@ func (r *Redis) SignIn(ctx context.Context, email, password string) (*openapi.To
 		logging.SystemErrorf("User [%s] exists in [%s], but not under [%s]", userID, usersIndexKey, userKey(userID))
 		return nil, errUserNotFound
 	case err != nil:
-		return nil, errors.Wrap(err, "get user data by id")
+		return nil, middleware.ReadableError{
+			Description: "Failed to load user data from Redis",
+			Cause:       err,
+		}
 	}
 
 	if err := r.passwordEncoder.Compare(hashedPassword, password); err != nil {
-		return nil, errors.Wrap(err, "check password")
+		return nil, errors.New("invalid password")
 	}
 
 	tokenPair, err := r.generateTokenPair(conn, userID, defaultTokenPairTTL)
 	if err != nil {
-		return nil, errors.Wrap(err, "generate token pair")
+		return nil, middleware.ReadableError{
+			Description: "Failed to generate new token pair",
+			Cause:       err,
+		}
 	}
 
 	return tokenPair, nil
@@ -303,12 +361,18 @@ func (r *Redis) SignInSSO(ctx context.Context, provider string, sso *handlers.SS
 
 	userID, err := r.getUserIDByEmail(conn, sso.Email)
 	if err != nil {
-		return nil, errors.Wrap(err, "get user id by email")
+		return nil, middleware.ReadableError{
+			Description: "Failed to get user ID from Redis",
+			Cause:       err,
+		}
 	}
 
 	tokenPair, err := r.generateTokenPair(conn, userID, tokenPairTTL{access: ttl, refresh: time.Second})
 	if err != nil {
-		return nil, errors.Wrap(err, "generate token pair")
+		return nil, middleware.ReadableError{
+			Description: "Failed to generate new token pair",
+			Cause:       err,
+		}
 	}
 
 	if ssoToken, err := json.Marshal(ssoRedisToken{
@@ -334,12 +398,18 @@ func (r *Redis) SignUp(ctx context.Context, email, password string) (*openapi.To
 
 	userID, err := r.createUser(conn, email, password, always)
 	if err != nil {
-		return nil, errors.Wrap(err, "create user")
+		return nil, middleware.ReadableError{
+			Description: "Failed to create new user in Redis",
+			Cause:       err,
+		}
 	}
 
 	tokenPair, err := r.generateTokenPair(conn, userID, defaultTokenPairTTL)
 	if err != nil {
-		return nil, errors.Wrap(err, "generate token pair")
+		return nil, middleware.ReadableError{
+			Description: "Failed to generate new token pair",
+			Cause:       err,
+		}
 	}
 
 	return tokenPair, nil
@@ -359,11 +429,17 @@ func (r *Redis) SendResetPasswordLink(ctx context.Context, email, callback strin
 
 	userID, err := r.getUserIDByEmail(conn, email)
 	if err != nil {
-		return errors.Wrap(err, "get user id by email")
+		return middleware.ReadableError{
+			Description: "Failed to load user ID by email",
+			Cause:       err,
+		}
 	}
 
 	if err := r.sendResetPasswordLink(conn, userID, email, callback, r.mailSender.SendResetPassword); err != nil {
-		return errors.Wrap(err, "send reset password link")
+		return middleware.ReadableError{
+			Description: "Failed to send reset password link",
+			Cause:       err,
+		}
 	}
 
 	return nil
@@ -381,13 +457,19 @@ func (r *Redis) ResetPassword(ctx context.Context, resetID, newPassword string) 
 	userID, err := redis.String(conn.Do("GET", resetKey))
 	switch {
 	case errors.Is(err, redis.ErrNil):
-		return nil, errors.New("unknown reset id")
+		return nil, errors.New("Invalid reset password ID")
 	case err != nil:
-		return nil, errors.Wrap(err, "get user id by reset id")
+		return nil, middleware.ReadableError{
+			Description: "Failed to load user ID by reset password ID",
+			Cause:       err,
+		}
 	}
 
 	if err := r.changePassword(conn, userID, newPassword); err != nil {
-		return nil, errors.Wrap(err, "change password")
+		return nil, middleware.ReadableError{
+			Description: "Failed to change user password in Redis",
+			Cause:       err,
+		}
 	}
 
 	if _, err := conn.Do("DEL", resetKey); err != nil {
@@ -396,7 +478,10 @@ func (r *Redis) ResetPassword(ctx context.Context, resetID, newPassword string) 
 
 	tokenPair, err := r.generateTokenPair(conn, userID, defaultTokenPairTTL)
 	if err != nil {
-		return nil, errors.Wrap(err, "generate token pair")
+		return nil, middleware.ReadableError{
+			Description: "Failed to generate new token pair",
+			Cause:       err,
+		}
 	}
 
 	return tokenPair, nil
@@ -412,16 +497,25 @@ func (r *Redis) ChangePassword(ctx context.Context, accessToken, newPassword str
 
 	token, err := r.getToken(conn, accessTokenType, accessToken)
 	if err != nil {
-		return nil, errors.Wrap(err, "find access token")
+		return nil, middleware.ReadableError{
+			Description: "Failed to load user access token from Redis",
+			Cause:       err,
+		}
 	}
 
 	if err := r.changePassword(conn, token.UserID, newPassword); err != nil {
-		return nil, errors.Wrap(err, "change password")
+		return nil, middleware.ReadableError{
+			Description: "Failed to change user password in Redis",
+			Cause:       err,
+		}
 	}
 
 	tokenPair, err := r.generateTokenPair(conn, token.UserID, defaultTokenPairTTL)
 	if err != nil {
-		return nil, errors.Wrap(err, "generate token pair")
+		return nil, middleware.ReadableError{
+			Description: "Failed to generate new token pair",
+			Cause:       err,
+		}
 	}
 
 	return tokenPair, nil
@@ -435,7 +529,10 @@ func (r *Redis) UpdatePassword(ctx context.Context, userID, newPassword string) 
 
 	defer closeQuietly(conn)
 	if err := r.changePassword(conn, userID, newPassword); err != nil {
-		return errors.Wrap(err, "update user password")
+		return middleware.ReadableError{
+			Description: "Failed to change user password in Redis",
+			Cause:       err,
+		}
 	}
 
 	return nil
@@ -451,7 +548,10 @@ func (r *Redis) ChangeEmail(ctx context.Context, oldEmail, newEmail string) (str
 
 	userID, err := r.getUserIDByEmail(conn, oldEmail)
 	if err != nil {
-		return "", errors.Wrap(err, "get user by old email")
+		return "", middleware.ReadableError{
+			Description: "Failed to load user ID by email from Redis",
+			Cause:       err,
+		}
 	}
 
 	_, err = r.getUserIDByEmail(conn, newEmail)
@@ -459,7 +559,10 @@ func (r *Redis) ChangeEmail(ctx context.Context, oldEmail, newEmail string) (str
 	case errors.Is(err, errUserNotFound):
 	// is ok
 	case err != nil:
-		return "", errors.Wrapf(err, "verify new email not used")
+		return "", middleware.ReadableError{
+			Description: "Unable to check email uniqueness",
+			Cause:       err,
+		}
 	default:
 		return "", ErrUserExists
 	}
@@ -490,7 +593,10 @@ func (r *Redis) ListUsers(ctx context.Context) ([]openapi.UserBasicInfo, error) 
 
 	values, err := redis.StringMap(conn.Do("HGETALL", usersIndexKey))
 	if err != nil {
-		return nil, errors.Wrapf(err, "get all users")
+		return nil, middleware.ReadableError{
+			Description: "Failed to load user email index from Redis",
+			Cause:       err,
+		}
 	}
 
 	result := make([]openapi.UserBasicInfo, 0, len(values))
@@ -514,12 +620,18 @@ func (r *Redis) CreateUser(ctx context.Context, email string) (*handlers.Created
 
 	userID, err := r.createUser(conn, email, uuid.NewV4().String(), always)
 	if err != nil {
-		return nil, errors.Wrapf(err, "create user")
+		return nil, middleware.ReadableError{
+			Description: "Failed to create new user in Redis",
+			Cause:       err,
+		}
 	}
 
 	resetID, err := r.generateResetID(conn, userID)
 	if err != nil {
-		return nil, errors.Wrapf(err, "generate reset password id")
+		return nil, middleware.ReadableError{
+			Description: "Failed to generate password reset ID",
+			Cause:       err,
+		}
 	}
 
 	return &handlers.CreatedUser{
@@ -538,14 +650,17 @@ func (r *Redis) DeleteUser(ctx context.Context, userID string) error {
 
 	email, err := r.getUserEmail(conn, userID)
 	if err != nil {
-		return errors.Wrap(err, "get user email")
+		return middleware.ReadableError{
+			Description: "Failed to load user email from Redis",
+			Cause:       err,
+		}
 	}
 
 	if err := r.revokeTokens(conn, userID); err != nil {
-		return errors.Wrap(err, "revoke tokens")
+		logging.SystemErrorf("Failed to revoke user [%s] tokens: %v", userID, err)
 	}
 
-	if _, err := conn.Do("DEL", userKey); err != nil {
+	if _, err := conn.Do("DEL", userKey(userID)); err != nil {
 		return errors.Wrap(err, "remove user data")
 	}
 
@@ -562,7 +677,7 @@ func (r *Redis) getUserEmail(conn redis.Conn, userID string) (string, error) {
 	case errors.Is(err, redis.ErrNil):
 		return "", errUserNotFound
 	case err != nil:
-		return "", errors.Wrap(err, "get user email")
+		return "", err
 	}
 
 	return email, nil
@@ -574,11 +689,7 @@ func (r *Redis) sendResetPasswordLink(conn redis.Conn, userID, email, callback s
 		return errors.Wrap(err, "generate reset id")
 	}
 
-	if err := send(email, strings.ReplaceAll(callback, "{{token}}", resetID)); err != nil {
-		return errors.Wrap(err, "send reset password")
-	}
-
-	return nil
+	return send(email, strings.ReplaceAll(callback, "{{token}}", resetID))
 }
 
 func (r *Redis) generateResetID(conn redis.Conn, userID string) (string, error) {
@@ -600,7 +711,7 @@ func (r *Redis) createUser(conn redis.Conn, email, password string, precondition
 	}
 
 	if err := precondition(); err != nil {
-		return "", errors.Wrap(err, "create user precondition failed")
+		return "", err
 	}
 
 	hashedPassword, err := r.passwordEncoder.Encode(password)
@@ -635,7 +746,7 @@ func (r *Redis) changePassword(conn redis.Conn, userID, newPassword string) erro
 	}
 
 	if err := r.revokeTokens(conn, userID); err != nil {
-		return errors.Wrap(err, "revoke user tokens")
+		logging.SystemErrorf("Failed to revoke user [%s] tokens: %v", userID, err)
 	}
 
 	return nil
