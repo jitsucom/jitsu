@@ -1,7 +1,6 @@
 import styles from "./GetStartedPage.module.less"
 import logo from "icons/logo.svg"
 import { useHistory } from "react-router-dom"
-import * as React from "react"
 import { LoginForm } from "./LoginForm"
 import { SignupForm } from "./SignupForm"
 
