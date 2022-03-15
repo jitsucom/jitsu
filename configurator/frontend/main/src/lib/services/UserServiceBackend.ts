@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { ApiAccess, userFromDTO, userToDTO } from "./model"
 import { cleanAuthorizationLocalStorage, concatenateURLs } from "lib/commons/utils"
 import { getFullUiPath } from "lib/commons/pathHelper"
