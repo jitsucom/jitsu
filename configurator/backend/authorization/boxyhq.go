@@ -7,10 +7,11 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/jitsucom/jitsu/configurator/middleware"
+
 	"github.com/carlmjohnson/requests"
 	"github.com/jitsucom/jitsu/configurator/handlers"
 	"github.com/jitsucom/jitsu/server/random"
-	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 )
@@ -43,7 +44,10 @@ func (p *BoxyHQ) GetSSOSession(ctx context.Context, code string) (*handlers.SSOS
 
 	token, err := conf.Token(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "get sso token")
+		return nil, middleware.ReadableError{
+			Description: "Failed to get BoxyHQ SSO token",
+			Cause:       err,
+		}
 	}
 
 	var info boxyHQUserInfo
@@ -52,7 +56,10 @@ func (p *BoxyHQ) GetSSOSession(ctx context.Context, code string) (*handlers.SSOS
 		CheckStatus(http.StatusOK).
 		ToJSON(&info).
 		Fetch(ctx); err != nil {
-		return nil, errors.Wrap(err, "get user info")
+		return nil, middleware.ReadableError{
+			Description: "Failed to load user info from BoxyHQ SSO",
+			Cause:       err,
+		}
 	}
 
 	return &handlers.SSOSession{

@@ -13,10 +13,10 @@ const (
 
 var (
 	ErrUserExists    = handlers.ErrUserExists
-	errIsLocal       = errors.New("supported only for cloud authorization")
-	errIsCloud       = errors.New("supported only for local authorization")
-	errUserNotFound  = errors.New("user not found")
-	errMultipleUsers = errors.New("multiple users found")
+	errIsLocal       = errors.New("This API call is supported only for Firebase-based authorization")
+	errIsCloud       = errors.New("This API call is supported only for Redis-based authorization")
+	errUserNotFound  = errors.New("User is not found")
+	errMultipleUsers = errors.New("Multiple users found. Please use your own personal access token for this API call")
 )
 
 type MailSender interface {
