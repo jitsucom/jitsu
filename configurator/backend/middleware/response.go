@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -30,6 +31,16 @@ func StatusOk(ctx *gin.Context) {
 }
 
 func Error(ctx *gin.Context, statusCode int, message string, err error) {
+	var readable ReadableError
+	if errors.As(err, &readable) {
+		message = readable.Description
+		err = readable.Cause
+	}
+
+	if err != nil {
+		message = message + ": " + err.Error()
+	}
+
 	ctx.AbortWithStatusJSON(statusCode, ErrorResponse(message, err))
 }
 
@@ -38,11 +49,11 @@ func InternalError(ctx *gin.Context, message string, err error) {
 }
 
 func Unauthorized(ctx *gin.Context, err error) {
-	Error(ctx, http.StatusUnauthorized, "authorization failed", err)
+	Error(ctx, http.StatusUnauthorized, "Authorization failed", err)
 }
 
 func Unsupported(ctx *gin.Context, err error) {
-	Error(ctx, http.StatusMethodNotAllowed, "unsupported", err)
+	Error(ctx, http.StatusMethodNotAllowed, "Unsupported API method", err)
 }
 
 func Forbidden(ctx *gin.Context, msg string) {
@@ -58,7 +69,7 @@ func BadRequest(ctx *gin.Context, msg string, err error) {
 }
 
 func InvalidInputJSON(ctx *gin.Context, err error) {
-	BadRequest(ctx, "invalid input JSON", err)
+	BadRequest(ctx, "Invalid input JSON", err)
 }
 
 func RequiredField(ctx *gin.Context, field string) {
@@ -66,5 +77,5 @@ func RequiredField(ctx *gin.Context, field string) {
 }
 
 func UserRequired(ctx *gin.Context, err error) {
-	Error(ctx, http.StatusForbidden, "non-server token required", err)
+	Error(ctx, http.StatusForbidden, "User access token is required for this API call", err)
 }

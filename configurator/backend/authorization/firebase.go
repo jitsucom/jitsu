@@ -74,12 +74,18 @@ func (fb *Firebase) Cloud() (handlers.CloudAuthorizator, error) {
 func (fb *Firebase) Authorize(ctx context.Context, accessToken string) (*middleware.Authorization, error) {
 	token, err := fb.authClient.VerifyIDToken(ctx, accessToken)
 	if err != nil {
-		return nil, errors.Wrap(err, "verify ID token")
+		return nil, middleware.ReadableError{
+			Description: "Failed to verify user token via Firebase",
+			Cause:       err,
+		}
 	}
 
 	user, err := fb.authClient.GetUser(ctx, token.UID)
 	if err != nil {
-		return nil, errors.Wrap(err, "get user")
+		return nil, middleware.ReadableError{
+			Description: "Failed to get user from Firebase",
+			Cause:       err,
+		}
 	}
 
 	var isAdmin bool
@@ -114,7 +120,7 @@ func (fb *Firebase) HasUsers(_ context.Context) (bool, error) {
 
 func (fb *Firebase) GetUserEmail(ctx context.Context, userID string) (string, error) {
 	if resp, err := fb.authClient.GetUser(ctx, userID); err != nil {
-		return "", errors.Wrap(err, "get firebase user")
+		return "", err
 	} else {
 		return resp.Email, nil
 	}
@@ -124,7 +130,10 @@ func (fb *Firebase) AutoSignUp(ctx context.Context, email string, _ *string) (st
 	user, err := fb.authClient.GetUserByEmail(ctx, email)
 	switch {
 	case err != nil && !strings.Contains(err.Error(), "no user exists"):
-		return "", errors.Wrap(err, "get user by email")
+		return "", middleware.ReadableError{
+			Description: "Failed to get user from Firebase",
+			Cause:       err,
+		}
 	case err == nil:
 		return user.UID, ErrUserExists
 	}
@@ -139,16 +148,35 @@ func (fb *Firebase) AutoSignUp(ctx context.Context, email string, _ *string) (st
 
 	createdUser, err := fb.authClient.CreateUser(ctx, userToCreate)
 	if err != nil {
-		return "", errors.Wrap(err, "create user")
+		return "", middleware.ReadableError{
+			Description: "Failed to create user in Firebase",
+			Cause:       err,
+		}
 	}
 
-	resetLink, err := fb.authClient.PasswordResetLink(ctx, email)
+	defer func() {
+		if err != nil {
+			if err := fb.authClient.DeleteUser(ctx, createdUser.UID); err != nil {
+				logging.SystemErrorf("Failed to rollback Firebase user creation for email [%s]: %v", email, err)
+			}
+		}
+	}()
+
+	var resetLink string
+	resetLink, err = fb.authClient.PasswordResetLink(ctx, email)
 	if err != nil {
-		return "", errors.Wrap(err, "password reset link")
+		return "", middleware.ReadableError{
+			Description: "Failed to generate password reset link via Firebase (user won't be added)",
+			Cause:       err,
+		}
 	}
 
-	if err := fb.mailSender.SendAccountCreated(email, resetLink); err != nil {
-		return "", errors.Wrap(err, "send reset password")
+	err = fb.mailSender.SendAccountCreated(email, resetLink)
+	if err != nil {
+		return "", middleware.ReadableError{
+			Description: "Failed to send user invitation email due to an error (user won't be added)",
+			Cause:       err,
+		}
 	}
 
 	return createdUser.UID, nil
@@ -157,12 +185,18 @@ func (fb *Firebase) AutoSignUp(ctx context.Context, email string, _ *string) (st
 func (fb *Firebase) SignInAs(ctx context.Context, email string) (*openapi.TokenResponse, error) {
 	user, err := fb.authClient.GetUserByEmail(ctx, email)
 	if err != nil {
-		return nil, errors.Wrap(err, "get user by email")
+		return nil, middleware.ReadableError{
+			Description: "Failed to get user from Firebase",
+			Cause:       err,
+		}
 	}
 
 	token, err := fb.authClient.CustomToken(ctx, user.UID)
 	if err != nil {
-		return nil, errors.Wrap(err, "custom token")
+		return nil, middleware.ReadableError{
+			Description: "Failed to generate custom user token via Firebase",
+			Cause:       err,
+		}
 	}
 
 	return &openapi.TokenResponse{Token: token}, nil

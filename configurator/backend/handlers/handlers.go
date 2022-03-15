@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	ErrUserExists       = errors.New("user exists")
-	errSSLNotConfigured = errors.New("ssl isn't configured in Jitsu configuration")
+	ErrUserExists       = errors.New("User already exists")
+	errSSLNotConfigured = errors.New("SSL is not configured in Jitsu configuration")
 )
 
 type CreatedUser struct {
