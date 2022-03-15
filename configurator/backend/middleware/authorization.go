@@ -78,10 +78,7 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 			return
 		}
 
-		if user, err := i.Authorizator.FindOnlyUser(ctx); err != nil {
-			invalidToken(ctx, errTokenMismatch)
-			return
-		} else {
+		if user, err := i.Authorizator.FindOnlyUser(ctx); err == nil {
 			authority.user = user
 		}
 	} else if clusterAdminScope {
