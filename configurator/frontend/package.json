@@ -1,6 +1,10 @@
 {
   "name": "root",
   "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "start": "lerna run start --stream",
     "build": "yarn install && yarn all:check && lerna run build",
@@ -13,10 +17,6 @@
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern **/node_modules/",
     "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern **/node_modules/ --fix",
     "all:check": "yarn prettier:check && yarn eslint:check"
-  },
-  "dependencies": {
-    "@jitsu/catalog": "file:catalog",
-    "jitsu-configurator-ui": "file:main"
   },
   "publishConfig": {
     "access": "restricted"
@@ -65,7 +65,7 @@
     "web-vitals": "^1.0.1",
     "webpack-bundle-analyzer": "^4.4.0"
   },
-    "resolutions": {
-      "react-error-overlay": "6.0.9"
-    }
+  "resolutions": {
+    "react-error-overlay": "6.0.9"
+  }
 }

@@ -108,7 +108,10 @@ module.exports = {
       // transpile some of the node_modules using babel
       plugin: CracoBabelLoader,
       options: {
-        includes: [resolvePackage("../node_modules/@jitsu/catalog")],
+        includes: [
+          resolvePackage("./node_modules/@jitsu/catalog"),
+          resolvePackage("../../node_modules/@jitsu/catalog"),
+        ],
       },
     },
     {

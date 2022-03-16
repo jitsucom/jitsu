@@ -1,11 +1,12 @@
 {
   "npmClient": "yarn",
+  "useWorkspaces": true,
   "version": "independent",
-  "packages": ["catalog", "main"],
+  "packages": ["packages/*"],
   "command": {
     "version": {
       "message": "chore(release): publish",
-      "allowBranch": ["master", "beta", "feature/725-documentation-publishing-2.0"]
+      "allowBranch": ["master", "beta"]
     }
   }
 }
