@@ -1827,7 +1827,7 @@
     "@types/yargs" "^16.0.0"
     chalk "^4.0.0"
 
-"@jitsu/catalog@file:catalog":
+"@jitsu/catalog@file:packages/catalog":
   version "1.0.15-alpha.1"
 
 "@jitsu/sdk-js@^2.3.0":
@@ -9736,34 +9736,6 @@ jest@26.6.0:
     "@jest/core" "^26.6.0"
     import-local "^3.0.2"
     jest-cli "^26.6.0"
-
-"jitsu-configurator-ui@file:main":
-  version "1.0.0"
-  dependencies:
-    "@jitsu/catalog" "file:../../../../../Library/Caches/Yarn/v6/npm-jitsu-configurator-ui-1.0.0-f74f8475-8ffe-4048-a9ca-e8da45d5569a-1645428484921/node_modules/catalog"
-    "@jitsu/sdk-js" "^2.3.0"
-    antd "^4.13.1"
-    axios "^0.21.4"
-    classnames "^2.2.6"
-    firebase "^9.4.1"
-    highlight.js "^11.3.1"
-    hotkeys-js "^3.8.7"
-    leader-line-new "^1.1.9"
-    lodash "^4.17.21"
-    logrocket "^1.0.14"
-    mobx "^6.3.2"
-    mobx-react-lite "^3.2.0"
-    monaco-editor "^0.28.1"
-    murmurhash "^2.0.0"
-    posthog-js "^1.9.1"
-    react "^17.0.2"
-    react-dom "^17.0.2"
-    react-monaco-editor "^0.46.0"
-    react-reflex "^4.0.3"
-    react-router-dom "^5.2.0"
-    react-syntax-highlighter "^15.4.4"
-    recharts "^2.0.8"
-    uuid "^8.3.2"
 
 js-levenshtein@^1.1.6:
   version "1.1.6"
