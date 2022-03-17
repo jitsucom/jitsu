@@ -290,6 +290,10 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 			logging.Errorf("[%s] Error initializing destination of type %s: %v", id, destinationConfig.Type, err)
 			continue
 		}
+		storageType, ok := storages.StorageTypes[destinationConfig.Type]
+		if storageType.IsSynchronous {
+			destinationConfig.Mode = storages.SynchronousMode
+		}
 		if eventQueue != nil {
 			appconfig.Instance.ScheduleEventsConsumerClosing(eventQueue)
 			queueConsumerByDestinationID[id] = eventQueue

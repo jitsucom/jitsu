@@ -81,7 +81,7 @@ type StorageType struct {
 	typeName         string
 	createFunc       func(config *Config) (Storage, error)
 	defaultTableName string
-	isSynchronous    bool
+	IsSynchronous    bool
 	isSQL            bool
 	isSQLFunc        func(config *config.DestinationConfig) bool
 }
@@ -146,14 +146,16 @@ func (f *FactoryImpl) Configure(destinationID string, destination config.Destina
 	if destination.Mode != BatchMode && destination.Mode != StreamMode && destination.Mode != SynchronousMode {
 		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s, %s]", destination.Mode, BatchMode, StreamMode, SynchronousMode)
 	}
-	logging.Infof("[%s] initializing destination of type: %s in mode: %s", destinationID, destination.Type, destination.Mode)
+	logging.Infof("[%s] initializing destination of type: %s", destinationID, destination.Type)
 	storageType, ok := StorageTypes[destination.Type]
-	if storageType.isSynchronous {
+	if storageType.IsSynchronous {
 		destination.Mode = SynchronousMode
 	}
 	if !ok {
 		return nil, nil, ErrUnknownDestination
 	}
+	logging.Infof("[%s] destination mode: %s", destinationID, destination.Mode)
+
 	pkFields := map[string]bool{}
 	maxColumns := f.maxColumns
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField

@@ -28,20 +28,26 @@ export function parseCookieString(cookieStr?: string) {
   return res;
 }
 
+function copyAttributes(source: HTMLElement, target: HTMLElement) {
+  return Array.from(source.attributes).forEach((attribute) => {
+    target.setAttribute(attribute.nodeName, attribute.nodeValue);
+  });
+}
+
 export function insertAndExecute(element: HTMLElement, html: string) {
   element.innerHTML = html;
-  const scripts = Array.prototype.slice.call(
-    element.getElementsByTagName("script")
-  );
-  for (const script of scripts) {
+  let scripts = element.getElementsByTagName("script");
+  let index;
+  for (index = scripts.length - 1; index >= 0; index--) {
+    const script = scripts[index];
     const tag = document.createElement("script");
-    if (script.src) {
-      tag.src = script.src;
-    }
+    copyAttributes(script, tag);
     if (script.innerHTML) {
       tag.innerHTML = script.innerHTML;
     }
+    tag.setAttribute("data-jitsu-tag-id", element.id);
     document.getElementsByTagName("head")[0].appendChild(tag);
+    scripts[index].parentNode.removeChild(scripts[index]);
   }
 }
 

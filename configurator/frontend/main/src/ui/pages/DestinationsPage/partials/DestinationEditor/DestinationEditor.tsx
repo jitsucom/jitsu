@@ -342,7 +342,7 @@ const DestinationEditor = ({
           if (editorMode === "edit") await flowResult(destinationsStore.replace(destinationData.current))
           await connectionsHelper.updateSourcesConnectionsToDestination(
             destinationData.current._uid,
-            destinationData.current._sources
+            destinationData.current._sources || []
           )
 
           destinationsTabs.forEach((tab: Tab) => (tab.touched = false))

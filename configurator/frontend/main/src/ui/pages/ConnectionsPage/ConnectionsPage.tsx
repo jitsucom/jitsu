@@ -14,7 +14,7 @@ import { DropDownList } from "ui/components/DropDownList/DropDownList"
 // @Icons
 import { PlusOutlined } from "@ant-design/icons"
 // @Utils
-import { generatePath } from "react-router-dom"
+import { useHistory } from "react-router-dom"
 // @Reference
 import { destinationsReferenceList } from "@jitsu/catalog/destinations/lib"
 import { destinationPageRoutes } from "../DestinationsPage/DestinationsPage.routes"
@@ -32,7 +32,8 @@ const CONNECTION_LINE_HIGHLIGHTED_COLOR = "#878afc"
 
 const connectionLines: { [key: string]: LeaderLine } = {}
 
-const ConnectionsPageComponent: React.FC = () => {
+const ConnectionsPageComponent = () => {
+  const history = useHistory()
   const containerRef = useRef<HTMLDivElement>(null)
 
   const updateLines = () => {
@@ -52,6 +53,10 @@ const ConnectionsPageComponent: React.FC = () => {
       })
     })
   }
+
+  const handleAddClick = useCallback(() => {
+    history.push(projectRoute(destinationPageRoutes.add))
+  }, [history])
 
   const eraseLines = () => {
     Object.entries(connectionLines).forEach(([key, line]) => {
@@ -158,32 +163,9 @@ const ConnectionsPageComponent: React.FC = () => {
           header={
             <div className="flex w-full mb-3">
               <h3 className="block flex-auto text-3xl mb-0">{"Destinations"}</h3>
-              <Dropdown
-                trigger={["click"]}
-                placement="bottomRight"
-                overlay={
-                  <DropDownList
-                    hideFilter
-                    list={destinationsReferenceList
-                      .filter(dst => !dst["hidden"])
-                      .map(dst => {
-                        return {
-                          title: dst.displayName,
-                          id: dst.id,
-                          icon: dst.ui.icon,
-                          link: projectRoute(destinationPageRoutes.newExact, {
-                            type: dst.id,
-                          }),
-                        }
-                      })}
-                  />
-                }
-                className="flex-initial"
-              >
-                <Button type="ghost" size="large" icon={<PlusOutlined />}>
-                  Add
-                </Button>
-              </Dropdown>
+              <Button type="ghost" size="large" icon={<PlusOutlined />} onClick={handleAddClick}>
+                Add
+              </Button>
             </div>
           }
         >

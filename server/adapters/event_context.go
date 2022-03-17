@@ -43,7 +43,8 @@ type EventContext struct {
 	SerializedOriginalEvent string
 
 	//HTTPRequest is applicable only for HTTP events
-	HTTPRequest *Request
+	HTTPRequest       *Request
+	SynchronousResult map[string]interface{}
 }
 
 func (ec *EventContext) GetSerializedOriginalEvent() string {

@@ -584,6 +584,7 @@ func mapTag(tagDestination *entities.Destination) (*enconfig.DestinationConfig, 
 	cfg := &enadapters.TagConfig{
 		TagID:    tagFormData.TagId,
 		Template: tagFormData.Template,
+		Filter:   tagFormData.Filter,
 	}
 	cfgMap := map[string]interface{}{}
 	err = mapstructure.Decode(cfg, &cfgMap)
@@ -594,9 +595,6 @@ func mapTag(tagDestination *entities.Destination) (*enconfig.DestinationConfig, 
 		Type:   enstorages.TagType,
 		Mode:   "synchronous",
 		Config: cfgMap,
-		DataLayout: &enconfig.DataLayout{
-			TableNameTemplate: tagFormData.TableName,
-		},
 	}, nil
 }
 

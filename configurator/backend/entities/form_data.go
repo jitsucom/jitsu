@@ -130,10 +130,10 @@ type WebhookFormData struct {
 }
 
 type TagFormData struct {
-	Mode      string `firestore:"mode" json:"mode"`
-	TagId     string `firestore:"tagId" json:"tagId"`
-	TableName string `firestore:"tableName" json:"tableName"`
-	Template  string `firestore:"template" json:"template"`
+	Mode     string `firestore:"mode" json:"mode"`
+	TagId    string `firestore:"tagId" json:"tagId"`
+	Filter   string `firestore:"filter" json:"filter"`
+	Template string `firestore:"template" json:"template"`
 }
 
 //AmplitudeFormData entity is stored in main storage (Firebase/Redis)
