@@ -56,7 +56,7 @@ export const StatisticsChart: React.FC<Props> = ({
   }
 
   return (
-    <ResponsiveContainer width="100%" minHeight={300} minWidth={300}>
+    <ResponsiveContainer width="100%" minHeight={225} minWidth={300}>
       <LineChart
         className={styles.chart}
         data={data.map(point => ({
