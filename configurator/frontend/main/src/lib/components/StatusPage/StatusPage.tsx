@@ -1,79 +1,84 @@
 // @Libs
-import React from "react"
-import moment from "moment"
-import { NavLink } from "react-router-dom"
-import { Button, Card, Col, Tooltip, Row } from "antd"
+import React, {useEffect, useState} from "react"
+import {NavLink, useHistory, useLocation} from "react-router-dom"
+import { Button, Card, Col, Tooltip, Row, Select } from "antd"
 // @Components
 import { CodeInline } from "lib/components/components"
 import { StatisticsChart } from "ui/components/StatisticsChart/StatisticsChart"
 // @Icons
 import { ReloadOutlined, WarningOutlined, QuestionCircleOutlined, ThunderboltFilled } from "@ant-design/icons"
 // @Services
-import { addSeconds, CombinedStatisticsDatePoint, StatisticsService } from "lib/services/stat"
+import { addSeconds, StatisticsService } from "lib/services/stat"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
 import { useServices } from "../../../hooks/useServices"
+import styles from "../EventsStream/EventsSteam.module.less"
+import { destinationsStore } from "../../../stores/destinations"
+import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
+import { FilterOption } from "../EventsStream/shared"
+import { apiKeysStore } from "../../../stores/apiKeys"
+import { apiKeysReferenceMap } from "@jitsu/catalog/apiKeys/lib"
+import {find, isNull, omitBy} from "lodash"
+import { sourcesStore } from "../../../stores/sources"
 
-type State = {
-  destinationsCount?: number
-  lastHourEventsBySources?: CombinedStatisticsDatePoint[]
-  lastDayEventsBySources?: CombinedStatisticsDatePoint[]
-  lastHourRowsFromSources?: CombinedStatisticsDatePoint[]
-  lastDayRowsFromSources?: CombinedStatisticsDatePoint[]
-  totalEventsLastHour?: number
-  totalEventsToday?: number
-}
+const { Option } = Select
 
-interface Props {
-  timeInUTC?: boolean
-}
+type DataType = "total" | "success" | "skip" | "errors"
 
 export const StatusPage: React.FC<{}> = () => {
   const services = useServices()
+  const [period, setPeriod] = useState("month")
+  const [reloadCount, setReloadCount] = useState(0)
   const stats = new StatisticsService(services.backendApiClient, services.activeProject.id, true)
   const isSelfHosted = services.features.environment !== "jitsu_cloud"
   const now = new Date()
-  const dayAgo = addSeconds(now, -24 * 60 * 60)
-  const monthAgo = addSeconds(now, -30 * 24 * 60 * 60)
-  const {
-    error,
-    data,
-    reloader: reload,
-    isLoading: loading,
-  } = useLoaderAsObject(async () => {
-    return await Promise.all([
-      stats.getCombinedStatisticsBySources(dayAgo, now, "hour", "push"),
-      stats.getCombinedStatisticsBySources(monthAgo, now, "day", "push"),
-      stats.getCombinedStatisticsBySources(dayAgo, now, "hour", "pull"),
-      stats.getCombinedStatisticsBySources(monthAgo, now, "day", "pull"),
-    ])
-  })
-  const [lastHourIncomingEvents, lastDayIncomingEvents, lastHourRowsFromSources, lastDayRowsFromSources] = data || [
-    [],
-    [],
-    [],
-    [],
-  ]
-  if (error) {
-    return <StatisticsError />
+  const periodMap = {
+    month: addSeconds(now, -30 * 24 * 60 * 60),
+    week: addSeconds(now, -7 * 24 * 60 * 60),
+    day: addSeconds(now, -24 * 60 * 60),
   }
+
+  const periods = [
+    { label: "Last 30 days", value: "month" },
+    { label: "Last 7 days", value: "week" },
+    { label: "Last 24 hours", value: "day" },
+  ]
+
+  const destinationsOptions = destinationsStore.listIncludeHidden.map(d => {
+    const icon = destinationsReferenceMap[d._type]?.ui.icon
+    return { value: d._uid, label: d._id, icon } as FilterOption
+  })
+  const apiKeysOptions = apiKeysStore.list.map(key => {
+    return { value: key.uid, label: key.comment ?? key.uid, icon: apiKeysReferenceMap.js.icon } as FilterOption
+  })
+  const sourcesOptions = sourcesStore.list.map(source => {
+    return { value: source.sourceId, label: source.displayName ?? source.sourceId } as FilterOption
+  })
+  destinationsOptions.unshift({ label: "All destinations", value: "all" })
+  apiKeysOptions.unshift({ label: "All API keys", value: "all" })
+  sourcesOptions.unshift({ label: "All sources", value: "all" })
 
   return (
     <>
-      <div className="flex flex-row space-x-2 justify-end mb-4">
-        <NavLink to="/events_stream">
-          <Button type="ghost" size="large" icon={<ThunderboltFilled />} className="w-full mb-2">
-            Live Events
+      <div className="flex flex-row space-x-2 justify-between items-center mb-4">
+        <div className="flex-col">
+          <Filter label="Period" onChange={value => setPeriod(value.value)} options={periods} />
+        </div>
+        <div className="flex-col">
+          <NavLink to="/events_stream" className="inline-block mr-5">
+            <Button type="ghost" size="large" icon={<ThunderboltFilled />} className="w-full mb-2">
+              Live Events
+            </Button>
+          </NavLink>
+          <Button
+            size="large"
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              setReloadCount(reloadCount + 1)
+            }}
+          >
+            Reload
           </Button>
-        </NavLink>
-        <Button
-          size="large"
-          icon={<ReloadOutlined />}
-          onClick={() => {
-            reload()
-          }}
-        >
-          Reload
-        </Button>
+        </div>
       </div>
 
       {isSelfHosted && (
@@ -86,125 +91,129 @@ export const StatusPage: React.FC<{}> = () => {
       )}
       <Row gutter={16} className="status-page-cards-row mb-4">
         <Col span={12}>
-          <Card
-            title={
-              <span>
-                Incoming <NavLink to="/api_keys">events</NavLink> (last 30 days)
-              </span>
-            }
-            bordered={false}
-            loading={loading}
-            extra={<SourcesEventsDocsTooltip />}
-          >
-            <StatisticsChart
-              data={lastDayIncomingEvents || []}
-              granularity={"day"}
-              dataToDisplay={["success", "skip"]}
-            />
-          </Card>
+          <StatusChart
+            title={<span>Incoming <NavLink to="/api_keys">events</NavLink></span>}
+            stats={stats}
+            period={periodMap[period]}
+            namespace="source"
+            type="push"
+            granularity={period === "day" ? "hour" : "day"}
+            dataToDisplay={["success", "errors"]}
+            filterOptions={apiKeysOptions}
+            reloadCount={reloadCount}
+          />
         </Col>
         <Col span={12}>
-          <Card
-            title={
-              <span>
-                Incoming <NavLink to="/api_keys">events</NavLink> (last 24 hours)
-              </span>
-            }
-            bordered={false}
-            extra={<SourcesEventsDocsTooltip />}
-            loading={loading}
-          >
-            <StatisticsChart
-              data={lastHourIncomingEvents || []}
-              granularity={"hour"}
-              dataToDisplay={["success", "skip"]}
-            />
-          </Card>
+          <StatusChart
+            title={<span>Processed <NavLink to="/destinations">events</NavLink></span>}
+            stats={stats}
+            period={periodMap[period]}
+            namespace="destination"
+            type="push"
+            granularity={period === "day" ? "hour" : "day"}
+            dataToDisplay={["success", "skip", "errors"]}
+            filterOptions={destinationsOptions}
+            reloadCount={reloadCount}
+          />
         </Col>
       </Row>
-      <Row gutter={16} className="status-page-cards-row">
-        <Col span={12}>
-          <Card
-            title={<span>Rows synchronized from sources (last 30 days)</span>}
-            bordered={false}
-            extra={<DestinationsEventsDocsTooltip />}
-            loading={loading}
-          >
-            <StatisticsChart
-              data={lastDayRowsFromSources || []}
-              granularity={"day"}
-              dataToDisplay={["success", "skip", "errors"]}
-            />
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card
-            title={<span>Rows synchronized from sources (last 24 hours)</span>}
-            bordered={false}
-            loading={loading}
-            extra={<DestinationsEventsDocsTooltip />}
-          >
-            <StatisticsChart
-              data={lastHourRowsFromSources || []}
-              granularity={"hour"}
-              dataToDisplay={["success", "skip", "errors"]}
-            />
-          </Card>
-        </Col>
-      </Row>
+      <StatusChart
+        title={<span>Rows synchronized from sources</span>}
+        stats={stats}
+        period={periodMap[period]}
+        namespace="source"
+        type="pull"
+        granularity={period === "day" ? "hour" : "day"}
+        dataToDisplay={["success", "skip", "errors"]}
+        filterOptions={sourcesOptions}
+        reloadCount={reloadCount}
+        extra={SyncEventsDocsTooltip}
+      />
     </>
+  )
+}
+
+const StatusChart: React.FC<{
+  title: React.ReactNode | string
+  stats: StatisticsService
+  period: Date
+  namespace: "source" | "destination"
+  type: "push" | "pull"
+  granularity: "hour" | "day"
+  dataToDisplay: DataType | DataType[]
+  filterOptions: FilterOption[]
+  reloadCount: number
+  extra?: React.ReactNode
+}> = ({ title, stats, period, namespace, type, granularity, dataToDisplay, filterOptions, reloadCount, extra = null }) => {
+  const location = useLocation()
+  const params = new URLSearchParams(location.search)
+  const history = useHistory()
+  const [idFilter, setIdFilter] = useState(filterOptions[0].value)
+
+  const {
+    error,
+    data,
+    reloader: reload,
+    isLoading: loading,
+  } = useLoaderAsObject(async () => {
+    return namespace === "source"
+      ? await stats.getCombinedStatisticsBySources(period, new Date(), granularity, type, idFilter)
+      : await stats.getCombinedStatisticsByDestinations(period, new Date(), granularity, type, idFilter)
+  }, [period, idFilter, reloadCount])
+
+  useEffect(() => {
+
+  }, [idFilter])
+
+  const handleFilterSelect = value => {
+    setIdFilter(value.value)
+    const queryParams = new URLSearchParams(window.location.search);
+    queryParams.set(`${namespace}_${type}`, value.value)
+    history.replace({ search: queryParams.toString() })
+  }
+
+  return (
+    <Card
+      title={
+        <span>
+          {title}
+          <Filter className="inline-block ml-5" onChange={handleFilterSelect} options={filterOptions} />
+        </span>
+      }
+      bordered={false}
+      loading={loading}
+      className="mb-5 h-full"
+      extra={extra}
+    >
+      {
+        error
+          ? <StatisticsError />
+          : <StatisticsChart data={data || []} granularity={granularity} dataToDisplay={dataToDisplay} />
+      }
+    </Card>
   )
 }
 
 const StatisticsError = () => {
   return (
-    <div className="w-2/4 mx-auto mt-3">
-      <Card
-        title={
-          <>
-            <span className="text-warning">
-              <WarningOutlined />
-            </span>{" "}
-            Dashboard cannot be displayed
-          </>
-        }
-        bordered={false}
-      >
-        <div>
-          Connection to Jitsu server cannot be established. That's not a critical error, you still will be able to
-          configure Jitsu. However, statistic and monitoring for Jitsu Nodes won't be available. To fix that:
-          <ul className="mt-5">
-            <li>
-              Make sure that <CodeInline>jitsu.base_url</CodeInline> property is set in Jitsu Configurator yaml file
-            </li>
-            <li>
-              If <CodeInline>jitsu.base_url</CodeInline> is set, make sure that this URL is accessible (not blocked by
-              firewall) from Jitsu Configurator
-            </li>
-          </ul>
-        </div>
-      </Card>
+    <div>
+      <h3>Chart cannot be displayed</h3>
+      Connection to Jitsu server cannot be established. That's not a critical error, you still will be able to
+      configure Jitsu. However, statistic and monitoring for Jitsu Nodes won't be available. To fix that:
+      <ul className="mt-5">
+        <li>
+          Make sure that <CodeInline>jitsu.base_url</CodeInline> property is set in Jitsu Configurator yaml file
+        </li>
+        <li>
+          If <CodeInline>jitsu.base_url</CodeInline> is set, make sure that this URL is accessible (not blocked by
+          firewall) from Jitsu Configurator
+        </li>
+      </ul>
     </div>
   )
 }
 
-const SourcesEventsDocsTooltip: React.FC = ({ children }) => {
-  const content = (
-    <div className="max-w-xs">
-      <p>
-        Events sent from sources may be count as skipped if and only if there was no connected destination to send the
-        events to
-      </p>
-    </div>
-  )
-  return (
-    <span className="cursor-pointer status-page_info-popover">
-      <Tooltip title={content}>{children ? children : <QuestionCircleOutlined />}</Tooltip>
-    </span>
-  )
-}
-
-const DestinationsEventsDocsTooltip: React.FC = ({ children }) => {
+const SyncEventsDocsTooltip: React.FC = ({ children }) => {
   const content = (
     <div className="max-w-xs">
       <p>
@@ -217,5 +226,45 @@ const DestinationsEventsDocsTooltip: React.FC = ({ children }) => {
     <span className="cursor-pointer status-page_info-popover">
       <Tooltip title={content}>{children ? children : <QuestionCircleOutlined />}</Tooltip>
     </span>
+  )
+}
+
+const Filter: React.FC<{
+  label?: string
+  onChange: (selected: FilterOption) => void
+  options: FilterOption[]
+  initialValue?: any
+  className?: string
+}> = ({ label = "", onChange, options, initialValue, className = "" }) => {
+  const initialOption = options.find(o => o.value === initialValue) ?? options[0]
+  const [selectedOption, setSelectedOption] = useState(initialOption)
+
+  const handleChange = value => {
+    const selectedOption = find(options, ["value", value]) ?? options[0]
+    setSelectedOption(selectedOption)
+    onChange(selectedOption)
+  }
+
+  return (
+    <div className={className}>
+      {label ? <label>{label}: </label> : null}
+      <Select
+        defaultValue={selectedOption.value}
+        style={{ width: 170 }}
+        onChange={handleChange}
+        dropdownMatchSelectWidth={false}
+      >
+        {options.map(option => {
+          return (
+            <Option value={option.value} key={option.value}>
+              <div className={styles.filterOption}>
+                <span className={`icon-size-base ${styles.icon}`}>{option.icon}</span>{" "}
+                <span className={`icon-size-base ${styles.label}`}>{option.label}</span>
+              </div>
+            </Option>
+          )
+        })}
+      </Select>
+    </div>
   )
 }

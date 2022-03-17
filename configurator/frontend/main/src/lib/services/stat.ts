@@ -243,7 +243,7 @@ export class StatisticsService implements IStatisticsService {
     ]
     if (namespace) queryParams.push(["namespace", namespace])
     if (status) queryParams.push(["status", status])
-    if (destinationId) queryParams.push(["destination_id", destinationId])
+    if (destinationId) queryParams.push([namespace === "source" ? "source_id" : "destination_id", destinationId])
     const query = queryParams.reduce<string>((query, [name, value]) => `${query}${name}=${value}&`, "")
     return query.substring(0, query.length - 1) // removes the last '&' symbol
   }
@@ -283,14 +283,18 @@ export class StatisticsService implements IStatisticsService {
     start: Date,
     end: Date,
     granularity: Granularity,
-    type: EventsType
+    type: EventsType,
+    sourceId?: string
   ): Promise<CombinedStatisticsDatePoint[]> {
+    if (sourceId === "all") {
+      sourceId = ""
+    }
     const errorsDataAvailable = type === "pull"
     const requests = [
-      this.get(start, end, granularity, "source", type, "success"),
-      this.get(start, end, granularity, "source", type, "skip"),
+      this.get(start, end, granularity, "source", type, "success", sourceId),
+      this.get(start, end, granularity, "source", type, "skip", sourceId),
     ]
-    if (errorsDataAvailable) requests.push(this.get(start, end, granularity, "source", type, "errors"))
+    if (errorsDataAvailable) requests.push(this.get(start, end, granularity, "source", type, "errors", sourceId))
 
     const [successData, skipData, errorData] = await Promise.all(requests)
     const sourceDataEntries: [SourcesEventsCountType, DatePoint[]][] = [
@@ -308,6 +312,9 @@ export class StatisticsService implements IStatisticsService {
     type: EventsType,
     destinationId?: string
   ): Promise<CombinedStatisticsDatePoint[]> {
+    if (destinationId === "all") {
+      destinationId = ""
+    }
     const errorsDataAvailable = type === "push"
     const requests = [
       this.get(start, end, granularity, "destination", type, "success", destinationId),
