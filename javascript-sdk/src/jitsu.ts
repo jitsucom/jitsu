@@ -613,7 +613,9 @@ class JitsuClientImpl implements JitsuClient {
               const tag = document.createElement("div");
               tag.id = id;
               insertAndExecute(tag, value);
-              document.body.appendChild(tag);
+              if (tag.childElementCount > 0) {
+                document.body.appendChild(tag);
+              }
             }
           }
         }

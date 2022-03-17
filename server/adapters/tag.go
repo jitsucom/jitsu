@@ -10,6 +10,7 @@ import (
 type TagConfig struct {
 	TagID    string `mapstructure:"tagid,omitempty" json:"tagid,omitempty" yaml:"tagid,omitempty"`
 	Template string `mapstructure:"template,omitempty" json:"template,omitempty" yaml:"template,omitempty"`
+	Filter   string `mapstructure:"filter,omitempty" json:"filter,omitempty" yaml:"filter,omitempty"`
 }
 
 //Validate returns err if invalid
