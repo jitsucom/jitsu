@@ -391,6 +391,10 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*Table, error) {
 //PatchTableSchema add new columns(from provided Table) to existing table
 //drop and create distributed table
 func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
+	if len(patchSchema.Columns) == 0 {
+		return nil
+	}
+
 	addedColumnsDDL := make([]string, 0, len(patchSchema.Columns))
 	for columnName, column := range patchSchema.Columns {
 		columnDDL := ch.columnDDL(columnName, column)
