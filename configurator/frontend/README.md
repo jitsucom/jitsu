@@ -13,6 +13,11 @@ Before starting the frontend locally or building for production, run
 
 Run `yarn start` in the `frontend` folder to start the UI dev server; The script will open `localhost:3000` in a new tab of your default browser.
 
+### Catalog
+Run `yarn catalog:link` then `yarn start`. Your changes in the `frontend/catalog` will live update the UI. Once you are done run `yarn catalog:unlink`.
+
+The `catalog` subpackage will be published on npm once pushed to the `beta`/`master` branches. The jitsu.com landing will consume the latest published version on re-deploy.
+
 ### Environment Variables
 The UI recognizes following environment variables. Those marked with '\*' **must** be provided
 before building the app or running it with `yarn start`.
@@ -82,6 +87,8 @@ before building the app or running it with `yarn start`.
 - `yarn eslint:check` - check all \*.ts|tsx files in all subpackages for compliance with rules defined in the `.eslintrc.json` file
 - `yarn eslint:fix` - fix all mistakes in \*.ts|tsx files in all subpackages
 - `yarn all:check` - check subpackages with both Prettier and ESLint
+- `catalog:link` - symlinks local `catalog` subpackage into the root node_modulesd which enables live UI updates on changes in `frontend/catalog` folder
+- `catalog:unlink` - breaks the symlink and installs a static `catalog` package in its current state.
 - `lerna:publish` - publish canary versions of public subpackages to npm; So far this command is only used in GitHub CI (see `../../.github/workflows/lerna-ci.yml`) and it will only publish the `catalog` subpackage
 
 ### Subpackages

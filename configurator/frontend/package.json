@@ -12,7 +12,9 @@
     "prettier:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore ./",
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern **/node_modules/",
     "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern **/node_modules/ --fix",
-    "all:check": "yarn prettier:check && yarn eslint:check"
+    "all:check": "yarn prettier:check && yarn eslint:check",
+    "catalog:link": "(cd catalog && yarn link) && yarn link @jitsu/catalog",
+    "catalog:unlink": "yarn unlink @jitsu/catalog && (cd catalog && yarn unlink) && yarn install --force"
   },
   "dependencies": {
     "@jitsu/catalog": "file:catalog",
@@ -60,7 +62,6 @@
     "tailwindcss": "npm:@tailwindcss/postcss7-compat",
     "terser-webpack-plugin": "^5.1.1",
     "ts-jest": "^27.0.3",
-    "lerna": "^4.0.0",
     "typescript": "^4.4.3",
     "web-vitals": "^1.0.1",
     "webpack-bundle-analyzer": "^4.4.0"
