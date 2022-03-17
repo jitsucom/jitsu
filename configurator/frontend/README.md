@@ -14,11 +14,13 @@ Before starting the frontend locally or building for production, run
 Run `yarn start` in the `frontend` folder to start the UI dev server; The script will open `localhost:3000` in a new tab of your default browser.
 
 ### Catalog
+
 Run `yarn catalog:link` then `yarn start`. Your changes in the `frontend/catalog` will live update the UI. Once you are done run `yarn catalog:unlink`.
 
 The `catalog` subpackage will be published on npm once pushed to the `beta`/`master` branches. The jitsu.com landing will consume the latest published version on re-deploy.
 
 ### Environment Variables
+
 The UI recognizes following environment variables. Those marked with '\*' **must** be provided
 before building the app or running it with `yarn start`.
 
@@ -97,7 +99,9 @@ before building the app or running it with `yarn start`.
 - `catalog` -- definitions of the entities such as sources, destinations, API keys, mappings, etc. This subpackage is shared with `jitsu.com` and it is auto-published to npm on pushes to the `beta` branch;
 
 ### IDE Setup
+
 #### JetBrains IDE's (IDEA, WebStorm etc) config
+
 There're two ways on how to configure IDEA
 
 1. Configure it to reformat code after saving the file each time:
@@ -105,6 +109,7 @@ There're two ways on how to configure IDEA
 2. Import [ESLint setting to internal IDEA formatter](https://www.jetbrains.com/help/idea/eslint.html)
 
 #### VSCode
+
 - It is advisable to enable the format on save feature. VSCode will automatically use Prettier rules defined in the frontend folder once you install the Prettier extension.
 - It is convenient to use `Run -> Run without debugging` once defined launch configuration and environment variables in the `.code-workspace` file:
   ```JSON

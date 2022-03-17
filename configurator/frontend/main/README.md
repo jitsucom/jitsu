@@ -10,7 +10,7 @@
 - `yarn prettier:write` - fix all mistakes in \*.ts|tsx files in src directory
 
 Please, do **not** run the following commands. Refer to the `README.md` in the `frontend` folder instead.
+
 - `yarn install`
 - `yarn start`
 - `yarn build`
-
