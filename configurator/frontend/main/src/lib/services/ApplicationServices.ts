@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { JSON_FORMAT } from "./model"
 import axios, { AxiosRequestConfig } from "axios"
 import * as uuid from "uuid"
