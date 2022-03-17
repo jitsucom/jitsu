@@ -9740,7 +9740,7 @@ jest@26.6.0:
 "jitsu-configurator-ui@file:main":
   version "1.0.0"
   dependencies:
-    "@jitsu/catalog" "file:../../../../../Library/Caches/Yarn/v6/npm-jitsu-configurator-ui-1.0.0-f74f8475-8ffe-4048-a9ca-e8da45d5569a-1645428484921/node_modules/catalog"
+    "@jitsu/catalog" "file:../../../../../Library/Caches/Yarn/v6/npm-jitsu-configurator-ui-1.0.0-9a6f0150-349d-45e5-849f-6aa85796850b-1647505052327/node_modules/catalog"
     "@jitsu/sdk-js" "^2.3.0"
     antd "^4.13.1"
     axios "^0.21.4"
