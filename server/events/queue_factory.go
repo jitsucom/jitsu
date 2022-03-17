@@ -1,6 +1,7 @@
 package events
 
 import (
+	"fmt"
 	"io"
 	"time"
 
@@ -14,6 +15,23 @@ type TimedEvent struct {
 	Payload      map[string]interface{}
 	DequeuedTime time.Time
 	TokenID      string
+}
+
+type DummyQueue struct {
+}
+
+func (d *DummyQueue) Close() error {
+	return nil
+}
+
+func (d *DummyQueue) Consume(f map[string]interface{}, tokenID string) {
+}
+
+func (d *DummyQueue) ConsumeTimed(f map[string]interface{}, t time.Time, tokenID string) {
+}
+
+func (d *DummyQueue) DequeueBlock() (Event, time.Time, string, error) {
+	return nil, time.Time{}, "", fmt.Errorf("DequeueBlock not supported on DummyQueue")
 }
 
 //Queue is an events queue. Possible implementations (dque, leveldbqueue, native)

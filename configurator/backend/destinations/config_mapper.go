@@ -48,6 +48,8 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		config, err = mapS3(destination)
 	case enstorages.NpmType:
 		config, err = mapNpm(destination)
+	case enstorages.TagType:
+		config, err = mapTag(destination)
 	default:
 		return nil, fmt.Errorf("Unknown destination type: %s", destination.Type)
 	}
@@ -564,6 +566,37 @@ func mapNpm(whDestination *entities.Destination) (*enconfig.DestinationConfig, e
 		Mode:    "stream",
 		Config:  config,
 		Package: whDestination.Package,
+	}, nil
+}
+
+func mapTag(tagDestination *entities.Destination) (*enconfig.DestinationConfig, error) {
+	b, err := json.Marshal(tagDestination.Data)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshaling tag config destination: %v", err)
+	}
+
+	tagFormData := &entities.TagFormData{}
+	err = json.Unmarshal(b, tagFormData)
+	if err != nil {
+		return nil, fmt.Errorf("Error unmarshaling webhook form data: %v", err)
+	}
+
+	cfg := &enadapters.TagConfig{
+		TagID:    tagFormData.TagId,
+		Template: tagFormData.Template,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, &cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
+		Type:   enstorages.TagType,
+		Mode:   "synchronous",
+		Config: cfgMap,
+		DataLayout: &enconfig.DataLayout{
+			TableNameTemplate: tagFormData.TableName,
+		},
 	}, nil
 }
 
