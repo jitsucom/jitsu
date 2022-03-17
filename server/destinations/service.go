@@ -322,7 +322,10 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 			newIDs.Add(tokenID, id)
 			if destinationConfig.Mode == storages.StreamMode {
 				newConsumers.Add(tokenID, id, eventQueue)
-			} else if destinationConfig.Mode == storages.BatchMode {
+			} else if destinationConfig.Mode == storages.SynchronousMode {
+				newSynchronousStorages.Add(tokenID, id, newStorageProxy)
+			} else {
+				//batch mode
 				//get or create new logger
 				loggerUsage, ok := s.loggersUsageByTokenID[tokenID]
 				if !ok {
@@ -340,8 +343,6 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 
 				//add storage only if batch mode
 				newStorages.Add(tokenID, id, newStorageProxy)
-			} else if destinationConfig.Mode == storages.SynchronousMode {
-				newSynchronousStorages.Add(tokenID, id, newStorageProxy)
 			}
 		}
 	}
