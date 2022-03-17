@@ -432,3 +432,7 @@ func (a *Abstract) getAdapters() (adapters.SQLAdapter, *TableHelper) {
 	num := rand.Intn(len(a.sqlAdapters))
 	return a.sqlAdapters[num], a.tableHelpers[num]
 }
+
+func (a *Abstract) GetSyncWorker() *SyncWorker {
+	return nil
+}

@@ -1,5 +1,5 @@
 import { isWindowAvailable, requireWindow } from "./window";
-import { CookieOpts, serializeCookie } from "./cookie"
+import { CookieOpts, serializeCookie } from "./cookie";
 
 export const getCookieDomain = () => {
   if (isWindowAvailable()) {
@@ -12,7 +12,7 @@ let cookieParsingCache: Record<string, string>;
 
 export function parseCookieString(cookieStr?: string) {
   if (!cookieStr) {
-    return {}
+    return {};
   }
   let res: Record<string, string> = {};
   let cookies = cookieStr.split(";");
@@ -28,7 +28,26 @@ export function parseCookieString(cookieStr?: string) {
   return res;
 }
 
-export const getCookies = (useCache: boolean = false): Record<string, string> => {
+export function insertAndExecute(element: HTMLElement, html: string) {
+  element.innerHTML = html;
+  const scripts = Array.prototype.slice.call(
+    element.getElementsByTagName("script")
+  );
+  for (const script of scripts) {
+    const tag = document.createElement("script");
+    if (script.src) {
+      tag.src = script.src;
+    }
+    if (script.innerHTML) {
+      tag.innerHTML = script.innerHTML;
+    }
+    document.getElementsByTagName("head")[0].appendChild(tag);
+  }
+}
+
+export const getCookies = (
+  useCache: boolean = false
+): Record<string, string> => {
   if (useCache && cookieParsingCache) {
     return cookieParsingCache;
   }
@@ -36,23 +55,37 @@ export const getCookies = (useCache: boolean = false): Record<string, string> =>
   let res = parseCookieString(document.cookie);
   cookieParsingCache = res;
   return res;
-
-}
+};
 
 export const getCookie = (name: string) => {
   if (!name) {
     return null;
   }
-  return decodeURIComponent(requireWindow().document.cookie.replace(new RegExp("(?:(?:^|.*;)\\s*" + encodeURIComponent(name).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=\\s*([^;]*).*$)|^.*$"), "$1")) || null;
+  return (
+    decodeURIComponent(
+      requireWindow().document.cookie.replace(
+        new RegExp(
+          "(?:(?:^|.*;)\\s*" +
+            encodeURIComponent(name).replace(/[\-\.\+\*]/g, "\\$&") +
+            "\\s*\\=\\s*([^;]*).*$)|^.*$"
+        ),
+        "$1"
+      )
+    ) || null
+  );
 };
 
-export const setCookie = (name: string, value: string, opts: CookieOpts = {}) => {
+export const setCookie = (
+  name: string,
+  value: string,
+  opts: CookieOpts = {}
+) => {
   requireWindow().document.cookie = serializeCookie(name, value, opts);
 };
 
 export const deleteCookie = (name: string) => {
-  document.cookie = name+'= ; expires = Thu, 01 Jan 1970 00:00:00 GMT';
-}
+  document.cookie = name + "= ; expires = Thu, 01 Jan 1970 00:00:00 GMT";
+};
 
 export const generateId = () => Math.random().toString(36).substring(2, 12);
 
@@ -60,14 +93,17 @@ export const generateRandom = () => Math.random().toString(36).substring(2, 7);
 
 export const parseQuery = (qs: string) => {
   if (!qs) {
-    return {}
+    return {};
   }
-  let queryString = (qs.length > 0 && qs.charAt(0) === '?') ? qs.substring(1) : qs
+  let queryString =
+    qs.length > 0 && qs.charAt(0) === "?" ? qs.substring(1) : qs;
   let query: Record<string, string> = {};
-  let pairs = (queryString[0] === '?' ? queryString.substr(1) : queryString).split('&');
+  let pairs = (
+    queryString[0] === "?" ? queryString.substr(1) : queryString
+  ).split("&");
   for (let i = 0; i < pairs.length; i++) {
-    let pair = pairs[i].split('=');
-    query[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || '');
+    let pair = pairs[i].split("=");
+    query[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || "");
   }
   return query;
 };
@@ -77,20 +113,20 @@ const UTM_TYPES: Record<string, string> = {
   utm_medium: "medium",
   utm_campaign: "campaign",
   utm_term: "term",
-  utm_content: "content"
+  utm_content: "content",
 };
 
 const CLICK_IDS: Record<string, boolean> = {
   gclid: true,
   fbclid: true,
-  dclid: true
+  dclid: true,
 };
 
 export const getDataFromParams = (params: Record<string, string>) => {
   const result = {
     utm: {} as Record<string, string>,
-    click_id: {} as Record<string, any>
-  }
+    click_id: {} as Record<string, any>,
+  };
   for (let name in params) {
     if (!params.hasOwnProperty(name)) {
       continue;
@@ -104,18 +140,18 @@ export const getDataFromParams = (params: Record<string, string>) => {
     }
   }
   return result;
-}
+};
 
 //2020-08-24T13:42:16.439Z -> 2020-08-24T13:42:16.439123Z
 export const reformatDate = (strDate: string) => {
-  const end = strDate.split('.')[1];
+  const end = strDate.split(".")[1];
   if (!end) {
     return strDate;
   }
   if (end.length >= 7) {
     return strDate;
   }
-  return strDate.slice(0, -1) + '0'.repeat(7 - end.length) + 'Z';
+  return strDate.slice(0, -1) + "0".repeat(7 - end.length) + "Z";
 };
 
 function endsWith(str: string, suffix: string) {
@@ -129,7 +165,7 @@ export const getHostWithProtocol = (host: string) => {
   if (host.indexOf("https://") === 0 || host.indexOf("http://") === 0) {
     return host;
   } else {
-    return "//" + host
+    return "//" + host;
   }
 };
 
@@ -145,16 +181,13 @@ export function awaitCondition<T>(
       return;
     }
     if (retries === 0) {
-      reject('condition rejected');
+      reject("condition rejected");
       return;
     }
-    setTimeout(
-      () => {
-        awaitCondition(condition, factory, timeout, retries - 1).then(resolve).catch(reject);
-      },
-      timeout
-    )
+    setTimeout(() => {
+      awaitCondition(condition, factory, timeout, retries - 1)
+        .then(resolve)
+        .catch(reject);
+    }, timeout);
   });
 }
-
-

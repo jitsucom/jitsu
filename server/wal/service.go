@@ -139,7 +139,7 @@ func (s *Service) handleFile(filePath string) error {
 
 	for _, record := range records {
 		processor := s.processorHolder.GetByType(record.ProcessorType)
-		err := s.multiplexingService.AcceptRequest(processor, record.RequestContext, record.Token, record.Events)
+		_, err := s.multiplexingService.AcceptRequest(processor, record.RequestContext, record.Token, record.Events)
 		if err != nil {
 			//ELOST
 			reqBody, _ := json.Marshal(record)

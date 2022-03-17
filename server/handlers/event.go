@@ -30,8 +30,9 @@ const (
 
 //EventResponse is a dto for sending operation status and delete_cookie flag
 type EventResponse struct {
-	Status       string `json:"status"`
-	DeleteCookie bool   `json:"delete_cookie,omitempty"`
+	Status       string                   `json:"status"`
+	DeleteCookie bool                     `json:"delete_cookie,omitempty"`
+	SdkExtras    []map[string]interface{} `json:"jitsu_sdk_extras,omitempty"`
 }
 
 //CachedEvent is a dto for events cache
@@ -131,7 +132,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		return
 	}
 
-	err := eh.multiplexingService.AcceptRequest(eh.processor, reqContext, token, eventsArray)
+	extras, err := eh.multiplexingService.AcceptRequest(eh.processor, reqContext, token, eventsArray)
 	if err != nil {
 		code := http.StatusBadRequest
 		if err == multiplexing.ErrNoDestinations {
@@ -145,7 +146,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, EventResponse{Status: "ok", DeleteCookie: !reqContext.CookiesLawCompliant})
+	c.JSON(http.StatusOK, EventResponse{Status: "ok", DeleteCookie: !reqContext.CookiesLawCompliant, SdkExtras: extras})
 }
 
 //GetHandler returns cached events by destination_ids

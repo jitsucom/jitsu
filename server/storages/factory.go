@@ -26,6 +26,8 @@ const (
 	BatchMode = "batch"
 	//StreamMode is a mode when destinations store data row by row
 	StreamMode = "stream"
+	//SynchronousMode is a mode when destinations process event immediately during HTTP request lifetime and can put result in HTTP response body
+	SynchronousMode = "synchronous"
 )
 
 var (
@@ -79,6 +81,7 @@ type StorageType struct {
 	typeName         string
 	createFunc       func(config *Config) (Storage, error)
 	defaultTableName string
+	isSynchronous    bool
 	isSQL            bool
 	isSQLFunc        func(config *config.DestinationConfig) bool
 }
@@ -140,11 +143,14 @@ func (f *FactoryImpl) Configure(destinationID string, destination config.Destina
 	if destination.Mode == "" {
 		destination.Mode = BatchMode
 	}
-	if destination.Mode != BatchMode && destination.Mode != StreamMode {
-		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, BatchMode, StreamMode)
+	if destination.Mode != BatchMode && destination.Mode != StreamMode && destination.Mode != SynchronousMode {
+		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s, %s]", destination.Mode, BatchMode, StreamMode, SynchronousMode)
 	}
 	logging.Infof("[%s] initializing destination of type: %s in mode: %s", destinationID, destination.Type, destination.Mode)
 	storageType, ok := StorageTypes[destination.Type]
+	if storageType.isSynchronous {
+		destination.Mode = SynchronousMode
+	}
 	if !ok {
 		return nil, nil, ErrUnknownDestination
 	}
@@ -175,9 +181,12 @@ func (f *FactoryImpl) Configure(destinationID string, destination config.Destina
 		return nil, nil, err
 	}
 
-	eventQueue, err := f.eventsQueueFactory.CreateEventsQueue(destination.Type, destinationID)
-	if err != nil {
-		return nil, nil, err
+	var eventQueue events.Queue
+	if destination.Mode != SynchronousMode {
+		eventQueue, err = f.eventsQueueFactory.CreateEventsQueue(destination.Type, destinationID)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	//override debug sql (ddl, queries) loggers from the destination config

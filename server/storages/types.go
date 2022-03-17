@@ -22,6 +22,7 @@ const (
 	FacebookType        = "facebook"
 	WebHookType         = "webhook"
 	NpmType             = "npm"
+	TagType             = "tag"
 	AmplitudeType       = "amplitude"
 	HubSpotType         = "hubspot"
 	DbtCloudType        = "dbtcloud"
@@ -52,6 +53,7 @@ type Storage interface {
 	//Update(object map[string]interface{}) error
 	Fallback(events ...*events.FailedEvent)
 	GetUsersRecognition() *UserRecognitionConfiguration
+	GetSyncWorker() *SyncWorker
 	GetUniqueIDField() *identifiers.UniqueID
 	getAdapters() (adapters.SQLAdapter, *TableHelper)
 	Processor() *schema.Processor
