@@ -4,7 +4,6 @@ import express from "express";
 import http from "http";
 import { Browser, ConsoleMessage, Request, Response } from "playwright";
 import * as fs from "fs";
-import path from "path";
 import bodyParser from "body-parser";
 import * as core from "express-serve-static-core";
 
@@ -76,12 +75,12 @@ export class TestServer {
         JSON.stringify(bodyJson, null, 2)
       );
       if (bodyJson.jitsu_sdk_extras) {
+        //to simulate synchronous destination produce response from incoming event.
         res.send(
           JSON.stringify({ jitsu_sdk_extras: bodyJson.jitsu_sdk_extras })
         );
       } else {
         res.send();
-        // res.send('{"tags":{"dst1": "<script>console.log(\'asd\')</script>"}}');
       }
       next();
     };
