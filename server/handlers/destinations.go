@@ -147,6 +147,13 @@ func testDestinationConnection(config *config.DestinationConfig, globalConfigura
 			return err
 		}
 		return nil
+	case storages.TagType:
+		cfg := &adapters.TagConfig{}
+		if err := config.GetDestConfig(map[string]interface{}{}, cfg); err != nil {
+			return err
+		}
+		_, err := adapters.NewTag(cfg, identifier)
+		return err
 	case storages.AmplitudeType:
 		cfg := &adapters.AmplitudeConfig{}
 		if err := config.GetDestConfig(config.Amplitude, cfg); err != nil {

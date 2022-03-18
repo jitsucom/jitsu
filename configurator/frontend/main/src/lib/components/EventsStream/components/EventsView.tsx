@@ -32,6 +32,9 @@ export function preprocessJson(obj: any) {
   if (obj.body) {
     obj.body = tryParseJson(obj.body)
   }
+  if (obj.jitsu_sdk_extras) {
+    obj.jitsu_sdk_extras = tryParseJson(obj.jitsu_sdk_extras)
+  }
   return obj
 }
 

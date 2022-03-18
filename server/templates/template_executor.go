@@ -33,7 +33,7 @@ type goTemplateExecutor struct {
 	expression string
 }
 
-func newGoTemplateExecutor(name string, expression string, extraFunctions template.FuncMap) (*goTemplateExecutor, error) {
+func NewGoTemplateExecutor(name string, expression string, extraFunctions template.FuncMap) (*goTemplateExecutor, error) {
 	tmpl := template.New(name)
 	if extraFunctions != nil {
 		var funcs = make(map[string]interface{})
