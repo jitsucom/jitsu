@@ -307,7 +307,7 @@ func (a *Abstract) close() (multiErr error) {
 	return nil
 }
 
-func (a *Abstract) Init(config *Config, impl Storage) error {
+func (a *Abstract) Init(config *Config, impl Storage, preinstalledJavaScript string, defaultUserTransform string) error {
 	a.implementation = impl
 	//Abstract (SQLAdapters and tableHelpers are omitted)
 	a.destinationID = config.destinationID
@@ -317,6 +317,12 @@ func (a *Abstract) Init(config *Config, impl Storage) error {
 	a.cachingConfiguration = config.destination.CachingConfiguration
 	var err error
 	a.processor, a.sqlTypes, err = a.setupProcessor(config)
+	if preinstalledJavaScript != "" {
+		a.processor.AddJavaScript(preinstalledJavaScript)
+	}
+	if defaultUserTransform != "" {
+		a.processor.SetDefaultUserTransform(defaultUserTransform)
+	}
 	if err != nil {
 		return err
 	}

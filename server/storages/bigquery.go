@@ -64,7 +64,7 @@ func NewBigQuery(config *Config) (storage Storage, err error) {
 	bq := &BigQuery{
 		gcsAdapter: gcsAdapter,
 	}
-	err = bq.Init(config, bq)
+	err = bq.Init(config, bq, "", "")
 	if err != nil {
 		return
 	}
