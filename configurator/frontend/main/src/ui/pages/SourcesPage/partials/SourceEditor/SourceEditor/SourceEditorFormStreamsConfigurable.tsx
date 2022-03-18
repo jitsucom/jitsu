@@ -19,7 +19,7 @@ import styles from "./SourceEditor.module.less"
 const { Panel } = Collapse
 
 export interface Props {
-  initialSourceData: Partial<SourceData>
+  initialSourceData: Partial<NativeSourceData>
   sourceDataFromCatalog: SourceConnector
   setSourceEditorState: SetSourceEditorState
 }

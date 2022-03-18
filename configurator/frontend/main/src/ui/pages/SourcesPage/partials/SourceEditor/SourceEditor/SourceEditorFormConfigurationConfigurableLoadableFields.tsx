@@ -21,7 +21,7 @@ import { mapAirbyteSpecToSourceConnectorConfig } from "@jitsu/catalog/sources/li
 
 type Props = {
   editorMode: "add" | "edit"
-  initialValues: Partial<SourceData>
+  initialValues: Partial<AirbyteSourceData>
   sourceDataFromCatalog: SourceConnector
   hideFields?: string[]
   patchConfig: PatchConfig

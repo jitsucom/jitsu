@@ -65,7 +65,7 @@ const SourceEditorFormStreamsLoadableForm = ({
     requestAnimationFrame(() => {
       setAllChecked(checked)
       checked
-        ? handleSetSelectedStreams(allStreams.map(sourceEditorUtils.streamDataToSelectedStreamsMapper))
+        ? handleSetSelectedStreams(allStreams.map(sourceEditorUtils.mapStreamDataToSelectedStreams))
         : handleSetSelectedStreams([])
     })
   }
@@ -179,8 +179,8 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
         expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
       >
         {streamsToDisplay
+          /* moves initially selected streams to the top of the list */
           .sort((a, b) => {
-            // moves initially selected streams to the top of the list
             const [aUid, bUid] = [a, b].map(sourceEditorUtils.getStreamUid)
             const [aIsInitiallySelected, bIsInitiallySelected] = [aUid, bUid].map(uid =>
               initiallySelectedStreams.some(selected => sourceEditorUtils.getSelectedStreamUid(selected) === uid)
@@ -231,7 +231,7 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
   )
 
   const toggle = (checked: boolean, event: MouseEvent) => {
-    event.stopPropagation() // hacky way to prevent collapse triggers
+    event.stopPropagation() // hack to prevent collapse triggers
     setChecked(checked)
     handleToggleStream(checked, streamUid)
   }
@@ -288,14 +288,19 @@ const AirbyteStreamParameters: React.FC<AirbyteStreamParametersProps> = ({
   const initialSyncMode = streamData.sync_mode ?? streamData.stream.supported_sync_modes?.[0]
   const needToDisplayData: boolean = !!initialSyncMode && !!streamData.stream.json_schema?.properties
   const [syncMode, setSyncMode] = useState<string>(initialSyncMode)
+  const [cursorField, setCursorField] = useState<string[]>(
+    streamData.stream.source_defined_cursor
+      ? streamData.stream.default_cursor_field
+      : getAirbyteStreamCursorFields(streamData)[0]
+  )
   const handleChangeSyncMode = value => {
     setSyncMode(value)
     handleChangeStreamSyncMode(value, streamData)
   }
   return needToDisplayData ? (
     <div className="flex flex-col w-full h-full flex-wrap">
-      {/* {streamData.stream.supported_sync_modes?.length ? ( */}
-      {false ? ( // temporarily disables sync mode selection
+      {/* Sync mode */}
+      {streamData.stream.supported_sync_modes?.length ? (
         <StreamParameter title="Sync mode">
           <Select size="small" value={syncMode} disabled={!checked} onChange={handleChangeSyncMode}>
             {streamData.stream.supported_sync_modes.map(mode => (
@@ -309,6 +314,10 @@ const AirbyteStreamParameters: React.FC<AirbyteStreamParametersProps> = ({
         <StreamParameter title="Sync mode">{initialSyncMode}</StreamParameter>
       ) : null}
 
+      {/* Cursor field */}
+      {syncMode === "incremental" ? null : null}
+
+      {/* JSON Schema */}
       {streamData.stream.json_schema.properties && (
         <StreamParameter title="JSON Schema">
           <div className="max-h-72 w-full overflow-y-auto">
@@ -379,7 +388,7 @@ export const addStream = (setSourceEditorState: SetSourceEditorState, sourceData
   setSourceEditorState(state => {
     const newState = cloneDeep(state)
     const oldStreams = newState.streams.selectedStreams[sourceDataPath]
-    const streamConfig = sourceEditorUtils.streamDataToSelectedStreamsMapper(stream)
+    const streamConfig = sourceEditorUtils.mapStreamDataToSelectedStreams(stream)
 
     let newStreams = oldStreams
     if (isArray(oldStreams)) {
@@ -401,7 +410,7 @@ export const removeStream = (
   setSourceEditorState(state => {
     const newState = cloneDeep(state)
     const oldStreams = newState.streams.selectedStreams[sourceDataPath]
-    const streamConfig = sourceEditorUtils.streamDataToSelectedStreamsMapper(stream)
+    const streamConfig = sourceEditorUtils.mapStreamDataToSelectedStreams(stream)
 
     let newStreams = oldStreams
     if (isArray(oldStreams)) {
@@ -425,7 +434,7 @@ export const updateStream = (
   setSourceEditorState(state => {
     const newState = cloneDeep(state)
     const oldStreams = newState.streams.selectedStreams[sourceDataPath]
-    const streamConfig = sourceEditorUtils.streamDataToSelectedStreamsMapper(stream)
+    const streamConfig = sourceEditorUtils.mapStreamDataToSelectedStreams(stream)
 
     let newStreams = oldStreams
     if (isArray(oldStreams)) {
@@ -453,4 +462,8 @@ export const setSelectedStreams = (
     if (!options?.doNotSetStateChanged) newState.stateChanged = true
     return newState
   })
+}
+
+const getAirbyteStreamCursorFields = (stream: AirbyteStreamData): string[][] => {
+  return [[]]
 }

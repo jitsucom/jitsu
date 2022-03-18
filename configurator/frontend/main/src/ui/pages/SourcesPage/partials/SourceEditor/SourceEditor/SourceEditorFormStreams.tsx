@@ -27,14 +27,14 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
   const isNativeSource: boolean = !sourceDataFromCatalog.protoType
   return isNativeSource ? (
     <SourceEditorFormStreamsConfigurable
-      initialSourceData={initialSourceData}
+      initialSourceData={initialSourceData as NativeSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
       setSourceEditorState={setSourceEditorState}
     />
   ) : (
     <SourceEditorFormStreamsLoadable
       editorMode={editorMode}
-      initialSourceData={initialSourceData}
+      initialSourceData={initialSourceData as AirbyteSourceData | SingerSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
       setSourceEditorState={setSourceEditorState}
       handleSetControlsDisabled={handleSetControlsDisabled}

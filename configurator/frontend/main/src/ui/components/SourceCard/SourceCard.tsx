@@ -25,6 +25,7 @@ import { isAtLeastOneStreamSelected } from "utils/sources/sourcesUtils"
 import { NoStreamsSelectedMessage } from "../NoStreamsSelectedMessage/NoStreamsSelectedMessage"
 import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 import { connectionsHelper } from "stores/helpers"
+import { sourceEditorUtils } from "ui/pages/SourcesPage/partials/SourceEditor/SourceEditor/SourceEditor.utils"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator, current) => ({
@@ -81,19 +82,21 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
           )
         }
 
-        if (src.collections && src.collections.length > 0) {
-          for (let i = 0; i < src.collections.length; i++) {
-            await services.backendApiClient.post("/tasks", undefined, {
-              proxy: true,
-              urlParams: {
-                source: `${services.activeProject.id}.${src.sourceId}`,
-                collection: src.collections[i].name,
-                project_id: services.activeProject.id,
-              },
-            })
-          }
+        if (sourceEditorUtils.isNativeSource(src) && src.collections.length > 0) {
+          await Promise.all(
+            src.collections.map(stream =>
+              services.backendApiClient.post("/tasks", undefined, {
+                proxy: true,
+                urlParams: {
+                  source: `${services.activeProject.id}.${src.sourceId}`,
+                  collection: stream.name,
+                  project_id: services.activeProject.id,
+                },
+              })
+            )
+          )
         } else {
-          //workaround for singer, it doesn't have collections, so we should pass
+          //workaround for singer and airbyte, it doesn't have collections, so we should pass
           //any value
           await services.backendApiClient.post("/tasks", undefined, {
             proxy: true,

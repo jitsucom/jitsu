@@ -98,7 +98,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
         return {
           backendId: airbyteId,
           hideOauthFields: true,
-          loadableFieldsEndpoint: "test",
+          loadableFields: true,
           invisibleStaticFields: {
             "config.docker_image": sourceDataFromCatalog.id.replace("airbyte-", ""),
           },
@@ -113,8 +113,8 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
             "config.tap": tapId,
           },
         }
+      /** Native source */
       default:
-        // native source
         const id = sourceDataFromCatalog.id
         return {
           backendId: id,
@@ -248,10 +248,10 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
               setFormReference={setFormReference}
             />
           )}
-          {sourceConfigurationSchema.loadableFieldsEndpoint && (
+          {sourceConfigurationSchema.loadableFields && (
             <SourceEditorFormConfigurationConfigurableLoadableFields
               editorMode={editorMode}
-              initialValues={initialSourceData}
+              initialValues={initialSourceData as AirbyteSourceData}
               sourceDataFromCatalog={sourceDataFromCatalog}
               hideFields={hideFields}
               patchConfig={patchConfig}
