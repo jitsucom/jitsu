@@ -65,7 +65,7 @@ module.exports = {
         reportFilename: "bundle-report.html",
       }),
       new MonacoWebpackPlugin({
-        languages: ["json", "javascript", "typescript"],
+        languages: ["json", "javascript", "typescript", "html"],
       }),
     ],
     configure: (webpackConfig, { env, paths }) => {

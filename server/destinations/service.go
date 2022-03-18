@@ -47,7 +47,9 @@ type Service struct {
 
 	consumersByTokenID TokenizedConsumers
 	//batchStoragesByTokenID - only batch mode destinations by TokenID
-	batchStoragesByTokenID  TokenizedStorages
+	batchStoragesByTokenID       TokenizedStorages
+	synchronousStoragesByTokenID TokenizedStorages
+
 	destinationsIDByTokenID TokenizedIDs
 
 	//events queues by destination ID
@@ -64,6 +66,7 @@ func NewTestService(unitsByID map[string]*Unit, consumersByTokenID TokenizedCons
 		unitsByID:                    unitsByID,
 		consumersByTokenID:           consumersByTokenID,
 		batchStoragesByTokenID:       storagesByTokenID,
+		synchronousStoragesByTokenID: map[string]map[string]storages.StorageProxy{},
 		destinationsIDByTokenID:      destinationsIDByTokenID,
 		queueConsumerByDestinationID: queueConsumerByDestinationID,
 	}
@@ -80,9 +83,10 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 		unitsByID:             map[string]*Unit{},
 		loggersUsageByTokenID: map[string]*LoggerUsage{},
 
-		consumersByTokenID:      map[string]map[string]events.Consumer{},
-		batchStoragesByTokenID:  map[string]map[string]storages.StorageProxy{},
-		destinationsIDByTokenID: map[string]map[string]bool{},
+		consumersByTokenID:           map[string]map[string]events.Consumer{},
+		batchStoragesByTokenID:       map[string]map[string]storages.StorageProxy{},
+		synchronousStoragesByTokenID: map[string]map[string]storages.StorageProxy{},
+		destinationsIDByTokenID:      map[string]map[string]bool{},
 
 		queueConsumerByDestinationID: map[string]events.Consumer{},
 
@@ -168,6 +172,15 @@ func (s *Service) GetBatchStorages(tokenID string) (storages []storages.StorageP
 	return
 }
 
+func (s *Service) GetSynchronousStorages(tokenID string) (storages []storages.StorageProxy) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	for _, s := range s.synchronousStoragesByTokenID[tokenID] {
+		storages = append(storages, s)
+	}
+	return
+}
+
 func (s *Service) GetDestinationIDs(tokenID string) map[string]bool {
 	ids := map[string]bool{}
 	s.mutex.RLock()
@@ -229,6 +242,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 	// create or recreate
 	newConsumers := TokenizedConsumers{}
 	newStorages := TokenizedStorages{}
+	newSynchronousStorages := TokenizedStorages{}
 	newIDs := TokenizedIDs{}
 	queueConsumerByDestinationID := map[string]events.Consumer{}
 
@@ -276,9 +290,15 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 			logging.Errorf("[%s] Error initializing destination of type %s: %v", id, destinationConfig.Type, err)
 			continue
 		}
-		appconfig.Instance.ScheduleEventsConsumerClosing(eventQueue)
+		storageType, ok := storages.StorageTypes[destinationConfig.Type]
+		if storageType.IsSynchronous {
+			destinationConfig.Mode = storages.SynchronousMode
+		}
+		if eventQueue != nil {
+			appconfig.Instance.ScheduleEventsConsumerClosing(eventQueue)
+			queueConsumerByDestinationID[id] = eventQueue
+		}
 
-		queueConsumerByDestinationID[id] = eventQueue
 		s.unitsByID[id] = &Unit{
 			eventQueue: eventQueue,
 			storage:    newStorageProxy,
@@ -302,7 +322,10 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 			newIDs.Add(tokenID, id)
 			if destinationConfig.Mode == storages.StreamMode {
 				newConsumers.Add(tokenID, id, eventQueue)
+			} else if destinationConfig.Mode == storages.SynchronousMode {
+				newSynchronousStorages.Add(tokenID, id, newStorageProxy)
 			} else {
+				//batch mode
 				//get or create new logger
 				loggerUsage, ok := s.loggersUsageByTokenID[tokenID]
 				if !ok {
@@ -327,6 +350,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 	s.mutex.Lock()
 	s.consumersByTokenID.AddAll(newConsumers)
 	s.batchStoragesByTokenID.AddAll(newStorages)
+	s.synchronousStoragesByTokenID.AddAll(newSynchronousStorages)
 	s.destinationsIDByTokenID.AddAll(newIDs)
 
 	for destinationID, eventsQueueConsumer := range queueConsumerByDestinationID {
@@ -347,12 +371,14 @@ func (s *Service) removeAndClose(destinationID string, unit *Unit) {
 			delete(oldConsumers, destinationID)
 		} else {
 			//logger
-			loggerUsage := s.loggersUsageByTokenID[tokenID]
-			loggerUsage.usage -= 1
-			if loggerUsage.usage == 0 {
-				delete(oldConsumers, tokenID)
-				delete(s.loggersUsageByTokenID, tokenID)
-				loggerUsage.logger.Close()
+			loggerUsage, ok := s.loggersUsageByTokenID[tokenID]
+			if ok {
+				loggerUsage.usage -= 1
+				if loggerUsage.usage == 0 {
+					delete(oldConsumers, tokenID)
+					delete(s.loggersUsageByTokenID, tokenID)
+					loggerUsage.logger.Close()
+				}
 			}
 		}
 
@@ -366,6 +392,15 @@ func (s *Service) removeAndClose(destinationID string, unit *Unit) {
 			delete(oldStorages, destinationID)
 			if len(oldStorages) == 0 {
 				delete(s.batchStoragesByTokenID, tokenID)
+			}
+		}
+
+		//sync storage
+		oldSyncStorages, ok := s.synchronousStoragesByTokenID[tokenID]
+		if ok {
+			delete(oldSyncStorages, destinationID)
+			if len(oldSyncStorages) == 0 {
+				delete(s.synchronousStoragesByTokenID, tokenID)
 			}
 		}
 

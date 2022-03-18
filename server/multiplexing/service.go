@@ -27,14 +27,14 @@ func NewService(destinationService *destinations.Service) *Service {
 }
 
 //AcceptRequest multiplexes input events, enriches with context and sends to consumers
-func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.RequestContext, token string, eventsArray []events.Event) error {
+func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.RequestContext, token string, eventsArray []events.Event) ([]map[string]interface{}, error) {
 	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
 	destinationStorages := s.destinationService.GetDestinations(tokenID)
 	if len(destinationStorages) == 0 {
 		counters.SkipPushSourceEvents(tokenID, 1)
-		return ErrNoDestinations
+		return nil, ErrNoDestinations
 	}
-
+	extras := make([]map[string]interface{}, 0)
 	for _, payload := range eventsArray {
 		//** Context enrichment **
 		//Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
@@ -49,13 +49,24 @@ func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.R
 
 		//** Multiplexing **
 		consumers := s.destinationService.GetConsumers(tokenID)
-		if len(consumers) == 0 {
+		synchronousStorages := s.destinationService.GetSynchronousStorages(tokenID)
+		if len(consumers) == 0 && len(synchronousStorages) == 0 {
 			counters.SkipPushSourceEvents(tokenID, 1)
-			return ErrNoDestinations
+			return nil, ErrNoDestinations
 		}
 
 		for _, consumer := range consumers {
 			consumer.Consume(payload, tokenID)
+		}
+
+		for _, sc := range synchronousStorages {
+			synchronousStorage, ok := sc.Get()
+			if ok {
+				syncWorker := synchronousStorage.GetSyncWorker()
+				if syncWorker != nil {
+					extras = append(extras, syncWorker.ProcessEvent(payload, tokenID)...)
+				}
+			}
 		}
 
 		var destinationIDs []string
@@ -68,5 +79,5 @@ func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.R
 		counters.SuccessPushSourceEvents(tokenID, 1)
 	}
 
-	return nil
+	return extras, nil
 }
