@@ -55,7 +55,7 @@ type Storage interface {
 	GetUniqueIDField() *identifiers.UniqueID
 	getAdapters() (adapters.SQLAdapter, *TableHelper)
 	Processor() *schema.Processor
-	Init(config *Config, impl Storage) error
+	Init(config *Config, impl Storage, preinstalledJavaScript string, defaultUserTransform string) error
 	Start(config *Config) error
 	ID() string
 	Type() string
