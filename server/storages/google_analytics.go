@@ -36,14 +36,11 @@ func NewGoogleAnalytics(config *Config) (storage Storage, err error) {
 	}
 
 	ga := &GoogleAnalytics{}
-	err = ga.Init(config, ga)
+	err = ga.Init(config, ga, googleAnalyticsTransform, `return toGoogleAnalytics($)`)
 	if err != nil {
 		return
 	}
 	storage = ga
-
-	ga.processor.AddJavaScript(googleAnalyticsTransform)
-	ga.processor.SetDefaultUserTransform(`return toGoogleAnalytics($)`)
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	gaAdapter, err := adapters.NewGoogleAnalytics(gaConfig, &adapters.HTTPAdapterConfiguration{

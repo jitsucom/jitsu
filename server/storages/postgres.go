@@ -55,7 +55,7 @@ func NewPostgres(config *Config) (storage Storage, err error) {
 		return
 	}
 	p := &Postgres{}
-	err = p.Init(config, p)
+	err = p.Init(config, p, "", "")
 	if err != nil {
 		return
 	}

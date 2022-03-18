@@ -92,7 +92,7 @@ func NewSnowflake(config *Config) (storage Storage, err error) {
 		}
 	}
 	snowflake := &Snowflake{stageAdapter: stageAdapter}
-	err = snowflake.Init(config, snowflake)
+	err = snowflake.Init(config, snowflake, "", "")
 	if err != nil {
 		return
 	}

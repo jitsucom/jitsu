@@ -49,7 +49,7 @@ func NewMySQL(config *Config) (storage Storage, err error) {
 		mConfig.Parameters["timeout"] = "600s"
 	}
 	m := &MySQL{}
-	err = m.Init(config, m)
+	err = m.Init(config, m, "", "")
 	if err != nil {
 		return
 	}

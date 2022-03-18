@@ -32,7 +32,7 @@ func NewHubSpot(config *Config) (storage Storage, err error) {
 	}
 
 	h := &HubSpot{}
-	err = h.Init(config, h)
+	err = h.Init(config, h, "", "")
 	if err != nil {
 		return
 	}

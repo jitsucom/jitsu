@@ -36,7 +36,7 @@ func NewTagDestination(config *Config) (storage Storage, err error) {
 	}
 	config.destination.DataLayout.TableNameTemplate = utils.NvlString(tagConfig.Filter, "always")
 	tag := &TagDestination{}
-	err = tag.Init(config, tag)
+	err = tag.Init(config, tag, "", "")
 	if err != nil {
 		return
 	}
