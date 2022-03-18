@@ -317,12 +317,6 @@ func (a *Abstract) Init(config *Config, impl Storage, preinstalledJavaScript str
 	a.cachingConfiguration = config.destination.CachingConfiguration
 	var err error
 	a.processor, a.sqlTypes, err = a.setupProcessor(config)
-	if preinstalledJavaScript != "" {
-		a.processor.AddJavaScript(preinstalledJavaScript)
-	}
-	if defaultUserTransform != "" {
-		a.processor.SetDefaultUserTransform(defaultUserTransform)
-	}
 	if err != nil {
 		return err
 	}
