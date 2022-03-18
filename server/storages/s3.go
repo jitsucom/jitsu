@@ -52,7 +52,7 @@ func NewS3(config *Config) (storage Storage, err error) {
 		return
 	}
 	s3 := &S3{}
-	err = s3.Init(config, s3)
+	err = s3.Init(config, s3, "", "")
 	if err != nil {
 		return
 	}
