@@ -326,6 +326,12 @@ func (a *Abstract) Init(config *Config, impl Storage, preinstalledJavaScript str
 	if err != nil {
 		return err
 	}
+	if preinstalledJavaScript != "" {
+		a.processor.AddJavaScript(preinstalledJavaScript)
+	}
+	if defaultUserTransform != "" {
+		a.processor.SetDefaultUserTransform(defaultUserTransform)
+	}
 	return a.Processor().InitJavaScriptTemplates()
 }
 
