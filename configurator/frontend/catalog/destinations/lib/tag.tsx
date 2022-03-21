@@ -73,11 +73,6 @@ const tagDestination = {
           <br />
           Required version of Javascript SDK {">="} 2.5.0
           <br />
-          Javascript SDK needs to be embedded as{" "}
-          <a target={"_blank"} href={"https://jitsu.com/docs/sending-data/js-sdk/snippet"}>
-            HTML Snippet
-          </a>
-          <br />
           <br />
           Read more in{" "}
           <a target={"_blank"} href={"https://jitsu.com/docs/other-features/destination-tags"}>
