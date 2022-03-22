@@ -289,19 +289,18 @@ export class StatisticsService implements IStatisticsService {
     if (sourceId === "all") {
       sourceId = ""
     }
-    const errorsDataAvailable = type === "pull"
     const requests = [
       this.get(start, end, granularity, "source", type, "success", sourceId),
       this.get(start, end, granularity, "source", type, "skip", sourceId),
+      this.get(start, end, granularity, "source", type, "errors", sourceId),
     ]
-    if (errorsDataAvailable) requests.push(this.get(start, end, granularity, "source", type, "errors", sourceId))
 
     const [successData, skipData, errorData] = await Promise.all(requests)
     const sourceDataEntries: [SourcesEventsCountType, DatePoint[]][] = [
       ["success", successData],
       ["skip", skipData],
+      ["errors", errorData],
     ]
-    if (errorsDataAvailable) sourceDataEntries.push(["errors", errorData])
     return this.combineStatisticsData(sourceDataEntries)
   }
 
