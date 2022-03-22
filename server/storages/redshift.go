@@ -73,7 +73,7 @@ func NewAwsRedshift(config *Config) (storage Storage, err error) {
 		}
 	}
 	ar := &AwsRedshift{}
-	err = ar.Init(config, ar)
+	err = ar.Init(config, ar, "", "")
 	if err != nil {
 		return
 	}

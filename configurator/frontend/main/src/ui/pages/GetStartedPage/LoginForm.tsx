@@ -1,4 +1,3 @@
-import * as React from "react"
 import { useEffect, useState } from "react"
 import { useHistory } from "react-router-dom"
 import { Button, Form, Input, message, Modal } from "antd"
@@ -10,11 +9,9 @@ import githubLogo from "../../../icons/github.svg"
 import googleLogo from "../../../icons/google.svg"
 import { reloadPage } from "../../../lib/commons/utils"
 import { getErrorPayload } from "../../../lib/services/analytics"
-import { values } from "mobx"
 import { useServices } from "../../../hooks/useServices"
 import ApplicationServices from "../../../lib/services/ApplicationServices"
 import UserOutlined from "@ant-design/icons/lib/icons/UserOutlined"
-import { handleError } from "../../../lib/components/components"
 
 const SSO_ERROR_LS_KEY = "sso_error"
 
@@ -101,9 +98,11 @@ export function LoginForm({ supportOauth, ssoAuthLink }) {
         onSuccess={() => message.info("Password reset e-mail has been sent!")}
       />
       <h1 className="text-center text-textPale font-heading font-bold tracking-wider mb-4 mt-12">Log in to Jitsu</h1>
-      <div className="block lg:hidden mt-6 text-center mb-6 font-bold">
-        New to Jitsu? <a onClick={() => history.push("/signup")}>Sign up</a>
-      </div>
+      {supportOauth && (
+        <div className="block lg:hidden mt-6 text-center mb-6 font-bold">
+          New to Jitsu? <a onClick={() => history.push("/signup")}>Sign up</a>
+        </div>
+      )}
       <Form
         name="signup-form"
         className="signup-form"

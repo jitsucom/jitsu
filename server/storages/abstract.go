@@ -307,7 +307,7 @@ func (a *Abstract) close() (multiErr error) {
 	return nil
 }
 
-func (a *Abstract) Init(config *Config, impl Storage) error {
+func (a *Abstract) Init(config *Config, impl Storage, preinstalledJavaScript string, defaultUserTransform string) error {
 	a.implementation = impl
 	//Abstract (SQLAdapters and tableHelpers are omitted)
 	a.destinationID = config.destinationID
@@ -319,6 +319,12 @@ func (a *Abstract) Init(config *Config, impl Storage) error {
 	a.processor, a.sqlTypes, err = a.setupProcessor(config)
 	if err != nil {
 		return err
+	}
+	if preinstalledJavaScript != "" {
+		a.processor.AddJavaScript(preinstalledJavaScript)
+	}
+	if defaultUserTransform != "" {
+		a.processor.SetDefaultUserTransform(defaultUserTransform)
 	}
 	return a.Processor().InitJavaScriptTemplates()
 }
@@ -431,4 +437,8 @@ func (a *Abstract) setupProcessor(cfg *Config) (processor *schema.Processor, sql
 func (a *Abstract) getAdapters() (adapters.SQLAdapter, *TableHelper) {
 	num := rand.Intn(len(a.sqlAdapters))
 	return a.sqlAdapters[num], a.tableHelpers[num]
+}
+
+func (a *Abstract) GetSyncWorker() *SyncWorker {
+	return nil
 }

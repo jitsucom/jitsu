@@ -50,7 +50,7 @@ func NewClickHouse(config *Config) (storage Storage, err error) {
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	ch := &ClickHouse{}
-	err = ch.Init(config, ch)
+	err = ch.Init(config, ch, "", "")
 	if err != nil {
 		return
 	}

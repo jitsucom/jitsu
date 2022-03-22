@@ -58,6 +58,7 @@ func NewService(smtp *SMTPConfiguration) (*Service, error) {
 	logging.Info("Initializing SMTP email service..")
 	if sc, err := dialer(smtp).Dial(); err != nil {
 		logging.Warnf("Invalid SMTP configuration – service is disabled: %v", err)
+		return nil, nil
 	} else {
 		_ = sc.Close()
 	}
@@ -101,17 +102,13 @@ func (s *Service) send(subject templateSubject, email, link string) error {
 		Link:      link,
 		Signature: s.smtp.Signature,
 	}); err != nil {
-		return errors.Wrap(err, "execute template")
+		return errors.Wrap(err, "transform email template")
 	}
 
 	msg.SetBody("text/html", body.String())
 
 	dialer := gomail.NewDialer(s.smtp.Host, s.smtp.Port, s.smtp.User, s.smtp.Password)
-	if err := dialer.DialAndSend(msg); err != nil {
-		return errors.Wrap(err, "dial and send")
-	}
-
-	return nil
+	return dialer.DialAndSend(msg)
 }
 
 func (s *Service) SendResetPassword(email, link string) error {

@@ -347,6 +347,19 @@ func (ec *EventsCache) createEventEntity(statusEvent *statusEvent) (*meta.Event,
 			Headers:       eventContext.HTTPRequest.Headers,
 			Body:          string(eventContext.HTTPRequest.Body),
 		}
+	} else if eventContext.SynchronousResult != nil {
+		body := ""
+		bytes, err := json.Marshal([]map[string]interface{}{eventContext.SynchronousResult})
+		if err != nil {
+			body = fmt.Sprintf("%+v", eventContext.SynchronousResult)
+		} else {
+			body = string(bytes)
+		}
+		succeedPayload = SucceedSynchronousEvent{
+			DestinationID: eventContext.DestinationID,
+			Status:        "ok",
+			SdkExtras:     body,
+		}
 	} else {
 		//database success event
 		fields := []*adapters.TableField{}

@@ -25,7 +25,7 @@ const SwitchWithLabel: React.FC<SwitchWithLabelProps> = ({ id, defaultChecked, o
 
   return (
     <div>
-      <Switch className={"mb-0.5"} onChange={onValueChange} checked={state} defaultChecked={defaultChecked} />
+      <Switch className={"mb-0.5"} onChange={onValueChange} checked={state} defaultChecked={!!defaultChecked} />
       {label && <span className={"pl-3"}>{label}</span>}
     </div>
   )

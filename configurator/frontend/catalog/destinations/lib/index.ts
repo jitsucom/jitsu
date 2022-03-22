@@ -17,6 +17,7 @@ import mixpanel2Destination from "./mixpanel2"
 import npmDestination from "./npm"
 
 import { Destination } from "../types"
+import tagDestination from "./tag"
 
 export {
   postgresDestination,
@@ -34,6 +35,7 @@ export {
   s3Destination,
   mixpanelDestination,
   mixpanel2Destination,
+  tagDestination,
 }
 
 export const destinationsReferenceMap = {
@@ -52,6 +54,7 @@ export const destinationsReferenceMap = {
   s3: s3Destination,
   mixpanel: mixpanelDestination,
   mixpanel2: mixpanel2Destination,
+  tag: tagDestination,
 } as const
 
 export type DestinationReference = typeof destinationsReferenceMap[keyof typeof destinationsReferenceMap]
