@@ -120,7 +120,7 @@ export const EventsList: React.FC<{
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([])
   const [term, setTerm] = useState(params.get("q"))
   const [idFilter, setIdFilter] = useState(
-    filterOptions.find(f => f.value === params.get("apiKey"))?.value ?? filterOptions[0]?.value
+    filterOptions.find(f => f.value === params.get("id"))?.value ?? filterOptions[0]?.value
   )
   const [statusFilter, setStatusFilter] = useState(
     statusOptions.find(f => f.value === params.get("status"))?.value ?? statusOptions[0]?.value
