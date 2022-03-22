@@ -25,7 +25,7 @@ declare type StreamData = AirbyteStreamData | SingerStreamData
  * Corresponds to the [ConfiguredAirbyteStream schema](https://docs.airbyte.com/understanding-airbyte/catalog#configuredairbytestream)
  */
 declare type AirbyteStreamData = {
-  sync_mode: string
+  sync_mode: "full_refresh" | "incremental"
   cursor_field: string[]
   destination_sync_mode: string
   stream: {
@@ -38,7 +38,7 @@ declare type AirbyteStreamData = {
      * Incremental sync modes requires choosing a cursor field which is used as comparable to determine which records are the new or updated since the last sync.
      * Learn more in the [Airbyte docs](https://docs.airbyte.com/understanding-airbyte/catalog#cursor).
      * */
-    supported_sync_modes?: string[]
+    supported_sync_modes?: ["full_refresh"] | ["full_refresh", "incremental"]
     /**
      * Works only for the `incremental` sync mode.
      *
