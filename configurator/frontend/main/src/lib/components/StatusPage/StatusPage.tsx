@@ -102,7 +102,7 @@ export const StatusPage: React.FC<{}> = () => {
             type="push"
             granularity={period === "day" ? "hour" : "day"}
             dataToDisplay={["success", "skip", "errors"]}
-            legendLabels={{ skip: "skip (no dist.)" }}
+            legendLabels={{ skip: "skip (no dst.)" }}
             filterOptions={apiKeysOptions}
             reloadCount={reloadCount}
           />
