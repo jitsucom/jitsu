@@ -85,7 +85,6 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
   const [initiallySelectedStreams, unavailableStreams] = useMemo<[StreamConfig[], StreamConfig[]]>(() => {
     const allStreamsConfigs = data?.map(sourceEditorUtils.mapStreamDataToSelectedStreams) ?? []
     if (selectAllFieldsByDefault) return [allStreamsConfigs, []]
-
     if (allStreamsConfigs.length === 0) {
       return [previouslySelectedStreams, []]
     } else {

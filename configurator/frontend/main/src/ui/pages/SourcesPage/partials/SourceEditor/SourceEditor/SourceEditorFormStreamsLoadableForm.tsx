@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { Collapse, Empty, Input, Select, Switch } from "antd"
 import { cloneDeep } from "lodash"
 // @Components
@@ -14,6 +14,7 @@ import { addToArrayIfNotDuplicate, removeFromArrayIfFound, substituteArrayValueI
 // @Styles
 import styles from "./SourceEditorFormStreamsLoadableForm.module.less"
 import { sourceEditorUtils } from "./SourceEditor.utils"
+import { getStreamFieldPaths } from "ui/pages/SourcesPage/utils/airbyte"
 
 type Props = {
   allStreams: StreamData[]
@@ -142,36 +143,6 @@ type StreamsCollapsibleListProps = {
 
 const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo(
   ({ streamsToDisplay, initiallySelectedStreams, isAllStreamsChecked, handleToggleStream, setSourceEditorState }) => {
-    /**
-     * Creates source type specific methods and components
-     */
-    const getStreamUiComponents = (streamData: StreamData) => {
-      if (sourceEditorUtils.isAirbyteStream(streamData)) {
-        const handleChangeStreamSyncMode = (mode: string, stream: AirbyteStreamData): void => {
-          const newStream = { ...stream }
-          newStream.sync_mode = mode
-          updateStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, newStream)
-        }
-        return {
-          header: (
-            <AirbyteStreamHeader streamName={streamData.stream.name} streamNamespace={streamData.stream.namespace} />
-          ),
-          content: (
-            <AirbyteStreamParameters
-              streamData={streamData}
-              checked={isAllStreamsChecked}
-              handleChangeStreamSyncMode={handleChangeStreamSyncMode}
-            />
-          ),
-        }
-      } else if (sourceEditorUtils.isSingerStream(streamData)) {
-        return {
-          header: <SingerStreamHeader streamUid={streamData.tap_stream_id} streamName={streamData.stream} />,
-          content: <SingerStreamParameters streamData={streamData} />,
-        }
-      }
-    }
-
     return (
       <Collapse
         expandIconPosition="left"
@@ -189,18 +160,16 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
           })
           .map(streamData => {
             const streamUid = sourceEditorUtils.getStreamUid(streamData)
-            const { header, content } = getStreamUiComponents(streamData)
             return (
               <StreamPanel
                 key={streamUid}
+                streamData={streamData}
                 streamUid={streamUid}
-                header={header}
                 initiallySelectedStreams={initiallySelectedStreams}
-                checked={isAllStreamsChecked}
+                forceChecked={isAllStreamsChecked}
                 handleToggleStream={handleToggleStream}
-              >
-                {content}
-              </StreamPanel>
+                setSourceEditorState={setSourceEditorState}
+              />
             )
           })}
       </Collapse>
@@ -210,23 +179,25 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
 
 type StreamPanelProps = {
   streamUid: string
-  header: JSX.Element
+  streamData: StreamData
   initiallySelectedStreams: StreamConfig[]
-  checked?: boolean
+  forceChecked?: boolean
   handleToggleStream: (checked: boolean, streamUid: string) => void
+  setSourceEditorState: SetSourceEditorState
 } & { [key: string]: any }
 
 const StreamPanel: React.FC<StreamPanelProps> = ({
-  header,
   streamUid,
+  streamData,
   initiallySelectedStreams,
-  checked: _checked,
+  forceChecked,
   handleToggleStream,
+  setSourceEditorState,
   children,
   ...rest
 }) => {
   const [checked, setChecked] = useState<boolean>(
-    _checked ||
+    forceChecked ||
       initiallySelectedStreams.some(selected => sourceEditorUtils.getSelectedStreamUid(selected) === streamUid)
   )
 
@@ -236,9 +207,38 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
     handleToggleStream(checked, streamUid)
   }
 
+  /**
+   * Creates source type specific methods and components
+   */
+  const { header, content } = useMemo<{ header: JSX.Element; content: JSX.Element }>(() => {
+    if (sourceEditorUtils.isAirbyteStream(streamData)) {
+      const handleChangeStreamConfig = (stream: AirbyteStreamData): void => {
+        updateStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, { ...stream })
+      }
+      return {
+        header: (
+          <AirbyteStreamHeader streamName={streamData.stream.name} streamNamespace={streamData.stream.namespace} />
+        ),
+        content: (
+          <AirbyteStreamParameters
+            streamData={streamData}
+            checked={checked}
+            handleChangeStreamConfig={handleChangeStreamConfig}
+          />
+        ),
+      }
+    } else if (sourceEditorUtils.isSingerStream(streamData)) {
+      return {
+        header: <SingerStreamHeader streamUid={streamData.tap_stream_id} streamName={streamData.stream} />,
+        content: <SingerStreamParameters streamData={streamData} />,
+      }
+    }
+  }, [streamData, checked])
+
+  /** Will only set checked  */
   useEffect(() => {
-    if (_checked !== undefined) setChecked(_checked)
-  }, [_checked])
+    if (forceChecked !== undefined) setChecked(forceChecked)
+  }, [forceChecked])
 
   return (
     <Collapse.Panel
@@ -247,7 +247,7 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
       header={header}
       extra={<Switch checked={checked} className="absolute top-3 right-3" onChange={toggle} />}
     >
-      {children}
+      {content}
     </Collapse.Panel>
   )
 }
@@ -277,58 +277,99 @@ const AirbyteStreamHeader: React.FC<AirbyteStreamHeaderProps> = ({ streamName, s
 type AirbyteStreamParametersProps = {
   streamData: AirbyteStreamData
   checked?: boolean
-  handleChangeStreamSyncMode: (mode: string, stream: AirbyteStreamData) => void
+  handleChangeStreamConfig: (stream: AirbyteStreamData) => void
 }
 
 const AirbyteStreamParameters: React.FC<AirbyteStreamParametersProps> = ({
   streamData,
   checked,
-  handleChangeStreamSyncMode,
+  handleChangeStreamConfig,
 }) => {
+  const cursorFieldPathDelimiter = " -> "
   const initialSyncMode = streamData.sync_mode ?? streamData.stream.supported_sync_modes?.[0]
   const needToDisplayData: boolean = !!initialSyncMode && !!streamData.stream.json_schema?.properties
-  const [syncMode, setSyncMode] = useState<string>(initialSyncMode)
-  const [cursorField, setCursorField] = useState<string[]>(
-    streamData.stream.source_defined_cursor
+  const [config, setConfig] = useState<Pick<AirbyteStreamData, "sync_mode" | "cursor_field">>({
+    sync_mode: initialSyncMode,
+    cursor_field: streamData.stream.source_defined_cursor
       ? streamData.stream.default_cursor_field
-      : getAirbyteStreamCursorFields(streamData)[0]
-  )
-  const handleChangeSyncMode = value => {
-    setSyncMode(value)
-    handleChangeStreamSyncMode(value, streamData)
+      : streamData.cursor_field ?? getAirbyteStreamCursorFields(streamData)[0],
+  })
+
+  const handleChangeSyncMode = (value: string): void => {
+    setConfig(config => {
+      let newConfig = config
+      if (value === "full_refresh") newConfig = { ...config, sync_mode: value }
+      if (value === "incremental")
+        newConfig = {
+          sync_mode: value,
+          cursor_field: config.cursor_field,
+        }
+      handleChangeStreamConfig({ ...streamData, ...newConfig })
+      return newConfig
+    })
   }
-  return needToDisplayData ? (
-    <div className="flex flex-col w-full h-full flex-wrap">
-      {/* Sync mode */}
-      {streamData.stream.supported_sync_modes?.length ? (
-        <StreamParameter title="Sync mode">
-          <Select size="small" value={syncMode} disabled={!checked} onChange={handleChangeSyncMode}>
-            {streamData.stream.supported_sync_modes.map(mode => (
-              <Select.Option key={mode} value={mode}>
-                {mode}
-              </Select.Option>
-            ))}
-          </Select>
-        </StreamParameter>
-      ) : initialSyncMode ? (
-        <StreamParameter title="Sync mode">{initialSyncMode}</StreamParameter>
-      ) : null}
 
-      {/* Cursor field */}
-      {syncMode === "incremental" ? null : null}
+  const handleChangeCursorField = (value: string): void => {
+    setConfig(config => {
+      const newConfig = { ...config, cursor_field: value.split(cursorFieldPathDelimiter) }
+      handleChangeStreamConfig({ ...streamData, ...newConfig })
+      return newConfig
+    })
+  }
 
-      {/* JSON Schema */}
-      {streamData.stream.json_schema.properties && (
-        <StreamParameter title="JSON Schema">
-          <div className="max-h-72 w-full overflow-y-auto">
-            <Code language="json" className="w-full">
-              {JSON.stringify(streamData.stream.json_schema.properties ?? {}, null, 2)}
-            </Code>
-          </div>
-        </StreamParameter>
-      )}
-    </div>
-  ) : null
+  return (
+    needToDisplayData && (
+      <div className="flex flex-col w-full h-full flex-wrap">
+        {/* Sync mode */}
+        {streamData.stream.supported_sync_modes?.length ? (
+          <StreamParameter title="Sync mode">
+            <Select size="small" value={config.sync_mode} disabled={!checked} onChange={handleChangeSyncMode}>
+              {streamData.stream.supported_sync_modes.map(mode => (
+                <Select.Option key={mode} value={mode}>
+                  {mode}
+                </Select.Option>
+              ))}
+            </Select>
+          </StreamParameter>
+        ) : initialSyncMode ? (
+          <StreamParameter title="Sync mode">{initialSyncMode}</StreamParameter>
+        ) : null}
+
+        {/* Cursor field */}
+        {config.sync_mode === "incremental" && (
+          <StreamParameter title="Cursor field">
+            <Select
+              size="small"
+              value={config.cursor_field.join(cursorFieldPathDelimiter)}
+              disabled={!checked || streamData.stream.source_defined_cursor}
+              showSearch
+              onChange={handleChangeCursorField}
+            >
+              {getAirbyteStreamCursorFields(streamData).map(cursor => {
+                const stringifiedCursor = cursor.join(cursorFieldPathDelimiter)
+                return (
+                  <Select.Option key={stringifiedCursor} value={stringifiedCursor}>
+                    {stringifiedCursor}
+                  </Select.Option>
+                )
+              })}
+            </Select>
+          </StreamParameter>
+        )}
+
+        {/* JSON Schema */}
+        {streamData.stream.json_schema.properties && (
+          <StreamParameter title="JSON Schema">
+            <div className="max-h-72 w-full overflow-y-auto">
+              <Code language="json" className="w-full">
+                {JSON.stringify(streamData.stream.json_schema.properties ?? {}, null, 2)}
+              </Code>
+            </div>
+          </StreamParameter>
+        )}
+      </div>
+    )
+  )
 }
 
 type SingerStreamHeaderProps = {
@@ -465,5 +506,5 @@ export const setSelectedStreams = (
 }
 
 const getAirbyteStreamCursorFields = (stream: AirbyteStreamData): string[][] => {
-  return [[]]
+  return getStreamFieldPaths(stream)
 }

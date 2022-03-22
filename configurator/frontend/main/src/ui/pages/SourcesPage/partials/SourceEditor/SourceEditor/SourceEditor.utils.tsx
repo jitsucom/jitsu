@@ -90,6 +90,7 @@ export const sourceEditorUtils = {
         name: streamData.stream.name,
         namespace: streamData.stream.namespace,
         sync_mode: streamData.sync_mode,
+        cursor_field: streamData.cursor_field,
       } as T extends AirbyteStreamData ? AirbyteStreamConfig : SingerStreamConfig
     } else if (sourceEditorUtils.isSingerStream(streamData)) {
       return {
@@ -100,15 +101,15 @@ export const sourceEditorUtils = {
   },
 
   isNativeSource: (data: SourceData): data is NativeSourceData => {
-    return !!data["collections"]
+    return !!data?.["collections"]
   },
 
   isAirbyteSource: (data: SourceData): data is AirbyteSourceData => {
-    return !!data.config.docker_image
+    return !!data?.config.docker_image
   },
 
   isSingerSource: (data: SourceData): data is SingerSourceData => {
-    return !data.config.docker_image
+    return !data?.config.docker_image
   },
 
   isAirbyteStream: (stream: StreamData): stream is AirbyteStreamData => {
