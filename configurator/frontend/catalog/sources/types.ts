@@ -6,6 +6,7 @@ type PrimitiveParameterTypeName =
   | "int"
   | "json"
   | "javascript"
+  | "html"
   | "yaml"
   | "password"
   | "boolean"
@@ -129,6 +130,10 @@ export const jsonType: ParameterType<string, "json"> = {
 
 export const jsType: ParameterType<string, "javascript"> = {
   typeName: "javascript" as const,
+}
+
+export const htmlType: ParameterType<string, "html"> = {
+  typeName: "html" as const,
 }
 
 export const yamlType: ParameterType<string, "yaml"> = {

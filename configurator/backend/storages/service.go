@@ -839,7 +839,7 @@ func (cs *ConfigurationsService) UnlinkUserFromAllProjects(userID string) error 
 func (cs *ConfigurationsService) GetAllProjects() ([]openapi.Project, error) {
 	projectsData, err := cs.storage.GetAllGroupedByID(projectSettingsCollection)
 	if err != nil {
-		return nil, errors.Wrap(err, "load all projects")
+		return nil, errors.Wrap(err, "failed to load all projects")
 	}
 
 	projects := make([]openapi.Project, 0, len(projectsData))
@@ -860,15 +860,19 @@ func (cs *ConfigurationsService) GetUserProjects(userID string) ([]string, error
 }
 
 func (cs *ConfigurationsService) GetProjectUsers(projectID string) ([]string, error) {
+	if err := cs.Load(projectID, new(Project)); err != nil {
+		return nil, err
+	}
+
 	index, err := cs.storage.GetRelationIndex(userProjectRelation)
 	if err != nil {
-		return nil, errors.Wrap(err, "get user project relation index")
+		return nil, errors.Wrap(err, "failed to get user project relation index")
 	}
 
 	userIDs := make(common.StringSet)
 	for _, userID := range index {
 		if relatedProjectIDs, err := cs.storage.GetRelatedIDs(userProjectRelation, userID); err != nil {
-			return nil, errors.Wrapf(err, "get related projects for user %s", userID)
+			return nil, errors.Wrapf(err, "failed to get related projects for user %s", userID)
 		} else {
 			for _, relatedProjectID := range relatedProjectIDs {
 				if relatedProjectID == projectID {
@@ -884,7 +888,7 @@ func (cs *ConfigurationsService) GetProjectUsers(projectID string) ([]string, er
 
 func (cs *ConfigurationsService) Create(value CollectionItem, patch interface{}) error {
 	if _, err := cs.Patch(random.LowerString(22), value, patch, false); err != nil {
-		return errors.Wrapf(err, "patch %s", value.Collection())
+		return errors.Wrapf(err, "failed to patch %s", value.Collection())
 	} else {
 		return nil
 	}
@@ -893,7 +897,7 @@ func (cs *ConfigurationsService) Create(value CollectionItem, patch interface{})
 func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*RedisUserInfo, error) {
 	var result RedisUserInfo
 	if patched, err := cs.Patch(id, &result, patch, false); err != nil {
-		return nil, errors.Wrap(err, "patch user info")
+		return nil, errors.Wrap(err, "failed to patch user info")
 	} else if patched {
 		if projectInfo := result.Project; projectInfo != nil {
 			projectID := projectInfo.Id
@@ -904,9 +908,9 @@ func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*
 			}
 
 			if _, err := cs.Patch(projectID, new(Project), patch, false); err != nil {
-				return nil, errors.Wrap(err, "patch project")
+				return nil, errors.Wrap(err, "faild to patch project")
 			} else if err := cs.LinkUserToProject(id, projectID); err != nil {
-				return nil, errors.Wrap(err, "link user to project")
+				return nil, errors.Wrap(err, "failed to link user to project")
 			}
 		}
 	}
@@ -917,13 +921,13 @@ func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*
 func (cs *ConfigurationsService) GetUserInfo(id string) (*RedisUserInfo, error) {
 	var result RedisUserInfo
 	if err := cs.Load(id, &result); err != nil {
-		return nil, errors.Wrap(err, "load user info")
+		return nil, errors.Wrap(err, "failed to load user info")
 	}
 
 	if projectInfo := result.Project; projectInfo != nil {
 		var project Project
 		if err := cs.Load(projectInfo.Id, &project); err != nil {
-			return nil, errors.Wrap(err, "load project from user info")
+			return nil, errors.Wrap(err, "failed to load project from user info")
 		}
 
 		result.Project = &openapi.ProjectInfo{
@@ -938,7 +942,7 @@ func (cs *ConfigurationsService) GetUserInfo(id string) (*RedisUserInfo, error) 
 
 func (cs *ConfigurationsService) Load(id string, value CollectionItem) error {
 	if data, err := cs.get(value.Collection(), id); err != nil {
-		return errors.Wrapf(err, "get %s with lock", value.Collection())
+		return errors.Wrapf(err, "failed to get %s with lock", value.Collection())
 	} else if err := json.Unmarshal(data, value); err != nil {
 		return errors.Wrapf(err, "unmarshal %s value", value.Collection())
 	} else {

@@ -21,6 +21,12 @@ type SucceedHTTPEvent struct {
 	Body    string            `json:"body,omitempty"`
 }
 
+type SucceedSynchronousEvent struct {
+	DestinationID string `json:"destination_id,omitempty"`
+	Status        string `json:"status,omitempty"`
+	SdkExtras     string `json:"jitsu_sdk_extras,omitempty"`
+}
+
 //channel dto
 type rawEvent struct {
 	tokenID                    string

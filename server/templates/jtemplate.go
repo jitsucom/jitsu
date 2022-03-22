@@ -22,7 +22,7 @@ var (
 //SmartParse is a factory method that returns TemplateExecutor implementation based on provided expression language
 func SmartParse(name string, expression string, extraFunctions template.FuncMap) (TemplateExecutor, error) {
 	var multiErr error
-	goTmpl, err := newGoTemplateExecutor(name, expression, extraFunctions)
+	goTmpl, err := NewGoTemplateExecutor(name, expression, extraFunctions)
 	if err != nil || goTmpl.isPlainText() {
 		if err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("error while parsing as Go: %v", err))

@@ -60,7 +60,7 @@ func NewNpmDestination(config *Config) (storage Storage, err error) {
 		return nil, fmt.Errorf("failed to init builtin javascript code: %v", err)
 	}
 	wh := &NpmDestination{}
-	err = wh.Init(config, wh)
+	err = wh.Init(config, wh, "", "")
 	if err != nil {
 		jsTemplate.Close()
 		return

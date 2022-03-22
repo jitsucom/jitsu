@@ -125,10 +125,14 @@ const ConfigurableFieldsFormComponent = ({
       calcValue = defaultValue
     } else if (typeof constantValue !== "undefined") {
       calcValue = constantValue
+    } else if (type === "boolean") {
+      calcValue = false
     } else if (type === "json") {
       calcValue = {}
     } else if (type === "javascript") {
       calcValue = "return {}"
+    } else if (type === "html") {
+      calcValue = "<script>\n</script>"
     } else if (type.indexOf("array/") === 0) {
       calcValue = []
     } else {
@@ -211,6 +215,7 @@ const ConfigurableFieldsFormComponent = ({
           </FormItemWrapper>
         )
       case "javascript":
+      case "html":
       case "json": {
         return (
           <FormItemWrapper key={id} {...formItemWrapperProps}>
@@ -256,10 +261,10 @@ const ConfigurableFieldsFormComponent = ({
                 label={displayName}
                 id={id}
                 onChange={handleChangeSwitch(id)}
-                defaultChecked={defaultValueToDisplay}
+                defaultChecked={!!defaultValueToDisplay}
               />
             ) : (
-              <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={defaultValueToDisplay} />
+              <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
             )}
           </FormItemWrapper>
         )
@@ -516,8 +521,10 @@ export const FormItemWrapper: React.FC<FormItemWrapperProps> = ({
       className={cn(
         "form-field_fixed-label",
         styles.field,
-        (type?.typeName === "json" || type?.typeName === "javascript") && styles.jsonField,
-        (type?.typeName === "json" || type?.typeName === "javascript") && bigField && styles.bigField,
+        (type?.typeName === "html" || type?.typeName === "json" || type?.typeName === "javascript") && styles.jsonField,
+        (type?.typeName === "html" || type?.typeName === "json" || type?.typeName === "javascript") &&
+          bigField &&
+          styles.bigField,
         className
       )}
       label={

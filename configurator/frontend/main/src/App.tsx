@@ -57,7 +57,9 @@ const EventsStream = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/
 const SetupForm = React.lazy(() => import(/* webpackPrefetch: true */ "ui/pages/SetupPage/SetupForm"))
 const SourcesPage = React.lazy(() => import(/* webpackPrefetch: true */ "ui/pages/SourcesPage/SourcesPage"))
 const ConnectionsPage = React.lazy(() => import(/* webpackPrefetch: true */ "ui/pages/ConnectionsPage/ConnectionsPage"))
-const PasswordForm = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/components/PasswordForm/PasswordForm"))
+const ChangePasswordOnResetForm = React.lazy(
+  () => import(/* webpackPrefetch: true */ "./lib/components/ChangePasswordOnResetForm/ChangePasswordOnResetForm")
+)
 const DownloadConfig = React.lazy(
   () => import(/* webpackPrefetch: true */ "./lib/components/DownloadConfig/DownloadConfig")
 )
@@ -179,7 +181,7 @@ export const Application: React.FC = function () {
               key="reset"
               path={["/reset_password/:resetId"]}
               exact
-              render={pageOf(PasswordForm, { pageTitle: "Jitsu : Reset Password" })}
+              render={pageOf(ChangePasswordOnResetForm, { pageTitle: "Jitsu : Reset Password" })}
             />
             <Redirect to="/" />
           </Switch>
