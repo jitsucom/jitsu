@@ -95,7 +95,7 @@ func NewEventsCache(enabled bool, storage meta.Storage, capacityPerTokenOrDestin
 func (ec *EventsCache) start() {
 	safego.RunWithRestart(func() {
 		for cf := range ec.rawEventsChannel {
-			ec.saveTokenEvent(cf.tokenID, cf.serializedPayload, cf.serializedMalformedPayload, cf.error, cf.eventMetaStatus)
+			ec.saveTokenEvent(cf.tokenID, cf.serializedPayload, cf.serializedMalformedPayload, cf.error, cf.skip, cf.eventMetaStatus)
 		}
 	})
 
@@ -165,14 +165,14 @@ func (ec *EventsCache) startTrimmer() {
 }
 
 //RawEvent puts value into channel which will be read and written to storage
-func (ec *EventsCache) RawEvent(disabled bool, tokenID string, serializedPayload []byte) {
+func (ec *EventsCache) RawEvent(disabled bool, tokenID string, serializedPayload []byte, skipMsg string) {
 	if !disabled && ec.isActive() {
 		if !ec.isRateLimiterAllowed(tokenID, meta.EventsPureStatus) {
 			return
 		}
 
 		select {
-		case ec.rawEventsChannel <- &rawEvent{tokenID: tokenID, serializedPayload: serializedPayload, eventMetaStatus: meta.EventsPureStatus}:
+		case ec.rawEventsChannel <- &rawEvent{tokenID: tokenID, serializedPayload: serializedPayload, skip: skipMsg, eventMetaStatus: meta.EventsPureStatus}:
 		default:
 			if rand.Int31n(1000) == 0 {
 				logging.Debugf("[events cache] raw events queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
@@ -259,12 +259,13 @@ func (ec *EventsCache) Skip(cacheDisabled bool, destinationID, originEvent strin
 
 //saveTokenEvent saves raw JSON event into the storage by token
 //and saves to token error collection if error
-func (ec *EventsCache) saveTokenEvent(tokenID string, serializedPayload, serializedMalformedPayload []byte, errMsg, eventMetaStatus string) {
+func (ec *EventsCache) saveTokenEvent(tokenID string, serializedPayload, serializedMalformedPayload []byte, errMsg, skipMsg, eventMetaStatus string) {
 	entity := &meta.Event{
 		Original:  string(serializedPayload),
 		Malformed: string(serializedMalformedPayload),
 		TokenID:   tokenID,
 		Error:     errMsg,
+		Skip:      skipMsg,
 		Timestamp: timestamp.NowUTC(),
 		UID:       uuid.New(),
 	}

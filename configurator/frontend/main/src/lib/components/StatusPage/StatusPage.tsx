@@ -1,32 +1,32 @@
 // @Libs
-import React, {useEffect, useState} from "react"
-import {NavLink, useHistory, useLocation} from "react-router-dom"
-import { Button, Card, Col, Tooltip, Row, Select } from "antd"
+import React, { useState } from "react"
+import { NavLink, useHistory, useLocation } from "react-router-dom"
+import { Button, Card, Col, Tooltip, Row } from "antd"
 // @Components
 import { CodeInline } from "lib/components/components"
 import { StatisticsChart } from "ui/components/StatisticsChart/StatisticsChart"
 // @Icons
-import { ReloadOutlined, WarningOutlined, QuestionCircleOutlined, ThunderboltFilled } from "@ant-design/icons"
+import { ReloadOutlined, QuestionCircleOutlined, ThunderboltFilled } from "@ant-design/icons"
 // @Services
 import { addSeconds, StatisticsService } from "lib/services/stat"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
 import { useServices } from "../../../hooks/useServices"
-import styles from "../EventsStream/EventsSteam.module.less"
-import { destinationsStore } from "../../../stores/destinations"
-import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
-import { FilterOption } from "../EventsStream/shared"
-import { apiKeysStore } from "../../../stores/apiKeys"
-import { apiKeysReferenceMap } from "@jitsu/catalog/apiKeys/lib"
-import {find, isNull, omitBy} from "lodash"
-import { sourcesStore } from "../../../stores/sources"
-
-const { Option } = Select
+import { SelectFilter } from "../Filters/SelectFilter"
+import {
+  FilterOption,
+  getAllApiKeysAsOptions,
+  getAllDestinationsAsOptions,
+  getAllSourcesAsOptions,
+} from "../Filters/shared"
 
 type DataType = "total" | "success" | "skip" | "errors"
 
 export const StatusPage: React.FC<{}> = () => {
   const services = useServices()
-  const [period, setPeriod] = useState("month")
+  const history = useHistory()
+  const location = useLocation()
+  const params = new URLSearchParams(location.search)
+  const [period, setPeriod] = useState(params.get("period") || "month")
   const [reloadCount, setReloadCount] = useState(0)
   const stats = new StatisticsService(services.backendApiClient, services.activeProject.id, true)
   const isSelfHosted = services.features.environment !== "jitsu_cloud"
@@ -43,25 +43,24 @@ export const StatusPage: React.FC<{}> = () => {
     { label: "Last 24 hours", value: "day" },
   ]
 
-  const destinationsOptions = destinationsStore.listIncludeHidden.map(d => {
-    const icon = destinationsReferenceMap[d._type]?.ui.icon
-    return { value: d._uid, label: d._id, icon } as FilterOption
-  })
-  const apiKeysOptions = apiKeysStore.list.map(key => {
-    return { value: key.uid, label: key.comment ?? key.uid, icon: apiKeysReferenceMap.js.icon } as FilterOption
-  })
-  const sourcesOptions = sourcesStore.list.map(source => {
-    return { value: source.sourceId, label: source.displayName ?? source.sourceId } as FilterOption
-  })
-  destinationsOptions.unshift({ label: "All destinations", value: "all" })
-  apiKeysOptions.unshift({ label: "All API keys", value: "all" })
-  sourcesOptions.unshift({ label: "All sources", value: "all" })
+  const destinationsOptions = getAllDestinationsAsOptions(true)
+  const apiKeysOptions = getAllApiKeysAsOptions(true)
+  const sourcesOptions = getAllSourcesAsOptions(true)
+
+  const handlePeriodSelect = value => {
+    const newPeriod = value.value
+    setPeriod(newPeriod)
+    setReloadCount(reloadCount + 1)
+    const queryParams = new URLSearchParams(window.location.search)
+    queryParams.set("period", newPeriod)
+    history.replace({ search: queryParams.toString() })
+  }
 
   return (
     <>
       <div className="flex flex-row space-x-2 justify-between items-center mb-4">
         <div className="flex-col">
-          <Filter label="Period" onChange={value => setPeriod(value.value)} options={periods} />
+          <SelectFilter label="Period" onChange={handlePeriodSelect} options={periods} initialValue={period} />
         </div>
         <div className="flex-col">
           <NavLink to="/events_stream" className="inline-block mr-5">
@@ -92,20 +91,29 @@ export const StatusPage: React.FC<{}> = () => {
       <Row gutter={16} className="status-page-cards-row mb-4">
         <Col span={12}>
           <StatusChart
-            title={<span>Incoming <NavLink to="/api_keys">events</NavLink></span>}
+            title={
+              <span>
+                Incoming <NavLink to="/api_keys">events</NavLink>
+              </span>
+            }
             stats={stats}
             period={periodMap[period]}
             namespace="source"
             type="push"
             granularity={period === "day" ? "hour" : "day"}
-            dataToDisplay={["success", "errors"]}
+            dataToDisplay={["success", "skip", "errors"]}
+            legendLabels={{ skip: "skip (no dist.)" }}
             filterOptions={apiKeysOptions}
             reloadCount={reloadCount}
           />
         </Col>
         <Col span={12}>
           <StatusChart
-            title={<span>Processed <NavLink to="/destinations">events</NavLink></span>}
+            title={
+              <span>
+                Processed <NavLink to="/destinations">events</NavLink>
+              </span>
+            }
             stats={stats}
             period={periodMap[period]}
             namespace="destination"
@@ -141,34 +149,43 @@ const StatusChart: React.FC<{
   type: "push" | "pull"
   granularity: "hour" | "day"
   dataToDisplay: DataType | DataType[]
+  legendLabels?: { [key: string]: string }
   filterOptions: FilterOption[]
   reloadCount: number
   extra?: React.ReactNode
-}> = ({ title, stats, period, namespace, type, granularity, dataToDisplay, filterOptions, reloadCount, extra = null }) => {
+}> = ({
+  title,
+  stats,
+  period,
+  namespace,
+  type,
+  granularity,
+  dataToDisplay,
+  legendLabels,
+  filterOptions,
+  reloadCount,
+  extra = null,
+}) => {
+  const history = useHistory()
   const location = useLocation()
   const params = new URLSearchParams(location.search)
-  const history = useHistory()
-  const [idFilter, setIdFilter] = useState(filterOptions[0].value)
+  const idFilterKey = `${namespace}_${type}`
+  const [idFilter, setIdFilter] = useState(params.get(idFilterKey) || filterOptions[0]?.value)
 
   const {
     error,
     data,
-    reloader: reload,
     isLoading: loading,
   } = useLoaderAsObject(async () => {
     return namespace === "source"
       ? await stats.getCombinedStatisticsBySources(period, new Date(), granularity, type, idFilter)
       : await stats.getCombinedStatisticsByDestinations(period, new Date(), granularity, type, idFilter)
-  }, [period, idFilter, reloadCount])
-
-  useEffect(() => {
-
-  }, [idFilter])
+  }, [idFilter, reloadCount])
 
   const handleFilterSelect = value => {
     setIdFilter(value.value)
-    const queryParams = new URLSearchParams(window.location.search);
-    queryParams.set(`${namespace}_${type}`, value.value)
+    const queryParams = new URLSearchParams(window.location.search)
+    queryParams.set(idFilterKey, value.value)
     history.replace({ search: queryParams.toString() })
   }
 
@@ -177,7 +194,12 @@ const StatusChart: React.FC<{
       title={
         <span>
           {title}
-          <Filter className="inline-block ml-5" onChange={handleFilterSelect} options={filterOptions} />
+          <SelectFilter
+            className="inline-block ml-5"
+            onChange={handleFilterSelect}
+            options={filterOptions}
+            initialValue={idFilter}
+          />
         </span>
       }
       bordered={false}
@@ -185,11 +207,16 @@ const StatusChart: React.FC<{
       className="mb-5 h-full"
       extra={extra}
     >
-      {
-        error
-          ? <StatisticsError />
-          : <StatisticsChart data={data || []} granularity={granularity} dataToDisplay={dataToDisplay} />
-      }
+      {error ? (
+        <StatisticsError />
+      ) : (
+        <StatisticsChart
+          data={data || []}
+          granularity={granularity}
+          dataToDisplay={dataToDisplay}
+          legendLabels={legendLabels}
+        />
+      )}
     </Card>
   )
 }
@@ -198,8 +225,8 @@ const StatisticsError = () => {
   return (
     <div>
       <h3>Chart cannot be displayed</h3>
-      Connection to Jitsu server cannot be established. That's not a critical error, you still will be able to
-      configure Jitsu. However, statistic and monitoring for Jitsu Nodes won't be available. To fix that:
+      Connection to Jitsu server cannot be established. That's not a critical error, you still will be able to configure
+      Jitsu. However, statistic and monitoring for Jitsu Nodes won't be available. To fix that:
       <ul className="mt-5">
         <li>
           Make sure that <CodeInline>jitsu.base_url</CodeInline> property is set in Jitsu Configurator yaml file
@@ -226,45 +253,5 @@ const SyncEventsDocsTooltip: React.FC = ({ children }) => {
     <span className="cursor-pointer status-page_info-popover">
       <Tooltip title={content}>{children ? children : <QuestionCircleOutlined />}</Tooltip>
     </span>
-  )
-}
-
-const Filter: React.FC<{
-  label?: string
-  onChange: (selected: FilterOption) => void
-  options: FilterOption[]
-  initialValue?: any
-  className?: string
-}> = ({ label = "", onChange, options, initialValue, className = "" }) => {
-  const initialOption = options.find(o => o.value === initialValue) ?? options[0]
-  const [selectedOption, setSelectedOption] = useState(initialOption)
-
-  const handleChange = value => {
-    const selectedOption = find(options, ["value", value]) ?? options[0]
-    setSelectedOption(selectedOption)
-    onChange(selectedOption)
-  }
-
-  return (
-    <div className={className}>
-      {label ? <label>{label}: </label> : null}
-      <Select
-        defaultValue={selectedOption.value}
-        style={{ width: 170 }}
-        onChange={handleChange}
-        dropdownMatchSelectWidth={false}
-      >
-        {options.map(option => {
-          return (
-            <Option value={option.value} key={option.value}>
-              <div className={styles.filterOption}>
-                <span className={`icon-size-base ${styles.icon}`}>{option.icon}</span>{" "}
-                <span className={`icon-size-base ${styles.label}`}>{option.label}</span>
-              </div>
-            </Option>
-          )
-        })}
-      </Select>
-    </div>
   )
 }
