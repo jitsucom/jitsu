@@ -4,7 +4,7 @@ import { getFullUiPath } from "lib/commons/pathHelper"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
 import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserService } from "./UserService"
-import { SignupRequest, User } from "../../generated/conf-openapi"
+import { SignupRequest, TokensResponse, User } from "../../generated/conf-openapi"
 
 export const LS_ACCESS_KEY = "en_access"
 export const LS_REFRESH_KEY = "en_refresh"
@@ -156,9 +156,12 @@ export class BackendUserService implements UserService {
   changePassword(newPassword: string, resetId?: string): Promise<void> {
     return this.backendApi
       .post("/users/password/change", { new_password: newPassword, reset_id: resetId }, { noauth: !!resetId })
-      .then(res => {
-        localStorage.removeItem(LS_ACCESS_KEY)
-        localStorage.removeItem(LS_REFRESH_KEY)
+      .then((res: TokensResponse) => {
+        if (!!this._apiAccess) {
+          this._apiAccess.updateTokens(res.access_token, res.refresh_token)
+        } else {
+          this.clearTokens()
+        }
       })
   }
 
