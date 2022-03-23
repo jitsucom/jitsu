@@ -13,7 +13,7 @@ export type FilterOption = {
 export const getAllDestinationsAsOptions = (includeAllOption = false) => {
   const options = destinationsStore.listIncludeHidden.map(d => {
     const icon = destinationsReferenceMap[d._type]?.ui.icon
-    return { value: d._uid, label: d._id, icon } as FilterOption
+    return { value: d._uid, label: d.displayName ?? d._id, icon } as FilterOption
   })
   if (includeAllOption) {
     options.unshift({ label: "All destinations", value: "all" })
