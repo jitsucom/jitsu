@@ -3,6 +3,7 @@ package adapters
 import (
 	"github.com/jitsucom/jitsu/server/typing"
 	"reflect"
+	"sort"
 )
 
 //Columns is a list of columns representation
@@ -34,6 +35,16 @@ func (t *Table) Exists() bool {
 	}
 
 	return len(t.Columns) > 0 || len(t.PKFields) > 0 || t.DeletePkFields
+}
+
+//SortedColumnNames return column names sorted in alphabetical order
+func (t *Table) SortedColumnNames() []string {
+	columns := make([]string, 0, len(t.Columns))
+	for name := range t.Columns {
+		columns = append(columns, name)
+	}
+	sort.Strings(columns)
+	return columns
 }
 
 //Clone returns clone of current table

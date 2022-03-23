@@ -170,7 +170,8 @@ func (bq *BigQuery) CreateTable(table *Table) error {
 	}
 
 	bqSchema := bigquery.Schema{}
-	for columnName, column := range table.Columns {
+	for _, columnName := range table.SortedColumnNames() {
+		column := table.Columns[columnName]
 		bigQueryType := bigquery.FieldType(strings.ToUpper(column.DDLType()))
 		sqlType, ok := bq.sqlTypes[columnName]
 		if ok {
@@ -231,7 +232,8 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 			})
 	}
 
-	for columnName, column := range patchSchema.Columns {
+	for _, columnName := range patchSchema.SortedColumnNames() {
+		column := patchSchema.Columns[columnName]
 		bigQueryType := bigquery.FieldType(strings.ToUpper(column.DDLType()))
 		sqlType, ok := bq.sqlTypes[columnName]
 		if ok {

@@ -311,7 +311,8 @@ func (ch *ClickHouse) CreateDB(dbName string) error {
 //New tables will have MergeTree() or ReplicatedMergeTree() engine depends on config.cluster empty or not
 func (ch *ClickHouse) CreateTable(table *Table) error {
 	var columnsDDL []string
-	for columnName, column := range table.Columns {
+	for _, columnName := range table.SortedColumnNames() {
+		column := table.Columns[columnName]
 		columnTypeDDL := ch.columnDDL(columnName, column)
 		columnsDDL = append(columnsDDL, columnTypeDDL)
 	}
@@ -396,7 +397,8 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 	}
 
 	addedColumnsDDL := make([]string, 0, len(patchSchema.Columns))
-	for columnName, column := range patchSchema.Columns {
+	for _, columnName := range patchSchema.SortedColumnNames() {
+		column := patchSchema.Columns[columnName]
 		columnDDL := ch.columnDDL(columnName, column)
 		addedColumnsDDL = append(addedColumnsDDL, "ADD COLUMN "+columnDDL)
 	}
@@ -532,7 +534,7 @@ func (ch *ClickHouse) toDeleteQuery(table *Table, conditions *DeleteConditions) 
 func (ch *ClickHouse) insert(table *Table, objects ...map[string]interface{}) error {
 	var placeholdersBuilder strings.Builder
 	var headerWithoutQuotes, headerWithQuotes []string
-	for name := range table.Columns {
+	for _, name := range table.SortedColumnNames() {
 		headerWithoutQuotes = append(headerWithoutQuotes, name)
 		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
 	}

@@ -166,7 +166,8 @@ func (m *MySQL) PatchTableSchema(patchTable *Table) error {
 
 	pkFields := patchTable.GetPKFieldsMap()
 	//patch columns
-	for columnName, column := range patchTable.Columns {
+	for _, columnName := range patchTable.SortedColumnNames() {
+		column := patchTable.Columns[columnName]
 		columnDDL := m.columnDDL(columnName, column, pkFields)
 		query := fmt.Sprintf(mySQLAddColumnTemplate, m.config.Db, patchTable.Name, columnDDL)
 		m.queryLogger.LogDDL(query)
@@ -537,7 +538,7 @@ func (m *MySQL) insertBatchInTransaction(wrappedTx *Transaction, table *Table, o
 func (m *MySQL) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	var placeholdersBuilder strings.Builder
 	var headerWithoutQuotes []string
-	for name := range table.Columns {
+	for _, name := range table.SortedColumnNames() {
 		headerWithoutQuotes = append(headerWithoutQuotes, name)
 	}
 	valuesAmount := len(objects) * len(table.Columns)
@@ -637,7 +638,7 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 	var headerWithQuotes []string
 	var aliases []string
 	i := 0
-	for name := range table.Columns {
+	for _, name := range table.SortedColumnNames() {
 		quotedColumnName := m.quote(name)
 		alias := fmt.Sprintf("c_%d", i)
 		headerWithQuotes = append(headerWithQuotes, quotedColumnName)
@@ -751,7 +752,8 @@ func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 func (m *MySQL) createTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	var columnsDDL []string
 	pkFields := table.GetPKFieldsMap()
-	for columnName, column := range table.Columns {
+	for _, columnName := range table.SortedColumnNames() {
+		column := table.Columns[columnName]
 		columnsDDL = append(columnsDDL, m.columnDDL(columnName, column, pkFields))
 	}
 

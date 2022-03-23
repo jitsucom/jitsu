@@ -502,7 +502,8 @@ func (p *Postgres) getTable(tableName string) (*Table, error) {
 func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	var columnsDDL []string
 	pkFields := table.GetPKFieldsMap()
-	for columnName, column := range table.Columns {
+	for _, columnName := range table.SortedColumnNames() {
+		column := table.Columns[columnName]
 		columnsDDL = append(columnsDDL, p.columnDDL(columnName, column, pkFields))
 	}
 
@@ -535,7 +536,8 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, table *Table
 func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable *Table) error {
 	pkFields := patchTable.GetPKFieldsMap()
 	//patch columns
-	for columnName, column := range patchTable.Columns {
+	for _, columnName := range patchTable.SortedColumnNames() {
+		column := patchTable.Columns[columnName]
 		columnDDL := p.columnDDL(columnName, column, pkFields)
 		query := fmt.Sprintf(addColumnTemplate, p.config.Schema, patchTable.Name, columnDDL)
 		p.queryLogger.LogDDL(query)
@@ -675,7 +677,7 @@ func (p *Postgres) Update(table *Table, object map[string]interface{}, whereKey 
 func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}, valuesLimit int) error {
 	var placeholdersBuilder strings.Builder
 	var headerWithoutQuotes []string
-	for name := range table.Columns {
+	for _, name := range table.SortedColumnNames() {
 		headerWithoutQuotes = append(headerWithoutQuotes, name)
 	}
 	valuesAmount := len(objects) * len(table.Columns)
@@ -756,7 +758,7 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 	//insert from select
 	var setValues []string
 	var headerWithQuotes []string
-	for name := range table.Columns {
+	for _, name := range table.SortedColumnNames() {
 		setValues = append(setValues, fmt.Sprintf(`"%s"=%s."%s"`, name, bulkMergePrefix, name))
 		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
 	}
@@ -972,15 +974,20 @@ func (p *Postgres) buildInsertPayload(table *Table, valuesMap map[string]interfa
 	quotedHeader := make([]string, len(valuesMap), len(valuesMap))
 	placeholders := make([]string, len(valuesMap), len(valuesMap))
 	values := make([]interface{}, len(valuesMap), len(valuesMap))
-	i := 0
-	for name, value := range valuesMap {
+
+	columns := make([]string, 0, len(valuesMap))
+	for name, _ := range valuesMap {
+		columns = append(columns, name)
+	}
+	sort.Strings(columns)
+	for i, name := range columns {
+		value := valuesMap[name]
 		quotedHeader[i] = fmt.Sprintf(`"%s"`, name)
 		header[i] = name
 
 		//$1::type, $2::type, $3, etc ($0 - wrong)
 		placeholders[i] = fmt.Sprintf("$%d%s", i+1, p.getCastClause(name, table.Columns[name]))
 		values[i] = value
-		i++
 	}
 
 	return header, quotedHeader, placeholders, values
