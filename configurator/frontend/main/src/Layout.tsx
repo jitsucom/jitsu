@@ -44,7 +44,7 @@ import { SupportOptions } from "lib/components/SupportOptions/SupportOptions"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { useClickOutsideRef } from "hooks/useClickOutsideRef"
 import { Breadcrumbs } from "./ui/components/Breadcrumbs/Breadcrumbs"
-import ProjectLink from "./lib/components/ProjectLink/ProjectLink"
+import ProjectLink, { stripProjectFromRoute } from "./lib/components/ProjectLink/ProjectLink"
 import { User } from "./generated/conf-openapi"
 import { showProjectSwitchModal } from "./lib/components/ProjectSwitch/ProjectSwitch"
 import { BillingPlanOptionsModal } from "lib/components/BillingPlanOptions/BillingPlanOptions"
@@ -81,8 +81,8 @@ const menuItems = [
   makeItem(<Icon component={DownloadIcon} />, "Download Config", "/cfg-download", "#14a76c"),
 ]
 
-export function usePageLocation(): string {
-  const location = useLocation().pathname
+function usePageLocation(): string {
+  const location = stripProjectFromRoute(useLocation().pathname)
   const canonicalPath = location === "/" || location === "" ? "/connections" : location
   return canonicalPath.split("/")[1]
 }

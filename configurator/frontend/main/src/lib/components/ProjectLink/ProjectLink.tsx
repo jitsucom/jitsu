@@ -20,8 +20,12 @@ const ProjectLink: React.FC<ProjectLinkProps> = ({ to, children, ...rest }) => {
   )
 }
 
-export function projectRoute(pattern: string, params: ExtractRouteParams<string> = {}) {
+export function projectRoute(pattern: string, params: ExtractRouteParams<string> = {}): string {
   return generatePath(pattern, { projectId: ApplicationServices.get().activeProject.id, ...params })
+}
+
+export function stripProjectFromRoute(route: string): string {
+  return route.replace(`/prj-${ApplicationServices.get().activeProject.id}`, "")
 }
 
 export default ProjectLink

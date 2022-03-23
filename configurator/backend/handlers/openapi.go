@@ -655,7 +655,7 @@ func (oa *OpenAPI) UserSignIn(ctx *gin.Context) {
 	} else if req.Password == "" {
 		mw.RequiredField(ctx, "password")
 	} else if tokenPair, err := authorizator.SignIn(ctx, req.Email, req.Password); err != nil {
-		mw.BadRequest(ctx, "Failed to sign in user", err)
+		mw.Unauthorized(ctx, err)
 	} else {
 		ctx.JSON(http.StatusOK, tokenPair)
 	}
@@ -690,7 +690,7 @@ func (oa *OpenAPI) UserAuthorizationTokenRefresh(ctx *gin.Context) {
 	} else if req.RefreshToken == "" {
 		mw.RequiredField(ctx, "refresh_token")
 	} else if tokenPair, err := authorizator.RefreshToken(ctx, req.RefreshToken); err != nil {
-		mw.BadRequest(ctx, "Failed to refresh token pair", err)
+		mw.Unauthorized(ctx, err)
 	} else {
 		ctx.JSON(http.StatusOK, tokenPair)
 	}

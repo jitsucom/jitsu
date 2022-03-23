@@ -125,6 +125,8 @@ const ConfigurableFieldsFormComponent = ({
       calcValue = defaultValue
     } else if (typeof constantValue !== "undefined") {
       calcValue = constantValue
+    } else if (type === "boolean") {
+      calcValue = false
     } else if (type === "json") {
       calcValue = {}
     } else if (type === "javascript") {
@@ -259,10 +261,10 @@ const ConfigurableFieldsFormComponent = ({
                 label={displayName}
                 id={id}
                 onChange={handleChangeSwitch(id)}
-                defaultChecked={defaultValueToDisplay}
+                defaultChecked={!!defaultValueToDisplay}
               />
             ) : (
-              <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={defaultValueToDisplay} />
+              <Switch className={"mb-0.5"} onChange={handleChangeSwitch(id)} defaultChecked={!!defaultValueToDisplay} />
             )}
           </FormItemWrapper>
         )
