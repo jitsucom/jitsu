@@ -226,9 +226,14 @@ func (eh *EventHandler) CacheRawEvent(eventsArray []events.Event, cachingDisable
 		serializedPayload, _ := json.Marshal(e)
 		if err != nil {
 			eh.eventsCache.RawErrorEvent(cachingDisabled, tokenID, serializedPayload, err)
-		} else {
-			eh.eventsCache.RawEvent(cachingDisabled, tokenID, serializedPayload, skip.Error())
+			return
 		}
+
+		skipMsg := ""
+		if skip != nil {
+			skipMsg = skip.Error()
+		}
+		eh.eventsCache.RawEvent(cachingDisabled, tokenID, serializedPayload, skipMsg)
 	}
 }
 
