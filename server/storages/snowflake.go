@@ -167,7 +167,10 @@ func (s *Snowflake) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, er
 			return table, err
 		}
 
-		b, header := fdata.GetPayloadBytesWithHeader(schema.VerticalBarSeparatedMarshallerInstance)
+		b, header, err := fdata.GetPayloadBytesWithHeader(schema.CSVMarshallerInstance)
+		if err != nil {
+			return dbTable, err
+		}
 		if err := s.stageAdapter.UploadBytes(fdata.FileName, b); err != nil {
 			return dbTable, err
 		}

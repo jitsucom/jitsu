@@ -111,7 +111,10 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, er
 		if fileName == "" {
 			fileName = dbTable.Name + "_" + uuid.NewLettersNumbers()
 		}
-		b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
+		b, err := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
+		if err != nil {
+			return dbTable, err
+		}
 		if err := bq.gcsAdapter.UploadBytes(fileName, b); err != nil {
 			return dbTable, err
 		}
