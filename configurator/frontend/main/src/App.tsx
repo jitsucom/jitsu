@@ -139,7 +139,7 @@ export const Application: React.FC = function () {
         setError(e)
       }
     })()
-  }, [])
+  }, [projectId])
 
   if (!error && !initialized) {
     return <Preloader />
@@ -320,9 +320,10 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
     ;(async () => {
       let project = await initializeProject(projectId, projects)
       if (!project) {
-        if (projects.length === 0) services.userService.removeAuth(reloadPage)
-        window.sessionStorage.setItem("redirectedFromProjectId", projectId)
-        window.location.replace(window.location.href.replace(projectId, projects[0].id))
+        if (!projects || projects.length === 0) services.userService.removeAuth(reloadPage)
+        const lastUsedProject = getLastUsedProjectId(projects)
+        setProjectIdRedirectedFrom(projectId)
+        window.location.replace(window.location.href.replace(projectId, lastUsedProject))
         return
       }
       setProject(project)
@@ -335,8 +336,9 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
     })()
   }, [])
 
+  /** Show a message to user if they were redirected from a different project */
   useEffect(() => {
-    const redirectedFromProjectId = window.sessionStorage.getItem("redirectedFromProjectId")
+    const redirectedFromProjectId = getProjectIdRedirectedFrom()
     if (redirectedFromProjectId && project?.name) {
       window.sessionStorage.removeItem("redirectedFromProjectId")
       actionNotification.warn(
@@ -345,7 +347,15 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
         </>
       )
     }
-  }, [project?.name])
+  }, [])
+
+  /** Saves the last successfully initialized project to local storage */
+  useEffect(() => {
+    if (initialized && !error && project?.id) {
+      setLastUsedProjectId(project.id)
+      debugger
+    }
+  }, [error, initialized, project?.id])
 
   if (!error && !initialized) {
     return <Preloader text="Loading project data..." />
@@ -389,8 +399,39 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
 
 const ProjectRedirect: React.FC<{ projects: Project[] }> = ({ projects }) => {
   const location = useLocation()
+  const lastUsedProject = getLastUsedProjectId(projects)
   if (!projects?.length) {
     return <ErrorCard title="Invalid state" description="projects.length should be greater than zero" />
   }
-  return <Redirect to={`/prj-${projects[0].id}${location.pathname}`} />
+  return <Redirect to={`/prj-${lastUsedProject ?? projects[0].id}${location.pathname}`} />
+}
+
+/**
+ * Finds the last successfully initialized project id.
+ * First, checks the session storage, then checks the local storage - this makes it more stable
+ * in cross-tabs user workflows.
+ */
+function getLastUsedProjectId(projects: Project[]): string {
+  const [lastUsedProjectIdInCurrentTab, lastUsedProjectIdGlobally] = [window.sessionStorage, window.localStorage].map(
+    storage => storage.getItem("JITSU_LAST_USED_PROJECT")
+  )
+  if (lastUsedProjectIdInCurrentTab && projects.find(prj => prj.id === lastUsedProjectIdInCurrentTab)) {
+    return lastUsedProjectIdInCurrentTab
+  }
+  if (lastUsedProjectIdGlobally && projects.find(prj => prj.id === lastUsedProjectIdGlobally)) {
+    return lastUsedProjectIdGlobally
+  }
+  return projects?.[0]?.id ?? null
+}
+
+function setLastUsedProjectId(id: string): void {
+  ;[window.sessionStorage, window.localStorage].forEach(storage => storage.setItem("JITSU_LAST_USED_PROJECT", id))
+}
+
+function getProjectIdRedirectedFrom(): string | null | undefined {
+  return window.sessionStorage.getItem("redirectedFromProjectId")
+}
+
+function setProjectIdRedirectedFrom(id: string): void {
+  window.sessionStorage.setItem("redirectedFromProjectId", id)
 }
