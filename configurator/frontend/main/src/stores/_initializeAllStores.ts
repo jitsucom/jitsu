@@ -1,10 +1,12 @@
 import { flowResult } from "mobx"
 import { apiKeysStore } from "./apiKeys"
 import { destinationsStore } from "./destinations"
+import { connectionsHelper } from "./helpers"
 import { sourcesStore } from "./sources"
 
 export const initializeAllStores = async (): Promise<void> => {
   await initalizeStoresData()
+  await connectionsHelper.healConnections()
 }
 
 const initalizeStoresData = (): Promise<
