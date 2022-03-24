@@ -1,6 +1,7 @@
 import { Card } from "antd"
 import React from "react"
 import { Link } from "react-router-dom"
+import ProjectLink from "../ProjectLink/ProjectLink"
 import styles from "./EntityCard.module.less"
 
 type EntityCardProps = {
@@ -26,9 +27,9 @@ const EntityCardTitle: React.FC = ({ children }) => {
 
 const EntityCardLink: React.FC<EntityCardProps & { link?: string }> = ({ link, ...entityCardProps }) => {
   return link ? (
-    <Link to={link} className="w-full">
+    <ProjectLink to={link} className="w-full">
       <EntityCard {...entityCardProps} />
-    </Link>
+    </ProjectLink>
   ) : (
     <EntityCard {...entityCardProps} />
   )
