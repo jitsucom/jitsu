@@ -121,7 +121,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 
 	//put all events to write-ahead-log if idle
 	if appstatus.Instance.Idle.Load() {
-		eh.CacheRawEvent(eventsArray, cachingDisabled, tokenID, nil, nil)
+		eh.CacheRawEvents(eventsArray, cachingDisabled, tokenID, nil, nil)
 		eh.writeAheadLogService.Consume(eventsArray, reqContext, token, eh.processor.Type())
 		c.JSON(http.StatusOK, middleware.OKResponse())
 		return
@@ -133,9 +133,9 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		if err == multiplexing.ErrNoDestinations {
 			code = http.StatusUnprocessableEntity
 			err = fmt.Errorf(noDestinationsErrTemplate, token)
-			eh.CacheRawEvent(eventsArray, cachingDisabled, tokenID, err, nil)
+			eh.CacheRawEvents(eventsArray, cachingDisabled, tokenID, err, nil)
 		} else {
-			eh.CacheRawEvent(eventsArray, cachingDisabled, tokenID, nil, err)
+			eh.CacheRawEvents(eventsArray, cachingDisabled, tokenID, nil, err)
 		}
 
 		reqBody, _ := json.Marshal(eventsArray)
@@ -143,7 +143,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		c.JSON(code, middleware.ErrResponse(err.Error(), nil))
 		return
 	} else {
-		eh.CacheRawEvent(eventsArray, cachingDisabled, tokenID, nil, nil)
+		eh.CacheRawEvents(eventsArray, cachingDisabled, tokenID, nil, nil)
 	}
 
 	c.JSON(http.StatusOK, EventResponse{Status: "ok", DeleteCookie: !reqContext.CookiesLawCompliant, SdkExtras: extras})
@@ -221,7 +221,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (eh *EventHandler) CacheRawEvent(eventsArray []events.Event, cachingDisabled bool, tokenID string, skip error, err error) {
+func (eh *EventHandler) CacheRawEvents(eventsArray []events.Event, cachingDisabled bool, tokenID string, skip error, err error) {
 	for _, e := range eventsArray {
 		serializedPayload, _ := json.Marshal(e)
 		if err != nil {
