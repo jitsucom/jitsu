@@ -46,7 +46,7 @@ export const pullAllAirbyteStreams = async (
     const streams: AirbyteStreamData[] = rawAirbyteStreams.map((stream, idx) => {
       assertIsAirbyteCatalogStream(stream, `Failed to parse Airbyte stream ${stream} with index ${idx}`)
       const streamMinimalConfig = { name: stream.name, namespace: stream.namespace }
-      const previouslySelectedStream = previously_selected_streams.find(previouslySelectedStreamConfig =>
+      const previouslySelectedStream = previously_selected_streams?.find(previouslySelectedStreamConfig =>
         sourceEditorUtils.streamsAreEqual(previouslySelectedStreamConfig, streamMinimalConfig)
       )
       return {
