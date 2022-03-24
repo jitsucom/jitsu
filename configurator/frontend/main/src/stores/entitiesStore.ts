@@ -137,7 +137,7 @@ export class EntitiesStore<T extends EntityData> {
     }
   }
 
-  public *add(entityToAdd: T) {
+  public *add(entityToAdd: T): Generator<any, T | null, T | null> {
     this.resetError()
     this.setStatus(BACKGROUND_LOADING)
     try {
@@ -146,6 +146,7 @@ export class EntitiesStore<T extends EntityData> {
         throw new Error(`Error: '${this.type}' store failed to add an entity ${entityToAdd}`)
       }
       this._entities.push(addedEntity)
+      return addedEntity
     } finally {
       this.setStatus(IDLE)
     }
