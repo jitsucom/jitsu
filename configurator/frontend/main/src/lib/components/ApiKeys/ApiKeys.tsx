@@ -20,6 +20,7 @@ import { default as JitsuClientLibraryCard, jitsuClientLibraries } from "../Jits
 import { Code } from "../Code/Code"
 import { ApiKeyCard } from "./ApiKeyCard"
 import { Link } from "react-router-dom"
+import ProjectLink from "../ProjectLink/ProjectLink"
 
 /**
  * What's displayed as loading?
@@ -63,11 +64,11 @@ const ApiKeysComponent: React.FC = () => {
           !
         </div>
         <div className="flex-shrink">
-          <Link to={"/api-keys/new"}>
+          <ProjectLink to={"/api-keys/new"}>
             <Button type="primary" size="large" icon={<PlusOutlined />} loading={"NEW" === loading}>
               Generate New Key
             </Button>
-          </Link>
+          </ProjectLink>
         </div>
       </div>
 
