@@ -104,7 +104,13 @@ func NewGoogleCloudStorage(ctx context.Context, config *GoogleConfig) (*GoogleCl
 }
 
 //UploadBytes creates named file on google cloud storage with payload
-func (gcs *GoogleCloudStorage) UploadBytes(fileName string, fileBytes []byte) error {
+func (gcs *GoogleCloudStorage) UploadBytes(fileName string, fileBytes []byte) (err error) {
+	//panic handler
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic while uploading file: %s to GCC project: %s bucket: %s dataset: %s : %v", fileName, gcs.config.Project, gcs.config.Bucket, gcs.config.Dataset, r)
+		}
+	}()
 	bucket := gcs.client.Bucket(gcs.config.Bucket)
 	object := bucket.Object(fileName)
 	w := object.NewWriter(gcs.ctx)
