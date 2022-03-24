@@ -1,6 +1,7 @@
 // @Libs
 import { Badge, Button, Dropdown, Empty, Typography } from "antd"
 import React, { useCallback, useEffect, useRef } from "react"
+import { useHistory } from "react-router-dom"
 import { observer } from "mobx-react-lite"
 import LeaderLine from "leader-line-new"
 // @Store
@@ -11,20 +12,19 @@ import { destinationsStore } from "stores/destinations"
 import { EntityCard } from "lib/components/EntityCard/EntityCard"
 import { EntityIcon } from "lib/components/EntityIcon/EntityIcon"
 import { DropDownList } from "ui/components/DropDownList/DropDownList"
+// @Hooks
+import { useServices } from "hooks/useServices"
 // @Icons
 import { PlusOutlined } from "@ant-design/icons"
 // @Utils
-import { useHistory } from "react-router-dom"
+import { APIKeyUtil } from "utils/apiKeys.utils"
+import { DestinationsUtils } from "utils/destinations.utils"
+import { SourcesUtils } from "utils/sources.utils"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 // @Reference
-import { destinationsReferenceList } from "@jitsu/catalog/destinations/lib"
 import { destinationPageRoutes } from "../DestinationsPage/DestinationsPage.routes"
 // @Styles
 import styles from "./ConnectionsPage.module.less"
-import { useServices } from "hooks/useServices"
-import { APIKeyUtil } from "../../../utils/apiKeys.utils"
-import { DestinationsUtils } from "../../../utils/destinations.utils"
-import { SourcesUtils } from "../../../utils/sources.utils"
-import { projectRoute } from "../../../lib/components/ProjectLink/ProjectLink"
 
 const CONNECTION_LINE_SIZE = 3
 const CONNECTION_LINE_COLOR = "#415969"
@@ -210,12 +210,12 @@ const AddSourceDropdownOverlay: React.FC = () => {
         {
           id: "api_key",
           title: "Add JS Events API Key",
-          link: "/api-keys/new",
+          link: projectRoute("/api-keys/new"),
         },
         {
           id: "connectors",
           title: "Add Connector Source",
-          link: "/sources/add",
+          link: projectRoute("/sources/add"),
         },
       ]}
     />

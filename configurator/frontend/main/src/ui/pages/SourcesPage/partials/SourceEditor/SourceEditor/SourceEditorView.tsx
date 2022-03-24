@@ -123,6 +123,7 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
         />
       ) : (
         <SourceEditorViewTabs
+          sourceId={initialSourceData.sourceId}
           tabs={forms}
           tabsDisabled={tabsDisabled}
           sourceDataFromCatalog={sourceDataFromCatalog}
