@@ -1,5 +1,6 @@
-import { makeAutoObservable, makeObservable } from "mobx"
+import { makeAutoObservable } from "mobx"
 import { ReactNode } from "react"
+import { cloneDeep } from "lodash"
 
 /**
  * Breadcrumb element
@@ -20,9 +21,13 @@ export type BreadcrumbElement = {
 }
 
 interface ICurrentPageHeader {
+  /** the list of breadcrumbs to render */
+  breadcrumbs: BreadcrumbElement[]
+  /**
+   * Sets breadcrumbs. If first element doesn't point to project home, it will be added
+   * automatically
+   */
   setBreadcrumbs(...breadcrumbs: (BreadcrumbElement | string)[])
-
-  getBreadcrumbs(): BreadcrumbElement[]
 }
 
 /**
@@ -37,22 +42,23 @@ class CurrentPageHeader implements ICurrentPageHeader {
     makeAutoObservable(this)
   }
 
-  /**
-   * Sets breadcrumbs. If first element doesn't point to project home, it will be added
-   * automatically
-   */
+  get breadcrumbs(): BreadcrumbElement[] {
+    if (!this._breadcrumbs || this._breadcrumbs.length == 0) {
+      return [{ link: "/", title: "Home" }]
+    }
+    /**
+     * Deep copying `title` JSX Element object in order to prevent React from freezing it in
+     * store on render. Otherwise, MobX _might_ occasionally throw `Dynamic observable objects
+     * cannot be frozen`
+     */
+    return this._breadcrumbs.map(element => ({ ...element, title: cloneDeep(element.title) }))
+  }
+
   setBreadcrumbs(...breadcrumbs: (BreadcrumbElement | string)[]) {
     console.log("Setting breadcrumbs", breadcrumbs)
     let normalized: BreadcrumbElement[] = breadcrumbs.map(b => (typeof b === "string" ? { title: b } : b))
     this._breadcrumbs =
       normalized.length > 0 && normalized[0].link === "/" ? normalized : [{ link: "/", title: "Home" }, ...normalized]
-  }
-
-  getBreadcrumbs(): BreadcrumbElement[] {
-    if (!this._breadcrumbs || this._breadcrumbs.length == 0) {
-      return [{ link: "/", title: "Home" }]
-    }
-    return this._breadcrumbs
   }
 }
 

@@ -16,7 +16,7 @@ export class ApiKeysStore extends EntitiesStore<ApiKey> {
     })
   }
 
-  public *add(key?: Partial<ApiKey>) {
+  public *add(key?: Partial<ApiKey>): Generator<any, ApiKey, ApiKey> {
     this.resetError()
     this.setStatus(EntitiesStoreStatus.BACKGROUND_LOADING)
     const newApiKey: ApiKey = { ...this.generateApiKey(key.comment), ...(key ?? {}) }
@@ -26,6 +26,7 @@ export class ApiKeysStore extends EntitiesStore<ApiKey> {
         throw new Error(`API keys store failed to add a new key: ${newApiKey}`)
       }
       this._entities.push(addedApiKey)
+      return addedApiKey
     } finally {
       this.setStatus(EntitiesStoreStatus.IDLE)
     }
