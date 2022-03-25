@@ -51,6 +51,7 @@ const services = ApplicationServices.get()
  * }
  **/
 export class EntitiesStore<T extends EntityData> {
+  protected _initialized: boolean = false
   protected _state: { status: EntitiesStoreStatus; errorMessage: string } = observable({
     status: IDLE,
     errorMessage: "",
@@ -115,6 +116,10 @@ export class EntitiesStore<T extends EntityData> {
     return this._state.status
   }
 
+  public get isInitialized(): boolean {
+    return this._initialized
+  }
+
   public get errorMessage() {
     return this._state.errorMessage
   }
@@ -130,6 +135,7 @@ export class EntitiesStore<T extends EntityData> {
     try {
       const entities = yield services.storageService.table<T>(this.type).getAll()
       this._entities = entities ?? []
+      this._initialized = true
     } catch (error) {
       this.setError(`Failed to fetch ${this.type}: ${error.message || error}`)
     } finally {
