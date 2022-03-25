@@ -603,7 +603,7 @@ class JitsuClientImpl implements JitsuClient {
         data = JSON.parse(response);
         let extras = data["jitsu_sdk_extras"];
         const window = isWindowAvailable();
-        if (extras.length > 0 && !window) {
+        if (extras?.length > 0 && !window) {
           getLogger().error(
             "Tags destination supported only in browser environment"
           );
