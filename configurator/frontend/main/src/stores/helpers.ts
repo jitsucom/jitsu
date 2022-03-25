@@ -57,6 +57,10 @@ class ConnectionsHelper {
    * to connections management errors in UI
    */
   public async healConnections() {
+    if ([this.sourcesStore, this.destinationsStore, this.apiKeysStore].some(store => !store.isInitialized)) {
+      return
+    }
+
     const destinations = this.destinationsStore.listIncludeHidden
     const sources = this.sourcesStore.listIncludeHidden
     const apiKeys = this.apiKeysStore.listIncludeHidden
