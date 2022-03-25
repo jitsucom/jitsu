@@ -20,6 +20,7 @@ import { SourceEditorView } from "./SourceEditorView"
 import { ErrorDetailed } from "lib/commons/errors"
 import { connectionsHelper } from "stores/helpers"
 import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
+import { flowResult } from "mobx"
 // @Utils
 
 /** Accumulated state of all forms that is transformed and sent to backend on source save */
@@ -256,26 +257,31 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
         ignoreErrors: methodConfig?.ignoreErrors,
       })
 
-      const sourceDataToSave: SourceData = {
+      let sourceDataToSave: SourceData = {
         ...sourceData,
         ...testConnectionResults,
       }
 
-      if (editorMode === "add") await sourcesStore.add(sourceDataToSave)
-      if (editorMode === "edit") await sourcesStore.replace(sourceDataToSave)
+      let savedSourceData: SourceData = sourceDataToSave
+      if (editorMode === "add") {
+        savedSourceData = await flowResult(sourcesStore.add(sourceDataToSave))
+      }
+      if (editorMode === "edit") {
+        await flowResult(sourcesStore.replace(sourceDataToSave))
+      }
       await connectionsHelper.updateDestinationsConnectionsToSource(
-        sourceDataToSave.sourceId,
-        sourceDataToSave.destinations
+        savedSourceData.sourceId,
+        savedSourceData.destinations
       )
 
       handleLeaveEditor({ goToSourcesList: true })
 
-      if (sourceDataToSave.connected) {
+      if (savedSourceData.connected) {
         actionNotification.success(editorMode === "add" ? "New source has been added!" : "Source has been saved")
       } else {
         actionNotification.warn(
           `Source has been saved, but test has failed with '${firstToLower(
-            sourceDataToSave.connectedErrorMessage
+            savedSourceData.connectedErrorMessage
           )}'. Data from this source will not be available`
         )
       }
