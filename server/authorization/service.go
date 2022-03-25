@@ -6,6 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/spf13/viper"
+	"sort"
 	"sync"
 	"time"
 )
@@ -132,7 +133,12 @@ func (s *Service) GetAllTokenIDs() []string {
 	s.RLock()
 	defer s.RUnlock()
 
-	return s.tokensHolder.ids
+	ids := make([]string, 0, len(s.tokensHolder.ids))
+	for _, id := range s.tokensHolder.ids {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 //GetAllIDsByToken return token ids by token identity(client_secret/server_secret/token id)
@@ -155,6 +161,7 @@ func (s *Service) GetAllIDsByToken(tokenIDentity []string) (ids []string) {
 	for id := range deduplication {
 		ids = append(ids, id)
 	}
+	sort.Strings(ids)
 	return
 }
 
