@@ -82,11 +82,11 @@ class ConnectionsHelper {
       })
     })
 
-    // await Promise.all([
-    //   ...nonExistentApiKeys.map(nonExistentKey => this.unconnectDeletedApiKey(nonExistentKey)),
-    //   ...nonExistentSources.map(nonExistentSrc => this.unconnectDeletedSource(nonExistentSrc)),
-    //   ...nonExistentDestinations.map(nonExistentKey => this.unconnectDeletedDestination(nonExistentKey)),
-    // ])
+    await Promise.all([
+      ...nonExistentApiKeys.map(nonExistentKey => this.unconnectDeletedApiKey(nonExistentKey)),
+      ...nonExistentSources.map(nonExistentSrc => this.unconnectDeletedSource(nonExistentSrc)),
+      ...nonExistentDestinations.map(nonExistentKey => this.unconnectDeletedDestination(nonExistentKey)),
+    ])
   }
 
   /**
