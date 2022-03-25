@@ -32,7 +32,7 @@ function normalizeEvent(type: EventType, id: string, status: EventStatus, data: 
   let original = data.original ?? data
   return {
     type: type,
-    timestamp: moment.utc(data.timestamp || original._timestamp || original.utc_time),
+    timestamp: moment.utc(data.timestamp || original._timestamp || original.utc_time || new Date(2022, 2, 20)),
     eventId: getEventId(type, original),
     rawJson: original,
     id: id,
