@@ -4,7 +4,7 @@ import { Code } from "../../Code/Code"
 import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
 import { Badge, Table, Tabs, Tooltip } from "antd"
 import cn from "classnames"
-import { EventStatus, EventType, Event } from "../shared"
+import { Event, EventStatus, EventType } from "../shared"
 import orderBy from "lodash/orderBy"
 import { CodeInline } from "../../components"
 
@@ -125,7 +125,14 @@ export const EventsView: React.FC<{
         <Code {...codeProps}>{event.rawJson.malformed}</Code>
       </>
     ) : (
-      <Code {...codeProps}>{JSON.stringify(event.rawJson, null, 2)}</Code>
+      <>
+        {event.resultJson && event.status === EventStatus.Skip ? (
+          <div className="font-monospace flex justify-left items-center text-warning mt-3 mb-3">
+            Event was skipped: {event.resultJson}
+          </div>
+        ) : null}
+        <Code {...codeProps}>{JSON.stringify(event.rawJson, null, 2)}</Code>
+      </>
     )
   }
 

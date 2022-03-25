@@ -13,12 +13,13 @@ import CheckCircleOutlined from "@ant-design/icons/lib/icons/CheckCircleOutlined
 import cn from "classnames"
 import RightCircleOutlined from "@ant-design/icons/lib/icons/RightCircleOutlined"
 import { EventsView } from "./EventsView"
-import { Event, EventStatus, EventType, FilterOption } from "../shared"
+import { Event, EventStatus, EventType } from "../shared"
 import JitsuClientLibraryCard, { jitsuClientLibraries } from "../../JitsuClientLibrary/JitsuClientLibrary"
 import { default as moment } from "moment"
 import murmurhash from "murmurhash"
 import * as uuid from "uuid"
-import { EventsFilter } from "./EventsFilter"
+import { SelectFilter } from "../../Filters/SelectFilter"
+import { FilterOption } from "../../Filters/shared"
 
 function getEventId(type: EventType, json: any) {
   if (type === EventType.Token) {
@@ -44,14 +45,14 @@ function processEvents(type: EventType, data: { id: string; events: any }) {
   let eventsIndex: Record<string, Event> = {}
   data.events.events.forEach(event => {
     let status
-    if (event.success || (type === EventType.Token && !event.malformed)) {
+    if (event.success) {
       status = EventStatus.Success
-    } else if (event.error || (type === EventType.Token && event.malformed)) {
+    } else if (event.error || event.malformed) {
       status = EventStatus.Error
     } else if (event.skip) {
       status = EventStatus.Skip
     } else {
-      status = EventStatus.Pending
+      status = type === EventType.Token ? EventStatus.Success : EventStatus.Pending
     }
     let normalizedEvent = normalizeEvent(type, data.id, status, event)
     eventsIndex[normalizedEvent.eventId] = normalizedEvent
@@ -197,17 +198,19 @@ export const EventsList: React.FC<{
   const filters = (
     <>
       <div className={`mb-6 flex ${styles.filters}`}>
-        <EventsFilter
+        <SelectFilter
+          className="mr-5"
           label={type === EventType.Token ? "API Key" : "Destination"}
-          initialFilter={idFilter}
+          initialValue={idFilter}
           options={filterOptions}
           onChange={option => {
             setIdFilter(option.value)
           }}
         />
-        <EventsFilter
+        <SelectFilter
+          className="mr-5"
           label="Status"
-          initialFilter={statusFilter}
+          initialValue={statusFilter}
           options={statusOptions}
           onChange={option => {
             setStatusFilter(option.value)
@@ -233,6 +236,9 @@ export const EventsList: React.FC<{
     const pending = event.status === EventStatus.Pending
 
     if (type === EventType.Token) {
+      if (event.status === EventStatus.Skip) {
+        return `Skip`
+      }
       return error ? event.rawJson.error ?? "Error" : "Success"
     }
 
@@ -310,7 +316,7 @@ export const EventsList: React.FC<{
                   <Tooltip title={eventStatusMessage(event)}>
                     {event.status === EventStatus.Error ? (
                       <ExclamationCircleOutlined className="text-error" />
-                    ) : event.status === EventStatus.Pending ? (
+                    ) : event.status === EventStatus.Pending || event.status === EventStatus.Skip ? (
                       <QuestionCircleOutlined className="text-warning" />
                     ) : (
                       <CheckCircleOutlined className="text-success" />

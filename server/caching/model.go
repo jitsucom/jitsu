@@ -33,6 +33,7 @@ type rawEvent struct {
 	serializedPayload          []byte
 	serializedMalformedPayload []byte
 	error                      string
+	skip                       string
 
 	eventMetaStatus string
 }
