@@ -317,6 +317,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
   const { projectId } = useParams<{ projectId: string }>()
 
   useEffect(() => {
+    setInitialized(false)
     ;(async () => {
       let project = await initializeProject(projectId, projects)
       if (!project) {
@@ -328,13 +329,13 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
       }
       setProject(project)
       try {
-        await initializeAllStores()
+        await initializeAllStores(services.analyticsService)
         setInitialized(true)
       } catch (e) {
         setError(e)
       }
     })()
-  }, [])
+  }, [projectId])
 
   /** Show a message to user if they were redirected from a different project */
   useEffect(() => {
@@ -353,7 +354,6 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
   useEffect(() => {
     if (initialized && !error && project?.id) {
       setLastUsedProjectId(project.id)
-      debugger
     }
   }, [error, initialized, project?.id])
 
