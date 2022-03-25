@@ -19,7 +19,11 @@ test("lib.js accessible", async () => {
 
 test("test embedded no init", async () => {
   server.clearRequestLog();
-  await runUrl(browser, server.getUrl("/test-case/embed-no-init.html?gclid=1"));
+  const pageResult = await runUrl(
+    browser,
+    server.getUrl("/test-case/embed-no-init.html?gclid=1")
+  );
+  expect(pageResult.consoleErrors.length).toBe(0);
   let requestLog = server.requestLog;
   expect(requestLog.length).toBe(2);
   expect(requestLog[0].api_key).toBe("Test2");
@@ -35,12 +39,13 @@ test("test embedded no init", async () => {
 
 test("test segment intercept", async () => {
   server.clearRequestLog();
-  const { allRequests } = await runUrl(
+  const { consoleErrors, allRequests } = await runUrl(
     browser,
     server.getUrl(
       "/test-case/segment-intercept.html?gclid=1&utm_source=UTM-SOURCE"
     )
   );
+  expect(consoleErrors.length).toBe(0);
   expect(
     allRequests.filter(
       (req) => req.url().indexOf("https://api.segment.io/v1/") >= 0
@@ -56,7 +61,11 @@ test("test segment intercept", async () => {
 
 test("test embedded", async () => {
   server.clearRequestLog();
-  await runUrl(browser, server.getUrl("/test-case/embed.html?gclid=1"));
+  let pageResult = await runUrl(
+    browser,
+    server.getUrl("/test-case/embed.html?gclid=1")
+  );
+  expect(pageResult.consoleErrors.length).toBe(0);
   let requestLog = server.requestLog;
   expect(requestLog.length).toBe(2);
   expect(requestLog[0].api_key).toBe("Test");
@@ -73,10 +82,11 @@ test("test embedded", async () => {
 
 test("test privacy policy", async () => {
   server.clearRequestLog();
-  await runUrl(
+  const pageResult = await runUrl(
     browser,
     server.getUrl("/test-case/embed-privacy-policy.html?gclid=1")
   );
+  expect(pageResult.consoleErrors.length).toBe(0);
   let requestLog = server.requestLog;
   expect(requestLog.length).toBe(2);
   expect(requestLog[0].api_key).toBe("Test");
@@ -97,6 +107,7 @@ test("test tag destination", async () => {
     browser,
     server.getUrl("/test-case/embed_tag_destination.html?gclid=1")
   );
+  expect(pageResult.consoleErrors.length).toBe(1);
   expect(
     pageResult.consoleErrors.filter((msg) => msg === "EXPECTED_TEST_MESSAGE")
       .length
