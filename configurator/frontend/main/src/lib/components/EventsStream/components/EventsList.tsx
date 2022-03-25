@@ -7,7 +7,7 @@ import { isNull, omitBy } from "lodash"
 import { useLoaderAsObject } from "../../../../hooks/useLoader"
 import styles from "../EventsSteam.module.less"
 import { Alert, Button, Input, Tooltip } from "antd"
-import { ExclamationCircleOutlined, QuestionCircleOutlined, ReloadOutlined } from "@ant-design/icons"
+import {ExclamationCircleOutlined, MinusCircleOutlined, ReloadOutlined} from "@ant-design/icons"
 import { CenteredError, CenteredSpin } from "../../components"
 import CheckCircleOutlined from "@ant-design/icons/lib/icons/CheckCircleOutlined"
 import cn from "classnames"
@@ -233,10 +233,10 @@ export const EventsList: React.FC<{
 
   const eventStatusMessage = event => {
     const error = event.status === EventStatus.Error
-    const pending = event.status === EventStatus.Pending
+    const skip = event.status === EventStatus.Skip
 
     if (type === EventType.Token) {
-      if (event.status === EventStatus.Skip) {
+      if (skip) {
         return `Skip`
       }
       return error ? event.rawJson.error ?? "Error" : "Success"
@@ -244,9 +244,9 @@ export const EventsList: React.FC<{
 
     return error
       ? "Failed - at least one destination load is failed"
-      : pending
-      ? "Pending - status of some destinations is unknown"
-      : "Success - succesfully sent to all destinations"
+      : skip
+      ? "Skipped - event was not sent to destination"
+      : "Success - successfully sent to destination"
   }
 
   if (error) {
@@ -317,7 +317,7 @@ export const EventsList: React.FC<{
                     {event.status === EventStatus.Error ? (
                       <ExclamationCircleOutlined className="text-error" />
                     ) : event.status === EventStatus.Pending || event.status === EventStatus.Skip ? (
-                      <QuestionCircleOutlined className="text-warning" />
+                      <MinusCircleOutlined className="text-warning" />
                     ) : (
                       <CheckCircleOutlined className="text-success" />
                     )}
