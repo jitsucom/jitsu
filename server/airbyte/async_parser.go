@@ -57,11 +57,6 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 			continue
 		}
 
-		if row.Type != RecordType || row.Record == nil {
-			ap.logger.LOG(string(lineBytes), airbyteSystem, logging.DEBUG)
-			continue
-		}
-
 		switch row.Type {
 		case LogType:
 			if row.Log == nil {
@@ -70,12 +65,14 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 			switch row.Log.Level {
 			case "ERROR":
 				ap.logger.LOG(row.Log.Message, airbyteSystem, logging.ERROR)
+			case "DEBUG":
+				ap.logger.LOG(row.Log.Message, airbyteSystem, logging.DEBUG)
 			case "INFO":
 				ap.logger.LOG(row.Log.Message, airbyteSystem, logging.INFO)
 			case "WARN":
 				ap.logger.LOG(row.Log.Message, airbyteSystem, logging.WARN)
 			default:
-				logging.SystemErrorf("Unknown airbyte log message level: %s", row.Log.Level)
+				ap.logger.LOG(row.Log.Message, airbyteSystem, logging.DEBUG)
 			}
 		case StateType:
 			if row.State == nil || row.State.Data == nil {
@@ -91,9 +88,7 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 
 			output.Streams[row.Record.Stream].Objects = append(output.Streams[row.Record.Stream].Objects, row.Record.Data)
 		default:
-			msg := fmt.Sprintf("Unknown airbyte output line type: %s [%s]", row.Type, string(lineBytes))
-			logging.Error(msg)
-			ap.logger.ERROR(msg)
+			ap.logger.LOG(string(lineBytes), airbyteSystem, logging.DEBUG)
 		}
 
 		//persist batch and recreate variables
@@ -107,12 +102,13 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 			for _, stream := range output.Streams {
 				stream.Objects = []map[string]interface{}{}
 			}
+			output.State = nil
 			records = 0
 		}
 	}
 
 	//persist last batch
-	if records > 0 {
+	if records > 0 || output.State != nil {
 		err := ap.dataConsumer.Consume(output)
 		if err != nil {
 			return err

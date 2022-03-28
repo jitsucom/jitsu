@@ -74,7 +74,8 @@ type Stream struct {
 
 	Namespace string `json:"namespace,omitempty"`
 
-	SyncMode string `json:"-" yaml:"-"` //without serialization
+	SyncMode            string   `json:"-" yaml:"-"` //without serialization
+	SelectedCursorField []string `json:"-" yaml:"-"` //without serialization
 }
 
 //Schema is a dto for Airbyte catalog Schema object serialization

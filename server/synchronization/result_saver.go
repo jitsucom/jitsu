@@ -143,7 +143,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 			logging.SystemError(errMsg)
 			return errors.New(errMsg)
 		}
-
+		rs.taskLogger.INFO("Saving state: %s", string(stateJSON))
 		err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey, driversbase.ALL.String(), string(stateJSON))
 		if err != nil {
 			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] signature [%s]: %v", rs.task.Source, rs.tap, string(stateJSON), err)
