@@ -367,6 +367,9 @@ func (a *Airbyte) loadCatalog() (string, map[string]*base.StreamRepresentation, 
 				if streamConfig.SyncMode != "" {
 					stream.SyncMode = streamConfig.SyncMode
 				}
+				if len(streamConfig.CursorField) > 0 {
+					stream.SelectedCursorField = streamConfig.CursorField
+				}
 				selectedStreams = append(selectedStreams, stream)
 			}
 		}
