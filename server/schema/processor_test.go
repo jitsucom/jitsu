@@ -405,6 +405,20 @@ func TestProcessTransform(t *testing.T) {
 			"",
 		},
 		{
+			"react_style",
+			map[string]interface{}{"event_type": "react_style", "eventn_ctx_event_id": "a1024", "b": true},
+			[]events.Event{{"event_type": "react_style", "eventn_ctx_event_id": "a1024", "b": true, "bb": true}},
+			[]string{"events"},
+			"",
+		},
+		{
+			"react_style_skip_all",
+			map[string]interface{}{"event_type": "react_style", "eventn_ctx_event_id": "a1024", "b": false},
+			[]events.Event{},
+			[]string{},
+			"Transform or table name filter marked object to be skipped. This object will be skipped.",
+		},
+		{
 			"segment",
 			map[string]interface{}{"event_type": "user_identify", "source_ip": "127.0.0.1", "url": "https://jitsu.com", "app": "jitsu"},
 			[]events.Event{{"context_ip": "127.0.0.1", "app": "jitsu", "url": "https://jitsu.com"}},
@@ -441,6 +455,16 @@ switch ($.event_type) {
                         })
         }
         return convs
+    case "react_style":
+		return [
+			null,
+			undefined,
+			false,
+			$.b && {
+				bb: $.b,
+				...$,
+			}
+		]
 	case "user_identify":
 		return toSegment($)
     default:

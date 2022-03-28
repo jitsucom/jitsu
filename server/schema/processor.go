@@ -136,9 +136,9 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 				logging.Warnf("Unable to process object %s: %v. This line will be stored in fallback.", string(originalEventBytes), err)
 
 				failedEvents.Events = append(failedEvents.Events, &events.FailedEvent{
-					Event:   originalEventBytes,
-					Error:   err.Error(),
-					EventID: p.uniqueIDField.Extract(event),
+					Event:           originalEventBytes,
+					Error:           err.Error(),
+					EventID:         p.uniqueIDField.Extract(event),
 					RecognizedEvent: recognizedEvent,
 				})
 				failedEvents.Src[events.ExtractSrc(event)]++
@@ -160,12 +160,12 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 				f, ok := fData[batchHeader.TableName]
 				if !ok {
 					fData[batchHeader.TableName] = &ProcessedFile{
-						FileName:    fileName,
-						BatchHeader: batchHeader,
+						FileName:           fileName,
+						BatchHeader:        batchHeader,
 						RecognitionPayload: recognizedEvent,
-						payload:     []map[string]interface{}{processedObject},
-						originalRawEvents: []string{rawOriginalEvent},
-						eventsSrc:   map[string]int{events.ExtractSrc(event): 1},
+						payload:            []map[string]interface{}{processedObject},
+						originalRawEvents:  []string{rawOriginalEvent},
+						eventsSrc:          map[string]int{events.ExtractSrc(event): 1},
 					}
 				} else {
 					f.BatchHeader.Fields.Merge(batchHeader.Fields)
@@ -292,14 +292,26 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		toProcess = append(toProcess, obj)
 	case []interface{}:
 		for _, o := range obj {
-			casted, ok := o.(map[string]interface{})
-			if !ok {
+			switch value := o.(type) {
+			case map[string]interface{}:
+				toProcess = append(toProcess, value)
+			case bool:
+				if value {
+					//#872 react-style pattern: we ignore 'false' but it is not clear how to interpret 'true' value
+					return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", o)
+				}
+			case nil:
+				//#872 react-style pattern: undefined-s and null-s get ignored
+			default:
 				return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", o)
 			}
-			toProcess = append(toProcess, casted)
 		}
 	default:
 		return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", transformed)
+	}
+	if len(toProcess) == 0 {
+		//transform that returns no events causes skipped event
+		return nil, ErrSkipObject
 	}
 	envelops := make([]Envelope, 0, len(toProcess))
 	originalEvent, _ := json.Marshal(object)
