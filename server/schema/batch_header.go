@@ -3,6 +3,7 @@ package schema
 import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
+	"sort"
 )
 
 type Fields map[string]Field
@@ -76,6 +77,7 @@ func (f Fields) Header() (header []string) {
 	for fieldName := range f {
 		header = append(header, fieldName)
 	}
+	sort.Strings(header)
 	return
 }
 

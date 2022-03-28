@@ -2,19 +2,19 @@ package schema
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 )
 
 const quotaByteValue = 34
 
 var (
-	JSONMarshallerInstance                 = JSONMarshaller{}
-	CSVMarshallerInstance                  = CSVMarshaller{delimiter: ","}
-	VerticalBarSeparatedMarshallerInstance = CSVMarshaller{delimiter: "||"}
+	JSONMarshallerInstance = JSONMarshaller{}
+	CSVMarshallerInstance  = CSVMarshaller{}
 )
 
 type Marshaller interface {
-	Marshal([]string, map[string]interface{}) ([]byte, error)
+	Marshal([]string, map[string]interface{}, *bytes.Buffer) error
 	NeedHeader() bool
 }
 
@@ -22,8 +22,17 @@ type JSONMarshaller struct {
 }
 
 //Marshal object as json
-func (jm JSONMarshaller) Marshal(fields []string, object map[string]interface{}) ([]byte, error) {
-	return json.Marshal(object)
+func (jm JSONMarshaller) Marshal(fields []string, object map[string]interface{}, buf *bytes.Buffer) error {
+	bytes, err := json.Marshal(object)
+	if err != nil {
+		return err
+	}
+	_, err = buf.Write(bytes)
+	if err != nil {
+		return err
+	}
+	_, err = buf.Write([]byte("\n"))
+	return err
 }
 
 func (jm JSONMarshaller) NeedHeader() bool {
@@ -31,34 +40,41 @@ func (jm JSONMarshaller) NeedHeader() bool {
 }
 
 type CSVMarshaller struct {
-	delimiter string
 }
 
 //Marshal marshals input object as csv values string with delimiter
-func (cm CSVMarshaller) Marshal(fields []string, object map[string]interface{}) ([]byte, error) {
-	buf := bytes.Buffer{}
-
-	i := 0
+func (cm CSVMarshaller) Marshal(fields []string, object map[string]interface{}, buf *bytes.Buffer) error {
+	csvWriter := csv.NewWriter(buf)
+	valuesArr := make([]string, 0, len(fields))
 	for _, field := range fields {
 		v, ok := object[field]
+		strValue := ""
 		if ok {
-			//helper function for value serialization
-			b, _ := json.Marshal(v)
-			//don't write begin and end quotas
-			lastIndex := len(b) - 1
-			if len(b) >= 2 && b[0] == quotaByteValue && b[lastIndex] == quotaByteValue {
-				buf.Write(b[1:lastIndex])
+			str, ok := v.(string)
+			if ok {
+				strValue = str
 			} else {
-				buf.Write(b)
+				//use json marshaller to marshal types like arrays and time in unified way
+				b, err := json.Marshal(v)
+				if err != nil {
+					return err
+				}
+				//don't write begin and end quotas
+				lastIndex := len(b) - 1
+				if len(b) >= 2 && b[0] == quotaByteValue && b[lastIndex] == quotaByteValue {
+					b = b[1:lastIndex]
+				}
+				strValue = string(b)
 			}
 		}
-		//don't write delimiter after last element
-		if i < len(fields)-1 {
-			buf.Write([]byte(cm.delimiter))
-		}
-		i++
+		valuesArr = append(valuesArr, strValue)
 	}
-	return buf.Bytes(), nil
+	err := csvWriter.Write(valuesArr)
+	if err != nil {
+		return err
+	}
+	csvWriter.Flush()
+	return nil
 }
 
 func (cm CSVMarshaller) NeedHeader() bool {

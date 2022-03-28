@@ -106,7 +106,9 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 		}
 
 		service.init(dc)
-
+		appconfig.Instance.AuthorizationService.DestinationsForceReload = func() {
+			service.init(dc)
+		}
 		if len(service.unitsByID) == 0 {
 			logging.Info("Destinations are empty")
 		}
@@ -118,6 +120,9 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 			appconfig.Instance.AuthorizationService.DestinationsForceReload = resources.Watch(serviceName, strings.Replace(destinationsSource, "file://", "", 1), resources.LoadFromFile, service.updateDestinations, time.Duration(reloadSec)*time.Second)
 		} else if strings.HasPrefix(destinationsSource, "{") && strings.HasSuffix(destinationsSource, "}") {
 			service.updateDestinations([]byte(destinationsSource))
+			appconfig.Instance.AuthorizationService.DestinationsForceReload = func() {
+				service.updateDestinations([]byte(destinationsSource))
+			}
 		} else {
 			return nil, errors.New("Unknown destination source: " + destinationsSource)
 		}
