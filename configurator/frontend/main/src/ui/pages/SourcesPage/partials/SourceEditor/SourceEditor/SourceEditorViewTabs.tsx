@@ -24,6 +24,7 @@ type Tab = {
 }
 
 type SourceEditorViewTabsProps = {
+  sourceId: string
   tabs: Tab[]
   tabsDisabled: SourceEditorDisabledTabs
   sourceDataFromCatalog: SourceConnector
@@ -35,6 +36,7 @@ type SourceEditorViewTabsProps = {
 }
 
 export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
+  sourceId,
   tabs,
   tabsDisabled,
   sourceDataFromCatalog,
@@ -116,6 +118,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
         activeKey={currentTab}
         tabBarExtraContent={
           <TabsExtra
+            sourceId={sourceId}
             sourceDataFromCatalog={sourceDataFromCatalog}
             setShowDocumentationDrawer={setShowDocumentationDrawer}
           />
@@ -161,14 +164,15 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
 }
 
 const TabsExtra: React.FC<{
+  sourceId: string
   sourceDataFromCatalog: SourceConnector
   setShowDocumentationDrawer: (value: boolean) => void
-}> = ({ sourceDataFromCatalog, setShowDocumentationDrawer }) => {
+}> = ({ sourceId, sourceDataFromCatalog, setShowDocumentationDrawer }) => {
   return (
     <span className="uppercase">
       <NavLink
         to={projectRoute(sourcesPageRoutes.logs, {
-          sourceId: sourceDataFromCatalog.id ?? "not_found",
+          sourceId: sourceId ?? "not_found",
         })}
       >
         View Logs

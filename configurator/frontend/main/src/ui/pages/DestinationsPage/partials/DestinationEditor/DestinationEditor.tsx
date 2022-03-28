@@ -338,22 +338,27 @@ const DestinationEditor = ({
         try {
           await destinationEditorUtils.testConnection(destinationData.current, true)
 
-          if (editorMode === "add") await flowResult(destinationsStore.add(destinationData.current))
-          if (editorMode === "edit") await flowResult(destinationsStore.replace(destinationData.current))
+          let savedDestinationData: DestinationData = destinationData.current
+          if (editorMode === "add") {
+            savedDestinationData = await flowResult(destinationsStore.add(destinationData.current))
+          }
+          if (editorMode === "edit") {
+            await flowResult(destinationsStore.replace(destinationData.current))
+          }
           await connectionsHelper.updateSourcesConnectionsToDestination(
-            destinationData.current._uid,
-            destinationData.current._sources || []
+            savedDestinationData._uid,
+            savedDestinationData._sources || []
           )
 
           destinationsTabs.forEach((tab: Tab) => (tab.touched = false))
 
-          if (destinationData.current._connectionTestOk) {
-            if (editorMode === "add") actionNotification.success(`New ${destinationData.current._type} has been added!`)
-            if (editorMode === "edit") actionNotification.success(`${destinationData.current._type} has been saved!`)
+          if (savedDestinationData._connectionTestOk) {
+            if (editorMode === "add") actionNotification.success(`New ${savedDestinationData._type} has been added!`)
+            if (editorMode === "edit") actionNotification.success(`${savedDestinationData._type} has been saved!`)
           } else {
             actionNotification.warn(
-              `${destinationData.current._type} has been saved, but test has failed with '${firstToLower(
-                destinationData.current._connectionErrorMessage
+              `${savedDestinationData._type} has been saved, but test has failed with '${firstToLower(
+                savedDestinationData._connectionErrorMessage
               )}'. Data will not be piped to this destination`
             )
           }

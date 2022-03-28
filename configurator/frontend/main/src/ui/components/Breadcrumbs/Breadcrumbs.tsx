@@ -50,7 +50,7 @@ const BreadcrumbsComponent: React.FC<{}> = () => {
         </>
       )}
       {join(
-        currentPageHeaderStore.getBreadcrumbs().map((element, index) => (
+        currentPageHeaderStore.breadcrumbs.map((element, index) => (
           <div className={`${element.link && "hover:bg-bgSecondary"} px-3 py-1 rounded-lg`} key={`element-${index}`}>
             {element.link ? (
               element.absolute || element.link.indexOf("/prj-") >= 0 ? (

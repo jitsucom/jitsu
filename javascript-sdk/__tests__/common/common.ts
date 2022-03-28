@@ -80,7 +80,7 @@ export class TestServer {
           JSON.stringify({ jitsu_sdk_extras: bodyJson.jitsu_sdk_extras })
         );
       } else {
-        res.send();
+        res.send("{}");
       }
       next();
     };
@@ -144,6 +144,10 @@ export async function runUrl(
       consoleErrors.push(msg.text());
     }
     console.log(`Browser console message: [${msg.type()}] ${msg.text()}`);
+  });
+  page.on("pageerror", (err) => {
+    consoleErrors.push(err.message);
+    console.log(`Browser console error: ${err.message}`);
   });
   let artifactsDir = __dirname + "/../artifacts/";
   let screenshotPath =

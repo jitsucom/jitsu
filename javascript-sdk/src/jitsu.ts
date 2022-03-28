@@ -602,19 +602,21 @@ class JitsuClientImpl implements JitsuClient {
       if (typeof response === "string" && response.length > 0) {
         data = JSON.parse(response);
         let extras = data["jitsu_sdk_extras"];
-        const window = isWindowAvailable();
-        if (extras.length > 0 && !window) {
-          getLogger().error(
-            "Tags destination supported only in browser environment"
-          );
-        } else {
-          for (const { type, id, value } of extras) {
-            if (type === "tag") {
-              const tag = document.createElement("div");
-              tag.id = id;
-              insertAndExecute(tag, value);
-              if (tag.childElementCount > 0) {
-                document.body.appendChild(tag);
+        if (extras && extras.length > 0) {
+          const isWindow = isWindowAvailable();
+          if (!isWindow) {
+            getLogger().error(
+              "Tags destination supported only in browser environment"
+            );
+          } else {
+            for (const { type, id, value } of extras) {
+              if (type === "tag") {
+                const tag = document.createElement("div");
+                tag.id = id;
+                insertAndExecute(tag, value);
+                if (tag.childElementCount > 0) {
+                  document.body.appendChild(tag);
+                }
               }
             }
           }

@@ -209,13 +209,13 @@ const ApiKeyEditorComponent: React.FC = props => {
                   try {
                     setSaving(true)
                     const connectedDestinations: string[] = form.getFieldsValue().connectedDestinations || []
-                    const key = getKey(form.getFieldsValue(), initialApiKey)
+                    let savedKey: ApiKey = getKey(form.getFieldsValue(), initialApiKey)
                     if (id) {
-                      await flowResult(apiKeysStore.replace({ ...key, uid: id }))
+                      await flowResult(apiKeysStore.replace({ ...savedKey, uid: id }))
                     } else {
-                      await flowResult(apiKeysStore.add(key))
+                      savedKey = await flowResult(apiKeysStore.add(savedKey))
                     }
-                    await connectionsHelper.updateDestinationsConnectionsToApiKey(key.uid, connectedDestinations)
+                    await connectionsHelper.updateDestinationsConnectionsToApiKey(savedKey.uid, connectedDestinations)
                     history.push(projectRoute(apiKeysRoutes.listExact))
                   } finally {
                     setSaving(false)

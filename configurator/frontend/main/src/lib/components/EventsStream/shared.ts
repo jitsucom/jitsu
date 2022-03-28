@@ -21,9 +21,3 @@ export type Event = {
   status: EventStatus
   resultJson: any
 }
-
-export type FilterOption = {
-  value: string
-  label: any
-  icon?: any
-}

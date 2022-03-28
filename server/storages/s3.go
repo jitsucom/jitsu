@@ -124,9 +124,9 @@ func (s3 *S3) marshall(fdata *schema.ProcessedFile) ([]byte, error) {
 	encodingFormat := s3.s3Adapter.Format()
 	switch encodingFormat {
 	case adapters.S3FormatCSV:
-		return fdata.GetPayloadBytes(schema.CSVMarshallerInstance), nil
+		return fdata.GetPayloadBytes(schema.CSVMarshallerInstance)
 	case adapters.S3FormatFlatJSON, adapters.S3FormatJSON:
-		return fdata.GetPayloadBytes(schema.JSONMarshallerInstance), nil
+		return fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
 	case adapters.S3FormatParquet:
 		pm := schema.NewParquetMarshaller(s3.s3Adapter.Compression() == adapters.S3CompressionGZIP)
 		return fdata.GetPayloadUsingStronglyTypedMarshaller(pm)

@@ -14,6 +14,7 @@ type Props = {
   data: DataPoint[]
   granularity: "hour" | "day"
   dataToDisplay?: DataType | DataType[]
+  legendLabels?: { [key: string]: string }
 }
 
 type State = {
@@ -47,6 +48,7 @@ export const StatisticsChart: React.FC<Props> = ({
   data,
   granularity,
   dataToDisplay = ["success", "skip", "errors"],
+  legendLabels = {},
 }) => {
   const [state, dispatch] = useReducer(reducer, initialState)
 
@@ -56,7 +58,7 @@ export const StatisticsChart: React.FC<Props> = ({
   }
 
   return (
-    <ResponsiveContainer width="100%" minHeight={300} minWidth={300}>
+    <ResponsiveContainer width="100%" minHeight={225} minWidth={300}>
       <LineChart
         className={styles.chart}
         data={data.map(point => ({
@@ -67,7 +69,7 @@ export const StatisticsChart: React.FC<Props> = ({
         <XAxis dataKey="date" tick={<CustomizedXAxisTick />} stroke="#394e5a" />
         <YAxis tick={<CustomizedYAxisTick />} stroke="#394e5a" />
         <CartesianGrid strokeDasharray="3 3" stroke="#394e5a" />
-        <Legend onClick={handleClickOnLegend} />
+        <Legend onClick={handleClickOnLegend} formatter={value => legendLabels[value] ?? value} />
         <Tooltip
           wrapperStyle={{
             backgroundColor: "#22313a",
