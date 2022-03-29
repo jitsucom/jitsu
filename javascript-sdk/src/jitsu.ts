@@ -67,25 +67,17 @@ const echoTransport: Transport = (url: string, json: string) => {
   return Promise.resolve();
 };
 
-/**
- * Expire cookie at the current path if the path is not immediately under some parent path.
- *
- * // TODO remove soon?
- *
- * @param name cookie name
- * @param exceptParentPath cookie will not be expired if current path is immediately under this path
- */
-function expireLocalCookie(name: string, exceptParentPath: string) {
-  let parentPath = window.location.pathname.split("/").slice(0, -1).join("/")
-  if (parentPath == "") {
-    parentPath = "/"
-  }
-
-  if (parentPath == exceptParentPath) {
+// This is a hack to expire all cookies with non-root path left behind by invalid tracking.
+// TODO remove soon
+function expireNonRootCookies(name: string, path: string = undefined) {
+  path = path ?? window.location.pathname
+  let lastSlash = path.lastIndexOf("/")
+  if (lastSlash == 0) {
     return
   }
 
-  deleteCookie(name)
+  deleteCookie(name, path)
+  expireNonRootCookies(name, path.slice(0, lastSlash))
 }
 
 interface Persistence {
@@ -114,7 +106,7 @@ class CookiePersistence implements Persistence {
   }
 
   restore(): Record<string, any> | undefined {
-    expireLocalCookie(this.cookieName, "/")
+    expireNonRootCookies(this.cookieName)
     let str = getCookie(this.cookieName);
     if (str) {
       try {
@@ -192,7 +184,7 @@ const browserEnv: TrackingEnvironment = {
   }),
 
   getAnonymousId: ({ name, domain }) => {
-    expireLocalCookie(name, "/")
+    expireNonRootCookies(name)
     const idCookie = getCookie(name);
     if (idCookie) {
       getLogger().debug("Existing user id", idCookie);
