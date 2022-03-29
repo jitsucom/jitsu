@@ -28,7 +28,9 @@ import {
   UserProps,
 } from "./interface";
 import { getLogger, setRootLogLevel } from "./log";
-import { requireWindow, isWindowAvailable } from "./window";
+import { isWindowAvailable, requireWindow } from "./window";
+import { CookieOpts, serializeCookie } from "./cookie";
+import { IncomingMessage, ServerResponse } from "http";
 //import { parse } from "node-html-parser";
 
 const VERSION_INFO = {
@@ -36,10 +38,6 @@ const VERSION_INFO = {
   date: "__buildDate__",
   version: "__buildVersion__",
 };
-
-import { CookieOpts, serializeCookie } from "./cookie";
-import { IncomingMessage, ServerResponse } from "http";
-import * as url from "url";
 
 const JITSU_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`;
 let MAX_AGE_TEN_YEARS = 31_622_400 * 10;
@@ -69,6 +67,27 @@ const echoTransport: Transport = (url: string, json: string) => {
   return Promise.resolve();
 };
 
+/**
+ * Expire cookie at the current path if the path is not immediately under some parent path.
+ *
+ * // TODO remove soon?
+ *
+ * @param name cookie name
+ * @param exceptParentPath cookie will not be expired if current path is immediately under this path
+ */
+function expireLocalCookie(name: string, exceptParentPath: string) {
+  let parentPath = window.location.pathname.split("/").slice(0, -1).join("/")
+  if (parentPath == "") {
+    parentPath = "/"
+  }
+
+  if (parentPath == exceptParentPath) {
+    return
+  }
+
+  deleteCookie(name)
+}
+
 interface Persistence {
   save(props: Record<string, any>);
 
@@ -95,6 +114,7 @@ class CookiePersistence implements Persistence {
   }
 
   restore(): Record<string, any> | undefined {
+    expireLocalCookie(this.cookieName, "/")
     let str = getCookie(this.cookieName);
     if (str) {
       try {
@@ -172,6 +192,7 @@ const browserEnv: TrackingEnvironment = {
   }),
 
   getAnonymousId: ({ name, domain }) => {
+    expireLocalCookie(name, "/")
     const idCookie = getCookie(name);
     if (idCookie) {
       getLogger().debug("Existing user id", idCookie);
