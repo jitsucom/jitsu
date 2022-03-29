@@ -135,15 +135,13 @@ class CookiePersistence implements Persistence {
 }
 
 class NoPersistence implements Persistence {
-  public save(props: Record<string, any>) {
-  }
+  public save(props: Record<string, any>) {}
 
   restore(): Record<string, any> | undefined {
     return undefined;
   }
 
-  delete() {
-  }
+  delete() {}
 }
 
 const defaultCompatMode = false;
@@ -344,9 +342,9 @@ export function httpApi(
     describeClient(): ClientProperties {
       let url: Partial<URL> = req.url
         ? new URL(
-          req.url,
-          req.url.startsWith("http") ? undefined : "http://localhost"
-        )
+            req.url,
+            req.url.startsWith("http") ? undefined : "http://localhost"
+          )
         : {};
       const requestHost =
         header(req, "x-forwarded-host") || header(req, "host") || url.hostname;
@@ -397,8 +395,7 @@ const xmlHttpTransport: Transport = (
   url: string,
   jsonPayload: string,
   additionalHeaders: Record<string, string>,
-  handler = (code, body) => {
-  }
+  handler = (code, body) => {}
 ) => {
   let req = new window.XMLHttpRequest();
   return new Promise<void>((resolve, reject) => {
@@ -439,8 +436,7 @@ const fetchTransport: (fetch: any) => Transport = (fetch) => {
     url: string,
     jsonPayload: string,
     additionalHeaders: Record<string, string>,
-    handler = (code, body) => {
-    }
+    handler = (code, body) => {}
   ) => {
     let res: any;
     try {
@@ -650,9 +646,9 @@ class JitsuClientImpl implements JitsuClient {
         anonymous_id:
           this.cookiePolicy !== "strict"
             ? env.getAnonymousId({
-              name: this.idCookieName,
-              domain: this.cookieDomain,
-            })
+                name: this.idCookieName,
+                domain: this.cookieDomain,
+              })
             : "",
         ...this.userProperties,
       },
@@ -701,7 +697,7 @@ class JitsuClientImpl implements JitsuClient {
       if (!options.fetch && !globalThis.fetch) {
         throw new Error(
           "Jitsu runs in Node environment. However, neither JitsuOptions.fetch is provided, nor global fetch function is defined. \n" +
-          "Please, provide custom fetch implementation. You can get it via node-fetch package"
+            "Please, provide custom fetch implementation. You can get it via node-fetch package"
         );
       }
       this.transport = fetchTransport(options.fetch || globalThis.fetch);
