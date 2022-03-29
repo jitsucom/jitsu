@@ -89,8 +89,8 @@ export const setCookie = (
   requireWindow().document.cookie = serializeCookie(name, value, opts);
 };
 
-export const deleteCookie = (name: string, path: string = undefined) => {
-  document.cookie = name + "= ; expires = Thu, 01 Jan 1970 00:00:00 GMT" + (path ? ("; path = " + path): "");
+export const deleteCookie = (name: string, path: string | undefined = "/") => {
+  document.cookie = name + "= ; expires = Thu, 01 Jan 1970 00:00:00 GMT" + (path ? ("; path = " + path) : "");
 };
 
 export const generateId = () => Math.random().toString(36).substring(2, 12);
