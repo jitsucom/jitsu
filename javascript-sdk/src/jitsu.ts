@@ -28,7 +28,9 @@ import {
   UserProps,
 } from "./interface";
 import { getLogger, setRootLogLevel } from "./log";
-import { requireWindow, isWindowAvailable } from "./window";
+import { isWindowAvailable, requireWindow } from "./window";
+import { CookieOpts, serializeCookie } from "./cookie";
+import { IncomingMessage, ServerResponse } from "http";
 //import { parse } from "node-html-parser";
 
 const VERSION_INFO = {
@@ -36,10 +38,6 @@ const VERSION_INFO = {
   date: "__buildDate__",
   version: "__buildVersion__",
 };
-
-import { CookieOpts, serializeCookie } from "./cookie";
-import { IncomingMessage, ServerResponse } from "http";
-import * as url from "url";
 
 const JITSU_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`;
 let MAX_AGE_TEN_YEARS = 31_622_400 * 10;
@@ -69,6 +67,18 @@ const echoTransport: Transport = (url: string, json: string) => {
   return Promise.resolve();
 };
 
+// This is a hack to expire all cookies with non-root path left behind by invalid tracking.
+// TODO remove soon
+function expireNonRootCookies(name: string, path: string = undefined) {
+  path = path ?? window.location.pathname
+  if (path == "" || path == "/") {
+    return
+  }
+
+  deleteCookie(name, path)
+  expireNonRootCookies(name, path.slice(0, path.lastIndexOf("/")))
+}
+
 interface Persistence {
   save(props: Record<string, any>);
 
@@ -95,6 +105,7 @@ class CookiePersistence implements Persistence {
   }
 
   restore(): Record<string, any> | undefined {
+    expireNonRootCookies(this.cookieName)
     let str = getCookie(this.cookieName);
     if (str) {
       try {
@@ -172,6 +183,7 @@ const browserEnv: TrackingEnvironment = {
   }),
 
   getAnonymousId: ({ name, domain }) => {
+    expireNonRootCookies(name)
     const idCookie = getCookie(name);
     if (idCookie) {
       getLogger().debug("Existing user id", idCookie);

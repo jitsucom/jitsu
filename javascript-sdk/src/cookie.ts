@@ -12,14 +12,12 @@ export function serializeCookie(name, val, opt: CookieOpts = {}) {
   let enc = encodeURIComponent;
   const value = enc(val);
   let str = name + "=" + value;
+  str += "; Path=" + (opt.path ?? "/")
   if (opt.maxAge) {
     str += "; Max-Age=" + Math.floor(opt.maxAge);
   }
   if (opt.domain) {
     str += "; Domain=" + opt.domain;
-  }
-  if (opt.path) {
-    str += "; Path=" + opt.path;
   }
   if (opt.expires) {
     str += "; Expires=" + opt.expires.toUTCString();
