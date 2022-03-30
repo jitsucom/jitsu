@@ -57,8 +57,7 @@ const SourceEditorFormStreamsLoadableForm = ({
     setSelectedStreams(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, selectedStreams, options)
   }
 
-  const handleToggleStream = useCallback((checked: boolean, streamUid: string): void => {
-    const stream = allStreams.find(stream => sourceEditorUtils.getStreamUid(stream) === streamUid)
+  const handleToggleStream = useCallback((checked: boolean, stream: StreamData): void => {
     checked ? handleAddStream(stream) : handleRemoveStream(stream)
   }, [])
 
@@ -138,7 +137,7 @@ type StreamsCollapsibleListProps = {
   initiallySelectedStreams: StreamConfig[]
   isAllStreamsChecked?: boolean
   setSourceEditorState: SetSourceEditorState
-  handleToggleStream: (checked: boolean, streamUid: string) => void
+  handleToggleStream: (checked: boolean, stream: StreamData) => void
 }
 
 const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo(
@@ -146,7 +145,6 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
     return (
       <Collapse
         expandIconPosition="left"
-        destroyInactivePanel
         expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
       >
         {streamsToDisplay
@@ -182,13 +180,13 @@ type StreamPanelProps = {
   streamData: StreamData
   initiallySelectedStreams: StreamConfig[]
   forceChecked?: boolean
-  handleToggleStream: (checked: boolean, streamUid: string) => void
+  handleToggleStream: (checked: boolean, stream: StreamData) => void
   setSourceEditorState: SetSourceEditorState
 } & { [key: string]: any }
 
 const StreamPanel: React.FC<StreamPanelProps> = ({
   streamUid,
-  streamData,
+  streamData: initialStreamData,
   initiallySelectedStreams,
   forceChecked,
   handleToggleStream,
@@ -201,10 +199,12 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
       initiallySelectedStreams.some(selected => sourceEditorUtils.getSelectedStreamUid(selected) === streamUid)
   )
 
+  const [streamData, setStreamData] = useState<StreamData>(initialStreamData)
+
   const toggle = (checked: boolean, event: MouseEvent) => {
     event.stopPropagation() // hack to prevent collapse triggers
     setChecked(checked)
-    handleToggleStream(checked, streamUid)
+    handleToggleStream(checked, streamData)
   }
 
   /**
@@ -213,6 +213,7 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
   const { header, content } = useMemo<{ header: JSX.Element; content: JSX.Element }>(() => {
     if (sourceEditorUtils.isAirbyteStream(streamData)) {
       const handleChangeStreamConfig = (stream: AirbyteStreamData): void => {
+        setStreamData(stream)
         updateStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, { ...stream })
       }
       return {
@@ -235,7 +236,7 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
     }
   }, [streamData, checked])
 
-  /** Will only set checked  */
+  /** Used to force check all streams by the parent component */
   useEffect(() => {
     if (forceChecked !== undefined) setChecked(forceChecked)
   }, [forceChecked])
@@ -323,7 +324,13 @@ const AirbyteStreamParameters: React.FC<AirbyteStreamParametersProps> = ({
         {/* Sync mode */}
         {streamData.stream.supported_sync_modes?.length ? (
           <StreamParameter title="Sync mode">
-            <Select size="small" value={config.sync_mode} disabled={!checked} onChange={handleChangeSyncMode}>
+            <Select
+              size="small"
+              value={config.sync_mode}
+              disabled={!checked}
+              style={{ minWidth: 150 }}
+              onChange={handleChangeSyncMode}
+            >
               {streamData.stream.supported_sync_modes.map(mode => (
                 <Select.Option key={mode} value={mode}>
                   {mode}
@@ -342,6 +349,9 @@ const AirbyteStreamParameters: React.FC<AirbyteStreamParametersProps> = ({
               size="small"
               value={config.cursor_field.join(cursorFieldPathDelimiter)}
               disabled={!checked || streamData.stream.source_defined_cursor}
+              // className={`w-56`}
+              dropdownMatchSelectWidth={false}
+              style={{ minWidth: 150 }}
               showSearch
               onChange={handleChangeCursorField}
             >
@@ -418,7 +428,7 @@ const StreamParameter: React.FC<StreamParameterProps> = ({ title, children }) =>
     <div className="flex flex-row mb-1">
       <label className="flex-grow-0 flex-shink-0 w-1/5 max-w-xs text-right truncate">{title}</label>
       <span className="flex-shrink-0 pr-2">{":"}</span>
-      <span className="flex-grow flex-shrink min-w-0 font-bold">{children}</span>
+      <span className="flex-grow flex-shrink font-bold">{children}</span>
     </div>
   )
 }
