@@ -1,5 +1,7 @@
 /**
- * Collections have been renamed to Streams as of September 2021
+ * Stream configuration of a Native source
+ *
+ * Note: collections have been renamed to Streams as of September 2021
  */
 declare interface CollectionSource {
   name: string
@@ -17,14 +19,44 @@ declare interface CollectionSource {
 
 declare type StreamData = AirbyteStreamData | SingerStreamData
 
+/**
+ * Configured Airbyte stream data format used internally in the UI.
+ *
+ * Corresponds to the [ConfiguredAirbyteStream schema](https://docs.airbyte.com/understanding-airbyte/catalog#configuredairbytestream)
+ */
 declare type AirbyteStreamData = {
-  sync_mode: string
+  sync_mode: "full_refresh" | "incremental"
+  cursor_field: string[]
   destination_sync_mode: string
   stream: {
     name: string
     namespace?: string
     json_schema: UnknownObject
-    supported_sync_modes?: string[]
+    /**
+     * Can be either `full_refresh` or `incremental`
+     *
+     * Incremental sync modes requires choosing a cursor field which is used as comparable to determine which records are the new or updated since the last sync.
+     * Learn more in the [Airbyte docs](https://docs.airbyte.com/understanding-airbyte/catalog#cursor).
+     * */
+    supported_sync_modes?: ["full_refresh"] | ["full_refresh", "incremental"]
+    /**
+     * Works only for the `incremental` sync mode.
+     *
+     * If `true`, then the source determines the cursor field internally. It cannot be overriden.
+     *
+     * Cursor field is used as comparable to determine which records are the new or updated since the last sync.
+     * Learn more in the [Airbyte docs](https://docs.airbyte.com/understanding-airbyte/catalog#cursor).
+     **/
+    source_defined_cursor?: boolean
+    /**
+     * Works only for the `incremental` sync mode.
+     *
+     * Cursor field that will be used if the sync mode is `incremental` and the source_defined_cursor is `true`.
+     *
+     * Cursor field is used as comparable to determine which records are the new or updated since the last sync.
+     * Learn more in the [Airbyte docs](https://docs.airbyte.com/understanding-airbyte/catalog#cursor).
+     **/
+    default_cursor_field?: string[]
     [key: string]: unknown
   }
 }
@@ -40,38 +72,85 @@ declare type SingerStreamData = {
   }[]
 }
 
-declare type StreamConfig = {
+/**
+ * Format for storing configured streams data on backend.
+ */
+declare type StreamConfig = SingerStreamConfig | AirbyteStreamConfig
+
+/** General form of the Stream applicable to both Airbyte and Singer */
+declare type SingerStreamConfig = {
   name?: string
   namespace?: string
-  sync_mode?: string
   [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
 }
 
-declare type SourceData = NativeSourceData & AirbyteSourceData & SingerSourceData
-declare interface NativeSourceData {
-  //name displayed on a source. Used only in UI
-  displayName?: string
-  collections: CollectionSource[]
-  config: {
-    [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
-  }
-  schedule?: string
-  destinations: string[]
+/** Configured Airbyte stream to send to backend */
+declare type AirbyteStreamConfig = {
+  name: string
+  namespace?: string
+  /**
+   * Can be either `full_refresh` or `incremental`
+   *
+   * Incremental sync modes requires choosing a cursor field which is used as comparable to determine
+   * which records are the new or updated since the last sync.
+   * Learn more in the [Airbyte docs](https://docs.airbyte.com/understanding-airbyte/catalog#cursor).
+   * */
+  sync_mode: "full_refresh" | "incremental"
+  /**
+   * Field that will be used as comparable to determine which records are the new or updated since the last sync.
+   * Stored in the form of array that reads the path to field, e.g.
+   *
+   * @example
+   * type StreamJsonStructure = {
+   *  field1: string
+   *  field2: number
+   *  field3: {
+   *    id: string
+   *    content: string
+   *  }
+   * }
+   *
+   * const cursor_field = ["field3", "id"] // cursor field will be field3 ID field
+   *
+   * @see
+   * Learn more in the [Airbyte docs](https://docs.airbyte.com/understanding-airbyte/catalog#cursor).
+   */
+  cursor_field?: string[]
+}
+
+declare type SourceData = NativeSourceData | AirbyteSourceData | SingerSourceData
+
+declare type CommonSourceData = {
+  /** Source unique identifier */
   sourceId: string
-  sourceName?: string
-  connected: boolean
-  connectedErrorMessage?: string
+  /** name displayed on a source. Used only in UI */
+  displayName?: string
   /**
    * Source type, either `airbyte`, `singer` or `{source_type}` if source is native
    */
   sourceType: "airbyte" | "singer" | string
   /**
-   * Snake-cased catalog source id
+   * Snake-cased source id from the Catalog
    */
   sourceProtoType: string
+  /** Shows whether the latest "Test connection" was successful */
+  connected: boolean
+  /** Stores the error message from the latest "Test connection" */
+  connectedErrorMessage?: string
+  /** List of connected destinations UIDs */
+  destinations: string[]
+  /** Sync schedule */
+  schedule?: string
+}
+declare interface NativeSourceData extends CommonSourceData {
+  /** List of data streams.  */
+  collections: CollectionSource[]
+  config: {
+    [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
+  }
 }
 
-declare interface AirbyteSourceData {
+declare interface AirbyteSourceData extends CommonSourceData {
   /**
    * @deprecated as of October 2021.
    * The new path for streams is config.catalog.streams
@@ -88,15 +167,14 @@ declare interface AirbyteSourceData {
     catalog?: {
       streams: Array<AirbyteStreamData>
     }
-    selected_streams?: Array<StreamConfig>
+    selected_streams?: Array<AirbyteStreamConfig>
     docker_image?: string
     image_version?: string
-
     [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
   }
 }
 
-declare interface SingerSourceData {
+declare interface SingerSourceData extends CommonSourceData {
   config: {
     config: PlainObjectWithPrimitiveValues
     /**
@@ -106,7 +184,7 @@ declare interface SingerSourceData {
     catalog?: {
       streams: Array<SingerStreamData>
     }
-    selected_streams?: Array<StreamConfig>
+    selected_streams?: Array<SingerStreamConfig>
     [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
   }
 }

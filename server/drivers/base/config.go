@@ -13,9 +13,10 @@ import (
 
 //StreamConfiguration is a dto for serialization selected streams configuration
 type StreamConfiguration struct {
-	Name      string `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
-	Namespace string `mapstructure:"namespace" json:"namespace,omitempty" yaml:"namespace,omitempty"`
-	SyncMode  string `mapstructure:"sync_mode" json:"sync_mode,omitempty" yaml:"sync_mode,omitempty"`
+	Name        string   `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
+	Namespace   string   `mapstructure:"namespace" json:"namespace,omitempty" yaml:"namespace,omitempty"`
+	SyncMode    string   `mapstructure:"sync_mode" json:"sync_mode,omitempty" yaml:"sync_mode,omitempty"`
+	CursorField []string `mapstructure:"cursor_field" json:"cursor_field,omitempty" yaml:"cursor_field,omitempty"`
 }
 
 //SourceConfig is a dto for api connector source config serialization

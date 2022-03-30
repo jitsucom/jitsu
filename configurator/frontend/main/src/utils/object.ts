@@ -1,3 +1,13 @@
+import { naturalComparator } from "./strings"
+
+/**
+ * Compares objects by a specified field value. The value must be string.
+ * @param keyF predicate that returns a field value from object
+ **/
+export function naturalComparatorBy<T>(keyF: (obj: T) => string): (a: T, b: T) => number {
+  return (a, b) => naturalComparator(keyF(a), keyF(b))
+}
+
 /**
  * Works exactly the same as `Object.entries` except that returns the union type of the object keys istead of a generic `string` type.
  * ```
