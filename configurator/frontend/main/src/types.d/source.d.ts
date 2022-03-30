@@ -1,6 +1,6 @@
 /**
  * Stream configuration of a Native source
- * 
+ *
  * Note: collections have been renamed to Streams as of September 2021
  */
 declare interface CollectionSource {
@@ -21,7 +21,7 @@ declare type StreamData = AirbyteStreamData | SingerStreamData
 
 /**
  * Configured Airbyte stream data format used internally in the UI.
- * 
+ *
  * Corresponds to the [ConfiguredAirbyteStream schema](https://docs.airbyte.com/understanding-airbyte/catalog#configuredairbytestream)
  */
 declare type AirbyteStreamData = {
@@ -73,7 +73,7 @@ declare type SingerStreamData = {
 }
 
 /**
- * Format for storing configured streams data on backend. 
+ * Format for storing configured streams data on backend.
  */
 declare type StreamConfig = SingerStreamConfig | AirbyteStreamConfig
 
@@ -91,7 +91,7 @@ declare type AirbyteStreamConfig = {
   /**
    * Can be either `full_refresh` or `incremental`
    *
-   * Incremental sync modes requires choosing a cursor field which is used as comparable to determine 
+   * Incremental sync modes requires choosing a cursor field which is used as comparable to determine
    * which records are the new or updated since the last sync.
    * Learn more in the [Airbyte docs](https://docs.airbyte.com/understanding-airbyte/catalog#cursor).
    * */
@@ -99,7 +99,7 @@ declare type AirbyteStreamConfig = {
   /**
    * Field that will be used as comparable to determine which records are the new or updated since the last sync.
    * Stored in the form of array that reads the path to field, e.g.
-   * 
+   *
    * @example
    * type StreamJsonStructure = {
    *  field1: string
@@ -109,9 +109,9 @@ declare type AirbyteStreamConfig = {
    *    content: string
    *  }
    * }
-   * 
+   *
    * const cursor_field = ["field3", "id"] // cursor field will be field3 ID field
-   * 
+   *
    * @see
    * Learn more in the [Airbyte docs](https://docs.airbyte.com/understanding-airbyte/catalog#cursor).
    */
