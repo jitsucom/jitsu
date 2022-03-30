@@ -93,5 +93,5 @@ export const snakeCaseToWords = (value: string): string => {
  * Compares strings in a locale-specific manner.
  */
 export function naturalComparator(a: string, b: string): number {
-  return a.localeCompare(b, undefined, { numeric: true });
+  return a.localeCompare(b, undefined, { numeric: true })
 }

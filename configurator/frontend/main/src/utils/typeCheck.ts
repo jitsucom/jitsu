@@ -97,11 +97,7 @@ export function assertIsString(
  * @returns void or never
  *
  */
- export function assertIsBoolean(
-  value: unknown,
-  errMsg: string,
-  errorName?: string
-): asserts value is string {
+export function assertIsBoolean(value: unknown, errMsg: string, errorName?: string): asserts value is string {
   const condition = typeof value === "boolean"
   assert(condition, errMsg || `array assertion failed - ${value} is not an array`, errorName)
 }
