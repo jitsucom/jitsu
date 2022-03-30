@@ -8,10 +8,6 @@ import { SourceConnector } from "@jitsu/catalog/sources/types"
 import { makeObjectFromFieldsValues } from "utils/forms/marshalling"
 import { sourcesStore } from "stores/sources"
 import { COLLECTIONS_SCHEDULES } from "constants/schedule"
-import { useEffect } from "react"
-import { CommonSourcePageProps } from "ui/pages/SourcesPage/SourcesPage"
-import { PageHeader } from "ui/components/PageHeader/PageHeader"
-import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 
 const STREAM_UID_DELIMITER = "__"
 
@@ -45,31 +41,28 @@ export const sourceEditorUtils = {
 
   /** Reformat old catalog (full schema JSON) into SelectedStreams and always remove old format*/
   reformatCatalogIntoSelectedStreams: (sourceData: SourceData): SourceData => {
-    if (!sourceData?.config?.selected_streams?.length) {
-      if (sourceData?.config?.catalog) {
-        sourceData.config.selected_streams = sourceData.config.catalog.streams.map(
-          sourceEditorUtils.streamDataToSelectedStreamsMapper
-        )
-      } else if (sourceData?.catalog) {
-        sourceData.config.selected_streams = sourceData.catalog.streams.map(
-          sourceEditorUtils.streamDataToSelectedStreamsMapper
-        )
-      }
+    if (sourceEditorUtils.isNativeSource(sourceData) || sourceData?.config?.selected_streams?.length) return sourceData
+
+    if (sourceData?.config?.catalog) {
+      sourceData.config.selected_streams = sourceData.config.catalog.streams.map(
+        sourceEditorUtils.mapStreamDataToSelectedStreams
+      ) as AirbyteStreamConfig[] | SingerStreamConfig[]
+
+      //remove massive deprecated catalog from config
+      delete sourceData.config.catalog
     }
 
-    //remove massive deprecated catalog from config
-    if (sourceData?.["catalog"]) {
-      delete sourceData["catalog"]
-    }
-    if (sourceData?.config?.["catalog"]) {
-      delete sourceData.config["catalog"]
+    if (!sourceEditorUtils.isAirbyteSource(sourceData)) return sourceData
+
+    if (sourceData?.catalog) {
+      sourceData.config.selected_streams = sourceData.catalog.streams.map(
+        sourceEditorUtils.mapStreamDataToSelectedStreams
+      )
+      //remove massive deprecated catalog from config
+      delete sourceData.catalog
     }
 
     return sourceData
-  },
-
-  createStreamConfig: (stream: StreamData): StreamConfig => {
-    return { sync_mode: sourceEditorUtils.getStreamSyncMode(stream) }
   },
 
   getStreamUid: (stream: StreamData): string => {
@@ -89,22 +82,34 @@ export const sourceEditorUtils = {
     }
   },
 
-  streamDataToSelectedStreamsMapper: (streamData: StreamData): StreamConfig => {
+  mapStreamDataToSelectedStreams: <T extends StreamData>(
+    streamData: T
+  ): T extends AirbyteStreamData ? AirbyteStreamConfig : SingerStreamConfig => {
     if (sourceEditorUtils.isAirbyteStream(streamData)) {
-      streamData = streamData as AirbyteStreamData
       return {
         name: streamData.stream.name,
         namespace: streamData.stream.namespace,
         sync_mode: streamData.sync_mode,
-      }
+        cursor_field: streamData.cursor_field,
+      } as T extends AirbyteStreamData ? AirbyteStreamConfig : SingerStreamConfig
     } else if (sourceEditorUtils.isSingerStream(streamData)) {
-      streamData = streamData as SingerStreamData
       return {
         name: streamData.stream,
         namespace: streamData.tap_stream_id,
-        sync_mode: "",
-      }
+      } as T extends AirbyteStreamData ? AirbyteStreamConfig : SingerStreamConfig
     }
+  },
+
+  isNativeSource: (data: SourceData): data is NativeSourceData => {
+    return !!data?.["collections"]
+  },
+
+  isAirbyteSource: (data: SourceData): data is AirbyteSourceData => {
+    return !!data?.config.docker_image
+  },
+
+  isSingerSource: (data: SourceData): data is SingerSourceData => {
+    return !data?.config.docker_image
   },
 
   isAirbyteStream: (stream: StreamData): stream is AirbyteStreamData => {
@@ -127,7 +132,10 @@ export const sourceEditorUtils = {
     return `${streamConfig.name}${STREAM_UID_DELIMITER}${streamConfig.namespace}`
   },
 
-  streamsAreEqual: (streamA: StreamConfig, streamB: StreamConfig) => {
+  streamsAreEqual: (
+    streamA: Optional<Pick<StreamConfig, "name" | "namespace">>,
+    streamB: Optional<Pick<StreamConfig, "name" | "namespace">>
+  ) => {
     return streamA.name == streamB.name && streamA.namespace == streamB.namespace
   },
 }

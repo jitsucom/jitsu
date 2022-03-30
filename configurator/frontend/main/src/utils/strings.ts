@@ -88,3 +88,10 @@ export const toTitleCase = (value: string, options?: ToTitleCaseOptions): string
 export const snakeCaseToWords = (value: string): string => {
   return value.split("_").join(" ")
 }
+
+/**
+ * Compares strings in a locale-specific manner.
+ */
+export function naturalComparator(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true })
+}
