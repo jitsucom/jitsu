@@ -83,6 +83,11 @@ func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume
 		}
 	}
 
+	if host := os.Getenv("DOCKER_HOST"); host != "" {
+		logging.Infof("[airbyte] ✅ DOCKER_HOST env variable found. Presumably running in Docker in Docker mode.")
+		return nil
+	}
+
 	logging.Infof("[airbyte] Checking mounted volume: %s ...", workspaceVolume)
 	if containerizedRun {
 		if err = Instance.checkVolume(ctx, cli); err != nil {
