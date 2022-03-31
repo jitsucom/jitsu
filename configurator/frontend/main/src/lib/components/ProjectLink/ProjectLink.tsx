@@ -20,7 +20,16 @@ const ProjectLink: React.FC<ProjectLinkProps> = ({ to, children, ...rest }) => {
   )
 }
 
+/**
+ * Prefixes any valid relative URL with `/prj-{current_project_id}` 
+ * @param pattern either a regular link like `/live-events` or a pattern with indicated project id like `/prj-:projectId/live-events`
+ * @param params 
+ * @returns 
+ */
 export function projectRoute(pattern: string, params: ExtractRouteParams<string> = {}): string {
+  pattern = pattern.includes("/prj-:projectId")
+    ? pattern
+    : `/prj-:projectId${pattern.startsWith("/") ? pattern : `/${pattern}`}`
   return generatePath(pattern, { projectId: ApplicationServices.get().activeProject.id, ...params })
 }
 

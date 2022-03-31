@@ -23,6 +23,8 @@ import { useLoaderAsObject } from "hooks/useLoader"
 import { Destination } from "@jitsu/catalog/destinations/types"
 import { projectRoute } from "../../../../../lib/components/ProjectLink/ProjectLink"
 import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
+import { LiveEventsRedirectButton } from "ui/components/LiveEventsRedirectButton/LiveEventsRedirectButton"
+import { EventType } from "lib/components/EventsStream/shared"
 
 type StatisticsPageParams = {
   id: string
@@ -122,6 +124,12 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = () =>
   return destinationReference ? (
     <>
       <div className="flex flex-row space-x-2 justify-end mb-4">
+        <LiveEventsRedirectButton
+          eventType={EventType.Destination}
+          entityId={destination._uid}
+          type="ghost"
+          size="large"
+        />
         <Button
           type="ghost"
           icon={<EditOutlined />}
