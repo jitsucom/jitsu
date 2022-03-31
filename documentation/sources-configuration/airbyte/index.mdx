@@ -1,0 +1,132 @@
+---
+sort: 10
+---
+
+
+# Airbyte Based Sources
+
+<Hint>
+  Make sure Jitsu has access to docker. If you've deployed Jitsu with Docker - you should mount volumes: <code inline={true}>/var/run/docker.sock:/var/run/docker.sock</code>.
+  and <code inline={true}>jitsu_workspace:/home/eventnative/data/airbyte</code>
+  Read more about volumes for <a href="/docs/deployment/deploy-with-docker/joint-image#environment-variables">Joint Image</a> (if you deploy <code inline={true}>@jitsucom/jitsu</code>{' '}
+  or for <a href="/docs/deployment/deploy-with-docker/jitsu-server#volumes">Jitsu Server</a> if you deploy <code inline={true}>@jitsucom/server</code>
+
+  Airbyte Based Sources may not work properly in managed environments that limits access to docker, e.g., Heroku.
+
+  If you deploy Jitsu to Kubernetes please check <a href="/docs/sources-configuration/airbyte/k8s">How to run Airbyte sources in Kubernetes</a>
+</Hint>
+
+
+[Airbyte](https://www.airbyte.io/) is an open-source ETL-framework. Jitsu supports Airbyte as an of the connector backend (the other one being [Singer](/docs/sources-configuration/singer) and [native connectors](/docs/sources-configuration)
+
+This page describes how to configure Jitsu Server if it runs in standalone mode (without Configurator). If you deployed Jitsu along
+with Configurator, you can configure Airbyte connectors directly in the UI
+
+## Understanding Airbyte connectors
+
+Each Airbyte connector is a standalone docker image. The connector implements [Airbyte protocol](https://docs.airbyte.io/understanding-airbyte/airbyte-specification).
+The protocol is CLI based: connector executor (Jitsu) feeds connector with a formatted JSON objects (see below) and parses the stdout which is
+a stream of JSON objects as well.
+
+
+## Configuration
+
+Airbyte configuration is a two of JSON objects (see [specification](https://docs.airbyte.io/understanding-airbyte/airbyte-specification#read)):
+
+
+| Name | Description |
+| :--- | :--- |
+| **Config** *(required)* | JSON object contains connector's configuration parameters. Each Airbyte connector has a [configuration specification](https://docs.airbyte.io/understanding-airbyte/airbyte-specification#spec) which describes configuration parameters. |
+| **[Catalog](https://docs.airbyte.io/understanding-airbyte/catalog)** | JSON object contains all streams (object types) and fields to download. If not provided, Jitsu will do discover and save catalog with all available streams. JSON structure is standardized, but stream and field names depend on the connector. |
+
+The connectors' configuration should be placed under the `sources` section of [configuration file](/docs/configuration). The structure is an extension
+of generic [source configuration](/docs/sources-configuration) - `type: airbyte` indicates that the source should be handled
+by Airbyte executor
+
+```yaml
+sources:
+  <connector_id>:
+    type: airbyte
+    schedule: '...'                  # Cron expression or period notation (@daily or @hourly)
+    destinations: [ ]                # List of destinations
+    config:
+      config: {}                     # Airbyte config object (see below)
+      docker_image: 'airbyte/image'  # Airbyte connector image
+      catalog: {}                    # Airbyte catalog object (see below).
+                                     # Optional. If not provided, all streams
+                                     # will be synchronized
+```
+
+Example:
+
+```yaml
+sources:
+  ...
+  jitsu_airbyte_hubspot:
+    type: airbyte
+    destinations: [ "clickhouse_destination_id" ]
+    schedule: '*/5 * * * *'
+    config:
+      config:
+        credentials:
+          api_key: '<HUBSPOT_API_KEY>'
+        start_date: "2017-01-25T00:00:00Z"
+      docker_image: source-hubspot
+  airbyte_source_shopify:
+    destinations: [ "clickhouse_destination_id" ]
+    type: airbyte
+    schedule: '@daily'
+    config:
+      config:
+        api_password: '<SHOPIFY_API_PASSWORD>'
+        shop: 'https://EXAMPLE.myshopify.com'
+        start_date: "2020-10-10"
+      docker_image: source-shopify
+
+```
+
+<Hint>
+  JSON configuration parameters such as <code inline="true">config</code>, <code inline="true">catalog</code>, <code inline="true">state</code> can be an object or a raw JSON or JSON string or path to
+  local JSON file
+</Hint>
+
+### Table Names
+
+Jitsu creates tables with names `$sourceID_$AirbyteStreamName` by default. For instance, table with name `jitsu_airbyte_shopify_orders` will be created according to the following configuration:
+
+```yaml
+sources:
+  ...
+  airbyte_source_shopify:
+    destinations: [ "clickhouse_destination_id" ]
+    type: airbyte
+    schedule: '@daily'
+    config:
+      config:
+        api_password: '<SHOPIFY_API_PASSWORD>'
+        shop: 'https://EXAMPLE.myshopify.com'
+        start_date: "2020-10-10"
+      catalog: '{"streams":[{"stream": {"name":"orders", ...}}]}'
+      docker_image: source-shopify
+```
+
+Table names might be overridden by adding `stream_table_names` configuration parameter:
+
+```yaml
+sources:
+  ...
+  airbyte_source_shopify:
+    destinations: [ "clickhouse_destination_id" ]
+    type: airbyte
+    schedule: '@daily'
+    config:
+      config:
+        api_password: '<SHOPIFY_API_PASSWORD>'
+        shop: 'https://EXAMPLE.myshopify.com'
+        start_date: "2020-10-10"
+      catalog: '{"streams":[{"stream": {"name":"orders", ...}},{"stream": {"name":"products", ...}}]}'
+      docker_image: source-shopify
+      stream_table_names:
+        orders: my_orders
+        products: my_products
+```
