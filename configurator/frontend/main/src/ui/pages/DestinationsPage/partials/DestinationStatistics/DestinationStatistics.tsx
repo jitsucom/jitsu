@@ -1,7 +1,7 @@
 // @Libs
 import { Button, Card, Col, Row } from "antd"
 import { useEffect, useMemo } from "react"
-import { generatePath, useHistory, useParams } from "react-router-dom"
+import { useHistory, useParams } from "react-router-dom"
 // @Store
 import { destinationsStore } from "stores/destinations"
 // @Components
@@ -19,9 +19,10 @@ import { useServices } from "hooks/useServices"
 import { CombinedStatisticsDatePoint, IStatisticsService, StatisticsService } from "lib/services/stat"
 // @Utils
 import { useLoaderAsObject } from "hooks/useLoader"
-import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 // @Styles
 import { Destination } from "@jitsu/catalog/destinations/types"
+import { projectRoute } from "../../../../../lib/components/ProjectLink/ProjectLink"
+import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
 
 type StatisticsPageParams = {
   id: string
@@ -63,15 +64,15 @@ function hourlyDataLoader(
   }
 }
 
-export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({ setBreadcrumbs }) => {
+export const DestinationStatistics: React.FC<CommonDestinationPageProps> = () => {
   const history = useHistory()
   const services = useServices()
   const params = useParams<StatisticsPageParams>()
-  const destination = destinationsStore.getDestinationById(params.id)
+  const destination = destinationsStore.list.find(d => d._id === params.id)
   const destinationUid = destination?._uid
-  const destinationReference = destinationsStore.getDestinationReferenceById(params.id)
+  const destinationReference = destinationsStore.getDestinationReferenceById(destinationUid)
   const statisticsService = useMemo<IStatisticsService>(
-    () => new StatisticsService(services.backendApiClient, services.activeProject, true),
+    () => new StatisticsService(services.backendApiClient, services.activeProject.id, true),
     []
   )
 
@@ -104,8 +105,8 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({ se
     lastDayPullEvents.isLoading
 
   useEffect(() => {
-    const breadcrumbs = [
-      { title: "Destinations", link: destinationPageRoutes.root },
+    currentPageHeaderStore.setBreadcrumbs(
+      { title: "Destinations", link: projectRoute(destinationPageRoutes.root) },
       {
         title: (
           <PageHeader
@@ -114,9 +115,8 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({ se
             mode={destinationReference ? "statistics" : null}
           />
         ),
-      },
-    ]
-    setBreadcrumbs(withHome({ elements: breadcrumbs }))
+      }
+    )
   }, [])
 
   return destinationReference ? (
@@ -128,7 +128,7 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({ se
           size="large"
           onClick={() =>
             history.push(
-              generatePath(destinationPageRoutes.editExact, {
+              projectRoute(destinationPageRoutes.editExact, {
                 id: params.id,
               })
             )
@@ -140,7 +140,7 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({ se
           type="ghost"
           icon={<UnorderedListOutlined />}
           size="large"
-          onClick={() => history.push(destinationPageRoutes.root)}
+          onClick={() => history.push(projectRoute(destinationPageRoutes.root))}
         >
           {"Destinations List"}
         </Button>

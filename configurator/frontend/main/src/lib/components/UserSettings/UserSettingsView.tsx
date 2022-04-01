@@ -54,7 +54,7 @@ export const UserSettingsViewComponent: React.FC<Props> = ({
   const showEmailNotSent = confirmationEmailStatus !== "sent"
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col w-full">
       <SectionContainer>
         <SectionHeader>Email:</SectionHeader>
         <span className={`${showResendEmailFlow ? "mb-0" : "mb-2"}`}>

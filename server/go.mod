@@ -10,7 +10,6 @@ require (
 	github.com/FZambia/sentinel v1.1.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/aws/aws-sdk-go v1.34.0
-	github.com/beeker1121/goque v2.1.0+incompatible // indirect
 	github.com/carlmjohnson/requests v0.22.1
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/charmbracelet/lipgloss v0.2.1
@@ -31,12 +30,10 @@ require (
 	github.com/huandu/facebook/v2 v2.5.3
 	github.com/iancoleman/strcase v0.2.0
 	github.com/jarcoal/httpmock v1.1.0
-	github.com/jitsucom/goque/v2 v2.2.0
-	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
 	github.com/lib/pq v1.10.2
 	github.com/logrusorgru/aurora v2.0.3+incompatible
-	github.com/mailru/go-clickhouse v1.3.0
-	github.com/mitchellh/hashstructure/v2 v2.0.1
+	github.com/mailru/go-clickhouse v1.8.0
+	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/oschwald/geoip2-golang v1.4.0
@@ -71,8 +68,10 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/segmentio/analytics-go.v3 v3.1.0
 	gotest.tools v2.2.0+incompatible
-	rogchap.com/v8go v0.7.0
+	rogchap.com/v8go v0.7.1-0.20220112220650-5e91d3d9dcab
 )
+
+require github.com/joomcode/errorx v1.1.0
 
 require (
 	cloud.google.com/go v0.93.3 // indirect
@@ -100,7 +99,6 @@ require (
 	github.com/go-playground/universal-translator v0.17.0 // indirect
 	github.com/go-playground/validator/v10 v10.4.1 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
-	github.com/gofrs/flock v0.7.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
@@ -143,7 +141,6 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
-	github.com/syndtr/goleveldb v1.0.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.9 // indirect
 	github.com/tklauser/numcpus v0.3.0 // indirect
 	github.com/ugorji/go/codec v1.1.7 // indirect

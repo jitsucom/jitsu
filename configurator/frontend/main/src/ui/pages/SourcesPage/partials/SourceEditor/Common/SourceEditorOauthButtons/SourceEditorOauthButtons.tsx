@@ -9,7 +9,6 @@ import { OauthButton } from "../OauthButton/OauthButton"
 type Props = {
   sourceDataFromCatalog: CatalogSourceConnector
   disabled?: boolean
-  onlyManualAuth?: boolean
   isSignedIn?: boolean
   onIsOauthSupportedCheckSuccess?: (supported: boolean) => void
   onFillAuthDataManuallyChange?: (setManually: boolean) => void
@@ -19,7 +18,6 @@ type Props = {
 export const SourceEditorOauthButtons: React.FC<Props> = ({
   sourceDataFromCatalog,
   disabled,
-  onlyManualAuth,
   isSignedIn,
   onIsOauthSupportedCheckSuccess,
   onFillAuthDataManuallyChange,
@@ -29,12 +27,12 @@ export const SourceEditorOauthButtons: React.FC<Props> = ({
   const [isOauthSupported, setIsOauthSupported] = useState<boolean>(false)
 
   const handleFillAuthDataManuallyToggle = useCallback<() => void>(() => {
-    setFillAuthDataManually(fillManually => {
-      const newValue = !fillManually
-      !onlyManualAuth && onFillAuthDataManuallyChange?.(fillManually)
+    setFillAuthDataManually(value => {
+      const newValue = !value
+      onFillAuthDataManuallyChange?.(value)
       return newValue
     })
-  }, [onlyManualAuth])
+  }, [])
 
   const handleOauthSupportCheckStatus = useCallback<(supported: boolean) => void>(
     supported => {
@@ -67,7 +65,7 @@ export const SourceEditorOauthButtons: React.FC<Props> = ({
             }`}</span>
           </OauthButton>
         </div>
-        {!onlyManualAuth && isOauthSupported && (
+        {isOauthSupported && (
           <>
             <Popconfirm
               title="This will reset all manual inputs. Are you sure you want to exit?"

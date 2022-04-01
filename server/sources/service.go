@@ -178,6 +178,7 @@ func (s *Service) init(sc map[string]driversbase.SourceConfig) {
 			DestinationIDs:           sourceConfig.Destinations,
 			PostHandleDestinationIDs: sourceConfig.PostHandleDestinations,
 			Notifications:            sourceConfig.Notifications,
+			ProjectName:              sourceConfig.ProjectName,
 			hash:                     hash,
 		}
 		s.Unlock()

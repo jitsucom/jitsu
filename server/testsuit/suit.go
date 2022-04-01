@@ -120,6 +120,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		UserIDNode:          viper.GetString("users_recognition.user_id_node"),
 		PoolSize:            viper.GetInt("users_recognition.pool.size"),
 		Compression:         viper.GetString("users_recognition.compression"),
+		CacheTTLMin:         viper.GetInt("users_recognition.cache_ttl_min"),
 	}
 
 	err = globalRecognitionConfiguration.Validate()
@@ -138,7 +139,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		recognitionService:               dummyRecognitionService,
 		destinationService:               destinationService,
 		systemService:                    systemService,
-		eventsCache:                      caching.NewEventsCache(true, metaStorage, 100, 1, 100),
+		eventsCache:                      caching.NewEventsCache(true, metaStorage, 100, 1, 100, 60),
 		geoService:                       geo.NewTestService(nil),
 	}
 }
@@ -169,7 +170,7 @@ func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
 
 	sb.metaStorage = metaStorage
 
-	sb.eventsCache = caching.NewEventsCache(true, metaStorage, 100, 1, 100)
+	sb.eventsCache = caching.NewEventsCache(true, metaStorage, 100, 1, 100, 60)
 	return sb
 }
 
@@ -207,20 +208,20 @@ func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
 //performs ping check before return
 func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	//event processors
-	apiProcessor := events.NewAPIProcessor()
+	apiProcessor := events.NewAPIProcessor(sb.recognitionService)
 	bulkProcessor := events.NewBulkProcessor()
 	jsProcessor := events.NewJsProcessor(sb.recognitionService, viper.GetString("server.fields_configuration.user_agent_path"))
 	pixelProcessor := events.NewPixelProcessor()
 	segmentProcessor := events.NewSegmentProcessor(sb.recognitionService)
 	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor, bulkProcessor)
 
-	multiplexingService := multiplexing.NewService(sb.destinationService, sb.eventsCache)
+	multiplexingService := multiplexing.NewService(sb.destinationService)
 	walService := wal.NewService("/tmp", &logevents.SyncLogger{}, multiplexingService, processorHolder)
 	appconfig.Instance.ScheduleWriteAheadLogClosing(walService)
 
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		fallback.NewTestService(), coordination.NewInMemoryService(""), sb.eventsCache, sb.systemService,
-		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService, nil)
+		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService, nil, sb.globalUsersRecognitionConfig)
 
 	server := &http.Server{
 		Addr:              sb.httpAuthority,

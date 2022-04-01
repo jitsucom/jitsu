@@ -3,15 +3,9 @@ import { useCallback, useMemo } from "react"
 import { Link, NavLink } from "react-router-dom"
 import { Collapse, Form } from "antd"
 import snakeCase from "lodash/snakeCase"
+import { observer } from "mobx-react-lite"
 // @Store
 import { sourcesStore } from "stores/sources"
-// @Hooks
-import useLoader from "hooks/useLoader"
-// @Services
-import ApplicationServices from "lib/services/ApplicationServices"
-// @Utils
-import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
-import { destinationEditorUtils } from "ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils"
 // @Components
 import { NameWithPicture, ConnectedItems, ConnectedItem } from "ui/components/ConnectedItems/ConnectedItems"
 import { CenteredError, CenteredSpin } from "lib/components/components"
@@ -23,9 +17,9 @@ import { Destination } from "@jitsu/catalog/destinations/types"
 import { allSources } from "@jitsu/catalog/sources/lib"
 // @Constants
 import { DESTINATIONS_CONNECTED_SOURCES } from "embeddedDocs/destinationsConnectedItems"
-import { observer } from "mobx-react-lite"
 import { APIKeyUtil } from "../../../../../utils/apiKeys.utils"
 import { SourcesUtils } from "../../../../../utils/sources.utils"
+import { apiKeysStore } from "stores/apiKeys"
 
 export interface Props {
   form: FormInstance
@@ -35,14 +29,11 @@ export interface Props {
 }
 
 const DestinationEditorConnectorsComponent = ({ form, initialValues, destination, handleTouchAnyField }: Props) => {
-  const service = ApplicationServices.get()
+  const sources = sourcesStore.list
+  const sourcesError = sourcesStore.errorMessage
 
-  const sources = sourcesStore.sources
-  const sourcesError = sourcesStore.error
-
-  const [apiKeysError, apiKeysData] = useLoader(
-    async () => await service.storageService.get("api_keys", service.activeProject.id)
-  )
+  const apiKeysData = apiKeysStore.list
+  const apiKeysError = apiKeysStore.errorMessage
 
   const sourcesList = useMemo<ConnectedItem[]>(
     () =>
@@ -62,12 +53,10 @@ const DestinationEditorConnectorsComponent = ({ form, initialValues, destination
 
   const apiKeysList = useMemo<ConnectedItem[]>(
     () =>
-      apiKeysData?.keys
-        ? apiKeysData.keys.map((key: APIKey) => ({
-            title: <span>{APIKeyUtil.getDisplayName(key)}</span>,
-            id: key.uid,
-          }))
-        : [],
+      apiKeysData?.map(key => ({
+        title: <span>{APIKeyUtil.getDisplayName(key)}</span>,
+        id: key.uid,
+      })) ?? [],
     [apiKeysData?.keys]
   )
 
@@ -148,7 +137,7 @@ const DestinationEditorConnectorsComponent = ({ form, initialValues, destination
               {destination.syncFromSourcesStatus === "coming_soon" && (
                 <div className="text-secondaryText">
                   <b>{destination.displayName}</b> support is <i>coming soon!</i>. At the moment, Jitsu can't send data
-                  from connectors to {destination.displayName}. However, you can event streaming is available!
+                  from connectors to {destination.displayName}. However, event streaming is available!
                 </div>
               )}
               {destination.syncFromSourcesStatus === "not_supported" && (

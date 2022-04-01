@@ -35,14 +35,11 @@ func NewAmplitude(config *Config) (storage Storage, err error) {
 	}
 
 	a := &Amplitude{}
-	err = a.Init(config)
+	err = a.Init(config, a, amplitudeTransform, `return toAmplitude($)`)
 	if err != nil {
 		return
 	}
 	storage = a
-
-	a.processor.AddJavaScript(amplitudeTransform)
-	a.processor.SetDefaultUserTransform(`return toAmplitude($)`)
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	aAdapter, err := adapters.NewAmplitude(amplitudeConfig, &adapters.HTTPAdapterConfiguration{

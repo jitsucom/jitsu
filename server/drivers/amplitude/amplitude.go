@@ -113,8 +113,11 @@ func TestAmplitude(sourceConfig *base.SourceConfig) error {
 		return err
 	}
 
+	dummyLoader := func(o []map[string]interface{}, pos int, total int, percent int) error {
+		return nil
+	}
 	for _, interval := range intervals {
-		if _, err := amplitude.GetObjectsFor(interval); err != nil {
+		if err := amplitude.GetObjectsFor(interval, dummyLoader); err != nil {
 			return err
 		}
 	}
@@ -160,7 +163,7 @@ func (a *Amplitude) GetCollectionTable() string {
 	return a.collection.GetTableName()
 }
 
-func (a *Amplitude) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
+func (a *Amplitude) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	var err error
 	var array []map[string]interface{}
 
@@ -182,10 +185,10 @@ func (a *Amplitude) GetObjectsFor(interval *base.TimeInterval) ([]map[string]int
 	}
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return array, nil
+	return objectsLoader(array, 0, len(array), 0)
 }
 
 func (a *Amplitude) Type() string {

@@ -1,5 +1,3 @@
-/* eslint-disable */
-import * as React from "react"
 import { useState } from "react"
 import { Button, Form, Input, Switch, Table, Tooltip } from "antd"
 import { FormActions, FormField, FormLayout } from "../Form/Form"
@@ -11,8 +9,9 @@ import { CenteredError, CenteredSpin, CodeInline, handleError } from "../compone
 import { withQueryParams } from "../../../utils/queryParams"
 import { ApiOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined } from "@ant-design/icons"
 import QuestionCircleOutlined from "@ant-design/icons/lib/icons/QuestionCircleOutlined"
-import useLoader from "../../../hooks/useLoader"
+import { useLoaderAsObject } from "../../../hooks/useLoader"
 import { MaxMindConfig } from "./utils"
+import Marshal from "lib/commons/marshalling"
 
 const geoDataResolversCollection = "geo_data_resolvers"
 
@@ -30,8 +29,14 @@ function GeoDataResolver() {
 
   const [form] = useForm<GeoDataResolverFormValues>()
 
-  const [loadingError, formConfig, setFormConfig] = useLoader<MaxMindConfig>(async () => {
-    const response = await services.storageService.get(geoDataResolversCollection, services.activeProject.id)
+  const {
+    error: loadingError,
+    data: formConfig,
+    setData: setFormConfig,
+  } = useLoaderAsObject<MaxMindConfig>(async () => {
+    const response = await services.backendApiClient.get(
+      `/configurations/${geoDataResolversCollection}?id=${services.activeProject.id}`
+    )
 
     let config = {
       license_key: response.maxmind?.license_key,
@@ -86,7 +91,10 @@ function GeoDataResolver() {
       },
     }
 
-    await services.storageService.save(geoDataResolversCollection, config, services.activeProject.id)
+    await services.backendApiClient.post(
+      `/configurations/${geoDataResolversCollection}?id=${services.activeProject.id}`,
+      Marshal.toPureJson(config)
+    )
 
     let anyConnected =
       formConfig.editions.filter(editionStatus => {

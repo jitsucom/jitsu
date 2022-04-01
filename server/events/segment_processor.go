@@ -26,8 +26,8 @@ func (sp *SegmentProcessor) Preprocess(event Event, reqContext *RequestContext) 
 }
 
 //Postprocess puts event into recognition Service
-func (sp *SegmentProcessor) Postprocess(event Event, eventID string, destinationIDs []string) {
-	sp.usersRecognition.Event(event, eventID, destinationIDs)
+func (sp *SegmentProcessor) Postprocess(event Event, eventID string, destinationIDs []string, tokenID string) {
+	sp.usersRecognition.Event(event, eventID, destinationIDs, tokenID)
 }
 
 //Type returns preprocessor type

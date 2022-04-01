@@ -20,10 +20,12 @@ export type ApiRequestOptions = {
    */
   noauth?: boolean
   /**
-   * Version replacement. Pretty hacky, but should be temporary.
+   * API version, 1 by default
    */
   version?: number
 }
+
+const DEFAULT_OPTIONS: ApiRequestOptions = { version: 1 } as const
 
 /**
  * Backend API client. Authorization is handled by implementation
@@ -36,7 +38,7 @@ export interface BackendApiClient {
    * @param payload payload
    * @param opts additional options
    */
-  post(url, payload: any, opts?: ApiRequestOptions): Promise<any>
+  post<T = any>(url, payload: any, opts?: ApiRequestOptions): Promise<T>
 
   /**
    * Same as post, but returns raw body
@@ -45,9 +47,13 @@ export interface BackendApiClient {
 
   getRaw(url, opts?: ApiRequestOptions): Promise<string>
 
-  get(url: string, opts?: ApiRequestOptions): Promise<any>
+  get<T = any>(url: string, opts?: ApiRequestOptions): Promise<T>
 
-  patch<T>(url: string, payload: Partial<T>, opts?: ApiRequestOptions): Promise<T>
+  put<T = any>(url, payload: unknown, opts?: ApiRequestOptions): Promise<T>
+
+  patch<T = any>(url, payload: unknown, opts?: ApiRequestOptions): Promise<T>
+
+  delete(url, opts?: ApiRequestOptions): Promise<void>
 }
 
 export class APIError extends Error {
@@ -116,11 +122,11 @@ export class JWTBackendClient implements BackendApiClient {
           error.response.status === 401 &&
           apiAccessAccessor().supportRefreshToken() &&
           !originalRequest._retry &&
-          !originalRequest.url.includes("/users/token/refresh")
+          !originalRequest.url.includes("/v1/users/token/refresh")
         ) {
           originalRequest._retry = true
           return axios
-            .post(concatenateURLs(baseUrl, "/users/token/refresh"), {
+            .post(concatenateURLs(baseUrl, "/v1/users/token/refresh"), {
               refresh_token: apiAccessAccessor().refreshToken,
             })
             .then(res => {
@@ -143,18 +149,13 @@ export class JWTBackendClient implements BackendApiClient {
     method: Method,
     transform: AxiosTransformer,
     url: string,
-    payload: any,
-    opts: ApiRequestOptions
+    payload: unknown,
+    options: ApiRequestOptions = { version: 1 }
   ): Promise<any> {
-    let fullUrl = concatenateURLs(this.baseUrl, url)
-    if (opts.proxy) {
-      fullUrl = concatenateURLs(this.proxyUrl, url)
-    }
-
-    if (opts.version) {
-      fullUrl = fullUrl.replace("/api/v1", `/api/v${opts.version}`)
-    }
-
+    const opts = { ...DEFAULT_OPTIONS, ...(options ?? {}) }
+    const baseUrl = opts.proxy ? this.proxyUrl : this.baseUrl
+    const baseUrlWithApiVersion = concatenateURLs(baseUrl, `/v${opts.version}/`)
+    let fullUrl = concatenateURLs(baseUrlWithApiVersion, url)
     if (opts.urlParams) {
       fullUrl +=
         "?" +
@@ -164,7 +165,7 @@ export class JWTBackendClient implements BackendApiClient {
           .join("&")
     }
 
-    let request: AxiosRequestConfig = {
+    const request: AxiosRequestConfig = {
       method: method,
       url: fullUrl,
       transformResponse: transform,
@@ -235,22 +236,30 @@ export class JWTBackendClient implements BackendApiClient {
   }
 
   get(url: string, opts?: ApiRequestOptions): Promise<any> {
-    return this.exec("get", JSON_FORMAT, url, undefined, opts ?? {})
+    return this.exec("get", JSON_FORMAT, url, undefined, opts)
   }
 
   post(url: string, data: any, opts?: ApiRequestOptions): Promise<any> {
-    return this.exec("post", JSON_FORMAT, url, data, opts ?? {})
+    return this.exec("post", JSON_FORMAT, url, data, opts)
   }
 
-  patch<T>(url: string, payload: Partial<T>, opts?: ApiRequestOptions): Promise<T> {
-    return this.exec("patch", JSON_FORMAT, url, payload, opts ?? {})
+  put(url: string, data: unknown, opts?: ApiRequestOptions): Promise<any> {
+    return this.exec("put", JSON_FORMAT, url, data, opts)
   }
 
-  postRaw(url, data: any, opts?: ApiRequestOptions): Promise<string> {
-    return this.exec("post", AS_IS_FORMAT, url, data ?? {}, opts ?? {})
+  patch(url: string, data: unknown, opts?: ApiRequestOptions): Promise<any> {
+    return this.exec("PATCH", JSON_FORMAT, url, data, opts)
+  }
+
+  delete(url: string, opts?: ApiRequestOptions): Promise<any> {
+    return this.exec("delete", JSON_FORMAT, url, undefined, opts)
+  }
+
+  postRaw(url, data: unknown, opts?: ApiRequestOptions): Promise<string> {
+    return this.exec("post", AS_IS_FORMAT, url, data ?? {}, opts)
   }
 
   getRaw(url, opts?: ApiRequestOptions): Promise<string> {
-    return this.exec("get", AS_IS_FORMAT, url, undefined, opts ?? {})
+    return this.exec("get", AS_IS_FORMAT, url, undefined, opts)
   }
 }

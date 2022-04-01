@@ -1,5 +1,5 @@
 // @Libs
-import { useCallback, useEffect } from "react"
+import { useEffect } from "react"
 import { useHistory } from "react-router-dom"
 import { Button } from "antd"
 import { observer } from "mobx-react-lite"
@@ -7,42 +7,33 @@ import { observer } from "mobx-react-lite"
 import { sourcesStore } from "stores/sources"
 // @Icons
 import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined"
-// @Types
-import { CommonSourcePageProps } from "ui/pages/SourcesPage/SourcesPage"
-import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 // @Styles
 import styles from "./SourcesList.module.less"
 // @Routes
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 // @Utils
 import { SourceCard } from "../../../../components/SourceCard/SourceCard"
+import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 
-const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
+const SourcesListComponent = () => {
   const history = useHistory()
 
-  const handleAddClick = useCallback(() => {
-    history.push(sourcesPageRoutes.add)
-  }, [history])
-
   useEffect(() => {
-    setBreadcrumbs(
-      withHome({
-        elements: [
-          { title: "Sources", link: sourcesPageRoutes.root },
-          {
-            title: "Sources List",
-          },
-        ],
-      })
-    )
-  }, [setBreadcrumbs])
+    currentPageHeaderStore.setBreadcrumbs("Sources")
+  }, [])
 
-  if (sourcesStore.sources.length === 0) {
+  if (sourcesStore.list.length === 0) {
     return (
       <div className={styles.empty}>
         <h3 className="text-2xl">Sources list is still empty</h3>
         <div>
-          <Button type="primary" size="large" icon={<PlusOutlined />} onClick={handleAddClick}>
+          <Button
+            type="primary"
+            size="large"
+            icon={<PlusOutlined />}
+            onClick={() => history.push(projectRoute(sourcesPageRoutes.add))}
+          >
             Add source
           </Button>
         </div>
@@ -53,13 +44,17 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
   return (
     <>
       <div className="mb-5">
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddClick}>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => history.push(projectRoute(sourcesPageRoutes.add))}
+        >
           Add source
         </Button>
       </div>
 
       <div className="flex flex-wrap justify-center">
-        {sourcesStore.sources.map((src: SourceData) => (
+        {sourcesStore.list.map((src: SourceData) => (
           <SourceCard key={src.sourceId} src={src} />
         ))}
       </div>

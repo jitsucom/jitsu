@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/schema"
+	"go.uber.org/atomic"
 	"strings"
 
 	"cloud.google.com/go/storage"
@@ -20,6 +22,8 @@ type GoogleCloudStorage struct {
 	config *GoogleConfig
 	client *storage.Client
 	ctx    context.Context
+
+	closed *atomic.Bool
 }
 
 type GoogleConfig struct {
@@ -99,33 +103,65 @@ func NewGoogleCloudStorage(ctx context.Context, config *GoogleConfig) (*GoogleCl
 		return nil, fmt.Errorf("Error creating google cloud storage client: %v", err)
 	}
 
-	return &GoogleCloudStorage{client: client, config: config, ctx: ctx}, nil
+	return &GoogleCloudStorage{client: client, config: config, ctx: ctx, closed: atomic.NewBool(false)}, nil
 }
 
-//Create named file on google cloud storage with payload
-func (gcs *GoogleCloudStorage) UploadBytes(fileName string, fileBytes []byte) error {
+//UploadBytes creates named file on google cloud storage with payload
+func (gcs *GoogleCloudStorage) UploadBytes(fileName string, fileBytes []byte) (err error) {
+	//panic handler
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic while uploading file: %s to GCC project: %s bucket: %s dataset: %s : %v", fileName, gcs.config.Project, gcs.config.Bucket, gcs.config.Dataset, r)
+			logging.SystemErrorf(err.Error())
+		}
+	}()
+	if gcs.closed.Load() {
+		return fmt.Errorf("attempt to use closed GoogleCloudStorage instance")
+	}
 	bucket := gcs.client.Bucket(gcs.config.Bucket)
 	object := bucket.Object(fileName)
 	w := object.NewWriter(gcs.ctx)
 
 	if _, err := w.Write(fileBytes); err != nil {
-		return fmt.Errorf("Error writing file to google cloud storage: %v", err)
+		return errorj.SaveOnStageError.Wrap(err, "failed to write file to google cloud storage").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Bucket:    gcs.config.Bucket,
+				Statement: fmt.Sprintf("file: %s", fileName),
+			})
 	}
 
 	if err := w.Close(); err != nil {
-		return fmt.Errorf("Error closing file writer to google cloud storage: %v", err)
+		return errorj.SaveOnStageError.Wrap(err, "failed to close google cloud writer").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Bucket:    gcs.config.Bucket,
+				Statement: fmt.Sprintf("file: %s", fileName),
+			})
 	}
 
 	return nil
 }
 
 //DeleteObject deletes object from google cloud storage bucket
-func (gcs *GoogleCloudStorage) DeleteObject(key string) error {
+func (gcs *GoogleCloudStorage) DeleteObject(key string) (err error) {
+	//panic handler
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic while deleting file: %s to GCC project: %s bucket: %s dataset: %s : %v", key, gcs.config.Project, gcs.config.Bucket, gcs.config.Dataset, r)
+			logging.SystemErrorf(err.Error())
+		}
+	}()
+	if gcs.closed.Load() {
+		return fmt.Errorf("attempt to use closed GoogleCloudStorage instance")
+	}
 	bucket := gcs.client.Bucket(gcs.config.Bucket)
 	obj := bucket.Object(key)
 
 	if err := obj.Delete(gcs.ctx); err != nil {
-		return fmt.Errorf("Error deleting file %s from google cloud storage %v", key, err)
+		return errorj.SaveOnStageError.Wrap(err, "failed to delete from google cloud").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Bucket:    gcs.config.Bucket,
+				Statement: fmt.Sprintf("file: %s", key),
+			})
 	}
 
 	return nil
@@ -151,5 +187,6 @@ func (gcs *GoogleCloudStorage) ValidateWritePermission() error {
 
 //Close closes gcp client and returns err if occurred
 func (gcs *GoogleCloudStorage) Close() error {
+	gcs.closed.Store(true)
 	return gcs.client.Close()
 }

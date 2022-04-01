@@ -1,7 +1,6 @@
 import styles from "./GetStartedPage.module.less"
 import logo from "icons/logo.svg"
 import { useHistory } from "react-router-dom"
-import * as React from "react"
 import { LoginForm } from "./LoginForm"
 import { SignupForm } from "./SignupForm"
 
@@ -14,6 +13,10 @@ export type GetStartedPageProps = {
    * If login / signup supports oauth
    */
   oauthSupport: boolean
+  /**
+   * Link for SSO Authorization
+   */
+  ssoAuthLink: string
   /**
    * Is this a login page or signup page?
    */
@@ -146,11 +149,7 @@ export default function GetStartedPage(props: GetStartedPageProps) {
         <a target="_blank" href="https://jitsu.com" className="block mb-6 lg:hidden">
           <img className="mt-8 h-8" src={logo} />
         </a>
-        {props.login ? (
-          <LoginForm supportOauth={props.oauthSupport} />
-        ) : (
-          <SignupForm supportOauth={props.oauthSupport} />
-        )}
+        {props.login ? <LoginForm supportOauth={props.oauthSupport} ssoAuthLink={props.ssoAuthLink} /> : <SignupForm />}
       </div>
     </div>
   )

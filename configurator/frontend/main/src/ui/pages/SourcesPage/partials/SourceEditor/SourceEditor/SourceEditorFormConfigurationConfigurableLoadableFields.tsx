@@ -1,6 +1,6 @@
 // @Libs
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Col, Row, Form, Select, FormProps, Badge, FormInstance } from "antd"
+import { Col, Row, Form, Select, FormProps } from "antd"
 import { Parameter, singleSelectionType, SourceConnector } from "@jitsu/catalog/sources/types"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
@@ -18,11 +18,10 @@ import { toTitleCase } from "utils/strings"
 import { uniqueId } from "lodash"
 import { withQueryParams } from "utils/queryParams"
 import { mapAirbyteSpecToSourceConnectorConfig } from "@jitsu/catalog/sources/lib/airbyte.helper"
-import { ArrowDownOutlined, DownOutlined } from "@ant-design/icons"
 
 type Props = {
   editorMode: "add" | "edit"
-  initialValues: Partial<SourceData>
+  initialValues: Partial<AirbyteSourceData>
   sourceDataFromCatalog: SourceConnector
   hideFields?: string[]
   patchConfig: PatchConfig
@@ -66,21 +65,20 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
         configure: () => {
           const controlsDisableRequestId = uniqueId("configurableLoadableFields-")
           const imageVersion: string = airbyteImageVersion.current
-          let availableImageVersions: string[] = imageVersion ? [imageVersion] : []
+          let availableImageVersions: string[] = []
           return {
             onBeforePollingStart: async () => {
               handleSetControlsDisabled(true, controlsDisableRequestId)
               editorMode === "edit" && handleSetTabsDisabled(["streams"], "disable")
-              availableImageVersions = await pullAvailableAirbyteImageVersions(sourceDataFromCatalog.id)
+              availableImageVersions = (await pullAvailableAirbyteImageVersions(sourceDataFromCatalog.id)) || []
               setAvailableAirbyteImageVersions(availableImageVersions)
-            },
-            onAfterPollingEnd: () => {
-              handleSetControlsDisabled(false, controlsDisableRequestId)
-              editorMode === "edit" && handleSetTabsDisabled(["streams"], "enable")
             },
             pollingCallback: (end, fail) => async () => {
               try {
-                const response = await pullAirbyteSpec(sourceDataFromCatalog.id, imageVersion)
+                const response = await pullAirbyteSpec(
+                  sourceDataFromCatalog.id,
+                  imageVersion || availableImageVersions[0]
+                )
                 if (response?.message) throw new Error(response?.message)
                 if (response?.status && response?.status !== "pending") {
                   const result = transformAirbyteSpecResponse(response)
@@ -89,6 +87,10 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
               } catch (error) {
                 fail(error)
               }
+            },
+            onAfterPollingEnd: () => {
+              handleSetControlsDisabled(false, controlsDisableRequestId)
+              editorMode === "edit" && handleSetTabsDisabled(["streams"], "enable")
             },
           }
         },
@@ -180,13 +182,6 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
         </Col>
       </Row>
     ) : (
-      /**
-       * Possible refactor -- share the following code with
-       * <SourceEditorFormConfigurationConfigurableFields />
-       * component
-       *
-       * make sure that functionality won't diverge
-       */
       <Form form={form} onValuesChange={handleFormValuesChangeForm}>
         <AirbyteVersionSelection
           key={`Stream Version Selection`}

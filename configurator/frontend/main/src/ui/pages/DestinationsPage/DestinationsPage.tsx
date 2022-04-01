@@ -6,8 +6,8 @@ import { observer } from "mobx-react-lite"
 import { DestinationsList } from "./partials/DestinationsList/DestinationsList"
 import { DestinationEditor } from "./partials/DestinationEditor/DestinationEditor"
 // @Store
-import { destinationsStore, DestinationsStoreState } from "stores/destinations"
-import { sourcesStore, SourcesStoreState } from "stores/sources"
+import { destinationsStore } from "stores/destinations"
+import { sourcesStore } from "stores/sources"
 // @Routes
 import { destinationPageRoutes } from "./DestinationsPage.routes"
 // @Components
@@ -15,13 +15,13 @@ import { CenteredError, CenteredSpin } from "lib/components/components"
 // @Hooks
 import { useServices } from "hooks/useServices"
 // @Types
-import { PageProps } from "navigation"
-import { BreadcrumbsProps } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { DestinationStatistics } from "./partials/DestinationStatistics/DestinationStatistics"
 import { ErrorBoundary } from "../../../lib/components/ErrorBoundary/ErrorBoundary"
 import { AddDestinationDialog } from "./partials/AddDestinationDialog/AddDestinationDialog"
 import { CurrentSubscription } from "lib/services/billing"
 import { BillingCheckRedirect } from "lib/components/BillingCheckRedirect/BillingCheckRedirect"
+import { EntitiesStoreStatus } from "stores/entitiesStore"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 
 export interface CollectionDestinationData {
   destinations: DestinationData[]
@@ -29,24 +29,23 @@ export interface CollectionDestinationData {
 }
 
 export interface CommonDestinationPageProps {
-  setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void
   editorMode?: "edit" | "add"
 }
 
-const DestinationsPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
+const DestinationsPageComponent: React.FC = () => {
   const params = useParams<unknown>()
   const services = useServices()
 
   const isDestinationsLimitReached = useCallback<(subscription?: CurrentSubscription) => boolean>(
-    subscription => destinationsStore.destinations.length >= (subscription?.currentPlan.quota.destinations ?? 999),
-    [destinationsStore.destinations.length]
+    subscription => destinationsStore.list.length >= (subscription?.currentPlan.quota.destinations ?? 999),
+    [destinationsStore.list.length]
   )
 
-  if (destinationsStore.state === DestinationsStoreState.GLOBAL_ERROR) {
-    return <CenteredError error={destinationsStore.error} />
+  if (destinationsStore.status === EntitiesStoreStatus.GLOBAL_ERROR) {
+    return <CenteredError error={destinationsStore.errorMessage} />
   } else if (
-    destinationsStore.state === DestinationsStoreState.GLOBAL_LOADING ||
-    sourcesStore.state === SourcesStoreState.GLOBAL_LOADING
+    destinationsStore.status === EntitiesStoreStatus.GLOBAL_LOADING ||
+    sourcesStore.status === EntitiesStoreStatus.GLOBAL_LOADING
   ) {
     return <CenteredSpin />
   }
@@ -55,7 +54,7 @@ const DestinationsPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
     <ErrorBoundary>
       <Switch>
         <Route path={destinationPageRoutes.root} exact>
-          <DestinationsList setBreadcrumbs={setBreadcrumbs} />
+          <DestinationsList />
         </Route>
         <Route path={destinationPageRoutes.editExact} strict={false} exact>
           <DestinationEditor
@@ -64,14 +63,14 @@ const DestinationsPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
              * to assemble a fresh form
              */
             key={params?.["id"] || "static_key"}
-            {...{ setBreadcrumbs, editorMode: "edit" }}
+            editorMode="edit"
           />
         </Route>
         <Route path={destinationPageRoutes.statisticsExact} strict={false} exact>
-          <DestinationStatistics setBreadcrumbs={setBreadcrumbs} />
+          <DestinationStatistics />
         </Route>
         <BillingCheckRedirect
-          quotaExceededRedirectTo={destinationPageRoutes.root}
+          quotaExceededRedirectTo={projectRoute(destinationPageRoutes.root)}
           quotaExceedeMessage={
             <>
               You current plan allows to have only {services.currentSubscription.currentPlan.quota.destinations}{" "}
@@ -85,7 +84,7 @@ const DestinationsPageComponent: React.FC<PageProps> = ({ setBreadcrumbs }) => {
               <AddDestinationDialog />
             </Route>
             <Route path={destinationPageRoutes.newExact} strict={false} exact>
-              <DestinationEditor {...{ setBreadcrumbs, editorMode: "add" }} />
+              <DestinationEditor editorMode="add" />
             </Route>
           </Switch>
         </BillingCheckRedirect>

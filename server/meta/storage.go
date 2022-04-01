@@ -31,16 +31,12 @@ type Storage interface {
 	GetProjectPushSourceIDs(projectID string) ([]string, error)
 	GetEventsWithGranularity(namespace, status, eventType string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error)
 
-	//** Cache **
+	//** Events Cache **
 	//events caching
-	AddEvent(destinationID, eventID, payload string, now time.Time) error
-	UpdateSucceedEvent(destinationID, eventID, success string) error
-	UpdateErrorEvent(destinationID, eventID, error string) error
-	UpdateSkipEvent(destinationID, eventID, error string) error
-	TrimEvents(destinationID string, capacity int) error
-
-	GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error)
-	GetTotalEvents(destinationID string) (int, error)
+	AddEvent(namespace, id, status string, entity *Event) error
+	TrimEvents(namespace, id, status string, capacity int) error
+	GetEvents(namespace, id, status string, limit int) ([]Event, error)
+	GetTotalEvents(namespace, id, status string) (int, error)
 
 	// ** Sync Tasks **
 	CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error

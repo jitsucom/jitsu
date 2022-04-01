@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"reflect"
 	"rogchap.com/v8go"
 	"strings"
@@ -31,7 +33,7 @@ type goTemplateExecutor struct {
 	expression string
 }
 
-func newGoTemplateExecutor(name string, expression string, extraFunctions template.FuncMap) (*goTemplateExecutor, error) {
+func NewGoTemplateExecutor(name string, expression string, extraFunctions template.FuncMap) (*goTemplateExecutor, error) {
 	tmpl := template.New(name)
 	if extraFunctions != nil {
 		var funcs = make(map[string]interface{})
@@ -172,7 +174,8 @@ func (jte *JsTemplateExecutor) Close() {
 
 type V8TemplateExecutor struct {
 	sync.Mutex
-	iso                   *v8go.Isolate
+	extraFunctions        template.FuncMap
+	extraScripts          []string
 	incoming              chan events.Event
 	closed                chan struct{}
 	results               chan interface{}
@@ -183,47 +186,65 @@ type V8TemplateExecutor struct {
 func NewV8TemplateExecutor(expression string, extraFunctions template.FuncMap, extraScripts ...string) (*V8TemplateExecutor, error) {
 	expression = Wrap(expression, functionName)
 	v8go.SetFlags("--stack-trace-limit", "100", "--stack-size", "100", "--max-heap-size", "1000")
-	iso := v8go.NewIsolate()
-	vte := &V8TemplateExecutor{sync.Mutex{}, iso, make(chan events.Event), make(chan struct{}), make(chan interface{}), expression, nil}
-	//safego.RunWithRestart(func() {
-	//	ticker := time.NewTicker(time.Millisecond * 500)
-	//	defer ticker.Stop()
-	//	for {
-	//		select {
-	//		case <-ticker.C:
-	//			heapStat := iso.GetHeapStatistics()
-	//			if heapStat.TotalHeapSize > 900_000_000 {
-	//				logging.SystemErrorf("JavaScript heap usage limit reached: %+v", heapStat)
-	//				iso.TerminateExecution()
-	//				vte.Close()
-	//			}
-	//		case <-vte.closed:
-	//			return
-	//		}
-	//	}
-	//})
-	safego.RunWithRestart(func() { vte.start(extraFunctions, extraScripts...) })
+
+	vte := &V8TemplateExecutor{
+		transformedExpression: expression,
+		extraFunctions:        extraFunctions,
+		extraScripts:          extraScripts,
+		incoming:              make(chan events.Event),
+		closed:                make(chan struct{}),
+		results:               make(chan interface{}),
+	}
+	safego.RunWithRestart(func() { vte.start() })
+
+	//we need to test that js function is properly loaded because loading happens in goroutine above
 	_, err := vte.ProcessEvent(events.Event{"event_type": jsLoadingTest})
 	if err != nil && strings.HasPrefix(err.Error(), jsLoadingErrorText) {
 		vte.Close()
-		//we need to test that js function is properly loaded because that happens in JsTemplateExecutor's goroutine
 		return nil, err
 	}
 	return vte, nil
 }
 
-func (vte *V8TemplateExecutor) start(extraFunctions template.FuncMap, extraScripts ...string) {
+func (vte *V8TemplateExecutor) start() {
+	var function func(map[string]interface{}) (interface{}, error)
+	iso := v8go.NewIsolate()
+	defer func() { iso.Dispose() }()
+	destinationId, _ := vte.extraFunctions["destinationId"].(string)
+	destinationType, _ := vte.extraFunctions["destinationType"].(string)
+
 	//loads javascript into new vm instance
-	function, err := V8LoadTemplateScript(vte.iso, vte.transformedExpression, extraFunctions, extraScripts...)
+	function, err := V8LoadTemplateScript(iso, vte.transformedExpression, vte.extraFunctions, vte.extraScripts...)
 	if err != nil {
 		vte.loadingError = fmt.Errorf("%s: %v\ntransformed function:\n%v\n", jsLoadingErrorText, err, vte.transformedExpression)
 	}
+	heapStatTicker := time.NewTicker(time.Millisecond * 500)
+	defer heapStatTicker.Stop()
 	for {
 		var event events.Event
-		select {
-		case <-vte.closed:
-			return
-		case event = <-vte.incoming:
+	Loop:
+		for {
+			select {
+			case <-vte.closed:
+				return
+			case <-heapStatTicker.C:
+				start := timestamp.Now()
+				heapStat := iso.GetHeapStatistics()
+				heapSize := heapStat.TotalHeapSize
+				if heapSize > 100_000_000 {
+					logging.Debugf("JavaScript heap usage limit reached %s %s: %d . Reloading V8 vm", destinationId, destinationType, heapStat.TotalHeapSize)
+					iso.Dispose()
+					iso = v8go.NewIsolate()
+					function, err = V8LoadTemplateScript(iso, vte.transformedExpression, vte.extraFunctions, vte.extraScripts...)
+					if err != nil {
+						logging.SystemErrorf("Reloading v8 failed: %v", err)
+						vte.loadingError = fmt.Errorf("%s: Reloading v8 failed: %v\n", jsLoadingErrorText, err)
+					}
+					logging.Debugf("Reload duration: %s", timestamp.Now().Sub(start))
+				}
+			case event = <-vte.incoming:
+				break Loop
+			}
 		}
 		if vte.loadingError != nil {
 			vte.results <- vte.loadingError
@@ -238,7 +259,7 @@ func (vte *V8TemplateExecutor) start(extraFunctions template.FuncMap, extraScrip
 				defer ticker.Stop()
 				select {
 				case <-ticker.C:
-					vte.iso.TerminateExecution()
+					iso.TerminateExecution()
 				case <-processDone:
 					return
 				}
@@ -292,7 +313,6 @@ func (vte *V8TemplateExecutor) Close() {
 	defer vte.Unlock()
 	if !vte.cancelled() {
 		close(vte.closed)
-		vte.iso.Dispose()
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
@@ -51,7 +50,7 @@ func NewClickHouse(config *Config) (storage Storage, err error) {
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	ch := &ClickHouse{}
-	err = ch.Init(config)
+	err = ch.Init(config, ch, "", "")
 	if err != nil {
 		return
 	}
@@ -96,73 +95,6 @@ func (ch *ClickHouse) Type() string {
 	return ClickHouseType
 }
 
-//Store process events and stores with storeTable() func
-//returns store result per table, failed events (group of events which are failed to process) and err
-func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
-	flatData, failedEvents, skippedEvents, err := ch.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	//update cache with failed events
-	for _, failedEvent := range failedEvents.Events {
-		ch.eventsCache.Error(ch.IsCachingDisabled(), ch.ID(), failedEvent.EventID, failedEvent.Error)
-	}
-	//update cache and counter with skipped events
-	for _, skipEvent := range skippedEvents.Events {
-		ch.eventsCache.Skip(ch.IsCachingDisabled(), ch.ID(), skipEvent.EventID, skipEvent.Error)
-	}
-
-	storeFailedEvents := true
-	tableResults := map[string]*StoreResult{}
-	for _, fdata := range flatData {
-		adapter, tableHelper := ch.getAdapters()
-		table := tableHelper.MapTableSchema(fdata.BatchHeader)
-		err := ch.storeTable(adapter, tableHelper, fdata, table)
-		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
-		if err != nil {
-			storeFailedEvents = false
-		}
-
-		//events cache
-		for _, object := range fdata.GetPayload() {
-			if err != nil {
-				ch.eventsCache.Error(ch.IsCachingDisabled(), ch.ID(), ch.uniqueIDField.Extract(object), err.Error())
-			} else {
-				ch.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  ch.IsCachingDisabled(),
-					DestinationID:  ch.ID(),
-					EventID:        ch.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          table,
-				})
-			}
-		}
-	}
-
-	//store failed events to fallback only if other events have been inserted ok
-	if storeFailedEvents {
-		return tableResults, failedEvents, skippedEvents, nil
-	}
-
-	return tableResults, nil, skippedEvents, nil
-}
-
-//check table schema
-//and store data into one table
-func (ch *ClickHouse) storeTable(adapter adapters.SQLAdapter, tableHelper *TableHelper, fdata *schema.ProcessedFile, table *adapters.Table) error {
-	dbSchema, err := tableHelper.EnsureTableWithoutCaching(ch.ID(), table)
-	if err != nil {
-		return err
-	}
-
-	if err := adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 //SyncStore is used in storing chunk of pulled data to ClickHouse with processing
 func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
 	return syncStoreImpl(ch, overriddenDataSchema, objects, timeIntervalValue, cacheTable, needCopyEvent)
@@ -170,11 +102,6 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 
 func (ch *ClickHouse) Clean(tableName string) error {
 	return cleanImpl(ch, tableName)
-}
-
-//Update uses SyncStore under the hood
-func (ch *ClickHouse) Update(object map[string]interface{}) error {
-	return ch.SyncStore(nil, []map[string]interface{}{object}, "", true, false)
 }
 
 //GetUsersRecognition returns users recognition configuration

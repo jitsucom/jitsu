@@ -64,8 +64,8 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 
 	rowsCount := len(eventObjects)
 
-	for i, storageProxy := range storageProxies {
-		if err := bh.upload(storageProxy, eventObjects, needCopyEvent && i > 0); err != nil {
+	for _, storageProxy := range storageProxies {
+		if err := bh.upload(storageProxy, eventObjects, needCopyEvent); err != nil {
 
 			metrics.ErrorTokenEvents(tokenID, storageProxy.Type(), storageProxy.ID(), rowsCount)
 			metrics.ErrorTokenObjects(tokenID, rowsCount)

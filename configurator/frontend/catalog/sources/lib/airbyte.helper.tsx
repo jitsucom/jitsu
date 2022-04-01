@@ -1,6 +1,6 @@
-// import { Moment, default as moment } from "moment"
 import {
   AirbyteSource,
+  arrayOf,
   booleanType,
   makeIntType,
   makeStringType,
@@ -57,7 +57,7 @@ type AirbyteSpecNodeMappingParameters = {
 
 /**
  * Maps the spec of the Airbyte connector to the Jitsu `Parameter` schema of the `SourceConnector`.
- * @param spec `connectionSpecification` field which is the root node of the airbyte source spec.
+ * @param spec `connectionSpecification` field which is the root of the airbyte source spec.
  */
 export const mapAirbyteSpecToSourceConnectorConfig = (spec: unknown): Parameter[] => {
   return mapAirbyteSpecNode(spec, {
@@ -66,12 +66,16 @@ export const mapAirbyteSpecToSourceConnectorConfig = (spec: unknown): Parameter[
   })
 }
 
-const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecNodeMappingParameters): Parameter[] {
+const mapAirbyteSpecNode = function mapSpecNode(
+  specNode: any,
+  options?: AirbyteSpecNodeMappingParameters
+): Parameter[] {
   const result: Parameter[] = []
 
   const { nodeName, parentNode, requiredFields, setChildrenParameters, omitFieldRule } = options || {}
 
   const id = `${parentNode.id}.${nodeName}`
+  const displayName = specNode["title"] ?? nodeName
   const required = !!requiredFields?.includes(nodeName || "")
   const description = specNode["description"]
   const documentation = specNode["description"] ? (
@@ -80,9 +84,19 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
 
   switch (specNode["type"]) {
     case "array":
-    //TODO: very limited implementation that works correctly for comma separated string arrays
+      return [
+        {
+          displayName,
+          id,
+          type: arrayOf({ typeName: specNode["items"]?.type ?? "string" }),
+          required,
+          documentation,
+          omitFieldRule,
+          ...setChildrenParameters,
+        },
+      ]
+
     case "string": {
-      const name: string = specNode["title"] ?? nodeName
       const pattern = specNode["pattern"]
       const now = new Date()
       const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -120,7 +134,7 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
         ? singleSelectionType(specNode["enum"])
         : makeStringType(pattern ? { pattern } : {})
       const mappedStringField: Parameter = {
-        displayName: name,
+        displayName,
         id,
         type: fieldType,
         required,
@@ -136,7 +150,7 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
 
     case "integer": {
       const mappedIntegerField: Parameter = {
-        displayName: specNode["title"] ?? nodeName,
+        displayName,
         id,
         type: makeIntType({
           minimum: specNode["minimum"],
@@ -152,7 +166,7 @@ const mapAirbyteSpecNode = function mapSpecNode(specNode, options?: AirbyteSpecN
 
     case "boolean": {
       const mappedBooleanField: Parameter = {
-        displayName: specNode["title"] ?? nodeName,
+        displayName,
         id,
         type: booleanType,
         required,

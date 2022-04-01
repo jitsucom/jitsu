@@ -21,12 +21,26 @@ import (
 
 var ErrSkipObject = errors.New("Transform or table name filter marked object to be skipped. This object will be skipped.")
 
+const (
+	JitsuEnvelopParameter    = "JITSU_ENVELOP"
+	JitsuUserRecognizedEvent = "JITSU_UR_EVENT"
+)
+
+var (
+	EventSpecialParameters = []string{
+		templates.TableNameParameter,
+		JitsuEnvelopParameter,
+		JitsuUserRecognizedEvent,
+	}
+)
+
 //go:embed segment.js
 var segmentTransform string
 
 type Envelope struct {
-	Header *BatchHeader
-	Event  events.Event
+	Header        *BatchHeader
+	Event         events.Event
+	OriginalEvent string
 }
 
 type Processor struct {
@@ -49,11 +63,12 @@ type Processor struct {
 	javaScripts             []string
 	jsVariables             map[string]interface{}
 	//indicate that we didn't forget to init JavaScript transform
-	transformInitialized bool
-	MappingStyle         string
+	transformInitialized   bool
+	MappingStyle           string
+	userRecognitionEnabled bool
 }
 
-func NewProcessor(destinationID string, destinationConfig *config.DestinationConfig, isSQLType bool, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule, flattener Flattener, typeResolver TypeResolver, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int, mappingStyle string) (*Processor, error) {
+func NewProcessor(destinationID string, destinationConfig *config.DestinationConfig, isSQLType bool, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule, flattener Flattener, typeResolver TypeResolver, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int, mappingStyle string, userRecognitionEnabled bool) (*Processor, error) {
 	return &Processor{
 		identifier:              destinationID,
 		destinationConfig:       destinationConfig,
@@ -70,6 +85,7 @@ func NewProcessor(destinationID string, destinationConfig *config.DestinationCon
 		javaScripts:             []string{},
 		jsVariables:             map[string]interface{}{},
 		MappingStyle:            mappingStyle,
+		userRecognitionEnabled:  userRecognitionEnabled,
 	}, nil
 }
 
@@ -85,16 +101,22 @@ func (p *Processor) ProcessEvent(event map[string]interface{}, needCopyEvent boo
 //ProcessEvents processes events objects
 //returns array of processed objects per table like {"table1": []objects, "table2": []objects},
 //All failed events are moved to separate collection for sending to fallback
-func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*ProcessedFile, *events.FailedEvents, *events.SkippedEvents, error) {
+func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (flatData map[string]*ProcessedFile, recognizedFlatData map[string]*ProcessedFile, failedEvents *events.FailedEvents, skippedEvents *events.SkippedEvents, err error) {
 	if !p.transformInitialized {
 		err := fmt.Errorf("Destination: %s Attempt to use processor without running InitJavaScriptTemplates first", p.identifier)
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	skippedEvents := &events.SkippedEvents{}
-	failedEvents := events.NewFailedEvents()
-	filePerTable := map[string]*ProcessedFile{}
+	skippedEvents = &events.SkippedEvents{}
+	failedEvents = events.NewFailedEvents()
+	flatData = map[string]*ProcessedFile{}
+	recognizedFlatData = map[string]*ProcessedFile{}
 
 	for _, event := range objects {
+		_, recognizedEvent := event[JitsuUserRecognizedEvent]
+		if recognizedEvent && !p.userRecognitionEnabled {
+			//skip recognized event for storages with disabled/not supported UR
+			continue
+		}
 		envelops, err := p.processObject(event, alreadyUploadedTables, needCopyEvent)
 		if err != nil {
 			//handle skip object functionality
@@ -104,18 +126,20 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 					logging.Warnf("[%s] Event [%s]: %v", p.identifier, eventID, err)
 				}
 
-				skippedEvents.Events = append(skippedEvents.Events, &events.SkippedEvent{EventID: eventID, Error: ErrSkipObject.Error()})
+				originalEventBytes, _ := json.Marshal(event)
+				skippedEvents.Events = append(skippedEvents.Events, &events.SkippedEvent{Event: originalEventBytes, Error: ErrSkipObject.Error(), RecognizedEvent: recognizedEvent})
 			} else if p.breakOnError {
-				return nil, nil, nil, err
+				return nil, nil, nil, nil, err
 			} else {
-				eventBytes, _ := json.Marshal(event)
+				originalEventBytes, _ := json.Marshal(event)
 
-				logging.Warnf("Unable to process object %s: %v. This line will be stored in fallback.", string(eventBytes), err)
+				logging.Warnf("Unable to process object %s: %v. This line will be stored in fallback.", string(originalEventBytes), err)
 
 				failedEvents.Events = append(failedEvents.Events, &events.FailedEvent{
-					Event:   eventBytes,
-					Error:   err.Error(),
-					EventID: p.uniqueIDField.Extract(event),
+					Event:           originalEventBytes,
+					Error:           err.Error(),
+					EventID:         p.uniqueIDField.Extract(event),
+					RecognizedEvent: recognizedEvent,
 				})
 				failedEvents.Src[events.ExtractSrc(event)]++
 			}
@@ -124,25 +148,36 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 			//don't process empty and skipped object (batchHeader.Exists() func is nil-protected)
 			batchHeader := envelop.Header
 			processedObject := envelop.Event
+			rawOriginalEvent := envelop.OriginalEvent
 			if batchHeader.Exists() {
-				f, ok := filePerTable[batchHeader.TableName]
+				var fData map[string]*ProcessedFile
+				if recognizedEvent {
+					fData = recognizedFlatData
+				} else {
+					fData = flatData
+				}
+
+				f, ok := fData[batchHeader.TableName]
 				if !ok {
-					filePerTable[batchHeader.TableName] = &ProcessedFile{
-						FileName:    fileName,
-						BatchHeader: batchHeader,
-						payload:     []map[string]interface{}{processedObject},
-						eventsSrc:   map[string]int{events.ExtractSrc(event): 1},
+					fData[batchHeader.TableName] = &ProcessedFile{
+						FileName:           fileName,
+						BatchHeader:        batchHeader,
+						RecognitionPayload: recognizedEvent,
+						payload:            []map[string]interface{}{processedObject},
+						originalRawEvents:  []string{rawOriginalEvent},
+						eventsSrc:          map[string]int{events.ExtractSrc(event): 1},
 					}
 				} else {
 					f.BatchHeader.Fields.Merge(batchHeader.Fields)
 					f.payload = append(f.payload, processedObject)
+					f.originalRawEvents = append(f.originalRawEvents, rawOriginalEvent)
 					f.eventsSrc[events.ExtractSrc(event)]++
 				}
 			}
 		}
 	}
 
-	return filePerTable, failedEvents, skippedEvents, nil
+	return flatData, recognizedFlatData, failedEvents, skippedEvents, nil
 }
 
 //ProcessPulledEvents processes events objects without applying mapping rules
@@ -257,22 +292,35 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		toProcess = append(toProcess, obj)
 	case []interface{}:
 		for _, o := range obj {
-			casted, ok := o.(map[string]interface{})
-			if !ok {
+			switch value := o.(type) {
+			case map[string]interface{}:
+				toProcess = append(toProcess, value)
+			case bool:
+				if value {
+					//#872 react-style pattern: we ignore 'false' but it is not clear how to interpret 'true' value
+					return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", o)
+				}
+			case nil:
+				//#872 react-style pattern: undefined-s and null-s get ignored
+			default:
 				return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", o)
 			}
-			toProcess = append(toProcess, casted)
 		}
 	default:
 		return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", transformed)
 	}
+	if len(toProcess) == 0 {
+		//transform that returns no events causes skipped event
+		return nil, ErrSkipObject
+	}
 	envelops := make([]Envelope, 0, len(toProcess))
-
+	originalEvent, _ := json.Marshal(object)
 	for i, prObject := range toProcess {
 		newUniqueId := p.uniqueIDField.Extract(object)
 		if newUniqueId == "" {
 			newUniqueId = uuid.New()
 		}
+		delete(prObject, JitsuUserRecognizedEvent)
 		if i > 0 {
 			//for event cache one to many mapping
 			newUniqueId = fmt.Sprintf("%s_%d", newUniqueId, i)
@@ -280,7 +328,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		}
 		if p.isSQLType {
 			prObject[p.uniqueIDField.GetFlatFieldName()] = newUniqueId
-			prObject[timestamp.Key] = object[timestamp.Key]
+			prObject[timestamp.Key] = workingObject[timestamp.Key]
 			if _, ok := object[timestamp.Key]; !ok {
 				prObject[timestamp.Key] = timestamp.NowUTC()
 			}
@@ -308,7 +356,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		if err != nil {
 			return nil, fmt.Errorf("failed to process long fields: %v", err)
 		}
-		envelops = append(envelops, Envelope{bh, obj})
+		envelops = append(envelops, Envelope{Header: bh, Event: obj, OriginalEvent: string(originalEvent)})
 	}
 
 	return envelops, nil

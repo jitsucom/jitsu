@@ -106,7 +106,7 @@ return $
 `
 	destination := &config.DestinationConfig{Type: "google_analytics", BreakOnError: false,
 		DataLayout: &config.DataLayout{Transform: transformExpression}}
-	p, err := schema.NewProcessor("test", destination, false, `events`, fieldMapper, []enrichment.Rule{}, schema.NewFlattener(), schema.NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, "new")
+	p, err := schema.NewProcessor("test", destination, false, `events`, fieldMapper, []enrichment.Rule{}, schema.NewFlattener(), schema.NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, "new", false)
 	require.NoError(t, err)
 	err = p.InitJavaScriptTemplates()
 	require.NoError(t, err)

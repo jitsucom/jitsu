@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"strings"
 
@@ -34,7 +35,8 @@ const (
 				                     where tco.table_schema = $1 and tco.table_name = $2 and tco.constraint_type = 'PRIMARY KEY'
                                      order by kcu.ordinal_position`
 
-	redshiftValuesLimit = 32767 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	RedshiftValuesLimit = 32767 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	credentialsMask     = "*****"
 )
 
 var (
@@ -75,7 +77,11 @@ func (AwsRedshift) Type() string {
 func (ar *AwsRedshift) OpenTx() (*Transaction, error) {
 	tx, err := ar.dataSourceProxy.dataSource.BeginTx(ar.dataSourceProxy.ctx, nil)
 	if err != nil {
-		return nil, err
+		err = checkErr(err)
+		return nil, errorj.BeginTransactionError.Wrap(err, "failed to begin transaction").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema: ar.dataSourceProxy.config.Schema,
+			})
 	}
 
 	return &Transaction{tx: tx, dbType: ar.Type()}, nil
@@ -83,48 +89,110 @@ func (ar *AwsRedshift) OpenTx() (*Transaction, error) {
 
 //Copy transfer data from s3 to redshift by passing COPY request to redshift
 func (ar *AwsRedshift) Copy(fileKey, tableName string) error {
-	wrappedTx, err := ar.OpenTx()
-	if err != nil {
-		return err
-	}
-
 	//add folder prefix if configured
 	if ar.s3Config.Folder != "" {
 		fileKey = ar.s3Config.Folder + "/" + fileKey
 	}
 
 	statement := fmt.Sprintf(copyTemplate, ar.dataSourceProxy.config.Schema, tableName, ar.s3Config.Bucket, fileKey, ar.s3Config.AccessKeyID, ar.s3Config.SecretKey, ar.s3Config.Region)
-	_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, statement)
-	if err != nil {
-		wrappedTx.Rollback(err)
-		return checkErr(err)
+	if _, err := ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, statement); err != nil {
+		return errorj.CopyError.Wrap(err, "failed to copy data from s3").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    ar.dataSourceProxy.config.Schema,
+				Table:     tableName,
+				Statement: fmt.Sprintf(copyTemplate, ar.dataSourceProxy.config.Schema, tableName, ar.s3Config.Bucket, fileKey, credentialsMask, credentialsMask, ar.s3Config.Region),
+			})
 	}
 
-	return wrappedTx.DirectCommit()
+	return nil
 }
 
 //CreateDbSchema create database schema instance if doesn't exist
 func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
+	query := fmt.Sprintf(createDbSchemaIfNotExistsTemplate, dbSchemaName)
+	ar.dataSourceProxy.queryLogger.LogDDL(query)
+
+	if _, err := ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, query); err != nil {
+		err = checkErr(err)
+
+		return errorj.CreateSchemaError.Wrap(err, "failed to create db schema").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    dbSchemaName,
+				Statement: query,
+			})
+	}
+
+	return nil
+}
+
+//Insert inserts data with InsertContext as a single object or a batch into Redshift
+func (ar *AwsRedshift) Insert(insertContext *InsertContext) error {
+	if insertContext.eventContext != nil {
+		return ar.insertSingle(insertContext.eventContext)
+	} else {
+		return ar.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
+	}
+}
+
+//insertBatch inserts batch of data in transaction
+func (ar *AwsRedshift) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) (err error) {
 	wrappedTx, err := ar.OpenTx()
 	if err != nil {
 		return err
 	}
 
-	return createDbSchemaInTransaction(ar.dataSourceProxy.ctx, wrappedTx, createDbSchemaIfNotExistsTemplate, dbSchemaName,
-		ar.dataSourceProxy.queryLogger)
+	defer func() {
+		if err != nil {
+			rbErr := wrappedTx.Rollback()
+			if rbErr != nil {
+				err = errorj.Group(err, rbErr)
+			}
+		} else {
+			err = wrappedTx.Commit()
+		}
+	}()
+
+	if !deleteConditions.IsEmpty() {
+		if err = ar.deleteWithConditions(wrappedTx, table, deleteConditions); err != nil {
+			return err
+		}
+	}
+
+	if len(table.PKFields) == 0 {
+		return ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, table, objects, RedshiftValuesLimit)
+	}
+
+	//deduplication for bulkMerge success (it fails if there is any duplicate)
+	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
+
+	for _, objectsBucket := range deduplicatedObjectsBuckets {
+		if err = ar.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-//Insert provided object in AwsRedshift
-func (ar *AwsRedshift) Insert(eventContext *EventContext) error {
+//insertSingle inserts single provided object in Redshift with typecasts
+func (ar *AwsRedshift) insertSingle(eventContext *EventContext) error {
 	_, quotedColumnNames, placeholders, values := ar.dataSourceProxy.buildInsertPayload(eventContext.Table, eventContext.ProcessedEvent)
 
 	statement := fmt.Sprintf(insertTemplate, ar.dataSourceProxy.config.Schema, eventContext.Table.Name, strings.Join(quotedColumnNames, ", "), "("+strings.Join(placeholders, ", ")+")")
 	ar.dataSourceProxy.queryLogger.LogQueryWithValues(statement, values)
 
-	_, err := ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, statement, values...)
-	if err != nil {
+	if _, err := ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, statement, values...); err != nil {
 		err = checkErr(err)
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, statement, values, err)
+
+		return errorj.ExecuteInsertError.Wrap(err, "failed to execute single insert").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:      ar.dataSourceProxy.config.Schema,
+				Table:       eventContext.Table.Name,
+				PrimaryKeys: eventContext.Table.GetPKFields(),
+				Statement:   statement,
+				Values:      values,
+			})
+
 	}
 
 	return nil
@@ -139,40 +207,33 @@ func (ar *AwsRedshift) PatchTableSchema(patchSchema *Table) error {
 	}
 
 	patchErr := ar.dataSourceProxy.patchTableSchemaInTransaction(wrappedTx, patchSchema)
-	if patchErr != nil {
-		msg := patchErr.Error()
-		if strings.Contains(strings.ToLower(msg), "can not make a nullable column a primary key") {
-			//get table schema, re-create field and set it not null in a new transaction
-			secondWrappedTx, txErr := ar.OpenTx()
-			if txErr != nil {
-				return fmt.Errorf("%v (re-creation failed: %v)", patchErr, txErr)
-			}
-
-			table, err := ar.GetTableSchema(patchSchema.Name)
-			if err != nil {
-				secondWrappedTx.Rollback(err)
-				return fmt.Errorf("%v (re-creation failed: %v)", patchErr, err)
-			}
-
-			table.PKFields = patchSchema.PKFields
-
-			recreationErr := ar.recreateNotNullColumnInTransaction(secondWrappedTx, table)
-			if recreationErr != nil {
-				secondWrappedTx.Rollback(recreationErr)
-				return fmt.Errorf("%v (re-creation failed: %v)", patchErr, recreationErr)
-			}
-
-			if patchRetryErr := ar.dataSourceProxy.patchTableSchemaInTransaction(secondWrappedTx, patchSchema); patchRetryErr != nil {
-				return patchRetryErr
-			}
-
-			return nil
-		} else {
-			return patchErr
-		}
+	if patchErr == nil {
+		return wrappedTx.Commit()
 	}
 
-	return nil
+	rbErr := wrappedTx.Rollback()
+
+	msg := patchErr.Error()
+	if strings.Contains(strings.ToLower(msg), "can not make a nullable column a primary key") {
+		secondWrappedTx, err := ar.OpenTx()
+		if err != nil {
+			return errorj.Group(patchErr, rbErr, err)
+		}
+
+		if err := ar.recreateColumn(secondWrappedTx, patchSchema); err != nil {
+			secondWrappedTx.Rollback()
+			return errorj.Group(patchErr, rbErr, err)
+		}
+
+		if patchRetryErr := ar.dataSourceProxy.patchTableSchemaInTransaction(secondWrappedTx, patchSchema); patchRetryErr != nil {
+			secondWrappedTx.Rollback()
+			return errorj.Group(patchErr, rbErr, patchRetryErr)
+		}
+
+		return secondWrappedTx.Commit()
+	} else {
+		return errorj.Group(patchErr, rbErr)
+	}
 }
 
 //GetTableSchema return table (name,columns, primary key) representation wrapped in Table struct
@@ -209,13 +270,18 @@ func (ar *AwsRedshift) CreateTable(tableSchema *Table) error {
 		return err
 	}
 
-	err = ar.dataSourceProxy.createTableInTransaction(wrappedTx, tableSchema)
-	if err != nil {
-		wrappedTx.Rollback(err)
-		return err
-	}
+	defer func() {
+		if err != nil {
+			rbErr := wrappedTx.Rollback()
+			if rbErr != nil {
+				err = errorj.Group(err, rbErr)
+			}
+		} else {
+			err = wrappedTx.Commit()
+		}
+	}()
 
-	return wrappedTx.DirectCommit()
+	return ar.dataSourceProxy.createTableInTransaction(wrappedTx, tableSchema)
 }
 
 //Update one record in Redshift
@@ -227,7 +293,13 @@ func (ar *AwsRedshift) getPrimaryKeys(tableName string) (string, map[string]bool
 	primaryKeys := map[string]bool{}
 	pkFieldsRows, err := ar.dataSourceProxy.dataSource.QueryContext(ar.dataSourceProxy.ctx, primaryKeyFieldsRedshiftQuery, ar.dataSourceProxy.config.Schema, tableName)
 	if err != nil {
-		return "", nil, fmt.Errorf("Error querying primary keys for [%s.%s] table: %v", ar.dataSourceProxy.config.Schema, tableName, err)
+		return "", nil, errorj.GetPrimaryKeysError.Wrap(err, "failed to get primary key").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    ar.dataSourceProxy.config.Schema,
+				Table:     tableName,
+				Statement: primaryKeyFieldsRedshiftQuery,
+				Values:    []interface{}{ar.dataSourceProxy.config.Schema, tableName},
+			})
 	}
 
 	defer pkFieldsRows.Close()
@@ -236,7 +308,13 @@ func (ar *AwsRedshift) getPrimaryKeys(tableName string) (string, map[string]bool
 	for pkFieldsRows.Next() {
 		var constraintName, fieldName string
 		if err := pkFieldsRows.Scan(&constraintName, &fieldName); err != nil {
-			return "", nil, fmt.Errorf("Error scanning primary key result: %v", err)
+			return "", nil, errorj.GetPrimaryKeysError.Wrap(err, "failed to scan result").
+				WithProperty(errorj.DBInfo, &ErrorPayload{
+					Schema:    ar.dataSourceProxy.config.Schema,
+					Table:     tableName,
+					Statement: primaryKeyFieldsRedshiftQuery,
+					Values:    []interface{}{ar.dataSourceProxy.config.Schema, tableName},
+				})
 		}
 		if primaryKeyName == "" && constraintName != "" {
 			primaryKeyName = constraintName
@@ -244,7 +322,13 @@ func (ar *AwsRedshift) getPrimaryKeys(tableName string) (string, map[string]bool
 		pkFields = append(pkFields, fieldName)
 	}
 	if err := pkFieldsRows.Err(); err != nil {
-		return "", nil, fmt.Errorf("pk last rows.Err: %v", err)
+		return "", nil, errorj.GetPrimaryKeysError.Wrap(err, "failed read last row").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    ar.dataSourceProxy.config.Schema,
+				Table:     tableName,
+				Statement: primaryKeyFieldsRedshiftQuery,
+				Values:    []interface{}{ar.dataSourceProxy.config.Schema, tableName},
+			})
 	}
 	for _, field := range pkFields {
 		primaryKeys[field] = true
@@ -270,78 +354,62 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 
 		addColumnQuery := fmt.Sprintf(addColumnTemplate, ar.dataSourceProxy.config.Schema, table.Name, columnDDL)
 		ar.dataSourceProxy.queryLogger.LogDDL(addColumnQuery)
-		_, err := wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, addColumnQuery)
-		if err != nil {
+		if _, err := wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, addColumnQuery); err != nil {
 			err = checkErr(err)
-			return fmt.Errorf("Error creating [%s] tmp column %s table with [%s] DDL: %v", tmpColumnName, table.Name, columnDDL, err)
+
+			return errorj.PatchTableError.Wrap(err, "failed to create tmp column").
+				WithProperty(errorj.DBInfo, &ErrorPayload{
+					Schema:      ar.dataSourceProxy.config.Schema,
+					Table:       table.Name,
+					PrimaryKeys: table.GetPKFields(),
+					Statement:   addColumnQuery,
+				})
 		}
 
 		//** copy all values **
 		copyColumnQuery := fmt.Sprintf(copyColumnTemplate, ar.dataSourceProxy.config.Schema, table.Name, tmpColumnName, columnName)
 		ar.dataSourceProxy.queryLogger.LogDDL(copyColumnQuery)
-		_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, copyColumnQuery)
-		if err != nil {
+		if _, err := wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, copyColumnQuery); err != nil {
 			err = checkErr(err)
-			return fmt.Errorf("Error copying column [%s] into tmp column [%s]: %v", columnName, tmpColumnName, err)
+			return errorj.PatchTableError.Wrap(err, "failed to copy column data").
+				WithProperty(errorj.DBInfo, &ErrorPayload{
+					Schema:      ar.dataSourceProxy.config.Schema,
+					Table:       table.Name,
+					PrimaryKeys: table.GetPKFields(),
+					Statement:   copyColumnQuery,
+				})
 		}
 
 		//** drop old column **
 		dropOldColumnQuery := fmt.Sprintf(dropColumnTemplate, ar.dataSourceProxy.config.Schema, table.Name, columnName)
 		ar.dataSourceProxy.queryLogger.LogDDL(dropOldColumnQuery)
-		_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, dropOldColumnQuery)
-		if err != nil {
+		if _, err := wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, dropOldColumnQuery); err != nil {
 			err = checkErr(err)
-			return fmt.Errorf("Error droping old column [%s]: %v", columnName, err)
+			return errorj.PatchTableError.Wrap(err, "failed to drop old column").
+				WithProperty(errorj.DBInfo, &ErrorPayload{
+					Schema:      ar.dataSourceProxy.config.Schema,
+					Table:       table.Name,
+					PrimaryKeys: table.GetPKFields(),
+					Statement:   dropOldColumnQuery,
+				})
 		}
 
 		//**rename tmp column **
 		renameTmpColumnQuery := fmt.Sprintf(renameColumnTemplate, ar.dataSourceProxy.config.Schema, table.Name, tmpColumnName, columnName)
 		ar.dataSourceProxy.queryLogger.LogDDL(renameTmpColumnQuery)
-		_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, renameTmpColumnQuery)
-		if err != nil {
+		if _, err := wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, renameTmpColumnQuery); err != nil {
 			err = checkErr(err)
-			return fmt.Errorf("Error renaming tmp column [%s] to [%s]: %v", tmpColumnName, columnName, err)
+			return errorj.PatchTableError.Wrap(err, "failed to rename tmp column").
+				WithProperty(errorj.DBInfo, &ErrorPayload{
+					Schema:      ar.dataSourceProxy.config.Schema,
+					Table:       table.Name,
+					PrimaryKeys: table.GetPKFields(),
+					Statement:   renameTmpColumnQuery,
+				})
 		}
 	}
 
 	return nil
-}
-
-//BulkInsert opens a new transaction and uses bulkStoreInTransaction func
-func (ar *AwsRedshift) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	wrappedTx, err := ar.OpenTx()
-	if err != nil {
-		return err
-	}
-
-	if err = ar.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback(err)
-		return err
-	}
-
-	return wrappedTx.DirectCommit()
-}
-
-//BulkUpdate deletes with deleteConditions and runs bulkStoreInTransaction
-func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	wrappedTx, err := ar.OpenTx()
-	if err != nil {
-		return err
-	}
-
-	if !deleteConditions.IsEmpty() {
-		if err := ar.deleteWithConditions(wrappedTx, table, deleteConditions); err != nil {
-			wrappedTx.Rollback(err)
-			return err
-		}
-	}
-
-	if err := ar.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback(err)
-		return err
-	}
-
-	return wrappedTx.DirectCommit()
 }
 
 //Truncate deletes all records in tableName table
@@ -352,27 +420,6 @@ func (ar *AwsRedshift) Truncate(tableName string) error {
 //DropTable drops table in transaction uses underlying postgres datasource
 func (ar *AwsRedshift) DropTable(table *Table) error {
 	return ar.dataSourceProxy.DropTable(table)
-}
-
-//bulkStoreInTransaction uses different statements for inserts and merges. Without primary keys:
-//  inserts data batch into the table by using postgres bulk insert (insert into ... values (), (), ())
-//with primary keys:
-//  uses bulkMergeInTransaction func with deduplicated objects
-func (ar *AwsRedshift) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
-	if len(table.PKFields) == 0 {
-		return ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, table, objects, redshiftValuesLimit)
-	}
-
-	//deduplication for bulkMerge success (it fails if there is any duplicate)
-	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
-
-	for _, objectsBucket := range deduplicatedObjectsBuckets {
-		if err := ar.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 //bulkMergeInTransaction uses temporary table and insert from select statement
@@ -386,12 +433,12 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 
 	err := ar.dataSourceProxy.createTableInTransaction(wrappedTx, tmpTable)
 	if err != nil {
-		return fmt.Errorf("Error creating temporary table: %v", err)
+		return errorj.Decorate(err, "failed to create temporary table")
 	}
 
-	err = ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, tmpTable, objects, redshiftValuesLimit)
+	err = ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, tmpTable, objects, RedshiftValuesLimit)
 	if err != nil {
-		return fmt.Errorf("Error inserting in temporary table [%s]: %v", tmpTable.Name, err)
+		return errorj.Decorate(err, "failed to insert into temporary table")
 	}
 
 	//delete duplicates from table
@@ -405,10 +452,16 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 	deleteStatement := fmt.Sprintf(deleteBeforeBulkMergeUsing, ar.dataSourceProxy.config.Schema, table.Name, ar.dataSourceProxy.config.Schema, tmpTable.Name, deleteCondition)
 
 	ar.dataSourceProxy.queryLogger.LogQuery(deleteStatement)
-	_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, deleteStatement)
-	if err != nil {
+	if _, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, deleteStatement); err != nil {
 		err = checkErr(err)
-		return fmt.Errorf("Error deleting duplicated rows: %v", err)
+
+		return errorj.BulkMergeError.Wrap(err, "failed to delete duplicated rows").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:      ar.dataSourceProxy.config.Schema,
+				Table:       table.Name,
+				PrimaryKeys: table.GetPKFields(),
+				Statement:   deleteStatement,
+			})
 	}
 
 	//insert from select
@@ -419,18 +472,45 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 	quotedHeader := strings.Join(quotedColumnNames, ", ")
 	insertFromSelectStatement := fmt.Sprintf(redshiftBulkMergeInsert, ar.dataSourceProxy.config.Schema, table.Name, quotedHeader, quotedHeader, ar.dataSourceProxy.config.Schema, tmpTable.Name)
 	ar.dataSourceProxy.queryLogger.LogQuery(insertFromSelectStatement)
-	_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, insertFromSelectStatement)
-	if err != nil {
+	if _, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, insertFromSelectStatement); err != nil {
 		err = checkErr(err)
-		return fmt.Errorf("Error merging rows: %v", err)
+
+		return errorj.BulkMergeError.Wrap(err, "failed to merge rows").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:      ar.dataSourceProxy.config.Schema,
+				Table:       table.Name,
+				PrimaryKeys: table.GetPKFields(),
+				Statement:   insertFromSelectStatement,
+			})
 	}
 
 	//delete tmp table
-	return ar.dataSourceProxy.dropTableInTransaction(wrappedTx, tmpTable)
+	if err := ar.dataSourceProxy.dropTableInTransaction(wrappedTx, tmpTable); err != nil {
+		return errorj.Decorate(err, "failed to drop temporary table")
+	}
+
+	return nil
 }
 
 func (ar *AwsRedshift) deleteWithConditions(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
 	return ar.dataSourceProxy.deleteInTransaction(wrappedTx, table, deleteConditions)
+}
+
+//recreateColumn recreates column with non null condition for primary key
+func (ar *AwsRedshift) recreateColumn(wrappedTx *Transaction, patchSchema *Table) error {
+	//get table schema, re-create field and set it not null in a new transaction
+	table, err := ar.GetTableSchema(patchSchema.Name)
+	if err != nil {
+		return err
+	}
+
+	table.PKFields = patchSchema.PKFields
+
+	if err := ar.recreateNotNullColumnInTransaction(wrappedTx, table); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 //Close underlying sql.DB

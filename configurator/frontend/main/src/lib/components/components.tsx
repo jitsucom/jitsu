@@ -1,22 +1,28 @@
-/* eslint-disable */
+// @Libs
+import React, { ReactNode } from "react"
+import { Col, message, Modal, Progress, Row, Spin } from "antd"
+import cn from "classnames"
+// @Services
+import ApplicationServices from "lib/services/ApplicationServices"
+// @Components
+import { SyntaxHighlighterAsync } from "lib/components/SyntaxHighlighter/SyntaxHighlighter"
+import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+// @Icons
+import { CopyOutlined } from "@ant-design/icons"
+import plumber from "icons/plumber.png"
+// @Utils
+import { copyToClipboard, firstToLower, sleep, withDefaults } from "lib/commons/utils"
+// @Styles
+import "./components.less"
+
 /**
- * Library of small components that are usefull for different purposes
+ *
+ * Library of small components that are usefull for multiple purposes
+ * TO DO: move components to separate files
+ *
  */
 
-import React, { ReactNode } from "react"
-import "./components.less"
-import { Col, message, Modal, Progress, Row, Spin } from "antd"
-import CopyOutlined from "@ant-design/icons/lib/icons/CopyOutlined"
-import plumber from "../../icons/plumber.png"
-
-import ApplicationServices from "../services/ApplicationServices"
-import { copyToClipboard, firstToLower, sleep, withDefaults } from "../commons/utils"
-import { ArgsProps } from "antd/es/message"
-import { MessageType } from "antd/lib/message"
-import cn from "classnames"
-import { SyntaxHighlighterAsync } from "./SyntaxHighlighter/SyntaxHighlighter"
-import { actionNotification } from "../../ui/components/ActionNotification/ActionNotification"
-
+/** */
 type IPreloaderProps = {
   text?: string
 }

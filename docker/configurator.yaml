@@ -18,3 +18,6 @@ auth:
   redis:
     host: '${env.REDIS_URL}'
     tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+
+ui:
+  base_url: /configurator

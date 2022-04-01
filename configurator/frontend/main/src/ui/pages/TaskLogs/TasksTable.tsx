@@ -6,7 +6,6 @@ import RedoOutlined from "@ant-design/icons/lib/icons/RedoOutlined"
 import CloseCircleOutlined from "@ant-design/icons/lib/icons/CloseCircleOutlined"
 import moment, { Moment } from "moment"
 import { colorMap, Task, TaskId, TaskStatus } from "ui/pages/TaskLogs/utils"
-import { taskLogsViewerRoute } from "ui/pages/TaskLogs/TaskLogViewer"
 import useLoader from "hooks/useLoader"
 import { useServices } from "hooks/useServices"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
@@ -14,6 +13,7 @@ import { comparator } from "../../../lib/commons/utils"
 import { isAtLeastOneStreamSelected } from "utils/sources/sourcesUtils"
 import { NoStreamsSelectedMessage } from "ui/components/NoStreamsSelectedMessage/NoStreamsSelectedMessage"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+import { projectRoute } from "../../../lib/components/ProjectLink/ProjectLink"
 
 export type TasksTableProps = {
   source: SourceData
@@ -25,7 +25,10 @@ export type TasksTableProps = {
 }
 export const TasksTable: React.FC<TasksTableProps> = props => {
   const appServices = useServices()
-  const editSourceLink = generatePath(sourcesPageRoutes.editExact, { sourceId: props.source.sourceId })
+  const editSourceLink = generatePath(sourcesPageRoutes.editExact, {
+    projectId: appServices.activeProject.id,
+    sourceId: props.source.sourceId,
+  })
 
   const [taskRuns, setTaskRuns] = useState(0) //to trigger reload on manual task run
   const [loadingError, tasksSorted] = useLoader<Task[]>(async () => {
@@ -85,7 +88,12 @@ export const TasksTable: React.FC<TasksTableProps> = props => {
     return (
       <div className="text-center text-secondaryText pt-8">
         No destinations is configured for this source. Synchronization tasks will not run. Configure destinations on{" "}
-        <NavLink to={generatePath(sourcesPageRoutes.editExact, { sourceId: props.source.sourceId })}>
+        <NavLink
+          to={generatePath(sourcesPageRoutes.editExact, {
+            projectId: appServices.activeProject.id,
+            sourceId: props.source.sourceId,
+          })}
+        >
           Linked Destinations tab
         </NavLink>
       </div>
@@ -155,7 +163,7 @@ const columns: ColumnData[] = [
             {" • "}
             <NavLink
               className="border-b border-dashed"
-              to={generatePath(taskLogsViewerRoute, {
+              to={projectRoute(sourcesPageRoutes.task, {
                 sourceId: props.source.sourceId,
                 taskId: TaskId.encode(t.logs.taskId),
               })}
@@ -173,7 +181,11 @@ const columns: ColumnData[] = [
     title: "Duration",
     render: (t, props) => {
       if (t.date?.started && t.date?.finished) {
-        return moment(moment.utc(t.date?.finished).diff(moment.utc(t.date?.started))).format("m[m] s[s]")
+        if (moment(t.date?.finished).diff(moment(t.date?.started), "hours") >= 1) {
+          return moment.utc(moment(t.date?.finished).diff(moment(t.date?.started))).format("H[h] m[m] s[s]")
+        } else {
+          return moment.utc(moment(t.date?.finished).diff(moment(t.date?.started))).format("m[m] s[s]")
+        }
       } else {
         return " n/a "
       }

@@ -4,8 +4,8 @@ import { Button } from "antd"
 import { observer } from "mobx-react-lite"
 // @Store
 import { apiKeysStore } from "stores/apiKeys"
-import { sourcesStore, SourcesStoreState } from "stores/sources"
-import { destinationsStore, DestinationsStoreState } from "stores/destinations"
+import { sourcesStore } from "stores/sources"
+import { destinationsStore } from "stores/destinations"
 // @Styles
 import styles from "./OnboardingTourAddDestination.module.less"
 // @Components
@@ -22,6 +22,9 @@ import {
 import { useServices } from "hooks/useServices"
 // @Utils
 import { flowResult } from "mobx"
+import { connectionsHelper } from "stores/helpers"
+import { EntitiesStoreStatus } from "stores/entitiesStore"
+
 type ExtractDatabaseOrWebhook<T> = T extends { readonly type: "database" }
   ? T
   : T extends { readonly id: "webhook" }
@@ -54,11 +57,11 @@ const OnboardingTourAddDestinationComponent: React.FC<Props> = ({ handleGoNext, 
     [services.features.createDemoDatabase]
   )
 
-  const userSources = sourcesStore.sources
-  const userDestinations = destinationsStore.destinations
+  const userSources = sourcesStore.list
+  const userDestinations = destinationsStore.list
 
-  const isLoadingUserSources = sourcesStore.state === SourcesStoreState.GLOBAL_LOADING
-  const isLoadingUserDestinations = destinationsStore.state === DestinationsStoreState.GLOBAL_LOADING
+  const isLoadingUserSources = sourcesStore.status === EntitiesStoreStatus.GLOBAL_LOADING
+  const isLoadingUserDestinations = destinationsStore.status === EntitiesStoreStatus.GLOBAL_LOADING
 
   const handleCancelDestinationSetup = useCallback<() => void>(() => {
     setLifecycle("setup_choice")
@@ -66,7 +69,7 @@ const OnboardingTourAddDestinationComponent: React.FC<Props> = ({ handleGoNext, 
 
   const onAfterCustomDestinationCreated = useCallback<() => Promise<void>>(async () => {
     // if user created a destination at this step, it is his first destination
-    if (!destinationsStore.hasDestinations) {
+    if (!destinationsStore.list.length) {
       const errorMessage = "onboarding - silently failed to create a custom destination"
       console.error(errorMessage)
       services.analyticsService.track("onboarding_destination_error_custom", {
@@ -76,15 +79,15 @@ const OnboardingTourAddDestinationComponent: React.FC<Props> = ({ handleGoNext, 
       return
     }
 
-    const destination = destinationsStore.destinations[0]
+    const destination = destinationsStore.list[0]
 
     // track successful destination creation
     services.analyticsService.track(`onboarding_destination_created_${destination._type}`)
 
     // user might have multiple keys - we are using the first one
-    await flowResult(apiKeysStore.generateAddInitialApiKeyIfNeeded("Auto-generated during the onboarding"))
-    const key = apiKeysStore.apiKeys[0]
-    await flowResult(destinationsStore.linkApiKeysToDestinations(key, destination))
+    await flowResult(apiKeysStore.generateAddInitialApiKeyIfNeeded({ note: "Auto-generated during the onboarding" }))
+    const key = apiKeysStore.list[0]
+    await connectionsHelper.updateDestinationsConnectionsToApiKey(key.uid, [destination._uid])
 
     handleGoNext()
   }, [services, handleGoNext])
@@ -146,7 +149,6 @@ const OnboardingTourAddDestinationComponent: React.FC<Props> = ({ handleGoNext, 
         return (
           <div className={styles.destinationEditorContainer}>
             <DestinationEditor
-              setBreadcrumbs={() => {}}
               editorMode="add"
               paramsByProps={{
                 type: destinationsReferenceMap[lifecycle]["id"],

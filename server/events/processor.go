@@ -22,7 +22,7 @@ type RequestContext struct {
 // should be stateless
 type Processor interface {
 	Preprocess(event Event, requestContext *RequestContext)
-	Postprocess(event Event, eventID string, destinationIDs []string)
+	Postprocess(event Event, eventID string, destinationIDs []string, tokenID string)
 	Type() string
 }
 

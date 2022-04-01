@@ -1,13 +1,9 @@
-import { User } from "./model"
+import { ApiAccess } from "./model"
+import { SignupRequest, User } from "../../generated/conf-openapi"
 
 /**
  * User Service
  */
-
-export type UserLoginStatus = {
-  user?: User
-  loggedIn: boolean
-}
 
 export interface LoginFeatures {
   oauth: boolean
@@ -15,7 +11,7 @@ export interface LoginFeatures {
   signupEnabled: boolean
 }
 
-type UserEmailStatus = { needsConfirmation: true; isConfirmed: boolean } | { needsConfirmation: false }
+export type UserEmailStatus = { needsConfirmation: true; isConfirmed: boolean } | { needsConfirmation: false }
 
 export type TelemetrySettings = {
   isTelemetryEnabled: boolean
@@ -40,11 +36,15 @@ export interface UserService {
 
   getLoginFeatures(): LoginFeatures
 
+  getSSOAuthLink(): string
+
   /**
    * Initiates google login. Returns promise on email of the user . On success user must reload
    * page.
    */
   initiateGoogleLogin(redirect?: string): Promise<string>
+
+  apiAccess(): ApiAccess
 
   /**
    * Initiates google login
@@ -54,7 +54,7 @@ export interface UserService {
   /**
    * Get (wait for) logged in user (or null if user is not logged in).
    */
-  waitForUser(): Promise<UserLoginStatus>
+  waitForUser(): Promise<void>
 
   /**
    * Get current logged in user. Throws exception if user is not available
@@ -65,7 +65,7 @@ export interface UserService {
    * Checks if current user's email needs confirmation and if it is confirmed.
    * @returns an object with the corresponding fields
    */
-  getUserEmailStatus(): Promise<UserEmailStatus>
+  getUserEmailStatus(): UserEmailStatus
 
   /**
    * Checks if any valid user is logged in.
@@ -99,13 +99,9 @@ export interface UserService {
    */
   changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void>
 
-  update(user: User)
-
   removeAuth(callback: () => void)
 
-  createUser(email: string, password: string): Promise<void>
-
-  setupUser(userProps: SetupUserProps): Promise<void>
+  createUser(signup: SignupRequest): Promise<void>
 
   becomeUser(email: string): Promise<void>
 
@@ -117,5 +113,8 @@ export interface UserService {
 
   loginWithLink(email: string, href: string): Promise<void>
 
+  /**
+   * Returns a token which can be user by external services to perform authorization.
+   */
   getIdToken(): Promise<string>
 }

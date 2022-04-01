@@ -48,6 +48,8 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		config, err = mapS3(destination)
 	case enstorages.NpmType:
 		config, err = mapNpm(destination)
+	case enstorages.TagType:
+		config, err = mapTag(destination)
 	default:
 		return nil, fmt.Errorf("Unknown destination type: %s", destination.Type)
 	}
@@ -71,8 +73,8 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 	} else {
 		//default primary keys for enabling users recognition
 		//for disabling this feature set destination.DisableDefaultPrimaryKeyFields on a certain destination
-		if !destination.DisableDefaultPrimaryKeyFields &&
-			(destination.Type == enstorages.PostgresType || destination.Type == enstorages.MySQLType || destination.Type == enstorages.RedshiftType || destination.Type == enstorages.SnowflakeType) {
+		URSetup, ok := enstorages.UserRecognitionStorages[destination.Type]
+		if !destination.DisableDefaultPrimaryKeyFields && ok && URSetup.PKRequired {
 			if config.DataLayout == nil {
 				config.DataLayout = &enconfig.DataLayout{}
 			}
@@ -311,10 +313,23 @@ func mapClickhouse(chDestinations *entities.Destination) (*enconfig.DestinationC
 	if len(dsns) == 0 {
 		dsns = strings.Split(chFormData.ChDsns, ",")
 	}
+	tlss := map[string]string{}
+	if chFormData.ChTLS != "" {
+		for i, pair := range strings.Split(chFormData.ChTLS, "&") {
+			cert := strings.SplitN(pair, "=", 2)
+			if len(cert) == 2 {
+				tlss[cert[0]] = cert[1]
+			} else if len(cert) == 1 {
+				tlss[fmt.Sprintf("cert_%d", i)] = cert[0]
+			}
+		}
+	}
+
 	cfg := &enadapters.ClickHouseConfig{
 		Dsns:     dsns,
 		Database: chFormData.ChDb,
 		Cluster:  chFormData.ChCluster,
+		TLS:      tlss,
 	}
 	cfgMap := map[string]interface{}{}
 	err = mapstructure.Decode(cfg, &cfgMap)
@@ -551,6 +566,35 @@ func mapNpm(whDestination *entities.Destination) (*enconfig.DestinationConfig, e
 		Mode:    "stream",
 		Config:  config,
 		Package: whDestination.Package,
+	}, nil
+}
+
+func mapTag(tagDestination *entities.Destination) (*enconfig.DestinationConfig, error) {
+	b, err := json.Marshal(tagDestination.Data)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshaling tag config destination: %v", err)
+	}
+
+	tagFormData := &entities.TagFormData{}
+	err = json.Unmarshal(b, tagFormData)
+	if err != nil {
+		return nil, fmt.Errorf("Error unmarshaling webhook form data: %v", err)
+	}
+
+	cfg := &enadapters.TagConfig{
+		TagID:    tagFormData.TagId,
+		Template: tagFormData.Template,
+		Filter:   tagFormData.Filter,
+	}
+	cfgMap := map[string]interface{}{}
+	err = mapstructure.Decode(cfg, &cfgMap)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling cfg to map: %v", err)
+	}
+	return &enconfig.DestinationConfig{
+		Type:   enstorages.TagType,
+		Mode:   "synchronous",
+		Config: cfgMap,
 	}, nil
 }
 

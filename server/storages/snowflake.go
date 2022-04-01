@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	sf "github.com/snowflakedb/gosnowflake"
 )
@@ -94,7 +92,7 @@ func NewSnowflake(config *Config) (storage Storage, err error) {
 		}
 	}
 	snowflake := &Snowflake{stageAdapter: stageAdapter}
-	err = snowflake.Init(config)
+	err = snowflake.Init(config, snowflake, "", "")
 	if err != nil {
 		return
 	}
@@ -156,81 +154,37 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 	return snowflakeAdapter, nil
 }
 
-//Store process events and stores with storeTable() func
-//returns store result per table, failed events (group of events which are failed to process) and err
-func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
-	_, tableHelper := s.getAdapters()
-	flatData, failedEvents, skippedEvents, err := s.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	//update cache with failed events
-	for _, failedEvent := range failedEvents.Events {
-		s.eventsCache.Error(s.IsCachingDisabled(), s.ID(), failedEvent.EventID, failedEvent.Error)
-	}
-	//update cache and counter with skipped events
-	for _, skipEvent := range skippedEvents.Events {
-		s.eventsCache.Skip(s.IsCachingDisabled(), s.ID(), skipEvent.EventID, skipEvent.Error)
-	}
-
-	storeFailedEvents := true
-	tableResults := map[string]*StoreResult{}
-	for _, fdata := range flatData {
-		table := tableHelper.MapTableSchema(fdata.BatchHeader)
-		err := s.storeTable(fdata, table)
-		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
-		if err != nil {
-			storeFailedEvents = false
-		}
-
-		//events cache
-		for _, object := range fdata.GetPayload() {
-			if err != nil {
-				s.eventsCache.Error(s.IsCachingDisabled(), s.ID(), s.uniqueIDField.Extract(object), err.Error())
-			} else {
-				s.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  s.IsCachingDisabled(),
-					DestinationID:  s.ID(),
-					EventID:        s.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          table,
-				})
-			}
-		}
-	}
-
-	//store failed events to fallback only if other events have been inserted ok
-	if storeFailedEvents {
-		return tableResults, failedEvents, skippedEvents, nil
-	}
-
-	return tableResults, nil, skippedEvents, nil
-}
-
-//check table schema
+//storeTable check table schema
 //and store data into one table via stage (google cloud storage or s3)
-func (s *Snowflake) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
-	_, tableHelper := s.getAdapters()
-	dbTable, err := tableHelper.EnsureTableWithoutCaching(s.ID(), table)
-	if err != nil {
-		return err
-	}
+func (s *Snowflake) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error) {
+	if fdata.RecognitionPayload {
+		return s.Abstract.storeTable(fdata)
+	} else {
+		_, tableHelper := s.getAdapters()
+		table := tableHelper.MapTableSchema(fdata.BatchHeader)
+		dbTable, err := tableHelper.EnsureTableWithoutCaching(s.ID(), table)
+		if err != nil {
+			return table, err
+		}
 
-	b, header := fdata.GetPayloadBytesWithHeader(schema.VerticalBarSeparatedMarshallerInstance)
-	if err := s.stageAdapter.UploadBytes(fdata.FileName, b); err != nil {
-		return err
-	}
+		b, header, err := fdata.GetPayloadBytesWithHeader(schema.CSVMarshallerInstance)
+		if err != nil {
+			return dbTable, err
+		}
+		if err := s.stageAdapter.UploadBytes(fdata.FileName, b); err != nil {
+			return dbTable, err
+		}
 
-	if err := s.snowflakeAdapter.Copy(fdata.FileName, dbTable.Name, header); err != nil {
-		return fmt.Errorf("Error copying file [%s] from stage to snowflake: %v", fdata.FileName, err)
-	}
+		if err := s.snowflakeAdapter.Copy(fdata.FileName, dbTable.Name, header); err != nil {
+			return dbTable, fmt.Errorf("Error copying file [%s] from stage to snowflake: %v", fdata.FileName, err)
+		}
 
-	if err := s.stageAdapter.DeleteObject(fdata.FileName); err != nil {
-		logging.SystemErrorf("[%s] file %s wasn't deleted from stage: %v", s.ID(), fdata.FileName, err)
-	}
+		if err := s.stageAdapter.DeleteObject(fdata.FileName); err != nil {
+			logging.SystemErrorf("[%s] file %s wasn't deleted from stage: %v", s.ID(), fdata.FileName, err)
+		}
 
-	return nil
+		return dbTable, nil
+	}
 }
 
 //GetUsersRecognition returns users recognition configuration
@@ -245,34 +199,6 @@ func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 
 func (s *Snowflake) Clean(tableName string) error {
 	return cleanImpl(s, tableName)
-}
-
-//Update updates record in Snowflake
-func (s *Snowflake) Update(object map[string]interface{}) error {
-	_, tableHelper := s.getAdapters()
-	envelops, err := s.processor.ProcessEvent(object, false)
-	if err != nil {
-		return err
-	}
-	for _, envelop := range envelops {
-		batchHeader := envelop.Header
-		processedObject := envelop.Event
-		table := tableHelper.MapTableSchema(batchHeader)
-
-		dbSchema, err := tableHelper.EnsureTableWithCaching(s.ID(), table)
-		if err != nil {
-			return err
-		}
-
-		start := timestamp.Now()
-		if err = s.snowflakeAdapter.Update(dbSchema, processedObject, s.uniqueIDField.GetFlatFieldName(), s.uniqueIDField.Extract(object)); err != nil {
-			return err
-		}
-
-		logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", s.ID(), timestamp.Now().Sub(start).Seconds())
-	}
-
-	return nil
 }
 
 //Type returns Snowflake type

@@ -11,6 +11,7 @@ import (
 const (
 	AnonymousQueueName  = "users_recognition"
 	IdentifiedQueueName = "users_identified"
+	AggregatedQueueName = "users_aggregated"
 )
 
 type Queue struct {
@@ -20,8 +21,8 @@ type Queue struct {
 	closed chan struct{}
 }
 
-func newQueue(identifier string) *Queue {
-	inmemoryQueue := queue.NewInMemory()
+func newQueue(identifier string, capacity int) *Queue {
+	inmemoryQueue := queue.NewInMemory(capacity)
 
 	metrics.InitialUsersRecognitionQueueSize(identifier, int(inmemoryQueue.Size()))
 

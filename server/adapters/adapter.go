@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
 	"io"
 	"regexp"
@@ -22,15 +21,15 @@ type SQLAdapter interface {
 	GetTableSchema(tableName string) (*Table, error)
 	CreateTable(schemaToCreate *Table) error
 	PatchTableSchema(schemaToAdd *Table) error
-	BulkInsert(table *Table, objects []map[string]interface{}) error
-	BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error
 	Truncate(tableName string) error
+	Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error
+	DropTable(table *Table) (err error)
 }
 
 //Adapter is an adapter for all destinations
 type Adapter interface {
 	io.Closer
-	Insert(eventContext *EventContext) error
+	Insert(insertContext *InsertContext) error
 }
 
 type SqlParams struct {
@@ -39,14 +38,11 @@ type SqlParams struct {
 	queryLogger *logging.QueryLogger
 }
 
-func (sp *SqlParams) commonTruncate(tableName, statement string) error {
+func (sp *SqlParams) commonTruncate(statement string) error {
 	sp.queryLogger.LogDDL(statement)
 
-	_, err := sp.dataSource.ExecContext(sp.ctx, statement)
-
-	if err != nil {
-		errF := fmt.Errorf("Error truncating table %s using statement: %s: %v", tableName, statement, err)
-		return mapError(errF)
+	if _, err := sp.dataSource.ExecContext(sp.ctx, statement); err != nil {
+		return mapError(err)
 	}
 
 	return nil

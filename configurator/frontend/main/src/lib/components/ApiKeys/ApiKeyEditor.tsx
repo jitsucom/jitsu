@@ -4,44 +4,18 @@ import { apiKeysStore } from "../../../stores/apiKeys"
 import { Prompt, useHistory, useParams } from "react-router-dom"
 import { CenteredError } from "../components"
 import { useForm } from "antd/es/form/Form"
-import { LabelEllipsis } from "../../../ui/components/LabelEllipsis/LabelEllipsis"
 import ReloadOutlined from "@ant-design/icons/lib/icons/ReloadOutlined"
-import React, { Children, ReactNode, useState } from "react"
-import cn from "classnames"
+import React, { ReactNode, useState } from "react"
 import { FormField, FormLayout, FormActions, unsavedMessage } from "../Form/Form"
-import { LabelWithTooltip } from "../../../ui/components/LabelWithTooltip/LabelWithTooltip"
 import TextArea from "antd/es/input/TextArea"
-import { BreadcrumbsProps, withHome } from "../../../ui/components/Breadcrumbs/Breadcrumbs"
-import { FormInstance } from "antd/es/form/hooks/useForm"
 import { confirmDelete } from "../../commons/deletionConfirmation"
 import { flowResult } from "mobx"
-import { useServices } from "../../../hooks/useServices"
-import { sourcePageUtils } from "../../../ui/pages/SourcesPage/SourcePage.utils"
 import { NavLink } from "react-router-dom"
 import { destinationsStore } from "../../../stores/destinations"
 import { DestinationPicker } from "./DestinationPicker"
-import union from "lodash/union"
-
-export const apiKeysRoutes = {
-  newExact: "/api-keys/new",
-  listExact: "/api-keys",
-  editExact: "/api-keys/:id",
-} as const
-
-type ApiKeyEditorProps = {
-  setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void
-}
-
-function newKey(): APIKey {
-  let uid = apiKeysStore.generateApiToken("", 6)
-  return {
-    uid: uid,
-    serverAuth: apiKeysStore.generateApiToken("s2s"),
-    jsAuth: apiKeysStore.generateApiToken("js"),
-    comment: "New API Key",
-    origins: [],
-  }
-}
+import { connectionsHelper } from "stores/helpers"
+import { apiKeysRoutes } from "./ApiKeysRouter"
+import { projectRoute } from "../ProjectLink/ProjectLink"
 
 const SecretKey: React.FC<{
   formFieldName: string
@@ -70,9 +44,9 @@ const SecretKey: React.FC<{
   )
 }
 
-type EditorObject = Omit<APIKey, "origins"> & { originsText?: string; connectedDestinations?: string }
+type EditorObject = Omit<ApiKey, "origins"> & { originsText?: string; connectedDestinations?: string }
 
-function getEditorObject({ origins, ...rest }: APIKey) {
+function getEditorObject({ origins, ...rest }: ApiKey) {
   return {
     ...rest,
     comment: rest.comment || rest.uid,
@@ -80,7 +54,7 @@ function getEditorObject({ origins, ...rest }: APIKey) {
   }
 }
 
-function getKey({ originsText, connectedDestinations, ...rest }: EditorObject, initialValue: APIKey) {
+function getKey({ originsText, connectedDestinations, ...rest }: EditorObject, initialValue: ApiKey) {
   return {
     ...initialValue,
     ...rest,
@@ -88,18 +62,16 @@ function getKey({ originsText, connectedDestinations, ...rest }: EditorObject, i
   }
 }
 
-const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
+const ApiKeyEditorComponent: React.FC = props => {
   let { id = undefined } = useParams<{ id?: string }>()
   if (id) {
     id = id.replace("-", ".")
   }
-  const initialApiKey = id ? apiKeysStore.apiKeys.find(key => key.uid === id) : newKey()
+  const initialApiKey = id ? apiKeysStore.get(id) : apiKeysStore.generateApiKey()
   if (!initialApiKey) {
     return <CenteredError error={new Error(`Key with id ${id} not found`)} />
   }
   const [editorObject, setEditorObject] = useState<EditorObject>(getEditorObject(initialApiKey))
-  let services = useServices()
-  let keysBackend = services.storageService.table<APIKey>("api_keys")
   const history = useHistory()
   const [deleting, setDeleting] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -182,21 +154,10 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
               >
                 <Form.Item name="connectedDestinations">
                   <DestinationPicker
-                    allDestinations={destinationsStore.allDestinations}
+                    allDestinations={destinationsStore.list}
                     isSelected={dst => dst._onlyKeys.includes(id)}
                   />
                 </Form.Item>
-                {/*<span*/}
-                {/*  className={`${*/}
-                {/*    form.getFieldsValue().connectedDestinations &&*/}
-                {/*    form.getFieldsValue().connectedDestinations.length > 0*/}
-                {/*      ? "invisible"*/}
-                {/*      : "visible"*/}
-                {/*  } text-error`}*/}
-                {/*>*/}
-                {/*  <strong>No destinations have been selected</strong>: Events sent with this API key will be ignored.*/}
-                {/*  Please, selected at least one destination*/}
-                {/*</span>*/}
               </FormField>
             </span>
             <FormActions>
@@ -213,9 +174,8 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                       action: async () => {
                         setDeleting(true)
                         try {
-                          await keysBackend.remove(id)
-                          await flowResult(apiKeysStore.pullApiKeys())
-                          await history.push(apiKeysRoutes.listExact)
+                          await flowResult(apiKeysStore.delete(id))
+                          await history.push(projectRoute(apiKeysRoutes.listExact))
                         } finally {
                           setDeleting(false)
                         }
@@ -233,10 +193,10 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                 onClick={() => {
                   if (form.isFieldsTouched()) {
                     if (confirm(unsavedMessage)) {
-                      history.push(apiKeysRoutes.listExact)
+                      history.push(projectRoute(apiKeysRoutes.listExact))
                     }
                   } else {
-                    history.push(apiKeysRoutes.listExact)
+                    history.push(projectRoute(apiKeysRoutes.listExact))
                   }
                 }}
               >
@@ -251,30 +211,14 @@ const ApiKeyEditorComponent: React.FC<ApiKeyEditorProps> = props => {
                   try {
                     setSaving(true)
                     const connectedDestinations: string[] = form.getFieldsValue().connectedDestinations || []
-                    let destinationsToUpdate: DestinationData[] = destinationsStore.allDestinations
-                      .map(dst => {
-                        if (connectedDestinations.includes(dst._uid)) {
-                          dst._onlyKeys = union(dst._onlyKeys || [], [id])
-                          //destination is connected
-                          return dst
-                        } else if (dst._onlyKeys && dst._onlyKeys.includes(id)) {
-                          //destination is not connected, but was
-                          dst._onlyKeys = dst._onlyKeys.filter(el => el !== id)
-                          return dst
-                        }
-                        return undefined
-                      })
-                      .filter(dst => !!dst)
-
-                    let key = getKey(form.getFieldsValue(), initialApiKey)
+                    let savedKey: ApiKey = getKey(form.getFieldsValue(), initialApiKey)
                     if (id) {
-                      await keysBackend.replace(id, key)
+                      await flowResult(apiKeysStore.replace({ ...savedKey, uid: id }))
                     } else {
-                      await keysBackend.add(key)
+                      savedKey = await flowResult(apiKeysStore.add(savedKey))
                     }
-                    await flowResult(apiKeysStore.pullApiKeys())
-                    await flowResult(destinationsStore.editDestinations(destinationsToUpdate))
-                    history.push(apiKeysRoutes.listExact)
+                    await connectionsHelper.updateDestinationsConnectionsToApiKey(savedKey.uid, connectedDestinations)
+                    history.push(projectRoute(apiKeysRoutes.listExact))
                   } finally {
                     setSaving(false)
                   }

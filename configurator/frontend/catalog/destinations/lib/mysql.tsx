@@ -40,7 +40,7 @@ const mysqlDestination = {
       id: "$type",
       constant: "mysqlConfig",
     },
-    modeParameter("stream"),
+    modeParameter(),
     tableName(),
     {
       id: "_formData.mysqlHost",
@@ -85,6 +85,19 @@ const mysqlDestination = {
           used with MySQL that is installed on the local machine.
         </>
       ),
+    },
+    {
+      id: "_users_recognition._enabled",
+      displayName: "User Recognition",
+      documentation: (
+        <>
+          Jitsu can retroactively update events from anonymous users with user id after users identification. See{" "}
+          <a href="https://jitsu.com/docs/other-features/retroactive-user-recognition">Docs</a>.
+        </>
+      ),
+      required: false,
+      defaultValue: true,
+      type: booleanType,
     },
   ],
 } as const

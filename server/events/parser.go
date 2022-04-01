@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/timestamp"
-	"io"
-	"io/ioutil"
-	"time"
 )
 
 const (
@@ -25,37 +26,52 @@ const (
 
 var malformedSegmentBatch = errors.New("malformed Segment body 'batch' type. Expected array of objects")
 
+type ParsingError struct {
+	LimitedPayload []byte
+	Err            error
+}
+
+func parsingError(payload []byte, err error) *ParsingError {
+	return &ParsingError{Err: err, LimitedPayload: payload}
+}
+
 //Parser is used for parsing income HTTP event body
 type Parser interface {
-	ParseEventsBody(c *gin.Context) ([]Event, error)
+	ParseEventsBody(c *gin.Context) ([]Event, *ParsingError)
 }
 
 //jitsuParser parses Jitsu events
 type jitsuParser struct {
-	maxEventSize int
+	maxEventSize           int
+	maxCachedEventsErrSize int
 }
 
 //NewJitsuParser returns jitsuParser
-func NewJitsuParser(maxEventSize int) Parser {
-	return &jitsuParser{maxEventSize: maxEventSize}
+func NewJitsuParser(maxEventSize, maxCachedEventsErrSize int) Parser {
+	return &jitsuParser{maxEventSize: maxEventSize, maxCachedEventsErrSize: maxCachedEventsErrSize}
 }
 
 //ParseEventsBody parses HTTP body and returns Event objects or err if occurred
 //unwraps template events if exists
-func (jp *jitsuParser) ParseEventsBody(c *gin.Context) ([]Event, error) {
+func (jp *jitsuParser) ParseEventsBody(c *gin.Context) ([]Event, *ParsingError) {
 	body, decoder, err := readBytes(c.Request.Body)
 	if err != nil {
-		return nil, err
+		return nil, parsingError(nil, err)
+	}
+
+	maxCachedEventsErrSize := jp.maxCachedEventsErrSize
+	if len(body) < jp.maxCachedEventsErrSize {
+		maxCachedEventsErrSize = len(body)
 	}
 
 	switch body[0] {
 	case '{':
 		if len(body) > jp.maxEventSize {
-			return nil, fmt.Errorf("Event size %d exceeds limit: %d", len(body), jp.maxEventSize)
+			return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("Event size %d exceeds limit: %d", len(body), jp.maxEventSize))
 		}
 		event := Event{}
 		if err := decoder.Decode(&event); err != nil {
-			return nil, fmt.Errorf("error parsing HTTP body: %v", err)
+			return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("error parsing HTTP body: %v", err))
 		}
 
 		eventsArray, ok := jp.parseTemplateEvents(event)
@@ -67,14 +83,14 @@ func (jp *jitsuParser) ParseEventsBody(c *gin.Context) ([]Event, error) {
 	case '[':
 		inputEvents := []Event{}
 		if err := decoder.Decode(&inputEvents); err != nil {
-			return nil, fmt.Errorf("error parsing HTTP body: %v", err)
+			return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("error parsing HTTP body: %v", err))
 		}
-		if len(body) > jp.maxEventSize*len(inputEvents) {
-			return nil, fmt.Errorf("Size of one of events exceeds limit: %d", jp.maxEventSize)
+		if len(inputEvents) > 0 && len(body) > jp.maxEventSize*len(inputEvents) {
+			return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("Size of one of events exceeds limit: %d", jp.maxEventSize))
 		}
 		return inputEvents, nil
 	default:
-		return nil, fmt.Errorf("malformed JSON body begins with: %q", string(body[0]))
+		return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("malformed JSON body begins with: %q", string(body[0])))
 	}
 }
 
@@ -138,11 +154,12 @@ type segmentParser struct {
 	screenHeight     jsonutils.JSONPath
 	screenResolution jsonutils.JSONPath
 
-	maxEventSize int
+	maxEventSize           int
+	maxCachedEventsErrSize int
 }
 
 //NewSegmentParser returns configured Segment Parser for SDK 2.0 data structures
-func NewSegmentParser(mapper Mapper, globalUniqueID *identifiers.UniqueID, maxEventSize int) Parser {
+func NewSegmentParser(mapper Mapper, globalUniqueID *identifiers.UniqueID, maxEventSize, maxCachedEventsErrSize int) Parser {
 	return &segmentParser{
 		globalUniqueID: globalUniqueID,
 		mapper:         mapper,
@@ -154,12 +171,13 @@ func NewSegmentParser(mapper Mapper, globalUniqueID *identifiers.UniqueID, maxEv
 		screenHeight:     jsonutils.NewJSONPath("/screen/height"),
 		screenResolution: jsonutils.NewJSONPath("/screen_resolution"),
 
-		maxEventSize: maxEventSize,
+		maxEventSize:           maxEventSize,
+		maxCachedEventsErrSize: maxCachedEventsErrSize,
 	}
 }
 
 //NewSegmentCompatParser returns configured Segment Parser for old Jitsu data structures
-func NewSegmentCompatParser(mapper Mapper, globalUniqueID *identifiers.UniqueID, maxEventSize int) Parser {
+func NewSegmentCompatParser(mapper Mapper, globalUniqueID *identifiers.UniqueID, maxEventSize, maxCachedEventsErrSize int) Parser {
 	return &segmentParser{
 		globalUniqueID: globalUniqueID,
 		mapper:         mapper,
@@ -171,24 +189,25 @@ func NewSegmentCompatParser(mapper Mapper, globalUniqueID *identifiers.UniqueID,
 		screenHeight:     jsonutils.NewJSONPath("/screen/height"),
 		screenResolution: jsonutils.NewJSONPath("/eventn_ctx/screen_resolution"),
 
-		maxEventSize: maxEventSize,
+		maxEventSize:           maxEventSize,
+		maxCachedEventsErrSize: maxCachedEventsErrSize,
 	}
 }
 
 //ParseEventsBody extracts batch events from HTTP body
 //maps them into Jitsu format
 //returns array of events or error if occurred
-func (sp *segmentParser) ParseEventsBody(c *gin.Context) ([]Event, error) {
-	inputEvents, err := sp.parseSegmentBody(c.Request.Body)
-	if err != nil {
-		return nil, err
+func (sp *segmentParser) ParseEventsBody(c *gin.Context) ([]Event, *ParsingError) {
+	inputEvents, parsingErr := sp.parseSegmentBody(c.Request.Body)
+	if parsingErr != nil {
+		return nil, parsingErr
 	}
 
 	var resultEvents []Event
 	for _, input := range inputEvents {
 		mapped, err := sp.mapper.Map(input)
 		if err != nil {
-			return nil, err
+			return nil, parsingError(nil, err)
 		}
 
 		//timezone
@@ -228,21 +247,26 @@ func (sp *segmentParser) ParseEventsBody(c *gin.Context) ([]Event, error) {
 //parseSegmentBody parses input body
 //returns objects array if batch field exists in body
 //or returns an array with single element
-func (sp *segmentParser) parseSegmentBody(body io.ReadCloser) ([]map[string]interface{}, error) {
-	bytes, decoder, err := readBytes(body)
+func (sp *segmentParser) parseSegmentBody(requestBody io.ReadCloser) ([]map[string]interface{}, *ParsingError) {
+	body, decoder, err := readBytes(requestBody)
 	if err != nil {
-		return nil, err
+		return nil, parsingError(nil, err)
+	}
+
+	maxCachedEventsErrSize := sp.maxCachedEventsErrSize
+	if len(body) < sp.maxCachedEventsErrSize {
+		maxCachedEventsErrSize = len(body)
 	}
 
 	inputEvent := map[string]interface{}{}
 	if err := decoder.Decode(&inputEvent); err != nil {
-		return nil, fmt.Errorf("error parsing HTTP body: %v", err)
+		return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("error parsing HTTP body: %v", err))
 	}
 
 	batchPayload, ok := inputEvent[batchKey]
 	if !ok {
-		if len(bytes) > sp.maxEventSize {
-			return nil, fmt.Errorf("Event size %d exceeds limit: %d", len(bytes), sp.maxEventSize)
+		if len(body) > sp.maxEventSize {
+			return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("Event size %d exceeds limit: %d", len(body), sp.maxEventSize))
 		}
 		//isn't batch request
 		return []map[string]interface{}{inputEvent}, nil
@@ -251,26 +275,27 @@ func (sp *segmentParser) parseSegmentBody(body io.ReadCloser) ([]map[string]inte
 	//batch request
 	batchArray, ok := batchPayload.([]interface{})
 	if !ok {
-		return nil, malformedSegmentBatch
+		return nil, parsingError(body[:maxCachedEventsErrSize], malformedSegmentBatch)
 	}
 
 	var inputEvents []map[string]interface{}
 	for _, batchElement := range batchArray {
 		batchElementObj, ok := batchElement.(map[string]interface{})
 		if !ok {
-			return nil, malformedSegmentBatch
+			return nil, parsingError(body[:maxCachedEventsErrSize], malformedSegmentBatch)
 		}
 
 		inputEvents = append(inputEvents, batchElementObj)
 	}
-	if len(bytes) > sp.maxEventSize*len(inputEvents) {
-		return nil, fmt.Errorf("Size of one of events exceeds limit: %d", sp.maxEventSize)
+	if len(inputEvents) > 0 && len(body) > sp.maxEventSize*len(inputEvents) {
+		return nil, parsingError(body[:maxCachedEventsErrSize], fmt.Errorf("Size of one of events exceeds limit: %d", sp.maxEventSize))
 	}
 	return inputEvents, nil
 }
 
 //readBytes returns body bytes, json decoder, err if occurred
 func readBytes(bodyReader io.ReadCloser) ([]byte, *json.Decoder, error) {
+	defer bodyReader.Close()
 	body, err := ioutil.ReadAll(bodyReader)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading HTTP body: %v", err)

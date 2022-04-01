@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	scanChunkSize = 50000
+	scanChunkSize    = 50000
+	objectsChunkSize = 1000
 
 	keyField   = "redis_key"
 	valueField = "value"
@@ -127,29 +128,47 @@ func (r *Redis) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 
 //GetObjectsFor iterates over keys by mask and parses hash,string,list,set,zset types
 //returns all parsed object or err if occurred
-func (r *Redis) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
+func (r *Redis) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	conn := r.connectionPool.Get()
 	defer conn.Close()
 
 	matchedKeys, err := r.scanKeys(conn, r.redisKey)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
+	loaded := 0
+	progress := 0
 	var result []map[string]interface{}
-	for _, redisKey := range matchedKeys {
+
+	for i, redisKey := range matchedKeys {
 		objects, err := redisKey.get(conn)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		for _, object := range objects {
 			object[keyField] = redisKey.name()
 			result = append(result, object)
+			if len(result) == objectsChunkSize {
+				err = objectsLoader(result, loaded, -1, 100*progress/len(matchedKeys))
+				if err != nil {
+					return err
+				}
+				loaded += len(result)
+				result = nil
+				progress = i
+			}
+		}
+	}
+	if len(result) > 0 {
+		err = objectsLoader(result, loaded, -1, 100*progress/len(matchedKeys))
+		if err != nil {
+			return err
 		}
 	}
 
-	return result, nil
+	return nil
 }
 
 //Type returns Redis type

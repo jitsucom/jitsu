@@ -5,8 +5,12 @@ title: User Recognition
 # Retroactive User Recognition
 
 **Jitsu** supports storing all events from anonymous users and updates them in DWH with user id after users identification.
-At present this functionality is supported only for [Postgres](/docs/destinations-configuration/postgres), [Redshift](/docs/destinations-configuration/redshift), [ClickHouse](/docs/destinations-configuration/clickhouse-destination),
-[Snowflake](/docs/destinations-configuration/snowflake) and [MySQL](/docs/destinations-configuration/mysql).
+At present this functionality is supported only for [Postgres](/docs/destinations-configuration/postgres), [Redshift](/docs/destinations-configuration/redshift),
+[Snowflake](/docs/destinations-configuration/snowflake), [MySQL](/docs/destinations-configuration/mysql)
+and [ClickHouse](/docs/destinations-configuration/clickhouse-destination)<sup>\*</sup>
+
+<sup>\*</sup>User Recognition support for Clickhouse is limited to ReplacingMergeTree and ReplicatedReplacingMergeTree engine.<br/>
+<sup>\*</sup>Clickhouse handles data mutation differently. Please read [Clickhouse specifics](/docs/other-features/retroactive-user-recognition) to avoid unexpected results of Retroactive User Recognition on Clickhouse data tables.
 
 ### Example
 
@@ -49,26 +53,11 @@ Those settings can be redefined on global level of config file:
 
 ```yaml
 users_recognition:
-  enabled: true #Disabled by default.
+  enabled: true #Enabled by default.
   anonymous_id_node: /user/anonymous_id
   identification_nodes:
     - /user/id
     - /user/email
-```
-
-or on destination level
-
-```yaml
-destinations:
-  my_postgres:
-    type: postgres
-      ...
-    users_recognition: #Optional
-      enabled: true
-      anonymous_id_node: /user/anonymous_id
-      identification_nodes:
-        - /user/id
-        - /user/email
 ```
 
 Those settings cannot be configured with env variables at the moment :(
