@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { find } from "lodash"
 import { Select } from "antd"
 import styles from "./SelectFilter.module.less"
@@ -9,10 +9,12 @@ const { Option } = Select
 export const SelectFilter: React.FC<{
   label?: string
   onChange: (selected: FilterOption) => void
-  options: FilterOption[]
+  options: FilterOption[] | Readonly<FilterOption[]>
+  /** Allows to define a controlled component */
+  value?: any
   initialValue?: any
   className?: string
-}> = ({ label = "", onChange, options, initialValue, className = "" }) => {
+}> = ({ label = "", onChange, options, value, initialValue, className = "" }) => {
   const initialOption = options.find(o => o.value === initialValue) ?? options[0]
   const [selectedOption, setSelectedOption] = useState(initialOption)
 
@@ -22,6 +24,10 @@ export const SelectFilter: React.FC<{
     onChange(selectedOption)
   }
 
+  useEffect(() => {
+    if (value) handleChange(value)
+  }, [value])
+
   if (!options.length) {
     return null
   }
@@ -30,6 +36,7 @@ export const SelectFilter: React.FC<{
     <div className={className}>
       {label ? <label>{label}: </label> : null}
       <Select
+        value={selectedOption}
         defaultValue={selectedOption.value}
         style={{ width: 170 }}
         onChange={handleChange}
