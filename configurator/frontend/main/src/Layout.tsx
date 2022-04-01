@@ -1,7 +1,7 @@
 // @Libs
 import * as React from "react"
 import { useState } from "react"
-import { useHistory, useLocation } from "react-router-dom"
+import { NavLink, useHistory, useLocation } from "react-router-dom"
 import { Button, Dropdown, message, MessageArgsProps, Modal, notification, Popover, Tooltip } from "antd"
 // @Components
 import { NotificationsWidget } from "lib/components/NotificationsWidget/NotificationsWidget"
@@ -137,12 +137,9 @@ export const ApplicationSidebar: React.FC<{}> = () => {
     <div className={`relative ${styles.sideBarContent}`}>
       <div className="flex flex-col items-stretch h-full">
         <div className={`pb-3 ${styles.sideBarContent_item__withRightBorder}`}>
-          <a
-            href="https://jitsu.com"
-            className={`text-center block pt-5 h-14 overflow-hidden ${expanded ? "" : "w-12 pl-3"}`}
-          >
+          <NavLink to="/" className={`text-center block pt-5 h-14 overflow-hidden ${expanded ? "" : "w-12 pl-3"}`}>
             <JitsuLogo className={`h-8 w-40`} />
-          </a>
+          </NavLink>
         </div>
         <div className={`flex-grow flex-shrink min-h-0 ${styles.sideBarContent_item__withRightBorder}`}>
           <ApplicationMenu expanded={expanded} />
