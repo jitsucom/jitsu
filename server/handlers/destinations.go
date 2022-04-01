@@ -12,6 +12,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/plugins"
@@ -34,14 +35,24 @@ const (
 	connectionErrMsg = "unable to connect to your data warehouse. Please check the access: %v"
 )
 
-func DestinationsHandler(c *gin.Context) {
+type DestinationsHandler struct {
+	userRecognition *config.UsersRecognition
+}
+
+func NewDestinationsHandler(userRecognition *config.UsersRecognition) *DestinationsHandler {
+	return &DestinationsHandler{
+		userRecognition: userRecognition,
+	}
+}
+
+func (dh *DestinationsHandler) Handler(c *gin.Context) {
 	destinationConfig := &config.DestinationConfig{}
 	if err := c.BindJSON(destinationConfig); err != nil {
 		logging.Errorf("Error parsing destinations body: %v", err)
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
 		return
 	}
-	err := testDestinationConnection(destinationConfig)
+	err := testDestinationConnection(destinationConfig, dh.userRecognition)
 	if err != nil {
 		msg := err.Error()
 		if strings.Contains(err.Error(), "i/o timeout") || storages.IsConnectionError(err) {
@@ -57,8 +68,11 @@ func DestinationsHandler(c *gin.Context) {
 //testDestinationConnection creates default table with 2 fields (eventn_ctx key and timestamp)
 //depends on the destination type calls destination test connection func
 //returns err if has occurred
-func testDestinationConnection(config *config.DestinationConfig) error {
+func testDestinationConnection(config *config.DestinationConfig, globalConfiguration *config.UsersRecognition) error {
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField.GetFlatFieldName()
+	if config.DataLayout != nil && config.DataLayout.UniqueIDField != "" {
+		uniqueIDField = identifiers.NewUniqueID(config.DataLayout.UniqueIDField).GetFlatFieldName()
+	}
 	eventID := uuid.New()
 	event := events.Event{uniqueIDField: eventID, timestamp.Key: timestamp.Now().UTC()}
 	eventContext := &adapters.EventContext{
@@ -71,6 +85,16 @@ func testDestinationConnection(config *config.DestinationConfig) error {
 			Name:     identifier + "_" + uuid.NewLettersNumbers(),
 			PKFields: map[string]bool{},
 		},
+	}
+	_, ok := storages.UserRecognitionStorages[config.Type]
+	if ok {
+		if config.UsersRecognition != nil {
+			if config.UsersRecognition.IsEnabled() && !globalConfiguration.IsEnabled() {
+				return fmt.Errorf("Error enabling user recognition for destination %s. Global user recognition configuration must be enabled first. Please add global user_recognition.enabled: true", config.Type)
+			}
+		} else {
+			config.UsersRecognition = globalConfiguration
+		}
 	}
 	switch config.Type {
 	case storages.PostgresType:
@@ -123,6 +147,13 @@ func testDestinationConnection(config *config.DestinationConfig) error {
 			return err
 		}
 		return nil
+	case storages.TagType:
+		cfg := &adapters.TagConfig{}
+		if err := config.GetDestConfig(map[string]interface{}{}, cfg); err != nil {
+			return err
+		}
+		_, err := adapters.NewTag(cfg, identifier)
+		return err
 	case storages.AmplitudeType:
 		cfg := &adapters.AmplitudeConfig{}
 		if err := config.GetDestConfig(config.Amplitude, cfg); err != nil {
@@ -252,7 +283,7 @@ func testPostgres(config *config.DestinationConfig, eventContext *adapters.Event
 		postgres.Close()
 	}()
 
-	if err = postgres.Insert(eventContext); err != nil {
+	if err = postgres.Insert(adapters.NewSingleInsertContext(eventContext)); err != nil {
 		return err
 	}
 
@@ -265,6 +296,24 @@ func testClickHouse(config *config.DestinationConfig, eventContext *adapters.Eve
 	clickHouseConfig := &adapters.ClickHouseConfig{}
 	if err := config.GetDestConfig(config.ClickHouse, clickHouseConfig); err != nil {
 		return err
+	}
+	if config.UsersRecognition != nil && config.UsersRecognition.Enabled {
+		engine := clickHouseConfig.Engine
+		if engine != nil {
+			if !strings.Contains(engine.RawStatement, "ReplacingMergeTree") {
+				return fmt.Errorf("UsersRecognition for ClickHouse requires ReplacingMergeTree or ReplicatedReplacingMergeTree engine")
+			}
+			if len(engine.OrderFields) != 0 {
+				uniqueIDField := appconfig.Instance.GlobalUniqueIDField.GetFlatFieldName()
+				if config.DataLayout != nil && config.DataLayout.UniqueIDField != "" {
+					uniqueIDField = identifiers.NewUniqueID(config.DataLayout.UniqueIDField).GetFlatFieldName()
+				}
+				if !(len(engine.OrderFields) == 1 && engine.OrderFields[0].Field == uniqueIDField) {
+					return fmt.Errorf("UsersRecognition for ClickHouse requires ORDER BY Clause to contain single UniqueIDField: %s. Provided: %+v", uniqueIDField, engine.OrderFields)
+				}
+			}
+		}
+
 	}
 
 	tableStatementFactory, err := adapters.NewTableStatementFactory(clickHouseConfig)
@@ -317,7 +366,7 @@ func testClickHouse(config *config.DestinationConfig, eventContext *adapters.Eve
 			return err
 		}
 
-		insertErr := ch.Insert(eventContext)
+		insertErr := ch.Insert(adapters.NewSingleInsertContext(eventContext))
 
 		if err := ch.DropTable(eventContext.Table); err != nil {
 			logging.Errorf("Error dropping table in test connection: %v", err)
@@ -418,7 +467,7 @@ func testRedshift(config *config.DestinationConfig, eventContext *adapters.Event
 			return err
 		}
 	} else {
-		if err = redshift.Insert(eventContext); err != nil {
+		if err = redshift.Insert(adapters.NewSingleInsertContext(eventContext)); err != nil {
 			return err
 		}
 	}
@@ -490,7 +539,7 @@ func testBigQuery(config *config.DestinationConfig, eventContext *adapters.Event
 			return err
 		}
 	} else {
-		if err = bq.Insert(eventContext); err != nil {
+		if err = bq.Insert(adapters.NewSingleInsertContext(eventContext)); err != nil {
 			return err
 		}
 	}
@@ -520,10 +569,7 @@ func testSnowflake(config *config.DestinationConfig, eventContext *adapters.Even
 	if err != nil {
 		return err
 	}
-	s3config, ok := s3c.(*adapters.S3Config)
-	if !ok {
-		s3config = &adapters.S3Config{}
-	}
+	s3config, _ = s3c.(*adapters.S3Config)
 	var googleConfig *adapters.GoogleConfig
 	gc, err := config.GetConfig(snowflakeConfig.Google, config.Google, &adapters.GoogleConfig{})
 	if err != nil {
@@ -591,7 +637,7 @@ func testSnowflake(config *config.DestinationConfig, eventContext *adapters.Even
 			return err
 		}
 	} else {
-		if err = snowflake.Insert(eventContext); err != nil {
+		if err = snowflake.Insert(adapters.NewSingleInsertContext(eventContext)); err != nil {
 			return err
 		}
 	}
@@ -631,7 +677,7 @@ func testMySQL(config *config.DestinationConfig, eventContext *adapters.EventCon
 		mysql.Close()
 	}()
 
-	if err = mysql.Insert(eventContext); err != nil {
+	if err = mysql.Insert(adapters.NewSingleInsertContext(eventContext)); err != nil {
 		return err
 	}
 

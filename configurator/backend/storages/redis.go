@@ -2,15 +2,27 @@ package storages
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/gomodule/redigo/redis"
+	"github.com/jitsucom/jitsu/configurator/storages/migration"
 	entime "github.com/jitsucom/jitsu/configurator/time"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
-	"time"
+	"github.com/pkg/errors"
 )
 
+var migrations = []Migration{
+	migration.MultiProjectSupport,
+}
+
 //TODO change to config#meta someday
-const lastUpdatedPerCollection = "configs#meta#last_updated"
+const (
+	lastUpdatedPerCollection = "configs#meta#last_updated"
+	metaKey                  = "meta#storage"
+	versionKey               = "version"
+)
 
 type Redis struct {
 	pool *meta.RedisPool
@@ -24,7 +36,45 @@ func NewRedis(factory *meta.RedisPoolFactory) (*Redis, error) {
 		return nil, err
 	}
 
-	return &Redis{pool: pool}, nil
+	storage := &Redis{pool: pool}
+	if err := storage.migrate(); err != nil {
+		pool.Close()
+		return nil, errors.Wrap(err, "migrate")
+	}
+
+	return storage, nil
+}
+
+func (r *Redis) migrate() error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	version, err := redis.Int(conn.Do("HGET", metaKey, versionKey))
+	switch err {
+	case nil:
+	case redis.ErrNil:
+		version = 0
+	default:
+		return errors.Wrap(err, "load db version")
+	}
+
+	for i, migration := range migrations {
+		if i < version {
+			continue
+		}
+
+		if err := migration.Run(conn); err != nil {
+			return errors.Wrapf(err, "run migration %d", i)
+		}
+
+		if _, err := conn.Do("HSET", metaKey, versionKey, i+1); err != nil {
+			return errors.Wrap(err, "update db version")
+		}
+
+		logging.Infof("Successfully migrated Redis storage to version %d", i+1)
+	}
+
+	return nil
 }
 
 func (r *Redis) Get(collection string, documentID string) ([]byte, error) {
@@ -133,6 +183,94 @@ func (r *Redis) Delete(collection string, id string) error {
 		return fmt.Errorf("Error while updating configs#meta#last_updated collection for [%s]: %v", collection, err)
 	}
 	return nil
+}
+
+func (r *Redis) GetRelationIndex(relation string) ([]string, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	var (
+		relatedIDs        []string
+		cursor            int
+		relationKeyPrefix = getRelationKeyPrefix(relation)
+	)
+
+	for {
+		if reply, err := redis.Values(redis.Values(conn.Do("SCAN", cursor, "MATCH", getRelationKey(relation, "*")))); err != nil {
+			return nil, errors.Wrap(err, "scan keys")
+		} else if cursor, err = redis.Int(reply[0], nil); err != nil {
+			return nil, errors.Wrap(err, "parse cursor value")
+		} else if values, err := redis.Strings(reply[1], nil); err != nil {
+			return nil, errors.Wrap(err, "parse values")
+		} else {
+			for _, value := range values {
+				if strings.HasPrefix(value, relationKeyPrefix) {
+					value = value[len(relationKeyPrefix):]
+				}
+
+				relatedIDs = append(relatedIDs, value)
+			}
+		}
+
+		if cursor == 0 {
+			break
+		}
+	}
+
+	return relatedIDs, nil
+}
+
+func (r *Redis) DeleteRelation(relation, id string) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("DEL", getRelationKey(relation, id))
+	return err
+}
+
+func (r *Redis) GetRelatedIDs(relation string, id string) ([]string, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+	return redis.Strings(conn.Do("SMEMBERS", getRelationKey(relation, id)))
+}
+
+func (r *Redis) AddRelatedIDs(relation string, id string, relatedIDs ...string) error {
+	if len(relatedIDs) == 0 {
+		return nil
+	}
+
+	conn := r.pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("SADD", getRelationArgs(relation, id, relatedIDs)...)
+	return err
+}
+
+func (r *Redis) DeleteRelatedIDs(relation string, id string, relatedIDs ...string) error {
+	if len(relatedIDs) == 0 {
+		return nil
+	}
+
+	conn := r.pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("SREM", getRelationArgs(relation, id, relatedIDs)...)
+	return err
+}
+
+func getRelationArgs(relation, id string, relatedIDs []string) []interface{} {
+	args := make([]interface{}, len(relatedIDs)+1)
+	args[0] = getRelationKey(relation, id)
+	for i, relatedID := range relatedIDs {
+		args[i+1] = relatedID
+	}
+
+	return args
+}
+
+func getRelationKey(relation string, id string) string {
+	return getRelationKeyPrefix(relation) + id
+}
+
+func getRelationKeyPrefix(relation string) string {
+	return "relation#" + relation + ":"
 }
 
 func toRedisKey(collection string) string {

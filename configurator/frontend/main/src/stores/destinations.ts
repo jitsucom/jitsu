@@ -1,301 +1,66 @@
 // @Libs
-import { flowResult, makeAutoObservable } from "mobx"
+import { flow, flowResult, makeObservable } from "mobx"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
-// @Utils
-import { intersection, union, without } from "lodash"
-import { toArrayIfNot } from "utils/arrays"
-import { ISourcesStore, sourcesStore } from "./sources"
-import { apiKeysStore, IApiKeysStore } from "./apiKeys"
+// @Stores
+import { EntitiesStore } from "./entitiesStore"
+import { apiKeysStore, ApiKeysStore } from "./apiKeys"
+// @Catalog
 import { destinationsReferenceMap, DestinationReference } from "@jitsu/catalog/destinations/lib"
-
-export interface IDestinationsStore {
-  destinations: DestinationData[]
-  hiddenDestinations: DestinationData[]
-  allDestinations: DestinationData[]
-  hasDestinations: boolean
-  state: DestinationsStoreState
-  error: string
-  injectSourcesStore: (sourcesStore: ISourcesStore) => void
-  getDestinationById: (id: string) => DestinationData | null
-  getDestinationByUid: (uid: string) => DestinationData | null
-  getDestinationReferenceById: (id: string) => DestinationReference | null
-  pullDestinations: (showGlobalLoader: boolean) => Generator<Promise<unknown>, void, unknown>
-  addDestination: (destination: DestinationData) => Generator<Promise<unknown>, void, unknown>
-  deleteDestination: (destination: DestinationData) => Generator<Promise<unknown>, void, unknown>
-  editDestinations: (
-    destinationsToUpdate: DestinationData | DestinationData[],
-    options?: EditDestinationsOptions
-  ) => Generator<Promise<unknown>, void, unknown>
-  createFreeDatabase: () => Generator<Promise<unknown>, void, unknown>
-  linkApiKeysToDestinations: (
-    apiKeys: APIKey | APIKey[],
-    destinations: DestinationData | DestinationData[]
-  ) => Generator<Promise<unknown>, void, unknown>
-}
-
-type EditDestinationsOptions = {
-  updateSources?: boolean
-}
-
-const EDIT_DESTINATIONS_DEFAULT_OPTIONS: EditDestinationsOptions = {
-  updateSources: true,
-}
-
-enum DestinationStoreGeneralState {
-  "IDLE" = "IDLE",
-}
-
-enum DestinationsStoreLoadingState {
-  "GLOBAL_LOADING" = "GLOBAL_LOADING",
-  "BACKGROUND_LOADING" = "BACKGROUND_LOADING",
-}
-
-enum DestinationStoreErroredState {
-  "GLOBAL_ERROR" = "GLOBAL_ERROR",
-}
-
-export const DestinationsStoreState = {
-  ...DestinationStoreGeneralState,
-  ...DestinationsStoreLoadingState,
-  ...DestinationStoreErroredState,
-}
-
-export type DestinationsStoreState = typeof DestinationsStoreState[keyof typeof DestinationsStoreState]
-
-const { IDLE, GLOBAL_LOADING, BACKGROUND_LOADING, GLOBAL_ERROR } = DestinationsStoreState
+// @Utils
+import { randomId } from "utils/numbers"
+// @Types
+import type { PgDatabaseCredentials } from "lib/services/model"
 
 const services = ApplicationServices.get()
-class DestinationsStore implements IDestinationsStore {
-  private _destinations: DestinationData[] = []
-  private _hiddenDestinations: DestinationData[] = []
-  private _state: DestinationsStoreState = GLOBAL_LOADING
-  private _errorMessage: string = ""
-  private _sourcesStore: ISourcesStore | undefined
-  private _apiKeysStore: IApiKeysStore = apiKeysStore
+export class DestinationsStore extends EntitiesStore<DestinationData> {
+  private readonly apiKeysStore: ApiKeysStore = apiKeysStore
 
   constructor() {
-    makeAutoObservable(this)
-  }
-
-  private setError(state: DestinationStoreErroredState, message: string) {
-    this._state = state
-    this._errorMessage = message
-  }
-
-  private resetError() {
-    this._errorMessage = ""
-    const stateIsErrored = Object.values(DestinationStoreErroredState).includes(this._state as any)
-    if (stateIsErrored) this._state = IDLE
-  }
-
-  private updateSourcesLinksByDestinationsUpdates(_updatedDestinations: DestinationData | DestinationData[]) {
-    const updatedDestinations = toArrayIfNot(_updatedDestinations)
-    const updatedSourcesMap: { [key: string]: SourceData } = {}
-    updatedDestinations.forEach(destination => {
-      this._sourcesStore.sources.forEach(source => {
-        const sourceLinkedToDestination = !!source.destinations?.includes(destination._uid)
-        const sourceNeedsToBeLinked = !!destination._sources?.includes(source.sourceId)
-        if (sourceLinkedToDestination === sourceNeedsToBeLinked) return
-
-        const updatedSource = updatedSourcesMap[source.sourceId] || source
-        if (sourceNeedsToBeLinked) {
-          updatedSourcesMap[source.sourceId] = {
-            ...updatedSource,
-            destinations: [...(updatedSource.destinations || []), destination._uid],
-          }
-        } else {
-          updatedSourcesMap[source.sourceId] = {
-            ...updatedSource,
-            destinations: (updatedSource.destinations || []).filter(
-              destinationUid => destinationUid !== destination._uid
-            ),
-          }
-        }
-      })
+    super("destinations", {
+      idField: "_uid",
+      hideElements: dst => destinationsReferenceMap[dst._type]?.hidden,
     })
-    const updatedSourcesList = Object.values(updatedSourcesMap)
-    if (updatedSourcesList.length)
-      this._sourcesStore.editSources(updatedSourcesList, {
-        updateDestinations: false,
-      })
-  }
-
-  private unlinkDeletedDestinationsFromSources(_deletedDestinations: DestinationData | DestinationData[]) {
-    const destinationsToDelete = toArrayIfNot(_deletedDestinations)
-    const destinationsToDeleteUids = destinationsToDelete.map(({ _uid }) => _uid)
-    const updatedSourcesAccumulator: SourceData[] = []
-    const updatedSources = sourcesStore.sources.reduce((updatedSources, source) => {
-      if (!intersection(source.destinations, destinationsToDeleteUids).length) return updatedSources
-      const updated: SourceData = {
-        ...source,
-        destinations: without(source.destinations || [], ...destinationsToDeleteUids),
-      }
-      return [...updatedSources, updated]
-    }, updatedSourcesAccumulator)
-    if (updatedSources.length)
-      this._sourcesStore.editSources(updatedSources, {
-        updateDestinations: false,
-      })
-  }
-
-  public injectSourcesStore(sourcesStore: ISourcesStore): void {
-    this._sourcesStore = sourcesStore
-  }
-
-  public get destinations() {
-    return this._destinations
-  }
-
-  public get hiddenDestinations() {
-    return this._hiddenDestinations
-  }
-
-  public get allDestinations() {
-    return [...this._destinations, ...this._hiddenDestinations]
-  }
-
-  public get hasDestinations(): boolean {
-    return !!this._destinations.length
-  }
-
-  public get state() {
-    return this._state
-  }
-
-  public get error() {
-    return this._errorMessage
-  }
-
-  public getDestinationById(id: string): DestinationData | null {
-    return this.destinations.find(({ _id }) => _id === id)
-  }
-
-  public getDestinationByUid(uid: string): DestinationData | null {
-    return this.destinations.find(({ _uid }) => _uid === uid)
+    makeObservable(this, {
+      createFreeDatabase: flow,
+    })
   }
 
   public getDestinationReferenceById(id: string): DestinationReference | null {
-    const destination: DestinationData | null = this.getDestinationById(id)
+    const destination: DestinationData | null = this.get(id)
     return destination ? destinationsReferenceMap[destination._type] : null
   }
 
-  private filterDestinations(destinations: DestinationData[], hidden: boolean) {
-    return destinations
-      ? destinations.filter(
-          v => destinationsReferenceMap[v._type] && destinationsReferenceMap[v._type].hidden == hidden
-        )
-      : []
-  }
-
-  private setDestinations(value: DestinationData[]) {
-    this._destinations = this.filterDestinations(value, false)
-    this._hiddenDestinations = this.filterDestinations(value, true)
-  }
-
-  public *pullDestinations(showGlobalLoader?: boolean) {
-    this.resetError()
-    this._state = showGlobalLoader ? GLOBAL_LOADING : BACKGROUND_LOADING
-    try {
-      const { destinations } = yield services.storageService.get("destinations", services.activeProject.id)
-      this.setDestinations(destinations)
-    } catch (error) {
-      this.setError(GLOBAL_ERROR, `Failed to fetch destinations: ${error.message || error}`)
-    } finally {
-      this._state = IDLE
-    }
-  }
-
-  public *addDestination(destinationToAdd: DestinationData) {
-    this.resetError()
-    this._state = BACKGROUND_LOADING
-    const updatedDestinations = [...this.allDestinations, destinationToAdd]
-    try {
-      const result = yield services.storageService.save(
-        "destinations",
-        { destinations: updatedDestinations },
-        services.activeProject.id
-      )
-      this.setDestinations(updatedDestinations)
-      this.updateSourcesLinksByDestinationsUpdates(destinationToAdd)
-    } catch (error) {
-      throw error
-    } finally {
-      this._state = IDLE
-    }
-  }
-
-  public *deleteDestination(destinationToDelete: DestinationData) {
-    this.resetError()
-    this._state = BACKGROUND_LOADING
-    const updatedDestinations = this.allDestinations.filter(({ _uid }) => _uid !== destinationToDelete._uid)
-    try {
-      const result = yield services.storageService.save(
-        "destinations",
-        { destinations: updatedDestinations },
-        services.activeProject.id
-      )
-      this.setDestinations(updatedDestinations)
-      this.unlinkDeletedDestinationsFromSources(destinationToDelete)
-    } finally {
-      this._state = IDLE
-    }
-  }
-
-  public *editDestinations(
-    _destinationsToUpdate: DestinationData | DestinationData[],
-    options = EDIT_DESTINATIONS_DEFAULT_OPTIONS
-  ) {
-    const destinationsToUpdate = toArrayIfNot(_destinationsToUpdate)
-    this.resetError()
-    this._state = BACKGROUND_LOADING
-    const updatedDestinations = this.allDestinations.map(destination => {
-      const destinationToReplace = destinationsToUpdate.find(({ _uid }) => _uid === destination._uid)
-      if (!destinationToReplace) return destination
-      return destinationToReplace
-    })
-    try {
-      yield services.storageService.save(
-        "destinations",
-        { destinations: updatedDestinations },
-        services.activeProject.id
-      )
-      this.setDestinations(updatedDestinations)
-      if (options.updateSources) this.updateSourcesLinksByDestinationsUpdates(_destinationsToUpdate)
-    } finally {
-      this._state = IDLE
-    }
-  }
-
   public *createFreeDatabase() {
-    const { destinations } = (yield services.initializeDefaultDestination()) as {
-      destinations: DestinationData[]
+    const credentials: PgDatabaseCredentials = yield services.backendApiClient.post("/database", {
+      projectId: services.activeProject.id,
+    })
+    const freeDatabaseDestination: DestinationData = {
+      _type: "postgres",
+      _comment:
+        "We set up a test postgres database for you. It's hosted by us and has a 10,000 rows limitation. It's ok" +
+        " to try with service with it. However, don't use it in production setup. To reveal credentials, click on the 'Edit' button",
+      _id: "demo_postgres",
+      _uid: randomId(),
+      _mappings: null,
+      _onlyKeys: [],
+      _connectionTestOk: true,
+      _sources: [],
+      _formData: {
+        pguser: credentials["User"],
+        pgpassword: credentials["Password"],
+        pghost: credentials["Host"],
+        pgport: credentials["Port"],
+        pgdatabase: credentials["Database"],
+        mode: "stream",
+      },
     }
-    const freeDatabaseDestination = destinations[0]
-    yield flowResult(this._apiKeysStore.generateAddInitialApiKeyIfNeeded())
+    yield flowResult(this.apiKeysStore.generateAddInitialApiKeyIfNeeded())
     const linkedFreeDatabaseDestination: DestinationData = {
       ...freeDatabaseDestination,
-      _onlyKeys: [this._apiKeysStore.apiKeys[0].uid],
+      _onlyKeys: [this.apiKeysStore.list[0].uid],
     }
-    yield flowResult(this.addDestination(linkedFreeDatabaseDestination))
-  }
-
-  public *linkApiKeysToDestinations(_apiKeys: APIKey | APIKey[], _destinations: DestinationData | DestinationData[]) {
-    const apiKeysUids = toArrayIfNot(_apiKeys).map(key => key.uid)
-    const destinations = toArrayIfNot(_destinations)
-
-    const updatedDestinations: DestinationData[] = destinations.reduce<DestinationData[]>(
-      (updatedDestinations, destination) => {
-        const updated: DestinationData = {
-          ...destination,
-          _onlyKeys: union(destination._onlyKeys, apiKeysUids),
-        }
-        return [...updatedDestinations, updated]
-      },
-      []
-    )
-
-    yield flowResult(this.editDestinations(updatedDestinations))
+    yield flowResult(this.add(linkedFreeDatabaseDestination))
   }
 }
 

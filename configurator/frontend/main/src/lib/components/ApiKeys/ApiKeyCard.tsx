@@ -9,25 +9,23 @@ import { DeleteOutlined, EditOutlined } from "@ant-design/icons"
 import { copyToClipboard, reactElementToString, trimMiddle } from "../../commons/utils"
 import styles from "./ApiKeys.module.less"
 import { generatePath, NavLink } from "react-router-dom"
-import { apiKeysRoutes } from "./ApiKeyEditor"
 import { confirmDelete } from "../../commons/deletionConfirmation"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { APIKeyUtil } from "../../../utils/apiKeys.utils"
 import { handleError } from "../components"
+import { apiKeysRoutes } from "./ApiKeysRouter"
 
 type ApiKeyCardProps = {
-  apiKey: APIKey
+  apiKey: ApiKey
   showDocumentation: () => void
 }
 
 export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) {
-  const [loading, setLoading] = useState(false)
   const services = useServices()
-  let keysBackend = services.storageService.table<APIKey>("api_keys")
-  const rotateKey = async (key: APIKey, type: "jsAuth" | "serverAuth"): Promise<string> => {
+  const [loading, setLoading] = useState(false)
+  const rotateKey = async (key: ApiKey, type: "jsAuth" | "serverAuth"): Promise<string> => {
     let newKey = apiKeysStore.generateApiToken(type === "jsAuth" ? "js" : "s2s")
-    await keysBackend.patch(key.uid, { [type]: newKey })
-    await flowResult(apiKeysStore.pullApiKeys())
+    await flowResult(apiKeysStore.patch(key.uid, { [type]: newKey }))
     actionNotification.info("New key has been generated and saved")
     return newKey
   }
@@ -38,7 +36,7 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
       action: async () => {
         setLoading(true)
         try {
-          await flowResult(apiKeysStore.deleteApiKey(key))
+          await flowResult(apiKeysStore.delete(key.uid))
         } catch (error) {
           handleError(error, "Unable to delete API key at this moment, please try later.")
         } finally {
@@ -47,7 +45,10 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
       },
     })
   }
-  let editLink = generatePath(apiKeysRoutes.editExact, { id: key.uid.replace(".", "-") })
+  let editLink = generatePath(apiKeysRoutes.editExact, {
+    projectId: services.activeProject.id,
+    id: key.uid.replace(".", "-"),
+  })
   return (
     <ConnectionCard
       loading={loading}
@@ -66,8 +67,7 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
         </Menu>
       }
       rename={async newName => {
-        await keysBackend.patch(key.uid, { comment: newName })
-        await flowResult(apiKeysStore.pullApiKeys())
+        await flowResult(apiKeysStore.patch(key.uid, { comment: newName }))
       }}
       subtitle={<a onClick={showDocumentation}>Show connection instructions→</a>}
       status={

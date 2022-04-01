@@ -318,14 +318,19 @@ func main() {
 	//events cache
 	eventsCacheEnabled := viper.GetBool("server.cache.enabled")
 	eventsCacheSize := viper.GetInt("server.cache.events.size")
+	timeWindowSeconds := viper.GetInt("server.cache.events.time_window_sec")
 	eventsCacheTrimIntervalMs := viper.GetInt("server.cache.events.trim_interval_ms")
 	eventsCachePoolSize := viper.GetInt("server.cache.pool.size")
+	if timeWindowSeconds == 0 {
+		timeWindowSeconds = 1
+		logging.Infof("server.cache.events.time_window_sec can't be 0. Using default value=1 instead")
+	}
 	if eventsCachePoolSize == 0 {
 		eventsCachePoolSize = 1
 		logging.Infof("server.cache.pool.size can't be 0. Using default value=1 instead")
 
 	}
-	eventsCache := caching.NewEventsCache(eventsCacheEnabled, metaStorage, eventsCacheSize, eventsCachePoolSize, eventsCacheTrimIntervalMs)
+	eventsCache := caching.NewEventsCache(eventsCacheEnabled, metaStorage, eventsCacheSize, eventsCachePoolSize, eventsCacheTrimIntervalMs, timeWindowSeconds)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
 	// ** Retroactive users recognition
@@ -336,6 +341,7 @@ func main() {
 		UserIDNode:          viper.GetString("users_recognition.user_id_node"),
 		PoolSize:            viper.GetInt("users_recognition.pool.size"),
 		Compression:         viper.GetString("users_recognition.compression"),
+		CacheTTLMin:         viper.GetInt("users_recognition.cache_ttl_min"),
 	}
 
 	if err := globalRecognitionConfiguration.Validate(); err != nil {
@@ -412,14 +418,14 @@ func main() {
 			cronScheduler.Start(taskService.ScheduleSyncFunc)
 		}
 
-		notificationScene := &synchronization.NotificationScene{
+		notificationCtx := &synchronization.NotificationContext{
 			ServiceName: notifications.ServiceName,
 			Version:     tag,
 			ServerName:  appconfig.Instance.ServerName,
 			UIBaseURL:   viper.GetString("ui.base_url"),
 		}
 
-		taskExecutorBase := &synchronization.TaskExecutorBase{
+		taskExecutorContext := &synchronization.TaskExecutorContext{
 			SourceService:         sourceService,
 			DestinationService:    destinationsService,
 			MetaStorage:           metaStorage,
@@ -427,11 +433,11 @@ func main() {
 			StalledThreshold:      time.Duration(viper.GetInt("server.sync_tasks.stalled.last_heartbeat_threshold_seconds")) * time.Second,
 			LastActivityThreshold: time.Duration(viper.GetInt("server.sync_tasks.stalled.last_activity_threshold_minutes")) * time.Minute,
 			ObserverStalledEvery:  time.Duration(viper.GetInt("server.sync_tasks.stalled.observe_stalled_every_seconds")) * time.Second,
-			NotificationService:   synchronization.NewNotificationService(notificationScene, viper.GetStringMap("notifications")),
+			NotificationService:   synchronization.NewNotificationService(notificationCtx, viper.GetStringMap("notifications")),
 		}
 
 		//Create task executor
-		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, taskExecutorBase)
+		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, taskExecutorContext)
 		if err != nil {
 			logging.Fatal("Error creating sources sync task executor:", err)
 		}
@@ -499,20 +505,20 @@ func main() {
 	systemService := system.NewService(systemConfigurationURL)
 
 	//event processors
-	apiProcessor := events.NewAPIProcessor()
+	apiProcessor := events.NewAPIProcessor(usersRecognitionService)
 	bulkProcessor := events.NewBulkProcessor()
 	jsProcessor := events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path"))
 	pixelProcessor := events.NewPixelProcessor()
 	segmentProcessor := events.NewSegmentProcessor(usersRecognitionService)
 	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor, bulkProcessor)
 
-	multiplexingService := multiplexing.NewService(destinationsService, eventsCache)
+	multiplexingService := multiplexing.NewService(destinationsService)
 	walService := wal.NewService(logEventPath, loggerFactory.CreateWriteAheadLogger(), multiplexingService, processorHolder)
 	appconfig.Instance.ScheduleWriteAheadLogClosing(walService)
 
 	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, fallbackService,
 		coordinationService, eventsCache, systemService, segmentRequestFieldsMapper, segmentCompatRequestFieldsMapper, processorHolder,
-		multiplexingService, walService, geoService, pluginsRepository)
+		multiplexingService, walService, geoService, pluginsRepository, globalRecognitionConfiguration)
 
 	telemetry.ServerStart()
 	notifications.ServerStart(systemInfo)

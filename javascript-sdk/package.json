@@ -1,6 +1,6 @@
 {
   "name": "@jitsu/sdk-js",
-  "version": "2.4.0",
+  "version": "2.5.4",
   "description": "Jitsu JavaScript SDK (more at http://jitsu.com/docs/js-sdk)",
   "main": "dist/npm/jitsu.cjs.js",
   "module": "dist/npm/dist/jitsu.es.js",
@@ -50,8 +50,8 @@
     "next": "^12.0.8",
     "node-fetch": "^3.1.0",
     "nodemon": "^2.0.15",
-    "playwright": "^1.17.1",
-    "rollup": "^2.44.0",
+    "playwright": "^1.19.2",
+    "rollup": "^2.70.1",
     "rollup-plugin-copy": "^3.4.0",
     "rollup-plugin-terser": "^7.0.2",
     "rollup-plugin-typescript": "^1.0.1",

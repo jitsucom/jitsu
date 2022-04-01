@@ -1,5 +1,13 @@
 import { modeParameter, s3Credentials, tableName } from "./common"
-import { hiddenValue, Function, jsonType, passwordType, singleSelectionType, stringType } from "../../sources/types"
+import {
+  hiddenValue,
+  Function,
+  jsonType,
+  passwordType,
+  singleSelectionType,
+  stringType,
+  booleanType,
+} from "../../sources/types"
 
 const icon = (
   <svg viewBox="0 0 44 44" height="100%" width="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -165,6 +173,19 @@ const destination = {
         cfg._formData?.mode !== "batch" ||
         (cfg._formData?.mode === "batch" && cfg._formData?.snowflakeStageType !== "s3")
     ),
+    {
+      id: "_users_recognition._enabled",
+      displayName: "User Recognition",
+      documentation: (
+        <>
+          Jitsu can retroactively update events from anonymous users with user id after users identification. See{" "}
+          <a href="https://jitsu.com/docs/other-features/retroactive-user-recognition">Docs</a>.
+        </>
+      ),
+      required: false,
+      defaultValue: true,
+      type: booleanType,
+    },
   ],
 } as const
 

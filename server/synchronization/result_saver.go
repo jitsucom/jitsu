@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/adapters"
 	"io/ioutil"
 	"strings"
 
@@ -54,10 +55,6 @@ func NewResultSaver(task *meta.Task, tap, collectionMetaKey, tableNamePrefix str
 //Consume consumes result batch and writes it to destinations and saves the State
 func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentation) error {
 	for streamName, stream := range representation.Streams {
-		//airbyte can have empty objects
-		if len(stream.Objects) == 0 {
-			continue
-		}
 
 		tableName, ok := rs.streamTableNames[streamName]
 		if !ok {
@@ -65,6 +62,25 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		}
 		stream.BatchHeader.TableName = schema.Reformat(tableName)
 
+		if stream.NeedClean {
+			for _, storage := range rs.destinations {
+				rs.taskLogger.INFO("Stream [%s] Clearing table [%s] in storage [%s] before adding new data", streamName, tableName, storage.ID())
+				err := storage.Clean(stream.BatchHeader.TableName)
+				if err != nil {
+					if strings.Contains(err.Error(), adapters.ErrTableNotExist.Error()) {
+						rs.taskLogger.INFO("Stream [%s] Table [%s] doesn't exist in storage [%s]", streamName, tableName, storage.ID())
+					} else {
+						return fmt.Errorf("[%s] storage table %s cleaning failed: %v", storage.ID(), tableName, err)
+					}
+				}
+			}
+			stream.NeedClean = false
+		}
+
+		//airbyte can have empty objects
+		if len(stream.Objects) == 0 {
+			continue
+		}
 		rs.taskLogger.INFO("Stream [%s] Table name [%s] key fields [%s] objects [%d]", streamName, tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
 
 		//Note: we assume that destinations connected to 1 source can't have different unique ID configuration
@@ -95,15 +111,9 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		needCopyEvent := len(rs.destinations) > 1
 		rowsCount := len(stream.Objects)
 		//Sync stream
-		for i, storage := range rs.destinations {
-			if stream.NeedClean {
-				err := storage.Clean(stream.BatchHeader.TableName)
-				if err != nil {
-					logging.Warnf("[%s] storage table %s cleaning failed, ignoring: %v", storage.ID(), stream.BatchHeader.TableName, err)
-				}
-				stream.NeedClean = false
-			}
-			err := storage.SyncStore(stream.BatchHeader, stream.Objects, "", false, needCopyEvent && i > 0)
+		for _, storage := range rs.destinations {
+			rs.taskLogger.INFO("Stream [%s] Storing data to destination table [%s] in storage [%s]", streamName, tableName, storage.ID())
+			err := storage.SyncStore(stream.BatchHeader, stream.Objects, "", false, needCopyEvent)
 			if err != nil {
 				errMsg := fmt.Sprintf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
 				metrics.ErrorSourceEvents(rs.task.SourceType, rs.tap, rs.task.Source, storage.Type(), storage.ID(), rowsCount)
@@ -133,7 +143,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 			logging.SystemError(errMsg)
 			return errors.New(errMsg)
 		}
-
+		rs.taskLogger.INFO("Saving state: %s", string(stateJSON))
 		err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey, driversbase.ALL.String(), string(stateJSON))
 		if err != nil {
 			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] signature [%s]: %v", rs.task.Source, rs.tap, string(stateJSON), err)

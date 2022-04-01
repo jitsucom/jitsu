@@ -12,6 +12,7 @@ type Unit struct {
 	DestinationIDs           []string
 	PostHandleDestinationIDs []string
 	Notifications            map[string]interface{}
+	ProjectName              string
 
 	hash uint64
 }

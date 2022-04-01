@@ -2,10 +2,10 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { flowResult } from "mobx"
-import { message } from "antd"
 import moment from "moment"
 // @Store
 import { apiKeysStore } from "stores/apiKeys"
+import { destinationsStore } from "stores/destinations"
 // @Components
 import { Tour, TourStep } from "./Tour/Tour"
 import { OnboardingTourGreeting } from "./steps/OnboardingTourGreeting/OnboardingTourGreeting"
@@ -19,25 +19,22 @@ import { OnboardingTourSuccess } from "./steps/OnboardingTourSuccess/OnboardingT
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Hooks
 import { formatTimeOfRawUserEvents, getLatestUserEvent, userEventWasTimeAgo } from "lib/commons/utils"
-import { Project } from "lib/services/model"
-import { randomId } from "utils/numbers"
+import { Project } from "../../../generated/conf-openapi"
+import { ErrorBoundary } from "../ErrorBoundary/ErrorBoundary"
 
 type OnboardingConfig = {
-  showUserAndCompanyNamesStep: boolean
   showDestinationsSetupStep: boolean
   showJitsuClientDocsStep: boolean
   showEventListenerStep: boolean
 }
 
-const USER_EVENT_EXPIRATION_THRESHOLD = moment.duration(1, "months")
+type OnboardingTourProps = { project: Project }
 
-export function showOnboardingError(msg?: string): void {
-  message.error(`Onboarding caught error${msg ? ": " + msg : ""}`)
-}
+const USER_EVENT_EXPIRATION_THRESHOLD = moment.duration(1, "months")
 
 const services = ApplicationServices.get()
 
-const OnboardingTour: React.FC = () => {
+const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => {
   const [config, setConfig] = useState<OnboardingConfig | null>(null)
   const [userClosedTour, setUserClosedTour] = useState<boolean>(false)
 
@@ -45,7 +42,8 @@ const OnboardingTour: React.FC = () => {
     return !!config && !userClosedTour
   }, [config, userClosedTour])
 
-  const handleCloseTour = () => {
+  const handleFinishOnboarding = async () => {
+    await services.projectService.updateProject(project.id, { requiresSetup: false })
     setUserClosedTour(true)
   }
 
@@ -63,12 +61,18 @@ const OnboardingTour: React.FC = () => {
     })
 
     // User and Company Names Step
-    if (config.showUserAndCompanyNamesStep) {
+    {
       const user = services.userService.getUser()
       const next = steps.length + 1
       steps.push({
         content: ({ goTo }) => {
-          return <OnboardingTourNames user={user} handleGoNext={() => goTo(next)} />
+          return (
+            <OnboardingTourNames
+              user={user}
+              companyName={project.name || user.suggestedCompanyName}
+              handleGoNext={() => goTo(next)}
+            />
+          )
         },
       })
     }
@@ -125,9 +129,7 @@ const OnboardingTour: React.FC = () => {
 
     // Success Screen
     steps.push({
-      content: ({ goTo }) => {
-        return <OnboardingTourSuccess handleFinishOnboarding={handleCloseTour} />
-      },
+      content: <OnboardingTourSuccess handleFinishOnboarding={handleFinishOnboarding} />,
     })
 
     return steps
@@ -135,37 +137,28 @@ const OnboardingTour: React.FC = () => {
 
   useEffect(() => {
     const initialPrepareConfig = async (): Promise<void> => {
-      // temporary hack - project is not created after sign ups with google/github
-      if (!services.activeProject) {
-        const user = services.userService.getUser()
-        user.projects = [new Project(randomId(), null)]
-        await services.userService.update(user)
-      }
-
-      const [user, destinations, events] = await Promise.all([
+      const [user, destinations, eventsResponse] = await Promise.all([
         services.userService.getUser(),
-        services.storageService.get("destinations", services.activeProject.id),
-        services.backendApiClient.get(`/events/cache?project_id=${services.activeProject.id}&limit=5`, { proxy: true }),
+        destinationsStore.list,
+        getEvents(),
       ])
 
       // user and company name
-      const userName = user?.name
-      const companyName = user?.projects?.length ? user?.projects[0]?.name : ""
-      const showUserAndCompanyNamesStep = !userName || !companyName
+      const userName = user.name
+      const companyName = project.name
 
       // destinations
-      const _destinations: DestinationData[] = destinations?.destinations ?? []
+      const _destinations: DestinationData[] = destinations ?? []
       const showDestinationsSetupStep = _destinations.length === 0
 
       // jitsu client configuration docs and first event detection
-      const showJitsuClientDocsStep: boolean = !events ? false : needShowJitsuClientConfigSteps(events)
+      const showJitsuClientDocsStep: boolean = !!eventsResponse ? needShowJitsuClientConfigSteps(eventsResponse) : true
 
-      const needToShowTour = showUserAndCompanyNamesStep || showDestinationsSetupStep || showJitsuClientDocsStep
+      const needToShowTour = !userName || !companyName || showDestinationsSetupStep || showJitsuClientDocsStep
 
       if (needToShowTour) {
         flowResult(apiKeysStore.generateAddInitialApiKeyIfNeeded()).then(() => {
           setConfig({
-            showUserAndCompanyNamesStep,
             showDestinationsSetupStep,
             showJitsuClientDocsStep,
             showEventListenerStep: showJitsuClientDocsStep,
@@ -201,6 +194,24 @@ function calculateAmountOfSteps(config: OnboardingConfig): number {
     return accumulator + +current
   }, 0)
 }
+
+async function getEvents(): Promise<any> {
+  try {
+    await services.backendApiClient.get(`/events/cache?project_id=${services.activeProject.id}&limit=5`, {
+      proxy: true,
+    })
+  } catch (e) {
+    return undefined
+  }
+}
+
+const OnboardingTour: React.FC<OnboardingTourProps> = observer(props => {
+  return (
+    <ErrorBoundary hideError={true} onAfterErrorOccured={error => console.error(`Onboarding tour error: ${error}`)}>
+      <OnboardingTourComponent {...props} />
+    </ErrorBoundary>
+  )
+})
 
 OnboardingTour.displayName = "OnboardingTour"
 

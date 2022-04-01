@@ -7,19 +7,21 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/typing"
-	"github.com/mailru/go-clickhouse"
 	"io/ioutil"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/errorj"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/typing"
+	"github.com/mailru/go-clickhouse"
 )
 
 const (
 	tableSchemaCHQuery        = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
 	createCHDBTemplate        = `CREATE DATABASE IF NOT EXISTS "%s" %s`
-	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s`
+	alterTableCHTemplate      = `ALTER TABLE "%s"."%s" %s %s`
 	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES %s`
 	deleteQueryChTemplate     = `ALTER TABLE %s.%s DELETE WHERE %s`
 	dropTableCHTemplate       = `DROP TABLE "%s"."%s" %s`
@@ -29,6 +31,7 @@ const (
 	createTableCHTemplate              = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
 	createDistributedTableCHTemplate   = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
 	dropDistributedTableCHTemplate     = `DROP TABLE IF EXISTS "%s"."dist_%s" %s`
+	alterDistributedTableCHTemplate    = `ALTER TABLE "%s"."dist_%s" %s %s`
 	truncateTableCHTemplate            = `TRUNCATE TABLE IF EXISTS "%s"."%s"`
 	truncateDistributedTableCHTemplate = `TRUNCATE TABLE IF EXISTS "%s"."dist_%s" %s`
 
@@ -191,11 +194,11 @@ func NewTableStatementFactory(config *ClickHouseConfig) (*TableStatementFactory,
 	var engineStatementFormat bool
 	if config.Cluster != "" {
 		//create engine statement with ReplicatedReplacingMergeTree() engine. We need to replace %s with tableName on creating statement
-		engineStatement = `ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/` + config.Database + `/%s', '{replica}', _timestamp)`
+		engineStatement = `ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/` + config.Database + `/%s', '{replica}')`
 		engineStatementFormat = true
 	} else {
 		//create table template with ReplacingMergeTree() engine
-		engineStatement = `ENGINE = ReplacingMergeTree(_timestamp)`
+		engineStatement = `ENGINE = ReplacingMergeTree()`
 	}
 
 	return &TableStatementFactory{
@@ -288,22 +291,17 @@ func (ClickHouse) Type() string {
 	return "ClickHouse"
 }
 
-//OpenTx open underline sql transaction and return wrapped instance
-func (ch *ClickHouse) OpenTx() (*Transaction, error) {
-	tx, err := ch.dataSource.BeginTx(ch.ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Transaction{tx: tx, dbType: ch.Type()}, nil
-}
-
 //CreateDB create database instance if doesn't exist
 func (ch *ClickHouse) CreateDB(dbName string) error {
 	query := fmt.Sprintf(createCHDBTemplate, dbName, ch.getOnClusterClause())
 	ch.queryLogger.LogDDL(query)
 	if _, err := ch.dataSource.ExecContext(ch.ctx, query); err != nil {
-		return fmt.Errorf("Error creating [%s] db with statement [%s]: %v", dbName, query, err)
+		return errorj.CreateSchemaError.Wrap(err, "failed to create db schema").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Database:  dbName,
+				Cluster:   ch.cluster,
+				Statement: query,
+			})
 	}
 
 	return nil
@@ -311,26 +309,32 @@ func (ch *ClickHouse) CreateDB(dbName string) error {
 
 //CreateTable create database table with name,columns provided in Table representation
 //New tables will have MergeTree() or ReplicatedMergeTree() engine depends on config.cluster empty or not
-func (ch *ClickHouse) CreateTable(tableSchema *Table) error {
+func (ch *ClickHouse) CreateTable(table *Table) error {
 	var columnsDDL []string
-	for columnName, column := range tableSchema.Columns {
+	for columnName, column := range table.Columns {
 		columnTypeDDL := ch.columnDDL(columnName, column)
 		columnsDDL = append(columnsDDL, columnTypeDDL)
 	}
 
 	//sorting columns asc
 	sort.Strings(columnsDDL)
-	statementStr := ch.tableStatementFactory.CreateTableStatement(tableSchema.Name, strings.Join(columnsDDL, ","))
+	statementStr := ch.tableStatementFactory.CreateTableStatement(table.Name, strings.Join(columnsDDL, ","))
 	ch.queryLogger.LogDDL(statementStr)
 
-	_, err := ch.dataSource.ExecContext(ch.ctx, statementStr)
-	if err != nil {
-		return fmt.Errorf("Error creating table [%s] statement [%s]: %v", tableSchema.Name, statementStr, err)
+	if _, err := ch.dataSource.ExecContext(ch.ctx, statementStr); err != nil {
+		return errorj.CreateTableError.Wrap(err, "failed to create table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Database:    ch.database,
+				Cluster:     ch.cluster,
+				Table:       table.Name,
+				PrimaryKeys: table.GetPKFields(),
+				Statement:   statementStr,
+			})
 	}
 
 	//create distributed table if ReplicatedMergeTree engine
 	if ch.cluster != "" {
-		ch.createDistributedTableInTransaction(tableSchema.Name)
+		ch.createDistributedTableInTransaction(table.Name)
 	}
 
 	return nil
@@ -341,20 +345,44 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*Table, error) {
 	table := &Table{Schema: ch.database, Name: tableName, Columns: map[string]typing.SQLColumn{}}
 	rows, err := ch.dataSource.QueryContext(ch.ctx, tableSchemaCHQuery, ch.database, tableName)
 	if err != nil {
-		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
+		return nil, errorj.GetTableError.Wrap(err, "failed to get table columns").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Database:    ch.database,
+				Cluster:     ch.cluster,
+				Table:       tableName,
+				PrimaryKeys: table.GetPKFields(),
+				Statement:   tableSchemaCHQuery,
+				Values:      []interface{}{ch.database, tableName},
+			})
 	}
 
 	defer rows.Close()
 	for rows.Next() {
 		var columnName, columnClickhouseType string
 		if err := rows.Scan(&columnName, &columnClickhouseType); err != nil {
-			return nil, fmt.Errorf("Error scanning result: %v", err)
+			return nil, errorj.GetTableError.Wrap(err, "failed to scan result").
+				WithProperty(errorj.DBInfo, &ErrorPayload{
+					Database:    ch.database,
+					Cluster:     ch.cluster,
+					Table:       tableName,
+					PrimaryKeys: table.GetPKFields(),
+					Statement:   tableSchemaCHQuery,
+					Values:      []interface{}{ch.database, tableName},
+				})
 		}
 
 		table.Columns[columnName] = typing.SQLColumn{Type: columnClickhouseType}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("Last rows.Err: %v", err)
+		return nil, errorj.GetTableError.Wrap(err, "failed read last row").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Database:    ch.database,
+				Cluster:     ch.cluster,
+				Table:       tableName,
+				PrimaryKeys: table.GetPKFields(),
+				Statement:   tableSchemaCHQuery,
+				Values:      []interface{}{ch.database, tableName},
+			})
 	}
 
 	return table, nil
@@ -363,57 +391,65 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*Table, error) {
 //PatchTableSchema add new columns(from provided Table) to existing table
 //drop and create distributed table
 func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
+	if len(patchSchema.Columns) == 0 {
+		return nil
+	}
+
+	addedColumnsDDL := make([]string, 0, len(patchSchema.Columns))
 	for columnName, column := range patchSchema.Columns {
 		columnDDL := ch.columnDDL(columnName, column)
-		query := fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnDDL)
-		ch.queryLogger.LogDDL(query)
+		addedColumnsDDL = append(addedColumnsDDL, "ADD COLUMN "+columnDDL)
+	}
 
-		if _, err := ch.dataSource.ExecContext(ch.ctx, query); err != nil {
-			return fmt.Errorf("Error patching %s table with statement [%s]: %v", patchSchema.Name, query, err)
-		}
+	query := fmt.Sprintf(alterTableCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), strings.Join(addedColumnsDDL, ", "))
+	ch.queryLogger.LogDDL(query)
+
+	if _, err := ch.dataSource.ExecContext(ch.ctx, query); err != nil {
+		return errorj.PatchTableError.Wrap(err, "failed to patch table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Database:    ch.database,
+				Cluster:     ch.cluster,
+				Table:       patchSchema.Name,
+				PrimaryKeys: patchSchema.GetPKFields(),
+				Statement:   query,
+			})
 	}
 
 	//drop and create distributed table if ReplicatedMergeTree engine
 	if ch.cluster != "" {
-		ch.dropDistributedTableInTransaction(patchSchema.Name)
-		ch.createDistributedTableInTransaction(patchSchema.Name)
-	}
-
-	return nil
-}
-
-//Insert provided object in ClickHouse in stream mode
-func (ch *ClickHouse) Insert(eventContext *EventContext) error {
-	var headerWithQuotes, placeholders []string
-	var values []interface{}
-	for name, value := range eventContext.ProcessedEvent {
-		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
-		placeholders = append(placeholders, ch.getPlaceholder(name, eventContext.Table.Columns[name]))
-		values = append(values, value)
-	}
-
-	query := fmt.Sprintf(insertCHTemplate, ch.database, eventContext.Table.Name, strings.Join(headerWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
-	ch.queryLogger.LogQueryWithValues(query, values)
-
-	if _, err := ch.dataSource.ExecContext(ch.ctx, query, values...); err != nil {
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, query, values, err)
-	}
-
-	return nil
-}
-
-func (ch *ClickHouse) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	if !deleteConditions.IsEmpty() {
-		if err := ch.delete(table, deleteConditions); err != nil {
-			return err
+		query := fmt.Sprintf(alterDistributedTableCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), strings.Join(addedColumnsDDL, ", "))
+		ch.queryLogger.LogDDL(query)
+		_, err := ch.dataSource.ExecContext(ch.ctx, query)
+		switch err := err.(type) {
+		case nil:
+			return nil
+		case *clickhouse.Error:
+			if err.Code == 371 {
+				// fallback for older clickhouse versions
+				ch.dropDistributedTableInTransaction(patchSchema.Name)
+				ch.createDistributedTableInTransaction(patchSchema.Name)
+				return nil
+			}
 		}
-	}
 
-	if err := ch.insert(table, objects); err != nil {
-		return err
+		logging.Errorf("[%s] Error altering distributed table for [%s] with statement [%s]: %v", ch.destinationId(), patchSchema.Name, query, err)
 	}
 
 	return nil
+}
+
+//Insert inserts provided object in ClickHouse as a single record or batch
+func (ch *ClickHouse) Insert(insertContext *InsertContext) error {
+	if insertContext.eventContext != nil {
+		return ch.insert(insertContext.eventContext.Table, insertContext.eventContext.ProcessedEvent)
+	} else {
+		if !insertContext.deleteConditions.IsEmpty() {
+			if err := ch.delete(insertContext.table, insertContext.deleteConditions); err != nil {
+				return errorj.Decorate(err, "failed to execute delete in insert")
+			}
+		}
+		return ch.insert(insertContext.table, insertContext.objects...)
+	}
 }
 
 func (ch *ClickHouse) delete(table *Table, deleteConditions *DeleteConditions) error {
@@ -423,15 +459,18 @@ func (ch *ClickHouse) delete(table *Table, deleteConditions *DeleteConditions) e
 	ch.queryLogger.LogQueryWithValues(deleteQuery, values)
 
 	if _, err := ch.dataSource.ExecContext(ch.ctx, deleteQuery, values...); err != nil {
-		return fmt.Errorf("Error deleting using query: %s, error: %v", deleteQuery, err)
+		return errorj.DeleteFromTableError.Wrap(err, "failed to delete data").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Database:    ch.database,
+				Cluster:     ch.cluster,
+				Table:       table.Name,
+				PrimaryKeys: table.GetPKFields(),
+				Statement:   deleteQuery,
+				Values:      values,
+			})
 	}
 
 	return nil
-}
-
-//BulkInsert insert objects into table in one prepared statement
-func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	return ch.insert(table, objects)
 }
 
 //Truncate deletes all records in tableName table
@@ -443,12 +482,20 @@ func (ch *ClickHouse) Truncate(tableName string) error {
 	}
 
 	statement := fmt.Sprintf(truncateTableCHTemplate, ch.database, tableName)
-	if err := sqlParams.commonTruncate(tableName, statement); err != nil {
-		return err
+	if err := sqlParams.commonTruncate(statement); err != nil {
+		return errorj.TruncateError.Wrap(err, "failed to truncate table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Database:  ch.database,
+				Cluster:   ch.cluster,
+				Table:     tableName,
+				Statement: statement,
+			})
 	}
 	if ch.cluster != "" {
 		statement = fmt.Sprintf(truncateDistributedTableCHTemplate, ch.database, tableName, ch.getOnClusterClause())
-		return sqlParams.commonTruncate(tableName, statement)
+		if err := sqlParams.commonTruncate(statement); err != nil {
+			logging.Errorf("[%s] error truncating distributed table with statement [%s]", ch.destinationId(), statement)
+		}
 	}
 
 	return nil
@@ -482,7 +529,7 @@ func (ch *ClickHouse) toDeleteQuery(table *Table, conditions *DeleteConditions) 
 
 //insert creates statement like insert ... values (), (), ()
 //runs executeInsert func
-func (ch *ClickHouse) insert(table *Table, objects []map[string]interface{}) error {
+func (ch *ClickHouse) insert(table *Table, objects ...map[string]interface{}) error {
 	var placeholdersBuilder strings.Builder
 	var headerWithoutQuotes, headerWithQuotes []string
 	for name := range table.Columns {
@@ -492,10 +539,7 @@ func (ch *ClickHouse) insert(table *Table, objects []map[string]interface{}) err
 	maxValues := len(objects) * len(table.Columns)
 	valueArgs := make([]interface{}, 0, maxValues)
 	for _, row := range objects {
-		_, err := placeholdersBuilder.WriteString("(")
-		if err != nil {
-			return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
-		}
+		_, _ = placeholdersBuilder.WriteString("(")
 
 		for i, column := range headerWithoutQuotes {
 			//append value
@@ -515,26 +559,16 @@ func (ch *ClickHouse) insert(table *Table, objects []map[string]interface{}) err
 			//placeholder
 			placeholder := ch.getPlaceholder(column, table.Columns[column])
 
-			_, err = placeholdersBuilder.WriteString(placeholder)
-			if err != nil {
-				return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
-			}
+			_, _ = placeholdersBuilder.WriteString(placeholder)
 
 			if i < len(headerWithoutQuotes)-1 {
-				_, err = placeholdersBuilder.WriteString(",")
-				if err != nil {
-					return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
-				}
+				_, _ = placeholdersBuilder.WriteString(",")
 			}
 		}
-		_, err = placeholdersBuilder.WriteString("),")
-		if err != nil {
-			return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
-		}
+		_, _ = placeholdersBuilder.WriteString("),")
 	}
 
-	err := ch.executeInsert(table, headerWithQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
-	if err != nil {
+	if err := ch.executeInsert(table, headerWithQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs, len(objects)); err != nil {
 		return err
 	}
 
@@ -542,13 +576,22 @@ func (ch *ClickHouse) insert(table *Table, objects []map[string]interface{}) err
 }
 
 //executeInsert execute insert with insertTemplate
-func (ch *ClickHouse) executeInsert(table *Table, headerWithQuotes []string, placeholders string, valueArgs []interface{}) error {
+func (ch *ClickHouse) executeInsert(table *Table, headerWithQuotes []string, placeholders string, valueArgs []interface{}, objectsCount int) error {
 	statement := fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(headerWithQuotes, ", "), placeholders)
 
 	ch.queryLogger.LogQueryWithValues(statement, valueArgs)
 
 	if _, err := ch.dataSource.Exec(statement, valueArgs...); err != nil {
-		return fmt.Errorf("error inserting in %s table statement: %s values: %v: %v", table.Name, statement, valueArgs, err)
+		return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute insert").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Database:        ch.database,
+				Cluster:         ch.cluster,
+				Table:           table.Name,
+				PrimaryKeys:     table.GetPKFields(),
+				Statement:       statement,
+				ValuesMapString: ObjectValuesToString(headerWithQuotes, valueArgs),
+				TotalObjects:    objectsCount,
+			})
 	}
 
 	return nil
@@ -574,10 +617,8 @@ func (ch *ClickHouse) createDistributedTableInTransaction(originTableName string
 		ch.database, originTableName, ch.getOnClusterClause(), ch.database, originTableName, ch.cluster, ch.database, originTableName)
 	ch.queryLogger.LogDDL(statement)
 
-	_, err := ch.dataSource.ExecContext(ch.ctx, statement)
-	if err != nil {
-		logging.Errorf("Error creating distributed table statement with statement [%s] for [%s] : %v", originTableName, statement, err)
-		return
+	if _, err := ch.dataSource.ExecContext(ch.ctx, statement); err != nil {
+		logging.Errorf("[%s] Error creating distributed table statement with statement [%s] for [%s] : %v", ch.destinationId(), statement, originTableName, err)
 	}
 }
 
@@ -586,7 +627,7 @@ func (ch *ClickHouse) dropDistributedTableInTransaction(originTableName string) 
 	query := fmt.Sprintf(dropDistributedTableCHTemplate, ch.database, originTableName, ch.getOnClusterClause())
 	ch.queryLogger.LogDDL(query)
 	if _, err := ch.dataSource.ExecContext(ch.ctx, query); err != nil {
-		logging.Errorf("Error dropping distributed table for [%s] with statement [%s]: %v", originTableName, query, err)
+		logging.Errorf("[%s] Error dropping distributed table for [%s] with statement [%s]: %v", ch.destinationId(), originTableName, query, err)
 	}
 }
 
@@ -655,6 +696,10 @@ func (ch *ClickHouse) reformatValue(v interface{}) interface{} {
 	return v
 }
 
+func (ch *ClickHouse) destinationId() interface{} {
+	return ch.ctx.Value(CtxDestinationId)
+}
+
 func extractStatement(fieldConfigs []FieldConfig) string {
 	var parameters []string
 	for _, fieldConfig := range fieldConfigs {
@@ -665,4 +710,9 @@ func extractStatement(fieldConfigs []FieldConfig) string {
 		parameters = append(parameters, fieldConfig.Field)
 	}
 	return strings.Join(parameters, ",")
+}
+
+func (ch *ClickHouse) Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error {
+	//TODO Add Sign property for CollapcingMergeTree
+	return ch.insert(table, object)
 }

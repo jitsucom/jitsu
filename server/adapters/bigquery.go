@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/errorj"
+	"math"
 	"net/http"
 	"strings"
 
@@ -72,15 +74,33 @@ func (bq *BigQuery) Copy(fileKey, tableName string) error {
 
 	job, err := loader.Run(bq.ctx)
 	if err != nil {
-		return fmt.Errorf("Error running loading from google cloud storage to BigQuery table %s: %v", tableName, err)
+		return errorj.CopyError.Wrap(err, "failed to run BQ loader").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   tableName,
+			})
 	}
 	jobStatus, err := job.Wait(bq.ctx)
 	if err != nil {
-		return fmt.Errorf("Error waiting loading job from google cloud storage to BigQuery table %s: %v", tableName, err)
+		return errorj.CopyError.Wrap(err, "failed to wait BQ job").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   tableName,
+			})
 	}
 
 	if jobStatus.Err() != nil {
-		return fmt.Errorf("Error loading from google cloud storage to BigQuery table %s: %v", tableName, jobStatus.Err())
+		return errorj.CopyError.Wrap(jobStatus.Err(), "failed due to BQ job status").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   tableName,
+			})
 	}
 
 	return nil
@@ -91,27 +111,14 @@ func (bq *BigQuery) Test() error {
 	return err
 }
 
-//Insert provided object in BigQuery in stream mode
-func (bq *BigQuery) Insert(eventContext *EventContext) error {
-	inserter := bq.client.Dataset(bq.config.Dataset).Table(eventContext.Table.Name).Inserter()
-	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", eventContext.Table.Name), eventContext.ProcessedEvent, false)
-	err := inserter.Put(bq.ctx, &BQItem{values: eventContext.ProcessedEvent})
-	if err != nil {
-		putMultiError, ok := err.(bigquery.PutMultiError)
-		if !ok {
-			return err
-		}
-
-		//parse bigquery multi error
-		var multiErr error
-		for _, errUnit := range putMultiError {
-			multiErr = multierror.Append(multiErr, errors.New(errUnit.Error()))
-		}
-
-		return multiErr
+//Insert inserts data with InsertContext as a single object or a batch into BigQuery
+func (bq *BigQuery) Insert(insertContext *InsertContext) error {
+	if insertContext.eventContext != nil {
+		return bq.insertSingle(insertContext.eventContext)
+	} else {
+		return bq.insertBatch(insertContext.table, insertContext.objects)
 	}
 
-	return nil
 }
 
 //GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct
@@ -126,7 +133,13 @@ func (bq *BigQuery) GetTableSchema(tableName string) (*Table, error) {
 			return table, nil
 		}
 
-		return nil, fmt.Errorf("Error querying BigQuery table [%s] metadata: %v", tableName, err)
+		return nil, errorj.GetTableError.Wrap(err, "failed to get table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   tableName,
+			})
 	}
 
 	for _, field := range meta.Schema {
@@ -147,7 +160,13 @@ func (bq *BigQuery) CreateTable(table *Table) error {
 	}
 
 	if !isNotFoundErr(err) {
-		return fmt.Errorf("Error getting new table %s metadata: %v", table.Name, err)
+		return errorj.GetTableError.Wrap(err, "failed to get table metadata").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   table.Name,
+			})
 	}
 
 	bqSchema := bigquery.Schema{}
@@ -161,7 +180,14 @@ func (bq *BigQuery) CreateTable(table *Table) error {
 	}
 	bq.logQuery("Creating table for schema: ", bqSchema, true)
 	if err := bqTable.Create(bq.ctx, &bigquery.TableMetadata{Name: table.Name, Schema: bqSchema}); err != nil {
-		return fmt.Errorf("Error creating [%s] BigQuery table %v", table.Name, err)
+		return errorj.GetTableError.Wrap(err, "failed to create table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset:   bq.config.Dataset,
+				Bucket:    bq.config.Bucket,
+				Project:   bq.config.Project,
+				Table:     table.Name,
+				Statement: fmt.Sprintf("%v", bqSchema),
+			})
 	}
 
 	return nil
@@ -175,10 +201,16 @@ func (bq *BigQuery) CreateDataset(dataset string) error {
 			datasetMetadata := &bigquery.DatasetMetadata{Name: dataset}
 			bq.logQuery("Creating dataset: ", datasetMetadata, true)
 			if err := bqDataset.Create(bq.ctx, datasetMetadata); err != nil {
-				return fmt.Errorf("Error creating dataset %s in BigQuery: %v", dataset, err)
+				return errorj.CreateSchemaError.Wrap(err, "failed to create dataset").
+					WithProperty(errorj.DBInfo, &ErrorPayload{
+						Dataset: dataset,
+					})
 			}
 		} else {
-			return fmt.Errorf("Error getting dataset %s in BigQuery: %v", dataset, err)
+			return errorj.CreateSchemaError.Wrap(err, "failed to get dataset metadata").
+				WithProperty(errorj.DBInfo, &ErrorPayload{
+					Dataset: dataset,
+				})
 		}
 	}
 
@@ -190,7 +222,13 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	bqTable := bq.client.Dataset(bq.config.Dataset).Table(patchSchema.Name)
 	metadata, err := bqTable.Metadata(bq.ctx)
 	if err != nil {
-		return fmt.Errorf("Error getting table %s metadata: %v", patchSchema.Name, err)
+		return errorj.PatchTableError.Wrap(err, "failed to get table metadata").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   patchSchema.Name,
+			})
 	}
 
 	for columnName, column := range patchSchema.Columns {
@@ -204,11 +242,14 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	updateReq := bigquery.TableMetadataToUpdate{Schema: metadata.Schema}
 	bq.logQuery("Patch update request: ", updateReq, true)
 	if _, err := bqTable.Update(bq.ctx, updateReq, metadata.ETag); err != nil {
-		var columns []string
-		for _, column := range metadata.Schema {
-			columns = append(columns, fmt.Sprintf("%s - %s", column.Name, column.Type))
-		}
-		return fmt.Errorf("Error patching %s BigQuery table with %s schema: %v", patchSchema.Name, strings.Join(columns, ","), err)
+		return errorj.PatchTableError.Wrap(err, "failed to patch table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset:   bq.config.Dataset,
+				Bucket:    bq.config.Bucket,
+				Project:   bq.config.Project,
+				Table:     patchSchema.Name,
+				Statement: fmt.Sprintf("%v", updateReq),
+			})
 	}
 
 	return nil
@@ -224,22 +265,59 @@ func (bq *BigQuery) DeleteWithConditions(tableName string, deleteConditions *Del
 	deleteCondition := bq.toDeleteQuery(deleteConditions)
 	query := fmt.Sprintf(deleteBigQueryTemplate, bq.config.Project, bq.config.Dataset, tableName, deleteCondition)
 	bq.queryLogger.LogQuery(query)
-	_, err := bq.client.Query(query).Read(bq.ctx)
-	return err
+	if _, err := bq.client.Query(query).Read(bq.ctx); err != nil {
+		return errorj.DeleteFromTableError.Wrap(err, "failed to delete data").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset:   bq.config.Dataset,
+				Bucket:    bq.config.Bucket,
+				Project:   bq.config.Project,
+				Table:     tableName,
+				Statement: query,
+			})
+	}
+
+	return nil
 }
 
-//BulkInsert streams data into BQ using stream API
+//insertBatch streams data into BQ using stream API
+func (bq *BigQuery) insertSingle(eventContext *EventContext) error {
+	inserter := bq.client.Dataset(bq.config.Dataset).Table(eventContext.Table.Name).Inserter()
+	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", eventContext.Table.Name), eventContext.ProcessedEvent, false)
+
+	if err := bq.insertItems(inserter, []*BQItem{{values: eventContext.ProcessedEvent}}); err != nil {
+		return errorj.ExecuteInsertError.Wrap(err, "failed to execute single insert").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset:   bq.config.Dataset,
+				Bucket:    bq.config.Bucket,
+				Project:   bq.config.Project,
+				Table:     eventContext.Table.Name,
+				Statement: fmt.Sprintf("%v", eventContext.ProcessedEvent),
+			})
+	}
+
+	return nil
+}
+
+//insertBatch streams data into BQ using stream API
 //1 insert = max 500 rows
-func (bq *BigQuery) BulkInsert(table *Table, objects []map[string]interface{}) error {
+func (bq *BigQuery) insertBatch(table *Table, objects []map[string]interface{}) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(table.Name).Inserter()
 	bq.logQuery(fmt.Sprintf("Inserting [%d] values to table %s using BigQuery Streaming API with chunks [%d]: ", len(objects), table.Name, rowsLimitPerInsertOperation), objects, false)
 
 	items := make([]*BQItem, 0, rowsLimitPerInsertOperation)
-
+	operation := 0
+	operations := int(math.Max(1, float64(len(objects))/float64(rowsLimitPerInsertOperation)))
 	for _, object := range objects {
 		if len(items) > rowsLimitPerInsertOperation {
+			operation++
 			if err := bq.insertItems(inserter, items); err != nil {
-				return err
+				return errorj.DeleteFromTableError.Wrap(err, "failed to execute middle insert %d of %d in batch", operation, operations).
+					WithProperty(errorj.DBInfo, &ErrorPayload{
+						Dataset: bq.config.Dataset,
+						Bucket:  bq.config.Bucket,
+						Project: bq.config.Project,
+						Table:   table.Name,
+					})
 			}
 
 			items = make([]*BQItem, 0, rowsLimitPerInsertOperation)
@@ -249,15 +327,19 @@ func (bq *BigQuery) BulkInsert(table *Table, objects []map[string]interface{}) e
 	}
 
 	if len(items) > 0 {
-		return bq.insertItems(inserter, items)
+		operation++
+		if err := bq.insertItems(inserter, items); err != nil {
+			return errorj.DeleteFromTableError.Wrap(err, "failed to execute last insert %d of %d in batch", operation, operations).
+				WithProperty(errorj.DBInfo, &ErrorPayload{
+					Dataset: bq.config.Dataset,
+					Bucket:  bq.config.Bucket,
+					Project: bq.config.Project,
+					Table:   table.Name,
+				})
+		}
 	}
 
 	return nil
-}
-
-//BulkUpdate isn't supported
-func (bq *BigQuery) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	return errors.New("BigQuery doesn't support BulkUpdate()")
 }
 
 //DropTable drops table from BigQuery
@@ -265,7 +347,13 @@ func (bq *BigQuery) DropTable(table *Table) error {
 	bqTable := bq.client.Dataset(bq.config.Dataset).Table(table.Name)
 
 	if err := bqTable.Delete(bq.ctx); err != nil {
-		return fmt.Errorf("Error dropping [%s] BigQuery table: %v", table.Name, err)
+		return errorj.DropError.Wrap(err, "failed to drop table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   table.Name,
+			})
 	}
 
 	return nil
@@ -275,27 +363,28 @@ func (bq *BigQuery) DropTable(table *Table) error {
 func (bq *BigQuery) Truncate(tableName string) error {
 	query := fmt.Sprintf(truncateBigQueryTemplate, bq.config.Project, bq.config.Dataset, tableName)
 	bq.queryLogger.LogQuery(query)
-	_, err := bq.client.Query(query).Read(bq.ctx)
-	if err != nil {
-		return mapError(err)
+	if _, err := bq.client.Query(query).Read(bq.ctx); err != nil {
+		return errorj.TruncateError.Wrap(err, "failed to truncate table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   tableName,
+			})
 	}
 
 	return nil
 }
 
-func (bq *BigQuery) insertItems(inserter *bigquery.Inserter,
-	items []*BQItem) error {
-	err := inserter.Put(bq.ctx, items)
-	if err != nil {
-		putMultiError, ok := err.(bigquery.PutMultiError)
-		if !ok {
-			return err
-		}
-
-		//parse bigquery multi error
+func (bq *BigQuery) insertItems(inserter *bigquery.Inserter, items []*BQItem) error {
+	if err := inserter.Put(bq.ctx, items); err != nil {
 		var multiErr error
-		for _, errUnit := range putMultiError {
-			multiErr = multierror.Append(multiErr, errors.New(errUnit.Error()))
+		if putMultiError, ok := err.(bigquery.PutMultiError); ok {
+			for _, errUnit := range putMultiError {
+				multiErr = multierror.Append(multiErr, errors.New(errUnit.Error()))
+			}
+		} else {
+			multiErr = err
 		}
 
 		return multiErr
@@ -351,4 +440,8 @@ func (bqi *BQItem) Save() (row map[string]bigquery.Value, insertID string, err e
 	}
 
 	return
+}
+
+func (bq *BigQuery) Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error {
+	return errors.New("BigQuery doesn't support updates")
 }

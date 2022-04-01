@@ -1,0 +1,31 @@
+# SSO Authentication
+
+Jitsu supports following SSO providers:
+* [BoxyHQ](https://boxyhq.com/)
+
+### Configuration
+
+By default, SSO authentication is disabled. For enabling it put the following keys in **Jitsu Configurator** YAML configuration:
+
+* `provider` — SSO provider. For now only `boxyhq` is supported
+* `host` — SSO provider host
+* `tenant` — read more about this parameter and boxyhq auth flow [here](https://boxyhq.com/docs/jackson/saml-flow#3-oauth-20-flow)
+* `product` — read more about this parameter and boxyhq auth flow [here](https://boxyhq.com/docs/jackson/saml-flow#3-oauth-20-flow)
+* `access_token_ttl_seconds` — time to live for SSO auth session.
+
+```yaml
+sso:
+  provider: 'boxyhq'
+  host: '___boxyhq_host___'
+  tenant: '___your_tenant___'
+  product: '___your_product___'
+  access_token_ttl_seconds: 86400,
+```
+
+or you can configure it with env variable `JITSU_SSO_CONFIG`:
+
+```bash
+export JITSU_SSO_CONFIG='{"provider": "boxyhq", "host": "https://boxyhq.com", "tenant": "boxyhq.com", "product": "jitsu", "access_token_ttl_seconds": 86400}'
+```
+
+After you have configured the SSO auth, the "Continue with SSO" button will appear on the authorization page.

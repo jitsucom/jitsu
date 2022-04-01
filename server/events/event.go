@@ -13,8 +13,9 @@ type Event map[string]interface{}
 
 //SkippedEvent is a dto for serialization in events cache
 type SkippedEvent struct {
-	Error   string `json:"error,omitempty"`
-	EventID string `json:"event_id,omitempty"`
+	Event           json.RawMessage `json:"event,omitempty"`
+	Error           string          `json:"error,omitempty"`
+	RecognizedEvent bool
 }
 
 //SkippedEvents is a dto for keeping skipped events per src
@@ -29,10 +30,11 @@ func (se *SkippedEvents) IsEmpty() bool {
 
 //FailedEvent is a dto for serialization fallback events
 type FailedEvent struct {
-	MalformedEvent string          `json:"malformed_event,omitempty"`
-	Event          json.RawMessage `json:"event,omitempty"`
-	Error          string          `json:"error,omitempty"`
-	EventID        string          `json:"event_id,omitempty"`
+	MalformedEvent  string          `json:"malformed_event,omitempty"`
+	Event           json.RawMessage `json:"event,omitempty"`
+	Error           string          `json:"error,omitempty"`
+	EventID         string          `json:"event_id,omitempty"`
+	RecognizedEvent bool
 }
 
 //FailedEvents is a dto for keeping fallback events per src

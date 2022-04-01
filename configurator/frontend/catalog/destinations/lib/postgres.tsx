@@ -1,5 +1,6 @@
 import { modeParameter, tableName } from "./common"
 import {
+  booleanType,
   arrayOf,
   fileType,
   hiddenValue,
@@ -93,7 +94,7 @@ const postgresDestination = {
       id: "$type",
       constant: "PostgresConfig",
     },
-    modeParameter("stream"),
+    modeParameter(),
     tableName(),
     {
       id: "_formData.pghost",
@@ -186,6 +187,19 @@ const postgresDestination = {
       constant: hiddenValue("", cfg => {
         return cfg?.["_formData"]?.pgsslmode === "require" || cfg?.["_formData"]?.pgsslmode === "disable"
       }),
+    },
+    {
+      id: "_users_recognition._enabled",
+      displayName: "User Recognition",
+      documentation: (
+        <>
+          Jitsu can retroactively update events from anonymous users with user id after users identification. See{" "}
+          <a href="https://jitsu.com/docs/other-features/retroactive-user-recognition">Docs</a>.
+        </>
+      ),
+      required: false,
+      defaultValue: true,
+      type: booleanType,
     },
     {
       id: "_formData.parameters",

@@ -109,7 +109,7 @@ func TestProcessFilePayload(t *testing.T) {
 				},
 			},
 			[]events.FailedEvent{{Event: []byte(`{"_geo_data":{},"event_type":"views","key1000":"super value"}`), Error: "error extracting table name: _timestamp field doesn't exist"}},
-			[]events.SkippedEvent{{EventID: "qoow1", Error: "Transform or table name filter marked object to be skipped. This object will be skipped."}},
+			[]events.SkippedEvent{{Event: []byte(`{"_geo_data":{"city":"New York","country":"US"},"_timestamp":"2020-08-02T18:23:56.291383Z","event_type":"skipped","eventn_ctx_event_id":"qoow1","key1":{"key2":"splu"},"key10":{"sib1":{"1":"k"}}}`), Error: "Transform or table name filter marked object to be skipped. This object will be skipped."}},
 		},
 		{
 			"Input fallback file",
@@ -146,7 +146,7 @@ func TestProcessFilePayload(t *testing.T) {
 	}
 	destination := &config.DestinationConfig{Type: "google_analytics", BreakOnError: false,
 		DataLayout: &config.DataLayout{Transform: ""}}
-	p, err := NewProcessor("test", destination, false, `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 0, "new")
+	p, err := NewProcessor("test", destination, false, `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 0, "new", false)
 	require.NoError(t, err)
 	err = p.InitJavaScriptTemplates()
 	require.NoError(t, err)
@@ -158,7 +158,7 @@ func TestProcessFilePayload(t *testing.T) {
 			objects, err := parsers.ParseJSONFileWithFunc(fBytes, tt.parseFunc)
 			require.NoError(t, err)
 
-			actual, failed, skipped, err := p.ProcessEvents("testfile", objects, map[string]bool{}, false)
+			actual, _, failed, skipped, err := p.ProcessEvents("testfile", objects, map[string]bool{}, false)
 			require.NoError(t, err)
 
 			if len(tt.expectedSkipped) > 0 {
@@ -332,7 +332,7 @@ func TestProcessFact(t *testing.T) {
 
 	destination := &config.DestinationConfig{Type: "google_analytics", BreakOnError: false,
 		DataLayout: &config.DataLayout{Transform: ""}}
-	p, err := NewProcessor("test", destination, false, `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, "new")
+	p, err := NewProcessor("test", destination, false, `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, "new", false)
 	require.NoError(t, err)
 	err = p.InitJavaScriptTemplates()
 	require.NoError(t, err)
@@ -405,6 +405,20 @@ func TestProcessTransform(t *testing.T) {
 			"",
 		},
 		{
+			"react_style",
+			map[string]interface{}{"event_type": "react_style", "eventn_ctx_event_id": "a1024", "b": true},
+			[]events.Event{{"event_type": "react_style", "eventn_ctx_event_id": "a1024", "b": true, "bb": true}},
+			[]string{"events"},
+			"",
+		},
+		{
+			"react_style_skip_all",
+			map[string]interface{}{"event_type": "react_style", "eventn_ctx_event_id": "a1024", "b": false},
+			[]events.Event{},
+			[]string{},
+			"Transform or table name filter marked object to be skipped. This object will be skipped.",
+		},
+		{
 			"segment",
 			map[string]interface{}{"event_type": "user_identify", "source_ip": "127.0.0.1", "url": "https://jitsu.com", "app": "jitsu"},
 			[]events.Event{{"context_ip": "127.0.0.1", "app": "jitsu", "url": "https://jitsu.com"}},
@@ -441,6 +455,16 @@ switch ($.event_type) {
                         })
         }
         return convs
+    case "react_style":
+		return [
+			null,
+			undefined,
+			false,
+			$.b && {
+				bb: $.b,
+				...$,
+			}
+		]
 	case "user_identify":
 		return toSegment($)
     default:
@@ -449,7 +473,7 @@ switch ($.event_type) {
 `
 	destination := &config.DestinationConfig{Type: "google_analytics", BreakOnError: false,
 		DataLayout: &config.DataLayout{Transform: transformExpression}}
-	p, err := NewProcessor("test", destination, false, `events`, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, "new")
+	p, err := NewProcessor("test", destination, false, `events`, fieldMapper, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), identifiers.NewUniqueID("/eventn_ctx/event_id"), 20, "new", false)
 	require.NoError(t, err)
 	err = p.InitJavaScriptTemplates()
 	require.NoError(t, err)

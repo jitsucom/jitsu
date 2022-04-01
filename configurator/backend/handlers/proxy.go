@@ -3,14 +3,13 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"io/ioutil"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/jitsu"
-	"github.com/jitsucom/jitsu/configurator/middleware"
+	mw "github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/server/logging"
-	smdlwr "github.com/jitsucom/jitsu/server/middleware"
-	"io/ioutil"
-	"net/http"
-	"time"
 )
 
 type ProjectIDBody struct {
@@ -30,41 +29,26 @@ func NewProxyHandler(jitsuService *jitsu.Service, decorators map[string]jitsu.AP
 }
 
 //Handler proxies requests to Jitsu Server with validation
-func (ph *ProxyHandler) Handler(c *gin.Context) {
-	begin := time.Now()
-
-	projectID := extractProjectID(c)
-	if projectID == "" {
-		c.JSON(http.StatusBadRequest, smdlwr.ErrResponse("project_id is required query/body parameter", nil))
+func (ph *ProxyHandler) Handler(ctx *gin.Context) {
+	if ctx.IsAborted() {
 		return
 	}
 
-	if !hasAccessToProject(c, projectID) {
-		c.AbortWithStatusJSON(http.StatusForbidden, middleware.ForbiddenProject(projectID))
-		return
+	start := time.Now()
+	if authority, err := mw.GetAuthority(ctx); err != nil {
+		mw.Unauthorized(ctx, err)
+	} else if projectID := extractProjectID(ctx); projectID == "" {
+		mw.RequiredField(ctx, "project_id")
+	} else if !authority.Allow(projectID) {
+		mw.ForbiddenProject(ctx, projectID)
+	} else if req, err := ph.getJitsuRequest(ctx); err != nil {
+		mw.BadRequest(ctx, "Failed to create proxy request to Jitsu server", err)
+	} else if serverStatusCode, serverResponse, err := ph.jitsuService.ProxySend(req); err != nil {
+		mw.BadRequest(ctx, "Failed to proxy request to Jitsu server", err)
+	} else {
+		logging.Debugf("%s response in [%.2f] seconds", ctx.Request.URL.Path, time.Now().Sub(start).Seconds())
+		ctx.Data(serverStatusCode, jsonContentType, serverResponse)
 	}
-
-	req, err := ph.getJitsuRequest(c)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, smdlwr.ErrResponse("Failed to create proxy request to Jitsu server", err))
-		return
-	}
-
-	code, payload, err := ph.jitsuService.ProxySend(req)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, smdlwr.ErrResponse("Failed to proxy request to Jitsu server", err))
-		return
-	}
-
-	c.Header("Content-Type", jsonContentType)
-	c.Writer.WriteHeader(code)
-
-	_, err = c.Writer.Write(payload)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, smdlwr.ErrResponse("Failed to write proxy response", err))
-	}
-
-	logging.Debugf("%s response in [%.2f] seconds", c.Request.URL.Path, time.Now().Sub(begin).Seconds())
 }
 
 func (ph *ProxyHandler) getJitsuRequest(c *gin.Context) (*jitsu.Request, error) {

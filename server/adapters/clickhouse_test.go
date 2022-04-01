@@ -32,7 +32,7 @@ func TestTableStatementFactory(t *testing.T) {
 				Database: "db1",
 				Cluster:  "",
 			},
-			"CREATE TABLE \"db1\".\"test_table\"  (a String,b String,c String,d String) ENGINE = ReplacingMergeTree(_timestamp) PARTITION BY (toYYYYMM(_timestamp)) ORDER BY (eventn_ctx_event_id)",
+			"CREATE TABLE \"db1\".\"test_table\"  (a String,b String,c String,d String) ENGINE = ReplacingMergeTree() PARTITION BY (toYYYYMM(_timestamp)) ORDER BY (eventn_ctx_event_id)",
 		},
 		{
 			"Input config without cluster with order by",
@@ -45,7 +45,7 @@ func TestTableStatementFactory(t *testing.T) {
 				},
 				Cluster: "",
 			},
-			"CREATE TABLE \"db1\".\"test_table\"  (a String,b String,c String,d String) ENGINE = ReplacingMergeTree(_timestamp) PARTITION BY (toYYYYMM(_timestamp)) ORDER BY (id)",
+			"CREATE TABLE \"db1\".\"test_table\"  (a String,b String,c String,d String) ENGINE = ReplacingMergeTree() PARTITION BY (toYYYYMM(_timestamp)) ORDER BY (id)",
 		},
 		{
 			"Input config without cluster with overrides",
@@ -64,7 +64,7 @@ func TestTableStatementFactory(t *testing.T) {
 					PrimaryKeys: []string{"id"},
 				},
 			},
-			"CREATE TABLE \"db1\".\"test_table\"  (a String,b String,c String,d String) ENGINE = ReplacingMergeTree(_timestamp) PARTITION BY (toYYYYMMDD(_timestamp)) ORDER BY (intHash32(id),_timestamp) PRIMARY KEY (id)",
+			"CREATE TABLE \"db1\".\"test_table\"  (a String,b String,c String,d String) ENGINE = ReplacingMergeTree() PARTITION BY (toYYYYMMDD(_timestamp)) ORDER BY (intHash32(id),_timestamp) PRIMARY KEY (id)",
 		},
 		{
 			"Input config without cluster without overrides with raw statement",
@@ -104,7 +104,7 @@ func TestTableStatementFactory(t *testing.T) {
 				Database: "db1",
 				Cluster:  "cluster1",
 			},
-			"CREATE TABLE \"db1\".\"test_table\"  ON CLUSTER \"cluster1\"  (a String,b String,c String,d String) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/db1/test_table', '{replica}', _timestamp) PARTITION BY (toYYYYMM(_timestamp)) ORDER BY (eventn_ctx_event_id)",
+			"CREATE TABLE \"db1\".\"test_table\"  ON CLUSTER \"cluster1\"  (a String,b String,c String,d String) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/db1/test_table', '{replica}') PARTITION BY (toYYYYMM(_timestamp)) ORDER BY (eventn_ctx_event_id)",
 		},
 		{
 			"Input config with cluster with overrides",
@@ -122,7 +122,7 @@ func TestTableStatementFactory(t *testing.T) {
 					PrimaryKeys: []string{"id", "b"},
 				},
 			},
-			"CREATE TABLE \"db1\".\"test_table\"  ON CLUSTER \"cluster1\"  (a String,b String,c String,d String) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/db1/test_table', '{replica}', _timestamp) PARTITION BY (toYYYYMMDD(_timestamp)) ORDER BY (id,a) PRIMARY KEY (id, b)",
+			"CREATE TABLE \"db1\".\"test_table\"  ON CLUSTER \"cluster1\"  (a String,b String,c String,d String) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/db1/test_table', '{replica}') PARTITION BY (toYYYYMMDD(_timestamp)) ORDER BY (id,a) PRIMARY KEY (id, b)",
 		},
 		{
 			"Input config with cluster without overrides with raw statement",
@@ -176,16 +176,16 @@ func TestClickhouseTruncateExistingTable(t *testing.T) {
 	table := &Table{
 		Name: "test_truncate_existing_table",
 		Columns: Columns{
-			"eventn_ctx_event_id": typing.SQLColumn{Type:SchemaToClickhouse[typing.STRING]},
-			"field2":              typing.SQLColumn{Type:SchemaToClickhouse[typing.STRING]},
-			"field3":              typing.SQLColumn{Type:SchemaToClickhouse[typing.INT64]},
-			"user":                typing.SQLColumn{Type:SchemaToClickhouse[typing.STRING]},
-			"_timestamp":          typing.SQLColumn{Type:SchemaToClickhouse[typing.TIMESTAMP]},
+			"eventn_ctx_event_id": typing.SQLColumn{Type: SchemaToClickhouse[typing.STRING]},
+			"field2":              typing.SQLColumn{Type: SchemaToClickhouse[typing.STRING]},
+			"field3":              typing.SQLColumn{Type: SchemaToClickhouse[typing.INT64]},
+			"user":                typing.SQLColumn{Type: SchemaToClickhouse[typing.STRING]},
+			"_timestamp":          typing.SQLColumn{Type: SchemaToClickhouse[typing.TIMESTAMP]},
 		},
 	}
 	container, clickHouse := setupClickHouseDatabase(t, table)
 	defer container.Close()
-	err := clickHouse.BulkInsert(table, createObjectsForClickHouse(recordsCount))
+	err := clickHouse.insert(table, createObjectsForClickHouse(recordsCount)...)
 	require.NoError(t, err, fmt.Sprintf("Failed to bulk insert %d objects", recordsCount))
 	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
@@ -240,6 +240,7 @@ func createObjectsForClickHouse(num int) []map[string]interface{} {
 		object["field3"] = rand.Int()
 		object["user"] = fmt.Sprint(rand.Int())
 		object["_interval_start"] = timestamps[i%len(timestamps)]
+		object["eventn_ctx_event_id"] = uuid.NewV4()
 		objects = append(objects, object)
 	}
 	return objects

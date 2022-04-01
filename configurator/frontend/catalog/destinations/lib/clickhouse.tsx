@@ -1,5 +1,5 @@
 import { modeParameter, tableName } from "./common"
-import { arrayOf, stringType } from "../../sources/types"
+import { arrayOf, booleanType, stringType } from "../../sources/types"
 import { ReactNode } from "react"
 
 let icon: ReactNode = (
@@ -92,6 +92,27 @@ const destination = {
       ),
       required: true,
       type: stringType,
+    },
+    {
+      id: "_users_recognition._enabled",
+      displayName: "User Recognition",
+      documentation: (
+        <>
+          Jitsu can retroactively update events from anonymous users with user id after users identification. See{" "}
+          <a href="https://jitsu.com/docs/other-features/retroactive-user-recognition">Docs</a>.<br />
+          User Recognition support for Clickhouse is limited to ReplacingMergeTree and ReplicatedReplacingMergeTree
+          engine.
+          <br />
+          Clickhouse handles data mutation differently. Please read{" "}
+          <a href="https://jitsu.com/docs/other-features/retroactive-user-recognition/clickhouse">
+            Clickhouse specifics
+          </a>{" "}
+          to avoid unexpected results of Retroactive User Recognition on Clickhouse data tables.
+        </>
+      ),
+      required: false,
+      defaultValue: true,
+      type: booleanType,
     },
   ],
 } as const

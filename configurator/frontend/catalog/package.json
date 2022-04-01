@@ -2,7 +2,7 @@
   "name": "@jitsu/catalog",
   "version": "1.0.15-alpha.1+28a336a9",
   "description": "This package contains the code that enables variety of features of Jitsu Sources, Destinations and API Keys. ",
-  "author": "taletski <kirill@taletski.com>",
+  "author": "Jitsu Dev Team <dev@jitsu.com>",
   "homepage": "https://jitsu.com",
   "main": "./index.ts",
   "scripts": {},

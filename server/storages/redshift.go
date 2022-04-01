@@ -6,10 +6,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
-	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 //AwsRedshift stores files to aws RedShift in two modes:
@@ -75,7 +73,7 @@ func NewAwsRedshift(config *Config) (storage Storage, err error) {
 		}
 	}
 	ar := &AwsRedshift{}
-	err = ar.Init(config)
+	err = ar.Init(config, ar, "", "")
 	if err != nil {
 		return
 	}
@@ -110,81 +108,37 @@ func NewAwsRedshift(config *Config) (storage Storage, err error) {
 	return
 }
 
-//Store process events and stores with storeTable() func
-//returns store result per table, failed events (group of events which are failed to process) and err
-func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
-	_, tableHelper := ar.getAdapters()
-	flatData, failedEvents, skippedEvents, err := ar.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	//update cache with failed events
-	for _, failedEvent := range failedEvents.Events {
-		ar.eventsCache.Error(ar.IsCachingDisabled(), ar.ID(), failedEvent.EventID, failedEvent.Error)
-	}
-	//update cache and counter with skipped events
-	for _, skipEvent := range skippedEvents.Events {
-		ar.eventsCache.Skip(ar.IsCachingDisabled(), ar.ID(), skipEvent.EventID, skipEvent.Error)
-	}
-
-	storeFailedEvents := true
-	tableResults := map[string]*StoreResult{}
-	for _, fdata := range flatData {
-		table := tableHelper.MapTableSchema(fdata.BatchHeader)
-		err := ar.storeTable(fdata, table)
-		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
-		if err != nil {
-			storeFailedEvents = false
-		}
-
-		//events cache
-		for _, object := range fdata.GetPayload() {
-			if err != nil {
-				ar.eventsCache.Error(ar.IsCachingDisabled(), ar.ID(), ar.uniqueIDField.Extract(object), err.Error())
-			} else {
-				ar.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  ar.IsCachingDisabled(),
-					DestinationID:  ar.ID(),
-					EventID:        ar.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          table,
-				})
-			}
-		}
-	}
-
-	//store failed events to fallback only if other events have been inserted ok
-	if storeFailedEvents {
-		return tableResults, failedEvents, skippedEvents, err
-	}
-
-	return tableResults, nil, skippedEvents, nil
-}
-
-//check table schema
+//storeTable check table schema
 //and store data into one table via s3
-func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
-	_, tableHelper := ar.getAdapters()
-	dbTable, err := tableHelper.EnsureTableWithoutCaching(ar.ID(), table)
-	if err != nil {
-		return err
-	}
+func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error) {
+	if fdata.RecognitionPayload {
+		return ar.Abstract.storeTable(fdata)
+	} else {
+		_, tableHelper := ar.getAdapters()
+		table := tableHelper.MapTableSchema(fdata.BatchHeader)
+		dbTable, err := tableHelper.EnsureTableWithoutCaching(ar.ID(), table)
+		if err != nil {
+			return table, err
+		}
 
-	b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
-	if err := ar.s3Adapter.UploadBytes(fdata.FileName, b); err != nil {
-		return err
-	}
+		b, err := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
+		if err != nil {
+			return dbTable, err
+		}
+		if err := ar.s3Adapter.UploadBytes(fdata.FileName, b); err != nil {
+			return dbTable, err
+		}
 
-	if err := ar.redshiftAdapter.Copy(fdata.FileName, dbTable.Name); err != nil {
-		return fmt.Errorf("Error copying file [%s] from s3 to redshift: %v", fdata.FileName, err)
-	}
+		if err := ar.redshiftAdapter.Copy(fdata.FileName, dbTable.Name); err != nil {
+			return dbTable, fmt.Errorf("Error copying file [%s] from s3 to redshift: %v", fdata.FileName, err)
+		}
 
-	if err := ar.s3Adapter.DeleteObject(fdata.FileName); err != nil {
-		logging.SystemErrorf("[%s] file %s wasn't deleted from s3: %v", ar.ID(), fdata.FileName, err)
-	}
+		if err := ar.s3Adapter.DeleteObject(fdata.FileName); err != nil {
+			logging.SystemErrorf("[%s] file %s wasn't deleted from s3: %v", ar.ID(), fdata.FileName, err)
+		}
 
-	return nil
+		return dbTable, nil
+	}
 }
 
 // SyncStore is used in storing chunk of pulled data to AwsRedshift with processing
@@ -194,33 +148,6 @@ func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objec
 
 func (ar *AwsRedshift) Clean(tableName string) error {
 	return cleanImpl(ar, tableName)
-}
-
-//Update updates record in Redshift
-func (ar *AwsRedshift) Update(object map[string]interface{}) error {
-	_, tableHelper := ar.getAdapters()
-	envelops, err := ar.processor.ProcessEvent(object, false)
-	if err != nil {
-		return err
-	}
-	for _, envelop := range envelops {
-		batchHeader := envelop.Header
-		processedObject := envelop.Event
-		table := tableHelper.MapTableSchema(batchHeader)
-
-		dbSchema, err := tableHelper.EnsureTableWithCaching(ar.ID(), table)
-		if err != nil {
-			return err
-		}
-
-		start := timestamp.Now()
-		if err = ar.redshiftAdapter.Update(dbSchema, processedObject, ar.uniqueIDField.GetFlatFieldName(), ar.uniqueIDField.Extract(object)); err != nil {
-			return err
-		}
-		logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.ID(), timestamp.Now().Sub(start).Seconds())
-	}
-
-	return nil
 }
 
 //GetUsersRecognition returns users recognition configuration
@@ -235,15 +162,15 @@ func (ar *AwsRedshift) Type() string {
 
 //Close closes AwsRedshift adapter, fallback logger and streaming worker
 func (ar *AwsRedshift) Close() (multiErr error) {
-	if ar.redshiftAdapter != nil {
-		if err := ar.redshiftAdapter.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.ID(), err))
-		}
-	}
-
 	if ar.streamingWorker != nil {
 		if err := ar.streamingWorker.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", ar.ID(), err))
+		}
+	}
+
+	if ar.redshiftAdapter != nil {
+		if err := ar.redshiftAdapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.ID(), err))
 		}
 	}
 

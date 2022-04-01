@@ -22,9 +22,24 @@ const (
 	FacebookType        = "facebook"
 	WebHookType         = "webhook"
 	NpmType             = "npm"
+	TagType             = "tag"
 	AmplitudeType       = "amplitude"
 	HubSpotType         = "hubspot"
 	DbtCloudType        = "dbtcloud"
+)
+
+type URSetup struct {
+	PKRequired bool
+}
+
+var (
+	UserRecognitionStorages = map[string]URSetup{
+		MySQLType:      {true},
+		PostgresType:   {true},
+		RedshiftType:   {true},
+		SnowflakeType:  {true},
+		ClickHouseType: {false},
+	}
 )
 
 //Storage is a destination representation
@@ -33,13 +48,16 @@ type Storage interface {
 	DryRun(payload events.Event) ([][]adapters.TableField, error)
 	Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error)
 	SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error
-	Update(object map[string]interface{}) error
+	storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error)
+
+	//Update(object map[string]interface{}) error
 	Fallback(events ...*events.FailedEvent)
 	GetUsersRecognition() *UserRecognitionConfiguration
+	GetSyncWorker() *SyncWorker
 	GetUniqueIDField() *identifiers.UniqueID
 	getAdapters() (adapters.SQLAdapter, *TableHelper)
 	Processor() *schema.Processor
-	Init(config *Config) error
+	Init(config *Config, impl Storage, preinstalledJavaScript string, defaultUserTransform string) error
 	Start(config *Config) error
 	ID() string
 	Type() string
@@ -72,10 +90,10 @@ type UserRecognitionConfiguration struct {
 	AnonymousIDJSONPath      jsonutils.JSONPath
 	IdentificationJSONPathes *jsonutils.JSONPaths
 
-	enabled bool
+	Enabled bool
 }
 
 //IsEnabled returns true if not nil and enabled
 func (urc *UserRecognitionConfiguration) IsEnabled() bool {
-	return urc != nil && urc.enabled
+	return urc != nil && urc.Enabled
 }

@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 )
 
-var disabledRecognitionConfiguration = &UserRecognitionConfiguration{enabled: false}
+var disabledRecognitionConfiguration = &UserRecognitionConfiguration{Enabled: false}
 
 //BigQuery stores files to google BigQuery in two modes:
 //batch: via google cloud storage in batch mode (1 file = 1 operation)
@@ -65,7 +64,7 @@ func NewBigQuery(config *Config) (storage Storage, err error) {
 	bq := &BigQuery{
 		gcsAdapter: gcsAdapter,
 	}
-	err = bq.Init(config)
+	err = bq.Init(config, bq, "", "")
 	if err != nil {
 		return
 	}
@@ -95,65 +94,14 @@ func NewBigQuery(config *Config) (storage Storage, err error) {
 	return
 }
 
-//Store process events and stores with storeTable() func
-//returns store result per table, failed events (group of events which are failed to process) and err
-func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
-	_, tableHelper := bq.getAdapters()
-	flatData, failedEvents, skippedEvents, err := bq.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	//update cache with failed events
-	for _, failedEvent := range failedEvents.Events {
-		bq.eventsCache.Error(bq.IsCachingDisabled(), bq.ID(), failedEvent.EventID, failedEvent.Error)
-	}
-	//update cache and counter with skipped events
-	for _, skipEvent := range skippedEvents.Events {
-		bq.eventsCache.Skip(bq.IsCachingDisabled(), bq.ID(), skipEvent.EventID, skipEvent.Error)
-	}
-
-	storeFailedEvents := true
-	tableResults := map[string]*StoreResult{}
-	for _, fdata := range flatData {
-		table := tableHelper.MapTableSchema(fdata.BatchHeader)
-		err := bq.storeTable(fdata, table)
-		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
-		if err != nil {
-			storeFailedEvents = false
-		}
-
-		//events cache
-		for _, object := range fdata.GetPayload() {
-			if err != nil {
-				bq.eventsCache.Error(bq.IsCachingDisabled(), bq.ID(), bq.uniqueIDField.Extract(object), err.Error())
-			} else {
-				bq.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  bq.IsCachingDisabled(),
-					DestinationID:  bq.ID(),
-					EventID:        bq.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          table,
-				})
-			}
-		}
-	}
-
-	//store failed events to fallback only if other events have been inserted ok
-	if storeFailedEvents {
-		return tableResults, failedEvents, skippedEvents, nil
-	}
-
-	return tableResults, nil, skippedEvents, nil
-}
-
 //storeTable checks table schema
 //stores data into one table via google cloud storage (if batch BQ) or uses streaming if stream mode
-func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
+func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error) {
 	_, tableHelper := bq.getAdapters()
+	table := tableHelper.MapTableSchema(fdata.BatchHeader)
 	dbTable, err := tableHelper.EnsureTableWithoutCaching(bq.ID(), table)
 	if err != nil {
-		return err
+		return table, err
 	}
 
 	//batch mode
@@ -163,28 +111,31 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 		if fileName == "" {
 			fileName = dbTable.Name + "_" + uuid.NewLettersNumbers()
 		}
-		b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
+		b, err := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
+		if err != nil {
+			return dbTable, err
+		}
 		if err := bq.gcsAdapter.UploadBytes(fileName, b); err != nil {
-			return err
+			return dbTable, err
 		}
 
 		if err := bq.bqAdapter.Copy(fileName, dbTable.Name); err != nil {
-			return fmt.Errorf("Error copying file [%s] from gcp to bigquery: %v", fileName, err)
+			return dbTable, fmt.Errorf("Error copying file [%s] from gcp to bigquery: %v", fileName, err)
 		}
 
 		if err := bq.gcsAdapter.DeleteObject(fileName); err != nil {
 			logging.SystemErrorf("[%s] file %s wasn't deleted from gcs: %v", bq.ID(), fileName, err)
 		}
 
-		return nil
+		return dbTable, nil
 	}
 
 	//stream mode
-	return bq.bqAdapter.BulkInsert(table, fdata.GetPayload())
+	return dbTable, bq.bqAdapter.Insert(adapters.NewBatchInsertContext(table, fdata.GetPayload(), nil))
 }
 
 //Update isn't supported
-func (bq *BigQuery) Update(object map[string]interface{}) error {
+func (bq *BigQuery) Update(eventContext *adapters.EventContext) error {
 	return errors.New("BigQuery doesn't support updates")
 }
 
@@ -213,8 +164,8 @@ func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 		}
 
 		start := timestamp.Now()
-
-		if err := bq.storeTable(flatData, table); err != nil {
+		_, err := bq.storeTable(flatData)
+		if err != nil {
 			return err
 		}
 

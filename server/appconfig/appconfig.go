@@ -76,7 +76,9 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.disable_skip_events_warn", false)
 	viper.SetDefault("server.cache.enabled", true)
 	viper.SetDefault("server.cache.events.size", 100)
+	viper.SetDefault("server.cache.events.time_window_sec", 60)
 	viper.SetDefault("server.cache.events.trim_interval_ms", 500)
+	viper.SetDefault("server.cache.events.max_malformed_event_size_bytes", 10_000)
 	viper.SetDefault("server.cache.pool.size", 10)
 	viper.SetDefault("server.strict_auth_tokens", false)
 	viper.SetDefault("server.max_columns", 100)
@@ -107,6 +109,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id||/user/anonymous_id||/eventn_ctx/user/hashed_anonymous_id||/user/hashed_anonymous_id")
 	viper.SetDefault("users_recognition.identification_nodes", []string{"/eventn_ctx/user/id||/user/id", "/eventn_ctx/user/email||/user/email", "/eventn_ctx/user/internal_id||/user/internal_id"}) // internal_id is DEPRECATED and is set for backward compatibility
 	viper.SetDefault("users_recognition.pool.size", 10)
+	viper.SetDefault("users_recognition.cache_ttl_min", 180)
 
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.install_taps", true)
