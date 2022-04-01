@@ -71,7 +71,7 @@ function JitsuCloudHero() {
           <ul className={`list-inside list-none ${styles.featureList}`}>
             <li>
               First{" "}
-              <a href="https://jitsu.com/pricing" className={styles.heroLink}>
+              <a target="_blank" href="https://jitsu.com/pricing" className={styles.heroLink}>
                 250k
               </a>{" "}
               events per month are tracked for free
@@ -81,14 +81,14 @@ function JitsuCloudHero() {
             </li>
             <li>
               Community support via Jitsu Public Slack (
-              <a href="https://jitsu.com/slack" className={styles.heroLink}>
+              <a target="_blank" href="https://jitsu.com/slack" className={styles.heroLink}>
                 join now!
               </a>
               )
             </li>
             <li>
               See all{" "}
-              <a href="https://jitsu.com/pricing" className={styles.heroLink}>
+              <a target="_blank" href="https://jitsu.com/pricing" className={styles.heroLink}>
                 pricing options
               </a>
             </li>
@@ -97,7 +97,11 @@ function JitsuCloudHero() {
         <h2 className="text-center lg:text-left text-textPale font-heading font-bold tracking-wider mt-12">
           Interested in self-hosting?
         </h2>
-        <a href="https://jitsu.com/docs/deployment" className="text-text hover:text-text flex flex-row items-center">
+        <a
+          target="_blank"
+          href="https://jitsu.com/docs/deployment"
+          className="text-text hover:text-text flex flex-row items-center"
+        >
           <div className="text-text pr-4">
             <GitHubLogo />
           </div>
@@ -126,7 +130,7 @@ export default function GetStartedPage(props: GetStartedPageProps) {
           props.login && "hidden"
         } lg:block bg-gradient-to-br to-success from-primaryHover md:w-full lg:w-1/2 min-h-screen order-last lg:order-first`}
       >
-        <a href="https://jitsu.com" className="hidden lg:block">
+        <a target="_blank" href="https://jitsu.com" className="hidden lg:block">
           <img className="mt-12 ml-12 h-8" src={logo} />
         </a>
         <div className={`flex justify-around ${styles.hero}`}>
@@ -142,7 +146,7 @@ export default function GetStartedPage(props: GetStartedPageProps) {
         </div>
       </div>
       <div className="flex flex-col items-center lg:pt-36 ml-auto mr-auto pr-2 pl-2 pb-12">
-        <a href="https://jitsu.com" className="block mb-6 lg:hidden">
+        <a target="_blank" href="https://jitsu.com" className="block mb-6 lg:hidden">
           <img className="mt-8 h-8" src={logo} />
         </a>
         {props.login ? <LoginForm supportOauth={props.oauthSupport} ssoAuthLink={props.ssoAuthLink} /> : <SignupForm />}

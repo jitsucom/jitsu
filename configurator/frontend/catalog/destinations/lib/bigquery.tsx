@@ -32,8 +32,10 @@ const icon = (
 const bigQueryDestination = {
   description: (
     <>
-      <a href="https://cloud.google.com/bigquery">Google BigQuery</a> is a fast, scalable, and easy-to-use data
-      warehouse. Main advantages of Google BiqQuery are:
+      <a target="_blank" href="https://cloud.google.com/bigquery">
+        Google BigQuery
+      </a>{" "}
+      is a fast, scalable, and easy-to-use data warehouse. Main advantages of Google BiqQuery are:
       <ul>
         <li>
           <b>Serverless architecture</b>.{" "}
@@ -42,10 +44,17 @@ const bigQueryDestination = {
           <b>Pay-as-you go</b>
         </li>
       </ul>
-      Jitsu can <a href="https://cloud.google.com/bigquery/streaming-data-into-bigquery">stream</a> and{" "}
-      <a href="https://cloud.google.com/bigquery/docs/batch-loading-data">batch</a> data to Google BigQuery. Streaming
-      will get data to BQ immediately, however Google charges for each streamed record, while batching is free.
-      Streaming is the fastest way to get started, but batching will be cheaper for large volumes.
+      Jitsu can{" "}
+      <a target="_blank" href="https://cloud.google.com/bigquery/streaming-data-into-bigquery">
+        stream
+      </a>{" "}
+      and{" "}
+      <a target="_blank" href="https://cloud.google.com/bigquery/docs/batch-loading-data">
+        batch
+      </a>{" "}
+      data to Google BigQuery. Streaming will get data to BQ immediately, however Google charges for each streamed
+      record, while batching is free. Streaming is the fastest way to get started, but batching will be cheaper for
+      large volumes.
     </>
   ),
   syncFromSourcesStatus: "coming_soon",
@@ -92,7 +101,10 @@ const bigQueryDestination = {
       documentation: (
         <>
           Google Service Account JSON for BigQuery.{" "}
-          <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">
+          <a
+            target="_blank"
+            href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration"
+          >
             Read more about Google Authorization
           </a>
         </>

@@ -36,7 +36,11 @@ export const allSingerTaps: SingerTap[] = [
           required: false,
           documentation: (
             <>
-              ID of the <a href="https://apidocs.nextroll.com/guides/get-started.html">NextRoll API</a> application
+              ID of the{" "}
+              <a target="_blank" href="https://apidocs.nextroll.com/guides/get-started.html">
+                NextRoll API
+              </a>{" "}
+              application
             </>
           ),
         },
@@ -48,7 +52,9 @@ export const allSingerTaps: SingerTap[] = [
           documentation: (
             <>
               Secret of the API key generated using the{" "}
-              <a href="https://developers.nextroll.com/my-apps">NextRoll developer account</a>
+              <a target="_blank" href="https://developers.nextroll.com/my-apps">
+                NextRoll developer account
+              </a>
             </>
           ),
         },
@@ -60,7 +66,10 @@ export const allSingerTaps: SingerTap[] = [
           documentation: (
             <>
               Access Token.{" "}
-              <a href="https://apidocs.nextroll.com/guides/oauth.html?highlight=access%20token#your-first-api-call">
+              <a
+                target="_blank"
+                href="https://apidocs.nextroll.com/guides/oauth.html?highlight=access%20token#your-first-api-call"
+              >
                 Learn how to generate it
               </a>{" "}
               using the NextRoll API
@@ -75,7 +84,10 @@ export const allSingerTaps: SingerTap[] = [
           documentation: (
             <>
               Refresh Token.{" "}
-              <a href="https://apidocs.nextroll.com/guides/oauth.html?highlight=access%20token#your-first-api-call">
+              <a
+                target="_blank"
+                href="https://apidocs.nextroll.com/guides/oauth.html?highlight=access%20token#your-first-api-call"
+              >
                 Learn how to generate it
               </a>{" "}
               using the NextRoll API
@@ -296,7 +308,10 @@ export const allSingerTaps: SingerTap[] = [
           required: true,
           documentation: (
             <>
-              Access Token. Generate it <a href="https://github.com/settings/tokens">here</a>
+              Access Token. Generate it{" "}
+              <a target="_blank" href="https://github.com/settings/tokens">
+                here
+              </a>
             </>
           ),
         },
@@ -343,7 +358,10 @@ export const allSingerTaps: SingerTap[] = [
           required: true,
           documentation: (
             <>
-              API Developer token. <a href="https://services.google.com/fb/forms/newtoken/">Apply here</a>
+              API Developer token.{" "}
+              <a target="_blank" href="https://services.google.com/fb/forms/newtoken/">
+                Apply here
+              </a>
             </>
           ),
         },
@@ -487,7 +505,10 @@ export const allSingerTaps: SingerTap[] = [
           documentation: (
             <>
               Intercom API Access Token.{" "}
-              <a href="https://developers.intercom.com/building-apps/docs/authentication-types#section-access-tokens">
+              <a
+                target="_blank"
+                href="https://developers.intercom.com/building-apps/docs/authentication-types#section-access-tokens"
+              >
                 Read how to get it
               </a>
             </>
@@ -655,7 +676,10 @@ export const allSingerTaps: SingerTap[] = [
             <>
               Time zone in which integer date times are stored. The project timezone may be found in the project
               settings in the Mixpanel console.{" "}
-              <a href="https://help.mixpanel.com/hc/en-us/articles/115004547203-Manage-Timezones-for-Projects-in-Mixpanel">
+              <a
+                target="_blank"
+                href="https://help.mixpanel.com/hc/en-us/articles/115004547203-Manage-Timezones-for-Projects-in-Mixpanel"
+              >
                 More info about timezones
               </a>
               .
@@ -920,7 +944,10 @@ export const allSingerTaps: SingerTap[] = [
           required: true,
           documentation: (
             <>
-              Read more about <a href="https://shopify.dev/tutorials/generate-api-credentials">How to obtain API Key</a>
+              Read more about{" "}
+              <a target="_blank" href="https://shopify.dev/tutorials/generate-api-credentials">
+                How to obtain API Key
+              </a>
             </>
           ),
         },
@@ -964,11 +991,16 @@ export const allSingerTaps: SingerTap[] = [
           documentation: (
             <>
               You can obtain a token for a single workspace by creating a new{" "}
-              <a href="https://api.slack.com/apps?new_app=1">Slack App</a> in your workspace and assigning it the
-              relevant <a href="https://api.slack.com/docs/oauth-scopes">scopes</a>. As of right now, the minimum
-              required scopes for this App are: channels:history, channels:join, channels:read, files:read, groups:read,
-              reactions:read, remote_files:read, team:read, usergroups:read, users.profile:read, users:read,
-              users:read.email
+              <a target="_blank" href="https://api.slack.com/apps?new_app=1">
+                Slack App
+              </a>{" "}
+              in your workspace and assigning it the relevant{" "}
+              <a target="_blank" href="https://api.slack.com/docs/oauth-scopes">
+                scopes
+              </a>
+              . As of right now, the minimum required scopes for this App are: channels:history, channels:join,
+              channels:read, files:read, groups:read, reactions:read, remote_files:read, team:read, usergroups:read,
+              users.profile:read, users:read, users:read.email
             </>
           ),
         },

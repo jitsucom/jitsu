@@ -142,7 +142,11 @@ const postgresDestination = {
           SSL Mode is a configuration parameter to determine the security of the connection. There is an analogy to web
           security: <b>Disable SSL</b> is HTTP and <b>verify-full</b> is HTTPS. Other options are between them. Default
           one is <b>Require</b> which means that data will be encrypted. We do not recommend to disable SSL. Read more
-          about <a href="https://www.postgresql.org/docs/9.1/libpq-ssl.html">Postgres SSL Modes</a>.
+          about{" "}
+          <a target="_blank" href="https://www.postgresql.org/docs/9.1/libpq-ssl.html">
+            Postgres SSL Modes
+          </a>
+          .
         </>
       ),
       required: true,
@@ -205,9 +209,14 @@ const postgresDestination = {
       documentation: (
         <>
           Optional Postgres connection parameters in format: parameter=value. You can check them all in{" "}
-          <a href="https://www.postgresql.org/docs/9.1/libpq-connect.html">Postgres docs</a>. If you use{" "}
-          <a href="https://www.pgbouncer.org/">PgBouncer</a> you should add required connection parameter:{" "}
-          <code>binary_parameters=yes</code>
+          <a target="_blank" href="https://www.postgresql.org/docs/9.1/libpq-connect.html">
+            Postgres docs
+          </a>
+          . If you use{" "}
+          <a target="_blank" href="https://www.pgbouncer.org/">
+            PgBouncer
+          </a>{" "}
+          you should add required connection parameter: <code>binary_parameters=yes</code>
         </>
       ),
     },

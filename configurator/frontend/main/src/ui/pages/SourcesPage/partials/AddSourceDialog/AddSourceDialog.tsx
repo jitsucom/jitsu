@@ -77,7 +77,9 @@ const AddSourceDialogComponent = () => {
         content: (
           <>
             <b>{src.displayName}</b> connector is available as alpha version only, it requires an understanding of{" "}
-            <a href="https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md">Singer Protocol</a>
+            <a target="_blank" href="https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md">
+              Singer Protocol
+            </a>
             <br />
             <br />
             Do you want to continue?
@@ -110,7 +112,10 @@ const AddSourceDialogComponent = () => {
           <>
             Currently, we do not support Airbyte sources for the applications deployed on Heroku due to its limited
             support for running docker containers inside docker container. To learn more, refer to{" "}
-            <a href="https://devcenter.heroku.com/articles/container-registry-and-runtime#unsupported-dockerfile-commands">
+            <a
+              target="_blank"
+              href="https://devcenter.heroku.com/articles/container-registry-and-runtime#unsupported-dockerfile-commands"
+            >
               Heroku documentation
             </a>
           </>

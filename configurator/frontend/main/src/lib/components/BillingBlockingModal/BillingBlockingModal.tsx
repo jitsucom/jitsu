@@ -54,7 +54,11 @@ const BillingBlockingModal: React.FC<BillingBlockingModalProps> = props => {
           the right to pause it at any moment
         </p>
         <p>
-          Please upgrade to any of the <a href="https://jitsu.com/pricing">following plans</a>:{" "}
+          Please upgrade to any of the{" "}
+          <a target="_blank" href="https://jitsu.com/pricing">
+            following plans
+          </a>
+          :{" "}
         </p>
         <BillingPlanOptions planStatus={props.subscription} />
       </div>

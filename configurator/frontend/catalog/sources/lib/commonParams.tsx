@@ -2,7 +2,11 @@ import { jsonType, oauthSecretType, Parameter, selectionType, stringType } from 
 
 const oauthParamDocumentation = (
   <>
-    Use <a href="https://github.com/jitsucom/oauthcli">Jitsu OAuth CLI Util</a> to obtain oauth credentials
+    Use{" "}
+    <a target="_blank" href="https://github.com/jitsucom/oauthcli">
+      Jitsu OAuth CLI Util
+    </a>{" "}
+    to obtain oauth credentials
   </>
 )
 
@@ -59,11 +63,13 @@ export const googleAuthConfigParameters = ({
             <li>
               <b>OAuth</b> — you'll need to provide Client Secret / Client Id (you can obtain in in Google Cloud
               Console) and get a refresh token. Jitsu developed a small{" "}
-              <a href="https://github.com/jitsucom/oauthcli">CLI utility to obtain those tokens</a>
+              <a target="_blank" href="https://github.com/jitsucom/oauthcli">
+                CLI utility to obtain those tokens
+              </a>
             </li>
             <li>
               <b>Service Account</b> — you'll a){" "}
-              <a href="https://cloud.google.com/iam/docs/creating-managing-service-account-keys">
+              <a target="_blank" href="https://cloud.google.com/iam/docs/creating-managing-service-account-keys">
                 create a service account in Google Cloud Console
               </a>{" "}
               b) share google resource (such as ocument or analytics property) with this account (account email look
@@ -122,7 +128,7 @@ export const googleAuthConfigParameters = ({
       required: true,
       documentation: (
         <>
-          <a href="https://cloud.google.com/iam/docs/creating-managing-service-account-keys">
+          <a target="_blank" href="https://cloud.google.com/iam/docs/creating-managing-service-account-keys">
             Use Google Cloud Console to create Service Account get Service Key JSON
           </a>
         </>
