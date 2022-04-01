@@ -1,11 +1,4 @@
-/* eslint-disable */
-import Marshal from "../commons/marshalling"
-
-export interface IProject {
-  id: string
-  name: string
-  planId: string
-}
+import { User } from "../../generated/conf-openapi"
 
 /**
  * Structure of /database API response
@@ -17,42 +10,13 @@ export type PgDatabaseCredentials = {
   Port: string
   Database: string
 }
+
 export interface Transformer<T> {
   (data: any, headers?: any): T
 }
+
 export const JSON_FORMAT: Transformer<any> = undefined
 export const AS_IS_FORMAT: Transformer<string> = response => (response ? response.toString() : null)
-
-export class Project implements IProject {
-  private readonly _id: string
-  private _name: string
-  private _planId?: string
-
-  constructor(id: string, name: string) {
-    this._id = id
-    this._name = name
-  }
-
-  get id(): string {
-    return this._id
-  }
-
-  get name(): string {
-    return this._name
-  }
-
-  set name(value: string) {
-    this._name = value
-  }
-
-  get planId(): string {
-    return this._planId
-  }
-
-  set planId(value: string) {
-    this._planId = value
-  }
-}
 
 /**
  * User information that was retried from auth method. Might contain
@@ -71,122 +35,60 @@ export enum Permission {
   BECOME_OTHER_USER,
 }
 
-export class User {
-  private readonly _apiAccessAccessor: () => ApiAccess
-  private readonly _uid: string
-  private _email: string
-  private _name: string
-  private _projects: Project[] = []
-  private _onboarded = false
-  private readonly _suggestedInfo: SuggestedUserInfo
-  private _emailOptout: boolean = false
-  private _forcePasswordChange: boolean = false
-  private _created: string //creation date in ISO string
-
-  constructor(uid: string, apiAccessAccessor: () => ApiAccess, suggested: SuggestedUserInfo, data?: any) {
-    if (data) {
-      let projectSingleton = data._project
-      delete data["_project"]
-      Object.assign(this, data)
-      if (projectSingleton) {
-        this._projects = [Marshal.newKnownInstance(Project, projectSingleton)]
-      }
-    }
-    this._suggestedInfo = { ...suggested }
-
-    //This piece of code is very WEIRD and should be rewritten.
-    //The idea to make sure that this and suggestedInfo both has full data
-    if (!this._name && this._suggestedInfo.name) {
-      this._name = this._suggestedInfo.name
-    }
-    if (!this._email && this._suggestedInfo.email) {
-      this._email = suggested.email
-    }
-    if (!this._suggestedInfo.email && this._email) {
-      this._suggestedInfo.email = this._email
-    }
-    if (!this._suggestedInfo.name && this._name) {
-      this._suggestedInfo.name = this._name
-    }
-    if (!this._suggestedInfo.companyName && this.projects && this.projects.length > 0 && this.projects[0].name) {
-      this._suggestedInfo.companyName = this.projects[0].name
-    }
-    //End of WEIRD code
-
-    this._apiAccessAccessor = apiAccessAccessor
-    this._uid = uid
+/**
+ * User internal representation. This class is here for backward compatibility
+ */
+export type UserDTO = {
+  $type: "User"
+  _created: string
+  _uid: string
+  _name: string
+  _email: string
+  _emailOptout: boolean
+  _forcePasswordChange: boolean
+  _lastUpdated: string
+  _onboarded: boolean
+  _suggestedInfo: {
+    companyName?: string
+    email?: string
+    name?: string
   }
-
-  get created() {
-    return new Date(this._created)
+  _project?: {
+    $type: "Project"
+    _id: string
+    _name: string | null
+    _requireSetup?: boolean
   }
+}
 
-  set created(value: Date) {
-    this._created = value.toISOString()
+export function userToDTO(user: User): UserDTO {
+  return {
+    _uid: user.id,
+    _name: user.name,
+    _emailOptout: user.emailOptout || false,
+    _forcePasswordChange: user.forcePasswordChange || false,
+    _lastUpdated: new Date().toISOString(),
+    _suggestedInfo: {
+      companyName: user.suggestedCompanyName || undefined,
+      email: user.email || undefined,
+      name: user.name || undefined,
+    },
+    $type: "User",
+    _created: user.created || new Date().toISOString(),
+    _email: user.email,
+    _onboarded: true,
   }
+}
 
-  get apiAccess(): ApiAccess {
-    return this._apiAccessAccessor()
-  }
-
-  get uid(): string {
-    return this._uid
-  }
-
-  get onboarded(): boolean {
-    return this._onboarded
-  }
-
-  get suggestedInfo(): SuggestedUserInfo {
-    return this._suggestedInfo
-  }
-
-  set onboarded(value: boolean) {
-    this._onboarded = value
-  }
-
-  get email(): string {
-    return this._email
-  }
-
-  set email(newEmail: string) {
-    this._email = newEmail
-  }
-
-  get name(): string {
-    return this._name
-  }
-
-  get projects(): Project[] {
-    return this._projects
-  }
-
-  set name(value: string) {
-    this._name = value
-  }
-
-  set projects(value: Project[]) {
-    this._projects = value
-  }
-
-  get emailOptout(): boolean {
-    return this._emailOptout
-  }
-
-  set emailOptout(value: boolean) {
-    this._emailOptout = value
-  }
-
-  get forcePasswordChange(): boolean {
-    return this._forcePasswordChange
-  }
-
-  set forcePasswordChange(value: boolean) {
-    this._forcePasswordChange = value
-  }
-
-  hasPermission(permission: Permission): boolean {
-    return this.email.endsWith("@jitsu.com") || this.email.endsWith("@ksense.io")
+export function userFromDTO(dto: UserDTO): User {
+  return {
+    created: dto._created || new Date().toISOString(),
+    email: dto._email || dto._suggestedInfo?.email,
+    emailOptout: dto._emailOptout || false,
+    forcePasswordChange: dto._forcePasswordChange || false,
+    name: dto._name || dto._suggestedInfo?.name,
+    id: dto._uid,
+    suggestedCompanyName: dto._suggestedInfo?.companyName,
   }
 }
 

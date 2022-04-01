@@ -36,11 +36,18 @@ var (
 	ManageMySQLPrimaryKeys = innerError.NewSubtype("manage_mysql_primary_keys")
 
 	DBInfo          = errorx.RegisterPrintableProperty("db_info")
+	DBObjects       = errorx.RegisterPrintableProperty("db_objects")
 	SystemErrorFlag = errorx.RegisterPrintableProperty("system_error")
 
 	DestinationID   = errorx.RegisterPrintableProperty("destination_id")
 	DestinationType = errorx.RegisterPrintableProperty("destination_type")
 )
+
+/*
+func Wrap(err error, errorType *errorx.Type, message, propertyKey string, property interface{}) *errorx.Error{
+	return errorType.Wrap(err, message).
+		WithProperty(propertyKey, property)
+}*/
 
 func Decorate(err error, msg string, args ...interface{}) *errorx.Error {
 	return errorx.Decorate(err, msg, args...)

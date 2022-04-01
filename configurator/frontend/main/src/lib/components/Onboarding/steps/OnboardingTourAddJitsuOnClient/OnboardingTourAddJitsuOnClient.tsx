@@ -11,6 +11,7 @@ import { apiKeysStore } from "stores/apiKeys"
 import { destinationsStore } from "stores/destinations"
 // @Styles
 import styles from "./OnboardingTourAddJitsuOnClient.module.less"
+import { connectionsHelper } from "stores/helpers"
 
 type Props = {
   handleGoNext: () => void
@@ -24,7 +25,8 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = observer(({ handl
     const getLinkedApiKey = async (): Promise<void> => {
       const services = ApplicationServices.get()
 
-      const linkedKey = apiKeysStore.firstLinkedKey
+      const linkedDestination = destinationsStore.listIncludeHidden.find(dst => dst._onlyKeys.length)
+      const linkedKey = linkedDestination ? apiKeysStore.get(linkedDestination._onlyKeys[0]) : null
       if (linkedKey) {
         setApiKey(linkedKey)
         return
@@ -49,7 +51,7 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = observer(({ handl
       // can only happen to self-hosted user who has skipped the database step
       if (!unlinkedDestination) return
 
-      await destinationsStore.linkApiKeysToDestinations(unlinkedKey.uid, unlinkedDestination._uid)
+      await connectionsHelper.updateDestinationsConnectionsToApiKey(unlinkedKey.uid, [unlinkedDestination._uid])
       setApiKey(unlinkedKey)
     }
 

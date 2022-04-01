@@ -6,14 +6,13 @@ import moment, { Moment } from "moment"
 import ApplicationServices from "./ApplicationServices"
 import { BackendApiClient } from "./BackendApiClient"
 // @Types
-import { IDestinationsStore } from "../../stores/destinations"
-import { ISourcesStore } from "../../stores/sources"
-import { IProject } from "lib/services/model"
+import type { destinationsStore as DestinationsStore } from "../../stores/destinations"
+import type { sourcesStore as SourcesStore } from "../../stores/sources"
 import { DatePoint, StatisticsService } from "lib/services/stat"
 // @Utils
 import { withQueryParams } from "utils/queryParams"
 import { numberFormat } from "../commons/utils"
-import { UpgradePlan } from "../../ui/components/CurrentPlan/CurrentPlan"
+import { BillingPlanOptions } from "lib/components/BillingPlanOptions/BillingPlanOptions"
 
 export type PricingPlanId = "opensource" | "free" | "growth" | "premium" | "enterprise"
 
@@ -207,7 +206,7 @@ async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
   }
 
   const project_id = services.activeProject.id
-  const user_id = services.userService.getUser().uid
+  const user_id = services.userService.getUser().id
   const id_token = await services.userService.getIdToken()
 
   try {
@@ -239,12 +238,12 @@ async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
 }
 
 export async function getCurrentSubscription(
-  project: IProject,
+  projectId: string,
   backendApiClient: BackendApiClient,
-  destinationsStore: IDestinationsStore,
-  sourcesStore: ISourcesStore
+  destinationsStore: typeof DestinationsStore,
+  sourcesStore: typeof SourcesStore
 ): Promise<CurrentSubscription> {
-  const statService = new StatisticsService(backendApiClient, project, true)
+  const statService = new StatisticsService(backendApiClient, projectId, true)
 
   const subscription = await fetchCurrentSubscription()
 
@@ -319,7 +318,8 @@ export function generateCheckoutLink(params: {
   redirect_base: string
 }): string {
   const billingUrl = ApplicationServices.get().applicationConfiguration.billingUrl
-  return withQueryParams(`${billingUrl}/api/init-checkout`, params)
+  const link = withQueryParams(`${billingUrl}/api/init-checkout`, params, { encode: ["user_email"] })
+  return link
 }
 
 export function generateCustomerPortalLink(
@@ -346,7 +346,7 @@ export function showQuotaLimitModal(subscription: CurrentSubscription, msg: Reac
     content: (
       <div>
         <div className="text-lg text-center pt-4">{msg}</div>
-        <UpgradePlan planStatus={subscription} />
+        <BillingPlanOptions planStatus={subscription} />
       </div>
     ),
     closable: true,

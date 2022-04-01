@@ -122,11 +122,11 @@ export class JWTBackendClient implements BackendApiClient {
           error.response.status === 401 &&
           apiAccessAccessor().supportRefreshToken() &&
           !originalRequest._retry &&
-          !originalRequest.url.includes("/users/token/refresh")
+          !originalRequest.url.includes("/v1/users/token/refresh")
         ) {
           originalRequest._retry = true
           return axios
-            .post(concatenateURLs(baseUrl, "/users/token/refresh"), {
+            .post(concatenateURLs(baseUrl, "/v1/users/token/refresh"), {
               refresh_token: apiAccessAccessor().refreshToken,
             })
             .then(res => {

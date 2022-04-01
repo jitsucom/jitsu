@@ -109,7 +109,7 @@ func TestProcessFilePayload(t *testing.T) {
 				},
 			},
 			[]events.FailedEvent{{Event: []byte(`{"_geo_data":{},"event_type":"views","key1000":"super value"}`), Error: "error extracting table name: _timestamp field doesn't exist"}},
-			[]events.SkippedEvent{{EventID: "qoow1", Error: "Transform or table name filter marked object to be skipped. This object will be skipped."}},
+			[]events.SkippedEvent{{Event: []byte(`{"_geo_data":{"city":"New York","country":"US"},"_timestamp":"2020-08-02T18:23:56.291383Z","event_type":"skipped","eventn_ctx_event_id":"qoow1","key1":{"key2":"splu"},"key10":{"sib1":{"1":"k"}}}`), Error: "Transform or table name filter marked object to be skipped. This object will be skipped."}},
 		},
 		{
 			"Input fallback file",
@@ -405,6 +405,20 @@ func TestProcessTransform(t *testing.T) {
 			"",
 		},
 		{
+			"react_style",
+			map[string]interface{}{"event_type": "react_style", "eventn_ctx_event_id": "a1024", "b": true},
+			[]events.Event{{"event_type": "react_style", "eventn_ctx_event_id": "a1024", "b": true, "bb": true}},
+			[]string{"events"},
+			"",
+		},
+		{
+			"react_style_skip_all",
+			map[string]interface{}{"event_type": "react_style", "eventn_ctx_event_id": "a1024", "b": false},
+			[]events.Event{},
+			[]string{},
+			"Transform or table name filter marked object to be skipped. This object will be skipped.",
+		},
+		{
 			"segment",
 			map[string]interface{}{"event_type": "user_identify", "source_ip": "127.0.0.1", "url": "https://jitsu.com", "app": "jitsu"},
 			[]events.Event{{"context_ip": "127.0.0.1", "app": "jitsu", "url": "https://jitsu.com"}},
@@ -441,6 +455,16 @@ switch ($.event_type) {
                         })
         }
         return convs
+    case "react_style":
+		return [
+			null,
+			undefined,
+			false,
+			$.b && {
+				bb: $.b,
+				...$,
+			}
+		]
 	case "user_identify":
 		return toSegment($)
     default:

@@ -33,7 +33,7 @@ require (
 	github.com/lib/pq v1.10.2
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mailru/go-clickhouse v1.8.0
-	github.com/mitchellh/hashstructure/v2 v2.0.1
+	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/oschwald/geoip2-golang v1.4.0
@@ -68,7 +68,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/segmentio/analytics-go.v3 v3.1.0
 	gotest.tools v2.2.0+incompatible
-	rogchap.com/v8go v0.7.0
+	rogchap.com/v8go v0.7.1-0.20220112220650-5e91d3d9dcab
 )
 
 require github.com/joomcode/errorx v1.1.0

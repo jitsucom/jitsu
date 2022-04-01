@@ -13,6 +13,7 @@ The file consists of the following sections:
 * `auth` — UI Authorization storage configuration. Storage for storing UI authorization flow data.
 * `storage` — Main Storage. Configurator UI stores all users configuration such as configured destinations, api keys, sources into the storage.
 * `notifications` — notifier configuration. Configurator starts, system errors, and panics information will be sent to it. Currently, only Slack notifications are supported.
+* `smtp` – email sender configuration. If not specified, email sender will be disabled. The config may also be passed as JSON via `JITSU_SMTP_CONFIG` environment variable and follows the same layout as YAML configuration (`{"host": "...", "port": 456, ...}`).
 
 **Example**:
 
@@ -50,6 +51,15 @@ auth:
     #JWT secrets
     access_secret: 'demo___please_provide_value_in_production___'
     refresh_secret: 'demo___please_provide_value_in_production___'
+
+smtp:
+  host: 'your_smtp_host'
+  port: 465
+  user: 'your_smtp_username'
+  password: 'your_smtp_password' # optional
+  from: support@jitsu.com # optional, used for From header
+  signature: Your Jitsu - an open-source data collection platform team # optional
+  reply_to: support@jitsu.com # optional, used for Reply-To header
 ```
 
 <Hint>

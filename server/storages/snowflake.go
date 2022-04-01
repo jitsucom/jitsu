@@ -92,7 +92,7 @@ func NewSnowflake(config *Config) (storage Storage, err error) {
 		}
 	}
 	snowflake := &Snowflake{stageAdapter: stageAdapter}
-	err = snowflake.Init(config, snowflake)
+	err = snowflake.Init(config, snowflake, "", "")
 	if err != nil {
 		return
 	}
@@ -167,7 +167,10 @@ func (s *Snowflake) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, er
 			return table, err
 		}
 
-		b, header := fdata.GetPayloadBytesWithHeader(schema.VerticalBarSeparatedMarshallerInstance)
+		b, header, err := fdata.GetPayloadBytesWithHeader(schema.CSVMarshallerInstance)
+		if err != nil {
+			return dbTable, err
+		}
 		if err := s.stageAdapter.UploadBytes(fdata.FileName, b); err != nil {
 			return dbTable, err
 		}

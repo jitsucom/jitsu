@@ -7,20 +7,21 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/errorj"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/typing"
-	"github.com/mailru/go-clickhouse"
 	"io/ioutil"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/errorj"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/typing"
+	"github.com/mailru/go-clickhouse"
 )
 
 const (
 	tableSchemaCHQuery        = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
 	createCHDBTemplate        = `CREATE DATABASE IF NOT EXISTS "%s" %s`
-	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s`
+	alterTableCHTemplate      = `ALTER TABLE "%s"."%s" %s %s`
 	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES %s`
 	deleteQueryChTemplate     = `ALTER TABLE %s.%s DELETE WHERE %s`
 	dropTableCHTemplate       = `DROP TABLE "%s"."%s" %s`
@@ -30,6 +31,7 @@ const (
 	createTableCHTemplate              = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
 	createDistributedTableCHTemplate   = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
 	dropDistributedTableCHTemplate     = `DROP TABLE IF EXISTS "%s"."dist_%s" %s`
+	alterDistributedTableCHTemplate    = `ALTER TABLE "%s"."dist_%s" %s %s`
 	truncateTableCHTemplate            = `TRUNCATE TABLE IF EXISTS "%s"."%s"`
 	truncateDistributedTableCHTemplate = `TRUNCATE TABLE IF EXISTS "%s"."dist_%s" %s`
 
@@ -389,27 +391,48 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*Table, error) {
 //PatchTableSchema add new columns(from provided Table) to existing table
 //drop and create distributed table
 func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
+	if len(patchSchema.Columns) == 0 {
+		return nil
+	}
+
+	addedColumnsDDL := make([]string, 0, len(patchSchema.Columns))
 	for columnName, column := range patchSchema.Columns {
 		columnDDL := ch.columnDDL(columnName, column)
-		query := fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnDDL)
-		ch.queryLogger.LogDDL(query)
+		addedColumnsDDL = append(addedColumnsDDL, "ADD COLUMN "+columnDDL)
+	}
 
-		if _, err := ch.dataSource.ExecContext(ch.ctx, query); err != nil {
-			return errorj.PatchTableError.Wrap(err, "failed to patch table").
-				WithProperty(errorj.DBInfo, &ErrorPayload{
-					Database:    ch.database,
-					Cluster:     ch.cluster,
-					Table:       patchSchema.Name,
-					PrimaryKeys: patchSchema.GetPKFields(),
-					Statement:   query,
-				})
-		}
+	query := fmt.Sprintf(alterTableCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), strings.Join(addedColumnsDDL, ", "))
+	ch.queryLogger.LogDDL(query)
+
+	if _, err := ch.dataSource.ExecContext(ch.ctx, query); err != nil {
+		return errorj.PatchTableError.Wrap(err, "failed to patch table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Database:    ch.database,
+				Cluster:     ch.cluster,
+				Table:       patchSchema.Name,
+				PrimaryKeys: patchSchema.GetPKFields(),
+				Statement:   query,
+			})
 	}
 
 	//drop and create distributed table if ReplicatedMergeTree engine
 	if ch.cluster != "" {
-		ch.dropDistributedTableInTransaction(patchSchema.Name)
-		ch.createDistributedTableInTransaction(patchSchema.Name)
+		query := fmt.Sprintf(alterDistributedTableCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), strings.Join(addedColumnsDDL, ", "))
+		ch.queryLogger.LogDDL(query)
+		_, err := ch.dataSource.ExecContext(ch.ctx, query)
+		switch err := err.(type) {
+		case nil:
+			return nil
+		case *clickhouse.Error:
+			if err.Code == 371 {
+				// fallback for older clickhouse versions
+				ch.dropDistributedTableInTransaction(patchSchema.Name)
+				ch.createDistributedTableInTransaction(patchSchema.Name)
+				return nil
+			}
+		}
+
+		logging.Errorf("[%s] Error altering distributed table for [%s] with statement [%s]: %v", ch.destinationId(), patchSchema.Name, query, err)
 	}
 
 	return nil
@@ -561,11 +584,13 @@ func (ch *ClickHouse) executeInsert(table *Table, headerWithQuotes []string, pla
 	if _, err := ch.dataSource.Exec(statement, valueArgs...); err != nil {
 		return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute insert").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
-				Database:    ch.database,
-				Cluster:     ch.cluster,
-				Table:       table.Name,
-				PrimaryKeys: table.GetPKFields(),
-				Statement:   fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(headerWithQuotes, ", "), fmt.Sprintf("[objects: %d. for intance the first element: %v]", objectsCount, valueArgs[0])),
+				Database:        ch.database,
+				Cluster:         ch.cluster,
+				Table:           table.Name,
+				PrimaryKeys:     table.GetPKFields(),
+				Statement:       statement,
+				ValuesMapString: ObjectValuesToString(headerWithQuotes, valueArgs),
+				TotalObjects:    objectsCount,
 			})
 	}
 

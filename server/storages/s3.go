@@ -52,7 +52,7 @@ func NewS3(config *Config) (storage Storage, err error) {
 		return
 	}
 	s3 := &S3{}
-	err = s3.Init(config, s3)
+	err = s3.Init(config, s3, "", "")
 	if err != nil {
 		return
 	}
@@ -81,11 +81,11 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		s3.eventsCache.Error(s3.IsCachingDisabled(), s3.ID(), failedEvent.EventID, failedEvent.Error)
+		s3.eventsCache.Error(s3.IsCachingDisabled(), s3.ID(), string(failedEvent.Event), failedEvent.Error)
 	}
 	//update cache and counter with skipped events
 	for _, skipEvent := range skippedEvents.Events {
-		s3.eventsCache.Skip(s3.IsCachingDisabled(), s3.ID(), skipEvent.EventID, skipEvent.Error)
+		s3.eventsCache.Skip(s3.IsCachingDisabled(), s3.ID(), string(skipEvent.Event), skipEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -100,19 +100,7 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 		}
 
 		//events cache
-		for _, object := range fdata.GetPayload() {
-			if err != nil {
-				s3.eventsCache.Error(s3.IsCachingDisabled(), s3.ID(), s3.uniqueIDField.Extract(object), err.Error())
-			} else {
-				s3.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  s3.IsCachingDisabled(),
-					DestinationID:  s3.ID(),
-					EventID:        s3.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          nil,
-				})
-			}
-		}
+		writeEventsToCache(s3, s3.eventsCache, nil, fdata, err)
 	}
 
 	//store failed events to fallback only if other events have been inserted ok
@@ -136,9 +124,9 @@ func (s3 *S3) marshall(fdata *schema.ProcessedFile) ([]byte, error) {
 	encodingFormat := s3.s3Adapter.Format()
 	switch encodingFormat {
 	case adapters.S3FormatCSV:
-		return fdata.GetPayloadBytes(schema.CSVMarshallerInstance), nil
+		return fdata.GetPayloadBytes(schema.CSVMarshallerInstance)
 	case adapters.S3FormatFlatJSON, adapters.S3FormatJSON:
-		return fdata.GetPayloadBytes(schema.JSONMarshallerInstance), nil
+		return fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
 	case adapters.S3FormatParquet:
 		pm := schema.NewParquetMarshaller(s3.s3Adapter.Compression() == adapters.S3CompressionGZIP)
 		return fdata.GetPayloadUsingStronglyTypedMarshaller(pm)

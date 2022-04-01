@@ -55,6 +55,12 @@
 @border-focus-color-base: @secondaryBorderFocus; // major border color
 @divider-color: @secondaryBorder;
 
+@alert-success-bg-color: @success-color;
+@alert-warning-bg-color: @warning-color;
+@alert-error-bg-color: @error-color;
+@alert-text-color: @bgPrimary;
+@alert-message-color: @bgPrimary;
+
 @border-radius-base: 6px;
 
 @font-size-base: 14px; // major text font size
@@ -193,20 +199,6 @@
 .ant-badge-status-processing::after {
   border: 1px solid @link-color;
 }
-
-//Without this one, buttons looks weirdly aligned
-//.ant-btn-loading-icon {
-//  vertical-align: baseline !important;
-//  height: 90%;
-//}
-//
-//.ant-btn span.anticon {
-//  vertical-align: baseline !important;
-//}
-//
-//.ant-btn span.anticon svg {
-//  vertical-align: bottom !important;
-//}
 
 .ant-dropdown-menu-item-active {
   background-color: @bgSecondary !important;

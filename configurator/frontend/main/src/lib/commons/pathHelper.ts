@@ -1,6 +1,6 @@
 /**
- * Utilities for working with path. Mostly few hacks to
- * make configurator work within heroku environment
+ * Utilities for working with path.
+ * Includes few hacks to make configurator work within heroku environment
  */
 import { concatenateURLs } from "lib/commons/utils"
 
@@ -10,6 +10,11 @@ export function getBaseUIPath() {
   return window.location.pathname.indexOf(CONFIGURATOR_PREFIX) === 0
     ? CONFIGURATOR_PREFIX
     : process.env.APP_PATH || undefined
+}
+
+export const getFullUiPath = () => {
+  const appPath = getBaseUIPath() ?? ""
+  return concatenateURLs(`${window.location.protocol}//${window.location.host}`, appPath)
 }
 
 export function getBackendApiBase(env: Record<string, string>) {

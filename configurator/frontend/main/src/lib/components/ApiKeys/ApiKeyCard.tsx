@@ -9,11 +9,11 @@ import { DeleteOutlined, EditOutlined } from "@ant-design/icons"
 import { copyToClipboard, reactElementToString, trimMiddle } from "../../commons/utils"
 import styles from "./ApiKeys.module.less"
 import { generatePath, NavLink } from "react-router-dom"
-import { apiKeysRoutes } from "./ApiKeyEditor"
 import { confirmDelete } from "../../commons/deletionConfirmation"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { APIKeyUtil } from "../../../utils/apiKeys.utils"
 import { handleError } from "../components"
+import { apiKeysRoutes } from "./ApiKeysRouter"
 
 type ApiKeyCardProps = {
   apiKey: ApiKey
@@ -21,6 +21,7 @@ type ApiKeyCardProps = {
 }
 
 export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) {
+  const services = useServices()
   const [loading, setLoading] = useState(false)
   const rotateKey = async (key: ApiKey, type: "jsAuth" | "serverAuth"): Promise<string> => {
     let newKey = apiKeysStore.generateApiToken(type === "jsAuth" ? "js" : "s2s")
@@ -44,7 +45,10 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
       },
     })
   }
-  let editLink = generatePath(apiKeysRoutes.editExact, { id: key.uid.replace(".", "-") })
+  let editLink = generatePath(apiKeysRoutes.editExact, {
+    projectId: services.activeProject.id,
+    id: key.uid.replace(".", "-"),
+  })
   return (
     <ConnectionCard
       loading={loading}

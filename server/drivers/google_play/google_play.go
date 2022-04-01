@@ -19,7 +19,7 @@ import (
 
 const (
 	bucketPrefixLegacy = "pubsite_prod_rev_"
-	bucketPrefix = "pubsite_prod_"
+	bucketPrefix       = "pubsite_prod_"
 
 	SalesCollection    = "sales"
 	EarningsCollection = "earnings"
@@ -178,7 +178,7 @@ func (gp *GooglePlay) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	return intervals, nil
 }
 
-func (gp *GooglePlay) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
+func (gp *GooglePlay) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	bucketName := getBucketName(gp.config.AccountID)
 	bucket := gp.client.Bucket(bucketName)
 
@@ -191,14 +191,12 @@ func (gp *GooglePlay) GetObjectsFor(interval *base.TimeInterval) ([]map[string]i
 		prefix := "earnings/earnings_" + interval.LowerEndpoint().Format(intervalLayout)
 		objects, err = gp.getFilesObjects(bucket, prefix)
 	} else {
-		return nil, fmt.Errorf("GooglePlay unknown collection: %s", gp.collection.Type)
+		return fmt.Errorf("GooglePlay unknown collection: %s", gp.collection.Type)
 	}
-
 	if err != nil {
-		return nil, fmt.Errorf("GooglePlay error getting objects for %s interval: %v", interval.String(), err)
+		return err
 	}
-
-	return objects, nil
+	return objectsLoader(objects, 0, len(objects), 0)
 }
 
 func (gp *GooglePlay) getFilesObjects(bucket *storage.BucketHandle, prefix string) ([]map[string]interface{}, error) {
@@ -275,7 +273,6 @@ func (gp *GooglePlay) Type() string {
 func (gp *GooglePlay) Close() error {
 	return gp.client.Close()
 }
-
 
 func getBucketName(accountId string) string {
 	if !strings.HasPrefix(accountId, bucketPrefix) {

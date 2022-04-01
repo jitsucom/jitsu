@@ -601,10 +601,11 @@ func (m *MySQL) executeInsertInTransaction(wrappedTx *Transaction, table *Table,
 	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
 		return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute insert").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
-				Database:    m.config.Db,
-				Table:       table.Name,
-				PrimaryKeys: table.GetPKFields(),
-				Statement:   fmt.Sprintf(mySQLInsertTemplate, m.config.Db, table.Name, strings.Join(quotedHeader, ","), fmt.Sprintf("[values: %d. for intance the first element: %v]", len(valueArgs), valueArgs[0])),
+				Database:        m.config.Db,
+				Table:           table.Name,
+				PrimaryKeys:     table.GetPKFields(),
+				Statement:       statement,
+				ValuesMapString: ObjectValuesToString(headerWithoutQuotes, valueArgs),
 			})
 	}
 

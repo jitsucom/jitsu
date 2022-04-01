@@ -49,9 +49,14 @@ beforeAll(() => {
 });
 
 test("test browser", async () => {
+  let counter = 0;
   let jitsu: JitsuClient = jitsuClient({
     key: "Test",
     tracking_host: "https://test-host.com",
+    custom_headers: () => ({
+      "test1": "val1",
+      "test2": "val" + (counter++)
+    })
   });
   await jitsu.id({ email: "john.doe@gmail.com", id: "1212" });
   await jitsu.track("page_view", { test: 1 });
@@ -59,6 +64,12 @@ test("test browser", async () => {
   console.log("Requests", requestLog)
   const event1 = JSON.parse(requestLog[0].payload)
   const event2 = JSON.parse(requestLog[1].payload)
+
+  expect(requestLog[0].headers?.test2).toBe("val0")
+  expect(requestLog[1].headers?.test2).toBe("val1")
+
+  expect(requestLog[0].headers?.test1).toBe("val1")
+  expect(requestLog[1].headers?.test1).toBe("val1")
 
   expect(event1?.user?.anonymous_id).toBe(event2?.user?.anonymous_id)
   expect(event1?.user?.email).toBe('john.doe@gmail.com')

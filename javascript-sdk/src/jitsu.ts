@@ -7,6 +7,7 @@ import {
   getCookies,
   getDataFromParams,
   getHostWithProtocol,
+  insertAndExecute,
   parseCookieString,
   parseQuery,
   reformatDate,
@@ -27,17 +28,16 @@ import {
   UserProps,
 } from "./interface";
 import { getLogger, setRootLogLevel } from "./log";
-import { requireWindow, isWindowAvailable } from "./window";
+import { isWindowAvailable, requireWindow } from "./window";
+import { CookieOpts, serializeCookie } from "./cookie";
+import { IncomingMessage, ServerResponse } from "http";
+//import { parse } from "node-html-parser";
 
 const VERSION_INFO = {
   env: "__buildEnv__",
   date: "__buildDate__",
   version: "__buildVersion__",
 };
-
-import { CookieOpts, serializeCookie } from "./cookie";
-import { IncomingMessage, ServerResponse } from "http";
-import * as url from "url";
 
 const JITSU_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`;
 let MAX_AGE_TEN_YEARS = 31_622_400 * 10;
@@ -67,6 +67,18 @@ const echoTransport: Transport = (url: string, json: string) => {
   return Promise.resolve();
 };
 
+// This is a hack to expire all cookies with non-root path left behind by invalid tracking.
+// TODO remove soon
+function expireNonRootCookies(name: string, path: string = undefined) {
+  path = path ?? window.location.pathname
+  if (path == "" || path == "/") {
+    return
+  }
+
+  deleteCookie(name, path)
+  expireNonRootCookies(name, path.slice(0, path.lastIndexOf("/")))
+}
+
 interface Persistence {
   save(props: Record<string, any>);
 
@@ -93,6 +105,7 @@ class CookiePersistence implements Persistence {
   }
 
   restore(): Record<string, any> | undefined {
+    expireNonRootCookies(this.cookieName)
     let str = getCookie(this.cookieName);
     if (str) {
       try {
@@ -170,6 +183,7 @@ const browserEnv: TrackingEnvironment = {
   }),
 
   getAnonymousId: ({ name, domain }) => {
+    expireNonRootCookies(name)
     const idCookie = getCookie(name);
     if (idCookie) {
       getLogger().debug("Existing user id", idCookie);
@@ -335,7 +349,7 @@ export function httpApi(
       const requestHost =
         header(req, "x-forwarded-host") || header(req, "host") || url.hostname;
       const proto = cutPostfix(
-        [":", '/'],
+        [":", "/"],
         header(req, "x-forwarded-proto") || url.protocol
       );
       let query = ensurePrefix("?", url.search);
@@ -380,6 +394,7 @@ export const envs: Envs = {
 const xmlHttpTransport: Transport = (
   url: string,
   jsonPayload: string,
+  additionalHeaders: Record<string, string>,
   handler = (code, body) => {}
 ) => {
   let req = new window.XMLHttpRequest();
@@ -390,8 +405,8 @@ const xmlHttpTransport: Transport = (
       reject(new Error(`Failed to send JSON. See console logs`));
     };
     req.onload = () => {
-      handler(-1, {});
       if (req.status !== 200) {
+        handler(req.status, {});
         getLogger().warn(
           `Failed to send data to ${url} (#${req.status} - ${req.statusText})`,
           jsonPayload
@@ -401,11 +416,16 @@ const xmlHttpTransport: Transport = (
             `Failed to send JSON. Error code: ${req.status}. See logs for details`
           )
         );
+      } else {
+        handler(req.status, req.responseText);
       }
       resolve();
     };
     req.open("POST", url);
     req.setRequestHeader("Content-Type", "application/json");
+    Object.entries(additionalHeaders || {}).forEach(([key, val]) =>
+      req.setRequestHeader(key, val)
+    );
     req.send(jsonPayload);
     getLogger().debug("sending json", jsonPayload);
   });
@@ -415,6 +435,7 @@ const fetchTransport: (fetch: any) => Transport = (fetch) => {
   return async (
     url: string,
     jsonPayload: string,
+    additionalHeaders: Record<string, string>,
     handler = (code, body) => {}
   ) => {
     let res: any;
@@ -424,6 +445,7 @@ const fetchTransport: (fetch: any) => Transport = (fetch) => {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
+          ...(additionalHeaders || {}),
         },
         body: jsonPayload,
       });
@@ -458,6 +480,7 @@ const fetchTransport: (fetch: any) => Transport = (fetch) => {
 export type Transport = (
   url: string,
   jsonPayload: string,
+  additionalHeaders: Record<string, string>,
   handler?: (statusCode: number, responseBody: any) => void
 ) => Promise<void>;
 
@@ -484,6 +507,7 @@ class JitsuClientImpl implements JitsuClient {
   private ipPolicy: Policy = "keep";
   private beaconApi: boolean = false;
   private transport: Transport = xmlHttpTransport;
+  private customHeaders: () => Record<string, string> = () => ({});
 
   id(props: UserProps, doNotSendEvent?: boolean): Promise<void> {
     this.userProperties = { ...this.userProperties, ...props };
@@ -502,7 +526,7 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   rawTrack(payload: any) {
-    this.sendJson(payload);
+    return this.sendJson(payload);
   }
 
   makeEvent(
@@ -565,7 +589,7 @@ class JitsuClientImpl implements JitsuClient {
     }
     let jsonString = JSON.stringify(json);
     getLogger().debug(`Sending payload to ${url}`, jsonString);
-    return this.transport(url, jsonString, (code, body) =>
+    return this.transport(url, jsonString, this.customHeaders(), (code, body) =>
       this.postHandle(code, body)
     );
   }
@@ -584,6 +608,32 @@ class JitsuClientImpl implements JitsuClient {
       this.userIdPersistence.delete();
       this.propsPersistance.delete();
       deleteCookie(this.idCookieName);
+    }
+    if (status === 200) {
+      let data = response;
+      if (typeof response === "string" && response.length > 0) {
+        data = JSON.parse(response);
+        let extras = data["jitsu_sdk_extras"];
+        if (extras && extras.length > 0) {
+          const isWindow = isWindowAvailable();
+          if (!isWindow) {
+            getLogger().error(
+              "Tags destination supported only in browser environment"
+            );
+          } else {
+            for (const { type, id, value } of extras) {
+              if (type === "tag") {
+                const tag = document.createElement("div");
+                tag.id = id;
+                insertAndExecute(tag, value);
+                if (tag.childElementCount > 0) {
+                  document.body.appendChild(tag);
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -636,7 +686,7 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   init(options: JitsuOptions) {
-    if (isWindowAvailable()) {
+    if (isWindowAvailable() && !options.force_use_fetch) {
       if (options.fetch) {
         getLogger().warn(
           "Custom fetch implementation is provided to Jitsu. However, it will be ignored since Jitsu runs in browser"
@@ -651,6 +701,16 @@ class JitsuClientImpl implements JitsuClient {
         );
       }
       this.transport = fetchTransport(options.fetch || globalThis.fetch);
+    }
+
+    if (
+      options.custom_headers &&
+      typeof options.custom_headers === "function"
+    ) {
+      this.customHeaders = options.custom_headers;
+    } else if (options.custom_headers) {
+      this.customHeaders = () =>
+        options.custom_headers as Record<string, string>;
     }
 
     if (options.tracking_host === "echo") {

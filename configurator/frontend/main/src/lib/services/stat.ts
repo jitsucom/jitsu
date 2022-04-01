@@ -1,6 +1,6 @@
 import moment, { Moment, unitOfTime } from "moment"
-import { IProject } from "lib/services/model"
 import { BackendApiClient } from "./BackendApiClient"
+import { Project } from "../../generated/conf-openapi"
 /**
  * Events that come directly from sources are in the `source` namespace.
  * When events are processed internally in Jitsu thay may get multiplexed
@@ -191,13 +191,13 @@ function index(series: DatePoint[]): Record<string, number> {
 export class StatisticsService implements IStatisticsService {
   private readonly api: BackendApiClient
 
-  private readonly project: IProject
+  private readonly projectId: string
 
   private readonly timeInUTC: boolean
 
-  constructor(api: BackendApiClient, project: IProject, timeInUTC: boolean) {
+  constructor(api: BackendApiClient, projectId: string, timeInUTC: boolean) {
     this.api = api
-    this.project = project
+    this.projectId = projectId
     this.timeInUTC = timeInUTC
   }
 
@@ -235,7 +235,7 @@ export class StatisticsService implements IStatisticsService {
     destinationId?: string
   ): string {
     const queryParams = [
-      ["project_id", this.project.id],
+      ["project_id", this.projectId],
       ["start", start.toISOString()],
       ["end", end.toISOString()],
       ["granularity", granularity],
@@ -243,7 +243,7 @@ export class StatisticsService implements IStatisticsService {
     ]
     if (namespace) queryParams.push(["namespace", namespace])
     if (status) queryParams.push(["status", status])
-    if (destinationId) queryParams.push(["destination_id", destinationId])
+    if (destinationId) queryParams.push([namespace === "source" ? "source_id" : "destination_id", destinationId])
     const query = queryParams.reduce<string>((query, [name, value]) => `${query}${name}=${value}&`, "")
     return query.substring(0, query.length - 1) // removes the last '&' symbol
   }
@@ -283,21 +283,24 @@ export class StatisticsService implements IStatisticsService {
     start: Date,
     end: Date,
     granularity: Granularity,
-    type: EventsType
+    type: EventsType,
+    sourceId?: string
   ): Promise<CombinedStatisticsDatePoint[]> {
-    const errorsDataAvailable = type === "pull"
+    if (sourceId === "all") {
+      sourceId = ""
+    }
     const requests = [
-      this.get(start, end, granularity, "source", type, "success"),
-      this.get(start, end, granularity, "source", type, "skip"),
+      this.get(start, end, granularity, "source", type, "success", sourceId),
+      this.get(start, end, granularity, "source", type, "skip", sourceId),
+      this.get(start, end, granularity, "source", type, "errors", sourceId),
     ]
-    if (errorsDataAvailable) requests.push(this.get(start, end, granularity, "source", type, "errors"))
 
     const [successData, skipData, errorData] = await Promise.all(requests)
     const sourceDataEntries: [SourcesEventsCountType, DatePoint[]][] = [
       ["success", successData],
       ["skip", skipData],
+      ["errors", errorData],
     ]
-    if (errorsDataAvailable) sourceDataEntries.push(["errors", errorData])
     return this.combineStatisticsData(sourceDataEntries)
   }
 
@@ -308,6 +311,9 @@ export class StatisticsService implements IStatisticsService {
     type: EventsType,
     destinationId?: string
   ): Promise<CombinedStatisticsDatePoint[]> {
+    if (destinationId === "all") {
+      destinationId = ""
+    }
     const errorsDataAvailable = type === "push"
     const requests = [
       this.get(start, end, granularity, "destination", type, "success", destinationId),

@@ -139,7 +139,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		recognitionService:               dummyRecognitionService,
 		destinationService:               destinationService,
 		systemService:                    systemService,
-		eventsCache:                      caching.NewEventsCache(true, metaStorage, 100, 1, 100),
+		eventsCache:                      caching.NewEventsCache(true, metaStorage, 100, 1, 100, 60),
 		geoService:                       geo.NewTestService(nil),
 	}
 }
@@ -170,7 +170,7 @@ func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
 
 	sb.metaStorage = metaStorage
 
-	sb.eventsCache = caching.NewEventsCache(true, metaStorage, 100, 1, 100)
+	sb.eventsCache = caching.NewEventsCache(true, metaStorage, 100, 1, 100, 60)
 	return sb
 }
 
@@ -215,7 +215,7 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	segmentProcessor := events.NewSegmentProcessor(sb.recognitionService)
 	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor, bulkProcessor)
 
-	multiplexingService := multiplexing.NewService(sb.destinationService, sb.eventsCache)
+	multiplexingService := multiplexing.NewService(sb.destinationService)
 	walService := wal.NewService("/tmp", &logevents.SyncLogger{}, multiplexingService, processorHolder)
 	appconfig.Instance.ScheduleWriteAheadLogClosing(walService)
 

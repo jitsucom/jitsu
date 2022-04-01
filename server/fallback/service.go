@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
@@ -127,10 +128,10 @@ func (s *Service) Replay(fileName, destinationID string, rawFile, skipMalformed 
 	}
 
 	for _, object := range objects {
-		var apiKey string
+		var tokenID string
 		apiTokenKey, ok := object[enrichment.ApiTokenKey]
 		if ok {
-			apiKey = fmt.Sprint(apiTokenKey)
+			tokenID = appconfig.Instance.AuthorizationService.GetTokenID(fmt.Sprint(apiTokenKey))
 		}
 
 		eventID := storage.GetUniqueIDField().Extract(object)
@@ -139,8 +140,8 @@ func (s *Service) Replay(fileName, destinationID string, rawFile, skipMalformed 
 			logging.SystemErrorf("[%s] Empty extracted unique identifier in fallback event: %s", storage.GetUniqueIDField().GetFieldName(), string(b))
 		}
 
-		eventsConsumer.Consume(object, apiKey)
-		s.usersRecognition.Event(object, eventID, []string{destinationID}, apiKey)
+		eventsConsumer.Consume(object, tokenID)
+		s.usersRecognition.Event(object, eventID, []string{destinationID}, tokenID)
 	}
 
 	return nil

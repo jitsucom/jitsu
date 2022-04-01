@@ -2,11 +2,21 @@ package main
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"flag"
+	"io"
+	"math/rand"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"runtime/debug"
+	"strings"
+	"syscall"
+
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
 	"github.com/jitsucom/jitsu/configurator/appconfig"
 	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/cors"
@@ -31,15 +41,8 @@ import (
 	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/pkg/errors"
 	"github.com/spf13/viper"
-	"io"
-	"math/rand"
-	"os"
-	"os/signal"
-	"path/filepath"
-	"runtime/debug"
-	"strings"
-	"syscall"
 
 	"net/http"
 	"time"
@@ -60,6 +63,11 @@ var (
 	tag     string
 	builtAt string
 )
+
+type Authorizator interface {
+	middleware.Authorizator
+	handlers.Authorizator
+}
 
 //go:generate oapi-codegen -templates ../../openapi/templates -generate gin -package openapi -o openapi/routers-gen.go ../../openapi/configurator.yaml
 //go:generate oapi-codegen -templates ../../openapi/templates -generate types -package openapi -o openapi/types-gen.go ../../openapi/configurator.yaml
@@ -181,11 +189,19 @@ func main() {
 	}
 	appconfig.Instance.ScheduleClosing(configurationsService)
 
-	authService, err := authorization.NewService(ctx, viper.GetViper(), configurationsStorage)
+	//** SMTP (email service) **
+	emailsService, err := newEmailService(viper.GetViper())
+	if err != nil {
+		logging.Fatalf("Error creating emails service: %v", err)
+	}
+
+	authorizator, err := newAuthorizator(ctx, viper.GetViper(), emailsService)
 	if err != nil {
 		logging.Fatalf("Error creating authorization service: %v", err)
 	}
-	appconfig.Instance.ScheduleClosing(authService)
+	appconfig.Instance.ScheduleClosing(authorizator)
+	ssoProvider := newSSOProvider(viper.GetViper())
+	appconfig.Instance.ScheduleClosing(ssoProvider)
 
 	//** Jitsu server configuration **
 	jitsuConfig := &jitsu.Config{
@@ -222,30 +238,10 @@ func main() {
 		sslUpdateExecutor = ssl.NewSSLUpdateExecutor(customDomainProcessor, jitsuConfig.SSL.Hosts, jitsuConfig.SSL.SSH.User, jitsuConfig.SSL.SSH.PrivateKeyPath, jitsuConfig.CName, jitsuConfig.SSL.CertificatePath, jitsuConfig.SSL.PKPath, jitsuConfig.SSL.AcmeChallengePath)
 	}
 
-	//** SMTP (email service) **
-	var smtp *emails.SMTPConfiguration
-	if viper.IsSet("smtp.host") {
-		smtp = &emails.SMTPConfiguration{
-			Host:     viper.GetString("smtp.host"),
-			Port:     viper.GetInt("smtp.port"),
-			User:     viper.GetString("smtp.user"),
-			Password: viper.GetString("smtp.password"),
-		}
-
-		err := smtp.Validate()
-		if err != nil {
-			logging.Fatalf("Error smtp configuration: %v", err)
-		}
-	}
-	emailsService, err := emails.NewService(smtp)
-	if err != nil {
-		logging.Fatalf("Error creating emails service: %v", err)
-	}
-
 	cors.Init(viper.GetString("server.domain"), viper.GetStringSlice("server.allowed_domains"))
 
 	router := SetupRouter(jitsuService, configurationsService,
-		authService, s3Config, sslUpdateExecutor, emailsService)
+		authorizator, ssoProvider, s3Config, sslUpdateExecutor, emailsService)
 
 	notifications.ServerStart(runtime.GetInfo())
 	logging.Info("⚙️  Started configurator: " + appconfig.Instance.Authority)
@@ -259,8 +255,103 @@ func main() {
 	logging.Fatal(server.ListenAndServe())
 }
 
+func newEmailService(vp *viper.Viper) (*emails.Service, error) {
+	var config emails.SMTPConfiguration
+	if data := os.Getenv("JITSU_SMTP_CONFIG"); data != "" {
+		if err := json.Unmarshal([]byte(data), &config); err != nil {
+			return nil, errors.Wrap(err, "unmarshal smtp config")
+		}
+	} else if vp.IsSet("smtp.host") {
+		config = emails.SMTPConfiguration{
+			Host:      viper.GetString("smtp.host"),
+			Port:      viper.GetInt("smtp.port"),
+			User:      viper.GetString("smtp.user"),
+			Password:  viper.GetString("smtp.password"),
+			From:      viper.GetString("smtp.from"),
+			Signature: viper.GetString("smtp.signature"),
+			ReplyTo:   viper.GetString("smtp.reply_to"),
+		}
+	} else {
+		return nil, nil
+	}
+
+	if err := config.Validate(); err != nil {
+		return nil, errors.Wrap(err, "validate smtp config")
+	}
+
+	return emails.NewService(&config)
+}
+
+func newSSOProvider(vp *viper.Viper) handlers.SSOProvider {
+	var config authorization.SSOConfig
+	if data := os.Getenv("JITSU_SSO_CONFIG"); data != "" {
+		if err := json.Unmarshal([]byte(data), &config); err != nil {
+			logging.Errorf("Can't unmarshal JITSU_SSO_CONFIG from env variables: %v", err)
+			return nil
+		}
+	} else if vp := vp.Sub("sso"); vp != nil {
+		config = authorization.SSOConfig{
+			Provider:              vp.GetString("provider"),
+			Tenant:                vp.GetString("tenant"),
+			Product:               vp.GetString("product"),
+			Host:                  vp.GetString("host"),
+			AccessTokenTTLSeconds: vp.GetInt("access_token_ttl_seconds"),
+		}
+	} else {
+		logging.Info("No SSO config provided, skipping initialize SSO Auth")
+		return nil
+	}
+
+	if err := validator.New().Struct(&config); err != nil {
+		logging.Errorf("Missed required SSO config params: %v", err)
+		return nil
+	}
+
+	switch config.Provider {
+	case authorization.BoxyHQName:
+		return &authorization.BoxyHQ{Config: &config}
+	default:
+		logging.Errorf("SSO provider %s is not supported. Jitsu supports only: %s",
+			config.Provider, authorization.BoxyHQName)
+		return nil
+	}
+}
+
+func newAuthorizator(ctx context.Context, vp *viper.Viper, mailSender authorization.MailSender) (Authorizator, error) {
+	if vp.IsSet("auth.firebase.project_id") {
+		return authorization.NewFirebase(ctx, authorization.FirebaseInit{
+			ProjectID:       vp.GetString("auth.firebase.project_id"),
+			CredentialsFile: vp.GetString("auth.firebase.credentials_file"),
+			AdminDomain:     vp.GetString("auth.admin_domain"),
+			AdminEmails:     vp.GetStringSlice("auth.admin_users"),
+			MailSender:      mailSender,
+		})
+	} else if vp.IsSet("auth.redis.host") {
+		host := vp.GetString("auth.redis.host")
+		if host == "" {
+			return nil, errors.New("auth.redis.host is required")
+		}
+
+		port := vp.GetInt("auth.redis.port")
+		sentinelMaster := vp.GetString("auth.redis.sentinel_master_name")
+		redisPassword := vp.GetString("auth.redis.password")
+		tlsSkipVerify := vp.GetBool("auth.redis.tls_skip_verify")
+		redisPoolFactory := meta.NewRedisPoolFactory(host, port, redisPassword, tlsSkipVerify, sentinelMaster)
+		if defaultPort, ok := redisPoolFactory.CheckAndSetDefaultPort(); ok {
+			logging.Infof("auth.redis.port isn't configured. Will be used default: %d", defaultPort)
+		}
+
+		return authorization.NewRedis(authorization.RedisInit{
+			PoolFactory: redisPoolFactory,
+			MailSender:  mailSender,
+		})
+	} else {
+		return nil, errors.New("Unknown 'auth' section type. Supported: firebase, redis")
+	}
+}
+
 func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.ConfigurationsService,
-	authService *authorization.Service, defaultS3 *enadapters.S3Config, sslUpdateExecutor *ssl.UpdateExecutor,
+	authorizator Authorizator, ssoProvider handlers.SSOProvider, defaultS3 *enadapters.S3Config, sslUpdateExecutor *ssl.UpdateExecutor,
 	emailService *emails.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
@@ -280,8 +371,13 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 	if strings.HasPrefix(serverToken, "demo") {
 		logging.Error("\t⚠️ Please replace server.auth (CLUSTER_ADMIN_TOKEN env variable) with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
 	}
-	selfHosted := viper.GetBool("server.self_hosted")
-	authenticatorMiddleware := middleware.NewAuthenticator(serverToken, authService, selfHosted)
+	isSelfHosted := viper.GetBool("server.self_hosted")
+	authenticatorMiddleware := &middleware.AuthorizationInterceptor{
+		ServerToken:    serverToken,
+		Authorizator:   authorizator,
+		IsSelfHosted:   isSelfHosted,
+		Configurations: configurationsService,
+	}
 	contentChangesMiddleware := middleware.NewContentChanges(map[string]func() (*time.Time, error){
 		"/api/v1/apikeys":            configurationsService.GetAPIKeysLastUpdated,
 		"/api/v1/destinations":       configurationsService.GetDestinationsLastUpdated,
@@ -293,13 +389,21 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 		c.String(http.StatusOK, "pong")
 	})
 
+	ssoAuthHandler := &handlers.SSOAuthHandler{
+		Authorizator: authorizator,
+		Provider:     ssoProvider,
+		UIBaseURL:    viper.GetString("ui.base_url"),
+	}
+
+	router.GET("/api/v1/sso-auth-callback", ssoAuthHandler.Handle)
+
 	proxyHandler := handlers.NewProxyHandler(jitsuService, map[string]jitsu.APIDecorator{
 		//write here custom decorators for a certain HTTP URN paths
 		"/proxy/api/v1/events/cache":        jitsu.NewEventsCacheDecorator(configurationsService).Decorate,
 		"/proxy/api/v1/statistics":          jitsu.NewStatisticsDecorator().Decorate,
 		"/proxy/api/v1/statistics/detailed": jitsu.NewStatisticsDecorator().Decorate,
 	})
-	router.Any("/proxy/*path", authenticatorMiddleware.BearerAuthManagementWrapper(proxyHandler.Handler))
+	router.Any("/proxy/*path", authenticatorMiddleware.ManagementWrapper(proxyHandler.Handler))
 
 	// ** OLD API (delete after migrating UI to api/v2) **
 	jConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsService)
@@ -307,22 +411,30 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 	{
 
 		//DEPRECATED
-		apiV1.GET("/configurations/:collection", authenticatorMiddleware.BearerAuthManagementWrapper(jConfigurationsHandler.GetConfig))
-		apiV1.POST("/configurations/:collection", authenticatorMiddleware.BearerAuthManagementWrapper(jConfigurationsHandler.StoreConfig))
+		apiV1.GET("/configurations/:collection", authenticatorMiddleware.ManagementWrapper(jConfigurationsHandler.GetConfig))
+		apiV1.POST("/configurations/:collection", authenticatorMiddleware.ManagementWrapper(jConfigurationsHandler.StoreConfig))
 	}
 
 	// ** New API generated by OpenAPI
-	systemConfig := &handlers.SystemConfiguration{
-		SMTP:        emailService.IsConfigured(),
-		SelfHosted:  selfHosted,
-		DockerHUBID: *dockerHubID,
-		Tag:         tag,
-		BuiltAt:     builtAt,
+	openAPIHandler := &handlers.OpenAPI{
+		Authorizator:   authorizator,
+		SSOProvider:    ssoProvider,
+		Configurations: configurationsService,
+		SystemConfig: &handlers.SystemConfiguration{
+			SMTP:        emailService.IsConfigured(),
+			SelfHosted:  isSelfHosted,
+			DockerHUBID: *dockerHubID,
+			Tag:         tag,
+			BuiltAt:     builtAt,
+		},
+		JitsuService:   jitsuService,
+		UpdateExecutor: sslUpdateExecutor,
+		DefaultS3:      defaultS3,
 	}
-	openAPIHandler := handlers.NewOpenAPI(authService, emailService, configurationsService, systemConfig, jitsuService, sslUpdateExecutor, defaultS3)
+
 	return openapi.RegisterHandlersWithOptions(router, openAPIHandler, openapi.GinServerOptions{
 		BaseURL:     "",
-		Middlewares: []openapi.MiddlewareFunc{authenticatorMiddleware.BearerAuth, contentChangesMiddleware.IfModifiedSince},
+		Middlewares: []openapi.MiddlewareFunc{authenticatorMiddleware.Intercept, contentChangesMiddleware.IfModifiedSince},
 	})
 }
 

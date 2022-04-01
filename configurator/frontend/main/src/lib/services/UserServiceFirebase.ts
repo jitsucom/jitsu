@@ -1,39 +1,37 @@
-/* eslint-disable */
-import { ApiAccess, Project, SuggestedUserInfo, User } from "./model"
-import {
-  getAuth,
-  User as FirebaseUser,
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  signInWithCustomToken,
-  signInWithEmailLink,
-  signOut,
-  createUserWithEmailAndPassword,
-  GithubAuthProvider,
-  GoogleAuthProvider,
-  onAuthStateChanged,
-  sendPasswordResetEmail,
-  sendEmailVerification,
-  sendSignInLinkToEmail,
-  isSignInWithEmailLink,
-  updateEmail,
-  updatePassword,
-  getIdToken,
-} from "firebase/auth"
-import { initializeApp, FirebaseApp } from "firebase/app"
-import Marshal from "../commons/marshalling"
-import { reloadPage, setDebugInfo } from "../commons/utils"
-import { randomId } from "utils/numbers"
-import { LoginFeatures, TelemetrySettings, UserLoginStatus, UserService } from "./UserService"
+import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserService } from "./UserService"
+import { FirebaseApp, initializeApp } from "firebase/app"
+import { ApiAccess, userFromDTO, userToDTO } from "./model"
+import { User as FirebaseUser } from "@firebase/auth"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
 import AnalyticsService from "./analytics"
 import { FeatureSettings } from "./ApplicationServices"
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  GithubAuthProvider,
+  GoogleAuthProvider,
+  isSignInWithEmailLink,
+  onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  sendSignInLinkToEmail,
+  signInWithCustomToken,
+  signInWithEmailAndPassword,
+  signInWithEmailLink,
+  signInWithPopup,
+  signOut,
+  updateEmail,
+  updatePassword,
+  getIdToken,
+} from "firebase/auth"
+import { reloadPage, setDebugInfo } from "../commons/utils"
+import { SignupRequest, User } from "../../generated/conf-openapi"
 
 export class FirebaseUserService implements UserService {
   private firebaseApp: FirebaseApp
   private user?: User
-  private apiAccess: ApiAccess
+  private _apiAccess: ApiAccess
   private firebaseUser: FirebaseUser
   private backendApi: BackendApiClient
   private readonly storageService: ServerStorage
@@ -95,22 +93,12 @@ export class FirebaseUserService implements UserService {
     })
   }
 
-  login(email: string, password: string): Promise<any> {
-    let fbLogin = signInWithEmailAndPassword(getAuth(), email, password)
-    return new Promise<any>((resolve, reject) => {
-      fbLogin.then(login => resolve(login)).catch(error => reject(error))
-    })
+  async login(email: string, password: string): Promise<any> {
+    let fbLogin = await signInWithEmailAndPassword(getAuth(), email, password)
+    this._apiAccess = new ApiAccess(await fbLogin.user.getIdToken(false), null, () => {})
   }
 
-  public waitForUser(): Promise<UserLoginStatus> {
-    setDebugInfo(
-      "loginAs",
-      async token => {
-        await signInWithCustomToken(getAuth(), token)
-      },
-      false
-    )
-
+  public async waitForUser(): Promise<void> {
     let fbUserPromise = new Promise<FirebaseUser>((resolve, reject) => {
       let unregister = onAuthStateChanged(
         getAuth(),
@@ -118,18 +106,6 @@ export class FirebaseUserService implements UserService {
           if (user) {
             this.firebaseUser = user
             setDebugInfo("firebaseUser", user)
-            setDebugInfo(
-              "updateEmail",
-              async email => {
-                try {
-                  let updateResult = await updateEmail(user, email)
-                  console.log(`Attempt to update email to ${email}. Result`, updateResult)
-                } catch (e) {
-                  console.log(`Attempt to update email to ${email} failed`, e)
-                }
-              },
-              false
-            )
             resolve(user)
           } else {
             resolve(null)
@@ -141,81 +117,35 @@ export class FirebaseUserService implements UserService {
         }
       )
     })
-    return fbUserPromise.then((user: FirebaseUser) => {
-      if (user != null) {
-        return this.restoreUser(user).then(user => {
-          return { user: user, loggedIn: true, loginErrorMessage: null }
-        })
-      } else {
-        return { user: null, loggedIn: false }
-      }
-    })
-  }
 
-  private async restoreUser(fbUser: FirebaseUser): Promise<User> {
-    //initialize authorization
-    await this.refreshToken(fbUser, false)
-    this.user = new User(fbUser.uid, () => this.apiAccess, {} as SuggestedUserInfo)
-
-    const userInfo = await this.storageService.getUserInfo()
-    const suggestedInfo = {
-      email: fbUser.email,
-      name: fbUser.displayName,
+    let fbUser = await fbUserPromise
+    if (fbUser) {
+      this._apiAccess = new ApiAccess(await fbUser.getIdToken(false), null, () => {})
+      let userDTO = await this.storageService.getUserInfo()
+      let user = userFromDTO(userDTO)
+      user.id = fbUser.uid
+      user.email = fbUser.email
+      user.name = user.name || fbUser.displayName
+      this.user = user
     }
-    if (Object.keys(userInfo).length !== 0) {
-      this.user = new User(fbUser.uid, () => this.apiAccess, suggestedInfo, userInfo)
-      //Fix a bug where created date is not set for a new user
-      if (!this.user.created) {
-        this.user.created = new Date()
-        await this.update(this.user)
-      }
-    } else {
-      // creates new user with a fresh project
-      this.user = new User(fbUser.uid, () => this.apiAccess, suggestedInfo, {
-        _project: new Project(randomId(), null),
-      })
-      this.user.created = new Date()
-      await this.update(this.user)
-    }
-    return this.user
   }
 
   removeAuth(callback: () => void) {
-    signOut(getAuth()).then(callback).catch(callback)
+    signOut(getAuth()).finally(callback)
   }
 
   getUser(): User {
     if (!this.user) {
-      throw new Error("User is null")
+      throw new Error("User is null. Should you call services.userService.hasUser()?")
     }
     return this.user
   }
 
-  async getUserEmailStatus(): Promise<{
-    needsConfirmation: true
-    isConfirmed: boolean
-  }> {
+  getUserEmailStatus(): UserEmailStatus {
     return {
       needsConfirmation: true,
       isConfirmed: this.firebaseUser.emailVerified,
     }
-  }
-
-  update(user: User): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      if (user.projects == null) {
-        reject(new Error(`Can't update user without projects:` + JSON.stringify(user)))
-      }
-      if (user.projects.length != 1) {
-        reject(
-          new Error(`Can't update user projects ( ` + user.projects.length + `), should be 1` + JSON.stringify(user))
-        )
-      }
-      let userData: any = Marshal.toPureJson(user)
-      userData["_project"] = Marshal.toPureJson(user.projects[0])
-      delete userData["_projects"]
-      return this.storageService.saveUserInfo(userData).then(resolve)
-    })
   }
 
   async refreshToken(firebaseUser: FirebaseUser, forceRefresh: boolean) {
@@ -224,36 +154,27 @@ export class FirebaseUserService implements UserService {
     console.log(
       `Firebase token (force=${forceRefresh}) which expire at ${tokenInfo.expirationTime} in ${expirationMs}ms=(${tokenInfo.expirationTime})`
     )
-    this.apiAccess = new ApiAccess(tokenInfo.token, null, () => {})
+    this._apiAccess = new ApiAccess(tokenInfo.token, null, () => {})
     setTimeout(() => this.refreshToken(firebaseUser, true), expirationMs / 2)
   }
 
-  async createUser(email: string, password: string): Promise<void> {
-    let firebaseUser = await createUserWithEmailAndPassword(getAuth(), email.trim(), password.trim())
+  async createUser(signup: SignupRequest): Promise<void> {
+    let firebaseUser = await createUserWithEmailAndPassword(getAuth(), signup.email.trim(), signup.password.trim())
 
     await this.refreshToken(firebaseUser.user, false)
+    this._apiAccess = new ApiAccess(await firebaseUser.user.getIdToken(false), null, () => {})
 
-    let user = new User(
-      firebaseUser.user.uid,
-      () => this.apiAccess,
-      { name: null, email: email },
-      {
-        _name: name,
-        _project: new Project(randomId(), null),
-      }
-    )
-
-    user.created = new Date()
-
-    this.user = user
-
-    await this.update(user)
-
-    await this.trackSignup(email, "email")
-  }
-
-  setupUser(_): Promise<void> {
-    throw new Error("Firebase doesn't support initial user setup")
+    let user: User = {
+      suggestedCompanyName: undefined,
+      id: firebaseUser.user.uid,
+      name: firebaseUser.user.displayName,
+      email: firebaseUser.user.email,
+      emailOptout: false,
+      forcePasswordChange: false,
+      created: new Date().toISOString(),
+    }
+    await this.storageService.saveUserInfo(userToDTO(user))
+    await this.trackSignup(signup.email, "email")
   }
 
   hasUser(): boolean {
@@ -261,7 +182,7 @@ export class FirebaseUserService implements UserService {
   }
 
   sendPasswordReset(email?: string): Promise<void> {
-    return sendPasswordResetEmail(getAuth(), email ? email : this.getUser().email)
+    return sendPasswordResetEmail(getAuth(), email ? email : this.getUser().email, { url: window.location.href })
   }
 
   async sendConfirmationEmail(): Promise<void> {
@@ -275,7 +196,7 @@ export class FirebaseUserService implements UserService {
   async changeEmail(newEmail: string): Promise<void> {
     await updateEmail(this.firebaseUser, newEmail)
     this.user.email = newEmail
-    await this.update(this.user)
+    await this.storageService.saveUserInfo({ _email: newEmail })
   }
 
   async changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void> {
@@ -290,6 +211,10 @@ export class FirebaseUserService implements UserService {
 
   getLoginFeatures(): LoginFeatures {
     return { oauth: true, password: true, signupEnabled: true }
+  }
+
+  getSSOAuthLink(): string {
+    return ""
   }
 
   sendLoginLink(email: string): Promise<void> {
@@ -309,6 +234,14 @@ export class FirebaseUserService implements UserService {
 
   loginWithLink(email: string, href: string): Promise<void> {
     return signInWithEmailLink(getAuth(), email, href).then()
+  }
+
+  apiAccess(): ApiAccess {
+    return this._apiAccess
+  }
+
+  refreshAuth(): Promise<void> {
+    return this.refreshToken(this.firebaseUser, true)
   }
 
   async getIdToken(): Promise<string> {

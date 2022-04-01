@@ -13,18 +13,26 @@ type ErrorCardProps = {
   descriptionWithContacts?: string | null
   stackTrace?: string
   className?: string
+  error?: Error
   onReload?: VoidFunction
 }
 
 export const ErrorCard: FC<ErrorCardProps> = ({
   title,
   icon,
+  error,
   description,
   descriptionWithContacts,
   stackTrace,
   className,
   onReload,
 }) => {
+  if (description === undefined && error !== undefined) {
+    description = error.message
+  }
+  if (stackTrace === undefined && error !== undefined) {
+    stackTrace = error.stack
+  }
   return (
     <Card bordered={false} className={cn(className, "max-h-full")}>
       <Card.Meta

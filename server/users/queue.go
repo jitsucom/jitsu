@@ -21,8 +21,8 @@ type Queue struct {
 	closed chan struct{}
 }
 
-func newQueue(identifier string) *Queue {
-	inmemoryQueue := queue.NewInMemory()
+func newQueue(identifier string, capacity int) *Queue {
+	inmemoryQueue := queue.NewInMemory(capacity)
 
 	metrics.InitialUsersRecognitionQueueSize(identifier, int(inmemoryQueue.Size()))
 

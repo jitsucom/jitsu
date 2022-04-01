@@ -36,14 +36,11 @@ func NewFacebook(config *Config) (storage Storage, err error) {
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	fb := &Facebook{}
-	err = fb.Init(config, fb)
+	err = fb.Init(config, fb, facebookTransform, `return toFacebook($)`)
 	if err != nil {
 		return
 	}
 	storage = fb
-
-	fb.processor.AddJavaScript(facebookTransform)
-	fb.processor.SetDefaultUserTransform(`return toFacebook($)`)
 
 	fbAdapter, err := adapters.NewFacebookConversion(fbConfig, &adapters.HTTPAdapterConfiguration{
 		DestinationID:  config.destinationID,

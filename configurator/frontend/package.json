@@ -2,18 +2,19 @@
   "name": "root",
   "private": true,
   "scripts": {
-    "start": "yarn --cwd ./main start",
+    "start": "lerna run start --stream",
     "build": "yarn install && yarn all:check && lerna run build",
     "build:dev": "lerna run build",
-    "clean": "rm -rf ./main/node_modules/ ./main/build ./main/dist",
     "test": "lerna run test --stream",
+    "clean": "rm -rf ./node_modules ./main/node_modules/ ./main/build ./main/dist",
     "lerna:publish": "lerna publish --canary --no-private --no-verify-access --yes",
     "prettier:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run yarn prettier:fix!\" && exit 1)",
     "prettier:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore ./",
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern **/node_modules/",
     "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern **/node_modules/ --fix",
     "all:check": "yarn prettier:check && yarn eslint:check",
-    "main": "yarn --cwd main"
+    "catalog:link": "(cd catalog && yarn link) && yarn link @jitsu/catalog",
+    "catalog:unlink": "yarn unlink @jitsu/catalog && (cd catalog && yarn unlink) && yarn install --force"
   },
   "dependencies": {
     "@jitsu/catalog": "file:catalog",

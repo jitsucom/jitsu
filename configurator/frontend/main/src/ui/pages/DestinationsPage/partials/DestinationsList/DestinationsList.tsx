@@ -9,35 +9,25 @@ import { destinationsStore } from "stores/destinations"
 import { EmptyList } from "ui/components/EmptyList/EmptyList"
 // @Icons
 import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined"
-// @Utils
-import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 // @Routes
 import { destinationPageRoutes } from "ui/pages/DestinationsPage/DestinationsPage.routes"
 // @Types
-import { CommonDestinationPageProps } from "ui/pages/DestinationsPage/DestinationsPage"
 import { useServices } from "../../../../../hooks/useServices"
 import { DestinationCard } from "../../../../components/DestinationCard/DestinationCard"
+import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 
-const DestinationsListComponent = ({ setBreadcrumbs }: CommonDestinationPageProps) => {
+const DestinationsListComponent = () => {
   const history = useHistory()
   const subscription = useServices().currentSubscription
 
   const handleAddClick = useCallback(() => {
-    history.push(destinationPageRoutes.add)
+    history.push(projectRoute(destinationPageRoutes.add))
   }, [history, subscription])
 
   useEffect(() => {
-    setBreadcrumbs(
-      withHome({
-        elements: [
-          { title: "Destinations", link: destinationPageRoutes.root },
-          {
-            title: "Destinations List",
-          },
-        ],
-      })
-    )
-  }, [setBreadcrumbs])
+    currentPageHeaderStore.setBreadcrumbs("Destinations")
+  }, [])
 
   if (destinationsStore.list.length === 0) {
     return <EmptyList handleAddClick={handleAddClick} title="Destinations list is still empty" unit="destination" />

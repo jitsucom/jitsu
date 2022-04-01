@@ -42,7 +42,7 @@ func NewDbtCloud(config *Config) (storage Storage, err error) {
 	}
 
 	dbt := &DbtCloud{enabled: dbtCloudConfig.Enabled}
-	err = dbt.Init(config, dbt)
+	err = dbt.Init(config, dbt, "", "")
 	if err != nil {
 		return
 	}

@@ -1,26 +1,24 @@
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 // @Libs
 import * as React from "react"
 import { useState } from "react"
-import { NavLink, Redirect, Route, useHistory, useLocation, Switch } from "react-router-dom"
-import { Button, Dropdown, message, Modal, MessageArgsProps, Tooltip, notification, Popover } from "antd"
+import { useHistory, useLocation } from "react-router-dom"
+import { Button, Dropdown, message, MessageArgsProps, Modal, notification, Popover, Tooltip } from "antd"
 // @Components
-import { BreadcrumbsProps, withHome, Breadcrumbs } from "ui/components/Breadcrumbs/Breadcrumbs"
 import { NotificationsWidget } from "lib/components/NotificationsWidget/NotificationsWidget"
-import { CurrentPlan, UpgradePlan } from "ui/components/CurrentPlan/CurrentPlan"
-import { CenteredSpin, handleError } from "lib/components/components"
+import { BillingCurrentPlan } from "lib/components/BillingCurrentPlan/BillingCurrentPlan"
+import { handleError } from "lib/components/components"
 // @Icons
 import Icon, {
-  SettingOutlined,
+  ApiFilled,
   AreaChartOutlined,
+  CloudFilled,
+  HomeFilled,
+  LogoutOutlined,
+  NotificationFilled,
+  SettingOutlined,
+  ThunderboltFilled,
   UserOutlined,
   UserSwitchOutlined,
-  LogoutOutlined,
-  CloudFilled,
-  NotificationFilled,
-  ApiFilled,
-  ThunderboltFilled,
-  HomeFilled,
 } from "@ant-design/icons"
 import { ReactComponent as JitsuLogo } from "icons/logo-responsive.svg"
 import { ReactComponent as Cross } from "icons/cross.svg"
@@ -30,10 +28,9 @@ import { ReactComponent as DownloadIcon } from "icons/download.svg"
 import { ReactComponent as GlobeIcon } from "icons/globe.svg"
 import classNames from "classnames"
 // @Model
-import { Permission, User } from "lib/services/model"
+import { Permission } from "lib/services/model"
 // @Utils
 import { reloadPage } from "lib/commons/utils"
-import { Page, usePageLocation } from "navigation"
 // @Services
 import { useServices } from "hooks/useServices"
 import { AnalyticsBlock } from "lib/services/analytics"
@@ -41,13 +38,16 @@ import { CurrentSubscription } from "lib/services/billing"
 // @Styles
 import styles from "./Layout.module.less"
 // @Misc
-import { settingsPageRoutes } from "./ui/pages/SettingsPage/SettingsPage"
 import { FeatureSettings } from "./lib/services/ApplicationServices"
 import { usePersistentState } from "./hooks/usePersistentState"
-import { ErrorBoundary } from "lib/components/ErrorBoundary/ErrorBoundary"
 import { SupportOptions } from "lib/components/SupportOptions/SupportOptions"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { useClickOutsideRef } from "hooks/useClickOutsideRef"
+import { Breadcrumbs } from "./ui/components/Breadcrumbs/Breadcrumbs"
+import ProjectLink, { stripProjectFromRoute } from "./lib/components/ProjectLink/ProjectLink"
+import { User } from "./generated/conf-openapi"
+import { showProjectSwitchModal } from "./lib/components/ProjectSwitch/ProjectSwitch"
+import { BillingPlanOptionsModal } from "lib/components/BillingPlanOptions/BillingPlanOptions"
 
 type MenuItem = {
   icon: React.ReactNode
@@ -62,28 +62,34 @@ const makeItem = (
   title: React.ReactNode,
   link: string,
   color: string,
-  enabled = (f: FeatureSettings) => true
+  enabled: (f: FeatureSettings) => boolean = () => true
 ): MenuItem => {
   return { icon, title, link, color, enabled }
 }
 
 const menuItems = [
   makeItem(<HomeFilled />, "Home", "/connections", "#77c593"),
-  makeItem(<ThunderboltFilled />, "Live Events", "/events_stream", "#fccd04"),
+  makeItem(<ThunderboltFilled />, "Live Events", "/events-stream", "#fccd04"),
   makeItem(<AreaChartOutlined />, "Statistics", "/dashboard", "#88bdbc"),
   makeItem(<Icon component={KeyIcon} />, "API Keys", "/api-keys", "#d79922"),
   makeItem(<ApiFilled />, "Sources", "/sources", "#d83f87"),
   makeItem(<NotificationFilled />, "Destinations", "/destinations", "#4056a1"),
   makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud", "#e76e52"),
-  makeItem(<SettingOutlined />, "Project settings", "/project_settings", "#0d6050"),
-  makeItem(<Icon component={GlobeIcon} />, "Geo data resolver", "/geo_data_resolver", "#41b3a3"),
+  makeItem(<SettingOutlined />, "Project settings", "/project-settings", "#0d6050"),
+  makeItem(<Icon component={GlobeIcon} />, "Geo data resolver", "/geo-data-resolver", "#41b3a3"),
   makeItem(<CloudFilled />, "Custom Domains", "/domains", "#5ab9ea", f => f.enableCustomDomains),
-  makeItem(<Icon component={DownloadIcon} />, "Download Config", "/cfg_download", "#14a76c"),
+  makeItem(<Icon component={DownloadIcon} />, "Download Config", "/cfg-download", "#14a76c"),
 ]
+
+function usePageLocation(): string {
+  const location = stripProjectFromRoute(useLocation().pathname)
+  const canonicalPath = location === "/" || location === "" ? "/connections" : location
+  return canonicalPath.split("/")[1]
+}
 
 export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) => {
   const services = useServices()
-  const key = usePageLocation().mainMenuKey
+  const key = usePageLocation()
   const Wrapper = React.useMemo<React.FC<{ title?: string | React.ReactNode }>>(
     () =>
       expanded
@@ -103,7 +109,7 @@ export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) =
         const enabled = item.enabled(services.features)
         return (
           enabled && (
-            <NavLink to={item.link} key={item.link}>
+            <ProjectLink to={item.link} key={item.link}>
               <Wrapper title={item.title}>
                 <div
                   key={item.link}
@@ -116,7 +122,7 @@ export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) =
                   {expanded && <span className="pl-2 whitespace-nowrap">{item.title}</span>}
                 </div>
               </Wrapper>
-            </NavLink>
+            </ProjectLink>
           )
         )
       })}
@@ -199,10 +205,11 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
       </div>
       <div className="flex-shrink flex justify-center items-center">
         <Dropdown
+          key={"userMenuDropdown"}
           trigger={["click"]}
-          onVisibleChange={vis => setDropdownVisible(vis)}
           visible={dropdownVisible}
           overlay={<DropdownMenu user={user} plan={plan} hideMenu={() => setDropdownVisible(false)} />}
+          onVisibleChange={vis => setDropdownVisible(vis)}
         >
           <Button
             className="ml-1 border-primary border-2 hover:border-text text-text hover:text-text"
@@ -225,7 +232,7 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
   const services = useServices()
   const history = useHistory()
 
-  const showSettings = React.useCallback<() => void>(() => history.push(settingsPageRoutes[0]), [history])
+  const showSettings = React.useCallback<() => void>(() => history.push("/user/settings"), [history])
 
   const becomeUser = async () => {
     let email = prompt("Please enter e-mail of the user", "")
@@ -249,19 +256,34 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
       </div>
       <div className="py-2 border-b border-main px-5 flex flex-col items-start">
         <div>
-          Project: <b>{services.activeProject.name || "Unspecified"}</b>
+          {services.activeProject?.name && (
+            <>
+              Project: <b>{services.activeProject.name}</b>
+            </>
+          )}
+          <div className="text-xs">
+            <a
+              onClick={() => {
+                hideMenu()
+                showProjectSwitchModal()
+              }}
+            >
+              Switch project
+            </a>
+          </div>
         </div>
       </div>
       {services.features.billingEnabled && services.applicationConfiguration.billingUrl && (
         <div className="py-5 border-b border-main px-5 flex flex-col items-start">
-          <CurrentPlan planStatus={plan} onPlanChangeModalOpen={hideMenu} />
+          <BillingCurrentPlan planStatus={plan} onPlanChangeModalOpen={hideMenu} />
         </div>
       )}
       <div className="p-2 flex flex-col items-stretch">
         <Button type="text" className="text-left" key="settings" icon={<SettingOutlined />} onClick={showSettings}>
           Settings
         </Button>
-        {services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER) && (
+        {(services.userService.getUser().email === "reg@ksense.io" ||
+          services.userService.getUser().email.endsWith("@jitsu.com")) && (
           <Button className="text-left" type="text" key="become" icon={<UserSwitchOutlined />} onClick={becomeUser}>
             Become User
           </Button>
@@ -280,14 +302,6 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
   )
 }
 
-export type ApplicationPageWrapperProps = {
-  pages: Page[]
-  extraForms?: JSX.Element[]
-  user: User
-  plan: CurrentSubscription
-  [propName: string]: any
-}
-
 function handleBillingMessage(params) {
   if (!params.get("billingMessage")) {
     return
@@ -299,60 +313,19 @@ function handleBillingMessage(params) {
   })
 }
 
-export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, pages, user, extraForms }) => {
-  const location = useLocation()
+export const ApplicationPage: React.FC = ({ children }) => {
   const services = useServices()
-  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbsProps>(
-    withHome({ elements: [{ title: pages[0].pageHeader }] })
-  )
-
-  const routes = pages.map(page => {
-    const Component = page.component as React.ExoticComponent
-    return (
-      <Route
-        key={page.pageTitle}
-        path={page.getPrefixedPath()}
-        exact={true}
-        render={routeProps => {
-          services.analyticsService.onPageLoad({
-            pagePath: routeProps.location.hash,
-          })
-          document["title"] = page.pageTitle
-          // setBreadcrumbs(withHome({ elements: [{ title: page.pageHeader }] }))
-
-          return (
-            <ErrorBoundary>
-              <Component setBreadcrumbs={setBreadcrumbs} {...(routeProps as any)} />
-            </ErrorBoundary>
-          )
-        }}
-      />
-    )
-  })
-
-  routes.push(<Redirect key="dashboardRedirect" from="*" to="/dashboard" />)
   handleBillingMessage(new URLSearchParams(useLocation().search))
-
-  React.useEffect(() => {
-    const pageMatchingPathname = pages.find(page => page.path.includes(location.pathname))
-    if (pageMatchingPathname) setBreadcrumbs(withHome({ elements: [{ title: pageMatchingPathname.pageHeader }] }))
-  }, [location.pathname])
-
   return (
     <div className={styles.applicationPage}>
       <div className={classNames(styles.sidebar)}>
         <ApplicationSidebar />
       </div>
       <div className={classNames(styles.rightbar)}>
-        <PageHeader user={user} plan={plan}>
-          <Breadcrumbs {...breadcrumbs} />
+        <PageHeader user={services.userService.getUser()} plan={services.currentSubscription}>
+          <Breadcrumbs />
         </PageHeader>
-        <div className={styles.applicationPageComponent}>
-          <React.Suspense fallback={<CenteredSpin />}>
-            <Switch key={"appPagesSwitch"}>{routes}</Switch>
-            {extraForms}
-          </React.Suspense>
-        </div>
+        <div className={styles.applicationPageComponent}>{children}</div>
       </div>
     </div>
   )
@@ -405,10 +378,8 @@ export const SlackChatWidget: React.FC<{}> = () => {
   return (
     <>
       <Popover
-        // ref={ref}
         trigger="click"
         placement="leftBottom"
-        // destroyTooltipOnHide={{ keepParent: false }}
         visible={popoverVisible}
         content={
           <SupportOptions
@@ -461,18 +432,13 @@ export const SlackChatWidget: React.FC<{}> = () => {
           </span>
         </div>
       </Popover>
-      <Modal
-        destroyOnClose={true}
-        width={800}
-        title={<h1 className="text-xl m-0 p-0">Upgrade subscription</h1>}
-        visible={upgradeDialogVisible}
+      <BillingPlanOptionsModal
+        planStatus={services.currentSubscription}
         onCancel={() => {
           setUpgradeDialogVisible(false)
         }}
-        footer={null}
-      >
-        <UpgradePlan planStatus={services.currentSubscription} />
-      </Modal>
+        visible={upgradeDialogVisible}
+      />
     </>
   )
 }

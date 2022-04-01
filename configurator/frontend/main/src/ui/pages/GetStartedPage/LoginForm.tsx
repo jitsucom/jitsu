@@ -1,5 +1,4 @@
-import * as React from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useHistory } from "react-router-dom"
 import { Button, Form, Input, message, Modal } from "antd"
 import { FloatingLabelInput } from "../../components/FloatingLabelInput/FloatingLabelInput"
@@ -10,16 +9,25 @@ import githubLogo from "../../../icons/github.svg"
 import googleLogo from "../../../icons/google.svg"
 import { reloadPage } from "../../../lib/commons/utils"
 import { getErrorPayload } from "../../../lib/services/analytics"
-import { values } from "mobx"
 import { useServices } from "../../../hooks/useServices"
 import ApplicationServices from "../../../lib/services/ApplicationServices"
 import UserOutlined from "@ant-design/icons/lib/icons/UserOutlined"
 
-export function LoginForm({ supportOauth }) {
+const SSO_ERROR_LS_KEY = "sso_error"
+
+export function LoginForm({ supportOauth, ssoAuthLink }) {
   const services = useServices()
   const [loading, setLoading] = useState(false)
   const history = useHistory()
   const [showPasswordResetForm, setShowPasswordResetForm] = useState(false)
+
+  useEffect(() => {
+    const ssoError = localStorage.getItem(SSO_ERROR_LS_KEY)
+    if (ssoError) {
+      message.error(ssoError)
+      localStorage.removeItem(SSO_ERROR_LS_KEY)
+    }
+  }, [])
 
   const githubSignIn = async () => {
     try {
@@ -90,9 +98,11 @@ export function LoginForm({ supportOauth }) {
         onSuccess={() => message.info("Password reset e-mail has been sent!")}
       />
       <h1 className="text-center text-textPale font-heading font-bold tracking-wider mb-4 mt-12">Log in to Jitsu</h1>
-      <div className="block lg:hidden mt-6 text-center mb-6 font-bold">
-        New to Jitsu? <a onClick={() => history.push("/signup")}>Sign up</a>
-      </div>
+      {supportOauth && (
+        <div className="block lg:hidden mt-6 text-center mb-6 font-bold">
+          New to Jitsu? <a onClick={() => history.push("/signup")}>Sign up</a>
+        </div>
+      )}
       <Form
         name="signup-form"
         className="signup-form"
@@ -140,6 +150,13 @@ export function LoginForm({ supportOauth }) {
               Login
             </Button>
           </div>
+          {ssoAuthLink && (
+            <div className="mb-4">
+              <Button href={ssoAuthLink} size="large" className="w-full">
+                Continue with SSO
+              </Button>
+            </div>
+          )}
           <div>
             <a onClick={() => setShowPasswordResetForm(true)}>Forgot password?</a>
           </div>
@@ -172,33 +189,22 @@ export function LoginForm({ supportOauth }) {
 
 function PasswordResetForm({ visible, onSuccess, close }) {
   let services = ApplicationServices.get()
-  const [state, setState] = useState({
-    loading: false,
-    errorMessage: null,
-  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<Error | undefined>()
   const [form] = Form.useForm()
 
-  const onSubmit = () => {
-    setState({ loading: true, errorMessage: null })
-    form
-      .validateFields()
-      .then(values => {
-        services.userService
-          .sendPasswordReset(values["email"])
-          .then(() => {
-            onSuccess()
-            close()
-            setState({ loading: false, errorMessage: null })
-          })
-          .catch(error => {
-            message.error(error.message)
-            setState({ loading: false, errorMessage: error.message })
-          })
-      })
-      .catch(error => {
-        message.error(error.message)
-        setState({ loading: false, errorMessage: error.message })
-      })
+  const onSubmit = async () => {
+    setLoading(true)
+    try {
+      const values = await form.validateFields()
+      await services.userService.sendPasswordReset(values["email"])
+      onSuccess()
+      close()
+    } catch (e) {
+      setError(e)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -207,14 +213,16 @@ function PasswordResetForm({ visible, onSuccess, close }) {
       visible={visible}
       closable={true}
       onCancel={close}
-      footer={[
-        <Button key="close" onClick={close}>
-          Cancel
-        </Button>,
-        <Button key="submit" type="primary" loading={state.loading} onClick={onSubmit}>
-          Submit
-        </Button>,
-      ]}
+      footer={
+        <>
+          <Button key="close" onClick={close}>
+            Cancel
+          </Button>
+          <Button key="submit" type="primary" loading={loading} onClick={onSubmit}>
+            Submit
+          </Button>
+        </>
+      }
     >
       <Form layout="vertical" form={form} name="password-reset-form" className="password-reset-form">
         <Form.Item
@@ -228,6 +236,7 @@ function PasswordResetForm({ visible, onSuccess, close }) {
         >
           <Input prefix={<UserOutlined className="site-form-item-icon" />} placeholder="E-mail" />
         </Form.Item>
+        <div className={`text-error ${error ? "visible" : "invisible"}`}>{error?.message || "-"}</div>
       </Form>
     </Modal>
   )

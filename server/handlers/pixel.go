@@ -86,7 +86,7 @@ func (ph *PixelHandler) Handle(c *gin.Context) {
 		reqContext.JitsuAnonymousID = ph.extractOrSetAnonymIDCookie(c, event, reqContext)
 	}
 
-	err = ph.multiplexingService.AcceptRequest(ph.processor, reqContext, strToken, []events.Event{event})
+	_, err = ph.multiplexingService.AcceptRequest(ph.processor, reqContext, strToken, []events.Event{event})
 	if err != nil {
 		code := http.StatusBadRequest
 		if err == multiplexing.ErrNoDestinations {

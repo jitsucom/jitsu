@@ -70,7 +70,7 @@ func NewRecognitionService(storage Storage, destinationService *destinations.Ser
 
 	aggregatedQueues := make([]*Queue, configuration.PoolSize)
 	for i := 0; i < configuration.PoolSize; i++ {
-		aggregatedQueues[i] = newQueue(AggregatedQueueName)
+		aggregatedQueues[i] = newQueue(AggregatedQueueName, 100_000/configuration.PoolSize)
 	}
 	service := &RecognitionService{
 		destinationService:  destinationService,
@@ -78,9 +78,9 @@ func NewRecognitionService(storage Storage, destinationService *destinations.Ser
 		compressor:          compressor,
 		identifiedIdsCache:  map[string]time.Time{},
 		cacheTTLMin:         int64(configuration.CacheTTLMin),
-		identifiedQueue:     newQueue(IdentifiedQueueName),
+		identifiedQueue:     newQueue(IdentifiedQueueName, 500_000),
 		aggregatedQueues:    aggregatedQueues,
-		anonymousQueue:      newQueue(AnonymousQueueName),
+		anonymousQueue:      newQueue(AnonymousQueueName, 1_000_000),
 		closed:              atomic.NewBool(false),
 		lastSystemErrorTime: timestamp.Now().Add(time.Second * -sysErrFreqSec),
 		userAgentJSONPath:   jsonutils.NewJSONPath(userAgentPath),

@@ -19,6 +19,7 @@ import { useServices } from "hooks/useServices"
 import Checkbox from "antd/es/checkbox/Checkbox"
 import destinationsPage from "../../DestinationsPage"
 import { destinationPageRoutes } from "../../DestinationsPage.routes"
+import { projectRoute } from "../../../../../lib/components/ProjectLink/ProjectLink"
 
 /**
  * All not hidden destinations
@@ -71,7 +72,7 @@ const AddDestinationDialogComponent = () => {
             {dst.deprecatedReplacement ? (
               <span>
                 This version is not recommended to use because newer version{" "}
-                <a href={generatePath(destinationPageRoutes.newExact, { type: dst.deprecatedReplacement })}>
+                <a href={projectRoute(destinationPageRoutes.newExact, { type: dst.deprecatedReplacement })}>
                   {destinationsReferenceMap[dst.deprecatedReplacement].displayName}
                 </a>{" "}
                 is available. Please use it instead.
@@ -93,7 +94,7 @@ const AddDestinationDialogComponent = () => {
             app: services.features.appName,
             connector_id: dst.id,
           })
-          history.push(generatePath(destinationPageRoutes.newExact, { type: dst.id }))
+          history.push(projectRoute(destinationPageRoutes.newExact, { type: dst.id }))
         },
       })
     }
@@ -147,7 +148,7 @@ const AddDestinationDialogComponent = () => {
           <div className={styles.list}>
             {filterDestinationList(destinations[type]).map((dst: Destination) => (
               <Link
-                to={generatePath(destinationPageRoutes.newExact, { type: dst.id })}
+                to={projectRoute(destinationPageRoutes.newExact, { type: dst.id })}
                 key={dst.id}
                 className={`${styles.item} ${dst.deprecated ? styles.item__disabled : ""}`}
                 onClick={handleClick(dst)}

@@ -83,6 +83,11 @@ func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume
 		}
 	}
 
+	if host := os.Getenv("KUBERNETES_SERVICE_HOST"); host != "" {
+		logging.Infof("[airbyte] ⚠️  Jitsu runs in Kubernetes. Additional setup may be required: https://jitsu.com/docs/sources-configuration/airbyte/k8s")
+		return nil
+	}
+
 	logging.Infof("[airbyte] Checking mounted volume: %s ...", workspaceVolume)
 	if containerizedRun {
 		if err = Instance.checkVolume(ctx, cli); err != nil {

@@ -28,13 +28,19 @@ func reformatCatalog(dockerImage string, rawCatalog *airbyte.CatalogRow) ([]byte
 	streamsRepresentation := map[string]*base.StreamRepresentation{}
 	for _, stream := range rawCatalog.Streams {
 		syncMode := getSyncMode(dockerImage, stream)
-
+		var cursorField []string = nil
+		if stream.SourceDefinedCursor {
+			cursorField = stream.DefaultCursorField
+		} else if len(stream.SelectedCursorField) > 0 {
+			cursorField = stream.SelectedCursorField
+		}
 		//formatted catalog
 		formattedCatalog.Streams = append(formattedCatalog.Streams, &airbyte.WrappedStream{
 			SyncMode: syncMode,
 			//isn't used because Jitsu doesn't use airbyte destinations. Just should be a valid option.
 			DestinationSyncMode: "overwrite",
 			Stream:              stream,
+			CursorField:         cursorField,
 		})
 
 		//streams schema representation

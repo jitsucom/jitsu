@@ -1,6 +1,5 @@
 // @Libs
 import React, { useState } from "react"
-import { flowResult } from "mobx"
 import { observer } from "mobx-react-lite"
 import { Button, Drawer, Popover, Select, Space, Switch, Tabs } from "antd"
 // @Components
@@ -13,16 +12,15 @@ import { apiKeysStore } from "stores/apiKeys"
 import { useServices } from "hooks/useServices"
 // @Icons
 import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined"
-// @Utils
 // @Hooks
-import useLoader from "hooks/useLoader"
+import { useLoaderAsObject } from "hooks/useLoader"
 // @Styles
 import "./ApiKeys.less"
 import { default as JitsuClientLibraryCard, jitsuClientLibraries } from "../JitsuClientLibrary/JitsuClientLibrary"
 import { Code } from "../Code/Code"
-import { actionNotification } from "../../../ui/components/ActionNotification/ActionNotification"
 import { ApiKeyCard } from "./ApiKeyCard"
 import { Link } from "react-router-dom"
+import ProjectLink from "../ProjectLink/ProjectLink"
 
 /**
  * What's displayed as loading?
@@ -36,48 +34,44 @@ const ApiKeysComponent: React.FC = () => {
   const keys = apiKeysStore.list
   const services = useServices()
   services.storageService.table("api_keys")
-  let keysBackend = services.storageService.table<ApiKey>("api_keys")
 
   const [loading, setLoading] = useState<LoadingState>(null)
   const [documentationDrawerKey, setDocumentationDrawerKey] = useState<ApiKey>(null)
 
-  const header = (
-    <div className="flex flex-row mb-5 items-start justify between">
-      <div className="flex-grow flex text-secondaryText">
-        Jitsu supports many{" "}
-        <Popover
-          trigger="click"
-          placement="bottom"
-          title={null}
-          content={
-            <div className="w-96 flex-wrap flex justify-center">
-              {Object.values(jitsuClientLibraries).map(props => (
-                <div className="mx-3 my-4" key={props.name}>
-                  <JitsuClientLibraryCard {...props} />
-                </div>
-              ))}
-            </div>
-          }
-        >
-          {"\u00A0"}
-          <a>languages and frameworks</a>
-          {"\u00A0"}
-        </Popover>
-        !
-      </div>
-      <div className="flex-shrink">
-        <Link to={"/api-keys/new"}>
-          <Button type="primary" size="large" icon={<PlusOutlined />} loading={"NEW" === loading}>
-            Generate New Key
-          </Button>
-        </Link>
-      </div>
-    </div>
-  )
-
   return (
     <>
-      {header}
+      <div className="flex flex-row mb-5 items-start justify between">
+        <div className="flex-grow flex text-secondaryText">
+          Jitsu supports many{" "}
+          <Popover
+            trigger="click"
+            placement="bottom"
+            title={null}
+            content={
+              <div className="w-96 flex-wrap flex justify-center">
+                {Object.values(jitsuClientLibraries).map(props => (
+                  <div className="mx-3 my-4" key={props.name}>
+                    <JitsuClientLibraryCard {...props} />
+                  </div>
+                ))}
+              </div>
+            }
+          >
+            {"\u00A0"}
+            <a>languages and frameworks</a>
+            {"\u00A0"}
+          </Popover>
+          !
+        </div>
+        <div className="flex-shrink">
+          <ProjectLink to={"/api-keys/new"}>
+            <Button type="primary" size="large" icon={<PlusOutlined />} loading={"NEW" === loading}>
+              Generate New Key
+            </Button>
+          </ProjectLink>
+        </div>
+      </div>
+
       <div className="flex flex-wrap justify-center">
         {keys
           .slice()
@@ -86,6 +80,7 @@ const ApiKeysComponent: React.FC = () => {
             <ApiKeyCard apiKey={key} key={key.uid} showDocumentation={() => setDocumentationDrawerKey(key)} />
           ))}
       </div>
+
       <Drawer width="70%" visible={!!documentationDrawerKey} onClose={() => setDocumentationDrawerKey(null)}>
         {documentationDrawerKey && <KeyDocumentation token={documentationDrawerKey} />}
       </Drawer>
@@ -110,15 +105,17 @@ export const KeyDocumentation: React.FC<KeyDocumentationProps> = function ({ tok
   const [selectedDomain, setSelectedDomain] = useState<string | null>(
     staticDomains.length > 0 ? staticDomains[0] : null
   )
-  const [error, domains] = services.features.enableCustomDomains
-    ? useLoader(async () => {
-        const result = await services.storageService.get("custom_domains", services.activeProject.id)
+  const { error, data: domains } = services.features.enableCustomDomains
+    ? useLoaderAsObject(async () => {
+        const result = await services.backendApiClient.get(
+          `/configurations/custom_domains?id=${services.activeProject.id}`
+        )
         const customDomains = result?.domains?.map(domain => "https://" + domain.name) || []
         const newDomains = [...customDomains, "https://t.jitsu.com"]
         setSelectedDomain(newDomains[0])
         return newDomains
       })
-    : [null, staticDomains]
+    : { error: null, data: staticDomains }
 
   if (error) {
     handleError(error, "Failed to load data from server")

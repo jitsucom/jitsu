@@ -4,7 +4,7 @@ import nodejs_assert from "assert"
 import { toArrayIfNot } from "./arrays"
 
 type AssertionOptions = {
-  errMsg?: string
+  errMsg: string
   allowUndefined?: boolean
 }
 
@@ -58,7 +58,7 @@ export function hasOwnProperty<O extends {}, P extends PropertyKey>(
  * @returns {void} void
  * @throws {AssertionError} NodeJS assertion error
  */
-export function assert(condition: boolean, errMsg?: string, errorName?: string): asserts condition {
+export function assert(condition: boolean, errMsg: string, errorName?: string): asserts condition {
   const error = new Error(errMsg)
   error.name = errorName
   nodejs_assert(condition, error)
@@ -87,6 +87,22 @@ export function assertIsString(
 }
 
 /**
+ * Asserts whether the value is boolean - if not, throws an error.
+ * Useful for making type checks that will provide type narrowing.
+ *
+ * @param value value to assert
+ * @param errMsg error message to throw if assertion fails
+ * @param errorName error name to specify
+ *
+ * @returns void or never
+ *
+ */
+export function assertIsBoolean(value: unknown, errMsg: string, errorName?: string): asserts value is string {
+  const condition = typeof value === "boolean"
+  assert(condition, errMsg || `array assertion failed - ${value} is not an array`, errorName)
+}
+
+/**
  * Asserts whether the value is array - if not, throws an error.
  * Useful for making type checks that will provide type narrowing.
  *
@@ -97,8 +113,8 @@ export function assertIsString(
  * @returns void or never
  *
  */
-export function assertIsArray(value: unknown, errMsg?: string, errorName?: string): asserts value is Array<unknown> {
-  assert(Array.isArray(value), errMsg || `array assertion failed - ${value} is not an array`, errorName)
+export function assertIsArray(value: unknown, errMsg: string, errorName?: string): asserts value is Array<unknown> {
+  assert(Array.isArray(value), `${errMsg}\nArray assertion failed: value is not an array`, errorName)
 }
 
 /**
@@ -122,7 +138,7 @@ export function assertIsArrayOfTypes<T>(
   errMsg: string,
   errorName?: string
 ): asserts value is Array<T> {
-  assertIsArray(value, `Array assertion failed. ${errMsg}`)
+  assertIsArray(value, `${errMsg}\nassertIsArrayOfTypes error`)
   if (value.length === 0) return
   const actualTypes = Array.from(new Set(value.map(element => typeof element))) // filtering duplicates
   const whitelistedTypes = new Set(toArrayIfNot(typeReferenceValues).map(element => typeof element))
@@ -141,8 +157,8 @@ export function assertIsArrayOfTypes<T>(
  * @returns void or never
  *
  */
-export function assertIsObject(value: unknown, errMsg?: string, errorName?: string): asserts value is UnknownObject {
-  assert(isObject(value), errMsg || `object assertion failed - ${value} is not an object`, errorName)
+export function assertIsObject(value: unknown, errMsg: string, errorName?: string): asserts value is UnknownObject {
+  assert(isObject(value), `${errMsg}\nObject assertion failed - value is not an object`, errorName)
 }
 
 /**
@@ -174,11 +190,13 @@ export function assertHasOwnProperty<O extends {}, P extends PropertyKey>(
  *
  * @returns void or never
  */
-export function assertHasAllProperties<O extends {}, P extends PropertyKey[]>(
+export function assertHasAllProperties<O extends {}, P extends (string | number)[]>(
   object: O,
   properties: P,
   errMsg: string,
   errorName?: string
 ): asserts object is O & Record<keyof P, unknown> {
-  properties.forEach(property => assert(hasOwnProperty(object, property), errMsg, errorName))
+  properties.forEach(property =>
+    assert(hasOwnProperty(object, property), `${errMsg}\nRequired property '${property}' not found`, errorName)
+  )
 }

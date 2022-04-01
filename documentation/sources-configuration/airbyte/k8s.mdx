@@ -1,0 +1,112 @@
+---
+title: "Airbyte sources in K8S"
+---
+
+# Airbyte sources in Kubernetes
+
+<Hint>
+  Jitsu in kubernetes is not officially supported.<br />
+  It doesn't mean that Jitsu can't run in k8s. It can.<br />
+  But we don't test it internally and don't provide official deployment configs yet.
+
+  Proper kubernetes support will be added in future releases.
+</Hint>
+
+Jitsu use docker to run Airbyte source connectors.
+Running airbyte sources in kubernetes may require special Docker-in-Docker setup.
+
+## Airbyte bridge through Docker-in-Docker
+
+<Hint>
+  Deployment config for your kubernetes cluster may differ.
+</Hint>
+
+Example of k8s Deployment file:
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jitsu
+  labels:
+    app: jitsu
+spec:
+  selector:
+    matchLabels:
+      app: jitsu
+  template:
+    metadata:
+      name: jitsu
+      labels:
+        app: jitsu
+    spec:
+      hostname: jitsu
+      volumes:
+        - name: server-logs
+          hostPath:
+            path: /data/jitsu/server-logs
+            type: DirectoryOrCreate
+        - name: configutator-logs
+          hostPath:
+            path: /data/jitsu/configutator-logs
+            type: DirectoryOrCreate
+        - name: jitsu-workspace
+          emptyDir: {}
+        - name: docker-graph-storage 
+          emptyDir: {}
+      containers:
+        - name: jitsu
+          image: jitsucom/jitsu:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CONFIGURATOR_ADMIN_TOKEN
+              value: admin_token
+            - name: SERVER_ADMIN_TOKEN
+              value: admin_token
+            - name: REDIS_URL
+              value: redis://host.minikube.internal:6379
+            - name: DOCKER_HOST
+              value: tcp://localhost:2375
+            - name: SERVER_VOLUMES_WORKSPACE
+              value: /tmp/airbyte/
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - mountPath: /home/configurator/data/logs
+              name: configutator-logs
+            - mountPath: /home/eventnative/data/logs
+              name: server-logs
+            - mountPath: /home/eventnative/data/airbyte
+              name: jitsu-workspace
+
+        - name: dind-daemon
+          image: docker:dind
+          command: [ "dockerd", "--host", "tcp://127.0.0.1:2375" ]
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: docker-graph-storage
+              mountPath: /var/lib/docker
+            - name: jitsu-workspace
+              mountPath: /tmp/airbyte/
+
+      initContainers:
+        - name: init-jitsu
+          image: jitsucom/jitsu:latest
+          command: ["/bin/bash"]
+          args: ['-c', 'sudo chmod -R 777 /home/eventnative; sudo chmod -R 777 /home/configurator']
+          volumeMounts:
+            - mountPath: /home/configurator/data/logs
+              name: configutator-logs
+            - mountPath: /home/eventnative/data/logs
+              name: server-logs
+```
+
+### How does it work
+
+- Jitsu container is configured with SERVER_VOLUMES_WORKSPACE=/tmp/airbyte/
+- Before Jitsu runs Airbyte source it generates config files and put them into `/home/eventnative/data/airbyte` directory
+- `/home/eventnative/data/airbyte` directory mapped to **jitsu-workspace** named volume
+- When Jitsu runs Airbyte source it uses command like `docker run -v SERVER_VOLUMES_WORKSPACE:/tmp/airbyte/ ... --config /tmp/airbyte/config.json` which translate to `docker run -v /tmp/airbyte/:/tmp/airbyte/ ... --config /tmp/airbyte/config.json`
+- Since jitsu container have DOCKER_HOST=tcp://localhost:2375 airbyte source image actually runs inside dind-daemon container
+- dind-daemon container have `/tmp/airbyte/` path mapped as **jitsu-workspace** named volume
+- That is how through  **jitsu-workspace** named volume jitsu and airbyte source manage to interchange files

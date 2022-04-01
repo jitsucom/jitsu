@@ -2,7 +2,7 @@ package schema
 
 import (
 	"bytes"
-	"github.com/jitsucom/jitsu/server/logging"
+	"fmt"
 	"strings"
 )
 
@@ -13,8 +13,13 @@ type ProcessedFile struct {
 
 	payload            []map[string]interface{}
 	RecognitionPayload bool
+	originalRawEvents  []string
+	eventsSrc          map[string]int
+}
 
-	eventsSrc map[string]int
+//GetOriginalRawEvents return payload as is
+func (pf *ProcessedFile) GetOriginalRawEvents() []string {
+	return pf.originalRawEvents
 }
 
 //GetPayload return payload as is
@@ -29,9 +34,9 @@ func (pf *ProcessedFile) GetPayloadLen() int {
 
 //GetPayloadBytes returns marshaling by marshaller func, joined with \n,  bytes
 //assume that payload can't be empty
-func (pf *ProcessedFile) GetPayloadBytes(marshaller Marshaller) []byte {
-	b, _ := pf.GetPayloadBytesWithHeader(marshaller)
-	return b
+func (pf *ProcessedFile) GetPayloadBytes(marshaller Marshaller) ([]byte, error) {
+	b, _, err := pf.GetPayloadBytesWithHeader(marshaller)
+	return b, err
 }
 
 //GetPayloadUsingStronglyTypedMarshaller returns bytes, containing marshalled payload
@@ -42,31 +47,30 @@ func (pf *ProcessedFile) GetPayloadUsingStronglyTypedMarshaller(stm StronglyType
 
 //GetPayloadBytesWithHeader returns marshaling by marshaller func, joined with \n,  bytes
 //assume that payload can't be empty
-func (pf *ProcessedFile) GetPayloadBytesWithHeader(marshaller Marshaller) ([]byte, []string) {
+func (pf *ProcessedFile) GetPayloadBytesWithHeader(marshaller Marshaller) ([]byte, []string, error) {
 	var buf *bytes.Buffer
 
 	var fields []string
-	//for csv writers using || delimiter
+	//for csv writers using , delimiter
 	if marshaller.NeedHeader() {
 		fields = pf.BatchHeader.Fields.Header()
-		buf = bytes.NewBuffer([]byte(strings.Join(fields, "||")))
+		buf = bytes.NewBuffer([]byte(strings.Join(fields, ",")))
+		_, err := buf.Write([]byte("\n"))
+		if err != nil {
+			return nil, nil, fmt.Errorf("Error marshaling object in processed file: %v", err)
+		}
+	} else {
+		buf = &bytes.Buffer{}
 	}
 
 	for _, object := range pf.payload {
-		objectBytes, err := marshaller.Marshal(fields, object)
+		err := marshaller.Marshal(fields, object, buf)
 		if err != nil {
-			logging.Error("Error marshaling object in processed file:", err)
-		} else {
-			if buf == nil {
-				buf = bytes.NewBuffer(objectBytes)
-			} else {
-				buf.Write([]byte("\n"))
-				buf.Write(objectBytes)
-			}
+			return nil, nil, fmt.Errorf("Error marshaling object in processed file: %v", err)
 		}
 	}
 
-	return buf.Bytes(), fields
+	return buf.Bytes(), fields, nil
 }
 
 //GetEventsPerSrc returns events quantity per src

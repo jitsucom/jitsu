@@ -1,4 +1,3 @@
-/* eslint-disable */
 import * as React from "react"
 import { Button, Form, Switch } from "antd"
 import styles from "./SetupForm.module.less"
@@ -20,6 +19,7 @@ import { validatePassword } from "lib/commons/passwordValidator"
 
 import CloseOutlined from "@ant-design/icons/lib/icons/CloseOutlined"
 import CheckOutlined from "@ant-design/icons/lib/icons/CheckOutlined"
+import { SignupRequest } from "../../../generated/conf-openapi"
 
 type State = {
   loading?: boolean
@@ -79,7 +79,12 @@ export default function SetupForm() {
         })
       }
       await appService.analyticsService.track("selfhosted_signup", { emailOptout })
-      await appService.userService.setupUser({ ...nonSensitiveUserData, password: values["password"] })
+      await appService.userService.createUser(values as SignupRequest)
+      await appService.storageService.saveUserInfo({
+        _emailOptout: emailOptout,
+        _name: values["name"],
+        _suggestedInfo: { companyName: values["company_name"], name: values["name"] },
+      })
 
       reloadPage()
     } catch (error) {

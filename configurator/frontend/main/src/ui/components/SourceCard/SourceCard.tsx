@@ -7,9 +7,8 @@ import { Badge, Menu, Modal, Skeleton, Tag, Tooltip } from "antd"
 import SubMenu from "antd/lib/menu/SubMenu"
 import CodeOutlined from "@ant-design/icons/lib/icons/CodeOutlined"
 import SyncOutlined from "@ant-design/icons/lib/icons/SyncOutlined"
-import { generatePath, useHistory, NavLink } from "react-router-dom"
+import { useHistory, NavLink } from "react-router-dom"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
-import { taskLogsPageRoute } from "../../pages/TaskLogs/TaskLogsPage"
 import { sourcesStore } from "../../../stores/sources"
 import ExclamationCircleOutlined from "@ant-design/icons/lib/icons/ExclamationCircleOutlined"
 import { handleError, withProgressBar } from "../../../lib/components/components"
@@ -17,7 +16,6 @@ import { useServices } from "../../../hooks/useServices"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
 import { Task, TaskId } from "../../pages/TaskLogs/utils"
 import moment from "moment"
-import { taskLogsViewerRoute } from "../../pages/TaskLogs/TaskLogViewer"
 import { comparator } from "../../../lib/commons/utils"
 import { ConnectionCard } from "../ConnectionCard/ConnectionCard"
 import { flowResult } from "mobx"
@@ -25,7 +23,9 @@ import { actionNotification } from "../ActionNotification/ActionNotification"
 import { SourcesUtils } from "../../../utils/sources.utils"
 import { isAtLeastOneStreamSelected } from "utils/sources/sourcesUtils"
 import { NoStreamsSelectedMessage } from "../NoStreamsSelectedMessage/NoStreamsSelectedMessage"
-import styles from "./SourceCard.module.less"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
+import { connectionsHelper } from "stores/helpers"
+import { sourceEditorUtils } from "ui/pages/SourcesPage/partials/SourceEditor/SourceEditor/SourceEditor.utils"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator, current) => ({
@@ -51,11 +51,14 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
 
   const history = useHistory()
   const services = useServices()
-  const editLink = generatePath(sourcesPageRoutes.editExact, { sourceId: src.sourceId })
-  const viewLogsLink = generatePath(taskLogsPageRoute, { sourceId: src.sourceId })
+  const editLink = projectRoute(sourcesPageRoutes.editExact, {
+    projectId: services.activeProject.id,
+    sourceId: src.sourceId,
+  })
+  const viewLogsLink = projectRoute(sourcesPageRoutes.logs, { sourceId: src.sourceId })
 
   const rename = async (sourceId: string, newName: string) => {
-    await flowResult(sourcesStore.patch(sourceId, { displayName: newName }, { updateConnections: false }))
+    await flowResult(sourcesStore.patch(sourceId, { displayName: newName }))
   }
 
   const scheduleTasks = async (src: SourceData, full = false) => {
@@ -79,19 +82,21 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
           )
         }
 
-        if (src.collections && src.collections.length > 0) {
-          for (let i = 0; i < src.collections.length; i++) {
-            await services.backendApiClient.post("/tasks", undefined, {
-              proxy: true,
-              urlParams: {
-                source: `${services.activeProject.id}.${src.sourceId}`,
-                collection: src.collections[i].name,
-                project_id: services.activeProject.id,
-              },
-            })
-          }
+        if (sourceEditorUtils.isNativeSource(src) && src.collections.length > 0) {
+          await Promise.all(
+            src.collections.map(stream =>
+              services.backendApiClient.post("/tasks", undefined, {
+                proxy: true,
+                urlParams: {
+                  source: `${services.activeProject.id}.${src.sourceId}`,
+                  collection: stream.name,
+                  project_id: services.activeProject.id,
+                },
+              })
+            )
+          )
         } else {
-          //workaround for singer, it doesn't have collections, so we should pass
+          //workaround for singer and airbyte, it doesn't have collections, so we should pass
           //any value
           await services.backendApiClient.post("/tasks", undefined, {
             proxy: true,
@@ -102,7 +107,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
             },
           })
         }
-        history.push(generatePath(taskLogsPageRoute, { sourceId: src.sourceId }))
+        history.push(projectRoute(sourcesPageRoutes.logs, { sourceId: src.sourceId }))
       },
     })
   }
@@ -118,6 +123,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
       onOk: async () => {
         try {
           await sourcesStore.delete(src.sourceId)
+          await connectionsHelper.unconnectDeletedSource(src.sourceId)
           actionNotification.success("Sources list successfully updated")
         } catch (error) {
           handleError(error, "Unable to delete source at this moment, please try later.")
@@ -230,7 +236,7 @@ function LastTaskStatus({ sourceId }) {
   return (
     <span>
       <NavLink
-        to={generatePath(taskLogsViewerRoute, {
+        to={projectRoute(sourcesPageRoutes.task, {
           sourceId: sourceId,
           taskId: TaskId.encode(task.id),
         })}

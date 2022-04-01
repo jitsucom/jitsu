@@ -1,11 +1,12 @@
 package appconfig
 
 import (
+	"io"
+	"os"
+
 	jcors "github.com/jitsucom/jitsu/server/cors"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/spf13/viper"
-	"io"
-	"os"
 )
 
 type AppConfig struct {
@@ -23,6 +24,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.self_hosted", true)
 	viper.SetDefault("server.log.level", "info")
 	viper.SetDefault("server.allowed_domains", []string{"localhost", jcors.AppTopLevelDomainTemplate})
+	viper.SetDefault("ui.base_url", "/")
 
 	if containerized {
 		viper.SetDefault("server.log.path", "/home/configurator/data/logs")
@@ -72,8 +74,10 @@ func Init(containerized bool) error {
 	return nil
 }
 
-func (a *AppConfig) ScheduleClosing(c io.Closer) {
-	a.closeMe = append(a.closeMe, c)
+func (a *AppConfig) ScheduleClosing(c interface{}) {
+	if c, ok := c.(io.Closer); ok {
+		a.closeMe = append(a.closeMe, c)
+	}
 }
 
 func (a *AppConfig) Close() {
