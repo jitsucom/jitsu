@@ -1,5 +1,5 @@
 // @Libs
-import React, { useState } from "react"
+import React, { useMemo, useState } from "react"
 import { NavLink, useHistory, useLocation } from "react-router-dom"
 import { Button, Card, Col, Tooltip, Row } from "antd"
 // @Components
@@ -18,6 +18,8 @@ import {
   getAllDestinationsAsOptions,
   getAllSourcesAsOptions,
 } from "../Filters/shared"
+import ProjectLink from "../ProjectLink/ProjectLink"
+import { withQueryParams } from "utils/queryParams"
 
 type DataType = "total" | "success" | "skip" | "errors"
 
@@ -43,6 +45,14 @@ export const StatusPage: React.FC<{}> = () => {
     { label: "Last 24 hours", value: "day" },
   ]
 
+  const liveEventsUrlParams = useMemo(() => {
+    const apiKey = params.get("source_push")
+    if (apiKey && apiKey !== "all") return { type: "token", id: apiKey }
+    const destination = params.get("destination_push")
+    if (destination && destination !== "all") return { type: "destination", id: destination }
+    return {}
+  }, [params])
+
   const destinationsOptions = getAllDestinationsAsOptions(true)
   const apiKeysOptions = getAllApiKeysAsOptions(true)
   const sourcesOptions = getAllSourcesAsOptions(true)
@@ -63,11 +73,11 @@ export const StatusPage: React.FC<{}> = () => {
           <SelectFilter label="Period" onChange={handlePeriodSelect} options={periods} initialValue={period} />
         </div>
         <div className="flex-col">
-          <NavLink to="/events_stream" className="inline-block mr-5">
+          <ProjectLink to={withQueryParams("/events_stream", liveEventsUrlParams)} className="inline-block mr-5">
             <Button type="ghost" size="large" icon={<ThunderboltFilled />} className="w-full mb-2">
               Live Events
             </Button>
-          </NavLink>
+          </ProjectLink>
           <Button
             size="large"
             icon={<ReloadOutlined />}
@@ -93,7 +103,7 @@ export const StatusPage: React.FC<{}> = () => {
           <StatusChart
             title={
               <span>
-                Incoming <NavLink to="/api_keys">events</NavLink>
+                Incoming <ProjectLink to="/api_keys">events</ProjectLink>
               </span>
             }
             stats={stats}
@@ -111,7 +121,7 @@ export const StatusPage: React.FC<{}> = () => {
           <StatusChart
             title={
               <span>
-                Processed <NavLink to="/destinations">events</NavLink>
+                Processed <ProjectLink to="/destinations">events</ProjectLink>
               </span>
             }
             stats={stats}
