@@ -44,8 +44,13 @@ const EmptyListComponent = ({ title, list, handleAddClick, unit }: Props) => {
           has been created and linked to current destination.
           <br />
           Read more on how to send data to Jitsu with{" "}
-          <a href="https://jitsu.com/docs/sending-data/js-sdk">JavaScript SDK</a> or{" "}
-          <a href="https://jitsu.com/docs/sending-data/api">HTTP API</a>
+          <a target="_blank" href="https://jitsu.com/docs/sending-data/js-sdk">
+            JavaScript SDK
+          </a>{" "}
+          or{" "}
+          <a target="_blank" href="https://jitsu.com/docs/sending-data/api">
+            HTTP API
+          </a>
         </>
       ),
       onOk: () => modal.destroy(),

@@ -7,7 +7,9 @@ const mapping: DestinationConfigurationTemplate = {
   comment: (
     <>
       Template for Segment compatibility implementation. Use this template to cast Jitsu events to Segment-like schema.{" "}
-      <a href="https://jitsu.com/docs/other-features/segment-compatibility">More on Segment compatibility here</a>
+      <a target="_blank" href="https://jitsu.com/docs/other-features/segment-compatibility">
+        More on Segment compatibility here
+      </a>
     </>
   ),
   mappings: [

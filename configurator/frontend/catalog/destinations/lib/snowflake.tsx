@@ -134,7 +134,10 @@ const destination = {
       documentation: (
         <>
           Google Service Account JSON credentials for GCS Bucket.{" "}
-          <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">
+          <a
+            target="_blank"
+            href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration"
+          >
             Read more about Google Authorization
           </a>
         </>

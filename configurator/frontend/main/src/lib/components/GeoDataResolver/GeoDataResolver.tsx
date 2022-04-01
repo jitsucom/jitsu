@@ -198,10 +198,13 @@ function GeoDataResolver() {
     <div className="flex justify-center w-full">
       <div className="w-full pt-8 px-4" style={{ maxWidth: "1000px" }}>
         <p>
-          Jitsu uses <a href="https://www.maxmind.com/">MaxMind</a> databases for geo resolution. There are two families
-          of MaxMind databases: <b>GeoIP2</b> and <b>GeoLite2</b>. After setting a license key{" "}
-          <b>all available MaxMind databases, which the license key has access</b>, will be downloaded and used for
-          enriching incoming events. For using a certain database add{" "}
+          Jitsu uses{" "}
+          <a target="_blank" href="https://www.maxmind.com/">
+            MaxMind
+          </a>{" "}
+          databases for geo resolution. There are two families of MaxMind databases: <b>GeoIP2</b> and <b>GeoLite2</b>.
+          After setting a license key <b>all available MaxMind databases, which the license key has access</b>, will be
+          downloaded and used for enriching incoming events. For using a certain database add{" "}
           <CodeInline>{"?edition_id=<database type>"}</CodeInline> to MaxMind License Key value. For example:{" "}
           <CodeInline>{"M10sDzWKmnDYUBM0?edition_id=GeoIP2-City,GeoIP2-ISP"}</CodeInline>.
         </p>
@@ -248,10 +251,16 @@ function GeoDataResolver() {
               label="Enabled"
               tooltip={
                 <>
-                  If enabled - Jitsu downloads <a href="https://www.maxmind.com/en/geoip2-databases">GeoIP Databases</a>{" "}
+                  If enabled - Jitsu downloads{" "}
+                  <a target="_blank" href="https://www.maxmind.com/en/geoip2-databases">
+                    GeoIP Databases
+                  </a>{" "}
                   with your license key and enriches incoming JSON events with location based data. Read more
                   information about{" "}
-                  <a href="https://jitsu.com/docs/other-features/geo-data-resolution">Geo data resolution</a>.
+                  <a target="_blank" href="https://jitsu.com/docs/other-features/geo-data-resolution">
+                    Geo data resolution
+                  </a>
+                  .
                 </>
               }
               key="enabled"
@@ -269,14 +278,20 @@ function GeoDataResolver() {
               label="MaxMind License Key"
               tooltip={
                 <>
-                  Your MaxMind licence key. Obtain a new one in your <a href="https://www.maxmind.com/">Account</a>{" "}
+                  Your MaxMind licence key. Obtain a new one in your{" "}
+                  <a target="_blank" href="https://www.maxmind.com/">
+                    Account
+                  </a>{" "}
                   {"->"} Manage License Keys. Jitsu downloads all available MaxMind databases with your license key. If
                   you would like to enrich events JSON with the only certain MaxMind DB data{": "}
                   specify license key with the format:{" "}
                   {"<license_key>?edition_id=<comma separated editions like: GeoIP2-City,GeoIP2-ISP>"}. If you use{" "}
-                  <a href="https://cloud.jitsu.com/">Jitsu.Cloud</a> and MaxMind isn't set - free GeoLite2-City and
-                  GeoLite2-ASN MaxMind databases are applied. Read more about{" "}
-                  <a href="https://dev.maxmind.com/geoip/geolite2-free-geolocation-data?lang=en">
+                  <a target="_blank" href="https://cloud.jitsu.com/">
+                    Jitsu.Cloud
+                  </a>{" "}
+                  and MaxMind isn't set - free GeoLite2-City and GeoLite2-ASN MaxMind databases are applied. Read more
+                  about{" "}
+                  <a target="_blank" href="https://dev.maxmind.com/geoip/geolite2-free-geolocation-data?lang=en">
                     free MaxMind databases
                   </a>
                   .{" "}

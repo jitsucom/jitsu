@@ -130,9 +130,11 @@ const ApiKeyEditorComponent: React.FC = props => {
                 tooltip={
                   <>
                     If set, only traffic from listed domains will be accepted. Blocking is done via{" "}
-                    <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS">CORS headers</a>. Leave empty for
-                    accept traffic from any domain. Wildcard syntax (<code>*.domain.com</code>) is accepted. Put each
-                    domain on a new line
+                    <a target="_blank" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS">
+                      CORS headers
+                    </a>
+                    . Leave empty for accept traffic from any domain. Wildcard syntax (<code>*.domain.com</code>) is
+                    accepted. Put each domain on a new line
                   </>
                 }
                 key="js"

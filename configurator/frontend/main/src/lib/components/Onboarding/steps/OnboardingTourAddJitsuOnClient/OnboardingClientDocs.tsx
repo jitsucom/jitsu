@@ -48,7 +48,10 @@ export const OnboardingClientDocs: React.FC<Props> = ({ token }) => {
           documentation={
             <>
               Check if you want to intercept events from Segment (
-              <a href="https://jitsu.com/docs/sending-data/js-sdk/snippet#intercepting-segment-events">Read more</a>)
+              <a target="_blank" href="https://jitsu.com/docs/sending-data/js-sdk/snippet#intercepting-segment-events">
+                Read more
+              </a>
+              )
             </>
           }
           render="Intercept Segment events"
@@ -99,7 +102,10 @@ export const OnboardingClientDocs: React.FC<Props> = ({ token }) => {
             </CodeSnippet>
           </p>
           Read more about configuration properties{" "}
-          <a href="https://jitsu.com/docs/sending-data/js-sdk/package">in documentation</a>.
+          <a target="_blank" href="https://jitsu.com/docs/sending-data/js-sdk/package">
+            in documentation
+          </a>
+          .
         </Collapse.Panel>
         <Collapse.Panel header="Server to Server" key="3" className="site-collapse-custom-panel">
           Events can be send directly to API end-point. In that case, server secret should be used. Please, see curl

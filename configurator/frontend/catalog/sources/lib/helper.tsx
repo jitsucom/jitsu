@@ -9,7 +9,10 @@ export const singerConfigParams: Record<string, (tap: string) => Parameter> = {
       required: true,
       documentation: (
         <>
-          Singer <a href="https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#catalog">catalog</a>{" "}
+          Singer{" "}
+          <a target="_blank" href="https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#catalog">
+            catalog
+          </a>{" "}
           that defines data layout.{" "}
           <a href={`https://github.com/singer-io/${tap}`}>Read catalog documentation for {tap}</a>
         </>
@@ -24,7 +27,10 @@ export const singerConfigParams: Record<string, (tap: string) => Parameter> = {
       type: jsonType,
       documentation: (
         <>
-          Singer initial <a href="https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#state">state</a>
+          Singer initial{" "}
+          <a target="_blank" href="https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#state">
+            state
+          </a>
           . For most cases should be empty
           <a href={`https://github.com/singer-io/${tap}`}>Read documentation for {tap}</a>
         </>

@@ -31,20 +31,28 @@ export const facebook: SourceConnector = {
     overview: (
       <>
         The Facebook connector pulls data from{" "}
-        <a href="https://developers.facebook.com/docs/marketing-api/insights/">Facebook Insights API</a>. The connector
-        is highly configurable and can pull data broken down by any dimensions from ads-, adset-, campaign- or
-        account-level data
+        <a target="_blank" href="https://developers.facebook.com/docs/marketing-api/insights/">
+          Facebook Insights API
+        </a>
+        . The connector is highly configurable and can pull data broken down by any dimensions from ads-, adset-,
+        campaign- or account-level data
       </>
     ),
     connection: (
       <>
         <h1>1. Obtain Facebook Account ID</h1>
         Facebook has a great article about{" "}
-        <a href="https://www.facebook.com/business/help/1492627900875762">How to get Facebook Account ID</a>
+        <a target="_blank" href="https://www.facebook.com/business/help/1492627900875762">
+          How to get Facebook Account ID
+        </a>
         <h1>2. Generate Short-lived (1 hour) Facebook Access token</h1>
         <ul>
           <li>
-            Go to <a href="https://developers.facebook.com/tools/explorer">Facebook Graph API Explorer</a> page
+            Go to{" "}
+            <a target="_blank" href="https://developers.facebook.com/tools/explorer">
+              Facebook Graph API Explorer
+            </a>{" "}
+            page
           </li>
           <li>Select Facebook app which has access to your Facebook advertisements data</li>
           <li>Select User token</li>
@@ -55,7 +63,10 @@ export const facebook: SourceConnector = {
         </ul>
         <h1>3. Generate Long-lived (60 days) Facebook Access token</h1>
         For generating long lived access token please read{" "}
-        <a href="https://developers.facebook.com/docs/pages/access-tokens/#get-a-long-lived-user-access-token">
+        <a
+          target="_blank"
+          href="https://developers.facebook.com/docs/pages/access-tokens/#get-a-long-lived-user-access-token"
+        >
           Facebook article
         </a>
       </>
@@ -88,7 +99,7 @@ export const facebook: SourceConnector = {
       documentation: (
         <>
           One of [ad, adset, campaign, account].{" "}
-          <a href="https://developers.facebook.com/docs/marketing-api/reference/adgroup/insights/">
+          <a target="_blank" href="https://developers.facebook.com/docs/marketing-api/reference/adgroup/insights/">
             Read more about level
           </a>
         </>
@@ -164,7 +175,7 @@ export const googleAds: SourceConnector = {
         <>
           {" "}
           Use{" "}
-          <a href="https://developers.google.com/google-ads/api/fields/v8/overview_query_builder">
+          <a target="_blank" href="https://developers.google.com/google-ads/api/fields/v8/overview_query_builder">
             Google Ads Query Builder
           </a>{" "}
           tool to build required query. Copy comma-separated field list from resulting GAQL query (part between SELECT
@@ -458,10 +469,14 @@ export const googleAds: SourceConnector = {
     overview: (
       <>
         The Google Ads connector pulls data from{" "}
-        <a href="https://developers.google.com/google-ads/api/fields/v8/overview">Google Ads API</a>. The connector is
-        highly configurable. You can compose any number of reports using{" "}
-        <a href="https://developers.google.com/google-ads/api/fields/v8/overview_query_builder">Query Builder</a> by
-        importing field lists to this source as separate streams.
+        <a target="_blank" href="https://developers.google.com/google-ads/api/fields/v8/overview">
+          Google Ads API
+        </a>
+        . The connector is highly configurable. You can compose any number of reports using{" "}
+        <a target="_blank" href="https://developers.google.com/google-ads/api/fields/v8/overview_query_builder">
+          Query Builder
+        </a>{" "}
+        by importing field lists to this source as separate streams.
       </>
     ),
     connection: googleServiceAuthDocumentation({
@@ -484,7 +499,10 @@ export const googleAds: SourceConnector = {
           </li>
           <li>
             If you are the domain administrator, follow the instructions in the{" "}
-            <a href="https://support.google.com/a/answer/162106">help center guide</a> to complete this step.
+            <a target="_blank" href="https://support.google.com/a/answer/162106">
+              help center guide
+            </a>{" "}
+            to complete this step.
           </li>
         </>
       ),
@@ -512,7 +530,7 @@ export const googleAnalytics: SourceConnector = {
       displayName: "Dimensions",
       documentation: (
         <>
-          <a href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer/">
+          <a target="_blank" href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer/">
             Use this tool to check dimensions compatibility
           </a>
         </>
@@ -576,7 +594,7 @@ export const googleAnalytics: SourceConnector = {
       displayName: "Metrics",
       documentation: (
         <>
-          <a href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer/">
+          <a target="_blank" href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer/">
             Use this tool to check metrics compatibility
           </a>
         </>
@@ -804,7 +822,10 @@ export const googleAnalytics: SourceConnector = {
       documentation: (
         <>
           Read about{" "}
-          <a href="https://jitsu.com/docs/sources-configuration/google-analytics#how-to-find-google-analytics-view-id">
+          <a
+            target="_blank"
+            href="https://jitsu.com/docs/sources-configuration/google-analytics#how-to-find-google-analytics-view-id"
+          >
             how to find Google Analytics View ID
           </a>
         </>
@@ -815,10 +836,14 @@ export const googleAnalytics: SourceConnector = {
     overview: (
       <>
         The Google Analytics connector pulls data from{" "}
-        <a href="https://developers.google.com/analytics/devguides/reporting/core/v4">Google Analytics API</a>. The
-        connector is highly configurable and can be used to pull data from Google Ads too (if Google Analytics account
-        is liked to Google Ads). Full list of parameters can be{" "}
-        <a href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer">found here</a>
+        <a target="_blank" href="https://developers.google.com/analytics/devguides/reporting/core/v4">
+          Google Analytics API
+        </a>
+        . The connector is highly configurable and can be used to pull data from Google Ads too (if Google Analytics
+        account is liked to Google Ads). Full list of parameters can be{" "}
+        <a target="_blank" href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer">
+          found here
+        </a>
       </>
     ),
     connection: googleServiceAuthDocumentation({
@@ -1037,12 +1062,31 @@ export const redis: SourceConnector = {
   documentation: {
     overview: (
       <>
-        The Redis connector pulls data from <a href="https://redis.io/commands/get">string</a>,{" "}
-        <a href="https://redis.io/commands/hscan">hash</a>, <a href="https://redis.io/commands/lrange">list</a>,{" "}
-        <a href="https://redis.io/commands/sscan">set</a>, <a href="https://redis.io/commands/zscan">sorted set</a>{" "}
+        The Redis connector pulls data from{" "}
+        <a target="_blank" href="https://redis.io/commands/get">
+          string
+        </a>
+        ,{" "}
+        <a target="_blank" href="https://redis.io/commands/hscan">
+          hash
+        </a>
+        ,{" "}
+        <a target="_blank" href="https://redis.io/commands/lrange">
+          list
+        </a>
+        ,{" "}
+        <a target="_blank" href="https://redis.io/commands/sscan">
+          set
+        </a>
+        ,{" "}
+        <a target="_blank" href="https://redis.io/commands/zscan">
+          sorted set
+        </a>{" "}
         keys. It works with a certain Redis key configuration as well as key pattern. Jitsu uses{" "}
-        <a href="https://redis.io/commands/scan">scan</a> commands which prevent blocking and doesn't affect Redis
-        performance.
+        <a target="_blank" href="https://redis.io/commands/scan">
+          scan
+        </a>{" "}
+        commands which prevent blocking and doesn't affect Redis performance.
       </>
     ),
     connection: <></>,
@@ -1085,16 +1129,22 @@ export const amplitude: SourceConnector = {
     overview: (
       <>
         The Amplitude connector pulls data from{" "}
-        <a href="https://developers.amplitude.com/docs/http-api-v2">Amplitude API</a>. The connector can sync{" "}
-        <b>active users</b>, <b>new users</b>, <b>annotations</b>, <b>average sessions</b>, <b>cohorts</b> and{" "}
-        <b>events</b>.
+        <a target="_blank" href="https://developers.amplitude.com/docs/http-api-v2">
+          Amplitude API
+        </a>
+        . The connector can sync <b>active users</b>, <b>new users</b>, <b>annotations</b>, <b>average sessions</b>,{" "}
+        <b>cohorts</b> and <b>events</b>.
       </>
     ),
     connection: (
       <>
         <ul>
           <li>
-            Go to the <a href="https://analytics.amplitude.com/">Amplitude Project settings</a> page
+            Go to the{" "}
+            <a target="_blank" href="https://analytics.amplitude.com/">
+              Amplitude Project settings
+            </a>{" "}
+            page
           </li>
           <li>
             Save API Key and Secret Key value. It is used as API Secret in Jitsu UI. Only Amplitude Admins and Managers

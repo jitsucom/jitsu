@@ -5,8 +5,10 @@ const mapping: DestinationConfigurationTemplate = {
   comment: (
     <>
       This templates converts incoming events to{" "}
-      <a href="https://developers.facebook.com/docs/marketing-api/conversions-api/">Facebook conversion (pixel)</a> API
-      calls. Make sure you use Facebook destination, otherwise configuration won't make much sense
+      <a target="_blank" href="https://developers.facebook.com/docs/marketing-api/conversions-api/">
+        Facebook conversion (pixel)
+      </a>{" "}
+      API calls. Make sure you use Facebook destination, otherwise configuration won't make much sense
     </>
   ),
   keepUnmappedFields: false,
