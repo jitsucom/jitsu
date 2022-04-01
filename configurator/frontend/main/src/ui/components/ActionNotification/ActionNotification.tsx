@@ -27,7 +27,7 @@ function messageFactory(type: ActionNotificationType): NotificationActionMethod 
     let msg = {
       key: key,
       content: (
-        <span className="inline-block flex flex-nowrap space-x-2" onClick={destroyMessage}>
+        <span className="inline-block flex flex-nowrap space-x-2">
           <div className="cursor-pointer" onClick={destroyMessage}>
             {iconsByType[type]}
           </div>
@@ -39,13 +39,13 @@ function messageFactory(type: ActionNotificationType): NotificationActionMethod 
           >
             {content}
           </div>
-          <div className="cursor-pointer" onClick={destroyMessage}>
+          <div className="cursor-pointer close-btn" onClick={destroyMessage}>
             <CloseOutlined />
           </div>
         </span>
       ),
       type: type,
-      duration: 600,
+      duration: 7,
       className: styles.message,
       prefixCls: "jitsu-message",
     }
