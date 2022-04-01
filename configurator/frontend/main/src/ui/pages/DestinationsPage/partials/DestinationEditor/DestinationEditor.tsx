@@ -1,6 +1,6 @@
 // @Libs
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { generatePath, Prompt, useHistory, useParams } from "react-router-dom"
+import { Prompt, useHistory, useParams } from "react-router-dom"
 import { Button, Card, Form } from "antd"
 import { flowResult } from "mobx"
 import cn from "classnames"
@@ -12,7 +12,6 @@ import { DestinationEditorConfig } from "./DestinationEditorConfig"
 import { DestinationEditorTransform } from "./DestinationEditorTransform"
 import { DestinationEditorConnectors } from "./DestinationEditorConnectors"
 import { DestinationEditorMappings } from "./DestinationEditorMappings"
-import { DestinationEditorMappingsLibrary } from "./DestinationEditorMappingsLibrary"
 import { DestinationNotFound } from "../DestinationNotFound/DestinationNotFound"
 // @Store
 import { sourcesStore } from "stores/sources"
@@ -24,7 +23,6 @@ import { FormInstance } from "antd/es"
 import { Destination } from "@jitsu/catalog/destinations/types"
 import { Tab } from "ui/components/Tabs/TabsConfigurator"
 import { CommonDestinationPageProps } from "ui/pages/DestinationsPage/DestinationsPage"
-import { withHome } from "ui/components/Breadcrumbs/Breadcrumbs"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Routes
@@ -40,7 +38,10 @@ import { firstToLower } from "lib/commons/utils"
 import { useForceUpdate } from "hooks/useForceUpdate"
 // @Icons
 import { AreaChartOutlined, WarningOutlined } from "@ant-design/icons"
-import { actionNotification } from "../../../../components/ActionNotification/ActionNotification"
+import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
+import { currentPageHeaderStore } from "stores/currentPageHeader"
+import { connectionsHelper } from "stores/helpers"
 
 type DestinationTabKey = "config" | "transform" | "mappings" | "sources" | "settings" | "statistics"
 
@@ -75,7 +76,6 @@ const DestinationEditor = ({
   editorMode,
   paramsByProps,
   disableForceUpdateOnSave,
-  setBreadcrumbs,
   onAfterSaveSucceded,
   onCancel,
   isOnboarding,
@@ -104,6 +104,10 @@ const DestinationEditor = ({
     }
     return destinationsReferenceMap[getDestinationData(params)._type]
   }, [params.type, params.id])
+
+  if (!destinationReference) {
+    return <DestinationNotFound destinationId={params.id} />
+  }
 
   const submittedOnce = useRef<boolean>(false)
 
@@ -280,12 +284,12 @@ const DestinationEditor = ({
   )
 
   const handleCancel = useCallback(() => {
-    onCancel ? onCancel() : history.push(destinationPageRoutes.root)
+    onCancel ? onCancel() : history.push(projectRoute(destinationPageRoutes.root))
   }, [history, onCancel])
 
   const handleViewStatistics = () =>
     history.push(
-      generatePath(destinationPageRoutes.statisticsExact, {
+      projectRoute(destinationPageRoutes.statisticsExact, {
         id: destinationData.current._id,
       })
     )
@@ -334,24 +338,32 @@ const DestinationEditor = ({
         try {
           await destinationEditorUtils.testConnection(destinationData.current, true)
 
-          if (editorMode === "add") await flowResult(destinationsStore.add(destinationData.current))
-
-          if (editorMode === "edit") await flowResult(destinationsStore.replace(destinationData.current))
+          let savedDestinationData: DestinationData = destinationData.current
+          if (editorMode === "add") {
+            savedDestinationData = await flowResult(destinationsStore.add(destinationData.current))
+          }
+          if (editorMode === "edit") {
+            await flowResult(destinationsStore.replace(destinationData.current))
+          }
+          await connectionsHelper.updateSourcesConnectionsToDestination(
+            savedDestinationData._uid,
+            savedDestinationData._sources || []
+          )
 
           destinationsTabs.forEach((tab: Tab) => (tab.touched = false))
 
-          if (destinationData.current._connectionTestOk) {
-            if (editorMode === "add") actionNotification.success(`New ${destinationData.current._type} has been added!`)
-            if (editorMode === "edit") actionNotification.success(`${destinationData.current._type} has been saved!`)
+          if (savedDestinationData._connectionTestOk) {
+            if (editorMode === "add") actionNotification.success(`New ${savedDestinationData._type} has been added!`)
+            if (editorMode === "edit") actionNotification.success(`${savedDestinationData._type} has been saved!`)
           } else {
             actionNotification.warn(
-              `${destinationData.current._type} has been saved, but test has failed with '${firstToLower(
-                destinationData.current._connectionErrorMessage
+              `${savedDestinationData._type} has been saved, but test has failed with '${firstToLower(
+                savedDestinationData._connectionErrorMessage
               )}'. Data will not be piped to this destination`
             )
           }
 
-          onAfterSaveSucceded ? onAfterSaveSucceded() : history.push(destinationPageRoutes.root)
+          onAfterSaveSucceded ? onAfterSaveSucceded() : history.push(projectRoute(destinationPageRoutes.root))
         } catch (errors) {}
       })
       .catch(() => {
@@ -384,14 +396,14 @@ const DestinationEditor = ({
     !destinationsReferenceMap[params.type]?.hidden
 
   useEffect(() => {
-    let breadCrumbs = []
+    let breadcrumbs = []
     if (!params.standalone) {
-      breadCrumbs.push({
+      breadcrumbs.push({
         title: "Destinations",
-        link: destinationPageRoutes.root,
+        link: projectRoute(destinationPageRoutes.root),
       })
     }
-    breadCrumbs.push({
+    breadcrumbs.push({
       title: (
         <PageHeader
           title={destinationReference?.displayName ?? "Not Found"}
@@ -400,14 +412,10 @@ const DestinationEditor = ({
         />
       ),
     })
-    setBreadcrumbs(
-      withHome({
-        elements: breadCrumbs,
-      })
-    )
-  }, [destinationReference, setBreadcrumbs])
+    currentPageHeaderStore.setBreadcrumbs(...breadcrumbs)
+  }, [destinationReference])
 
-  return destinationReference ? (
+  return (
     <>
       <div className={cn("flex flex-col items-stretch flex-auto", styles.wrapper)}>
         <div className={styles.mainArea} id="dst-editor-tabs">
@@ -472,8 +480,6 @@ const DestinationEditor = ({
 
       <Prompt message={destinationEditorUtils.getPromptMessage(destinationsTabs)} />
     </>
-  ) : (
-    <DestinationNotFound destinationId={params.id} />
   )
 }
 

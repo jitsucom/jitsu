@@ -103,7 +103,7 @@ func (sh *SourcesHandler) cleanWarehouse(driver driversbase.Driver, destinationI
 
 				for _, destTableName := range tableNames {
 					if err := dest.Clean(destTableName); err != nil {
-						if err == adapters.ErrTableNotExist {
+						if strings.Contains(err.Error(), adapters.ErrTableNotExist.Error()) {
 							logging.Warnf("Table [%s] doesn't exist for: source: [%s], collection: [%s], destination: [%s]", destTableName, sourceID, collection, destId)
 							continue
 						}

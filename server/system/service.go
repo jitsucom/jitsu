@@ -2,9 +2,10 @@ package system
 
 import (
 	"encoding/json"
-	"github.com/jitsucom/jitsu/server/resources"
 	"sync"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/resources"
 )
 
 const serviceName = "system"
@@ -15,6 +16,7 @@ var reloadEvery = 5 * time.Second
 //provides current authorization configuration and amount of registered users
 type Configuration struct {
 	Authorization               string `json:"authorization"`
+	SSOAuthLink                 string `json:"sso_auth_link"`
 	Users                       bool   `json:"users"`
 	SMTP                        bool   `json:"smtp"`
 	SelfHosted                  bool   `json:"selfhosted"`

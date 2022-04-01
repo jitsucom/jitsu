@@ -163,7 +163,7 @@ func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*base.TimeInterval, erro
 	return intervals, nil
 }
 
-func (g *GoogleAnalytics) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
+func (g *GoogleAnalytics) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	logging.Debug("Sync time interval:", interval.String())
 	dateRanges := []*ga.DateRange{
 		{StartDate: interval.LowerEndpoint().Format(dayLayout),
@@ -171,12 +171,15 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *base.TimeInterval) ([]map[stri
 	}
 
 	if g.collection.Type == ReportsCollection {
-		result, err := g.loadReport(g.config.ViewID, dateRanges, g.reportFieldsConfig.Dimensions, g.reportFieldsConfig.Metrics)
-		logging.Debugf("[%s] Rows to sync: %d", interval.String(), len(result))
-		return result, err
+		array, err := g.loadReport(g.config.ViewID, dateRanges, g.reportFieldsConfig.Dimensions, g.reportFieldsConfig.Metrics)
+		logging.Debugf("[%s] Rows to sync: %d", interval.String(), len(array))
+		if err != nil {
+			return err
+		}
+		return objectsLoader(array, 0, len(array), 0)
 	}
 
-	return nil, fmt.Errorf("Unknown collection %s: only 'report' is supported", g.collection.Type)
+	return fmt.Errorf("Unknown collection %s: only 'report' is supported", g.collection.Type)
 }
 
 func (g *GoogleAnalytics) Type() string {

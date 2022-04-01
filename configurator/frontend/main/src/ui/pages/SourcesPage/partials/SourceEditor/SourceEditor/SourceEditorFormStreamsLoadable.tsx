@@ -22,7 +22,7 @@ import { sourceEditorUtils } from "./SourceEditor.utils"
 
 type Props = {
   editorMode: "add" | "edit"
-  initialSourceData: Optional<Partial<SourceData>>
+  initialSourceData: Optional<Partial<AirbyteSourceData | SingerSourceData>>
   sourceDataFromCatalog: SourceConnector
   setSourceEditorState: SetSourceEditorState
   handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
@@ -83,26 +83,24 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
   const selectAllFieldsByDefault: boolean = editorMode === "add"
 
   const [initiallySelectedStreams, unavailableStreams] = useMemo<[StreamConfig[], StreamConfig[]]>(() => {
-    const unavailableStreams: StreamConfig[] = []
-    const initiallySelectedStreams = selectAllFieldsByDefault
-      ? data
-        ? data.map(sourceEditorUtils.streamDataToSelectedStreamsMapper)
-        : []
-      : data
-      ? previouslySelectedStreams.filter(previouslySelectedStream => {
-          const streamIsAvailable = data.some(stream =>
-            sourceEditorUtils.streamsAreEqual(
-              sourceEditorUtils.streamDataToSelectedStreamsMapper(stream),
-              previouslySelectedStream
-            )
-          )
-          if (!streamIsAvailable) unavailableStreams.push(previouslySelectedStream)
-          return streamIsAvailable
-        })
-      : previouslySelectedStreams
-    return [initiallySelectedStreams, unavailableStreams]
+    const allStreamsConfigs = data?.map(sourceEditorUtils.mapStreamDataToSelectedStreams) ?? []
+    if (selectAllFieldsByDefault) return [allStreamsConfigs, []]
+    if (allStreamsConfigs.length === 0) {
+      return [previouslySelectedStreams, []]
+    } else {
+      const unavailableStreams: StreamConfig[] = []
+      const previouslySelectedWithoutUnavailable = previouslySelectedStreams.filter(previouslySelectedStream => {
+        const streamIsAvailable = allStreamsConfigs.some(streamConfig =>
+          sourceEditorUtils.streamsAreEqual(streamConfig, previouslySelectedStream)
+        )
+        if (!streamIsAvailable) unavailableStreams.push(previouslySelectedStream)
+        return streamIsAvailable
+      })
+      return [previouslySelectedWithoutUnavailable, unavailableStreams]
+    }
   }, [selectAllFieldsByDefault, previouslySelectedStreams, data])
 
+  /** Set global errors counter */
   useEffect(() => {
     setSourceEditorState(state => {
       const newState = cloneDeep(state)

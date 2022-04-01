@@ -42,7 +42,7 @@ const (
 	AdsCollection      = "ads"
 	fbMaxAttempts      = 2
 
-	fbMarketingAPIVersion      = "v12.0"
+	fbMarketingAPIVersion      = "v13.0"
 	defaultFacebookReportLevel = "ad"
 )
 
@@ -126,14 +126,23 @@ func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*base.TimeInterval, e
 	return intervals, nil
 }
 
-func (fm *FacebookMarketing) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
+func (fm *FacebookMarketing) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	switch fm.collection.Type {
 	case AdsCollection:
-		return fm.syncAdsReport(interval)
+		array, err := fm.syncAdsReport(interval)
+		if err != nil {
+			return err
+		}
+		return objectsLoader(array, 0, len(array), 0)
+
 	case InsightsCollection:
-		return fm.syncInsightsReport(interval)
+		array, err := fm.syncInsightsReport(interval)
+		if err != nil {
+			return err
+		}
+		return objectsLoader(array, 0, len(array), 0)
 	default:
-		return nil, fmt.Errorf("Error syncing collection type [%s]. Only [%s] and [%s] are supported now", fm.collection.Type, AdsCollection, InsightsCollection)
+		return fmt.Errorf("Error syncing collection type [%s]. Only [%s] and [%s] are supported now", fm.collection.Type, AdsCollection, InsightsCollection)
 	}
 }
 

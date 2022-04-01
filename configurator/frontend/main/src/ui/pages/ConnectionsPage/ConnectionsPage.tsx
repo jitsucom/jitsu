@@ -1,6 +1,7 @@
 // @Libs
 import { Badge, Button, Dropdown, Empty, Typography } from "antd"
 import React, { useCallback, useEffect, useRef } from "react"
+import { useHistory } from "react-router-dom"
 import { observer } from "mobx-react-lite"
 import LeaderLine from "leader-line-new"
 // @Store
@@ -11,19 +12,19 @@ import { destinationsStore } from "stores/destinations"
 import { EntityCard } from "lib/components/EntityCard/EntityCard"
 import { EntityIcon } from "lib/components/EntityIcon/EntityIcon"
 import { DropDownList } from "ui/components/DropDownList/DropDownList"
+// @Hooks
+import { useServices } from "hooks/useServices"
 // @Icons
 import { PlusOutlined } from "@ant-design/icons"
 // @Utils
-import { generatePath } from "react-router-dom"
+import { APIKeyUtil } from "utils/apiKeys.utils"
+import { DestinationsUtils } from "utils/destinations.utils"
+import { SourcesUtils } from "utils/sources.utils"
+import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 // @Reference
-import { destinationsReferenceList } from "@jitsu/catalog/destinations/lib"
 import { destinationPageRoutes } from "../DestinationsPage/DestinationsPage.routes"
 // @Styles
 import styles from "./ConnectionsPage.module.less"
-import { useServices } from "hooks/useServices"
-import { APIKeyUtil } from "../../../utils/apiKeys.utils"
-import { DestinationsUtils } from "../../../utils/destinations.utils"
-import { SourcesUtils } from "../../../utils/sources.utils"
 
 const CONNECTION_LINE_SIZE = 3
 const CONNECTION_LINE_COLOR = "#415969"
@@ -31,7 +32,8 @@ const CONNECTION_LINE_HIGHLIGHTED_COLOR = "#878afc"
 
 const connectionLines: { [key: string]: LeaderLine } = {}
 
-const ConnectionsPageComponent: React.FC = () => {
+const ConnectionsPageComponent = () => {
+  const history = useHistory()
   const containerRef = useRef<HTMLDivElement>(null)
 
   const updateLines = () => {
@@ -39,6 +41,7 @@ const ConnectionsPageComponent: React.FC = () => {
       ;[..._onlyKeys, ..._sources].forEach(sourceId => {
         const start = document.getElementById(sourceId)
         const end = document.getElementById(_uid)
+
         if (start && end && !connectionLines[`${sourceId}-${_uid}`])
           connectionLines[`${sourceId}-${_uid}`] = new LeaderLine(start, end, {
             endPlug: "behind",
@@ -50,6 +53,10 @@ const ConnectionsPageComponent: React.FC = () => {
       })
     })
   }
+
+  const handleAddClick = useCallback(() => {
+    history.push(projectRoute(destinationPageRoutes.add))
+  }, [history])
 
   const eraseLines = () => {
     Object.entries(connectionLines).forEach(([key, line]) => {
@@ -105,7 +112,7 @@ const ConnectionsPageComponent: React.FC = () => {
             </div>
           }
         >
-          {apiKeysStore.hasApiKeys || !!sourcesStore.list.length ? (
+          {!!apiKeysStore.list.length || !!sourcesStore.list.length ? (
             [
               ...apiKeysStore.list.map(apiKey => {
                 return (
@@ -156,32 +163,9 @@ const ConnectionsPageComponent: React.FC = () => {
           header={
             <div className="flex w-full mb-3">
               <h3 className="block flex-auto text-3xl mb-0">{"Destinations"}</h3>
-              <Dropdown
-                trigger={["click"]}
-                placement="bottomRight"
-                overlay={
-                  <DropDownList
-                    hideFilter
-                    list={destinationsReferenceList
-                      .filter(dst => !dst["hidden"])
-                      .map(dst => {
-                        return {
-                          title: dst.displayName,
-                          id: dst.id,
-                          icon: dst.ui.icon,
-                          link: generatePath(destinationPageRoutes.newExact, {
-                            type: dst.id,
-                          }),
-                        }
-                      })}
-                  />
-                }
-                className="flex-initial"
-              >
-                <Button type="ghost" size="large" icon={<PlusOutlined />}>
-                  Add
-                </Button>
-              </Dropdown>
+              <Button type="ghost" size="large" icon={<PlusOutlined />} onClick={handleAddClick}>
+                Add
+              </Button>
             </div>
           }
         >
@@ -226,12 +210,12 @@ const AddSourceDropdownOverlay: React.FC = () => {
         {
           id: "api_key",
           title: "Add JS Events API Key",
-          link: "/api-keys/new",
+          link: projectRoute("/api-keys/new"),
         },
         {
           id: "connectors",
           title: "Add Connector Source",
-          link: "/sources/add",
+          link: projectRoute("/sources/add"),
         },
       ]}
     />

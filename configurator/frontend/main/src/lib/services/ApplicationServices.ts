@@ -1,11 +1,8 @@
-/* eslint-disable */
-import { IProject, JSON_FORMAT, PgDatabaseCredentials } from "./model"
+import { JSON_FORMAT } from "./model"
 import axios, { AxiosRequestConfig } from "axios"
 import * as uuid from "uuid"
 import AnalyticsService from "./analytics"
-import { FirebaseUserService } from "./UserServiceFirebase"
 import { BackendUserService } from "./UserServiceBackend"
-import { randomId } from "utils/numbers"
 import { concatenateURLs } from "lib/commons/utils"
 import { assert } from "utils/typeCheck"
 import { APIError, BackendApiClient, JWTBackendClient } from "./BackendApiClient"
@@ -15,11 +12,14 @@ import { ApplicationConfiguration } from "./ApplicationConfiguration"
 import { CurrentSubscription } from "./billing"
 import { ISlackApiService, SlackApiService } from "./slack"
 import { IOauthService, OauthService } from "./oauth"
+import { Project } from "../../generated/conf-openapi"
+import { createProjectService, ProjectService } from "./ProjectService"
+import { FirebaseUserService } from "./UserServiceFirebase"
 
 export interface IApplicationServices {
   init(): Promise<void>
   userService: UserService
-  activeProject: IProject
+  activeProject: Project
   storageService: ServerStorage
   analyticsService: AnalyticsService
   backendApiClient: BackendApiClient
@@ -27,8 +27,10 @@ export interface IApplicationServices {
   applicationConfiguration: ApplicationConfiguration
   slackApiSercice: ISlackApiService
   oauthService: IOauthService
+  projectService: ProjectService
   showSelfHostedSignUp(): boolean
 }
+
 export default class ApplicationServices implements IApplicationServices {
   private readonly _applicationConfiguration: ApplicationConfiguration
   private readonly _analyticsService: AnalyticsService
@@ -36,6 +38,7 @@ export default class ApplicationServices implements IApplicationServices {
   private readonly _storageService: ServerStorage
   private readonly _slackApiService: ISlackApiService
   private readonly _oauthService: IOauthService
+  private readonly _projectService: ProjectService
 
   private _userService: UserService
   private _features: FeatureSettings
@@ -43,6 +46,7 @@ export default class ApplicationServices implements IApplicationServices {
   public onboardingNotCompleteErrorMessage =
     "Onboarding process hasn't been fully completed. Please, contact the support"
   private _currentSubscription: CurrentSubscription
+  private _activeProject: Project
 
   constructor() {
     this._applicationConfiguration = new ApplicationConfiguration()
@@ -50,12 +54,13 @@ export default class ApplicationServices implements IApplicationServices {
     this._backendApiClient = new JWTBackendClient(
       this._applicationConfiguration.backendApiBase,
       this._applicationConfiguration.backendApiProxyBase,
-      () => this._userService.getUser().apiAccess,
+      () => this._userService.apiAccess(),
       this._analyticsService
     )
     this._storageService = new HttpServerStorage(this._backendApiClient)
-    this._slackApiService = new SlackApiService(() => this._userService.getUser().apiAccess)
+    this._slackApiService = new SlackApiService(() => this._userService.apiAccess())
     this._oauthService = new OauthService(this._applicationConfiguration.oauthApiBase, this._backendApiClient)
+    this._projectService = createProjectService(this._backendApiClient)
   }
 
   //load backend configuration and create user service depend on authorization type
@@ -65,7 +70,13 @@ export default class ApplicationServices implements IApplicationServices {
     this._analyticsService.configure(this._features)
 
     if (configuration.authorization == "redis" || !this._applicationConfiguration.firebaseConfig) {
-      this._userService = new BackendUserService(this._backendApiClient, this._storageService, configuration.smtp)
+      this._userService = new BackendUserService(
+        this._backendApiClient,
+        this._storageService,
+        configuration.smtp,
+        this._features.ssoAuthLink,
+        this._applicationConfiguration.backendApiBase
+      )
     } else if (configuration.authorization == "firebase") {
       this._userService = new FirebaseUserService(
         this._applicationConfiguration.firebaseConfig,
@@ -79,12 +90,20 @@ export default class ApplicationServices implements IApplicationServices {
     }
   }
 
+  get projectService(): ProjectService {
+    return this._projectService
+  }
+
   get userService(): UserService {
     return this._userService
   }
 
-  get activeProject(): IProject {
-    return this.userService.getUser().projects[0]
+  get activeProject(): Project {
+    return this._activeProject
+  }
+
+  set activeProject(value: Project) {
+    this._activeProject = value
   }
 
   get storageService(): ServerStorage {
@@ -152,38 +171,6 @@ export default class ApplicationServices implements IApplicationServices {
     }
   }
 
-  public async initializeDefaultDestination(): Promise<{
-    credentials: PgDatabaseCredentials
-    destinations: DestinationData[]
-  }> {
-    let credentials: PgDatabaseCredentials = await this._backendApiClient.post("/database", {
-      projectId: this.activeProject.id,
-    })
-    const destinationData: DestinationData = {
-      _type: "postgres",
-      _comment:
-        "We set up a test postgres database for you. It's hosted by us and has a 10,000 rows limitation. It's ok" +
-        " to try with service with it. However, don't use it in production setup. To reveal credentials, click on the 'Edit' button",
-      _id: "demo_postgres",
-      _uid: randomId(),
-      _mappings: null,
-      _onlyKeys: [],
-      _connectionTestOk: true,
-      _sources: [],
-      _formData: {
-        pguser: credentials["User"],
-        pgpassword: credentials["Password"],
-        pghost: credentials["Host"],
-        pgport: credentials["Port"],
-        pgdatabase: credentials["Database"],
-        mode: "stream",
-      },
-    }
-    const destinations = [destinationData]
-    await this._storageService.save("destinations", { destinations }, this.activeProject.id)
-    return { credentials, destinations }
-  }
-
   generateToken(): any {
     return {
       token: {
@@ -211,9 +198,20 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     environment = "docker" as const
   }
 
-  assert(responseData.authorization === "redis" || responseData.authorization === "firebase")
+  let ssoAuthLink = ""
+  if (typeof responseData.sso_auth_link === "string") {
+    ssoAuthLink = responseData.sso_auth_link
+  }
 
-  assert(typeof responseData.smtp === "boolean")
+  assert(
+    responseData.authorization === "redis" || responseData.authorization === "firebase",
+    `Assertion error in mapBackendConfigResponseToAppFeatures: authorization field can be either "redis" or "firebase", but received ${responseData.authorization}`
+  )
+
+  assert(
+    typeof responseData.smtp === "boolean",
+    `Assertion error in mapBackendConfigResponseToAppFeatures: smtp field must be a boolean, but received ${responseData.smtp}`
+  )
 
   return {
     ...responseData,
@@ -223,8 +221,9 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     anonymizeUsers: !!responseData.selfhosted,
     appName: responseData.selfhosted ? "selfhosted" : "jitsu_cloud",
     chatSupportType: responseData.selfhosted ? "slack" : "chat",
-    billingEnabled: !responseData.selfhosted,
+    billingEnabled: responseData.authorization === "firebase" && !!process.env.BILLING_API_BASE_URL,
     authorization: responseData.authorization,
+    ssoAuthLink,
     smtp: responseData.smtp,
     environment: environment,
     onlyAdminCanChangeUserEmail: !!responseData.only_admin_can_change_user_email,
@@ -240,7 +239,13 @@ export type FeatureSettings = {
   /**
    * Authorization type
    */
-  authorization: "redis" | "firebase"
+  authorization: "redis" | "sso" | "firebase"
+
+  /**
+   * Link for SSO authorization
+   */
+  ssoAuthLink: string
+
   /**
    * If is there any users in backend DB (no users means we need to run a setup flow)
    */

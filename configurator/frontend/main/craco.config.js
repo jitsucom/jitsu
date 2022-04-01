@@ -65,7 +65,7 @@ module.exports = {
         reportFilename: "bundle-report.html",
       }),
       new MonacoWebpackPlugin({
-        languages: ["json", "javascript", "typescript"],
+        languages: ["json", "javascript", "typescript", "html"],
       }),
     ],
     configure: (webpackConfig, { env, paths }) => {
@@ -108,7 +108,7 @@ module.exports = {
       // transpile some of the node_modules using babel
       plugin: CracoBabelLoader,
       options: {
-        includes: [resolvePackage("../node_modules/@jitsu/catalog")],
+        includes: [resolvePackage("../node_modules/@jitsu/catalog"), resolvePackage("../catalog")],
       },
     },
     {

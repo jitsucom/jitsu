@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/configurator/common"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/openapi"
@@ -27,7 +29,8 @@ const (
 	apiKeysCollection                    = "api_keys"
 	customDomainsCollection              = "custom_domains"
 	geoDataResolversCollection           = "geo_data_resolvers"
-	projectSettings                      = "project_settings"
+	projectSettingsCollection            = "project_settings"
+	userProjectRelation                  = "user_project"
 
 	telemetryCollection = "telemetry"
 	TelemetryGlobalID   = "global_configuration"
@@ -140,7 +143,7 @@ func (cs *ConfigurationsService) SaveConfigWithLock(objectType string, projectID
 }
 
 //GetConfigWithLock proxies call to getWithLock
-func (cs *ConfigurationsService) GetConfigWithLock(objectType string, projectID string) ([]byte, error) {
+func (cs *ConfigurationsService) GetConfigWithLock(objectType string, projectID string) (json.RawMessage, error) {
 	return cs.getWithLock(objectType, projectID)
 }
 
@@ -821,51 +824,245 @@ func (cs *ConfigurationsService) GetObjectWithLock(objectType, projectID, object
 	return nil, fmt.Errorf("object hasn't been found by id in path [%s] in the collection", objectArrayPath)
 }
 
-func (cs *ConfigurationsService) GetProjectSettings(projectID string) (result openapi.ProjectSettings, err error) {
-	var data []byte
-	data, err = cs.getWithLock(projectSettings, projectID)
-	switch {
-	case err == nil:
-		err = json.Unmarshal(data, &result)
-	case errors.Is(err, ErrConfigurationNotFound):
-		err = nil
-	}
-
-	return
+func (cs *ConfigurationsService) LinkUserToProject(userID, projectID string) error {
+	return cs.storage.AddRelatedIDs(userProjectRelation, userID, projectID)
 }
 
-func (cs *ConfigurationsService) PatchProjectSettings(projectID string, patch map[string]interface{}) (result openapi.ProjectSettings, err error) {
-	objectType := projectSettings
-	lock, err := cs.lockProjectObject(objectType, projectID)
+func (cs *ConfigurationsService) UnlinkUserFromProject(userID, projectID string) error {
+	return cs.storage.DeleteRelatedIDs(userProjectRelation, userID, projectID)
+}
+
+func (cs *ConfigurationsService) UnlinkUserFromAllProjects(userID string) error {
+	return cs.storage.DeleteRelation(userProjectRelation, userID)
+}
+
+func (cs *ConfigurationsService) GetAllProjects() ([]openapi.Project, error) {
+	projectsData, err := cs.storage.GetAllGroupedByID(projectSettingsCollection)
 	if err != nil {
-		return
+		return nil, errors.Wrap(err, "failed to load all projects")
 	}
 
-	defer lock.Unlock()
+	projects := make([]openapi.Project, 0, len(projectsData))
+	for projectID, projectData := range projectsData {
+		var project openapi.Project
+		if err := json.Unmarshal(projectData, &project); err != nil {
+			return nil, errors.Wrapf(err, "unmarshal project %s", projectID)
+		}
 
-	data, err := cs.get(objectType, projectID)
+		projects = append(projects, project)
+	}
+
+	return projects, nil
+}
+
+func (cs *ConfigurationsService) GetUserProjects(userID string) ([]string, error) {
+	return cs.storage.GetRelatedIDs(userProjectRelation, userID)
+}
+
+func (cs *ConfigurationsService) GetProjectUsers(projectID string) ([]string, error) {
+	if err := cs.Load(projectID, new(Project)); err != nil {
+		return nil, err
+	}
+
+	index, err := cs.storage.GetRelationIndex(userProjectRelation)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get user project relation index")
+	}
+
+	userIDs := make(common.StringSet)
+	for _, userID := range index {
+		if relatedProjectIDs, err := cs.storage.GetRelatedIDs(userProjectRelation, userID); err != nil {
+			return nil, errors.Wrapf(err, "failed to get related projects for user %s", userID)
+		} else {
+			for _, relatedProjectID := range relatedProjectIDs {
+				if relatedProjectID == projectID {
+					userIDs[userID] = true
+					break
+				}
+			}
+		}
+	}
+
+	return userIDs.Values(), nil
+}
+
+func (cs *ConfigurationsService) Create(value CollectionItem, patch interface{}) error {
+	if _, err := cs.Patch(random.LowerString(22), value, patch, false); err != nil {
+		return errors.Wrapf(err, "failed to patch %s", value.Collection())
+	} else {
+		return nil
+	}
+}
+
+func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*RedisUserInfo, error) {
+	var result RedisUserInfo
+	if patched, err := cs.Patch(id, &result, patch, false); err != nil {
+		return nil, errors.Wrap(err, "failed to patch user info")
+	} else if patched {
+		if projectInfo := result.Project; projectInfo != nil {
+			projectID := projectInfo.Id
+			patch := openapi.Project{
+				Id:            projectID,
+				Name:          projectInfo.Name,
+				RequiresSetup: projectInfo.RequireSetup,
+			}
+
+			if _, err := cs.Patch(projectID, new(Project), patch, false); err != nil {
+				return nil, errors.Wrap(err, "faild to patch project")
+			} else if err := cs.LinkUserToProject(id, projectID); err != nil {
+				return nil, errors.Wrap(err, "failed to link user to project")
+			}
+		}
+	}
+
+	return &result, nil
+}
+
+func (cs *ConfigurationsService) GetUserInfo(id string) (*RedisUserInfo, error) {
+	var result RedisUserInfo
+	if err := cs.Load(id, &result); err != nil {
+		return nil, errors.Wrap(err, "failed to load user info")
+	}
+
+	if projectInfo := result.Project; projectInfo != nil {
+		var project Project
+		if err := cs.Load(projectInfo.Id, &project); err != nil {
+			return nil, errors.Wrap(err, "failed to load project from user info")
+		}
+
+		result.Project = &openapi.ProjectInfo{
+			Id:           project.Id,
+			Name:         project.Name,
+			RequireSetup: project.RequiresSetup,
+		}
+	}
+
+	return &result, nil
+}
+
+func (cs *ConfigurationsService) Load(id string, value CollectionItem) error {
+	if data, err := cs.get(value.Collection(), id); err != nil {
+		return errors.Wrapf(err, "failed to get %s with lock", value.Collection())
+	} else if err := json.Unmarshal(data, value); err != nil {
+		return errors.Wrapf(err, "unmarshal %s value", value.Collection())
+	} else {
+		return nil
+	}
+}
+
+// patchHandler defines a strategy during Patch.
+// A handler is responsible for unmarshaling of the stored object as well as calling the value handlers.
+type patchHandler interface {
+	// beforePatch is called before the patch is applied to the value.
+	beforePatch(data []byte, value CollectionItem) error
+	// afterPatch is called after the patch is applied to the value.
+	// apply should be false if the value is not to be persisted.
+	afterPatch(value CollectionItem) (apply bool, err error)
+}
+
+type createPatchHandler struct {
+	id string
+}
+
+func (createPatchHandler) beforePatch([]byte, CollectionItem) error {
+	return nil
+}
+
+func (h createPatchHandler) afterPatch(value CollectionItem) (bool, error) {
+	if handler, ok := value.(OnCreateHandler); ok {
+		handler.OnCreate(h.id)
+	}
+
+	return true, nil
+}
+
+// updatePatchHandler is a map containing original state of the object.
+// This is a type alias for brevity of instantiation.
+type updatePatchHandler map[string]interface{}
+
+func (h updatePatchHandler) unmask() map[string]interface{} {
+	return h
+}
+
+func (h updatePatchHandler) beforePatch(data []byte, value CollectionItem) error {
+	if err := json.Unmarshal(data, value); err != nil {
+		return errors.Wrap(err, "unmarshal")
+	}
+
+	if err := common.DecodeAsJSON(value, &h); err != nil {
+		return errors.Wrap(err, "decode original values")
+	}
+
+	return nil
+}
+
+func (h updatePatchHandler) afterPatch(value CollectionItem) (apply bool, err error) {
+	var values map[string]interface{}
+	if err := common.DecodeAsJSON(value, &values); err != nil {
+		return false, errors.Wrap(err, "decode updated values")
+	}
+
+	if reflect.DeepEqual(h.unmask(), values) {
+		return false, nil
+	}
+
+	if handler, ok := value.(OnUpdateHandler); ok {
+		handler.OnUpdate()
+	}
+
+	return true, nil
+}
+
+// Patch patches the collection item.
+//   `id` is the ID of the collection item.
+//   `value` should be an empty initialized pointer to the value of the target type. Slices are currently not supported.
+//	 `patch` may be anything that is acceptable for json.Marshal. Must define an object (not array or value).
+//	 `requireExist` indicates if the object with the specified ID must already exist. See patchHandler docs for more info.
+func (cs *ConfigurationsService) Patch(id string, value CollectionItem, patch interface{}, requireExist bool) (bool, error) {
+	if lock, err := cs.lockProjectObject(value.Collection(), id); err != nil {
+		return false, err
+	} else {
+		defer lock.Unlock()
+	}
+
+	var handler patchHandler
+	data, err := cs.get(value.Collection(), id)
 	switch {
 	case err == nil:
-		// is ok
-	case errors.Is(err, ErrConfigurationNotFound):
-		data = []byte(`{}`)
-		err = nil
+		handler = updatePatchHandler{}
+	case errors.Is(err, ErrConfigurationNotFound) && !requireExist:
+		handler = createPatchHandler{id}
 	default:
-		return
+		return false, errors.Wrap(err, "get")
 	}
 
-	object := make(map[string]interface{})
-	if err = json.Unmarshal(data, &object); err != nil {
-		return
+	if err := handler.beforePatch(data, value); err != nil {
+		return false, errors.Wrap(err, "before patch")
 	}
 
-	data, err = cs.save(objectType, projectID, jsonutils.Merge(object, patch))
-	if err != nil {
-		return
+	if err := common.DecodeAsJSON(patch, value); err != nil {
+		return false, errors.Wrap(err, "apply patch")
 	}
 
-	err = json.Unmarshal(data, &result)
-	return
+	if apply, err := handler.afterPatch(value); err != nil {
+		return false, errors.Wrap(err, "after patch")
+	} else if !apply {
+		return false, nil
+	}
+
+	if _, err := cs.save(value.Collection(), id, value); err != nil {
+		return false, errors.Wrap(err, "save")
+	}
+
+	return true, nil
+}
+
+func (cs *ConfigurationsService) Delete(id string, value CollectionItem) error {
+	if err := cs.delete(value.Collection(), id); err != nil {
+		return errors.Wrapf(err, "delete %s", value.Collection())
+	} else {
+		return nil
+	}
 }
 
 func (cs *ConfigurationsService) Close() (multiErr error) {

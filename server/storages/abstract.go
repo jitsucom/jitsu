@@ -83,7 +83,7 @@ func (a *Abstract) ErrorEvent(fallback bool, eventCtx *adapters.EventContext, er
 	telemetry.Error(eventCtx.TokenID, a.destinationID, eventCtx.Src, "", 1)
 
 	//cache
-	a.eventsCache.Error(eventCtx.CacheDisabled, a.destinationID, eventCtx.EventID, err.Error())
+	a.eventsCache.Error(eventCtx.CacheDisabled, a.ID(), eventCtx.GetSerializedOriginalEvent(), err.Error())
 
 	if fallback {
 		a.Fallback(&events.FailedEvent{
@@ -110,7 +110,7 @@ func (a *Abstract) SkipEvent(eventCtx *adapters.EventContext, err error) {
 	metrics.SkipTokenEvent(eventCtx.TokenID, a.Processor().DestinationType(), a.destinationID)
 
 	//cache
-	a.eventsCache.Skip(eventCtx.CacheDisabled, a.destinationID, eventCtx.EventID, err.Error())
+	a.eventsCache.Skip(eventCtx.CacheDisabled, a.destinationID, eventCtx.GetSerializedOriginalEvent(), err.Error())
 }
 
 //Fallback logs event with error to fallback logger
@@ -166,13 +166,13 @@ func (a *Abstract) Store(fileName string, objects []map[string]interface{}, alre
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
 		if !failedEvent.RecognizedEvent {
-			a.eventsCache.Error(a.IsCachingDisabled(), a.ID(), failedEvent.EventID, failedEvent.Error)
+			a.eventsCache.Error(a.IsCachingDisabled(), a.ID(), string(failedEvent.Event), failedEvent.Error)
 		}
 	}
 	//update cache and counter with skipped events
 	for _, skipEvent := range skippedEvents.Events {
 		if !skipEvent.RecognizedEvent {
-			a.eventsCache.Skip(a.IsCachingDisabled(), a.ID(), skipEvent.EventID, skipEvent.Error)
+			a.eventsCache.Skip(a.IsCachingDisabled(), a.ID(), string(skipEvent.Event), skipEvent.Error)
 		}
 	}
 
@@ -185,19 +185,8 @@ func (a *Abstract) Store(fileName string, objects []map[string]interface{}, alre
 			storeFailedEvents = false
 		}
 
-		//events cache
-		for _, object := range fdata.GetPayload() {
-			if err != nil {
-				a.eventsCache.Error(a.IsCachingDisabled(), a.ID(), a.uniqueIDField.Extract(object), err.Error())
-			} else {
-				a.eventsCache.Succeed(&adapters.EventContext{
-					CacheDisabled:  a.IsCachingDisabled(),
-					DestinationID:  a.ID(),
-					EventID:        a.uniqueIDField.Extract(object),
-					ProcessedEvent: object,
-					Table:          table,
-				})
-			}
+		if !fdata.RecognitionPayload {
+			writeEventsToCache(a.implementation, a.eventsCache, table, fdata, err)
 		}
 	}
 	for _, fdata := range recognizedFlatData {
@@ -318,7 +307,7 @@ func (a *Abstract) close() (multiErr error) {
 	return nil
 }
 
-func (a *Abstract) Init(config *Config, impl Storage) error {
+func (a *Abstract) Init(config *Config, impl Storage, preinstalledJavaScript string, defaultUserTransform string) error {
 	a.implementation = impl
 	//Abstract (SQLAdapters and tableHelpers are omitted)
 	a.destinationID = config.destinationID
@@ -330,6 +319,12 @@ func (a *Abstract) Init(config *Config, impl Storage) error {
 	a.processor, a.sqlTypes, err = a.setupProcessor(config)
 	if err != nil {
 		return err
+	}
+	if preinstalledJavaScript != "" {
+		a.processor.AddJavaScript(preinstalledJavaScript)
+	}
+	if defaultUserTransform != "" {
+		a.processor.SetDefaultUserTransform(defaultUserTransform)
 	}
 	return a.Processor().InitJavaScriptTemplates()
 }
@@ -442,4 +437,8 @@ func (a *Abstract) setupProcessor(cfg *Config) (processor *schema.Processor, sql
 func (a *Abstract) getAdapters() (adapters.SQLAdapter, *TableHelper) {
 	num := rand.Intn(len(a.sqlAdapters))
 	return a.sqlAdapters[num], a.tableHelpers[num]
+}
+
+func (a *Abstract) GetSyncWorker() *SyncWorker {
+	return nil
 }

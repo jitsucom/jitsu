@@ -3,14 +3,15 @@ import React, { useCallback, useState } from "react"
 import { Tabs } from "antd"
 import { SourceEditorControlsDisabled, SourceEditorViewControls } from "./SourceEditorViewControls"
 import styles from "./SourceEditor.module.less"
-import { NavLink, generatePath } from "react-router-dom"
-import { taskLogsPageRoute } from "ui/pages/TaskLogs/TaskLogsPage"
+import { NavLink } from "react-router-dom"
 import { SourceConnector } from "@jitsu/catalog/sources/types"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { TabName } from "ui/components/Tabs/TabName"
 import { HandleSaveSource, HandleValidateTestConnection, SourceEditorDisabledTabs } from "./SourceEditor"
 import { ErrorDetailed } from "lib/commons/errors"
 import { uniqueId } from "lodash"
+import { projectRoute } from "../../../../../../lib/components/ProjectLink/ProjectLink"
+import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 
 type Tab = {
   key: string
@@ -23,6 +24,7 @@ type Tab = {
 }
 
 type SourceEditorViewTabsProps = {
+  sourceId: string
   tabs: Tab[]
   tabsDisabled: SourceEditorDisabledTabs
   sourceDataFromCatalog: SourceConnector
@@ -34,6 +36,7 @@ type SourceEditorViewTabsProps = {
 }
 
 export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
+  sourceId,
   tabs,
   tabsDisabled,
   sourceDataFromCatalog,
@@ -115,6 +118,7 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
         activeKey={currentTab}
         tabBarExtraContent={
           <TabsExtra
+            sourceId={sourceId}
             sourceDataFromCatalog={sourceDataFromCatalog}
             setShowDocumentationDrawer={setShowDocumentationDrawer}
           />
@@ -160,14 +164,15 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
 }
 
 const TabsExtra: React.FC<{
+  sourceId: string
   sourceDataFromCatalog: SourceConnector
   setShowDocumentationDrawer: (value: boolean) => void
-}> = ({ sourceDataFromCatalog, setShowDocumentationDrawer }) => {
+}> = ({ sourceId, sourceDataFromCatalog, setShowDocumentationDrawer }) => {
   return (
     <span className="uppercase">
       <NavLink
-        to={generatePath(taskLogsPageRoute, {
-          sourceId: sourceDataFromCatalog.id ?? "not_found",
+        to={projectRoute(sourcesPageRoutes.logs, {
+          sourceId: sourceId ?? "not_found",
         })}
       >
         View Logs

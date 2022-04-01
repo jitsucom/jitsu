@@ -24,11 +24,13 @@ const (
 	userIDField              = "uid"
 	firestoreDocumentIDField = "_firestore_document_id"
 
-	batchSize = 100
+	batchSize        = 100
+	objectsChunkSize = 10000
 )
 
 type subCollectionResult struct {
-	objects []map[string]interface{}
+	counter      int
+	objectsChunk []map[string]interface{}
 }
 
 //Firebase is a Firebase/Firestore driver. It used in syncing data from Firebase/Firestore
@@ -163,43 +165,40 @@ func (f *Firebase) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil
 }
 
-func (f *Firebase) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
+func (f *Firebase) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	if f.collection.Type == FirestoreCollection {
-		return f.loadCollection()
+		return f.loadCollection(objectsLoader)
 	} else if f.collection.Type == UsersCollection {
-		return f.loadUsers()
+		return f.loadUsers(objectsLoader)
 	}
-	return nil, fmt.Errorf("Unknown stream type: %s", f.collection.Type)
+	return fmt.Errorf("Unknown stream type: %s", f.collection.Type)
 }
 
 //loadCollection gets the exact firestore key or by path with wildcard:
 //  collection/*/sub_collection/*/sub_sub_collection
-func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
+func (f *Firebase) loadCollection(objectsLoader base.ObjectsLoader) error {
 	collectionPaths := strings.Split(f.firestoreCollectionKey, "/*/")
 	firstPathPart := collectionPaths[0]
 	collectionPaths = collectionPaths[1:]
 	firebaseCollection := f.firestoreClient.Collection(firstPathPart)
 	if firebaseCollection == nil {
-		return nil, fmt.Errorf("collection [%s] (expression=%s) doesn't exist in Firestore", firstPathPart, f.firestoreCollectionKey)
+		return fmt.Errorf("collection [%s] (expression=%s) doesn't exist in Firestore", firstPathPart, f.firestoreCollectionKey)
 	}
 
 	result := &subCollectionResult{}
-	err := f.diveAndFetch(firebaseCollection, map[string]interface{}{}, firestoreDocumentIDField, collectionPaths, result)
+	err := f.diveAndFetch(firebaseCollection, map[string]interface{}{}, firestoreDocumentIDField, collectionPaths, objectsLoader, result)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return result.objects, nil
+	return nil
 }
 
 //diveAndFetch depth-first dives into collections tree if not empty or
 //fetches batches of data and puts into the result
-func (f *Firebase) diveAndFetch(collection *firestore.CollectionRef, parentIDs map[string]interface{}, idFieldName string, paths []string, result *subCollectionResult) error {
-	ctx, cancel := context.WithTimeout(f.ctx, 60*time.Minute)
-	defer cancel()
-
+func (f *Firebase) diveAndFetch(collection *firestore.CollectionRef, parentIDs map[string]interface{}, idFieldName string, paths []string, objectsLoader base.ObjectsLoader, result *subCollectionResult) error {
 	//firebase doesn't respect big requests
-	iter := collection.Limit(batchSize).Documents(ctx)
+	iter := collection.Limit(batchSize).Documents(f.ctx)
 	defer iter.Stop()
 
 	current := 0
@@ -212,7 +211,7 @@ func (f *Firebase) diveAndFetch(collection *firestore.CollectionRef, parentIDs m
 				if batchSize == current {
 					current = 0
 					batchesCount++
-					iter = collection.Offset(batchSize * batchesCount).Limit(batchSize).Documents(ctx)
+					iter = collection.Offset(batchSize * batchesCount).Limit(batchSize).Documents(f.ctx)
 					continue
 				}
 				break
@@ -237,7 +236,7 @@ func (f *Firebase) diveAndFetch(collection *firestore.CollectionRef, parentIDs m
 
 			subCollectionIDField := idFieldName + "_" + subCollectionName
 
-			err := f.diveAndFetch(subCollection, parentIDs, subCollectionIDField, paths[1:], result)
+			err := f.diveAndFetch(subCollection, parentIDs, subCollectionIDField, paths[1:], objectsLoader, result)
 			if err != nil {
 				return err
 			}
@@ -256,10 +255,25 @@ func (f *Firebase) diveAndFetch(collection *firestore.CollectionRef, parentIDs m
 				data[parentIDKey] = parentIDValue
 			}
 
-			result.objects = append(result.objects, data)
+			result.objectsChunk = append(result.objectsChunk, data)
+			if len(result.objectsChunk) == objectsChunkSize {
+				err = objectsLoader(result.objectsChunk, result.counter, -1, -1)
+				if err != nil {
+					return err
+				}
+				result.counter += len(result.objectsChunk)
+				result.objectsChunk = nil
+			}
 		}
 	}
-
+	if len(result.objectsChunk) > 0 {
+		err := objectsLoader(result.objectsChunk, result.counter, -1, -1)
+		if err != nil {
+			return err
+		}
+		result.counter += len(result.objectsChunk)
+		result.objectsChunk = nil
+	}
 	return nil
 }
 
@@ -271,18 +285,18 @@ func (f *Firebase) Close() error {
 	return f.firestoreClient.Close()
 }
 
-func (f *Firebase) loadUsers() ([]map[string]interface{}, error) {
-	ctx, cancel := context.WithTimeout(f.ctx, 5*time.Minute)
-	defer cancel()
-	iter := f.authClient.Users(ctx, "")
+func (f *Firebase) loadUsers(objectsLoader base.ObjectsLoader) error {
+	iter := f.authClient.Users(f.ctx, "")
 	var users []map[string]interface{}
+	loaded := 0
+
 	for {
 		authUser, err := iter.Next()
 		if err == iterator.Done {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return err
 		}
 		user := make(map[string]interface{})
 		user["email"] = authUser.Email
@@ -298,8 +312,22 @@ func (f *Firebase) loadUsers() ([]map[string]interface{}, error) {
 		user["last_login"] = f.unixTimestampToISOString(authUser.UserMetadata.LastLogInTimestamp)
 		user["last_refresh"] = f.unixTimestampToISOString(authUser.UserMetadata.LastRefreshTimestamp)
 		users = append(users, user)
+		if len(users) == objectsChunkSize {
+			err = objectsLoader(users, loaded, -1, -1)
+			if err != nil {
+				return err
+			}
+			loaded += len(users)
+			users = nil
+		}
 	}
-	return users, nil
+	if len(users) > 0 {
+		err := objectsLoader(users, loaded, -1, -1)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (f *Firebase) unixTimestampToISOString(nanoseconds int64) string {

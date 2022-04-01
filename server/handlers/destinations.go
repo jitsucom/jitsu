@@ -147,6 +147,13 @@ func testDestinationConnection(config *config.DestinationConfig, globalConfigura
 			return err
 		}
 		return nil
+	case storages.TagType:
+		cfg := &adapters.TagConfig{}
+		if err := config.GetDestConfig(map[string]interface{}{}, cfg); err != nil {
+			return err
+		}
+		_, err := adapters.NewTag(cfg, identifier)
+		return err
 	case storages.AmplitudeType:
 		cfg := &adapters.AmplitudeConfig{}
 		if err := config.GetDestConfig(config.Amplitude, cfg); err != nil {
@@ -562,10 +569,7 @@ func testSnowflake(config *config.DestinationConfig, eventContext *adapters.Even
 	if err != nil {
 		return err
 	}
-	s3config, ok := s3c.(*adapters.S3Config)
-	if !ok {
-		s3config = &adapters.S3Config{}
-	}
+	s3config, _ = s3c.(*adapters.S3Config)
 	var googleConfig *adapters.GoogleConfig
 	gc, err := config.GetConfig(snowflakeConfig.Google, config.Google, &adapters.GoogleConfig{})
 	if err != nil {

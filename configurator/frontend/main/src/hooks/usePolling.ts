@@ -64,7 +64,12 @@ export const usePolling = <T>(
   /**
    * Polling options such as interval and timeout
    */
-  options: UsePollingOptions = {}
+  options: UsePollingOptions = {},
+
+  /**
+   * List of dependencies to restart polling upon their change
+   */
+  dependencies?: unknown[]
 ): UsePollingReturnType<T> => {
   // const { pollingCallback, onBeforePollingStart, onAfterPollingEnd } = useMemo<>(() => {}, )
   const pollingHookConfigurator: PollingHookConfigurator<T> =
@@ -123,7 +128,7 @@ export const usePolling = <T>(
   useEffect(() => {
     cancel()
     poll()
-  }, [])
+  }, dependencies ?? [])
 
   /**
    * Cleans up unfinished poll when component is unmounted;

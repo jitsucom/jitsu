@@ -3,23 +3,24 @@ package adapters
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/errorj"
-	"github.com/jitsucom/jitsu/server/uuid"
 	"math"
 	"sort"
 	"strings"
 
+	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
+	"github.com/jitsucom/jitsu/server/uuid"
 	sf "github.com/snowflakedb/gosnowflake"
 )
 
 const (
 	tableExistenceSFQuery   = `SELECT count(*) from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = ? and TABLE_NAME = ?`
 	descSchemaSFQuery       = `desc table %s.%s`
-	copyStatementFileFormat = ` FILE_FORMAT=(TYPE= 'CSV', FIELD_DELIMITER = '||' SKIP_HEADER = 1 EMPTY_FIELD_AS_NULL = true) `
+	copyStatementFileFormat = ` FILE_FORMAT=(TYPE= 'CSV', FIELD_OPTIONALLY_ENCLOSED_BY = '"' SKIP_HEADER = 1 EMPTY_FIELD_AS_NULL = true) `
 	gcpFrom                 = `FROM @%s
    							   %s
                                PATTERN = '%s'`
@@ -587,9 +588,17 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 		return errorj.Decorate(err, "failed to create temporary table")
 	}
 
+	defer func() {
+		//delete tmp table
+		if err := s.dropTableInTransaction(wrappedTx, tmpTable); err != nil {
+			logging.Warnf("[snowflake] Failed to drop temporary table '%s': %v", tmpTable.Name, err)
+		}
+	}()
+
 	err = s.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
 	if err != nil {
-		return errorj.Decorate(err, "failed to insert into temporary table")
+		return errorj.Decorate(err, "failed to insert into temporary table").
+			WithProperty(errorj.DBObjects, dbObjects(objects))
 	}
 
 	//insert from select
@@ -624,12 +633,30 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 			})
 	}
 
-	//delete tmp table
-	if err := s.dropTableInTransaction(wrappedTx, tmpTable); err != nil {
-		return errorj.Decorate(err, "failed to drop temporary table")
+	return nil
+}
+
+type dbObjects []map[string]interface{}
+
+func (o dbObjects) String() string {
+	if len(o) == 0 {
+		return "[]"
 	}
 
-	return nil
+	var b strings.Builder
+	b.WriteRune('[')
+	for i, object := range o {
+		if i < 2000 {
+			data, _ := json.Marshal(object)
+			b.WriteString("\n  " + string(data) + ",")
+		} else {
+			b.WriteString(fmt.Sprintf("\n  // ... omitted %d objects ...", len(o)-i))
+			break
+		}
+	}
+
+	b.WriteString("\n]")
+	return b.String()
 }
 
 //dropTableInTransaction drops a table in transaction
@@ -663,9 +690,10 @@ func (s *Snowflake) executeInsertInTransaction(wrappedTx *Transaction, table *Ta
 	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
 		return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute insert").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
-				Schema:    s.config.Schema,
-				Table:     table.Name,
-				Statement: fmt.Sprintf(insertSFTemplate, s.config.Schema, table.Name, strings.Join(quotedHeader, ","), fmt.Sprintf("[values: %d. for intance the first element: %v]", len(valueArgs), valueArgs[0])),
+				Schema:          s.config.Schema,
+				Table:           table.Name,
+				Statement:       statement,
+				ValuesMapString: ObjectValuesToString(headerWithoutQuotes, valueArgs),
 			})
 	}
 
@@ -721,7 +749,7 @@ func (s *Snowflake) getCastClause(name string, column typing.SQLColumn) string {
 		return "::" + castType.Type
 	}
 
-	return ""
+	return "::" + column.Type
 }
 
 //columnDDL returns column DDL (column name, mapped sql type)
