@@ -2,7 +2,6 @@ import { Button, Form, Input } from "antd"
 import { observer } from "mobx-react-lite"
 import { apiKeysStore } from "../../../stores/apiKeys"
 import { Prompt, useHistory, useParams } from "react-router-dom"
-import { CenteredError } from "../components"
 import { useForm } from "antd/es/form/Form"
 import ReloadOutlined from "@ant-design/icons/lib/icons/ReloadOutlined"
 import React, { ReactNode, useState } from "react"
@@ -16,6 +15,7 @@ import { DestinationPicker } from "./DestinationPicker"
 import { connectionsHelper } from "stores/helpers"
 import { apiKeysRoutes } from "./ApiKeysRouter"
 import { projectRoute } from "../ProjectLink/ProjectLink"
+import { EntityNotFound } from "ui/components/EntityNotFound/EntityNotFound"
 
 const SecretKey: React.FC<{
   formFieldName: string
@@ -69,8 +69,9 @@ const ApiKeyEditorComponent: React.FC = props => {
   }
   const initialApiKey = id ? apiKeysStore.get(id) : apiKeysStore.generateApiKey()
   if (!initialApiKey) {
-    return <CenteredError error={new Error(`Key with id ${id} not found`)} />
+    return <EntityNotFound entityDisplayType="API Key" entityId={id} entitiesListRoute={apiKeysRoutes.listExact} />
   }
+
   const [editorObject, setEditorObject] = useState<EditorObject>(getEditorObject(initialApiKey))
   const history = useHistory()
   const [deleting, setDeleting] = useState(false)

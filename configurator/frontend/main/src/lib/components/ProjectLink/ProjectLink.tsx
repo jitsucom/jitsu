@@ -5,15 +5,19 @@ import ApplicationServices from "../../services/ApplicationServices"
 
 export type ProjectLinkProps = {
   to: string
+  /** Allows to conditionally strip link */
+  stripLink?: boolean
   className?: string
 }
 /**
  * Link to page within project hierarchy. It should be used instead <NavLink /> in most cases
  */
-const ProjectLink: React.FC<ProjectLinkProps> = ({ to, children, ...rest }) => {
+const ProjectLink: React.FC<ProjectLinkProps> = ({ to, children, stripLink, ...rest }) => {
   const services = useServices()
   const projectId = services.activeProject.id
-  return (
+  return stripLink ? (
+    <>{children}</>
+  ) : (
     <NavLink to={`/prj-${projectId}${to}`} {...rest}>
       {children}
     </NavLink>
@@ -21,15 +25,13 @@ const ProjectLink: React.FC<ProjectLinkProps> = ({ to, children, ...rest }) => {
 }
 
 /**
- * Prefixes any valid relative URL with `/prj-{current_project_id}` 
+ * Prefixes any valid relative URL with `/prj-{current_project_id}`
  * @param pattern either a regular link like `/live-events` or a pattern with indicated project id like `/prj-:projectId/live-events`
- * @param params 
- * @returns 
+ * @param params
+ * @returns
  */
 export function projectRoute(pattern: string, params: ExtractRouteParams<string> = {}): string {
-  pattern = pattern.includes("/prj-:projectId")
-    ? pattern
-    : `/prj-:projectId${pattern.startsWith("/") ? pattern : `/${pattern}`}`
+  pattern = pattern.includes("/prj-") ? pattern : `/prj-:projectId${pattern.startsWith("/") ? pattern : `/${pattern}`}`
   return generatePath(pattern, { projectId: ApplicationServices.get().activeProject.id, ...params })
 }
 
