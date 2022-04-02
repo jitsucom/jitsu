@@ -6,7 +6,13 @@ import { Button, Card, Col, Tooltip, Row } from "antd"
 import { CodeInline } from "lib/components/components"
 import { StatisticsChart } from "ui/components/StatisticsChart/StatisticsChart"
 // @Icons
-import { ReloadOutlined, QuestionCircleOutlined, ThunderboltFilled } from "@ant-design/icons"
+import {
+  ReloadOutlined,
+  QuestionCircleOutlined,
+  ThunderboltFilled,
+  EditOutlined,
+  UnorderedListOutlined,
+} from "@ant-design/icons"
 // @Services
 import { addSeconds, StatisticsService } from "lib/services/stat"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
@@ -18,33 +24,45 @@ import {
   getAllDestinationsAsOptions,
   getAllSourcesAsOptions,
 } from "../Filters/shared"
-import ProjectLink from "../ProjectLink/ProjectLink"
+import ProjectLink, { projectRoute } from "../ProjectLink/ProjectLink"
 import { withQueryParams } from "utils/queryParams"
 
 type DataType = "total" | "success" | "skip" | "errors"
-type DestinationOrApiKeyId =
+
+type Props =
   | {
-      destinationId?: string
-      apiKeyId?: never
+      entityType: "api_key" | "destination"
+      entityId: string
+      editEntityRoute: string
+      entitiesListRoute: string
     }
   | {
-      destinationId?: never
-      apiKeyId?: string
+      entityType?: never
+      entityId?: never
+      editEntityRoute?: never
+      entitiesListRoute?: never
     }
 
-type Props = DestinationOrApiKeyId
-
-export const StatusPage: React.FC<Props> = ({ destinationId, apiKeyId }) => {
-  const isGeneralStatsPage: boolean = !destinationId && !apiKeyId
+/**
+ * Displays statistics for all entities - sources, API keys, destinations - if no props passed or
+ * displays statistics and specific controls for the entity specified using the props
+ */
+export const StatusPage: React.FC<Props> = ({ entityType, entityId, editEntityRoute, entitiesListRoute }) => {
+  const isGeneralStatsPage: boolean = !entityType
+  const entityDisplayName: string | null = isGeneralStatsPage
+    ? null
+    : entityType === "destination"
+    ? "Destination"
+    : "API Key"
   const services = useServices()
   const history = useHistory()
   const location = useLocation()
   const params = new URLSearchParams(
     isGeneralStatsPage
       ? location.search
-      : destinationId
-      ? { destination_push: destinationId, destination_pull: destinationId }
-      : { source_push: apiKeyId }
+      : entityType === "destination"
+      ? { destination_push: entityId, destination_pull: entityId }
+      : { source_push: entityId }
   )
   const [period, setPeriod] = useState(params.get("period") || "month")
   const [reloadCount, setReloadCount] = useState(0)
@@ -96,6 +114,34 @@ export const StatusPage: React.FC<Props> = ({ destinationId, apiKeyId }) => {
               Live Events
             </Button>
           </ProjectLink>
+          {!isGeneralStatsPage && !!entityDisplayName && !!entitiesListRoute && !!editEntityRoute && !!entityId && (
+            <>
+              <Button
+                type="ghost"
+                size="large"
+                className="mr-5"
+                icon={<EditOutlined />}
+                onClick={() =>
+                  history.push(
+                    projectRoute(editEntityRoute, {
+                      id: entityId,
+                    })
+                  )
+                }
+              >
+                {`Edit ${entityDisplayName}`}
+              </Button>
+              <Button
+                type="ghost"
+                size="large"
+                className="mr-5"
+                icon={<UnorderedListOutlined />}
+                onClick={() => history.push(projectRoute(entitiesListRoute))}
+              >
+                {`${entityDisplayName}s List`}
+              </Button>
+            </>
+          )}
           <Button
             size="large"
             icon={<ReloadOutlined />}
@@ -117,7 +163,7 @@ export const StatusPage: React.FC<Props> = ({ destinationId, apiKeyId }) => {
         </Row>
       )}
       <Row gutter={16} className="status-page-cards-row mb-4">
-        {(!!apiKeyId || isGeneralStatsPage) && (
+        {(isGeneralStatsPage || entityType === "api_key") && (
           <Col span={isGeneralStatsPage ? 12 : 24}>
             <StatusChart
               title={
@@ -142,7 +188,7 @@ export const StatusPage: React.FC<Props> = ({ destinationId, apiKeyId }) => {
             />
           </Col>
         )}
-        {(!!destinationId || isGeneralStatsPage) && (
+        {(isGeneralStatsPage || entityType === "destination") && (
           <Col span={isGeneralStatsPage ? 12 : 24}>
             <StatusChart
               title={
@@ -167,18 +213,18 @@ export const StatusPage: React.FC<Props> = ({ destinationId, apiKeyId }) => {
           </Col>
         )}
       </Row>
-      {(!apiKeyId || isGeneralStatsPage) && (
+      {(isGeneralStatsPage || entityType === "destination") && (
         <Row>
           <Col span={24}>
             <StatusChart
               title={<span>Rows synchronized from sources</span>}
               stats={stats}
               period={periodMap[period]}
-              namespace={!!destinationId ? "destination" : "source"}
+              namespace={entityType === "destination" ? "destination" : "source"}
               type="pull"
               granularity={period === "day" ? "hour" : "day"}
               dataToDisplay={["success", "skip", "errors"]}
-              filterOptions={!!destinationId ? destinationsOptions : sourcesOptions}
+              filterOptions={entityType === "destination" ? destinationsOptions : sourcesOptions}
               reloadCount={reloadCount}
               extra={SyncEventsDocsTooltip}
               hideFilter={!isGeneralStatsPage}
@@ -190,158 +236,6 @@ export const StatusPage: React.FC<Props> = ({ destinationId, apiKeyId }) => {
     </>
   )
 }
-
-// export const StatusPage: React.FC<Props> = ({ destinationId, apiKeyId }) => {
-//   const isGeneralStatsPage: boolean = !destinationId && !apiKeyId
-//   const services = useServices()
-//   const history = useHistory()
-//   const location = useLocation()
-//   const params = new URLSearchParams(
-//     isGeneralStatsPage
-//       ? location.search
-//       : destinationId
-//       ? { destination_push: destinationId }
-//       : { source_push: apiKeyId }
-//   )
-//   const [period, setPeriod] = useState(params.get("period") || "month")
-//   const [reloadCount, setReloadCount] = useState(0)
-//   const stats = new StatisticsService(services.backendApiClient, services.activeProject.id, true)
-//   const isSelfHosted = services.features.environment !== "jitsu_cloud"
-//   const now = new Date()
-//   const periodMap = {
-//     month: addSeconds(now, -30 * 24 * 60 * 60),
-//     week: addSeconds(now, -7 * 24 * 60 * 60),
-//     day: addSeconds(now, -24 * 60 * 60),
-//   }
-
-//   const periods = [
-//     { label: "Last 30 days", value: "month" },
-//     { label: "Last 7 days", value: "week" },
-//     { label: "Last 24 hours", value: "day" },
-//   ]
-
-//   const liveEventsUrlParams = useMemo(() => {
-//     const apiKey = params.get("source_push")
-//     if (apiKey && apiKey !== "all") return { type: "token", id: apiKey }
-//     const destination = params.get("destination_push")
-//     if (destination && destination !== "all") return { type: "destination", id: destination }
-//     return {}
-//   }, [params])
-
-//   const destinationsOptions = getAllDestinationsAsOptions(true)
-//   const apiKeysOptions = getAllApiKeysAsOptions(true)
-//   const sourcesOptions = getAllSourcesAsOptions(true)
-
-//   const handlePeriodSelect = value => {
-//     const newPeriod = value.value
-//     setPeriod(newPeriod)
-//     setReloadCount(reloadCount + 1)
-//     const queryParams = new URLSearchParams(window.location.search)
-//     queryParams.set("period", newPeriod)
-//     history.replace({ search: queryParams.toString() })
-//   }
-
-//   return (
-//     <>
-//       <div className="flex flex-row space-x-2 justify-between items-center mb-4">
-//         <div className="flex-col">
-//           <SelectFilter label="Period" onChange={handlePeriodSelect} options={periods} initialValue={period} />
-//         </div>
-//         <div className="flex-col">
-//           <ProjectLink to={withQueryParams("/events_stream", liveEventsUrlParams)} className="inline-block mr-5">
-//             <Button type="ghost" size="large" icon={<ThunderboltFilled />} className="w-full mb-2">
-//               Live Events
-//             </Button>
-//           </ProjectLink>
-//           <Button
-//             size="large"
-//             icon={<ReloadOutlined />}
-//             onClick={() => {
-//               setReloadCount(reloadCount + 1)
-//             }}
-//           >
-//             Reload
-//           </Button>
-//         </div>
-//       </div>
-
-//       {isSelfHosted && isGeneralStatsPage && (
-//         <Row>
-//           <span className={`text-secondaryText mb-4`}>
-//             Jitsu 1.37 brought an update that enables for serving more fine-grained statistics data. The new charts will
-//             not show the events processed by the previous versions of Jitsu.
-//           </span>
-//         </Row>
-//       )}
-//       <Row gutter={16} className="status-page-cards-row mb-4">
-//         {(!!apiKeyId || isGeneralStatsPage) && (
-//           <Col span={isGeneralStatsPage ? 12 : 24}>
-//             <StatusChart
-//               title={
-//                 <span>
-//                   Incoming{" "}
-//                   <ProjectLink to="/api_keys" stripLink={!isGeneralStatsPage}>
-//                     events
-//                   </ProjectLink>
-//                 </span>
-//               }
-//               stats={stats}
-//               period={periodMap[period]}
-//               namespace="source"
-//               type="push"
-//               granularity={period === "day" ? "hour" : "day"}
-//               dataToDisplay={["success", "skip", "errors"]}
-//               legendLabels={{ skip: "skip (no dst.)" }}
-//               filterOptions={apiKeysOptions}
-//               reloadCount={reloadCount}
-//               hideFilter={!isGeneralStatsPage}
-//             />
-//           </Col>
-//         )}
-//         {(!!destinationId || isGeneralStatsPage) && (
-//           <Col span={isGeneralStatsPage ? 12 : 24}>
-//             <StatusChart
-//               title={
-//                 <span>
-//                   Processed{" "}
-//                   <ProjectLink to="/destinations" stripLink={!isGeneralStatsPage}>
-//                     events
-//                   </ProjectLink>
-//                 </span>
-//               }
-//               stats={stats}
-//               period={periodMap[period]}
-//               namespace="destination"
-//               type="push"
-//               granularity={period === "day" ? "hour" : "day"}
-//               dataToDisplay={["success", "skip", "errors"]}
-//               filterOptions={destinationsOptions}
-//               reloadCount={reloadCount}
-//               hideFilter={!isGeneralStatsPage}
-//             />
-//           </Col>
-//         )}
-//       </Row>
-//       <Row>
-//         <Col span={24}>
-//           <StatusChart
-//             title={<span>Rows synchronized from sources</span>}
-//             stats={stats}
-//             period={periodMap[period]}
-//             namespace={!!destinationId ? "destination" : "source"}
-//             type="pull"
-//             granularity={period === "day" ? "hour" : "day"}
-//             dataToDisplay={["success", "skip", "errors"]}
-//             filterOptions={!!destinationId ? destinationsOptions : sourcesOptions}
-//             reloadCount={reloadCount}
-//             extra={SyncEventsDocsTooltip}
-//             hideFilter={!isGeneralStatsPage}
-//           />
-//         </Col>
-//       </Row>
-//     </>
-//   )
-// }
 
 const StatusChart: React.FC<{
   title: React.ReactNode | string
@@ -377,7 +271,6 @@ const StatusChart: React.FC<{
   const params = new URLSearchParams(_params ?? location.search)
   const idFilterKey = `${namespace}_${type}`
   const [idFilter, setIdFilter] = useState(params.get(idFilterKey) || filterOptions[0]?.value)
-  debugger
 
   const {
     error,

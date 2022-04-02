@@ -19,7 +19,13 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = () =>
   const destination = destinationsStore.list.find(d => d._id === params.id)
 
   return destination ? (
-    <StatusPage destinationId={destination._uid} />
+    // <StatusPage destinationId={destination._uid} />
+    <StatusPage
+      entityId={destination._id}
+      entityType="destination"
+      entitiesListRoute={projectRoute(destinationPageRoutes.root)}
+      editEntityRoute={projectRoute(destinationPageRoutes.editExact, { id: destination._id })}
+    />
   ) : (
     <EntityNotFound
       entityDisplayType="Destination"
