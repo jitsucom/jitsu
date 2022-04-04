@@ -5,7 +5,7 @@ import { flowResult } from "mobx"
 import { Button, Menu, Tooltip } from "antd"
 import { ConnectionCard } from "../../../ui/components/ConnectionCard/ConnectionCard"
 import { apiKeysReferenceMap } from "@jitsu/catalog/apiKeys/lib"
-import { DeleteOutlined, EditOutlined } from "@ant-design/icons"
+import { CodeOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons"
 import { copyToClipboard, reactElementToString, trimMiddle } from "../../commons/utils"
 import styles from "./ApiKeys.module.less"
 import { generatePath, NavLink } from "react-router-dom"
@@ -45,10 +45,11 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
       },
     })
   }
-  let editLink = generatePath(apiKeysRoutes.editExact, {
+  const editLink = generatePath(apiKeysRoutes.editExact, {
     projectId: services.activeProject.id,
     id: key.uid.replace(".", "-"),
   })
+  const statLink = generatePath(apiKeysRoutes.statisticsExact, { projectId: services.activeProject.id, id: key.uid })
   return (
     <ConnectionCard
       loading={loading}
@@ -63,6 +64,9 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
           </Menu.Item>
           <Menu.Item icon={<DeleteOutlined />} onClick={deleteAction}>
             Delete
+          </Menu.Item>
+          <Menu.Item icon={<CodeOutlined />}>
+            <NavLink to={statLink}>Statistics</NavLink>
           </Menu.Item>
         </Menu>
       }
