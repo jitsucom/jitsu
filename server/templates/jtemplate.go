@@ -3,12 +3,13 @@ package templates
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-multierror"
 	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/hashicorp/go-multierror"
 )
 
 const TransformDefaultTemplate = "return $"

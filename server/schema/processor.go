@@ -49,8 +49,8 @@ type Processor struct {
 	isSQLType               bool
 	tableNameExtractor      *TableNameExtractor
 	lookupEnrichmentStep    *enrichment.LookupEnrichmentStep
-	transformer             *templates.V8TemplateExecutor
-	builtinTransformer      *templates.V8TemplateExecutor
+	transformer             templates.TemplateExecutor
+	builtinTransformer      templates.TemplateExecutor
 	fieldMapper             events.Mapper
 	pulledEventsfieldMapper events.Mapper
 	typeResolver            TypeResolver
@@ -498,7 +498,7 @@ func (p *Processor) CloseJavaScriptTemplates() {
 	}
 }
 
-func (p *Processor) GetTransformer() *templates.V8TemplateExecutor {
+func (p *Processor) GetTransformer() templates.TemplateExecutor {
 	return p.transformer
 }
 
