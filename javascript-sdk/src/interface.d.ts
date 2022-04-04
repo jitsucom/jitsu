@@ -1,5 +1,3 @@
-import { httpApi } from "./jitsu"
-
 export declare function jitsuClient(opts: JitsuOptions): JitsuClient
 
 export type JitsuClient = {
