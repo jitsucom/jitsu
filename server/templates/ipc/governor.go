@@ -7,14 +7,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Retry struct {
-	error
-}
-
-func (e Retry) Unwrap() error {
-	return e.error
-}
-
 type Governor struct {
 	process Process
 	mu      Mutex
@@ -45,10 +37,6 @@ func (g *Governor) Exchange(ctx context.Context, data []byte) ([]byte, error) {
 			data, err := g.exchange(data)
 			if err == nil {
 				return data, nil
-			}
-
-			if errors.As(err, &Retry{}) {
-				continue
 			}
 
 			logging.Warnf("%s exchange error: %v", g.process, err)
