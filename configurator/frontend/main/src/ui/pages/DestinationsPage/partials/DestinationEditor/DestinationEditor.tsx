@@ -12,7 +12,6 @@ import { DestinationEditorConfig } from "./DestinationEditorConfig"
 import { DestinationEditorTransform } from "./DestinationEditorTransform"
 import { DestinationEditorConnectors } from "./DestinationEditorConnectors"
 import { DestinationEditorMappings } from "./DestinationEditorMappings"
-import { DestinationNotFound } from "../DestinationNotFound/DestinationNotFound"
 // @Store
 import { sourcesStore } from "stores/sources"
 import { destinationsStore } from "stores/destinations"
@@ -42,6 +41,7 @@ import { actionNotification } from "ui/components/ActionNotification/ActionNotif
 import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 import { currentPageHeaderStore } from "stores/currentPageHeader"
 import { connectionsHelper } from "stores/helpers"
+import { EntityNotFound } from "ui/components/EntityNotFound/EntityNotFound"
 
 type DestinationTabKey = "config" | "transform" | "mappings" | "sources" | "settings" | "statistics"
 
@@ -98,6 +98,8 @@ const DestinationEditor = ({
   const sources = sourcesStore.list
   const destinationData = useRef<DestinationData>(getDestinationData(params))
 
+  const submittedOnce = useRef<boolean>(false)
+
   const destinationReference = useMemo<Destination | null | undefined>(() => {
     if (params.type) {
       return destinationsReferenceMap[params.type]
@@ -106,10 +108,14 @@ const DestinationEditor = ({
   }, [params.type, params.id])
 
   if (!destinationReference) {
-    return <DestinationNotFound destinationId={params.id} />
+    return (
+      <EntityNotFound
+        entityDisplayType="Destination"
+        entityId={params.id}
+        entitiesListRoute={destinationPageRoutes.root}
+      />
+    )
   }
-
-  const submittedOnce = useRef<boolean>(false)
 
   const handleUseLibrary = async (newMappings: DestinationMapping, newTableName?: string) => {
     destinationData.current = {

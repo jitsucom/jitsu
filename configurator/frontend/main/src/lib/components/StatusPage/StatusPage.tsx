@@ -1,12 +1,18 @@
 // @Libs
-import React, { useState } from "react"
-import { NavLink, useHistory, useLocation } from "react-router-dom"
+import React, { useMemo, useState } from "react"
+import { useHistory, useLocation } from "react-router-dom"
 import { Button, Card, Col, Tooltip, Row } from "antd"
 // @Components
 import { CodeInline } from "lib/components/components"
 import { StatisticsChart } from "ui/components/StatisticsChart/StatisticsChart"
 // @Icons
-import { ReloadOutlined, QuestionCircleOutlined, ThunderboltFilled } from "@ant-design/icons"
+import {
+  ReloadOutlined,
+  QuestionCircleOutlined,
+  ThunderboltFilled,
+  EditOutlined,
+  UnorderedListOutlined,
+} from "@ant-design/icons"
 // @Services
 import { addSeconds, StatisticsService } from "lib/services/stat"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
@@ -18,14 +24,46 @@ import {
   getAllDestinationsAsOptions,
   getAllSourcesAsOptions,
 } from "../Filters/shared"
+import ProjectLink, { projectRoute } from "../ProjectLink/ProjectLink"
+import { withQueryParams } from "utils/queryParams"
 
 type DataType = "total" | "success" | "skip" | "errors"
 
-export const StatusPage: React.FC<{}> = () => {
+type Props =
+  | {
+      entityType: "api_key" | "destination"
+      entityId: string
+      editEntityRoute: string
+      entitiesListRoute: string
+    }
+  | {
+      entityType?: never
+      entityId?: never
+      editEntityRoute?: never
+      entitiesListRoute?: never
+    }
+
+/**
+ * Displays statistics for all entities - sources, API keys, destinations - if no props passed or
+ * displays statistics and specific controls for the entity specified using the props
+ */
+export const StatusPage: React.FC<Props> = ({ entityType, entityId, editEntityRoute, entitiesListRoute }) => {
+  const isGeneralStatsPage: boolean = !entityType
+  const entityDisplayName: string | null = isGeneralStatsPage
+    ? null
+    : entityType === "destination"
+    ? "Destination"
+    : "API Key"
   const services = useServices()
   const history = useHistory()
   const location = useLocation()
-  const params = new URLSearchParams(location.search)
+  const params = new URLSearchParams(
+    isGeneralStatsPage
+      ? location.search
+      : entityType === "destination"
+      ? { destination_push: entityId, destination_pull: entityId }
+      : { source_push: entityId }
+  )
   const [period, setPeriod] = useState(params.get("period") || "month")
   const [reloadCount, setReloadCount] = useState(0)
   const stats = new StatisticsService(services.backendApiClient, services.activeProject.id, true)
@@ -42,6 +80,14 @@ export const StatusPage: React.FC<{}> = () => {
     { label: "Last 7 days", value: "week" },
     { label: "Last 24 hours", value: "day" },
   ]
+
+  const liveEventsUrlParams = useMemo(() => {
+    const apiKey = params.get("source_push")
+    if (apiKey && apiKey !== "all") return { type: "token", id: apiKey }
+    const destination = params.get("destination_push")
+    if (destination && destination !== "all") return { type: "destination", id: destination }
+    return {}
+  }, [params])
 
   const destinationsOptions = getAllDestinationsAsOptions(true)
   const apiKeysOptions = getAllApiKeysAsOptions(true)
@@ -63,11 +109,39 @@ export const StatusPage: React.FC<{}> = () => {
           <SelectFilter label="Period" onChange={handlePeriodSelect} options={periods} initialValue={period} />
         </div>
         <div className="flex-col">
-          <NavLink to="/events_stream" className="inline-block mr-5">
+          <ProjectLink to={withQueryParams("/events_stream", liveEventsUrlParams)} className="inline-block mr-5">
             <Button type="ghost" size="large" icon={<ThunderboltFilled />} className="w-full mb-2">
               Live Events
             </Button>
-          </NavLink>
+          </ProjectLink>
+          {!isGeneralStatsPage && !!entityDisplayName && !!entitiesListRoute && !!editEntityRoute && !!entityId && (
+            <>
+              <Button
+                type="ghost"
+                size="large"
+                className="mr-5"
+                icon={<EditOutlined />}
+                onClick={() =>
+                  history.push(
+                    projectRoute(editEntityRoute, {
+                      id: entityId,
+                    })
+                  )
+                }
+              >
+                {`Edit ${entityDisplayName}`}
+              </Button>
+              <Button
+                type="ghost"
+                size="large"
+                className="mr-5"
+                icon={<UnorderedListOutlined />}
+                onClick={() => history.push(projectRoute(entitiesListRoute))}
+              >
+                {`${entityDisplayName}s List`}
+              </Button>
+            </>
+          )}
           <Button
             size="large"
             icon={<ReloadOutlined />}
@@ -80,7 +154,7 @@ export const StatusPage: React.FC<{}> = () => {
         </div>
       </div>
 
-      {isSelfHosted && (
+      {isSelfHosted && isGeneralStatsPage && (
         <Row>
           <span className={`text-secondaryText mb-4`}>
             Jitsu 1.37 brought an update that enables for serving more fine-grained statistics data. The new charts will
@@ -89,54 +163,76 @@ export const StatusPage: React.FC<{}> = () => {
         </Row>
       )}
       <Row gutter={16} className="status-page-cards-row mb-4">
-        <Col span={12}>
-          <StatusChart
-            title={
-              <span>
-                Incoming <NavLink to="/api_keys">events</NavLink>
-              </span>
-            }
-            stats={stats}
-            period={periodMap[period]}
-            namespace="source"
-            type="push"
-            granularity={period === "day" ? "hour" : "day"}
-            dataToDisplay={["success", "skip", "errors"]}
-            legendLabels={{ skip: "skip (no dst.)" }}
-            filterOptions={apiKeysOptions}
-            reloadCount={reloadCount}
-          />
-        </Col>
-        <Col span={12}>
-          <StatusChart
-            title={
-              <span>
-                Processed <NavLink to="/destinations">events</NavLink>
-              </span>
-            }
-            stats={stats}
-            period={periodMap[period]}
-            namespace="destination"
-            type="push"
-            granularity={period === "day" ? "hour" : "day"}
-            dataToDisplay={["success", "skip", "errors"]}
-            filterOptions={destinationsOptions}
-            reloadCount={reloadCount}
-          />
-        </Col>
+        {(isGeneralStatsPage || entityType === "api_key") && (
+          <Col span={isGeneralStatsPage ? 12 : 24}>
+            <StatusChart
+              title={
+                <span>
+                  Incoming{" "}
+                  <ProjectLink to="/api_keys" stripLink={!isGeneralStatsPage}>
+                    events
+                  </ProjectLink>
+                </span>
+              }
+              stats={stats}
+              period={periodMap[period]}
+              namespace="source"
+              type="push"
+              granularity={period === "day" ? "hour" : "day"}
+              dataToDisplay={["success", "skip", "errors"]}
+              legendLabels={{ skip: "skip (no dst.)" }}
+              filterOptions={apiKeysOptions}
+              reloadCount={reloadCount}
+              hideFilter={!isGeneralStatsPage}
+              params={params}
+            />
+          </Col>
+        )}
+        {(isGeneralStatsPage || entityType === "destination") && (
+          <Col span={isGeneralStatsPage ? 12 : 24}>
+            <StatusChart
+              title={
+                <span>
+                  Processed{" "}
+                  <ProjectLink to="/destinations" stripLink={!isGeneralStatsPage}>
+                    events
+                  </ProjectLink>
+                </span>
+              }
+              stats={stats}
+              period={periodMap[period]}
+              namespace="destination"
+              type="push"
+              granularity={period === "day" ? "hour" : "day"}
+              dataToDisplay={["success", "skip", "errors"]}
+              filterOptions={destinationsOptions}
+              reloadCount={reloadCount}
+              hideFilter={!isGeneralStatsPage}
+              params={params}
+            />
+          </Col>
+        )}
       </Row>
-      <StatusChart
-        title={<span>Rows synchronized from sources</span>}
-        stats={stats}
-        period={periodMap[period]}
-        namespace="source"
-        type="pull"
-        granularity={period === "day" ? "hour" : "day"}
-        dataToDisplay={["success", "skip", "errors"]}
-        filterOptions={sourcesOptions}
-        reloadCount={reloadCount}
-        extra={SyncEventsDocsTooltip}
-      />
+      {(isGeneralStatsPage || entityType === "destination") && (
+        <Row>
+          <Col span={24}>
+            <StatusChart
+              title={<span>Rows synchronized from sources</span>}
+              stats={stats}
+              period={periodMap[period]}
+              namespace={entityType === "destination" ? "destination" : "source"}
+              type="pull"
+              granularity={period === "day" ? "hour" : "day"}
+              dataToDisplay={["success", "skip", "errors"]}
+              filterOptions={entityType === "destination" ? destinationsOptions : sourcesOptions}
+              reloadCount={reloadCount}
+              extra={SyncEventsDocsTooltip}
+              hideFilter={!isGeneralStatsPage}
+              params={params}
+            />
+          </Col>
+        </Row>
+      )}
     </>
   )
 }
@@ -153,6 +249,8 @@ const StatusChart: React.FC<{
   filterOptions: FilterOption[]
   reloadCount: number
   extra?: React.ReactNode
+  hideFilter?: boolean
+  params?: URLSearchParams
 }> = ({
   title,
   stats,
@@ -165,10 +263,12 @@ const StatusChart: React.FC<{
   filterOptions,
   reloadCount,
   extra = null,
+  hideFilter = false,
+  params: _params,
 }) => {
   const history = useHistory()
   const location = useLocation()
-  const params = new URLSearchParams(location.search)
+  const params = new URLSearchParams(_params ?? location.search)
   const idFilterKey = `${namespace}_${type}`
   const [idFilter, setIdFilter] = useState(params.get(idFilterKey) || filterOptions[0]?.value)
 
@@ -194,12 +294,14 @@ const StatusChart: React.FC<{
       title={
         <span>
           {title}
-          <SelectFilter
-            className="inline-block ml-5"
-            onChange={handleFilterSelect}
-            options={filterOptions}
-            initialValue={idFilter}
-          />
+          {!hideFilter && (
+            <SelectFilter
+              className="inline-block ml-5"
+              onChange={handleFilterSelect}
+              options={filterOptions}
+              initialValue={idFilter}
+            />
+          )}
         </span>
       }
       bordered={false}
