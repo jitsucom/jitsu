@@ -17,7 +17,6 @@ export const ApiKeyStatistics: React.FC = () => {
   const apiKey = apiKeysStore.list.find(k => k.uid === params.id)
 
   return apiKey ? (
-    // <StatusPage apiKeyId={apiKey.uid} />
     <StatusPage
       entityId={apiKey.uid}
       entityType="api_key"

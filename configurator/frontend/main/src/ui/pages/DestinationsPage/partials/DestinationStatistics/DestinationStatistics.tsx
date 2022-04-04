@@ -17,14 +17,14 @@ type StatisticsPageParams = {
 export const DestinationStatistics: React.FC<CommonDestinationPageProps> = () => {
   const params = useParams<StatisticsPageParams>()
   const destination = destinationsStore.list.find(d => d._id === params.id)
+  const destinationId = destination?._uid
 
   return destination ? (
-    // <StatusPage destinationId={destination._uid} />
     <StatusPage
-      entityId={destination._id}
+      entityId={destinationId}
       entityType="destination"
       entitiesListRoute={projectRoute(destinationPageRoutes.root)}
-      editEntityRoute={projectRoute(destinationPageRoutes.editExact, { id: destination._id })}
+      editEntityRoute={projectRoute(destinationPageRoutes.editExact, { id: destinationId })}
     />
   ) : (
     <EntityNotFound
