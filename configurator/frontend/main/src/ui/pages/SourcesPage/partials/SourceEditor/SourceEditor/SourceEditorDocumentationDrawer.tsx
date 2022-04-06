@@ -22,7 +22,7 @@ export const SourceEditorDocumentationDrawer: React.FC<Props> = ({ sourceDataFro
       visible={visible}
     >
       <div className={styles.documentation}>
-        <Collapse defaultActiveKey={["connection"]} ghost>
+        <Collapse defaultActiveKey={["overview", "connection"]} ghost>
           <Collapse.Panel
             header={<div className="uppercase font-bold">{sourceDataFromCatalog.displayName} overview</div>}
             key="overview"
