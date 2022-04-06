@@ -293,6 +293,9 @@ const ConfigurableFieldsFormComponent = ({
           type?.typeName === "oauthSecret" &&
           (availableOauthBackendSecrets === "all_from_config" ||
             availableOauthBackendSecrets?.some(name => getFieldNameById(id) === name))
+        if (backendSecretAvailable) {
+          formItemWrapperProps.validationRules = validationRules.filter(value => !value["required"])
+        }
         const placeholder = backendSecretAvailable
           ? "Leave this field empty to use a value provided by Jitsu"
           : undefined
@@ -438,8 +441,8 @@ const ConfigurableFieldsFormComponent = ({
 
           const validationRules: FormItemProps["rules"] = []
           if (!isHidden) {
-            const isReuqired = typeof required === "boolean" ? required : required?.(parsedFormValues)
-            if (isReuqired)
+            const isRequired = typeof required === "boolean" ? required : required?.(parsedFormValues)
+            if (isRequired)
               validationRules.push({
                 required: true,
                 message: `${displayName} field is required.`,

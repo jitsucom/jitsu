@@ -36,7 +36,6 @@ export class OauthService implements IOauthService {
   }
 
   public async getAvailableBackendSecrets(sourceType: string, projectId: string): Promise<string[]> {
-    if (!this._oauthSupported) return []
     const secretsStatus = await this._backendApiClient.get(
       `sources/oauth_fields/${sourceType}?project_id=${projectId}`,
       {
