@@ -105,7 +105,7 @@ func NewRecognitionService(storage Storage, destinationService *destinations.Ser
 
 func (rs *RecognitionService) systemErrorf(format string, v ...interface{}) {
 	now := timestamp.Now()
-	if timestamp.Now().After(rs.lastSystemErrorTime.Add(time.Second * sysErrFreqSec)) {
+	if now.After(rs.lastSystemErrorTime.Add(time.Second * sysErrFreqSec)) {
 		logging.SystemErrorf(format, v...)
 		rs.lastSystemErrorTime = now
 	}
