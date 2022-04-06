@@ -464,6 +464,40 @@ export const googleAds: SourceConnector = {
         </>
       ),
     },
+    {
+      displayName: "Developer Token",
+      id: "config.developer_token",
+      type: oauthSecretType,
+      required: true,
+      documentation: (
+        <>
+          Standalone Open-Source instances of Jitsu require a special Developer Token to work with Google Ads API.
+          <br />
+          Please read the official documentation from Google:{" "}
+          <a target="_blank" href="https://developers.google.com/google-ads/api/docs/first-call/dev-token">
+            Obtain Your Developer Token
+          </a>
+          <br />
+          <br />
+          <b>Attention:</b>
+          <br />
+          Developer Token is an application secret. It must not be exposed to anyone outside of your company.
+          <br />
+          It is highly recommended to set Developer Token in Jitsu Server config instead of UI form.
+          <br />
+          <b>as yaml config variable:</b>
+          <br />
+          <code>google_ads.developer_token: abc123</code>
+          <br />
+          <b>or as environment variable:</b>
+          <br />
+          <code>GOOGLE_ADS_DEVELOPER_TOKEN=abc123</code>
+          <br />
+          <br />
+          Cloud Jitsu version has its own embed Developer Token – no extra actions is required.
+        </>
+      ),
+    },
   ],
   documentation: {
     overview: (
@@ -472,11 +506,39 @@ export const googleAds: SourceConnector = {
         <a target="_blank" href="https://developers.google.com/google-ads/api/fields/v8/overview">
           Google Ads API
         </a>
-        . The connector is highly configurable. You can compose any number of reports using{" "}
+        . The connector is highly configurable.
+        <br />
+        You can compose any number of reports using{" "}
         <a target="_blank" href="https://developers.google.com/google-ads/api/fields/v8/overview_query_builder">
           Query Builder
         </a>{" "}
         by importing field lists to this source as separate streams.
+        <br />
+        <h1>Developer Token requirement</h1>
+        Standalone Open-Source instances of Jitsu require a special Developer Token to work with Google Ads API.
+        <br />
+        Please read the official documentation from Google:{" "}
+        <a href="https://developers.google.com/google-ads/api/docs/first-call/dev-token" target={"_blank"}>
+          Obtain Your Developer Token
+        </a>
+        <br />
+        <br />
+        <b>Attention:</b>
+        <br />
+        Developer Token is an application secret. It must not be exposed to anyone outside of your company.
+        <br />
+        It is highly recommended to set Developer Token in Jitsu Server config instead of UI form.
+        <br />
+        <b>as yaml config variable:</b>
+        <br />
+        <code>google_ads.developer_token: abc123</code>
+        <br />
+        <b>or as environment variable:</b>
+        <br />
+        <code>GOOGLE_ADS_DEVELOPER_TOKEN=abc123</code>
+        <br />
+        <br />
+        Cloud Jitsu version has its own embed Developer Token – no extra actions is required.
       </>
     ),
     connection: googleServiceAuthDocumentation({
