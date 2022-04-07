@@ -2,9 +2,8 @@ package storages
 
 import (
 	"fmt"
-	"github.com/iancoleman/strcase"
+
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/templates"
 )
 
@@ -29,42 +28,34 @@ func NewNpmDestination(config *Config) (storage Storage, err error) {
 			storage = nil
 		}
 	}()
+
 	if !config.streamMode {
 		return nil, fmt.Errorf("NpmDestination destination doesn't support %s mode", BatchMode)
 	}
 
-	plugin, err := plugins.DownloadPlugin(config.destination.Package)
-	if err != nil {
-		return
-	}
-
-	transformFuncName := strcase.ToLowerCamel("to_" + plugin.Name)
-	jsVariables := make(map[string]interface{})
-	jsVariables["destinationId"] = config.destinationID
-	jsVariables["destinationType"] = NpmType
-	jsVariables["config"] = config.destination.Config
-
-	var jsTemplate *templates.V8TemplateExecutor
-
-	if plugin.BuildInfo.SdkVersion != "" {
-		jsTemplate, err = templates.NewV8TemplateExecutor(`return `+transformFuncName+`($)`, jsVariables, plugin.Code, `function `+transformFuncName+`($) { return exports.destination($, globalThis) }`)
-	} else {
-		//compatibility with old SDK
-		for k, v := range config.destination.Config {
-			jsVariables[k] = v
-		}
-		jsTemplate, err = templates.NewV8TemplateExecutor(`return `+transformFuncName+`($)`, jsVariables, plugin.Code, `function `+transformFuncName+`($) { return exports.adapter($, globalThis) }`)
-	}
+	jsTemplate, err := templates.NewNodeExecutor(&templates.DestinationPlugin{
+		Package: config.destination.Package,
+		ID:      config.destinationID,
+		Type:    NpmType,
+		Config:  config.destination.Config,
+	}, nil)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to init builtin javascript code: %v", err)
 	}
+
+	defer func() {
+		if err != nil {
+			jsTemplate.Close()
+		}
+	}()
+
 	wh := &NpmDestination{}
 	err = wh.Init(config, wh, "", "")
 	if err != nil {
-		jsTemplate.Close()
 		return
 	}
+
 	storage = wh
 	wh.processor.SetBuiltinTransformer(jsTemplate)
 

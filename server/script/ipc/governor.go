@@ -2,10 +2,24 @@ package ipc
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/pkg/errors"
 )
+
+type Interface interface {
+	Send(data []byte) error
+	Receive() ([]byte, error)
+}
+
+type Process interface {
+	Interface
+	fmt.Stringer
+	Spawn() (Process, error)
+	Kill()
+	Wait() error
+}
 
 type Governor struct {
 	process Process

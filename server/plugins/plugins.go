@@ -3,13 +3,6 @@ package plugins
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Masterminds/semver"
-	"github.com/jitsucom/jitsu/server/jsonutils"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/templates"
-	"github.com/jitsucom/jitsu/server/timestamp"
-	"github.com/jitsucom/jitsu/server/utils"
-	"github.com/mitchellh/mapstructure"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -21,6 +14,16 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/script"
+
+	"github.com/Masterminds/semver"
+	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/templates"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/utils"
+	"github.com/mitchellh/mapstructure"
 )
 
 var tarballUrlRegex = regexp.MustCompile(`^.*\.(?:tar|tar\.gz|tgz)$`)
@@ -48,13 +51,7 @@ type Plugin struct {
 	Version    string
 	Code       string
 	Descriptor map[string]interface{}
-	BuildInfo  BuildInfo
-}
-
-type BuildInfo struct {
-	SdkVersion     string `mapstructure:"sdkVersion"`
-	SdkPackage     string `mapstructure:"sdkPackage"`
-	BuildTimestamp string `mapstructure:"buildTimestamp"`
+	BuildInfo  script.BuildInfo
 }
 
 func NewPluginsRepository(pluginsMap map[string]string, cacheDir string) (PluginsRepository, error) {
@@ -284,7 +281,7 @@ func downloadPlugin(packageString, tarballUrl string) (*Plugin, error) {
 			return nil, fmt.Errorf("cannot install plugin %s: no id or type provided in descriptor: %s", packageString, descriptorValue)
 		}
 	}
-	buildInfo := BuildInfo{}
+	buildInfo := script.BuildInfo{}
 	buildInfoValue, ok := exports["buildInfo"]
 	if ok {
 		err := mapstructure.Decode(buildInfoValue, &buildInfo)
