@@ -1,6 +1,8 @@
 package destinations
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
@@ -13,7 +15,9 @@ import (
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/uuid"
+	"github.com/mailru/go-clickhouse"
 	"github.com/spf13/viper"
+	"io/ioutil"
 	"strings"
 	"sync"
 	"time"
@@ -74,6 +78,22 @@ func NewTestService(unitsByID map[string]*Unit, consumersByTokenID TokenizedCons
 
 //NewService returns loaded Service instance and call resources.Watcher() if destinations source is http url or file path
 func NewService(destinations *viper.Viper, destinationsSource string, storageFactory storages.Factory, loggerFactory *logevents.Factory, strictAuth bool) (*Service, error) {
+	//registering global clickhouse tls config
+	tlsConfig := viper.GetStringMapString("clickhouse.tls_config")
+	for tlsName, crtPath := range tlsConfig {
+		caCert, err := ioutil.ReadFile(crtPath)
+		if err != nil {
+			return nil, err
+		}
+
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+		if err := clickhouse.RegisterTLSConfig(tlsName, &tls.Config{RootCAs: caCertPool}); err != nil {
+			logging.SystemErrorf("Error registering clickhouse tls config name:%s crt_path:%s err: %v", tlsName, crtPath, err)
+		} else {
+			logging.Infof("Clickhouse tls config %s registered", tlsName)
+		}
+	}
 	service := &Service{
 		mutex: &sync.RWMutex{},
 

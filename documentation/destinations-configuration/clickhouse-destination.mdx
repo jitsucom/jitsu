@@ -8,6 +8,14 @@ ClickHouse [see docs](https://clickhouse.tech/docs/en/).
 ClickHouse destination config consists of following schema:
 
 ```yaml
+#We recommend to set up Clickhouse TLS config separately from destinations.
+#That allows sharing TLS config between destinations and makes possible to configure secure connection with configurator UI
+clickhouse:
+  tls_config:
+    maincert: path_to_crt_file
+    cert2: path_to_crt_file2
+
+#Destinations config    
 destinations:
   clickhouse_1:
     type: clickhouse
@@ -32,8 +40,6 @@ destinations:
             field: id
         primary_keys:
           - event_id #Must be equal to server.unique_id_field
-      tls:
-        maincert: path_to_crt_file
 ```
 
 ## Fields
