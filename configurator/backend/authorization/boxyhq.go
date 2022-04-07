@@ -51,8 +51,8 @@ func (p *BoxyHQ) GetSSOSession(ctx context.Context, code string) (*handlers.SSOS
 	}
 
 	var info boxyHQUserInfo
-	if err := requests.URL(p.Config.Host + "/api/oauth/userinfo").
-		Client(conf.Client(ctx)).
+	if err := requests.URL(p.Config.Host+"/api/oauth/userinfo").
+		Header("authorization", "Bearer "+token.AccessToken).
 		CheckStatus(http.StatusOK).
 		ToJSON(&info).
 		Fetch(ctx); err != nil {
