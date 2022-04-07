@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
@@ -143,7 +144,7 @@ func (s3 *S3) fileName(fdata *schema.ProcessedFile) string {
 	} else {
 		extension = "log"
 	}
-	return fmt.Sprintf("%s-start-%s-end-%s.%s", fdata.BatchHeader.TableName, timestamp.ToISOFormat(start), timestamp.ToISOFormat(end), extension)
+	return fmt.Sprintf("%s-%s-%s-%s.%s", fdata.BatchHeader.TableName, start.Format("2006-01-02T15:04:05"), end.Format("15:04:05"), appconfig.Instance.ServerName, extension)
 }
 
 func findStartEndTimestamp(fdata []map[string]interface{}) (time.Time, time.Time) {

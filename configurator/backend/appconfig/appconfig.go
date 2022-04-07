@@ -39,8 +39,12 @@ func Init(containerized bool) error {
 	var appConfig AppConfig
 	serverName := viper.GetString("server.name")
 	if serverName == "" {
+		serverName, _ = os.Hostname()
+	}
+	if serverName == "" {
 		serverName = "unnamed-server"
 	}
+
 	appConfig.ServerName = serverName
 	var port = viper.GetString("server.port")
 	appConfig.Authority = "0.0.0.0:" + port
