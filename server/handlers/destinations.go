@@ -1,11 +1,17 @@
 package handlers
 
 import (
-	"cloud.google.com/go/bigquery"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
+	"os"
+	"strconv"
+	"strings"
+
+	"cloud.google.com/go/bigquery"
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -15,19 +21,12 @@ import (
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
-	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/jitsucom/jitsu/server/uuid"
-	"github.com/mitchellh/mapstructure"
-	"net/http"
-	"net/url"
-	"os"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -193,36 +192,19 @@ func testDestinationConnection(config *config.DestinationConfig, globalConfigura
 		defer s3Adapter.Close()
 		return s3Adapter.ValidateWritePermission()
 	case storages.NpmType:
-		plugin, err := plugins.DownloadPlugin(config.Package)
+		executor, err := templates.NewNodeExecutor(&templates.DestinationPlugin{
+			Package: config.Package,
+			ID:      identifier,
+			Type:    storages.NpmType,
+			Config:  config.Config,
+		}, nil)
+
 		if err != nil {
 			return err
 		}
-		jsVariables := make(map[string]interface{})
-		jsVariables["destinationId"] = identifier
-		jsVariables["destinationType"] = storages.NpmType
-		jsVariables["config"] = config.Config
-		res, err := templates.V8EvaluateCode(`exports.validator ? exports.validator(globalThis.config) : true`, jsVariables, plugin.Code)
-		if err != nil {
-			return err
-		}
-		switch r := res.(type) {
-		case bool:
-			if !r {
-				return fmt.Errorf("validation of npm plugin %s failed with status: %v", plugin.Name, r)
-			}
-		case string:
-			return fmt.Errorf(r)
-		case map[string]interface{}:
-			validationRes := storages.NpmValidatorResult{}
-			err := mapstructure.Decode(r, &validationRes)
-			if err != nil {
-				return fmt.Errorf("validation result of unknown type: %s", r)
-			}
-			if !validationRes.Ok {
-				return fmt.Errorf(validationRes.Message)
-			}
-		}
-		return nil
+
+		defer executor.Close()
+		return executor.Validate()
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}

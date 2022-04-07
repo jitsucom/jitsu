@@ -29,18 +29,7 @@ func benchmarkExecutor(b *testing.B, executor templates.TemplateExecutor) {
 
 func BenchmarkNodeStdIO(b *testing.B) {
 	logging.LogLevel = logging.INFO
-	process, err := templates.NewNodeExecutor(templates.NodeStdIO, Expression)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	defer process.Close()
-	benchmarkExecutor(b, process)
-}
-
-func BenchmarkNodeSysV(b *testing.B) {
-	logging.LogLevel = logging.INFO
-	process, err := templates.NewNodeExecutor(templates.NodeSysV, Expression)
+	process, err := templates.NewNodeExecutor(templates.Expression(Expression), nil)
 	if err != nil {
 		b.Fatal(err)
 	}

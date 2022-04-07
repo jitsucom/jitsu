@@ -3,178 +3,19 @@ package templates
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/dop251/goja"
-	"github.com/jitsucom/jitsu/server/logging"
 	"reflect"
-	"rogchap.com/v8go"
-	"strings"
 	"sync"
 	"text/template"
+
+	"github.com/dop251/goja"
+	"github.com/jitsucom/jitsu/server/logging"
+	"rogchap.com/v8go"
 )
 
 const functionName = "process"
 
 var jsObjectReflectType = reflect.TypeOf(make(map[string]interface{}))
 var mutex = sync.Mutex{}
-
-//BabelizeAndWrap process transform event function to ES5 compatible code + adds few tweaks to loosen some rules
-func BabelizeAndWrap(src, functionName string) (string, error) {
-	res, err := Babelize(src)
-	if err != nil {
-		resError := fmt.Errorf("ES5 transforming error: %v", err)
-		//hack to keep compatibility with JSON templating (which sadly can't be valid JS)
-		res, err = Babelize("return " + src)
-		if err != nil {
-			//we do report resError instead of err here because we are not sure that adding "return" was the right thing to do
-			return "", resError
-		}
-	}
-	return Wrap(res, functionName), nil
-}
-
-//Wrap code to function + adds few tweaks to loosen some rules
-func Wrap(src, functionName string) string {
-	if !strings.Contains(src, "return") {
-		//hack to keep compatibility with JSON templating (which sadly can't be valid JS)
-		src = "return " + src
-	}
-	return `function ` + functionName + `(event) { 
-var $ = event;
-var _ = event;
-` + src + `
-};`
-}
-
-//Babelize transforms javascript to ES5 compatible code + adds few tweaks to loosen some rules
-func Babelize(src string) (string, error) {
-	mutex.Lock()
-	defer mutex.Unlock()
-	res, err := TransformString(src, map[string]interface{}{
-		"presets": []interface{}{[]interface{}{"env", map[string]interface{}{"targets": "defaults"}}},
-		"plugins": []interface{}{
-			[]interface{}{"transform-last-statement", map[string]interface{}{"topLevel": true}},
-			"loop-protect",
-		},
-		"parserOpts": map[string]interface{}{
-			"errorRecovery":              true,
-			"strictMode":                 false,
-			"allowReturnOutsideFunction": true,
-			"allowSuperOutsideMethod":    true},
-	})
-	if err != nil {
-		return "", err
-	}
-	return res, nil
-}
-
-//LoadTemplateScript loads script into newly created Javascript vm
-//Returns func that is mapped to javascript function inside vm instance
-func LoadTemplateScript(script string, extraFunctions template.FuncMap, extraScripts ...string) (func(map[string]interface{}) (interface{}, error), error) {
-	vm := goja.New()
-	vm.Set("exports", map[string]interface{}{})
-	//limit call stack size to prevent endless recurison
-	vm.SetMaxCallStackSize(42)
-	for _, sc := range extraScripts {
-		_, err := vm.RunString(sc)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load extra script: %v", err)
-		}
-	}
-	_, err := vm.RunString(script)
-	if err != nil {
-		return nil, err
-	}
-	var fn func(map[string]interface{}) (goja.Value, error)
-	err = vm.ExportTo(vm.Get(functionName), &fn)
-	if err != nil {
-		return nil, err
-	}
-	if extraFunctions != nil {
-		for name, fnc := range extraFunctions {
-			if err = vm.Set(name, fnc); err != nil {
-				return nil, err
-			}
-		}
-	}
-	vm.Set("_info", func(call goja.FunctionCall) goja.Value {
-		logging.Info(valuesToObjects(call.Arguments)...)
-		return nil
-	})
-	vm.Set("_debug", func(call goja.FunctionCall) goja.Value {
-		logging.Debug(valuesToObjects(call.Arguments)...)
-		return nil
-	})
-	vm.Set("_error", func(call goja.FunctionCall) goja.Value {
-		logging.Error(valuesToObjects(call.Arguments)...)
-		return nil
-	})
-	vm.Set("_warn", func(call goja.FunctionCall) goja.Value {
-		logging.Warn(valuesToObjects(call.Arguments)...)
-		return nil
-	})
-	vm.RunString(`let console = {log: _info, info: _info, debug: _debug, error: _error, warn: _warn}`)
-	//jitsuExportWrapperFunc skips undefined fields during exporting object from vm
-	var jitsuExportWrapperFunc = func(event map[string]interface{}) (interface{}, error) {
-		value, err := fn(event)
-		if err != nil {
-			return nil, err
-		}
-		return exportValue(&value, vm), nil
-	}
-	return jitsuExportWrapperFunc, nil
-}
-
-//V8LoadTemplateScript loads script into newly created Javascript vm
-//Returns func that is mapped to javascript function inside vm instance
-func V8LoadTemplateScript(iso *v8go.Isolate, script string, extraFunctions template.FuncMap, extraScripts ...string) (func(map[string]interface{}) (interface{}, error), error) {
-	v8ctx, err := initV8Context(iso, true, false, extraFunctions, extraScripts...)
-	if err != nil {
-		return nil, err
-	}
-	_, err = v8ctx.RunScript(script, "main.js")
-	if err != nil {
-		return nil, err
-	}
-	global := v8ctx.Global()
-	funcValue, err := global.Get(functionName)
-	if err != nil {
-		return nil, err
-	}
-	fc, err := funcValue.AsFunction()
-	if err != nil {
-		return nil, err
-	}
-
-	//jitsuExportWrapperFunc skips undefined fields during exporting object from vm
-	var jitsuExportWrapperFunc = func(event map[string]interface{}) (interface{}, error) {
-		value, err := toV8Value(v8ctx, event)
-		if err != nil {
-			return nil, fmt.Errorf("failed to inject event to v8 function: %v", err)
-		}
-		res, err := fc.Call(global, value)
-		if err != nil {
-			return nil, err
-		}
-		if res.IsNullOrUndefined() {
-			return nil, nil
-		}
-		strRes, err := v8go.JSONStringify(v8ctx, res)
-		if err != nil {
-			return nil, fmt.Errorf("failed json stringify js function result: %v", err)
-		}
-		var resP interface{}
-		decoder := json.NewDecoder(strings.NewReader(strRes))
-		//parse json exactly the same way as it happens in http request processing.
-		//transform that does no changes must return exactly the same object as w/o transform
-		decoder.UseNumber()
-		err = decoder.Decode(&resP)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal js function result: %v", err)
-		}
-		return resP, nil
-	}
-	return jitsuExportWrapperFunc, nil
-}
 
 func initV8Context(iso *v8go.Isolate, console, fetch bool, extraFunctions template.FuncMap, extraScripts ...string) (*v8go.Context, error) {
 	globalTemplate := v8go.NewObjectTemplate(iso)

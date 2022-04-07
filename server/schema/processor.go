@@ -411,7 +411,7 @@ func (p *Processor) SetDefaultUserTransform(defaultUserTransform string) {
 }
 
 //SetBuiltinTransformer javascript executor for builtin js code (e.g. npm destination)
-func (p *Processor) SetBuiltinTransformer(builtinTransformer *templates.V8TemplateExecutor) {
+func (p *Processor) SetBuiltinTransformer(builtinTransformer templates.TemplateExecutor) {
 	p.builtinTransformer = builtinTransformer
 }
 
@@ -477,7 +477,7 @@ Mapping feature is deprecated. It is recommended to migrate to javascript data t
 			//seems like built-in to segment transformation is used. We need to load script
 			p.AddJavaScript(segmentTransform)
 		}
-		transformer, err := templates.NewV8TemplateExecutor(userTransform, p.jsVariables, p.javaScripts...)
+		transformer, err := templates.NewNodeExecutor(templates.Expression(userTransform), p.jsVariables, p.javaScripts...)
 		if err != nil {
 			return fmt.Errorf("failed to init transform javascript: %v", err)
 		}

@@ -34,7 +34,6 @@ require (
 	cloud.google.com/go/iam v0.2.0 // indirect
 	cloud.google.com/go/storage v1.20.0 // indirect
 	github.com/FZambia/sentinel v1.1.0 // indirect
-	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.4.17-0.20210211115548-6eac466e5fa3 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/apache/arrow/go/arrow v0.0.0-20200601151325-b2287a20f230 // indirect
@@ -110,6 +109,7 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/shirou/gopsutil/v3 v3.21.9 // indirect
+	github.com/siadat/ipc v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/snowflakedb/glog v0.0.0-20180824191149-f5055e6f21ce // indirect
 	github.com/snowflakedb/gosnowflake v1.3.8 // indirect
