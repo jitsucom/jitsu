@@ -1,30 +1,31 @@
-let log = []
+let __jts_log__ = []
 
-const logHelper = (level) => (...args) => log.push({level: level, message: args.join(" ")})
+const log = (level) => (...args) => __jts_log__.push({level: level, message: args.join(" ")})
 
-globalThis.console = {
-  debug: logHelper("debug"),
-  info: logHelper("info"),
-  log: logHelper("info"),
-  warn: logHelper("warn"),
-  error: logHelper("error"),
+const __jts_fetch__ = require("node-fetch")
+const __jts_readline__ = require("readline")
+const __jts_process__ = process
+
+const sandbox = (name) => {
+  throw new Error(`${name} is disabled in Jitsu transformations function for security reasons.`)
 }
 
-const _fetch = require("node-fetch")
-const _readline = require("readline")
-const _process = process
+globalThis.console = {
+  debug: log("debug"),
+  info: log("info"),
+  log: log("info"),
+  warn: log("warn"),
+  error: log("error"),
+}
 
 globalThis.fetch = () => {
   throw new Error(`'fetch' is enabled only for 'validator' function for security reasons.`)
 }
 
 globalThis.process = {}
-require("module").prototype.require = () => {
-  throw new Error(`'require' is disabled in Jitsu transformations for security reasons.`)
-}
 
 const send = (data) => {
-  _process.stdout.write(data + "\n")
+  __jts_process__.stdout.write(data + "\n")
 }
 
 const reply = async (result, error) => {
@@ -32,10 +33,10 @@ const reply = async (result, error) => {
     ok: !error,
     result: result,
     error: error,
-    log: log,
+    log: __jts_log__,
   }
 
-  log = []
+  __jts_log__ = []
   try {
     await send(JSON.stringify(data))
   } catch (error) {
@@ -48,8 +49,8 @@ const reply = async (result, error) => {
   }
 }
 
-_readline.createInterface({
-  input: _process.stdin
+__jts_readline__.createInterface({
+  input: __jts_process__.stdin
 }).on("line", async (line) => {
   let req = {}
   try {
@@ -67,7 +68,7 @@ _readline.createInterface({
   let fetch = globalThis.fetch
   let result = undefined
   try {
-    globalThis._plugin = globalThis._plugin || (async () => {
+    globalThis.__jts_plugin__ = globalThis.__jts_plugin__ || (async () => {
       const variables = eval("{{ .Variables }}")
       for (let [key, value] of (variables ? Object.entries(variables) : [])) {
         globalThis[key] = value
@@ -80,7 +81,7 @@ _readline.createInterface({
     let plugin = undefined
     switch (req.command) {
       case "describe":
-        plugin = await _plugin
+        plugin = await __jts_plugin__
         let symbols = {}
         for (let key of Object.keys(plugin)) {
           let value = plugin[key]
@@ -95,18 +96,18 @@ _readline.createInterface({
         result = symbols
         break
       case "execute":
-        plugin = await _plugin
+        plugin = await __jts_plugin__
         let args = req.payload.args
         let func = req.payload.function
         if (func === "validator") {
-          globalThis.fetch = _fetch
+          globalThis.fetch = __jts_fetch__
         }
 
         result = await (func ? plugin[func](...args) : plugin(...args))
         break
       case "kill":
         await reply()
-        _process.exit(0)
+        __jts_process__.exit(0)
         break
       default:
         throw new Error(`Unsupported command: ${req.command}`)
@@ -114,11 +115,7 @@ _readline.createInterface({
 
     await reply(result)
   } catch (e) {
-    if (e instanceof SyntaxError) {
-      await reply(null, e.toString())
-    } else {
-      await reply(null, `Failed to execute IPC command: ${e}`)
-    }
+    await reply(null, e.toString())
   } finally {
     globalThis.fetch = fetch
   }
