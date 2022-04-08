@@ -39,7 +39,10 @@ type factory struct {
 
 func Factory() script.Factory {
 	return &factory{
-		packages: map[string]string{"node-fetch": "2"},
+		packages: map[string]string{
+			"node-fetch":   "2",
+			"mock-require": "",
+		},
 	}
 }
 
@@ -117,7 +120,11 @@ func (f *factory) installNodeModules(dir string, modules []string) error {
 
 	args := []string{"install"}
 	for name, version := range f.packages {
-		args = append(args, name+"@"+version)
+		if version != "" {
+			args = append(args, name+"@"+version)
+		} else {
+			args = append(args, name)
+		}
 	}
 
 	args = append(args, modules...)
