@@ -59,7 +59,11 @@ var (
 )
 
 func setDefaultParams(containerized bool) {
-	viper.SetDefault("server.name", "unnamed-server")
+	defaultServerName, _ := os.Hostname()
+	if defaultServerName == "" {
+		defaultServerName = "unnamed-server"
+	}
+	viper.SetDefault("server.name", defaultServerName)
 	viper.SetDefault("server.port", "8001")
 	viper.SetDefault("server.log.level", "info")
 	viper.SetDefault("server.auth_reload_sec", 1)

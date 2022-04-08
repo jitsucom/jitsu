@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"errors"
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,7 +9,7 @@ import (
 
 const (
 	errorTmpl = `<script>
-	  window.localStorage.setItem("sso_error", "SSO Auth error! %v")
+	  window.localStorage.setItem("sso_error", 'SSO Auth error! %s')
 	  window.location.href = "%s"
 	</script>`
 	successTmpl = `<script>
@@ -32,16 +32,24 @@ func (h *SSOAuthHandler) Handle(ctx *gin.Context) {
 
 	ctx.Header("content-type", "text/html")
 	if provider := h.Provider; provider == nil {
-		ctx.String(http.StatusOK, errorTmpl, errors.New("sso is not configured"), h.UIBaseURL)
+		ctx.String(http.StatusOK, errorTmpl, "SSO is not configured", h.UIBaseURL)
 	} else if authorizator, err := h.Authorizator.Local(); err != nil {
-		ctx.String(http.StatusOK, errorTmpl, err, h.UIBaseURL)
+		ctx.String(http.StatusOK, errorTmpl, EscapeError(err), h.UIBaseURL)
 	} else if code := ctx.Query("code"); code == "" {
-		ctx.String(http.StatusOK, errorTmpl, errors.New("missed required query param: code"), h.UIBaseURL)
+		ctx.String(http.StatusOK, errorTmpl, "Missed required query param: code", h.UIBaseURL)
 	} else if session, err := provider.GetSSOSession(ctx, code); err != nil {
-		ctx.String(http.StatusOK, errorTmpl, err, h.UIBaseURL)
+		ctx.String(http.StatusOK, errorTmpl, EscapeError(err), h.UIBaseURL)
 	} else if tokenPair, err := authorizator.SignInSSO(ctx, provider.Name(), session, provider.AccessTokenTTL()); err != nil {
-		ctx.String(http.StatusOK, errorTmpl, err, h.UIBaseURL)
+		ctx.String(http.StatusOK, errorTmpl, EscapeError(err), h.UIBaseURL)
 	} else {
 		ctx.String(http.StatusOK, successTmpl, tokenPair.AccessToken, tokenPair.RefreshToken, h.UIBaseURL)
 	}
+}
+
+func EscapeError(error error) string {
+	escaped, err := json.Marshal(error.Error())
+	if err != nil {
+		return "Failed to escape error message"
+	}
+	return string(escaped)
 }

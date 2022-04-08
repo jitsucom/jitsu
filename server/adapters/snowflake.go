@@ -208,7 +208,8 @@ func (s *Snowflake) PatchTableSchema(patchTable *Table) error {
 		}
 	}()
 
-	for columnName, column := range patchTable.Columns {
+	for _, columnName := range patchTable.SortedColumnNames() {
+		column := patchTable.Columns[columnName]
 		columnDDL := s.columnDDL(columnName, column)
 
 		query := fmt.Sprintf(addSFColumnTemplate, s.config.Schema,
@@ -363,7 +364,13 @@ func (s *Snowflake) Insert(insertContext *InsertContext) error {
 func (s *Snowflake) insertSingle(eventContext *EventContext) error {
 	var columnNames, placeholders []string
 	var values []interface{}
-	for name, value := range eventContext.ProcessedEvent {
+	columns := make([]string, 0, len(eventContext.ProcessedEvent))
+	for name, _ := range eventContext.ProcessedEvent {
+		columns = append(columns, name)
+	}
+	sort.Strings(columns)
+	for _, name := range columns {
+		value := eventContext.ProcessedEvent[name]
 		columnNames = append(columnNames, reformatValue(name))
 
 		castClause := s.getCastClause(name, eventContext.Table.Columns[name])
@@ -478,14 +485,19 @@ func (s *Snowflake) Update(table *Table, object map[string]interface{}, whereKey
 	columnNames := make([]string, len(object), len(object))
 	values := make([]interface{}, len(object)+1, len(object)+1)
 
-	i := 0
-	for name, value := range object {
+	columns := make([]string, 0, len(object))
+	for name, _ := range object {
+		columns = append(columns, name)
+	}
+	sort.Strings(columns)
+
+	for i, name := range columns {
+		value := object[name]
 		castClause := s.getCastClause(name, table.Columns[name])
 		columnNames[i] = reformatValue(name) + "= ?" + castClause
 		values[i] = value
-		i++
 	}
-	values[i] = whereValue
+	values[len(values)-1] = whereValue
 
 	header := strings.Join(columnNames, ", ")
 
@@ -503,7 +515,8 @@ func (s *Snowflake) Update(table *Table, object map[string]interface{}, whereKey
 //createTableInTransaction creates database table with name,columns provided in Table representation
 func (s *Snowflake) createTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	var columnsDDL []string
-	for columnName, column := range table.Columns {
+	for _, columnName := range table.SortedColumnNames() {
+		column := table.Columns[columnName]
 		columnDDL := s.columnDDL(columnName, column)
 		columnsDDL = append(columnsDDL, columnDDL)
 	}
@@ -525,7 +538,7 @@ func (s *Snowflake) createTableInTransaction(wrappedTx *Transaction, table *Tabl
 func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	var placeholdersBuilder strings.Builder
 	var unformattedColumnNames []string
-	for name := range table.Columns {
+	for _, name := range table.SortedColumnNames() {
 		unformattedColumnNames = append(unformattedColumnNames, name)
 	}
 	valuesAmount := len(objects) * len(table.Columns)
@@ -606,7 +619,7 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 	var formattedColumnNames []string
 	var updateSet []string
 	var tmpPreffixColumnNames []string
-	for name := range table.Columns {
+	for _, name := range table.SortedColumnNames() {
 		reformattedColumnName := reformatValue(name)
 		unformattedColumnNames = append(unformattedColumnNames, name)
 		formattedColumnNames = append(formattedColumnNames, reformatDefault(reformattedColumnName))

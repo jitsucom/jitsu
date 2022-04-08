@@ -109,7 +109,7 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (response 
 		_ = mapstructure.Decode(req.Config, &cfg)
 		createFunc, dConfig, err := h.factory.Configure(req.Type, cfg)
 		if err != nil {
-			response.Error = fmt.Errorf("cannot setup npm destination: %v", err).Error()
+			response.Error = fmt.Errorf("cannot setup destination: %v", err).Error()
 			return
 		}
 		storage, err := createFunc(dConfig)
