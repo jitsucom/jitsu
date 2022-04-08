@@ -2,7 +2,7 @@ let log = []
 
 const logHelper = (level) => (...args) => log.push({level: level, message: args.join(" ")})
 
-console = {
+globalThis.console = {
   debug: logHelper("debug"),
   info: logHelper("info"),
   log: logHelper("info"),
@@ -10,8 +10,21 @@ console = {
   error: logHelper("error"),
 }
 
-let send = (data) => {
-  process.stdout.write(data + "\n")
+const _fetch = require("node-fetch")
+const _readline = require("readline")
+const _process = process
+
+globalThis.fetch = () => {
+  throw new Error(`'fetch' is enabled only for 'validator' function for security reasons.`)
+}
+
+globalThis.process = {}
+require("module").prototype.require = () => {
+  throw new Error(`'require' is disabled in Jitsu transformations for security reasons.`)
+}
+
+const send = (data) => {
+  _process.stdout.write(data + "\n")
 }
 
 const reply = async (result, error) => {
@@ -35,7 +48,9 @@ const reply = async (result, error) => {
   }
 }
 
-const handle = async (line) => {
+_readline.createInterface({
+  input: _process.stdin
+}).on("line", async (line) => {
   let req = {}
   try {
     req = JSON.parse(line)
@@ -49,6 +64,7 @@ const handle = async (line) => {
     return
   }
 
+  let fetch = globalThis.fetch
   let result = undefined
   try {
     globalThis._plugin = globalThis._plugin || (async () => {
@@ -83,15 +99,14 @@ const handle = async (line) => {
         let args = req.payload.args
         let func = req.payload.function
         if (func === "validator") {
-          globalThis.fetch = require("node-fetch")
+          globalThis.fetch = _fetch
         }
 
         result = await (func ? plugin[func](...args) : plugin(...args))
-        globalThis.fetch = undefined
         break
       case "kill":
         await reply()
-        process.exit(0)
+        _process.exit(0)
         break
       default:
         throw new Error(`Unsupported command: ${req.command}`)
@@ -104,11 +119,7 @@ const handle = async (line) => {
     } else {
       await reply(null, `Failed to execute IPC command: ${e}`)
     }
+  } finally {
+    globalThis.fetch = fetch
   }
-}
-
-const opts = {
-  input: process.stdin,
-}
-
-require("readline").createInterface(opts).on("line", handle)
+})
