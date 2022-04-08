@@ -30,7 +30,7 @@ export const allSingerTaps: SingerTap[] = [
     parameters: customParameters("tap-adroll", {
       customConfig: [
         {
-          displayName: "Cient ID",
+          displayName: "Client ID",
           id: "client_id",
           type: oauthSecretType,
           required: false,
@@ -45,7 +45,7 @@ export const allSingerTaps: SingerTap[] = [
           ),
         },
         {
-          displayName: "Cient Secret",
+          displayName: "Client Secret",
           id: "client_secret",
           type: oauthSecretType,
           required: false,

@@ -7,11 +7,17 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
+	"time"
 )
 
 const (
-	ApiTokenKey = "api_key"
-	IPKey       = "source_ip"
+	ApiTokenKey            = "api_key"
+	IPKey                  = "source_ip"
+	apiTokenWarningFreqSec = 10
+)
+
+var (
+	lastApiTokenWarningErrorTime = timestamp.Now().Add(time.Second * -apiTokenWarningFreqSec)
 )
 
 //ContextEnrichmentStep enriches payload with ip, user-agent, token, unique ID field (event_id) and _timestamp
@@ -39,7 +45,15 @@ func ContextEnrichmentStep(payload events.Event, token string, reqContext *event
 	}
 
 	//4. timestamp & api key
-	if _, ok := payload[ApiTokenKey]; !ok {
+	payloadApiToken, ok := payload[ApiTokenKey]
+	if !ok {
+		payload[ApiTokenKey] = token
+	} else if payloadApiToken != token {
+		now := timestamp.Now()
+		if now.After(lastApiTokenWarningErrorTime.Add(time.Second * apiTokenWarningFreqSec)) {
+			logging.Warnf("api_key value in event payload: %s differs from the one provided in HTTP-header: %s. That may be a sign of a configuration error. Overriding api_key event property with value from HTTP-header", payloadApiToken, token)
+			lastApiTokenWarningErrorTime = now
+		}
 		payload[ApiTokenKey] = token
 	}
 	if _, ok := payload[timestamp.Key]; !ok {

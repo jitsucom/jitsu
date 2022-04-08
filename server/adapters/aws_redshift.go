@@ -466,7 +466,7 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 
 	//insert from select
 	var quotedColumnNames []string
-	for columnName := range tmpTable.Columns {
+	for _, columnName := range tmpTable.SortedColumnNames() {
 		quotedColumnNames = append(quotedColumnNames, fmt.Sprintf(`"%s"`, columnName))
 	}
 	quotedHeader := strings.Join(quotedColumnNames, ", ")
