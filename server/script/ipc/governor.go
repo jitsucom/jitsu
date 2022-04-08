@@ -3,6 +3,7 @@ package ipc
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/pkg/errors"
@@ -59,17 +60,21 @@ func (g *Governor) Exchange(ctx context.Context, data []byte) ([]byte, error) {
 			data, err := g.exchange(data)
 			if err == nil {
 				g.errcnt = 0
+				g.err = nil
 				return data, nil
-			} else {
-				g.errcnt++
-				g.err = err
 			}
 
 			logging.Warnf("%s exchange error: %v", g.process, err)
 
-			g.process.Kill()
+			g.errcnt++
+			g.err = err
+			if !errors.Is(err, io.EOF) {
+				g.process.Kill()
+			}
+
 			if err := g.process.Wait(); err != nil {
 				logging.Warnf("%s wait error: %v", g.process, err)
+				g.err = err
 			}
 
 			if g.errcnt >= governorErrorThreshold {

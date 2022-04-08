@@ -9,7 +9,12 @@ import (
 
 func main() {
 	logging.LogLevel = logging.DEBUG
-	executor, err := templates.NewNodeExecutor(templates.Expression(`process.exit(0)`), nil)
+	executor, err := templates.NewNodeExecutor(&templates.DestinationPlugin{
+		Package: "/Users/ikulkov/Jitsu/jitsu-mixpanel/jitsu-mixpanel-destination-v0.2.2.tgz",
+		ID:      "test",
+		Type:    "npm",
+		Config:  nil,
+	}, nil)
 
 	if err != nil {
 		panic(err)

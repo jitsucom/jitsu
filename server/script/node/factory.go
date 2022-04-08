@@ -19,7 +19,11 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-const executableScriptName = "main.cjs"
+const (
+	executableScriptName = "main.cjs"
+	node                 = "node"
+	npm                  = "npm"
+)
 
 type scriptTemplateValues struct {
 	Executable string
@@ -40,13 +44,20 @@ type factory struct {
 func Factory() script.Factory {
 	return &factory{
 		packages: map[string]string{
-			"node-fetch":   "2",
-			"mock-require": "",
+			"node-fetch": "2",
 		},
 	}
 }
 
 func (f *factory) CreateScript(executable script.Executable, variables map[string]interface{}, includes ...string) (script.Interface, error) {
+	if _, err := exec.LookPath(node); err != nil {
+		return nil, errors.Wrapf(err, "%s is not in $PATH. Please make sure that node and npm is installed and available in $PATH.", node)
+	}
+
+	if _, err := exec.LookPath(npm); err != nil {
+		return nil, errors.Wrapf(err, "%s is not in $PATH. Please make sure that node and npm is installed and available in $PATH.", npm)
+	}
+
 	dir := filepath.Join(os.TempDir(), "jitsu-nodejs-"+uuid.NewV4().String())
 	if err := os.RemoveAll(dir); err != nil {
 		return nil, errors.Wrapf(err, "purge temp dir '%s'", dir)
@@ -93,7 +104,7 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 
 	process := &ipc.StdIO{
 		Dir:  dir,
-		Path: "node",
+		Path: node,
 		Args: []string{executableScriptName},
 	}
 
@@ -128,7 +139,7 @@ func (f *factory) installNodeModules(dir string, modules []string) error {
 	}
 
 	args = append(args, modules...)
-	cmd := exec.CommandContext(ctx, "npm", args...)
+	cmd := exec.CommandContext(ctx, npm, args...)
 	cmd.Dir = dir
 	return cmd.Run()
 }
