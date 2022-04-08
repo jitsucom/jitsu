@@ -10,13 +10,6 @@ console = {
   error: logHelper("error"),
 }
 
-const variables = eval("{{ .Variables }}")
-for (let [key, value] of (variables ? Object.entries(variables) : [])) {
-  globalThis[key] = value
-}
-
-eval("{{ .Includes }}")
-
 let send = (data) => {
   process.stdout.write(data + "\n")
 }
@@ -42,8 +35,6 @@ const reply = async (result, error) => {
   }
 }
 
-const executable = eval("{{ .Executable }}")
-
 const handle = async (line) => {
   let req = {}
   try {
@@ -60,11 +51,23 @@ const handle = async (line) => {
 
   let result = undefined
   try {
+    globalThis._plugin = globalThis._plugin || (async () => {
+      const variables = eval("{{ .Variables }}")
+      for (let [key, value] of (variables ? Object.entries(variables) : [])) {
+        globalThis[key] = value
+      }
+
+      eval("{{ .Includes }}")
+      return eval("{{ .Executable }}")
+    })()
+
+    let plugin = undefined
     switch (req.command) {
       case "describe":
+        plugin = await _plugin
         let symbols = {}
-        for (let key of Object.keys(executable)) {
-          let value = executable[key]
+        for (let key of Object.keys(plugin)) {
+          let value = plugin[key]
           let symbol = {type: typeof value}
           if (symbol.type !== "function") {
             symbol["value"] = value
@@ -76,9 +79,15 @@ const handle = async (line) => {
         result = symbols
         break
       case "execute":
+        plugin = await _plugin
         let args = req.payload.args
         let func = req.payload.function
-        result = await (func ? executable[func](...args) : executable(...args))
+        if (func === "validator") {
+          globalThis.fetch = require("node-fetch")
+        }
+
+        result = await (func ? plugin[func](...args) : plugin(...args))
+        globalThis.fetch = undefined
         break
       case "kill":
         await reply()
@@ -89,8 +98,12 @@ const handle = async (line) => {
     }
 
     await reply(result)
-  } catch (error) {
-    await reply(null, `Failed to execute IPC command: ${error}`)
+  } catch (e) {
+    if (e instanceof SyntaxError) {
+      await reply(null, e.toString())
+    } else {
+      await reply(null, `Failed to execute IPC command: ${e}`)
+    }
   }
 }
 

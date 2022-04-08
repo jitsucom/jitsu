@@ -37,9 +37,9 @@ type Response struct {
 }
 
 const (
-	symbols = "symbols"
-	execute = "execute"
-	kill    = "kill"
+	describe = "describe"
+	execute  = "execute"
+	kill     = "kill"
 )
 
 type Script struct {
@@ -49,7 +49,7 @@ type Script struct {
 
 func (s *Script) Describe() (script.Symbols, error) {
 	value := make(script.Symbols)
-	if err := s.exchange(symbols, nil, &value); err != nil {
+	if err := s.exchange(describe, nil, &value); err != nil {
 		return nil, err
 	}
 	return value, nil

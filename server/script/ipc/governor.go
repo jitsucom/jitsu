@@ -21,8 +21,12 @@ type Process interface {
 	Wait() error
 }
 
+const governorErrorThreshold = 3
+
 type Governor struct {
 	process Process
+	errcnt  int
+	err     error
 	mu      Mutex
 }
 
@@ -43,6 +47,10 @@ func (g *Governor) Exchange(ctx context.Context, data []byte) ([]byte, error) {
 	}
 
 	defer cancel()
+	if g.errcnt >= governorErrorThreshold && g.err != nil {
+		return nil, g.err
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -50,7 +58,11 @@ func (g *Governor) Exchange(ctx context.Context, data []byte) ([]byte, error) {
 		default:
 			data, err := g.exchange(data)
 			if err == nil {
+				g.errcnt = 0
 				return data, nil
+			} else {
+				g.errcnt++
+				g.err = err
 			}
 
 			logging.Warnf("%s exchange error: %v", g.process, err)
@@ -58,6 +70,10 @@ func (g *Governor) Exchange(ctx context.Context, data []byte) ([]byte, error) {
 			g.process.Kill()
 			if err := g.process.Wait(); err != nil {
 				logging.Warnf("%s wait error: %v", g.process, err)
+			}
+
+			if g.errcnt >= governorErrorThreshold {
+				return nil, err
 			}
 
 			process, err := g.process.Spawn()
