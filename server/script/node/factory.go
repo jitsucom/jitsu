@@ -79,7 +79,7 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 
 	err = scriptTemplate.Execute(scriptFile, scriptTemplateValues{
 		Executable: f.escape(expression),
-		Includes:   f.escape(strings.Join(append([]string{`globalThis.fetch = require("node-fetch")`}, includes...), "\n\n")),
+		Includes:   f.escape(strings.Join(includes, "\n\n")),
 		Variables:  f.escape(variables),
 	})
 

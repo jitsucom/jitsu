@@ -9,15 +9,7 @@ import (
 
 func main() {
 	logging.LogLevel = logging.DEBUG
-	executor, err := templates.NewNodeExecutor(&templates.DestinationPlugin{
-		Package: "/Users/ikulkov/Jitsu/jitsu-mixpanel/jitsu-mixpanel-destination-v0.2.2.tgz",
-		ID:      "test",
-		Type:    "123",
-		Config: map[string]interface{}{
-			"api_secret": true,
-			"token":      "kek",
-		},
-	}, nil)
+	executor, err := templates.NewNodeExecutor(templates.Expression(`process.exit(0)`), nil)
 
 	if err != nil {
 		panic(err)
@@ -28,7 +20,7 @@ func main() {
 	for i := 0; i < 109; i++ {
 		_, err := executor.ProcessEvent(events.Event{"id": i})
 		if err != nil {
-			logging.Fatal(err)
+			panic(err)
 		}
 
 		//if fmt.Sprint(i) != fmt.Sprint(result.(map[string]interface{})["hello"]) {
