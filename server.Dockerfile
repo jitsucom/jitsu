@@ -52,8 +52,7 @@ ADD server/Makefile /go/src/github.com/jitsucom/jitsu/server/Makefile
 
 WORKDIR /go/src/github.com/jitsucom/jitsu/server
 # Build js (for caching) and copy builded files
-RUN make assemble_js &&\
-    cp -r ./build/dist/* /app
+RUN make assemble_js && cp -r ./build/dist/* /home/$EVENTNATIVE_USER/app/
 
 #######################################
 # BUILD BACKEND STAGE
@@ -85,8 +84,6 @@ WORKDIR /home/$EVENTNATIVE_USER/app
 
 # copy static files from build-image
 COPY --from=builder /app .
-COPY --from=main /app .
-COPY --from=main /web/lib.js ./web/lib.js
 
 COPY docker/eventnative.yaml /home/$EVENTNATIVE_USER/data/config/
 

@@ -21,11 +21,6 @@ function fail() {
   echo "$(chalk red "${error}")" ; exit 1
 }
 
-function build_server() {
-  echo "Building Server lib JS locally.."
-  rm -rf server/build && cd server && make js_release && cd ../ || fail 'Server build failed'
-}
-
 function build_configurator() {
   echo "Building Configurator UI locally.."
   rm -f configurator/backend/build/dist/configurator && rm -rf configurator/frontend/main/build && \
@@ -157,7 +152,6 @@ chalk green "=== Release subsystem: $subsystem ==="
 
 case $subsystem in
     [s][e][r][v][e][r])
-        build_server
         release_server $version $platform
         ;;
     [c][o][n][f][i][g][u][r][a][t][o][r])
@@ -165,7 +159,6 @@ case $subsystem in
         release_configurator $version $platform
         ;;
     [j][i][t][s][u])
-       build_server
        build_configurator
        release_server $version $platform
        release_configurator $version $platform
