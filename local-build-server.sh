@@ -74,7 +74,7 @@ echo "=    Downloading javascript sdk...  ="
 echo "====================================="
 echo ""
 
-(rm -r javascript-sdk && mkdir -p javascript-sdk && cd javascript-sdk && curl $(npm v @jitsu/sdk-js@$SDK_VERSION dist.tarball) | tar -xz && mv package/dist/web/lib.js . && rm -r package) || { echo 'Building javascript sdk failed' ; exit 1; }
+(rm -rf javascript-sdk && mkdir -p javascript-sdk && cd javascript-sdk && curl $(npm v @jitsu/sdk-js@$SDK_VERSION dist.tarball) | tar -xz && mv package/dist/web/lib.js . && rm -r package) || { echo 'Building javascript sdk failed' ; exit 1; }
 
 echo ""
 echo "====================================="
