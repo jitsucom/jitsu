@@ -42,9 +42,8 @@ RUN ln -s /home/$EVENTNATIVE_USER/data/config /home/$EVENTNATIVE_USER/app/res &&
     chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER/logs
 
 # Download SDK npm package
-RUN mkdir /web && curl -o /web/lib.js https://unpkg.com/@jitsu/sdk-js@$SDK_VERSION/dist/web/lib.js
-
-RUN mkdir /app
+RUN mkdir -p /home/$EVENTNATIVE_USER/app/web && \
+    curl -o /home/$EVENTNATIVE_USER/app/web/lib.js https://unpkg.com/@jitsu/sdk-js@$SDK_VERSION/dist/web/lib.js
 
 # Copy js
 ADD server/web /go/src/github.com/jitsucom/jitsu/server/web
