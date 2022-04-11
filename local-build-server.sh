@@ -74,7 +74,7 @@ echo "=    Downloading javascript sdk...  ="
 echo "====================================="
 echo ""
 
-(rm -rf javascript-sdk && mkdir -p javascript-sdk && cd javascript-sdk && curl $(npm v @jitsu/sdk-js@$SDK_VERSION dist.tarball) | tar -xz && mv package/dist/web/lib.js . && rm -r package) || { echo 'Building javascript sdk failed' ; exit 1; }
+(rm -rf javascript-sdk && mkdir -p javascript-sdk && curl -o javascript-sdk/lib.js https://unpkg.com/@jitsu/sdk-js@$SDK_VERSION/dist/web/lib.js) || { echo 'Building javascript sdk failed' ; exit 1; }
 
 echo ""
 echo "====================================="
@@ -92,7 +92,7 @@ then
   echo "====================================="
   echo ""
 
-  docker build -t jitsucom/server -f server.Dockerfile --build-arg dhid=jitsucom . || { echo 'Building jitsucom/server docker failed' ; exit 1; }
+  docker build -t jitsucom/server -f server.Dockerfile --build-arg dhid=jitsucom --build-arg SDK_VERSION=$SDK_VERSION . || { echo 'Building jitsucom/server docker failed' ; exit 1; }
 fi
 
 echo ""

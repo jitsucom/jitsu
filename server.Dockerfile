@@ -15,10 +15,10 @@ RUN apt-get install -y docker-ce docker-ce-cli containerd.io
 
 ARG TARGETARCH
 ARG dhid
+ARG SDK_VERSION=latest
 ENV DOCKER_HUB_ID=$dhid
 ENV TZ=UTC
 ENV EVENTNATIVE_USER=eventnative
-ENV SDK_VERSION=latest
 
 RUN echo "$EVENTNATIVE_USER     ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
     && addgroup --system $EVENTNATIVE_USER \
@@ -41,9 +41,8 @@ RUN ln -s /home/$EVENTNATIVE_USER/data/config /home/$EVENTNATIVE_USER/app/res &&
     ln -s /home/$EVENTNATIVE_USER/data/logs /home/$EVENTNATIVE_USER/logs && \
     chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER/logs
 
-#######################################
-# BUILD JS STAGE
-FROM jitsucom/server-builder as jsbuilder
+# Download SDK npm package
+RUN mkdir /web && curl -o /web/lib.js https://unpkg.com/@jitsu/sdk-js@$SDK_VERSION/dist/web/lib.js
 
 RUN mkdir /app
 
@@ -55,17 +54,6 @@ WORKDIR /go/src/github.com/jitsucom/jitsu/server
 # Build js (for caching) and copy builded files
 RUN make assemble_js &&\
     cp -r ./build/dist/* /app
-
-#######################################
-# BUILD JS SDK STAGE
-FROM jitsucom/server-builder as jsSdkbuilder
-
-RUN mkdir /app
-
-WORKDIR /javascript-sdk
-
-# Download npm package
-RUN curl $(npm v @jitsu/sdk-js@$SDK_VERSION dist.tarball) | tar -xz && mv package/dist/web/lib.js /app/ && rm -r package
 
 #######################################
 # BUILD BACKEND STAGE
@@ -97,8 +85,8 @@ WORKDIR /home/$EVENTNATIVE_USER/app
 
 # copy static files from build-image
 COPY --from=builder /app .
-COPY --from=jsbuilder /app .
-COPY --from=jsSdkbuilder /app/lib.js ./web/lib.js
+COPY --from=main /app .
+COPY --from=main /web/lib.js ./web/lib.js
 
 COPY docker/eventnative.yaml /home/$EVENTNATIVE_USER/data/config/
 
