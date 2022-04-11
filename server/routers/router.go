@@ -1,7 +1,6 @@
 package routers
 
 import (
-	"github.com/jitsucom/jitsu/server/config"
 	"net/http"
 	"net/http/pprof"
 	"runtime/debug"
@@ -9,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/events"
@@ -20,7 +20,6 @@ import (
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/multiplexing"
-	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/synchronization"
 	"github.com/jitsucom/jitsu/server/system"
@@ -33,7 +32,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	taskService *synchronization.TaskService, fallbackService *fallback.Service, coordinationService *coordination.Service,
 	eventsCache *caching.EventsCache, systemService *system.Service, segmentEndpointFieldMapper, segmentCompatEndpointFieldMapper events.Mapper,
 	processorHolder *events.ProcessorHolder, multiplexingService *multiplexing.Service, walService *wal.Service, geoService *geo.Service,
-	pluginsRepository plugins.PluginsRepository, userRecognition *config.UsersRecognition) *gin.Engine {
+	userRecognition *config.UsersRecognition) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -122,7 +121,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.GET("/geo_data_resolvers/editions", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.EditionsHandler))
 		apiV1.POST("/geo_data_resolvers/test", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.TestHandler))
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.NewDestinationsHandler(userRecognition).Handler))
-		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.NewEventTemplateHandler(pluginsRepository, destinations.GetFactory()).Handler))
+		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.NewEventTemplateHandler(destinations.GetFactory()).Handler))
 
 		sourcesRoute := apiV1.Group("/sources")
 		{

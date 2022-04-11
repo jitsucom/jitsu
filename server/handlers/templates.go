@@ -3,18 +3,18 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"text/template"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
-	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/utils"
 	"github.com/mitchellh/mapstructure"
-	"net/http"
-	"text/template"
 )
 
 //EvaluateTemplateRequest is a request dto for testing text/template expressions
@@ -56,14 +56,12 @@ func (etr *EvaluateTemplateRequest) TemplateFunctions() template.FuncMap {
 
 //EventTemplateHandler is a handler for testing text/template expression with income object
 type EventTemplateHandler struct {
-	pluginsRepository plugins.PluginsRepository
-	factory           storages.Factory
+	factory storages.Factory
 }
 
-func NewEventTemplateHandler(pluginsRepository plugins.PluginsRepository, factory storages.Factory) *EventTemplateHandler {
+func NewEventTemplateHandler(factory storages.Factory) *EventTemplateHandler {
 	return &EventTemplateHandler{
-		pluginsRepository: pluginsRepository,
-		factory:           factory,
+		factory: factory,
 	}
 }
 
