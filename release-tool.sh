@@ -23,9 +23,7 @@ function fail() {
 
 function build_server() {
   echo "Building Server lib JS locally.."
-  rm -rf server/build && rm -rf javascript-sdk/* && \
-  cd javascript-sdk && curl $(npm v @jitsu/sdk-js@latest dist.tarball) | tar -xz && mv package/dist/web/* . && rm -r package && \
-  cd ../server && make js_release && cd ../ || fail 'Server build failed'
+  rm -rf server/build && cd server && make js_release && cd ../ || fail 'Server build failed'
 }
 
 function build_configurator() {
@@ -40,17 +38,17 @@ function release_server() {
 
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
     echo "**** Server amd64/arm64 release [$1] ****"
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -t jitsucom/server:latest -f server-release.Dockerfile --build-arg dhid=jitsucom . || fail 'Server dockerx build semver failed'
+    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -t jitsucom/server:latest -f server.Dockerfile --build-arg dhid=jitsucom . || fail 'Server dockerx build semver failed'
 
     docker login -u="$KSENSE_DOCKER_LOGIN" -p="$KSENSE_DOCKER_PASSWORD" || fail  "Docker ksense login failed"
-    docker buildx build --platform linux/amd64 --push -t ksense/eventnative:"$1" -t ksense/eventnative:latest -f server-release.Dockerfile --build-arg dhid=ksense . || fail 'ksense/eventnative dockerx build semver failed'
+    docker buildx build --platform linux/amd64 --push -t ksense/eventnative:"$1" -t ksense/eventnative:latest -f server.Dockerfile --build-arg dhid=ksense . || fail 'ksense/eventnative dockerx build semver failed'
   else
     if [[ "$1" == "beta" ]]; then
       echo "**** Server $2 release [$1] ****"
-      docker buildx build --platform $2 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
+      docker buildx build --platform $2 --push -t jitsucom/server:"$1" -f server.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
     else
       echo "**** Server $2 release [$1] ****"
-      docker buildx build --platform $2 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
+      docker buildx build --platform $2 --push -t jitsucom/server:"$1" -f server.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
     fi
   fi
 }
