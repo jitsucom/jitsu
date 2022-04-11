@@ -18,6 +18,7 @@ ARG dhid
 ENV DOCKER_HUB_ID=$dhid
 ENV TZ=UTC
 ENV EVENTNATIVE_USER=eventnative
+ENV SDK_VERSION=latest
 
 RUN echo "$EVENTNATIVE_USER     ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
     && addgroup --system $EVENTNATIVE_USER \
@@ -63,17 +64,8 @@ RUN mkdir /app
 
 WORKDIR /javascript-sdk
 
-# Install npm dependencies
-ADD javascript-sdk/package.json javascript-sdk/yarn.lock ./
-RUN yarn install --prefer-offline --frozen-lockfile --network-timeout 1000000
-
-# Copy project
-ADD javascript-sdk/. .
-
-# Build
-RUN yarn build && \
-    test -e ./dist/web/lib.js && \
-    cp ./dist/web/lib.js /app/
+# Download npm package
+RUN curl $(npm v @jitsu/sdk-js@$SDK_VERSION dist.tarball) | tar -xz && mv package/dist/web/lib.js /app/ && rm -r package
 
 #######################################
 # BUILD BACKEND STAGE

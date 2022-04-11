@@ -23,9 +23,9 @@ function fail() {
 
 function build_server() {
   echo "Building Server lib JS locally.."
-  rm -rf server/build && rm -rf javascript-sdk/dist && \
-  cd javascript-sdk/ && yarn clean && yarn install --prefer-offline && yarn build && cd ../server && \
-  make js_release && cd ../ || fail 'Server build failed'
+  rm -rf server/build && rm -rf javascript-sdk/* && \
+  cd javascript-sdk && curl $(npm v @jitsu/sdk-js@latest dist.tarball) | tar -xz && mv package/dist/web/* . && rm -r package && \
+  cd ../server && make js_release && cd ../ || fail 'Server build failed'
 }
 
 function build_configurator() {
