@@ -3,6 +3,7 @@
 ARM_BUILD='GOARCH=arm64'
 AMD_BUILD='GOARCH=amd64'
 GO_BUILD_PARAMS=''
+SDK_VERSION='latest'
 
 arch_flag='amd'
 docker_flag='true'
@@ -45,6 +46,15 @@ while test $# -gt 0; do
       fi
       shift
       ;;
+    -s|--sdk)
+      shift
+      if test $# -gt 0; then
+        export SDK_VERSION=$1
+      else
+        echo "default js sdk version: $SDK_VERSION"
+      fi
+      shift
+      ;;
     *)
       break
       ;;
@@ -60,11 +70,11 @@ fi
 
 echo ""
 echo "====================================="
-echo "=      Building javascript sdk...   ="
+echo "=    Downloading javascript sdk...  ="
 echo "====================================="
 echo ""
 
-(cd javascript-sdk; rm -rf dist && yarn clean && yarn install && yarn build) || { echo 'Building javascript sdk failed' ; exit 1; }
+(rm -rf javascript-sdk/* && cd javascript-sdk && curl $(npm v @jitsu/sdk-js@$SDK_VERSION dist.tarball) | tar -xz && mv package/dist/web/lib.js . && rm -r package) || { echo 'Building javascript sdk failed' ; exit 1; }
 
 echo ""
 echo "====================================="
