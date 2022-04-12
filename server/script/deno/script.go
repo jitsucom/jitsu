@@ -1,6 +1,7 @@
 package deno
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -107,7 +108,9 @@ func (s *Script) exchange(command string, payload, result interface{}) error {
 	}
 
 	if result != nil {
-		return json.Unmarshal(resp.Result, result)
+		decoder := json.NewDecoder(bytes.NewReader(resp.Result))
+		decoder.UseNumber()
+		return decoder.Decode(result)
 	}
 
 	return nil
