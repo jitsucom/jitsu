@@ -3,7 +3,7 @@
 ARM_BUILD='GOARCH=arm64'
 AMD_BUILD='GOARCH=amd64'
 GO_BUILD_PARAMS=''
-SDK_VERSION='latest'
+SDK_VERSION=$(cat js-sdk-version)
 
 arch_flag='amd'
 docker_flag='true'
