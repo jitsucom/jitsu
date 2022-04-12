@@ -127,8 +127,8 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 
 	logging.Debugf("%s running as %s/%s [took %s]", governor, dir, executableScriptName, timestamp.Now().Sub(startTime))
 	return &Script{
-		governor: governor,
-		dir:      dir,
+		Governor: governor,
+		Dir:      dir,
 	}, nil
 }
 
