@@ -48,7 +48,7 @@ func Factory() script.Factory {
 	return &factory{
 		packages: map[string]string{
 			"node-fetch": "2",
-			"vm2":        "",
+			"vm2":        "3",
 		},
 	}
 }
