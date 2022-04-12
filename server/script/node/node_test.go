@@ -1,7 +1,7 @@
 package node_test
 
 import (
-	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -235,25 +235,24 @@ func TestFetchIsAvailableOnlyInValidatorModuleFunction(t *testing.T) {
 }
 
 // testArbitraryModule loads JavaScript from `scriptPath`, executes exported `functionName` (with zero args) and
-// checks that the actual result is equal to `expectedResult`. Note that you might have to provide explicit
-// typecasts for `expectedResult` (i.e. numerics => json.Number, etc.).
-func executeModuleFunction(t *testing.T, scriptPath string, functionName string, expectedResult interface{}) {
+// checks that the value in `actualResult` is equal to `expectedResult`.
+// `actualResult` should be a pointer to a type represented by `expectedResult`.
+func executeModuleFunction(t *testing.T, scriptPath string, functionName string, expectedResult interface{}, actualResult interface{}) {
 	instance, err := factory().CreateScript(script.File(scriptPath), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer instance.Close()
-	var actualResult interface{}
-	if err := instance.Execute(functionName, script.Args{}, &actualResult); err != nil {
+	if err := instance.Execute(functionName, script.Args{}, actualResult); err != nil {
 		t.Fatal(err)
 	}
 
-	assert.Equal(t, expectedResult, actualResult, "on %s", scriptPath)
+	assert.Equal(t, expectedResult, reflect.Indirect(reflect.ValueOf(actualResult)).Interface(), "on %s", scriptPath)
 }
 
 func TestArbitraryModules(t *testing.T) {
-	executeModuleFunction(t, "testdata/js/fetch_test.js", "validator", "function")
-	executeModuleFunction(t, "testdata/js/fetch_test.js", "destination", "undefined")
-	executeModuleFunction(t, "testdata/js/describe_test.js", "func", json.Number("1"))
+	executeModuleFunction(t, "testdata/js/fetch_test.js", "validator", "function", new(string))
+	executeModuleFunction(t, "testdata/js/fetch_test.js", "destination", "undefined", new(string))
+	executeModuleFunction(t, "testdata/js/describe_test.js", "func", 1, new(int))
 }
