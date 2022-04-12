@@ -97,10 +97,16 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 		return nil, errors.Wrapf(err, "get executable expression")
 	}
 
+	variables = sanitizeVariables(variables)
+	variablesJSON, err := json.Marshal(variables)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal variables json")
+	}
+
 	err = scriptTemplate.Execute(scriptFile, scriptTemplateValues{
 		Executable: escapeJSON(expression),
-		Includes:   escapeJSON(strings.Join(includes, "\n\n")),
-		Variables:  escapeJSON(sanitizeVariables(variables)),
+		Includes:   escapeJSON(strings.Join(includes, "\n")),
+		Variables:  string(variablesJSON),
 	})
 
 	closeQuietly(scriptFile)
@@ -153,12 +159,17 @@ func (f *factory) installNodeModules(dir string, modules []string) error {
 func (f *factory) getExpression(dir string, executable script.Executable) (string, error) {
 	switch e := executable.(type) {
 	case script.Expression:
+		expression := string(e)
+		if !strings.Contains(expression, "return") {
+			expression = "return " + expression
+		}
+
 		return `
 module.exports = async (event) => {
   let $ = event
   let _ = event
 // expression start //
-` + string(e) + `
+` + expression + `
 // expression end //
 }`, nil
 
