@@ -1,6 +1,6 @@
 // noinspection ExceptionCaughtLocallyJS
 
-const _log = []
+const __jts_log__ = []
 const readline = require("readline")
 const fetch = require("node-fetch")
 const {NodeVM} = require("vm2")
@@ -14,7 +14,7 @@ const reply = async (result, error) => {
     ok: !error,
     result: result,
     error: error,
-    log: _log,
+    log: __jts_log__,
   }
 
   try {
@@ -27,7 +27,7 @@ const reply = async (result, error) => {
 
     await send(JSON.stringify(edata))
   } finally {
-    _log.length = 0
+    __jts_log__.length = 0
   }
 }
 
@@ -41,7 +41,7 @@ const vm = new NodeVM({
 })
 
 for (let level of ["dir", "log", "trace", "info", "warn", "error"]) {
-  vm.on(`console.${level}`, (message) => _log.push({level, message: `${message}`}))
+  vm.on(`console.${level}`, (message) => __jts_log__.push({level, message: `${message}`}))
 }
 
 readline.createInterface({

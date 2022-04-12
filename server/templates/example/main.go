@@ -13,13 +13,7 @@ func main() {
 		Package: "/Users/ikulkov/Jitsu/mixpanel-destination/mixpanel-destination-0.2.3.tgz",
 		ID:      "test",
 		Type:    "npm",
-		Config: map[string]interface{}{
-			"anonymous_users_enabled": false,
-			"api_secret":              "e6467395e5cc7fe5d3661c7f881a2d94",
-			"project_id":              "2129077",
-			"token":                   "f50e313c6414265c665c5f3853135c51",
-			"users_enabled":           false,
-		},
+		Config:  nil,
 	}, nil)
 
 	if err != nil {
