@@ -3,12 +3,15 @@ package deno
 import (
 	_ "embed"
 	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"text/template"
+
+	"github.com/jitsucom/jitsu/server/script/node"
 
 	"github.com/jitsucom/jitsu/server/timestamp"
 
@@ -98,9 +101,9 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 	}
 
 	logging.Debugf("%s running as %s/%s [took %s]", governor, dir, executableScriptName, timestamp.Now().Sub(startTime))
-	return &Script{
-		governor: governor,
-		dir:      dir,
+	return &node.Script{
+		Governor: governor,
+		Dir:      dir,
 	}, nil
 }
 
@@ -125,7 +128,6 @@ async (event) => {
 ` + expression + `
 // expression end //
 }`, nil
-
 	}
 
 	return "", errors.Errorf("unrecognized executable %T", executable)
@@ -140,4 +142,10 @@ func sanitizeVariables(vars map[string]interface{}) map[string]interface{} {
 	}
 
 	return variables
+}
+
+func closeQuietly(close io.Closer) {
+	if err := close.Close(); err != nil {
+		logging.Warnf("failed to close %T: %v", close, err)
+	}
 }

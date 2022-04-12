@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/logging"
@@ -44,8 +45,8 @@ const (
 )
 
 type Script struct {
-	governor *ipc.Governor
-	dir      string
+	Governor *ipc.Governor
+	Dir      string
 }
 
 func (s *Script) Describe() (script.Symbols, error) {
@@ -67,14 +68,14 @@ func (s *Script) Execute(name string, args []interface{}, result interface{}) er
 func (s *Script) Close() {
 	if err := s.exchange(kill, nil, nil); err != nil {
 		logging.Warnf("send kill signal failed, killing: %v", err)
-		s.governor.Kill()
+		s.Governor.Kill()
 	}
 
-	if err := s.governor.Wait(); err != nil {
+	if err := s.Governor.Wait(); err != nil {
 		logging.Warnf("wait process failed: %v", err)
 	}
 
-	//_ = os.RemoveAll(s.dir)
+	_ = os.RemoveAll(s.Dir)
 }
 
 func (s *Script) exchange(command string, payload, result interface{}) error {
@@ -91,9 +92,9 @@ func (s *Script) exchange(command string, payload, result interface{}) error {
 	defer cancel()
 
 	start := timestamp.Now()
-	newData, err := s.governor.Exchange(ctx, data)
+	newData, err := s.Governor.Exchange(ctx, data)
 
-	logging.Debugf("%s: %s => %s (%v) [%s]", s.governor, string(data), string(newData), err, timestamp.Now().Sub(start))
+	logging.Debugf("%s: %s => %s (%v) [%s]", s.Governor, string(data), string(newData), err, timestamp.Now().Sub(start))
 	if err != nil {
 		return err
 	}
@@ -109,6 +110,8 @@ func (s *Script) exchange(command string, payload, result interface{}) error {
 
 	if result != nil {
 		decoder := json.NewDecoder(bytes.NewReader(resp.Result))
+		//parse json exactly the same way as it happens in http request processing.
+		//transform that does no changes must return exactly the same object as w/o transform
 		decoder.UseNumber()
 		return decoder.Decode(result)
 	}
