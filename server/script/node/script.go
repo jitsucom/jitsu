@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"time"
 
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/script"
@@ -86,8 +87,12 @@ func (s *Script) exchange(command string, payload, result interface{}) error {
 		return err
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	start := timestamp.Now()
-	newData, err := s.governor.Exchange(context.Background(), data)
+	newData, err := s.governor.Exchange(ctx, data)
+
 	logging.Debugf("%s: %s => %s (%v) [%s]", s.governor, string(data), string(newData), err, timestamp.Now().Sub(start))
 	if err != nil {
 		return err

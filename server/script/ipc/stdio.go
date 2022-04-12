@@ -14,6 +14,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+// StdIO allows to start to process and communicate to it via standard input/output.
+// Note that it currently uses '\n' for delimiting sent messages.
 type StdIO struct {
 	Dir  string
 	Path string
@@ -68,15 +70,27 @@ func (p *StdIO) Spawn() (Process, error) {
 	}, nil
 }
 
-func (p *StdIO) Send(data []byte) error {
+func (p *StdIO) Send(_ context.Context, data []byte) error {
 	data = append(data, '\n')
 	_, err := p.stdin.Write(data)
 	return err
 }
 
-func (p *StdIO) Receive() ([]byte, error) {
+func (p *StdIO) Receive(ctx context.Context) ([]byte, error) {
+	done := make(chan bool)
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			p.cancel()
+			<-done
+		case <-done:
+		}
+	}()
+
 	reader := bufio.NewReader(p.stdout)
 	line, _, err := reader.ReadLine()
+	done <- true
 	return line, err
 }
 

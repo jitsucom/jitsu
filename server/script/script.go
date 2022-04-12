@@ -2,86 +2,74 @@ package script
 
 import (
 	"encoding/json"
-	"strings"
-
-	"github.com/pkg/errors"
+	"errors"
 )
 
-type Descriptor struct {
-	ID   string `json:"id"`
-	Type string `json:"type"`
+// Executable is an entity which can be loaded as Interface.
+// This is an algebraic type with no logic of its own.
+// Factory implementations are responsible for implementing processing logic for relevant Executables.
+type Executable interface {
+	executable() Executable
 }
 
-type BuildInfo struct {
-	SdkVersion     string `json:"sdkVersion"`
-	SdkPackage     string `json:"sdkPackage"`
-	BuildTimestamp string `json:"buildTimestamp"`
+// Expression is a piece of code with no external requirements, generally representing a function body.
+// Implements Executable interface.
+type Expression string
+
+func (e Expression) executable() Executable {
+	return e
 }
 
-type Exports struct {
-	Descriptor Descriptor `json:"descriptor"`
-	BuildInfo  BuildInfo  `json:"buildInfo"`
+// Package is an external package which should be obtained before loading.
+// Package format specification depends on the Factory implementation.
+// Implements Executable interface.
+type Package string
+
+func (p Package) executable() Executable {
+	return p
 }
 
+// Symbol represents a JavaScript value.
 type Symbol struct {
-	Type  string          `json:"type"`
+
+	// Type is the symbol type and corresponds to JavaScript's `typeof`.
+	Type string `json:"type"`
+
+	// Value is the symbol value.
+	// It is nil when the symbol is a function.
 	Value json.RawMessage `json:"value,omitempty"`
 }
 
+// As unmarshals the symbol Value into a value.
 func (s Symbol) As(value interface{}) error {
+	if s.Value == nil {
+		return errors.New("symbol is a function")
+	}
+
 	return json.Unmarshal(s.Value, value)
 }
 
+// Symbols is a named Symbol map.
 type Symbols map[string]Symbol
 
 type Args = []interface{}
 
+// Interface defines the loaded Executable.
 type Interface interface {
+
+	// Describe returns exported Symbols.
 	Describe() (Symbols, error)
+
+	// Execute executes a function with the provided `name` and `args` and collects the execution result into `result`.
 	Execute(name string, args Args, result interface{}) error
+
+	// Close disposes of the instance and releases associated resources.
 	Close()
 }
 
+// Factory loads an Executable.
 type Factory interface {
+
+	// CreateScript loads an Executable and returns an Interface instance for using it.
 	CreateScript(executable Executable, variables map[string]interface{}, includes ...string) (Interface, error)
-}
-
-type Executable interface {
-	Dependencies() []string
-	Expression(dependencies []string) (string, error)
-}
-
-type Expression string
-
-func (e Expression) Dependencies() []string {
-	return nil
-}
-
-func (e Expression) Expression(dependencies []string) (string, error) {
-	expression := string(e)
-	if !strings.Contains(expression, "return") {
-		expression = "return " + expression
-	}
-
-	return `async (event) => {
-  let $ = event;
-  let _ = event;
-// expression start //
-` + expression + `
-// expression end //
-}`, nil
-}
-
-type Package string
-
-func (p Package) Dependencies() []string {
-	return []string{string(p)}
-}
-
-func (p Package) Expression(dependencies []string) (string, error) {
-	if len(dependencies) == 0 {
-		return "", errors.Errorf("no dependencies found (searching for %s)", string(p))
-	}
-
-	return `require("` + dependencies[0] + `")`, nil
 }
