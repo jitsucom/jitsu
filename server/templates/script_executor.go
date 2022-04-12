@@ -3,6 +3,8 @@ package templates
 import (
 	"encoding/json"
 
+	"github.com/jitsucom/jitsu/server/script/deno"
+
 	"github.com/jitsucom/jitsu/server/logging"
 
 	"github.com/jitsucom/jitsu/server/script/node"
@@ -164,6 +166,23 @@ type NodeExecutor struct {
 
 func NewNodeExecutor(nodeScript nodeScript, variables map[string]interface{}, includes ...string) (*NodeExecutor, error) {
 	instance, err := node.Factory().CreateScript(nodeScript.executable(), variables, includes...)
+	if err != nil {
+		return nil, errors.Wrap(err, "spawn node process")
+	}
+
+	if err := nodeScript.init(instance); err != nil {
+		instance.Close()
+		return nil, errors.Wrap(err, "init node script instance")
+	}
+
+	return &NodeExecutor{
+		Interface:  instance,
+		nodeScript: nodeScript,
+	}, nil
+}
+
+func NewDenoExecutor(nodeScript nodeScript, variables map[string]interface{}, includes ...string) (*NodeExecutor, error) {
+	instance, err := deno.Factory().CreateScript(nodeScript.executable(), variables, includes...)
 	if err != nil {
 		return nil, errors.Wrap(err, "spawn node process")
 	}
