@@ -37,7 +37,7 @@ const vm = new NodeVM({
     external: true,
     builtin: ["stream", "http", "url", "punycode", "https", "zlib"],
   },
-  sandbox: eval("{{ .Variables }}")
+  sandbox: {{ .Variables }}
 })
 
 for (let level of ["dir", "log", "trace", "info", "warn", "error"]) {
