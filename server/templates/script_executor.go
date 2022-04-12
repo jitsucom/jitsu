@@ -3,14 +3,11 @@ package templates
 import (
 	"encoding/json"
 
-	"github.com/jitsucom/jitsu/server/script/deno"
-
-	"github.com/jitsucom/jitsu/server/logging"
-
-	"github.com/jitsucom/jitsu/server/script/node"
-
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/script"
+	"github.com/jitsucom/jitsu/server/script/deno"
+	"github.com/jitsucom/jitsu/server/script/node"
 	"github.com/pkg/errors"
 )
 

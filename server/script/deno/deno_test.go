@@ -4,9 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jitsucom/jitsu/server/script/deno"
-
 	"github.com/jitsucom/jitsu/server/script"
+	"github.com/jitsucom/jitsu/server/script/deno"
 )
 
 func factory() script.Factory {

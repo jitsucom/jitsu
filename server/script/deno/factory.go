@@ -117,7 +117,7 @@ func (f *factory) getExpression(dir string, executable script.Executable) (strin
 	case script.Expression:
 		expression := string(e)
 		if !strings.Contains(expression, "return") {
-			expression = "return " + expression
+			expression = "return " + strings.Trim(expression, "\n")
 		}
 
 		return `

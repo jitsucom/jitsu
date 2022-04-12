@@ -161,7 +161,7 @@ func (f *factory) getExpression(dir string, executable script.Executable) (strin
 	case script.Expression:
 		expression := string(e)
 		if !strings.Contains(expression, "return") {
-			expression = "return " + expression
+			expression = "return " + strings.Trim(expression, "\n")
 		}
 
 		return `
@@ -201,21 +201,28 @@ module.exports = async (event) => {
 			return "", errors.Errorf("package.json main for %s is empty", packageName)
 		}
 
-		main, err := os.Open(filepath.Join(packageDir, packageJSON.Main))
-		if err != nil {
-			return "", errors.Wrap(err, "open main file")
-		}
+		return readFile(filepath.Join(packageDir, packageJSON.Main))
 
-		defer closeQuietly(main)
-		data, err := ioutil.ReadAll(main)
-		if err != nil {
-			return "", errors.Wrap(err, "read main file")
-		}
-
-		return string(data), nil
+	case script.File:
+		return readFile(string(e))
 	}
 
 	return "", errors.Errorf("unrecognized executable %T", executable)
+}
+
+func readFile(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", errors.Wrapf(err, "open script file %s", path)
+	}
+
+	defer closeQuietly(file)
+	data, err := ioutil.ReadAll(file)
+	if err != nil {
+		return "", errors.Wrapf(err, "read script file %s", path)
+	}
+
+	return string(data), nil
 }
 
 func getDependencies(executable script.Executable) ([]string, error) {
@@ -224,6 +231,8 @@ func getDependencies(executable script.Executable) ([]string, error) {
 		return nil, nil
 	case script.Package:
 		return []string{string(e)}, nil
+	case script.File:
+		return nil, nil
 	}
 
 	return nil, errors.Errorf("unrecognized script executable %T", executable)

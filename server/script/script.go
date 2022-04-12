@@ -29,6 +29,15 @@ func (p Package) executable() Executable {
 	return p
 }
 
+// File is the executable script path.
+// This exists mainly for tests to emulate the Package, but without the hassle of providing a valid package.
+// Implements Executable interface.
+type File string
+
+func (f File) executable() Executable {
+	return f
+}
+
 // Symbol represents a JavaScript value.
 type Symbol struct {
 
