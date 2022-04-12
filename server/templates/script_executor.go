@@ -2,7 +2,6 @@ package templates
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/jitsucom/jitsu/server/script/node"
 
@@ -12,7 +11,7 @@ import (
 )
 
 type nodeScript interface {
-	fmt.Stringer
+	String() string
 	executable() script.Executable
 	init(s script.Interface) error
 	validate(s script.Interface) error
@@ -72,13 +71,16 @@ func (p *DestinationPlugin) init(s script.Interface) error {
 	}
 
 	execArg := map[string]interface{}{
-		"destinationId":    p.ID,
-		"destionationType": p.Type,
-		"config":           p.Config,
+		"destinationId":   p.ID,
+		"destinationType": p.Type,
+		"config":          p.Config,
 	}
 
 	if buildInfo, ok := symbols["buildInfo"]; ok && buildInfo.Type == "object" {
-		var value script.BuildInfo
+		var value struct {
+			SdkVersion string `json:"sdkVersion"`
+		}
+
 		if err := buildInfo.As(&value); err != nil {
 			return errors.Wrap(err, "parse plugin buildInfo")
 		}
@@ -149,7 +151,7 @@ func (p *DestinationPlugin) validate(s script.Interface) error {
 
 func (p *DestinationPlugin) transform(s script.Interface, event events.Event) (interface{}, error) {
 	var result interface{}
-	if err := s.Execute(p.execFunc, append([]interface{}{event}, p.execArgs...), &result); err != nil {
+	if err := s.Execute(p.execFunc, append(script.Args{event}, p.execArgs...), &result); err != nil {
 		return nil, err
 	}
 

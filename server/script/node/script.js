@@ -1,31 +1,12 @@
-let __jts_log__ = []
+// noinspection ExceptionCaughtLocallyJS
 
-const log = (level) => (...args) => __jts_log__.push({level: level, message: args.join(" ")})
-
-const __jts_fetch__ = require("node-fetch")
-const __jts_readline__ = require("readline")
-const __jts_process__ = process
-
-const sandbox = (name) => {
-  throw new Error(`${name} is disabled in Jitsu transformations function for security reasons.`)
-}
-
-globalThis.console = {
-  debug: log("debug"),
-  info: log("info"),
-  log: log("info"),
-  warn: log("warn"),
-  error: log("error"),
-}
-
-globalThis.fetch = () => {
-  throw new Error(`'fetch' is enabled only for 'validator' function for security reasons.`)
-}
-
-globalThis.process = {}
+const _log = []
+const readline = require("readline")
+const fetch = require("node-fetch")
+const {NodeVM} = require("vm2")
 
 const send = (data) => {
-  __jts_process__.stdout.write(data + "\n")
+  process.stdout.write(data + "\n")
 }
 
 const reply = async (result, error) => {
@@ -33,10 +14,9 @@ const reply = async (result, error) => {
     ok: !error,
     result: result,
     error: error,
-    log: __jts_log__,
+    log: _log,
   }
 
-  __jts_log__ = []
   try {
     await send(JSON.stringify(data))
   } catch (error) {
@@ -46,11 +26,26 @@ const reply = async (result, error) => {
     }
 
     await send(JSON.stringify(edata))
+  } finally {
+    _log.length = 0
   }
 }
 
-__jts_readline__.createInterface({
-  input: __jts_process__.stdin
+const vm = new NodeVM({
+  console: "redirect",
+  require: {
+    external: true,
+    builtin: ["stream", "http", "url", "punycode", "https", "zlib"],
+  },
+  sandbox: eval("{{ .Variables }}")
+})
+
+for (let level of ["dir", "log", "trace", "info", "warn", "error"]) {
+  vm.on(`console.${level}`, (message) => _log.push({level, message: `${message}`}))
+}
+
+readline.createInterface({
+  input: process.stdin
 }).on("line", async (line) => {
   let req = {}
   try {
@@ -65,26 +60,17 @@ __jts_readline__.createInterface({
     return
   }
 
-  let fetch = globalThis.fetch
   let result = undefined
   try {
-    globalThis.__jts_plugin__ = globalThis.__jts_plugin__ || (async () => {
-      const variables = eval("{{ .Variables }}")
-      for (let [key, value] of (variables ? Object.entries(variables) : [])) {
-        globalThis[key] = value
-      }
+    globalThis.__jts_exec__ = globalThis.__jts_exec__ || (async () => vm.run("{{ .Includes }}\n{{ .Executable }}"))()
 
-      eval("{{ .Includes }}")
-      return eval("{{ .Executable }}")
-    })()
-
-    let plugin = undefined
+    let exec = undefined
     switch (req.command) {
       case "describe":
-        plugin = await __jts_plugin__
+        exec = await __jts_exec__
         let symbols = {}
-        for (let key of Object.keys(plugin)) {
-          let value = plugin[key]
+        for (let key of Object.keys(exec)) {
+          let value = exec[key]
           let symbol = {type: typeof value}
           if (symbol.type !== "function") {
             symbol["value"] = value
@@ -96,18 +82,30 @@ __jts_readline__.createInterface({
         result = symbols
         break
       case "execute":
-        plugin = await __jts_plugin__
+        exec = await __jts_exec__
         let args = req.payload.args
         let func = req.payload.function
         if (func === "validator") {
-          globalThis.fetch = __jts_fetch__
+          vm.sandbox.fetch = fetch
         }
 
-        result = await (func ? plugin[func](...args) : plugin(...args))
+        if (!func || func === "") {
+          if (typeof exec !== "function") {
+            throw new Error(`this executable provides named exports, but an anonymous one was given for execution`)
+          }
+        } else {
+          if (typeof exec === "function") {
+            throw new Error(`this executable provides an anonymous function export, but a named one (${func}) was given for execution`)
+          } else if (!(func in exec)) {
+            throw new Error(`function ${func} does not exist`)
+          }
+        }
+
+        result = await (func ? exec[func](...args) : exec(...args))
         break
       case "kill":
         await reply()
-        __jts_process__.exit(0)
+        process.exit(0)
         break
       default:
         throw new Error(`Unsupported command: ${req.command}`)
@@ -115,8 +113,8 @@ __jts_readline__.createInterface({
 
     await reply(result)
   } catch (e) {
-    await reply(null, e.toString())
+    await reply(null, !!e ? e.toString() : "error is null")
   } finally {
-    globalThis.fetch = fetch
+    vm.sandbox.fetch = undefined
   }
 })
