@@ -186,6 +186,24 @@ func (r *Redis) GetUserEmail(ctx context.Context, userID string) (string, error)
 	return email, nil
 }
 
+func (r *Redis) GetUserIDByEmail(ctx context.Context, userEmail string) (string, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	defer closeQuietly(conn)
+	email, err := r.getUserIDByEmail(conn, userEmail)
+	if err != nil {
+		return "", middleware.ReadableError{
+			Description: "Failed to load user by email from Redis",
+			Cause:       err,
+		}
+	}
+
+	return email, nil
+}
+
 func (r *Redis) RefreshToken(ctx context.Context, refreshToken string) (*openapi.TokensResponse, error) {
 	conn, err := r.redisPool.GetContext(ctx)
 	if err != nil {
