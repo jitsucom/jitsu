@@ -47,8 +47,8 @@ type factory struct {
 func Factory() script.Factory {
 	return &factory{
 		packages: map[string]string{
-			"node-fetch": "2",
-			"vm2":        "3",
+			"node-fetch": "2.6.7",
+			"vm2":        "3.9.9",
 		},
 	}
 }
@@ -141,7 +141,7 @@ func (f *factory) installNodeModules(dir string, modules []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	args := []string{"install"}
+	args := []string{"install", "--prefer-offline", "--no-audit"}
 	for name, version := range f.packages {
 		if version != "" {
 			args = append(args, name+"@"+version)
