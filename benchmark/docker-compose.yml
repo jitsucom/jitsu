@@ -18,7 +18,7 @@ services:
       - main
   jitsu:
     container_name: jitsu_benchmark
-    image: jitsucom/jitsu
+    image: jitsucom/jitsu:${JITSU_VERSION:-latest}
     environment:
       - REDIS_URL=redis://redis:6379
       - CLUSTER_ADMIN_TOKEN=admin_token
