@@ -3,6 +3,7 @@ package synchronization
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -47,14 +48,16 @@ type TaskExecutorContext struct {
 
 type TaskExecutor struct {
 	*TaskExecutorContext
-	workersPool *ants.PoolWithFunc
-	closed      *atomic.Bool
+	workersPool      *ants.PoolWithFunc
+	closed           *atomic.Bool
+	sourcesLogWriter io.Writer
 }
 
 //NewTaskExecutor returns TaskExecutor and starts 2 goroutines (monitoring and queue observer)
-func NewTaskExecutor(poolSize int, ctx *TaskExecutorContext) (*TaskExecutor, error) {
+func NewTaskExecutor(poolSize int, ctx *TaskExecutorContext, sourcesLogWriter io.Writer) (*TaskExecutor, error) {
 	executor := &TaskExecutor{
 		TaskExecutorContext: ctx,
+		sourcesLogWriter:    sourcesLogWriter,
 		closed:              atomic.NewBool(false),
 	}
 	pool, err := ants.NewPoolWithFunc(poolSize, executor.execute)
@@ -129,7 +132,7 @@ func (te *TaskExecutor) startTaskController() {
 				}
 
 				if task.Status == RUNNING.String() || task.Status == SCHEDULED.String() {
-					taskLogger := NewTaskLogger(task.ID, te.MetaStorage)
+					taskLogger := NewTaskLogger(task.ID, te.MetaStorage, te.sourcesLogWriter)
 					taskCloser := &TaskCloser{
 						Task:                task,
 						metaStorage:         te.MetaStorage,
@@ -223,7 +226,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	}
 
 	//create redis logger
-	taskLogger := NewTaskLogger(task.ID, te.MetaStorage)
+	taskLogger := NewTaskLogger(task.ID, te.MetaStorage, te.sourcesLogWriter)
 	taskCloser = &TaskCloser{
 		Task:                task,
 		taskLogger:          taskLogger,
