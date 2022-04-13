@@ -1,9 +1,10 @@
-module.exports = {
-  str: "value",
-  num: 42,
-  arr: [1, 2, 3],
-  obj: {
-    nested: 4,
-  },
-  func: () => { return 1 },
+exports.str = "value"
+exports.num = 42
+exports.arr = [1, 2, 3]
+exports.obj = {
+  nested: 4,
 }
+exports.func = () => {
+  return 1
+}
+
