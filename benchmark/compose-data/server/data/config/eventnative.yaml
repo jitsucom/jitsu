@@ -3,16 +3,28 @@ server:
   disable_welcome_page: true
   strict_auth_tokens: true
   admin_token: '${env.CLUSTER_ADMIN_TOKEN}'
-  log:
-    level: debug
+  telemetry:
+    disabled:
+      usage: true
+  metrics:
+    prometheus:
+      enabled: true
+
+log.rotation_min: 1
 
 api_keys:
   - id: stream_api_key
-    client_secret: stream_client_secret
+    client_secret: stream
     server_secret: stream_server_secret
   - id: batch_api_key
-    client_secret: batch_client_secret
+    client_secret: batch
     server_secret: batch_server_secret
+  - id: transform_api_key
+    client_secret: transform
+    server_secret: transform_server_secret
+  - id: transform_batch_api_key
+    client_secret: transform_batch
+    server_secret: transform_batch_server_secret
 
 destinations:
   pg_stream:
@@ -51,6 +63,46 @@ destinations:
       password: jitsu
       parameters:
         sslmode: disable
+  pg_transform:
+    only_tokens:
+      - transform_api_key
+    type: postgres
+    mode: stream
+    data_layout:
+      transform_enabled: true
+      transform: 'return toSegment($)'
+      table_name_template: transform_events
+      primary_key_fields:
+        - eventn_ctx_event_id
+    datasource:
+      host: pg_destination
+      port: "5432"
+      db: jitsu
+      schema: public
+      username: jitsu
+      password: jitsu
+      parameters:
+        sslmode: disable
+  pg_transform_batch:
+    only_tokens:
+      - transform_batch_api_key
+    type: postgres
+    mode: batch
+    data_layout:
+      transform_enabled: true
+      transform: 'return toSegment($)'
+      table_name_template: transform_events
+      primary_key_fields:
+        - eventn_ctx_event_id
+    datasource:
+      host: pg_destination
+      port: "5432"
+      db: jitsu
+      schema: public
+      username: jitsu
+      password: jitsu
+      parameters:
+        sslmode: disable
 
 geo:
   maxmind_path: '${env.MAX_MIND_PATH|}'
@@ -69,4 +121,6 @@ sql_debug_log:
     path: /home/eventnative/data/logs
     rotation_min: 60
 
-users_recognition.enabled: true
+users_recognition:
+  enabled: true
+  cache_ttl_min: 0
