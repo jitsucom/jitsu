@@ -74,6 +74,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
 	github.com/gookit/color v1.3.1 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
+	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/huandu/facebook/v2 v2.5.3 // indirect
 	github.com/iancoleman/strcase v0.2.0 // indirect
