@@ -74,7 +74,7 @@ echo "=    Downloading javascript sdk...  ="
 echo "====================================="
 echo ""
 
-(rm -rf javascript-sdk && mkdir -p javascript-sdk && curl -o javascript-sdk/lib.js https://unpkg.com/@jitsu/sdk-js@$SDK_VERSION/dist/web/lib.js) || { echo 'Building javascript sdk failed' ; exit 1; }
+(mkdir -p javascript-sdk && curl -o javascript-sdk/lib.js https://unpkg.com/@jitsu/sdk-js@$SDK_VERSION/dist/web/lib.js) || { echo 'Building javascript sdk failed' ; exit 1; }
 
 echo ""
 echo "====================================="
