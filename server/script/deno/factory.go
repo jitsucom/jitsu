@@ -92,7 +92,7 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 	process := &ipc.StdIO{
 		Dir:  dir,
 		Path: deno,
-		Args: []string{"run", executableScriptName},
+		Args: []string{"run", "-q", executableScriptName},
 	}
 
 	governor, err := ipc.Govern(process)
