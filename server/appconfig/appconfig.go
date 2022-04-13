@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"io"
+	"io/ioutil"
 	"os"
 	"strings"
 
@@ -39,6 +40,7 @@ type AppConfig struct {
 	GlobalQueryLogsWriter io.Writer
 	SingerLogsWriter      io.Writer
 	AirbyteLogsWriter     io.Writer
+	SourcesLogsWriter     io.Writer
 
 	GlobalUniqueIDField *identifiers.UniqueID
 
@@ -123,6 +125,9 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("airbyte-bridge.log.rotation_min", "1440")
 	viper.SetDefault("airbyte-bridge.log.max_backups", "30") //30 days = 1440 min * 30
 	viper.SetDefault("airbyte-bridge.batch_size", 10_000)
+
+	viper.SetDefault("sync-tasks.log.enabled", true)
+	viper.SetDefault("sync-tasks.log.path", logging.GlobalType)
 
 	//User Recognition anonymous events default TTL 10080 min - 7 days
 	viper.SetDefault("meta.storage.redis.ttl_minutes.anonymous_events", 10080)
@@ -347,6 +352,21 @@ func Init(containerized bool, dockerHubID string) error {
 				RotationMin: viper.GetInt64("airbyte-bridge.log.rotation_min"),
 				MaxBackups:  viper.GetInt("airbyte-bridge.log.max_backups")})
 		}
+	}
+
+	//Sources logger
+	if viper.GetBool("sync-tasks.log.enabled") {
+		if viper.GetString("sync-tasks.log.path") == logging.GlobalType {
+			appConfig.SourcesLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: logging.GlobalType})
+		} else {
+			appConfig.SourcesLogsWriter = logging.CreateLogWriter(&logging.Config{
+				FileName:    serverName + "-" + "sync-tasks",
+				FileDir:     viper.GetString("sync-tasks.log.path"),
+				RotationMin: viper.GetInt64("sync-tasks.log.rotation_min"),
+				MaxBackups:  viper.GetInt("sync-tasks.log.max_backups")})
+		}
+	} else {
+		appConfig.SourcesLogsWriter = ioutil.Discard
 	}
 
 	port := viper.GetString("server.port")
