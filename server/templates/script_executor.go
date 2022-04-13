@@ -7,7 +7,6 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/script"
 	"github.com/jitsucom/jitsu/server/script/deno"
-	"github.com/jitsucom/jitsu/server/script/node"
 	"github.com/pkg/errors"
 )
 
@@ -162,7 +161,7 @@ type NodeExecutor struct {
 }
 
 func NewNodeExecutor(nodeScript nodeScript, variables map[string]interface{}, includes ...string) (*NodeExecutor, error) {
-	instance, err := node.Factory().CreateScript(nodeScript.executable(), variables, includes...)
+	instance, err := deno.Factory().CreateScript(nodeScript.executable(), variables, includes...)
 	if err != nil {
 		return nil, errors.Wrap(err, "spawn node process")
 	}
