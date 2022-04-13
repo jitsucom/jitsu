@@ -71,7 +71,10 @@ require (
 	rogchap.com/v8go v0.7.1-0.20220112220650-5e91d3d9dcab
 )
 
-require github.com/joomcode/errorx v1.1.0
+require (
+	github.com/hashicorp/golang-lru v0.5.4
+	github.com/joomcode/errorx v1.1.0
+)
 
 require (
 	cloud.google.com/go v0.93.3 // indirect
