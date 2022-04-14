@@ -29,7 +29,7 @@ services:
     volumes:
       - ./compose-data/server/data/logs:/home/eventnative/data/logs
       - ./compose-data/server/data/logs/events:/home/eventnative/data/logs/events
-      - ./compose-data/server/data/config/eventnative.yaml:/home/eventnative/data/config/eventnative.yaml
+      - ${CONFIG_FILE:-./compose-data/server/data/config/eventnative.yaml}:/home/eventnative/data/config/eventnative.yaml
     ports:
       - "8001:8001"
     networks:
