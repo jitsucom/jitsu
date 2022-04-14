@@ -15,16 +15,16 @@ log.rotation_min: 1
 api_keys:
   - id: stream_api_key
     client_secret: stream
-    server_secret: stream_server_secret
+    server_secret: stream
   - id: batch_api_key
     client_secret: batch
-    server_secret: batch_server_secret
+    server_secret: batch
   - id: transform_api_key
     client_secret: transform
-    server_secret: transform_server_secret
+    server_secret: transform
   - id: transform_batch_api_key
     client_secret: transform_batch
-    server_secret: transform_batch_server_secret
+    server_secret: transform_batch
 
 destinations:
   pg_stream:
