@@ -1,8 +1,7 @@
 package node_test
 
 import (
-	"reflect"
-	"strings"
+	"encoding/json"
 	"testing"
 
 	"github.com/jitsucom/jitsu/server/script"
@@ -10,249 +9,168 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type testingT struct {
+	*testing.T
+	script.Interface
+	exec script.Executable
+	vars map[string]interface{}
+	incl []string
+}
+
+func (t *testingT) load() *testingT {
+	inst, err := node.Factory().CreateScript(t.exec, t.vars, t.incl...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Interface = inst
+	return t
+}
+
+func (t *testingT) close() {
+	t.Interface.Close()
+}
+
 func factory() script.Factory {
 	return node.Factory()
 }
 
 func TestBasicDescribeAndExecute(t *testing.T) {
-	instance, err := factory().CreateScript(script.Expression(`return event`), nil)
+	tt := &testingT{T: t, exec: script.Expression(`return event`)}
+	defer tt.load().close()
+
+	exports, err := tt.Describe()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	exports, err := instance.Describe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.Equal(t, 0, len(exports), "anonymous function should not export anything")
 
-	if len(exports) > 0 {
-		t.Fatalf("anonymous function should not export anything")
-	}
-
-	defer instance.Close()
 	var resp string
-	if err := instance.Execute("", script.Args{"hello"}, &resp); err != nil {
-		t.Fatal(err)
-	}
+	err = tt.Execute("", script.Args{"hello"}, &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, "hello", resp)
 
-	if resp != "hello" {
-		t.Fatalf("expected hello, got %s", resp)
-	}
-
-	if err := instance.Execute("test", script.Args{}, new(interface{})); err == nil || !strings.Contains(err.Error(),
-		"this executable provides an anonymous function export, but a named one (test) was given for execution") {
-		t.Fatalf("got error: %+v", err)
+	err = tt.Execute("test", nil, new(interface{}))
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "this executable provides an anonymous function export, but a named one (test) was given for execution")
 	}
 }
 
 func TestAddExpressionAndAliases(t *testing.T) {
-	instance, err := factory().CreateScript(script.Expression(`$[0] + _[1]`), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tt := &testingT{T: t, exec: script.Expression(`$[0] + _[1]`)}
+	defer tt.load().close()
 
-	defer instance.Close()
 	var resp int
-	if err := instance.Execute("", script.Args{[]int{1, 2}}, &resp); err != nil {
-		t.Fatal(err)
-	}
-
-	if resp != 3 {
-		t.Fatalf("expected 3, got %d", resp)
-	}
+	err := tt.Execute("", script.Args{[]int{1, 2}}, &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, resp)
 }
 
 func TestVariables(t *testing.T) {
-	instance, err := factory().CreateScript(script.Expression(`return test_value`), map[string]interface{}{
-		"test_value": 10,
-	})
-
-	if err != nil {
-		t.Fatal(err)
+	tt := &testingT{
+		T:    t,
+		exec: script.Expression(`return test_value`),
+		vars: map[string]interface{}{
+			"test_value": 10,
+		},
 	}
 
-	defer instance.Close()
+	defer tt.load().close()
+
 	var resp int
-	if err := instance.Execute("", script.Args{}, &resp); err != nil {
-		t.Fatal(err)
-	}
-
-	if resp != 10 {
-		t.Fatalf("expected 10, got %d", resp)
-	}
+	err := tt.Execute("", nil, &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, 10, resp)
 }
 
 func TestIncludes(t *testing.T) {
-	instance, err := factory().CreateScript(script.Expression(`return test_value`), nil,
-		"globalThis.test_value = 11")
-
-	if err != nil {
-		t.Fatal(err)
+	tt := &testingT{
+		T:    t,
+		exec: script.Expression(`return [test_value, toSegment($)]`),
+		incl: []string{
+			"globalThis.test_value = 11",
+			"function toSegment($) { return 1 }",
+		},
 	}
 
-	defer instance.Close()
-	var resp int
-	if err := instance.Execute("", script.Args{}, &resp); err != nil {
-		t.Fatal(err)
-	}
+	defer tt.load().close()
 
-	if resp != 11 {
-		t.Fatalf("expected 11, got %d", resp)
-	}
+	var resp []int
+	err := tt.Execute("", nil, &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, []int{11, 1}, resp)
 }
 
 func TestRequires(t *testing.T) {
-	instance, err := factory().CreateScript(script.Expression(`
-    return [require('stream'), require('http'), require('url'), require('punycode'), require('https'), require('zlib')]
-        .map(e => !e ? 0 : 1)
-        .reduce((a, b) => a + b)
-`), nil)
+	tt := &testingT{T: t, exec: script.File("testdata/js/test_require.js")}
+	defer tt.load().close()
 
-	if err != nil {
-		t.Fatal(err)
-	}
+	var resp []string
+	err := tt.Execute("test", nil, &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{
+		"function", "object", "object", "object", "object", "object",
+		"function", "object", "object", "object", "object",
+		"function", "object", "object", "object"}, resp)
+}
 
-	defer instance.Close()
-	var resp int
-	if err := instance.Execute("", script.Args{}, &resp); err != nil {
-		t.Fatal(err)
-	}
+func TestUnsafeFS(t *testing.T) {
+	tt := &testingT{T: t, exec: script.File("testdata/js/test_unsafe.js")}
+	defer tt.load().close()
 
-	if resp != 6 {
-		t.Fatalf("expected 6, got %d", resp)
+	var resp []string
+	err := tt.Execute("test", nil, &resp)
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "Cannot find module 'fs'")
 	}
 }
 
-func TestRequireFS(t *testing.T) {
-	instance, err := factory().CreateScript(script.Expression(`
-    return [require('fs')]
-        .map(e => !e ? 0 : 1)
-        .reduce((a, b) => a + b)
-`), nil)
+func TestAsync(t *testing.T) {
+	tt := &testingT{T: t, exec: script.File("testdata/js/test_async.js")}
+	defer tt.load().close()
 
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer instance.Close()
 	var resp int
-	if err := instance.Execute("", script.Args{}, &resp); err == nil || !strings.Contains(err.Error(), "Cannot find module 'fs'") {
-		t.Fatalf("got error %+v", err)
-	}
+	err := tt.Execute("test", nil, &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, 10, resp)
 }
 
 func TestFetchUnavailableInExpressions(t *testing.T) {
-	instance, err := factory().CreateScript(script.Expression(`typeof fetch`), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tt := &testingT{T: t, exec: script.Expression("typeof fetch")}
+	defer tt.load().close()
 
-	defer instance.Close()
 	var resp string
-	if err := instance.Execute("", script.Args{}, &resp); err != nil {
-		t.Fatal(err)
-	}
-
-	if resp != "undefined" {
-		t.Fatalf("expected undefined, got %s", resp)
-	}
+	err := tt.Execute("", nil, &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, "undefined", resp)
 }
 
 func TestDescribeModule(t *testing.T) {
-	instance, err := factory().CreateScript(script.File("testdata/js/describe_test.js"), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tt := &testingT{T: t, exec: script.File("testdata/js/describe_test.js")}
+	defer tt.load().close()
 
-	defer instance.Close()
-	symbols, err := instance.Describe()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for name, symbol := range symbols {
-		var (
-			expectedType  string
-			expectedValue interface{}
-		)
-
-		switch name {
-		case "str":
-			expectedType = "string"
-			expectedValue = "value"
-		case "num":
-			expectedType = "number"
-			expectedValue = float64(42)
-		case "arr":
-			expectedType = "object"
-			expectedValue = []interface{}{float64(1), float64(2), float64(3)}
-		case "obj":
-			expectedType = "object"
-			expectedValue = map[string]interface{}{
-				"nested": float64(4),
-			}
-		case "func":
-			expectedType = "function"
-		default:
-			t.Fatalf("unknown symbol %s", name)
-		}
-
-		assert.Equal(t, expectedType, symbol.Type)
-		if expectedValue != nil {
-			var actualValue interface{}
-			if err := symbol.As(&actualValue); err != nil {
-				t.Fatal(err)
-			}
-
-			assert.Equal(t, expectedValue, actualValue)
-		}
-	}
+	symbols, err := tt.Describe()
+	assert.NoError(t, err)
+	assert.Equal(t, script.Symbols{
+		"str":  script.Symbol{Type: "string", Value: json.RawMessage(`"value"`)},
+		"num":  script.Symbol{Type: "number", Value: json.RawMessage(`42`)},
+		"arr":  script.Symbol{Type: "object", Value: json.RawMessage(`[1,2,3]`)},
+		"obj":  script.Symbol{Type: "object", Value: json.RawMessage(`{"nested":4}`)},
+		"func": script.Symbol{Type: "function"},
+	}, symbols)
 }
 
 func TestFetchIsAvailableOnlyInValidatorModuleFunction(t *testing.T) {
-	instance, err := factory().CreateScript(script.File("testdata/js/fetch_test.js"), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	tt := &testingT{T: t, exec: script.File("testdata/js/fetch_test.js")}
+	defer tt.load().close()
 
-	defer instance.Close()
 	var resp string
-	if err := instance.Execute("validator", script.Args{}, &resp); err != nil {
-		t.Fatal(err)
-	}
+	err := tt.Execute("validator", nil, &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, "function", resp)
 
-	if resp != "function" {
-		t.Fatalf("expected function, got %s", resp)
-	}
-
-	if err := instance.Execute("destination", script.Args{}, &resp); err != nil {
-		t.Fatal(err)
-	}
-
-	if resp != "undefined" {
-		t.Fatalf("expected undefined, got %s", resp)
-	}
-}
-
-// testArbitraryModule loads JavaScript from `scriptPath`, executes exported `functionName` (with zero args) and
-// checks that the value in `actualResult` is equal to `expectedResult`.
-// `actualResult` should be a pointer to a type represented by `expectedResult`.
-func executeModuleFunction(t *testing.T, scriptPath string, functionName string, expectedResult interface{}, actualResult interface{}) {
-	instance, err := factory().CreateScript(script.File(scriptPath), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer instance.Close()
-	if err := instance.Execute(functionName, script.Args{}, actualResult); err != nil {
-		t.Fatal(err)
-	}
-
-	assert.Equal(t, expectedResult, reflect.Indirect(reflect.ValueOf(actualResult)).Interface(), "on %s", scriptPath)
-}
-
-func TestArbitraryModules(t *testing.T) {
-	executeModuleFunction(t, "testdata/js/fetch_test.js", "validator", "function", new(string))
-	executeModuleFunction(t, "testdata/js/fetch_test.js", "destination", "undefined", new(string))
-	executeModuleFunction(t, "testdata/js/describe_test.js", "func", 1, new(int))
+	err = tt.Execute("destination", nil, &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, "undefined", resp)
 }

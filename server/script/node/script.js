@@ -35,7 +35,7 @@ const vm = new NodeVM({
   console: "redirect",
   require: {
     external: true,
-    builtin: ["stream", "http", "url", "punycode", "https", "zlib"],
+    builtin: ["stream", "http", "url", "punycode", "https", "zlib", "events", "net", "tls", "buffer", "string_decoder", "assert", "util", "crypto"],
   },
   sandbox: {{ .Variables }}
 })
