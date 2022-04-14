@@ -120,9 +120,18 @@ func TestUnsafeFS(t *testing.T) {
 	defer tt.load().close()
 
 	var resp []string
-	err := tt.Execute("test", nil, &resp)
+	err := tt.Execute("typeofs", nil, &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"object", "object"}, resp)
+
+	err = tt.Execute("call_fs", nil, new(interface{}))
 	if assert.Error(t, err) {
-		assert.Contains(t, err.Error(), "Cannot find module 'fs'")
+		assert.Contains(t, err.Error(), "Attempt to call forbidden function fs.createReadStream().")
+	}
+
+	err = tt.Execute("call_os", nil, new(interface{}))
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "Attempt to call forbidden function os.arch().")
 	}
 }
 
