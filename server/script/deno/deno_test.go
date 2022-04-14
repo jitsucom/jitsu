@@ -1,13 +1,13 @@
 package deno_test
 
 import (
+	"encoding/json"
 	"testing"
-
-	"github.com/jitsucom/jitsu/server/script/node"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/jitsucom/jitsu/server/script"
 	"github.com/jitsucom/jitsu/server/script/deno"
+	"github.com/jitsucom/jitsu/server/script/node"
+	"github.com/stretchr/testify/assert"
 )
 
 type testingT struct {
@@ -127,16 +127,16 @@ func TestIncludes(t *testing.T) {
 //		assert.Contains(t, err.Error(), "Cannot find module 'fs'")
 //	}
 //}
-//
-//func TestAsync(t *testing.T) {
-//	tt := &testingT{T: t, exec: script.File("testdata/js/test_async.js")}
-//	defer tt.load().close()
-//
-//	var resp int
-//	err := tt.Execute("test", nil, &resp)
-//	assert.NoError(t, err)
-//	assert.Equal(t, 10, resp)
-//}
+
+func TestAsync(t *testing.T) {
+	tt := &testingT{T: t, exec: script.File("testdata/js/test_async.js")}
+	defer tt.load().close()
+
+	var resp int
+	err := tt.Execute("test", nil, &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, 10, resp)
+}
 
 func TestFetchUnavailableInExpressions(t *testing.T) {
 	tt := &testingT{T: t, exec: script.Expression("typeof fetch")}
@@ -148,32 +148,31 @@ func TestFetchUnavailableInExpressions(t *testing.T) {
 	assert.Equal(t, "undefined", resp)
 }
 
-//
-//func TestDescribeModule(t *testing.T) {
-//	tt := &testingT{T: t, exec: script.File("testdata/js/describe_test.js")}
-//	defer tt.load().close()
-//
-//	symbols, err := tt.Describe()
-//	assert.NoError(t, err)
-//	assert.Equal(t, script.Symbols{
-//		"str":  script.Symbol{Type: "string", Value: json.RawMessage(`"value"`)},
-//		"num":  script.Symbol{Type: "number", Value: json.RawMessage(`42`)},
-//		"arr":  script.Symbol{Type: "object", Value: json.RawMessage(`[1,2,3]`)},
-//		"obj":  script.Symbol{Type: "object", Value: json.RawMessage(`{"nested":4}`)},
-//		"func": script.Symbol{Type: "function"},
-//	}, symbols)
-//}
-//
-//func TestFetchIsAvailableOnlyInValidatorModuleFunction(t *testing.T) {
-//	tt := &testingT{T: t, exec: script.File("testdata/js/fetch_test.js")}
-//	defer tt.load().close()
-//
-//	var resp string
-//	err := tt.Execute("validator", nil, &resp)
-//	assert.NoError(t, err)
-//	assert.Equal(t, "function", resp)
-//
-//	err = tt.Execute("destination", nil, &resp)
-//	assert.NoError(t, err)
-//	assert.Equal(t, "undefined", resp)
-//}
+func TestDescribeModule(t *testing.T) {
+	tt := &testingT{T: t, exec: script.File("testdata/js/describe_test.js")}
+	defer tt.load().close()
+
+	symbols, err := tt.Describe()
+	assert.NoError(t, err)
+	assert.Equal(t, script.Symbols{
+		"str":  script.Symbol{Type: "string", Value: json.RawMessage(`"value"`)},
+		"num":  script.Symbol{Type: "number", Value: json.RawMessage(`42`)},
+		"arr":  script.Symbol{Type: "object", Value: json.RawMessage(`[1,2,3]`)},
+		"obj":  script.Symbol{Type: "object", Value: json.RawMessage(`{"nested":4}`)},
+		"func": script.Symbol{Type: "function"},
+	}, symbols)
+}
+
+func TestFetchIsAvailableOnlyInValidatorModuleFunction(t *testing.T) {
+	tt := &testingT{T: t, exec: script.File("testdata/js/fetch_test.js")}
+	defer tt.load().close()
+
+	var resp string
+	err := tt.Execute("validator", nil, &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, "function", resp)
+
+	err = tt.Execute("destination", nil, &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, "undefined", resp)
+}

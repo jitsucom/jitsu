@@ -129,7 +129,19 @@ func (f *factory) getExpression(dir string, executable script.Executable) (strin
 }`, nil
 
 	case script.File:
+		content, err := os.ReadFile(string(e))
+		if err != nil {
+			return "", errors.Wrapf(err, "read file %s", string(e))
+		}
 
+		return `(async () => {
+  let exports = {}
+  let module = { exports }
+// expression start //
+` + string(content) + `
+// expression end //
+  return exports
+})()`, nil
 	}
 
 	return "", errors.Errorf("unrecognized executable %T", executable)
