@@ -31,11 +31,35 @@ const reply = async (result, error) => {
   }
 }
 
+const mock = (module) => {
+  const handler = (module, func) => {
+    return {
+      get: (target, prop) => {
+        if (typeof target[prop] === "function") {
+          return new Proxy(() => {}, handler(module, prop))
+        }
+
+        throw new Error(`Attempt to access forbidden property ${module}.${prop}.`)
+      },
+      apply: (target, thisArg, argumentsList) => {
+        throw new Error(`Attempt to call forbidden function ${module}.${func}(${argumentsList}).`)
+      }
+    }
+  }
+
+  let underlying = require(module)
+  return new Proxy(underlying, handler(module))
+}
+
 const vm = new NodeVM({
   console: "redirect",
   require: {
     external: true,
-    builtin: ["stream", "http", "url", "punycode", "https", "zlib", "events", "net", "tls", "buffer", "string_decoder", "assert", "util", "crypto"],
+    builtin: ["stream", "http", "url", "punycode", "https", "zlib", "events", "net", "tls", "buffer", "string_decoder", "assert", "util", "crypto", "path"],
+    mock: {
+      fs: mock("fs"),
+      os: mock("os"),
+    }
   },
   sandbox: {{ .Variables }}
 })
