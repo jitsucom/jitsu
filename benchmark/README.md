@@ -6,6 +6,13 @@ Package for running benchmark tests with:
 - Jitsu
 - [Benchmark tool](https://github.com/six-ddc/plow)
 
+### Simple way
+
+Run
+```shell
+benchark.sh
+```
+And choose what jitsu version you what to 
 
 ### Get started
 
