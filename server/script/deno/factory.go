@@ -79,8 +79,8 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 	}
 
 	err = scriptTemplate.Execute(scriptFile, scriptTemplateValues{
-		Executable: escapeJSON(expression),
-		Includes:   escapeJSON(strings.Join(includes, "\n")),
+		Executable: expression,
+		Includes:   strings.Join(includes, "\n"),
 		Variables:  string(variablesJSON),
 	})
 
@@ -120,14 +120,16 @@ func (f *factory) getExpression(dir string, executable script.Executable) (strin
 			expression = "return " + strings.Trim(expression, "\n")
 		}
 
-		return `
-async (event) => {
+		return `async (event) => {
   let $ = event
   let _ = event
 // expression start //
 ` + expression + `
 // expression end //
 }`, nil
+
+	case script.File:
+
 	}
 
 	return "", errors.Errorf("unrecognized executable %T", executable)

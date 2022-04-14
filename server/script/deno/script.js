@@ -42,12 +42,12 @@ for (let level of ["dir", "log", "trace", "info", "warn", "error"]) {
       req = JSON.parse(line)
     } catch (error) {
       await reply(null, `Failed to parse incoming IPC request [${line}]: ${error}`)
-      return
+      continue
     }
 
     if (!req.command) {
       await reply(null, `Command is not specified`)
-      return
+      continue
     }
 
     let result = undefined
@@ -57,8 +57,8 @@ for (let level of ["dir", "log", "trace", "info", "warn", "error"]) {
           globalThis[k] = v
         }
 
-        eval("{{ .Includes }}")
-        return eval("{{ .Executable }}")
+        {{ .Includes }}
+        return {{ .Executable }}
       })()
 
       let exec = undefined
@@ -90,7 +90,7 @@ for (let level of ["dir", "log", "trace", "info", "warn", "error"]) {
 
           if (!func || func === "") {
             if (typeof exec !== "function") {
-              throw new Error(`this executable provides named exports, but an anonymous one was given for execution`)
+              throw new Error(`this executable does not export an anonymous function`)
             }
           } else {
             if (typeof exec === "function") {
@@ -104,8 +104,7 @@ for (let level of ["dir", "log", "trace", "info", "warn", "error"]) {
           break
         case "kill":
           await reply()
-          Deno.exit(0)
-          break
+          return
         default:
           throw new Error(`Unsupported command: ${req.command}`)
       }
