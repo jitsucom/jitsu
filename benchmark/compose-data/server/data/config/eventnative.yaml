@@ -122,5 +122,5 @@ sql_debug_log:
     rotation_min: 60
 
 users_recognition:
-  enabled: true
+  enabled: false
   cache_ttl_min: 0
