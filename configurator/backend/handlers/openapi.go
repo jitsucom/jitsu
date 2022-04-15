@@ -578,7 +578,7 @@ func (oa *OpenAPI) UserSignUp(ctx *gin.Context) {
 
 		if users, err := authorizator.ListUsers(ctx); err == nil && len(users) == 1 {
 			if err = oa.makeUserPlatformAdmin(ctx, req.Email, authorizator); err != nil {
-				logging.Errorf("Cannot make user %s platform admin", req.Email, err)
+				logging.Errorf("Cannot make user %s platform admin: %v", req.Email, err)
 			}
 		}
 
