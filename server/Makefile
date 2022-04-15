@@ -2,7 +2,7 @@
 export GOBUILD_PREFIX=
 export PATH := $(shell go env GOPATH)/bin:$(PATH)
 export APPLICATION := eventnative
-export LIB_JS := ../javascript-sdk/dist/web/lib.js
+export LIB_JS := ../javascript-sdk/lib.js
 export DIST_DIR := ./build/dist
 export DIST_WEB_DIR := $(DIST_DIR)/web/
 commit=`git rev-parse --short HEAD`
