@@ -290,12 +290,17 @@ func newSSOProvider(vp *viper.Viper) handlers.SSOProvider {
 			return nil
 		}
 	} else if vp := vp.Sub("sso"); vp != nil {
+		autoProvisionConfig := authorization.SSOConfigAutoProvision{
+			Enable:         vp.GetBool("auto_provision.enable"),
+			AutoOnboarding: vp.GetBool("auto_provision.auto_onboarding"),
+		}
 		config = authorization.SSOConfig{
 			Provider:              vp.GetString("provider"),
 			Tenant:                vp.GetString("tenant"),
 			Product:               vp.GetString("product"),
 			Host:                  vp.GetString("host"),
 			AccessTokenTTLSeconds: vp.GetInt("access_token_ttl_seconds"),
+			AutoProvision:         autoProvisionConfig,
 		}
 	} else {
 		logging.Info("No SSO config provided, skipping initialize SSO Auth")
@@ -390,9 +395,10 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 	})
 
 	ssoAuthHandler := &handlers.SSOAuthHandler{
-		Authorizator: authorizator,
-		Provider:     ssoProvider,
-		UIBaseURL:    viper.GetString("ui.base_url"),
+		Authorizator:   authorizator,
+		Provider:       ssoProvider,
+		UIBaseURL:      viper.GetString("ui.base_url"),
+		Configurations: configurationsService,
 	}
 
 	router.GET("/api/v1/sso-auth-callback", ssoAuthHandler.Handle)
