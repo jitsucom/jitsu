@@ -194,6 +194,7 @@ components:
             emailOptout: { type: "boolean" }
             forcePasswordChange: { type: "boolean" }
             suggestedCompanyName: { type: "string" }
+            platformAdmin: { type: "boolean" }
           required: [ 'created' ]
     CreateUserRequest:
       type: object
@@ -202,6 +203,7 @@ components:
         email: { type: string }
         projectName: { type: string }
         projectId: { type: string }
+        platformAdmin: { type: boolean }
       required: [ 'email' ]
     PatchUserRequest:
       type: object
@@ -213,6 +215,9 @@ components:
         password:
           type: string
           description: New password to assign a user
+        platformAdmin:
+          type: boolean
+          description: if set to true, user will become platform admin
     ProjectInfo:
       type: object
       properties:
@@ -237,6 +242,7 @@ components:
         _name: { type: string }
         _forcePasswordChange: { type: boolean }
         _onboarded: { type: boolean }
+        _platformAdmin: { type: boolean }
         _suggestedInfo:
           $ref: '#/components/schemas/SuggestedInfo'
         _project:
@@ -255,6 +261,7 @@ components:
         _name: { type: string }
         _forcePasswordChange: { type: boolean }
         _onboarded: { type: boolean }
+        _platformAdmin: { type: boolean }
         _suggestedInfo:
           $ref: '#/components/schemas/SuggestedInfo'
         _project:

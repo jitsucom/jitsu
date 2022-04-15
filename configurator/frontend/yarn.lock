@@ -2811,6 +2811,11 @@
   resolved "https://registry.yarnpkg.com/@protobufjs/utf8/-/utf8-1.1.0.tgz#a777360b5b39a1a2e5106f8e858f2fd2d060c570"
   integrity sha1-p3c2C1s5oaLlEG+OhY8v0tBgxXA=
 
+"@reach/observe-rect@^1.1.0":
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/@reach/observe-rect/-/observe-rect-1.2.0.tgz#d7a6013b8aafcc64c778a0ccb83355a11204d3b2"
+  integrity sha512-Ba7HmkFgfQxZqqaeIWWkNK0rEhpxVQHIoVyW1YDSkGsGIXzcaW4deC8B0pZrNSSyLTdIk7y+5olKt5+g0GmFIQ==
+
 "@rollup/plugin-node-resolve@^7.1.1":
   version "7.1.3"
   resolved "https://registry.yarnpkg.com/@rollup/plugin-node-resolve/-/plugin-node-resolve-7.1.3.tgz#80de384edfbd7bfc9101164910f86078151a3eca"
@@ -9740,7 +9745,7 @@ jest@26.6.0:
 "jitsu-configurator-ui@file:main":
   version "1.0.0"
   dependencies:
-    "@jitsu/catalog" "file:../../../../../Library/Caches/Yarn/v6/npm-jitsu-configurator-ui-1.0.0-9a6f0150-349d-45e5-849f-6aa85796850b-1647505052327/node_modules/catalog"
+    "@jitsu/catalog" "file:../../../../Library/Caches/Yarn/v6/npm-jitsu-configurator-ui-1.0.0-8634a84d-f836-43a9-83c2-dacb388197a5-1649924491562/node_modules/catalog"
     "@jitsu/sdk-js" "^2.3.0"
     antd "^4.13.1"
     axios "^0.21.4"
@@ -9762,6 +9767,7 @@ jest@26.6.0:
     react-reflex "^4.0.3"
     react-router-dom "^5.2.0"
     react-syntax-highlighter "^15.4.4"
+    react-virtual "^2.10.4"
     recharts "^2.0.8"
     uuid "^8.3.2"
 
@@ -13753,6 +13759,13 @@ react-transition-group@2.9.0:
     loose-envify "^1.4.0"
     prop-types "^15.6.2"
     react-lifecycles-compat "^3.0.4"
+
+react-virtual@^2.10.4:
+  version "2.10.4"
+  resolved "https://registry.yarnpkg.com/react-virtual/-/react-virtual-2.10.4.tgz#08712f0acd79d7d6f7c4726f05651a13b24d8704"
+  integrity sha512-Ir6+oPQZTVHfa6+JL9M7cvMILstFZH/H3jqeYeKI4MSUX+rIruVwFC6nGVXw9wqAw8L0Kg2KvfXxI85OvYQdpQ==
+  dependencies:
+    "@reach/observe-rect" "^1.1.0"
 
 react@^17.0.2:
   version "17.0.2"

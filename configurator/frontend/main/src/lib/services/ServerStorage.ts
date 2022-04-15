@@ -118,22 +118,19 @@ export class HttpServerStorage extends ServerStorage {
 
   async saveUserInfo(data: Partial<UserDTO>): Promise<void> {
     let current: UserDTO = await this.backendApi.get(`/users/info`)
-    let mergedUserInfo = merge(
-      current,
-      sanitize(data, {
-        // TODO _email is temporary
-        allow: [
-          "_emailOptout",
-          "_name",
-          "_forcePasswordChange",
-          "_name",
-          "_onboarded",
-          "_suggestedInfo",
-          "_project",
-          "_email",
-        ],
-      })
-    )
+    let mergedUserInfo = sanitize(merge(current, data), {
+      // TODO _email is temporary
+      allow: [
+        "_emailOptout",
+        "_name",
+        "_forcePasswordChange",
+        "_name",
+        "_onboarded",
+        "_suggestedInfo",
+        "_project",
+        "_email",
+      ],
+    })
     console.log("Saving user info", mergedUserInfo)
     return this.backendApi.post(`/users/info`, mergedUserInfo)
   }
