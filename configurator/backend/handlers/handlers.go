@@ -47,6 +47,7 @@ type LocalAuthorizator interface {
 	CreateUser(ctx context.Context, email string) (*CreatedUser, error)
 	DeleteUser(ctx context.Context, userID string) error
 	UpdatePassword(ctx context.Context, userID, password string) error
+	GetUserIDByEmail(ctx context.Context, userEmail string) (string, error)
 }
 
 type CloudAuthorizator interface {
@@ -58,4 +59,6 @@ type SSOProvider interface {
 	AccessTokenTTL() time.Duration
 	GetSSOSession(ctx context.Context, code string) (*SSOSession, error)
 	AuthLink() string
+	IsAutoProvisionEnabled() bool
+	IsAutoOnboardingEnabled() bool
 }

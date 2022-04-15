@@ -3,17 +3,16 @@ package authorization
 import (
 	"context"
 	"fmt"
+	"github.com/carlmjohnson/requests"
+	"github.com/jitsucom/jitsu/configurator/middleware"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 	"net/http"
 	"net/url"
 	"time"
 
-	"github.com/jitsucom/jitsu/configurator/middleware"
-
-	"github.com/carlmjohnson/requests"
 	"github.com/jitsucom/jitsu/configurator/handlers"
 	"github.com/jitsucom/jitsu/server/random"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/clientcredentials"
 )
 
 type BoxyHQ struct {
@@ -67,6 +66,14 @@ func (p *BoxyHQ) GetSSOSession(ctx context.Context, code string) (*handlers.SSOS
 		Email:       info.Email,
 		AccessToken: token.AccessToken,
 	}, nil
+}
+
+func (p *BoxyHQ) IsAutoProvisionEnabled() bool {
+	return p.Config.AutoProvision.Enable
+}
+
+func (p *BoxyHQ) IsAutoOnboardingEnabled() bool {
+	return p.Config.AutoProvision.AutoOnboarding
 }
 
 func (p *BoxyHQ) AuthLink() string {
