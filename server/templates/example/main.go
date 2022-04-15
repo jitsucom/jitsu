@@ -10,7 +10,7 @@ func main() {
 	logging.LogLevel = logging.DEBUG
 	//executor, err := templates.NewNodeExecutor(templates.Expression(`return $`), nil)
 	executor, err := templates.NewNodeExecutor(&templates.DestinationPlugin{
-		Package: "/Users/ikulkov/Downloads/jitsu-airtable-source-0.7.2.tgz",
+		Package: "/Users/ikulkov/Jitsu/mixpanel-destination/mixpanel-destination-0.2.3.tgz",
 		ID:      "test",
 		Type:    "npm",
 		Config:  nil,

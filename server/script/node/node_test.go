@@ -31,6 +31,10 @@ func (t *testingT) close() {
 	t.Interface.Close()
 }
 
+func factory() script.Factory {
+	return node.Factory()
+}
+
 func TestBasicDescribeAndExecute(t *testing.T) {
 	tt := &testingT{T: t, exec: script.Expression(`return event`)}
 	defer tt.load().close()
