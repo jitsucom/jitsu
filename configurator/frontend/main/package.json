@@ -25,6 +25,7 @@
     "react-reflex": "^4.0.3",
     "react-router-dom": "^5.2.0",
     "react-syntax-highlighter": "^15.4.4",
+    "react-virtual": "^2.10.4",
     "recharts": "^2.0.8",
     "uuid": "^8.3.2"
   },

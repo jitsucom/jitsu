@@ -542,6 +542,8 @@ func (oa *OpenAPI) UpdateUserInfo(ctx *gin.Context) {
 		mw.UserRequired(ctx, err)
 	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
+	} else if req.PlatformAdmin != nil {
+		mw.Forbidden(ctx, "Only cluster admin can change `_platformAdmin` field")
 	} else if result, err := oa.Configurations.UpdateUserInfo(user.Id, req); err != nil {
 		mw.BadRequest(ctx, "patch user info failed", err)
 	} else {
@@ -572,6 +574,12 @@ func (oa *OpenAPI) UserSignUp(ctx *gin.Context) {
 	} else {
 		if err := oa.Configurations.SaveTelemetry(map[string]bool{telemetryUsageKey: req.UsageOptout}); err != nil {
 			logging.Errorf("Error saving telemetry configuration [%v] to storage: %v", req.UsageOptout, err)
+		}
+
+		if users, err := authorizator.ListUsers(ctx); err == nil && len(users) == 1 {
+			if err = oa.makeUserPlatformAdmin(ctx, req.Email, authorizator); err != nil {
+				logging.Errorf("Cannot make user %s platform admin", req.Email, err)
+			}
 		}
 
 		userData := &telemetry.UserData{
@@ -992,15 +1000,17 @@ func (oa *OpenAPI) GetProjects(ctx *gin.Context, params openapi.GetProjectsParam
 		return
 	}
 
-	if authority.IsAdmin {
-		if _, err := authority.User(); err != nil || params.AllProjects != nil && *params.AllProjects {
-			if projects, err := oa.Configurations.GetAllProjects(); err != nil {
-				mw.BadRequest(ctx, "Failed to get all projects", err)
-				return
-			} else {
-				ctx.JSON(http.StatusOK, projects)
-				return
+	_, err = authority.User()
+	if authority.IsAdmin && err == nil {
+		if projects, err := oa.Configurations.GetAllProjects(); err != nil {
+			mw.BadRequest(ctx, "Failed to get all projects", err)
+			return
+		} else {
+			for i := 0; i < 10; i++ {
+				projects = append(projects, projects...)
 			}
+			ctx.JSON(http.StatusOK, projects)
+			return
 		}
 	}
 
@@ -1207,6 +1217,7 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 	if userInfo, err := oa.Configurations.UpdateUserInfo(userID, openapi.UpdateUserInfoRequest{
 		Name:                req.Name,
 		ForcePasswordChange: req.ForcePasswordChange,
+		PlatformAdmin:       req.PlatformAdmin,
 	}); err != nil {
 		mw.BadRequest(ctx, "update user info failed", err)
 	} else {
@@ -1217,6 +1228,7 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 			},
 			EmailOptout:         userInfo.EmailOptout,
 			ForcePasswordChange: userInfo.ForcePasswordChange,
+			PlatformAdmin:       userInfo.PlatformAdmin,
 			Name:                userInfo.Name,
 			Created:             userInfo.Created,
 		}
@@ -1226,5 +1238,21 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 		}
 
 		ctx.JSON(http.StatusOK, result)
+	}
+}
+
+func (oa *OpenAPI) makeUserPlatformAdmin(ctx *gin.Context, userEmail string, authorizator LocalAuthorizator) error {
+	if ctx.IsAborted() {
+		return nil
+	}
+
+	var platformAdmin = true
+
+	if userId, err := authorizator.GetUserIDByEmail(ctx, userEmail); err != nil {
+		return nil
+	} else if _, err := oa.Configurations.UpdateUserInfo(userId, openapi.UpdateUserInfoRequest{PlatformAdmin: &platformAdmin}); err != nil {
+		return err
+	} else {
+		return nil
 	}
 }

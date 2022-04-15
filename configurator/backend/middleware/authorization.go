@@ -101,6 +101,10 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 		if _, err := i.Configurations.UpdateUserInfo(user.Id, UserInfoEmailUpdate{Email: user.Email}); err != nil {
 			logging.Errorf("failed to update user info for id [%s] with email [%s]: %s", user.Id, user.Email, err)
 		}
+
+		if userInfo, err := i.Configurations.GetUserInfo(user.Id); err == nil && userInfo.PlatformAdmin != nil {
+			authority.IsAdmin = *userInfo.PlatformAdmin
+		}
 	}
 
 	authority.ProjectIDs = make(common.StringSet)
