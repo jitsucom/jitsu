@@ -1006,9 +1006,6 @@ func (oa *OpenAPI) GetProjects(ctx *gin.Context, params openapi.GetProjectsParam
 			mw.BadRequest(ctx, "Failed to get all projects", err)
 			return
 		} else {
-			for i := 0; i < 10; i++ {
-				projects = append(projects, projects...)
-			}
 			ctx.JSON(http.StatusOK, projects)
 			return
 		}
@@ -1242,10 +1239,6 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 }
 
 func (oa *OpenAPI) makeUserPlatformAdmin(ctx *gin.Context, userEmail string, authorizator LocalAuthorizator) error {
-	if ctx.IsAborted() {
-		return nil
-	}
-
 	var platformAdmin = true
 
 	if userId, err := authorizator.GetUserIDByEmail(ctx, userEmail); err != nil {
