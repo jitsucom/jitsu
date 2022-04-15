@@ -362,7 +362,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 	router := gin.New()
 	router.Use(gin.Recovery(), enmiddleware.GinLogErrorBody)
 	router.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
-		logging.SystemErrorf("Panic on request %s: %v", c.Request.URL.String(), recovered)
+		logging.SystemErrorf("Panic on request %s: %v\n%s", c.Request.URL.String(), recovered, string(debug.Stack()))
 		logging.Errorf("%v", *c.Request)
 		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse("System error", nil))
 	}))
