@@ -61,10 +61,7 @@ const vm = new NodeVM({
       os: mock("os"),
     }
   },
-  sandbox: {
-    ...{{ .Variables }},
-    require: require("esm")(module)
-  }
+  sandbox: {{ .Variables }}
 })
 
 for (let level of ["dir", "log", "trace", "info", "warn", "error"]) {
