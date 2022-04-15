@@ -49,6 +49,7 @@ func Factory() script.Factory {
 		packages: map[string]string{
 			"node-fetch": "2.6.7",
 			"vm2":        "3.9.9",
+			"esm":        "3.2.25",
 		},
 	}
 }
