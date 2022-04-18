@@ -1,8 +1,8 @@
-import { UserService } from "./UserService";
-import { merge } from "lodash";
+import { UserService } from "./UserService"
+import { merge } from "lodash"
 
 export interface UserSettingsService {
-  set(data: {[key: string]: any}): void
+  set(data: { [key: string]: any }): void
 
   get(settingName?: string): any
 }
@@ -19,7 +19,7 @@ export class UserSettingsLocalService implements UserSettingsService {
     return `${this._keyNamePrefix}_${this._userService?.getUser()?.id}`
   }
 
-  set(data: {[key: string]: any}): void {
+  set(data: { [key: string]: any }): void {
     let settings = this.get()
 
     if (settings !== null) {
@@ -31,20 +31,20 @@ export class UserSettingsLocalService implements UserSettingsService {
 
   get(settingName?: string) {
     let json: string = localStorage.getItem(this.keyName)
-    let data: any;
+    let data: any
 
     if (json !== null) {
       try {
         data = JSON.parse(json)
       } catch {
-        return null;
+        return null
       }
     }
 
     if (settingName) {
-      data = data[settingName] ?? null;
+      data = data[settingName] ?? null
     }
 
-    return data;
+    return data
   }
 }
