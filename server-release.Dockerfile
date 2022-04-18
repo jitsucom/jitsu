@@ -17,10 +17,6 @@ RUN apt-get install -y docker-ce docker-ce-cli containerd.io
 RUN curl -o- -sL https://deb.nodesource.com/setup_16.x | bash
 RUN apt-get install nodejs
 
-# Install deno
-RUN curl -fsSL https://deno.land/x/install/install.sh | bash
-RUN mv /root/.deno/bin/deno /usr/bin/
-
 ARG TARGETARCH
 ARG dhid
 ENV DOCKER_HUB_ID=$dhid
