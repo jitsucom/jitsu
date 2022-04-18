@@ -15,6 +15,7 @@ import { IOauthService, OauthService } from "./oauth"
 import { Project } from "../../generated/conf-openapi"
 import { createProjectService, ProjectService } from "./ProjectService"
 import { FirebaseUserService } from "./UserServiceFirebase"
+import { UserSettingsService, UserSettingsLocalService } from "./UserSettingsService";
 
 export interface IApplicationServices {
   init(): Promise<void>
@@ -41,12 +42,12 @@ export default class ApplicationServices implements IApplicationServices {
   private readonly _projectService: ProjectService
 
   private _userService: UserService
+  private _userSettingsService: UserSettingsService
   private _features: FeatureSettings
 
   public onboardingNotCompleteErrorMessage =
     "Onboarding process hasn't been fully completed. Please, contact the support"
   private _currentSubscription: CurrentSubscription
-  private _activeProject: Project
 
   constructor() {
     this._applicationConfiguration = new ApplicationConfiguration()
@@ -88,6 +89,7 @@ export default class ApplicationServices implements IApplicationServices {
     } else {
       throw new Error(`Unknown backend configuration authorization type: ${configuration.authorization}`)
     }
+    this._userSettingsService = new UserSettingsLocalService(this._userService)
   }
 
   get projectService(): ProjectService {
@@ -99,11 +101,11 @@ export default class ApplicationServices implements IApplicationServices {
   }
 
   get activeProject(): Project {
-    return this._activeProject
+    return this._userSettingsService.get("activeProject") as Project
   }
 
   set activeProject(value: Project) {
-    this._activeProject = value
+    this._userSettingsService.set({activeProject: value})
   }
 
   get storageService(): ServerStorage {
@@ -136,6 +138,10 @@ export default class ApplicationServices implements IApplicationServices {
 
   get oauthService(): IOauthService {
     return this._oauthService
+  }
+
+  get storageUserSettingsService(): UserSettingsService {
+    return this._userSettingsService
   }
 
   static get(): ApplicationServices {
