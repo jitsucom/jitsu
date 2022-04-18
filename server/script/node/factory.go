@@ -1,7 +1,6 @@
 package node
 
 import (
-	"context"
 	_ "embed"
 	"encoding/json"
 	"io/ioutil"
@@ -11,7 +10,6 @@ import (
 	"reflect"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/jitsucom/jitsu/server/timestamp"
 
@@ -38,31 +36,34 @@ var (
 	//go:embed script.js
 	scriptTemplateContent string
 	scriptTemplate, _     = template.New("node_script").Parse(scriptTemplateContent)
+
+	globalDependencies = map[string]string{
+		"node-fetch": "2.6.7",
+		"vm2":        "3.9.9",
+	}
 )
 
-type factory struct {
-	packages map[string]string
-}
+var errNodeRequired = errors.New(`node and/or npm is not found in $PATH.
+	Jitsu will be functional, however JavaScript Functions won't be available. 
+	Please make sure that node (>=16) and npm (>=8) are installed and available. 
+	Or use @jitsucom/* docker images where all necessary packages are pre-installed`)
 
-func Factory() script.Factory {
-	return &factory{
-		packages: map[string]string{
-			"node-fetch": "2.6.7",
-			"vm2":        "3.9.9",
-		},
+type factory struct{}
+
+func Factory() (script.Factory, error) {
+	if _, err := exec.LookPath(node); err != nil {
+		return nil, errNodeRequired
 	}
+
+	if _, err := exec.LookPath(npm); err != nil {
+		return nil, errNodeRequired
+	}
+
+	return &factory{}, nil
 }
 
 func (f *factory) CreateScript(executable script.Executable, variables map[string]interface{}, includes ...string) (script.Interface, error) {
 	startTime := timestamp.Now()
-
-	if _, err := exec.LookPath(node); err != nil {
-		return nil, errors.Wrapf(err, "%s is not in $PATH. Please make sure that node and npm is installed and available in $PATH.", node)
-	}
-
-	if _, err := exec.LookPath(npm); err != nil {
-		return nil, errors.Wrapf(err, "%s is not in $PATH. Please make sure that node and npm is installed and available in $PATH.", npm)
-	}
 
 	dir := filepath.Join(os.TempDir(), "jitsu-nodejs-"+uuid.NewV4().String())
 	if err := os.RemoveAll(dir); err != nil {
@@ -73,7 +74,7 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 		return nil, errors.Wrapf(err, "create temp dir '%s'", dir)
 	}
 
-	if err := createPackageJSON(dir); err != nil {
+	if err := createPackageJSON(dir, packageJSON{}); err != nil {
 		return nil, errors.Wrapf(err, "create package.json in '%s'", dir)
 	}
 
@@ -82,8 +83,20 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 		return nil, errors.Wrap(err, "get dependencies")
 	}
 
-	if err := f.installNodeModules(dir, dependencies); err != nil {
-		return nil, errors.Wrapf(err, "install node modules in '%s'", dir)
+	for _, dependency := range dependencies {
+		if err := installNodeModule(dir, dependency); err != nil {
+			return nil, err
+		}
+	}
+
+	for name, version := range globalDependencies {
+		if version != "" {
+			name += "@" + version
+		}
+
+		if err := installNodeModule(dir, name); err != nil {
+			return nil, err
+		}
 	}
 
 	scriptPath := filepath.Join(dir, executableScriptName)
@@ -137,23 +150,10 @@ func escapeJSON(value interface{}) string {
 	return strings.Trim(string(data), `"`)
 }
 
-func (f *factory) installNodeModules(dir string, modules []string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	args := []string{"install", "--prefer-offline", "--no-audit"}
-	for name, version := range f.packages {
-		if version != "" {
-			args = append(args, name+"@"+version)
-		} else {
-			args = append(args, name)
-		}
-	}
-
-	args = append(args, modules...)
-	cmd := exec.CommandContext(ctx, npm, args...)
-	cmd.Dir = dir
-	return cmd.Run()
+func installNodeModule(dir string, spec string) error {
+	args := []string{"install", "--no-audit", "--prefer-offline"}
+	args = append(args, spec)
+	return errors.Wrapf(script.Exec(dir, npm, args...), "failed to install npm package %s", spec)
 }
 
 func (f *factory) getExpression(dir string, executable script.Executable) (string, error) {
@@ -181,7 +181,7 @@ module.exports = async (event) => {
 
 		dependencies := make([]string, 0)
 		for dependency := range packageJSON.Dependencies {
-			if _, ok := f.packages[dependency]; !ok {
+			if _, ok := globalDependencies[dependency]; !ok {
 				dependencies = append(dependencies, dependency)
 			}
 		}
@@ -269,14 +269,14 @@ func readPackageJSON(dir string) (*packageJSON, error) {
 	return &data, nil
 }
 
-func createPackageJSON(dir string) error {
+func createPackageJSON(dir string, value packageJSON) error {
 	file, err := os.Create(packageJSONPath(dir))
 	if err != nil {
 		return errors.Wrapf(err, "create package.json in '%s'", dir)
 	}
 
 	defer closeQuietly(file)
-	if _, err := file.Write([]byte("{}")); err != nil {
+	if err := json.NewEncoder(file).Encode(value); err != nil {
 		return errors.Wrapf(err, "write to package.json in '%s'", dir)
 	}
 

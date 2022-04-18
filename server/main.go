@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jitsucom/jitsu/server/script/node"
+
 	"github.com/jitsucom/jitsu/server/templates"
 
 	"github.com/gin-gonic/gin/binding"
@@ -353,8 +355,14 @@ func main() {
 		logging.Infof("users_recognition.pool.size can't be 0. Using default value=1 instead")
 	}
 
-	if err := templates.LoadJSPlugins(viper.GetStringMapString("server.plugins")); err != nil {
-		logging.Fatalf("failed to load plugins: %v", err)
+	scriptFactory, err := node.Factory()
+	if err != nil {
+		logging.Warn(err)
+	} else {
+		templates.SetScriptFactory(scriptFactory)
+		if err := templates.LoadJSPlugins(viper.GetStringMapString("server.plugins")); err != nil {
+			logging.Fatalf("failed to load plugins: %v", err)
+		}
 	}
 
 	maxColumns := viper.GetInt("server.max_columns")

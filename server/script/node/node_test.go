@@ -18,7 +18,12 @@ type testingT struct {
 }
 
 func (t *testingT) load() *testingT {
-	inst, err := node.Factory().CreateScript(t.exec, t.vars, t.incl...)
+	factory, err := node.Factory()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	inst, err := factory.CreateScript(t.exec, t.vars, t.incl...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,10 +34,6 @@ func (t *testingT) load() *testingT {
 
 func (t *testingT) close() {
 	t.Interface.Close()
-}
-
-func factory() script.Factory {
-	return node.Factory()
 }
 
 func TestBasicDescribeAndExecute(t *testing.T) {
@@ -100,6 +101,21 @@ func TestIncludes(t *testing.T) {
 	err := tt.Execute("", nil, &resp)
 	assert.NoError(t, err)
 	assert.Equal(t, []int{11, 1}, resp)
+}
+
+func TestOutOfMemory(t *testing.T) {
+	tt := &testingT{
+		T:    t,
+		exec: script.Expression(`(() => { let arr = []; for (;;) { arr.push(arr); } })()`),
+	}
+
+	defer tt.load().close()
+
+	var resp []int
+	err := tt.Execute("", nil, &resp)
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "JavaScript heap out of memory")
+	}
 }
 
 func TestRequires(t *testing.T) {

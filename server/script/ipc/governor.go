@@ -99,7 +99,7 @@ func (g *Governor) Exchange(ctx context.Context, data []byte) ([]byte, error) {
 			}
 
 			if g.errcnt >= governorErrorThreshold {
-				return nil, err
+				return nil, g.err
 			}
 
 			process, err := g.process.Spawn()

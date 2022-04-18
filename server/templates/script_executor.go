@@ -6,10 +6,14 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/script"
-	"github.com/jitsucom/jitsu/server/script/deno"
-	"github.com/jitsucom/jitsu/server/script/node"
 	"github.com/pkg/errors"
 )
+
+var scriptFactory script.Factory = script.DummyFactory
+
+func SetScriptFactory(newScriptFactory script.Factory) {
+	scriptFactory = newScriptFactory
+}
 
 type nodeScript interface {
 	String() string
@@ -161,25 +165,8 @@ type NodeExecutor struct {
 	nodeScript
 }
 
-func NewNodeExecutor(nodeScript nodeScript, variables map[string]interface{}, includes ...string) (*NodeExecutor, error) {
-	instance, err := node.Factory().CreateScript(nodeScript.executable(), variables, includes...)
-	if err != nil {
-		return nil, errors.Wrap(err, "spawn node process")
-	}
-
-	if err := nodeScript.init(instance); err != nil {
-		instance.Close()
-		return nil, errors.Wrap(err, "init node script instance")
-	}
-
-	return &NodeExecutor{
-		Interface:  instance,
-		nodeScript: nodeScript,
-	}, nil
-}
-
-func NewDenoExecutor(nodeScript nodeScript, variables map[string]interface{}, includes ...string) (*NodeExecutor, error) {
-	instance, err := deno.Factory().CreateScript(nodeScript.executable(), variables, includes...)
+func NewScriptExecutor(nodeScript nodeScript, variables map[string]interface{}, includes ...string) (*NodeExecutor, error) {
+	instance, err := scriptFactory.CreateScript(nodeScript.executable(), variables, includes...)
 	if err != nil {
 		return nil, errors.Wrap(err, "spawn node process")
 	}
@@ -213,7 +200,7 @@ func (e *NodeExecutor) Expression() string {
 
 func LoadJSPlugins(plugins map[string]string) error {
 	for name, plugin := range plugins {
-		executor, err := NewNodeExecutor(&DestinationPlugin{Package: plugin}, nil)
+		executor, err := NewScriptExecutor(&DestinationPlugin{Package: plugin}, nil)
 		if err != nil {
 			return errors.Wrapf(err, "failed to load plugin %s", name)
 		}

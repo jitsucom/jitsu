@@ -6,6 +6,8 @@ import (
 
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/script/deno"
+	"github.com/jitsucom/jitsu/server/script/node"
 	"github.com/jitsucom/jitsu/server/templates"
 )
 
@@ -28,8 +30,14 @@ func benchmarkExecutor(b *testing.B, executor templates.TemplateExecutor) {
 }
 
 func BenchmarkNodeStdIO(b *testing.B) {
+	factory, err := node.Factory()
+	if err != nil {
+		b.Fatal(err)
+	}
+
 	logging.LogLevel = logging.INFO
-	process, err := templates.NewNodeExecutor(templates.Expression(Expression), nil)
+	templates.SetScriptFactory(factory)
+	process, err := templates.NewScriptExecutor(templates.Expression(Expression), nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -40,7 +48,8 @@ func BenchmarkNodeStdIO(b *testing.B) {
 
 func BenchmarkDenoStdIO(b *testing.B) {
 	logging.LogLevel = logging.INFO
-	executor, err := templates.NewDenoExecutor(templates.Expression(Expression), nil)
+	templates.SetScriptFactory(deno.Factory())
+	executor, err := templates.NewScriptExecutor(templates.Expression(Expression), nil)
 	if err != nil {
 		b.Fatal(err)
 	}
