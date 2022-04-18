@@ -12,7 +12,7 @@ import (
 
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/script"
-	ipc "github.com/jitsucom/jitsu/server/script/ipc"
+	"github.com/jitsucom/jitsu/server/script/ipc"
 	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
@@ -104,6 +104,19 @@ func (s *Script) exchange(command string, payload, result interface{}) error {
 		return err
 	}
 
+	for _, log := range resp.Log {
+		switch log.Level {
+		case "debug":
+			logging.Debugf("%s: %s", s.Governor, log.Message)
+		case "info", "log":
+			logging.Infof("%s: %s", s.Governor, log.Message)
+		case "warn":
+			logging.Warnf("%s: %s", s.Governor, log.Message)
+		case "error":
+			logging.Errorf("%s: %s", s.Governor, log.Message)
+		}
+	}
+
 	if !resp.Ok {
 		return errors.New(resp.Error)
 	}
@@ -113,7 +126,9 @@ func (s *Script) exchange(command string, payload, result interface{}) error {
 		//parse json exactly the same way as it happens in http request processing.
 		//transform that does no changes must return exactly the same object as w/o transform
 		decoder.UseNumber()
-		return decoder.Decode(result)
+		if err := decoder.Decode(result); err != nil {
+			return err
+		}
 	}
 
 	return nil

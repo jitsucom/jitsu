@@ -121,16 +121,12 @@ func (p *StdIO) Wait() error {
 
 	stderr := p.stderr.String()
 	if err != nil {
-		if stderr != "" {
-			logging.Debugf("%s stderr below:\n%s", p, stderr)
-		}
-
 		return &CommandError{
 			ExitError: err,
 			Stderr:    p.stderr.String(),
 		}
 	} else if stderr != "" {
-		logging.Warnf("%s completed ok, but has stderr below:\n%s", p, stderr)
+		logging.Errorf("%s completed ok, but has stderr below:\n%s", p, stderr)
 	}
 
 	return nil
@@ -146,7 +142,7 @@ type CommandError struct {
 }
 
 func (e *CommandError) Error() string {
-	return e.ExitError.Error()
+	return e.Stderr
 }
 
 func (e *CommandError) Unwrap() error {

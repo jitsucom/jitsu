@@ -477,7 +477,7 @@ Mapping feature is deprecated. It is recommended to migrate to javascript data t
 			//seems like built-in to segment transformation is used. We need to load script
 			p.AddJavaScript(segmentTransform)
 		}
-		transformer, err := templates.NewNodeExecutor(templates.Expression(userTransform), p.jsVariables, p.javaScripts...)
+		transformer, err := templates.NewScriptExecutor(templates.Expression(userTransform), p.jsVariables, p.javaScripts...)
 		if err != nil {
 			return fmt.Errorf("failed to init transform javascript: %v", err)
 		}
