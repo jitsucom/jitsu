@@ -6,7 +6,6 @@ import (
 
 	"github.com/jitsucom/jitsu/server/script"
 	"github.com/jitsucom/jitsu/server/script/deno"
-	"github.com/jitsucom/jitsu/server/script/node"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,10 +29,6 @@ func (t *testingT) load() *testingT {
 
 func (t *testingT) close() {
 	t.Interface.Close()
-}
-
-func factory() script.Factory {
-	return node.Factory()
 }
 
 func TestBasicDescribeAndExecute(t *testing.T) {
