@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/logging"
@@ -75,7 +76,7 @@ func (s *Script) Close() {
 		logging.Warnf("wait process failed: %v", err)
 	}
 
-	//_ = os.RemoveAll(s.Dir)
+	_ = os.RemoveAll(s.Dir)
 }
 
 func (s *Script) exchange(command string, payload, result interface{}) error {
