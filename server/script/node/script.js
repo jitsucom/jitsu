@@ -14,6 +14,7 @@ const reply = async (result, error) => {
     ok: !error,
     result: result,
     error: error ? error.toString() : null,
+    stack: error ? error.stack : null,
     log: __jts_log__,
   }
 
@@ -74,6 +75,48 @@ const dir = (arg) => console.log(Object.keys(arg))
 vm.on(`console.dir`, dir)
 console["dir"] = dir
 
+const vmStack = (error) => {
+  if (error && error.stack) {
+    let stack = error.stack.split("\n").splice(1).flatMap(row => {
+      let match = row.match(/^\s*at\s(.*?)\s\(vm\.js:(\d+):(\d+)\)$/)
+      if (!match) {
+        return []
+      }
+
+      let func = match[1]
+      if (func === "module.exports") {
+        func = "main"
+      }
+
+      let line = parseInt(match[2])
+      let lineOffset = parseInt("{{ .LineOffset }}")
+
+      line -= lineOffset + 1
+      if ("{{ .Includes }}" !== "") {
+        line -= "{{ .Includes }}".split(/\r\n|\r|\n/).length
+      }
+
+      if (line < 0) {
+        return []
+      }
+
+      let col = parseInt(match[3])
+      if (line === 1) {
+        let colOffset = parseInt("{{ .ColOffset }}")
+        col -= colOffset
+      }
+
+      return [`  at ${func} (${line}:${col})`]
+    }).join("\n")
+
+    if (stack.length > 0) {
+      error.stack = stack
+    }
+  }
+
+  return error
+}
+
 readline.createInterface({
   input: process.stdin
 }).on("line", async (line) => {
@@ -92,7 +135,13 @@ readline.createInterface({
 
   let result = undefined
   try {
-    globalThis.__jts_exec__ = globalThis.__jts_exec__ || (async () => vm.run("{{ .Includes }}\n{{ .Executable }}"))()
+    globalThis.__jts_exec__ = globalThis.__jts_exec__ || (async () => {
+      try {
+        return vm.run("{{ .Includes }}\n{{ .Executable }}")
+      } catch (error) {
+        throw vmStack(error)
+      }
+    })()
 
     let exec = undefined
     switch (req.command) {
@@ -131,7 +180,12 @@ readline.createInterface({
           }
         }
 
-        result = await (func ? exec[func](...args) : exec(...args))
+        try {
+          result = await (func ? exec[func](...args) : exec(...args))
+        } catch (error) {
+          throw vmStack(error)
+        }
+
         break
       case "kill":
         await reply()

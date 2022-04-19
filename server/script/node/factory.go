@@ -30,6 +30,8 @@ type scriptTemplateValues struct {
 	Executable string
 	Variables  string
 	Includes   string
+	LineOffset int
+	ColOffset  int
 }
 
 var (
@@ -120,6 +122,8 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 		Executable: escapeJSON(expression),
 		Includes:   escapeJSON(strings.Join(includes, "\n")),
 		Variables:  string(variablesJSON),
+		LineOffset: getLineOffset(executable),
+		ColOffset:  getColOffset(executable),
 	})
 
 	closeQuietly(scriptFile)
@@ -154,6 +158,24 @@ func installNodeModule(dir string, spec string) error {
 	args := []string{"install", "--no-audit", "--prefer-offline"}
 	args = append(args, spec)
 	return errors.Wrapf(script.Exec(dir, npm, args...), "failed to install npm package %s", spec)
+}
+
+func getColOffset(executable script.Executable) int {
+	switch executable.(type) {
+	case script.Expression:
+		return 7
+	default:
+		return 0
+	}
+}
+
+func getLineOffset(executable script.Executable) int {
+	switch executable.(type) {
+	case script.Expression:
+		return 5
+	default:
+		return 0
+	}
 }
 
 func (f *factory) getExpression(dir string, executable script.Executable) (string, error) {
