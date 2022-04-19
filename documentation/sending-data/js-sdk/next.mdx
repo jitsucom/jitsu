@@ -7,75 +7,65 @@ title: 'NextJS Guide'
 
 ## Installation
 
-To use Jitsu SDK, install npm package
+With NextJS there're several ways on how to add Jitsu tracking
 
-```bash
-npm install @jitsu/react
-```
+## Client Side Tracking
 
-Import and configure Jitsu SDK Provider
+Since Next JS is based on React, [React Guide](/docs/sending-data/js-sdk/react) will work as well. However, there's a caveat:
+ * `usePageView` relies on react-router, which is not part of Next.js (Question: can we support next.js router too)
+ * `useJitsu` requires subsequent `useEffect()` which disable static and SSO pre-rendering (is it true????)
 
-pages/_app.js:
-```javascript
-//...
-import { createClient, JitsuProvider } from "@jitsu/react";
-
-const jitsuClient = createClient({
-  tracking_host: "__JITSU_HOST__",
-  key: "__API_KET__",
-  // See Jitsu SDK parameters section for more options
-});
-
-function MyApp({Component, pageProps}) {
-  useNextPageView()
-
-  return <JitsuProvider client={jitsuClient}>
-    <Component {...pageProps} />
-  </JitsuProvider>
-}
-
-export default MyApp
-```
-
-## Usage
-
-### base:
-```javascript
+```jsx
 import { useJitsu } from "@jitsu/react";
 
 const App = () => {
-  const {id, trackEvent, trackPageView} = useJitsu();
+  useJitsu();
 
   useEffect(() => {
     id({id: '__USER_ID__', email: '__USER_EMAIL__'})
     trackPageView()
   }, [])
 
-  const onClick = (btnName: string) => {
-    trackEvent('btn_click', {btn: btnName});
-  }
-
   return (
-    <button onClick="() => onClick('test_btn')">Test button</button>
+    //Won't be rendered staticly or in Server
+    <Component />
   )
 }
 ```
 
-## Hooks
+The latter can be addressed by wrapping Jitsu into separate component (is it true???).
 
-### useJitsu
+```jsx
+import { useJitsu } from "@jitsu/react";
 
-Returns object with `id`, `trackEvent`, `trackPageView`, `rawTrack`, `set`, `unset`, and `interceptAnalytics` methods of Jitsu SDK.
+const Jitsu = () => {
+  useJitsu();
 
-## Jitsu SDK parameters and methods
+  useEffect(() => {
+    id({id: '__USER_ID__', email: '__USER_EMAIL__'})
+    trackPageView()
+  }, [])
 
-Read about all SDK parameters and methods in our [documentation](/docs/sending-data/js-sdk):
-* [parameters](/docs/sending-data/js-sdk/parameters-reference)
-* [methods](/docs/sending-data/js-sdk/methods-reference)
+}
 
-All SDK methods are provided in `useJitsu` hook.
+const App = () => {
+  return <>
+    <Jitsu />
+    <Component />
+  </>
+}
+```
 
+## Server Side Tracking
 
+Jitsu can track events server-side"
+ * *Pros:* this method is 100% reliable and ad-block resistant, and
+ * *Cons:* static rendering will not be possible; `next export` will not work; fewer data points will be collected - attributes such as screen-size, device
 
+### Manual tracking
 
+TODO: insert manual tracking instructions
 
+### Automated page view tracking
+
+Jitsu could track page views automatically via use of `_middleware.js` which has been introduced in NextJS 12

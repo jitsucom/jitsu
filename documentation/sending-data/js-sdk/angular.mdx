@@ -32,9 +32,11 @@ import { NgxJitsuModule } from '@jitsu/angular';
 export class AppModule {}
 ```
 
+List of all parameters available in the [SDK Reference](/docs/sending-data/js-sdk/reference/parameters-reference)
+
 ## Usage
 
-```javascript
+```typescript
 @Component({
   selector: 'app-root',
   template: '<button (click)="onBtnClick(\'test_btn\')">Test button</button>',
@@ -56,7 +58,6 @@ export class AppComponent implements OnInit {
 ## Jitsu SDK parameters and methods
 
 Read about all SDK parameters and methods in our [documentation](/docs/sending-data/js-sdk):
-* [parameters](/docs/sending-data/js-sdk/parameters-reference)
-* [methods](/docs/sending-data/js-sdk/methods-reference)
 
-You can call SDK methods from `NgxJitsuService`.
+* [Parameters](/docs/sending-data/js-sdk/parameters-reference)
+* [Methods](/docs/sending-data/js-sdk/methods-reference) - you can call all SDK methods from `NgxJitsuService` too
