@@ -118,6 +118,38 @@ func TestOutOfMemory(t *testing.T) {
 	}
 }
 
+func TestExpressionStackTrace(t *testing.T) {
+	tt := &testingT{
+		T: t,
+		exec: script.Expression(`console.log("kek")
+throw new Error("123")
+return null`),
+	}
+
+	defer tt.load().close()
+
+	var resp interface{}
+	err := tt.Execute("", nil, &resp)
+	if assert.Error(t, err) {
+		assert.Equal(t, "Error: 123\n  at main (2:7)", err.Error())
+	}
+}
+
+func TestFileStackTrace(t *testing.T) {
+	tt := &testingT{
+		T:    t,
+		exec: script.File("testdata/js/stacktrace_test.js"),
+	}
+
+	defer tt.load().close()
+
+	var resp interface{}
+	err := tt.Execute("test", nil, &resp)
+	if assert.Error(t, err) {
+		assert.Equal(t, "Error: 123\n  at Object.exports.test (3:9)", err.Error())
+	}
+}
+
 func TestRequires(t *testing.T) {
 	tt := &testingT{T: t, exec: script.File("testdata/js/test_require.js")}
 	defer tt.load().close()

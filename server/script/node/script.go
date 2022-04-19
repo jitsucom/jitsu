@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"os"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/logging"
@@ -35,6 +34,7 @@ type Response struct {
 	Ok     bool            `json:"ok"`
 	Result json.RawMessage `json:"result,omitempty"`
 	Error  string          `json:"error,omitempty"`
+	Stack  string          `json:"stack,omitempty"`
 	Log    []Log           `json:"log,omitempty"`
 }
 
@@ -75,7 +75,7 @@ func (s *Script) Close() {
 		logging.Warnf("wait process failed: %v", err)
 	}
 
-	_ = os.RemoveAll(s.Dir)
+	//_ = os.RemoveAll(s.Dir)
 }
 
 func (s *Script) exchange(command string, payload, result interface{}) error {
@@ -118,6 +118,10 @@ func (s *Script) exchange(command string, payload, result interface{}) error {
 	}
 
 	if !resp.Ok {
+		if resp.Stack != "" {
+			return errors.New(resp.Error + "\n" + resp.Stack)
+		}
+
 		return errors.New(resp.Error)
 	}
 
