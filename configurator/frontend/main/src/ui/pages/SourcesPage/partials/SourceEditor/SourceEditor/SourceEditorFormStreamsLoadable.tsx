@@ -14,7 +14,7 @@ import { SetSourceEditorState } from "./SourceEditor"
 // @Utils
 import {
   PARSING_STREAMS_ERROR_NAME,
-  pullAllAirbyteStreams,
+  pullAllAirbyteStreams, pullAllSDKSourceStreams,
   pullAllSingerStreams,
   PullAllStreams,
 } from "./SourceEditorPullData"
@@ -46,6 +46,8 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
     switch (sourceDataFromCatalog.protoType) {
       case "airbyte":
         return pullAllAirbyteStreams
+      case "sdk_source":
+        return pullAllSDKSourceStreams
       case "singer":
         return pullAllSingerStreams
       default:

@@ -32,6 +32,7 @@ type Log struct {
 }
 
 type Response struct {
+	Type   string          `json:"type"`
 	Ok     bool            `json:"ok"`
 	Result json.RawMessage `json:"result,omitempty"`
 	Error  string          `json:"error,omitempty"`
@@ -51,7 +52,7 @@ type Script struct {
 
 func (s *Script) Describe() (script.Symbols, error) {
 	value := make(script.Symbols)
-	if err := s.exchange(describe, nil, &value); err != nil {
+	if err := s.exchange(describe, nil, &value, nil); err != nil {
 		return nil, err
 	}
 	return value, nil
@@ -62,11 +63,19 @@ func (s *Script) Execute(name string, args []interface{}, result interface{}) er
 		args = make([]interface{}, 0)
 	}
 
-	return s.exchange(execute, Execute{Function: name, Args: args}, result)
+	return s.exchange(execute, Execute{Function: name, Args: args}, result, nil)
+}
+
+func (s *Script) ExecuteWithDataChannel(name string, args []interface{}, result interface{}, dataChannel chan<- []byte) error {
+	if args == nil {
+		args = make([]interface{}, 0)
+	}
+
+	return s.exchange(execute, Execute{Function: name, Args: args}, result, dataChannel)
 }
 
 func (s *Script) Close() {
-	if err := s.exchange(kill, nil, nil); err != nil {
+	if err := s.exchange(kill, nil, nil, nil); err != nil {
 		logging.Warnf("send kill signal failed, killing: %v", err)
 		s.Governor.Kill()
 	}
@@ -78,7 +87,7 @@ func (s *Script) Close() {
 	_ = os.RemoveAll(s.Dir)
 }
 
-func (s *Script) exchange(command string, payload, result interface{}) error {
+func (s *Script) exchange(command string, payload, result interface{}, dataChannel chan<- []byte) error {
 	data, err := json.Marshal(Request{
 		Command: command,
 		Payload: payload,
@@ -92,7 +101,7 @@ func (s *Script) exchange(command string, payload, result interface{}) error {
 	defer cancel()
 
 	start := timestamp.Now()
-	newData, err := s.Governor.Exchange(ctx, data)
+	newData, err := s.Governor.Exchange(ctx, data, dataChannel)
 
 	logging.Debugf("%s: %s => %s (%v) [%s]", s.Governor, string(data), string(newData), err, timestamp.Now().Sub(start))
 	if err != nil {

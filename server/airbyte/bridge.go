@@ -154,7 +154,7 @@ func (b *Bridge) pullImage(dockerVersionedImage string) {
 	pullImgErrWriter := logging.NewStringWriter()
 
 	//pull last image
-	if err := runner.ExecCmd(BridgeType, DockerCommand, pullImgOutWriter, pullImgErrWriter, time.Minute*30, "pull", dockerVersionedImage); err != nil {
+	if err := runner.ExecCmd(BridgeType, "", DockerCommand, pullImgOutWriter, pullImgErrWriter, time.Minute*30, "pull", dockerVersionedImage); err != nil {
 		errMsg := b.BuildMsg("Error pulling airbyte image:", pullImgOutWriter, pullImgErrWriter, err)
 		logging.SystemError(errMsg)
 

@@ -316,11 +316,12 @@ type SourceConnectorId =
   | "amplitude"
   | `singer-${string}`
   | `airbyte-source-${string}`
+  | `sdk-${string}`
 export interface SourceConnector {
   /**
    * Hints the source origin.
    * */
-  protoType?: "singer" | "airbyte"
+  protoType?: "singer" | "airbyte" | "sdk_source"
   /**
    * Enable collection Start Date parameter.
    * */
@@ -378,6 +379,10 @@ export interface SourceConnector {
    * See SourceEditorStreams component for more detail
    */
   staticStreamsConfigEndpoint?: string
+  /**
+   * API endpoint which should be requested for requesting configuration spec for source plugins
+   */
+  specEndpoint?: string
   /**
    * API Connector documentation
    */
@@ -445,6 +450,26 @@ export interface SingerTap {
 export interface AirbyteSource {
   pic: ReactNode
   docker_image_name: `airbyte/source-${string}`
+  displayName: string
+  /**
+   * Whether we consider this tap as stable and production ready
+   */
+  stable: boolean
+  /**
+   * We have a native equivalent
+   */
+  hasNativeEquivalent?: boolean
+  /**
+   * API Connector documentation
+   */
+  documentation?: ConnectorDocumentation
+}
+
+export interface SdkSource {
+  id: `sdk-${string}`
+  pic: ReactNode
+  package_name: string
+  package_version: string
   displayName: string
   /**
    * Whether we consider this tap as stable and production ready

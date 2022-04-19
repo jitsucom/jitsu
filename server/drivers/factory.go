@@ -12,6 +12,7 @@ import (
 	_ "github.com/jitsucom/jitsu/server/drivers/google_ads"
 	_ "github.com/jitsucom/jitsu/server/drivers/google_analytics"
 	_ "github.com/jitsucom/jitsu/server/drivers/google_play"
+	_ "github.com/jitsucom/jitsu/server/drivers/jitsu_sdk"
 	_ "github.com/jitsucom/jitsu/server/drivers/redis"
 	_ "github.com/jitsucom/jitsu/server/drivers/singer"
 	"github.com/jitsucom/jitsu/server/jsonutils"
@@ -108,7 +109,7 @@ func schedule(cronScheduler *scheduling.CronScheduler, sourceID string, sourceCo
 //ParseCollections return serialized Collection objects slice
 //or return one default collection with 'schedule' if singer type
 func ParseCollections(sourceConfig *base.SourceConfig) ([]*base.Collection, error) {
-	if sourceConfig.Type == base.SingerType || sourceConfig.Type == base.AirbyteType {
+	if sourceConfig.Type == base.SingerType || sourceConfig.Type == base.AirbyteType || sourceConfig.Type == base.SdkSourceType {
 		return []*base.Collection{{SourceID: sourceConfig.SourceID, Name: DefaultCollection, Schedule: sourceConfig.Schedule}}, nil
 	}
 

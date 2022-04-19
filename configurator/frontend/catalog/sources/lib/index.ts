@@ -5,9 +5,12 @@ import { makeAirbyteSource } from "./airbyte.helper"
 import { SourceConnector } from "../types"
 import { snakeCase } from "lodash"
 import { allAirbyteSources } from "./airbyte"
+import { allSdkSources } from "./sdk_source"
+import { makeSdkSource } from "./sdk_source.helper"
 
 export const allSources = [
   ...allNativeConnectors,
+  ...allSdkSources.map(makeSdkSource),
   ...allSingerTaps.filter(tap => !tap.hasNativeEquivalent && tap.pic && tap.stable).map(makeSingerSource),
   ...allAirbyteSources.filter(as => !as.hasNativeEquivalent).map(makeAirbyteSource),
 ]

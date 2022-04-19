@@ -51,3 +51,4 @@ function toSegment($) {
     context_utm_source: utm.source,
   };
 }
+return toSegment($);
