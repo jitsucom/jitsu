@@ -2,6 +2,8 @@
 
 const __jts_log__ = []
 const readline = require("readline")
+const os = require("os")
+const queueMicrotask = require("queue-microtask")
 const fetch = require("node-fetch")
 const {NodeVM} = require("vm2")
 
@@ -32,37 +34,70 @@ const reply = async (result, error) => {
   }
 }
 
-const mock = (module) => {
-  const handler = (module, func) => {
-    return {
+function mockModule(moduleName, knownSymbols) {
+  return new Proxy(
+    {},
+    {
       get: (target, prop) => {
-        if (typeof target[prop] === "function") {
-          return new Proxy(() => {}, handler(module, prop))
+        let known = knownSymbols[prop.toString()];
+        if (known) {
+          return known;
+        } else {
+          throw new Error(`Attempt to call ${moduleName}.${prop.toString()} which is not safe`);
         }
-
-        throw new Error(`Attempt to access forbidden property ${module}.${prop}.`)
       },
-      apply: (target, thisArg, argumentsList) => {
-        throw new Error(`Attempt to call forbidden function ${module}.${func}(${argumentsList}).`)
-      }
     }
-  }
-
-  let underlying = require(module)
-  return new Proxy(underlying, handler(module))
+  );
 }
 
 const vm = new NodeVM({
   console: "redirect",
   require: {
-    external: true,
-    builtin: ["stream", "http", "url", "punycode", "https", "zlib", "events", "net", "tls", "buffer", "string_decoder", "assert", "util", "crypto", "path"],
+    context: "sandbox",
+    external: false,
+    builtin: [
+      "stream",
+      "http",
+      "url",
+      "http2",
+      "dns",
+      "punycode",
+      "https",
+      "zlib",
+      "events",
+      "net",
+      "tls",
+      "buffer",
+      "string_decoder",
+      "assert",
+      "util",
+      "crypto",
+      "path",
+      "tty",
+      "querystring",
+      "console",
+    ],
+    root: "./",
     mock: {
-      fs: mock("fs"),
-      os: mock("os"),
-    }
+      fs: mockModule("fs", {}),
+      os: mockModule("os", { platform: os.platform, EOL: os.EOL }),
+      child_process: {},
+    },
+    resolve: (moduleName) => {
+      throw new Error(
+        `The extension ${file} calls require('${moduleName}') which is not system module. Rollup should have linked it into JS code.`
+      );
+    },
   },
-  sandbox: {{ .Variables }}
+  sandbox: {...{{ .Variables }},
+    queueMicrotask: queueMicrotask,
+    self: {},
+    process: {
+      versions: process.versions,
+      version: process.version,
+      env: {},
+    },
+  },
 })
 
 for (let level of ["log", "trace", "info", "warn", "error"]) {

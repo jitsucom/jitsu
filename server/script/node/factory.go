@@ -40,8 +40,9 @@ var (
 	scriptTemplate, _     = template.New("node_script").Parse(scriptTemplateContent)
 
 	globalDependencies = map[string]string{
-		"node-fetch": "2.6.7",
-		"vm2":        "3.9.9",
+		"node-fetch":      "2.6.7",
+		"vm2":             "3.9.9",
+		"queue-microtask": "1.2.3",
 	}
 )
 

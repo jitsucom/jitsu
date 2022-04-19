@@ -189,12 +189,12 @@ func TestUnsafeFS(t *testing.T) {
 
 	err = tt.Execute("call_fs", nil, new(interface{}))
 	if assert.Error(t, err) {
-		assert.Contains(t, err.Error(), "Attempt to call forbidden function fs.createReadStream().")
+		assert.Contains(t, err.Error(), "Attempt to call fs.createReadStream which is not safe")
 	}
 
 	err = tt.Execute("call_os", nil, new(interface{}))
 	if assert.Error(t, err) {
-		assert.Contains(t, err.Error(), "Attempt to call forbidden function os.arch().")
+		assert.Contains(t, err.Error(), "Attempt to call os.arch which is not safe")
 	}
 }
 
