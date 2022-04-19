@@ -120,7 +120,7 @@ const ConnectionsPageComponent = () => {
                     <EntityCard
                       name={<CardTitle title={APIKeyUtil.getDisplayName(apiKey)} />}
                       message={<EntityMessage connectionTestOk={true} />}
-                      link={"/api-keys/" + apiKey.uid}
+                      link={"/api-keys/edit/" + apiKey.uid}
                       icon={
                         <IconWrapper sizeTailwind={12}>
                           <EntityIcon entityType="api_key" />
