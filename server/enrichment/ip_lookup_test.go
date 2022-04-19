@@ -1,6 +1,7 @@
 package enrichment
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/jitsucom/jitsu/server/appconfig"
@@ -75,14 +76,14 @@ func TestIPLookup(t *testing.T) {
 			"/ip",
 			"/parsed_ip",
 			map[string]interface{}{"ip": "10.10.10.10"},
-			map[string]interface{}{"ip": "10.10.10.10", "parsed_ip": map[string]interface{}{"city": "New York", "country": "US", "latitude": float64(79), "longitude": float64(22), "zip": "14101"}},
+			map[string]interface{}{"ip": "10.10.10.10", "parsed_ip": map[string]interface{}{"city": "New York", "country": "US", "latitude": json.Number("79"), "longitude": json.Number("22"), "zip": "14101"}},
 		},
 		{
 			"Object with ip ok doesn't overwrite",
 			"/ip",
 			"/parsed_ip",
 			map[string]interface{}{"ip": "10.10.10.10", "parsed_ip": map[string]interface{}{"city": "test"}},
-			map[string]interface{}{"ip": "10.10.10.10", "parsed_ip": map[string]interface{}{"city": "test", "country": "US", "latitude": float64(79), "longitude": float64(22), "zip": "14101"}},
+			map[string]interface{}{"ip": "10.10.10.10", "parsed_ip": map[string]interface{}{"city": "test", "country": "US", "latitude": json.Number("79"), "longitude": json.Number("22"), "zip": "14101"}},
 		},
 	}
 	for _, tt := range tests {

@@ -1,18 +1,15 @@
 package storages
 
 import (
-	"testing"
-	"time"
-
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/parsers"
-	"github.com/jitsucom/jitsu/server/script/node"
-	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/spf13/viper"
+	"testing"
+	"time"
 
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -67,14 +64,8 @@ func TestMapTableSchema(t *testing.T) {
 func TestProcessTransformWithTypesOverride(t *testing.T) {
 	viper.Set("server.log.path", "")
 	viper.Set("sql_debug_log.ddl.enabled", false)
-	nodeFactory, err := node.Factory()
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	templates.SetScriptFactory(nodeFactory)
-
-	err = appconfig.Init(false, "")
+	err := appconfig.Init(false, "")
 	require.NoError(t, err)
 	stringTime := "2021-10-20T11:13:14.451098Z"
 	expectedTime, _ := time.Parse(time.RFC3339Nano, stringTime)

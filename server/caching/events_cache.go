@@ -314,7 +314,6 @@ func (ec *EventsCache) createEventEntity(statusEvent *statusEvent) (*meta.Event,
 		if statusEvent.skip {
 			// ** Skip Event **
 			return &meta.Event{
-				Timestamp:     timestamp.NowUTC(),
 				Original:      statusEvent.originEvent,
 				Skip:          statusEvent.error,
 				DestinationID: statusEvent.destinationID,
@@ -325,7 +324,6 @@ func (ec *EventsCache) createEventEntity(statusEvent *statusEvent) (*meta.Event,
 		} else {
 			// ** Error Event **
 			return &meta.Event{
-				Timestamp:     timestamp.NowUTC(),
 				Original:      statusEvent.originEvent,
 				Error:         statusEvent.error,
 				DestinationID: statusEvent.destinationID,
@@ -401,7 +399,6 @@ func (ec *EventsCache) createEventEntity(statusEvent *statusEvent) (*meta.Event,
 	serializedOriginalEvent := eventContext.GetSerializedOriginalEvent()
 
 	return &meta.Event{
-		Timestamp:     timestamp.NowUTC(),
 		Original:      serializedOriginalEvent,
 		Success:       string(serializedSucceedPayload),
 		DestinationID: eventContext.DestinationID,
