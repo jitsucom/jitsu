@@ -2,15 +2,14 @@ package testsuit
 
 import (
 	"context"
-	"net/http"
-	"os"
-	"testing"
-	"time"
-
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"net/http"
+	"os"
+	"testing"
+	"time"
 
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
@@ -222,7 +221,7 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		fallback.NewTestService(), coordination.NewInMemoryService(""), sb.eventsCache, sb.systemService,
-		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService, sb.globalUsersRecognitionConfig)
+		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService, nil, sb.globalUsersRecognitionConfig)
 
 	server := &http.Server{
 		Addr:              sb.httpAuthority,
