@@ -3,6 +3,7 @@ package synchronization
 import (
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/coordination"
@@ -328,7 +329,7 @@ func (ts *TaskService) CancelTask(taskID string) error {
 		return fmt.Errorf("error changing task [%s] status to [%s]: %v", taskID, CANCELED.String(), err)
 	}
 
-	taskLogger := NewTaskLogger(taskID, ts.metaStorage)
+	taskLogger := NewTaskLogger(taskID, ts.metaStorage, appconfig.Instance.SourcesLogsWriter)
 	taskLogger.WARN(ErrTaskHasBeenCanceled.Error())
 
 	return nil
