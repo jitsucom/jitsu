@@ -93,6 +93,15 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
 
   const sourceConfigurationSchema = useMemo(() => {
     switch (sourceDataFromCatalog.protoType) {
+      case "sdk_source":
+        const sdkSourceId = sourceDataFromCatalog.id.replace("sdk-", "")
+        return {
+          backendId: sdkSourceId,
+          hideOauthFields: true,
+          loadableFields: true,
+          configurableFields: sourceDataFromCatalog.configParameters,
+          protoType: sourceDataFromCatalog.protoType
+        }
       case "airbyte":
         const airbyteId = sourceDataFromCatalog.id.replace("airbyte-", "")
         return {
@@ -102,6 +111,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           invisibleStaticFields: {
             "config.docker_image": sourceDataFromCatalog.id.replace("airbyte-", ""),
           },
+          protoType: sourceDataFromCatalog.protoType
         }
       case "singer":
         const tapId = sourceDataFromCatalog.id.replace("singer-", "")
@@ -112,6 +122,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           invisibleStaticFields: {
             "config.tap": tapId,
           },
+          protoType: sourceDataFromCatalog.protoType
         }
       /** Native source */
       default:
@@ -248,10 +259,25 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
               setFormReference={setFormReference}
             />
           )}
-          {sourceConfigurationSchema.loadableFields && (
+          {sourceConfigurationSchema.loadableFields && sourceConfigurationSchema.protoType == "airbyte"  && (
             <SourceEditorFormConfigurationConfigurableLoadableFields
               editorMode={editorMode}
               initialValues={initialSourceData as AirbyteSourceData}
+              sourceDataFromCatalog={sourceDataFromCatalog}
+              hideFields={hideFields}
+              patchConfig={patchConfig}
+              handleSetControlsDisabled={handleSetControlsDisabled}
+              handleSetTabsDisabled={handleSetTabsDisabled}
+              setValidator={setConfigurableLoadableFieldsValidator}
+              setFormReference={setFormReference}
+              handleResetOauth={handleResetOauth}
+              handleReloadStreams={handleReloadStreams}
+            />
+          )}
+          {sourceConfigurationSchema.loadableFields && sourceConfigurationSchema.protoType == "sdk_source"  && (
+            <SourceEditorFormConfigurationConfigurableLoadableFields
+              editorMode={editorMode}
+              initialValues={initialSourceData as SDKSourceData}
               sourceDataFromCatalog={sourceDataFromCatalog}
               hideFields={hideFields}
               patchConfig={patchConfig}

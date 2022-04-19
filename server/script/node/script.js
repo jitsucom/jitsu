@@ -6,11 +6,12 @@ const fetch = require("node-fetch")
 const {NodeVM} = require("vm2")
 
 const send = (data) => {
-  process.stdout.write(data + "\n")
+  process.stdout.write("\nJ:" + data + "\n")
 }
 
 const reply = async (result, error) => {
   let data = {
+    type: "_JITSU_SCRIPT_RESULT",
     ok: !error,
     result: result,
     error: error,
@@ -21,6 +22,7 @@ const reply = async (result, error) => {
     await send(JSON.stringify(data))
   } catch (error) {
     let edata = {
+      type: "_JITSU_SCRIPT_RESULT",
       ok: false,
       error: `Failed to send reply data ${JSON.stringify(data)}: ${error}`
     }

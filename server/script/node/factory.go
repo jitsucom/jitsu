@@ -1,9 +1,9 @@
 package node
 
 import (
-	"context"
 	_ "embed"
 	"encoding/json"
+	"github.com/jitsucom/jitsu/server/runner"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -138,8 +138,8 @@ func escapeJSON(value interface{}) string {
 }
 
 func (f *factory) installNodeModules(dir string, modules []string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
+	//ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	//defer cancel()
 
 	args := []string{"install", "--prefer-offline", "--no-audit"}
 	for name, version := range f.packages {
@@ -151,9 +151,7 @@ func (f *factory) installNodeModules(dir string, modules []string) error {
 	}
 
 	args = append(args, modules...)
-	cmd := exec.CommandContext(ctx, npm, args...)
-	cmd.Dir = dir
-	return cmd.Run()
+	return runner.ExecCmd("node", dir, npm, logging.GlobalLogsWriter, logging.GlobalLogsWriter, time.Minute*2, args...)
 }
 
 func (f *factory) getExpression(dir string, executable script.Executable) (string, error) {

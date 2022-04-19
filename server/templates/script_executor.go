@@ -2,7 +2,6 @@ package templates
 
 import (
 	"encoding/json"
-
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/script"
@@ -52,6 +51,7 @@ type DestinationPlugin struct {
 	Type    string
 	Config  map[string]interface{}
 
+	buildInfo    buildInfo
 	validateFunc string
 	execFunc     string
 	execArgs     script.Args
@@ -82,7 +82,7 @@ func (p *DestinationPlugin) init(s script.Interface) error {
 		if err := symbol.As(&value); err != nil {
 			return errors.Wrap(err, "parse plugin buildInfo")
 		}
-
+		p.buildInfo = value
 		if value.SdkVersion != "" {
 			if symbol, ok := symbols["destination"]; ok && symbol.Type == "function" {
 				p.execFunc = "destination"
@@ -154,6 +154,167 @@ func (p *DestinationPlugin) transform(s script.Interface, event events.Event) (i
 	}
 
 	return result, nil
+}
+
+type SourcePlugin struct {
+	Package string
+	ID      string
+	Type    string
+	Config  map[string]interface{}
+
+	buildInfo    buildInfo
+	validateFunc string
+	specObject   map[string]interface{}
+	catalogFunc  string
+	execFunc     string
+}
+
+func (s *SourcePlugin) String() string {
+	return s.Package
+}
+
+func (s *SourcePlugin) executable() script.Executable {
+	return script.Package(s.Package)
+}
+
+func (s *SourcePlugin) init(scr script.Interface) error {
+	symbols, err := scr.Describe()
+	if err != nil {
+		return errors.Wrap(err, "get plugin symbols")
+	}
+
+	if symbol, ok := symbols["descriptor"]; ok && symbol.Type == "object" {
+		descMap := map[string]interface{}{}
+		if err := symbol.As(&descMap); err != nil {
+			return errors.Wrap(err, "parse plugin descriptor")
+		}
+
+		s.specObject = descMap
+	} else {
+		return errors.New("no 'descriptor' object found in plugin")
+	}
+
+	if symbol, ok := symbols["buildInfo"]; ok && symbol.Type == "object" {
+		var value buildInfo
+		if err := symbol.As(&value); err != nil {
+			return errors.Wrap(err, "parse plugin buildInfo")
+		}
+		s.buildInfo = value
+	}
+
+	if symbol, ok := symbols["streamReader$StdoutFacade"]; ok && symbol.Type == "function" {
+		s.execFunc = "streamReader$StdoutFacade"
+	} else {
+		return errors.New("required 'streamer' function is missing in plugin")
+	}
+
+	if symbol, ok := symbols["sourceCatalog"]; ok && symbol.Type == "function" {
+		s.catalogFunc = "sourceCatalog"
+	} else {
+		return errors.New("required 'catalogue' function is missing in plugin")
+	}
+
+	if symbol, ok := symbols["validator"]; ok && symbol.Type == "function" {
+		s.validateFunc = "validator"
+	}
+
+	return nil
+}
+
+func (s *SourcePlugin) validate(scr script.Interface) error {
+	if s.validateFunc == "" {
+		return nil
+	}
+
+	var result json.RawMessage
+	if err := scr.Execute(s.validateFunc, script.Args{s.Config}, &result); err != nil {
+		return err
+	}
+
+	var (
+		ok     bool
+		errMsg string
+		desc   struct {
+			Ok      bool   `json:"ok"`
+			Message string `json:"message"`
+		}
+	)
+
+	if err := json.Unmarshal(result, &ok); err == nil {
+		if !ok {
+			return errors.New("validation failed")
+		}
+	} else if err := json.Unmarshal(result, &errMsg); err == nil {
+		return errors.New(errMsg)
+	} else if err := json.Unmarshal(result, &desc); err == nil {
+		if !desc.Ok {
+			return errors.New(desc.Message)
+		}
+	} else {
+		return errors.Errorf("failed to decode validation result '%s'", string(result))
+	}
+
+	return nil
+}
+
+func (s *SourcePlugin) spec(scr script.Interface) map[string]interface{} {
+	return s.specObject
+}
+
+func (s *SourcePlugin) catalog(scr script.Interface) (interface{}, error) {
+	var result interface{}
+	if err := scr.Execute(s.catalogFunc, script.Args{s.Config}, &result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (s *SourcePlugin) stream(scr script.Interface, streamName string, configuration interface{}, state interface{}, dataChannel chan<- []byte) (interface{}, error) {
+	var result interface{}
+	if err := scr.ExecuteWithDataChannel(s.execFunc, script.Args{s.Config, streamName, configuration, state}, &result, dataChannel); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+type SourceExecutor struct {
+	script.Interface
+	*SourcePlugin
+}
+
+func NewSourceExecutor(sourcePlugin *SourcePlugin) (*SourceExecutor, error) {
+	instance, err := node.Factory().CreateScript(sourcePlugin.executable(), nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "spawn node process")
+	}
+
+	if err := sourcePlugin.init(instance); err != nil {
+		instance.Close()
+		return nil, errors.Wrap(err, "init node script instance")
+	}
+
+	return &SourceExecutor{
+		Interface:    instance,
+		SourcePlugin: sourcePlugin,
+	}, nil
+}
+
+func (e *SourceExecutor) Validate() error {
+	return e.validate(e)
+}
+
+func (e *SourceExecutor) Spec() map[string]interface{} {
+	return e.spec(e)
+}
+
+func (e *SourceExecutor) Catalog() (interface{}, error) {
+	return e.catalog(e)
+}
+
+func (e *SourceExecutor) Stream(streamName string, configuration interface{}, state interface{}, dataChannel chan<- []byte) (interface{}, error) {
+	return e.stream(e, streamName, configuration, state, dataChannel)
 }
 
 type NodeExecutor struct {

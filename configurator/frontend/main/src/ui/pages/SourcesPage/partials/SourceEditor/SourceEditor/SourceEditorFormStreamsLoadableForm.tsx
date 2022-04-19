@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react"
 import { Collapse, Empty, Input, Select, Switch } from "antd"
 import { cloneDeep } from "lodash"
 // @Components
@@ -15,6 +15,7 @@ import { addToArrayIfNotDuplicate, removeFromArrayIfFound, substituteArrayValueI
 import styles from "./SourceEditorFormStreamsLoadableForm.module.less"
 import { sourceEditorUtils } from "./SourceEditor.utils"
 import { getStreamFieldPaths } from "ui/pages/SourcesPage/utils/airbyte"
+import set from "lodash/set"
 
 type Props = {
   allStreams: StreamData[]
@@ -194,6 +195,7 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
   children,
   ...rest
 }) => {
+  console.log("Stream Uid: " + streamUid)
   const [checked, setChecked] = useState<boolean>(
     forceChecked ||
       initiallySelectedStreams.some(selected => sourceEditorUtils.getSelectedStreamUid(selected) === streamUid)
@@ -228,7 +230,26 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
           />
         ),
       }
-    } else if (sourceEditorUtils.isSingerStream(streamData)) {
+    }
+    else if (sourceEditorUtils.isSDKSourceStream(streamData)) {
+      const handleChangeStreamConfig = (stream: SDKSourceStreamData): void => {
+        setStreamData(stream)
+        updateStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, { ...stream })
+      }
+      return {
+        header: (
+          <SDKSourceStreamHeader streamName={streamData.stream.streamName} />
+        ),
+          content: (
+        <SDKSourceStreamParameters
+          streamData={streamData}
+          checked={checked}
+          handleChangeStreamConfig={handleChangeStreamConfig}
+        />
+      ),
+      }
+    }
+    else if (sourceEditorUtils.isSingerStream(streamData)) {
       return {
         header: <SingerStreamHeader streamUid={streamData.tap_stream_id} streamName={streamData.stream} />,
         content: <SingerStreamParameters streamData={streamData} />,
@@ -382,6 +403,103 @@ const AirbyteStreamParameters: React.FC<AirbyteStreamParametersProps> = ({
   )
 }
 
+type SDKSourceStreamHeaderProps = {
+  streamName: string
+}
+
+const SDKSourceStreamHeader: React.FC<SDKSourceStreamHeaderProps> = ({ streamName}) => {
+  return (
+    <div className="flex w-full pr-12 flex-wrap xl:flex-nowrap">
+      <div className={"whitespace-nowrap min-w-0 max-w-lg overflow-hidden overflow-ellipsis pr-2"}>
+        <b title={streamName}>{streamName}</b>
+      </div>
+    </div>
+  )
+}
+
+type SDKSourceStreamParametersProps = {
+  streamData: SDKSourceStreamData
+  checked?: boolean
+  handleChangeStreamConfig: (stream: SDKSourceStreamData) => void
+}
+
+const SDKSourceStreamParameters: React.FC<SDKSourceStreamParametersProps> = ({
+                                                                           streamData,
+                                                                           checked,
+                                                                           handleChangeStreamConfig,
+                                                                         }) => {
+  const initialSyncMode = streamData.mode ?? streamData.stream.supported_modes?.[0]
+  const initialParams = streamData.stream.params.reduce((accumulator: any, current: SdkSourceStreamConfigurationParameter) => {
+    if (current.defaultValue) {
+      set(accumulator, current.id, current.defaultValue)
+    }
+    return accumulator
+  }, {})
+  const needToDisplayData: boolean = !!initialSyncMode || streamData.stream.params.length > 0
+  const [config, setConfig] = useState<Pick<SDKSourceStreamData, "mode" | "params">>({
+    mode: initialSyncMode,
+    params: {...initialParams, ...streamData.params}
+  })
+
+  const handleChangeSyncMode = (value: string): void => {
+    setConfig(config => {
+      let newConfig = config
+      if (value === "full_sync") newConfig = { ...config, mode: value }
+      if (value === "incremental")
+        newConfig = {
+          ...config,
+          mode: value
+        }
+      handleChangeStreamConfig({ ...streamData, ...newConfig })
+      return newConfig
+    })
+  }
+
+  const handleChangeField = (id:string) =>  ( e:ChangeEvent<HTMLInputElement>): void => {
+    setConfig(config => {
+      const newConfig = { ...config, params:{...config.params, [id]: e.target.value} }
+      handleChangeStreamConfig({ ...streamData, ...newConfig })
+      return newConfig
+    })
+  }
+
+  return (
+    needToDisplayData && (
+      <div className="flex flex-col w-full h-full flex-wrap">
+        {/* Sync mode */}
+        {streamData.stream.supported_modes?.length ? (
+          <StreamParameter title="Sync mode">
+            <Select
+              size="small"
+              value={config.mode}
+              disabled={!checked}
+              style={{ minWidth: 150 }}
+              onChange={handleChangeSyncMode}
+            >
+              {streamData.stream.supported_modes.map(mode => (
+                <Select.Option key={mode} value={mode}>
+                  {mode}
+                </Select.Option>
+              ))}
+            </Select>
+          </StreamParameter>
+        ) : initialSyncMode ? (
+          <StreamParameter title="Sync mode">{initialSyncMode}</StreamParameter>
+        ) : null}
+
+        <>
+          {streamData.stream.params.map( param => {
+            return <StreamParameter title={param.displayName} key={param.id}>
+              <Input value={streamData.params?.[param.id]} onChange={handleChangeField(param.id)}></Input>
+            </StreamParameter>
+            })
+          }
+        </>
+      </div>
+    )
+  )
+}
+
 type SingerStreamHeaderProps = {
   streamUid: string
   streamName: string
@@ -485,10 +603,13 @@ export const updateStream = (
   setSourceEditorState(state => {
     const newState = cloneDeep(state)
     const oldStreams = newState.streams.selectedStreams[sourceDataPath]
+    console.log("Stream: " + JSON.stringify(stream))
+
     const streamConfig = sourceEditorUtils.mapStreamDataToSelectedStreams(stream)
 
     let newStreams = oldStreams
     if (isArray(oldStreams)) {
+      console.log("Stream Config: " + JSON.stringify(streamConfig))
       newStreams = substituteArrayValueIfFound(oldStreams, streamConfig, sourceEditorUtils.streamsAreEqual)
     }
 

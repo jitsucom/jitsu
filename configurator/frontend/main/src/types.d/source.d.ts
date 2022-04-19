@@ -17,8 +17,27 @@ declare interface CollectionSource {
   schedule: string
 }
 
-declare type StreamData = AirbyteStreamData | SingerStreamData
+type SdkSourceStreamConfigurationParameter = {
+  id: string;
+  type?: ConfigParameterType;
+  displayName: string;
+  required?: boolean;
+  defaultValue?: any;
+  documentation?: string;
+}
 
+declare type StreamData = AirbyteStreamData | SingerStreamData | SDKSourceStreamData
+
+declare type SDKSourceStreamData = {
+  name: string
+  mode: "full_sync" | "incremental",
+  stream: {
+    streamName: string
+    supported_modes?: ["full_sync"] | ["full_sync", "incremental"] | ["incremental"]
+    params: SdkSourceStreamConfigurationParameter[]
+  }
+  params: Record<string, any>
+}
 /**
  * Configured Airbyte stream data format used internally in the UI.
  *
@@ -75,13 +94,21 @@ declare type SingerStreamData = {
 /**
  * Format for storing configured streams data on backend.
  */
-declare type StreamConfig = SingerStreamConfig | AirbyteStreamConfig
+declare type StreamConfig = SingerStreamConfig | AirbyteStreamConfig | SDKSourceStreamConfig
 
 /** General form of the Stream applicable to both Airbyte and Singer */
 declare type SingerStreamConfig = {
   name?: string
   namespace?: string
   [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
+}
+
+/** General form of the Stream applicable to both Airbyte and Singer */
+declare type SDKSourceStreamConfig = {
+  name?: string
+  namespace?: string
+  sync_mode: "full_sync" | "incremental"
+  params: Record<string, any>
 }
 
 /** Configured Airbyte stream to send to backend */
@@ -118,7 +145,7 @@ declare type AirbyteStreamConfig = {
   cursor_field?: string[]
 }
 
-declare type SourceData = NativeSourceData | AirbyteSourceData | SingerSourceData
+declare type SourceData = NativeSourceData | AirbyteSourceData | SingerSourceData | SDKSourceData
 
 declare type CommonSourceData = {
   /** Source unique identifier */
@@ -144,6 +171,7 @@ declare type CommonSourceData = {
 }
 declare interface NativeSourceData extends CommonSourceData {
   /** List of data streams.  */
+  protoType: "native"
   collections: CollectionSource[]
   config: {
     [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
@@ -155,6 +183,7 @@ declare interface AirbyteSourceData extends CommonSourceData {
    * @deprecated as of October 2021.
    * The new path for streams is config.catalog.streams
    */
+  protoType: "airbyte"
   catalog?: {
     streams: Array<AirbyteStreamData>
   }
@@ -174,7 +203,19 @@ declare interface AirbyteSourceData extends CommonSourceData {
   }
 }
 
+declare interface SDKSourceData extends CommonSourceData {
+  protoType: "sdk_source"
+  config: {
+    config: PlainObjectWithPrimitiveValues
+    selected_streams?: Array<SDKSourceStreamConfig>
+    package_name?: string
+    package_version?: string
+    [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
+  }
+}
+
 declare interface SingerSourceData extends CommonSourceData {
+  protoType: "singer"
   config: {
     config: PlainObjectWithPrimitiveValues
     /**

@@ -72,6 +72,10 @@ type Interface interface {
 	// Execute executes a function with the provided `name` and `args` and collects the execution result into `result`.
 	Execute(name string, args Args, result interface{}) error
 
+	// ExecuteStream executes a function with the provided `name` and `args` and collects the execution result into `result`.
+	// Execution result maybe multiline stream that will be written into provided writer
+	ExecuteWithDataChannel(name string, args Args, result interface{}, dataChannel chan<- []byte) error
+
 	// Close disposes of the instance and releases associated resources.
 	Close()
 }

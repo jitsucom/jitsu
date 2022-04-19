@@ -26,6 +26,7 @@ const (
 
 	SingerType          = "singer"
 	AirbyteType         = "airbyte"
+	SdkSourceType       = "sdk_source"
 	NativeConnectorType = "native"
 
 	GoogleOAuthAuthorizationType = "OAuth"

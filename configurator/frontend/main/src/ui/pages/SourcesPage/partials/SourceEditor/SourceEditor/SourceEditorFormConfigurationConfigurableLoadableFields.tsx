@@ -18,10 +18,12 @@ import { toTitleCase } from "utils/strings"
 import { uniqueId } from "lodash"
 import { withQueryParams } from "utils/queryParams"
 import { mapAirbyteSpecToSourceConnectorConfig } from "@jitsu/catalog/sources/lib/airbyte.helper"
+import { mapSdkSourceSpecToSourceConnectorConfig } from "@jitsu/catalog/sources/lib/sdk_source.helper"
+
 
 type Props = {
   editorMode: "add" | "edit"
-  initialValues: Partial<AirbyteSourceData>
+  initialValues: Partial<AirbyteSourceData | SDKSourceData>
   sourceDataFromCatalog: SourceConnector
   hideFields?: string[]
   patchConfig: PatchConfig
@@ -53,51 +55,91 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   }) => {
     const [form] = Form.useForm()
     const [availableAirbyteImageVersions, setAvailableAirbyteImageVersions] = useState<string[]>([])
-    const airbyteImageVersion = useRef<string>(initialValues?.config?.image_version ?? "")
+    const airbyteImageVersion = useRef<string>(sourceDataFromCatalog.protoType === "airbyte" ? ((initialValues as Partial<AirbyteSourceData>).config?.image_version ?? "") : "")
+
+    let polledData
+    switch (sourceDataFromCatalog.protoType) {
+      case "airbyte":
+        polledData = usePolling<Parameter[]>(
+          {
+            configure: () => {
+              const controlsDisableRequestId = uniqueId("configurableLoadableFields-")
+              const imageVersion: string = airbyteImageVersion.current
+              let availableImageVersions: string[] = []
+              return {
+                onBeforePollingStart: async () => {
+                  handleSetControlsDisabled(true, controlsDisableRequestId)
+                  editorMode === "edit" && handleSetTabsDisabled(["streams"], "disable")
+                  availableImageVersions = (await pullAvailableAirbyteImageVersions(sourceDataFromCatalog.id)) || []
+                  setAvailableAirbyteImageVersions(availableImageVersions)
+                },
+                pollingCallback: (end, fail) => async () => {
+                  try {
+                    const response = await pullAirbyteSpec(
+                      sourceDataFromCatalog.id,
+                      imageVersion || availableImageVersions[0]
+                    )
+                    if (response?.message) throw new Error(response?.message)
+                    if (response?.status && response?.status !== "pending") {
+                      const result = transformAirbyteSpecResponse(response)
+                      end(result)
+                    }
+                  } catch (error) {
+                    fail(error)
+                  }
+                },
+                onAfterPollingEnd: () => {
+                  handleSetControlsDisabled(false, controlsDisableRequestId)
+                  editorMode === "edit" && handleSetTabsDisabled(["streams"], "enable")
+                },
+              }
+            },
+          },
+          { interval_ms: 2000 }
+        )
+        break;
+      case "sdk_source":
+        polledData = usePolling<Parameter[]>(
+          {
+            configure: () => {
+              const controlsDisableRequestId = uniqueId("configurableLoadableFields-")
+
+              return {
+                onBeforePollingStart: async () => {
+                  handleSetControlsDisabled(true, controlsDisableRequestId)
+                  editorMode === "edit" && handleSetTabsDisabled(["streams"], "disable")
+                },
+                pollingCallback: (end, fail) => async () => {
+                  try {
+                    const response = await pullSdkSourceSpec(sourceDataFromCatalog.specEndpoint)
+                    if (response?.message) throw new Error(response?.message)
+                    if (response?.status && response?.status !== "pending") {
+                      const result = transformSdkSourceSpecResponse(response)
+                      end(result)
+                    }
+                  } catch (error) {
+                    fail(error)
+                  }
+                },
+                onAfterPollingEnd: () => {
+                  handleSetControlsDisabled(false, controlsDisableRequestId)
+                  editorMode === "edit" && handleSetTabsDisabled(["streams"], "enable")
+                },
+              }
+            },
+          },
+          { interval_ms: 2000 }
+        )
+    }
 
     const {
       isLoading: isLoadingParameters,
-      data: fieldsParameters,
+      data: fp,
       error: loadingParametersError,
       reload: reloadParameters,
-    } = usePolling<Parameter[]>(
-      {
-        configure: () => {
-          const controlsDisableRequestId = uniqueId("configurableLoadableFields-")
-          const imageVersion: string = airbyteImageVersion.current
-          let availableImageVersions: string[] = []
-          return {
-            onBeforePollingStart: async () => {
-              handleSetControlsDisabled(true, controlsDisableRequestId)
-              editorMode === "edit" && handleSetTabsDisabled(["streams"], "disable")
-              availableImageVersions = (await pullAvailableAirbyteImageVersions(sourceDataFromCatalog.id)) || []
-              setAvailableAirbyteImageVersions(availableImageVersions)
-            },
-            pollingCallback: (end, fail) => async () => {
-              try {
-                const response = await pullAirbyteSpec(
-                  sourceDataFromCatalog.id,
-                  imageVersion || availableImageVersions[0]
-                )
-                if (response?.message) throw new Error(response?.message)
-                if (response?.status && response?.status !== "pending") {
-                  const result = transformAirbyteSpecResponse(response)
-                  end(result)
-                }
-              } catch (error) {
-                fail(error)
-              }
-            },
-            onAfterPollingEnd: () => {
-              handleSetControlsDisabled(false, controlsDisableRequestId)
-              editorMode === "edit" && handleSetTabsDisabled(["streams"], "enable")
-            },
-          }
-        },
-      },
-      { interval_ms: 2000 }
-    )
+    } = polledData;
 
+    const fieldsParameters = fp as Parameter[]
     const hideFields = useMemo<string[]>(() => {
       if (!fieldsParameters) return _hideFields
       const oauthFieldsParametersNames = fieldsParameters.reduce<string[]>((result, current) => {
@@ -183,11 +225,13 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
       </Row>
     ) : (
       <Form form={form} onValuesChange={handleFormValuesChangeForm}>
-        <AirbyteVersionSelection
-          key={`Stream Version Selection`}
-          defaultValue={airbyteImageVersion.current}
-          options={availableAirbyteImageVersions}
-        />
+        {sourceDataFromCatalog.protoType === "airbyte" ??
+          <AirbyteVersionSelection
+            key={`Stream Version Selection`}
+            defaultValue={airbyteImageVersion.current}
+            options={availableAirbyteImageVersions}
+          />
+        }
         <ConfigurableFieldsForm
           fieldsParamsList={fieldsParameters || []}
           form={form}
@@ -221,6 +265,14 @@ const pullAirbyteSpec = async (sourceId: string, imageVersion?: string): Promise
   return await services.backendApiClient.get(requestUrl, { proxy: true })
 }
 
+const pullSdkSourceSpec = async (endpoint: string): Promise<any> => {
+  const services = ApplicationServices.get()
+  const queryParams = { project_id: services.activeProject.id }
+  const requestUrl = withQueryParams(endpoint, queryParams)
+
+  return await services.backendApiClient.get(requestUrl, { proxy: true })
+}
+
 const transformAirbyteSpecResponse = (response: any) => {
   return mapAirbyteSpecToSourceConnectorConfig(
     response?.["spec"]?.["spec"]?.["connectionSpecification"]
@@ -228,6 +280,12 @@ const transformAirbyteSpecResponse = (response: any) => {
     ...parameter,
     displayName: toTitleCase(parameter.displayName, { separator: "_" }),
   }))
+}
+
+const transformSdkSourceSpecResponse = (response: any) => {
+  return mapSdkSourceSpecToSourceConnectorConfig(
+    response?.["spec"]
+  )
 }
 
 type AirbyteVersionSelectionProps = {
