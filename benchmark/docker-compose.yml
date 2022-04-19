@@ -18,7 +18,7 @@ services:
       - main
   jitsu:
     container_name: jitsu_benchmark
-    image: jitsucom/jitsu
+    image: jitsucom/server:${JITSU_VERSION:-latest}
     environment:
       - REDIS_URL=redis://redis:6379
       - CLUSTER_ADMIN_TOKEN=admin_token
@@ -27,12 +27,11 @@ services:
       - redis
       - pg_destination
     volumes:
-      - ./compose-data/configurator/data/logs:/home/configurator/data/logs
       - ./compose-data/server/data/logs:/home/eventnative/data/logs
       - ./compose-data/server/data/logs/events:/home/eventnative/data/logs/events
-      - ./compose-data/server/data/config/eventnative.yaml:/home/eventnative/data/config/eventnative.yaml
+      - ${CONFIG_FILE:-./compose-data/server/data/config/eventnative.yaml}:/home/eventnative/data/config/eventnative.yaml
     ports:
-      - "8000:8000"
+      - "8001:8001"
     networks:
       - main
   redis:

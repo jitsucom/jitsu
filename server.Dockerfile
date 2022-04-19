@@ -13,6 +13,10 @@ RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/d
 RUN apt-get update
 RUN apt-get install -y docker-ce docker-ce-cli containerd.io
 
+# Install node
+RUN curl -o- -sL https://deb.nodesource.com/setup_16.x | bash
+RUN apt-get install nodejs
+
 ARG TARGETARCH
 ARG dhid
 ARG SDK_VERSION=latest

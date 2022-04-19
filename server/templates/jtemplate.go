@@ -3,12 +3,13 @@ package templates
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-multierror"
 	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/hashicorp/go-multierror"
 )
 
 const TransformDefaultTemplate = "return $"
@@ -34,7 +35,7 @@ func SmartParse(name string, expression string, extraFunctions template.FuncMap)
 			return newConstTemplateExecutor(expression)
 		}
 		//Try parse template as JavaScript
-		jsTmpl, err := NewV8TemplateExecutor(expression, extraFunctions)
+		jsTmpl, err := NewScriptExecutor(Expression(expression), extraFunctions)
 		if err != nil {
 			if multiErr != nil {
 				err = multierror.Append(multiErr, fmt.Errorf("error while parsing as Javascript: %v", err))
