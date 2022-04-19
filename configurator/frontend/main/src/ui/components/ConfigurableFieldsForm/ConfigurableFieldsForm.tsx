@@ -398,7 +398,7 @@ const ConfigurableFieldsFormComponent = ({
      * @reason
      * `formValues` holds correct values for dynamically rendered fields
      * @warning
-     * `form.getFieldsValue()` is not recommended because it needs form 
+     * `form.getFieldsValue()` is not recommended because it needs form
      * to re-render once to pick up values of dynamically rendered fields
      */
     setInitialFormValues?.(formValues)
