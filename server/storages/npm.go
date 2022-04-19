@@ -33,7 +33,7 @@ func NewNpmDestination(config *Config) (storage Storage, err error) {
 		return nil, fmt.Errorf("NpmDestination destination doesn't support %s mode", BatchMode)
 	}
 
-	jsTemplate, err := templates.NewNodeExecutor(&templates.DestinationPlugin{
+	jsTemplate, err := templates.NewScriptExecutor(&templates.DestinationPlugin{
 		Package: config.destination.Package,
 		ID:      config.destinationID,
 		Type:    NpmType,

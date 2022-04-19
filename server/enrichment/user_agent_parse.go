@@ -1,39 +1,47 @@
 package enrichment
 
 import (
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/useragent"
-	"sync"
+	"github.com/pkg/errors"
 )
 
 const UserAgentParse = "user_agent_parse"
+
+type ConditionFunc func(map[string]interface{}) bool
 
 //UserAgentParseRule is a user-agent parse rule with cache
 type UserAgentParseRule struct {
 	source                  jsonutils.JSONPath
 	destination             jsonutils.JSONPath
 	uaResolver              useragent.Resolver
-	enrichmentConditionFunc func(map[string]interface{}) bool
-
-	mutex *sync.RWMutex
-	cache map[string]map[string]interface{}
+	enrichmentConditionFunc ConditionFunc
+	cache                   *lru.TwoQueueCache
 }
 
 func NewUserAgentParseRule(source, destination jsonutils.JSONPath) (*UserAgentParseRule, error) {
+	//always do enrichment
+	conditionFunc := func(m map[string]interface{}) bool { return true }
+	return newUserAgentParseRule(source, destination, conditionFunc)
+}
+
+func newUserAgentParseRule(source, destination jsonutils.JSONPath, conditionFunc ConditionFunc) (*UserAgentParseRule, error) {
+	cache, err := lru.New2Q(100_000)
+	if err != nil {
+		return nil, errors.Wrap(err, "create user-agent cache error")
+	}
+
 	return &UserAgentParseRule{
-		source:      source,
-		destination: destination,
-		uaResolver:  appconfig.Instance.UaResolver,
-		//always do enrichment
-		enrichmentConditionFunc: func(m map[string]interface{}) bool {
-			return true
-		},
-		mutex: &sync.RWMutex{},
-		cache: map[string]map[string]interface{}{},
+		source:                  source,
+		destination:             destination,
+		uaResolver:              appconfig.Instance.UaResolver,
+		enrichmentConditionFunc: conditionFunc,
+		cache:                   cache,
 	}, nil
 }
 
@@ -53,9 +61,7 @@ func (uap *UserAgentParseRule) Execute(event map[string]interface{}) {
 		return
 	}
 
-	uap.mutex.RLock()
-	parsedUAMap, ok := uap.cache[ua]
-	uap.mutex.RUnlock()
+	parsedUAMap, ok := uap.cache.Get(ua)
 	if !ok {
 		parsedUa := uap.uaResolver.Resolve(ua)
 
@@ -66,17 +72,11 @@ func (uap *UserAgentParseRule) Execute(event map[string]interface{}) {
 			logging.SystemErrorf("Error converting ua parse node: %v", err)
 			return
 		}
-		uap.mutex.Lock()
-		if len(uap.cache) > 100_000 {
-			logging.Infof("Cleaning up user-agent's cache.")
-			uap.cache = map[string]map[string]interface{}{}
-		}
-		uap.cache[ua] = parsedUAMap
-		uap.mutex.Unlock()
+		uap.cache.Add(ua, parsedUAMap)
 	}
 
 	//don't overwrite existent
-	err := uap.destination.SetIfNotExist(event, maputils.CopyMap(parsedUAMap))
+	err := uap.destination.SetIfNotExist(event, maputils.CopyMap(parsedUAMap.(map[string]interface{})))
 	if err != nil {
 		logging.SystemErrorf("Resolved useragent data wasn't set: %v", err)
 	}
