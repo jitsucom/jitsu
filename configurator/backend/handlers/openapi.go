@@ -456,6 +456,10 @@ func (oa *OpenAPI) GetSystemConfiguration(ctx *gin.Context) {
 			result.SSOAuthLink = oa.SSOProvider.AuthLink()
 		}
 
+		if data, err := oa.Configurations.GetSystemSetting("plugin_script"); err == nil {
+			result.PluginScript = string(data)
+		}
+
 		ctx.JSON(http.StatusOK, result)
 	}
 }

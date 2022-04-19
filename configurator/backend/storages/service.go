@@ -35,6 +35,8 @@ const (
 	telemetryCollection = "telemetry"
 	TelemetryGlobalID   = "global_configuration"
 
+	systemCollection = "system"
+
 	airbyteType      = "airbyte"
 	singerType       = "singer"
 	airbyteTypeField = "docker_image"
@@ -898,6 +900,10 @@ func (cs *ConfigurationsService) GetProjectUsers(projectID string) ([]string, er
 	}
 
 	return userIDs.Values(), nil
+}
+
+func (cs *ConfigurationsService) GetSystemSetting(settingID string) ([]byte, error) {
+	return cs.get(systemCollection, settingID)
 }
 
 func (cs *ConfigurationsService) Create(value CollectionItem, patch interface{}) error {
