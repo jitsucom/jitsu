@@ -444,7 +444,7 @@ func main() {
 		}
 
 		//Create task executor
-		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, taskExecutorContext)
+		taskExecutor, err := synchronization.NewTaskExecutor(poolSize, taskExecutorContext, appconfig.Instance.SourcesLogsWriter)
 		if err != nil {
 			logging.Fatal("Error creating sources sync task executor:", err)
 		}
