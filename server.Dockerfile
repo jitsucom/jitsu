@@ -19,6 +19,7 @@ RUN apt-get install nodejs
 
 ARG TARGETARCH
 ARG dhid
+ARG SDK_VERSION=latest
 ENV DOCKER_HUB_ID=$dhid
 ENV TZ=UTC
 ENV EVENTNATIVE_USER=eventnative
@@ -44,11 +45,9 @@ RUN ln -s /home/$EVENTNATIVE_USER/data/config /home/$EVENTNATIVE_USER/app/res &&
     ln -s /home/$EVENTNATIVE_USER/data/logs /home/$EVENTNATIVE_USER/logs && \
     chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER/logs
 
-#######################################
-# BUILD JS STAGE
-FROM jitsucom/server-builder as jsbuilder
-
-RUN mkdir /app
+# Download SDK npm package
+RUN mkdir -p /home/$EVENTNATIVE_USER/app/web && \
+    curl -o /home/$EVENTNATIVE_USER/app/web/lib.js https://unpkg.com/@jitsu/sdk-js@$SDK_VERSION/dist/web/lib.js
 
 # Copy js
 ADD server/web /go/src/github.com/jitsucom/jitsu/server/web
@@ -56,28 +55,7 @@ ADD server/Makefile /go/src/github.com/jitsucom/jitsu/server/Makefile
 
 WORKDIR /go/src/github.com/jitsucom/jitsu/server
 # Build js (for caching) and copy builded files
-RUN make assemble_js &&\
-    cp -r ./build/dist/* /app
-
-#######################################
-# BUILD JS SDK STAGE
-FROM jitsucom/server-builder as jsSdkbuilder
-
-RUN mkdir /app
-
-WORKDIR /javascript-sdk
-
-# Install npm dependencies
-ADD javascript-sdk/package.json javascript-sdk/yarn.lock ./
-RUN yarn install --prefer-offline --frozen-lockfile --network-timeout 1000000
-
-# Copy project
-ADD javascript-sdk/. .
-
-# Build
-RUN yarn build && \
-    test -e ./dist/web/lib.js && \
-    cp ./dist/web/lib.js /app/
+RUN make assemble_js && cp -r ./build/dist/* /home/$EVENTNATIVE_USER/app/
 
 #######################################
 # BUILD BACKEND STAGE
@@ -109,8 +87,6 @@ WORKDIR /home/$EVENTNATIVE_USER/app
 
 # copy static files from build-image
 COPY --from=builder /app .
-COPY --from=jsbuilder /app .
-COPY --from=jsSdkbuilder /app/lib.js ./web/lib.js
 
 COPY docker/eventnative.yaml /home/$EVENTNATIVE_USER/data/config/
 

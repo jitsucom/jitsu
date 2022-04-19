@@ -1,5 +1,5 @@
 import { ApiAccess, userFromDTO, userToDTO } from "./model"
-import { cleanAuthorizationLocalStorage, concatenateURLs } from "lib/commons/utils"
+import { cleanAuthorizationLocalStorage, concatenateURLs, reloadPage } from "lib/commons/utils"
 import { getFullUiPath } from "lib/commons/pathHelper"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
@@ -180,9 +180,9 @@ export class BackendUserService implements UserService {
 
   //isn't supported (without google authorization)
   async becomeUser(email: string): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      reject(new Error("becomeUser isn't supported in BackendUserService"))
-    })
+    let response = await this.backendApi.get(`/become`, { urlParams: { user_id: email } })
+    this.setTokens(response["access_token"], response["refresh_token"])
+    reloadPage()
   }
 
   getLoginFeatures(): LoginFeatures {

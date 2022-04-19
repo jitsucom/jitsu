@@ -23,6 +23,7 @@ import { EntitiesStoreStatus } from "stores/entitiesStore"
 import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 import { TaskLogsPage } from "../TaskLogs/TaskLogsPage"
 import { TaskLogViewer } from "../TaskLogs/TaskLogViewer"
+import { PageNotFound } from "ui/components/PageNotFound/PageNotFound"
 
 export interface CollectionSourceData {
   sources: SourceData[]
@@ -66,22 +67,32 @@ const SourcesPageComponent: React.FC<CommonSourcePageProps> = () => {
         <Route path={sourcesPageRoutes.task} strict={false} exact>
           <TaskLogViewer />
         </Route>
-        <BillingCheckRedirect
-          quotaExceededRedirectTo={projectRoute(sourcesPageRoutes.root)}
-          quotaExceedeMessage={
-            <>You current plan allows to have only {services.currentSubscription.currentPlan.quota.sources} sources</>
-          }
-          isQuotaExceeded={isSourcesLimitReached}
-        >
-          <Switch>
-            <Route path={sourcesPageRoutes.addExact} strict={false} exact>
-              <SourceEditor editorMode="add" />
-            </Route>
-            <Route path={sourcesPageRoutes.add} strict={false} exact>
-              <AddSourceDialog />
-            </Route>
-          </Switch>
-        </BillingCheckRedirect>
+
+        <Route path={sourcesPageRoutes.addExact} strict={false} exact>
+          <BillingCheckRedirect
+            quotaExceededRedirectTo={projectRoute(sourcesPageRoutes.root)}
+            quotaExceedeMessage={
+              <>You current plan allows to have only {services.currentSubscription.currentPlan.quota.sources} sources</>
+            }
+            isQuotaExceeded={isSourcesLimitReached}
+          >
+            <SourceEditor editorMode="add" />
+          </BillingCheckRedirect>
+        </Route>
+        <Route path={sourcesPageRoutes.add} strict={false} exact>
+          <BillingCheckRedirect
+            quotaExceededRedirectTo={projectRoute(sourcesPageRoutes.root)}
+            quotaExceedeMessage={
+              <>You current plan allows to have only {services.currentSubscription.currentPlan.quota.sources} sources</>
+            }
+            isQuotaExceeded={isSourcesLimitReached}
+          >
+            <AddSourceDialog />
+          </BillingCheckRedirect>
+        </Route>
+        <Route>
+          <PageNotFound homeUrl="/" />
+        </Route>
       </Switch>
     </ErrorBoundary>
   )
