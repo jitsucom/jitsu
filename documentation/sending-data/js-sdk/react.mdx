@@ -13,10 +13,9 @@ To use Jitsu SDK, install npm package
 npm install @jitsu/react
 ```
 
-Import and configure Jitsu SDK Provider.
+Import and configure Jitsu SDK Provider
 
-```javascript
-//...
+```jsx
 import { createClient, JitsuProvider } from "@jitsu/react";
 
 const jitsuClient = createClient({
@@ -35,10 +34,11 @@ ReactDOM.render(
 );
 ```
 
+See [parameters list] for `createClient()` call.
+
 ## Usage
 
-### base:
-```javascript
+```tsx
 import { useJitsu } from "@jitsu/react";
 
 const App = () => {
@@ -59,8 +59,12 @@ const App = () => {
 }
 ```
 
-### `usePageView` with react-router:
-```javascript
+To enable automatic pageview tracking, add `usePageView()` hook. This hook will send pageview each time
+user loads a new page (including internal SPA pages). This hook relies on [React Router](https://reactrouter.com/) and
+requires `react-router` (>=5.x) package to be present
+
+
+```typescript jsx
 const App = () => {
   usePageView() //this hook will send pageview track event on router change
 
@@ -73,20 +77,17 @@ const App = () => {
 }
 ```
 
-## Hooks
+If you need to pre-configure jitsu event - for example, identify a user, it's possible to do via `before` callback:
 
-### useJitsu
-
-Returns object with `id`, `trackEvent`, `trackPageView`, `rawTrack` and `interceptAnalytics` methods of Jitsu SDK.
-
-### usePageView
-
-Can be used only with react-router. Sends `pageview` event on every route change.
+```typescript
+usePageView({before: (jitsu) => jitsu.id({id: '__USER_ID__', email: '__USER_EMAIL__'})})
+```
 
 ## Jitsu SDK parameters and methods
 
 Read about all SDK parameters and methods in our [documentation](/docs/sending-data/js-sdk):
-* [parameters](/docs/sending-data/js-sdk/parameters-reference)
-* [methods](/docs/sending-data/js-sdk/methods-reference)
+
+* [Parameters](/docs/sending-data/js-sdk/parameters-reference) - paremeters reference for `createClient()` call
+* [Methods](/docs/sending-data/js-sdk/methods-reference) - all these methods can be called on a return value of `useJitsu()` and `usePageView()`
 
 All SDK methods are provided in `useJitsu` hook.

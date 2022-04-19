@@ -1,3 +1,6 @@
+---
+title: Nuxt.js Guide
+---
 # Using Jitsu with Nuxt.js
 
 ## Install Jitsu
