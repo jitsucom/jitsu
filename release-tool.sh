@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+SDK_VERSION=$(cat js-sdk-version)
 
 # Highlights args with color
 # Only red is supported so far
@@ -21,13 +22,6 @@ function fail() {
   echo "$(chalk red "${error}")" ; exit 1
 }
 
-function build_server() {
-  echo "Building Server lib JS locally.."
-  rm -rf server/build && rm -rf javascript-sdk/dist && \
-  cd javascript-sdk/ && yarn clean && yarn install --prefer-offline && yarn build && cd ../server && \
-  make js_release && cd ../ || fail 'Server build failed'
-}
-
 function build_configurator() {
   echo "Building Configurator UI locally.."
   rm -f configurator/backend/build/dist/configurator && rm -rf configurator/frontend/main/build && \
@@ -40,17 +34,17 @@ function release_server() {
 
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
     echo "**** Server amd64/arm64 release [$1] ****"
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -t jitsucom/server:latest -f server-release.Dockerfile --build-arg dhid=jitsucom . || fail 'Server dockerx build semver failed'
+    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -t jitsucom/server:latest -f server.Dockerfile --build-arg dhid=jitsucom --build-arg SDK_VERSION=$SDK_VERSION . || fail 'Server dockerx build semver failed'
 
     docker login -u="$KSENSE_DOCKER_LOGIN" -p="$KSENSE_DOCKER_PASSWORD" || fail  "Docker ksense login failed"
-    docker buildx build --platform linux/amd64 --push -t ksense/eventnative:"$1" -t ksense/eventnative:latest -f server-release.Dockerfile --build-arg dhid=ksense . || fail 'ksense/eventnative dockerx build semver failed'
+    docker buildx build --platform linux/amd64 --push -t ksense/eventnative:"$1" -t ksense/eventnative:latest -f server.Dockerfile --build-arg dhid=ksense --build-arg SDK_VERSION=$SDK_VERSION . || fail 'ksense/eventnative dockerx build semver failed'
   else
     if [[ "$1" == "beta" ]]; then
       echo "**** Server $2 release [$1] ****"
-      docker buildx build --platform $2 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
+      docker buildx build --platform $2 --push -t jitsucom/server:"$1" -f server.Dockerfile --build-arg dhid=jitsucom --build-arg SDK_VERSION=$SDK_VERSION  . || fail  'Server dockerx build failed'
     else
       echo "**** Server $2 release [$1] ****"
-      docker buildx build --platform $2 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || fail  'Server dockerx build failed'
+      docker buildx build --platform $2 --push -t jitsucom/server:"$1" -f server.Dockerfile --build-arg dhid=jitsucom --build-arg SDK_VERSION=$SDK_VERSION  . || fail  'Server dockerx build failed'
     fi
   fi
 }
@@ -159,7 +153,6 @@ chalk green "=== Release subsystem: $subsystem ==="
 
 case $subsystem in
     [s][e][r][v][e][r])
-        build_server
         release_server $version $platform
         ;;
     [c][o][n][f][i][g][u][r][a][t][o][r])
@@ -167,7 +160,6 @@ case $subsystem in
         release_configurator $version $platform
         ;;
     [j][i][t][s][u])
-       build_server
        build_configurator
        release_server $version $platform
        release_configurator $version $platform

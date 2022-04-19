@@ -3,6 +3,7 @@
 ARM_BUILD='GOARCH=arm64'
 AMD_BUILD='GOARCH=amd64'
 GO_BUILD_PARAMS=''
+SDK_VERSION=$(cat js-sdk-version)
 
 arch_flag='amd'
 docker_flag='true'
@@ -45,6 +46,15 @@ while test $# -gt 0; do
       fi
       shift
       ;;
+    -s|--sdk)
+      shift
+      if test $# -gt 0; then
+        export SDK_VERSION=$1
+      else
+        echo "default js sdk version: $SDK_VERSION"
+      fi
+      shift
+      ;;
     *)
       break
       ;;
@@ -60,11 +70,11 @@ fi
 
 echo ""
 echo "====================================="
-echo "=      Building javascript sdk...   ="
+echo "=    Downloading javascript sdk...  ="
 echo "====================================="
 echo ""
 
-(cd javascript-sdk; rm -rf dist && yarn clean && yarn install && yarn build) || { echo 'Building javascript sdk failed' ; exit 1; }
+(mkdir -p javascript-sdk && curl -o javascript-sdk/lib.js https://unpkg.com/@jitsu/sdk-js@$SDK_VERSION/dist/web/lib.js) || { echo 'Building javascript sdk failed' ; exit 1; }
 
 echo ""
 echo "====================================="
@@ -82,7 +92,7 @@ then
   echo "====================================="
   echo ""
 
-  docker build -t jitsucom/server -f server-release.Dockerfile --build-arg dhid=jitsucom . || { echo 'Building jitsucom/server docker failed' ; exit 1; }
+  docker build -t jitsucom/server -f server.Dockerfile --build-arg dhid=jitsucom --build-arg SDK_VERSION=$SDK_VERSION . || { echo 'Building jitsucom/server docker failed' ; exit 1; }
 fi
 
 echo ""
