@@ -47,7 +47,8 @@ func TestSyncronousDestination(t *testing.T) {
 	testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock(nil).WithDestinationService(t, destinationConfig).Build(t)
 	defer testSuite.Close()
 
-	time.Sleep(100 * time.Millisecond)
+	// for RELIABILITY
+	time.Sleep(2 * time.Second)
 
 	//** Requests **
 
