@@ -1,14 +1,14 @@
 package enrichment
 
 import (
-	"testing"
-
+	"encoding/json"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
+	"testing"
 )
 
 func TestDefault(t *testing.T) {
@@ -63,8 +63,8 @@ func TestDefault(t *testing.T) {
 					"location": map[string]interface{}{
 						"city":      "New York",
 						"country":   "US",
-						"latitude":  float64(79),
-						"longitude": float64(22),
+						"latitude":  json.Number("79"),
+						"longitude": json.Number("22"),
 						"zip":       "14101",
 					},
 					"parsed_ua": map[string]interface{}{
@@ -91,8 +91,8 @@ func TestDefault(t *testing.T) {
 				"location": map[string]interface{}{
 					"city":      "New York",
 					"country":   "US",
-					"latitude":  float64(79),
-					"longitude": float64(22),
+					"latitude":  json.Number("79"),
+					"longitude": json.Number("22"),
 					"zip":       "14101",
 				},
 				"parsed_ua": map[string]interface{}{

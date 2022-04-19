@@ -6,9 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-
-	"github.com/mitchellh/mapstructure"
-	"github.com/pkg/errors"
 )
 
 type ParseError struct {
@@ -109,12 +106,16 @@ func ParseJSONAsObject(b []byte, value interface{}) error {
 
 //ParseInterface converts interface into json bytes then into map with json Numbers
 func ParseInterface(v interface{}) (map[string]interface{}, error) {
-	obj := map[string]interface{}{}
-	if err := mapstructure.Decode(v, &obj); err != nil {
-		return nil, errors.Wrap(err, "decode value error")
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshalling value: %v", err)
 	}
+	decoder := json.NewDecoder(bytes.NewReader(b))
+	decoder.UseNumber()
 
-	return obj, nil
+	obj := map[string]interface{}{}
+	err = decoder.Decode(&obj)
+	return obj, err
 }
 
 //RemoveFirstEmptyBytes checks if array contains empty bytes in the begging and removes them
