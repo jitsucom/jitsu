@@ -161,12 +161,13 @@ func installNodeModule(dir string, spec string) error {
 }
 
 func getColOffset(executable script.Executable) int {
-	switch executable.(type) {
-	case script.Expression:
-		return 7
-	default:
-		return 0
+	if e, ok := executable.(script.Expression); ok {
+		if !strings.Contains(string(e), "return") {
+			return 7
+		}
 	}
+
+	return 0
 }
 
 func getLineOffset(executable script.Executable) int {

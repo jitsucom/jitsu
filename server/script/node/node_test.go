@@ -135,6 +135,21 @@ return null`),
 	}
 }
 
+func TestExpressionStackTraceNoReturn(t *testing.T) {
+	tt := &testingT{
+		T:    t,
+		exec: script.Expression(`(() => { throw new Error("123") })()`),
+	}
+
+	defer tt.load().close()
+
+	var resp interface{}
+	err := tt.Execute("", nil, &resp)
+	if assert.Error(t, err) {
+		assert.Equal(t, "Error: 123\n  at main (1:35)", err.Error())
+	}
+}
+
 func TestFileStackTrace(t *testing.T) {
 	tt := &testingT{
 		T:    t,
