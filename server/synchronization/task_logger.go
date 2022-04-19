@@ -2,6 +2,8 @@ package synchronization
 
 import (
 	"fmt"
+	"io"
+	"strings"
 	"sync"
 
 	"github.com/jitsucom/jitsu/server/logging"
@@ -16,15 +18,16 @@ const (
 
 //TaskLogger is a logger for writing logs to underlying Redis (meta.Storage)
 type TaskLogger struct {
-	taskID      string
-	metaStorage meta.Storage
-	buf         []string
-	mu          sync.Mutex
+	taskID           string
+	metaStorage      meta.Storage
+	buf              []string
+	mu               sync.Mutex
+	sourcesLogWriter io.Writer
 }
 
 //NewTaskLogger returns configured TaskLogger instance
-func NewTaskLogger(taskID string, metaStorage meta.Storage) *TaskLogger {
-	return &TaskLogger{taskID: taskID, metaStorage: metaStorage, buf: make([]string, 0)}
+func NewTaskLogger(taskID string, metaStorage meta.Storage, sourcesLogWriter io.Writer) *TaskLogger {
+	return &TaskLogger{taskID: taskID, metaStorage: metaStorage, buf: make([]string, 0), sourcesLogWriter: sourcesLogWriter}
 }
 
 //Write writes Singer bytes as a record into meta.Storage
@@ -50,7 +53,7 @@ func (tl *TaskLogger) WARN(format string, v ...interface{}) {
 
 func (tl *TaskLogger) LOG(format, system string, level logging.Level, v ...interface{}) {
 	msg := "[" + tl.taskID + "] " + fmt.Sprintf(format, v...)
-	logging.Debug(msg)
+	tl.sourcesLogWriter.Write([]byte(fmt.Sprintf("%s [%s]: [task:%s]: %s\n", timestamp.Now().UTC().Format(timestamp.LogsLayout), strings.ToUpper(level.String()), tl.taskID, fmt.Sprintf(format, v...))))
 
 	now := timestamp.Now()
 	err := tl.metaStorage.AppendTaskLog(tl.taskID, now.UTC(), system, msg, level.String())

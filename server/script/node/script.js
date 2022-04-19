@@ -14,7 +14,7 @@ const reply = async (result, error) => {
     type: "_JITSU_SCRIPT_RESULT",
     ok: !error,
     result: result,
-    error: error,
+    error: error ? error.toString() : null,
     log: __jts_log__,
   }
 
@@ -66,9 +66,15 @@ const vm = new NodeVM({
   sandbox: {{ .Variables }}
 })
 
-for (let level of ["dir", "log", "trace", "info", "warn", "error"]) {
-  vm.on(`console.${level}`, (message) => __jts_log__.push({level, message: `${message}`}))
+for (let level of ["log", "trace", "info", "warn", "error"]) {
+  let log = (message) => __jts_log__.push({level, message: `${message}`})
+  vm.on(`console.${level}`, log)
+  console[level] = log
 }
+
+const dir = (arg) => console.log(Object.keys(arg))
+vm.on(`console.dir`, dir)
+console["dir"] = dir
 
 readline.createInterface({
   input: process.stdin
@@ -139,7 +145,7 @@ readline.createInterface({
 
     await reply(result)
   } catch (e) {
-    await reply(null, !!e ? e.toString() : "error is null")
+    await reply(null, e)
   } finally {
     vm.sandbox.fetch = undefined
   }

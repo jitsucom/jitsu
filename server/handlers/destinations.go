@@ -192,13 +192,14 @@ func testDestinationConnection(config *config.DestinationConfig, globalConfigura
 		defer s3Adapter.Close()
 		return s3Adapter.ValidateWritePermission()
 	case storages.NpmType:
-		executor, err := templates.NewNodeExecutor(&templates.DestinationPlugin{
+		plugin := &templates.DestinationPlugin{
 			Package: config.Package,
 			ID:      identifier,
 			Type:    storages.NpmType,
 			Config:  config.Config,
-		}, nil)
+		}
 
+		executor, err := templates.NewScriptExecutor(plugin, nil)
 		if err != nil {
 			return err
 		}
