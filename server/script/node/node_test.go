@@ -114,7 +114,7 @@ func TestOutOfMemory(t *testing.T) {
 	var resp []int
 	err := tt.Execute("", nil, &resp)
 	if assert.Error(t, err) {
-		assert.Contains(t, err.Error(), "JavaScript heap out of memory")
+		assert.Contains(t, err.Error(), "out of memory")
 	}
 }
 
