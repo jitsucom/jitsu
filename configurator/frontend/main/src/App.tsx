@@ -69,6 +69,7 @@ export const initializeApplication = async (projectId: string): Promise<Applicat
   await services.init()
   console.log("Waiting for user")
   await services.userService.waitForUser()
+  await services.loadPluginScript()
   if (services.userService.hasUser()) {
     setDebugInfo("user", services.userService.getUser())
     services.analyticsService.onUserKnown(services.userService.getUser())

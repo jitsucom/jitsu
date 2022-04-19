@@ -27,6 +27,7 @@ type Configuration struct {
 	ShowBecomeUser              bool   `json:"show_become_user"`
 	DockerHubID                 string `json:"docker_hub_id"`
 	OnlyAdminCanChangeUserEmail bool   `json:"only_admin_can_change_user_email"`
+	PluginScript                string `json:"plugin_script"`
 	Tag                         string `json:"tag"`
 	BuiltAt                     string `json:"built_at"`
 }
