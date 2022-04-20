@@ -2,6 +2,8 @@
 
 const __jts_log__ = []
 const readline = require("readline")
+const os = require("os")
+const queueMicrotask = require("queue-microtask")
 const fetch = require("node-fetch")
 const {NodeVM} = require("vm2")
 
@@ -15,6 +17,7 @@ const reply = async (result, error) => {
     ok: !error,
     result: result,
     error: error ? error.toString() : null,
+    stack: error ? error.stack : null,
     log: __jts_log__,
   }
 
@@ -33,37 +36,72 @@ const reply = async (result, error) => {
   }
 }
 
-const mock = (module) => {
-  const handler = (module, func) => {
-    return {
+function mockModule(moduleName, knownSymbols) {
+  return new Proxy(
+    {},
+    {
       get: (target, prop) => {
-        if (typeof target[prop] === "function") {
-          return new Proxy(() => {}, handler(module, prop))
+        let known = knownSymbols[prop.toString()];
+        if (known) {
+          return known;
+        } else {
+          throw new Error(`Attempt to call ${moduleName}.${prop.toString()} which is not safe`);
         }
-
-        throw new Error(`Attempt to access forbidden property ${module}.${prop}.`)
       },
-      apply: (target, thisArg, argumentsList) => {
-        throw new Error(`Attempt to call forbidden function ${module}.${func}(${argumentsList}).`)
-      }
     }
-  }
-
-  let underlying = require(module)
-  return new Proxy(underlying, handler(module))
+  );
 }
 
 const vm = new NodeVM({
   console: "redirect",
   require: {
-    external: true,
-    builtin: ["stream", "http", "url", "punycode", "https", "zlib", "events", "net", "tls", "buffer", "string_decoder", "assert", "util", "crypto", "path"],
+    context: "sandbox",
+    external: false,
+    builtin: [
+      "stream",
+      "http",
+      "url",
+      "http2",
+      "dns",
+      "punycode",
+      "https",
+      "zlib",
+      "events",
+      "net",
+      "tls",
+      "buffer",
+      "string_decoder",
+      "assert",
+      "util",
+      "crypto",
+      "path",
+      "tty",
+      "querystring",
+      "console",
+    ],
+    root: "./",
     mock: {
-      fs: mock("fs"),
-      os: mock("os"),
-    }
+      fs: mockModule("fs", {}),
+      os: mockModule("os", { platform: os.platform, EOL: os.EOL }),
+      child_process: {},
+    },
+    resolve: (moduleName) => {
+      throw new Error(
+        `The extension ${file} calls require('${moduleName}') which is not system module. Rollup should have linked it into JS code.`
+      );
+    },
   },
-  sandbox: {{ .Variables }}
+  sandbox: {...{{ .Variables }},
+    queueMicrotask: queueMicrotask,
+    self: {},
+    process: {
+      versions: process.versions,
+      version: process.version,
+      stderr: process.stderr,
+      stdout: process.stdout,
+      env: {},
+    },
+  },
 })
 
 for (let level of ["log", "trace", "info", "warn", "error"]) {
@@ -75,6 +113,48 @@ for (let level of ["log", "trace", "info", "warn", "error"]) {
 const dir = (arg) => console.log(Object.keys(arg))
 vm.on(`console.dir`, dir)
 console["dir"] = dir
+
+const vmStack = (error) => {
+  if (error && error.stack) {
+    let stack = error.stack.split("\n").splice(1).flatMap(row => {
+      let match = row.match(/^\s*at\s(.*?)\s\(vm\.js:(\d+):(\d+)\)$/)
+      if (!match) {
+        return []
+      }
+
+      let func = match[1]
+      if (func === "module.exports") {
+        func = "main"
+      }
+
+      let line = parseInt(match[2])
+      let lineOffset = parseInt("{{ .LineOffset }}")
+
+      line -= lineOffset + 1
+      if ("{{ .Includes }}" !== "") {
+        line -= "{{ .Includes }}".split(/\r\n|\r|\n/).length
+      }
+
+      if (line < 0) {
+        return []
+      }
+
+      let col = parseInt(match[3])
+      if (line === 1) {
+        let colOffset = parseInt("{{ .ColOffset }}")
+        col -= colOffset
+      }
+
+      return [`  at ${func} (${line}:${col})`]
+    }).join("\n")
+
+    if (stack.length > 0) {
+      error.stack = stack
+    }
+  }
+
+  return error
+}
 
 readline.createInterface({
   input: process.stdin
@@ -94,7 +174,13 @@ readline.createInterface({
 
   let result = undefined
   try {
-    globalThis.__jts_exec__ = globalThis.__jts_exec__ || (async () => vm.run("{{ .Includes }}\n{{ .Executable }}"))()
+    globalThis.__jts_exec__ = globalThis.__jts_exec__ || (async () => {
+      try {
+        return vm.run("{{ .Includes }}\n{{ .Executable }}")
+      } catch (error) {
+        throw vmStack(error)
+      }
+    })()
 
     let exec = undefined
     switch (req.command) {
@@ -133,7 +219,12 @@ readline.createInterface({
           }
         }
 
-        result = await (func ? exec[func](...args) : exec(...args))
+        try {
+          result = await (func ? exec[func](...args) : exec(...args))
+        } catch (error) {
+          throw vmStack(error)
+        }
+
         break
       case "kill":
         await reply()

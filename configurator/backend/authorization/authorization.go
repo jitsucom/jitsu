@@ -26,11 +26,17 @@ type MailSender interface {
 }
 
 type SSOConfig struct {
-	Provider              string `json:"provider" validate:"required"`
-	Tenant                string `json:"tenant" validate:"required"`
-	Product               string `json:"product" validate:"required"`
-	Host                  string `json:"host" validate:"required"`
-	AccessTokenTTLSeconds int    `json:"access_token_ttl_seconds" validate:"required"`
+	Provider              string                 `json:"provider" validate:"required"`
+	Tenant                string                 `json:"tenant" validate:"required"`
+	Product               string                 `json:"product" validate:"required"`
+	Host                  string                 `json:"host" validate:"required"`
+	AccessTokenTTLSeconds int                    `json:"access_token_ttl_seconds" validate:"required"`
+	AutoProvision         SSOConfigAutoProvision `json:"auto_provision"`
+}
+
+type SSOConfigAutoProvision struct {
+	Enable         bool `json:"enable"`
+	AutoOnboarding bool `json:"auto_onboarding"`
 }
 
 func closeQuietly(closer io.Closer) {

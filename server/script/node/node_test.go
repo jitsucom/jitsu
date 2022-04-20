@@ -114,7 +114,54 @@ func TestOutOfMemory(t *testing.T) {
 	var resp []int
 	err := tt.Execute("", nil, &resp)
 	if assert.Error(t, err) {
-		assert.Contains(t, err.Error(), "JavaScript heap out of memory")
+		assert.Contains(t, err.Error(), "out of memory")
+	}
+}
+
+func TestExpressionStackTrace(t *testing.T) {
+	tt := &testingT{
+		T: t,
+		exec: script.Expression(`console.log("kek")
+throw new Error("123")
+return null`),
+	}
+
+	defer tt.load().close()
+
+	var resp interface{}
+	err := tt.Execute("", nil, &resp)
+	if assert.Error(t, err) {
+		assert.Equal(t, "Error: 123\n  at main (2:7)", err.Error())
+	}
+}
+
+func TestExpressionStackTraceNoReturn(t *testing.T) {
+	tt := &testingT{
+		T:    t,
+		exec: script.Expression(`(() => { throw new Error("123") })()`),
+	}
+
+	defer tt.load().close()
+
+	var resp interface{}
+	err := tt.Execute("", nil, &resp)
+	if assert.Error(t, err) {
+		assert.Equal(t, "Error: 123\n  at main (1:35)", err.Error())
+	}
+}
+
+func TestFileStackTrace(t *testing.T) {
+	tt := &testingT{
+		T:    t,
+		exec: script.File("testdata/js/stacktrace_test.js"),
+	}
+
+	defer tt.load().close()
+
+	var resp interface{}
+	err := tt.Execute("test", nil, &resp)
+	if assert.Error(t, err) {
+		assert.Equal(t, "Error: 123\n  at Object.exports.test (3:9)", err.Error())
 	}
 }
 
@@ -142,12 +189,12 @@ func TestUnsafeFS(t *testing.T) {
 
 	err = tt.Execute("call_fs", nil, new(interface{}))
 	if assert.Error(t, err) {
-		assert.Contains(t, err.Error(), "Attempt to call forbidden function fs.createReadStream().")
+		assert.Contains(t, err.Error(), "Attempt to call fs.createReadStream which is not safe")
 	}
 
 	err = tt.Execute("call_os", nil, new(interface{}))
 	if assert.Error(t, err) {
-		assert.Contains(t, err.Error(), "Attempt to call forbidden function os.arch().")
+		assert.Contains(t, err.Error(), "Attempt to call os.arch which is not safe")
 	}
 }
 

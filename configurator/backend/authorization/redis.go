@@ -3,6 +3,7 @@ package authorization
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -186,6 +187,24 @@ func (r *Redis) GetUserEmail(ctx context.Context, userID string) (string, error)
 	return email, nil
 }
 
+func (r *Redis) GetUserIDByEmail(ctx context.Context, userEmail string) (string, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	defer closeQuietly(conn)
+	email, err := r.getUserIDByEmail(conn, userEmail)
+	if err != nil {
+		return "", middleware.ReadableError{
+			Description: "Failed to load user by email from Redis",
+			Cause:       err,
+		}
+	}
+
+	return email, nil
+}
+
 func (r *Redis) RefreshToken(ctx context.Context, refreshToken string) (*openapi.TokensResponse, error) {
 	conn, err := r.redisPool.GetContext(ctx)
 	if err != nil {
@@ -362,7 +381,7 @@ func (r *Redis) SignInSSO(ctx context.Context, provider string, sso *handlers.SS
 	userID, err := r.getUserIDByEmail(conn, sso.Email)
 	if err != nil {
 		return nil, middleware.ReadableError{
-			Description: "Failed to get user ID from Redis",
+			Description: fmt.Sprintf("User %s cannot be found", sso.Email),
 			Cause:       err,
 		}
 	}
