@@ -26,7 +26,7 @@ import { ExclamationCircleOutlined } from "@ant-design/icons"
 // @Hooks
 import { useServices } from "./hooks/useServices"
 // @Utils
-import { reloadPage, setDebugInfo } from "./lib/commons/utils"
+import { createError, reloadPage, setDebugInfo } from "./lib/commons/utils"
 // @Types
 import { Project } from "./generated/conf-openapi"
 // @Pages
@@ -79,36 +79,37 @@ export const initializeApplication = async (projectId: string): Promise<Applicat
   return services
 }
 
+const initializeBilling = async (services: ApplicationServices, projectId: string) => {
+  let currenSubscription: CurrentSubscription
+  if (services.userService.hasUser() && services.features.billingEnabled && projectId) {
+    currenSubscription = await getCurrentSubscription(
+      projectId,
+      services.backendApiClient,
+      destinationsStore,
+      sourcesStore
+    )
+  } else {
+    currenSubscription = {
+      autorenew: false,
+      expiration: moment().add(1, "M"),
+      usage: {
+        events: 0,
+        sources: 0,
+        destinations: 0,
+      },
+      currentPlan: paymentPlans.opensource,
+      quotaPeriodStart: moment(),
+      doNotBlock: true,
+    }
+  }
+  services.currentSubscription = currenSubscription
+}
+
 const initializeProject = async (projectId: string, projects: Project[]): Promise<Project | null> => {
   const project = projects.find(project => project.id === projectId) ?? null
   if (project) {
     const services = ApplicationServices.get()
-
     services.activeProject = project
-
-    let currenSubscription: CurrentSubscription
-    if (services.userService.hasUser() && services.features.billingEnabled && projectId) {
-      currenSubscription = await getCurrentSubscription(
-        projectId,
-        services.backendApiClient,
-        destinationsStore,
-        sourcesStore
-      )
-    } else {
-      currenSubscription = {
-        autorenew: false,
-        expiration: moment().add(1, "M"),
-        usage: {
-          events: 0,
-          sources: 0,
-          destinations: 0,
-        },
-        currentPlan: paymentPlans.opensource,
-        quotaPeriodStart: moment(),
-        doNotBlock: true,
-      }
-    }
-    services.currentSubscription = currenSubscription
   }
   return project
 }
@@ -138,8 +139,11 @@ export const Application: React.FC = function () {
         setServices(application)
         setInitialized(true)
       } catch (e) {
-        console.log("Error initialization", e)
-        setError(e)
+        let msg = `Can't initialize application with backend ${
+          process.env.BACKEND_API_BASE || " (BACKEND_API_BASE is not set)"
+        }`
+        console.log(msg, e)
+        setError(createError(msg, e))
       }
     })()
   }, [projectId])
@@ -153,7 +157,13 @@ export const Application: React.FC = function () {
     } else {
       console.error("Failed to send error to analytics service, it's not defined yet")
     }
-    return <ErrorCard description={"Failed to load Jitsu application:" + error.message} stackTrace={error.stack} />
+    return (
+      <div className="w-full flex items-center justify-center">
+        <div className="w-3/4">
+          <ErrorCard title={"Failed to initialize application"} description={error.message} stackTrace={error.stack} />
+        </div>
+      </div>
+    )
   }
 
   if (!services.userService.hasUser()) {
@@ -333,6 +343,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
       setProject(project)
       try {
         await initializeAllStores(services.analyticsService)
+        await initializeBilling(services, projectId)
         setInitialized(true)
       } catch (e) {
         setError(e)
