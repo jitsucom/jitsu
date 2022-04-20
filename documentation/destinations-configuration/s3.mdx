@@ -23,14 +23,14 @@ destinations:
 
 ### 's3' fields
 
-| Field \(\*required\) | Type | Description | Default value |
-| :--- | :--- | :--- | :--- |
-| **access\_key\_id\*** | string | S3 access key. | - |
-| **secret\_access\_key\*** | string | S3 secret key. | - |
-| **bucket\*** | string | S3 bucket. | - |
-| **region\*** | string | S3 region \(e.g. `us-west-1`\) | - |
-| **folder** | string | S3 bucket folder. It is used if several destinations use one S3 bucket. | empty string |
-| **endpoint** | string | S3 provider URL. By default is used AWS S3. | AWS S3 URL |
-| **format** | enum | \(`json`, `flat_json`, `csv`, `parquet`\)  S3 file with events format. | json |
+| Field \(\*required\) | Type | Description | Default value       |
+| :--- | :--- | :--- |:--------------------|
+| **access\_key\_id\*** | string | S3 access key. | -                   |
+| **secret\_access\_key\*** | string | S3 secret key. | -                   |
+| **bucket\*** | string | S3 bucket. | -                   |
+| **region\*** | string | S3 region \(e.g. `us-west-1`\) | -                   |
+| **folder** | string | S3 bucket folder. It is used if several destinations use one S3 bucket. | empty string        |
+| **endpoint** | string | S3 provider URL. By default is used AWS S3. | AWS S3 URL          |
+| **format** | enum | \(`json`, `flat_json`, `csv`, `parquet`\)  S3 file with events format. | flat_json           |
 | **compression** | enum | If set `gzip` - S3 file will be compressed and will have `.gz` sufix. | without compression |
 
