@@ -289,7 +289,7 @@ type SourceExecutor struct {
 }
 
 func NewSourceExecutor(sourcePlugin *SourcePlugin) (*SourceExecutor, error) {
-	instance, err := node.Factory().CreateScript(sourcePlugin.executable(), nil)
+	instance, err := scriptFactory.CreateScript(sourcePlugin.executable(), nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "spawn node process")
 	}

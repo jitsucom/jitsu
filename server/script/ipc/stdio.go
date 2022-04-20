@@ -88,15 +88,17 @@ func (p *StdIO) Receive(ctx context.Context, dataChannel chan<- []byte) ([]byte,
 		}
 	}()
 
-	reader := bufio.NewReader(p.stdout)
+	reader := bufio.NewReaderSize(p.stdout, 100000)
 	for {
-		line, _, err := reader.ReadLine()
-		if (len(line) > 30 && line[0] == 'J' && line[1] == ':' &&
-			strings.Contains(string(line), "_JITSU_SCRIPT_RESULT")) ||
-			err == io.EOF {
+		line, err := reader.ReadBytes('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
 			done <- true
-			return line[2:], err
-		} else if len(line) > 0 {
+			return line, err
+		} else if len(line) > 30 && line[0] == 'J' && line[1] == ':' &&
+			strings.Contains(string(line), "_JITSU_SCRIPT_RESULT") {
+			done <- true
+			return line[2:], nil
+		} else if len(line) > 1 {
 			if dataChannel != nil {
 				dataChannel <- line
 			} else {
