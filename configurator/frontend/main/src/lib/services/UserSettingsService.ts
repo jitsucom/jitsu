@@ -1,10 +1,16 @@
 import { UserService } from "./UserService"
 import { merge } from "lodash"
 
+export enum Settings {
+  ActiveProject = "activeProject",
+}
+
 export interface UserSettingsService {
   set(data: { [key: string]: any }): void
 
   get(settingName?: string): any
+
+  remove(settingName): void
 }
 
 export class UserSettingsLocalService implements UserSettingsService {
@@ -46,5 +52,15 @@ export class UserSettingsLocalService implements UserSettingsService {
     }
 
     return data
+  }
+
+  remove(settingName: string) {
+    const settings = this.get()
+
+    if (settings !== null && settings[settingName]) {
+      delete settings[settingName]
+    }
+
+    localStorage.setItem(this.keyName, JSON.stringify(settings))
   }
 }

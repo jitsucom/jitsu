@@ -26,6 +26,7 @@ type Props = {
   handleSendEmailConfirmation: () => Promise<void>
   handleChangeTelemetry?: false | ((enabled: boolean) => Promise<void>)
   handleChangePassword: (newPassword: string) => Promise<void>
+  ssoEnabled: boolean
 }
 
 const SectionContainer: React.FC = ({ children }) => {
@@ -49,6 +50,7 @@ export const UserSettingsViewComponent: React.FC<Props> = ({
   handleSendEmailConfirmation,
   handleChangeTelemetry,
   handleChangePassword,
+  ssoEnabled,
 }) => {
   const showResendEmailFlow = confirmationEmailStatus !== "not-required"
   const showEmailNotSent = confirmationEmailStatus !== "sent"
@@ -80,36 +82,28 @@ export const UserSettingsViewComponent: React.FC<Props> = ({
         )}
         <ChangeEmailForm handleChangeEmail={handleChangeEmail} changeEmailDisabled={onlyAdminCanChangeUserEmail} />
 
-        {onlyAdminCanChangeUserEmail && (
+        {ssoEnabled && <span>Email provided by SSO service.</span>}
+
+        {onlyAdminCanChangeUserEmail && !ssoEnabled && (
           <>
             <span>
-              You can change your email using cluster admin token. Use curl command: <br />
-              Replace {"<YOUR SERVER>"} with 'localhost:8000' if you run Jitsu locally. <br />
-              <a target="_blank" href="https://jitsu.com/docs/deployment/deploy-with-docker/jitsu-configurator">
-                {" "}
-                Read how to get CLUSTER_ADMIN_TOKEN
-              </a>
-              .
+              Only cluster admin can change users email. <br />
+              See{" "}
+              <a target="_blank" href="https://jitsu.com/docs/other-features/jitsu-api#configuration-api">
+                API docs
+              </a>{" "}
+              for more information.
             </span>
-            <br />
-            <div className={"flex"}>
-              <CodeSnippet language={"bash"} size={"small"}>
-                {"curl --location --request POST 'http://<YOUR SERVER>/configurator/api/v1/users/email/change?token=<CLUSTER_ADMIN_TOKEN>' \\\n" +
-                  "--header 'Content-Type: application/json' \\\n" +
-                  "--data-raw '{\n" +
-                  '    "old_email": "<YOUR OLD EMAIL>",\n' +
-                  '    "new_email": "<YOUR NEW EMAIL>"\n' +
-                  "}'"}
-              </CodeSnippet>
-            </div>
           </>
         )}
       </SectionContainer>
 
-      <SectionContainer>
-        <SectionHeader>Password:</SectionHeader>
-        <ChangePasswordForm handleChangePassword={handleChangePassword} />
-      </SectionContainer>
+      {!ssoEnabled && (
+        <SectionContainer>
+          <SectionHeader>Password:</SectionHeader>
+          <ChangePasswordForm handleChangePassword={handleChangePassword} />
+        </SectionContainer>
+      )}
 
       {handleChangeTelemetry && (
         <SectionContainer>
