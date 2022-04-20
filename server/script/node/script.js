@@ -63,7 +63,19 @@ const vm = new NodeVM({
       os: mock("os"),
     }
   },
-  sandbox: {{ .Variables }}
+  sandbox:
+    {
+      queueMicrotask: queueMicrotask,
+      self: {},
+      process: {
+        versions: process.versions,
+        version: process.version,
+        stderr: process.stderr,
+        stdout: process.stdout,
+        env: {},
+      },
+      {{ .Variables }}
+   }
 })
 
 for (let level of ["log", "trace", "info", "warn", "error"]) {

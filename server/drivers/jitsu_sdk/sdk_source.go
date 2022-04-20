@@ -3,15 +3,22 @@ package jitsu_sdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/templates"
 	"go.uber.org/atomic"
+	"strings"
 	"sync"
+	"time"
 )
+
+var ErrSDKSourceCancelled = errors.New("Source runner was cancelled.")
 
 const LatestVersion = "latest"
 
@@ -22,9 +29,8 @@ type SdkSource struct {
 
 	activeCommands map[string]*base.SyncCommand
 
-	config                *Config
-	streamsRepresentation map[string]*base.StreamRepresentation
-	closed                chan struct{}
+	config *Config
+	closed chan struct{}
 }
 
 func init() {
@@ -51,40 +57,15 @@ func NewSdkSource(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	}
 	base.FillPreconfiguredOauth(config.Package, config.Config)
 
-	// ** Table names mapping **
-	if len(config.StreamTableNames) > 0 {
-		b, _ := json.MarshalIndent(config.StreamTableNames, "", "    ")
-		logging.Infof("[%s] configured sdk source stream - table names mapping: %s", sourceConfig.SourceID, string(b))
-	}
-
-	var streamsRepresentation map[string]*base.StreamRepresentation
-	streamTableNameMapping := map[string]string{}
-	catalogDiscovered := atomic.NewBool(false)
-	if config.Catalog != nil {
-		catalogDiscovered.Store(true)
-
-		//parse streams from config
-		streamsRepresentation, err = parseFormattedCatalog(config.Catalog)
-		if err != nil {
-			return nil, fmt.Errorf("Error parse formatted catalog: %v", err)
-		}
-
-		for streamName := range streamsRepresentation {
-			streamTableNameMapping[streamName] = config.StreamTableNamesPrefix + streamName
-		}
-	}
-
 	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, config.Package, "", "", "", "",
-		config.StreamTableNamesPrefix, "", config.StreamTableNames)
+		strings.ReplaceAll(config.Package, "-", "_")+"_", "", map[string]string{})
 	s := &SdkSource{
-		activeCommands:        map[string]*base.SyncCommand{},
-		mutex:                 &sync.RWMutex{},
-		config:                config,
-		streamsRepresentation: streamsRepresentation,
-		closed:                make(chan struct{}),
+		activeCommands: map[string]*base.SyncCommand{},
+		mutex:          &sync.RWMutex{},
+		config:         config,
+		closed:         make(chan struct{}),
 	}
 	s.AbstractCLIDriver = *abstract
-	s.AbstractCLIDriver.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
 
 	return s, nil
 }
@@ -144,59 +125,19 @@ func TestSdkSource(sourceConfig *base.SourceConfig) error {
 	//return nil
 }
 
-//EnsureCatalog does discover if catalog wasn't provided
-func (s *SdkSource) EnsureCatalog() {
-	//retry := 0
-	//for {
-	//	if a.IsClosed() {
-	//		break
-	//	}
-	//
-	//	if a.catalogDiscovered.Load() {
-	//		break
-	//	}
-	//
-	//	catalogPath, streamsRepresentation, err := a.loadCatalog()
-	//	if err != nil {
-	//		if err == runner.ErrNotReady {
-	//			time.Sleep(time.Second)
-	//			continue
-	//		}
-	//
-	//		a.mutex.Lock()
-	//		a.discoverCatalogLastError = err
-	//		a.mutex.Unlock()
-	//
-	//		retry++
-	//
-	//		logging.Errorf("[%s] Error configuring airbyte: %v. Scheduled next try after: %d minutes", a.ID(), err, retry)
-	//		time.Sleep(time.Duration(retry) * time.Minute)
-	//		continue
-	//	}
-	//
-	//	streamTableNameMapping := map[string]string{}
-	//	for streamName := range streamsRepresentation {
-	//		streamTableNameMapping[streamName] = a.GetTableNamePrefix() + streamName
-	//	}
-	//
-	//	a.mutex.Lock()
-	//	a.discoverCatalogLastError = nil
-	//	a.mutex.Unlock()
-	//
-	//	a.SetCatalogPath(catalogPath)
-	//	a.streamsRepresentation = streamsRepresentation
-	//	a.AbstractCLIDriver.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
-	//	a.catalogDiscovered.Store(true)
-	//	return
-	//}
-}
-
 //Ready returns true if catalog is discovered
 func (s *SdkSource) Ready() (bool, error) {
 	return true, nil
 }
 
 func (s *SdkSource) Load(config string, state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
+	if s.IsClosed() {
+		return fmt.Errorf("%s has already been closed", s.Type())
+	}
+	if err := taskCloser.HandleCanceling(); err != nil {
+		return err
+	}
+
 	sourcePlugin := &templates.SourcePlugin{
 		Package: s.config.Package + "@" + s.config.PackageVersion,
 		ID:      s.ID(),
@@ -207,30 +148,42 @@ func (s *SdkSource) Load(config string, state string, taskLogger logging.TaskLog
 	if err != nil {
 		return err
 	}
-	for _, stream := range s.config.SelectedStreams {
-		dataChannel := make(chan []byte, 1000)
-		go func() {
-			res, err := sourceExecutor.Stream(stream.Name, stream, nil, dataChannel)
-			if err != nil {
-				logging.Infof("ERR: %v", err)
-				dataChannel <- []byte(err.Error())
-				return
-			}
-			logging.Infof("RES: %+v", res)
-
-			bytes, err := json.Marshal(res)
-			if err != nil {
-				dataChannel <- []byte(err.Error())
-				return
-			}
-			dataChannel <- bytes
-			close(dataChannel)
-		}()
-		for bytes := range dataChannel {
-			logging.Info("DATA: " + string(bytes))
-		}
+	sdkSourceRunner := SdkSourceRunner{sourceExecutor: sourceExecutor, config: s.config, closed: atomic.NewBool(false)}
+	syncCommand := &base.SyncCommand{
+		Cmd:        sdkSourceRunner,
+		TaskCloser: taskCloser,
 	}
-	return nil
+	s.mutex.Lock()
+	s.activeCommands[taskCloser.TaskID()] = syncCommand
+	s.mutex.Unlock()
+
+	loadDone := make(chan struct{})
+	defer func() {
+		close(loadDone)
+
+		s.mutex.Lock()
+		delete(s.activeCommands, taskCloser.TaskID())
+		s.mutex.Unlock()
+	}()
+
+	safego.Run(func() {
+		ticker := time.NewTicker(3 * time.Second)
+		for {
+			select {
+			case <-loadDone:
+				return
+			case <-ticker.C:
+				if err := taskCloser.HandleCanceling(); err != nil {
+					if cancelErr := syncCommand.Cancel(); cancelErr != nil {
+						logging.SystemErrorf("error canceling task [%s] sync command: %v", taskCloser.TaskID(), cancelErr)
+					}
+					return
+				}
+			}
+		}
+	})
+
+	return sdkSourceRunner.Load(taskLogger, dataConsumer)
 }
 
 //GetDriversInfo returns telemetry information about the driver
@@ -239,7 +192,7 @@ func (s *SdkSource) GetDriversInfo() *base.DriversInfo {
 		SourceType:       s.config.Package,
 		ConnectorOrigin:  s.Type(),
 		ConnectorVersion: s.config.PackageVersion,
-		Streams:          len(s.streamsRepresentation),
+		Streams:          len(s.config.SelectedStreams),
 	}
 }
 
@@ -248,76 +201,112 @@ func (s *SdkSource) Type() string {
 }
 
 //Close kills all runners and returns errors if occurred
-func (a *SdkSource) Close() (multiErr error) {
-	if a.IsClosed() {
+func (s *SdkSource) Close() (multiErr error) {
+	if s.IsClosed() {
 		return nil
 	}
 
-	close(a.closed)
+	close(s.closed)
 
-	a.mutex.Lock()
-	for _, activeCommand := range a.activeCommands {
-		logging.Infof("[%s] killing process: %s", a.ID(), activeCommand.Cmd.String())
+	s.mutex.Lock()
+	for _, activeCommand := range s.activeCommands {
+		logging.Infof("[%s] killing process: %s", s.ID(), activeCommand.Cmd.String())
 		if err := activeCommand.Shutdown(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error killing airbyte read command: %v", a.ID(), err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error killing airbyte read command: %v", s.ID(), err))
 		}
 	}
 
-	a.mutex.Unlock()
+	s.mutex.Unlock()
 
 	return multiErr
 }
 
-//loadCatalog:
-//1. discovers source catalog
-//2. applies selected streams
-//3. reformat catalog to airbyte format and writes it to the file system
-//returns catalog
-func (s *SdkSource) loadCatalog() (string, map[string]*base.StreamRepresentation, error) {
-	//airbyteRunner := airbyte.NewRunner(a.GetTap(), a.config.ImageVersion, "")
-	//rawCatalog, err := airbyteRunner.Discover(a.config.Config, 5*time.Minute)
-	//if err != nil {
-	//	return "", nil, err
-	//}
-	//
-	////apply only selected streams
-	//if len(a.selectedStreamsWithNamespace) > 0 {
-	//	var selectedStreams []*airbyte.Stream
-	//	for _, stream := range rawCatalog.Streams {
-	//		if streamConfig, selected := a.selectedStreamsWithNamespace[base.StreamIdentifier(stream.Namespace, stream.Name)]; selected {
-	//			if streamConfig.SyncMode != "" {
-	//				stream.SyncMode = streamConfig.SyncMode
-	//			}
-	//			if len(streamConfig.CursorField) > 0 {
-	//				stream.SelectedCursorField = streamConfig.CursorField
-	//			}
-	//			selectedStreams = append(selectedStreams, stream)
-	//		}
-	//	}
-	//
-	//	rawCatalog.Streams = selectedStreams
-	//}
-	//
-	//catalog, streamsRepresentation, err := reformatCatalog(a.GetTap(), rawCatalog)
-	//if err != nil {
-	//	return "", nil, err
-	//}
-	//
-	////write airbyte formatted catalog as file path
-	//catalogPath, err := parsers.ParseJSONAsFile(path.Join(a.pathToConfigs, base.CatalogFileName), string(catalog))
-	//if err != nil {
-	//	return "", nil, fmt.Errorf("Error writing discovered airbyte catalog [%v]: %v", string(catalog), err)
-	//}
-	//
-	//return catalogPath, streamsRepresentation, nil
-	return "", nil, nil
-}
-
-func (a *SdkSource) IsClosed() bool {
+func (s *SdkSource) IsClosed() bool {
 	select {
-	case <-a.closed:
+	case <-s.closed:
 		return true
 	default:
 		return false
 	}
+}
+
+type SdkSourceRunner struct {
+	sourceExecutor *templates.SourceExecutor
+	config         *Config
+	closed         *atomic.Bool
+}
+
+func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer) error {
+	if s.closed.Load() {
+		return ErrSDKSourceCancelled
+	}
+	output := &base.CLIOutputRepresentation{
+		Streams: map[string]*base.StreamRepresentation{},
+	}
+
+	for _, stream := range s.config.SelectedStreams {
+		if s.closed.Load() {
+			taskLogger.INFO("Stopping processing. Task was closed")
+			return ErrSDKSourceCancelled
+		}
+		taskLogger.INFO("Starting processing stream: %s", stream.Name)
+		representation := &base.StreamRepresentation{
+			StreamName:  stream.Name,
+			BatchHeader: &schema.BatchHeader{TableName: stream.Name, Fields: map[string]schema.Field{}},
+			Objects:     []map[string]interface{}{},
+			NeedClean:   stream.SyncMode == "full_sync",
+		}
+		output.Streams[stream.Name] = representation
+		dataChannel := make(chan []byte, 1000)
+		go func() {
+			defer close(dataChannel)
+			_, err := s.sourceExecutor.Stream(stream.Name, stream, nil, dataChannel)
+			if err != nil {
+				dataChannel <- []byte(err.Error())
+			}
+		}()
+
+		for bytes := range dataChannel {
+			row := &Row{}
+			err := json.Unmarshal(bytes, row)
+			if err != nil {
+				taskLogger.ERROR("Failed to parse message from source: %s", string(bytes))
+				continue
+			}
+			switch row.Type {
+			case "record":
+				object, ok := row.Message.(map[string]interface{})
+				if !ok {
+					taskLogger.ERROR("Record message expected to have type map[string]interface{} found: %T", row.Message)
+				}
+				representation.Objects = append(representation.Objects, object)
+			default:
+				taskLogger.ERROR("Message type %s is not supported yet.", row.Type)
+			}
+		}
+		taskLogger.INFO("Stream: %s finished. Objects count: %d", stream.Name, len(representation.Objects))
+	}
+	if !s.closed.Load() {
+		err := dataConsumer.Consume(output)
+		return err
+	} else {
+		taskLogger.WARN("Stopping processing. Task was closed")
+		return ErrSDKSourceCancelled
+	}
+}
+
+func (s SdkSourceRunner) String() string {
+	return s.config.Package
+}
+
+func (s SdkSourceRunner) Close() error {
+	s.closed.Store(true)
+	s.sourceExecutor.Close()
+	return nil
+}
+
+//Row is a dto for sdk source output row representation
+type Row struct {
+	Type    string      `json:"type"`
+	Message interface{} `json:"message,omitempty"`
 }

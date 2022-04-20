@@ -111,7 +111,13 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 	}
 
 	variables = sanitizeVariables(variables)
+	variables["_a"] = "_a"
+
 	variablesJSON, err := json.Marshal(variables)
+	variablesJSONs := strings.TrimPrefix(string(variablesJSON), "{")
+	variablesJSONs = strings.TrimSuffix(variablesJSONs, "}")
+
+	//logging.Infof("variablesJSONs: " + variablesJSONs)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal variables json")
 	}
@@ -119,7 +125,7 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 	err = scriptTemplate.Execute(scriptFile, scriptTemplateValues{
 		Executable: escapeJSON(expression),
 		Includes:   escapeJSON(strings.Join(includes, "\n")),
-		Variables:  string(variablesJSON),
+		Variables:  string(variablesJSONs),
 	})
 
 	closeQuietly(scriptFile)
