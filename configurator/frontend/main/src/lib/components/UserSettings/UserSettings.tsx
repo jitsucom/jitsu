@@ -115,6 +115,7 @@ export const UserSettings: React.FC<Props> = () => {
       currentEmail={currentEmail}
       confirmationEmailStatus={confirmationEmailStatus}
       isTelemetryEnabled={isTelemetryEnabled}
+      ssoEnabled={!!services.userService.getSSOAuthLink()}
       onlyAdminCanChangeUserEmail={onlyAdminCanChangeUserEmail}
       handleChangeEmail={handleChangeEmail}
       handleSendEmailConfirmation={handleSendEmailConfirmation}

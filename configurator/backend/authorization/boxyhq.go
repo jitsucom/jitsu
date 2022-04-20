@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/jitsucom/jitsu/configurator/handlers"
-	"github.com/jitsucom/jitsu/server/random"
 )
 
 type BoxyHQ struct {
@@ -78,11 +77,10 @@ func (p *BoxyHQ) IsAutoOnboardingEnabled() bool {
 
 func (p *BoxyHQ) AuthLink() string {
 	return fmt.Sprintf(
-		"%s?response_type=code&provider=saml&client_id=dummy&tenant=%s&product=%s&state=%s",
+		"%s?response_type=code&provider=saml&client_id=dummy&tenant=%s&product=%s",
 		p.Config.Host+"/api/oauth/authorize",
 		p.Config.Tenant,
 		p.Config.Product,
-		random.String(10),
 	)
 }
 
