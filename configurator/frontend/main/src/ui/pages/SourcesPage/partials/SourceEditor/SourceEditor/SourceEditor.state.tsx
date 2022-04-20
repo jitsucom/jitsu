@@ -20,7 +20,7 @@
  *   const dispatchAction = useSourceEditorDispatcher() // get source editor dispatcher for updating the state
  *
  *   useEffect(() => {
- *     dispatchAction(SourceEditorActionsTypes.SET_LOADERS_STATE, {  // use dispathcer to update the state
+ *     dispatchAction(SourceEditorActionsTypes.SET_STATUS, {  // use dispathcer to update the state
  *       loaders: {
  *         isLoadingConfig: true,
  *         isLoadingStreams: false,
@@ -36,36 +36,38 @@
 import React, { useCallback, useContext, useEffect, useReducer } from "react"
 
 type SourceEditorViewState = {
-  loaders: {
+  status: {
     isLoadingConfig: boolean
     isLoadingStreams: boolean
     isTestingConnection: boolean
     isLoadingOauthStatus: boolean
+    isOauthFlowCompleted: boolean
   }
 }
 
 const initialState: SourceEditorViewState = {
-  loaders: {
+  status: {
     isLoadingConfig: false,
     isLoadingStreams: false,
     isTestingConnection: false,
     isLoadingOauthStatus: false,
+    isOauthFlowCompleted: false,
   },
 }
 
 /**
  * Available source editor actions types
  */
-enum SourceEditorActionsTypes {
-  SET_LOADERS_STATE,
+export enum SourceEditorActionsTypes {
+  SET_STATUS,
 }
 
 /**
  * Map of factories of source editor actions
  */
 const actionsFactories = {
-  [SourceEditorActionsTypes.SET_LOADERS_STATE](payload: { loaders: Partial<SourceEditorViewState["loaders"]> }) {
-    return { type: SourceEditorActionsTypes.SET_LOADERS_STATE, payload } as const
+  [SourceEditorActionsTypes.SET_STATUS](payload: Partial<SourceEditorViewState["status"]>) {
+    return { type: SourceEditorActionsTypes.SET_STATUS, payload } as const
   },
 } as const
 
@@ -83,8 +85,8 @@ type Reducer = (state: SourceEditorViewState, action: SourceEditorActionsObjects
 /** Reducer that handles incoming actions by mapping them to a new state */
 const reducer: Reducer = (state, action) => {
   switch (action.type) {
-    case SourceEditorActionsTypes.SET_LOADERS_STATE:
-      return { ...state, loaders: { ...state.loaders, ...action.payload } }
+    case SourceEditorActionsTypes.SET_STATUS:
+      return { ...state, status: { ...state.status, ...action.payload } }
     default:
       console.warn(
         `Reducer in Source Editor did not apply any state updates for action ${action.type}.\nYou may have forgotten to specify an appropriate reducer case for this action.`
