@@ -21,6 +21,12 @@ import { ErrorDetailed } from "lib/commons/errors"
 import { connectionsHelper } from "stores/helpers"
 import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 import { flowResult } from "mobx"
+import {
+  SourceEditorActionsTypes,
+  SourceEditorStateProvider,
+  useSourceEditorDispatcher,
+  useSourceEditorState,
+} from "./SourceEditor.state"
 // @Utils
 
 /** Accumulated state of all forms that is transformed and sent to backend on source save */
@@ -49,7 +55,6 @@ export type SourceEditorInitialSourceData = Optional<Partial<SourceData>>
 export type SetSourceEditorInitialSourceData = React.Dispatch<React.SetStateAction<SourceEditorInitialSourceData>>
 
 /** Set of source editor disabled tabs */
-export type SourceEditorDisabledTabs = Set<string>
 export type SetSourceEditorDisabledTabs = (tabKeys: string[], action: "enable" | "disable") => void
 
 /** Method for saving the configured source */
@@ -121,9 +126,15 @@ const initialState: SourceEditorState = {
   stateChanged: false,
 }
 
-const disableControlsRequestsRegistry = new Map<string, { tooltipMessage?: string }>()
+export const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
+  return (
+    <SourceEditorStateProvider>
+      <SourceEditorContainer editorMode={editorMode} />
+    </SourceEditorStateProvider>
+  )
+}
 
-const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
+const SourceEditorContainer: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
   const history = useHistory()
   const allSourcesList = sourcesStore.list
   const { source, sourceId } = useParams<{ source?: string; sourceId?: string }>()
@@ -146,40 +157,20 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
       createInitialSourceData(sourceDataFromCatalog)
   )
 
+  /**
+   * The new state management tools defined in SourceEditor.state.tsx
+   * For now, used for controlling view props such as loaders and buttons hence the naming
+   */
+  const viewState = useSourceEditorState()
+  const dispatchSourceEditorAction = useSourceEditorDispatcher()
+
+  /**
+   * @obsolete state storage
+   * TO DO: move state management completely to the SourceEditor.state.tsx
+   **/
   const [state, setState] = useState<SourceEditorState>(initialState)
 
-  const [controlsDisabled, setControlsDisabled] = useState<boolean | string>(false)
-  const [tabsDisabled, setTabsDisabled] = useState<SourceEditorDisabledTabs>(null)
   const [showDocumentation, setShowDocumentation] = useState<boolean>(false)
-
-  const handleSetControlsDisabled = useCallback((disabled: boolean | string, disableRequestId: string): void => {
-    const tooltipMessage: string | undefined = typeof disabled === "string" ? disabled : undefined
-    if (disabled) {
-      setControlsDisabled(disabled)
-      disableControlsRequestsRegistry.set(disableRequestId, { tooltipMessage })
-    } else {
-      disableControlsRequestsRegistry.delete(disableRequestId)
-      // enable back only if controls are not disabled by any other callers
-      if (disableControlsRequestsRegistry.size === 0) {
-        setControlsDisabled(disabled)
-      } else {
-        // set the tooltip message by a last `disable` caller
-        let disabled: boolean | string = true
-        disableControlsRequestsRegistry.forEach(({ tooltipMessage }) => {
-          if (tooltipMessage) disabled = tooltipMessage
-        })
-        setControlsDisabled(disabled)
-      }
-    }
-  }, [])
-
-  const handleSetTabsDisabled = useCallback<SetSourceEditorDisabledTabs>((tabKeys, action) => {
-    setTabsDisabled(state => {
-      const newState = new Set(state)
-      tabKeys.forEach(key => (action === "disable" ? newState.add(key) : newState.delete(key)))
-      return newState
-    })
-  }, [])
 
   const handleBringSourceData = () => {
     let sourceEditorState = state
@@ -230,12 +221,11 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
 
   const handleValidateAndTestConnection: HandleValidateTestConnection = async (methodConfig): Promise<void> => {
     await validateAllForms()
-    const controlsDisableRequestId = uniqueId("validateAndTest-")
-    handleSetControlsDisabled("Validating source configuration", controlsDisableRequestId)
+    dispatchSourceEditorAction(SourceEditorActionsTypes.SET_STATUS, { isTestingConnection: true })
     try {
       await assertCanConnect({ ignoreErrors: methodConfig?.ignoreErrors })
     } finally {
-      handleSetControlsDisabled(false, controlsDisableRequestId)
+      dispatchSourceEditorAction(SourceEditorActionsTypes.SET_STATUS, { isTestingConnection: false })
     }
   }
 
@@ -301,15 +291,11 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
   return (
     <SourceEditorView
       state={state}
-      controlsDisabled={controlsDisabled}
-      tabsDisabled={tabsDisabled}
       editorMode={editorMode}
       showDocumentationDrawer={showDocumentation}
       initialSourceData={initialSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
       setSourceEditorState={setState}
-      handleSetControlsDisabled={handleSetControlsDisabled}
-      handleSetTabsDisabled={handleSetTabsDisabled}
       setShowDocumentationDrawer={setShowDocumentation}
       handleBringSourceData={handleBringSourceData}
       handleSave={handleSave}
@@ -322,8 +308,6 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
   )
 }
 
-const Wrapped = observer(SourceEditor)
+const Wrapped = observer(SourceEditorContainer)
 
-Wrapped.displayName = "SourceEditor"
-
-export { Wrapped as SourceEditor }
+Wrapped.displayName = "SourceEditorContainer"

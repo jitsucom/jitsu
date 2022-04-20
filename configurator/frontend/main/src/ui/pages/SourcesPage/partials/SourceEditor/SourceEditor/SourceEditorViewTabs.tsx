@@ -1,17 +1,18 @@
 import cn from "classnames"
-import React, { useCallback, useState } from "react"
+import React, { useCallback, useMemo, useState } from "react"
 import { Tabs } from "antd"
-import { SourceEditorControlsDisabled, SourceEditorViewControls } from "./SourceEditorViewControls"
+import { SourceEditorViewControls } from "./SourceEditorViewControls"
 import styles from "./SourceEditor.module.less"
 import { NavLink } from "react-router-dom"
 import { SourceConnector } from "@jitsu/catalog/sources/types"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { TabName } from "ui/components/Tabs/TabName"
-import { HandleSaveSource, HandleValidateTestConnection, SourceEditorDisabledTabs } from "./SourceEditor"
+import { HandleSaveSource, HandleValidateTestConnection } from "./SourceEditor"
 import { ErrorDetailed } from "lib/commons/errors"
 import { uniqueId } from "lodash"
 import { projectRoute } from "../../../../../../lib/components/ProjectLink/ProjectLink"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
+import { useSourceEditorState } from "./SourceEditor.state"
 
 type Tab = {
   key: string
@@ -26,36 +27,47 @@ type Tab = {
 type SourceEditorViewTabsProps = {
   sourceId: string
   tabs: Tab[]
-  tabsDisabled: SourceEditorDisabledTabs
   sourceDataFromCatalog: SourceConnector
-  controlsDisabled: SourceEditorControlsDisabled
   handleSave: HandleSaveSource
   handleValidateAndTestConnection: HandleValidateTestConnection
   handleLeaveEditor: VoidFunction
   setShowDocumentationDrawer: (value: boolean) => void
 }
 
+const disabledTabsKeys = new Set<string>()
+
 export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
   sourceId,
   tabs,
-  tabsDisabled,
   sourceDataFromCatalog,
-  controlsDisabled,
   handleSave: _handleSave,
   handleValidateAndTestConnection,
   handleLeaveEditor,
   setShowDocumentationDrawer,
 }) => {
+  const sourceEditorViewState = useSourceEditorState()
+
   const [currentTab, setCurrentTab] = useState<string>("configuration")
   const [isSaving, setIsSaving] = useState<boolean>(false)
   const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false)
 
   const [streamsTabKey, setStreamsTabKey] = useState<string>("streams")
 
+  const disabledTabs = useMemo<Set<string>>(() => {
+    const { isLoadingConfig, isLoadingOauthStatus, isOauthFlowCompleted } = sourceEditorViewState.status
+
+    /** Streams tab handling */
+    isLoadingConfig || isLoadingOauthStatus || !isOauthFlowCompleted
+      ? disabledTabsKeys.add(streamsTabKey)
+      : disabledTabsKeys.delete(streamsTabKey)
+
+    return disabledTabsKeys
+  }, [sourceEditorViewState.status, streamsTabKey])
+
   const handleTabChange = useCallback((_key: string) => {
     let key = _key
+    // reset streams tab key to re-mount the component to reload the list of streams
     if (key.includes("streams")) {
-      // reset streams tab key to re-mount the component
       key = uniqueId("streams-")
       setStreamsTabKey(key)
     }
@@ -126,13 +138,12 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
         onChange={handleTabChange}
       >
         {tabs.map((tab: Tab) => {
-          const isStreamsTab = tab.key === "streams"
-          const tabKey = isStreamsTab ? streamsTabKey : tab.key
+          const tabKey = tab.key === "streams" ? streamsTabKey : tab.key
           return (
             <Tabs.TabPane
               key={tabKey}
               tab={<TabName name={tab.title} errorsCount={tab.errorsCount ?? 0} />}
-              disabled={!!controlsDisabled && isStreamsTab}
+              disabled={disabledTabs.has(tabKey)}
             >
               {tab.render}
             </Tabs.TabPane>
@@ -156,7 +167,6 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
             title: "cancel",
             handleClick: handleLeaveEditor,
           }}
-          controlsDisabled={controlsDisabled}
         />
       </div>
     </div>

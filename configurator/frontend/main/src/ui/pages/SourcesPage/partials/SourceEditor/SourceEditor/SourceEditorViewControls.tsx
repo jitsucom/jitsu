@@ -2,6 +2,7 @@
 import { Button, Tooltip } from "antd"
 // @Icons
 import { useMemo, useState } from "react"
+import { useSourceEditorState } from "./SourceEditor.state"
 
 interface ButtonProps {
   title?: string
@@ -12,52 +13,58 @@ interface ButtonProps {
 
 /**
  * Enables granular control of which buttons are disabled.
- * If string is passed, the disabled button will show a tooltip with the string.
+ * If string is passed, the disabled button will show a tooltip.
  */
-type SourceEditorStesControlsDisabledGranular = {
+type ControlsDisabled = {
   mainButton?: boolean | string
   secondaryButton?: boolean | string
   dashedButton?: boolean | string
   dangerButton?: boolean | string
 }
 
-/**
- * Allows to disable each button or all of them at once.
- * Passing a primitive will disable all buttons except for the `Cancel` and `Back` buttons.
- * Passing an object allows to specify buttons to disable (with individual tooltips)
- * Passing a string will disable the button and display a tooltip with the string.
- * */
-export type SourceEditorControlsDisabled = boolean | string | SourceEditorStesControlsDisabledGranular
-
 export interface Props {
   mainButton?: ButtonProps
   secondaryButton?: ButtonProps
   dashedButton?: ButtonProps
   dangerButton?: ButtonProps
-  controlsDisabled?: SourceEditorControlsDisabled
 }
 
-const SourceEditorViewControls: React.FC<Props> = ({
-  mainButton,
-  secondaryButton,
-  dashedButton,
-  dangerButton,
-  controlsDisabled,
-}) => {
-  const controlsDisabledObject = useMemo<SourceEditorStesControlsDisabledGranular>(
-    () =>
-      typeof controlsDisabled === "object"
-        ? controlsDisabled
-        : { mainButton: controlsDisabled, dashedButton: controlsDisabled },
-    [controlsDisabled]
-  )
+const SourceEditorViewControls: React.FC<Props> = ({ mainButton, secondaryButton, dashedButton, dangerButton }) => {
+  const sourceEditorViewState = useSourceEditorState()
+
+  /** @see {@link ControlsDisabled} type description */
+  const controlsDisabled = useMemo<ControlsDisabled>(() => {
+    const result: ControlsDisabled = {
+      mainButton: false,
+      secondaryButton: false,
+      dashedButton: false,
+      dangerButton: false,
+    }
+    if (sourceEditorViewState.status.isLoadingOauthStatus) {
+      result.mainButton = result.secondaryButton = result.dashedButton = true
+    }
+    if (sourceEditorViewState.status.isTestingConnection) {
+      result.mainButton = result.secondaryButton = result.dashedButton = "Validating source configuration"
+    }
+    if (!sourceEditorViewState.status.isOauthFlowCompleted) {
+      result.mainButton =
+        result.secondaryButton =
+        result.dashedButton =
+          "Please, either grant Jitsu access or fill auth credentials manually"
+    }
+    if (sourceEditorViewState.status.isLoadingConfig) {
+      result.mainButton = result.secondaryButton = result.dashedButton = "Loading source configuration"
+    }
+    if (sourceEditorViewState.status.isLoadingStreams) {
+      result.mainButton = result.secondaryButton = result.dashedButton = "Loading the list of streams"
+    }
+    return result
+  }, [sourceEditorViewState.status])
 
   return (
     <>
       {mainButton && (
-        <Tooltip
-          title={typeof controlsDisabledObject.mainButton === "string" ? controlsDisabledObject.mainButton : undefined}
-        >
+        <Tooltip title={typeof controlsDisabled.mainButton === "string" ? controlsDisabled.mainButton : undefined}>
           <Button
             key="main-button"
             type="primary"
@@ -65,7 +72,7 @@ const SourceEditorViewControls: React.FC<Props> = ({
             className="mr-2"
             loading={mainButton.loading}
             onClick={mainButton.handleClick}
-            disabled={!!controlsDisabledObject.mainButton}
+            disabled={!!controlsDisabled.mainButton}
           >
             {mainButton.title ?? "Save"}
           </Button>
@@ -74,11 +81,7 @@ const SourceEditorViewControls: React.FC<Props> = ({
 
       {secondaryButton && !secondaryButton.hide && (
         <Tooltip
-          title={
-            typeof controlsDisabledObject.secondaryButton === "string"
-              ? controlsDisabledObject.secondaryButton
-              : undefined
-          }
+          title={typeof controlsDisabled.secondaryButton === "string" ? controlsDisabled.secondaryButton : undefined}
         >
           <Button
             key="default-button"
@@ -86,7 +89,7 @@ const SourceEditorViewControls: React.FC<Props> = ({
             size="large"
             className="mr-2"
             loading={secondaryButton.loading}
-            disabled={!!controlsDisabledObject.secondaryButton}
+            disabled={!!controlsDisabled.secondaryButton}
             onClick={secondaryButton.handleClick}
           >
             Back
@@ -95,18 +98,14 @@ const SourceEditorViewControls: React.FC<Props> = ({
       )}
 
       {dashedButton && !dashedButton.hide && (
-        <Tooltip
-          title={
-            typeof controlsDisabledObject.dashedButton === "string" ? controlsDisabledObject.dashedButton : undefined
-          }
-        >
+        <Tooltip title={typeof controlsDisabled.dashedButton === "string" ? controlsDisabled.dashedButton : undefined}>
           <Button
             key="dashed-button"
             type="dashed"
             size="large"
             className="mr-2"
             loading={dashedButton.loading}
-            disabled={!!controlsDisabledObject.dashedButton}
+            disabled={!!controlsDisabled.dashedButton}
             onClick={dashedButton.handleClick}
           >
             {dashedButton.title}
@@ -115,18 +114,14 @@ const SourceEditorViewControls: React.FC<Props> = ({
       )}
 
       {dangerButton && (
-        <Tooltip
-          title={
-            typeof controlsDisabledObject.dangerButton === "string" ? controlsDisabledObject.dangerButton : undefined
-          }
-        >
+        <Tooltip title={typeof controlsDisabled.dangerButton === "string" ? controlsDisabled.dangerButton : undefined}>
           <Button
             key="danger-button"
             type="default"
             size="large"
             danger
             loading={dangerButton.loading}
-            disabled={!!controlsDisabledObject.dangerButton}
+            disabled={!!controlsDisabled.dangerButton}
             onClick={dangerButton.handleClick}
           >
             Cancel

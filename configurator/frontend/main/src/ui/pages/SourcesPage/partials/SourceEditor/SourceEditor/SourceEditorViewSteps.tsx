@@ -1,7 +1,7 @@
 import cn from "classnames"
 import { useState } from "react"
 import { Steps } from "antd"
-import { SourceEditorControlsDisabled, SourceEditorViewControls } from "./SourceEditorViewControls"
+import { SourceEditorViewControls } from "./SourceEditorViewControls"
 import { LoadingOutlined } from "@ant-design/icons"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { SetSourceEditorInitialSourceData } from "./SourceEditor"
@@ -17,7 +17,6 @@ type Step = {
 
 type SourceEditorTabsViewProps = {
   steps: Step[]
-  controlsDisabled: SourceEditorControlsDisabled
   handleBringSourceData: () => SourceData
   setInitialSourceData: SetSourceEditorInitialSourceData
   handleLeaveEditor: VoidFunction
@@ -25,7 +24,6 @@ type SourceEditorTabsViewProps = {
 
 export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
   steps,
-  controlsDisabled,
   handleBringSourceData,
   setInitialSourceData,
   handleLeaveEditor,
@@ -93,7 +91,6 @@ export const SourceEditorViewSteps: React.FC<SourceEditorTabsViewProps> = ({
               title: "Cancel",
               handleClick: handleLeaveEditor,
             }}
-            controlsDisabled={controlsDisabled}
           />
         </div>
       </div>
