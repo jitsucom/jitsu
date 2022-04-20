@@ -39,7 +39,7 @@ type Process interface {
 	Wait() error
 }
 
-const governorErrorThreshold = 3
+const governorErrorThreshold = 2
 
 // Governor is responsible for keeping the Process alive.
 // It will restart the process if it dies.

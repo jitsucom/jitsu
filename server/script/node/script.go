@@ -36,6 +36,7 @@ type Response struct {
 	Ok     bool            `json:"ok"`
 	Result json.RawMessage `json:"result,omitempty"`
 	Error  string          `json:"error,omitempty"`
+	Stack  string          `json:"stack,omitempty"`
 	Log    []Log           `json:"log,omitempty"`
 }
 
@@ -52,7 +53,7 @@ type Script struct {
 
 func (s *Script) Describe() (script.Symbols, error) {
 	value := make(script.Symbols)
-	if err := s.exchange(describe, nil, &value, nil); err != nil {
+	if err := s.exchange(describe, nil, &value, nil, time.Second*5); err != nil {
 		return nil, err
 	}
 	return value, nil
@@ -63,7 +64,7 @@ func (s *Script) Execute(name string, args []interface{}, result interface{}) er
 		args = make([]interface{}, 0)
 	}
 
-	return s.exchange(execute, Execute{Function: name, Args: args}, result, nil)
+	return s.exchange(execute, Execute{Function: name, Args: args}, result, nil, time.Second*5)
 }
 
 func (s *Script) ExecuteWithDataChannel(name string, args []interface{}, result interface{}, dataChannel chan<- []byte) error {
@@ -71,11 +72,11 @@ func (s *Script) ExecuteWithDataChannel(name string, args []interface{}, result 
 		args = make([]interface{}, 0)
 	}
 
-	return s.exchange(execute, Execute{Function: name, Args: args}, result, dataChannel)
+	return s.exchange(execute, Execute{Function: name, Args: args}, result, dataChannel, time.Hour*1)
 }
 
 func (s *Script) Close() {
-	if err := s.exchange(kill, nil, nil, nil); err != nil {
+	if err := s.exchange(kill, nil, nil, nil, time.Second*5); err != nil {
 		logging.Warnf("send kill signal failed, killing: %v", err)
 		s.Governor.Kill()
 	}
@@ -87,7 +88,7 @@ func (s *Script) Close() {
 	_ = os.RemoveAll(s.Dir)
 }
 
-func (s *Script) exchange(command string, payload, result interface{}, dataChannel chan<- []byte) error {
+func (s *Script) exchange(command string, payload, result interface{}, dataChannel chan<- []byte, timeout time.Duration) error {
 	data, err := json.Marshal(Request{
 		Command: command,
 		Payload: payload,
@@ -97,7 +98,7 @@ func (s *Script) exchange(command string, payload, result interface{}, dataChann
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	start := timestamp.Now()
@@ -127,10 +128,14 @@ func (s *Script) exchange(command string, payload, result interface{}, dataChann
 	}
 
 	if !resp.Ok {
+		if resp.Stack != "" {
+			return errors.New(resp.Error + "\n" + resp.Stack)
+		}
+
 		return errors.New(resp.Error)
 	}
 
-	if result != nil {
+	if result != nil && len(resp.Result) > 0 {
 		decoder := json.NewDecoder(bytes.NewReader(resp.Result))
 		//parse json exactly the same way as it happens in http request processing.
 		//transform that does no changes must return exactly the same object as w/o transform

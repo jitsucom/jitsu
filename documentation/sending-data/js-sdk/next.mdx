@@ -1,9 +1,9 @@
 ---
-sort: '0006'
-title: 'React Guide'
+sort: '0008'
+title: 'NextJS Guide'
 ---
 
-# React Guide
+# NextJS Guide
 
 ## Installation
 
@@ -13,8 +13,9 @@ To use Jitsu SDK, install npm package
 npm install @jitsu/react
 ```
 
-Import and configure Jitsu SDK Provider.
+Import and configure Jitsu SDK Provider
 
+pages/_app.js:
 ```javascript
 //...
 import { createClient, JitsuProvider } from "@jitsu/react";
@@ -25,14 +26,15 @@ const jitsuClient = createClient({
   // See Jitsu SDK parameters section for more options
 });
 
-ReactDOM.render(
-  <React.StrictMode>
-    <JitsuProvider client={jitsuClient}>
-      <App />
-    </JitsuProvider>
-  </React.StrictMode>,
-  document.getElementById('root')
-);
+function MyApp({Component, pageProps}) {
+  useNextPageView()
+
+  return <JitsuProvider client={jitsuClient}>
+    <Component {...pageProps} />
+  </JitsuProvider>
+}
+
+export default MyApp
 ```
 
 ## Usage
@@ -59,29 +61,11 @@ const App = () => {
 }
 ```
 
-### `usePageView` with react-router:
-```javascript
-const App = () => {
-  usePageView() //this hook will send pageview track event on router change
-
-  return (
-    <Routes>
-      <Route path="/" element={<Main />} />
-      <Route path="page" element={<Page />} />
-    </Routes>
-  );
-}
-```
-
 ## Hooks
 
 ### useJitsu
 
-Returns object with `id`, `trackEvent`, `trackPageView`, `rawTrack` and `interceptAnalytics` methods of Jitsu SDK.
-
-### usePageView
-
-Can be used only with react-router. Sends `pageview` event on every route change.
+Returns object with `id`, `trackEvent`, `trackPageView`, `rawTrack`, `set`, `unset`, and `interceptAnalytics` methods of Jitsu SDK.
 
 ## Jitsu SDK parameters and methods
 
@@ -90,3 +74,8 @@ Read about all SDK parameters and methods in our [documentation](/docs/sending-d
 * [methods](/docs/sending-data/js-sdk/methods-reference)
 
 All SDK methods are provided in `useJitsu` hook.
+
+
+
+
+

@@ -1,4 +1,5 @@
 import { Route, Switch } from "react-router-dom"
+import { PageNotFound } from "ui/components/PageNotFound/PageNotFound"
 import { ApiKeyEditor } from "./ApiKeyEditor"
 import ApiKeys from "./ApiKeys"
 import { ApiKeyStatistics } from "./ApiKeyStatistics"
@@ -24,6 +25,9 @@ const ApiKeysRouter: React.FC<{}> = () => {
       </Route>
       <Route exact path={apiKeysRoutes.statisticsExact}>
         <ApiKeyStatistics />
+      </Route>
+      <Route>
+        <PageNotFound homeUrl="/" />
       </Route>
     </Switch>
   )

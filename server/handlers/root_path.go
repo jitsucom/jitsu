@@ -21,7 +21,7 @@ const (
 	configuratorURLKey     = "__JITSU_CONFIGURATOR_URL__"
 )
 
-var signaturePage = `<html><head><title>Jitsu edge server ver [VERSION]</title></head><body><pre><small><b>Jitsu edge server ver [VERSION]</b></small></pre></body></html>`
+var signaturePage = `<html><head><title>Jitsu edge server ver [VERSION]</title></head><body><pre><small><b>Jitsu edge server ver [VERSION]. <a href="[CONFIGURATOR_URL]">Configure Jitsu</a></b></small></pre></body></html>`
 var blankPage = `<html><head></head><body></body></html>`
 
 //RootPathHandler serves:
@@ -91,7 +91,9 @@ func (rph *RootPathHandler) Handler(c *gin.Context) {
 
 	if rph.welcome == nil {
 		if !rph.disableSignature {
-			c.Writer.Write([]byte(strings.ReplaceAll(signaturePage, "[VERSION]", appconfig.RawVersion+" / "+appconfig.BuiltAt)))
+			var html = strings.ReplaceAll(signaturePage, "[VERSION]", appconfig.RawVersion+" / "+appconfig.BuiltAt)
+			html = strings.ReplaceAll(html, "[CONFIGURATOR_URL]", rph.configuratorURN)
+			c.Writer.Write([]byte(html))
 		} else {
 			c.Writer.Write([]byte(blankPage))
 		}

@@ -16,6 +16,7 @@ import { useLoaderAsObject } from "hooks/useLoader"
 // @Types
 import type { Project } from "generated/conf-openapi"
 import { BilledButton } from "../BilledButton/BilledButton"
+import { useVirtual } from "react-virtual"
 
 export type ProjectSwitchProps = {
   onAfterProjectSelected: (project: Project, activeProject: Project) => void
@@ -112,10 +113,26 @@ type ProjectListProps = {
 }
 
 const ProjectList: React.FC<ProjectListProps> = ({ projects, activeProjectId, loading, error, onProjectSelected }) => {
-  const [searchString, setSearchString] = useState<string | undefined>()
+  const [filteredProjects, setFilteredProjects] = useState<Project[]>([])
+
+  React.useEffect(() => {
+    setFilteredProjects(sortProjects(projects || []))
+  }, [projects])
+
+  const sortProjects = (projects: Project[]): Project[] => {
+    return projects.sort((a, b) => (a.id === activeProjectId ? -1 : b.id == activeProjectId ? 1 : 0))
+  }
 
   const handleSearchChange = debounce(e => {
-    setSearchString(e.target.value)
+    const term = e.target.value
+    const filteredProjects = projects.filter(
+      project =>
+        !term ||
+        term.trim() === "" ||
+        project.name.toLowerCase().indexOf(term.toLowerCase()) >= 0 ||
+        project.id.toLowerCase().indexOf(term.toLowerCase()) >= 0
+    )
+    setFilteredProjects(sortProjects(filteredProjects))
   }, 500)
 
   if (loading) {
@@ -133,28 +150,73 @@ const ProjectList: React.FC<ProjectListProps> = ({ projects, activeProjectId, lo
           <Input autoFocus onChange={handleSearchChange} placeholder="Search" />
         </div>
       )}
-      <div className="overflow-y-auto" style={{ maxHeight: "25rem" }}>
-        {getRenderedProjects(projects)
-          .filter(
-            project =>
-              !searchString ||
-              searchString.trim() === "" ||
-              project.name.toLowerCase().indexOf(searchString.toLowerCase()) >= 0 ||
-              project.id.toLowerCase().indexOf(searchString.toLowerCase()) >= 0
-          )
-          .map(project => (
-            <div
-              key={project.id}
-              className="rounded-xl hover:bg-bgSecondary px-3 py-3 cursor-pointer flex items-center flex-nowrap"
-              onClick={() => onProjectSelected(project)}
-            >
-              <div className="w-10">{activeProjectId === project.id && <CheckOutlined className="text-2xl" />}</div>
-              <div>
-                <div className="text-lg text-heading font-bold">{project.name}</div>
-                <div className="text-secondaryText text-xxs">{project.id}</div>
+      <VirtualList
+        projects={filteredProjects || []}
+        activeProjectId={activeProjectId}
+        onProjectSelected={onProjectSelected}
+      />
+    </>
+  )
+}
+
+const VirtualList: React.FC<{
+  projects: Project[]
+  activeProjectId: string
+  onProjectSelected(project: Project): Promise<void> | void
+}> = ({ projects, activeProjectId, onProjectSelected }) => {
+  const parentRef = React.useRef()
+
+  const rowVirtualizer = useVirtual({
+    size: projects.length,
+    parentRef,
+    estimateSize: React.useCallback(() => 100, []),
+    overscan: 5,
+  })
+
+  return (
+    <>
+      <div
+        ref={parentRef}
+        className="List"
+        style={{
+          height: "400px",
+          width: "100%",
+          overflow: "auto",
+          maxHeight: "25rem",
+        }}
+      >
+        <div
+          style={{
+            height: `${rowVirtualizer.totalSize}px`,
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {rowVirtualizer.virtualItems.map(virtualRow => {
+            const project = projects[virtualRow.index]
+            return (
+              <div
+                key={virtualRow.index}
+                className="rounded-xl hover:bg-bgSecondary px-3 py-3 cursor-pointer flex items-center flex-nowrap"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+                onClick={() => onProjectSelected(project)}
+              >
+                <div className="w-10">{activeProjectId === project.id && <CheckOutlined className="text-2xl" />}</div>
+                <div>
+                  <div className="text-lg text-heading font-bold">{project.name}</div>
+                  <div className="text-secondaryText text-xxs">{project.id}</div>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
+        </div>
       </div>
     </>
   )
