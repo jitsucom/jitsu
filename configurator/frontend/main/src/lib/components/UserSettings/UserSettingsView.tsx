@@ -87,9 +87,9 @@ export const UserSettingsViewComponent: React.FC<Props> = ({
         {onlyAdminCanChangeUserEmail && !ssoEnabled && (
           <>
             <span>
-              Only cluster admin can change users email. <br />
+              Only cluster admin can change user email. <br />
               See{" "}
-              <a target="_blank" href="https://jitsu.com/docs/other-features/jitsu-api#configuration-api">
+              <a target="_blank" href="https://jitsu.com/configurator-openapi.html#operation/User%20email%20change">
                 API docs
               </a>{" "}
               for more information.
