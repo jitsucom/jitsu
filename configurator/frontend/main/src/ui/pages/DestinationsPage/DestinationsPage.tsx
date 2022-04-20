@@ -22,6 +22,7 @@ import { CurrentSubscription } from "lib/services/billing"
 import { BillingCheckRedirect } from "lib/components/BillingCheckRedirect/BillingCheckRedirect"
 import { EntitiesStoreStatus } from "stores/entitiesStore"
 import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
+import { PageNotFound } from "ui/components/PageNotFound/PageNotFound"
 
 export interface CollectionDestinationData {
   destinations: DestinationData[]
@@ -69,25 +70,38 @@ const DestinationsPageComponent: React.FC = () => {
         <Route path={destinationPageRoutes.statisticsExact} strict={false} exact>
           <DestinationStatistics />
         </Route>
-        <BillingCheckRedirect
-          quotaExceededRedirectTo={projectRoute(destinationPageRoutes.root)}
-          quotaExceedeMessage={
-            <>
-              You current plan allows to have only {services.currentSubscription.currentPlan.quota.destinations}{" "}
-              destinations
-            </>
-          }
-          isQuotaExceeded={isDestinationsLimitReached}
-        >
-          <Switch>
-            <Route path={destinationPageRoutes.add} strict={false} exact>
-              <AddDestinationDialog />
-            </Route>
-            <Route path={destinationPageRoutes.newExact} strict={false} exact>
-              <DestinationEditor editorMode="add" />
-            </Route>
-          </Switch>
-        </BillingCheckRedirect>
+
+        <Route path={destinationPageRoutes.add} strict={false} exact>
+          <BillingCheckRedirect
+            quotaExceededRedirectTo={projectRoute(destinationPageRoutes.root)}
+            quotaExceedeMessage={
+              <>
+                You current plan allows to have only {services.currentSubscription.currentPlan.quota.destinations}{" "}
+                destinations
+              </>
+            }
+            isQuotaExceeded={isDestinationsLimitReached}
+          >
+            <AddDestinationDialog />
+          </BillingCheckRedirect>
+        </Route>
+        <Route path={destinationPageRoutes.newExact} strict={false} exact>
+          <BillingCheckRedirect
+            quotaExceededRedirectTo={projectRoute(destinationPageRoutes.root)}
+            quotaExceedeMessage={
+              <>
+                You current plan allows to have only {services.currentSubscription.currentPlan.quota.destinations}{" "}
+                destinations
+              </>
+            }
+            isQuotaExceeded={isDestinationsLimitReached}
+          >
+            <DestinationEditor editorMode="add" />
+          </BillingCheckRedirect>
+        </Route>
+        <Route>
+          <PageNotFound homeUrl="/" />
+        </Route>
       </Switch>
     </ErrorBoundary>
   )

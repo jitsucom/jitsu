@@ -1,0 +1,64 @@
+---
+sort: "0005"
+title: 'Methods Reference'
+---
+
+# Methods Reference
+
+### id
+`id: (userData: UserProps, doNotSendEvent?: boolean) => Promise`<br/><br/>
+Sets a user data.
+
+| Param           | Type        | Description                                                             |
+|-----------------|-------------|-------------------------------------------------------------------------|
+| userData        | `UserProps` | user data                                                               |
+| doNotSendEvent? | `boolean`   | if true (false by default), separate "id" event won't be sent to server |
+
+<br /> <br />
+### track
+`track: (typeName: string, payload?: EventPayload) => Promise`<br/><br/>
+Sends a track event to server.
+
+| Param    | Type           | Description   |
+|----------|----------------|---------------|
+| typeName | `string`       | event name    |
+| payload? | `EventPayload` | event payload |
+
+<br /> <br />
+### rawTrack
+`rawTrack: (payload: any) => Promise`<br/><br/>
+Similar to `track`, but send unstructured payload to EventNative processing pipeline.
+No additional detection (user-agent, url and so on will be done). No payload structure is enforced.
+
+| Param   | Type  | Description   |
+|---------|-------|---------------|
+| payload | `any` | event payload |
+
+<br /> <br />
+### set
+`set(properties: Record<string, any>, opts?: { eventType?: string, persist?: boolean })`<br/><br/>
+Sets a permanent properties that will be persisted across sessions. On every `track()` call those properties will be merged with `payload` parameter
+
+| Param      | Type                                        | Description                                                                                                                                                                            |
+|------------|---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| properties | `Record<string, any>`                       | set properties                                                                                                                                                                         |
+| opts       | `{ eventType?: string, persist?: boolean }` | `eventType` - apply permanent properties to only certain event type (applied to all types by default)<br/>`persist` - persist properties across sessions (in cookies). True by default |
+
+<br /> <br />
+### unset
+`unset(propertyName: string, opts: { eventType?: string, persist?: boolean })`<br/><br/>
+Unsets a permanent properties added with `set()`
+
+| Param        | Type                                        | Description                                                                                                                                                                            |
+|--------------|---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| propertyName | `string`                                    | property to unset                                                                                                                                                                      |
+| opts         | `{ eventType?: string, persist?: boolean }` | `eventType` - apply permanent properties to only certain event type (applied to all types by default)<br/>`persist` - persist properties across sessions (in cookies). True by default |
+
+<br /> <br />
+### interceptAnalytics
+`interceptAnalytics: (analytics: any) => void`<br/><br/>
+Explicit call for intercepting Segment's analytics.
+
+| Param     | Type  | Description             |
+|-----------|-------|-------------------------|
+| analytics | `any` | window.analytics object |

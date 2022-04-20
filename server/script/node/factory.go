@@ -30,6 +30,8 @@ type scriptTemplateValues struct {
 	Executable string
 	Variables  string
 	Includes   string
+	LineOffset int
+	ColOffset  int
 }
 
 var (
@@ -38,8 +40,9 @@ var (
 	scriptTemplate, _     = template.New("node_script").Parse(scriptTemplateContent)
 
 	globalDependencies = map[string]string{
-		"node-fetch": "2.6.7",
-		"vm2":        "3.9.9",
+		"node-fetch":      "2.6.7",
+		"vm2":             "3.9.9",
+		"queue-microtask": "1.2.3",
 	}
 )
 
@@ -114,10 +117,7 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 	variables["_a"] = "_a"
 
 	variablesJSON, err := json.Marshal(variables)
-	variablesJSONs := strings.TrimPrefix(string(variablesJSON), "{")
-	variablesJSONs = strings.TrimSuffix(variablesJSONs, "}")
 
-	//logging.Infof("variablesJSONs: " + variablesJSONs)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal variables json")
 	}
@@ -125,7 +125,9 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 	err = scriptTemplate.Execute(scriptFile, scriptTemplateValues{
 		Executable: escapeJSON(expression),
 		Includes:   escapeJSON(strings.Join(includes, "\n")),
-		Variables:  string(variablesJSONs),
+		Variables:  string(variablesJSON),
+		LineOffset: getLineOffset(executable),
+		ColOffset:  getColOffset(executable),
 	})
 
 	closeQuietly(scriptFile)
@@ -177,6 +179,25 @@ func installNodeModule(dir string, spec string) error {
 	args := []string{"install", "--no-audit", "--prefer-offline"}
 	args = append(args, spec)
 	return errors.Wrapf(script.Exec(dir, npm, args...), "failed to install npm package %s", spec)
+}
+
+func getColOffset(executable script.Executable) int {
+	if e, ok := executable.(script.Expression); ok {
+		if !strings.Contains(string(e), "return") {
+			return 7
+		}
+	}
+
+	return 0
+}
+
+func getLineOffset(executable script.Executable) int {
+	switch executable.(type) {
+	case script.Expression:
+		return 5
+	default:
+		return 0
+	}
 }
 
 func (f *factory) getExpression(dir string, executable script.Executable) (string, error) {

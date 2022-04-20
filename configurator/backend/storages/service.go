@@ -199,7 +199,7 @@ func (cs *ConfigurationsService) CreateDefaultAPIKey(projectID string) error {
 	}
 	defer lock.Unlock()
 
-	keys, err := cs.GetAPIKeysByProjectID(projectID)
+	keys, err := cs.getAPIKeysByProjectID(projectID)
 	if err != nil {
 		return err
 	}
@@ -356,7 +356,21 @@ func (cs *ConfigurationsService) GetAllAPIKeysPerProjectByID() (map[string]map[s
 
 //GetAPIKeysByProjectID uses getWithLock func under the hood, returns all api keys per project
 func (cs *ConfigurationsService) GetAPIKeysByProjectID(projectID string) ([]*entities.APIKey, error) {
-	data, err := cs.getWithLock(apiKeysCollection, projectID)
+	lock, err := cs.lockProjectObject(apiKeysCollection, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer lock.Unlock()
+	apiKeys, err := cs.getAPIKeysByProjectID(projectID)
+	if err != nil {
+		return nil, err
+	}
+	return apiKeys, nil
+}
+
+//getAPIKeysByProjectID uses get func under the hood, returns all api keys per project
+func (cs *ConfigurationsService) getAPIKeysByProjectID(projectID string) ([]*entities.APIKey, error) {
+	data, err := cs.get(apiKeysCollection, projectID)
 	if err != nil {
 		if err == ErrConfigurationNotFound {
 			return make([]*entities.APIKey, 0), nil

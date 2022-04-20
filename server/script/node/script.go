@@ -36,6 +36,7 @@ type Response struct {
 	Ok     bool            `json:"ok"`
 	Result json.RawMessage `json:"result,omitempty"`
 	Error  string          `json:"error,omitempty"`
+	Stack  string          `json:"stack,omitempty"`
 	Log    []Log           `json:"log,omitempty"`
 }
 
@@ -127,6 +128,10 @@ func (s *Script) exchange(command string, payload, result interface{}, dataChann
 	}
 
 	if !resp.Ok {
+		if resp.Stack != "" {
+			return errors.New(resp.Error + "\n" + resp.Stack)
+		}
+
 		return errors.New(resp.Error)
 	}
 
