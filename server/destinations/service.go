@@ -454,26 +454,27 @@ func (s *Service) PostHandle(id string, event events.Event) error {
 	if !ok {
 		return fmt.Errorf("PostHandle destination %v is not ready", id)
 	}
-	if storage.Type() != storages.DbtCloudType {
+	streamingStorage, ok := storage.(storages.StreamingStorage)
+	if !ok {
 		return fmt.Errorf("Type %v is not supported as postHandle destination. Destination: %v", storage.Type(), id)
 	}
 	dbtCloud, ok := storage.(*storages.DbtCloud)
-	if !dbtCloud.Enabled() {
+	if ok && !dbtCloud.Enabled() {
 		return nil
 	}
 	eventID := uuid.New()
 
 	eventContext := &adapters.EventContext{
-		DestinationID:  storage.ID(),
+		DestinationID:  streamingStorage.ID(),
 		EventID:        eventID,
 		Src:            fmt.Sprintf("%v", event["source"]),
 		RawEvent:       event,
 		ProcessedEvent: event,
 		Table: &adapters.Table{
-			Name: storage.ID(),
+			Name: streamingStorage.ID(),
 		},
 	}
-	err2 := dbtCloud.Insert(eventContext)
+	err2 := streamingStorage.Insert(eventContext)
 	if err2 != nil {
 		logging.Errorf("%s failed for source: %v, err: %v", dbtCloud.Type(), event["source"], err2)
 		return fmt.Errorf("%s failed: %v", dbtCloud.Type(), err2)
