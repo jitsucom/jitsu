@@ -44,10 +44,11 @@ import { SupportOptions } from "lib/components/SupportOptions/SupportOptions"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { useClickOutsideRef } from "hooks/useClickOutsideRef"
 import { Breadcrumbs } from "./ui/components/Breadcrumbs/Breadcrumbs"
-import ProjectLink, { stripProjectFromRoute } from "./lib/components/ProjectLink/ProjectLink"
+import ProjectLink, { projectRoute, stripProjectFromRoute } from "./lib/components/ProjectLink/ProjectLink"
 import { User } from "./generated/conf-openapi"
 import { showProjectSwitchModal } from "./lib/components/ProjectSwitch/ProjectSwitch"
 import { BillingPlanOptionsModal } from "lib/components/BillingPlanOptions/BillingPlanOptions"
+import EditOutlined from "@ant-design/icons/lib/icons/EditOutlined"
 
 type MenuItem = {
   icon: React.ReactNode
@@ -254,14 +255,23 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
         <div className="text-center text-text text-lg">{user.name}</div>
         <div className="text-secondaryText text-xs underline">{user.email}</div>
       </div>
-      <div className="py-2 border-b border-main px-5 flex flex-col items-start">
+      <div className="py-2 border-b border-main px-5 flex flex-col items-center">
         <div>
           {services.activeProject?.name && (
             <>
-              Project: <b>{services.activeProject.name}</b>
+              <b>{services.activeProject.name}</b>{" "}
+              <Button
+                size="small"
+                type="text"
+                icon={<EditOutlined />}
+                onClick={() => {
+                  hideMenu()
+                  history.push(projectRoute("/project-settings"))
+                }}
+              />
             </>
           )}
-          <div className="text-xs">
+          <div className="text-xs flex flex-col items-center">
             <a
               onClick={() => {
                 hideMenu()
