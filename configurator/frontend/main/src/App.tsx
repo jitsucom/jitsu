@@ -34,6 +34,8 @@ import LoginPage from "./ui/pages/GetStartedPage/LoginPage"
 import SignupPage from "./ui/pages/GetStartedPage/SignupPage"
 import { StatusPage } from "./lib/components/StatusPage/StatusPage"
 import { UserSettings } from "./lib/components/UserSettings/UserSettings"
+import { Settings } from "./lib/services/UserSettingsService"
+
 // @Styles
 import "./App.less"
 // @Unsorted
@@ -201,7 +203,7 @@ export const Application: React.FC = function () {
               <div className="w-1/2">
                 <NavLink to="/">
                   <Button size="large" type="primary">
-                    Back to Jitsu →
+                    ← Back to Jitsu
                   </Button>
                 </NavLink>
 
@@ -322,7 +324,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
       let project = await initializeProject(projectId, projects)
       if (!project) {
         if (!projects || projects.length === 0) services.userService.removeAuth(reloadPage)
-        const lastUsedProject = getLastUsedProjectId(projects)
+        const lastUsedProject = services.userSettingsService.get(Settings.ActiveProject)?.id
         setProjectIdRedirectedFrom(projectId)
         window.location.replace(window.location.href.replace(projectId, lastUsedProject))
         return
@@ -353,7 +355,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
   /** Saves the last successfully initialized project to local storage */
   useEffect(() => {
     if (initialized && !error && project?.id) {
-      setLastUsedProjectId(project.id)
+      services.userSettingsService.set({ [Settings.ActiveProject]: project })
     }
   }, [error, initialized, project?.id])
 
@@ -399,33 +401,12 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
 
 const ProjectRedirect: React.FC<{ projects: Project[] }> = ({ projects }) => {
   const location = useLocation()
-  const lastUsedProject = getLastUsedProjectId(projects)
+  const services = useServices()
+  const lastUsedProject = services.userSettingsService.get(Settings.ActiveProject)?.id
   if (!projects?.length) {
     return <ErrorCard title="Invalid state" description="projects.length should be greater than zero" />
   }
   return <Redirect to={`/prj-${lastUsedProject ?? projects[0].id}${location.pathname}`} />
-}
-
-/**
- * Finds the last successfully initialized project id.
- * First, checks the session storage, then checks the local storage - this makes it more stable
- * in cross-tabs user workflows.
- */
-function getLastUsedProjectId(projects: Project[]): string {
-  const [lastUsedProjectIdInCurrentTab, lastUsedProjectIdGlobally] = [window.sessionStorage, window.localStorage].map(
-    storage => storage.getItem("JITSU_LAST_USED_PROJECT")
-  )
-  if (lastUsedProjectIdInCurrentTab && projects.find(prj => prj.id === lastUsedProjectIdInCurrentTab)) {
-    return lastUsedProjectIdInCurrentTab
-  }
-  if (lastUsedProjectIdGlobally && projects.find(prj => prj.id === lastUsedProjectIdGlobally)) {
-    return lastUsedProjectIdGlobally
-  }
-  return projects?.[0]?.id ?? null
-}
-
-function setLastUsedProjectId(id: string): void {
-  ;[window.sessionStorage, window.localStorage].forEach(storage => storage.setItem("JITSU_LAST_USED_PROJECT", id))
 }
 
 function getProjectIdRedirectedFrom(): string | null | undefined {
