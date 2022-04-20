@@ -15,7 +15,7 @@ import { IOauthService, OauthService } from "./oauth"
 import { Project } from "../../generated/conf-openapi"
 import { createProjectService, ProjectService } from "./ProjectService"
 import { FirebaseUserService } from "./UserServiceFirebase"
-import { UserSettingsService, UserSettingsLocalService } from "./UserSettingsService"
+import { UserSettingsService, UserSettingsLocalService, Settings } from "./UserSettingsService"
 
 export interface IApplicationServices {
   init(): Promise<void>
@@ -101,11 +101,11 @@ export default class ApplicationServices implements IApplicationServices {
   }
 
   get activeProject(): Project {
-    return this._userSettingsService.get("activeProject") as Project
+    return this._userSettingsService.get(Settings.ActiveProject) as Project
   }
 
   set activeProject(value: Project) {
-    this._userSettingsService.set({ activeProject: value })
+    this._userSettingsService.set({ [Settings.ActiveProject]: value })
   }
 
   get storageService(): ServerStorage {
@@ -140,7 +140,7 @@ export default class ApplicationServices implements IApplicationServices {
     return this._oauthService
   }
 
-  get storageUserSettingsService(): UserSettingsService {
+  get userSettingsService(): UserSettingsService {
     return this._userSettingsService
   }
 
