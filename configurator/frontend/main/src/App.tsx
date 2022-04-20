@@ -13,7 +13,7 @@ import { currentPageHeaderStore } from "./stores/currentPageHeader"
 import { destinationsStore } from "./stores/destinations"
 import { sourcesStore } from "./stores/sources"
 // @Components
-import { ApplicationPage } from "./Layout"
+import { ApplicationPage, SlackChatWidget } from "./Layout"
 import { CenteredSpin, Preloader } from "./lib/components/components"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { SetNewPasswordModal } from "lib/components/SetNewPasswordModal/SetNewPasswordModal"
@@ -389,6 +389,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
         </Switch>
       </ApplicationPage>
       <BillingGlobalGuard />
+      <SlackChatWidget />
       {project.requiresSetup && <OnboardingTourLazyLoader project={project} />}
       {services.userService.getUser().forcePasswordChange && (
         <SetNewPasswordModal onCompleted={async () => reloadPage()} />
