@@ -48,7 +48,7 @@ export class UserSettingsLocalService implements UserSettingsService {
     }
 
     if (settingName) {
-      data = data[settingName] ?? null
+      data = data?.[settingName] ?? null
     }
 
     return data
