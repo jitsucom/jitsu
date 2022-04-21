@@ -31,7 +31,7 @@ func init() {
 		//S3 can store SQL data it depends on "format".
 		isSQLFunc: func(config *config.DestinationConfig) bool {
 			mp := utils.NvlMap(config.Config, config.S3)
-			return mp["format"] != adapters.S3FormatJSON
+			return mp["format"] != string(adapters.S3FormatJSON)
 		}})
 }
 
