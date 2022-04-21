@@ -109,7 +109,7 @@ func schedule(cronScheduler *scheduling.CronScheduler, sourceID string, sourceCo
 //ParseCollections return serialized Collection objects slice
 //or return one default collection with 'schedule' if singer type
 func ParseCollections(sourceConfig *base.SourceConfig) ([]*base.Collection, error) {
-	if sourceConfig.Type == base.SingerType || sourceConfig.Type == base.AirbyteType || sourceConfig.Type == base.SdkSourceType {
+	if sourceConfig.Type == base.SingerType || sourceConfig.Type == base.AirbyteType {
 		return []*base.Collection{{SourceID: sourceConfig.SourceID, Name: DefaultCollection, Schedule: sourceConfig.Schedule}}, nil
 	}
 

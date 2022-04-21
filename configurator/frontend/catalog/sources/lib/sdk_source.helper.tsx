@@ -71,7 +71,7 @@ export const mapSdkSourceSpecToSourceConnectorConfig = (extensionDescriptor: any
       }
       result.push({
           ...param,
-          id:  "config.config." + param["id"],
+          id:  "config." + param["id"],
           type: tp,
         },
       )

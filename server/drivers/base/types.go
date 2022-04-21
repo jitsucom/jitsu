@@ -173,7 +173,7 @@ type CLIDriver interface {
 	Load(config string, state string, taskLogger logging.TaskLogger, dataConsumer CLIDataConsumer, taskCloser CLITaskCloser) error
 	//Ready returns true if the driver is ready otherwise returns ErrNotReady
 	Ready() (bool, error)
-	//GetTap returns Singer tap or airbyte docker image (without prefix 'airbyte/': source-mixpanel)
+	//GetTap returns npm package for sdk_source, Singer tap or airbyte docker image (without prefix 'airbyte/': source-mixpanel)
 	GetTap() string
 	//GetTableNamePrefix returns stream table name prefix or sourceID_
 	GetTableNamePrefix() string

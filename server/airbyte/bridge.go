@@ -51,7 +51,7 @@ func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume
 	if logWriter == nil {
 		logWriter = ioutil.Discard
 	}
-	Instance = &Bridge{
+	instance := &Bridge{
 		LogWriter:       logWriter,
 		ConfigDir:       configDir,
 		WorkspaceVolume: workspaceVolume,
@@ -79,33 +79,34 @@ func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume
 		if len(image.RepoTags) > 0 {
 			repoImageWithVersion := image.RepoTags[0]
 			logging.Debug(repoImageWithVersion)
-			Instance.pulledImages[repoImageWithVersion] = true
+			instance.pulledImages[repoImageWithVersion] = true
 		}
 	}
 
 	if host := os.Getenv("KUBERNETES_SERVICE_HOST"); host != "" {
 		logging.Infof("[airbyte] ⚠️  Jitsu runs in Kubernetes. Additional setup may be required: https://jitsu.com/docs/sources-configuration/airbyte/k8s")
+		Instance = instance
 		return nil
 	}
 
 	logging.Infof("[airbyte] Checking mounted volume: %s ...", workspaceVolume)
 	if containerizedRun {
-		if err = Instance.checkVolume(ctx, cli); err != nil {
+		if err = instance.checkVolume(ctx, instance, cli); err != nil {
 			return err
 		}
 	} else {
-		if Instance.ConfigDir != workspaceVolume {
-			return fmt.Errorf("for non-docker Jitsu instances (started via binary file) 'airbyte-bridge.config_dir' parameter (current value: %s) should be equal to 'server.volumes.workspace' parameter (current value: %s) in config", Instance.ConfigDir, workspaceVolume)
+		if instance.ConfigDir != workspaceVolume {
+			return fmt.Errorf("for non-docker Jitsu instances (started via binary file) 'airbyte-bridge.config_dir' parameter (current value: %s) should be equal to 'server.volumes.workspace' parameter (current value: %s) in config", instance.ConfigDir, workspaceVolume)
 		}
 	}
 
 	logging.Infof("[airbyte] ✅ Mounted volume %s: OK", workspaceVolume)
-
+	Instance = instance
 	return nil
 }
 
 //checkVolume checks if current image has a mounted volume with server.volumes.workspace value
-func (b *Bridge) checkVolume(ctx context.Context, cli *client.Client) error {
+func (b *Bridge) checkVolume(ctx context.Context, instance *Bridge, cli *client.Client) error {
 	containerID, err := os.Hostname()
 	if err != nil {
 		return fmt.Errorf("failed to get current docker container ID from hostname: %v", err)
@@ -123,7 +124,7 @@ func (b *Bridge) checkVolume(ctx context.Context, cli *client.Client) error {
 		}
 	}
 
-	return fmt.Errorf("volume with name: %s hasn't been mounted to the current docker container. The volume is required for Airbyte integration. Please add -v %s:%s to your Jitsu container run", Instance.WorkspaceVolume, Instance.WorkspaceVolume, Instance.ConfigDir)
+	return fmt.Errorf("volume with name: %s hasn't been mounted to the current docker container. The volume is required for Airbyte integration. Please add -v %s:%s to your Jitsu container run", instance.WorkspaceVolume, instance.WorkspaceVolume, instance.ConfigDir)
 }
 
 //IsImagePulled returns true if the image is pulled or start pulling the image asynchronously and returns false

@@ -1,8 +1,15 @@
 // @Libs
-import React, { ChangeEvent, useCallback, useEffect, useRef, useState } from "react"
+import React, { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button, Col, Collapse, Form, Input, Popover, Row } from "antd"
 // @Types
-import { CollectionParameter, CollectionTemplate, SourceConnector } from "@jitsu/catalog/sources/types"
+import {
+  booleanType,
+  CollectionParameter,
+  CollectionTemplate, intType, jsonType,
+  ParameterType, passwordType,
+  SourceConnector,
+  stringType,
+} from "@jitsu/catalog/sources/types"
 import { FormListFieldData, FormListOperation } from "antd/es/form/FormList"
 import { SetSourceEditorState, SourceEditorState } from "./SourceEditor"
 // @Components
@@ -14,14 +21,28 @@ import { getUniqueAutoIncId, randomId } from "utils/numbers"
 import { useDebouncedCallback } from "hooks/useDebouncedCallback"
 // @Styles
 import styles from "./SourceEditor.module.less"
+import { assert } from "../../../../../../utils/typeCheck"
+import ApplicationServices from "../../../../../../lib/services/ApplicationServices"
+import { withQueryParams } from "../../../../../../utils/queryParams"
+import { sourceEditorUtils } from "./SourceEditor.utils"
+import {
+  PARSING_STREAMS_ERROR_NAME,
+  pullAllSDKSourceStreams, pullAllSingerStreams,
+  PullAllStreams,
+} from "./SourceEditorPullData"
+import { usePolling } from "../../../../../../hooks/usePolling"
+import { SourceEditorActionsTypes, useSourceEditorDispatcher, useSourceEditorState } from "./SourceEditor.state"
+import { LoadableFieldsLoadingMessageCard } from "../../../../../../lib/components/LoadingFormCard/LoadingFormCard"
+import { ErrorCard } from "../../../../../../lib/components/ErrorCard/ErrorCard"
 // @Unsorted
 
 const { Panel } = Collapse
 
 export interface Props {
-  initialSourceData: Partial<NativeSourceData>
+  initialSourceData: Partial<NativeSourceData | SDKSourceData>
   sourceDataFromCatalog: SourceConnector
   setSourceEditorState: SetSourceEditorState
+  handleBringSourceData: () => SourceData
 }
 
 const SELECTED_STREAMS_SOURCE_DATA_PATH = "collections"
@@ -30,17 +51,86 @@ const SourceEditorFormStreamsConfigurable = ({
   initialSourceData,
   sourceDataFromCatalog,
   setSourceEditorState,
+  handleBringSourceData
 }: Props) => {
   const [selectedCollectionTypes, setSelectedCollectionTypes] = useState(sourceDataFromCatalog.collectionTypes)
   const [addStreamVisible, setAddStreamVisible] = useState(false)
   const [addTemplateVisible, setAddTemplateVisible] = useState(false)
+  const [collectionTypes, setCollectionTypes] = useState(sourceDataFromCatalog.collectionTypes)
+  const [collectionParameters, setCollectionParameters] = useState(sourceDataFromCatalog.collectionParameters)
   const [activePanel, setActivePanel] = useState([])
+
   const input = useRef(null)
   const [form] = Form.useForm()
 
-  const renderAddButton = sourceDataFromCatalog.collectionTypes.length <= 1
-  const renderAddPopover = sourceDataFromCatalog.collectionTypes.length > 1
   const renderApplyTemplates = sourceDataFromCatalog.collectionTemplates
+
+  const dispatch = useSourceEditorDispatcher()
+  const sourceEditorViewState = useSourceEditorState()
+
+  const {
+    isLoading,
+    data,
+    error,
+    reload: reloadStreamsList,
+  } = usePolling<StreamData[]>({
+    configure: () => ({
+      pollingCallback: (end, fail) => async () => {
+        try {
+          if (sourceDataFromCatalog.protoType == "sdk_source") {
+            const result = await pullAllSDKSourceStreams(sourceDataFromCatalog, handleBringSourceData)
+            const streamData = result as SDKSourceStreamData[]
+            let ct = []
+            let cp = []
+            for (const stream of streamData) {
+              ct.push(stream.type)
+              for (const param of stream.params) {
+                let tp: ParameterType<any> = stringType
+                switch (param["type"]) {
+                  case "int":
+                    tp = intType
+                    break
+                  case "json":
+                    tp = jsonType
+                    break
+                  case "boolean":
+                    tp = booleanType
+                    break
+                  case "password":
+                    tp = passwordType
+                }
+                cp.push({
+                  applyOnlyTo: stream.type,
+                  id: param.id,
+                  defaultValue: param.defaultValue,
+                  type: tp,
+                  displayName: param.displayName,
+                  required: param.required,
+                  documentation: param.documentation
+                })
+              }
+            }
+            if (result !== undefined) {
+              setCollectionParameters(cp)
+              setCollectionTypes(ct)
+              setSelectedCollectionTypes(ct)
+              end(result)
+            }
+          } else {
+            end([] as StreamData[])
+          }
+        } catch (error) {
+          fail(error)
+        }
+      },
+      onBeforePollingStart: () => {
+        dispatch(SourceEditorActionsTypes.SET_STATUS, { isLoadingStreams: true })
+      },
+      onAfterPollingEnd: () => {
+        dispatch(SourceEditorActionsTypes.SET_STATUS, { isLoadingStreams: false })
+      },
+    }),
+  })
 
   const handleValuesChange = useDebouncedCallback(
     (_, values: { [SELECTED_STREAMS_SOURCE_DATA_PATH]: UnknownObject[] }) => {
@@ -56,10 +146,10 @@ const SourceEditorFormStreamsConfigurable = ({
   const handleCollectionTypesFilter = useCallback(
     e => {
       setSelectedCollectionTypes(
-        sourceDataFromCatalog.collectionTypes.filter(v => v.toLowerCase().includes(e.target.value.toLowerCase()))
+        collectionTypes.filter(v => v.toLowerCase().includes(e.target.value.toLowerCase()))
       )
     },
-    [sourceDataFromCatalog]
+    [collectionTypes]
   )
 
   const getStream = useCallback(
@@ -71,20 +161,20 @@ const SourceEditorFormStreamsConfigurable = ({
 
   const getFormErrors = useCallback(
     (index: number) => {
-      let fields = sourceDataFromCatalog.collectionParameters.map(v => ["collections", index, "parameters", v.id])
+      let fields = collectionParameters.map(v => ["collections", index, "parameters", v.id])
       fields.push(["collections", index, "name"])
       return form.getFieldsError(fields).filter(v => v.errors.length > 0)
     },
-    [form, sourceDataFromCatalog]
+    [form, collectionParameters]
   )
 
   const getCollectionParametersForType = useCallback(
     (type: string) => {
-      return sourceDataFromCatalog.collectionParameters?.filter(
+      return collectionParameters?.filter(
         ({ applyOnlyTo }: CollectionParameter) => !applyOnlyTo || applyOnlyTo === type
       )
     },
-    [sourceDataFromCatalog.collectionParameters]
+    [collectionParameters]
   )
 
   const getCollectionParameters = useCallback(
@@ -207,26 +297,53 @@ const SourceEditorFormStreamsConfigurable = ({
       <Form.List name={SELECTED_STREAMS_SOURCE_DATA_PATH}>
         {(fields: FormListFieldData[], operation: FormListOperation, meta) => (
           <>
+            {isLoading ? (
+              <Row>
+                <Col span={24}>
+                  <LoadableFieldsLoadingMessageCard
+                    title="Loading the list of streams"
+                    longLoadingMessage="This operation may take up to 3 minutes if you are configuring streams of this source type for the first time."
+                    showLongLoadingMessageAfterMs={10000}
+                  />
+                </Col>
+              </Row>
+            ) : error ? (
+              <Row>
+                <Col span={24}>
+                  <ErrorCard
+                    title={`Source configuration validation failed`}
+                    description={
+                      error && error.name !== PARSING_STREAMS_ERROR_NAME
+                        ? `Connection is not configured.${error.stack ? " See more details in the error stack." : ""}`
+                        : `Internal error. Please, file an issue.`
+                    }
+                    stackTrace={error?.stack}
+                    className={"form-fields-card"}
+                  />
+                </Col>
+              </Row>
+            ) : null}
+            {!isLoading && (<>
             <Row className={"pb-3"}>
               <Col>
-                {renderAddButton && (
+                {!sourceEditorViewState.status.isLoadingStreams && collectionTypes.length <= 1 && (
                   <Button
                     size="large"
                     className="mr-4"
-                    onClick={() => addNewOfType(sourceDataFromCatalog.collectionTypes[0] ?? "default", operation)}
+                    onClick={() => addNewOfType(collectionTypes[0] ?? "default", operation)}
                     icon={<PlusOutlined />}
                   >
                     Add new stream
                   </Button>
                 )}
-                {renderAddPopover && (
+                {!sourceEditorViewState.status.isLoadingStreams && collectionTypes.length > 1 && (
                   <Popover
                     placement="rightTop"
                     visible={addStreamVisible}
                     onVisibleChange={setAddStreamVisible}
                     content={
                       <>
-                        {sourceDataFromCatalog.collectionTypes.length > 7 && (
+                        {collectionTypes.length > 7 && (
                           <Input
                             allowClear={true}
                             onChange={handleCollectionTypesFilter}
@@ -409,7 +526,7 @@ const SourceEditorFormStreamsConfigurable = ({
                   </Panel>
                 )
               })}
-            </Collapse>
+            </Collapse></>)}
           </>
         )}
       </Form.List>

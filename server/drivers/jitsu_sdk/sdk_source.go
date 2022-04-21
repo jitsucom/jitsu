@@ -7,13 +7,11 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/drivers/base"
-	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/templates"
 	"go.uber.org/atomic"
-	"strings"
 	"sync"
 	"time"
 )
@@ -29,40 +27,51 @@ type SdkSource struct {
 
 	activeCommands map[string]*base.SyncCommand
 
-	config *Config
-	closed chan struct{}
+	packageName    string
+	packageVersion string
+	config         map[string]interface{}
+	collection     *base.Collection
+	closed         chan struct{}
 }
 
 func init() {
 	base.RegisterDriver(base.SdkSourceType, NewSdkSource)
 	base.RegisterTestConnectionFunc(base.SdkSourceType, TestSdkSource)
+	base.RegisterDriver(base.RedisType, func(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
+		sourceConfig.Config["package_name"] = "jitsu-redis-source"
+		return NewSdkSource(ctx, sourceConfig, collection)
+	})
+	base.RegisterTestConnectionFunc(base.RedisType, func(sourceConfig *base.SourceConfig) error {
+		sourceConfig.Config["package_name"] = "jitsu-redis-source"
+		return TestSdkSource(sourceConfig)
+	})
 }
 
 //NewSdkSource returns SdkSource driver and
 //1. writes json files (config, catalog, state) if string/raw json was provided
 //2. runs discover and collects catalog.json
 func NewSdkSource(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
-	config := &Config{}
-	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
-	if err != nil {
-		return nil, err
+	config := sourceConfig.Config
+	packageName, ok := config["package_name"].(string)
+	if !ok {
+		return nil, errors.New("SDK source package is required")
+	}
+	packageVersion, ok := config["package_version"].(string)
+	if !ok {
+		packageVersion = LatestVersion
 	}
 
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
+	base.FillPreconfiguredOauth(packageName, config)
 
-	if config.PackageVersion == "" {
-		config.PackageVersion = LatestVersion
-	}
-	base.FillPreconfiguredOauth(config.Package, config.Config)
-
-	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, config.Package, "", "", "", "",
-		strings.ReplaceAll(config.Package, "-", "_")+"_", "", map[string]string{})
+	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, packageName, "", "", "", "",
+		"", "", map[string]string{})
 	s := &SdkSource{
 		activeCommands: map[string]*base.SyncCommand{},
 		mutex:          &sync.RWMutex{},
+		packageName:    packageName,
+		packageVersion: packageVersion,
 		config:         config,
+		collection:     collection,
 		closed:         make(chan struct{}),
 	}
 	s.AbstractCLIDriver = *abstract
@@ -72,25 +81,23 @@ func NewSdkSource(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 
 //TestSdkSource tests sdk source connection (runs validator) if docker has been ready otherwise returns errNotReady
 func TestSdkSource(sourceConfig *base.SourceConfig) error {
-	config := &Config{}
-	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
-		return err
+	config := sourceConfig.Config
+	packageName, ok := config["package_name"].(string)
+	if !ok {
+		return errors.New("SDK source package is required")
+	}
+	packageVersion, ok := config["package_version"].(string)
+	if !ok {
+		packageVersion = LatestVersion
 	}
 
-	if err := config.Validate(); err != nil {
-		return err
-	}
-
-	if config.PackageVersion == "" {
-		config.PackageVersion = LatestVersion
-	}
-	base.FillPreconfiguredOauth(config.Package, config.Config)
+	base.FillPreconfiguredOauth(packageName, config)
 
 	sourcePlugin := &templates.SourcePlugin{
-		Package: config.Package + "@" + config.PackageVersion,
+		Package: packageName + "@" + packageVersion,
 		ID:      sourceConfig.SourceID,
 		Type:    base.SdkSourceType,
-		Config:  config.Config,
+		Config:  config,
 	}
 	sourceExecutor, err := templates.NewSourceExecutor(sourcePlugin)
 	if err != nil {
@@ -139,16 +146,16 @@ func (s *SdkSource) Load(config string, state string, taskLogger logging.TaskLog
 	}
 
 	sourcePlugin := &templates.SourcePlugin{
-		Package: s.config.Package + "@" + s.config.PackageVersion,
+		Package: s.packageName + "@" + s.packageVersion,
 		ID:      s.ID(),
 		Type:    base.SdkSourceType,
-		Config:  s.config.Config,
+		Config:  s.config,
 	}
 	sourceExecutor, err := templates.NewSourceExecutor(sourcePlugin)
 	if err != nil {
 		return err
 	}
-	sdkSourceRunner := SdkSourceRunner{sourceExecutor: sourceExecutor, config: s.config, closed: atomic.NewBool(false)}
+	sdkSourceRunner := SdkSourceRunner{name: s.packageName, sourceExecutor: sourceExecutor, config: s.config, collection: s.collection, closed: atomic.NewBool(false)}
 	syncCommand := &base.SyncCommand{
 		Cmd:        sdkSourceRunner,
 		TaskCloser: taskCloser,
@@ -189,10 +196,10 @@ func (s *SdkSource) Load(config string, state string, taskLogger logging.TaskLog
 //GetDriversInfo returns telemetry information about the driver
 func (s *SdkSource) GetDriversInfo() *base.DriversInfo {
 	return &base.DriversInfo{
-		SourceType:       s.config.Package,
+		SourceType:       s.packageName,
 		ConnectorOrigin:  s.Type(),
-		ConnectorVersion: s.config.PackageVersion,
-		Streams:          len(s.config.SelectedStreams),
+		ConnectorVersion: s.packageVersion,
+		Streams:          1,
 	}
 }
 
@@ -231,8 +238,10 @@ func (s *SdkSource) IsClosed() bool {
 }
 
 type SdkSourceRunner struct {
+	name           string
 	sourceExecutor *templates.SourceExecutor
-	config         *Config
+	config         map[string]interface{}
+	collection     *base.Collection
 	closed         *atomic.Bool
 }
 
@@ -244,48 +253,44 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 		Streams: map[string]*base.StreamRepresentation{},
 	}
 
-	for _, stream := range s.config.SelectedStreams {
-		if s.closed.Load() {
-			taskLogger.INFO("Stopping processing. Task was closed")
-			return ErrSDKSourceCancelled
-		}
-		taskLogger.INFO("Starting processing stream: %s", stream.Name)
-		representation := &base.StreamRepresentation{
-			StreamName:  stream.Name,
-			BatchHeader: &schema.BatchHeader{TableName: stream.Name, Fields: map[string]schema.Field{}},
-			Objects:     []map[string]interface{}{},
-			NeedClean:   stream.SyncMode == "full_sync",
-		}
-		output.Streams[stream.Name] = representation
-		dataChannel := make(chan []byte, 1000)
-		go func() {
-			defer close(dataChannel)
-			_, err := s.sourceExecutor.Stream(stream.Name, stream, nil, dataChannel)
-			if err != nil {
-				dataChannel <- []byte(err.Error())
-			}
-		}()
-
-		for bytes := range dataChannel {
-			row := &Row{}
-			err := json.Unmarshal(bytes, row)
-			if err != nil {
-				taskLogger.ERROR("Failed to parse message from source: %s", string(bytes))
-				continue
-			}
-			switch row.Type {
-			case "record":
-				object, ok := row.Message.(map[string]interface{})
-				if !ok {
-					taskLogger.ERROR("Record message expected to have type map[string]interface{} found: %T", row.Message)
-				}
-				representation.Objects = append(representation.Objects, object)
-			default:
-				taskLogger.ERROR("Message type %s is not supported yet.", row.Type)
-			}
-		}
-		taskLogger.INFO("Stream: %s finished. Objects count: %d", stream.Name, len(representation.Objects))
+	stream := s.collection
+	taskLogger.INFO("Starting processing stream: %s", stream.Name)
+	representation := &base.StreamRepresentation{
+		StreamName:  stream.Name,
+		BatchHeader: &schema.BatchHeader{TableName: stream.TableName, Fields: map[string]schema.Field{}},
+		Objects:     []map[string]interface{}{},
+		NeedClean:   stream.SyncMode == "full_sync",
 	}
+	output.Streams[stream.Name] = representation
+	dataChannel := make(chan []byte, 1000)
+	go func() {
+		defer close(dataChannel)
+		_, err := s.sourceExecutor.Stream(stream.Type, stream, nil, dataChannel)
+		if err != nil {
+			dataChannel <- []byte(err.Error())
+		}
+	}()
+
+	for bytes := range dataChannel {
+		row := &Row{}
+		err := json.Unmarshal(bytes, row)
+		if err != nil {
+			taskLogger.ERROR("Failed to parse message from source: %s", string(bytes))
+			continue
+		}
+		switch row.Type {
+		case "record":
+			object, ok := row.Message.(map[string]interface{})
+			if !ok {
+				taskLogger.ERROR("Record message expected to have type map[string]interface{} found: %T", row.Message)
+			}
+			representation.Objects = append(representation.Objects, object)
+		default:
+			taskLogger.ERROR("Message type %s is not supported yet.", row.Type)
+		}
+	}
+	taskLogger.INFO("Stream: %s finished. Objects count: %d", stream.Name, len(representation.Objects))
+
 	if !s.closed.Load() {
 		err := dataConsumer.Consume(output)
 		return err
@@ -296,7 +301,7 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 }
 
 func (s SdkSourceRunner) String() string {
-	return s.config.Package
+	return s.name + "_" + s.collection.Name
 }
 
 func (s SdkSourceRunner) Close() error {

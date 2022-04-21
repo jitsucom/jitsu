@@ -23,9 +23,8 @@ type Props = {
   selectAllFieldsByDefault?: boolean
   hide?: boolean
   setSourceEditorState: SetSourceEditorState
+  streamsDataPath: string
 }
-
-const SELECTED_STREAMS_SOURCE_DATA_PATH = "config.selected_streams"
 
 const SourceEditorFormStreamsLoadableForm = ({
   allStreams,
@@ -33,6 +32,7 @@ const SourceEditorFormStreamsLoadableForm = ({
   selectAllFieldsByDefault,
   hide,
   setSourceEditorState,
+  streamsDataPath
 }: Props) => {
   const disableAllAnimations: boolean = allStreams.length > 30
   const disableToggelAllAnimations: boolean = allStreams.length > 10
@@ -42,11 +42,11 @@ const SourceEditorFormStreamsLoadableForm = ({
   const [allChecked, setAllChecked] = useState<boolean>(selectAllFieldsByDefault || undefined)
 
   const handleAddStream = (stream: StreamData) => {
-    addStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, stream)
+    addStream(setSourceEditorState, streamsDataPath, stream)
   }
 
   const handleRemoveStream = (stream: StreamData) => {
-    removeStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, stream)
+    removeStream(setSourceEditorState, streamsDataPath, stream)
   }
 
   const handleSetSelectedStreams = (
@@ -55,7 +55,7 @@ const SourceEditorFormStreamsLoadableForm = ({
       doNotSetStateChanged?: boolean
     }
   ) => {
-    setSelectedStreams(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, selectedStreams, options)
+    setSelectedStreams(setSourceEditorState, streamsDataPath, selectedStreams, options)
   }
 
   const handleToggleStream = useCallback((checked: boolean, stream: StreamData): void => {
@@ -119,6 +119,7 @@ const SourceEditorFormStreamsLoadableForm = ({
             isAllStreamsChecked={allChecked}
             handleToggleStream={handleToggleStream}
             setSourceEditorState={setSourceEditorState}
+            streamsDataPath={streamsDataPath}
           />
         ) : (
           <Empty className="h-full flex flex-col justify-center items-center" />
@@ -139,10 +140,11 @@ type StreamsCollapsibleListProps = {
   isAllStreamsChecked?: boolean
   setSourceEditorState: SetSourceEditorState
   handleToggleStream: (checked: boolean, stream: StreamData) => void
+  streamsDataPath: string
 }
 
 const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo(
-  ({ streamsToDisplay, initiallySelectedStreams, isAllStreamsChecked, handleToggleStream, setSourceEditorState }) => {
+  ({ streamsToDisplay, initiallySelectedStreams, isAllStreamsChecked, handleToggleStream, setSourceEditorState, streamsDataPath }) => {
     return (
       <Collapse
         expandIconPosition="left"
@@ -168,6 +170,7 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
                 forceChecked={isAllStreamsChecked}
                 handleToggleStream={handleToggleStream}
                 setSourceEditorState={setSourceEditorState}
+                streamsDataPath={streamsDataPath}
               />
             )
           })}
@@ -183,6 +186,7 @@ type StreamPanelProps = {
   forceChecked?: boolean
   handleToggleStream: (checked: boolean, stream: StreamData) => void
   setSourceEditorState: SetSourceEditorState
+  streamsDataPath?: string
 } & { [key: string]: any }
 
 const StreamPanel: React.FC<StreamPanelProps> = ({
@@ -193,6 +197,7 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
   handleToggleStream,
   setSourceEditorState,
   children,
+  streamsDataPath,
   ...rest
 }) => {
   console.log("Stream Uid: " + streamUid)
@@ -216,7 +221,7 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
     if (sourceEditorUtils.isAirbyteStream(streamData)) {
       const handleChangeStreamConfig = (stream: AirbyteStreamData): void => {
         setStreamData(stream)
-        updateStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, { ...stream })
+        updateStream(setSourceEditorState, streamsDataPath, { ...stream })
       }
       return {
         header: (
@@ -229,24 +234,6 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
             handleChangeStreamConfig={handleChangeStreamConfig}
           />
         ),
-      }
-    }
-    else if (sourceEditorUtils.isSDKSourceStream(streamData)) {
-      const handleChangeStreamConfig = (stream: SDKSourceStreamData): void => {
-        setStreamData(stream)
-        updateStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, { ...stream })
-      }
-      return {
-        header: (
-          <SDKSourceStreamHeader streamName={streamData.stream.streamName} />
-        ),
-          content: (
-        <SDKSourceStreamParameters
-          streamData={streamData}
-          checked={checked}
-          handleChangeStreamConfig={handleChangeStreamConfig}
-        />
-      ),
       }
     }
     else if (sourceEditorUtils.isSingerStream(streamData)) {
@@ -398,103 +385,6 @@ const AirbyteStreamParameters: React.FC<AirbyteStreamParametersProps> = ({
             </div>
           </StreamParameter>
         )}
-      </div>
-    )
-  )
-}
-
-type SDKSourceStreamHeaderProps = {
-  streamName: string
-}
-
-const SDKSourceStreamHeader: React.FC<SDKSourceStreamHeaderProps> = ({ streamName}) => {
-  return (
-    <div className="flex w-full pr-12 flex-wrap xl:flex-nowrap">
-      <div className={"whitespace-nowrap min-w-0 max-w-lg overflow-hidden overflow-ellipsis pr-2"}>
-        <b title={streamName}>{streamName}</b>
-      </div>
-    </div>
-  )
-}
-
-type SDKSourceStreamParametersProps = {
-  streamData: SDKSourceStreamData
-  checked?: boolean
-  handleChangeStreamConfig: (stream: SDKSourceStreamData) => void
-}
-
-const SDKSourceStreamParameters: React.FC<SDKSourceStreamParametersProps> = ({
-                                                                           streamData,
-                                                                           checked,
-                                                                           handleChangeStreamConfig,
-                                                                         }) => {
-  const initialSyncMode = streamData.mode ?? streamData.stream.supported_modes?.[0]
-  const initialParams = streamData.stream.params.reduce((accumulator: any, current: SdkSourceStreamConfigurationParameter) => {
-    if (current.defaultValue) {
-      set(accumulator, current.id, current.defaultValue)
-    }
-    return accumulator
-  }, {})
-  const needToDisplayData: boolean = !!initialSyncMode || streamData.stream.params.length > 0
-  const [config, setConfig] = useState<Pick<SDKSourceStreamData, "mode" | "params">>({
-    mode: initialSyncMode,
-    params: {...initialParams, ...streamData.params}
-  })
-
-  const handleChangeSyncMode = (value: string): void => {
-    setConfig(config => {
-      let newConfig = config
-      if (value === "full_sync") newConfig = { ...config, mode: value }
-      if (value === "incremental")
-        newConfig = {
-          ...config,
-          mode: value
-        }
-      handleChangeStreamConfig({ ...streamData, ...newConfig })
-      return newConfig
-    })
-  }
-
-  const handleChangeField = (id:string) =>  ( e:ChangeEvent<HTMLInputElement>): void => {
-    setConfig(config => {
-      const newConfig = { ...config, params:{...config.params, [id]: e.target.value} }
-      handleChangeStreamConfig({ ...streamData, ...newConfig })
-      return newConfig
-    })
-  }
-
-  return (
-    needToDisplayData && (
-      <div className="flex flex-col w-full h-full flex-wrap">
-        {/* Sync mode */}
-        {streamData.stream.supported_modes?.length ? (
-          <StreamParameter title="Sync mode">
-            <Select
-              size="small"
-              value={config.mode}
-              disabled={!checked}
-              style={{ minWidth: 150 }}
-              onChange={handleChangeSyncMode}
-            >
-              {streamData.stream.supported_modes.map(mode => (
-                <Select.Option key={mode} value={mode}>
-                  {mode}
-                </Select.Option>
-              ))}
-            </Select>
-          </StreamParameter>
-        ) : initialSyncMode ? (
-          <StreamParameter title="Sync mode">{initialSyncMode}</StreamParameter>
-        ) : null}
-
-        <>
-          {streamData.stream.params.map( param => {
-            return <StreamParameter title={param.displayName} key={param.id}>
-              <Input value={streamData.params?.[param.id]} onChange={handleChangeField(param.id)}></Input>
-            </StreamParameter>
-            })
-          }
-        </>
       </div>
     )
   )

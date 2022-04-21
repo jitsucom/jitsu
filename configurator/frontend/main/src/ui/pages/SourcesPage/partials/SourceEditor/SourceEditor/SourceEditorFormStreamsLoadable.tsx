@@ -21,6 +21,8 @@ import {
 import { sourceEditorUtils } from "./SourceEditor.utils"
 import { SourceEditorActionsTypes, useSourceEditorDispatcher } from "./SourceEditor.state"
 
+const SELECTED_STREAMS_SOURCE_DATA_PATH = "config.selected_streams"
+
 type Props = {
   editorMode: "add" | "edit"
   initialSourceData: Optional<Partial<AirbyteSourceData | SingerSourceData>>
@@ -130,6 +132,7 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
             selectAllFieldsByDefault={selectAllFieldsByDefault}
             hide={isLoading || !!error}
             setSourceEditorState={setSourceEditorState}
+            streamsDataPath={sourceDataFromCatalog.protoType == "sdk_source" ? "collections" : SELECTED_STREAMS_SOURCE_DATA_PATH}
           />
         </>
       )}

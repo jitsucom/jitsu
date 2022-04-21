@@ -24,7 +24,6 @@ export const sourceEditorUtils = {
       makeObjectFromFieldsValues(streams.selectedStreams),
       makeObjectFromFieldsValues(connections.connections)
     )
-
     const catalogSourceData: Pick<SourceData, "sourceType" | "sourceProtoType"> = {
       sourceType: sourcePageUtils.getSourceType(sourceCatalogData),
       sourceProtoType: sourcePageUtils.getSourcePrototype(sourceCatalogData),
@@ -41,7 +40,7 @@ export const sourceEditorUtils = {
 
   /** Reformat old catalog (full schema JSON) into SelectedStreams and always remove old format*/
   reformatCatalogIntoSelectedStreams: (sourceData: SourceData): SourceData => {
-    if (sourceEditorUtils.isNativeSource(sourceData) || sourceData?.config?.selected_streams?.length) return sourceData
+    if (sourceEditorUtils.isNativeSource(sourceData) || sourceData?.config?.selected_streams) return sourceData
 
     if (sourceData?.config?.catalog) {
       sourceData.config.selected_streams = sourceData.config.catalog["streams"].map(
@@ -68,10 +67,7 @@ export const sourceEditorUtils = {
   getStreamUid: (stream: StreamData): string => {
     if (sourceEditorUtils.isAirbyteStream(stream)) {
       return sourceEditorUtils.getAirbyteStreamUniqueId(stream as AirbyteStreamData)
-    } else if (sourceEditorUtils.isSDKSourceStream(stream)) {
-      return sourceEditorUtils.getSDKSourceUniqueId(stream as SDKSourceStreamData)
-    }
-    else if (sourceEditorUtils.isSingerStream(stream)) {
+    } else if (sourceEditorUtils.isSingerStream(stream)) {
       return sourceEditorUtils.getSingerStreamUniqueId(stream as SingerStreamData)
     }
   },
@@ -80,9 +76,6 @@ export const sourceEditorUtils = {
     if (sourceEditorUtils.isAirbyteStream(data)) {
       const airbyteData = data as AirbyteStreamData
       return airbyteData.sync_mode
-    } else if (sourceEditorUtils.isSDKSourceStream(data)) {
-      const sdkSourceData = data as SDKSourceStreamData
-      return data.mode
     } else if (sourceEditorUtils.isSingerStream(data)) {
       return ""
     }
@@ -90,25 +83,19 @@ export const sourceEditorUtils = {
 
   mapStreamDataToSelectedStreams: <T extends StreamData>(
     streamData: T
-  ): T extends AirbyteStreamData ? AirbyteStreamConfig : (T extends SDKSourceStreamData ? SDKSourceStreamConfig : SingerStreamConfig) => {
+  ): T extends AirbyteStreamData ? AirbyteStreamConfig : SingerStreamConfig => {
     if (sourceEditorUtils.isAirbyteStream(streamData)) {
       return {
         name: streamData.stream.name,
         namespace: streamData.stream.namespace,
         sync_mode: streamData.sync_mode,
         cursor_field: streamData.cursor_field,
-      } as T extends AirbyteStreamData ? AirbyteStreamConfig : (T extends SDKSourceStreamData ? SDKSourceStreamConfig : SingerStreamConfig)
-    } else  if (sourceEditorUtils.isSDKSourceStream(streamData)) {
-      return {
-        name: streamData.name,
-        mode: streamData.mode,
-        params: streamData.params,
-      } as unknown as T extends AirbyteStreamData ? AirbyteStreamConfig : (T extends SDKSourceStreamData ? SDKSourceStreamConfig : SingerStreamConfig)
+      } as T extends AirbyteStreamData ? AirbyteStreamConfig : SingerStreamConfig
     } else if (sourceEditorUtils.isSingerStream(streamData)) {
       return {
         name: streamData.stream,
         namespace: streamData.tap_stream_id,
-      } as T extends AirbyteStreamData ? AirbyteStreamConfig : (T extends SDKSourceStreamData ? SDKSourceStreamConfig : SingerStreamConfig)
+      } as T extends AirbyteStreamData ? AirbyteStreamConfig : SingerStreamConfig
     }
   },
 
@@ -132,16 +119,8 @@ export const sourceEditorUtils = {
     return "tap_stream_id" in stream
   },
 
-  isSDKSourceStream: (stream: StreamData): stream is SDKSourceStreamData => {
-    return "stream" in stream && typeof stream.stream === "object" && "streamName" in stream.stream
-  },
-
   getAirbyteStreamUniqueId: (data: AirbyteStreamData): string => {
     return `${data.stream?.name}${STREAM_UID_DELIMITER}${data.stream.namespace}`
-  },
-
-  getSDKSourceUniqueId: (data: SDKSourceStreamData): string => {
-    return `${data.name}${STREAM_UID_DELIMITER}${undefined}`
   },
 
   getSingerStreamUniqueId: (data: SingerStreamData): string => {
