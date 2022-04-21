@@ -10,12 +10,13 @@ export const allSdkSources: SdkSource[] = [
     package_version: "latest",
     displayName: "Airtable",
     stable: false,
-  },  {
-    id: "sdk-redis",
-    pic: logos.redshift,
-    package_name: "jitsu-redis-source",
+  }, {
+    id: "sdk-firebase",
+    pic: logos.freshdesk,
+    package_name: "jitsu-firebase-source",
     package_version: "latest",
-    displayName: "Redis",
+    displayName: "Firebase",
     stable: false,
   },
 ]
+

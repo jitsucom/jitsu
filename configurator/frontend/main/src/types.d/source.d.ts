@@ -6,6 +6,7 @@
 declare interface CollectionSource {
   name: string
   type: string
+  mode?: "full_sync" | "incremental"
   parameters: Array<{
     [key: string]: string[]
   }>
@@ -14,12 +15,12 @@ declare interface CollectionSource {
    * Individual schedules for collections are no longer supported.
    * Schedule to be set globally in SourceData `config` field.
    */
-  schedule: string
+  schedule?: string
 }
 
 type SdkSourceStreamConfigurationParameter = {
   id: string;
-  type?: ConfigParameterType;
+  type?: string;
   displayName: string;
   required?: boolean;
   defaultValue?: any;
@@ -29,14 +30,9 @@ type SdkSourceStreamConfigurationParameter = {
 declare type StreamData = AirbyteStreamData | SingerStreamData | SDKSourceStreamData
 
 declare type SDKSourceStreamData = {
-  name: string
-  mode: "full_sync" | "incremental",
-  stream: {
-    streamName: string
+    type: string
     supported_modes?: ["full_sync"] | ["full_sync", "incremental"] | ["incremental"]
     params: SdkSourceStreamConfigurationParameter[]
-  }
-  params: Record<string, any>
 }
 /**
  * Configured Airbyte stream data format used internally in the UI.
@@ -94,7 +90,7 @@ declare type SingerStreamData = {
 /**
  * Format for storing configured streams data on backend.
  */
-declare type StreamConfig = SingerStreamConfig | AirbyteStreamConfig | SDKSourceStreamConfig
+declare type StreamConfig = SingerStreamConfig | AirbyteStreamConfig
 
 /** General form of the Stream applicable to both Airbyte and Singer */
 declare type SingerStreamConfig = {
@@ -103,13 +99,6 @@ declare type SingerStreamConfig = {
   [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
 }
 
-/** General form of the Stream applicable to both Airbyte and Singer */
-declare type SDKSourceStreamConfig = {
-  name?: string
-  namespace?: string
-  sync_mode: "full_sync" | "incremental"
-  params: Record<string, any>
-}
 
 /** Configured Airbyte stream to send to backend */
 declare type AirbyteStreamConfig = {
@@ -205,9 +194,8 @@ declare interface AirbyteSourceData extends CommonSourceData {
 
 declare interface SDKSourceData extends CommonSourceData {
   protoType: "sdk_source"
+  collections?: CollectionSource[]
   config: {
-    config: PlainObjectWithPrimitiveValues
-    selected_streams?: Array<SDKSourceStreamConfig>
     package_name?: string
     package_version?: string
     [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues

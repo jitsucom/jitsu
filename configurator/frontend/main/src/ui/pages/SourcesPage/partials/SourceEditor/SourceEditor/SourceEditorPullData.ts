@@ -69,7 +69,7 @@ export const pullAllAirbyteStreams = async (
 
 export const pullAllSDKSourceStreams = async (
   sourceDataFromCatalog: SourceConnector,
-  handleBringSourceData: () => SDKSourceData
+  handleBringSourceData: () => SourceData,
 ): Promise<SDKSourceStreamData[] | undefined> => {
   assert(
     sourceDataFromCatalog.protoType === "sdk_source",
@@ -80,10 +80,9 @@ export const pullAllSDKSourceStreams = async (
   const services = ApplicationServices.get()
 
   const sourceData = await handleBringSourceData()
-  const config = sourceData.config.config
+  const config = sourceData.config
   const baseUrl = sourceDataFromCatalog.staticStreamsConfigEndpoint
   const project_id = services.activeProject.id
-  const previously_selected_streams = sourceData.config.selected_streams
 
   const response = await services.backendApiClient.post(
     withQueryParams(baseUrl, { project_id }),
@@ -96,27 +95,11 @@ export const pullAllSDKSourceStreams = async (
   if (response.message) throw new Error(response.message)
 
   if (response.status !== "pending") {
-    //console.log("SDK Streams: " + JSON.stringify(response))
     assertSDKSourceCatalog(response, `SDK Source catalog parsing error`)
     const streams: SDKSourceStreamData[] = response.catalog.map((stream, idx) => {
-      assertIsSDKSourceCatalogStream(stream, `Failed to parse Airbyte stream ${stream} with index ${idx}`)
-      const streamMinimalConfig = { name: stream.streamName }
-      const previouslySelectedStream = previously_selected_streams?.find(previouslySelectedStreamConfig =>
-        sourceEditorUtils.streamsAreEqual(previouslySelectedStreamConfig, streamMinimalConfig)
-      )
-      console.log("previouslySelectedStream: " + JSON.stringify(previouslySelectedStream))
-      return {
-        name: previouslySelectedStream?.name ?? stream.streamName,
-        mode: previouslySelectedStream?.sync_mode ?? (stream.supported_modes ? stream.supported_modes[0] : "full_sync"),
-        stream: {
-          name: stream.streamName,
-          supported_modes: stream.supported_modes,
-          ...stream,
-        },
-        params: previouslySelectedStream?.params
-      }
+      assertIsSDKSourceCatalogStream(stream, `Failed to parse SDK Source stream ${stream} with index ${idx}`)
+      return stream
     })
-    console.log("STR: " + JSON.stringify(streams))
     return streams
   }
 }
@@ -219,11 +202,11 @@ function assertIsAirbyteCatalogStream(
 function assertIsSDKSourceCatalogStream(
   stream: UnknownObject,
   errorMessage
-): asserts stream is SDKSourceStreamData["stream"] {
+): asserts stream is SDKSourceStreamData {
   assertIsString(
-    stream.streamName,
+    stream.type,
     {
-      errMsg: `${errorMessage}: stream.id is not a string`,
+      errMsg: `${errorMessage}: stream.type is not a string`,
     },
     PARSING_STREAMS_ERROR_NAME
   )
