@@ -358,12 +358,12 @@ func (te *TaskExecutor) execute(i interface{}) {
 
 func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLogger *TaskLogger) {
 	event := events.Event{
-		"event_type":  storages.SourceSuccessEventType,
-		"source":      task.Source,
-		"status":      task.Status,
-		timestamp.Key: task.FinishedAt,
-		"finished_at": task.FinishedAt,
-		"started_at":  task.StartedAt,
+		"event_type":      storages.SourceSuccessEventType,
+		"source":          task.Source,
+		"source_type":     task.SourceType,
+		"status":          SUCCESS.String(),
+		timestamp.Key:     timestamp.Now(),
+		"destination_ids": source.DestinationIDs,
 	}
 	for _, id := range source.PostHandleDestinationIDs {
 		err := te.DestinationService.PostHandle(id, event)

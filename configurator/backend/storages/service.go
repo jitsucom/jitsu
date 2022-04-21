@@ -878,13 +878,13 @@ func (cs *ConfigurationsService) GetProjectUsers(projectID string) ([]string, er
 		return nil, err
 	}
 
-	index, err := cs.storage.GetRelationIndex(userProjectRelation)
+	allUserIDs, err := cs.storage.GetIDs("users_info")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get user project relation index")
+		return nil, err
 	}
 
 	userIDs := make(common.StringSet)
-	for _, userID := range index {
+	for _, userID := range allUserIDs {
 		if relatedProjectIDs, err := cs.storage.GetRelatedIDs(userProjectRelation, userID); err != nil {
 			return nil, errors.Wrapf(err, "failed to get related projects for user %s", userID)
 		} else {
