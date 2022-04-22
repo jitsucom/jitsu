@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	node = "node"
-	npm  = "npm"
+	node        = "node"
+	npm         = "npm"
+	nodePathEnv = "NODE_PATH"
 )
 
 type scriptTemplateValues struct {
@@ -49,8 +50,9 @@ var errNodeRequired = errors.New(`node and/or npm is not found in $PATH.
 	Or use @jitsucom/* docker images where all necessary packages are pre-installed`)
 
 type Factory struct {
-	dir     string
-	plugins *sync.Map
+	dir      string
+	nodePath string
+	plugins  *sync.Map
 }
 
 func NewFactory(tmpDir ...string) (*Factory, error) {
@@ -73,23 +75,37 @@ func NewFactory(tmpDir ...string) (*Factory, error) {
 		}
 	}
 
-	if err := createPackageJSON(dir, packageJSON{}); err != nil {
-		return nil, errors.Wrapf(err, "create package.json in %s", dir)
+	var nodePath string
+	if nodePath = os.Getenv(nodePathEnv); nodePath != "" {
+		for name, version := range dependencies {
+			if err := checkNodeModule(nodePath, name, version); err != nil {
+				logging.Warnf("failed to load preinstalled npm module from %s, falling back to install in tempdir %s: %v", nodePath, dir, err)
+				nodePath = ""
+				break
+			}
+
+			logging.Debugf("using preinstall npm module %s@%s", name, version)
+		}
 	}
 
-	for name, version := range dependencies {
-		if version != "" {
-			name += "@" + version
-		}
+	if nodePath == "" {
+		for name, version := range dependencies {
+			if version != "" {
+				name += "@" + version
+			}
 
-		if err := installNodeModule(dir, name); err != nil {
-			return nil, errors.Wrapf(err, "install package %s", name)
+			if err := installNodeModule(dir, name); err != nil {
+				return nil, errors.Wrapf(err, "install package %s", name)
+			}
+
+			logging.Debugf("installed npm module %s in %s", name, dir)
 		}
 	}
 
 	return &Factory{
-		dir:     dir,
-		plugins: new(sync.Map),
+		dir:      dir,
+		nodePath: nodePath,
+		plugins:  new(sync.Map),
 	}, nil
 }
 
@@ -134,6 +150,7 @@ func (f *Factory) CreateScript(executable script.Executable, variables map[strin
 		Dir:  f.dir,
 		Path: node,
 		Args: []string{"--max-old-space-size=100", scriptPath},
+		Env:  []string{nodePathEnv + "=" + f.nodePath},
 	}
 
 	governor, err := ipc.Govern(process)

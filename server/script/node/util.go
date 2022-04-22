@@ -26,10 +26,11 @@ func sanitizeVariables(vars map[string]interface{}) map[string]interface{} {
 type packageJSON struct {
 	Main         string            `json:"main"`
 	Dependencies map[string]string `json:"dependencies"`
+	Version      string            `json:"version"`
 }
 
 func readPackageJSON(dir string) (*packageJSON, error) {
-	file, err := os.Open(packageJSONPath(dir))
+	file, err := os.Open(filepath.Join(dir, "package.json"))
 	if err != nil {
 		return nil, errors.Wrap(err, "open package.json")
 	}
@@ -43,24 +44,6 @@ func readPackageJSON(dir string) (*packageJSON, error) {
 	return &data, nil
 }
 
-func createPackageJSON(dir string, value packageJSON) error {
-	file, err := os.Create(packageJSONPath(dir))
-	if err != nil {
-		return errors.Wrapf(err, "create package.json in '%s'", dir)
-	}
-
-	defer closeQuietly(file)
-	if err := json.NewEncoder(file).Encode(value); err != nil {
-		return errors.Wrapf(err, "write to package.json in '%s'", dir)
-	}
-
-	return nil
-}
-
-func packageJSONPath(dir string) string {
-	return filepath.Join(dir, "package.json")
-}
-
 var nodeModuleMu sync.Mutex
 
 func installNodeModule(dir string, spec string) error {
@@ -68,7 +51,22 @@ func installNodeModule(dir string, spec string) error {
 	defer nodeModuleMu.Unlock()
 	args := []string{"install", "--no-audit", "--prefer-offline"}
 	args = append(args, spec)
-	return errors.Wrapf(script.Exec(dir, npm, args...), "failed to install npm package %s", spec)
+	return script.Exec(dir, npm, args...)
+}
+
+func checkNodeModule(modulesDir string, name, version string) error {
+	packageJSON, err := readPackageJSON(filepath.Join(modulesDir, name))
+	if err != nil {
+		return errors.Wrapf(err, "read package.json for %s", name)
+	}
+
+	if packageJSON.Version != version {
+		return errors.Errorf(
+			"installed version %s does not match required (%s)",
+			packageJSON.Version, version)
+	}
+
+	return nil
 }
 
 func escapeJSON(value string) string {

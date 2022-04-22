@@ -37,10 +37,6 @@ func (r *pluginRef) load() (string, error) {
 	}
 
 	defer os.RemoveAll(dir)
-	if err := createPackageJSON(dir, packageJSON{}); err != nil {
-		return "", errors.Wrap(err, "create temp package.json")
-	}
-
 	if err := installNodeModule(dir, r.plugin); err != nil {
 		return "", errors.Wrapf(err, "install [%s] in temp dir", r.plugin)
 	}
