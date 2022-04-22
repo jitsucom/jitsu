@@ -321,7 +321,7 @@ export interface SourceConnector {
   /**
    * Hints the source origin.
    * */
-  protoType?: "singer" | "airbyte" | "sdk_source"
+  protoType?: "singer" | "airbyte" | "sdk_source" | "native"
   /**
    * Enable collection Start Date parameter.
    * */

@@ -31,7 +31,7 @@ declare type StreamData = AirbyteStreamData | SingerStreamData | SDKSourceStream
 
 declare type SDKSourceStreamData = {
     type: string
-    supported_modes?: ["full_sync"] | ["full_sync", "incremental"] | ["incremental"]
+    supportedModes?: ["full_sync"] | ["full_sync", "incremental"] | ["incremental"]
     params: SdkSourceStreamConfigurationParameter[]
 }
 /**

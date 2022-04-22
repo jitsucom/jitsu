@@ -200,21 +200,21 @@ function assertIsAirbyteCatalogStream(
 }
 
 function assertIsSDKSourceCatalogStream(
-  stream: UnknownObject,
+  collection: UnknownObject,
   errorMessage
-): asserts stream is SDKSourceStreamData {
+): asserts collection is SDKSourceStreamData {
   assertIsString(
-    stream.type,
+    collection.type,
     {
-      errMsg: `${errorMessage}: stream.type is not a string`,
+      errMsg: `${errorMessage}: collection.type is not a string`,
     },
     PARSING_STREAMS_ERROR_NAME
   )
-  if (stream.supported_modes !== undefined) {
+  if (collection.supportedModes !== undefined) {
     assertIsArrayOfTypes(
-      stream.supported_modes,
+      collection.supportedModes,
       "",
-      `${errorMessage}: stream.supported_modes is not an array of strings or undefined`,
+      `${errorMessage}: collection.supportedModes is not an array of strings or undefined`,
       PARSING_STREAMS_ERROR_NAME
     )
   }

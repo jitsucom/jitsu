@@ -257,21 +257,9 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
               setFormReference={setFormReference}
             />
           )}
-          {sourceConfigurationSchema.loadableFields && sourceConfigurationSchema.protoType == "airbyte" && (
+          {sourceConfigurationSchema.loadableFields && (
             <SourceEditorFormConfigurationConfigurableLoadableFields
-              initialValues={initialSourceData as AirbyteSourceData}
-              sourceDataFromCatalog={sourceDataFromCatalog}
-              hideFields={hideFields}
-              patchConfig={patchConfig}
-              setValidator={setConfigurableLoadableFieldsValidator}
-              setFormReference={setFormReference}
-              handleResetOauth={handleResetOauth}
-              handleReloadStreams={handleReloadStreams}
-            />
-          )}
-          {sourceConfigurationSchema.loadableFields && sourceConfigurationSchema.protoType == "sdk_source" && (
-            <SourceEditorFormConfigurationConfigurableLoadableFields
-              initialValues={initialSourceData as SDKSourceData}
+              initialValues={initialSourceData}
               sourceDataFromCatalog={sourceDataFromCatalog}
               hideFields={hideFields}
               patchConfig={patchConfig}
