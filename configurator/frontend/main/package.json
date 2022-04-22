@@ -5,6 +5,8 @@
   "dependencies": {
     "@jitsu/catalog": "file:../catalog",
     "@jitsu/sdk-js": "^2.3.0",
+    "@sentry/react": "^6.19.6",
+    "@sentry/tracing": "^6.19.6",
     "antd": "^4.13.1",
     "axios": "^0.21.4",
     "classnames": "^2.2.6",
@@ -13,7 +15,6 @@
     "hotkeys-js": "^3.8.7",
     "leader-line-new": "^1.1.9",
     "lodash": "^4.17.21",
-    "logrocket": "^1.0.14",
     "mobx": "^6.3.2",
     "mobx-react-lite": "^3.2.0",
     "monaco-editor": "^0.28.1",

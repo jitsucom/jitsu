@@ -1,11 +1,12 @@
 import { FeatureSettings } from "./ApplicationServices"
 // @ts-ignore
-import LogRocket from "logrocket"
 import murmurhash from "murmurhash"
-import { isNullOrUndef, setDebugInfo } from "../commons/utils"
+import { isNullOrUndef } from "../commons/utils"
 import { jitsuClient, JitsuClient } from "@jitsu/sdk-js"
 import { getIntercom, initIntercom } from "lib/services/intercom-wrapper"
 import { ApplicationConfiguration } from "./ApplicationConfiguration"
+import * as Sentry from "@sentry/react"
+import { BrowserTracing } from "@sentry/tracing"
 
 type ConsoleMessageListener = (level: string, ...args) => void
 
@@ -152,7 +153,7 @@ export default class AnalyticsService {
   private appConfig: ApplicationConfiguration
   private user: UserProps
   private jitsu?: JitsuClient
-  private logRocketInitialized: boolean = false
+  private sentryInitialized: boolean = false
   private consoleInterceptor: ConsoleLogInterceptor = new ConsoleLogInterceptor()
   private _anonymizeUsers = false
   private _appName = "unknown"
@@ -185,11 +186,14 @@ export default class AnalyticsService {
     })
   }
 
-  public ensureLogRocketInitialized() {
-    if (!this.logRocketInitialized && this.appConfig.rawConfig.keys.logrocket && !AnalyticsBlock.isBlocked()) {
-      LogRocket.init(this.appConfig.rawConfig.keys.logrocket)
-      setDebugInfo("logRocket", LogRocket, false)
-      this.logRocketInitialized = true
+  public ensureSentryInitialized() {
+    if (!this.sentryInitialized && this.appConfig.rawConfig.keys.sentry && !AnalyticsBlock.isBlocked()) {
+      Sentry.init({
+        dsn: this.appConfig.rawConfig.keys.sentry,
+        integrations: [new BrowserTracing()],
+        tracesSampleRate: 1.0,
+      })
+      this.sentryInitialized = true
     }
   }
 
@@ -202,11 +206,9 @@ export default class AnalyticsService {
       return
     }
     this.user = userProps
-    this.ensureLogRocketInitialized()
-    if (this.appConfig.rawConfig.keys.logrocket) {
-      LogRocket.identify(userProps.id, {
-        email: userProps.email,
-      })
+    this.ensureSentryInitialized()
+    if (this.appConfig.rawConfig.keys.sentry) {
+      Sentry.setUser({ id: userProps.id, email: userProps.email })
     }
     if (this.jitsu) {
       this.jitsu.id(this.getJitsuIdPayload(userProps))
@@ -323,15 +325,15 @@ export default class AnalyticsService {
 
   private sendException(error: Error) {
     if (!this.isDev()) {
-      console.log("Sending error to monitoring system")
-      this.ensureLogRocketInitialized()
-      if (this.appConfig.rawConfig.keys.logrocket) {
-        LogRocket.captureException(error, {
-          tags: {
-            environment: window.location.host,
-          },
-        })
-      }
+      // console.log("Sending error to monitoring system")
+      // this.ensureSentryInitialized()
+      // if (this.appConfig.rawConfig.keys.sentry) {
+      //   LogRocket.captureException(error, {
+      //     tags: {
+      //       environment: window.location.host,
+      //     },
+      //   })
+      // }
       this.track("error", getErrorPayload(error))
     }
   }
