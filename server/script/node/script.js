@@ -3,7 +3,6 @@
 const __jts_log__ = []
 const readline = require("readline")
 const os = require("os")
-const queueMicrotask = require("queue-microtask")
 const fetch = require("node-fetch")
 const {NodeVM} = require("vm2")
 
@@ -16,7 +15,7 @@ const reply = async (result, error) => {
     ok: !error,
     result: result,
     error: error ? error.toString() : null,
-    stack: error ? error.stack : null,
+    stack: error && error.stack ? error.stack.toString() : null,
     log: __jts_log__,
   }
 
@@ -85,11 +84,12 @@ const vm = new NodeVM({
     },
     resolve: (moduleName) => {
       throw new Error(
-        `The extension ${file} calls require('${moduleName}') which is not system module. Rollup should have linked it into JS code.`
+        `The extension calls require('${moduleName}') which is not system module. Rollup should have linked it into JS code.`
       );
     },
   },
-  sandbox: {...{{ .Variables }},
+  sandbox: {
+    ...JSON.parse("{{ .Variables }}"),
     queueMicrotask: queueMicrotask,
     self: {},
     process: {

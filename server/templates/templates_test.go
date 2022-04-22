@@ -30,7 +30,7 @@ func benchmarkExecutor(b *testing.B, executor templates.TemplateExecutor) {
 }
 
 func BenchmarkNodeStdIO(b *testing.B) {
-	factory, err := node.Factory()
+	factory, err := node.NewFactory()
 	if err != nil {
 		b.Fatal(err)
 	}

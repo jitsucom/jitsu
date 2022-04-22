@@ -355,7 +355,7 @@ func main() {
 		logging.Infof("users_recognition.pool.size can't be 0. Using default value=1 instead")
 	}
 
-	scriptFactory, err := node.Factory()
+	scriptFactory, err := node.NewFactory()
 	if err != nil {
 		logging.Warn(err)
 	} else {

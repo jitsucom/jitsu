@@ -361,7 +361,7 @@ func TestProcessFact(t *testing.T) {
 func TestProcessTransform(t *testing.T) {
 	viper.Set("server.log.path", "")
 	viper.Set("sql_debug_log.ddl.enabled", false)
-	nodeFactory, err := node.Factory()
+	nodeFactory, err := node.NewFactory()
 	if err != nil {
 		t.Fatal(err)
 	}
