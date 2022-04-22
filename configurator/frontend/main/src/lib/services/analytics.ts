@@ -325,15 +325,6 @@ export default class AnalyticsService {
 
   private sendException(error: Error) {
     if (!this.isDev()) {
-      // console.log("Sending error to monitoring system")
-      // this.ensureSentryInitialized()
-      // if (this.appConfig.rawConfig.keys.sentry) {
-      //   LogRocket.captureException(error, {
-      //     tags: {
-      //       environment: window.location.host,
-      //     },
-      //   })
-      // }
       this.track("error", getErrorPayload(error))
     }
   }
