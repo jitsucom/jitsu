@@ -48,7 +48,7 @@ const (
 
 type Script struct {
 	Governor *ipc.Governor
-	Dir      string
+	File     string
 }
 
 func (s *Script) Describe() (script.Symbols, error) {
@@ -85,7 +85,7 @@ func (s *Script) Close() {
 		logging.Warnf("wait process failed: %v", err)
 	}
 
-	_ = os.RemoveAll(s.Dir)
+	_ = os.RemoveAll(s.File)
 }
 
 func (s *Script) exchange(command string, payload, result interface{}, dataChannel chan<- []byte, timeout time.Duration) error {
