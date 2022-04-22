@@ -20,6 +20,7 @@ type StdIO struct {
 	Dir  string
 	Path string
 	Args []string
+	Env  []string
 
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
@@ -31,6 +32,7 @@ type StdIO struct {
 func (p *StdIO) Spawn() (Process, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, p.Path, p.Args...)
+	cmd.Env = p.Env
 	if p.Dir != "" {
 		cmd.Dir = p.Dir
 	}
