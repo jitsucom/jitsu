@@ -6,6 +6,7 @@ export enum EventType {
 }
 
 export enum EventStatus {
+  All = "",
   Success = "success",
   Error = "error",
   Pending = "pending",

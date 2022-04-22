@@ -21,7 +21,6 @@ import JitsuClientLibraryCard, { jitsuClientLibraries } from "../../JitsuClientL
 import { SelectFilter } from "../../Filters/SelectFilter"
 import { FilterOption } from "../../Filters/shared"
 import ApplicationServices from "lib/services/ApplicationServices"
-import ProjectLink from "lib/components/ProjectLink/ProjectLink"
 // @Styles
 import styles from "../EventsSteam.module.less"
 
@@ -103,7 +102,12 @@ const NoDataFlowing: React.FC<{ showAPIKeyHint: boolean }> = ({ showAPIKeyHint }
     </div>
   )
 }
-const statusOptions = [{ label: "All", value: "" } as const, { label: "Error", value: "error" } as const] as const
+const statusOptions = [
+  { label: "All", value: EventStatus.All } as const,
+  { label: "Success", value: EventStatus.Success } as const,
+  { label: "Skipped", value: EventStatus.Skip } as const,
+  { label: "Error", value: EventStatus.Error } as const,
+] as const
 
 export const EventsList: React.FC<{
   type: EventType
@@ -122,7 +126,7 @@ export const EventsList: React.FC<{
   const [idFilter, setIdFilter] = useState<FilterOption["value"]>(
     filterOptions.find(f => f.value === params.get("id"))?.value ?? filterOptions[0]?.value
   )
-  const [statusFilter, setStatusFilter] = useState<string>(
+  const [statusFilter, setStatusFilter] = useState<EventStatus>(
     statusOptions.find(f => f.value === params.get("status"))?.value ?? statusOptions[0]?.value
   )
   const [reloadCount, setReloadCount] = useState<number>(0)
@@ -152,7 +156,7 @@ export const EventsList: React.FC<{
     return fetchEvents(services, {
       type,
       id: idFilter,
-      status: statusFilter,
+      status: statusFilter === EventStatus.Error ? EventStatus.Error : "",
       limit: 500,
       onBeforeFetch: () => setSelectedEvent(null),
     })
@@ -172,6 +176,14 @@ export const EventsList: React.FC<{
     return term ? events.filter(i => JSON.stringify(i.rawJson).indexOf(term) !== -1) : events
   }
 
+  const filterByStatus = (events: Event[], status: EventStatus): Event[] => {
+    if (status === EventStatus.Skip || status === EventStatus.Success) {
+      return events.filter(i => i.status === status)
+    }
+
+    return events
+  }
+
   const search = (term: string): void => {
     setTerm(term)
     setFilteredEvents(filterByTerm(events, term))
@@ -180,8 +192,10 @@ export const EventsList: React.FC<{
   useEffect(() => {
     const initialEvents = error || !data ? [] : processEvents(type, data)
     setEvents(initialEvents)
-    setFilteredEvents(filterByTerm(initialEvents, term))
-  }, [error, data])
+    let filteredEvents = filterByStatus(initialEvents, statusFilter)
+    filteredEvents = filterByTerm(filteredEvents, term)
+    setFilteredEvents(filteredEvents)
+  }, [error, data, statusFilter])
 
   if (!filterOptions.length) {
     return <NoDataFlowing showAPIKeyHint={true} />
@@ -248,7 +262,7 @@ export const EventsList: React.FC<{
           initialValue={statusFilter}
           options={statusOptions}
           onChange={option => {
-            setStatusFilter(option.value)
+            setStatusFilter(option.value as EventStatus)
           }}
         />
         <ErrorsHint
