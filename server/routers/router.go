@@ -70,7 +70,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	configuratorURN := viper.GetString("server.configurator_urn")
 
 	rootPathHandler := handlers.NewRootPathHandler(systemService, viper.GetString("server.static_files_dir"), configuratorURN,
-		viper.GetBool("server.disable_welcome_page"), viper.GetBool("server.configurator_redirect_https"), viper.GetBool("server.disable_signature"))
+		viper.GetBool("server.disable_welcome_page"), viper.GetBool("server.configurator_redirect_https"), viper.GetBool("server.disable_signature"),
+		viper.GetBool("server.always_redirect_to_configurator"))
 	router.GET("/", rootPathHandler.Handler)
 
 	staticHandler := handlers.NewStaticHandler(viper.GetString("server.static_files_dir"), publicURL)
