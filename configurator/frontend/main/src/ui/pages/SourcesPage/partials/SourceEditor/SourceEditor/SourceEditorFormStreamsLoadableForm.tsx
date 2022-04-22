@@ -1,5 +1,5 @@
 // @Libs
-import React, { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { Collapse, Empty, Input, Select, Switch } from "antd"
 import { cloneDeep } from "lodash"
 // @Components
@@ -15,7 +15,6 @@ import { addToArrayIfNotDuplicate, removeFromArrayIfFound, substituteArrayValueI
 import styles from "./SourceEditorFormStreamsLoadableForm.module.less"
 import { sourceEditorUtils } from "./SourceEditor.utils"
 import { getStreamFieldPaths } from "ui/pages/SourcesPage/utils/airbyte"
-import set from "lodash/set"
 
 type Props = {
   allStreams: StreamData[]
@@ -23,8 +22,9 @@ type Props = {
   selectAllFieldsByDefault?: boolean
   hide?: boolean
   setSourceEditorState: SetSourceEditorState
-  streamsDataPath: string
 }
+
+const SELECTED_STREAMS_SOURCE_DATA_PATH = "config.selected_streams"
 
 const SourceEditorFormStreamsLoadableForm = ({
   allStreams,
@@ -32,7 +32,6 @@ const SourceEditorFormStreamsLoadableForm = ({
   selectAllFieldsByDefault,
   hide,
   setSourceEditorState,
-  streamsDataPath
 }: Props) => {
   const disableAllAnimations: boolean = allStreams.length > 30
   const disableToggelAllAnimations: boolean = allStreams.length > 10
@@ -42,11 +41,11 @@ const SourceEditorFormStreamsLoadableForm = ({
   const [allChecked, setAllChecked] = useState<boolean>(selectAllFieldsByDefault || undefined)
 
   const handleAddStream = (stream: StreamData) => {
-    addStream(setSourceEditorState, streamsDataPath, stream)
+    addStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, stream)
   }
 
   const handleRemoveStream = (stream: StreamData) => {
-    removeStream(setSourceEditorState, streamsDataPath, stream)
+    removeStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, stream)
   }
 
   const handleSetSelectedStreams = (
@@ -55,7 +54,7 @@ const SourceEditorFormStreamsLoadableForm = ({
       doNotSetStateChanged?: boolean
     }
   ) => {
-    setSelectedStreams(setSourceEditorState, streamsDataPath, selectedStreams, options)
+    setSelectedStreams(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, selectedStreams, options)
   }
 
   const handleToggleStream = useCallback((checked: boolean, stream: StreamData): void => {
@@ -119,7 +118,6 @@ const SourceEditorFormStreamsLoadableForm = ({
             isAllStreamsChecked={allChecked}
             handleToggleStream={handleToggleStream}
             setSourceEditorState={setSourceEditorState}
-            streamsDataPath={streamsDataPath}
           />
         ) : (
           <Empty className="h-full flex flex-col justify-center items-center" />
@@ -140,11 +138,10 @@ type StreamsCollapsibleListProps = {
   isAllStreamsChecked?: boolean
   setSourceEditorState: SetSourceEditorState
   handleToggleStream: (checked: boolean, stream: StreamData) => void
-  streamsDataPath: string
 }
 
 const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo(
-  ({ streamsToDisplay, initiallySelectedStreams, isAllStreamsChecked, handleToggleStream, setSourceEditorState, streamsDataPath }) => {
+  ({ streamsToDisplay, initiallySelectedStreams, isAllStreamsChecked, handleToggleStream, setSourceEditorState }) => {
     return (
       <Collapse
         expandIconPosition="left"
@@ -170,7 +167,6 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
                 forceChecked={isAllStreamsChecked}
                 handleToggleStream={handleToggleStream}
                 setSourceEditorState={setSourceEditorState}
-                streamsDataPath={streamsDataPath}
               />
             )
           })}
@@ -186,7 +182,6 @@ type StreamPanelProps = {
   forceChecked?: boolean
   handleToggleStream: (checked: boolean, stream: StreamData) => void
   setSourceEditorState: SetSourceEditorState
-  streamsDataPath?: string
 } & { [key: string]: any }
 
 const StreamPanel: React.FC<StreamPanelProps> = ({
@@ -197,10 +192,8 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
   handleToggleStream,
   setSourceEditorState,
   children,
-  streamsDataPath,
   ...rest
 }) => {
-  console.log("Stream Uid: " + streamUid)
   const [checked, setChecked] = useState<boolean>(
     forceChecked ||
       initiallySelectedStreams.some(selected => sourceEditorUtils.getSelectedStreamUid(selected) === streamUid)
@@ -221,7 +214,7 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
     if (sourceEditorUtils.isAirbyteStream(streamData)) {
       const handleChangeStreamConfig = (stream: AirbyteStreamData): void => {
         setStreamData(stream)
-        updateStream(setSourceEditorState, streamsDataPath, { ...stream })
+        updateStream(setSourceEditorState, SELECTED_STREAMS_SOURCE_DATA_PATH, { ...stream })
       }
       return {
         header: (
@@ -235,8 +228,7 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
           />
         ),
       }
-    }
-    else if (sourceEditorUtils.isSingerStream(streamData)) {
+    } else if (sourceEditorUtils.isSingerStream(streamData)) {
       return {
         header: <SingerStreamHeader streamUid={streamData.tap_stream_id} streamName={streamData.stream} />,
         content: <SingerStreamParameters streamData={streamData} />,
@@ -493,13 +485,11 @@ export const updateStream = (
   setSourceEditorState(state => {
     const newState = cloneDeep(state)
     const oldStreams = newState.streams.selectedStreams[sourceDataPath]
-    console.log("Stream: " + JSON.stringify(stream))
 
     const streamConfig = sourceEditorUtils.mapStreamDataToSelectedStreams(stream)
 
     let newStreams = oldStreams
     if (isArray(oldStreams)) {
-      console.log("Stream Config: " + JSON.stringify(streamConfig))
       newStreams = substituteArrayValueIfFound(oldStreams, streamConfig, sourceEditorUtils.streamsAreEqual)
     }
 

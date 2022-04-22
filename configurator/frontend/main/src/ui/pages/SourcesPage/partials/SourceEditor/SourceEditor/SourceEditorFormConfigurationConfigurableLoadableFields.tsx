@@ -21,7 +21,7 @@ import { mapSdkSourceSpecToSourceConnectorConfig } from "@jitsu/catalog/sources/
 import { SourceEditorActionsTypes, useSourceEditorDispatcher } from "./SourceEditor.state"
 
 type Props = {
-  initialValues: Partial<AirbyteSourceData | SDKSourceData>
+  initialValues: Partial<SourceData>
   sourceDataFromCatalog: SourceConnector
   hideFields?: string[]
   patchConfig: PatchConfig

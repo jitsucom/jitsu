@@ -40,7 +40,7 @@ export const sourceEditorUtils = {
 
   /** Reformat old catalog (full schema JSON) into SelectedStreams and always remove old format*/
   reformatCatalogIntoSelectedStreams: (sourceData: SourceData): SourceData => {
-    if (sourceEditorUtils.isNativeSource(sourceData) || sourceData?.config?.selected_streams) return sourceData
+    if (sourceEditorUtils.isNativeOrSDKSource(sourceData) || sourceData?.config?.selected_streams) return sourceData
 
     if (sourceData?.config?.catalog) {
       sourceData.config.selected_streams = sourceData.config.catalog["streams"].map(
@@ -99,7 +99,7 @@ export const sourceEditorUtils = {
     }
   },
 
-  isNativeSource: (data: SourceData): data is NativeSourceData => {
+  isNativeOrSDKSource: (data: SourceData): data is NativeSourceData => {
     return !!data?.["collections"]
   },
 
@@ -112,7 +112,7 @@ export const sourceEditorUtils = {
   },
 
   isAirbyteStream: (stream: StreamData): stream is AirbyteStreamData => {
-    return "stream" in stream && typeof stream.stream === "object" && "json_schema" in stream.stream
+    return "stream" in stream && typeof stream.stream === "object"
   },
 
   isSingerStream: (stream: StreamData): stream is SingerStreamData => {
