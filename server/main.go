@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jitsucom/jitsu/server/script/node"
+	"github.com/jitsucom/jitsu/server/script/node2"
 
 	"github.com/jitsucom/jitsu/server/templates"
 
@@ -355,7 +355,7 @@ func main() {
 		logging.Infof("users_recognition.pool.size can't be 0. Using default value=1 instead")
 	}
 
-	scriptFactory, err := node.NewFactory()
+	scriptFactory, err := node2.NewFactory()
 	if err != nil {
 		logging.Warn(err)
 	} else {
