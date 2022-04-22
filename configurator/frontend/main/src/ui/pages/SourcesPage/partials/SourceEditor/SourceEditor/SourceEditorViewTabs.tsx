@@ -65,13 +65,14 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
   }, [sourceEditorViewState.status, streamsTabKey])
 
   const handleTabChange = useCallback((_key: string) => {
-    let key = _key
-    // reset streams tab key to re-mount the component to reload the list of streams
-    if (key.includes("streams")) {
-      key = uniqueId("streams-")
-      setStreamsTabKey(key)
-    }
-    setCurrentTab(key)
+    // Commented Out: This code reseted all unsaved user changes on tab switch
+    // let key = _key
+    // // reset streams tab key to re-mount the component to reload the list of streams
+    // if (key.includes("streams")) {
+    //   key = uniqueId("streams-")
+    //   setStreamsTabKey(key)
+    // }
+    setCurrentTab(_key)
   }, [])
 
   const handleSave = useCallback(async () => {
