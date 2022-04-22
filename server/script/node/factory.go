@@ -3,27 +3,25 @@ package node
 import (
 	_ "embed"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/jitsucom/jitsu/server/timestamp"
+	uuid "github.com/satori/go.uuid"
 
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/script"
 	"github.com/jitsucom/jitsu/server/script/ipc"
 	"github.com/pkg/errors"
-	uuid "github.com/satori/go.uuid"
 )
 
 const (
-	executableScriptName = "main.cjs"
-	node                 = "node"
-	npm                  = "npm"
+	node = "node"
+	npm  = "npm"
 )
 
 type scriptTemplateValues struct {
@@ -39,10 +37,9 @@ var (
 	scriptTemplateContent string
 	scriptTemplate, _     = template.New("node_script").Parse(scriptTemplateContent)
 
-	globalDependencies = map[string]string{
-		"node-fetch":      "2.6.7",
-		"vm2":             "3.9.9",
-		"queue-microtask": "1.2.3",
+	dependencies = map[string]string{
+		"node-fetch": "2.6.7",
+		"vm2":        "3.9.9",
 	}
 )
 
@@ -51,9 +48,12 @@ var errNodeRequired = errors.New(`node and/or npm is not found in $PATH.
 	Please make sure that node (>=16) and npm (>=8) are installed and available. 
 	Or use @jitsucom/* docker images where all necessary packages are pre-installed`)
 
-type factory struct{}
+type Factory struct {
+	dir     string
+	plugins *sync.Map
+}
 
-func Factory() (script.Factory, error) {
+func NewFactory(tmpDir ...string) (*Factory, error) {
 	if _, err := exec.LookPath(node); err != nil {
 		return nil, errNodeRequired
 	}
@@ -62,53 +62,51 @@ func Factory() (script.Factory, error) {
 		return nil, errNodeRequired
 	}
 
-	return &factory{}, nil
-}
-
-func (f *factory) CreateScript(executable script.Executable, variables map[string]interface{}, includes ...string) (script.Interface, error) {
-	startTime := timestamp.Now()
-
-	dir := filepath.Join(os.TempDir(), "jitsu-nodejs-"+uuid.NewV4().String())
-	if err := os.RemoveAll(dir); err != nil {
-		return nil, errors.Wrapf(err, "purge temp dir '%s'", dir)
-	}
-
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, errors.Wrapf(err, "create temp dir '%s'", dir)
-	}
-
-	if err := createPackageJSON(dir, packageJSON{}); err != nil {
-		return nil, errors.Wrapf(err, "create package.json in '%s'", dir)
-	}
-
-	dependencies, err := getDependencies(executable)
-	if err != nil {
-		return nil, errors.Wrap(err, "get dependencies")
-	}
-
-	for _, dependency := range dependencies {
-		if err := installNodeModule(dir, dependency); err != nil {
-			return nil, err
+	var dir string
+	if len(tmpDir) > 0 {
+		dir = tmpDir[0]
+	} else {
+		var err error
+		dir, err = os.MkdirTemp(os.TempDir(), "jitsu-nodejs-")
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create temp directory")
 		}
 	}
 
-	for name, version := range globalDependencies {
+	if err := createPackageJSON(dir, packageJSON{}); err != nil {
+		return nil, errors.Wrapf(err, "create package.json in %s", dir)
+	}
+
+	for name, version := range dependencies {
 		if version != "" {
 			name += "@" + version
 		}
 
 		if err := installNodeModule(dir, name); err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "install package %s", name)
 		}
 	}
 
-	scriptPath := filepath.Join(dir, executableScriptName)
+	return &Factory{
+		dir:     dir,
+		plugins: new(sync.Map),
+	}, nil
+}
+
+func (f *Factory) Close() error {
+	return os.RemoveAll(f.dir)
+}
+
+func (f *Factory) CreateScript(executable script.Executable, variables map[string]interface{}, includes ...string) (script.Interface, error) {
+	startTime := timestamp.Now()
+	scriptName := uuid.NewV4().String() + ".cjs"
+	scriptPath := filepath.Join(f.dir, scriptName)
 	scriptFile, err := os.Create(scriptPath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "create main script in '%s'", dir)
+		return nil, errors.Wrapf(err, "create main script in '%s'", f.dir)
 	}
 
-	expression, err := f.getExpression(dir, executable)
+	expression, err := f.getExpression(f.dir, executable)
 	if err != nil {
 		return nil, errors.Wrapf(err, "get executable expression")
 	}
@@ -122,7 +120,7 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 	err = scriptTemplate.Execute(scriptFile, scriptTemplateValues{
 		Executable: escapeJSON(expression),
 		Includes:   escapeJSON(strings.Join(includes, "\n")),
-		Variables:  string(variablesJSON),
+		Variables:  escapeJSON(string(variablesJSON)),
 		LineOffset: getLineOffset(executable),
 		ColOffset:  getColOffset(executable),
 	})
@@ -133,9 +131,9 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 	}
 
 	process := &ipc.StdIO{
-		Dir:  dir,
+		Dir:  f.dir,
 		Path: node,
-		Args: []string{"--max-old-space-size=100", executableScriptName},
+		Args: []string{"--max-old-space-size=100", scriptPath},
 	}
 
 	governor, err := ipc.Govern(process)
@@ -143,22 +141,11 @@ func (f *factory) CreateScript(executable script.Executable, variables map[strin
 		return nil, errors.Wrapf(err, "govern process")
 	}
 
-	logging.Debugf("%s running as %s/%s [took %s]", governor, dir, executableScriptName, timestamp.Now().Sub(startTime))
+	logging.Debugf("%s running as %s/%s [took %s]", governor, f.dir, scriptName, timestamp.Now().Sub(startTime))
 	return &Script{
 		Governor: governor,
-		Dir:      dir,
+		File:     scriptPath,
 	}, nil
-}
-
-func escapeJSON(value interface{}) string {
-	data, _ := json.Marshal(value)
-	return strings.Trim(string(data), `"`)
-}
-
-func installNodeModule(dir string, spec string) error {
-	args := []string{"install", "--no-audit", "--prefer-offline"}
-	args = append(args, spec)
-	return errors.Wrapf(script.Exec(dir, npm, args...), "failed to install npm package %s", spec)
 }
 
 func getColOffset(executable script.Executable) int {
@@ -180,7 +167,7 @@ func getLineOffset(executable script.Executable) int {
 	}
 }
 
-func (f *factory) getExpression(dir string, executable script.Executable) (string, error) {
+func (f *Factory) getExpression(dir string, executable script.Executable) (string, error) {
 	switch e := executable.(type) {
 	case script.Expression:
 		expression := string(e)
@@ -198,115 +185,17 @@ module.exports = async (event) => {
 }`, nil
 
 	case script.Package:
-		packageJSON, err := readPackageJSON(dir)
-		if err != nil {
-			return "", errors.Wrap(err, "read runtime package.json")
-		}
-
-		dependencies := make([]string, 0)
-		for dependency := range packageJSON.Dependencies {
-			if _, ok := globalDependencies[dependency]; !ok {
-				dependencies = append(dependencies, dependency)
-			}
-		}
-
-		if len(dependencies) > 1 {
-			return "", errors.Wrapf(err, "multiple external dependencies found: %v", dependencies)
-		}
-
-		packageName := dependencies[0]
-		packageDir := filepath.Join(dir, "node_modules", packageName)
-		packageJSON, err = readPackageJSON(packageDir)
-		if err != nil {
-			return "", errors.Wrap(err, "read package.json main field")
-		}
-
-		if packageJSON.Main == "" {
-			return "", errors.Errorf("package.json main for %s is empty", packageName)
-		}
-
-		return readFile(filepath.Join(packageDir, packageJSON.Main))
+		ref, _ := f.plugins.LoadOrStore(string(e), &pluginRef{plugin: string(e)})
+		return ref.(*pluginRef).get()
 
 	case script.File:
-		return readFile(string(e))
+		data, err := os.ReadFile(string(e))
+		if err != nil {
+			return "", errors.Wrapf(err, "read file %s", string(e))
+		}
+
+		return string(data), nil
 	}
 
 	return "", errors.Errorf("unrecognized executable %T", executable)
-}
-
-func readFile(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", errors.Wrapf(err, "open script file %s", path)
-	}
-
-	defer closeQuietly(file)
-	data, err := ioutil.ReadAll(file)
-	if err != nil {
-		return "", errors.Wrapf(err, "read script file %s", path)
-	}
-
-	return string(data), nil
-}
-
-func getDependencies(executable script.Executable) ([]string, error) {
-	switch e := executable.(type) {
-	case script.Expression:
-		return nil, nil
-	case script.Package:
-		return []string{string(e)}, nil
-	case script.File:
-		return nil, nil
-	}
-
-	return nil, errors.Errorf("unrecognized script executable %T", executable)
-}
-
-func sanitizeVariables(vars map[string]interface{}) map[string]interface{} {
-	variables := make(map[string]interface{})
-	for key, value := range vars {
-		if reflect.TypeOf(value).Kind() != reflect.Func {
-			variables[key] = value
-		}
-	}
-
-	return variables
-}
-
-type packageJSON struct {
-	Main         string            `json:"main"`
-	Dependencies map[string]string `json:"dependencies"`
-}
-
-func readPackageJSON(dir string) (*packageJSON, error) {
-	file, err := os.Open(packageJSONPath(dir))
-	if err != nil {
-		return nil, errors.Wrap(err, "open package.json")
-	}
-
-	defer closeQuietly(file)
-	var data packageJSON
-	if err := json.NewDecoder(file).Decode(&data); err != nil {
-		return nil, errors.Wrap(err, "decode package.json")
-	}
-
-	return &data, nil
-}
-
-func createPackageJSON(dir string, value packageJSON) error {
-	file, err := os.Create(packageJSONPath(dir))
-	if err != nil {
-		return errors.Wrapf(err, "create package.json in '%s'", dir)
-	}
-
-	defer closeQuietly(file)
-	if err := json.NewEncoder(file).Encode(value); err != nil {
-		return errors.Wrapf(err, "write to package.json in '%s'", dir)
-	}
-
-	return nil
-}
-
-func packageJSONPath(dir string) string {
-	return filepath.Join(dir, "package.json")
 }
