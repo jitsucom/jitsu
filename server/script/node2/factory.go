@@ -1,6 +1,7 @@
 package node2
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/mitchellh/hashstructure/v2"
 
@@ -21,6 +23,8 @@ const (
 	node        = "node"
 	npm         = "npm"
 	nodePathEnv = "NODE_PATH"
+	poolSize    = 40
+	mainFile    = "main.cjs"
 )
 
 var (
@@ -38,9 +42,11 @@ var errNodeRequired = errors.New(`node and/or npm is not found in $PATH.
 	Or use @jitsucom/* docker images where all necessary packages are pre-installed`)
 
 type Factory struct {
-	dir     string
-	plugins *sync.Map
-	*exchanger
+	dir        string
+	nodePath   string
+	plugins    *sync.Map
+	exchangers []*exchanger
+	mu         ipc.Mutex
 }
 
 func NewFactory(tmpDir ...string) (*Factory, error) {
@@ -90,47 +96,42 @@ func NewFactory(tmpDir ...string) (*Factory, error) {
 		}
 	}
 
-	scriptName := "main.cjs"
-	scriptPath := filepath.Join(dir, scriptName)
+	scriptPath := filepath.Join(dir, mainFile)
 	scriptFile, err := os.Create(scriptPath)
 	if err != nil {
 		return nil, errors.Wrapf(err, "create %s", scriptPath)
 	}
 
-	_, err = scriptFile.WriteString(scriptContent)
-	closeQuietly(scriptFile)
-	if err != nil {
+	defer closeQuietly(scriptFile)
+	if _, err = scriptFile.WriteString(scriptContent); err != nil {
 		return nil, errors.Wrapf(err, "write to %s", scriptPath)
 	}
 
-	process := &ipc.StdIO{
-		Dir:  dir,
-		Path: node,
-		Args: []string{"--max-old-space-size=100", scriptPath},
-		Env:  []string{nodePathEnv + "=" + nodePath},
-	}
-
-	governor, err := ipc.Govern(process)
-	if err != nil {
-		return nil, errors.Wrapf(err, "govern process")
-	}
-
-	logging.Debugf("%s running as %s/%s", governor, dir, scriptName)
 	return &Factory{
-		dir:       dir,
-		plugins:   new(sync.Map),
-		exchanger: &exchanger{Governor: governor},
+		dir:        dir,
+		nodePath:   nodePath,
+		plugins:    new(sync.Map),
+		exchangers: make([]*exchanger, poolSize),
 	}, nil
 }
 
 func (f *Factory) Close() error {
-	if err := f.Exchange(kill, nil, nil); err != nil {
-		logging.Warnf("send kill signal failed, killing: %v", err)
-		f.Governor.Kill()
-	}
+	cancel, _ := f.mu.Lock(context.Background())
+	defer cancel()
 
-	if err := f.Governor.Wait(); err != nil {
-		logging.Warnf("wait process failed: %v", err)
+	for _, exchanger := range f.exchangers {
+		if exchanger == nil {
+			continue
+		}
+
+		if err := exchanger.Exchange(kill, nil, nil); err != nil {
+			logging.Warnf("send kill signal failed, killing: %v", err)
+			exchanger.Kill()
+		}
+
+		if err := exchanger.Wait(); err != nil {
+			logging.Warnf("wait process failed: %v", err)
+		}
 	}
 
 	_ = os.RemoveAll(f.dir)
@@ -156,9 +157,38 @@ func (f *Factory) CreateScript(executable script.Executable, variables map[strin
 		return nil, errors.Wrap(err, "hash init")
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	cancel, err = f.mu.Lock(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer cancel()
+
+	exchangerIdx := hash % uint64(len(f.exchangers))
+	exer := f.exchangers[exchangerIdx]
+	if exer == nil {
+		process := &ipc.StdIO{
+			Dir:  f.dir,
+			Path: node,
+			Args: []string{"--max-old-space-size=100", filepath.Join(f.dir, mainFile)},
+			Env:  []string{nodePathEnv + "=" + f.nodePath},
+		}
+
+		governor, err := ipc.Govern(process)
+		if err != nil {
+			return nil, errors.Wrapf(err, "govern process")
+		}
+
+		logging.Debugf("%s running in %s", governor, f.dir)
+		exer = &exchanger{Governor: governor}
+		f.exchangers[exchangerIdx] = exer
+	}
+
 	init.Session.Session = fmt.Sprintf("%x", hash)
 	return &Script{
-		exchanger: f.exchanger,
+		exchanger: exer,
 		Init:      init,
 	}, nil
 }
