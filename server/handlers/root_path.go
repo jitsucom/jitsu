@@ -6,7 +6,6 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/utils"
-	"github.com/spf13/viper"
 	"html/template"
 	"io/ioutil"
 	"net/http"
@@ -28,16 +27,17 @@ var blankPage = `<html><head></head><body></body></html>`
 // HTTP redirect to Configurator
 // HTML Welcome page or blanc page
 type RootPathHandler struct {
-	service          *system.Service
-	configuratorURN  string
-	welcome          *template.Template
-	disableSignature bool
-	redirectToHttps  bool
+	service                      *system.Service
+	configuratorURN              string
+	welcome                      *template.Template
+	disableSignature             bool
+	redirectToHttps              bool
+	alwaysRedirectToConfigurator bool
 }
 
 //NewRootPathHandler reads sourceDir and returns RootPathHandler instance
-func NewRootPathHandler(service *system.Service, sourceDir, configuratorURN string, disableWelcomePage, redirectToHttps, disableSignature bool) *RootPathHandler {
-	rph := &RootPathHandler{service: service, configuratorURN: configuratorURN, redirectToHttps: redirectToHttps, disableSignature: disableSignature}
+func NewRootPathHandler(service *system.Service, sourceDir, configuratorURN string, disableWelcomePage, redirectToHttps, disableSignature, alwaysRedirectToConfigurator bool) *RootPathHandler {
+	rph := &RootPathHandler{service: service, configuratorURN: configuratorURN, redirectToHttps: redirectToHttps, disableSignature: disableSignature, alwaysRedirectToConfigurator: alwaysRedirectToConfigurator}
 
 	if service.IsConfigured() {
 		return rph
@@ -71,8 +71,12 @@ func NewRootPathHandler(service *system.Service, sourceDir, configuratorURN stri
 
 //Handler handles requests and returns welcome page or redirect to Configurator URL
 func (rph *RootPathHandler) Handler(c *gin.Context) {
-	if rph.service.ShouldBeRedirected() {
-		redirectSchema := utils.NvlString(c.GetHeader("X-Forwarded-Proto"), c.Request.URL.Scheme)
+	if rph.service.ShouldBeRedirected() || (rph.alwaysRedirectToConfigurator && rph.configuratorURN != "") {
+		localScheme := "http"
+		if c.Request.TLS != nil {
+			localScheme = "https"
+		}
+		redirectSchema := utils.NvlString(c.GetHeader("X-Forwarded-Proto"), localScheme)
 		redirectHost := utils.NvlString(c.GetHeader("X-Forwarded-Host"), c.Request.Host)
 		realHost := utils.NvlString(c.GetHeader("X-Real-Host"), redirectHost, c.Request.Host)
 		if rph.redirectToHttps {
@@ -82,7 +86,7 @@ func (rph *RootPathHandler) Handler(c *gin.Context) {
 			realHost = redirectHost
 		}
 
-		redirectURL := redirectSchema + "://" + realHost + viper.GetString("server.configurator_urn")
+		redirectURL := redirectSchema + "://" + realHost + rph.configuratorURN
 		c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 		return
 	}
