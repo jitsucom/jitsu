@@ -99,7 +99,7 @@ func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 		imageVersion = airbyte.LatestVersion
 	}
 
-	airbyteRunner := airbyte.NewRunner(dockerImage, imageVersion, "")
+	airbyteRunner := airbyte.NewRunner("SpecHandler", dockerImage, imageVersion, "")
 	spec, err := airbyteRunner.Spec()
 	if err != nil {
 		if err == runner.ErrNotReady {
@@ -122,7 +122,7 @@ func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 	})
 }
 
-func enrichOathFields(dockerImage string, spec interface{} ) {
+func enrichOathFields(dockerImage string, spec interface{}) {
 	oathFields, ok := oauth.Fields[dockerImage]
 	if ok {
 		props, err := utils.ExtractObject(spec, "connectionSpecification", "properties")
@@ -143,7 +143,7 @@ func enrichOathFields(dockerImage string, spec interface{} ) {
 			return
 		}
 		provided := make(map[string]bool)
-		for k,v := range oathFields {
+		for k, v := range oathFields {
 			pr, ok := propsMap[k]
 			if !ok {
 				continue
@@ -159,8 +159,8 @@ func enrichOathFields(dockerImage string, spec interface{} ) {
 			prMap["provided"] = prov
 			provided[k] = prov
 		}
-		newReq := make([]interface{}, 0, len(required) - len(provided))
-		for _,v := range required {
+		newReq := make([]interface{}, 0, len(required)-len(provided))
+		for _, v := range required {
 			if !provided[v.(string)] {
 				newReq = append(newReq, v)
 			}
@@ -190,8 +190,8 @@ func (ah *AirbyteHandler) CatalogHandler(c *gin.Context) {
 		imageVersion = airbyte.LatestVersion
 	}
 
-	airbyteRunner := airbyte.NewRunner(dockerImage, imageVersion, "")
-	catalogRow, err := airbyteRunner.Discover(airbyteSourceConnectorConfig, time.Minute * 3)
+	airbyteRunner := airbyte.NewRunner("CatalogHandler", dockerImage, imageVersion, "")
+	catalogRow, err := airbyteRunner.Discover(airbyteSourceConnectorConfig, time.Minute*3)
 	if err != nil {
 		if err == runner.ErrNotReady {
 			c.JSON(http.StatusOK, middleware.PendingResponse())

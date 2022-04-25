@@ -28,6 +28,7 @@ const (
 //Can only be used once
 //Self-closed (see run() func)
 type Runner struct {
+	sourceID string
 	//DockerImage without 'airbyte/' prefix
 	DockerImage string
 	Version     string
@@ -39,11 +40,12 @@ type Runner struct {
 }
 
 //NewRunner returns configured Airbyte Runner
-func NewRunner(dockerImage, imageVersion, identifier string) *Runner {
+func NewRunner(sourceID, dockerImage, imageVersion, identifier string) *Runner {
 	if identifier == "" {
-		identifier = fmt.Sprintf("%s-%s-%s", dockerImage, imageVersion, uuid.New())
+		identifier = fmt.Sprintf("%s-%s-%s-%s", sourceID, dockerImage, imageVersion, uuid.New())
 	}
 	return &Runner{
+		sourceID:    sourceID,
 		DockerImage: dockerImage,
 		Version:     imageVersion,
 		identifier:  identifier,
