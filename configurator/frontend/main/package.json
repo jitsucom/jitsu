@@ -15,6 +15,7 @@
     "hotkeys-js": "^3.8.7",
     "leader-line-new": "^1.1.9",
     "lodash": "^4.17.21",
+    "logrocket": "^1.0.14",
     "mobx": "^6.3.2",
     "mobx-react-lite": "^3.2.0",
     "monaco-editor": "^0.28.1",

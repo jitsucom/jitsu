@@ -1,11 +1,12 @@
 import { FeatureSettings } from "./ApplicationServices"
 // @ts-ignore
 import murmurhash from "murmurhash"
-import { isNullOrUndef } from "../commons/utils"
+import { isNullOrUndef, setDebugInfo } from "../commons/utils"
 import { jitsuClient, JitsuClient } from "@jitsu/sdk-js"
 import { getIntercom, initIntercom } from "lib/services/intercom-wrapper"
 import { ApplicationConfiguration } from "./ApplicationConfiguration"
 import * as Sentry from "@sentry/react"
+import LogRocket from "logrocket"
 import { BrowserTracing } from "@sentry/tracing"
 
 type ConsoleMessageListener = (level: string, ...args) => void
@@ -153,7 +154,7 @@ export default class AnalyticsService {
   private appConfig: ApplicationConfiguration
   private user: UserProps
   private jitsu?: JitsuClient
-  private sentryInitialized: boolean = false
+  private errorTrackingInitialized: boolean = false
   private consoleInterceptor: ConsoleLogInterceptor = new ConsoleLogInterceptor()
   private _anonymizeUsers = false
   private _appName = "unknown"
@@ -186,15 +187,31 @@ export default class AnalyticsService {
     })
   }
 
-  public ensureSentryInitialized() {
-    if (!this.sentryInitialized && this.appConfig.rawConfig.keys.sentry && !AnalyticsBlock.isBlocked()) {
+  public ensureErrorTrackingInitialized() {
+    if (this.errorTrackingInitialized || AnalyticsBlock.isBlocked()) {
+      return
+    }
+
+    if (this.appConfig.rawConfig.keys.sentry) {
       Sentry.init({
         dsn: this.appConfig.rawConfig.keys.sentry,
         integrations: [new BrowserTracing()],
         tracesSampleRate: 1.0,
       })
-      this.sentryInitialized = true
+      setDebugInfo("sentry", Sentry, false)
     }
+
+    if (this.appConfig.rawConfig.keys.logrocket) {
+      LogRocket.init(this.appConfig.rawConfig.keys.logrocket)
+      LogRocket.getSessionURL(sessionURL => {
+        Sentry.configureScope(scope => {
+          scope.setExtra("LogRocket session", sessionURL)
+        })
+      })
+      setDebugInfo("logRocket", LogRocket, false)
+    }
+
+    this.errorTrackingInitialized = true
   }
 
   public userHasDomain(email: string, domains: string[]) {
@@ -206,9 +223,14 @@ export default class AnalyticsService {
       return
     }
     this.user = userProps
-    this.ensureSentryInitialized()
+    this.ensureErrorTrackingInitialized()
     if (this.appConfig.rawConfig.keys.sentry) {
       Sentry.setUser({ id: userProps.id, email: userProps.email })
+    }
+    if (this.appConfig.rawConfig.keys.logrocket) {
+      LogRocket.identify(userProps.id, {
+        email: userProps.email,
+      })
     }
     if (this.jitsu) {
       this.jitsu.id(this.getJitsuIdPayload(userProps))
