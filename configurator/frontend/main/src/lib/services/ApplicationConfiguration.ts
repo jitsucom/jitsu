@@ -86,6 +86,7 @@ export type RawConfigObject = {
   env: Record<string, string>
   firebase?: Record<string, string>
   keys: {
+    sentry?: string
     logrocket?: string
     intercom?: string
     eventnative?: string

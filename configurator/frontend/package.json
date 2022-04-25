@@ -66,7 +66,7 @@
     "web-vitals": "^1.0.1",
     "webpack-bundle-analyzer": "^4.4.0"
   },
-    "resolutions": {
-      "react-error-overlay": "6.0.9"
-    }
+  "resolutions": {
+    "react-error-overlay": "6.0.9"
+  }
 }
