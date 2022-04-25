@@ -248,7 +248,7 @@ func (r *Runner) run(stdoutHandler, stderrHandler func(io.Reader) error, timeout
 				logging.Warnf("[%s] Airbyte run timeout after [%s]", r.identifier, timeout.String())
 				if err := r.Close(); err != nil {
 					if err != runner.ErrAirbyteAlreadyTerminated {
-						logging.SystemErrorf("Error terminating Airbyte runner [%s:%s] after timeout: %v", r.DockerImage, r.Version, err)
+						logging.SystemErrorf("Error terminating Airbyte runner [%s:%s] for task [%s] after timeout: %v", r.DockerImage, r.Version, r.identifier, err)
 					}
 				}
 			}
