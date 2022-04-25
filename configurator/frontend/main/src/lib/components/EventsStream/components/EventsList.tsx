@@ -77,32 +77,29 @@ function processEvents(type: EventType, data: { id: string; events: any }) {
   return events
 }
 
-const NoDataFlowing: React.FC<{ showHint: boolean }> = ({ showHint }) => {
-  const hint = showHint ? (
-    <div className="text-secondaryText">
-      <ol className="list-decimal list-inside mb-2 ml-2 text-center">
-        <li className="mb-4">
-          Get <NavLink to="/api_keys">API key, or create a new one</NavLink>
-        </li>
-        <li>
-          Use one of the following libraries and APIs to send events to Jitsu
-          <div className="flex flex-row justify-center flex-wrap items-center pt-6">
-            {Object.values(jitsuClientLibraries).map(props => (
-              <div className="mx-3 my-4" key={props.name}>
-                <JitsuClientLibraryCard {...props} />
-              </div>
-            ))}
-          </div>
-        </li>
-      </ol>
-    </div>
-  ) : (
-    ""
-  )
+const NoDataFlowing: React.FC<{ showAPIKeyHint: boolean }> = ({ showAPIKeyHint }) => {
   return (
     <div className="flex flex-col justify-center items-center min-h-full pt-6">
       <div className="text-center font-heading font-bold text-lg w-1/4 mb-4">No data flowing</div>
-      {hint}
+      <div className="text-secondaryText">
+        <ol className={`${showAPIKeyHint ? "list-decimal" : "list-none"} list-inside mb-2 ml-2 text-center`}>
+          {showAPIKeyHint && (
+            <li className="mb-4">
+              Get <NavLink to="../api-keys">API key, or create a new one</NavLink>
+            </li>
+          )}
+          <li>
+            Use one of the following libraries and APIs to send events to Jitsu
+            <div className="flex flex-row justify-center flex-wrap items-center pt-6">
+              {Object.values(jitsuClientLibraries).map(props => (
+                <div className="mx-3 my-4" key={props.name}>
+                  <JitsuClientLibraryCard {...props} />
+                </div>
+              ))}
+            </div>
+          </li>
+        </ol>
+      </div>
     </div>
   )
 }
@@ -187,7 +184,7 @@ export const EventsList: React.FC<{
   }, [error, data])
 
   if (!filterOptions.length) {
-    return <NoDataFlowing showHint={true} />
+    return <NoDataFlowing showAPIKeyHint={true} />
   }
 
   const eventStatusMessage = event => {
@@ -290,7 +287,7 @@ export const EventsList: React.FC<{
         </div>
       ) : (
         <div className={styles.eventsList} ref={listInnerRef} onScroll={onScroll}>
-          {!filteredEvents.length ? <NoDataFlowing showHint={false} /> : null}
+          {!filteredEvents.length ? <NoDataFlowing showAPIKeyHint={false} /> : null}
           {filteredEvents.map(event => {
             const active = event.eventId === selectedEvent
             return (

@@ -13,7 +13,7 @@ import { currentPageHeaderStore } from "./stores/currentPageHeader"
 import { destinationsStore } from "./stores/destinations"
 import { sourcesStore } from "./stores/sources"
 // @Components
-import { ApplicationPage } from "./Layout"
+import { ApplicationPage, SlackChatWidget } from "./Layout"
 import { CenteredSpin, Preloader } from "./lib/components/components"
 import { actionNotification } from "ui/components/ActionNotification/ActionNotification"
 import { SetNewPasswordModal } from "lib/components/SetNewPasswordModal/SetNewPasswordModal"
@@ -26,7 +26,7 @@ import { ExclamationCircleOutlined } from "@ant-design/icons"
 // @Hooks
 import { useServices } from "./hooks/useServices"
 // @Utils
-import { reloadPage, setDebugInfo } from "./lib/commons/utils"
+import { createError, reloadPage, setDebugInfo } from "./lib/commons/utils"
 // @Types
 import { Project } from "./generated/conf-openapi"
 // @Pages
@@ -34,6 +34,8 @@ import LoginPage from "./ui/pages/GetStartedPage/LoginPage"
 import SignupPage from "./ui/pages/GetStartedPage/SignupPage"
 import { StatusPage } from "./lib/components/StatusPage/StatusPage"
 import { UserSettings } from "./lib/components/UserSettings/UserSettings"
+import { Settings } from "./lib/services/UserSettingsService"
+
 // @Styles
 import "./App.less"
 // @Unsorted
@@ -69,6 +71,7 @@ export const initializeApplication = async (projectId: string): Promise<Applicat
   await services.init()
   console.log("Waiting for user")
   await services.userService.waitForUser()
+  await services.loadPluginScript()
   if (services.userService.hasUser()) {
     setDebugInfo("user", services.userService.getUser())
     services.analyticsService.onUserKnown(services.userService.getUser())
@@ -76,36 +79,37 @@ export const initializeApplication = async (projectId: string): Promise<Applicat
   return services
 }
 
+const initializeBilling = async (services: ApplicationServices, projectId: string) => {
+  let currenSubscription: CurrentSubscription
+  if (services.userService.hasUser() && services.features.billingEnabled && projectId) {
+    currenSubscription = await getCurrentSubscription(
+      projectId,
+      services.backendApiClient,
+      destinationsStore,
+      sourcesStore
+    )
+  } else {
+    currenSubscription = {
+      autorenew: false,
+      expiration: moment().add(1, "M"),
+      usage: {
+        events: 0,
+        sources: 0,
+        destinations: 0,
+      },
+      currentPlan: paymentPlans.opensource,
+      quotaPeriodStart: moment(),
+      doNotBlock: true,
+    }
+  }
+  services.currentSubscription = currenSubscription
+}
+
 const initializeProject = async (projectId: string, projects: Project[]): Promise<Project | null> => {
   const project = projects.find(project => project.id === projectId) ?? null
   if (project) {
     const services = ApplicationServices.get()
-
     services.activeProject = project
-
-    let currenSubscription: CurrentSubscription
-    if (services.userService.hasUser() && services.features.billingEnabled && projectId) {
-      currenSubscription = await getCurrentSubscription(
-        projectId,
-        services.backendApiClient,
-        destinationsStore,
-        sourcesStore
-      )
-    } else {
-      currenSubscription = {
-        autorenew: false,
-        expiration: moment().add(1, "M"),
-        usage: {
-          events: 0,
-          sources: 0,
-          destinations: 0,
-        },
-        currentPlan: paymentPlans.opensource,
-        quotaPeriodStart: moment(),
-        doNotBlock: true,
-      }
-    }
-    services.currentSubscription = currenSubscription
   }
   return project
 }
@@ -135,8 +139,11 @@ export const Application: React.FC = function () {
         setServices(application)
         setInitialized(true)
       } catch (e) {
-        console.log("Error initialization", e)
-        setError(e)
+        let msg = `Can't initialize application with backend ${
+          process.env.BACKEND_API_BASE || " (BACKEND_API_BASE is not set)"
+        }`
+        console.log(msg, e)
+        setError(createError(msg, e))
       }
     })()
   }, [projectId])
@@ -150,7 +157,13 @@ export const Application: React.FC = function () {
     } else {
       console.error("Failed to send error to analytics service, it's not defined yet")
     }
-    return <ErrorCard description={"Failed to load Jitsu application:" + error.message} stackTrace={error.stack} />
+    return (
+      <div className="w-full flex items-center justify-center">
+        <div className="w-3/4">
+          <ErrorCard title={"Failed to initialize application"} description={error.message} stackTrace={error.stack} />
+        </div>
+      </div>
+    )
   }
 
   if (!services.userService.hasUser()) {
@@ -201,7 +214,7 @@ export const Application: React.FC = function () {
               <div className="w-1/2">
                 <NavLink to="/">
                   <Button size="large" type="primary">
-                    Back to Jitsu →
+                    ← Back to Jitsu
                   </Button>
                 </NavLink>
 
@@ -322,7 +335,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
       let project = await initializeProject(projectId, projects)
       if (!project) {
         if (!projects || projects.length === 0) services.userService.removeAuth(reloadPage)
-        const lastUsedProject = getLastUsedProjectId(projects)
+        const lastUsedProject = services.userSettingsService.get(Settings.ActiveProject)?.id
         setProjectIdRedirectedFrom(projectId)
         window.location.replace(window.location.href.replace(projectId, lastUsedProject))
         return
@@ -330,6 +343,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
       setProject(project)
       try {
         await initializeAllStores(services.analyticsService)
+        await initializeBilling(services, projectId)
         setInitialized(true)
       } catch (e) {
         setError(e)
@@ -353,7 +367,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
   /** Saves the last successfully initialized project to local storage */
   useEffect(() => {
     if (initialized && !error && project?.id) {
-      setLastUsedProjectId(project.id)
+      services.userSettingsService.set({ [Settings.ActiveProject]: project })
     }
   }, [error, initialized, project?.id])
 
@@ -389,6 +403,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
         </Switch>
       </ApplicationPage>
       <BillingGlobalGuard />
+      <SlackChatWidget />
       {project.requiresSetup && <OnboardingTourLazyLoader project={project} />}
       {services.userService.getUser().forcePasswordChange && (
         <SetNewPasswordModal onCompleted={async () => reloadPage()} />
@@ -399,33 +414,12 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
 
 const ProjectRedirect: React.FC<{ projects: Project[] }> = ({ projects }) => {
   const location = useLocation()
-  const lastUsedProject = getLastUsedProjectId(projects)
+  const services = useServices()
+  const lastUsedProject = services.userSettingsService.get(Settings.ActiveProject)?.id
   if (!projects?.length) {
     return <ErrorCard title="Invalid state" description="projects.length should be greater than zero" />
   }
   return <Redirect to={`/prj-${lastUsedProject ?? projects[0].id}${location.pathname}`} />
-}
-
-/**
- * Finds the last successfully initialized project id.
- * First, checks the session storage, then checks the local storage - this makes it more stable
- * in cross-tabs user workflows.
- */
-function getLastUsedProjectId(projects: Project[]): string {
-  const [lastUsedProjectIdInCurrentTab, lastUsedProjectIdGlobally] = [window.sessionStorage, window.localStorage].map(
-    storage => storage.getItem("JITSU_LAST_USED_PROJECT")
-  )
-  if (lastUsedProjectIdInCurrentTab && projects.find(prj => prj.id === lastUsedProjectIdInCurrentTab)) {
-    return lastUsedProjectIdInCurrentTab
-  }
-  if (lastUsedProjectIdGlobally && projects.find(prj => prj.id === lastUsedProjectIdGlobally)) {
-    return lastUsedProjectIdGlobally
-  }
-  return projects?.[0]?.id ?? null
-}
-
-function setLastUsedProjectId(id: string): void {
-  ;[window.sessionStorage, window.localStorage].forEach(storage => storage.setItem("JITSU_LAST_USED_PROJECT", id))
 }
 
 function getProjectIdRedirectedFrom(): string | null | undefined {

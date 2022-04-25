@@ -56,6 +56,10 @@ export function isNullOrUndef(val) {
   return val === null || val === undefined
 }
 
+export function createError(msg: string, error?: any): Error {
+  return new Error(error?.message ? `${msg}: ${error.message}` : msg)
+}
+
 export function withDefaultVal<T>(val: T, defaultVal: T): T {
   return isNullOrUndef(val) ? defaultVal : val
 }
