@@ -2,9 +2,6 @@ package node_test
 
 import (
 	"encoding/json"
-	"fmt"
-	"os"
-	"sync"
 	"testing"
 
 	"github.com/jitsucom/jitsu/server/script"
@@ -251,40 +248,40 @@ func TestFetchIsAvailableOnlyInValidatorModuleFunction(t *testing.T) {
 }
 
 // for manual testing – this can take a while
-func TestThreeHundredGoroutines(t *testing.T) {
-	factory, err := node.NewFactory(50, os.TempDir())
-	assert.NoError(t, err)
-	defer factory.Close()
-
-	results := make(chan int, 5_000_000)
-	var work sync.WaitGroup
-	for i := 0; i < 5000; i++ {
-		work.Add(1)
-		go func(i int) {
-			defer work.Done()
-			instance, err := factory.CreateScript(script.Expression(fmt.Sprintf(`1000 * %d + $`, i)), nil)
-			if !assert.NoError(t, err) {
-				t.FailNow()
-			}
-
-			for j := 0; j < 1000; j++ {
-				var result int
-				if err := instance.Execute("", script.Args{j}, &result); !assert.NoError(t, err) {
-					t.FailNow()
-				}
-
-				results <- result
-			}
-		}(i)
-	}
-
-	work.Wait()
-	close(results)
-
-	unique := make(map[int]bool)
-	for item := range results {
-		unique[item] = true
-	}
-
-	assert.Len(t, unique, 5_000_000)
-}
+//func TestThreeHundredGoroutines(t *testing.T) {
+//	factory, err := node.NewFactory(50, os.TempDir())
+//	assert.NoError(t, err)
+//	defer factory.Close()
+//
+//	results := make(chan int, 5_000_000)
+//	var work sync.WaitGroup
+//	for i := 0; i < 5000; i++ {
+//		work.Add(1)
+//		go func(i int) {
+//			defer work.Done()
+//			instance, err := factory.CreateScript(script.Expression(fmt.Sprintf(`1000 * %d + $`, i)), nil)
+//			if !assert.NoError(t, err) {
+//				t.FailNow()
+//			}
+//
+//			for j := 0; j < 1000; j++ {
+//				var result int
+//				if err := instance.Execute("", script.Args{j}, &result); !assert.NoError(t, err) {
+//					t.FailNow()
+//				}
+//
+//				results <- result
+//			}
+//		}(i)
+//	}
+//
+//	work.Wait()
+//	close(results)
+//
+//	unique := make(map[int]bool)
+//	for item := range results {
+//		unique[item] = true
+//	}
+//
+//	assert.Len(t, unique, 5_000_000)
+//}
