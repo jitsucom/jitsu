@@ -67,7 +67,7 @@ func (s *Script) Execute(name string, args []interface{}, result interface{}) er
 	return s.exchange(execute, Execute{Function: name, Args: args}, result, nil, time.Second*5)
 }
 
-func (s *Script) ExecuteWithDataChannel(name string, args []interface{}, result interface{}, dataChannel chan<- []byte) error {
+func (s *Script) ExecuteWithDataChannel(name string, args []interface{}, result interface{}, dataChannel chan<- interface{}) error {
 	if args == nil {
 		args = make([]interface{}, 0)
 	}
@@ -88,7 +88,7 @@ func (s *Script) Close() {
 	_ = os.RemoveAll(s.File)
 }
 
-func (s *Script) exchange(command string, payload, result interface{}, dataChannel chan<- []byte, timeout time.Duration) error {
+func (s *Script) exchange(command string, payload, result interface{}, dataChannel chan<- interface{}, timeout time.Duration) error {
 	data, err := json.Marshal(Request{
 		Command: command,
 		Payload: payload,

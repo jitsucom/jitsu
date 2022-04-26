@@ -274,7 +274,7 @@ func (s *SourcePlugin) catalog(scr script.Interface) (interface{}, error) {
 	return result, nil
 }
 
-func (s *SourcePlugin) stream(scr script.Interface, streamName string, configuration interface{}, state interface{}, dataChannel chan<- []byte) (interface{}, error) {
+func (s *SourcePlugin) stream(scr script.Interface, streamName string, configuration interface{}, state interface{}, dataChannel chan<- interface{}) (interface{}, error) {
 	var result interface{}
 	if err := scr.ExecuteWithDataChannel(s.execFunc, script.Args{s.Config, streamName, configuration, state}, &result, dataChannel); err != nil {
 		return nil, err
@@ -317,7 +317,7 @@ func (e *SourceExecutor) Catalog() (interface{}, error) {
 	return e.catalog(e)
 }
 
-func (e *SourceExecutor) Stream(streamName string, configuration interface{}, state interface{}, dataChannel chan<- []byte) (interface{}, error) {
+func (e *SourceExecutor) Stream(streamName string, configuration interface{}, state interface{}, dataChannel chan<- interface{}) (interface{}, error) {
 	return e.stream(e, streamName, configuration, state, dataChannel)
 }
 

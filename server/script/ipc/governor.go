@@ -17,7 +17,7 @@ type Interface interface {
 	// Receive receives a message from the process.
 	// It is advisable to support context.Context.Done() in method implementations
 	// so as not to infinitely block.
-	Receive(ctx context.Context, dataChannel chan<- []byte) ([]byte, error)
+	Receive(ctx context.Context, dataChannel chan<- interface{}) ([]byte, error)
 }
 
 // Process describes a process with no acquired state (except for the initial state acquired on start)
@@ -62,7 +62,7 @@ func Govern(process Process) (*Governor, error) {
 }
 
 // Exchange sends request data and returns response data.
-func (g *Governor) Exchange(ctx context.Context, data []byte, dataChannel chan<- []byte) ([]byte, error) {
+func (g *Governor) Exchange(ctx context.Context, data []byte, dataChannel chan<- interface{}) ([]byte, error) {
 	cancel, err := g.mu.Lock(ctx)
 	if err != nil {
 		return nil, err
@@ -113,7 +113,7 @@ func (g *Governor) Exchange(ctx context.Context, data []byte, dataChannel chan<-
 	}
 }
 
-func (g *Governor) exchange(ctx context.Context, data []byte, dataChannel chan<- []byte) ([]byte, error) {
+func (g *Governor) exchange(ctx context.Context, data []byte, dataChannel chan<- interface{}) ([]byte, error) {
 	if err := g.process.Send(ctx, data); err != nil {
 		return nil, err
 	}
