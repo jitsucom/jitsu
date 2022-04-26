@@ -18,8 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jitsucom/jitsu/server/script/node2"
-
+	"github.com/jitsucom/jitsu/server/script/node"
 	"github.com/jitsucom/jitsu/server/templates"
 
 	"github.com/gin-gonic/gin/binding"
@@ -355,10 +354,11 @@ func main() {
 		logging.Infof("users_recognition.pool.size can't be 0. Using default value=1 instead")
 	}
 
-	scriptFactory, err := node2.NewFactory()
+	scriptFactory, err := node.NewFactory(viper.GetInt("node.pool_size"))
 	if err != nil {
 		logging.Warn(err)
 	} else {
+		appconfig.Instance.ScheduleClosing(scriptFactory)
 		templates.SetScriptFactory(scriptFactory)
 		if err := templates.LoadJSPlugins(viper.GetStringMapString("server.plugins")); err != nil {
 			logging.Fatalf("failed to load plugins: %v", err)

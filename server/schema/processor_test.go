@@ -7,7 +7,7 @@ import (
 
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/identifiers"
-	"github.com/jitsucom/jitsu/server/script/node"
+	"github.com/jitsucom/jitsu/server/script/node_old"
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/spf13/viper"
 
@@ -361,7 +361,7 @@ func TestProcessFact(t *testing.T) {
 func TestProcessTransform(t *testing.T) {
 	viper.Set("server.log.path", "")
 	viper.Set("sql_debug_log.ddl.enabled", false)
-	nodeFactory, err := node.NewFactory()
+	nodeFactory, err := node_old.NewFactory()
 	if err != nil {
 		t.Fatal(err)
 	}

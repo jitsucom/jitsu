@@ -1,4 +1,4 @@
-package node2
+package node
 
 import (
 	"bytes"
@@ -12,6 +12,8 @@ import (
 	"github.com/jitsucom/jitsu/server/script/ipc"
 	"github.com/jitsucom/jitsu/server/timestamp"
 )
+
+var exchangeTimeout = time.Minute
 
 type Request struct {
 	Command string      `json:"command"`
@@ -31,11 +33,26 @@ type Response struct {
 	Log    []Log           `json:"log,omitempty"`
 }
 
+type jsError struct {
+	message string
+	stack   string
+}
+
+func (e jsError) Error() string {
+	if e.stack != "" {
+		return e.stack
+	}
+
+	return e.message
+}
+
 type exchanger struct {
 	*ipc.Governor
 }
 
-func (e *exchanger) Exchange(command string, payload, result interface{}) error {
+var errLoadRequired = errors.New("load required")
+
+func (e *exchanger) exchange(command string, payload, result interface{}) error {
 	data, err := json.Marshal(Request{
 		Command: command,
 		Payload: payload,
@@ -45,7 +62,7 @@ func (e *exchanger) Exchange(command string, payload, result interface{}) error 
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), exchangeTimeout)
 	defer cancel()
 
 	start := timestamp.Now()
@@ -75,11 +92,14 @@ func (e *exchanger) Exchange(command string, payload, result interface{}) error 
 	}
 
 	if !resp.Ok {
-		if resp.Stack != "" {
-			return errors.New(resp.Error + "\n" + resp.Stack)
+		if resp.Error == "__load_required__" {
+			return errLoadRequired
 		}
 
-		return errors.New(resp.Error)
+		return jsError{
+			message: resp.Error,
+			stack:   resp.Stack,
+		}
 	}
 
 	if result != nil {

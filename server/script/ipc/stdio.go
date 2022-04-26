@@ -91,7 +91,7 @@ func (p *StdIO) Receive(ctx context.Context) ([]byte, error) {
 	}()
 
 	reader := bufio.NewReader(p.stdout)
-	line, _, err := reader.ReadLine()
+	line, err := reader.ReadBytes('\n')
 	done <- true
 	return line, err
 }
@@ -123,10 +123,14 @@ func (p *StdIO) Wait() error {
 
 	stderr := p.stderr.String()
 	if err != nil {
-		return &CommandError{
-			ExitError: err,
-			Stderr:    p.stderr.String(),
+		if err, ok := err.(*exec.ExitError); ok {
+			if err.ExitCode() == 133 || err.ExitCode() == -1 && strings.Contains(stderr, "out of memory") {
+				return ErrOutOfMemory
+			}
 		}
+
+		logging.Warnf("%s stderr:\n%s", p, stderr)
+		return err
 	} else if stderr != "" {
 		logging.Errorf("%s completed ok, but has stderr below:\n%s", p, stderr)
 	}
@@ -136,17 +140,4 @@ func (p *StdIO) Wait() error {
 
 func (p *StdIO) String() string {
 	return fmt.Sprintf("%s %s (%d)", p.Path, strings.Join(p.Args, " "), p.cmd.Process.Pid)
-}
-
-type CommandError struct {
-	ExitError error
-	Stderr    string
-}
-
-func (e *CommandError) Error() string {
-	return e.Stderr
-}
-
-func (e *CommandError) Unwrap() error {
-	return e.ExitError
 }

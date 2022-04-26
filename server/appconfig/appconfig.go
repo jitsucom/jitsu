@@ -3,11 +3,12 @@ package appconfig
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"io"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/jitsucom/jitsu/server/authorization"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -224,6 +225,9 @@ func setDefaultParams(containerized bool) {
 		"/properties -> /",
 		"/context -> /",
 	})
+
+	// Default max Node.JS processes
+	viper.SetDefault("node.pool_size", 50)
 
 	if containerized {
 		viper.SetDefault("server.static_files_dir", "/home/eventnative/app/web")

@@ -83,7 +83,7 @@ RUN make docker_assemble &&\
 FROM main as final
 
 ENV TZ=UTC
-ENV NODE_PATH=/usr/local/lib/node_modules
+ENV NODE_PATH=/usr/lib/node_modules
 
 WORKDIR /home/$EVENTNATIVE_USER/app
 
