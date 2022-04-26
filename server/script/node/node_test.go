@@ -58,6 +58,23 @@ func TestBasicDescribeAndExecute(t *testing.T) {
 	}
 }
 
+func TestUndefined(t *testing.T) {
+	tt := &testingT{T: t, exec: script.Expression(`$.user?.email`)}
+	defer tt.load().close()
+
+	exports, err := tt.Describe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, 0, len(exports), "anonymous function should not export anything")
+
+	var resp interface{}
+	err = tt.Execute("", script.Args{map[string]interface{}{}}, &resp)
+	assert.NoError(t, err)
+	assert.Nil(t, resp)
+}
+
 func TestAddExpressionAndAliases(t *testing.T) {
 	tt := &testingT{T: t, exec: script.Expression(`$[0] + _[1]`)}
 	defer tt.load().close()
