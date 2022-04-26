@@ -204,12 +204,13 @@ type CLIOutputRepresentation struct {
 
 //StreamRepresentation is a singer/airbyte stream representation
 type StreamRepresentation struct {
-	Namespace   string
-	StreamName  string
-	BatchHeader *schema.BatchHeader
-	KeyFields   []string
-	Objects     []map[string]interface{}
-	NeedClean   bool
+	Namespace        string
+	StreamName       string
+	BatchHeader      *schema.BatchHeader
+	KeyFields        []string
+	Objects          []map[string]interface{}
+	KeepKeysUnhashed bool
+	NeedClean        bool
 }
 
 //DriversInfo is a dto for sharing information about the driver into telemetry

@@ -78,7 +78,7 @@ func (p *StdIO) Send(_ context.Context, data []byte) error {
 	return err
 }
 
-func (p *StdIO) Receive(ctx context.Context, dataChannel chan<- []byte) ([]byte, error) {
+func (p *StdIO) Receive(ctx context.Context, dataChannel chan<- interface{}) ([]byte, error) {
 	done := make(chan bool)
 	defer close(done)
 	go func() {

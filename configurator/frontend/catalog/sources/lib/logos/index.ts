@@ -1,4 +1,5 @@
 export const airbyte = require("./airbyte").default()
+export const airtable = require("./airtable").default()
 export const apify = require("./apify").default()
 export const default_logo = require("./default-logo").default()
 export const amazon = require("./amazon").default()

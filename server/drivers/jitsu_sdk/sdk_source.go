@@ -19,6 +19,7 @@ import (
 var ErrSDKSourceCancelled = errors.New("Source runner was cancelled.")
 
 const LatestVersion = "latest"
+const IdField = "__id"
 
 //SdkSource is an SdkSource CLI driver
 type SdkSource struct {
@@ -64,7 +65,7 @@ func NewSdkSource(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	base.FillPreconfiguredOauth(packageName, config)
 
 	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, packageName, "", "", "", "",
-		"", "", map[string]string{})
+		"", "", map[string]string{collection.Name: collection.TableName})
 	s := &SdkSource{
 		activeCommands: map[string]*base.SyncCommand{},
 		mutex:          &sync.RWMutex{},
@@ -256,38 +257,57 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 	stream := s.collection
 	taskLogger.INFO("Starting processing stream: %s", stream.Name)
 	representation := &base.StreamRepresentation{
-		StreamName:  stream.Name,
-		BatchHeader: &schema.BatchHeader{TableName: stream.TableName, Fields: map[string]schema.Field{}},
-		Objects:     []map[string]interface{}{},
-		NeedClean:   stream.SyncMode == "full_sync",
+		StreamName:       stream.Name,
+		BatchHeader:      &schema.BatchHeader{TableName: stream.TableName, Fields: map[string]schema.Field{}},
+		Objects:          []map[string]interface{}{},
+		KeepKeysUnhashed: true,
+		NeedClean:        stream.SyncMode == "full_sync",
 	}
 	output.Streams[stream.Name] = representation
-	dataChannel := make(chan []byte, 1000)
+	dataChannel := make(chan interface{}, 1000)
 	go func() {
 		defer close(dataChannel)
 		_, err := s.sourceExecutor.Stream(stream.Type, stream, nil, dataChannel)
 		if err != nil {
-			dataChannel <- []byte(err.Error())
+			dataChannel <- err
 		}
 	}()
 
-	for bytes := range dataChannel {
-		row := &Row{}
-		err := json.Unmarshal(bytes, row)
-		if err != nil {
-			taskLogger.ERROR("Failed to parse message from source: %s", string(bytes))
-			continue
-		}
-		switch row.Type {
-		case "record":
-			object, ok := row.Message.(map[string]interface{})
-			if !ok {
-				taskLogger.ERROR("Record message expected to have type map[string]interface{} found: %T", row.Message)
+	for rawData := range dataChannel {
+		switch data := rawData.(type) {
+		case []byte:
+			row := &Row{}
+			err := json.Unmarshal(data, row)
+			if err != nil {
+				taskLogger.ERROR("Failed to parse message from source: %s", string(data))
+				continue
 			}
-			representation.Objects = append(representation.Objects, object)
+			switch row.Type {
+			case "record":
+				object, ok := row.Message.(map[string]interface{})
+				if !ok {
+					taskLogger.ERROR("Record message expected to have type map[string]interface{} found: %T", row.Message)
+				}
+				id, ok := object[IdField]
+				if ok && representation.KeyFields == nil && fmt.Sprint(id) != "" {
+					representation.KeyFields = []string{IdField}
+				}
+				representation.Objects = append(representation.Objects, object)
+			case "log":
+				log, ok := row.Message.(map[string]interface{})
+				if !ok {
+					taskLogger.ERROR("Log message expected to have type map[string]interface{} found: %T", row.Message)
+				}
+				taskLogger.LOG(log["message"].(string), "Jitsu", logging.ToLevel(log["level"].(string)))
+			default:
+				taskLogger.ERROR("Message type %s is not supported yet.", row.Type)
+			}
+		case error:
+			return data
 		default:
-			taskLogger.ERROR("Message type %s is not supported yet.", row.Type)
+			taskLogger.ERROR("Failed to parse message from source: %+v of type: %T", data, data)
 		}
+
 	}
 	taskLogger.INFO("Stream: %s finished. Objects count: %d", stream.Name, len(representation.Objects))
 
