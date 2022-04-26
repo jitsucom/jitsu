@@ -227,7 +227,7 @@ func setDefaultParams(containerized bool) {
 	})
 
 	// Default max Node.JS processes
-	viper.SetDefault("node.pool_size", 50)
+	viper.SetDefault("node.pool_size", 30)
 
 	if containerized {
 		viper.SetDefault("server.static_files_dir", "/home/eventnative/app/web")

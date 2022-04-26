@@ -203,7 +203,7 @@ module.exports = async (event) => {
 		process := &ipc.StdIO{
 			Dir:  f.dir,
 			Path: node,
-			Args: []string{"--max-old-space-size=20", filepath.Join(f.dir, mainFile)},
+			Args: []string{"--max-old-space-size=200", filepath.Join(f.dir, mainFile)},
 			Env:  []string{nodePathEnv + "=" + f.nodePath},
 		}
 
