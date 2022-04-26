@@ -112,7 +112,7 @@ func (e *exchanger) exchange0(command string, payload, result interface{}, excha
 		}
 	}
 
-	if result != nil {
+	if result != nil && resp.Result != nil {
 		decoder := json.NewDecoder(bytes.NewReader(resp.Result))
 		//parse json exactly the same way as it happens in http request processing.
 		//transform that does no changes must return exactly the same object as w/o transform
