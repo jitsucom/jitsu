@@ -2,14 +2,24 @@ package node
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
 
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/script"
 	"github.com/pkg/errors"
+)
+
+const (
+	load     = "load"
+	describe = "describe"
+	execute  = "execute"
+	kill     = "kill"
+	unload   = "unload"
 )
 
 func sanitizeVariables(vars map[string]interface{}) map[string]interface{} {
@@ -72,4 +82,10 @@ func checkNodeModule(modulesDir string, name, version string) error {
 func escapeJSON(value string) string {
 	data, _ := json.Marshal(value)
 	return strings.Trim(string(data), `"`)
+}
+
+func closeQuietly(close io.Closer) {
+	if err := close.Close(); err != nil {
+		logging.Warnf("failed to close %T: %v", close, err)
+	}
 }

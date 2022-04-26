@@ -18,7 +18,7 @@ type testingT struct {
 }
 
 func (t *testingT) load() *testingT {
-	factory, err := node.NewFactory(t.TempDir())
+	factory, err := node.NewFactory(1, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,3 +246,42 @@ func TestFetchIsAvailableOnlyInValidatorModuleFunction(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "undefined", resp)
 }
+
+// for manual testing – this can take a while
+//func TestThreeHundredGoroutines(t *testing.T) {
+//	factory, err := node2.NewFactory(50, os.TempDir())
+//	assert.NoError(t, err)
+//	defer factory.Close()
+//
+//	results := make(chan int, 500_000)
+//	var work sync.WaitGroup
+//	for i := 0; i < 5000; i++ {
+//		work.Add(1)
+//		go func(i int) {
+//			defer work.Done()
+//			instance, err := factory.CreateScript(script.Expression(fmt.Sprintf(`100 * %d + $`, i)), nil)
+//			if !assert.NoError(t, err) {
+//				t.Fail()
+//			}
+//
+//			for j := 0; j < 100; j++ {
+//				var result int
+//				if err := instance.Execute("", script.Args{j}, &result); !assert.NoError(t, err) {
+//					t.Fail()
+//				}
+//
+//				results <- result
+//			}
+//		}(i)
+//	}
+//
+//	work.Wait()
+//	close(results)
+//
+//	unique := make(map[int]bool)
+//	for item := range results {
+//		unique[item] = true
+//	}
+//
+//	assert.Len(t, unique, 500_000)
+//}
