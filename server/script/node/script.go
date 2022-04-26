@@ -23,7 +23,6 @@ type Init struct {
 	Executable string                 `json:"executable"`
 	Variables  map[string]interface{} `json:"variables,omitempty"`
 	Includes   []string               `json:"includes,omitempty"`
-	Offsets    [2]int                 `json:"offsets"`
 }
 
 type Execute struct {
