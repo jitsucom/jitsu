@@ -52,7 +52,17 @@ type exchanger struct {
 
 var errLoadRequired = errors.New("load required")
 
+type exchangerFunc func(ctx context.Context, data []byte) ([]byte, error)
+
+func (e *exchanger) exchangeDirect(command string, payload, result interface{}) error {
+	return e.exchange0(command, payload, result, e.ExchangeDirect)
+}
+
 func (e *exchanger) exchange(command string, payload, result interface{}) error {
+	return e.exchange0(command, payload, result, e.Exchange)
+}
+
+func (e *exchanger) exchange0(command string, payload, result interface{}, exchangerFunc exchangerFunc) error {
 	data, err := json.Marshal(Request{
 		Command: command,
 		Payload: payload,
@@ -66,7 +76,7 @@ func (e *exchanger) exchange(command string, payload, result interface{}) error 
 	defer cancel()
 
 	start := timestamp.Now()
-	newData, err := e.Governor.Exchange(ctx, data)
+	newData, err := exchangerFunc(ctx, data)
 
 	logging.Debugf("%s: %s => %s (%v) [%s]", e, string(data), string(newData), err, timestamp.Now().Sub(start))
 	if err != nil {

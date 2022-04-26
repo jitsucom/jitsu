@@ -113,6 +113,16 @@ func (g *Governor) exchange(ctx context.Context, data []byte) ([]byte, error) {
 	return g.process.Receive(ctx)
 }
 
+func (g *Governor) ExchangeDirect(ctx context.Context, data []byte) ([]byte, error) {
+	cancel, err := g.mu.Lock(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer cancel()
+	return g.exchange(ctx, data)
+}
+
 // Kill kills the running process.
 func (g *Governor) Kill() {
 	cancel, _ := g.mu.Lock(context.Background())

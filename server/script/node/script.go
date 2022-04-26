@@ -58,7 +58,7 @@ func (s *Script) Execute(name string, args []interface{}, result interface{}) er
 }
 
 func (s *Script) Close() {
-	_ = s.exchange(unload, s.Session, nil)
+	_ = s.exchanger.exchangeDirect(unload, s.Session, nil)
 }
 
 var vmStackTraceLine = regexp.MustCompile(`^\s*at\s(.*?)\s\(vm\.js:(\d+):(\d+)\)$`)
