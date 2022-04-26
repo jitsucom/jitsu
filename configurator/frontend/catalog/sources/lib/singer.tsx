@@ -28,26 +28,26 @@ export const allSingerTaps: SingerTap[] = [
           displayName: "Client ID",
           id: "client_id",
           type: oauthSecretType,
-          required: true
+          required: true,
         },
         {
           displayName: "Client Secret",
           id: "client_secret",
           type: oauthSecretType,
-          required: true
+          required: true,
         },
         {
           displayName: "Refresh Token",
           id: "refresh_token",
           type: stringType,
-          required: true
+          required: true,
         },
         {
           displayName: "User Agent",
           id: "user_agent",
           defaultValue: "Jitsu.Cloud (https://jitsu.com)",
           type: stringType,
-          required: true
+          required: true,
         },
         {
           displayName: "Start Date",
@@ -57,7 +57,7 @@ export const allSingerTaps: SingerTap[] = [
           required: true,
         },
       ],
-    })
+    }),
   },
   {
     pic: logos.tap_3plcentral,
