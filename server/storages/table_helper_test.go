@@ -10,7 +10,7 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/parsers"
-	"github.com/jitsucom/jitsu/server/script/node_old"
+	"github.com/jitsucom/jitsu/server/script/node"
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/spf13/viper"
 
@@ -67,7 +67,7 @@ func TestMapTableSchema(t *testing.T) {
 func TestProcessTransformWithTypesOverride(t *testing.T) {
 	viper.Set("server.log.path", "")
 	viper.Set("sql_debug_log.ddl.enabled", false)
-	nodeFactory, err := node_old.NewFactory()
+	nodeFactory, err := node.NewFactory()
 	if err != nil {
 		t.Fatal(err)
 	}
