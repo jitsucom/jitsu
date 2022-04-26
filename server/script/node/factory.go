@@ -123,14 +123,8 @@ func (f *Factory) Close() error {
 			continue
 		}
 
-		if err := exchanger.exchange(kill, nil, nil); err != nil {
-			logging.Warnf("send kill signal failed, killing: %v", err)
-			exchanger.Kill()
-		}
-
-		if err := exchanger.Wait(); err != nil {
-			logging.Warnf("wait process failed: %v", err)
-		}
+		exchanger.Kill()
+		_ = exchanger.Wait()
 	}
 
 	_ = os.RemoveAll(f.dir)
@@ -209,7 +203,7 @@ module.exports = async (event) => {
 		process := &ipc.StdIO{
 			Dir:  f.dir,
 			Path: node,
-			Args: []string{"--max-old-space-size=100", filepath.Join(f.dir, mainFile)},
+			Args: []string{"--max-old-space-size=20", filepath.Join(f.dir, mainFile)},
 			Env:  []string{nodePathEnv + "=" + f.nodePath},
 		}
 

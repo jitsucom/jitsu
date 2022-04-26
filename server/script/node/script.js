@@ -197,10 +197,6 @@ readline.createInterface({
       case "unload":
         unload(payload.session)
         break
-      case "kill":
-        await reply()
-        process.exit(0)
-        break
       default:
         throw new Error(`Unsupported command: ${req.command}`)
     }

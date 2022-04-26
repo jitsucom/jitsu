@@ -358,11 +358,8 @@ func main() {
 	if err != nil {
 		logging.Warn(err)
 	} else {
-		appconfig.Instance.ScheduleClosing(scriptFactory)
+		appconfig.Instance.ScheduleLastClosing(scriptFactory)
 		templates.SetScriptFactory(scriptFactory)
-		if err := templates.LoadJSPlugins(viper.GetStringMapString("server.plugins")); err != nil {
-			logging.Fatalf("failed to load plugins: %v", err)
-		}
 	}
 
 	maxColumns := viper.GetInt("server.max_columns")

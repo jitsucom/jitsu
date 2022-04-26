@@ -129,8 +129,11 @@ func (p *StdIO) Wait() error {
 			}
 		}
 
-		logging.Warnf("%s stderr:\n%s", p, stderr)
-		return err
+		if stderr != "" {
+			logging.Warnf("%s stderr:\n%s", p, stderr)
+		}
+
+		return nil
 	} else if stderr != "" {
 		logging.Errorf("%s completed ok, but has stderr below:\n%s", p, stderr)
 	}

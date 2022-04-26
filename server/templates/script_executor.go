@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/script"
 	"github.com/pkg/errors"
 )
@@ -196,54 +195,6 @@ func (e *NodeExecutor) Format() string {
 
 func (e *NodeExecutor) Expression() string {
 	return e.String()
-}
-
-func LoadJSPlugins(plugins map[string]string) error {
-	for name, plugin := range plugins {
-		executor, err := NewScriptExecutor(&DestinationPlugin{Package: plugin}, nil)
-		if err != nil {
-			return errors.Wrapf(err, "failed to load plugin %s", name)
-		}
-
-		symbols, err := executor.Describe()
-		if err != nil {
-			return errors.Wrapf(err, "failed to describe plugin %s", name)
-		}
-
-		symbol, ok := symbols["descriptor"]
-		if !ok {
-			return errors.Errorf("plugin %s does not export descriptor", name)
-		}
-
-		var descriptor struct {
-			ID   string `json:"id"`
-			Type string `json:"type"`
-		}
-
-		if err := symbol.As(&descriptor); err != nil {
-			return errors.Wrapf(err, "failed to read plugin %s descriptor", name)
-		}
-
-		name := descriptor.ID
-		if name == "" {
-			if descriptor.Type == "" {
-				return errors.Wrapf(err, "invalid plugin: no id or type in %s descriptor: %s", name, string(symbol.Value))
-			}
-
-			name = descriptor.Type
-		}
-
-		var buildInfo buildInfo
-		if symbol, ok := symbols["buildInfo"]; ok {
-			if err := symbol.As(&buildInfo); err != nil {
-				return errors.Wrapf(err, "failed to read plugin %s buildInfo", name)
-			}
-		}
-
-		logging.Infof("Loaded plugin: %s, build info: %+v", name, buildInfo)
-	}
-
-	return nil
 }
 
 type buildInfo struct {
