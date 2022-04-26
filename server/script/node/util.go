@@ -39,8 +39,26 @@ type packageJSON struct {
 	Version      string            `json:"version"`
 }
 
+func packageJSONPath(dir string) string {
+	return filepath.Join(dir, "package.json")
+}
+
+func createPackageJSON(dir string, value packageJSON) error {
+	file, err := os.Create(packageJSONPath(dir))
+	if err != nil {
+		return errors.Wrapf(err, "create package.json in '%s'", dir)
+	}
+
+	defer closeQuietly(file)
+	if err := json.NewEncoder(file).Encode(value); err != nil {
+		return errors.Wrapf(err, "write to package.json in '%s'", dir)
+	}
+
+	return nil
+}
+
 func readPackageJSON(dir string) (*packageJSON, error) {
-	file, err := os.Open(filepath.Join(dir, "package.json"))
+	file, err := os.Open(packageJSONPath(dir))
 	if err != nil {
 		return nil, errors.Wrap(err, "open package.json")
 	}
