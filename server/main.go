@@ -354,7 +354,7 @@ func main() {
 		logging.Infof("users_recognition.pool.size can't be 0. Using default value=1 instead")
 	}
 
-	scriptFactory, err := node.NewFactory(viper.GetInt("node.pool_size"))
+	scriptFactory, err := node.NewFactory(viper.GetInt("node.pool_size"), viper.GetInt("node.max_space"))
 	if err != nil {
 		logging.Warn(err)
 	} else {

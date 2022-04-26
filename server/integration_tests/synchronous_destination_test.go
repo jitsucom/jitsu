@@ -20,7 +20,7 @@ import (
 //tests full cycle of event processing
 func TestSyncronousDestination(t *testing.T) {
 	logging.LogLevel = logging.DEBUG
-	nodeFactory, err := node.NewFactory(1)
+	nodeFactory, err := node.NewFactory(1, 20)
 	if err != nil {
 		t.Fatal(err)
 	}

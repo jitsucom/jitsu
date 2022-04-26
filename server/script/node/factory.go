@@ -41,6 +41,7 @@ var errNodeRequired = errors.New(`node and/or npm is not found in $PATH.
 	Or use @jitsucom/* docker images where all necessary packages are pre-installed`)
 
 type Factory struct {
+	maxSpace   int
 	dir        string
 	nodePath   string
 	plugins    *sync.Map
@@ -48,7 +49,7 @@ type Factory struct {
 	mu         ipc.Mutex
 }
 
-func NewFactory(poolSize int, tmpDir ...string) (*Factory, error) {
+func NewFactory(poolSize, maxSpace int, tmpDir ...string) (*Factory, error) {
 	if _, err := exec.LookPath(node); err != nil {
 		return nil, errNodeRequired
 	}
@@ -107,6 +108,7 @@ func NewFactory(poolSize int, tmpDir ...string) (*Factory, error) {
 	}
 
 	return &Factory{
+		maxSpace:   maxSpace,
 		dir:        dir,
 		nodePath:   nodePath,
 		plugins:    new(sync.Map),
@@ -203,7 +205,7 @@ module.exports = async (event) => {
 		process := &ipc.StdIO{
 			Dir:  f.dir,
 			Path: node,
-			Args: []string{"--max-old-space-size=200", filepath.Join(f.dir, mainFile)},
+			Args: []string{fmt.Sprintf("--max-old-space-size=%d", f.maxSpace), filepath.Join(f.dir, mainFile)},
 			Env:  []string{nodePathEnv + "=" + f.nodePath},
 		}
 

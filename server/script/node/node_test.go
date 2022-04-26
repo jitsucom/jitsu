@@ -18,7 +18,7 @@ type testingT struct {
 }
 
 func (t *testingT) load() *testingT {
-	factory, err := node.NewFactory(1, t.TempDir())
+	factory, err := node.NewFactory(1, 20, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
