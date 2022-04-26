@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/script/node_old"
+	"github.com/jitsucom/jitsu/server/script/node"
 	"github.com/jitsucom/jitsu/server/templates"
 
 	"github.com/jitsucom/jitsu/server/testsuit"
@@ -20,7 +20,7 @@ import (
 //tests full cycle of event processing
 func TestSyncronousDestination(t *testing.T) {
 	logging.LogLevel = logging.DEBUG
-	nodeFactory, err := node_old.NewFactory()
+	nodeFactory, err := node.NewFactory()
 	if err != nil {
 		t.Fatal(err)
 	}
