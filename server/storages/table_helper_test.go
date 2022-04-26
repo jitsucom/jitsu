@@ -67,7 +67,7 @@ func TestMapTableSchema(t *testing.T) {
 func TestProcessTransformWithTypesOverride(t *testing.T) {
 	viper.Set("server.log.path", "")
 	viper.Set("sql_debug_log.ddl.enabled", false)
-	nodeFactory, err := node.NewFactory()
+	nodeFactory, err := node.NewFactory(1)
 	if err != nil {
 		t.Fatal(err)
 	}
