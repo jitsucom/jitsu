@@ -13,7 +13,7 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
-var exchangeTimeout = time.Minute
+var DefaultExchangeTimeout = time.Minute
 
 type Request struct {
 	Command string      `json:"command"`
@@ -72,7 +72,7 @@ func (e *exchanger) exchange0(command string, payload, result interface{}, excha
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), exchangeTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultExchangeTimeout)
 	defer cancel()
 
 	start := timestamp.Now()
