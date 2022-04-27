@@ -11,13 +11,9 @@ With NextJS there're several ways on how to add Jitsu tracking
 
 ## Client Side Tracking
 
-Since Next JS is based on React, [React Guide](/docs/sending-data/js-sdk/react) will work as well. However, there's a caveat:
- * you can't use `usePageView` cause this hook relies on react-router, which is not part of Next.js
- * `useJitsu` uses `useEffect()` with related side effects
-
 First, create or update your `_app.js` following this code
 ```jsx
-import { createClient, JitsuProvider } from "@jitsu/react";
+import { createClient, JitsuProvider } from "@jitsu/nextjs";
 
 // initialize Jitsu client
 const jitsuClient = createClient({
@@ -39,14 +35,14 @@ See [parameters list](/docs/sending-data/js-sdk/parameters-reference) for `creat
 
 After jitsu client and provider are configured you will be able to use `useJitsu` hook in your components
 ```jsx
-import { useJitsu } from "@jitsu/react";
+import { useJitsu } from "@jitsu/nextjs";
 
 const Main = () => {
   const {id, trackPageView, track} = useJitsu(); // import methods from useJitsu hook
 
   useEffect(() => {
     id({id: '__USER_ID__', email: '__USER_EMAIL__'}); // identify current user for all events
-    trackPageView() // send page_view event
+    trackPageView() // send pageview event
   }, [])
 
   const onClick = (btnName) => {
@@ -58,18 +54,48 @@ const Main = () => {
   )
 }
 ```
+Please note, that `useJitsu` uses `useEffect()` with related side effects.
+
+\
+To enable automatic pageview tracking, add `usePageView()` hook to your `_app.js`. This hook will send pageview each time
+user loads a new page. This hook relies on [NextJS Router](https://nextjs.org/docs/api-reference/next/router)
+```jsx
+import { createClient, JitsuProvider } from "@jitsu/nextjs";
+
+// initialize Jitsu client
+const jitsuClient = createClient({
+  tracking_host: "__JITSU_HOST__",
+  key: "__API_KET__",
+  // See Jitsu SDK parameters section for more options
+});
+
+function MyApp({Component, pageProps}) {
+  usePageView(jitsuClient); // this hook will send pageview track event on router change
+
+  // wrap our app with Jitsu provider
+  return <JitsuProvider client={jitsuClient}>
+    <Component {...pageProps} />
+  </JitsuProvider>
+}
+
+export default MyApp
+```
+If you need to pre-configure jitsu event - for example, identify a user, it's possible to do via `before` callback:
+```javascript
+usePageView(jitsuClient, {before: (jitsu) => jitsu.id({id: '__USER_ID__', email: '__USER_EMAIL__'})})
+```
 
 ## Server Side Tracking
 
 Jitsu can track events on server-side:
- * *Pros:* this method is 100% reliable and ad-block resistant
- * *Cons:* static rendering will not be possible; `next export` will not work; fewer data points will be collected - attributes such as screen-size, device
+* **Pros:** this method is 100% reliable and ad-block resistant
+* **Cons:** static rendering will not be possible; `next export` will not work; fewer data points will be collected - attributes such as screen-size, device
 
 ### Manual tracking
 
 For manual tracking you need to initialize Jitsu client
 ```javascript
-import { createClient, JitsuProvider } from "@jitsu/react";
+import { createClient } from "@jitsu/nextjs";
 
 // initialize Jitsu client
 const jitsuClient = createClient({
