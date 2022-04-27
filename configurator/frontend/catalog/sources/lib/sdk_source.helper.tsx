@@ -44,39 +44,34 @@ export const makeSdkSource = (sdkSource: SdkSource): SourceConnector => {
   }
 }
 
-
 /**
  * Maps the spec of the SdkSource connector to the Jitsu `Parameter` schema of the `SourceConnector`.
  * @param extensionDescriptor source plugin's descriptor.
  */
 export const mapSdkSourceSpecToSourceConnectorConfig = (extensionDescriptor: any): Parameter[] => {
-
   const result: Parameter[] = []
   const configurationParameters = extensionDescriptor["configurationParameters"]
 
   configurationParameters.forEach(param => {
-      let tp: ParameterType<any> = stringType
-      switch (param["type"]) {
-        case "int":
-          tp = intType
-          break
-        case "json":
-          tp = jsonType
-          break
-        case "boolean":
-          tp = booleanType
-          break
-        case "password":
-          tp = passwordType
-      }
-      result.push({
-          ...param,
-          id:  "config." + param["id"],
-          type: tp,
-        },
-      )
-    },
-  )
+    let tp: ParameterType<any> = stringType
+    switch (param["type"]) {
+      case "int":
+        tp = intType
+        break
+      case "json":
+        tp = jsonType
+        break
+      case "boolean":
+        tp = booleanType
+        break
+      case "password":
+        tp = passwordType
+    }
+    result.push({
+      ...param,
+      id: "config." + param["id"],
+      type: tp,
+    })
+  })
   return result
 }
-

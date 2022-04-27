@@ -22,10 +22,13 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
   setSourceEditorState,
   handleBringSourceData,
 }) => {
-  const typedStreams: boolean = !sourceDataFromCatalog.protoType || sourceDataFromCatalog.protoType == "sdk_source" || sourceDataFromCatalog.protoType == "native"
+  const typedStreams: boolean =
+    !sourceDataFromCatalog.protoType ||
+    sourceDataFromCatalog.protoType == "sdk_source" ||
+    sourceDataFromCatalog.protoType == "native"
   return typedStreams ? (
     <SourceEditorFormStreamsConfigurable
-      initialSourceData={initialSourceData as NativeSourceData | SDKSourceData }
+      initialSourceData={initialSourceData as NativeSourceData | SDKSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
       setSourceEditorState={setSourceEditorState}
       handleBringSourceData={handleBringSourceData}

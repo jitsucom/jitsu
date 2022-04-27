@@ -277,9 +277,7 @@ const transformAirbyteSpecResponse = (response: any) => {
 }
 
 const transformSdkSourceSpecResponse = (response: any) => {
-  return mapSdkSourceSpecToSourceConnectorConfig(
-    response?.["spec"]
-  )
+  return mapSdkSourceSpecToSourceConnectorConfig(response?.["spec"])
 }
 
 type AirbyteVersionSelectionProps = {
