@@ -79,26 +79,27 @@ func (s *Script) exchange(command string, payload, result interface{}) error {
 		return nil
 	case errors.Is(err, errLoadRequired):
 		if err := s.exchanger.exchange(load, s.Init, nil); err != nil {
-			return errors.Wrapf(err, "load script %s", s.Session)
+			return s.rewriteJavaScriptStack(err)
 		}
 
 		return s.exchange(command, payload, result)
 	default:
 		s.errCount = 0
-		if jsError, ok := err.(jsError); ok {
-			return s.rewriteJavaScriptStack(jsError)
-		}
-
-		return err
+		return s.rewriteJavaScriptStack(err)
 	}
 }
 
-func (s *Script) rewriteJavaScriptStack(err jsError) jsError {
-	if err.stack == "" {
+func (s *Script) rewriteJavaScriptStack(err error) error {
+	var jsErr jsError
+	if !errors.As(err, &jsErr) {
 		return err
 	}
 
-	lines := strings.Split(err.stack, "\n")
+	if jsErr.stack == "" {
+		return err
+	}
+
+	lines := strings.Split(jsErr.stack, "\n")
 	stack := make([]string, 0)
 	for i, line := range lines {
 		if i == 0 {
@@ -129,10 +130,6 @@ func (s *Script) rewriteJavaScriptStack(err jsError) jsError {
 		stack = append(stack, fmt.Sprintf(`  at %s (%d:%d)`, function, row, column))
 	}
 
-	if len(stack) == 0 {
-		return err
-	}
-
-	err.stack = err.message + "\n" + strings.Join(stack, "\n")
-	return err
+	jsErr.stack = strings.Trim(jsErr.message+"\n"+strings.Join(stack, "\n"), "\n")
+	return jsErr
 }
