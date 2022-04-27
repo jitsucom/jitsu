@@ -93,7 +93,7 @@ func (p *StdIO) Receive(ctx context.Context, dataChannel chan<- interface{}) ([]
 	reader := bufio.NewReader(p.stdout)
 	for {
 		line, err := reader.ReadBytes('\n')
-		if err != nil && !errors.Is(err, io.EOF) {
+		if err != nil {
 			done <- true
 			return line, err
 		} else if len(line) > 30 && line[0] == 'J' && line[1] == ':' &&
