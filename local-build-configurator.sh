@@ -73,7 +73,7 @@ echo "=         Building Configurator UI...      ="
 echo "============================================"
 echo ""
 
-(cd configurator/frontend; rm -rf main/build && yarn clean && CI=false ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi", "sentry": "https://f9f84b5bc4d943e493676539877af365@o330694.ingest.sentry.io/6360806"}' yarn build) || { echo 'Building Configurator UI failed' ; exit 1; }
+(cd configurator/frontend; rm -rf main/build && yarn clean && CI=false ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi", "sentry": "https://5d29508173c04d86b31638517ebf89b3@o330694.ingest.sentry.io/6365760"}' yarn build) || { echo 'Building Configurator UI failed' ; exit 1; }
 
 echo ""
 echo "============================================"
