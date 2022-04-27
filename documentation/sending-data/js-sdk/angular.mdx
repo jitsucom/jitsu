@@ -52,7 +52,7 @@ export class AppComponent implements OnInit {
 
   onBtnClick(btnName:string) {
     // send btn_click_event with button name payload on button click
-    this.jitsuTracker.trackEvent('btn_click_event', {btn: btnName})
+    this.jitsuTracker.track('btn_click_event', {btn: btnName})
   }
 
   ngOnInit() {
