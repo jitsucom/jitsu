@@ -2,11 +2,14 @@ package integration_tests
 
 import (
 	"bytes"
-	"github.com/jitsucom/jitsu/server/logging"
 	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/script/node"
+	"github.com/jitsucom/jitsu/server/templates"
 
 	"github.com/jitsucom/jitsu/server/testsuit"
 	"github.com/spf13/viper"
@@ -16,6 +19,14 @@ import (
 //TestMySQLStreamInsert stores two events into MySQL (without/with parsed ua and geo)
 //tests full cycle of event processing
 func TestSyncronousDestination(t *testing.T) {
+	logging.LogLevel = logging.DEBUG
+	nodeFactory, err := node.NewFactory(1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	templates.SetScriptFactory(nodeFactory)
+
 	viper.Set("server.log.path", "")
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken"}]}`)
@@ -36,7 +47,8 @@ func TestSyncronousDestination(t *testing.T) {
 	testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock(nil).WithDestinationService(t, destinationConfig).Build(t)
 	defer testSuite.Close()
 
-	time.Sleep(100 * time.Millisecond)
+	// for RELIABILITY
+	time.Sleep(2 * time.Second)
 
 	//** Requests **
 
