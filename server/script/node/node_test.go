@@ -264,9 +264,9 @@ func TestFetchIsAvailableOnlyInValidatorModuleFunction(t *testing.T) {
 	assert.Equal(t, "undefined", resp)
 }
 
-// for manual testing – this can take a while
+//for manual testing – this can take a while
 //func TestThreeHundredGoroutines(t *testing.T) {
-//	factory, err := node.NewFactory(50, os.TempDir())
+//	factory, err := node.NewFactory(50, 100, os.TempDir())
 //	assert.NoError(t, err)
 //	defer factory.Close()
 //
@@ -276,7 +276,7 @@ func TestFetchIsAvailableOnlyInValidatorModuleFunction(t *testing.T) {
 //		work.Add(1)
 //		go func(i int) {
 //			defer work.Done()
-//			instance, err := factory.CreateScript(script.Expression(fmt.Sprintf(`1000 * %d + $`, i)), nil)
+//			instance, err := factory.CreateScript(script.Expression(fmt.Sprintf(`1000 * %d + $`, i)), nil, false)
 //			if !assert.NoError(t, err) {
 //				t.FailNow()
 //			}
