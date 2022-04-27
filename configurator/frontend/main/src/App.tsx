@@ -335,7 +335,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
       let project = await initializeProject(projectId, projects)
       if (!project) {
         if (!projects || projects.length === 0) services.userService.removeAuth(reloadPage)
-        const lastUsedProject = services.userSettingsService.get(Settings.ActiveProject)?.id
+        const lastUsedProject = services.userSettingsService.get(Settings.ActiveProject)?.id || projects[0]?.id
         setProjectIdRedirectedFrom(projectId)
         window.location.replace(window.location.href.replace(projectId, lastUsedProject))
         return
