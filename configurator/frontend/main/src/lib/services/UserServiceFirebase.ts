@@ -203,12 +203,6 @@ export class FirebaseUserService implements UserService {
     throw new Error("Not Available")
   }
 
-  async becomeUser(email: string): Promise<void> {
-    let token = (await this.backendApi.get(`/become`, { urlParams: { user_id: email } }))["token"]
-    await signInWithCustomToken(getAuth(), token)
-    reloadPage()
-  }
-
   getLoginFeatures(): LoginFeatures {
     return { oauth: true, password: true, signupEnabled: true }
   }

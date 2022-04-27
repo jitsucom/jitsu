@@ -41,7 +41,7 @@ function defaultExecutors(execs: AnalyticsExecutors): AnalyticsExecutors {
 }
 
 /**
- * Allows to block all calls to any analytics service. For become user feature
+ * Allows to block all calls to any analytics service
  */
 export const AnalyticsBlock = {
   blockAll: () => {
