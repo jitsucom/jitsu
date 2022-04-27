@@ -10,6 +10,5 @@ export const allSdkSources: SdkSource[] = [
     package_version: "latest",
     displayName: "Airtable",
     stable: true,
-  }
+  },
 ]
-

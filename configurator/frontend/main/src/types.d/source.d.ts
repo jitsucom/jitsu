@@ -19,20 +19,20 @@ declare interface CollectionSource {
 }
 
 type SdkSourceStreamConfigurationParameter = {
-  id: string;
-  type?: string;
-  displayName: string;
-  required?: boolean;
-  defaultValue?: any;
-  documentation?: string;
+  id: string
+  type?: string
+  displayName: string
+  required?: boolean
+  defaultValue?: any
+  documentation?: string
 }
 
 declare type StreamData = AirbyteStreamData | SingerStreamData | SDKSourceStreamData
 
 declare type SDKSourceStreamData = {
-    type: string
-    supportedModes?: ["full_sync"] | ["full_sync", "incremental"] | ["incremental"]
-    params: SdkSourceStreamConfigurationParameter[]
+  type: string
+  supportedModes?: ["full_sync"] | ["full_sync", "incremental"] | ["incremental"]
+  params: SdkSourceStreamConfigurationParameter[]
 }
 /**
  * Configured Airbyte stream data format used internally in the UI.
@@ -98,7 +98,6 @@ declare type SingerStreamConfig = {
   namespace?: string
   [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
 }
-
 
 /** Configured Airbyte stream to send to backend */
 declare type AirbyteStreamConfig = {

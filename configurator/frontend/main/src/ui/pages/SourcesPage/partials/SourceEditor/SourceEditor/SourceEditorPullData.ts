@@ -69,7 +69,7 @@ export const pullAllAirbyteStreams = async (
 
 export const pullAllSDKSourceStreams = async (
   sourceDataFromCatalog: SourceConnector,
-  handleBringSourceData: () => SourceData,
+  handleBringSourceData: () => SourceData
 ): Promise<SDKSourceStreamData[] | undefined> => {
   assert(
     sourceDataFromCatalog.protoType === "sdk_source",
@@ -84,13 +84,9 @@ export const pullAllSDKSourceStreams = async (
   const baseUrl = sourceDataFromCatalog.staticStreamsConfigEndpoint
   const project_id = services.activeProject.id
 
-  const response = await services.backendApiClient.post(
-    withQueryParams(baseUrl, { project_id }),
-    config,
-    {
-      proxy: true,
-    }
-  )
+  const response = await services.backendApiClient.post(withQueryParams(baseUrl, { project_id }), config, {
+    proxy: true,
+  })
 
   if (response.message) throw new Error(response.message)
 
@@ -141,10 +137,7 @@ export const pullAllSingerStreams = async (
   }
 }
 
-function assertSDKSourceCatalog(
-  response: unknown,
-  errorMessage
-): asserts response is { catalog: UnknownObject[] } {
+function assertSDKSourceCatalog(response: unknown, errorMessage): asserts response is { catalog: UnknownObject[] } {
   assertIsObject(response, `${errorMessage}: Backend response is not an object`)
   assertIsObject(response.catalog, `${errorMessage}: Backend response.catalog is not an object`)
   assertIsArrayOfTypes<UnknownObject>(
