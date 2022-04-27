@@ -12,60 +12,102 @@ With NextJS there're several ways on how to add Jitsu tracking
 ## Client Side Tracking
 
 Since Next JS is based on React, [React Guide](/docs/sending-data/js-sdk/react) will work as well. However, there's a caveat:
- * `usePageView` relies on react-router, which is not part of Next.js (Question: can we support next.js router too)
- * `useJitsu` requires subsequent `useEffect()` which disable static and SSO pre-rendering (is it true????)
+ * you can't use `usePageView` cause this hook relies on react-router, which is not part of Next.js
+ * `useJitsu` uses `useEffect()` with related side effects
 
+First create or update your `_app.js` to following this code
+```jsx
+import { createClient, JitsuProvider } from "@jitsu/react";
+
+// initialize Jitsu client
+const jitsuClient = createClient({
+  tracking_host: "__JITSU_HOST__",
+  key: "__API_KET__",
+  // See Jitsu SDK parameters section for more options
+});
+
+// wrap our app with Jitsu provider
+function MyApp({Component, pageProps}) {
+  return <JitsuProvider client={jitsuClient}>
+    <Component {...pageProps} />
+  </JitsuProvider>
+}
+
+export default MyApp
+```
+See [parameters list](/docs/sending-data/js-sdk/parameters-reference) for `createClient()` call.
+
+After jitsu client and provider are configured you will be able to use `useJitsu` hook in your components
 ```jsx
 import { useJitsu } from "@jitsu/react";
 
 const App = () => {
-  useJitsu();
+  const {id, trackPageView, track} = useJitsu(); // import methods from useJitsu hook
 
   useEffect(() => {
-    id({id: '__USER_ID__', email: '__USER_EMAIL__'})
-    trackPageView()
+    id({id: '__USER_ID__', email: '__USER_EMAIL__'}); // identify current user for all track events
+    trackPageView() // send page_view event
   }, [])
+
+  const onClick = (btnName) => {
+    track('btn_click', {btn: btnName}); // send btn_click event with button name payload on click
+  }
 
   return (
-    //Won't be rendered staticly or in Server
-    <Component />
+    <button onClick="() => onClick('test_btn')">Test button</button>
   )
-}
-```
-
-The latter can be addressed by wrapping Jitsu into separate component (is it true???).
-
-```jsx
-import { useJitsu } from "@jitsu/react";
-
-const Jitsu = () => {
-  useJitsu();
-
-  useEffect(() => {
-    id({id: '__USER_ID__', email: '__USER_EMAIL__'})
-    trackPageView()
-  }, [])
-
-}
-
-const App = () => {
-  return <>
-    <Jitsu />
-    <Component />
-  </>
 }
 ```
 
 ## Server Side Tracking
 
-Jitsu can track events server-side"
- * *Pros:* this method is 100% reliable and ad-block resistant, and
+Jitsu can track events server-side:
+ * *Pros:* this method is 100% reliable and ad-block resistant
  * *Cons:* static rendering will not be possible; `next export` will not work; fewer data points will be collected - attributes such as screen-size, device
 
 ### Manual tracking
 
-TODO: insert manual tracking instructions
+For manual tracking you need to initialize Jitsu client
+```javascript
+import { createClient, JitsuProvider } from "@jitsu/react";
+
+// initialize Jitsu client
+const jitsuClient = createClient({
+  tracking_host: "__JITSU_HOST__",
+  key: "__API_KET__",
+  // See Jitsu SDK parameters section for more options
+});
+```
+and then you can use all [methods](/docs/sending-data/js-sdk/methods-reference) of client in any place
+```
+export async function getServerSideProps() {
+  jitsu.track("page_view", {page: req.page})
+
+  return { props: {} }
+}
+```
 
 ### Automated page view tracking
 
 Jitsu could track page views automatically via use of `_middleware.js` which has been introduced in NextJS 12
+
+```javascript
+export function middleware(req, ev) {
+  const {page} = req
+  if ( !page?.name ) {
+    return;
+  }
+  jitsu.track("page_view", {page: req.page})
+}
+```
+
+## Jitsu SDK parameters and methods
+
+Read about all SDK parameters and methods in our [documentation](/docs/sending-data/js-sdk):
+
+* [Parameters](/docs/sending-data/js-sdk/parameters-reference) - parameters reference for `createClient()` call
+* [Methods](/docs/sending-data/js-sdk/methods-reference) - all these methods can be called on a return value of `useJitsu()`
+
+## Example app
+
+You can find example app [here](https://github.com/jitsucom/jitsu-js/tree/master/examples/nextjs-app).
