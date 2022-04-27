@@ -584,7 +584,7 @@ func (cs *ConfigurationsService) CreateObjectWithLock(objectType string, project
 	projectConfigBytes, err := cs.get(objectType, projectID)
 	if err != nil {
 		if err == ErrConfigurationNotFound {
-			generatedID := cs.GenerateID(typeField, objectType, projectID, object, map[string]bool{})
+			generatedID := cs.GenerateID(typeField, idField, objectType, projectID, object, map[string]bool{})
 			object.Set(idField, generatedID)
 
 			//first object of objectType in project
@@ -614,7 +614,7 @@ func (cs *ConfigurationsService) CreateObjectWithLock(objectType string, project
 		}
 	}
 
-	generatedID := cs.GenerateID(typeField, objectType, projectID, object, usedIDs)
+	generatedID := cs.GenerateID(typeField, idField, objectType, projectID, object, usedIDs)
 	object.Set(idField, generatedID)
 
 	newProjectConfig := buildProjectDataObject(projectConfig, objectsArray, object.AdditionalProperties, unknownObjectPosition, arrayPath)
@@ -1150,7 +1150,16 @@ func (cs *ConfigurationsService) GetObjectTypeField(objectType string) string {
 }
 
 //GenerateID returns auto incremented ID based on jserver entity type
-func (cs *ConfigurationsService) GenerateID(typeField, objectType, projectID string, object *openapi.AnyObject, alreadyUsedIDs map[string]bool) string {
+func (cs *ConfigurationsService) GenerateID(typeField, idField, objectType, projectID string, object *openapi.AnyObject, alreadyUsedIDs map[string]bool) string {
+	if idField != "" {
+		id, ok := object.Get(idField)
+		if ok {
+			sid, ok := id.(string)
+			if ok && sid != "" {
+				return generateUniqueID(sid, alreadyUsedIDs)
+			}
+		}
+	}
 	if typeField == "" {
 		if objectType == apiKeysCollection {
 			return generateAPIKeyID(projectID)
