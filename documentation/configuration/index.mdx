@@ -27,6 +27,7 @@ Our config file consists of the following sections:
 * `notifications` — notifier configuration. Server starts, system errors, synchronization statuses, and panics information will be sent to it. Currently, only Slack notifications are supported.
 * `meta.storage` - meta storage is the main application storage and it is required for some features. At present Jitsu supports only Redis version 5 and higher.
 * `ui.base_url` – base Configurator UI URL for generating links in notifications
+* `node` – node.js process pool size and max heap space in megabytes per process (`node` is used to execute JavaScript transformations and plugins).
 
 **Example**:
 
@@ -81,6 +82,10 @@ meta:
       host: redis_host
       port: 6379
       password: secret_password
+
+node:
+  pool_size: 1 # default
+  max_space: 100 # default
 
 ```
 
