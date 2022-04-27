@@ -1,17 +1,17 @@
 package node
 
 import (
+	"context"
 	_ "embed"
-	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
-	"text/template"
+	"time"
 
-	"github.com/jitsucom/jitsu/server/timestamp"
-	uuid "github.com/satori/go.uuid"
+	"github.com/mitchellh/hashstructure/v2"
 
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/script"
@@ -23,22 +23,13 @@ const (
 	node        = "node"
 	npm         = "npm"
 	nodePathEnv = "NODE_PATH"
+	mainFile    = "main.cjs"
 )
-
-type scriptTemplateValues struct {
-	Executable string
-	Variables  string
-	Includes   string
-	LineOffset int
-	ColOffset  int
-}
 
 var (
 	//go:embed script.js
-	scriptTemplateContent string
-	scriptTemplate, _     = template.New("node_script").Parse(scriptTemplateContent)
-
-	dependencies = map[string]string{
+	scriptContent string
+	dependencies  = map[string]string{
 		"node-fetch": "2.6.7",
 		"vm2":        "3.9.9",
 	}
@@ -50,12 +41,15 @@ var errNodeRequired = errors.New(`node and/or npm is not found in $PATH.
 	Or use @jitsucom/* docker images where all necessary packages are pre-installed`)
 
 type Factory struct {
-	dir      string
-	nodePath string
-	plugins  *sync.Map
+	maxSpace   int
+	dir        string
+	nodePath   string
+	plugins    *sync.Map
+	exchangers []*exchanger
+	mu         ipc.Mutex
 }
 
-func NewFactory(tmpDir ...string) (*Factory, error) {
+func NewFactory(poolSize, maxSpace int, tmpDir ...string) (*Factory, error) {
 	if _, err := exec.LookPath(node); err != nil {
 		return nil, errNodeRequired
 	}
@@ -84,7 +78,7 @@ func NewFactory(tmpDir ...string) (*Factory, error) {
 				break
 			}
 
-			logging.Debugf("using preinstall npm module %s@%s", name, version)
+			logging.Debugf("using preinstalled npm module %s@%s", name, version)
 		}
 	}
 
@@ -102,120 +96,140 @@ func NewFactory(tmpDir ...string) (*Factory, error) {
 		}
 	}
 
+	scriptPath := filepath.Join(dir, mainFile)
+	scriptFile, err := os.Create(scriptPath)
+	if err != nil {
+		return nil, errors.Wrapf(err, "create %s", scriptPath)
+	}
+
+	defer closeQuietly(scriptFile)
+	if _, err = scriptFile.WriteString(scriptContent); err != nil {
+		return nil, errors.Wrapf(err, "write to %s", scriptPath)
+	}
+
 	return &Factory{
-		dir:      dir,
-		nodePath: nodePath,
-		plugins:  new(sync.Map),
+		maxSpace:   maxSpace,
+		dir:        dir,
+		nodePath:   nodePath,
+		plugins:    new(sync.Map),
+		exchangers: make([]*exchanger, poolSize),
 	}, nil
 }
 
 func (f *Factory) Close() error {
-	return os.RemoveAll(f.dir)
-}
+	cancel, _ := f.mu.Lock(context.Background())
+	defer cancel()
 
-func (f *Factory) CreateScript(executable script.Executable, variables map[string]interface{}, includes ...string) (script.Interface, error) {
-	startTime := timestamp.Now()
-	scriptName := uuid.NewV4().String() + ".cjs"
-	scriptPath := filepath.Join(f.dir, scriptName)
-	scriptFile, err := os.Create(scriptPath)
-	if err != nil {
-		return nil, errors.Wrapf(err, "create main script in '%s'", f.dir)
-	}
-
-	expression, err := f.getExpression(f.dir, executable)
-	if err != nil {
-		return nil, errors.Wrapf(err, "get executable expression")
-	}
-
-	variables = sanitizeVariables(variables)
-	variables["_a"] = "_a"
-
-	variablesJSON, err := json.Marshal(variables)
-
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal variables json")
-	}
-
-	err = scriptTemplate.Execute(scriptFile, scriptTemplateValues{
-		Executable: escapeJSON(expression),
-		Includes:   escapeJSON(strings.Join(includes, "\n")),
-		Variables:  escapeJSON(string(variablesJSON)),
-		LineOffset: getLineOffset(executable),
-		ColOffset:  getColOffset(executable),
-	})
-
-	closeQuietly(scriptFile)
-	if err != nil {
-		return nil, errors.Wrapf(err, "execute script template to '%s'", scriptPath)
-	}
-
-	process := &ipc.StdIO{
-		Dir:  f.dir,
-		Path: node,
-		Args: []string{"--max-old-space-size=100", scriptPath},
-		Env:  []string{nodePathEnv + "=" + f.nodePath},
-	}
-
-	governor, err := ipc.Govern(process)
-	if err != nil {
-		return nil, errors.Wrapf(err, "govern process")
-	}
-
-	logging.Debugf("%s running as %s/%s [took %s]", governor, f.dir, scriptName, timestamp.Now().Sub(startTime))
-	return &Script{
-		Governor: governor,
-		File:     scriptPath,
-	}, nil
-}
-
-func getColOffset(executable script.Executable) int {
-	if e, ok := executable.(script.Expression); ok {
-		if !strings.Contains(string(e), "return") {
-			return 7
+	for _, exchanger := range f.exchangers {
+		if exchanger == nil {
+			continue
 		}
+
+		exchanger.Kill()
+		_ = exchanger.Wait()
 	}
 
-	return 0
+	_ = os.RemoveAll(f.dir)
+	return nil
 }
 
-func getLineOffset(executable script.Executable) int {
-	switch executable.(type) {
-	case script.Expression:
-		return 5
-	default:
-		return 0
-	}
-}
+func (f *Factory) CreateScript(executable script.Executable, variables map[string]interface{}, standalone bool, includes ...string) (script.Interface, error) {
+	var (
+		expression string
 
-func (f *Factory) getExpression(dir string, executable script.Executable) (string, error) {
+		// for stacktrace transformation
+		colOffset, rowOffset int
+	)
+
 	switch e := executable.(type) {
 	case script.Expression:
-		expression := string(e)
+		expression = string(e)
 		if !strings.Contains(expression, "return") {
+			colOffset = 7
 			expression = "return " + strings.Trim(expression, "\n")
 		}
 
-		return `
+		rowOffset = 5
+		expression = `
 module.exports = async (event) => {
   let $ = event
   let _ = event
 // expression start //
 ` + expression + `
 // expression end //
-}`, nil
+}`
 
 	case script.Package:
 		ref, _ := f.plugins.LoadOrStore(string(e), &pluginRef{plugin: string(e)})
-		return ref.(*pluginRef).get()
+		plugin, err := ref.(*pluginRef).get()
+		if err != nil {
+			return nil, errors.Wrapf(err, "load plugin %s", string(e))
+		}
+
+		expression = plugin
 
 	case script.File:
 		data, err := os.ReadFile(string(e))
 		if err != nil {
-			return "", errors.Wrapf(err, "read file %s", string(e))
+			return nil, errors.Wrapf(err, "read file %s", string(e))
 		}
 
-		return string(data), nil
+		expression = string(data)
 	}
 
-	return "", errors.Errorf("unrecognized executable %T", executable)
+	variables = sanitizeVariables(variables)
+
+	init := &Init{
+		Executable: expression,
+		Variables:  variables,
+		Includes:   includes,
+	}
+
+	hash, err := hashstructure.Hash(init, hashstructure.FormatV2, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "hash init")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	cancel, err = f.mu.Lock(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer cancel()
+
+	var exer *exchanger
+	exchangerIdx := hash % uint64(len(f.exchangers))
+	if !standalone {
+		exer = f.exchangers[exchangerIdx]
+	}
+	if exer == nil {
+		process := &ipc.StdIO{
+			Dir:  f.dir,
+			Path: node,
+			Args: []string{fmt.Sprintf("--max-old-space-size=%d", f.maxSpace), filepath.Join(f.dir, mainFile)},
+			Env:  []string{nodePathEnv + "=" + f.nodePath},
+		}
+
+		governor, err := ipc.Govern(process)
+		if err != nil {
+			return nil, errors.Wrapf(err, "govern process")
+		}
+
+		logging.Debugf("%s running in %s", governor, f.dir)
+		exer = &exchanger{Governor: governor}
+		if !standalone {
+			f.exchangers[exchangerIdx] = exer
+		}
+	}
+
+	init.Session.Session = fmt.Sprintf("%x", hash)
+	return &Script{
+		Init:       init,
+		exchanger:  exer,
+		rowOffset:  rowOffset,
+		colOffset:  colOffset,
+		standalone: standalone,
+	}, nil
 }

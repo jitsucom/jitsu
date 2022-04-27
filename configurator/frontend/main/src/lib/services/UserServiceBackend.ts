@@ -5,6 +5,7 @@ import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
 import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserService } from "./UserService"
 import { SignupRequest, TokensResponse, User } from "../../generated/conf-openapi"
+import * as uuid from "uuid"
 
 export const LS_ACCESS_KEY = "en_access"
 export const LS_REFRESH_KEY = "en_refresh"
@@ -28,7 +29,9 @@ export class BackendUserService implements UserService {
     this.storageService = storageService
     this.smtpConfigured = smtpConfigured
     if (ssoAuthLink !== "") {
-      this.ssoAuthLink = `${ssoAuthLink}&redirect_uri=${encodeURI(backendApiBase)}/v1/sso-auth-callback`
+      this.ssoAuthLink = `${ssoAuthLink}&state=${uuid.v4()}&redirect_uri=${encodeURI(
+        backendApiBase
+      )}/v1/sso-auth-callback`
     }
   }
 

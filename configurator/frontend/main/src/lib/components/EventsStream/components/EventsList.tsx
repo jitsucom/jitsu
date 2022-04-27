@@ -21,7 +21,6 @@ import JitsuClientLibraryCard, { jitsuClientLibraries } from "../../JitsuClientL
 import { SelectFilter } from "../../Filters/SelectFilter"
 import { FilterOption } from "../../Filters/shared"
 import ApplicationServices from "lib/services/ApplicationServices"
-import ProjectLink from "lib/components/ProjectLink/ProjectLink"
 // @Styles
 import styles from "../EventsSteam.module.less"
 
@@ -77,36 +76,38 @@ function processEvents(type: EventType, data: { id: string; events: any }) {
   return events
 }
 
-const NoDataFlowing: React.FC<{ showHint: boolean }> = ({ showHint }) => {
-  const hint = showHint ? (
-    <div className="text-secondaryText">
-      <ol className="list-decimal list-inside mb-2 ml-2 text-center">
-        <li className="mb-4">
-          Get <NavLink to="/api_keys">API key, or create a new one</NavLink>
-        </li>
-        <li>
-          Use one of the following libraries and APIs to send events to Jitsu
-          <div className="flex flex-row justify-center flex-wrap items-center pt-6">
-            {Object.values(jitsuClientLibraries).map(props => (
-              <div className="mx-3 my-4" key={props.name}>
-                <JitsuClientLibraryCard {...props} />
-              </div>
-            ))}
-          </div>
-        </li>
-      </ol>
-    </div>
-  ) : (
-    ""
-  )
+const NoDataFlowing: React.FC<{ showAPIKeyHint: boolean }> = ({ showAPIKeyHint }) => {
   return (
     <div className="flex flex-col justify-center items-center min-h-full pt-6">
       <div className="text-center font-heading font-bold text-lg w-1/4 mb-4">No data flowing</div>
-      {hint}
+      <div className="text-secondaryText">
+        <ol className={`${showAPIKeyHint ? "list-decimal" : "list-none"} list-inside mb-2 ml-2 text-center`}>
+          {showAPIKeyHint && (
+            <li className="mb-4">
+              Get <NavLink to="../api-keys">API key, or create a new one</NavLink>
+            </li>
+          )}
+          <li>
+            Use one of the following libraries and APIs to send events to Jitsu
+            <div className="flex flex-row justify-center flex-wrap items-center pt-6">
+              {Object.values(jitsuClientLibraries).map(props => (
+                <div className="mx-3 my-4" key={props.name}>
+                  <JitsuClientLibraryCard {...props} />
+                </div>
+              ))}
+            </div>
+          </li>
+        </ol>
+      </div>
     </div>
   )
 }
-const statusOptions = [{ label: "All", value: "" } as const, { label: "Error", value: "error" } as const] as const
+const statusOptions = [
+  { label: "All", value: EventStatus.All } as const,
+  { label: "Success", value: EventStatus.Success } as const,
+  { label: "Skipped", value: EventStatus.Skip } as const,
+  { label: "Error", value: EventStatus.Error } as const,
+] as const
 
 export const EventsList: React.FC<{
   type: EventType
@@ -125,7 +126,7 @@ export const EventsList: React.FC<{
   const [idFilter, setIdFilter] = useState<FilterOption["value"]>(
     filterOptions.find(f => f.value === params.get("id"))?.value ?? filterOptions[0]?.value
   )
-  const [statusFilter, setStatusFilter] = useState<string>(
+  const [statusFilter, setStatusFilter] = useState<EventStatus>(
     statusOptions.find(f => f.value === params.get("status"))?.value ?? statusOptions[0]?.value
   )
   const [reloadCount, setReloadCount] = useState<number>(0)
@@ -155,7 +156,7 @@ export const EventsList: React.FC<{
     return fetchEvents(services, {
       type,
       id: idFilter,
-      status: statusFilter,
+      status: statusFilter === EventStatus.Error ? EventStatus.Error : "",
       limit: 500,
       onBeforeFetch: () => setSelectedEvent(null),
     })
@@ -175,6 +176,14 @@ export const EventsList: React.FC<{
     return term ? events.filter(i => JSON.stringify(i.rawJson).indexOf(term) !== -1) : events
   }
 
+  const filterByStatus = (events: Event[], status: EventStatus): Event[] => {
+    if (status === EventStatus.Skip || status === EventStatus.Success) {
+      return events.filter(i => i.status === status)
+    }
+
+    return events
+  }
+
   const search = (term: string): void => {
     setTerm(term)
     setFilteredEvents(filterByTerm(events, term))
@@ -183,11 +192,13 @@ export const EventsList: React.FC<{
   useEffect(() => {
     const initialEvents = error || !data ? [] : processEvents(type, data)
     setEvents(initialEvents)
-    setFilteredEvents(filterByTerm(initialEvents, term))
-  }, [error, data])
+    let filteredEvents = filterByStatus(initialEvents, statusFilter)
+    filteredEvents = filterByTerm(filteredEvents, term)
+    setFilteredEvents(filteredEvents)
+  }, [error, data, statusFilter])
 
   if (!filterOptions.length) {
-    return <NoDataFlowing showHint={true} />
+    return <NoDataFlowing showAPIKeyHint={true} />
   }
 
   const eventStatusMessage = event => {
@@ -251,7 +262,7 @@ export const EventsList: React.FC<{
           initialValue={statusFilter}
           options={statusOptions}
           onChange={option => {
-            setStatusFilter(option.value)
+            setStatusFilter(option.value as EventStatus)
           }}
         />
         <ErrorsHint
@@ -290,7 +301,7 @@ export const EventsList: React.FC<{
         </div>
       ) : (
         <div className={styles.eventsList} ref={listInnerRef} onScroll={onScroll}>
-          {!filteredEvents.length ? <NoDataFlowing showHint={false} /> : null}
+          {!filteredEvents.length ? <NoDataFlowing showAPIKeyHint={false} /> : null}
           {filteredEvents.map(event => {
             const active = event.eventId === selectedEvent
             return (

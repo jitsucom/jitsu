@@ -3,6 +3,8 @@ import ApplicationServices from "lib/services/ApplicationServices"
 import { Button } from "antd"
 // @styles
 import styles from "./OnboardingTourGreeting.module.less"
+import { reloadPage } from "../../../../commons/utils"
+import { Settings } from "../../../../services/UserSettingsService"
 
 type Props = {
   amountOfSteps: number
@@ -31,6 +33,12 @@ export const OnboardingTourGreeting: React.FC<Props> = function ({ amountOfSteps
     services.analyticsService.track("onboarding_started")
     handleGoNext()
   }
+
+  const handleClickLogout = (): void => {
+    services.userSettingsService.remove(Settings.ActiveProject)
+    services.userService.removeAuth(reloadPage)
+  }
+
   return (
     <div className={styles.mainContainer}>
       <h1 className={styles.header}>{"👋 Welcome to Jitsu!\n"}</h1>
@@ -42,6 +50,9 @@ export const OnboardingTourGreeting: React.FC<Props> = function ({ amountOfSteps
           {"Start"}
         </Button>
       </div>
+      <a className={styles.logoutLink} onClick={handleClickLogout}>
+        Logout
+      </a>
     </div>
   )
 }

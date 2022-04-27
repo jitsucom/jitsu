@@ -3,10 +3,13 @@ package ipc
 import (
 	"context"
 	"io"
+	"strings"
 
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/pkg/errors"
 )
+
+var ErrOutOfMemory = errors.New("out of memory")
 
 // Interface describes generic IPC interface.
 type Interface interface {
@@ -39,14 +42,10 @@ type Process interface {
 	Wait() error
 }
 
-const governorErrorThreshold = 2
-
 // Governor is responsible for keeping the Process alive.
 // It will restart the process if it dies.
 type Governor struct {
 	process Process
-	errcnt  int
-	err     error
 	mu      Mutex
 }
 
@@ -69,37 +68,27 @@ func (g *Governor) Exchange(ctx context.Context, data []byte, dataChannel chan<-
 	}
 
 	defer cancel()
-	if g.errcnt >= governorErrorThreshold && g.err != nil {
-		return nil, g.err
-	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			data, err := g.exchange(ctx, data, dataChannel)
-			if err == nil {
-				g.errcnt = 0
-				g.err = nil
-				return data, nil
-			}
+		}
 
-			logging.Warnf("%s exchange error: %v", g.process, err)
+		data, err := g.exchange(ctx, data, dataChannel)
+		if err == nil {
+			return data, nil
+		}
 
-			g.errcnt++
-			g.err = err
-			if !errors.Is(err, io.EOF) {
-				g.process.Kill()
-			}
+		logging.Warnf("%s exchange error: %v", g.process, err)
+
+		if errors.Is(err, io.EOF) ||
+			strings.Contains(err.Error(), "file already closed") ||
+			strings.Contains(err.Error(), "broken pipe") {
 
 			if err := g.process.Wait(); err != nil {
-				logging.Warnf("%s wait error: %v", g.process, err)
-				g.err = err
-			}
-
-			if g.errcnt >= governorErrorThreshold {
-				return nil, g.err
+				return nil, err
 			}
 
 			process, err := g.process.Spawn()
@@ -109,7 +98,10 @@ func (g *Governor) Exchange(ctx context.Context, data []byte, dataChannel chan<-
 
 			logging.Debugf("%s respawned as %s", g.process, process)
 			g.process = process
+			continue
 		}
+
+		return nil, err
 	}
 }
 
@@ -119,6 +111,16 @@ func (g *Governor) exchange(ctx context.Context, data []byte, dataChannel chan<-
 	}
 
 	return g.process.Receive(ctx, dataChannel)
+}
+
+func (g *Governor) ExchangeDirect(ctx context.Context, data []byte, dataChannel chan<- interface{}) ([]byte, error) {
+	cancel, err := g.mu.Lock(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer cancel()
+	return g.exchange(ctx, data, dataChannel)
 }
 
 // Kill kills the running process.
