@@ -18,12 +18,12 @@ type testingT struct {
 }
 
 func (t *testingT) load() *testingT {
-	factory, err := node.NewFactory(t.TempDir())
+	factory, err := node.NewFactory(1, 20, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	inst, err := factory.CreateScript(t.exec, t.vars, t.incl...)
+	inst, err := factory.CreateScript(t.exec, t.vars, false, t.incl...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,6 +56,23 @@ func TestBasicDescribeAndExecute(t *testing.T) {
 	if assert.Error(t, err) {
 		assert.Contains(t, err.Error(), "this executable provides an anonymous function export, but a named one (test) was given for execution")
 	}
+}
+
+func TestUndefined(t *testing.T) {
+	tt := &testingT{T: t, exec: script.Expression(`$.user?.email`)}
+	defer tt.load().close()
+
+	exports, err := tt.Describe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, 0, len(exports), "anonymous function should not export anything")
+
+	var resp interface{}
+	err = tt.Execute("", script.Args{map[string]interface{}{}}, &resp)
+	assert.NoError(t, err)
+	assert.Nil(t, resp)
 }
 
 func TestAddExpressionAndAliases(t *testing.T) {
@@ -246,3 +263,42 @@ func TestFetchIsAvailableOnlyInValidatorModuleFunction(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "undefined", resp)
 }
+
+// for manual testing – this can take a while
+//func TestThreeHundredGoroutines(t *testing.T) {
+//	factory, err := node.NewFactory(50, os.TempDir())
+//	assert.NoError(t, err)
+//	defer factory.Close()
+//
+//	results := make(chan int, 5_000_000)
+//	var work sync.WaitGroup
+//	for i := 0; i < 5000; i++ {
+//		work.Add(1)
+//		go func(i int) {
+//			defer work.Done()
+//			instance, err := factory.CreateScript(script.Expression(fmt.Sprintf(`1000 * %d + $`, i)), nil)
+//			if !assert.NoError(t, err) {
+//				t.FailNow()
+//			}
+//
+//			for j := 0; j < 1000; j++ {
+//				var result int
+//				if err := instance.Execute("", script.Args{j}, &result); !assert.NoError(t, err) {
+//					t.FailNow()
+//				}
+//
+//				results <- result
+//			}
+//		}(i)
+//	}
+//
+//	work.Wait()
+//	close(results)
+//
+//	unique := make(map[int]bool)
+//	for item := range results {
+//		unique[item] = true
+//	}
+//
+//	assert.Len(t, unique, 5_000_000)
+//}

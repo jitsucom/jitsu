@@ -86,5 +86,5 @@ type Factory interface {
 	// CreateScript loads an Executable and returns an Interface instance for using it.
 	// `variables` are the global variables to be made available for Executable.
 	// `includes` are code snippets to embed into script.
-	CreateScript(executable Executable, variables map[string]interface{}, includes ...string) (Interface, error)
+	CreateScript(executable Executable, variables map[string]interface{}, standalone bool, includes ...string) (Interface, error)
 }

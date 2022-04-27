@@ -3,9 +3,10 @@ package typing
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/timestamp"
 
 	"github.com/jitsucom/jitsu/server/logging"
 )
@@ -142,7 +143,7 @@ func TypeFromValue(v interface{}) (DataType, error) {
 		return STRING, nil
 	case float32, float64:
 		return FLOAT64, nil
-	case int, int8, int16, int32, int64:
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
 		return INT64, nil
 	case time.Time:
 		return TIMESTAMP, nil

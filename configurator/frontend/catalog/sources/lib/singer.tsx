@@ -17,6 +17,49 @@ import { googleAuthConfigParameters } from "./commonParams"
 
 export const allSingerTaps: SingerTap[] = [
   {
+    pic: logos.tap_helpscout,
+    displayName: "Helpscout",
+    tap: "tap-helpscout",
+    stable: true,
+    hasNativeEquivalent: false,
+    parameters: customParameters("tap-helpscout", {
+      customConfig: [
+        {
+          displayName: "Client ID",
+          id: "client_id",
+          type: oauthSecretType,
+          required: true,
+        },
+        {
+          displayName: "Client Secret",
+          id: "client_secret",
+          type: oauthSecretType,
+          required: true,
+        },
+        {
+          displayName: "Refresh Token",
+          id: "refresh_token",
+          type: stringType,
+          required: true,
+        },
+        {
+          displayName: "User Agent",
+          id: "user_agent",
+          defaultValue: "Jitsu.Cloud (https://jitsu.com)",
+          type: stringType,
+          required: true,
+        },
+        {
+          displayName: "Start Date",
+          id: "start_date",
+          type: isoUtcDateType,
+          defaultValue: "2021-01-01T00:00:00.000Z",
+          required: true,
+        },
+      ],
+    }),
+  },
+  {
     pic: logos.tap_3plcentral,
     displayName: "3PL Central",
     tap: "tap-3plcentral",
@@ -1145,6 +1188,41 @@ export const allSingerTaps: SingerTap[] = [
     pic: logos.tap_xero,
     displayName: "Xero",
     tap: "tap-xero",
+    // parameters: customParameters("tap-xero", {
+    //   customConfig: [
+    //     {
+    //       displayName: "Client ID",
+    //       id: "client_id",
+    //       type: oauthSecretType,
+    //       required: true
+    //     },
+    //     {
+    //       displayName: "Client Secret",
+    //       id: "client_secret",
+    //       type: oauthSecretType,
+    //       required: true
+    //     },
+    //     {
+    //       displayName: "Refresh Token",
+    //       id: "refresh_token",
+    //       type: stringType,
+    //       required: true
+    //     },
+    //     {
+    //       displayName: "Tenant ID (ID of organization)",
+    //       id: "tenant_id",
+    //       type: stringType,
+    //       required: true
+    //     },
+    //     {
+    //       displayName: "Start Date",
+    //       id: "start_date",
+    //       type: isoUtcDateType,
+    //       defaultValue: "2018-01-01T00:00:00.000Z",
+    //       required: true,
+    //     },
+    //   ],
+    // }),
     stable: true,
     hasNativeEquivalent: false,
   },

@@ -15,7 +15,7 @@ import { IOauthService, OauthService } from "./oauth"
 import { Project } from "../../generated/conf-openapi"
 import { createProjectService, ProjectService } from "./ProjectService"
 import { FirebaseUserService } from "./UserServiceFirebase"
-import { UserSettingsService, UserSettingsLocalService } from "./UserSettingsService"
+import { UserSettingsService, UserSettingsLocalService, Settings } from "./UserSettingsService"
 
 export interface IApplicationServices {
   init(): Promise<void>
@@ -101,11 +101,11 @@ export default class ApplicationServices implements IApplicationServices {
   }
 
   get activeProject(): Project {
-    return this._userSettingsService.get("activeProject") as Project
+    return this._userSettingsService.get(Settings.ActiveProject) as Project
   }
 
   set activeProject(value: Project) {
-    this._userSettingsService.set({ activeProject: value })
+    this._userSettingsService.set({ [Settings.ActiveProject]: value })
   }
 
   get storageService(): ServerStorage {
@@ -140,7 +140,7 @@ export default class ApplicationServices implements IApplicationServices {
     return this._oauthService
   }
 
-  get storageUserSettingsService(): UserSettingsService {
+  get userSettingsService(): UserSettingsService {
     return this._userSettingsService
   }
 
@@ -194,6 +194,25 @@ export default class ApplicationServices implements IApplicationServices {
   public showSelfHostedSignUp(): boolean {
     return !this._features.users
   }
+
+  public loadPluginScript(): Promise<void> {
+    if (!this._features?.pluginScript) {
+      return
+    }
+
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script")
+      script.src = this._features.pluginScript
+      script.async = true
+      script.onload = () => {
+        resolve()
+      }
+      script.onerror = () => {
+        reject()
+      }
+      document.body.appendChild(script)
+    })
+  }
 }
 
 export function mapBackendConfigResponseToAppFeatures(responseData: { [key: string]: unknown }): FeatureSettings {
@@ -233,6 +252,7 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     smtp: responseData.smtp,
     environment: environment,
     onlyAdminCanChangeUserEmail: !!responseData.only_admin_can_change_user_email,
+    pluginScript: responseData.plugin_script as string,
   }
 }
 
@@ -300,4 +320,9 @@ export type FeatureSettings = {
    * If only admin can change user email. For example in self-hosted instances admin token is required for this method
    */
   onlyAdminCanChangeUserEmail?: boolean
+
+  /**
+   * Plugin script url
+   */
+  pluginScript: string
 }

@@ -104,33 +104,8 @@ func TestSdkSource(sourceConfig *base.SourceConfig) error {
 	if err != nil {
 		return err
 	}
+	defer sourceExecutor.Close()
 	return sourceExecutor.Validate()
-
-	//selectedStreamsWithNamespace := selectedStreamsWithNamespace(config)
-	//if len(selectedStreamsWithNamespace) > 0 {
-	//	airbyteRunner = airbyte.NewRunner(config.DockerImage, config.ImageVersion, "")
-	//	catalog, err := airbyteRunner.Discover(config.Config, time.Minute*3)
-	//	if err != nil {
-	//		return err
-	//	}
-	//	var missingStreams []base.StreamConfiguration
-	//	var missingStreamsStr []string
-	//	availableStreams := map[string]interface{}{}
-	//	for _, stream := range catalog.Streams {
-	//		availableStreams[base.StreamIdentifier(stream.Namespace, stream.Name)] = true
-	//	}
-	//	for key, stream := range selectedStreamsWithNamespace {
-	//		_, ok := availableStreams[key]
-	//		if !ok {
-	//			missingStreams = append(missingStreams, stream)
-	//			missingStreamsStr = append(missingStreamsStr, stream.Name)
-	//		}
-	//	}
-	//	if len(missingStreams) > 0 {
-	//		return utils.NewRichError(fmt.Sprintf("selected streams unavailable: %s", strings.Join(missingStreamsStr, ",")), missingStreams)
-	//	}
-	//}
-	//return nil
 }
 
 //Ready returns true if catalog is discovered
@@ -157,6 +132,7 @@ func (s *SdkSource) Load(config string, state string, taskLogger logging.TaskLog
 		return err
 	}
 	sdkSourceRunner := SdkSourceRunner{name: s.packageName, sourceExecutor: sourceExecutor, config: s.config, collection: s.collection, closed: atomic.NewBool(false)}
+	defer sdkSourceRunner.Close()
 	syncCommand := &base.SyncCommand{
 		Cmd:        sdkSourceRunner,
 		TaskCloser: taskCloser,
