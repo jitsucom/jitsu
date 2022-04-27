@@ -15,7 +15,7 @@ Since Next JS is based on React, [React Guide](/docs/sending-data/js-sdk/react) 
  * you can't use `usePageView` cause this hook relies on react-router, which is not part of Next.js
  * `useJitsu` uses `useEffect()` with related side effects
 
-First create or update your `_app.js` to following this code
+First, create or update your `_app.js` following this code
 ```jsx
 import { createClient, JitsuProvider } from "@jitsu/react";
 
@@ -41,11 +41,11 @@ After jitsu client and provider are configured you will be able to use `useJitsu
 ```jsx
 import { useJitsu } from "@jitsu/react";
 
-const App = () => {
+const Main = () => {
   const {id, trackPageView, track} = useJitsu(); // import methods from useJitsu hook
 
   useEffect(() => {
-    id({id: '__USER_ID__', email: '__USER_EMAIL__'}); // identify current user for all track events
+    id({id: '__USER_ID__', email: '__USER_EMAIL__'}); // identify current user for all events
     trackPageView() // send page_view event
   }, [])
 
@@ -61,7 +61,7 @@ const App = () => {
 
 ## Server Side Tracking
 
-Jitsu can track events server-side:
+Jitsu can track events on server-side:
  * *Pros:* this method is 100% reliable and ad-block resistant
  * *Cons:* static rendering will not be possible; `next export` will not work; fewer data points will be collected - attributes such as screen-size, device
 
@@ -78,7 +78,7 @@ const jitsuClient = createClient({
   // See Jitsu SDK parameters section for more options
 });
 ```
-and then you can use all [methods](/docs/sending-data/js-sdk/methods-reference) of client in any place
+after that, you will be able to user [Jitsu client](/docs/sending-data/js-sdk/methods-reference), for example, in `getServerSideProps`
 ```
 export async function getServerSideProps() {
   jitsu.track("page_view", {page: req.page})
