@@ -181,13 +181,6 @@ export class BackendUserService implements UserService {
     })
   }
 
-  //isn't supported (without google authorization)
-  async becomeUser(email: string): Promise<void> {
-    let response = await this.backendApi.get(`/become`, { urlParams: { user_id: email } })
-    this.setTokens(response["access_token"], response["refresh_token"])
-    reloadPage()
-  }
-
   getLoginFeatures(): LoginFeatures {
     return { oauth: false, password: true, signupEnabled: false }
   }

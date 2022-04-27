@@ -10,7 +10,6 @@
     "default_s3_bucket": true,
     "support_tracking_domains": true,
     "telemetry_usage_disabled": false,
-    "show_become_user": true,
     "docker_hub_id": "jitsu",
     "createDemoDatabase": true,
     "enableCustomDomains": true,
