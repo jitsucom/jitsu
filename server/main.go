@@ -156,7 +156,14 @@ func main() {
 		logging.Fatal(err)
 	}
 
-	if err := singer.Init(viper.GetString("singer-bridge.python"), viper.GetString("singer-bridge.venv_dir"),
+	// ** Meta storage **
+	metaStorageConfiguration := viper.Sub("meta.storage")
+	metaStorage, err := meta.InitializeStorage(metaStorageConfiguration)
+	if err != nil {
+		logging.Fatalf("Error initializing meta storage: %v", err)
+	}
+
+	if err := singer.Init(viper.GetString("singer-bridge.python"), metaStorage, viper.GetString("singer-bridge.venv_dir"),
 		viper.GetBool("singer-bridge.install_taps"), viper.GetBool("singer-bridge.update_taps"), viper.GetInt("singer-bridge.batch_size"), appconfig.Instance.SingerLogsWriter); err != nil {
 		logging.Fatal(err)
 	}
@@ -195,13 +202,6 @@ func main() {
 	}
 
 	telemetry.InitFromViper(telemetryURL, notifications.ServiceName, commit, tag, builtAt, *dockerHubID)
-
-	// ** Meta storage **
-	metaStorageConfiguration := viper.Sub("meta.storage")
-	metaStorage, err := meta.InitializeStorage(metaStorageConfiguration)
-	if err != nil {
-		logging.Fatalf("Error initializing meta storage: %v", err)
-	}
 
 	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
 	systemInfo := runtime.GetInfo()

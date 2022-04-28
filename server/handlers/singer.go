@@ -4,20 +4,18 @@ import (
 	"github.com/gin-gonic/gin"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/singer"
-	"github.com/jitsucom/jitsu/server/synchronization"
-	"io/ioutil"
 	"net/http"
 	"time"
 )
 
-type SingerHandler struct{
-	metaStorage       meta.Storage
+type SingerHandler struct {
 }
 
-func NewSingerHandler(metaStorage meta.Storage) *SingerHandler { return &SingerHandler{metaStorage: metaStorage} }
+func NewSingerHandler() *SingerHandler {
+	return &SingerHandler{}
+}
 
 func (sh *SingerHandler) CatalogHandler(c *gin.Context) {
 	tap := c.Param("tap")
@@ -50,27 +48,9 @@ func (sh *SingerHandler) CatalogHandler(c *gin.Context) {
 		return
 	}
 
-	configPath, err := singer.SaveConfig(sourceId, tap, singerSourceConnectorConfig)
-	if err != nil {
-		logging.Errorf("Cannot save config to file: %v", err)
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Cannot save config to file", err))
-		return
-	}
-
-	catalog, err := singer.Instance.Discover(tap, configPath)
+	catalog, err := singer.Instance.Discover(sourceId, tap, singerSourceConnectorConfig)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
-		return
-	}
-
-	//Config file might be updated by singer tap after discover method.
-	//We need to write it to persistent storage so other cluster nodes will read actual config
-	configBytes, err := ioutil.ReadFile(configPath)
-	if configBytes != nil {
-		err = sh.metaStorage.SaveSignature(sourceId, tap + synchronization.ConfigSignatureSuffix, driversbase.ALL.String(), string(configBytes))
-	}
-	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse("cannot write config to persisting storage", err))
 		return
 	}
 

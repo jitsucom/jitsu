@@ -160,6 +160,8 @@ type Driver interface {
 
 	//GetDriversInfo returns telemetry information about the driver
 	GetDriversInfo() *DriversInfo
+
+	Delete() error
 }
 
 //CLIDriver interface must be implemented by every CLI source type (Singer or Airbyte)

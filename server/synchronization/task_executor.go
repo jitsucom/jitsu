@@ -2,8 +2,10 @@ package synchronization
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -28,8 +30,7 @@ import (
 )
 
 const (
-	srcSource             = "source"
-	ConfigSignatureSuffix = "_JITSU_config"
+	srcSource = "source"
 
 	collectionLockTimeout = time.Minute
 )
@@ -510,11 +511,11 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 		return fmt.Errorf("Error getting state from meta storage: %v", err)
 	}
 
-	config, err := te.MetaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey()+ConfigSignatureSuffix, driversbase.ALL.String())
-
+	config, err := te.MetaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey()+driversbase.ConfigSignatureSuffix, driversbase.ConfigSignatureSuffix)
 	if err != nil {
 		return fmt.Errorf("Error getting persisted config from meta storage: %v", err)
 	}
+	defer te.persistConfig(task, taskLogger, cliDriver)
 
 	if state != "" {
 		taskLogger.INFO("Running synchronization with state: %s", state)
@@ -536,6 +537,23 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 		return fmt.Errorf("Error synchronization: %v", err)
 	}
 
+	return nil
+}
+
+//Config file might be updated by cli program after run.
+//We need to write it to persistent storage so other cluster nodes will read actual config
+func (te *TaskExecutor) persistConfig(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver) error {
+	configBytes, err := ioutil.ReadFile(cliDriver.GetConfigPath())
+	if configBytes != nil {
+		err = te.MetaStorage.SaveSignature(task.Source, cliDriver.GetCollectionMetaKey()+driversbase.ConfigSignatureSuffix, driversbase.ConfigSignatureSuffix, string(configBytes))
+	}
+	if err != nil {
+		errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] config: %v", task.Source, cliDriver.GetCollectionMetaKey(), err)
+		taskLogger.ERROR(errMsg)
+		logging.SystemError(errMsg)
+		return errors.New(errMsg)
+	}
+	taskLogger.INFO("Config saved.")
 	return nil
 }
 

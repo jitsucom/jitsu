@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/safego"
@@ -23,6 +24,7 @@ var Instance *Bridge
 
 type Bridge struct {
 	mutex          *sync.RWMutex
+	MetaStorage    meta.Storage
 	PythonExecPath string
 	VenvDir        string
 	TmpDir         string
@@ -38,7 +40,7 @@ type Bridge struct {
 	installErrorsByTap    map[string]error
 }
 
-func Init(pythonExecPath, venvDir string, installTaps, updateTaps bool, batchSize int, logWriter io.Writer) error {
+func Init(pythonExecPath string, metaStorage meta.Storage, venvDir string, installTaps, updateTaps bool, batchSize int, logWriter io.Writer) error {
 	logging.Infof("Initializing Singer bridge. Batch size: %d", batchSize)
 
 	if pythonExecPath == "" {
@@ -67,6 +69,7 @@ func Init(pythonExecPath, venvDir string, installTaps, updateTaps bool, batchSiz
 
 	Instance = &Bridge{
 		mutex:                 &sync.RWMutex{},
+		MetaStorage:           metaStorage,
 		PythonExecPath:        pythonExecPath,
 		VenvDir:               venvDir,
 		TmpDir:                path.Join(venvDir, "tmp"),
@@ -185,18 +188,26 @@ func (b *Bridge) UpdateTap(tap string) error {
 }
 
 //Discover discovers tap catalog, marks all streams as "enabled" and returns catalog
-func (b *Bridge) Discover(tap, singerConfigPath string) (*RawCatalog, error) {
+//some singer taps mutate config while operating
+//that is we persist config in metaStorage
+//initialConfig is used only if it is first attempt to run current source
+func (b *Bridge) Discover(sourceId, tap string, initialConfig interface{}) (*RawCatalog, error) {
 	outWriter := logging.NewStringWriter()
 	errStrWriter := logging.NewStringWriter()
 	dualStdErrWriter := logging.Dual{FileWriter: errStrWriter, Stdout: logging.NewPrefixDateTimeProxy("[discover]", b.LogWriter)}
 
+	configPath, err := b.InitConfig(sourceId, tap, initialConfig)
+
 	command := path.Join(b.VenvDir, tap, "bin", tap)
-	args := []string{"-c", singerConfigPath, "--discover"}
+	args := []string{"-c", configPath, "--discover"}
 
 	if err := runner.ExecCmd(base.SingerType, command, outWriter, dualStdErrWriter, time.Minute*2, args...); err != nil {
 		return nil, fmt.Errorf("Error singer --discover: %v. %s", err, errStrWriter.String())
 	}
-
+	_, err = b.PersistConfig(sourceId, tap)
+	if err != nil {
+		return nil, err
+	}
 	catalog := &RawCatalog{}
 	if err := json.Unmarshal(outWriter.Bytes(), &catalog); err != nil {
 		return nil, fmt.Errorf("Error unmarshalling catalog %s output: %v", outWriter.String(), err)
@@ -239,20 +250,68 @@ func (b *Bridge) Discover(tap, singerConfigPath string) (*RawCatalog, error) {
 	return catalog, nil
 }
 
+func (b *Bridge) InitConfig(sourceId string, tap string, initialConfig interface{}) (string, error) {
+	var config interface{}
+	config, err := b.MetaStorage.GetSignature(sourceId, tap+base.ConfigSignatureSuffix, base.ConfigSignatureSuffix)
+	if err != nil {
+		return "", fmt.Errorf("Error getting persisted config for %s from meta storage: %v", sourceId, err)
+	}
+	if config == "" {
+		config = initialConfig
+	}
+	if config == nil || config == "" {
+		return "", fmt.Errorf("Failed to InitConfig for %s. initialConfig was not provided: %v", sourceId, err)
+	}
+	configPath, err := b.SaveConfig(sourceId, tap, config)
+	if err != nil {
+		return "", err
+	}
+	return configPath, nil
+}
+
 //SaveConfig saves config as file for using
 //returns absolute file path to generated file
-func SaveConfig(sourceId string, tap string, singerConfig interface{}) (string, error) {
+func (b *Bridge) SaveConfig(sourceId string, tap string, singerConfig interface{}) (string, error) {
+	configPath, err := GetGonfigPath(sourceId, tap)
+
+	if err != nil {
+		return "", err
+	}
+
+	if singerConfig != nil {
+		//write singer config as file path
+		if _, err := parsers.ParseJSONAsFile(configPath, singerConfig); err != nil {
+			return "", fmt.Errorf("Error writing singer config to %s: %v", configPath, err)
+		}
+	}
+	configBytes, err := ioutil.ReadFile(configPath)
+	if configBytes != nil {
+		err = b.MetaStorage.SaveSignature(sourceId, tap+base.ConfigSignatureSuffix, base.ConfigSignatureSuffix, string(configBytes))
+	}
+	if err != nil {
+		errMsg := fmt.Sprintf("Unable to persist source [%s] tap [%s] config in meta storage: %v", sourceId, tap, err)
+		logging.SystemError(errMsg)
+		return "", errors.New(errMsg)
+	}
+	return configPath, nil
+}
+
+func (b *Bridge) PersistConfig(sourceId string, tap string) (string, error) {
+	//assume that config already exist on file system
+	return b.SaveConfig(sourceId, tap, nil)
+}
+
+func (b *Bridge) Cleanup(sourceId string, tap string) error {
+	_ = b.MetaStorage.DeleteSignature(sourceId, tap)
+	return b.MetaStorage.DeleteSignature(sourceId, tap+base.ConfigSignatureSuffix)
+}
+
+func GetGonfigPath(sourceId string, tap string) (string, error) {
 	configDir := path.Join(Instance.VenvDir, sourceId, tap)
 
 	if err := logging.EnsureDir(configDir); err != nil {
 		return "", fmt.Errorf("Error creating singer tmp dir: %v", err)
 	}
 
-	absoluteFilePath := path.Join(configDir, base.ConfigFileName)
-	//write singer config as file path
-	if _, err := parsers.ParseJSONAsFile(absoluteFilePath, singerConfig); err != nil {
-		return "", fmt.Errorf("Error writing singer to %s: %v", absoluteFilePath, err)
-	}
-
-	return absoluteFilePath, nil
+	return path.Join(configDir, base.ConfigFileName), nil
 }

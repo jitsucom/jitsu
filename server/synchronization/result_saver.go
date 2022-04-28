@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"io/ioutil"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/counters"
@@ -147,18 +146,6 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey, driversbase.ALL.String(), string(stateJSON))
 		if err != nil {
 			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] signature [%s]: %v", rs.task.Source, rs.tap, string(stateJSON), err)
-			logging.SystemError(errMsg)
-			return errors.New(errMsg)
-		}
-
-		//Config file might be updated by cli program after successful run.
-		//We need to write it to persistent storage so other cluster nodes will read actual config
-		configBytes, err := ioutil.ReadFile(rs.configPath)
-		if configBytes != nil {
-			err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey+ConfigSignatureSuffix, driversbase.ALL.String(), string(configBytes))
-		}
-		if err != nil {
-			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] config: %v", rs.task.Source, rs.tap, err)
 			logging.SystemError(errMsg)
 			return errors.New(errMsg)
 		}
