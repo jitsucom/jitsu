@@ -12,7 +12,6 @@ type Props = {
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: SourceConnector
   setSourceEditorState: SetSourceEditorState
-  handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
   handleBringSourceData: () => SourceData
 }
 
@@ -21,15 +20,18 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
   initialSourceData,
   sourceDataFromCatalog,
   setSourceEditorState,
-  handleSetControlsDisabled,
   handleBringSourceData,
 }) => {
-  const isNativeSource: boolean = !sourceDataFromCatalog.protoType
-  return isNativeSource ? (
+  const typedStreams: boolean =
+    !sourceDataFromCatalog.protoType ||
+    sourceDataFromCatalog.protoType == "sdk_source" ||
+    sourceDataFromCatalog.protoType == "native"
+  return typedStreams ? (
     <SourceEditorFormStreamsConfigurable
-      initialSourceData={initialSourceData as NativeSourceData}
+      initialSourceData={initialSourceData as NativeSourceData | SDKSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
       setSourceEditorState={setSourceEditorState}
+      handleBringSourceData={handleBringSourceData}
     />
   ) : (
     <SourceEditorFormStreamsLoadable
@@ -37,7 +39,6 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
       initialSourceData={initialSourceData as AirbyteSourceData | SingerSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
       setSourceEditorState={setSourceEditorState}
-      handleSetControlsDisabled={handleSetControlsDisabled}
       handleBringSourceData={handleBringSourceData}
     />
   )

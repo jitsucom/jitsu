@@ -47,7 +47,7 @@ const mixpanelDestination = {
     },
     {
       id: "_package",
-      constant: "jitsu-mixpanel-destination@^0.2.0",
+      constant: "jitsu-mixpanel-destination@^0.2.2",
     },
     {
       id: "_formData.description",
@@ -72,7 +72,7 @@ const mixpanelDestination = {
           <a target={"_blank"} href={"https://www.npmjs.com/package/jitsu-mixpanel-destination"}>
             jitsu-mixpanel-destination
           </a>{" "}
-          (version: ^0.2.0)
+          (version: ^0.2.2)
           <br />
           Source code on{" "}
           <a target={"_blank"} href={"https://github.com/jitsucom/jitsu-mixpanel"}>
