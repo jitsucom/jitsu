@@ -114,6 +114,7 @@ All fields from the **server** section are optional:
 | **metrics.relay.deployment_id** | string | Allows to provide deployment ID for extended telemetry collection. | Cluster ID |
 | **disable\_version\_reminder** | boolean | Flag for disabling log reminder banner about new **Jitsu** versions availability. | `false` |
 | **sync_tasks.store_logs.last_runs** | int | Logs for how many task runs must be kept in meta storage. Controlled on Source's collection level. When number of task runs for Source collection exceed provided value – old records get removed from meta storage. | `-1` unlimited number of logs |
+| **event_enrichment.http_context** | boolean | Whether the server should enrich incoming HTTP events with HTTP context (headers, etc.). Please note that when upgrading from Jitsu 1.41.6 you can switch this setting to `true` only separately from the upgrade itself, otherwise event data may get corrupted. | `false` |
 
 ### Log
 
