@@ -9,7 +9,10 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"io"
+	"time"
 )
+
+const CollectionLockTimeout = time.Minute
 
 //Service is a coordination service which is responsible for all distributed operations like:
 // - distributed locks
