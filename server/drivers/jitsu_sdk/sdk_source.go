@@ -38,14 +38,14 @@ type SdkSource struct {
 func init() {
 	base.RegisterDriver(base.SdkSourceType, NewSdkSource)
 	base.RegisterTestConnectionFunc(base.SdkSourceType, TestSdkSource)
-	base.RegisterDriver(base.RedisType, func(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
-		sourceConfig.Config["package_name"] = "jitsu-redis-source"
-		return NewSdkSource(ctx, sourceConfig, collection)
-	})
-	base.RegisterTestConnectionFunc(base.RedisType, func(sourceConfig *base.SourceConfig) error {
-		sourceConfig.Config["package_name"] = "jitsu-redis-source"
-		return TestSdkSource(sourceConfig)
-	})
+	//base.RegisterDriver(base.RedisType, func(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
+	//	sourceConfig.Config["package_name"] = "jitsu-redis-source"
+	//	return NewSdkSource(ctx, sourceConfig, collection)
+	//})
+	//base.RegisterTestConnectionFunc(base.RedisType, func(sourceConfig *base.SourceConfig) error {
+	//	sourceConfig.Config["package_name"] = "jitsu-redis-source"
+	//	return TestSdkSource(sourceConfig)
+	//})
 }
 
 //NewSdkSource returns SdkSource driver and
