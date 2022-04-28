@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jitsucom/jitsu/server/events"
 	"github.com/mitchellh/hashstructure/v2"
 
 	"github.com/jitsucom/jitsu/server/logging"
@@ -149,11 +150,13 @@ func (f *Factory) CreateScript(executable script.Executable, variables map[strin
 			expression = "return " + strings.Trim(expression, "\n")
 		}
 
-		rowOffset = 5
+		rowOffset = 7
 		expression = `
 module.exports = async (event) => {
   let $ = event
   let _ = event
+  let $context = (event ?? {})['` + events.HTTPContextField + `'] ?? {}
+  $context.header = (name) => (($context.headers ?? {})[name.toLowerCase()] ?? [])[0]
 // expression start //
 ` + expression + `
 // expression end //
