@@ -223,7 +223,7 @@ const SourceEditorContainer: React.FC<CommonSourcePageProps> = ({ editorMode }) 
 
   const handleValidateAndTestConnection: HandleValidateTestConnection = async (methodConfig): Promise<void> => {
     await validateAllForms()
-    dispatchSourceEditorAction(SourceEditorActionsTypes.SET_STATUS, { isTestingConnection: true })
+    dispatchSourceEditorAction(SourceEditorActionsTypes.SET_STATUS, { isTestingConnection: true, isConfigSealed: true })
     try {
       await assertCanConnect({ ignoreErrors: methodConfig?.ignoreErrors })
     } finally {
