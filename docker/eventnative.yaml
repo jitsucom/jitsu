@@ -11,6 +11,8 @@ server:
     relay:
       disabled: '${env.JITSU_EXTENDED_TELEMETRY_DISABLED|false}'
       deployment_id: '${env.JITSU_EXTENDED_TELEMETRY_DEPLOYMENT_ID|}'
+  event_enrichment:
+    http_context: '${env.JITSU_HTTP_CONTEXT_ENRICHMENT|false}'
 
 geo:
   maxmind_path: '${env.MAX_MIND_PATH|}'

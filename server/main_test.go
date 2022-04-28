@@ -5,16 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/geo"
-	"github.com/jitsucom/jitsu/server/testsuit"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/geo"
+	"github.com/jitsucom/jitsu/server/testsuit"
+	"github.com/jitsucom/jitsu/server/timestamp"
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -205,6 +206,7 @@ func TestCors(t *testing.T) {
 func TestIncomingEvent(t *testing.T) {
 	uuid.InitMock()
 	binding.EnableDecoderUseNumber = true
+	appconfig.Instance.EnrichWithHTTPContext = true
 
 	SetTestDefaultParams()
 	tests := []test.Integration{
@@ -498,6 +500,8 @@ func TestIncomingEvent(t *testing.T) {
 func TestSegmentAPIEndpoint(t *testing.T) {
 	uuid.InitMock()
 	binding.EnableDecoderUseNumber = true
+	// for some reason when this test runs on GitHub requests content length differs from local
+	//appconfig.Instance.EnrichWithHTTPContext = true
 
 	SetTestDefaultParams()
 	tests := []struct {
@@ -701,6 +705,7 @@ func TestPixelEndpoint(t *testing.T) {
 func TestIPCookiePolicyComply(t *testing.T) {
 	uuid.InitMock()
 	binding.EnableDecoderUseNumber = true
+	appconfig.Instance.EnrichWithHTTPContext = true
 
 	SetTestDefaultParams()
 	tests := []struct {

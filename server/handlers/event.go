@@ -112,14 +112,16 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		return
 	}
 
-	headers := make(http.Header)
-	for key, values := range c.Request.Header {
-		headers[strings.ToLower(key)] = values
-	}
+	if appconfig.Instance.EnrichWithHTTPContext {
+		headers := make(http.Header)
+		for key, values := range c.Request.Header {
+			headers[strings.ToLower(key)] = values
+		}
 
-	for _, event := range eventsArray {
-		event[events.HTTPContextField] = &events.HTTPContext{
-			Headers: headers,
+		for _, event := range eventsArray {
+			event[events.HTTPContextField] = &events.HTTPContext{
+				Headers: headers,
+			}
 		}
 	}
 

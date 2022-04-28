@@ -43,7 +43,8 @@ type AppConfig struct {
 	AirbyteLogsWriter     io.Writer
 	SourcesLogsWriter     io.Writer
 
-	GlobalUniqueIDField *identifiers.UniqueID
+	GlobalUniqueIDField   *identifiers.UniqueID
+	EnrichWithHTTPContext bool
 
 	closeMe     []io.Closer
 	lastCloseMe []io.Closer
@@ -395,6 +396,9 @@ func Init(containerized bool, dockerHubID string) error {
 	appConfig.UaResolver = useragent.NewResolver()
 	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
 	appConfig.GlobalUniqueIDField = identifiers.NewUniqueID(uniqueIDField)
+
+	enrichWithHTTPContext := viper.GetBool("server.event_enrichment.http_context")
+	appConfig.EnrichWithHTTPContext = enrichWithHTTPContext
 
 	Instance = &appConfig
 	return nil
