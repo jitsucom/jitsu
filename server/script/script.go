@@ -72,6 +72,10 @@ type Interface interface {
 	// Execute executes a function with the provided `name` and `args` and collects the execution result into `result`.
 	Execute(name string, args Args, result interface{}) error
 
+	// ExecuteStream executes a function with the provided `name` and `args` and collects the execution result into `result`.
+	// Execution result maybe multiline stream that will be written into provided writer
+	ExecuteWithDataChannel(name string, args Args, result interface{}, dataChannel chan<- interface{}) error
+
 	// Close disposes of the instance and releases associated resources.
 	Close()
 }
@@ -82,5 +86,5 @@ type Factory interface {
 	// CreateScript loads an Executable and returns an Interface instance for using it.
 	// `variables` are the global variables to be made available for Executable.
 	// `includes` are code snippets to embed into script.
-	CreateScript(executable Executable, variables map[string]interface{}, includes ...string) (Interface, error)
+	CreateScript(executable Executable, variables map[string]interface{}, standalone bool, includes ...string) (Interface, error)
 }

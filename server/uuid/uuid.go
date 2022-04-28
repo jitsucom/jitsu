@@ -48,10 +48,26 @@ func GetHash(m map[string]interface{}) string {
 func GetKeysHash(m map[string]interface{}, keys []string) string {
 	sort.Strings(keys)
 
-	var str string
+	var str strings.Builder
 	for _, k := range keys {
-		str += fmt.Sprint(m[k]) + "|"
+		str.WriteString(fmt.Sprint(m[k]))
+		str.WriteRune('|')
 	}
 
-	return fmt.Sprintf("%x", md5.Sum([]byte(str)))
+	return fmt.Sprintf("%x", md5.Sum([]byte(str.String())))
+}
+
+//GetKeysUnhashed returns keys values joined by '_'
+func GetKeysUnhashed(m map[string]interface{}, keys []string) string {
+	sort.Strings(keys)
+
+	var str strings.Builder
+	for i, k := range keys {
+		if i > 0 {
+			str.WriteRune('_')
+		}
+		str.WriteString(fmt.Sprint(m[k]))
+	}
+
+	return str.String()
 }

@@ -485,6 +485,7 @@ export const updateStream = (
   setSourceEditorState(state => {
     const newState = cloneDeep(state)
     const oldStreams = newState.streams.selectedStreams[sourceDataPath]
+
     const streamConfig = sourceEditorUtils.mapStreamDataToSelectedStreams(stream)
 
     let newStreams = oldStreams

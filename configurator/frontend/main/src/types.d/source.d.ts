@@ -6,6 +6,7 @@
 declare interface CollectionSource {
   name: string
   type: string
+  mode?: "full_sync" | "incremental"
   parameters: Array<{
     [key: string]: string[]
   }>
@@ -14,11 +15,25 @@ declare interface CollectionSource {
    * Individual schedules for collections are no longer supported.
    * Schedule to be set globally in SourceData `config` field.
    */
-  schedule: string
+  schedule?: string
 }
 
-declare type StreamData = AirbyteStreamData | SingerStreamData
+type SdkSourceStreamConfigurationParameter = {
+  id: string
+  type?: string
+  displayName: string
+  required?: boolean
+  defaultValue?: any
+  documentation?: string
+}
 
+declare type StreamData = AirbyteStreamData | SingerStreamData | SDKSourceStreamData
+
+declare type SDKSourceStreamData = {
+  type: string
+  supportedModes?: ["full_sync"] | ["full_sync", "incremental"] | ["incremental"]
+  params: SdkSourceStreamConfigurationParameter[]
+}
 /**
  * Configured Airbyte stream data format used internally in the UI.
  *
@@ -118,7 +133,7 @@ declare type AirbyteStreamConfig = {
   cursor_field?: string[]
 }
 
-declare type SourceData = NativeSourceData | AirbyteSourceData | SingerSourceData
+declare type SourceData = NativeSourceData | AirbyteSourceData | SingerSourceData | SDKSourceData
 
 declare type CommonSourceData = {
   /** Source unique identifier */
@@ -144,6 +159,7 @@ declare type CommonSourceData = {
 }
 declare interface NativeSourceData extends CommonSourceData {
   /** List of data streams.  */
+  protoType: "native"
   collections: CollectionSource[]
   config: {
     [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
@@ -155,6 +171,7 @@ declare interface AirbyteSourceData extends CommonSourceData {
    * @deprecated as of October 2021.
    * The new path for streams is config.catalog.streams
    */
+  protoType: "airbyte"
   catalog?: {
     streams: Array<AirbyteStreamData>
   }
@@ -174,7 +191,18 @@ declare interface AirbyteSourceData extends CommonSourceData {
   }
 }
 
+declare interface SDKSourceData extends CommonSourceData {
+  protoType: "sdk_source"
+  collections?: CollectionSource[]
+  config: {
+    package_name?: string
+    package_version?: string
+    [key: string]: string | number | boolean | PlainObjectWithPrimitiveValues
+  }
+}
+
 declare interface SingerSourceData extends CommonSourceData {
+  protoType: "singer"
   config: {
     config: PlainObjectWithPrimitiveValues
     /**

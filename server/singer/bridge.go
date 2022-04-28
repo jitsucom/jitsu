@@ -148,20 +148,20 @@ func (b *Bridge) installTap(tap string) error {
 	pathToTap := path.Join(b.VenvDir, tap)
 
 	//create virtual env
-	err := runner.ExecCmd(singerBridgeType, b.PythonExecPath, b.LogWriter, b.LogWriter, time.Minute*10, "-m", "venv", pathToTap)
+	err := runner.ExecCmd(singerBridgeType, "", b.PythonExecPath, b.LogWriter, b.LogWriter, time.Minute*10, "-m", "venv", pathToTap)
 	if err != nil {
 		return fmt.Errorf("error creating singer python venv for [%s]: %v", pathToTap, err)
 	}
 
 	//update pip
-	err = runner.ExecCmd(singerBridgeType, path.Join(pathToTap, "/bin/python3"), b.LogWriter, b.LogWriter, time.Minute*10, "-m", "pip", "install", "--upgrade", "pip")
+	err = runner.ExecCmd(singerBridgeType, "", path.Join(pathToTap, "/bin/python3"), b.LogWriter, b.LogWriter, time.Minute*10, "-m", "pip", "install", "--upgrade", "pip")
 	if err != nil {
 		return fmt.Errorf("error updating pip for [%s] env: %v", pathToTap, err)
 
 	}
 
 	//install tap
-	err = runner.ExecCmd(singerBridgeType, path.Join(pathToTap, "/bin/pip3"), b.LogWriter, b.LogWriter, time.Minute*20, "install", tap)
+	err = runner.ExecCmd(singerBridgeType, "", path.Join(pathToTap, "/bin/pip3"), b.LogWriter, b.LogWriter, time.Minute*20, "install", tap)
 	if err != nil {
 		return fmt.Errorf("error installing singer tap [%s]: %v", tap, err)
 	}
@@ -179,7 +179,7 @@ func (b *Bridge) UpdateTap(tap string) error {
 	command := path.Join(pathToTap, "/bin/pip3")
 	args := []string{"install", tap, "--upgrade"}
 
-	err := runner.ExecCmd(singerBridgeType, command, b.LogWriter, b.LogWriter, time.Minute*20, args...)
+	err := runner.ExecCmd(singerBridgeType, "", command, b.LogWriter, b.LogWriter, time.Minute*20, args...)
 	if err != nil {
 		return err
 	}
@@ -201,7 +201,7 @@ func (b *Bridge) Discover(sourceId, tap string, initialConfig interface{}) (*Raw
 	command := path.Join(b.VenvDir, tap, "bin", tap)
 	args := []string{"-c", configPath, "--discover"}
 
-	if err := runner.ExecCmd(base.SingerType, command, outWriter, dualStdErrWriter, time.Minute*2, args...); err != nil {
+	if err := runner.ExecCmd(base.SingerType, "", command, outWriter, dualStdErrWriter, time.Minute*2, args...); err != nil {
 		return nil, fmt.Errorf("Error singer --discover: %v. %s", err, errStrWriter.String())
 	}
 	_, err = b.PersistConfig(sourceId, tap)

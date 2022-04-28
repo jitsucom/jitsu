@@ -96,7 +96,11 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 			//calculate eventID from key fields or whole object
 			var eventID string
 			if len(stream.KeyFields) > 0 {
-				eventID = uuid.GetKeysHash(object, stream.KeyFields)
+				if stream.KeepKeysUnhashed {
+					eventID = uuid.GetKeysUnhashed(object, stream.KeyFields)
+				} else {
+					eventID = uuid.GetKeysHash(object, stream.KeyFields)
+				}
 			} else {
 				eventID = uuid.GetHash(object)
 			}
