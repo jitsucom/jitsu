@@ -36,8 +36,6 @@ import { StatusPage } from "./lib/components/StatusPage/StatusPage"
 import { UserSettings } from "./lib/components/UserSettings/UserSettings"
 import { Settings } from "./lib/services/UserSettingsService"
 
-import { test } from "@jitsu/catalog/test/test"
-
 // @Styles
 import "./App.less"
 // @Unsorted
