@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { cloneDeep } from "lodash"
 import { FormInstance } from "antd"
 // @Types
-import { SourceConnector as CatalogSourceConnector } from "@jitsu/catalog/sources/types"
-import { SetSourceEditorDisabledTabs, SetSourceEditorState, SourceEditorState } from "./SourceEditor"
+import type { SourceConnector as CatalogSourceConnector } from "@jitsu/catalog/sources/types"
+import type { SetSourceEditorState, SourceEditorState } from "./SourceEditor"
 // @Components
 import { SourceEditorFormConfigurationStaticFields } from "./SourceEditorFormConfigurationStaticFields"
 import { SourceEditorFormConfigurationConfigurableLoadableFields } from "./SourceEditorFormConfigurationConfigurableLoadableFields"
@@ -18,6 +18,7 @@ import { SourceEditorOauthButtons } from "../Common/SourceEditorOauthButtons/Sou
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 import { useUniqueKeyState } from "hooks/useUniqueKeyState"
 import { FormSkeleton } from "ui/components/FormSkeleton/FormSkeleton"
+import { SourceEditorActionsTypes, useSourceEditorDispatcher } from "./SourceEditor.state"
 
 export type SourceEditorFormConfigurationProps = {
   editorMode: "add" | "edit"
@@ -25,8 +26,6 @@ export type SourceEditorFormConfigurationProps = {
   sourceDataFromCatalog: CatalogSourceConnector
   disabled?: boolean
   setSourceEditorState: SetSourceEditorState
-  handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
-  handleSetTabsDisabled: SetSourceEditorDisabledTabs
   handleReloadStreams: VoidFunction | AsyncVoidFunction
 }
 
@@ -66,11 +65,11 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
   sourceDataFromCatalog,
   disabled,
   setSourceEditorState,
-  handleSetControlsDisabled,
-  handleSetTabsDisabled,
   handleReloadStreams,
 }) => {
   const services = useServices()
+  const dispatchAction = useSourceEditorDispatcher()
+
   const [forms, setForms] = useState<Forms>({})
 
   const isInitiallySignedIn = editorMode === "edit"
@@ -93,6 +92,15 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
 
   const sourceConfigurationSchema = useMemo(() => {
     switch (sourceDataFromCatalog.protoType) {
+      case "sdk_source":
+        const sdkSourceId = sourceDataFromCatalog.id.replace("sdk-", "")
+        return {
+          backendId: sdkSourceId,
+          hideOauthFields: true,
+          loadableFields: true,
+          configurableFields: sourceDataFromCatalog.configParameters,
+          protoType: sourceDataFromCatalog.protoType,
+        }
       case "airbyte":
         const airbyteId = sourceDataFromCatalog.id.replace("airbyte-", "")
         return {
@@ -102,6 +110,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           invisibleStaticFields: {
             "config.docker_image": sourceDataFromCatalog.id.replace("airbyte-", ""),
           },
+          protoType: sourceDataFromCatalog.protoType,
         }
       case "singer":
         const tapId = sourceDataFromCatalog.id.replace("singer-", "")
@@ -112,6 +121,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           invisibleStaticFields: {
             "config.tap": tapId,
           },
+          protoType: sourceDataFromCatalog.protoType,
         }
       /** Native source */
       default:
@@ -203,14 +213,13 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
 
   const isLoadingOauth = !isOauthStatusReady || isLoadingBackendSecrets
   useEffect(() => {
-    if (isLoadingOauth) handleSetControlsDisabled(true, "byOauthFlow")
-    else if (fillAuthDataManually) handleSetControlsDisabled(false, "byOauthFlow")
+    if (isLoadingOauth) dispatchAction(SourceEditorActionsTypes.SET_STATUS, { isLoadingOauthStatus: true })
+    else if (fillAuthDataManually)
+      dispatchAction(SourceEditorActionsTypes.SET_STATUS, { isOauthFlowCompleted: true, isLoadingOauthStatus: false })
     else if (!isOauthFlowCompleted) {
-      handleSetControlsDisabled("Please, either grant Jitsu access or fill auth credentials manually", "byOauthFlow")
-      handleSetTabsDisabled(["streams"], "disable")
+      dispatchAction(SourceEditorActionsTypes.SET_STATUS, { isOauthFlowCompleted: false, isLoadingOauthStatus: false })
     } else {
-      handleSetControlsDisabled(false, "byOauthFlow")
-      handleSetTabsDisabled(["streams"], "enable")
+      dispatchAction(SourceEditorActionsTypes.SET_STATUS, { isOauthFlowCompleted: true, isLoadingOauthStatus: false })
     }
   }, [isLoadingOauth, fillAuthDataManually, isOauthFlowCompleted])
 
@@ -250,13 +259,10 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
           )}
           {sourceConfigurationSchema.loadableFields && (
             <SourceEditorFormConfigurationConfigurableLoadableFields
-              editorMode={editorMode}
-              initialValues={initialSourceData as AirbyteSourceData}
+              initialValues={initialSourceData}
               sourceDataFromCatalog={sourceDataFromCatalog}
               hideFields={hideFields}
               patchConfig={patchConfig}
-              handleSetControlsDisabled={handleSetControlsDisabled}
-              handleSetTabsDisabled={handleSetTabsDisabled}
               setValidator={setConfigurableLoadableFieldsValidator}
               setFormReference={setFormReference}
               handleResetOauth={handleResetOauth}

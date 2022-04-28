@@ -52,17 +52,17 @@ type exchanger struct {
 
 var errLoadRequired = errors.New("load required")
 
-type exchangerFunc func(ctx context.Context, data []byte) ([]byte, error)
+type exchangerFunc func(ctx context.Context, data []byte, dataChannel chan<- interface{}) ([]byte, error)
 
-func (e *exchanger) exchangeDirect(command string, payload, result interface{}) error {
-	return e.exchange0(command, payload, result, e.ExchangeDirect)
+func (e *exchanger) exchangeDirect(command string, payload, result interface{}, dataChannel chan<- interface{}) error {
+	return e.exchange0(command, payload, result, dataChannel, DefaultExchangeTimeout, e.ExchangeDirect)
 }
 
-func (e *exchanger) exchange(command string, payload, result interface{}) error {
-	return e.exchange0(command, payload, result, e.Exchange)
+func (e *exchanger) exchange(command string, payload, result interface{}, dataChannel chan<- interface{}, timeout time.Duration) error {
+	return e.exchange0(command, payload, result, dataChannel, timeout, e.Exchange)
 }
 
-func (e *exchanger) exchange0(command string, payload, result interface{}, exchangerFunc exchangerFunc) error {
+func (e *exchanger) exchange0(command string, payload, result interface{}, dataChannel chan<- interface{}, timeout time.Duration, exchangerFunc exchangerFunc) error {
 	data, err := json.Marshal(Request{
 		Command: command,
 		Payload: payload,
@@ -72,11 +72,15 @@ func (e *exchanger) exchange0(command string, payload, result interface{}, excha
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultExchangeTimeout)
+	if timeout <= 0 {
+		timeout = DefaultExchangeTimeout
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	start := timestamp.Now()
-	newData, err := exchangerFunc(ctx, data)
+	newData, err := exchangerFunc(ctx, data, dataChannel)
 
 	logging.Debugf("%s: %s => %s (%v) [%s]", e, string(data), string(newData), err, timestamp.Now().Sub(start))
 	if err != nil {

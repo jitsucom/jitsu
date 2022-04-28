@@ -67,6 +67,39 @@ export const pullAllAirbyteStreams = async (
   }
 }
 
+export const pullAllSDKSourceStreams = async (
+  sourceDataFromCatalog: SourceConnector,
+  handleBringSourceData: () => SourceData
+): Promise<SDKSourceStreamData[] | undefined> => {
+  assert(
+    sourceDataFromCatalog.protoType === "sdk_source",
+    `Attempted to pull sdk_source streams but SourceConnector type is of a different type (${sourceDataFromCatalog.protoType})`,
+    PARSING_STREAMS_ERROR_NAME
+  )
+
+  const services = ApplicationServices.get()
+
+  const sourceData = await handleBringSourceData()
+  const config = sourceData.config
+  const baseUrl = sourceDataFromCatalog.staticStreamsConfigEndpoint
+  const project_id = services.activeProject.id
+
+  const response = await services.backendApiClient.post(withQueryParams(baseUrl, { project_id }), config, {
+    proxy: true,
+  })
+
+  if (response.message) throw new Error(response.message)
+
+  if (response.status !== "pending") {
+    assertSDKSourceCatalog(response, `SDK Source catalog parsing error`)
+    const streams: SDKSourceStreamData[] = response.catalog.map((stream, idx) => {
+      assertIsSDKSourceCatalogStream(stream, `Failed to parse SDK Source stream ${stream} with index ${idx}`)
+      return stream
+    })
+    return streams
+  }
+}
+
 export const pullAllSingerStreams = async (
   sourceDataFromCatalog?: SourceConnector,
   handleBringSourceData?: () => SingerSourceData
@@ -102,6 +135,17 @@ export const pullAllSingerStreams = async (
     })
     return streams
   }
+}
+
+function assertSDKSourceCatalog(response: unknown, errorMessage): asserts response is { catalog: UnknownObject[] } {
+  assertIsObject(response, `${errorMessage}: Backend response is not an object`)
+  assertIsObject(response.catalog, `${errorMessage}: Backend response.catalog is not an object`)
+  assertIsArrayOfTypes<UnknownObject>(
+    response.catalog,
+    {},
+    `${errorMessage}: Backend response.catalog is not an array of objects`,
+    PARSING_STREAMS_ERROR_NAME
+  )
 }
 
 function assertHasCatalog(
@@ -146,10 +190,24 @@ function assertIsAirbyteCatalogStream(
       PARSING_STREAMS_ERROR_NAME
     )
   }
-  if (stream.supported_sync_modes.includes("incremental")) {
-    assertIsBoolean(
-      stream.source_defined_cursor,
-      `${errorMessage}: stream.source_defined_cursor is not a boolean`,
+}
+
+function assertIsSDKSourceCatalogStream(
+  collection: UnknownObject,
+  errorMessage
+): asserts collection is SDKSourceStreamData {
+  assertIsString(
+    collection.type,
+    {
+      errMsg: `${errorMessage}: collection.type is not a string`,
+    },
+    PARSING_STREAMS_ERROR_NAME
+  )
+  if (collection.supportedModes !== undefined) {
+    assertIsArrayOfTypes(
+      collection.supportedModes,
+      "",
+      `${errorMessage}: collection.supportedModes is not an array of strings or undefined`,
       PARSING_STREAMS_ERROR_NAME
     )
   }

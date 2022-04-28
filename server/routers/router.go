@@ -47,7 +47,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	}
 
 	router.Use(gin.RecoveryWithWriter(logging.GlobalLogsWriter, func(c *gin.Context, err interface{}) {
-		logging.SystemErrorf("Panic:\n%s\n%s", err, string(debug.Stack()))
+		logging.SystemErrorf("Panic on request %s: %v\n%s", c.Request.URL.String(), err, string(debug.Stack()))
 		c.AbortWithStatus(http.StatusInternalServerError)
 	}))
 
@@ -88,6 +88,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	statisticsHandler := handlers.NewStatisticsHandler(metaStorage)
 
 	airbyteHandler := handlers.NewAirbyteHandler()
+	sdkSourceHandler := handlers.NewSdkSourceHandler()
 	sourcesHandler := handlers.NewSourcesHandler(sourcesService, metaStorage, destinations)
 	pixelHandler := handlers.NewPixelHandler(multiplexingService, processorHolder.GetPixelPreprocessor(), destinations, geoService)
 
@@ -151,6 +152,9 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.GET("/airbyte/:dockerImageName/spec", adminTokenMiddleware.AdminAuth(airbyteHandler.SpecHandler))
 		apiV1.GET("/airbyte/:dockerImageName/versions", adminTokenMiddleware.AdminAuth(airbyteHandler.VersionsHandler))
 		apiV1.POST("/airbyte/:dockerImageName/catalog", adminTokenMiddleware.AdminAuth(airbyteHandler.CatalogHandler))
+
+		apiV1.GET("/sdk_source/:packageNameVer/spec", adminTokenMiddleware.AdminAuth(sdkSourceHandler.SpecHandler))
+		apiV1.POST("/sdk_source/:packageNameVer/catalog", adminTokenMiddleware.AdminAuth(sdkSourceHandler.CatalogHandler))
 
 		apiV1.POST("/singer/:tap/catalog", adminTokenMiddleware.AdminAuth(handlers.NewSingerHandler().CatalogHandler))
 	}
