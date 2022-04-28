@@ -41,6 +41,7 @@ type Singer struct {
 	mutex              *sync.RWMutex
 	activeSyncCommands map[string]*base.SyncCommand
 
+	config                       interface{}
 	pathToConfigs                string
 	selectedStreamsWithNamespace map[string]base.StreamConfiguration
 	streamReplication            map[string]string
@@ -78,7 +79,7 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 
 	pathToConfigs := path.Join(singer.Instance.VenvDir, sourceConfig.SourceID, config.Tap)
 
-	configPath, err := singer.Instance.InitConfig(sourceConfig.SourceID, config.Tap, config.Config)
+	configPath, err := singer.GetGonfigPath(sourceConfig.SourceID, config.Tap)
 	if err != nil {
 		return nil, err
 	}
@@ -148,6 +149,7 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 		mutex:              &sync.RWMutex{},
 		activeSyncCommands: map[string]*base.SyncCommand{},
 
+		config:                       config.Config,
 		pathToConfigs:                pathToConfigs,
 		selectedStreamsWithNamespace: selectedStreamsWithNamespace(config),
 		streamReplication:            streamReplicationMappings,
@@ -320,6 +322,10 @@ func (s *Singer) Load(config string, state string, taskLogger logging.TaskLogger
 	if config != "" {
 		if _, err = parsers.ParseJSONAsFile(s.GetConfigPath(), config); err != nil {
 			return fmt.Errorf("Failed to write config loaded from meta storage: %v", err)
+		}
+	} else {
+		if _, err = parsers.ParseJSONAsFile(s.GetConfigPath(), s.config); err != nil {
+			return fmt.Errorf("Failed to write config to filesystem: %s: %v", s.GetConfigPath(), err)
 		}
 	}
 
@@ -512,7 +518,7 @@ func (s *Singer) IsClosed() bool {
 //doDiscover discovers tap catalog and returns catalog and properties paths
 //applies blacklist streams to taps and make other streams {"selected": true}
 func (s *Singer) doDiscover(tap, pathToConfigs string) (string, string, []string, error) {
-	catalog, err := singer.Instance.Discover(s.ID(), tap, nil)
+	catalog, err := singer.Instance.Discover(s.ID(), tap, s.config)
 	if err != nil {
 		return "", "", nil, err
 	}

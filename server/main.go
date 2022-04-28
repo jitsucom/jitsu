@@ -162,13 +162,29 @@ func main() {
 	if err != nil {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 
-	if err := singer.Init(viper.GetString("singer-bridge.python"), metaStorage, viper.GetString("singer-bridge.venv_dir"),
+	// ** Coordination Service **
+	var coordinationService *coordination.Service
+	if viper.IsSet("coordination") {
+		coordinationService, err = initializeCoordinationService(ctx, metaStorageConfiguration)
+		if err != nil {
+			logging.Fatalf("Failed to initiate coordination service: %v", err)
+		}
+	}
+
+	if coordinationService == nil {
+		//inmemory service (default)
+		logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
+			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
+		coordinationService = coordination.NewInMemoryService(appconfig.Instance.ServerName)
+	}
+
+	if err := singer.Init(viper.GetString("singer-bridge.python"), metaStorage, coordinationService, viper.GetString("singer-bridge.venv_dir"),
 		viper.GetBool("singer-bridge.install_taps"), viper.GetBool("singer-bridge.update_taps"), viper.GetInt("singer-bridge.batch_size"), appconfig.Instance.SingerLogsWriter); err != nil {
 		logging.Fatal(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	if err := airbyte.Init(ctx, *containerizedRun, viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), viper.GetInt("airbyte-bridge.batch_size"), appconfig.Instance.AirbyteLogsWriter); err != nil {
 		logging.Errorf("❌ Airbyte integration is disabled: %v", err)
 	}
@@ -206,7 +222,9 @@ func main() {
 	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
 	systemInfo := runtime.GetInfo()
 	telemetry.EnrichSystemInfo(clusterID, systemInfo)
-
+	if coordinationService == nil {
+		telemetry.Coordination("inmemory")
+	}
 	metricsExported := viper.GetBool("server.metrics.prometheus.enabled")
 	metricsRelay := metrics.InitRelay(clusterID, viper.Sub("server.metrics.relay"))
 	if metricsExported || metricsRelay != nil {
@@ -274,23 +292,6 @@ func main() {
 	loggerFactory := logevents.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
 		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter, viper.GetBool("log.async_writers"),
 		viper.GetInt("log.pool.size"))
-
-	// ** Coordination Service **
-	var coordinationService *coordination.Service
-	if viper.IsSet("coordination") {
-		coordinationService, err = initializeCoordinationService(ctx, metaStorageConfiguration)
-		if err != nil {
-			logging.Fatalf("Failed to initiate coordination service: %v", err)
-		}
-	}
-
-	if coordinationService == nil {
-		//inmemory service (default)
-		logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
-			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
-		coordinationService = coordination.NewInMemoryService(appconfig.Instance.ServerName)
-		telemetry.Coordination("inmemory")
-	}
 
 	// ** Destinations **
 	//events queue

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -23,12 +24,13 @@ const singerBridgeType = "singer_bridge"
 var Instance *Bridge
 
 type Bridge struct {
-	mutex          *sync.RWMutex
-	MetaStorage    meta.Storage
-	PythonExecPath string
-	VenvDir        string
-	TmpDir         string
-	BatchSize      int
+	mutex               *sync.RWMutex
+	MetaStorage         meta.Storage
+	CoordinationService *coordination.Service
+	PythonExecPath      string
+	VenvDir             string
+	TmpDir              string
+	BatchSize           int
 
 	installTaps bool
 	updateTaps  bool
@@ -40,7 +42,7 @@ type Bridge struct {
 	installErrorsByTap    map[string]error
 }
 
-func Init(pythonExecPath string, metaStorage meta.Storage, venvDir string, installTaps, updateTaps bool, batchSize int, logWriter io.Writer) error {
+func Init(pythonExecPath string, metaStorage meta.Storage, coordinationService *coordination.Service, venvDir string, installTaps, updateTaps bool, batchSize int, logWriter io.Writer) error {
 	logging.Infof("Initializing Singer bridge. Batch size: %d", batchSize)
 
 	if pythonExecPath == "" {
@@ -70,6 +72,7 @@ func Init(pythonExecPath string, metaStorage meta.Storage, venvDir string, insta
 	Instance = &Bridge{
 		mutex:                 &sync.RWMutex{},
 		MetaStorage:           metaStorage,
+		CoordinationService:   coordinationService,
 		PythonExecPath:        pythonExecPath,
 		VenvDir:               venvDir,
 		TmpDir:                path.Join(venvDir, "tmp"),
@@ -192,11 +195,21 @@ func (b *Bridge) UpdateTap(tap string) error {
 //that is we persist config in metaStorage
 //initialConfig is used only if it is first attempt to run current source
 func (b *Bridge) Discover(sourceId, tap string, initialConfig interface{}) (*RawCatalog, error) {
+	collectionLock := b.CoordinationService.CreateLock(sourceId + "_all")
+	locked, err := collectionLock.TryLock(coordination.CollectionLockTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("unable to lock source [%s]: %v", sourceId, err)
+	}
+
+	if !locked {
+		return nil, fmt.Errorf("unable to lock source [%s]. Collection has been already locked: timeout after %s", sourceId, coordination.CollectionLockTimeout)
+	}
+	defer collectionLock.Unlock()
 	outWriter := logging.NewStringWriter()
 	errStrWriter := logging.NewStringWriter()
 	dualStdErrWriter := logging.Dual{FileWriter: errStrWriter, Stdout: logging.NewPrefixDateTimeProxy("[discover]", b.LogWriter)}
 
-	configPath, err := b.InitConfig(sourceId, tap, initialConfig)
+	configPath, err := b.initConfig(sourceId, tap, initialConfig)
 
 	command := path.Join(b.VenvDir, tap, "bin", tap)
 	args := []string{"-c", configPath, "--discover"}
@@ -204,7 +217,7 @@ func (b *Bridge) Discover(sourceId, tap string, initialConfig interface{}) (*Raw
 	if err := runner.ExecCmd(base.SingerType, "", command, outWriter, dualStdErrWriter, time.Minute*2, args...); err != nil {
 		return nil, fmt.Errorf("Error singer --discover: %v. %s", err, errStrWriter.String())
 	}
-	_, err = b.PersistConfig(sourceId, tap)
+	_, err = b.persistConfig(sourceId, tap)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +263,7 @@ func (b *Bridge) Discover(sourceId, tap string, initialConfig interface{}) (*Raw
 	return catalog, nil
 }
 
-func (b *Bridge) InitConfig(sourceId string, tap string, initialConfig interface{}) (string, error) {
+func (b *Bridge) initConfig(sourceId string, tap string, initialConfig interface{}) (string, error) {
 	var config interface{}
 	config, err := b.MetaStorage.GetSignature(sourceId, tap+base.ConfigSignatureSuffix, base.ALL.String())
 	if err != nil {
@@ -260,18 +273,18 @@ func (b *Bridge) InitConfig(sourceId string, tap string, initialConfig interface
 		config = initialConfig
 	}
 	if config == nil || config == "" {
-		return "", fmt.Errorf("Failed to InitConfig for %s. initialConfig was not provided: %v", sourceId, err)
+		return "", fmt.Errorf("Failed to initConfig for %s. initialConfig was not provided: %v", sourceId, err)
 	}
-	configPath, err := b.SaveConfig(sourceId, tap, config)
+	configPath, err := b.saveConfig(sourceId, tap, config)
 	if err != nil {
 		return "", err
 	}
 	return configPath, nil
 }
 
-//SaveConfig saves config as file for using
+//saveConfig saves config as file for using
 //returns absolute file path to generated file
-func (b *Bridge) SaveConfig(sourceId string, tap string, singerConfig interface{}) (string, error) {
+func (b *Bridge) saveConfig(sourceId string, tap string, singerConfig interface{}) (string, error) {
 	configPath, err := GetGonfigPath(sourceId, tap)
 
 	if err != nil {
@@ -296,9 +309,9 @@ func (b *Bridge) SaveConfig(sourceId string, tap string, singerConfig interface{
 	return configPath, nil
 }
 
-func (b *Bridge) PersistConfig(sourceId string, tap string) (string, error) {
+func (b *Bridge) persistConfig(sourceId string, tap string) (string, error) {
 	//assume that config already exist on file system
-	return b.SaveConfig(sourceId, tap, nil)
+	return b.saveConfig(sourceId, tap, nil)
 }
 
 func (b *Bridge) Cleanup(sourceId string, tap string) error {

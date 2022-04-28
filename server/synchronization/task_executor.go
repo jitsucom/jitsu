@@ -31,8 +31,6 @@ import (
 
 const (
 	srcSource = "source"
-
-	collectionLockTimeout = time.Minute
 )
 
 type TaskExecutorContext struct {
@@ -277,7 +275,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	taskLogger.INFO("Acquiring lock...")
 	logging.Debugf("[TASK %s] Getting sync lock source [%s] collection [%s]...", task.ID, task.Source, task.Collection)
 	collectionLock := te.CoordinationService.CreateLock(task.Source + "_" + task.Collection)
-	locked, err := collectionLock.TryLock(collectionLockTimeout)
+	locked, err := collectionLock.TryLock(coordination.CollectionLockTimeout)
 	if err != nil {
 		msg := fmt.Sprintf("unable to lock source [%s] collection [%s] task [%s]: %v", task.Source, task.Collection, task.ID, err)
 		taskCloser.CloseWithError(msg, true)
@@ -285,7 +283,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	}
 
 	if !locked {
-		msg := fmt.Sprintf("unable to lock source [%s] collection [%s] task [%s]. Collection has been already locked: timeout after %s", task.Source, task.Collection, task.ID, collectionLockTimeout.String())
+		msg := fmt.Sprintf("unable to lock source [%s] collection [%s] task [%s]. Collection has been already locked: timeout after %s", task.Source, task.Collection, task.ID, coordination.CollectionLockTimeout.String())
 		taskCloser.CloseWithError(msg, true)
 		return
 	}
