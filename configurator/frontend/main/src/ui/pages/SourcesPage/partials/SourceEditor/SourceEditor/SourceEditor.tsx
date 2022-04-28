@@ -21,6 +21,7 @@ import { ErrorDetailed } from "lib/commons/errors"
 import { connectionsHelper } from "stores/helpers"
 import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 import { flowResult } from "mobx"
+import { useServices } from "../../../../../../hooks/useServices"
 // @Utils
 
 /** Accumulated state of all forms that is transformed and sent to backend on source save */
@@ -125,6 +126,7 @@ const disableControlsRequestsRegistry = new Map<string, { tooltipMessage?: strin
 
 const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
   const history = useHistory()
+  const services = useServices()
   const allSourcesList = sourcesStore.list
   const { source, sourceId } = useParams<{ source?: string; sourceId?: string }>()
 
@@ -211,7 +213,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
 
   const getTestConnectionResponse = async (): Promise<TestConnectionResponse> => {
     const sourceData = handleBringSourceData()
-    const testResult = await sourcePageUtils.testConnection(sourceData, true)
+    const testResult = await sourcePageUtils.testConnection(services.activeProject.id, sourceData, true)
     return testResult
   }
 
@@ -250,7 +252,7 @@ const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
       if (editorMode === "edit") await validateAllForms()
 
       const sourceData = handleBringSourceData()
-      const testConnectionResults = await sourcePageUtils.testConnection(sourceData, true)
+      const testConnectionResults = await sourcePageUtils.testConnection(services.activeProject.id, sourceData, true)
 
       await assertCanConnect({
         testConnectionResponse: testConnectionResults,
