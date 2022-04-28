@@ -252,7 +252,7 @@ func (b *Bridge) Discover(sourceId, tap string, initialConfig interface{}) (*Raw
 
 func (b *Bridge) InitConfig(sourceId string, tap string, initialConfig interface{}) (string, error) {
 	var config interface{}
-	config, err := b.MetaStorage.GetSignature(sourceId, tap+base.ConfigSignatureSuffix, base.ConfigSignatureSuffix)
+	config, err := b.MetaStorage.GetSignature(sourceId, tap+base.ConfigSignatureSuffix, base.ALL.String())
 	if err != nil {
 		return "", fmt.Errorf("Error getting persisted config for %s from meta storage: %v", sourceId, err)
 	}
@@ -286,7 +286,7 @@ func (b *Bridge) SaveConfig(sourceId string, tap string, singerConfig interface{
 	}
 	configBytes, err := ioutil.ReadFile(configPath)
 	if configBytes != nil {
-		err = b.MetaStorage.SaveSignature(sourceId, tap+base.ConfigSignatureSuffix, base.ConfigSignatureSuffix, string(configBytes))
+		err = b.MetaStorage.SaveSignature(sourceId, tap+base.ConfigSignatureSuffix, base.ALL.String(), string(configBytes))
 	}
 	if err != nil {
 		errMsg := fmt.Sprintf("Unable to persist source [%s] tap [%s] config in meta storage: %v", sourceId, tap, err)
