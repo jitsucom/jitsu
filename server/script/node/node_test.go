@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/script"
 	"github.com/jitsucom/jitsu/server/script/node"
 	"github.com/stretchr/testify/assert"
@@ -262,6 +263,29 @@ func TestFetchIsAvailableOnlyInValidatorModuleFunction(t *testing.T) {
 	err = tt.Execute("destination", nil, &resp)
 	assert.NoError(t, err)
 	assert.Equal(t, "undefined", resp)
+}
+
+func TestHeaders(t *testing.T) {
+	tt := &testingT{T: t, exec: script.Expression(`return $context.header("content-type")`)}
+	defer tt.load().close()
+
+	var emptyResp interface{}
+	err := tt.Execute("", script.Args{events.Event{}}, &emptyResp)
+	assert.NoError(t, err)
+	assert.Nil(t, emptyResp)
+
+	headers := make(map[string][]string)
+	headers["content-type"] = []string{"application/json"}
+
+	var resp string
+	err = tt.Execute("", script.Args{events.Event{
+		events.HTTPContextField: events.HTTPContext{
+			Headers: headers,
+		},
+	}}, &resp)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "application/json", resp)
 }
 
 // for manual testing – this can take a while

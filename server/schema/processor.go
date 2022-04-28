@@ -338,6 +338,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 			newTableName = tableName
 		}
 		delete(prObject, templates.TableNameParameter)
+		delete(prObject, events.HTTPContextField)
 		//object has been already processed (storage:table pair might be already processed)
 		_, ok = alreadyUploadedTables[newTableName]
 		if ok {
