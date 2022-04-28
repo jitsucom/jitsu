@@ -82,7 +82,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
           )
         }
 
-        if (sourceEditorUtils.isNativeSource(src) && src.collections.length > 0) {
+        if (sourceEditorUtils.isNativeOrSDKSource(src) && src.collections.length > 0) {
           await Promise.all(
             src.collections.map(stream =>
               services.backendApiClient.post("/tasks", undefined, {

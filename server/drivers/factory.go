@@ -12,6 +12,7 @@ import (
 	_ "github.com/jitsucom/jitsu/server/drivers/google_ads"
 	_ "github.com/jitsucom/jitsu/server/drivers/google_analytics"
 	_ "github.com/jitsucom/jitsu/server/drivers/google_play"
+	_ "github.com/jitsucom/jitsu/server/drivers/jitsu_sdk"
 	_ "github.com/jitsucom/jitsu/server/drivers/redis"
 	_ "github.com/jitsucom/jitsu/server/drivers/singer"
 	"github.com/jitsucom/jitsu/server/jsonutils"
