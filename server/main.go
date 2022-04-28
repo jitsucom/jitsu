@@ -156,6 +156,14 @@ func main() {
 		logging.Fatal(err)
 	}
 
+	//TELEMETRY
+	telemetryURL := viper.GetString("server.telemetry")
+	if telemetryURL == "" && appconfig.Instance.ConfiguratorURL != "" {
+		telemetryURL = fmt.Sprintf("%s/api/v1/telemetry?token=%s", appconfig.Instance.ConfiguratorURL, appconfig.Instance.ConfiguratorToken)
+	}
+
+	telemetry.InitFromViper(telemetryURL, notifications.ServiceName, commit, tag, builtAt, *dockerHubID)
+
 	// ** Meta storage **
 	metaStorageConfiguration := viper.Sub("meta.storage")
 	metaStorage, err := meta.InitializeStorage(metaStorageConfiguration)
@@ -177,6 +185,7 @@ func main() {
 		//inmemory service (default)
 		logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
 			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
+		telemetry.Coordination("inmemory")
 		coordinationService = coordination.NewInMemoryService(appconfig.Instance.ServerName)
 	}
 
@@ -211,20 +220,10 @@ func main() {
 		notifications.SystemErrorf("Panic:\n%s\n%s", value, string(debug.Stack()))
 	}
 
-	//TELEMETRY
-	telemetryURL := viper.GetString("server.telemetry")
-	if telemetryURL == "" && appconfig.Instance.ConfiguratorURL != "" {
-		telemetryURL = fmt.Sprintf("%s/api/v1/telemetry?token=%s", appconfig.Instance.ConfiguratorURL, appconfig.Instance.ConfiguratorToken)
-	}
-
-	telemetry.InitFromViper(telemetryURL, notifications.ServiceName, commit, tag, builtAt, *dockerHubID)
-
 	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
 	systemInfo := runtime.GetInfo()
 	telemetry.EnrichSystemInfo(clusterID, systemInfo)
-	if coordinationService == nil {
-		telemetry.Coordination("inmemory")
-	}
+
 	metricsExported := viper.GetBool("server.metrics.prometheus.enabled")
 	metricsRelay := metrics.InitRelay(clusterID, viper.Sub("server.metrics.relay"))
 	if metricsExported || metricsRelay != nil {
