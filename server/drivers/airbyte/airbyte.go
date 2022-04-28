@@ -134,6 +134,10 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 	return s, nil
 }
 
+func (a *Airbyte) Delete() error {
+	return nil
+}
+
 //TestAirbyte tests airbyte connection (runs check) if docker has been ready otherwise returns errNotReady
 func TestAirbyte(sourceConfig *base.SourceConfig) error {
 	config := &Config{}

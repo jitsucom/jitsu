@@ -113,6 +113,10 @@ func (s *SdkSource) Ready() (bool, error) {
 	return true, nil
 }
 
+func (s *SdkSource) Delete() error {
+	return nil
+}
+
 func (s *SdkSource) Load(config string, state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
 	if s.IsClosed() {
 		return fmt.Errorf("%s has already been closed", s.Type())

@@ -13,3 +13,7 @@ func (ind *IntervalDriver) GetDriversInfo() *DriversInfo {
 		Streams:         1,
 	}
 }
+
+func (ind *IntervalDriver) Delete() error {
+	return nil
+}

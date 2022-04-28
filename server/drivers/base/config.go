@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+const ConfigSignatureSuffix = "_JITSU_config"
+
 //StreamConfiguration is a dto for serialization selected streams configuration
 type StreamConfiguration struct {
 	Name        string   `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
