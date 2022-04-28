@@ -49,8 +49,11 @@ const sourcePageUtils = {
     const options = _options ?? {}
     let connectionTestMessagePrefix: string | undefined
     try {
-      const sourceData = {...src, sourceId: projectId + "." + src.sourceId}
-      const response = await ApplicationServices.get().backendApiClient.post("/sources/test", Marshal.toPureJson(sourceData))
+      const sourceData = { ...src, sourceId: projectId + "." + src.sourceId }
+      const response = await ApplicationServices.get().backendApiClient.post(
+        "/sources/test",
+        Marshal.toPureJson(sourceData)
+      )
 
       if (response["status"] === "pending") {
         actionNotification.loading(
