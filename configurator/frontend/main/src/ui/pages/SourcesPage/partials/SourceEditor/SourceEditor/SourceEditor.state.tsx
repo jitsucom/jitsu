@@ -42,6 +42,7 @@ type SourceEditorViewState = {
     isTestingConnection: boolean
     isLoadingOauthStatus: boolean
     isOauthFlowCompleted: boolean
+    isConfigSealed: boolean
   }
 }
 
@@ -52,6 +53,7 @@ const initialState: SourceEditorViewState = {
     isTestingConnection: false,
     isLoadingOauthStatus: false,
     isOauthFlowCompleted: false,
+    isConfigSealed: false,
   },
 }
 

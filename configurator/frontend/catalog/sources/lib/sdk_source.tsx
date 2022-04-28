@@ -7,7 +7,7 @@ export const allSdkSources: SdkSource[] = [
     id: "sdk-airtable",
     pic: logos.airtable,
     package_name: "jitsu-airtable-source",
-    package_version: "latest",
+    package_version: "^0.7.2",
     displayName: "Airtable",
     stable: true,
   },

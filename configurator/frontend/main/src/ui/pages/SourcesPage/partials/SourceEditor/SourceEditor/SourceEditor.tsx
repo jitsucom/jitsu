@@ -21,6 +21,7 @@ import { ErrorDetailed } from "lib/commons/errors"
 import { connectionsHelper } from "stores/helpers"
 import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 import { flowResult } from "mobx"
+import { useServices } from "../../../../../../hooks/useServices"
 import {
   SourceEditorActionsTypes,
   SourceEditorStateProvider,
@@ -136,6 +137,7 @@ export const SourceEditor: React.FC<CommonSourcePageProps> = ({ editorMode }) =>
 
 const SourceEditorContainer: React.FC<CommonSourcePageProps> = ({ editorMode }) => {
   const history = useHistory()
+  const services = useServices()
   const allSourcesList = sourcesStore.list
   const { source, sourceId } = useParams<{ source?: string; sourceId?: string }>()
 
@@ -202,7 +204,7 @@ const SourceEditorContainer: React.FC<CommonSourcePageProps> = ({ editorMode }) 
 
   const getTestConnectionResponse = async (): Promise<TestConnectionResponse> => {
     const sourceData = handleBringSourceData()
-    const testResult = await sourcePageUtils.testConnection(sourceData, true)
+    const testResult = await sourcePageUtils.testConnection(services.activeProject.id, sourceData, true)
     return testResult
   }
 
@@ -221,7 +223,7 @@ const SourceEditorContainer: React.FC<CommonSourcePageProps> = ({ editorMode }) 
 
   const handleValidateAndTestConnection: HandleValidateTestConnection = async (methodConfig): Promise<void> => {
     await validateAllForms()
-    dispatchSourceEditorAction(SourceEditorActionsTypes.SET_STATUS, { isTestingConnection: true })
+    dispatchSourceEditorAction(SourceEditorActionsTypes.SET_STATUS, { isTestingConnection: true, isConfigSealed: true })
     try {
       await assertCanConnect({ ignoreErrors: methodConfig?.ignoreErrors })
     } finally {
@@ -240,7 +242,7 @@ const SourceEditorContainer: React.FC<CommonSourcePageProps> = ({ editorMode }) 
       if (editorMode === "edit") await validateAllForms()
 
       const sourceData = handleBringSourceData()
-      const testConnectionResults = await sourcePageUtils.testConnection(sourceData, true)
+      const testConnectionResults = await sourcePageUtils.testConnection(services.activeProject.id, sourceData, true)
 
       await assertCanConnect({
         testConnectionResponse: testConnectionResults,

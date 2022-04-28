@@ -214,7 +214,8 @@ func (r *Runner) Close() error {
 	err := exec.Command("docker", "stop", r.identifier, "&").Run()
 	close(r.closed)
 	if err != nil {
-		logging.Errorf("%s airbyte runner closing failed. Killing. Closing error: %v", r.identifier, err)
+		//that might mean that process was stopped naturally
+		logging.Debugf("%s airbyte runner closing failed. Killing. Closing error: %v", r.identifier, err)
 		_ = r.command.Process.Kill()
 		return err
 	}
