@@ -15,9 +15,13 @@ var ErrAirbyteAlreadyTerminated = errors.New("Airbyte Runner has been already te
 
 //ExecCmd executes command with args and uses stdOutWriter and stdErrWriter to pipe the result
 //runs separate goroutine for timeout control
-func ExecCmd(system, cmd string, stdOutWriter, stdErrWriter io.Writer, timeout time.Duration, args ...string) error {
+func ExecCmd(system, dir, cmd string, stdOutWriter, stdErrWriter io.Writer, timeout time.Duration, args ...string) error {
 	logging.Debugf("Running %s command: %s with timeout [%s] with args [%s]", system, cmd, timeout.String(), strings.Join(args, ", "))
+
 	execCmd := exec.Command(cmd, args...)
+	if dir != "" {
+		execCmd.Dir = dir
+	}
 
 	stdout, _ := execCmd.StdoutPipe()
 	stderr, _ := execCmd.StderrPipe()

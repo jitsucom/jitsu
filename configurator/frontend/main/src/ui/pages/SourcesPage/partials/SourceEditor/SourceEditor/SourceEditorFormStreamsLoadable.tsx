@@ -19,13 +19,13 @@ import {
   PullAllStreams,
 } from "./SourceEditorPullData"
 import { sourceEditorUtils } from "./SourceEditor.utils"
+import { SourceEditorActionsTypes, useSourceEditorDispatcher } from "./SourceEditor.state"
 
 type Props = {
   editorMode: "add" | "edit"
   initialSourceData: Optional<Partial<AirbyteSourceData | SingerSourceData>>
   sourceDataFromCatalog: SourceConnector
   setSourceEditorState: SetSourceEditorState
-  handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
   handleBringSourceData: () => SourceData
 }
 
@@ -34,9 +34,10 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
   initialSourceData,
   sourceDataFromCatalog,
   setSourceEditorState,
-  handleSetControlsDisabled,
   handleBringSourceData,
 }) => {
+  const dispatch = useSourceEditorDispatcher()
+
   const previouslySelectedStreams = useMemo<Array<StreamConfig>>(
     () => initialSourceData?.config?.selected_streams ?? [],
     [initialSourceData]
@@ -55,7 +56,6 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
     }
   }, [])
 
-  const controlsDisableRequestId = uniqueId("streams-")
   const {
     isLoading,
     data,
@@ -72,10 +72,10 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
         }
       },
       onBeforePollingStart: () => {
-        handleSetControlsDisabled("Loading streams list", controlsDisableRequestId)
+        dispatch(SourceEditorActionsTypes.SET_STATUS, { isLoadingStreams: true })
       },
       onAfterPollingEnd: () => {
-        handleSetControlsDisabled(false, controlsDisableRequestId)
+        dispatch(SourceEditorActionsTypes.SET_STATUS, { isLoadingStreams: false })
       },
     }),
   })

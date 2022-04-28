@@ -78,7 +78,7 @@ func (p *StdIO) Send(_ context.Context, data []byte) error {
 	return err
 }
 
-func (p *StdIO) Receive(ctx context.Context) ([]byte, error) {
+func (p *StdIO) Receive(ctx context.Context, dataChannel chan<- interface{}) ([]byte, error) {
 	done := make(chan bool)
 	defer close(done)
 	go func() {
@@ -91,9 +91,23 @@ func (p *StdIO) Receive(ctx context.Context) ([]byte, error) {
 	}()
 
 	reader := bufio.NewReader(p.stdout)
-	line, err := reader.ReadBytes('\n')
-	done <- true
-	return line, err
+	for {
+		line, err := reader.ReadBytes('\n')
+		if err != nil {
+			done <- true
+			return line, err
+		} else if len(line) > 30 && line[0] == 'J' && line[1] == ':' &&
+			strings.Contains(string(line), "_JITSU_SCRIPT_RESULT") {
+			done <- true
+			return line[2:], nil
+		} else if len(line) > 1 {
+			if dataChannel != nil {
+				dataChannel <- line
+			} else {
+				logging.Info(string(line))
+			}
+		}
+	}
 }
 
 func (p *StdIO) Kill() {
