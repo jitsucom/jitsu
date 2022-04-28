@@ -1,5 +1,24 @@
 [
   {
+    "__HTTP_CONTEXT__": {
+      "headers": {
+        "accept-encoding": [
+          "gzip"
+        ],
+        "authorization": [
+          "Basic czJzdG9rZW46"
+        ],
+        "content-length": [
+          "8590"
+        ],
+        "content-type": [
+          "application/json"
+        ],
+        "user-agent": [
+          "analytics-go (version: 3.0.0)"
+        ]
+      }
+    },
     "_timestamp": "2020-06-16T23:00:00.000000Z",
     "api_key": "s2stoken",
     "app": {
@@ -55,9 +74,8 @@
       "os_version": "14.0",
       "ua_version": "12"
     },
-
-      "currency": "USD",
-      "revenue": 10,
+    "currency": "USD",
+    "revenue": 10,
     "referer": "ref_url",
     "referrer": {
       "link": "ref_link",
@@ -72,7 +90,7 @@
       "anonymous_id": "anonym1",
       "email": "ned@starkinc.com",
       "firstName": "Ned",
-      "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
+      "hashed_anonymous_id": "fae67b1cccc98d3e7e1f722238568662",
       "lastName": "Stark",
       "role": "the Lord of Winterfell"
     },
@@ -88,6 +106,25 @@
     }
   },
   {
+    "__HTTP_CONTEXT__": {
+      "headers": {
+        "accept-encoding": [
+          "gzip"
+        ],
+        "authorization": [
+          "Basic czJzdG9rZW46"
+        ],
+        "content-length": [
+          "8590"
+        ],
+        "content-type": [
+          "application/json"
+        ],
+        "user-agent": [
+          "analytics-go (version: 3.0.0)"
+        ]
+      }
+    },
     "_timestamp": "2020-06-16T23:00:00.000000Z",
     "api_key": "s2stoken",
     "app": {
@@ -143,8 +180,8 @@
       "os_version": "14.0",
       "ua_version": "12"
     },
-      "currency": "USD",
-      "revenue": 10,
+    "currency": "USD",
+    "revenue": 10,
     "referer": "ref_url",
     "referrer": {
       "link": "ref_link",
@@ -158,7 +195,7 @@
     "user": {
       "anonymous_id": "anonym1",
       "email": "ned@starkinc.com",
-      "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
+      "hashed_anonymous_id": "fae67b1cccc98d3e7e1f722238568662",
       "firstName": "Ned",
       "lastName": "Stark",
       "role": "the Lord of Winterfell"
@@ -175,6 +212,25 @@
     }
   },
   {
+    "__HTTP_CONTEXT__": {
+      "headers": {
+        "accept-encoding": [
+          "gzip"
+        ],
+        "authorization": [
+          "Basic czJzdG9rZW46"
+        ],
+        "content-length": [
+          "8590"
+        ],
+        "content-type": [
+          "application/json"
+        ],
+        "user-agent": [
+          "analytics-go (version: 3.0.0)"
+        ]
+      }
+    },
     "_timestamp": "2020-06-16T23:00:00.000000Z",
     "api_key": "s2stoken",
     "app": {
@@ -243,7 +299,7 @@
     "user": {
       "email": "ned@starkinc.com",
       "firstName": "Ned",
-      "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
+      "hashed_anonymous_id": "fae67b1cccc98d3e7e1f722238568662",
       "internal_id": "user1",
       "id": "user1",
       "lastName": "Stark",
@@ -261,6 +317,25 @@
     }
   },
   {
+    "__HTTP_CONTEXT__": {
+      "headers": {
+        "accept-encoding": [
+          "gzip"
+        ],
+        "authorization": [
+          "Basic czJzdG9rZW46"
+        ],
+        "content-length": [
+          "8590"
+        ],
+        "content-type": [
+          "application/json"
+        ],
+        "user-agent": [
+          "analytics-go (version: 3.0.0)"
+        ]
+      }
+    },
     "_timestamp": "2020-06-16T23:00:00.000000Z",
     "api_key": "s2stoken",
     "app": {
@@ -331,7 +406,7 @@
       "anonymous_id": "anonym1",
       "email": "ned@starkinc.com",
       "firstName": "Ned",
-      "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
+      "hashed_anonymous_id": "fae67b1cccc98d3e7e1f722238568662",
       "internal_id": "user1",
       "id": "user1",
       "lastName": "Stark",
@@ -349,6 +424,25 @@
     }
   },
   {
+    "__HTTP_CONTEXT__": {
+      "headers": {
+        "accept-encoding": [
+          "gzip"
+        ],
+        "authorization": [
+          "Basic czJzdG9rZW46"
+        ],
+        "content-length": [
+          "8590"
+        ],
+        "content-type": [
+          "application/json"
+        ],
+        "user-agent": [
+          "analytics-go (version: 3.0.0)"
+        ]
+      }
+    },
     "_timestamp": "2020-06-16T23:00:00.000000Z",
     "api_key": "s2stoken",
     "app": {
@@ -418,7 +512,7 @@
       "anonymous_id": "anonym1",
       "email": "ned@starkinc.com",
       "firstName": "Ned",
-      "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
+      "hashed_anonymous_id": "fae67b1cccc98d3e7e1f722238568662",
       "internal_id": "user1",
       "id": "user1",
       "lastName": "Stark",
@@ -436,6 +530,25 @@
     }
   },
   {
+    "__HTTP_CONTEXT__": {
+      "headers": {
+        "accept-encoding": [
+          "gzip"
+        ],
+        "authorization": [
+          "Basic czJzdG9rZW46"
+        ],
+        "content-length": [
+          "8590"
+        ],
+        "content-type": [
+          "application/json"
+        ],
+        "user-agent": [
+          "analytics-go (version: 3.0.0)"
+        ]
+      }
+    },
     "_timestamp": "2020-06-16T23:00:00.000000Z",
     "api_key": "s2stoken",
     "app": {
@@ -492,9 +605,8 @@
       "os_version": "14.0",
       "ua_version": "12"
     },
-
-      "currency": "USD",
-      "revenue": 10,
+    "currency": "USD",
+    "revenue": 10,
     "referer": "ref_url",
     "referrer": {
       "link": "ref_link",
@@ -509,7 +621,7 @@
       "anonymous_id": "anonym1",
       "email": "ned@starkinc.com",
       "firstName": "Ned",
-      "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
+      "hashed_anonymous_id": "fae67b1cccc98d3e7e1f722238568662",
       "internal_id": "user1",
       "id": "user1",
       "lastName": "Stark",
