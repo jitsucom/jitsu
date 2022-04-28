@@ -206,7 +206,6 @@ func TestCors(t *testing.T) {
 func TestIncomingEvent(t *testing.T) {
 	uuid.InitMock()
 	binding.EnableDecoderUseNumber = true
-	appconfig.Instance.EnrichWithHTTPContext = true
 
 	SetTestDefaultParams()
 	tests := []test.Integration{
@@ -435,6 +434,7 @@ func TestIncomingEvent(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			testSuite := testsuit.NewSuiteBuilder(t).Build(t)
 			defer testSuite.Close()
+			appconfig.Instance.EnrichWithHTTPContext = true
 
 			b, err := ioutil.ReadFile(tt.ReqBodyPath)
 			require.NoError(t, err)
@@ -500,8 +500,6 @@ func TestIncomingEvent(t *testing.T) {
 func TestSegmentAPIEndpoint(t *testing.T) {
 	uuid.InitMock()
 	binding.EnableDecoderUseNumber = true
-	// for some reason when this test runs on GitHub requests content length differs from local
-	//appconfig.Instance.EnrichWithHTTPContext = true
 
 	SetTestDefaultParams()
 	tests := []struct {
@@ -530,6 +528,9 @@ func TestSegmentAPIEndpoint(t *testing.T) {
 
 			testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock(nil).Build(t)
 			defer testSuite.Close()
+
+			// for some reason when this test runs on GitHub requests content length differs from local
+			//appconfig.Instance.EnrichWithHTTPContext = true
 
 			sendSegmentRequests(t, "http://"+testSuite.HTTPAuthority()+tt.ReqURN)
 
@@ -705,7 +706,6 @@ func TestPixelEndpoint(t *testing.T) {
 func TestIPCookiePolicyComply(t *testing.T) {
 	uuid.InitMock()
 	binding.EnableDecoderUseNumber = true
-	appconfig.Instance.EnrichWithHTTPContext = true
 
 	SetTestDefaultParams()
 	tests := []struct {
@@ -789,6 +789,8 @@ func TestIPCookiePolicyComply(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock(tt.GeoData).Build(t)
 			defer testSuite.Close()
+
+			appconfig.Instance.EnrichWithHTTPContext = true
 
 			b, err := ioutil.ReadFile(tt.ReqBodyPath)
 			require.NoError(t, err)
