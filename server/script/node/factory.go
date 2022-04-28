@@ -133,7 +133,7 @@ func (f *Factory) Close() error {
 	return nil
 }
 
-func (f *Factory) CreateScript(executable script.Executable, variables map[string]interface{}, includes ...string) (script.Interface, error) {
+func (f *Factory) CreateScript(executable script.Executable, variables map[string]interface{}, standalone bool, includes ...string) (script.Interface, error) {
 	var (
 		expression string
 
@@ -199,8 +199,11 @@ module.exports = async (event) => {
 
 	defer cancel()
 
+	var exer *exchanger
 	exchangerIdx := hash % uint64(len(f.exchangers))
-	exer := f.exchangers[exchangerIdx]
+	if !standalone {
+		exer = f.exchangers[exchangerIdx]
+	}
 	if exer == nil {
 		process := &ipc.StdIO{
 			Dir:  f.dir,
@@ -216,14 +219,17 @@ module.exports = async (event) => {
 
 		logging.Debugf("%s running in %s", governor, f.dir)
 		exer = &exchanger{Governor: governor}
-		f.exchangers[exchangerIdx] = exer
+		if !standalone {
+			f.exchangers[exchangerIdx] = exer
+		}
 	}
 
 	init.Session.Session = fmt.Sprintf("%x", hash)
 	return &Script{
-		Init:      init,
-		exchanger: exer,
-		rowOffset: rowOffset,
-		colOffset: colOffset,
+		Init:       init,
+		exchanger:  exer,
+		rowOffset:  rowOffset,
+		colOffset:  colOffset,
+		standalone: standalone,
 	}, nil
 }
