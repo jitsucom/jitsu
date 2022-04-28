@@ -543,18 +543,21 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 //Config file might be updated by cli program after run.
 //We need to write it to persistent storage so other cluster nodes will read actual config
 func (te *TaskExecutor) persistConfig(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver) error {
-	configBytes, err := ioutil.ReadFile(cliDriver.GetConfigPath())
-	if configBytes != nil {
-		err = te.MetaStorage.SaveSignature(task.Source, cliDriver.GetCollectionMetaKey()+driversbase.ConfigSignatureSuffix, driversbase.ConfigSignatureSuffix, string(configBytes))
+	if cliDriver.GetConfigPath() != "" {
+		configBytes, err := ioutil.ReadFile(cliDriver.GetConfigPath())
+		if configBytes != nil {
+			err = te.MetaStorage.SaveSignature(task.Source, cliDriver.GetCollectionMetaKey()+driversbase.ConfigSignatureSuffix, driversbase.ConfigSignatureSuffix, string(configBytes))
+		}
+		if err != nil {
+			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] config: %v", task.Source, cliDriver.GetCollectionMetaKey(), err)
+			taskLogger.ERROR(errMsg)
+			logging.SystemError(errMsg)
+			return errors.New(errMsg)
+		}
+		taskLogger.INFO("Config saved.")
 	}
-	if err != nil {
-		errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] config: %v", task.Source, cliDriver.GetCollectionMetaKey(), err)
-		taskLogger.ERROR(errMsg)
-		logging.SystemError(errMsg)
-		return errors.New(errMsg)
-	}
-	taskLogger.INFO("Config saved.")
 	return nil
+
 }
 
 func (te *TaskExecutor) Close() error {
