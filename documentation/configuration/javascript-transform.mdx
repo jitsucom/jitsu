@@ -21,6 +21,13 @@ To override the destination table, you need to add a special property `JITSU_TAB
 
 To override the destination SQL column type for a specific object field, you need to add an extra property with the special prefix `__sql_type_` added to the name of a field to resulting events. E.g.: `__sql_type_utc_time: "date"` sets SQL type **date** for column **utc_time**
 
+**NOTE** Jitsu uses Node.js under the hood for JavaScript execution. This requires that `node` and `npm` executables are
+present in `$PATH`. Furthermore, Jitsu needs `node-fetch@2.6.7` and `vm2@3.9.9` NPM modules in order to run JavaScript
+transformations and plugins. These modules are installed in a temporary directory automatically on Jitsu Server startup,
+but you may set `NODE_PATH` environment variable with the location of `node_modules` directory with `node-fetch` and `vm2`
+installed in order to use pre-installed modules. You can also use our Docker image which is already set up to run JavaScript
+transformations and plugins.
+
 ## Server YAML configuration
 
 Transform is controlled via `data_layout.transform_enabled` and `data_layout.transform` properties of **destination** object. <br/>

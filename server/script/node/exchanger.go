@@ -13,7 +13,7 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
-var defaultExchangeTimeout = time.Minute
+var DefaultExchangeTimeout = time.Minute
 
 type Request struct {
 	Command string      `json:"command"`
@@ -55,7 +55,7 @@ var errLoadRequired = errors.New("load required")
 type exchangerFunc func(ctx context.Context, data []byte, dataChannel chan<- interface{}) ([]byte, error)
 
 func (e *exchanger) exchangeDirect(command string, payload, result interface{}, dataChannel chan<- interface{}) error {
-	return e.exchange0(command, payload, result, dataChannel, defaultExchangeTimeout, e.ExchangeDirect)
+	return e.exchange0(command, payload, result, dataChannel, DefaultExchangeTimeout, e.ExchangeDirect)
 }
 
 func (e *exchanger) exchange(command string, payload, result interface{}, dataChannel chan<- interface{}, timeout time.Duration) error {
@@ -73,7 +73,7 @@ func (e *exchanger) exchange0(command string, payload, result interface{}, dataC
 	}
 
 	if timeout <= 0 {
-		timeout = defaultExchangeTimeout
+		timeout = DefaultExchangeTimeout
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
