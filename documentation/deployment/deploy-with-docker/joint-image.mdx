@@ -46,6 +46,10 @@ under `/configurator` path
 <APIParam small={true} name="JITSU_SMTP_CONFIG" dataType="string" required={false} type="Docker Env Var">
     SMTP configuration in JSON format. Read more about this configuration <a href="/docs/configurator-configuration">here</a>
 </APIParam>
+<APIParam small={true} name="JITSU_HTTP_CONTEXT_ENRICHMENT" dataType="boolean" required={false} type="Docker Env Var">
+  Whether the server should enrich incoming HTTP events with HTTP context (headers, etc.).
+  Please note that when upgrading from Jitsu 1.41.6 you can switch this setting to `true` only separately from the upgrade itself, otherwise event data may get corrupted.
+</APIParam>
 
 <Hint>
   Variables below are available only in <code inline={true}>beta</code> version

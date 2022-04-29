@@ -122,6 +122,10 @@ those variables will not work!
 <APIParam small={true} name="JITSU_UI_BASE_URL" dataType="string" required={false} type="Docker Env Var">
   Base Configurator UI URL for generating links in notifications.
 </APIParam>
+<APIParam small={true} name="JITSU_HTTP_CONTEXT_ENRICHMENT" dataType="boolean" required={false} type="Docker Env Var">
+  Whether the server should enrich incoming HTTP events with HTTP context (headers, etc.).
+  Please note that when upgrading from Jitsu 1.41.6 you can switch this setting to `true` only separately from the upgrade itself, otherwise event data may get corrupted.
+</APIParam>
 
 
 

@@ -1,6 +1,25 @@
 {
-  "_timestamp":"2020-06-16T23:00:00.000000Z",
-  "api_key":"s2stoken",
+  "__HTTP_CONTEXT__": {
+    "headers": {
+      "accept-encoding": [
+        "gzip"
+      ],
+      "content-length": [
+        "218"
+      ],
+      "user-agent": [
+        "Go-http-client/1.1"
+      ],
+      "x-auth-token": [
+        "s2stoken"
+      ],
+      "x-forwarded-for": [
+        "95.82.232.185"
+      ]
+    }
+  },
+  "_timestamp": "2020-06-16T23:00:00.000000Z",
+  "api_key": "s2stoken",
   "custom_data": {
     "key1": "key2"
   },
@@ -12,6 +31,6 @@
   "user": {
     "id": 123
   },
-  "source_ip":"95.82.232.185",
-  "src":"api"
+  "source_ip": "95.82.232.185",
+  "src": "api"
 }
