@@ -174,3 +174,26 @@ Also `toSegment(event)` function is available to set up [Segment Compatibility](
 ```javascript
 return toSegment($)
 ```
+
+## Using HTTP headers in transformations
+
+Jitsu Server may be configured to enrich incoming HTTP events with HTTP context – headers and possibly other stuff in the future.
+Please refer to [Jitsu YAML configuration section](/docs/configuration) and [Jitsu Docker configuration section](/docs/deployment/deploy-with-docker/joint-image)
+for more information on enabling the feature.
+
+In order to access HTTP context from JavaScript transformation you may use `$context.header()` helper function which
+will return the first header value (if any):
+
+```javascript
+return {...$,
+    content_type: $context.header("content-type")
+}
+```
+
+It is also possible to directly access HTTP context via `$`:
+
+```javascript
+return {...$,
+    content_type: $['__HTTP_CONTEXT__'].headers["content-type"][0]
+}
+```
