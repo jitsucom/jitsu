@@ -1,4 +1,20 @@
 {
+  "__HTTP_CONTEXT__": {
+    "headers": {
+      "accept-encoding": [
+        "gzip"
+      ],
+      "content-length": [
+        "1174"
+      ],
+      "user-agent": [
+        "Go-http-client/1.1"
+      ],
+      "x-forwarded-for": [
+        "95.82.232.185"
+      ]
+    }
+  },
   "_metadata": {
     "bundled": [
       "Segment.io"
@@ -40,7 +56,7 @@
   "user": {
     "anonymous_id": "e10d0b70-0a3e-44b5-82ea-43f1372904ee",
     "email": "mbrown@example.com",
-    "hashed_anonymous_id":"f56dca73ba080f5ac7a401a7b2c4d3d5",
+    "hashed_anonymous_id": "f56dca73ba080f5ac7a401a7b2c4d3d5",
     "internal_id": "f4ca124298",
     "name": "Michael Brown",
     "id": "f4ca124298"

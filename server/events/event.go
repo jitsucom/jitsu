@@ -3,10 +3,18 @@ package events
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/parsers"
 )
+
+const HTTPContextField = "__HTTP_CONTEXT__"
+
+type HTTPContext struct {
+	Headers http.Header `json:"headers,omitempty"`
+}
 
 //Event is a dto for deserialization input events
 type Event map[string]interface{}

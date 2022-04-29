@@ -1,6 +1,25 @@
 {
-  "_timestamp":"2020-06-16T23:00:00.000000Z",
-  "source_ip":"95.82.232.185",
+  "__HTTP_CONTEXT__": {
+    "headers": {
+      "accept-encoding": [
+        "gzip"
+      ],
+      "content-length": [
+        "824"
+      ],
+      "user-agent": [
+        "Go-http-client/1.1"
+      ],
+      "x-auth-token": [
+        "c2stoken"
+      ],
+      "x-forwarded-for": [
+        "95.82.232.185"
+      ]
+    }
+  },
+  "_timestamp": "2020-06-16T23:00:00.000000Z",
+  "source_ip": "95.82.232.185",
   "src": "jitsu_ios",
   "api_key": "c2stoken",
   "app_build_id": "2.1.1",
@@ -20,7 +39,7 @@
   "user": {
     "anonymous_id": "sh1ah4rvqedasfd",
     "email": "foo@bar.com",
-    "hashed_anonymous_id":"c48e863c1710f147ad11fd2715f99d7a",
+    "hashed_anonymous_id": "c48e863c1710f147ad11fd2715f99d7a",
     "internal_id": "pzrWMXvtZUThJ24JW5iL2bvG9SA2"
   },
   "user_language": "en-GB",
