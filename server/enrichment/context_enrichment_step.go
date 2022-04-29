@@ -2,12 +2,17 @@ package enrichment
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
-	"time"
 )
 
 const (
@@ -19,6 +24,19 @@ const (
 var (
 	lastApiTokenWarningErrorTime = timestamp.Now().Add(time.Second * -apiTokenWarningFreqSec)
 )
+
+func HTTPContextEnrichmentStep(c *gin.Context, event events.Event) {
+	if appconfig.Instance.EnrichWithHTTPContext {
+		headers := make(http.Header)
+		for key, values := range c.Request.Header {
+			headers[strings.ToLower(key)] = values
+		}
+
+		event[events.HTTPContextField] = &events.HTTPContext{
+			Headers: headers,
+		}
+	}
+}
 
 //ContextEnrichmentStep enriches payload with ip, user-agent, token, unique ID field (event_id) and _timestamp
 func ContextEnrichmentStep(payload events.Event, token string, reqContext *events.RequestContext, preprocessor events.Processor,
