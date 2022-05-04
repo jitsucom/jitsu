@@ -50,7 +50,7 @@ type LocalAuthorizator interface {
 	GetUserIDByEmail(ctx context.Context, userEmail string) (string, error)
 }
 
-type CloudAuthorizator interface{}
+type CloudAuthorizator interface {}
 
 type SSOProvider interface {
 	Name() string
