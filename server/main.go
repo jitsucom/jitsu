@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jitsucom/jitsu/server/oauth"
 	"github.com/jitsucom/jitsu/server/script/node"
 	"github.com/jitsucom/jitsu/server/templates"
 
@@ -218,6 +219,17 @@ func main() {
 		logging.Error(value)
 		logging.Error(string(debug.Stack()))
 		notifications.SystemErrorf("Panic:\n%s\n%s", value, string(debug.Stack()))
+	}
+
+	if oauthSecretsURL := viper.GetString("oauth_secrets"); oauthSecretsURL != "" {
+		oauthService, err := oauth.NewReloadableService(oauthSecretsURL)
+		if err != nil {
+			logging.Errorf("Failed to load OAuth secrets from %s, falling back to YAML configuration: %v",
+				oauthSecretsURL, err)
+		} else {
+			appconfig.Instance.ScheduleClosing(oauthService)
+			oauth.Set(oauthService)
+		}
 	}
 
 	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())

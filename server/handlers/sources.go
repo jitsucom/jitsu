@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -15,9 +18,6 @@ import (
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/sources"
-	"github.com/spf13/viper"
-	"net/http"
-	"strings"
 )
 
 //ClearCacheRequest is a dto for ClearCache endpoint
@@ -172,13 +172,13 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 func (sh *SourcesHandler) OauthFields(c *gin.Context) {
 	res := make(map[string]interface{})
 	sourceType := c.Param("sourceType")
-	oathFields, ok := oauth.Fields[sourceType]
+	oauthConfig, ok := oauth.Get(sourceType)
 	if ok {
-		for k, v := range oathFields {
+		for k, v := range oauthConfig {
 			fieldObject := make(map[string]interface{})
-			fieldObject["env_name"] = strings.ReplaceAll(strings.ToUpper(v), ".", "_")
-			fieldObject["yaml_path"] = v
-			fieldObject["provided"] = viper.GetString(v) != ""
+			fieldObject["env_name"] = v.EnvName
+			fieldObject["yaml_path"] = v.YAMLPath
+			fieldObject["provided"] = v.Provided
 			res[k] = fieldObject
 		}
 	}
