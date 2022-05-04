@@ -99,7 +99,7 @@ func (s *ReloadableService) refreshSecrets(ctx context.Context) error {
 
 		secret := make(Secrets)
 		for key, value := range cred.Secrets {
-			secret[stringy.New(key).SnakeCase().Get()] = SecretValue{
+			secret[stringy.New(key).SnakeCase().ToLower()] = SecretValue{
 				Value:    value,
 				Provided: true,
 			}
