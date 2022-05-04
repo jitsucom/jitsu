@@ -118,12 +118,21 @@ export async function getServerSideProps() {
 Jitsu could track page views automatically via use of `_middleware.js` which has been introduced in NextJS 12
 
 ```javascript
+import { createClient, middlewareEnv } from "@jitsu/nextjs";
+import { NextResponse } from "next/server";
+
+const jitsu = createClient({
+  tracking_host: "__JITSU_HOST__",
+  key: "__API_KET__"
+})
+
 export function middleware(req, ev) {
-  const {page} = req
-  if ( !page?.name ) {
+  let res = NextResponse.next()
+  if (!req?.page?.name) {
     return;
   }
-  jitsu.track("page_view", {page: req.page})
+  jitsu.track("pageview", { env: middlewareEnv(req, res) })
+  return res
 }
 ```
 
