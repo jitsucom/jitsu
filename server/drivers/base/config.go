@@ -8,7 +8,6 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/oauth"
 	"github.com/jitsucom/jitsu/server/timestamp"
-	"github.com/spf13/viper"
 )
 
 const ConfigSignatureSuffix = "_JITSU_config"
@@ -100,14 +99,14 @@ func StreamIdentifier(namespace, name string) string {
 }
 
 func FillPreconfiguredOauth(sourceType string, config interface{}) {
-	oathFields, ok := oauth.Fields[sourceType]
+	oathFields, ok := oauth.Get(sourceType)
 	if ok {
 		sourceConnectorConfig, ok := config.(map[string]interface{})
 		if ok {
 			for k, v := range oathFields {
 				cf, ok := sourceConnectorConfig[k]
-				if (!ok || cf == "") && viper.GetString(v) != "" {
-					sourceConnectorConfig[k] = viper.GetString(v)
+				if (!ok || cf == "") && v.Provided {
+					sourceConnectorConfig[k] = v.Value
 				}
 			}
 		}

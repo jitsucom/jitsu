@@ -2,12 +2,13 @@ package google_ads
 
 import (
 	"errors"
+	"strconv"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/oauth"
 	"github.com/spf13/viper"
-	"strconv"
-	"time"
 )
 
 //googleAdsHTTPConfiguration contains default amplitude HTTP timeouts/retry/delays,etc
@@ -32,10 +33,10 @@ type GoogleAdsCollectionConfig struct {
 }
 
 func (gac *GoogleAdsConfig) FillPreconfiguredOauth(sourceType string) {
-	oathFields, ok := oauth.Fields[sourceType]
+	oauthConfig, ok := oauth.Get(sourceType)
 	if ok {
-		if developerToken, ok := oathFields["developer_token"]; gac.DeveloperToken == "" && ok {
-			gac.DeveloperToken = viper.GetString(developerToken)
+		if developerToken, ok := oauthConfig["developer_token"]; gac.DeveloperToken == "" && ok {
+			gac.DeveloperToken = developerToken.Value
 		}
 		//backward compatibility with previous versions config
 		if gac.DeveloperToken == "" && viper.GetString("google-ads.developer-token") != "" {

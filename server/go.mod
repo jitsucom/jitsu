@@ -18,7 +18,7 @@ require (
 	github.com/go-redsync/redsync/v4 v4.3.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gomodule/redigo v1.8.2
-	github.com/google/go-cmp v0.5.6 // indirect
+	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v32 v32.1.0
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/martian v2.1.0+incompatible
@@ -69,6 +69,7 @@ require (
 )
 
 require (
+	github.com/gobeam/stringy v0.0.5
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/joomcode/errorx v1.1.0
 )

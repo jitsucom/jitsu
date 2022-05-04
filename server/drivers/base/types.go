@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/oauth"
-	"github.com/jitsucom/jitsu/server/schema"
-	"github.com/spf13/viper"
 	"io"
 	"io/ioutil"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/oauth"
+	"github.com/jitsucom/jitsu/server/schema"
 )
 
 const (
@@ -78,13 +78,13 @@ func (gac *GoogleAuthConfig) FillPreconfiguredOauth(sourceType string) {
 	if gac == nil || gac.Type != GoogleOAuthAuthorizationType {
 		return
 	}
-	oathFields, ok := oauth.Fields[sourceType]
+	oauthConfig, ok := oauth.Get(sourceType)
 	if ok {
-		if clientId, ok := oathFields["client_id"]; gac.ClientID == "" && ok {
-			gac.ClientID = viper.GetString(clientId)
+		if clientId, ok := oauthConfig["client_id"]; gac.ClientID == "" && ok {
+			gac.ClientID = clientId.Value
 		}
-		if clientSecret, ok := oathFields["client_secret"]; gac.ClientSecret == "" && ok {
-			gac.ClientSecret = viper.GetString(clientSecret)
+		if clientSecret, ok := oauthConfig["client_secret"]; gac.ClientSecret == "" && ok {
+			gac.ClientSecret = clientSecret.Value
 		}
 	}
 }

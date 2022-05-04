@@ -5,6 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"sort"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/drivers/base"
@@ -13,12 +18,6 @@ import (
 	"github.com/jitsucom/jitsu/server/oauth"
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/utils"
-	"github.com/spf13/viper"
-	"io/ioutil"
-	"net/http"
-	"sort"
-	"strings"
-	"time"
 )
 
 const (
@@ -123,7 +122,7 @@ func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 }
 
 func enrichOathFields(dockerImage string, spec interface{}) {
-	oathFields, ok := oauth.Fields[dockerImage]
+	oauthConfig, ok := oauth.Get(dockerImage)
 	if ok {
 		props, err := utils.ExtractObject(spec, "connectionSpecification", "properties")
 		if err != nil {
@@ -143,7 +142,7 @@ func enrichOathFields(dockerImage string, spec interface{}) {
 			return
 		}
 		provided := make(map[string]bool)
-		for k, v := range oathFields {
+		for k, v := range oauthConfig {
 			pr, ok := propsMap[k]
 			if !ok {
 				continue
@@ -153,11 +152,10 @@ func enrichOathFields(dockerImage string, spec interface{}) {
 				logging.Errorf("cannot convert property %s to map[string]interface{} from: %T", k, pr)
 				continue
 			}
-			prov := viper.GetString(v) != ""
-			prMap["env_name"] = strings.ReplaceAll(strings.ToUpper(v), ".", "_")
-			prMap["yaml_path"] = v
-			prMap["provided"] = prov
-			provided[k] = prov
+			prMap["env_name"] = v.EnvName
+			prMap["yaml_path"] = v.YAMLPath
+			prMap["provided"] = v.Provided
+			provided[k] = v.Provided
 		}
 		newReq := make([]interface{}, 0, len(required)-len(provided))
 		for _, v := range required {
