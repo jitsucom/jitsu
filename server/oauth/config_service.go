@@ -64,7 +64,7 @@ func (s *ConfigService) Get(id string) (Secrets, bool) {
 		value := viper.GetString(configKey)
 		secret[key] = SecretValue{
 			Value:    value,
-			EnvName:  strings.ReplaceAll(strings.ToUpper(value), ".", "_"),
+			EnvName:  strings.ReplaceAll(strings.ToUpper(configKey), ".", "_"),
 			YAMLPath: configKey,
 			Provided: value != "",
 		}
