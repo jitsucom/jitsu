@@ -18,45 +18,46 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jitsucom/jitsu/server/airbyte"
-	"github.com/jitsucom/jitsu/server/cmd"
-	"github.com/jitsucom/jitsu/server/config"
-	"github.com/jitsucom/jitsu/server/coordination"
-	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/geo"
-	"github.com/jitsucom/jitsu/server/logevents"
-	"github.com/jitsucom/jitsu/server/multiplexing"
-	"github.com/jitsucom/jitsu/server/plugins"
-	"github.com/jitsucom/jitsu/server/runtime"
-	"github.com/jitsucom/jitsu/server/schema"
-	"github.com/jitsucom/jitsu/server/system"
-	"github.com/jitsucom/jitsu/server/timestamp"
-	"github.com/jitsucom/jitsu/server/uuid"
-	"github.com/jitsucom/jitsu/server/wal"
+	"github.com/jitsucom/jitsu/server/script/node"
+	"github.com/jitsucom/jitsu/server/templates"
 
 	"github.com/gin-gonic/gin/binding"
+	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/cmd"
+	"github.com/jitsucom/jitsu/server/config"
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
+	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/fallback"
+	"github.com/jitsucom/jitsu/server/geo"
+	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/logfiles"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/routers"
+	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/scheduling"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/singer"
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/synchronization"
+	"github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/users"
+	"github.com/jitsucom/jitsu/server/uuid"
+	"github.com/jitsucom/jitsu/server/wal"
 	"github.com/spf13/viper"
 )
 
@@ -155,12 +156,44 @@ func main() {
 		logging.Fatal(err)
 	}
 
-	if err := singer.Init(viper.GetString("singer-bridge.python"), viper.GetString("singer-bridge.venv_dir"),
+	//TELEMETRY
+	telemetryURL := viper.GetString("server.telemetry")
+	if telemetryURL == "" && appconfig.Instance.ConfiguratorURL != "" {
+		telemetryURL = fmt.Sprintf("%s/api/v1/telemetry?token=%s", appconfig.Instance.ConfiguratorURL, appconfig.Instance.ConfiguratorToken)
+	}
+
+	telemetry.InitFromViper(telemetryURL, notifications.ServiceName, commit, tag, builtAt, *dockerHubID)
+
+	// ** Meta storage **
+	metaStorageConfiguration := viper.Sub("meta.storage")
+	metaStorage, err := meta.InitializeStorage(metaStorageConfiguration)
+	if err != nil {
+		logging.Fatalf("Error initializing meta storage: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// ** Coordination Service **
+	var coordinationService *coordination.Service
+	if viper.IsSet("coordination") {
+		coordinationService, err = initializeCoordinationService(ctx, metaStorageConfiguration)
+		if err != nil {
+			logging.Fatalf("Failed to initiate coordination service: %v", err)
+		}
+	}
+
+	if coordinationService == nil {
+		//inmemory service (default)
+		logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
+			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
+		telemetry.Coordination("inmemory")
+		coordinationService = coordination.NewInMemoryService(appconfig.Instance.ServerName)
+	}
+
+	if err := singer.Init(viper.GetString("singer-bridge.python"), metaStorage, coordinationService, viper.GetString("singer-bridge.venv_dir"),
 		viper.GetBool("singer-bridge.install_taps"), viper.GetBool("singer-bridge.update_taps"), viper.GetInt("singer-bridge.batch_size"), appconfig.Instance.SingerLogsWriter); err != nil {
 		logging.Fatal(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	if err := airbyte.Init(ctx, *containerizedRun, viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), viper.GetInt("airbyte-bridge.batch_size"), appconfig.Instance.AirbyteLogsWriter); err != nil {
 		logging.Errorf("❌ Airbyte integration is disabled: %v", err)
 	}
@@ -185,21 +218,6 @@ func main() {
 		logging.Error(value)
 		logging.Error(string(debug.Stack()))
 		notifications.SystemErrorf("Panic:\n%s\n%s", value, string(debug.Stack()))
-	}
-
-	//TELEMETRY
-	telemetryURL := viper.GetString("server.telemetry")
-	if telemetryURL == "" && appconfig.Instance.ConfiguratorURL != "" {
-		telemetryURL = fmt.Sprintf("%s/api/v1/telemetry?token=%s", appconfig.Instance.ConfiguratorURL, appconfig.Instance.ConfiguratorToken)
-	}
-
-	telemetry.InitFromViper(telemetryURL, notifications.ServiceName, commit, tag, builtAt, *dockerHubID)
-
-	// ** Meta storage **
-	metaStorageConfiguration := viper.Sub("meta.storage")
-	metaStorage, err := meta.InitializeStorage(metaStorageConfiguration)
-	if err != nil {
-		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
 
 	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
@@ -274,23 +292,6 @@ func main() {
 		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter, viper.GetBool("log.async_writers"),
 		viper.GetInt("log.pool.size"))
 
-	// ** Coordination Service **
-	var coordinationService *coordination.Service
-	if viper.IsSet("coordination") {
-		coordinationService, err = initializeCoordinationService(ctx, metaStorageConfiguration)
-		if err != nil {
-			logging.Fatalf("Failed to initiate coordination service: %v", err)
-		}
-	}
-
-	if coordinationService == nil {
-		//inmemory service (default)
-		logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
-			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
-		coordinationService = coordination.NewInMemoryService(appconfig.Instance.ServerName)
-		telemetry.Coordination("inmemory")
-	}
-
 	// ** Destinations **
 	//events queue
 	//by default Redis based if events.queue.redis or meta.storage configured
@@ -353,11 +354,14 @@ func main() {
 		logging.Infof("users_recognition.pool.size can't be 0. Using default value=1 instead")
 	}
 
-	pluginsMap := viper.GetStringMapString("server.plugins")
-	pluginsRepository, err := plugins.NewPluginsRepository(pluginsMap, viper.GetString("server.plugins_cache"))
+	scriptFactory, err := node.NewFactory(viper.GetInt("node.pool_size"), viper.GetInt("node.max_space"))
 	if err != nil {
-		logging.Fatalf("failed to init plugin repository: %v", err)
+		logging.Warn(err)
+	} else {
+		appconfig.Instance.ScheduleLastClosing(scriptFactory)
+		templates.SetScriptFactory(scriptFactory)
 	}
+
 	maxColumns := viper.GetInt("server.max_columns")
 	logging.Infof("📝 Limit server.max_columns is %d", maxColumns)
 	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory,
@@ -518,7 +522,7 @@ func main() {
 
 	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, fallbackService,
 		coordinationService, eventsCache, systemService, segmentRequestFieldsMapper, segmentCompatRequestFieldsMapper, processorHolder,
-		multiplexingService, walService, geoService, pluginsRepository, globalRecognitionConfiguration)
+		multiplexingService, walService, geoService, globalRecognitionConfiguration)
 
 	telemetry.ServerStart()
 	notifications.ServerStart(systemInfo)

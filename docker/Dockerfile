@@ -15,6 +15,11 @@ RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/d
 RUN apt-get update
 RUN apt-get install -y docker-ce docker-ce-cli containerd.io
 
+# Install node
+RUN curl -o- -sL https://deb.nodesource.com/setup_16.x | bash
+RUN apt-get install nodejs
+RUN npm install -g node-fetch@2.6.7 vm2@3.9.9
+
 ENV EVENTNATIVE_USER=eventnative
 
 RUN echo "$EVENTNATIVE_USER     ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
@@ -49,6 +54,7 @@ FROM main as final
 USER root
 
 ENV TZ=UTC
+ENV NODE_PATH=/usr/lib/node_modules
 
 COPY --from=configurator /home/configurator /home/configurator
 COPY --from=server /home/eventnative /home/eventnative

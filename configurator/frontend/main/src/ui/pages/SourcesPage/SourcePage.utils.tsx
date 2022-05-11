@@ -41,6 +41,7 @@ const sourcePageUtils = {
     tabs.some(tab => tab.touched) ? "You have unsaved changes. Are you sure you want to leave the page?" : undefined,
 
   testConnection: async (
+    projectId: string,
     src: SourceData,
     hideMessage?: boolean,
     _options?: { skipHandleError?: boolean }
@@ -48,14 +49,18 @@ const sourcePageUtils = {
     const options = _options ?? {}
     let connectionTestMessagePrefix: string | undefined
     try {
-      const response = await ApplicationServices.get().backendApiClient.post("/sources/test", Marshal.toPureJson(src))
+      const sourceData = { ...src, sourceId: projectId + "." + src.sourceId }
+      const response = await ApplicationServices.get().backendApiClient.post(
+        "/sources/test",
+        Marshal.toPureJson(sourceData)
+      )
 
       if (response["status"] === "pending") {
         actionNotification.loading(
           "Please, allow some time for the connector source installation to complete. Once the connector source is installed, we will test the connection and send a push notification with the result."
         )
 
-        connectionTestMessagePrefix = `Source ${src.sourceId} connection test result: `
+        connectionTestMessagePrefix = `Source ${sourceData.sourceId} connection test result: `
 
         const POLLING_INTERVAL_MS = 2000
         const POLLING_TIMEOUT_MS = 60_000
@@ -65,7 +70,7 @@ const sourcePageUtils = {
             try {
               const response = await ApplicationServices.get().backendApiClient.post(
                 "/sources/test",
-                Marshal.toPureJson(src)
+                Marshal.toPureJson(sourceData)
               )
               const status = response["status"]
               if (status !== "pending") end()

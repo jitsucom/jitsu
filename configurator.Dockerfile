@@ -53,7 +53,7 @@ RUN if [ $(cat ./main/build/mem) < "4000000" ]; then echo echo Docker build requ
 RUN if [ "$SKIP_UI" != "true" ]; then yarn install --prefer-offline --frozen-lockfile --network-timeout 1000000; fi
 
 # Build
-RUN if [ "$SKIP_UI" != "true" ]; then CI=false ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build; fi
+RUN if [ "$SKIP_UI" != "true" ]; then CI=false ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi", "sentry": "https://5d29508173c04d86b31638517ebf89b3@o330694.ingest.sentry.io/6365760"}' yarn build; fi
 
 
 #######################################

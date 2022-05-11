@@ -134,6 +134,10 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 	return s, nil
 }
 
+func (a *Airbyte) Delete() error {
+	return nil
+}
+
 //TestAirbyte tests airbyte connection (runs check) if docker has been ready otherwise returns errNotReady
 func TestAirbyte(sourceConfig *base.SourceConfig) error {
 	config := &Config{}
@@ -150,7 +154,7 @@ func TestAirbyte(sourceConfig *base.SourceConfig) error {
 		config.ImageVersion = airbyte.LatestVersion
 	}
 	base.FillPreconfiguredOauth(config.DockerImage, config.Config)
-	airbyteRunner := airbyte.NewRunner(config.DockerImage, config.ImageVersion, "")
+	airbyteRunner := airbyte.NewRunner(sourceConfig.SourceID, config.DockerImage, config.ImageVersion, "")
 
 	if err := airbyteRunner.Check(config.Config); err != nil {
 		return err
@@ -158,7 +162,7 @@ func TestAirbyte(sourceConfig *base.SourceConfig) error {
 
 	selectedStreamsWithNamespace := selectedStreamsWithNamespace(config)
 	if len(selectedStreamsWithNamespace) > 0 {
-		airbyteRunner = airbyte.NewRunner(config.DockerImage, config.ImageVersion, "")
+		airbyteRunner = airbyte.NewRunner(sourceConfig.SourceID, config.DockerImage, config.ImageVersion, "")
 		catalog, err := airbyteRunner.Discover(config.Config, time.Minute*3)
 		if err != nil {
 			return err
@@ -273,7 +277,7 @@ func (a *Airbyte) Load(config string, state string, taskLogger logging.TaskLogge
 		return err
 	}
 
-	airbyteRunner := airbyte.NewRunner(a.GetTap(), a.config.ImageVersion, taskCloser.TaskID())
+	airbyteRunner := airbyte.NewRunner(a.ID(), a.GetTap(), a.config.ImageVersion, taskCloser.TaskID())
 
 	syncCommand := &base.SyncCommand{
 		Cmd:        airbyteRunner,
@@ -353,7 +357,7 @@ func (a *Airbyte) Close() (multiErr error) {
 //3. reformat catalog to airbyte format and writes it to the file system
 //returns catalog
 func (a *Airbyte) loadCatalog() (string, map[string]*base.StreamRepresentation, error) {
-	airbyteRunner := airbyte.NewRunner(a.GetTap(), a.config.ImageVersion, "")
+	airbyteRunner := airbyte.NewRunner(a.ID(), a.GetTap(), a.config.ImageVersion, "")
 	rawCatalog, err := airbyteRunner.Discover(a.config.Config, 5*time.Minute)
 	if err != nil {
 		return "", nil, err

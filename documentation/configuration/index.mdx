@@ -27,6 +27,7 @@ Our config file consists of the following sections:
 * `notifications` — notifier configuration. Server starts, system errors, synchronization statuses, and panics information will be sent to it. Currently, only Slack notifications are supported.
 * `meta.storage` - meta storage is the main application storage and it is required for some features. At present Jitsu supports only Redis version 5 and higher.
 * `ui.base_url` – base Configurator UI URL for generating links in notifications
+* `node` – node.js process pool size and max heap space in megabytes per process (`node` is used to execute JavaScript transformations and plugins).
 
 **Example**:
 
@@ -82,6 +83,10 @@ meta:
       port: 6379
       password: secret_password
 
+node:
+  pool_size: 1 # default
+  max_space: 100 # default
+
 ```
 
 <Hint>
@@ -109,6 +114,7 @@ All fields from the **server** section are optional:
 | **metrics.relay.deployment_id** | string | Allows to provide deployment ID for extended telemetry collection. | Cluster ID |
 | **disable\_version\_reminder** | boolean | Flag for disabling log reminder banner about new **Jitsu** versions availability. | `false` |
 | **sync_tasks.store_logs.last_runs** | int | Logs for how many task runs must be kept in meta storage. Controlled on Source's collection level. When number of task runs for Source collection exceed provided value – old records get removed from meta storage. | `-1` unlimited number of logs |
+| **event_enrichment.http_context** | boolean | Whether the server should enrich incoming HTTP events with HTTP context (headers, etc.). Please note that when upgrading from Jitsu 1.41.6 you can switch this setting to `true` only separately from the upgrade itself, otherwise event data may get corrupted. | `false` |
 
 ### Log
 

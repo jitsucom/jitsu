@@ -13,6 +13,7 @@ import { useServices } from "hooks/useServices"
 import { observer } from "mobx-react-lite"
 // @Styles
 import editorStyles from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less"
+import { useSourceEditorState } from "./SourceEditor.state"
 
 type FormFields = {
   sourceId: string
@@ -39,6 +40,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
 }) => {
   const [form] = AntdForm.useForm<FormFields>()
   const services = useServices()
+  const sourceEditorState = useSourceEditorState()
   const subscription = services.currentSubscription?.currentPlan
   const sourcesList = sourcesStore.list
 
@@ -101,7 +103,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
             labelCol={{ span: 4 }}
             wrapperCol={{ span: 20 }}
           >
-            <Input disabled={editorMode === "edit"} autoComplete="off" />
+            <Input disabled={editorMode === "edit" || sourceEditorState.status.isConfigSealed} autoComplete="off" />
           </AntdForm.Item>
         </Col>
       </Row>

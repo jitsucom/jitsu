@@ -49,8 +49,8 @@ type Processor struct {
 	isSQLType               bool
 	tableNameExtractor      *TableNameExtractor
 	lookupEnrichmentStep    *enrichment.LookupEnrichmentStep
-	transformer             *templates.V8TemplateExecutor
-	builtinTransformer      *templates.V8TemplateExecutor
+	transformer             templates.TemplateExecutor
+	builtinTransformer      templates.TemplateExecutor
 	fieldMapper             events.Mapper
 	pulledEventsfieldMapper events.Mapper
 	typeResolver            TypeResolver
@@ -338,6 +338,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 			newTableName = tableName
 		}
 		delete(prObject, templates.TableNameParameter)
+		delete(prObject, events.HTTPContextField)
 		//object has been already processed (storage:table pair might be already processed)
 		_, ok = alreadyUploadedTables[newTableName]
 		if ok {
@@ -411,7 +412,7 @@ func (p *Processor) SetDefaultUserTransform(defaultUserTransform string) {
 }
 
 //SetBuiltinTransformer javascript executor for builtin js code (e.g. npm destination)
-func (p *Processor) SetBuiltinTransformer(builtinTransformer *templates.V8TemplateExecutor) {
+func (p *Processor) SetBuiltinTransformer(builtinTransformer templates.TemplateExecutor) {
 	p.builtinTransformer = builtinTransformer
 }
 
@@ -477,7 +478,7 @@ Mapping feature is deprecated. It is recommended to migrate to javascript data t
 			//seems like built-in to segment transformation is used. We need to load script
 			p.AddJavaScript(segmentTransform)
 		}
-		transformer, err := templates.NewV8TemplateExecutor(userTransform, p.jsVariables, p.javaScripts...)
+		transformer, err := templates.NewScriptExecutor(templates.Expression(userTransform), p.jsVariables, p.javaScripts...)
 		if err != nil {
 			return fmt.Errorf("failed to init transform javascript: %v", err)
 		}
@@ -498,7 +499,7 @@ func (p *Processor) CloseJavaScriptTemplates() {
 	}
 }
 
-func (p *Processor) GetTransformer() *templates.V8TemplateExecutor {
+func (p *Processor) GetTransformer() templates.TemplateExecutor {
 	return p.transformer
 }
 

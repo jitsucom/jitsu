@@ -1,7 +1,6 @@
 package routers
 
 import (
-	"github.com/jitsucom/jitsu/server/config"
 	"net/http"
 	"net/http/pprof"
 	"runtime/debug"
@@ -9,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/events"
@@ -20,7 +20,6 @@ import (
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/multiplexing"
-	"github.com/jitsucom/jitsu/server/plugins"
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/synchronization"
 	"github.com/jitsucom/jitsu/server/system"
@@ -33,7 +32,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	taskService *synchronization.TaskService, fallbackService *fallback.Service, coordinationService *coordination.Service,
 	eventsCache *caching.EventsCache, systemService *system.Service, segmentEndpointFieldMapper, segmentCompatEndpointFieldMapper events.Mapper,
 	processorHolder *events.ProcessorHolder, multiplexingService *multiplexing.Service, walService *wal.Service, geoService *geo.Service,
-	pluginsRepository plugins.PluginsRepository, userRecognition *config.UsersRecognition) *gin.Engine {
+	userRecognition *config.UsersRecognition) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -48,7 +47,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	}
 
 	router.Use(gin.RecoveryWithWriter(logging.GlobalLogsWriter, func(c *gin.Context, err interface{}) {
-		logging.SystemErrorf("Panic:\n%s\n%s", err, string(debug.Stack()))
+		logging.SystemErrorf("Panic on request %s: %v\n%s", c.Request.URL.String(), err, string(debug.Stack()))
 		c.AbortWithStatus(http.StatusInternalServerError)
 	}))
 
@@ -70,7 +69,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	configuratorURN := viper.GetString("server.configurator_urn")
 
 	rootPathHandler := handlers.NewRootPathHandler(systemService, viper.GetString("server.static_files_dir"), configuratorURN,
-		viper.GetBool("server.disable_welcome_page"), viper.GetBool("server.configurator_redirect_https"), viper.GetBool("server.disable_signature"))
+		viper.GetBool("server.disable_welcome_page"), viper.GetBool("server.configurator_redirect_https"), viper.GetBool("server.disable_signature"),
+		viper.GetBool("server.always_redirect_to_configurator"))
 	router.GET("/", rootPathHandler.Handler)
 
 	staticHandler := handlers.NewStaticHandler(viper.GetString("server.static_files_dir"), publicURL)
@@ -88,6 +88,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	statisticsHandler := handlers.NewStatisticsHandler(metaStorage)
 
 	airbyteHandler := handlers.NewAirbyteHandler()
+	sdkSourceHandler := handlers.NewSdkSourceHandler()
 	sourcesHandler := handlers.NewSourcesHandler(sourcesService, metaStorage, destinations)
 	pixelHandler := handlers.NewPixelHandler(multiplexingService, processorHolder.GetPixelPreprocessor(), destinations, geoService)
 
@@ -122,7 +123,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.GET("/geo_data_resolvers/editions", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.EditionsHandler))
 		apiV1.POST("/geo_data_resolvers/test", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.TestHandler))
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.NewDestinationsHandler(userRecognition).Handler))
-		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.NewEventTemplateHandler(pluginsRepository, destinations.GetFactory()).Handler))
+		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.NewEventTemplateHandler(destinations.GetFactory()).Handler))
 
 		sourcesRoute := apiV1.Group("/sources")
 		{
@@ -152,7 +153,10 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.GET("/airbyte/:dockerImageName/versions", adminTokenMiddleware.AdminAuth(airbyteHandler.VersionsHandler))
 		apiV1.POST("/airbyte/:dockerImageName/catalog", adminTokenMiddleware.AdminAuth(airbyteHandler.CatalogHandler))
 
-		apiV1.POST("/singer/:tap/catalog", adminTokenMiddleware.AdminAuth(handlers.NewSingerHandler(metaStorage).CatalogHandler))
+		apiV1.GET("/sdk_source/:packageNameVer/spec", adminTokenMiddleware.AdminAuth(sdkSourceHandler.SpecHandler))
+		apiV1.POST("/sdk_source/:packageNameVer/catalog", adminTokenMiddleware.AdminAuth(sdkSourceHandler.CatalogHandler))
+
+		apiV1.POST("/singer/:tap/catalog", adminTokenMiddleware.AdminAuth(handlers.NewSingerHandler().CatalogHandler))
 	}
 
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))

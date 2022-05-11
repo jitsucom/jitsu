@@ -1,9 +1,13 @@
 package templates
 
 import (
-	"github.com/google/go-cmp/cmp"
 	"io/ioutil"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/jitsucom/jitsu/server/script"
+	"github.com/jitsucom/jitsu/server/script/node"
+	"github.com/stretchr/testify/assert"
 )
 
 type object = map[string]interface{}
@@ -53,33 +57,39 @@ var JSTemplateTest = []struct {
 }
 
 func TestTransform(t *testing.T) {
+	factory, err := node.NewFactory(1, 100)
+	if !assert.NoError(t, err) {
+		t.FailNow()
+	}
+
+	defer factory.Close()
+	SetScriptFactory(factory)
 	for _, tt := range JSTemplateTest {
 		t.Run(tt.filename, func(t *testing.T) {
 			file, err := ioutil.ReadFile(tt.filename)
 			if err != nil {
 				panic(err)
 			}
-			script, err := BabelizeAndWrap(string(file), functionName)
+
+			instance, err := NewScriptExecutor(Expression(file), nil)
 			if err != nil {
 				t.Errorf("%s Transforming failed: %v", tt.filename, err)
 				return
 			}
 
-			function, err := LoadTemplateScript(script, nil)
-			if err != nil {
-				t.Errorf("%s Failed loading script into vm: %v", tt.filename, err)
-			}
+			defer instance.Close()
 			for i := 0; i < 10; i++ {
 				var input = make(map[string]interface{})
 				for k, v := range tt.input {
 					input[k] = v
 				}
-				res, err := ProcessEvent(function, input)
+				var res interface{}
+				err := instance.Execute("", script.Args{input}, &res)
 				if err != nil {
-					t.Errorf("%s Failed running \"process\" script: %s\nInput: %s\nErr: %v", tt.filename, script, tt.input, err)
+					t.Errorf("%s Failed running \"process\" script: %s\nInput: %s\nErr: %v", tt.filename, instance, tt.input, err)
 					break
 				} else if !cmp.Equal(res, tt.expected) {
-					t.Errorf("%s transpiled to: %s\nInput: %s\nResult: %s\nNot equal\nExpected: %s", tt.filename, script, tt.input, res, tt.expected)
+					t.Errorf("%s transpiled to: %s\nInput: %s\nResult: %s\nNot equal\nExpected: %s", tt.filename, instance, tt.input, res, tt.expected)
 					break
 				} else {
 					//t.Logf("%s transpiled to: %s\nInput: %s\nResult: %s\nExpected: %s", tt.filename, script, tt.input, res, tt.expected)

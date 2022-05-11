@@ -24,7 +24,6 @@ export const sourceEditorUtils = {
       makeObjectFromFieldsValues(streams.selectedStreams),
       makeObjectFromFieldsValues(connections.connections)
     )
-
     const catalogSourceData: Pick<SourceData, "sourceType" | "sourceProtoType"> = {
       sourceType: sourcePageUtils.getSourceType(sourceCatalogData),
       sourceProtoType: sourcePageUtils.getSourcePrototype(sourceCatalogData),
@@ -41,10 +40,10 @@ export const sourceEditorUtils = {
 
   /** Reformat old catalog (full schema JSON) into SelectedStreams and always remove old format*/
   reformatCatalogIntoSelectedStreams: (sourceData: SourceData): SourceData => {
-    if (sourceEditorUtils.isNativeSource(sourceData) || sourceData?.config?.selected_streams?.length) return sourceData
+    if (sourceEditorUtils.isNativeOrSDKSource(sourceData) || sourceData?.config?.selected_streams) return sourceData
 
     if (sourceData?.config?.catalog) {
-      sourceData.config.selected_streams = sourceData.config.catalog.streams.map(
+      sourceData.config.selected_streams = sourceData.config.catalog["streams"].map(
         sourceEditorUtils.mapStreamDataToSelectedStreams
       ) as AirbyteStreamConfig[] | SingerStreamConfig[]
 
@@ -100,7 +99,7 @@ export const sourceEditorUtils = {
     }
   },
 
-  isNativeSource: (data: SourceData): data is NativeSourceData => {
+  isNativeOrSDKSource: (data: SourceData): data is NativeSourceData => {
     return !!data?.["collections"]
   },
 

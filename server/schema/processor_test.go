@@ -1,12 +1,15 @@
 package schema
 
 import (
-	"github.com/jitsucom/jitsu/server/config"
-	"github.com/jitsucom/jitsu/server/identifiers"
-	"github.com/spf13/viper"
 	"io/ioutil"
 	"testing"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/config"
+	"github.com/jitsucom/jitsu/server/identifiers"
+	"github.com/jitsucom/jitsu/server/script/node"
+	"github.com/jitsucom/jitsu/server/templates"
+	"github.com/spf13/viper"
 
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/enrichment"
@@ -358,8 +361,13 @@ func TestProcessFact(t *testing.T) {
 func TestProcessTransform(t *testing.T) {
 	viper.Set("server.log.path", "")
 	viper.Set("sql_debug_log.ddl.enabled", false)
+	nodeFactory, err := node.NewFactory(1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	err := appconfig.Init(false, "")
+	templates.SetScriptFactory(nodeFactory)
+	err = appconfig.Init(false, "")
 	require.NoError(t, err)
 
 	tests := []struct {
