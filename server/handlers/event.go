@@ -4,6 +4,10 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
@@ -17,9 +21,6 @@ import (
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/wal"
-	"net/http"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -109,6 +110,10 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		msg := fmt.Sprintf("Error parsing events body: %v", parsingErr.Err)
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(msg, nil))
 		return
+	}
+
+	for _, event := range eventsArray {
+		enrichment.HTTPContextEnrichmentStep(c, event)
 	}
 
 	//get geo resolver

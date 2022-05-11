@@ -3,10 +3,12 @@
   "private": true,
   "scripts": {
     "start": "lerna run start --stream",
-    "build": "yarn install && yarn all:check && lerna run build",
+    "build": "yarn install && yarn all:check && yarn catalog:link && lerna run build",
     "build:dev": "lerna run build",
     "test": "lerna run test --stream",
     "clean": "rm -rf ./node_modules ./main/node_modules/ ./main/build ./main/dist",
+    "reset": "yarn clean && yarn install",
+    "reset:full": "yarn reset && rm -rf yarn.lock ./main/yarn.lock ./catalog/yarn.lock",
     "lerna:publish": "lerna publish --canary --no-private --no-verify-access --yes",
     "prettier:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run yarn prettier:fix!\" && exit 1)",
     "prettier:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore ./",
@@ -66,7 +68,7 @@
     "web-vitals": "^1.0.1",
     "webpack-bundle-analyzer": "^4.4.0"
   },
-    "resolutions": {
-      "react-error-overlay": "6.0.9"
-    }
+  "resolutions": {
+    "react-error-overlay": "6.0.9"
+  }
 }

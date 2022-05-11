@@ -3,11 +3,12 @@ package appconfig
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"io"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/jitsucom/jitsu/server/authorization"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -42,7 +43,8 @@ type AppConfig struct {
 	AirbyteLogsWriter     io.Writer
 	SourcesLogsWriter     io.Writer
 
-	GlobalUniqueIDField *identifiers.UniqueID
+	GlobalUniqueIDField   *identifiers.UniqueID
+	EnrichWithHTTPContext bool
 
 	closeMe     []io.Closer
 	lastCloseMe []io.Closer
@@ -225,6 +227,10 @@ func setDefaultParams(containerized bool) {
 		"/context -> /",
 	})
 
+	// Default max Node.JS processes
+	viper.SetDefault("node.pool_size", 1)
+	viper.SetDefault("node.max_space", 100)
+
 	if containerized {
 		viper.SetDefault("server.static_files_dir", "/home/eventnative/app/web")
 
@@ -390,6 +396,9 @@ func Init(containerized bool, dockerHubID string) error {
 	appConfig.UaResolver = useragent.NewResolver()
 	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
 	appConfig.GlobalUniqueIDField = identifiers.NewUniqueID(uniqueIDField)
+
+	enrichWithHTTPContext := viper.GetBool("server.event_enrichment.http_context")
+	appConfig.EnrichWithHTTPContext = enrichWithHTTPContext
 
 	Instance = &appConfig
 	return nil

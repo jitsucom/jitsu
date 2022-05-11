@@ -25,7 +25,7 @@ function fail() {
 function build_configurator() {
   echo "Building Configurator UI locally.."
   rm -f configurator/backend/build/dist/configurator && rm -rf configurator/frontend/main/build && \
-  cd configurator/frontend/ && yarn clean && yarn install --prefer-offline && CI=false ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build && \
+  cd configurator/frontend/ && yarn clean && yarn install --prefer-offline && CI=false ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi", "sentry": "https://5d29508173c04d86b31638517ebf89b3@o330694.ingest.sentry.io/6365760"}' yarn build && \
   cd ../../ || fail 'Configurator build failed'
 }
 

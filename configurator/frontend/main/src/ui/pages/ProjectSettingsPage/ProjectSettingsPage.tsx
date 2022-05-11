@@ -6,7 +6,7 @@ import { FormActions, FormField, FormLayout } from "../../../lib/components/Form
 import { Badge, Button, Form, Input, Modal, Tooltip } from "antd"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
 import useForm from "antd/lib/form/hooks/useForm"
-import { flatten, unflatten } from "lib/commons/utils"
+import { flatten, reloadPage, unflatten } from "lib/commons/utils"
 import { useServices } from "../../../hooks/useServices"
 import useProject from "../../../hooks/useProject"
 import { ErrorCard } from "../../../lib/components/ErrorCard/ErrorCard"
@@ -15,6 +15,10 @@ import { BilledButton } from "lib/components/BilledButton/BilledButton"
 export default function ProjectSettingsPage() {
   return (
     <div>
+      <SettingsPanel title={"Project Name"}>
+        <ProjectName />
+      </SettingsPanel>
+
       <SettingsPanel
         title={"Notifications"}
         documentation={
@@ -36,7 +40,64 @@ export default function ProjectSettingsPage() {
   )
 }
 
-const SettingsPanel: React.FC<{ title: ReactNode; documentation: ReactNode }> = ({
+const ProjectName: React.FC<{}> = () => {
+  let services = useServices()
+  let [projectName, setProjectName] = useState(services.activeProject.name)
+  let [pending, setPending] = useState<boolean>(false)
+  let [form] = useForm<{ projectName: string }>()
+  useEffect(() => {
+    form.setFieldsValue({ projectName })
+  }, [projectName])
+
+  let onSave = async () => {
+    if (!form.isFieldsTouched()) {
+      return
+    }
+
+    setPending(true)
+    try {
+      await services.backendApiClient.patch(
+        `/projects/${services.activeProject.id}`,
+        { name: form.getFieldsValue()["projectName"] },
+        { version: 2 }
+      )
+      services.activeProject.name = projectName
+      actionNotification.success("Project name has been updated")
+      reloadPage()
+    } catch (e) {
+      actionNotification.error(`${e}`)
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <>
+      <>
+        <Form form={form} onFinish={onSave}>
+          <FormLayout>
+            <FormField
+              label="Project Name"
+              tooltip="Slack webhook URL for sending task status updates"
+              key="projectName"
+            >
+              <Form.Item name="projectName">
+                <Input size="large" name="projectName" placeholder="Project name" disabled={pending} />
+              </Form.Item>
+            </FormField>
+          </FormLayout>
+          <FormActions>
+            <Button type="primary" size="large" htmlType="submit" loading={pending}>
+              Save
+            </Button>
+          </FormActions>
+        </Form>
+      </>
+    </>
+  )
+}
+
+const SettingsPanel: React.FC<{ title: ReactNode; documentation?: ReactNode }> = ({
   title,
   children,
   documentation,
@@ -46,7 +107,7 @@ const SettingsPanel: React.FC<{ title: ReactNode; documentation: ReactNode }> = 
       <div className="w-full pt-8 px-4" style={{ maxWidth: "1000px" }}>
         <div className="border rounded-md border-splitBorder p-8">
           <h2 className="text-2xl pb-0 mb-0">{title}</h2>
-          <div className="text-secondaryText mb-4">{documentation}</div>
+          {documentation && <div className="text-secondaryText mb-4">{documentation}</div>}
           <div>{children}</div>
         </div>
       </div>

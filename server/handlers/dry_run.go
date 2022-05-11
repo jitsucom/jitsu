@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
@@ -9,7 +11,6 @@ import (
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
-	"net/http"
 )
 
 type DryRunHandler struct {
@@ -63,6 +64,7 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 
 	//** Context enrichment **
 	enrichment.ContextEnrichmentStep(payload, c.GetString(middleware.TokenName), reqContext, drh.preprocessor, storage.GetUniqueIDField())
+	enrichment.HTTPContextEnrichmentStep(c, payload)
 
 	dataSchema, err := storage.DryRun(payload)
 	if err != nil {

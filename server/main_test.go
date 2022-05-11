@@ -5,16 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/geo"
-	"github.com/jitsucom/jitsu/server/testsuit"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/geo"
+	"github.com/jitsucom/jitsu/server/testsuit"
+	"github.com/jitsucom/jitsu/server/timestamp"
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -433,6 +434,7 @@ func TestIncomingEvent(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			testSuite := testsuit.NewSuiteBuilder(t).Build(t)
 			defer testSuite.Close()
+			appconfig.Instance.EnrichWithHTTPContext = true
 
 			b, err := ioutil.ReadFile(tt.ReqBodyPath)
 			require.NoError(t, err)
@@ -527,6 +529,9 @@ func TestSegmentAPIEndpoint(t *testing.T) {
 			testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock(nil).Build(t)
 			defer testSuite.Close()
 
+			// for some reason when this test runs on GitHub requests content length differs from local
+			//appconfig.Instance.EnrichWithHTTPContext = true
+
 			sendSegmentRequests(t, "http://"+testSuite.HTTPAuthority()+tt.ReqURN)
 
 			time.Sleep(1 * time.Second)
@@ -556,74 +561,61 @@ func TestPixelEndpoint(t *testing.T) {
 
 	SetTestDefaultParams()
 	tests := []struct {
-		Name                string
-		ReqURN              string
-		CookieAnonymIDValue string
-		ExpectedJSONPath    string
-		ExpectedAnonymID    string
-		ExpectedErr         string
+		Name                  string
+		ReqURN                string
+		CookieAnonymIDValue   string
+		EnrichWithHTTPContext bool
+		ExpectedJSONPath      string
+		ExpectedAnonymID      string
+		ExpectedErr           string
 	}{
 		{
-			"Unauthorized error",
-			"/api/v1/p.gif?data=ewogIAogICJldmVudF90eXBlIjogIm9wZW5fZW1haWwiLAoidXNlciI6IHsKICAiYW5vbnltb3VzX2lkIjogImRhZG5vbjQxMjQxIgogIH0KfQ==",
-			"",
-			"",
-			"",
-			"{\"message\":\"No destination is configured for token [\\\"\\\"] (or only staged ones)\",\"error\":\"\"}",
+			Name:        "Unauthorized error",
+			ReqURN:      "/api/v1/p.gif?data=ewogIAogICJldmVudF90eXBlIjogIm9wZW5fZW1haWwiLAoidXNlciI6IHsKICAiYW5vbnltb3VzX2lkIjogImRhZG5vbjQxMjQxIgogIH0KfQ==",
+			ExpectedErr: "{\"message\":\"No destination is configured for token [\\\"\\\"] (or only staged ones)\",\"error\":\"\"}",
 		},
 		{
-			"Event without context data and anonym id",
-			"/api/v1/p.gif?data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9&object.field_1=value1&field2=value2",
-			"dan3o12ndnsd",
-			"test_data/pixel_event_without_context_output.json",
-			"",
-			"",
+			Name:                "Event without context data and anonym id",
+			ReqURN:              "/api/v1/p.gif?data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9&object.field_1=value1&field2=value2",
+			CookieAnonymIDValue: "dan3o12ndnsd",
+			ExpectedJSONPath:    "test_data/pixel_event_without_context_output.json",
 		},
 		{
-			"Event without context data and anonym id compat",
-			"/api/v1/p.gif?data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9&object.field_1=value1&field2=value2&compat=true",
-			"",
-			"test_data/pixel_event_without_context_compat_output.json",
-			"mockeduuid",
-			"",
+			Name:             "Event without context data and anonym id compat",
+			ReqURN:           "/api/v1/p.gif?data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9&object.field_1=value1&field2=value2&compat=true",
+			ExpectedJSONPath: "test_data/pixel_event_without_context_compat_output.json",
+			ExpectedAnonymID: "mockeduuid",
 		},
 		{
-			"Event with context data and anonym id in body",
-			"/api/v1/p.gif?data=ewogICJkb2NfaG9zdCI6ICJjbG91ZC5qaXRzdS5jb20iLAogICJkb2NfcGF0aCI6ICIvZGVzdGluYXRpb25zIiwKICAiZG9jX3NlYXJjaCI6ICJpZD0xMjMiLAogICJldmVudF90eXBlIjogInBhZ2UiLAogICJ1cmwiOiAiaHR0cHM6Ly9jbG91ZC5qaXRzdS5jb20vZGVzdGluYXRpb25zIiwKICAidXNlciI6IHsKICAgICJhbm9ueW1vdXNfaWQiOiAiMTIzIgogIH0sCiAgInVzZXJfYWdlbnQiOiAiTW96aWxsYS81LjAgKGlQb2Q7IENQVSBpUGhvbmUgT1MgMTNfMCBsaWtlIG1hY09TKSBBcHBsZVdlYktpdC82MDIuMS41MCAoS0hUTUwsIGxpa2UgR2Vja28pIFZlcnNpb24vMTIuMCBNb2JpbGUvMTRBNTMzNWQgU2FmYXJpLzYwMi4xLjUxIiwKICAidXRjX3RpbWUiOiAiMjAyMS0wNi0xNlQyMzowMDowMC4wMDAwMDBaIgp9&token=c2stoken",
-			"dan3o12ndnsd",
-			"test_data/pixel_event_with_context_output.json",
-			"",
-			"",
+			Name:                  "Event with context data and anonym id in body",
+			ReqURN:                "/api/v1/p.gif?data=ewogICJkb2NfaG9zdCI6ICJjbG91ZC5qaXRzdS5jb20iLAogICJkb2NfcGF0aCI6ICIvZGVzdGluYXRpb25zIiwKICAiZG9jX3NlYXJjaCI6ICJpZD0xMjMiLAogICJldmVudF90eXBlIjogInBhZ2UiLAogICJ1cmwiOiAiaHR0cHM6Ly9jbG91ZC5qaXRzdS5jb20vZGVzdGluYXRpb25zIiwKICAidXNlciI6IHsKICAgICJhbm9ueW1vdXNfaWQiOiAiMTIzIgogIH0sCiAgInVzZXJfYWdlbnQiOiAiTW96aWxsYS81LjAgKGlQb2Q7IENQVSBpUGhvbmUgT1MgMTNfMCBsaWtlIG1hY09TKSBBcHBsZVdlYktpdC82MDIuMS41MCAoS0hUTUwsIGxpa2UgR2Vja28pIFZlcnNpb24vMTIuMCBNb2JpbGUvMTRBNTMzNWQgU2FmYXJpLzYwMi4xLjUxIiwKICAidXRjX3RpbWUiOiAiMjAyMS0wNi0xNlQyMzowMDowMC4wMDAwMDBaIgp9&token=c2stoken",
+			CookieAnonymIDValue:   "dan3o12ndnsd",
+			EnrichWithHTTPContext: true,
+			ExpectedJSONPath:      "test_data/pixel_event_with_context_output.json",
 		},
 		{
-			"Event with context data and anonym id compat",
-			"/api/v1/p.gif?data=ewogICJjb21wYXQiOiB0cnVlLAogICJldmVudF90eXBlIjogInBhZ2UiLAogICJldmVudG5fY3R4IjogewogICAgImRvY19ob3N0IjogImFwcC5qaXRzdS5jb20iLAogICAgImRvY19wYXRoIjogIi9hcGkvdjEvcC5naWYiLAogICAgImRvY19zZWFyY2giOiAiYWJjPTEyMyIsCiAgICAidXJsIjogImh0dHBzOi8vaml0c3UuY29tL2RvY3MiLAogICAgInVzZXJfYWdlbnQiOiAiTW96aWxsYS81LjAgKGlQb2Q7IENQVSBpUGhvbmUgT1MgMTJfMCBsaWtlIG1hY09TKSBBcHBsZVdlYktpdC82MDIuMS41MCAoS0hUTUwsIGxpa2UgR2Vja28pIFZlcnNpb24vMTIuMCBNb2JpbGUvMTRBNTMzNWQgU2FmYXJpLzYwMi4xLjUwIiwKICAgICJ1dGNfdGltZSI6ICIyMDIwLTA2LTE2VDIzOjAwOjAwLjAwMDAwMFoiCiAgfQp9&token=c2stoken",
-			"dan3o12ndnsd",
-			"test_data/pixel_event_with_context_compat_output.json",
-			"",
-			"",
+			Name:                "Event with context data and anonym id compat",
+			ReqURN:              "/api/v1/p.gif?data=ewogICJjb21wYXQiOiB0cnVlLAogICJldmVudF90eXBlIjogInBhZ2UiLAogICJldmVudG5fY3R4IjogewogICAgImRvY19ob3N0IjogImFwcC5qaXRzdS5jb20iLAogICAgImRvY19wYXRoIjogIi9hcGkvdjEvcC5naWYiLAogICAgImRvY19zZWFyY2giOiAiYWJjPTEyMyIsCiAgICAidXJsIjogImh0dHBzOi8vaml0c3UuY29tL2RvY3MiLAogICAgInVzZXJfYWdlbnQiOiAiTW96aWxsYS81LjAgKGlQb2Q7IENQVSBpUGhvbmUgT1MgMTJfMCBsaWtlIG1hY09TKSBBcHBsZVdlYktpdC82MDIuMS41MCAoS0hUTUwsIGxpa2UgR2Vja28pIFZlcnNpb24vMTIuMCBNb2JpbGUvMTRBNTMzNWQgU2FmYXJpLzYwMi4xLjUwIiwKICAgICJ1dGNfdGltZSI6ICIyMDIwLTA2LTE2VDIzOjAwOjAwLjAwMDAwMFoiCiAgfQp9&token=c2stoken",
+			CookieAnonymIDValue: "dan3o12ndnsd",
+			ExpectedJSONPath:    "test_data/pixel_event_with_context_compat_output.json",
 		},
 		{
-			"Event with context data and anonym id in body",
-			"/api/v1/p.gif?data=ewogICJjb21wYXQiOiB0cnVlLAogICJldmVudF90eXBlIjogInBhZ2UiLAogICJldmVudG5fY3R4IjogewogICAgImRvY19ob3N0IjogImFwcC5qaXRzdS5jb20iLAogICAgImRvY19wYXRoIjogIi9hcGkvdjEvcC5naWYiLAogICAgImRvY19zZWFyY2giOiAiYWJjPTEyMyIsCiAgICAidXJsIjogImh0dHBzOi8vaml0c3UuY29tL2RvY3MiLAogICAgInVzZXJfYWdlbnQiOiAiTW96aWxsYS81LjAgKGlQb2Q7IENQVSBpUGhvbmUgT1MgMTJfMCBsaWtlIG1hY09TKSBBcHBsZVdlYktpdC82MDIuMS41MCAoS0hUTUwsIGxpa2UgR2Vja28pIFZlcnNpb24vMTIuMCBNb2JpbGUvMTRBNTMzNWQgU2FmYXJpLzYwMi4xLjUwIiwKICAgICJ1c2VyIjp7CiAgICAgICAgImFub255bW91c19pZCI6ICIxMjMiCiAgICAgfSwKICAgICJ1dGNfdGltZSI6ICIyMDIwLTA2LTE2VDIzOjAwOjAwLjAwMDAwMFoiCiAgfQp9&token=c2stoken",
-			"",
-			"test_data/pixel_event_with_context_and_id_compat_output.json",
-			"",
-			"",
+			Name:             "Event with context data and anonym id in body",
+			ReqURN:           "/api/v1/p.gif?data=ewogICJjb21wYXQiOiB0cnVlLAogICJldmVudF90eXBlIjogInBhZ2UiLAogICJldmVudG5fY3R4IjogewogICAgImRvY19ob3N0IjogImFwcC5qaXRzdS5jb20iLAogICAgImRvY19wYXRoIjogIi9hcGkvdjEvcC5naWYiLAogICAgImRvY19zZWFyY2giOiAiYWJjPTEyMyIsCiAgICAidXJsIjogImh0dHBzOi8vaml0c3UuY29tL2RvY3MiLAogICAgInVzZXJfYWdlbnQiOiAiTW96aWxsYS81LjAgKGlQb2Q7IENQVSBpUGhvbmUgT1MgMTJfMCBsaWtlIG1hY09TKSBBcHBsZVdlYktpdC82MDIuMS41MCAoS0hUTUwsIGxpa2UgR2Vja28pIFZlcnNpb24vMTIuMCBNb2JpbGUvMTRBNTMzNWQgU2FmYXJpLzYwMi4xLjUwIiwKICAgICJ1c2VyIjp7CiAgICAgICAgImFub255bW91c19pZCI6ICIxMjMiCiAgICAgfSwKICAgICJ1dGNfdGltZSI6ICIyMDIwLTA2LTE2VDIzOjAwOjAwLjAwMDAwMFoiCiAgfQp9&token=c2stoken",
+			ExpectedJSONPath: "test_data/pixel_event_with_context_and_id_compat_output.json",
 		},
 		{
-			"Event without context data and anonym id cookie strict",
-			"/api/v1/p.gif?data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9&object.field_1=value1&field2=value2&cookie_policy=strict",
-			"",
-			"test_data/pixel_event_cookie_policy_strict_output.json",
-			"",
-			"",
+			Name:             "Event without context data and anonym id cookie strict",
+			ReqURN:           "/api/v1/p.gif?data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9&object.field_1=value1&field2=value2&cookie_policy=strict",
+			ExpectedJSONPath: "test_data/pixel_event_cookie_policy_strict_output.json",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
 			testSuite := testsuit.NewSuiteBuilder(t).Build(t)
 			defer testSuite.Close()
+
+			appconfig.Instance.EnrichWithHTTPContext = tt.EnrichWithHTTPContext
 
 			//check http GET
 			req, err := http.NewRequest(http.MethodGet, "http://"+testSuite.HTTPAuthority()+tt.ReqURN, nil)
@@ -784,6 +776,8 @@ func TestIPCookiePolicyComply(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock(tt.GeoData).Build(t)
 			defer testSuite.Close()
+
+			appconfig.Instance.EnrichWithHTTPContext = true
 
 			b, err := ioutil.ReadFile(tt.ReqBodyPath)
 			require.NoError(t, err)

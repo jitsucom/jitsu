@@ -235,10 +235,14 @@ func (s *Service) GetCollections(sourceID string) ([]string, error) {
 //remove closes and removes source instance from Service
 //method must be called with locks
 func (s *Service) remove(sourceID string, unit *Unit) {
-	for collection := range unit.DriverPerCollection {
+	for collection, driver := range unit.DriverPerCollection {
 		err := s.cronScheduler.Remove(sourceID, collection)
 		if err != nil {
 			logging.Errorf("[%s] Error stopping scheduling collection [%s] sync: %v", sourceID, collection, err)
+		}
+		err = driver.Delete()
+		if err != nil {
+			logging.Errorf("[%s] Failed to cleanup driver for collection [%s]: %v", sourceID, collection, err)
 		}
 	}
 

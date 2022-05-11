@@ -35,6 +35,8 @@ const (
 	telemetryCollection = "telemetry"
 	TelemetryGlobalID   = "global_configuration"
 
+	systemCollection = "system"
+
 	airbyteType      = "airbyte"
 	singerType       = "singer"
 	airbyteTypeField = "docker_image"
@@ -584,7 +586,7 @@ func (cs *ConfigurationsService) CreateObjectWithLock(objectType string, project
 	projectConfigBytes, err := cs.get(objectType, projectID)
 	if err != nil {
 		if err == ErrConfigurationNotFound {
-			generatedID := cs.GenerateID(typeField, objectType, projectID, object, map[string]bool{})
+			generatedID := cs.GenerateID(typeField, idField, objectType, projectID, object, map[string]bool{})
 			object.Set(idField, generatedID)
 
 			//first object of objectType in project
@@ -614,7 +616,7 @@ func (cs *ConfigurationsService) CreateObjectWithLock(objectType string, project
 		}
 	}
 
-	generatedID := cs.GenerateID(typeField, objectType, projectID, object, usedIDs)
+	generatedID := cs.GenerateID(typeField, idField, objectType, projectID, object, usedIDs)
 	object.Set(idField, generatedID)
 
 	newProjectConfig := buildProjectDataObject(projectConfig, objectsArray, object.AdditionalProperties, unknownObjectPosition, arrayPath)
@@ -878,13 +880,13 @@ func (cs *ConfigurationsService) GetProjectUsers(projectID string) ([]string, er
 		return nil, err
 	}
 
-	index, err := cs.storage.GetRelationIndex(userProjectRelation)
+	allUserIDs, err := cs.storage.GetIDs("users_info")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get user project relation index")
+		return nil, err
 	}
 
 	userIDs := make(common.StringSet)
-	for _, userID := range index {
+	for _, userID := range allUserIDs {
 		if relatedProjectIDs, err := cs.storage.GetRelatedIDs(userProjectRelation, userID); err != nil {
 			return nil, errors.Wrapf(err, "failed to get related projects for user %s", userID)
 		} else {
@@ -898,6 +900,10 @@ func (cs *ConfigurationsService) GetProjectUsers(projectID string) ([]string, er
 	}
 
 	return userIDs.Values(), nil
+}
+
+func (cs *ConfigurationsService) GetSystemSetting(settingID string) ([]byte, error) {
+	return cs.get(systemCollection, settingID)
 }
 
 func (cs *ConfigurationsService) Create(value CollectionItem, patch interface{}) error {
@@ -1150,7 +1156,16 @@ func (cs *ConfigurationsService) GetObjectTypeField(objectType string) string {
 }
 
 //GenerateID returns auto incremented ID based on jserver entity type
-func (cs *ConfigurationsService) GenerateID(typeField, objectType, projectID string, object *openapi.AnyObject, alreadyUsedIDs map[string]bool) string {
+func (cs *ConfigurationsService) GenerateID(typeField, idField, objectType, projectID string, object *openapi.AnyObject, alreadyUsedIDs map[string]bool) string {
+	if idField != "" {
+		id, ok := object.Get(idField)
+		if ok {
+			sid, ok := id.(string)
+			if ok && sid != "" {
+				return generateUniqueID(sid, alreadyUsedIDs)
+			}
+		}
+	}
 	if typeField == "" {
 		if objectType == apiKeysCollection {
 			return generateAPIKeyID(projectID)

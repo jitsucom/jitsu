@@ -60,6 +60,7 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 	uniqueIDField := storageProxies[0].GetUniqueIDField()
 	for _, object := range eventObjects {
 		enrichment.ContextEnrichmentStep(object, apiKey, emptyContext, bh.processor, uniqueIDField)
+		enrichment.HTTPContextEnrichmentStep(c, object)
 	}
 
 	rowsCount := len(eventObjects)

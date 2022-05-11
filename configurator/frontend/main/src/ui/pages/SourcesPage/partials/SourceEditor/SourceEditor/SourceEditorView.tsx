@@ -5,31 +5,24 @@ import { SourceEditorFormStreams } from "./SourceEditorFormStreams"
 import { SourceEditorFormConnections } from "./SourceEditorFormConnections"
 import { SourceEditorDocumentationDrawer } from "./SourceEditorDocumentationDrawer"
 // @Types
-import { SourceConnector as CatalogSourceConnector } from "@jitsu/catalog/sources/types"
-import {
+import type { SourceConnector as CatalogSourceConnector } from "@jitsu/catalog/sources/types"
+import type {
   HandleSaveSource,
   HandleValidateTestConnection,
-  SetSourceEditorDisabledTabs,
   SetSourceEditorInitialSourceData,
   SetSourceEditorState,
-  SourceEditorDisabledTabs,
   SourceEditorState,
 } from "./SourceEditor"
-import { SourceEditorControlsDisabled } from "./SourceEditorViewControls"
 import { SourceEditorViewSteps } from "./SourceEditorViewSteps"
 import { SourceEditorViewTabs } from "./SourceEditorViewTabs"
 
 type SourceEditorViewProps = {
   state: SourceEditorState
-  controlsDisabled: SourceEditorControlsDisabled
-  tabsDisabled: SourceEditorDisabledTabs
   editorMode: "add" | "edit"
   showDocumentationDrawer: boolean
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: CatalogSourceConnector
   setSourceEditorState: SetSourceEditorState
-  handleSetControlsDisabled: (disabled: boolean | string, setterId: string) => void
-  handleSetTabsDisabled: SetSourceEditorDisabledTabs
   setShowDocumentationDrawer: (value: boolean) => void
   handleBringSourceData: () => SourceData
   handleSave: HandleSaveSource
@@ -42,15 +35,11 @@ type SourceEditorViewProps = {
 
 export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
   state,
-  controlsDisabled,
-  tabsDisabled,
   editorMode,
   showDocumentationDrawer,
   initialSourceData,
   sourceDataFromCatalog,
   setSourceEditorState,
-  handleSetControlsDisabled,
-  handleSetTabsDisabled,
   setShowDocumentationDrawer,
   handleBringSourceData,
   handleSave,
@@ -72,8 +61,6 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
           initialSourceData={initialSourceData}
           sourceDataFromCatalog={sourceDataFromCatalog}
           setSourceEditorState={setSourceEditorState}
-          handleSetControlsDisabled={handleSetControlsDisabled}
-          handleSetTabsDisabled={handleSetTabsDisabled}
           handleReloadStreams={handleReloadStreams}
         />
       ),
@@ -90,7 +77,6 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
           initialSourceData={initialSourceData}
           sourceDataFromCatalog={sourceDataFromCatalog}
           setSourceEditorState={setSourceEditorState}
-          handleSetControlsDisabled={handleSetControlsDisabled}
           handleBringSourceData={handleBringSourceData}
         />
       ),
@@ -116,7 +102,6 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
       {editorMode === "add" ? (
         <SourceEditorViewSteps
           steps={forms}
-          controlsDisabled={controlsDisabled}
           handleBringSourceData={handleBringSourceData}
           setInitialSourceData={setInitialSourceData}
           handleLeaveEditor={handleLeaveEditor}
@@ -125,9 +110,7 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
         <SourceEditorViewTabs
           sourceId={initialSourceData.sourceId}
           tabs={forms}
-          tabsDisabled={tabsDisabled}
           sourceDataFromCatalog={sourceDataFromCatalog}
-          controlsDisabled={controlsDisabled}
           handleSave={handleSave}
           handleValidateAndTestConnection={handleValidateAndTestConnection}
           handleLeaveEditor={handleLeaveEditor}

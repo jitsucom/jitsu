@@ -28,6 +28,7 @@ const (
 //Can only be used once
 //Self-closed (see run() func)
 type Runner struct {
+	sourceID string
 	//DockerImage without 'airbyte/' prefix
 	DockerImage string
 	Version     string
@@ -39,11 +40,12 @@ type Runner struct {
 }
 
 //NewRunner returns configured Airbyte Runner
-func NewRunner(dockerImage, imageVersion, identifier string) *Runner {
+func NewRunner(sourceID, dockerImage, imageVersion, identifier string) *Runner {
 	if identifier == "" {
-		identifier = fmt.Sprintf("%s-%s-%s", dockerImage, imageVersion, uuid.New())
+		identifier = fmt.Sprintf("%s-%s-%s-%s", sourceID, dockerImage, imageVersion, uuid.New())
 	}
 	return &Runner{
+		sourceID:    sourceID,
 		DockerImage: dockerImage,
 		Version:     imageVersion,
 		identifier:  identifier,
@@ -212,7 +214,8 @@ func (r *Runner) Close() error {
 	err := exec.Command("docker", "stop", r.identifier, "&").Run()
 	close(r.closed)
 	if err != nil {
-		logging.Errorf("%s airbyte runner closing failed. Killing. Closing error: %v", r.identifier, err)
+		//that might mean that process was stopped naturally
+		logging.Debugf("%s airbyte runner closing failed. Killing. Closing error: %v", r.identifier, err)
 		_ = r.command.Process.Kill()
 		return err
 	}
@@ -248,7 +251,7 @@ func (r *Runner) run(stdoutHandler, stderrHandler func(io.Reader) error, timeout
 				logging.Warnf("[%s] Airbyte run timeout after [%s]", r.identifier, timeout.String())
 				if err := r.Close(); err != nil {
 					if err != runner.ErrAirbyteAlreadyTerminated {
-						logging.SystemErrorf("Error terminating Airbyte runner [%s:%s] after timeout: %v", r.DockerImage, r.Version, err)
+						logging.SystemErrorf("Error terminating Airbyte runner [%s:%s] for task [%s] after timeout: %v", r.DockerImage, r.Version, r.identifier, err)
 					}
 				}
 			}

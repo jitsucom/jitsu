@@ -2,8 +2,10 @@ package synchronization
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -28,10 +30,7 @@ import (
 )
 
 const (
-	srcSource             = "source"
-	ConfigSignatureSuffix = "_JITSU_config"
-
-	collectionLockTimeout = time.Minute
+	srcSource = "source"
 )
 
 type TaskExecutorContext struct {
@@ -276,7 +275,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	taskLogger.INFO("Acquiring lock...")
 	logging.Debugf("[TASK %s] Getting sync lock source [%s] collection [%s]...", task.ID, task.Source, task.Collection)
 	collectionLock := te.CoordinationService.CreateLock(task.Source + "_" + task.Collection)
-	locked, err := collectionLock.TryLock(collectionLockTimeout)
+	locked, err := collectionLock.TryLock(coordination.CollectionLockTimeout)
 	if err != nil {
 		msg := fmt.Sprintf("unable to lock source [%s] collection [%s] task [%s]: %v", task.Source, task.Collection, task.ID, err)
 		taskCloser.CloseWithError(msg, true)
@@ -284,7 +283,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	}
 
 	if !locked {
-		msg := fmt.Sprintf("unable to lock source [%s] collection [%s] task [%s]. Collection has been already locked: timeout after %s", task.Source, task.Collection, task.ID, collectionLockTimeout.String())
+		msg := fmt.Sprintf("unable to lock source [%s] collection [%s] task [%s]. Collection has been already locked: timeout after %s", task.Source, task.Collection, task.ID, coordination.CollectionLockTimeout.String())
 		taskCloser.CloseWithError(msg, true)
 		return
 	}
@@ -358,12 +357,12 @@ func (te *TaskExecutor) execute(i interface{}) {
 
 func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLogger *TaskLogger) {
 	event := events.Event{
-		"event_type":  storages.SourceSuccessEventType,
-		"source":      task.Source,
-		"status":      task.Status,
-		timestamp.Key: task.FinishedAt,
-		"finished_at": task.FinishedAt,
-		"started_at":  task.StartedAt,
+		"event_type":      storages.SourceSuccessEventType,
+		"source":          task.Source,
+		"source_type":     task.SourceType,
+		"status":          SUCCESS.String(),
+		timestamp.Key:     timestamp.Now(),
+		"destination_ids": source.DestinationIDs,
 	}
 	for _, id := range source.PostHandleDestinationIDs {
 		err := te.DestinationService.PostHandle(id, event)
@@ -510,11 +509,11 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 		return fmt.Errorf("Error getting state from meta storage: %v", err)
 	}
 
-	config, err := te.MetaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey()+ConfigSignatureSuffix, driversbase.ALL.String())
-
+	config, err := te.MetaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey()+driversbase.ConfigSignatureSuffix, driversbase.ALL.String())
 	if err != nil {
 		return fmt.Errorf("Error getting persisted config from meta storage: %v", err)
 	}
+	defer te.persistConfig(task, taskLogger, cliDriver)
 
 	if state != "" {
 		taskLogger.INFO("Running synchronization with state: %s", state)
@@ -537,6 +536,26 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 	}
 
 	return nil
+}
+
+//Config file might be updated by cli program after run.
+//We need to write it to persistent storage so other cluster nodes will read actual config
+func (te *TaskExecutor) persistConfig(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver) error {
+	if cliDriver.GetConfigPath() != "" {
+		configBytes, err := ioutil.ReadFile(cliDriver.GetConfigPath())
+		if configBytes != nil {
+			err = te.MetaStorage.SaveSignature(task.Source, cliDriver.GetCollectionMetaKey()+driversbase.ConfigSignatureSuffix, driversbase.ALL.String(), string(configBytes))
+		}
+		if err != nil {
+			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] config: %v", task.Source, cliDriver.GetCollectionMetaKey(), err)
+			taskLogger.ERROR(errMsg)
+			logging.SystemError(errMsg)
+			return errors.New(errMsg)
+		}
+		taskLogger.INFO("Config saved.")
+	}
+	return nil
+
 }
 
 func (te *TaskExecutor) Close() error {
