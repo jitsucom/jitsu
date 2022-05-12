@@ -31,8 +31,19 @@ function getEventId(type: EventType, json: any) {
   return json?.eventn_ctx_event_id || json?.eventn_ctx?.event_id || murmurhash.v3(JSON.stringify(json))
 }
 
+function processEventOriginal(original: any) {
+  // moving __HTTP_CONTEXT__ to end of object
+  const httpContextKey = "__HTTP_CONTEXT__"
+  if (original?.[httpContextKey]) {
+    const httpContext = original[httpContextKey]
+    delete original[httpContextKey]
+    original[httpContextKey] = httpContext
+  }
+  return original
+}
+
 function normalizeEvent(type: EventType, id: string, status: EventStatus, data: any): Event {
-  let original = data.original ?? data
+  let original = processEventOriginal(data.original ?? data)
   return {
     type: type,
     timestamp: moment.utc(data.timestamp || original._timestamp || original.utc_time || new Date(2022, 2, 20)),
