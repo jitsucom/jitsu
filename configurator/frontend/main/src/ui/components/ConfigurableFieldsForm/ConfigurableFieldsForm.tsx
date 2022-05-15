@@ -30,6 +30,7 @@ import { InputWithDebug } from "./InputWithDebug"
 import { SwitchWithLabel } from "./SwitchWithLabel"
 import set from "lodash/set"
 import { InputWithUpload } from "./InputWithUpload"
+import { useHistory, useLocation } from "react-router-dom";
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -72,6 +73,9 @@ const ConfigurableFieldsFormComponent = ({
   const forceUpdateAll = useForceUpdate()
   const { forceUpdatedTargets, forceUpdateTheTarget } = useForceUpdateTarget()
 
+  const history = useHistory()
+  const { search } = useLocation()
+
   const handleTouchField = debounce(handleTouchAnyField ?? (() => {}), 1000)
 
   const handleChangeIntInput = useCallback(
@@ -99,11 +103,22 @@ const ConfigurableFieldsFormComponent = ({
   )
   const handleOpenDebugger = useCallback(
     (id: string) => {
-      setDebugModalsValues({ ...debugModalsValues, [id]: form.getFieldValue(id) })
-      setDebugModalsStates({ ...debugModalsStates, [id]: true })
+      const search = new URLSearchParams()
+      search.append("debugger", id)
+      const tab = id.indexOf("transform") == -1 ? "" : ""
+      history.replace({ search: search.toString(), state: { disablePrompt: true } })
     },
     [form]
   )
+
+  useEffect(() => {
+    const query = new URLSearchParams(search)
+    const debuggerId = query.get("debugger")
+    if (debuggerId !== "false") {
+      setDebugModalsValues({ ...debugModalsValues, [debuggerId]: form.getFieldValue(debuggerId) })
+      setDebugModalsStates({ ...debugModalsStates, [debuggerId]: true })
+    }
+  }, [search])
 
   const handleJsonChange = (id: string) => (value: string) => {
     const values = {
@@ -348,7 +363,10 @@ const ConfigurableFieldsFormComponent = ({
     return services.backendApiClient.post(`/destinations/evaluate?project_id=${services.activeProject.id}`, data)
   }
 
-  const handleCloseDebugger = id => setDebugModalsStates({ ...debugModalsStates, [id]: false })
+  const handleCloseDebugger = (id) => {
+    history.replace({ search: null, state: { disablePrompt: true } })
+    setDebugModalsStates({ ...debugModalsStates, [id]: false })
+  }
 
   const handleSaveDebugger = (id, value: string) => {
     form.setFieldsValue({ [id]: value })
