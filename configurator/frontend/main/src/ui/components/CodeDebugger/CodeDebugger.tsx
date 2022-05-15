@@ -199,9 +199,9 @@ const CodeDebugger = ({
   }, [])
 
   const consoleLog = [
-    {logLevel: "error", value: "Error string"},
-    {logLevel: "warn", value: "Warning string"},
-    {logLevel: "info", value: "Info string"}
+    { logLevel: "error", value: "Error string" },
+    { logLevel: "warn", value: "Warning string" },
+    { logLevel: "info", value: "Info string" },
   ]
 
   return (
@@ -252,7 +252,7 @@ const CodeDebugger = ({
                   </Dropdown>
                 </SectionWithLabel>
               </ReflexElement>
-              <ReflexSplitter  propagate className={`${styles.splitter}`} />
+              <ReflexSplitter propagate className={`${styles.splitter}`} />
               <ReflexElement minSize={300}>
                 <SectionWithLabel label={`${codeFieldLabel}`} htmlFor="code">
                   <Form.Item className={`${styles.field} pl-2 break-normal`} colon={false} name="code">
@@ -260,12 +260,10 @@ const CodeDebugger = ({
                       initialValue={codeValue}
                       language="javascript"
                       enableLineNumbers
-                      extraSuggestions={
-                        `declare let $ = ${objectValue};
+                      extraSuggestions={`declare let $ = ${objectValue};
                       declare let event = $;
                       declare let _ = $;
-                      ${extraSuggestions}`
-                      }
+                      ${extraSuggestions}`}
                       reRenderEditorOnInitialValueChange={true}
                       handleChange={handleChange("code")}
                       hotkeysOverrides={{
@@ -278,17 +276,16 @@ const CodeDebugger = ({
             </ReflexContainer>
           </ReflexElement>
 
-
-          <ReflexSplitter  propagate className={`${styles.splitterHorizontal}`} />
+          <ReflexSplitter propagate className={`${styles.splitterHorizontal}`} />
 
           <ReflexElement propagateDimensions={true} minSize={200}>
             <Tabs defaultActiveKey="console" type="card" tabPosition="top" size="small" className={styles.eventTabs}>
               <Tabs.TabPane tab="Console Debugger" key="console">
-                <div className={`h-full box-border font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}>
-                  {consoleLog.map((log) => (
-                    <div className={`w-full log-line log-${log.logLevel}`}>
-                      {log.value}
-                    </div>
+                <div
+                  className={`h-full box-border font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}
+                >
+                  {consoleLog.map(log => (
+                    <div className={`w-full log-line log-${log.logLevel}`}>{log.value}</div>
                   ))}
                 </div>
               </Tabs.TabPane>
@@ -305,17 +302,17 @@ const CodeDebugger = ({
                     </strong>
                     {calcResult && (
                       <span className={`flex-auto min-w-0 text-xs`}>
-                            {calcResult.error ? (
-                              calcResult.error
-                            ) : (
-                              <SyntaxHighlighterAsync
-                                language="json"
-                                className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
-                              >
-                                {calcResult.result}
-                              </SyntaxHighlighterAsync>
-                            )}
-                          </span>
+                        {calcResult.error ? (
+                          calcResult.error
+                        ) : (
+                          <SyntaxHighlighterAsync
+                            language="json"
+                            className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
+                          >
+                            {calcResult.result}
+                          </SyntaxHighlighterAsync>
+                        )}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -323,9 +320,7 @@ const CodeDebugger = ({
               {((calcResult?.userResult && calcResult?.userResult !== calcResult?.result) ||
                 (calcResult?.userError && calcResult?.userError !== calcResult?.error)) && (
                 <Tabs.TabPane tab="User Transformation Result" key="user-transform">
-                  <div
-                    className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}
-                  >
+                  <div className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
                     <div
                       className={cn("flex h-full overflow-auto flex-col w-full m-0", {
                         [styles.itemError]: !!calcResult?.userError,
@@ -337,17 +332,17 @@ const CodeDebugger = ({
                       </strong>
                       {calcResult && (
                         <span className={`flex-auto min-w-0 text-xs`}>
-                              {calcResult.userError ? (
-                                calcResult.userError
-                              ) : (
-                                <SyntaxHighlighterAsync
-                                  language="json"
-                                  className={`w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
-                                >
-                                  {calcResult.userResult}
-                                </SyntaxHighlighterAsync>
-                              )}
-                            </span>
+                          {calcResult.userError ? (
+                            calcResult.userError
+                          ) : (
+                            <SyntaxHighlighterAsync
+                              language="json"
+                              className={`w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
+                            >
+                              {calcResult.userResult}
+                            </SyntaxHighlighterAsync>
+                          )}
+                        </span>
                       )}
                     </div>
                   </div>

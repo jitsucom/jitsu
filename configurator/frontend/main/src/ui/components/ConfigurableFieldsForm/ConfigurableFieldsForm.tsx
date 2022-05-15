@@ -30,7 +30,7 @@ import { InputWithDebug } from "./InputWithDebug"
 import { SwitchWithLabel } from "./SwitchWithLabel"
 import set from "lodash/set"
 import { InputWithUpload } from "./InputWithUpload"
-import { useHistory, useLocation } from "react-router-dom";
+import { useHistory, useLocation } from "react-router-dom"
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -363,7 +363,7 @@ const ConfigurableFieldsFormComponent = ({
     return services.backendApiClient.post(`/destinations/evaluate?project_id=${services.activeProject.id}`, data)
   }
 
-  const handleCloseDebugger = (id) => {
+  const handleCloseDebugger = id => {
     history.replace({ search: null, state: { disablePrompt: true } })
     setDebugModalsStates({ ...debugModalsStates, [id]: false })
   }

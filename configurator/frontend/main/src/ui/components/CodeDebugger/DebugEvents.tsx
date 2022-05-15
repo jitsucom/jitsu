@@ -66,22 +66,10 @@ const DebugEvents = ({ handleClick }: Props) => {
                 className={`flex flex-col items-stretch ${styles.eventItem}`}
                 onClick={handleClick(item?.data.original)}
               >
-                <p className="truncate mb-0">{item?.time?.utc?.()?.format?.('YYYY-MM-DD hh:mm:ss')} (UTC)</p>
-                {item?.data?.original?.event_type ? (
-                  <Tag>{item?.data?.original?.event_type}</Tag>
-                ) : (
-                  ""
-                )}
-                {item?.data?.original?.app ? (
-                  <Tag>{item?.data?.original?.app}</Tag>
-                ) : (
-                  ""
-                )}
-                {item?.data?.original?.src ? (
-                  <Tag>{item?.data?.original?.src}</Tag>
-                ) : (
-                  ""
-                )}
+                <p className="truncate mb-0">{item?.time?.utc?.()?.format?.("YYYY-MM-DD hh:mm:ss")} (UTC)</p>
+                {item?.data?.original?.event_type ? <Tag>{item?.data?.original?.event_type}</Tag> : ""}
+                {item?.data?.original?.app ? <Tag>{item?.data?.original?.app}</Tag> : ""}
+                {item?.data?.original?.src ? <Tag>{item?.data?.original?.src}</Tag> : ""}
               </Button>
             )
           }}

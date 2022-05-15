@@ -27,7 +27,9 @@ const destinationEditorUtils = {
     if (location?.state?.disablePrompt) {
       return undefined
     }
-    return tabs.some(tab => tab.touched) ? "You have unsaved changes. Are you sure you want to leave the page?" : undefined
+    return tabs.some(tab => tab.touched)
+      ? "You have unsaved changes. Are you sure you want to leave the page?"
+      : undefined
   },
 }
 
