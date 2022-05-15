@@ -23,8 +23,12 @@ const destinationEditorUtils = {
       }
     }
   },
-  getPromptMessage: (tabs: Tab[]) => () =>
-    tabs.some(tab => tab.touched) ? "You have unsaved changes. Are you sure you want to leave the page?" : undefined,
+  getPromptMessage: (tabs: Tab[], location): string => {
+    if (location?.state?.disablePrompt) {
+      return undefined
+    }
+    return tabs.some(tab => tab.touched) ? "You have unsaved changes. Are you sure you want to leave the page?" : undefined
+  },
 }
 
 export { destinationEditorUtils }
