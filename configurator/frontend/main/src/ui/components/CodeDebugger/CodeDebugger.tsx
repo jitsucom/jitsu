@@ -156,15 +156,18 @@ const CodeDebugger = ({
         format: response.format,
         result: response.result,
         error: response.error,
+        logs: response.logs,
         userResult: response.user_result,
         userError: response.user_error,
       })
     } catch (error) {
+      const err = error?._response?.error || error?._response?.message || error?.message || "Error"
       setCalcResult({
         code: "error",
         format: error?._response?.format ?? null,
         result: error?._response?.result ?? "",
-        error: error?._response?.error || error?._response?.message || error?.message || "Error",
+        logs: [{ level: "error", message: err }],
+        error: err,
         userResult: error?._response?.user_result ?? "",
         userError: error?._response?.user_error ?? "",
       })
@@ -285,7 +288,7 @@ const CodeDebugger = ({
                   className={`h-full box-border font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}
                 >
                   {(calcResult?.logs ?? []).map(log => (
-                    <div className={`w-full log-line log-${log.level}`}>{log.message}</div>
+                    <div className={`w-full log-line log-${log.level}`}><pre>{log.message}</pre></div>
                   ))}
                 </div>
               </Tabs.TabPane>
