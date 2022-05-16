@@ -8,10 +8,11 @@ import (
 	"text/template/parse"
 
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/script"
 )
 
 type TemplateExecutor interface {
-	ProcessEvent(events.Event) (interface{}, error)
+	ProcessEvent(events.Event, script.Listener) (interface{}, error)
 	Format() string
 	Expression() string
 	Close()
@@ -41,7 +42,7 @@ func NewGoTemplateExecutor(name string, expression string, extraFunctions templa
 	return &goTemplateExecutor{template: tmpl, expression: expression}, nil
 }
 
-func (gte *goTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
+func (gte *goTemplateExecutor) ProcessEvent(event events.Event, _ script.Listener) (interface{}, error) {
 	var buf bytes.Buffer
 	if err := gte.template.Execute(&buf, event); err != nil {
 		return "", err
@@ -73,7 +74,7 @@ func newConstTemplateExecutor(expression string) (*constTemplateExecutor, error)
 	return &constTemplateExecutor{expression}, nil
 }
 
-func (cte *constTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
+func (cte *constTemplateExecutor) ProcessEvent(event events.Event, _ script.Listener) (interface{}, error) {
 	return cte.template, nil
 }
 

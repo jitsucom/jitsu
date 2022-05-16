@@ -261,7 +261,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	}
 	var transformed interface{}
 	if p.transformer != nil {
-		transformed, err = p.transformer.ProcessEvent(mappedObject)
+		transformed, err = p.transformer.ProcessEvent(mappedObject, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to apply javascript transform: %v", err)
 		}
@@ -277,7 +277,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		if !ok {
 			return nil, fmt.Errorf("builtin javascript transform requires object. Got: %T", transformed)
 		}
-		transformed, err = p.builtinTransformer.ProcessEvent(transformedObj)
+		transformed, err = p.builtinTransformer.ProcessEvent(transformedObj, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to apply builtin javascript transform: %v", err)
 		}

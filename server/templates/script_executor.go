@@ -19,7 +19,7 @@ type nodeScript interface {
 	executable() script.Executable
 	init(s script.Interface) error
 	validate(s script.Interface) error
-	transform(s script.Interface, event events.Event) (interface{}, error)
+	transform(s script.Interface, event events.Event, listener script.Listener) (interface{}, error)
 }
 
 type Expression string
@@ -40,9 +40,9 @@ func (e Expression) validate(s script.Interface) error {
 	return nil
 }
 
-func (e Expression) transform(s script.Interface, event events.Event) (interface{}, error) {
+func (e Expression) transform(s script.Interface, event events.Event, listener script.Listener) (interface{}, error) {
 	var value interface{}
-	if err := s.Execute("", script.Args{event}, &value, nil); err != nil {
+	if err := s.Execute("", script.Args{event}, &value, listener); err != nil {
 		return nil, err
 	}
 
@@ -151,9 +151,9 @@ func (p *DestinationPlugin) validate(s script.Interface) error {
 	return nil
 }
 
-func (p *DestinationPlugin) transform(s script.Interface, event events.Event) (interface{}, error) {
+func (p *DestinationPlugin) transform(s script.Interface, event events.Event, listener script.Listener) (interface{}, error) {
 	var result interface{}
-	if err := s.Execute(p.execFunc, append(script.Args{event}, p.execArgs...), &result, nil); err != nil {
+	if err := s.Execute(p.execFunc, append(script.Args{event}, p.execArgs...), &result, listener); err != nil {
 		return nil, err
 	}
 
@@ -347,8 +347,8 @@ func (e *NodeExecutor) Validate() error {
 	return e.validate(e)
 }
 
-func (e *NodeExecutor) ProcessEvent(event events.Event) (interface{}, error) {
-	return e.transform(e, event)
+func (e *NodeExecutor) ProcessEvent(event events.Event, listener script.Listener) (interface{}, error) {
+	return e.transform(e, event, listener)
 }
 
 func (e *NodeExecutor) Format() string {
