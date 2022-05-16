@@ -182,26 +182,6 @@ func (fb *Firebase) AutoSignUp(ctx context.Context, email string, _ *string) (st
 	return createdUser.UID, nil
 }
 
-func (fb *Firebase) SignInAs(ctx context.Context, email string) (*openapi.TokenResponse, error) {
-	user, err := fb.authClient.GetUserByEmail(ctx, email)
-	if err != nil {
-		return nil, middleware.ReadableError{
-			Description: "Failed to get user from Firebase",
-			Cause:       err,
-		}
-	}
-
-	token, err := fb.authClient.CustomToken(ctx, user.UID)
-	if err != nil {
-		return nil, middleware.ReadableError{
-			Description: "Failed to generate custom user token via Firebase",
-			Cause:       err,
-		}
-	}
-
-	return &openapi.TokenResponse{Token: token}, nil
-}
-
 func isProvidedByGoogle(info []*auth.UserInfo) bool {
 	for _, info := range info {
 		if info.ProviderID == "google.com" {

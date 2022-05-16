@@ -1191,28 +1191,3 @@ paths:
           $ref: '#/components/responses/AnyObjectResponse'
         default:
           $ref: '#/components/responses/Error'
-
-  /api/v1/become:
-    parameters:
-      - in: query
-        name: user_id
-        description: ID of desirable user
-        required: true
-        schema:
-          type: string
-    get:
-      tags:
-        - configuration-management
-      operationId: 'Become another cloud user'
-      description: Authorize as another user. Method can only be used by admins and it is only available on cloud.jitsu.com.
-      security:
-        - configurationManagementAuth: [ ]
-      responses:
-        '200':
-          description: "Access token for desired user authorization"
-          content:
-            "application/json":
-              schema:
-                $ref: "#/components/schemas/TokenResponse"
-        default:
-          $ref: '#/components/responses/Error'

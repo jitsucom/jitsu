@@ -31,10 +31,6 @@ export type SuggestedUserInfo = {
   companyName?: string
 }
 
-export enum Permission {
-  BECOME_OTHER_USER,
-}
-
 /**
  * User internal representation. This class is here for backward compatibility
  */
