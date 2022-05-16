@@ -20,7 +20,7 @@ type Interface interface {
 	// Receive receives a message from the process.
 	// It is advisable to support context.Context.Done() in method implementations
 	// so as not to infinitely block.
-	Receive(ctx context.Context, dataChannel chan<- interface{}) ([]byte, error)
+	Receive(ctx context.Context, listener DataListener) ([]byte, error)
 }
 
 // Process describes a process with no acquired state (except for the initial state acquired on start)
@@ -61,7 +61,7 @@ func Govern(process Process) (*Governor, error) {
 }
 
 // Exchange sends request data and returns response data.
-func (g *Governor) Exchange(ctx context.Context, data []byte, dataChannel chan<- interface{}) ([]byte, error) {
+func (g *Governor) Exchange(ctx context.Context, data []byte, listener DataListener) ([]byte, error) {
 	cancel, err := g.mu.Lock(ctx)
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (g *Governor) Exchange(ctx context.Context, data []byte, dataChannel chan<-
 		default:
 		}
 
-		data, err := g.exchange(ctx, data, dataChannel)
+		data, err := g.exchange(ctx, data, listener)
 		if err == nil {
 			return data, nil
 		}
@@ -105,22 +105,22 @@ func (g *Governor) Exchange(ctx context.Context, data []byte, dataChannel chan<-
 	}
 }
 
-func (g *Governor) exchange(ctx context.Context, data []byte, dataChannel chan<- interface{}) ([]byte, error) {
+func (g *Governor) exchange(ctx context.Context, data []byte, listener DataListener) ([]byte, error) {
 	if err := g.process.Send(ctx, data); err != nil {
 		return nil, err
 	}
 
-	return g.process.Receive(ctx, dataChannel)
+	return g.process.Receive(ctx, listener)
 }
 
-func (g *Governor) ExchangeDirect(ctx context.Context, data []byte, dataChannel chan<- interface{}) ([]byte, error) {
+func (g *Governor) ExchangeDirect(ctx context.Context, data []byte, listener DataListener) ([]byte, error) {
 	cancel, err := g.mu.Lock(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	defer cancel()
-	return g.exchange(ctx, data, dataChannel)
+	return g.exchange(ctx, data, listener)
 }
 
 // Kill kills the running process.

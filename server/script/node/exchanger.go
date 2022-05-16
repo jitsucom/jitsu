@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/script"
 	"github.com/jitsucom/jitsu/server/script/ipc"
 	"github.com/jitsucom/jitsu/server/timestamp"
 )
@@ -52,17 +53,17 @@ type exchanger struct {
 
 var errLoadRequired = errors.New("load required")
 
-type exchangerFunc func(ctx context.Context, data []byte, dataChannel chan<- interface{}) ([]byte, error)
+type exchangerFunc func(ctx context.Context, data []byte, listener ipc.DataListener) ([]byte, error)
 
-func (e *exchanger) exchangeDirect(command string, payload, result interface{}, dataChannel chan<- interface{}) error {
-	return e.exchange0(command, payload, result, dataChannel, DefaultExchangeTimeout, e.ExchangeDirect)
+func (e *exchanger) exchangeDirect(command string, payload, result interface{}, listener script.Listener) error {
+	return e.exchange0(command, payload, result, listener, e.ExchangeDirect)
 }
 
-func (e *exchanger) exchange(command string, payload, result interface{}, dataChannel chan<- interface{}, timeout time.Duration) error {
-	return e.exchange0(command, payload, result, dataChannel, timeout, e.Exchange)
+func (e *exchanger) exchange(command string, payload, result interface{}, listener script.Listener) error {
+	return e.exchange0(command, payload, result, listener, e.Exchange)
 }
 
-func (e *exchanger) exchange0(command string, payload, result interface{}, dataChannel chan<- interface{}, timeout time.Duration, exchangerFunc exchangerFunc) error {
+func (e *exchanger) exchange0(command string, payload, result interface{}, listener script.Listener, exchangerFunc exchangerFunc) error {
 	data, err := json.Marshal(Request{
 		Command: command,
 		Payload: payload,
@@ -72,15 +73,16 @@ func (e *exchanger) exchange0(command string, payload, result interface{}, dataC
 		return err
 	}
 
-	if timeout <= 0 {
-		timeout = DefaultExchangeTimeout
+	timeout := DefaultExchangeTimeout
+	if listener != nil && listener.Timeout() > 0 {
+		timeout = listener.Timeout()
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	start := timestamp.Now()
-	newData, err := exchangerFunc(ctx, data, dataChannel)
+	newData, err := exchangerFunc(ctx, data, listener)
 
 	logging.Debugf("%s: %s => %s (%v) [%s]", e, string(data), string(newData), err, timestamp.Now().Sub(start))
 	if err != nil {
@@ -92,16 +94,9 @@ func (e *exchanger) exchange0(command string, payload, result interface{}, dataC
 		return err
 	}
 
-	for _, log := range resp.Log {
-		switch log.Level {
-		case "debug":
-			logging.Debugf("%s: %s", e, log.Message)
-		case "info", "log":
-			logging.Infof("%s: %s", e, log.Message)
-		case "warn":
-			logging.Warnf("%s: %s", e, log.Message)
-		case "error":
-			logging.Errorf("%s: %s", e, log.Message)
+	if listener != nil {
+		for _, log := range resp.Log {
+			listener.Log(log.Level, log.Message)
 		}
 	}
 

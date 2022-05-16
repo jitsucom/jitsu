@@ -3,6 +3,7 @@ package script
 import (
 	"encoding/json"
 	"errors"
+	"time"
 )
 
 // Executable is an entity which can be loaded as Interface.
@@ -63,6 +64,21 @@ type Symbols map[string]Symbol
 
 type Args = []interface{}
 
+type UnmarshalerFunc func(value interface{}) error
+
+// Listener interface is used to collect execution "side-effects".
+type Listener interface {
+
+	// Data is executed on each line of resulting multiline stream.
+	Data(data []byte)
+
+	// Log is executed for each log record generated during execution.
+	Log(level, message string)
+
+	// Timeout to use for execution.
+	Timeout() time.Duration
+}
+
 // Interface defines the loaded Executable.
 type Interface interface {
 
@@ -70,11 +86,8 @@ type Interface interface {
 	Describe() (Symbols, error)
 
 	// Execute executes a function with the provided `name` and `args` and collects the execution result into `result`.
-	Execute(name string, args Args, result interface{}) error
-
-	// ExecuteStream executes a function with the provided `name` and `args` and collects the execution result into `result`.
-	// Execution result maybe multiline stream that will be written into provided writer
-	ExecuteWithDataChannel(name string, args Args, result interface{}, dataChannel chan<- interface{}) error
+	// Execution result maybe multiline stream that will be written into provided Listener.
+	Execute(name string, args Args, result interface{}, listener Listener) error
 
 	// Close disposes of the instance and releases associated resources.
 	Close()
