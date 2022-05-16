@@ -139,7 +139,7 @@
 .events {
   @apply h-full w-full;
   height: 50vh;
-  max-width: 200px;
+  max-width: 400px;
 
   :global {
     .ant-card-body {
@@ -155,10 +155,52 @@
 }
 
 .eventItem {
-  @apply block w-full rounded-md p-1;
+  @apply block w-full rounded-md p-1 m-1;
+  text-align: left;
+  height: auto;
 }
 
 .eventItem:hover {
   @apply cursor-pointer;
   background-color: @secondary-background;
+}
+
+.eventTabs {
+  height: 100%;
+
+  :global {
+    .ant-tabs-content {
+      height: 100%;
+      padding: 0;
+    }
+
+    .ant-tabs-tab-active {
+      border-bottom-color: #1a2332 !important;
+    }
+  }
+}
+
+.consoleOutput {
+  :global {
+    .log-line {
+      padding: 5px 10px;
+      border-bottom: 1px solid #5b0000;
+    }
+
+    .log-error {
+      background: #280000;
+      color: #e77072;
+      border-bottom: 1px solid #5b0000;
+    }
+
+    .log-warn {
+      background: #332a00;
+      color: #f1d094;
+      border-bottom: 1px solid #4d3f00;
+    }
+
+    .log-info {
+      border-bottom: 1px solid #535353;
+    }
+  }
 }

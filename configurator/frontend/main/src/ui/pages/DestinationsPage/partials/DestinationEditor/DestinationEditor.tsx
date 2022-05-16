@@ -1,6 +1,6 @@
 // @Libs
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Prompt, useHistory, useParams } from "react-router-dom"
+import { Prompt, useHistory, useLocation, useParams } from "react-router-dom"
 import { Button, Card, Form } from "antd"
 import { flowResult } from "mobx"
 import cn from "classnames"
@@ -81,6 +81,7 @@ const DestinationEditor = ({
   isOnboarding,
 }: Props) => {
   const history = useHistory()
+  const { search } = useLocation()
 
   const forceUpdate = useForceUpdate()
 
@@ -99,6 +100,14 @@ const DestinationEditor = ({
   const destinationData = useRef<DestinationData>(getDestinationData(params))
 
   const submittedOnce = useRef<boolean>(false)
+
+  useEffect(() => {
+    const query = new URLSearchParams(search)
+    if (query.has("debugger")) {
+      const activeTabKey = query.get("debugger").includes("transform") ? "transform" : "config"
+      setActiveTabKey(activeTabKey)
+    }
+  }, [search])
 
   const destinationReference = useMemo<Destination | null | undefined>(() => {
     if (params.type) {
@@ -484,7 +493,7 @@ const DestinationEditor = ({
         </div>
       </div>
 
-      <Prompt message={destinationEditorUtils.getPromptMessage(destinationsTabs)} />
+      <Prompt message={(location, action) => destinationEditorUtils.getPromptMessage(destinationsTabs, location)} />
     </>
   )
 }
