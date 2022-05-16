@@ -203,16 +203,27 @@ func evaluateReformatted(req *EvaluateTemplateRequest) (response EvaluateTemplat
 	return
 }
 
-type EvaluateLogs []string
+type EvaluateLog struct {
+	Level   string `json:"level"`
+	Message string `json:"message"`
+}
+
+type EvaluateLogs []EvaluateLog
 
 func (l *EvaluateLogs) Data(data []byte) {
-	*l = append(*l, string(data))
+	*l = append(*l, EvaluateLog{
+		Level:   "debug",
+		Message: string(data),
+	})
 }
 
 func (l *EvaluateLogs) Log(level, message string) {
-	*l = append(*l, fmt.Sprintf("%s: %s", level, message))
+	*l = append(*l, EvaluateLog{
+		Level:   level,
+		Message: message,
+	})
 }
 
 func (l *EvaluateLogs) Timeout() time.Duration {
-	return -1
+	return 0
 }
