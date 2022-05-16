@@ -25,8 +25,8 @@ func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) ht
 
 			token := extractToken(r)
 			origins, ok := isAllowedOriginsFunc(token)
+			reqOrigin := r.Header.Get("Origin")
 			if ok {
-				reqOrigin := r.Header.Get("Origin")
 				if len(origins) > 0 {
 					for _, allowedOrigin := range origins {
 						if cors.NewPrefixSuffixRule(allowedOrigin).IsAllowed("", reqOrigin) {
@@ -39,6 +39,7 @@ func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) ht
 				}
 			} else {
 				//Unauthorized
+				w.Header().Add("Access-Control-Allow-Origin", reqOrigin)
 				response := ErrResponse(ErrTokenNotFound, nil)
 				b, _ := json.Marshal(response)
 				w.WriteHeader(http.StatusUnauthorized)
