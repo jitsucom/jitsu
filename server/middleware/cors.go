@@ -13,13 +13,6 @@ import (
 //if not returns 401
 func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "OPTIONS" {
-			w.Header().Add("Access-Control-Allow-Origin", "*")
-			writeDefaultCorsHeaders(w)
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
 		if r.URL.Path == "/api/v1/event" || r.URL.Path == "/api/v1/events" || strings.Contains(r.URL.Path, "/api.") {
 			writeDefaultCorsHeaders(w)
 
@@ -40,6 +33,10 @@ func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) ht
 			} else {
 				//Unauthorized
 				w.Header().Add("Access-Control-Allow-Origin", reqOrigin)
+				if r.Method == "OPTIONS" {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
 				response := ErrResponse(ErrTokenNotFound, nil)
 				b, _ := json.Marshal(response)
 				w.WriteHeader(http.StatusUnauthorized)
@@ -50,6 +47,11 @@ func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) ht
 		} else if strings.Contains(r.URL.Path, "/p/") || strings.Contains(r.URL.Path, "/s/") || strings.Contains(r.URL.Path, "/t/") {
 			writeDefaultCorsHeaders(w)
 			w.Header().Add("Access-Control-Allow-Origin", "*")
+		}
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
 		}
 
 		h.ServeHTTP(w, r)
