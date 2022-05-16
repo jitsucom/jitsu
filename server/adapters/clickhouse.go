@@ -442,16 +442,12 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 
 //Insert inserts provided object in ClickHouse as a single record or batch
 func (ch *ClickHouse) Insert(insertContext *InsertContext) error {
-	if insertContext.eventContext != nil {
-		return ch.insert(insertContext.eventContext.Table, insertContext.eventContext.ProcessedEvent)
-	} else {
-		if !insertContext.deleteConditions.IsEmpty() {
-			if err := ch.delete(insertContext.table, insertContext.deleteConditions); err != nil {
-				return errorj.Decorate(err, "failed to execute delete in insert")
-			}
+	if !insertContext.deleteConditions.IsEmpty() {
+		if err := ch.delete(insertContext.table, insertContext.deleteConditions); err != nil {
+			return errorj.Decorate(err, "failed to execute delete in insert")
 		}
-		return ch.insert(insertContext.table, insertContext.objects...)
 	}
+	return ch.insert(insertContext.table, insertContext.objects...)
 }
 
 func (ch *ClickHouse) delete(table *Table, deleteConditions *DeleteConditions) error {
@@ -526,7 +522,7 @@ func (ch *ClickHouse) toDeleteQuery(table *Table, conditions *DeleteConditions) 
 		queryConditions = append(queryConditions, condition.Field+" "+condition.Clause+" "+ch.getPlaceholder(condition.Field, table.Columns[condition.Field]))
 		values = append(values, condition.Value)
 	}
-	return strings.Join(queryConditions, conditions.JoinCondition), values
+	return strings.Join(queryConditions, " "+conditions.JoinCondition+" "), values
 }
 
 //insert creates statement like insert ... values (), (), ()

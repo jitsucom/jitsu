@@ -119,8 +119,8 @@ func (m *MySQL) DryRun(payload events.Event) ([][]adapters.TableField, error) {
 }
 
 //SyncStore is used in storing chunk of pulled data to Postgres with processing
-func (m *MySQL) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
-	return syncStoreImpl(m, overriddenDataSchema, objects, timeIntervalValue, cacheTable, needCopyEvent)
+func (m *MySQL) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *adapters.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
+	return syncStoreImpl(m, overriddenDataSchema, objects, deleteConditions, cacheTable, needCopyEvent)
 }
 
 func (m *MySQL) Clean(tableName string) error {

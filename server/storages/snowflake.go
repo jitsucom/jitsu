@@ -193,8 +193,8 @@ func (s *Snowflake) GetUsersRecognition() *UserRecognitionConfiguration {
 }
 
 // SyncStore is used in storing chunk of pulled data to Snowflake with processing
-func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
-	return syncStoreImpl(s, overriddenDataSchema, objects, timeIntervalValue, cacheTable, needCopyEvent)
+func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *adapters.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
+	return syncStoreImpl(s, overriddenDataSchema, objects, deleteConditions, cacheTable, needCopyEvent)
 }
 
 func (s *Snowflake) Clean(tableName string) error {

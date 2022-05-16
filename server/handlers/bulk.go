@@ -125,7 +125,7 @@ func (bh *BulkHandler) upload(storageProxy storages.StorageProxy, objects []map[
 			"cannot be used to store data (only available for dry-run)", storage.ID())
 	}
 
-	return storage.SyncStore(nil, objects, "", true, needCopyEvent)
+	return storage.SyncStore(nil, objects, nil, true, needCopyEvent)
 }
 
 //readFileBytes reads file from form data and returns byte payload or err if occurred

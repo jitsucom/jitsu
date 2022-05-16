@@ -3,6 +3,7 @@ package sources
 import (
 	"github.com/hashicorp/go-multierror"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/logging"
 )
 
 type Unit struct {
@@ -19,7 +20,8 @@ type Unit struct {
 
 //Close all drivers
 func (u *Unit) Close() (multiErr error) {
-	for _, driver := range u.DriverPerCollection {
+	for k, driver := range u.DriverPerCollection {
+		logging.Infof("CLOSING %s:%s", k, driver.GetCollectionMetaKey())
 		if err := driver.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, err)
 		}

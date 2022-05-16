@@ -4,7 +4,18 @@ import { merge } from "lodash"
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 // @Types
 import { SourceEditorState } from "./SourceEditor"
-import { SourceConnector } from "@jitsu/catalog/sources/types"
+import {
+  booleanType,
+  intType,
+  isoUtcDateType,
+  jsonType,
+  ParameterType,
+  passwordType,
+  selectionType,
+  singleSelectionType,
+  SourceConnector,
+  stringType,
+} from "@jitsu/catalog/sources/types"
 import { makeObjectFromFieldsValues } from "utils/forms/marshalling"
 import { sourcesStore } from "stores/sources"
 import { COLLECTIONS_SCHEDULES } from "constants/schedule"

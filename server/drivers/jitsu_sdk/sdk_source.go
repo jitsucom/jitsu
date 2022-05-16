@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/templates"
+	"github.com/mitchellh/mapstructure"
 	"go.uber.org/atomic"
 	"sync"
 	"time"
@@ -33,6 +35,17 @@ type SdkSource struct {
 	config         map[string]interface{}
 	collection     *base.Collection
 	closed         chan struct{}
+}
+
+type DeleteRecords struct {
+	WhenConditions []Condition `mapstructure:"whenConditions" json:"whenConditions,omitempty"`
+	JoinCondition  string      `mapstructure:"joinCondition" json:"joinCondition,omitempty"`
+}
+
+type Condition struct {
+	Field  string      `mapstructure:"field" json:"field,omitempty"`
+	Value  interface{} `mapstructure:"value" json:"value,omitempty"`
+	Clause string      `mapstructure:"clause" json:"clause,omitempty"`
 }
 
 func init() {
@@ -171,7 +184,7 @@ func (s *SdkSource) Load(config string, state string, taskLogger logging.TaskLog
 		}
 	})
 
-	return sdkSourceRunner.Load(taskLogger, dataConsumer)
+	return sdkSourceRunner.Load(taskLogger, dataConsumer, state)
 }
 
 //GetDriversInfo returns telemetry information about the driver
@@ -190,6 +203,8 @@ func (s *SdkSource) Type() string {
 
 //Close kills all runners and returns errors if occurred
 func (s *SdkSource) Close() (multiErr error) {
+	logging.Infof("[%s] %s active commands: %s", s.ID(), s.collection.Name, s.activeCommands)
+
 	if s.IsClosed() {
 		return nil
 	}
@@ -226,7 +241,7 @@ type SdkSourceRunner struct {
 	closed         *atomic.Bool
 }
 
-func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer) error {
+func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, state string) error {
 	if s.closed.Load() {
 		return ErrSDKSourceCancelled
 	}
@@ -234,20 +249,31 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 		Streams: map[string]*base.StreamRepresentation{},
 	}
 
+	stateObj := map[string]interface{}{}
+	if state != "" {
+		err := json.Unmarshal([]byte(state), &stateObj)
+		if err != nil {
+			return fmt.Errorf("Failed to unmarshal state object %s: %v", state, err)
+		}
+	}
+
 	stream := s.collection
 	taskLogger.INFO("Starting processing stream: %s", stream.Name)
+	cleanExpected := stream.SyncMode == "full_sync"
+	cleanMessageReceived := false
+
 	representation := &base.StreamRepresentation{
-		StreamName:       stream.Name,
-		BatchHeader:      &schema.BatchHeader{TableName: stream.TableName, Fields: map[string]schema.Field{}},
-		Objects:          []map[string]interface{}{},
-		KeepKeysUnhashed: true,
-		NeedClean:        stream.SyncMode == "full_sync",
+		StreamName:            stream.Name,
+		BatchHeader:           &schema.BatchHeader{TableName: stream.TableName, Fields: map[string]schema.Field{}},
+		Objects:               []map[string]interface{}{},
+		KeepKeysUnhashed:      true,
+		RemoveSourceKeyFields: true,
 	}
 	output.Streams[stream.Name] = representation
 	dataChannel := make(chan interface{}, 1000)
 	go func() {
 		defer close(dataChannel)
-		_, err := s.sourceExecutor.Stream(stream.Type, stream, nil, dataChannel)
+		_, err := s.sourceExecutor.Stream(stream.Type, stream, stateObj, dataChannel)
 		if err != nil {
 			dataChannel <- err
 		}
@@ -266,13 +292,40 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 			case "record":
 				object, ok := row.Message.(map[string]interface{})
 				if !ok {
-					taskLogger.ERROR("Record message expected to have type map[string]interface{} found: %T", row.Message)
+					err = fmt.Errorf("Record message expected to have type map[string]interface{} found: %T", row.Message)
+					taskLogger.ERROR(err.Error())
+					return err
 				}
 				id, ok := object[IdField]
 				if ok && representation.KeyFields == nil && fmt.Sprint(id) != "" {
 					representation.KeyFields = []string{IdField}
 				}
 				representation.Objects = append(representation.Objects, object)
+			case "delete_records":
+				deleteRecords := DeleteRecords{}
+				err = mapstructure.Decode(row.Message, &deleteRecords)
+				if err != nil {
+					err = fmt.Errorf("Failed to parse delete_records message %s, %v", row.Message, err)
+					taskLogger.ERROR(err.Error())
+					return err
+				}
+				deleteConditions := adapters.DeleteConditions{}
+				deleteConditions.JoinCondition = deleteRecords.JoinCondition
+				if deleteConditions.JoinCondition == "" {
+					deleteConditions.JoinCondition = "AND"
+				}
+				for _, c := range deleteRecords.WhenConditions {
+					deleteConditions.Conditions = append(deleteConditions.Conditions, adapters.DeleteCondition{Field: c.Field, Value: c.Value, Clause: c.Clause})
+				}
+				taskLogger.INFO("Delete Records: %+v", deleteConditions)
+				representation.DeleteConditions = &deleteConditions
+			case "clear_stream":
+				taskLogger.INFO("Table %s will be cleared", stream.TableName)
+				representation.NeedClean = true
+				cleanMessageReceived = true
+			case "state":
+				taskLogger.INFO("State changed: %+v", row.Message)
+				output.State = row.Message
 			case "log":
 				log, ok := row.Message.(map[string]interface{})
 				if !ok {
@@ -287,6 +340,10 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 		default:
 			taskLogger.ERROR("Failed to parse message from source: %+v of type: %T", data, data)
 		}
+
+	}
+	if cleanExpected && !cleanMessageReceived {
+		taskLogger.WARN("Stream: %s No clear_stream was received for stream in \"full_sync\" mode. Forcing cleaning table")
 
 	}
 	taskLogger.INFO("Stream: %s finished. Objects count: %d", stream.Name, len(representation.Objects))

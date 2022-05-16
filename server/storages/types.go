@@ -47,7 +47,7 @@ type Storage interface {
 	io.Closer
 	DryRun(payload events.Event) ([][]adapters.TableField, error)
 	Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error)
-	SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error
+	SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *adapters.DeleteConditions, cacheTable bool, needCopyEvent bool) error
 	storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error)
 
 	//Update(object map[string]interface{}) error

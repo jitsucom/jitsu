@@ -72,12 +72,14 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 			continue
 		}
 
+		_ = sh.metaStorage.DeleteSignature(req.Source, driver.GetCollectionMetaKey()+driversbase.ConfigSignatureSuffix)
 		err := sh.metaStorage.DeleteSignature(req.Source, driver.GetCollectionMetaKey())
 		if err != nil {
 			msg := fmt.Sprintf("Error clearing cache for source: [%s] collection: [%s]: %v", req.Source, collection, err)
 			logging.Error(msg)
 			multiErr = multierror.Append(multiErr, err)
 		}
+
 		if shouldCleanWarehouse {
 			multiErr = sh.cleanWarehouse(driver, source.DestinationIDs, req.Source, collection, multiErr)
 		}

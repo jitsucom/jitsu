@@ -35,6 +35,7 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 
 	for streamName, representation := range ap.streamsRepresentation {
 		output.Streams[streamName] = &base.StreamRepresentation{
+			StreamName:  streamName,
 			BatchHeader: &schema.BatchHeader{TableName: representation.BatchHeader.TableName, Fields: representation.BatchHeader.Fields.Clone()},
 			KeyFields:   representation.KeyFields,
 			Objects:     []map[string]interface{}{},

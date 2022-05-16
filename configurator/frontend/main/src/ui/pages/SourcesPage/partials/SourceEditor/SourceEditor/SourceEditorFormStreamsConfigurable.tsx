@@ -7,9 +7,12 @@ import {
   CollectionParameter,
   CollectionTemplate,
   intType,
+  isoUtcDateType,
   jsonType,
   ParameterType,
   passwordType,
+  selectionType,
+  singleSelectionType,
   SourceConnector,
   stringType,
 } from "@jitsu/catalog/sources/types"
@@ -24,10 +27,8 @@ import { getUniqueAutoIncId, randomId } from "utils/numbers"
 import { useDebouncedCallback } from "hooks/useDebouncedCallback"
 // @Styles
 import styles from "./SourceEditor.module.less"
-import { assert } from "../../../../../../utils/typeCheck"
-import ApplicationServices from "../../../../../../lib/services/ApplicationServices"
-import { withQueryParams } from "../../../../../../utils/queryParams"
-import { sourceEditorUtils } from "./SourceEditor.utils"
+import { convertSdkType } from "@jitsu/catalog/sources/lib/sdk_source.helper"
+
 import {
   PARSING_STREAMS_ERROR_NAME,
   pullAllSDKSourceStreams,
@@ -89,20 +90,7 @@ const SourceEditorFormStreamsConfigurable = ({
             for (const stream of streamData) {
               ct.push(stream.type)
               for (const param of stream.params) {
-                let tp: ParameterType<any> = stringType
-                switch (param["type"]) {
-                  case "int":
-                    tp = intType
-                    break
-                  case "json":
-                    tp = jsonType
-                    break
-                  case "boolean":
-                    tp = booleanType
-                    break
-                  case "password":
-                    tp = passwordType
-                }
+                let tp = convertSdkType(param["type"])
                 cp.push({
                   applyOnlyTo: stream.type,
                   id: param.id,

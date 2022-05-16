@@ -2,6 +2,8 @@ package ipc
 
 import (
 	"context"
+	"fmt"
+	"go.uber.org/atomic"
 	"io"
 	"strings"
 
@@ -47,6 +49,7 @@ type Process interface {
 type Governor struct {
 	process Process
 	mu      Mutex
+	closed  *atomic.Bool
 }
 
 // Govern starts the process and passes it to Governor instance.
@@ -57,7 +60,7 @@ func Govern(process Process) (*Governor, error) {
 	}
 
 	logging.Debugf("%s started successfully", process)
-	return &Governor{process: process}, nil
+	return &Governor{process: process, closed: atomic.NewBool(false)}, nil
 }
 
 // Exchange sends request data and returns response data.
@@ -75,12 +78,17 @@ func (g *Governor) Exchange(ctx context.Context, data []byte, dataChannel chan<-
 			return nil, ctx.Err()
 		default:
 		}
+		if g.closed.Load() {
+			return nil, fmt.Errorf("governor was closed.")
+		}
 
 		data, err := g.exchange(ctx, data, dataChannel)
 		if err == nil {
 			return data, nil
 		}
-
+		if g.closed.Load() {
+			return nil, fmt.Errorf("governor was closed.")
+		}
 		logging.Warnf("%s exchange error: %v", g.process, err)
 
 		if errors.Is(err, io.EOF) ||
@@ -123,15 +131,27 @@ func (g *Governor) ExchangeDirect(ctx context.Context, data []byte, dataChannel 
 	return g.exchange(ctx, data, dataChannel)
 }
 
-// Kill kills the running process.
-func (g *Governor) Kill() {
+func (g *Governor) Close() error {
+	cancel, _ := g.mu.Lock(context.Background())
+	defer cancel()
+	g.closed.Store(true)
+	g.process.Kill()
+	if err := g.process.Wait(); err != nil {
+		return err
+	}
+	logging.Debugf("%s completed successfully", g.process)
+	return nil
+}
+
+// kill kills the running process.
+func (g *Governor) kill() {
 	cancel, _ := g.mu.Lock(context.Background())
 	defer cancel()
 	g.process.Kill()
 }
 
-// Wait waits for the running process to exit.
-func (g *Governor) Wait() error {
+// wait waits for the running process to exit.
+func (g *Governor) wait() error {
 	cancel, _ := g.mu.Lock(context.Background())
 	defer cancel()
 	if err := g.process.Wait(); err != nil {

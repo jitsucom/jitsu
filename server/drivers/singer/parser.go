@@ -82,7 +82,7 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 				streamRepresentation.NeedClean = false
 			}
 
-			outputPortion.Streams[streamRepresentation.BatchHeader.TableName] = streamRepresentation
+			outputPortion.Streams[streamRepresentation.StreamName] = streamRepresentation
 		case "STATE":
 			state, ok := lineObject["value"]
 			if !ok {
