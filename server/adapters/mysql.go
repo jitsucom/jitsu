@@ -229,11 +229,7 @@ func (m *MySQL) GetTableSchema(tableName string) (*Table, error) {
 //Insert provided object in mySQL with typecasts
 //uses upsert (merge on conflict) if primary_keys are configured
 func (m *MySQL) Insert(insertContext *InsertContext) error {
-	if insertContext.eventContext != nil {
-		return m.insertSingle(insertContext.eventContext)
-	} else {
-		return m.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
-	}
+	return m.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
 }
 
 //insertBatch inserts batch of provided objects in mysql with typecasts
@@ -368,7 +364,7 @@ func (m *MySQL) toDeleteQuery(conditions *DeleteConditions) (string, []interface
 		queryConditions = append(queryConditions, quotedField+" "+condition.Clause+" ?")
 		values = append(values, condition.Value)
 	}
-	return strings.Join(queryConditions, conditions.JoinCondition), values
+	return strings.Join(queryConditions, " "+conditions.JoinCondition+" "), values
 }
 
 //Truncate deletes all records in tableName table

@@ -113,12 +113,7 @@ func (bq *BigQuery) Test() error {
 
 //Insert inserts data with InsertContext as a single object or a batch into BigQuery
 func (bq *BigQuery) Insert(insertContext *InsertContext) error {
-	if insertContext.eventContext != nil {
-		return bq.insertSingle(insertContext.eventContext)
-	} else {
-		return bq.insertBatch(insertContext.table, insertContext.objects)
-	}
-
+	return bq.insertBatch(insertContext.table, insertContext.objects)
 }
 
 //GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct
@@ -403,7 +398,7 @@ func (bq *BigQuery) toDeleteQuery(conditions *DeleteConditions) string {
 		queryConditions = append(queryConditions, conditionString)
 	}
 
-	return strings.Join(queryConditions, conditions.JoinCondition)
+	return strings.Join(queryConditions, " "+conditions.JoinCondition+" ")
 }
 
 func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}, ddl bool) {

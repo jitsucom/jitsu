@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/adapters"
 	"io"
 	"io/ioutil"
 	"runtime/debug"
@@ -457,10 +458,10 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			}
 			rowsCount := len(objects)
 			needCopyEvent := len(destinationStorages) > 1
-			deleteConditions := ""
+			deleteConditions := &adapters.DeleteConditions{}
 			if pos == 0 {
 				//first chunk deletes full data from previous  load
-				deleteConditions = intervalToSync.String()
+				deleteConditions = adapters.DeleteByTimeChunkCondition(intervalToSync.String())
 			}
 			for _, storage := range destinationStorages {
 				err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTableName}, objects, deleteConditions, false, needCopyEvent)

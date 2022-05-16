@@ -18,7 +18,7 @@ import { SourceEditorOauthButtons } from "../Common/SourceEditorOauthButtons/Sou
 import { sourcePageUtils } from "ui/pages/SourcesPage/SourcePage.utils"
 import { useUniqueKeyState } from "hooks/useUniqueKeyState"
 import { FormSkeleton } from "ui/components/FormSkeleton/FormSkeleton"
-import { SourceEditorActionsTypes, useSourceEditorDispatcher } from "./SourceEditor.state"
+import { SourceEditorActionsTypes, useSourceEditorDispatcher, useSourceEditorState } from "./SourceEditor.state"
 
 export type SourceEditorFormConfigurationProps = {
   editorMode: "add" | "edit"
@@ -69,6 +69,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
 }) => {
   const services = useServices()
   const dispatchAction = useSourceEditorDispatcher()
+  const sourceEditorState = useSourceEditorState()
 
   const [forms, setForms] = useState<Forms>({})
 
@@ -211,66 +212,86 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
       })
   }, [])
 
-  const isLoadingOauth = !isOauthStatusReady || isLoadingBackendSecrets
   useEffect(() => {
-    if (isLoadingOauth) dispatchAction(SourceEditorActionsTypes.SET_STATUS, { isLoadingOauthStatus: true })
+    const isLoadingOauth = !isOauthStatusReady || isLoadingBackendSecrets
+    if (isLoadingOauth)
+      dispatchAction(SourceEditorActionsTypes.SET_STATUS, {
+        isLoadingOauthStatus: true,
+        hasLoadedOauthFieldsStatus: Boolean(availableBackendSecrets),
+      })
     else if (fillAuthDataManually)
-      dispatchAction(SourceEditorActionsTypes.SET_STATUS, { isOauthFlowCompleted: true, isLoadingOauthStatus: false })
+      dispatchAction(SourceEditorActionsTypes.SET_STATUS, {
+        isOauthFlowCompleted: true,
+        isLoadingOauthStatus: false,
+        hasLoadedOauthFieldsStatus: Boolean(availableBackendSecrets),
+      })
     else if (!isOauthFlowCompleted) {
-      dispatchAction(SourceEditorActionsTypes.SET_STATUS, { isOauthFlowCompleted: false, isLoadingOauthStatus: false })
+      dispatchAction(SourceEditorActionsTypes.SET_STATUS, {
+        isOauthFlowCompleted: false,
+        isLoadingOauthStatus: false,
+        hasLoadedOauthFieldsStatus: Boolean(availableBackendSecrets),
+      })
     } else {
-      dispatchAction(SourceEditorActionsTypes.SET_STATUS, { isOauthFlowCompleted: true, isLoadingOauthStatus: false })
+      dispatchAction(SourceEditorActionsTypes.SET_STATUS, {
+        isOauthFlowCompleted: true,
+        isLoadingOauthStatus: false,
+        hasLoadedOauthFieldsStatus: Boolean(availableBackendSecrets),
+      })
     }
-  }, [isLoadingOauth, fillAuthDataManually, isOauthFlowCompleted])
+  }, [isLoadingBackendSecrets, isOauthStatusReady, fillAuthDataManually, isOauthFlowCompleted])
 
   return (
     <>
-      <div className={`flex justify-center items-start w-full h-full ${isLoadingOauth ? "" : "hidden"}`}>
-        <FormSkeleton />
-      </div>
-      <div className={isLoadingOauth ? "hidden" : ""}>
-        <SourceEditorOauthButtons
-          key="oauth"
-          sourceDataFromCatalog={sourceDataFromCatalog}
-          disabled={disabled}
-          isSignedIn={isOauthFlowCompleted}
-          onIsOauthSupportedCheckSuccess={handleOauthSupportedStatusChange}
-          onFillAuthDataManuallyChange={handleFillAuthDataManuallyChange}
-          setOauthSecretsToForms={setOauthSecretsToForms}
-        />
-        <div key={resetKey}>
-          <SourceEditorFormConfigurationStaticFields
-            editorMode={editorMode}
-            initialValues={initialSourceData}
-            patchConfig={patchConfig}
-            setValidator={setStaticFieldsValidator}
-            setFormReference={setFormReference}
-          />
-          {sourceConfigurationSchema.configurableFields && (
-            <SourceEditorFormConfigurationConfigurableFields
-              initialValues={initialSourceData}
-              configParameters={sourceConfigurationSchema.configurableFields}
-              availableOauthBackendSecrets={availableBackendSecrets}
-              hideFields={hideFields}
-              patchConfig={patchConfig}
-              setValidator={setConfigurableFieldsValidator}
-              setFormReference={setFormReference}
-            />
-          )}
-          {sourceConfigurationSchema.loadableFields && (
-            <SourceEditorFormConfigurationConfigurableLoadableFields
-              initialValues={initialSourceData}
-              sourceDataFromCatalog={sourceDataFromCatalog}
-              hideFields={hideFields}
-              patchConfig={patchConfig}
-              setValidator={setConfigurableLoadableFieldsValidator}
-              setFormReference={setFormReference}
-              handleResetOauth={handleResetOauth}
-              handleReloadStreams={handleReloadStreams}
-            />
-          )}
+      {!sourceEditorState.status.hasLoadedOauthFieldsStatus ? (
+        <div className={`flex justify-center items-start w-full h-full`}>
+          <FormSkeleton />
         </div>
-      </div>
+      ) : (
+        <div>
+          <SourceEditorOauthButtons
+            key="oauth"
+            sourceDataFromCatalog={sourceDataFromCatalog}
+            disabled={disabled}
+            isSignedIn={isOauthFlowCompleted}
+            onIsOauthSupportedCheckSuccess={handleOauthSupportedStatusChange}
+            onFillAuthDataManuallyChange={handleFillAuthDataManuallyChange}
+            setOauthSecretsToForms={setOauthSecretsToForms}
+          />
+          <div key={resetKey}>
+            <SourceEditorFormConfigurationStaticFields
+              editorMode={editorMode}
+              initialValues={initialSourceData}
+              patchConfig={patchConfig}
+              setValidator={setStaticFieldsValidator}
+              setFormReference={setFormReference}
+            />
+            {sourceConfigurationSchema.configurableFields && (
+              <SourceEditorFormConfigurationConfigurableFields
+                initialValues={initialSourceData}
+                configParameters={sourceConfigurationSchema.configurableFields}
+                availableOauthBackendSecrets={availableBackendSecrets}
+                hideFields={hideFields}
+                patchConfig={patchConfig}
+                setValidator={setConfigurableFieldsValidator}
+                setFormReference={setFormReference}
+              />
+            )}
+            {sourceConfigurationSchema.loadableFields && (
+              <SourceEditorFormConfigurationConfigurableLoadableFields
+                initialValues={initialSourceData}
+                sourceDataFromCatalog={sourceDataFromCatalog}
+                availableOauthBackendSecrets={availableBackendSecrets}
+                hideFields={hideFields}
+                patchConfig={patchConfig}
+                setValidator={setConfigurableLoadableFieldsValidator}
+                setFormReference={setFormReference}
+                handleResetOauth={handleResetOauth}
+                handleReloadStreams={handleReloadStreams}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </>
   )
 }

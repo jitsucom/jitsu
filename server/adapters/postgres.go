@@ -350,11 +350,7 @@ func (p *Postgres) GetTableSchema(tableName string) (*Table, error) {
 
 //Insert inserts data with InsertContext as a single object or a batch into Redshift
 func (p *Postgres) Insert(insertContext *InsertContext) error {
-	if insertContext.eventContext != nil {
-		return p.insertSingle(insertContext.eventContext)
-	} else {
-		return p.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
-	}
+	return p.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
 }
 
 func (p *Postgres) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) (err error) {
@@ -831,10 +827,15 @@ func (p *Postgres) toDeleteQuery(table *Table, conditions *DeleteConditions) (st
 	for i, condition := range conditions.Conditions {
 		conditionString := condition.Field + " " + condition.Clause + " $" + strconv.Itoa(i+1) + p.getCastClause(condition.Field, table.Columns[condition.Field])
 		queryConditions = append(queryConditions, conditionString)
-		values = append(values, condition.Value)
+		//reformat from json.Number into int64 or float64 and put back
+		v := typing.ReformatValue(condition.Value)
+
+		// reformat from string with timestamp into time.Time and put back
+		v = typing.ReformatTimeValue(v)
+		values = append(values, v)
 	}
 
-	return strings.Join(queryConditions, conditions.JoinCondition), values
+	return strings.Join(queryConditions, " "+conditions.JoinCondition+" "), values
 }
 
 //executeInsert execute insert with insertTemplate

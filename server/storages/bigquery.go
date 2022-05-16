@@ -140,19 +140,21 @@ func (bq *BigQuery) Update(eventContext *adapters.EventContext) error {
 }
 
 // SyncStore is used in storing chunk of pulled data to BigQuery with processing
-func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
+func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *adapters.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
 	if len(objects) == 0 {
 		return nil
 	}
 
 	_, tableHelper := bq.getAdapters()
 
-	flatDataPerTable, err := processData(bq, overriddenDataSchema, objects, timeIntervalValue, needCopyEvent)
+	flatDataPerTable, err := processData(bq, overriddenDataSchema, objects, "", needCopyEvent)
 	if err != nil {
 		return err
 	}
 
-	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
+	if deleteConditions == nil {
+		deleteConditions = &adapters.DeleteConditions{}
+	}
 
 	for _, flatData := range flatDataPerTable {
 		table := tableHelper.MapTableSchema(flatData.BatchHeader)

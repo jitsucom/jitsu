@@ -126,8 +126,7 @@ func (f *Factory) Close() error {
 			continue
 		}
 
-		exchanger.Kill()
-		_ = exchanger.Wait()
+		_ = exchanger.Close()
 	}
 
 	_ = os.RemoveAll(f.dir)

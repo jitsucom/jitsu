@@ -103,7 +103,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
             labelCol={{ span: 4 }}
             wrapperCol={{ span: 20 }}
           >
-            <Input disabled={editorMode === "edit" || sourceEditorState.status.isConfigSealed} autoComplete="off" />
+            <Input disabled={editorMode === "edit" || sourceEditorState.status.hasConfigSealed} autoComplete="off" />
           </AntdForm.Item>
         </Col>
       </Row>

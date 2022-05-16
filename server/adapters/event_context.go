@@ -4,7 +4,7 @@ import "github.com/jitsucom/jitsu/server/events"
 
 //InsertContext is used as a dto for insert operation
 type InsertContext struct {
-	// -- single --
+	// -- for http single request --
 	eventContext *EventContext
 
 	// -- batch --
@@ -16,6 +16,8 @@ type InsertContext struct {
 func NewSingleInsertContext(eventContext *EventContext) *InsertContext {
 	return &InsertContext{
 		eventContext: eventContext,
+		table:        eventContext.Table,
+		objects:      []map[string]interface{}{eventContext.ProcessedEvent},
 	}
 }
 

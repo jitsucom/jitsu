@@ -175,7 +175,7 @@ func findStartEndTimestamp(fdata []map[string]interface{}) (time.Time, time.Time
 }
 
 //SyncStore isn't supported
-func (s3 *S3) SyncStore(*schema.BatchHeader, []map[string]interface{}, string, bool, bool) error {
+func (s3 *S3) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *adapters.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
 	return errors.New("S3 doesn't support sync store")
 }
 

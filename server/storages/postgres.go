@@ -89,8 +89,8 @@ func NewPostgres(config *Config) (storage Storage, err error) {
 }
 
 //SyncStore is used in storing chunk of pulled data to Postgres with processing
-func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
-	return syncStoreImpl(p, overriddenDataSchema, objects, timeIntervalValue, cacheTable, needCopyEvent)
+func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *adapters.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
+	return syncStoreImpl(p, overriddenDataSchema, objects, deleteConditions, cacheTable, needCopyEvent)
 }
 
 func (p *Postgres) Clean(tableName string) error {

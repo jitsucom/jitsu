@@ -74,7 +74,7 @@ func (t *TagDestination) Close() error {
 	return nil
 }
 
-func (t *TagDestination) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
+func (t *TagDestination) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *adapters.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
 	return errors.New("TagDestination doesn't support sync store")
 }
 

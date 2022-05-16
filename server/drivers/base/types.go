@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/oauth"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -200,19 +201,21 @@ type CLITaskCloser interface {
 //CLIOutputRepresentation is a singer/airbyte output representation
 type CLIOutputRepresentation struct {
 	State interface{}
-	//[streamName] - {}
+	//[some key for convenience of grouping.] - {}
 	Streams map[string]*StreamRepresentation
 }
 
 //StreamRepresentation is a singer/airbyte stream representation
 type StreamRepresentation struct {
-	Namespace        string
-	StreamName       string
-	BatchHeader      *schema.BatchHeader
-	KeyFields        []string
-	Objects          []map[string]interface{}
-	KeepKeysUnhashed bool
-	NeedClean        bool
+	Namespace             string
+	StreamName            string
+	BatchHeader           *schema.BatchHeader
+	KeyFields             []string
+	Objects               []map[string]interface{}
+	KeepKeysUnhashed      bool
+	RemoveSourceKeyFields bool
+	NeedClean             bool
+	DeleteConditions      *adapters.DeleteConditions
 }
 
 //DriversInfo is a dto for sharing information about the driver into telemetry

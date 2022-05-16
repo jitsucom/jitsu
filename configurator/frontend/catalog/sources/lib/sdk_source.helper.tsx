@@ -1,14 +1,19 @@
 import {
   booleanType,
   intType,
+  isoUtcDateType,
   jsonType,
+  oauthSecretType,
   Parameter,
   ParameterType,
   passwordType,
   SdkSource,
+  selectionType,
+  singleSelectionType,
   SourceConnector,
   stringType,
 } from "../types"
+import { get } from "lodash"
 
 export const makeSdkSource = (sdkSource: SdkSource): SourceConnector => {
   return {
@@ -44,33 +49,65 @@ export const makeSdkSource = (sdkSource: SdkSource): SourceConnector => {
   }
 }
 
+export const convertSdkType = (type: any): ParameterType<any> => {
+  let tp: ParameterType<any> = stringType
+  switch (type) {
+    case "int":
+      tp = intType
+      break
+    case "string":
+    case undefined:
+      tp = stringType
+      break
+    case "json":
+      tp = jsonType
+      break
+    case "boolean":
+      tp = booleanType
+      break
+    case "password":
+      tp = passwordType
+      break
+    case "isoUtcDate":
+      tp = isoUtcDateType
+      break
+    case "oauthSecret":
+      tp = oauthSecretType
+      break
+    default:
+      if (type["severalOf"]) {
+        tp = selectionType(type["severalOf"], type["max"])
+      } else if (type["oneOf"]) {
+        tp = singleSelectionType(type["oneOf"])
+      }
+  }
+  return tp
+}
+
 /**
  * Maps the spec of the SdkSource connector to the Jitsu `Parameter` schema of the `SourceConnector`.
  * @param extensionDescriptor source plugin's descriptor.
  */
-export const mapSdkSourceSpecToSourceConnectorConfig = (extensionDescriptor: any): Parameter[] => {
+export const mapSdkSourceSpecToSourceConnectorConfig = (
+  extensionDescriptor: any,
+  availableOauthBackendSecrets: string[]
+): Parameter[] => {
   const result: Parameter[] = []
   const configurationParameters = extensionDescriptor["configurationParameters"]
-
   configurationParameters.forEach(param => {
-    let tp: ParameterType<any> = stringType
-    switch (param["type"]) {
-      case "int":
-        tp = intType
-        break
-      case "json":
-        tp = jsonType
-        break
-      case "boolean":
-        tp = booleanType
-        break
-      case "password":
-        tp = passwordType
+    let tp = convertSdkType(param["type"])
+    if (availableOauthBackendSecrets && availableOauthBackendSecrets.includes(param["id"])) {
+      tp = oauthSecretType
     }
+    const relevantIf = param["relevantIf"]
+
     result.push({
       ...param,
       id: "config." + param["id"],
       type: tp,
+      omitFieldRule: relevantIf
+        ? (config: unknown) => get(config["config"], relevantIf["field"]) !== relevantIf["value"]
+        : undefined,
     })
   })
   return result

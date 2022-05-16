@@ -19,6 +19,10 @@ var (
 			"client_id":     "google_analytics.client_id",
 			"client_secret": "google_analytics.client_secret",
 		},
+		"jitsu-google-analytics-source": {
+			"client_id":     "google_analytics.client_id",
+			"client_secret": "google_analytics.client_secret",
+		},
 		"google_ads": {
 			"client_id":       "google_ads.client_id",
 			"client_secret":   "google_ads.client_secret",
