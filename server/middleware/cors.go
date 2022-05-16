@@ -13,9 +13,8 @@ import (
 //if not returns 401
 func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Access-Control-Allow-Origin", "*")
-
 		if r.Method == "OPTIONS" {
+			w.Header().Add("Access-Control-Allow-Origin", "*")
 			writeDefaultCorsHeaders(w)
 			w.WriteHeader(http.StatusOK)
 			return
