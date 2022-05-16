@@ -64,8 +64,6 @@ type Symbols map[string]Symbol
 
 type Args = []interface{}
 
-type UnmarshalerFunc func(value interface{}) error
-
 // Listener interface is used to collect execution "side-effects".
 type Listener interface {
 

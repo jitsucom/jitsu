@@ -3,6 +3,7 @@ package adapters
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/utils"
@@ -71,7 +72,7 @@ func (wrf *WebhookRequestFactory) Create(object map[string]interface{}) (req *Re
 		}
 	}
 	if envelop.URL == "" {
-		rawUrl, err := wrf.urlTmpl.ProcessEvent(object)
+		rawUrl, err := wrf.urlTmpl.ProcessEvent(object, nil)
 		if err != nil {
 			return nil, fmt.Errorf("Error executing URL template: %v", err)
 		}
@@ -84,7 +85,7 @@ func (wrf *WebhookRequestFactory) Create(object map[string]interface{}) (req *Re
 	utils.StringMapPutAll(headers, envelop.Headers)
 
 	if envelop.Body == nil {
-		rawBody, err := wrf.bodyTmpl.ProcessEvent(object)
+		rawBody, err := wrf.bodyTmpl.ProcessEvent(object, nil)
 		if err != nil {
 			return nil, fmt.Errorf("Error executing body template: %v", err)
 		}
