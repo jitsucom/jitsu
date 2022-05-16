@@ -198,12 +198,6 @@ const CodeDebugger = ({
     return () => document.body.removeEventListener("click", handleCloseEvents)
   }, [])
 
-  const consoleLog = [
-    { logLevel: "error", value: "Error string" },
-    { logLevel: "warn", value: "Warning string" },
-    { logLevel: "info", value: "Info string" },
-  ]
-
   return (
     <div className={cn(className, "flex flex-col items-stretch h-screen max-h-full pt-4;")}>
       <div className="w-full mb-2">
