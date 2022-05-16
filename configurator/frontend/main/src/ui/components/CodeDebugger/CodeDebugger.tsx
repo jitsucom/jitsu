@@ -280,15 +280,15 @@ const CodeDebugger = ({
 
           <ReflexElement propagateDimensions={true} minSize={200}>
             <Tabs defaultActiveKey="console" type="card" tabPosition="top" size="small" className={styles.eventTabs}>
-              <Tabs.TabPane tab="Console Debugger" key="console">
-                <div
-                  className={`h-full box-border font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}
-                >
-                  {consoleLog.map(log => (
-                    <div className={`w-full log-line log-${log.logLevel}`}>{log.value}</div>
-                  ))}
-                </div>
-              </Tabs.TabPane>
+              {/*<Tabs.TabPane tab="Console Debugger" key="console">*/}
+              {/*  <div*/}
+              {/*    className={`h-full box-border font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}*/}
+              {/*  >*/}
+              {/*    {consoleLog.map(log => (*/}
+              {/*      <div className={`w-full log-line log-${log.logLevel}`}>{log.value}</div>*/}
+              {/*    ))}*/}
+              {/*  </div>*/}
+              {/*</Tabs.TabPane>*/}
               <Tabs.TabPane tab="Full Data Transformation" key="full-data">
                 <div className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
                   <div
