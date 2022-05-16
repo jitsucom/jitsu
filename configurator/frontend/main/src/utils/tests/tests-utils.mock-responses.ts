@@ -8,7 +8,6 @@ export const mockConfiguration = process.env.FIREBASE_CONFIG
       default_s3_bucket: true,
       support_tracking_domains: true,
       telemetry_usage_disabled: false,
-      show_become_user: true,
       docker_hub_id: "jitsucom",
     } as const)
   : ({
@@ -20,7 +19,6 @@ export const mockConfiguration = process.env.FIREBASE_CONFIG
       default_s3_bucket: false,
       support_tracking_domains: false,
       telemetry_usage_disabled: false,
-      show_become_user: false,
       docker_hub_id: "jitsu",
     } as const)
 
