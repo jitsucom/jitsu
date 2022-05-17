@@ -4,7 +4,7 @@
   "private": true,
   "dependencies": {
     "@jitsu/catalog": "file:../catalog",
-    "@jitsu/sdk-js": "^2.3.0",
+    "@jitsu/sdk-js": "^3.0.3",
     "@sentry/react": "^6.19.6",
     "@sentry/tracing": "^6.19.6",
     "antd": "^4.13.1",
