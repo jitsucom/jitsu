@@ -3,7 +3,7 @@
 const __jts_log__ = []
 
 for (let level of ["trace", "info", "warn", "error"]) {
-  console[level] = (message) => __jts_log__.push({level, message: `${message}`})
+  console[level] = (...args) => __jts_log__.push({level, message: `${(args ?? []).join(' ')}`})
 }
 
 console["log"] = console.info
