@@ -148,7 +148,7 @@ func TestExecuteTestingSource(t *testing.T) {
 	templates.SetScriptFactory(factory)
 
 	plugin := &templates.SourcePlugin{
-		Package: "/Users/ikulkov/Jitsu/jitsu-sdk/source-connectors/testing-source/jitsu-testing-source-0.7.2.tgz",
+		Package: "jitsu-testing-source",
 		ID:      "test-source",
 		Type:    "test-type",
 		Config:  anyMap{},
