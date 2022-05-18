@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/script/node"
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/stretchr/testify/assert"
@@ -15,63 +16,10 @@ type (
 	anyMap   = map[string]interface{}
 )
 
-var sourceLoadTests = []struct {
-	name    string
-	spec    anyMap
-	catalog anySlice
-}{
-	{
-		name: "jitsu-airtable-source",
-		spec: anyMap{
-			"configurationParameters": anySlice{
-				anyMap{
-					"displayName":   "API Key",
-					"documentation": "Read on how to get API key here: https://support.airtable.com/hc/en-us/articles/219046777-How-do-I-get-my-API-key-",
-					"id":            "apiKey",
-					"required":      true,
-				},
-				anyMap{
-					"displayName":   "Base Id",
-					"documentation": "Read how to get Base ID: https://support.airtable.com/hc/en-us/articles/4405741487383-Understanding-Airtable-IDs",
-					"id":            "baseId",
-					"required":      true,
-				},
-			},
-			"description": "This source pulls data from Airtable base",
-			"displayName": "Airtable Source",
-			"id":          "airtable",
-		},
-		catalog: anySlice{
-			anyMap{
-				"type":           "table",
-				"supportedModes": anySlice{"full_sync"},
-				"params": anySlice{
-					anyMap{
-						"id":            "tableId",
-						"displayName":   "Table Id",
-						"documentation": "Read how to get table id: https://support.airtable.com/hc/en-us/articles/4405741487383-Understanding-Airtable-IDs",
-						"required":      true,
-					},
-					anyMap{
-						"id":            "viewId",
-						"displayName":   "View Id",
-						"documentation": "Read how to get view id: https://support.airtable.com/hc/en-us/articles/4405741487383-Understanding-Airtable-IDs",
-						"required":      false,
-					},
-					anyMap{
-						"id":            "fields",
-						"displayName":   "Fields",
-						"documentation": "Comma separated list of field names. If empty or undefined - all fields will be downloaded",
-						"required":      false,
-					},
-				},
-			},
-		},
-	},
-}
-
 func TestLoadSourcePlugins(t *testing.T) {
-	factory, err := node.NewFactory(1, 100)
+	logging.LogLevel = logging.INFO
+
+	factory, err := node.NewFactory(1, 1000)
 	if !assert.NoError(t, err) {
 		t.FailNow()
 	}
@@ -80,23 +28,29 @@ func TestLoadSourcePlugins(t *testing.T) {
 
 	templates.SetScriptFactory(factory)
 
-	for _, data := range sourceLoadTests {
+	plugins := []string{
+		"jitsu-airtable-source",
+		"jitsu-amplitude-source",
+		"jitsu-facebook-marketing-source",
+		//"jitsu-firebase-source",
+		"jitsu-google-ads-source",
+		//"jitsu-google-analytics-source",
+		"jitsu-google-play-source",
+		"jitsu-redis-source",
+	}
+
+	for _, plugin := range plugins {
 		executor, err := templates.NewSourceExecutor(&templates.SourcePlugin{
-			Package: data.name,
+			Package: plugin,
 			ID:      "test-source",
 			Type:    "test-type",
 		})
 
-		if !assert.NoError(t, err, "load plugin %s", data.name) {
+		if !assert.NoErrorf(t, err, "load plugin %s", plugin) {
 			continue
 		}
 
-		assert.Equal(t, data.spec, executor.Spec(), "check spec in %s", data.name)
-
-		catalog, err := executor.Catalog()
-		if assert.NoError(t, err, "load catalog in %s", data.name) {
-			assert.Equal(t, data.catalog, catalog, "check catalog in %s", data.name)
-		}
+		assert.NotEqualf(t, 0, len(executor.Spec()), "plugin %s spec is empty", plugin)
 
 		executor.Close()
 	}
