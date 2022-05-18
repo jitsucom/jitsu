@@ -1830,10 +1830,10 @@
 "@jitsu/catalog@file:catalog":
   version "1.0.15-alpha.1"
 
-"@jitsu/sdk-js@^2.3.0":
-  version "2.3.0"
-  resolved "https://registry.yarnpkg.com/@jitsu/sdk-js/-/sdk-js-2.3.0.tgz#bedaa0d2419336b8154907f48f2d4b3779344cdc"
-  integrity sha512-NOoZdJQhSHv7g7evPUjnzqBKaJ0pQTRKicq511zLbaaIU/okJoLPXSzS+Z4XLI919o5rT1ME/STzaIYSr4Fwbg==
+"@jitsu/sdk-js@^3.0.3":
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/@jitsu/sdk-js/-/sdk-js-3.0.3.tgz#37d517985472fae8b1c80fba61b03d864042e811"
+  integrity sha512-WN5Meg7kWJLI2Z52cieFLudABfkmgSUXIo/teByIwv8U9s9pq9aCU+Qmj/9EHDBXR/M03gTb6vwK1LEbgjkYWA==
 
 "@jridgewell/resolve-uri@^3.0.3":
   version "3.0.4"
@@ -9820,8 +9820,8 @@ jest@26.6.0:
 "jitsu-configurator-ui@file:main":
   version "1.0.0"
   dependencies:
-    "@jitsu/catalog" "file:../../../../Library/Caches/Yarn/v6/npm-jitsu-configurator-ui-1.0.0-7f589af3-344a-49db-ac27-c5a313c43773-1650995993076/node_modules/catalog"
-    "@jitsu/sdk-js" "^2.3.0"
+    "@jitsu/catalog" "file:../../../../Library/Caches/Yarn/v6/npm-jitsu-configurator-ui-1.0.0-ab8347d7-94e2-4326-9810-ff9551202943-1652814157202/node_modules/catalog"
+    "@jitsu/sdk-js" "^3.0.3"
     "@sentry/react" "^6.19.6"
     "@sentry/tracing" "^6.19.6"
     antd "^4.13.1"
