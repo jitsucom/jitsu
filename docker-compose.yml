@@ -13,7 +13,8 @@ services:
       - USER_RECOGNITION_REDIS_URL=redis://redis_users_recognition:6380
       - TERM=xterm-256color
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     volumes:
       - ./compose-data/configurator/data/logs:/home/configurator/data/logs
       - ./compose-data/server/data/logs:/home/eventnative/data/logs
@@ -31,6 +32,10 @@ services:
     volumes:
       - ./compose-data/redis/data:/data
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -h localhost -p 6379 PING"]
+      interval: 1s
+      timeout: 30s
     networks:
       - main
   redis_users_recognition:
