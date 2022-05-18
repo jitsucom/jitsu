@@ -2,10 +2,11 @@
 
 const __jts_log__ = []
 
-for (let level of ["log", "trace", "info", "warn", "error"]) {
-  console[level] = (message) => __jts_log__.push({level, message: `${message}`})
+for (let level of ["trace", "info", "warn", "error"]) {
+  console[level] = (...args) => __jts_log__.push({level, message: `${(args ?? []).join(' ')}`})
 }
 
+console["log"] = console.info
 console["dir"] = (arg) => console.log(Object.keys(arg))
 
 const readline = require("readline")

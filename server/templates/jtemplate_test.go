@@ -113,7 +113,7 @@ func test(t *testing.T, data templateTestData) {
 	defer templateExecutor.Close()
 	for i := 0; i < 10; i++ {
 		//t.Logf("Format %s", templateExecutor.Format())
-		value, err := templateExecutor.ProcessEvent(data.event)
+		value, err := templateExecutor.ProcessEvent(data.event, nil)
 		if err != nil {
 			testExpectedError(t, data, err)
 			return

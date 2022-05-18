@@ -72,10 +72,16 @@ export interface FormValues {
   code: string
 }
 
+interface CalculationLog {
+  level: string
+  message: string
+}
+
 interface CalculationResult {
   code: "error" | "success"
   format?: string | null
   result?: string
+  logs?: CalculationLog[]
   error?: string
   userResult?: string
   userError?: string
@@ -150,15 +156,18 @@ const CodeDebugger = ({
         format: response.format,
         result: response.result,
         error: response.error,
+        logs: response.logs,
         userResult: response.user_result,
         userError: response.user_error,
       })
     } catch (error) {
+      const err = error?._response?.error || error?._response?.message || error?.message || "Error"
       setCalcResult({
         code: "error",
         format: error?._response?.format ?? null,
         result: error?._response?.result ?? "",
-        error: error?._response?.error || error?._response?.message || error?.message || "Error",
+        logs: [{ level: "error", message: err }],
+        error: err,
         userResult: error?._response?.user_result ?? "",
         userError: error?._response?.user_error ?? "",
       })
@@ -274,15 +283,17 @@ const CodeDebugger = ({
 
           <ReflexElement propagateDimensions={true} minSize={200}>
             <Tabs defaultActiveKey="console" type="card" tabPosition="top" size="small" className={styles.eventTabs}>
-              {/*<Tabs.TabPane tab="Console Debugger" key="console">*/}
-              {/*  <div*/}
-              {/*    className={`h-full box-border font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}*/}
-              {/*  >*/}
-              {/*    {consoleLog.map(log => (*/}
-              {/*      <div className={`w-full log-line log-${log.logLevel}`}>{log.value}</div>*/}
-              {/*    ))}*/}
-              {/*  </div>*/}
-              {/*</Tabs.TabPane>*/}
+              <Tabs.TabPane tab="Console Debugger" key="console">
+                <div
+                  className={`h-full box-border font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}
+                >
+                  {(calcResult?.logs ?? []).map(log => (
+                    <div className={`w-full log-line log-${log.level}`}>
+                      <pre>{log.message}</pre>
+                    </div>
+                  ))}
+                </div>
+              </Tabs.TabPane>
               <Tabs.TabPane tab="Full Data Transformation" key="full-data">
                 <div className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
                   <div

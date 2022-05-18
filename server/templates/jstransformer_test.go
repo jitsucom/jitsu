@@ -84,7 +84,7 @@ func TestTransform(t *testing.T) {
 					input[k] = v
 				}
 				var res interface{}
-				err := instance.Execute("", script.Args{input}, &res)
+				err := instance.Execute("", script.Args{input}, &res, nil)
 				if err != nil {
 					t.Errorf("%s Failed running \"process\" script: %s\nInput: %s\nErr: %v", tt.filename, instance, tt.input, err)
 					break
