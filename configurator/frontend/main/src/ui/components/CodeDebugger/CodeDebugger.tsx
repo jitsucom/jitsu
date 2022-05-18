@@ -288,7 +288,9 @@ const CodeDebugger = ({
                   className={`h-full box-border font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}
                 >
                   {(calcResult?.logs ?? []).map(log => (
-                    <div className={`w-full log-line log-${log.level}`}><pre>{log.message}</pre></div>
+                    <div className={`w-full log-line log-${log.level}`}>
+                      <pre>{log.message}</pre>
+                    </div>
                   ))}
                 </div>
               </Tabs.TabPane>
