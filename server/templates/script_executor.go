@@ -2,6 +2,7 @@ package templates
 
 import (
 	"encoding/json"
+
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/script"
 	"github.com/pkg/errors"
@@ -18,7 +19,7 @@ type nodeScript interface {
 	executable() script.Executable
 	init(s script.Interface) error
 	validate(s script.Interface) error
-	transform(s script.Interface, event events.Event) (interface{}, error)
+	transform(s script.Interface, event events.Event, listener script.Listener) (interface{}, error)
 }
 
 type Expression string
@@ -39,9 +40,9 @@ func (e Expression) validate(s script.Interface) error {
 	return nil
 }
 
-func (e Expression) transform(s script.Interface, event events.Event) (interface{}, error) {
+func (e Expression) transform(s script.Interface, event events.Event, listener script.Listener) (interface{}, error) {
 	var value interface{}
-	if err := s.Execute("", script.Args{event}, &value); err != nil {
+	if err := s.Execute("", script.Args{event}, &value, listener); err != nil {
 		return nil, err
 	}
 
@@ -120,7 +121,7 @@ func (p *DestinationPlugin) validate(s script.Interface) error {
 	}
 
 	var result json.RawMessage
-	if err := s.Execute(p.validateFunc, script.Args{p.Config}, &result); err != nil {
+	if err := s.Execute(p.validateFunc, script.Args{p.Config}, &result, nil); err != nil {
 		return err
 	}
 
@@ -150,9 +151,9 @@ func (p *DestinationPlugin) validate(s script.Interface) error {
 	return nil
 }
 
-func (p *DestinationPlugin) transform(s script.Interface, event events.Event) (interface{}, error) {
+func (p *DestinationPlugin) transform(s script.Interface, event events.Event, listener script.Listener) (interface{}, error) {
 	var result interface{}
-	if err := s.Execute(p.execFunc, append(script.Args{event}, p.execArgs...), &result); err != nil {
+	if err := s.Execute(p.execFunc, append(script.Args{event}, p.execArgs...), &result, listener); err != nil {
 		return nil, err
 	}
 
@@ -230,7 +231,7 @@ func (s *SourcePlugin) validate(scr script.Interface) error {
 	}
 
 	var result json.RawMessage
-	if err := scr.Execute(s.validateFunc, script.Args{s.Config}, &result); err != nil {
+	if err := scr.Execute(s.validateFunc, script.Args{s.Config}, &result, nil); err != nil {
 		return err
 	}
 
@@ -266,16 +267,16 @@ func (s *SourcePlugin) spec(scr script.Interface) map[string]interface{} {
 
 func (s *SourcePlugin) catalog(scr script.Interface) (interface{}, error) {
 	var result interface{}
-	if err := scr.Execute(s.catalogFunc, script.Args{s.Config}, &result); err != nil {
+	if err := scr.Execute(s.catalogFunc, script.Args{s.Config}, &result, nil); err != nil {
 		return nil, err
 	}
 
 	return result, nil
 }
 
-func (s *SourcePlugin) stream(scr script.Interface, streamName string, configuration interface{}, state interface{}, dataChannel chan<- interface{}) (interface{}, error) {
+func (s *SourcePlugin) stream(scr script.Interface, streamName string, configuration interface{}, state interface{}, listener script.Listener) (interface{}, error) {
 	var result interface{}
-	if err := scr.ExecuteWithDataChannel(s.execFunc, script.Args{s.Config, streamName, configuration, state}, &result, dataChannel); err != nil {
+	if err := scr.Execute(s.execFunc, script.Args{s.Config, streamName, configuration, state}, &result, listener); err != nil {
 		return nil, err
 	}
 
@@ -316,8 +317,8 @@ func (e *SourceExecutor) Catalog() (interface{}, error) {
 	return e.catalog(e)
 }
 
-func (e *SourceExecutor) Stream(streamName string, configuration interface{}, state interface{}, dataChannel chan<- interface{}) (interface{}, error) {
-	return e.stream(e, streamName, configuration, state, dataChannel)
+func (e *SourceExecutor) Stream(streamName string, configuration interface{}, state interface{}, listener script.Listener) (interface{}, error) {
+	return e.stream(e, streamName, configuration, state, listener)
 }
 
 type NodeExecutor struct {
@@ -346,8 +347,8 @@ func (e *NodeExecutor) Validate() error {
 	return e.validate(e)
 }
 
-func (e *NodeExecutor) ProcessEvent(event events.Event) (interface{}, error) {
-	return e.transform(e, event)
+func (e *NodeExecutor) ProcessEvent(event events.Event, listener script.Listener) (interface{}, error) {
+	return e.transform(e, event, listener)
 }
 
 func (e *NodeExecutor) Format() string {

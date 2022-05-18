@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -12,8 +15,6 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/templates"
 	"go.uber.org/atomic"
-	"sync"
-	"time"
 )
 
 var ErrSDKSourceCancelled = errors.New("Source runner was cancelled.")
@@ -244,7 +245,7 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 		NeedClean:        stream.SyncMode == "full_sync",
 	}
 	output.Streams[stream.Name] = representation
-	dataChannel := make(chan interface{}, 1000)
+	dataChannel := make(scriptListener, 1000)
 	go func() {
 		defer close(dataChannel)
 		_, err := s.sourceExecutor.Stream(stream.Type, stream, nil, dataChannel)
