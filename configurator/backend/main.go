@@ -374,7 +374,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 
 	serverToken := viper.GetString("server.auth")
 	if strings.HasPrefix(serverToken, "demo") {
-		logging.Error("\t⚠️ Please replace server.auth (CLUSTER_ADMIN_TOKEN env variable) with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
+		logging.Warn("\t⚠️ Please replace server.auth (CLUSTER_ADMIN_TOKEN env variable) with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
 	}
 	isSelfHosted := viper.GetBool("server.self_hosted")
 	authenticatorMiddleware := &middleware.AuthorizationInterceptor{
