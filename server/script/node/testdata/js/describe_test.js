@@ -8,3 +8,4 @@ exports.func = () => {
   return 1
 }
 
+exports.path = typeof require("path")
