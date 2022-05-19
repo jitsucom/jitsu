@@ -42,9 +42,7 @@ type Schema struct {
 func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 	sop.logger.INFO("Singer sync will store data as batches >= [%d] elements size", singer.Instance.BatchSize)
 
-	outputPortion := &base.CLIOutputRepresentation{
-		Streams: map[string]*base.StreamRepresentation{},
-	}
+	outputPortion := base.NewCLIOutputRepresentation()
 
 	scanner := bufio.NewScanner(stdout)
 	buf := make([]byte, 0, 64*1024)
@@ -82,7 +80,7 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 				streamRepresentation.NeedClean = false
 			}
 
-			outputPortion.Streams[streamRepresentation.StreamName] = streamRepresentation
+			outputPortion.AddStream(streamRepresentation.StreamName, streamRepresentation)
 		case "STATE":
 			state, ok := lineObject["value"]
 			if !ok {
@@ -99,8 +97,8 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 			}
 
 			streamName = schema.Reformat(streamName)
-
-			outputPortion.Streams[streamName].Objects = append(outputPortion.Streams[streamName].Objects, object)
+			s, _ := outputPortion.GetStream(streamName)
+			s.Objects = append(s.Objects, object)
 		default:
 			msg := fmt.Sprintf("Unknown Singer output line type: %s [%v]", objectType, lineObject)
 			logging.Warnf(msg)
@@ -116,7 +114,7 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 
 			//remove already persisted objects
 			//remember streams that has tables cleaned already.
-			for _, stream := range outputPortion.Streams {
+			for _, stream := range outputPortion.GetStreams() {
 				stream.Objects = []map[string]interface{}{}
 				streamCleaned[stream.StreamName] = !stream.NeedClean
 			}

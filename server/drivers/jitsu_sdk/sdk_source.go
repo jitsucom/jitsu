@@ -14,6 +14,7 @@ import (
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/mitchellh/mapstructure"
 	"go.uber.org/atomic"
+	"strings"
 	"sync"
 	"time"
 )
@@ -203,8 +204,6 @@ func (s *SdkSource) Type() string {
 
 //Close kills all runners and returns errors if occurred
 func (s *SdkSource) Close() (multiErr error) {
-	logging.Infof("[%s] %s active commands: %s", s.ID(), s.collection.Name, s.activeCommands)
-
 	if s.IsClosed() {
 		return nil
 	}
@@ -245,9 +244,6 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 	if s.closed.Load() {
 		return ErrSDKSourceCancelled
 	}
-	output := &base.CLIOutputRepresentation{
-		Streams: map[string]*base.StreamRepresentation{},
-	}
 
 	stateObj := map[string]interface{}{}
 	if state != "" {
@@ -259,17 +255,12 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 
 	stream := s.collection
 	taskLogger.INFO("Starting processing stream: %s", stream.Name)
-	cleanExpected := stream.SyncMode == "full_sync"
-	cleanMessageReceived := false
-
-	representation := &base.StreamRepresentation{
-		StreamName:            stream.Name,
-		BatchHeader:           &schema.BatchHeader{TableName: stream.TableName, Fields: map[string]schema.Field{}},
-		Objects:               []map[string]interface{}{},
-		KeepKeysUnhashed:      true,
-		RemoveSourceKeyFields: true,
+	if stream.SyncMode == "" {
+		return fmt.Errorf("Required parameter \"mode\" is missing for stream config. Supported values are: \"full_sync\" or \"incremental\" based on stream type")
 	}
-	output.Streams[stream.Name] = representation
+	chunkNumber := 0
+	var currentChunk *base.CLIOutputRepresentation
+
 	dataChannel := make(chan interface{}, 1000)
 	go func() {
 		defer close(dataChannel)
@@ -290,24 +281,31 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 			}
 			switch row.Type {
 			case "record":
-				object, ok := row.Message.(map[string]interface{})
-				if !ok {
-					err = fmt.Errorf("Record message expected to have type map[string]interface{} found: %T", row.Message)
-					taskLogger.ERROR(err.Error())
+				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, false)
+				if err != nil {
 					return err
 				}
-				id, ok := object[IdField]
-				if ok && representation.KeyFields == nil && fmt.Sprint(id) != "" {
-					representation.KeyFields = []string{IdField}
+				object, ok := row.Message.(map[string]interface{})
+				if !ok {
+					return fmt.Errorf("Record message expected to have type map[string]interface{} found: %T", row.Message)
 				}
-				representation.Objects = append(representation.Objects, object)
+				id, ok := object[IdField]
+				if ok && currentChunk.CurrentStream().KeyFields == nil && fmt.Sprint(id) != "" {
+					currentChunk.CurrentStream().KeyFields = []string{IdField}
+				}
+				currentChunk.CurrentStream().Objects = append(currentChunk.CurrentStream().Objects, object)
 			case "delete_records":
+				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, false)
+				if err != nil {
+					return err
+				}
+				if len(currentChunk.CurrentStream().Objects) > 0 {
+					return fmt.Errorf("\"delete_records\" message must precede any \"record\" message in transaction. Current added records number: %d", len(currentChunk.CurrentStream().Objects))
+				}
 				deleteRecords := DeleteRecords{}
 				err = mapstructure.Decode(row.Message, &deleteRecords)
 				if err != nil {
-					err = fmt.Errorf("Failed to parse delete_records message %s, %v", row.Message, err)
-					taskLogger.ERROR(err.Error())
-					return err
+					return fmt.Errorf("Failed to parse delete_records message %s, %v", row.Message, err)
 				}
 				deleteConditions := adapters.DeleteConditions{}
 				deleteConditions.JoinCondition = deleteRecords.JoinCondition
@@ -318,20 +316,32 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 					deleteConditions.Conditions = append(deleteConditions.Conditions, adapters.DeleteCondition{Field: c.Field, Value: c.Value, Clause: c.Clause})
 				}
 				taskLogger.INFO("Delete Records: %+v", deleteConditions)
-				representation.DeleteConditions = &deleteConditions
+				currentChunk.CurrentStream().DeleteConditions = &deleteConditions
 			case "clear_stream":
+				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, false)
+				if err != nil {
+					return err
+				}
+				if chunkNumber == 0 && len(currentChunk.CurrentStream().Objects) > 0 {
+					return fmt.Errorf("\"clear_stream\" message allowed only in the zero chunk and before any \"record\" message added. Current chunk number: %d Current chunk added records number: %d", chunkNumber, len(currentChunk.CurrentStream().Objects))
+				}
 				taskLogger.INFO("Table %s will be cleared", stream.TableName)
-				representation.NeedClean = true
-				cleanMessageReceived = true
+				currentChunk.CurrentStream().NeedClean = true
+			case "new_transaction":
+				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, true)
+				if err != nil {
+					return err
+				}
+				taskLogger.INFO("New transaction for chunk number: %d", chunkNumber)
 			case "state":
 				taskLogger.INFO("State changed: %+v", row.Message)
-				output.State = row.Message
+				currentChunk.State = row.Message
 			case "log":
 				log, ok := row.Message.(map[string]interface{})
 				if !ok {
 					taskLogger.ERROR("Log message expected to have type map[string]interface{} found: %T", row.Message)
 				}
-				taskLogger.LOG(log["message"].(string), "Jitsu", logging.ToLevel(log["level"].(string)))
+				taskLogger.LOG(strings.ReplaceAll(log["message"].(string), "%", "%%"), "Jitsu", logging.ToLevel(log["level"].(string)))
 			default:
 				taskLogger.ERROR("Message type %s is not supported yet.", row.Type)
 			}
@@ -342,18 +352,48 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 		}
 
 	}
-	if cleanExpected && !cleanMessageReceived {
-		taskLogger.WARN("Stream: %s No clear_stream was received for stream in \"full_sync\" mode. Forcing cleaning table")
-
-	}
-	taskLogger.INFO("Stream: %s finished. Objects count: %d", stream.Name, len(representation.Objects))
 
 	if !s.closed.Load() {
-		err := dataConsumer.Consume(output)
+		//rotate chunk to consume the last one
+		_, _, err := s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, true)
 		return err
 	} else {
 		taskLogger.WARN("Stopping processing. Task was closed")
 		return ErrSDKSourceCancelled
+	}
+}
+
+func (s SdkSourceRunner) GetOrRotateChunk(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, currentChunk *base.CLIOutputRepresentation, chunkNumber int, forceCreate bool) (newChunk *base.CLIOutputRepresentation, newChunkNumber int, err error) {
+	stream := s.collection
+	exists := currentChunk != nil
+	if !exists || forceCreate {
+		newChunkNumber = chunkNumber
+		if exists && forceCreate {
+			if stream.SyncMode == "full_sync" {
+				if chunkNumber == 0 && currentChunk.CurrentStream().NeedClean == false {
+					taskLogger.WARN("Stream: %s No clear_stream was received for stream in \"full_sync\" mode. Forcing cleaning table", stream.Name)
+					currentChunk.CurrentStream().NeedClean = true
+				}
+			}
+			taskLogger.INFO("Chunk: %s_%d finished. Objects count: %d", stream.Name, chunkNumber, len(currentChunk.CurrentStream().Objects))
+			err = dataConsumer.Consume(currentChunk)
+			if err != nil {
+				return
+			}
+			//we create next chunk when some chunks already present. increment chunk number
+			newChunkNumber = chunkNumber + 1
+		}
+		newChunk = base.NewCLIOutputRepresentation()
+		newChunk.AddStream(stream.Name, &base.StreamRepresentation{
+			StreamName:            stream.Name,
+			BatchHeader:           &schema.BatchHeader{TableName: stream.TableName, Fields: map[string]schema.Field{}},
+			Objects:               []map[string]interface{}{},
+			KeepKeysUnhashed:      true,
+			RemoveSourceKeyFields: true,
+		})
+		return
+	} else {
+		return currentChunk, chunkNumber, nil
 	}
 }
 
