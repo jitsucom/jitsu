@@ -10,7 +10,12 @@ import { randomId } from "../../../utils/numbers"
 
 export type ActionNotificationType = "success" | "error" | "info" | "warn" | "loading"
 
-type NotificationActionMethod = (ActionNotificationType) => void
+export type MessageOptions = {
+  duration?: number
+  className?: string
+}
+
+type NotificationActionMethod = (ActionNotificationType, opts?: MessageOptions) => void
 
 function messageFactory(type: ActionNotificationType): NotificationActionMethod {
   const iconsByType = {
@@ -20,7 +25,8 @@ function messageFactory(type: ActionNotificationType): NotificationActionMethod 
     warn: <WarningOutlined className="text-warning" />,
     loading: <Spin className="text-loading mr-2" />,
   }
-  return (content: ReactNode) => {
+  return (content: ReactNode, opts: MessageOptions = { duration: 7, className: "" }) => {
+    console.log(opts)
     message.destroy()
     const key = randomId()
     let destroyMessage = () => message.destroy()
@@ -45,8 +51,8 @@ function messageFactory(type: ActionNotificationType): NotificationActionMethod 
         </span>
       ),
       type: type,
-      duration: 7,
-      className: styles.message,
+      duration: opts.duration,
+      className: `${styles.message} ${opts.className}`,
       prefixCls: "jitsu-message",
     }
     message[type](msg)
