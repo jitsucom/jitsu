@@ -27,6 +27,8 @@ console["dir"] = (arg) => console.log(Object.keys(arg))
 const readline = require("readline")
 const fetch = require("node-fetch")
 const {NodeVM} = require("vm2")
+const fs = require("fs")
+const path = require("path")
 
 const send = (data) => {
   process.stdout.write("\nJ:" + data + "\n")
@@ -156,13 +158,21 @@ const load = async (id, executable, variables, includes) => {
     },
   })
 
+  let file = path.join(process.cwd(), `${id}.js`)
+  fs.writeFileSync(file, (includes ?? []).join("\n") + "\n" + executable)
+
   vms[id] = {
-    value: await vm.run((includes ?? []).join("\n") + "\n" + executable),
+    file,
+    value: await vm.runFile(file),
     sandbox: vm.sandbox,
   }
 }
 
 const unload = (id) => {
+  if (id in vms) {
+    fs.rmSync(vms.file)
+  }
+
   delete vms[id]
 }
 
