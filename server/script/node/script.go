@@ -3,7 +3,6 @@ package node
 import (
 	_ "embed"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/script"
 	"github.com/jitsucom/jitsu/server/script/ipc"
 	"github.com/pkg/errors"
@@ -68,7 +67,6 @@ func (s *Script) ExecuteWithDataChannel(name string, args []interface{}, result 
 
 func (s *Script) Close() {
 	if s.standalone {
-		logging.Info("Closing standalong script.")
 		s.exchanger.Close()
 	} else {
 		_ = s.exchanger.exchangeDirect(unload, s.Session, nil, nil)

@@ -214,7 +214,7 @@ module.exports = async (event) => {
 			Env:  []string{nodePathEnv + "=" + f.nodePath},
 		}
 
-		governor, err := ipc.Govern(process)
+		governor, err := ipc.Govern(process, standalone)
 		if err != nil {
 			return nil, errors.Wrapf(err, "govern process")
 		}

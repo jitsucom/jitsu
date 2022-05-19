@@ -40,27 +40,28 @@ type Process interface {
 	// Kill kills the current running process.
 	Kill()
 
-	// Wait waits for the current process to exit.
-	Wait() error
+	// Wait waits for the current process to exit. Returns stderr output if present
+	Wait() (string, error)
 }
 
 // Governor is responsible for keeping the Process alive.
 // It will restart the process if it dies.
 type Governor struct {
-	process Process
-	mu      Mutex
-	closed  *atomic.Bool
+	process    Process
+	mu         Mutex
+	standalone bool
+	closed     *atomic.Bool
 }
 
 // Govern starts the process and passes it to Governor instance.
-func Govern(process Process) (*Governor, error) {
+func Govern(process Process, standalone bool) (*Governor, error) {
 	process, err := process.Spawn()
 	if err != nil {
 		return nil, errors.Wrap(err, "spawn")
 	}
 
 	logging.Debugf("%s started successfully", process)
-	return &Governor{process: process, closed: atomic.NewBool(false)}, nil
+	return &Governor{process: process, standalone: standalone, closed: atomic.NewBool(false)}, nil
 }
 
 // Exchange sends request data and returns response data.
@@ -95,18 +96,28 @@ func (g *Governor) Exchange(ctx context.Context, data []byte, dataChannel chan<-
 			strings.Contains(err.Error(), "file already closed") ||
 			strings.Contains(err.Error(), "broken pipe") {
 
-			if err := g.process.Wait(); err != nil {
-				return nil, err
+			stderr, err2 := g.process.Wait()
+			if err2 != nil {
+				return nil, err2
 			}
 
-			process, err := g.process.Spawn()
-			if err != nil {
-				return nil, errors.Wrap(err, "respawn")
-			}
+			if !g.standalone {
+				//Respawn only if this is not standalone instance
+				process, err := g.process.Spawn()
+				if err != nil {
+					return nil, errors.Wrap(err, "respawn")
+				}
 
-			logging.Debugf("%s respawned as %s", g.process, process)
-			g.process = process
-			continue
+				logging.Debugf("%s respawned as %s", g.process, process)
+				g.process = process
+				continue
+			} else {
+				reason := "shutdown with error: " + err.Error()
+				if g.closed.Load() {
+					reason = "was closed"
+				}
+				return nil, fmt.Errorf("process %s. stderr output: %s", reason, stderr)
+			}
 		}
 
 		return nil, err
@@ -132,13 +143,8 @@ func (g *Governor) ExchangeDirect(ctx context.Context, data []byte, dataChannel 
 }
 
 func (g *Governor) Close() error {
-	cancel, _ := g.mu.Lock(context.Background())
-	defer cancel()
 	g.closed.Store(true)
 	g.process.Kill()
-	if err := g.process.Wait(); err != nil {
-		return err
-	}
 	logging.Debugf("%s completed successfully", g.process)
 	return nil
 }
@@ -154,7 +160,7 @@ func (g *Governor) kill() {
 func (g *Governor) wait() error {
 	cancel, _ := g.mu.Lock(context.Background())
 	defer cancel()
-	if err := g.process.Wait(); err != nil {
+	if _, err := g.process.Wait(); err != nil {
 		return err
 	}
 

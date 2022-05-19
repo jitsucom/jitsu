@@ -202,7 +202,40 @@ type CLITaskCloser interface {
 type CLIOutputRepresentation struct {
 	State interface{}
 	//[some key for convenience of grouping.] - {}
-	Streams map[string]*StreamRepresentation
+	streamsMap map[string]*StreamRepresentation
+	streamsArr []*StreamRepresentation
+}
+
+func NewCLIOutputRepresentation() *CLIOutputRepresentation {
+	return &CLIOutputRepresentation{
+		streamsMap: map[string]*StreamRepresentation{},
+	}
+}
+
+func (c *CLIOutputRepresentation) AddStream(streamName string, stream *StreamRepresentation) {
+	_, ok := c.streamsMap[streamName]
+	if !ok {
+		c.streamsMap[streamName] = stream
+		c.streamsArr = append(c.streamsArr, stream)
+	}
+}
+
+func (c *CLIOutputRepresentation) GetStream(streamName string) (*StreamRepresentation, bool) {
+	sr, ok := c.streamsMap[streamName]
+	return sr, ok
+}
+
+func (c *CLIOutputRepresentation) GetStreams() []*StreamRepresentation {
+	return c.streamsArr
+}
+
+func (c *CLIOutputRepresentation) CurrentStream() *StreamRepresentation {
+	l := len(c.streamsArr)
+	if l > 0 {
+		return c.streamsArr[len(c.streamsArr)-1]
+	} else {
+		return nil
+	}
 }
 
 //StreamRepresentation is a singer/airbyte stream representation
