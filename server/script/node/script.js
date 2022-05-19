@@ -3,14 +3,28 @@
 const __jts_log__ = []
 
 for (let level of ["trace", "info", "warn", "error"]) {
-  console[level] = (...args) => __jts_log__.push({level, message: `${(args ?? []).join(' ')}`})
+  console[level] = (...args) => {
+    let message = (args ?? []).map(arg => {
+      if (typeof arg === "object") {
+        try {
+          return JSON.stringify(arg, null, 2)
+        } catch (e) {
+          // convert to string
+        }
+      }
+
+      return arg + ""
+    }).join(" ")
+
+
+    __jts_log__.push({level, message})
+  }
 }
 
 console["log"] = console.info
 console["dir"] = (arg) => console.log(Object.keys(arg))
 
 const readline = require("readline")
-const os = require("os")
 const fetch = require("node-fetch")
 const {NodeVM} = require("vm2")
 
@@ -43,26 +57,64 @@ const reply = async (result, error) => {
   }
 }
 
+//
+// Sandboxing
+//
+
+const os = require("os")
+
 function mockModule(moduleName, knownSymbols) {
   return new Proxy(
     {},
     {
+      set(target, prop, value, receiver) {
+        throw new Error(`Called ${moduleName}.${prop.toString()} with ${value} & ${receiver}`)
+      },
       get: (target, prop) => {
         let known = knownSymbols[prop.toString()];
         if (known) {
           return known;
         } else {
-          throw new Error(`Attempt to call ${moduleName}.${prop.toString()} which is not safe`);
+          throw new Error(
+            `Attempt to access ${moduleName}.${prop.toString()}, which is not safe. Allowed symbols: [${Object.keys(
+              knownSymbols
+            )}]`
+          );
         }
       },
     }
   );
 }
 
+function throwOnMethods(module, members) {
+  return members.reduce((obj, key) => ({...obj, [key]: throwOnCall(module, key)}), {});
+}
+
+function throwOnCall(module, prop) {
+  return (...args) => {
+    throw new Error(`Call to ${module}.${prop} is not allowed. Call arguments: ${[...args].join(", ")}`);
+  };
+}
+
+const processOverloads = {
+  env: {},
+  versions: process.versions,
+  version: process.version,
+  stderr: process.stderr,
+  stdout: process.stdout,
+  emitWarning: process.emitWarning,
+};
+
 const vms = {}
 
 const load = async (id, executable, variables, includes) => {
   let vm = new NodeVM({
+    sandbox: {
+      queueMicrotask: queueMicrotask,
+      self: {},
+      process: processOverloads,
+      ...(variables ?? {}),
+    },
     require: {
       context: "sandbox",
       external: false,
@@ -89,27 +141,17 @@ const load = async (id, executable, variables, includes) => {
         "console",
       ],
       root: "./",
+
       mock: {
-        fs: mockModule("fs", {}),
+        fs: mockModule("fs", {...throwOnMethods("fs", ["readFile", "realpath", "lstat"])}),
         os: mockModule("os", {platform: os.platform, EOL: os.EOL}),
+        process: mockModule("process", processOverloads),
         child_process: {},
       },
-      resolve: (moduleName) => {
+      resolve: moduleName => {
         throw new Error(
           `The extension calls require('${moduleName}') which is not system module. Rollup should have linked it into JS code.`
         );
-      },
-    },
-    sandbox: {
-      ...(variables ?? {}),
-      queueMicrotask: queueMicrotask,
-      self: {},
-      process: {
-        versions: process.versions,
-        version: process.version,
-        stderr: process.stderr,
-        stdout: process.stdout,
-        env: {},
       },
     },
   })
@@ -131,6 +173,10 @@ const vm = (id) => {
 
   throw "__load_required__"
 }
+
+//
+// Transport
+//
 
 readline.createInterface({
   input: process.stdin
