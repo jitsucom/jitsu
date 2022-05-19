@@ -90,6 +90,11 @@ export default class ApplicationServices implements IApplicationServices {
       throw new Error(`Unknown backend configuration authorization type: ${configuration.authorization}`)
     }
     this._userSettingsService = new UserSettingsLocalService(this._userService)
+
+    const appVersion = await this.getAppVersion()
+    if (appVersion) {
+      localStorage.setItem("app_version", appVersion)
+    }
   }
 
   get projectService(): ProjectService {
@@ -158,6 +163,32 @@ export default class ApplicationServices implements IApplicationServices {
       }
     }
     return window["_en_instance"]
+  }
+
+  public async isAppVersionOutdated() {
+    const appVersion = await this.getAppVersion()
+    const currentVersion = localStorage.getItem("app_version")
+    if (appVersion !== null && appVersion != currentVersion) {
+      return true
+    }
+
+    return false
+  }
+
+  private async getAppVersion() {
+    let request: AxiosRequestConfig = {
+      method: "GET",
+      url: "/app-version.json",
+      transformResponse: JSON_FORMAT,
+    }
+
+    let response = await axios(request)
+
+    if (response?.status == 200 && response?.data) {
+      return response.data
+    }
+
+    return null
   }
 
   private async loadBackendConfiguration(): Promise<FeatureSettings> {
