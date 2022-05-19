@@ -3,11 +3,14 @@ package meta
 import (
 	"errors"
 	"fmt"
-	"github.com/FZambia/sentinel"
-	"github.com/gomodule/redigo/redis"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/FZambia/sentinel"
+	"github.com/gomodule/redigo/redis"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 const (
@@ -31,6 +34,7 @@ type Options struct {
 	MaxIdle     int
 	MaxActive   int
 	IdleTimeout time.Duration
+	PingTimeout time.Duration
 }
 
 // DefaultOptions for Redis Pool
@@ -40,6 +44,7 @@ var DefaultOptions = Options{
 	MaxIdle:                   100,
 	MaxActive:                 600,
 	IdleTimeout:               240 * time.Second,
+	PingTimeout:               30 * time.Second,
 }
 
 //RedisPoolFactory is a factory for creating RedisPool
@@ -111,9 +116,20 @@ func (rpf *RedisPoolFactory) Create() (*RedisPool, error) {
 	connection := poolToRedis.Get()
 	defer connection.Close()
 
-	if _, err := redis.String(connection.Do("PING")); err != nil {
-		poolToRedis.Close()
-		return nil, fmt.Errorf("testing Redis connection: %v", err)
+	start := timestamp.Now()
+	for timestamp.Now().Sub(start) <= rpf.options.PingTimeout {
+		_, err = redis.String(connection.Do("PING"))
+		if err == nil {
+			break
+		}
+
+		time.Sleep(time.Second)
+		logging.Warnf("failed to ping Redis: %v", err)
+	}
+
+	if err != nil {
+		_ = poolToRedis.Close()
+		return nil, fmt.Errorf("testing Redis connection during %s: %v", rpf.options.PingTimeout, err)
 	}
 
 	return &RedisPool{

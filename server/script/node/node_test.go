@@ -3,6 +3,7 @@ package node_test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/script"
@@ -208,12 +209,12 @@ func TestUnsafeFS(t *testing.T) {
 
 	err = tt.Execute("call_fs", nil, new(interface{}), nil)
 	if assert.Error(t, err) {
-		assert.Contains(t, err.Error(), "Attempt to call fs.createReadStream which is not safe")
+		assert.Contains(t, err.Error(), "Attempt to access fs.createReadStream, which is not safe")
 	}
 
 	err = tt.Execute("call_os", nil, new(interface{}), nil)
 	if assert.Error(t, err) {
-		assert.Contains(t, err.Error(), "Attempt to call os.arch which is not safe")
+		assert.Contains(t, err.Error(), "Attempt to access os.arch, which is not safe")
 	}
 }
 
@@ -249,6 +250,7 @@ func TestDescribeModule(t *testing.T) {
 		"arr":  script.Symbol{Type: "object", Value: json.RawMessage(`[1,2,3]`)},
 		"obj":  script.Symbol{Type: "object", Value: json.RawMessage(`{"nested":4}`)},
 		"func": script.Symbol{Type: "function"},
+		"path": script.Symbol{Type: "string", Value: json.RawMessage(`"object"`)},
 	}, symbols)
 }
 
@@ -287,6 +289,39 @@ func TestHeaders(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, "application/json", resp)
+}
+
+type scriptLog struct {
+	level, message string
+}
+
+func (l *scriptLog) Data(_ []byte) {
+
+}
+
+func (l *scriptLog) Log(level, message string) {
+	l.level = level
+	l.message = message
+}
+
+func (l *scriptLog) Timeout() time.Duration {
+	return 0
+}
+
+func TestConsoleLog(t *testing.T) {
+	tt := &testingT{T: t, exec: script.File("testdata/js/log_test.js")}
+	defer tt.load().close()
+
+	var log scriptLog
+	err := tt.Execute("log", nil, nil, &log)
+	assert.NoError(t, err)
+	assert.Equal(t, "info", log.level)
+	assert.Equal(t, "test {\n  \"a\": 1,\n  \"b\": [\n    2\n  ]\n}", log.message)
+
+	err = tt.Execute("log_recursive", nil, nil, &log)
+	assert.NoError(t, err)
+	assert.Equal(t, "error", log.level)
+	assert.Equal(t, "test [object Object]", log.message)
 }
 
 //for manual testing – this can take a while

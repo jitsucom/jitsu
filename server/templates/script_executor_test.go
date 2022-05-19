@@ -34,7 +34,7 @@ func TestLoadSourcePlugins(t *testing.T) {
 		"jitsu-facebook-marketing-source",
 		//"jitsu-firebase-source",
 		"jitsu-google-ads-source",
-		//"jitsu-google-analytics-source",
+		"jitsu-google-analytics-source",
 		"jitsu-google-play-source",
 		"jitsu-redis-source",
 	}
