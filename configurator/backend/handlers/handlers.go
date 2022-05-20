@@ -50,9 +50,7 @@ type LocalAuthorizator interface {
 	GetUserIDByEmail(ctx context.Context, userEmail string) (string, error)
 }
 
-type CloudAuthorizator interface {
-	SignInAs(ctx context.Context, email string) (*openapi.TokenResponse, error)
-}
+type CloudAuthorizator interface {}
 
 type SSOProvider interface {
 	Name() string

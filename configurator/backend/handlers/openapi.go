@@ -130,26 +130,6 @@ func (oa *OpenAPI) GenerateDefaultProjectApiKey(ctx *gin.Context) {
 	}
 }
 
-func (oa *OpenAPI) BecomeAnotherCloudUser(ctx *gin.Context, params openapi.BecomeAnotherCloudUserParams) {
-	if ctx.IsAborted() {
-		return
-	}
-
-	if authorizator, err := oa.Authorizator.Cloud(); err != nil {
-		mw.Unsupported(ctx, err)
-	} else if authority, err := mw.GetAuthority(ctx); err != nil {
-		mw.Unauthorized(ctx, err)
-	} else if !authority.IsAdmin {
-		mw.Forbidden(ctx, "Only admins can use this API method")
-	} else if params.UserId == "" {
-		mw.RequiredField(ctx, "user_id")
-	} else if token, err := authorizator.SignInAs(ctx, params.UserId); err != nil {
-		mw.BadRequest(ctx, "sign in failed", err)
-	} else {
-		ctx.JSON(http.StatusOK, token)
-	}
-}
-
 func (oa *OpenAPI) CreateFreeTierPostgresDatabase(ctx *gin.Context) {
 	if ctx.IsAborted() {
 		return
@@ -445,7 +425,6 @@ func (oa *OpenAPI) GetSystemConfiguration(ctx *gin.Context) {
 			DefaultS3Bucket:             !oa.SystemConfig.SelfHosted,
 			SupportTrackingDomains:      !oa.SystemConfig.SelfHosted,
 			TelemetryUsageDisabled:      telemetryUsageDisabled,
-			ShowBecomeUser:              !oa.SystemConfig.SelfHosted,
 			DockerHubID:                 oa.SystemConfig.DockerHUBID,
 			OnlyAdminCanChangeUserEmail: oa.SystemConfig.SelfHosted,
 			Tag:                         oa.SystemConfig.Tag,

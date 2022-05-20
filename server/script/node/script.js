@@ -2,15 +2,30 @@
 
 const __jts_log__ = [];
 
-for (let level of ["log", "trace", "info", "warn", "error"]) {
-  console[level] = (message) =>
-    __jts_log__.push({ level, message: `${message}` });
+for (let level of ["trace", "info", "warn", "error"]) {
+  console[level] = (...args) => {
+    let message = (args ?? [])
+      .map((arg) => {
+        if (typeof arg === "object") {
+          try {
+            return JSON.stringify(arg, null, 2);
+          } catch (e) {
+            // convert to string
+          }
+        }
+
+        return arg + "";
+      })
+      .join(" ");
+
+    __jts_log__.push({ level, message });
+  };
 }
 
+console["log"] = console.info;
 console["dir"] = (arg) => console.log(Object.keys(arg));
 
 const readline = require("readline");
-const os = require("os");
 const fetch = require("node-fetch");
 const { NodeVM } = require("vm2");
 
@@ -44,6 +59,12 @@ const reply = async (result, error) => {
 };
 
 const vms = {};
+
+//
+// Sandboxing
+//
+
+const os = require("os");
 
 function mockModule(moduleName, knownSymbols) {
   return new Proxy(
@@ -87,8 +108,25 @@ function throwOnCall(module, prop) {
   };
 }
 
+const processOverloads = {
+  env: {},
+  versions: process.versions,
+  version: process.version,
+  stderr: process.stderr,
+  stdout: process.stdout,
+  emitWarning: process.emitWarning,
+};
+
+const vms = {};
+
 const load = async (id, executable, variables, includes) => {
   let vm = new NodeVM({
+    sandbox: {
+      queueMicrotask: queueMicrotask,
+      self: {},
+      process: processOverloads,
+      ...(variables ?? {}),
+    },
     require: {
       context: "sandbox",
       external: false,
@@ -115,6 +153,7 @@ const load = async (id, executable, variables, includes) => {
         "console",
       ],
       root: "./",
+
       mock: {
         fs: mockModule("fs", {
           ...throwOnMethods("fs", ["readFile", "realpath", "lstat"]),
@@ -128,12 +167,6 @@ const load = async (id, executable, variables, includes) => {
           `The extension calls require('${moduleName}') which is not system module. Rollup should have linked it into JS code.`
         );
       },
-    },
-    sandbox: {
-      ...(variables ?? {}),
-      queueMicrotask: queueMicrotask,
-      self: {},
-      process: processOverloads,
     },
   });
 
@@ -168,6 +201,10 @@ const vm = (id) => {
 
   throw "__load_required__";
 };
+
+//
+// Transport
+//
 
 readline
   .createInterface({

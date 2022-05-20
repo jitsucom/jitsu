@@ -3,6 +3,7 @@ package adapters
 import (
 	"errors"
 	"fmt"
+
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/utils"
 )
@@ -38,7 +39,7 @@ func NewTag(config *TagConfig, destinationId string) (*Tag, error) {
 }
 
 func (t *Tag) ProcessEvent(event map[string]interface{}) (map[string]interface{}, error) {
-	value, err := t.template.ProcessEvent(event)
+	value, err := t.template.ProcessEvent(event, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error in processing tag destination template: %v", err)
 	}

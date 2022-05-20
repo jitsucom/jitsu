@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/drivers/base"
@@ -15,8 +18,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"go.uber.org/atomic"
 	"strings"
-	"sync"
-	"time"
 )
 
 var ErrSDKSourceCancelled = errors.New("Source runner was cancelled.")
@@ -258,10 +259,12 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 	if stream.SyncMode == "" {
 		return fmt.Errorf("Required parameter \"mode\" is missing for stream config. Supported values are: \"full_sync\" or \"incremental\" based on stream type")
 	}
+
 	chunkNumber := 0
 	var currentChunk *base.CLIOutputRepresentation
 
-	dataChannel := make(chan interface{}, 1000)
+	dataChannel := make(scriptListener, 1000)
+
 	go func() {
 		defer close(dataChannel)
 		_, err := s.sourceExecutor.Stream(stream.Type, stream, stateObj, dataChannel)

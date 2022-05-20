@@ -55,7 +55,7 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"",
-			401,
+			200,
 		},
 		{
 			"Wrong token in random url",
@@ -63,7 +63,7 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"",
-			401,
+			200,
 		},
 		{
 			"Wrong token in header event url",
@@ -71,7 +71,7 @@ func TestCors(t *testing.T) {
 			"",
 			"wrongtoken",
 			"",
-			401,
+			200,
 		},
 		{
 			"Wrong token in header random url",
@@ -79,7 +79,7 @@ func TestCors(t *testing.T) {
 			"",
 			"wrongtoken",
 			"",
-			401,
+			200,
 		},
 		{
 			"Wrong origin with token in event url",
@@ -91,11 +91,11 @@ func TestCors(t *testing.T) {
 		},
 		{
 			"Wrong origin with token in random url",
-			"/api.djla9a?p_dlkiud7=wrongtoken",
+			"/api.djla9a?p_dlkiud7=c2stoken",
 			"origin.com",
 			"",
 			"",
-			401,
+			200,
 		},
 		{
 			"Wrong origin with token in header event url",

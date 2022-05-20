@@ -3,13 +3,13 @@ package node
 import (
 	_ "embed"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/script"
-	"github.com/jitsucom/jitsu/server/script/ipc"
-	"github.com/pkg/errors"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
+
+	"github.com/jitsucom/jitsu/server/script"
+	"github.com/jitsucom/jitsu/server/script/ipc"
+	"github.com/pkg/errors"
 )
 
 var maxScriptErrors = 3
@@ -42,27 +42,19 @@ type Script struct {
 
 func (s *Script) Describe() (script.Symbols, error) {
 	value := make(script.Symbols)
-	if err := s.exchange(describe, s.Session, &value, nil, 0); err != nil {
+	if err := s.exchange(describe, s.Session, &value, nil); err != nil {
 		return nil, err
 	}
 
 	return value, nil
 }
 
-func (s *Script) Execute(name string, args []interface{}, result interface{}) error {
+func (s *Script) Execute(name string, args []interface{}, result interface{}, listener script.Listener) error {
 	if args == nil {
 		args = make([]interface{}, 0)
 	}
 
-	return s.exchange(execute, Execute{Session: s.Session, Function: name, Args: args}, result, nil, 0)
-}
-
-func (s *Script) ExecuteWithDataChannel(name string, args []interface{}, result interface{}, dataChannel chan<- interface{}) error {
-	if args == nil {
-		args = make([]interface{}, 0)
-	}
-
-	return s.exchange(execute, Execute{Session: s.Session, Function: name, Args: args}, result, dataChannel, time.Hour)
+	return s.exchange(execute, Execute{Session: s.Session, Function: name, Args: args}, result, listener)
 }
 
 func (s *Script) Close() {
@@ -75,15 +67,15 @@ func (s *Script) Close() {
 
 var vmStackTraceLine = regexp.MustCompile(`^\s*at\s(.*?)\s\(vm\.js:(\d+):(\d+)\)$`)
 
-func (s *Script) exchange(command string, payload, result interface{}, dataChannel chan<- interface{}, timeout time.Duration) error {
-	err := s.exchanger.exchange(command, payload, result, dataChannel, timeout)
+func (s *Script) exchange(command string, payload, result interface{}, listener script.Listener) error {
+	err := s.exchanger.exchange(command, payload, result, listener)
 	if errors.Is(err, ipc.ErrOutOfMemory) {
 		s.errCount++
 		if s.errCount >= maxScriptErrors {
 			return err
 		}
 
-		return s.exchange(command, payload, result, dataChannel, timeout)
+		return s.exchange(command, payload, result, listener)
 	}
 
 	switch {
@@ -91,11 +83,11 @@ func (s *Script) exchange(command string, payload, result interface{}, dataChann
 		s.errCount = 0
 		return nil
 	case errors.Is(err, errLoadRequired):
-		if err := s.exchanger.exchange(load, s.Init, nil, nil, 0); err != nil {
+		if err := s.exchanger.exchange(load, s.Init, nil, nil); err != nil {
 			return s.rewriteJavaScriptStack(err)
 		}
 
-		return s.exchange(command, payload, result, dataChannel, timeout)
+		return s.exchange(command, payload, result, listener)
 	default:
 		s.errCount = 0
 		return s.rewriteJavaScriptStack(err)

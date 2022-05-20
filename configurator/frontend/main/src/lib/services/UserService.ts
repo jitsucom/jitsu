@@ -103,8 +103,6 @@ export interface UserService {
 
   createUser(signup: SignupRequest): Promise<void>
 
-  becomeUser(email: string): Promise<void>
-
   supportsLoginViaLink(): boolean
 
   sendLoginLink(email: string): Promise<void>
