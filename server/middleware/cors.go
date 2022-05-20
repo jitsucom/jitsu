@@ -61,6 +61,6 @@ func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) ht
 func writeDefaultCorsHeaders(w http.ResponseWriter) {
 	w.Header().Add("Access-Control-Max-Age", "86400")
 	w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE, PATCH")
-	w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Host")
+	w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Host, x-auth-token")
 	w.Header().Add("Access-Control-Allow-Credentials", "true")
 }
