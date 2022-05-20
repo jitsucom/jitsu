@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"text/template"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/config"
@@ -31,11 +32,12 @@ type EvaluateTemplateRequest struct {
 
 //EvaluateTemplateResponse is a response dto for testing text/template expressions
 type EvaluateTemplateResponse struct {
-	Result     string `json:"result"`
-	Error      string `json:"error"`
-	UserResult string `json:"user_result"`
-	UserError  string `json:"user_error"`
-	Format     string `json:"format"`
+	Result     string       `json:"result"`
+	Logs       EvaluateLogs `json:"logs,omitempty"`
+	Error      string       `json:"error"`
+	UserResult string       `json:"user_result"`
+	UserError  string       `json:"user_error"`
+	Format     string       `json:"format"`
 }
 
 //Validate returns err if invalid
@@ -121,7 +123,8 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (response 
 		tmpl := storage.Processor().GetTransformer()
 		if tmpl != nil {
 			response.Format = tmpl.Format()
-			resultObject, err := tmpl.ProcessEvent(req.Object)
+			response.Logs = make(EvaluateLogs, 0)
+			resultObject, err := tmpl.ProcessEvent(req.Object, &response.Logs)
 			if err != nil {
 				response.UserError = fmt.Errorf("error executing template: %v", err).Error()
 				return
@@ -167,7 +170,8 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (response 
 			return
 		}
 		response.Format = tmpl.Format()
-		resultObject, err := tmpl.ProcessEvent(req.Object)
+		response.Logs = make(EvaluateLogs, 0)
+		resultObject, err := tmpl.ProcessEvent(req.Object, &response.Logs)
 		if err != nil {
 			response.Error = fmt.Errorf("error executing template: %v", err).Error()
 			return
@@ -197,4 +201,29 @@ func evaluateReformatted(req *EvaluateTemplateRequest) (response EvaluateTemplat
 	}
 	response.Result = res
 	return
+}
+
+type EvaluateLog struct {
+	Level   string `json:"level"`
+	Message string `json:"message"`
+}
+
+type EvaluateLogs []EvaluateLog
+
+func (l *EvaluateLogs) Data(data []byte) {
+	*l = append(*l, EvaluateLog{
+		Level:   "debug",
+		Message: string(data),
+	})
+}
+
+func (l *EvaluateLogs) Log(level, message string) {
+	*l = append(*l, EvaluateLog{
+		Level:   level,
+		Message: message,
+	})
+}
+
+func (l *EvaluateLogs) Timeout() time.Duration {
+	return 0
 }

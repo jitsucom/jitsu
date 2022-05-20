@@ -14,6 +14,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+// DataListener is used to listen for multiline execution output.
+type DataListener interface {
+
+	// Data is called for each line of output.
+	Data(data []byte)
+}
+
 // StdIO allows to start to process and communicate to it via standard input/output.
 // Note that it currently uses '\n' for delimiting sent messages.
 type StdIO struct {
@@ -78,7 +85,7 @@ func (p *StdIO) Send(_ context.Context, data []byte) error {
 	return err
 }
 
-func (p *StdIO) Receive(ctx context.Context, dataChannel chan<- interface{}) ([]byte, error) {
+func (p *StdIO) Receive(ctx context.Context, listener DataListener) ([]byte, error) {
 	done := make(chan bool)
 	defer close(done)
 	go func() {
@@ -96,13 +103,13 @@ func (p *StdIO) Receive(ctx context.Context, dataChannel chan<- interface{}) ([]
 		if err != nil {
 			done <- true
 			return line, err
-		} else if len(line) > 30 && line[0] == 'J' && line[1] == ':' &&
+		} else if len(line) > 30 && string(line[:2]) == "J:" &&
 			strings.Contains(string(line), "_JITSU_SCRIPT_RESULT") {
 			done <- true
 			return line[2:], nil
 		} else if len(line) > 1 {
-			if dataChannel != nil {
-				dataChannel <- line
+			if listener != nil {
+				listener.Data(line)
 			} else {
 				logging.Info(string(line))
 			}

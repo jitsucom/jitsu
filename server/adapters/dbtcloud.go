@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/jsonutils"
-	"github.com/jitsucom/jitsu/server/templates"
 	"io/ioutil"
 	"net/http"
+
+	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/templates"
 )
 
 const (
@@ -147,7 +148,7 @@ func (dcc *DbtCloudRequestFactory) Create(object map[string]interface{}) (req *R
 		}
 	}()
 
-	cause, err := dcc.causeTemplate.ProcessEvent(object)
+	cause, err := dcc.causeTemplate.ProcessEvent(object, nil)
 	if err != nil {
 		return nil, fmt.Errorf("Error executing Cause template: %v", err)
 	}

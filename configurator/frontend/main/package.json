@@ -4,7 +4,7 @@
   "private": true,
   "dependencies": {
     "@jitsu/catalog": "file:../catalog",
-    "@jitsu/sdk-js": "^2.3.0",
+    "@jitsu/sdk-js": "^3.0.3",
     "@sentry/react": "^6.19.6",
     "@sentry/tracing": "^6.19.6",
     "antd": "^4.13.1",
@@ -49,7 +49,8 @@
     "bundle": "npx webpack-bundle-analyzer ./build/bundle-stats.json",
     "analyze": "source-map-explorer 'build/static/js/*.js' --no-border-checks",
     "test": "craco test --watchAll",
-    "test:debug": "craco --inspect-brk test --runInBand --no-cache"
+    "test:debug": "craco --inspect-brk test --runInBand --no-cache",
+    "version:update": "echo \\\"$(date +\"%s\")\\\" > ./public/app-version.json"
   },
   "browserslist": {
     "production": [

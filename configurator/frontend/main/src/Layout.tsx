@@ -27,8 +27,6 @@ import { ReactComponent as KeyIcon } from "icons/key.svg"
 import { ReactComponent as DownloadIcon } from "icons/download.svg"
 import { ReactComponent as GlobeIcon } from "icons/globe.svg"
 import classNames from "classnames"
-// @Model
-import { Permission } from "lib/services/model"
 // @Utils
 import { reloadPage } from "lib/commons/utils"
 // @Services
@@ -235,20 +233,6 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
 
   const showSettings = React.useCallback<() => void>(() => history.push("/user/settings"), [history])
 
-  const becomeUser = async () => {
-    let email = prompt("Please enter e-mail of the user", "")
-    if (!email) {
-      return
-    }
-    try {
-      AnalyticsBlock.blockAll()
-      await services.userService.becomeUser(email)
-    } catch (e) {
-      handleError(e, "Can't login as other user")
-      AnalyticsBlock.unblockAll()
-    }
-  }
-
   return (
     <div>
       <div className="py-5 border-b px-5 flex flex-col items-center">
@@ -292,12 +276,6 @@ export const DropdownMenu: React.FC<{ user: User; plan: CurrentSubscription; hid
         <Button type="text" className="text-left" key="settings" icon={<SettingOutlined />} onClick={showSettings}>
           Settings
         </Button>
-        {(services.userService.getUser().email === "reg@ksense.io" ||
-          services.userService.getUser().email.endsWith("@jitsu.com")) && (
-          <Button className="text-left" type="text" key="become" icon={<UserSwitchOutlined />} onClick={becomeUser}>
-            Become User
-          </Button>
-        )}
         <Button
           className="text-left"
           type="text"

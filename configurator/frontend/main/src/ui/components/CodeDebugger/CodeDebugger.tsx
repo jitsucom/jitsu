@@ -24,6 +24,7 @@ import {
   EyeInvisibleFilled,
 } from "@ant-design/icons"
 import { useStateWithCallback } from "hooks/useStateWithCallback"
+import { Tabs } from "antd/es"
 
 export interface CodeDebuggerProps {
   /**
@@ -71,10 +72,16 @@ export interface FormValues {
   code: string
 }
 
+interface CalculationLog {
+  level: string
+  message: string
+}
+
 interface CalculationResult {
   code: "error" | "success"
   format?: string | null
   result?: string
+  logs?: CalculationLog[]
   error?: string
   userResult?: string
   userError?: string
@@ -103,10 +110,6 @@ const CodeDebugger = ({
   const [calcResult, setCalcResult] = useState<CalculationResult>()
   const [runIsLoading, setRunIsLoading] = useState<boolean>(false)
 
-  const [showInputEditor, setShowInputEditor] = useState<boolean>(true)
-  const [showCodeEditor, setShowCodeEditor] = useState<boolean>(true)
-  const [showOutput, setShowOutput] = useState<boolean>(false)
-
   const codeState = useRef({
     isCodeSaved: true,
     blockUpdates: false,
@@ -119,19 +122,6 @@ const CodeDebugger = ({
   const isCodeSavedStateBlocked = useRef<boolean>(false)
 
   const [form] = Form.useForm()
-
-  const toggleInputEditor = useCallback(() => {
-    setShowInputEditor(val => !val)
-  }, [])
-
-  const toggleCodeEditor = useCallback(() => {
-    setCodeValue(form.getFieldValue("code"))
-    setShowCodeEditor(val => !val)
-  }, [])
-
-  const toggleOutput = useCallback(() => {
-    setShowOutput(val => !val)
-  }, [])
 
   const handleChange =
     (name: "object" | "code") => (value: string | object, options?: { doNotSetCodeNotSaved?: boolean }) => {
@@ -156,7 +146,6 @@ const CodeDebugger = ({
   }
 
   const handleRun = async (values: FormValues) => {
-    setShowOutput(true)
     setRunIsLoading(true)
 
     try {
@@ -167,15 +156,18 @@ const CodeDebugger = ({
         format: response.format,
         result: response.result,
         error: response.error,
+        logs: response.logs,
         userResult: response.user_result,
         userError: response.user_error,
       })
     } catch (error) {
+      const err = error?._response?.error || error?._response?.message || error?.message || "Error"
       setCalcResult({
         code: "error",
         format: error?._response?.format ?? null,
         result: error?._response?.result ?? "",
-        error: error?._response?.error || error?._response?.message || error?.message || "Error",
+        logs: [{ level: "error", message: err }],
+        error: err,
         userResult: error?._response?.user_result ?? "",
         userError: error?._response?.user_error ?? "",
       })
@@ -219,163 +211,150 @@ const CodeDebugger = ({
     <div className={cn(className, "flex flex-col items-stretch h-screen max-h-full pt-4;")}>
       <div className="w-full mb-2">
         <Controls
-          inputChecked={showInputEditor}
-          codeChecked={showCodeEditor}
-          outputChecked={showOutput}
           codeSaved={codeSaved}
-          toggleInput={toggleInputEditor}
-          toggleCode={toggleCodeEditor}
-          toggleOutput={toggleOutput}
           handleExit={handleClose}
           handleSave={handleSaveCode}
           handleRun={form.submit}
+          isLoading={runIsLoading}
         />
       </div>
       <Form form={form} className="flex-auto relative" id="inputs" onFinish={handleRun}>
-        <ReflexContainer orientation="vertical">
-          {showInputEditor && (
-            <ReflexElement>
-              <SectionWithLabel label="Event JSON" htmlFor="object">
-                <Form.Item className={`${styles.field} w-full`} name="object">
-                  <CodeEditor
-                    initialValue={form.getFieldValue("object") ?? objectInitialValue}
-                    language={"json"}
-                    handleChange={handleChange("object")}
-                    handlePaste={handlePaste}
-                    hotkeysOverrides={{
-                      onCmdCtrlEnter: form.submit,
-                      onCmdCtrlI: toggleInputEditor,
-                      onCmdCtrlU: toggleCodeEditor,
-                    }}
-                  />
-                </Form.Item>
-              </SectionWithLabel>
-              <Dropdown
-                forceRender
-                className="absolute left-28 top-0.5"
-                placement="topLeft"
-                overlay={<DebugEvents handleClick={handleEventClick} />}
-                trigger={["click"]}
-                visible={isEventsVisible}
-              >
-                <Button
-                  size="small"
-                  type="link"
-                  icon={<UnorderedListOutlined />}
-                  id="events-button"
-                  onClick={handleSwitchEventsVisible}
+        <ReflexContainer orientation="horizontal">
+          <ReflexElement flex={0.6} minSize={300}>
+            <ReflexContainer orientation="vertical">
+              <ReflexElement flex={0.4} minSize={300}>
+                <SectionWithLabel label="Event JSON" htmlFor="code">
+                  <Form.Item className={`${styles.field} w-full h-full`} name="object">
+                    <CodeEditor
+                      initialValue={form.getFieldValue("object") ?? objectInitialValue}
+                      language={"json"}
+                      handleChange={handleChange("object")}
+                      handlePaste={handlePaste}
+                      hotkeysOverrides={{
+                        onCmdCtrlEnter: form.submit,
+                      }}
+                    />
+                  </Form.Item>
+                  <Dropdown
+                    forceRender
+                    className="absolute left-28 top-0.5"
+                    placement="topLeft"
+                    overlay={<DebugEvents handleClick={handleEventClick} />}
+                    trigger={["click"]}
+                    visible={isEventsVisible}
+                  >
+                    <Button
+                      size="small"
+                      type="link"
+                      icon={<UnorderedListOutlined />}
+                      id="events-button"
+                      onClick={handleSwitchEventsVisible}
+                    >
+                      Copy Recent Event
+                    </Button>
+                  </Dropdown>
+                </SectionWithLabel>
+              </ReflexElement>
+              <ReflexSplitter propagate className={`${styles.splitter}`} />
+              <ReflexElement minSize={300}>
+                <SectionWithLabel label={`${codeFieldLabel}`} htmlFor="code">
+                  <Form.Item className={`${styles.field} pl-2 break-normal`} colon={false} name="code">
+                    <CodeEditor
+                      initialValue={codeValue}
+                      language="javascript"
+                      enableLineNumbers
+                      extraSuggestions={`declare let $ = ${objectValue};
+                      declare let event = $;
+                      declare let _ = $;
+                      ${extraSuggestions}`}
+                      reRenderEditorOnInitialValueChange={true}
+                      handleChange={handleChange("code")}
+                      hotkeysOverrides={{
+                        onCmdCtrlEnter: form.submit,
+                      }}
+                    />
+                  </Form.Item>
+                </SectionWithLabel>
+              </ReflexElement>
+            </ReflexContainer>
+          </ReflexElement>
+
+          <ReflexSplitter propagate className={`${styles.splitterHorizontal}`} />
+
+          <ReflexElement propagateDimensions={true} minSize={200}>
+            <Tabs defaultActiveKey="console" type="card" tabPosition="top" size="small" className={styles.eventTabs}>
+              <Tabs.TabPane tab="Console Debugger" key="console">
+                <div
+                  className={`h-full box-border font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}
                 >
-                  Copy Recent Event
-                </Button>
-              </Dropdown>
-            </ReflexElement>
-          )}
-
-          {showInputEditor && <ReflexSplitter propagate className={`${styles.splitter}`} />}
-
-          {showCodeEditor && (
-            <ReflexElement>
-              <SectionWithLabel label={`${codeFieldLabel}`} htmlFor="code">
-                <Form.Item className={`${styles.field} pl-2 break-normal`} colon={false} name="code">
-                  <CodeEditor
-                    initialValue={codeValue}
-                    language="javascript"
-                    enableLineNumbers
-                    extraSuggestions={`declare let $ = ${objectValue};
-          declare let event = $;
-          declare let _ = $;
-          ${extraSuggestions}`}
-                    reRenderEditorOnInitialValueChange={true}
-                    handleChange={handleChange("code")}
-                    hotkeysOverrides={{
-                      onCmdCtrlEnter: form.submit,
-                      onCmdCtrlI: toggleInputEditor,
-                      onCmdCtrlU: toggleCodeEditor,
-                    }}
-                  />
-                </Form.Item>
-              </SectionWithLabel>
-            </ReflexElement>
-          )}
-
-          {showCodeEditor && showOutput && <ReflexSplitter propagate className={`${styles.splitter}`} />}
-
-          {showOutput && (
-            <ReflexElement propagateDimensions={true}>
-              {runIsLoading ? (
-                <Spin indicator={<LoadingOutlined style={{ fontSize: 15 }} spin />} />
-              ) : (
-                <ReflexContainer orientation="horizontal">
-                  {((calcResult?.userResult && calcResult?.userResult !== calcResult?.result) ||
-                    (calcResult?.userError && calcResult?.userError !== calcResult?.error)) && (
-                    <ReflexElement>
-                      <SectionWithLabel label="User Transformation Result">
-                        <div
-                          className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}
-                        >
-                          <div
-                            className={cn("flex h-full overflow-auto flex-col w-full m-0", {
-                              [styles.itemError]: !!calcResult?.userError,
-                              [styles.itemSuccess]: !!calcResult?.userResult,
-                            })}
+                  {(calcResult?.logs ?? []).map(log => (
+                    <div className={`w-full log-line log-${log.level}`}>
+                      <pre>{log.message}</pre>
+                    </div>
+                  ))}
+                </div>
+              </Tabs.TabPane>
+              <Tabs.TabPane tab="Full Data Transformation" key="full-data">
+                <div className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
+                  <div
+                    className={cn("flex flex-col w-full h-full overflow-auto m-0", {
+                      [styles.itemError]: calcResult?.code === "error",
+                      [styles.itemSuccess]: calcResult?.code === "success",
+                    })}
+                  >
+                    <strong className={cn(`absolute top-15 right-6 flex-shrink-0 text-xs`)}>
+                      {calcResult?.code ?? ""}
+                    </strong>
+                    {calcResult && (
+                      <span className={`flex-auto min-w-0 text-xs`}>
+                        {calcResult.error ? (
+                          calcResult.error
+                        ) : (
+                          <SyntaxHighlighterAsync
+                            language="json"
+                            className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
                           >
-                            <strong className={cn(`absolute top-1 right-2 flex-shrink-0 text-xs`)}>
-                              {calcResult?.userResult ? "success" : calcResult?.userError ? "error" : ""}
-                            </strong>
-                            {calcResult && (
-                              <span className={`flex-auto min-w-0 text-xs`}>
-                                {calcResult.userError ? (
-                                  calcResult.userError
-                                ) : (
-                                  <SyntaxHighlighterAsync
-                                    language="json"
-                                    className={`w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
-                                  >
-                                    {calcResult.userResult}
-                                  </SyntaxHighlighterAsync>
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </SectionWithLabel>
-                    </ReflexElement>
-                  )}
-                  <ReflexSplitter propagate className={`${styles.splitterHorizontal}`} />
-                  <ReflexElement>
-                    <SectionWithLabel label="Full Data Transformation">
-                      <div className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
-                        <div
-                          className={cn("flex flex-col w-full h-full overflow-auto m-0", {
-                            [styles.itemError]: calcResult?.code === "error",
-                            [styles.itemSuccess]: calcResult?.code === "success",
-                          })}
-                        >
-                          <strong className={cn(`absolute top-1 right-2 flex-shrink-0 text-xs`)}>
-                            {calcResult?.code ?? ""}
-                          </strong>
-                          {calcResult && (
-                            <span className={`flex-auto min-w-0 text-xs`}>
-                              {calcResult.error ? (
-                                calcResult.error
-                              ) : (
-                                <SyntaxHighlighterAsync
-                                  language="json"
-                                  className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
-                                >
-                                  {calcResult.result}
-                                </SyntaxHighlighterAsync>
-                              )}
-                            </span>
+                            {calcResult.result}
+                          </SyntaxHighlighterAsync>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </Tabs.TabPane>
+              {((calcResult?.userResult && calcResult?.userResult !== calcResult?.result) ||
+                (calcResult?.userError && calcResult?.userError !== calcResult?.error)) && (
+                <Tabs.TabPane tab="User Transformation Result" key="user-transform">
+                  <div className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
+                    <div
+                      className={cn("flex h-full overflow-auto flex-col w-full m-0", {
+                        [styles.itemError]: !!calcResult?.userError,
+                        [styles.itemSuccess]: !!calcResult?.userResult,
+                      })}
+                    >
+                      <strong className={cn(`absolute top-15 right-6 flex-shrink-0 text-xs`)}>
+                        {calcResult?.userResult ? "success" : calcResult?.userError ? "error" : ""}
+                      </strong>
+                      {calcResult && (
+                        <span className={`flex-auto min-w-0 text-xs`}>
+                          {calcResult.userError ? (
+                            calcResult.userError
+                          ) : (
+                            <SyntaxHighlighterAsync
+                              language="json"
+                              className={`w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
+                            >
+                              {calcResult.userResult}
+                            </SyntaxHighlighterAsync>
                           )}
-                        </div>
-                      </div>
-                    </SectionWithLabel>
-                  </ReflexElement>
-                </ReflexContainer>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </Tabs.TabPane>
               )}
-            </ReflexElement>
-          )}
+            </Tabs>
+          </ReflexElement>
         </ReflexContainer>
 
         {/**
@@ -384,26 +363,22 @@ const CodeDebugger = ({
          * Always keep these elements outside of the ReflexContainer, otherwise they will break the adjustable layout.
          * */}
 
-        {!showInputEditor && (
-          <Form.Item className={`hidden`} name="object">
-            <CodeEditor
-              initialValue={form.getFieldValue("object") ?? objectInitialValue}
-              language={"json"}
-              handleChange={handleChange("object")}
-            />
-          </Form.Item>
-        )}
+        <Form.Item className={`hidden`} name="object">
+          <CodeEditor
+            initialValue={form.getFieldValue("object") ?? objectInitialValue}
+            language={"json"}
+            handleChange={handleChange("object")}
+          />
+        </Form.Item>
 
-        {!showCodeEditor && (
-          <Form.Item className={`hidden`} name="code">
-            <CodeEditor
-              initialValue={codeValue}
-              reRenderEditorOnInitialValueChange={true}
-              language={"json"}
-              handleChange={handleChange("code")}
-            />
-          </Form.Item>
-        )}
+        <Form.Item className={`hidden`} name="code">
+          <CodeEditor
+            initialValue={codeValue}
+            reRenderEditorOnInitialValueChange={true}
+            language={"json"}
+            handleChange={handleChange("code")}
+          />
+        </Form.Item>
       </Form>
     </div>
   )
@@ -420,29 +395,19 @@ export { CodeDebugger }
 const OS_CMD_CTRL_KEY = navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl"
 
 type ControlsProps = {
-  inputChecked: boolean
-  codeChecked: boolean
-  outputChecked: boolean
   codeSaved: MutableRefObject<boolean>
-  toggleInput: () => void
-  toggleCode: () => void
-  toggleOutput: () => void
   handleExit: () => void
   handleSave: () => void
   handleRun: () => void
+  isLoading: boolean
 }
 
 const ControlsComponent: React.FC<ControlsProps> = ({
-  inputChecked,
-  codeChecked,
-  outputChecked,
   codeSaved,
-  toggleInput,
-  toggleCode,
-  toggleOutput,
   handleExit: handleCloseWithoutSaving,
   handleSave,
   handleRun,
+  isLoading,
 }) => {
   const [isClosePopoverVisible, setIsClosePopoverVisible] = useState(false)
 
@@ -455,18 +420,6 @@ const ControlsComponent: React.FC<ControlsProps> = ({
   }
 
   useEffect(() => {
-    const handleToggleInput = () => {
-      toggleInput()
-      return false // to prevent browsers' default behaviour
-    }
-    const handleToggleCode = () => {
-      toggleCode()
-      return false
-    }
-    const handleToggleOutput = () => {
-      toggleOutput()
-      return false
-    }
     const _handleSave = (e: KeyboardEvent) => {
       e.preventDefault()
       handleSave()
@@ -484,18 +437,11 @@ const ControlsComponent: React.FC<ControlsProps> = ({
     }
 
     hotkeys.filter = () => true // to enable hotkeys everywhere, even in input fields
-
-    hotkeys("cmd+i,ctrl+i", handleToggleInput)
-    hotkeys("cmd+u,ctrl+u", handleToggleCode)
-    hotkeys("cmd+o,ctrl+o", handleToggleOutput)
     hotkeys("cmd+s,ctrl+s", _handleSave)
     hotkeys("cmd+enter,ctrl+enter", _handleRun)
     document.addEventListener("keydown", handleEscape, true)
 
     return () => {
-      hotkeys.unbind("cmd+i,ctrl+i", handleToggleInput)
-      hotkeys.unbind("cmd+u,ctrl+u", handleToggleCode)
-      hotkeys.unbind("cmd+o,ctrl+o", handleToggleOutput)
       hotkeys.unbind("cmd+s,ctrl+s", _handleSave)
       hotkeys.unbind("cmd+enter,ctrl+enter", _handleRun)
       document.removeEventListener("keydown", handleEscape, true)
@@ -520,64 +466,30 @@ const ControlsComponent: React.FC<ControlsProps> = ({
           <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>{"Close"}</span>
         </Button>
       </Popconfirm>
-      <div className="flex justify-center items-center flex-auto min-w-0">
-        <Tooltip title={`${OS_CMD_CTRL_KEY}+I`} mouseEnterDelay={1}>
-          <Checkbox
-            checked={inputChecked}
-            className={cn("relative", styles.checkbox, styles.hideAntdCheckbox, styles.checkboxLabel, {
-              [styles.checkboxChecked]: inputChecked,
-            })}
-            onClick={toggleInput}
-          >
-            <i className="block absolute left-0.5">{inputChecked ? <EyeFilled /> : <EyeInvisibleFilled />}</i>
-            <span className={styles.adaptiveIcon}>{"{ }"}</span>
-            <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>{"Input"}</span>
-          </Checkbox>
-        </Tooltip>
-        <Tooltip title={`${OS_CMD_CTRL_KEY}+U`} mouseEnterDelay={1}>
-          <Checkbox
-            checked={codeChecked}
-            className={cn("relative", styles.checkbox, styles.hideAntdCheckbox, styles.checkboxLabel, {
-              [styles.checkboxChecked]: codeChecked,
-            })}
-            onClick={toggleCode}
-          >
-            <i className="block absolute left-0.5">{codeChecked ? <EyeFilled /> : <EyeInvisibleFilled />}</i>
-            <span className={styles.adaptiveIcon}>{"</>"}</span>
-            <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>{"Expression"}</span>
-          </Checkbox>
-        </Tooltip>
-        <Tooltip title={`${OS_CMD_CTRL_KEY}+O`} mouseEnterDelay={1}>
-          <Checkbox
-            checked={outputChecked}
-            className={cn("relative", styles.checkbox, styles.hideAntdCheckbox, styles.checkboxLabel, {
-              [styles.checkboxChecked]: outputChecked,
-            })}
-            onClick={toggleOutput}
-          >
-            <i className="block absolute left-0.5">{outputChecked ? <EyeFilled /> : <EyeInvisibleFilled />}</i>
-            <CodeOutlined className={styles.adaptiveIcon} />
-            <span className={`${styles.adaptiveLabel} ${styles.noMargins}`}>{"Result"}</span>
-          </Checkbox>
-        </Tooltip>
-      </div>
-      <div className="flex-grow-0 ant-btn-group">
-        <Tooltip title={`${OS_CMD_CTRL_KEY}+↵`} mouseEnterDelay={1}>
-          <Button
-            size="middle"
-            type="primary"
-            icon={<CaretRightOutlined />}
-            className={`${styles.buttonGreen}`}
-            onClick={handleRun}
-          >
-            <span className={`${styles.adaptiveLabel}`}>{"Run"}</span>
-          </Button>
-        </Tooltip>
-        <Tooltip title={`${OS_CMD_CTRL_KEY}+S`} mouseEnterDelay={1}>
-          <Button size="middle" type="primary" onClick={handleSave} icon={<DownloadOutlined />}>
-            <span className={`${styles.adaptiveLabel}`}>{"Save"}</span>
-          </Button>
-        </Tooltip>
+      <div className="flex-grow-0 ant-btn-group flex justify-center items-center flex-auto min-w-0 w-full">
+        {isLoading ? (
+          <Spin indicator={<LoadingOutlined style={{ fontSize: 15 }} spin />} />
+        ) : (
+          <>
+            <Tooltip title={`${OS_CMD_CTRL_KEY}+↵`} mouseEnterDelay={1}>
+              <Button
+                size="middle"
+                type="primary"
+                icon={<CaretRightOutlined />}
+                className={`${styles.buttonGreen}`}
+                disabled={isLoading}
+                onClick={handleRun}
+              >
+                <span className={`${styles.adaptiveLabel}`}>{"Run"}</span>
+              </Button>
+            </Tooltip>
+            <Tooltip title={`${OS_CMD_CTRL_KEY}+S`} mouseEnterDelay={1}>
+              <Button size="middle" type="primary" onClick={handleSave} icon={<DownloadOutlined />}>
+                <span className={`${styles.adaptiveLabel}`}>{"Save"}</span>
+              </Button>
+            </Tooltip>
+          </>
+        )}
       </div>
     </div>
   )

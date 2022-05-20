@@ -3,6 +3,7 @@ package node_test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/script"
@@ -49,11 +50,11 @@ func TestBasicDescribeAndExecute(t *testing.T) {
 	assert.Equal(t, 0, len(exports), "anonymous function should not export anything")
 
 	var resp string
-	err = tt.Execute("", script.Args{"hello"}, &resp)
+	err = tt.Execute("", script.Args{"hello"}, &resp, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", resp)
 
-	err = tt.Execute("test", nil, new(interface{}))
+	err = tt.Execute("test", nil, new(interface{}), nil)
 	if assert.Error(t, err) {
 		assert.Contains(t, err.Error(), "this executable provides an anonymous function export, but a named one (test) was given for execution")
 	}
@@ -71,7 +72,7 @@ func TestUndefined(t *testing.T) {
 	assert.Equal(t, 0, len(exports), "anonymous function should not export anything")
 
 	var resp interface{}
-	err = tt.Execute("", script.Args{map[string]interface{}{}}, &resp)
+	err = tt.Execute("", script.Args{map[string]interface{}{}}, &resp, nil)
 	assert.NoError(t, err)
 	assert.Nil(t, resp)
 }
@@ -81,7 +82,7 @@ func TestAddExpressionAndAliases(t *testing.T) {
 	defer tt.load().close()
 
 	var resp int
-	err := tt.Execute("", script.Args{[]int{1, 2}}, &resp)
+	err := tt.Execute("", script.Args{[]int{1, 2}}, &resp, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, resp)
 }
@@ -98,7 +99,7 @@ func TestVariables(t *testing.T) {
 	defer tt.load().close()
 
 	var resp int
-	err := tt.Execute("", nil, &resp)
+	err := tt.Execute("", nil, &resp, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 10, resp)
 }
@@ -116,7 +117,7 @@ func TestIncludes(t *testing.T) {
 	defer tt.load().close()
 
 	var resp []int
-	err := tt.Execute("", nil, &resp)
+	err := tt.Execute("", nil, &resp, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, []int{11, 1}, resp)
 }
@@ -130,7 +131,7 @@ func TestOutOfMemory(t *testing.T) {
 	defer tt.load().close()
 
 	var resp []int
-	err := tt.Execute("", nil, &resp)
+	err := tt.Execute("", nil, &resp, nil)
 	if assert.Error(t, err) {
 		assert.Contains(t, err.Error(), "out of memory")
 	}
@@ -147,7 +148,7 @@ return null`),
 	defer tt.load().close()
 
 	var resp interface{}
-	err := tt.Execute("", nil, &resp)
+	err := tt.Execute("", nil, &resp, nil)
 	if assert.Error(t, err) {
 		assert.Equal(t, "Error: 123\n  at main (2:7)", err.Error())
 	}
@@ -162,7 +163,7 @@ func TestExpressionStackTraceNoReturn(t *testing.T) {
 	defer tt.load().close()
 
 	var resp interface{}
-	err := tt.Execute("", nil, &resp)
+	err := tt.Execute("", nil, &resp, nil)
 	if assert.Error(t, err) {
 		assert.Equal(t, "Error: 123\n  at main (1:35)", err.Error())
 	}
@@ -177,7 +178,7 @@ func TestFileStackTrace(t *testing.T) {
 	defer tt.load().close()
 
 	var resp interface{}
-	err := tt.Execute("test", nil, &resp)
+	err := tt.Execute("test", nil, &resp, nil)
 	if assert.Error(t, err) {
 		assert.Equal(t, "Error: 123\n  at Object.exports.test (3:9)", err.Error())
 	}
@@ -188,12 +189,13 @@ func TestRequires(t *testing.T) {
 	defer tt.load().close()
 
 	var resp []string
-	err := tt.Execute("test", nil, &resp)
+	err := tt.Execute("test", nil, &resp, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{
 		"function", "object", "object", "object", "object", "object",
 		"function", "object", "object", "object", "object",
-		"function", "object", "object", "object"}, resp)
+		"function", "object", "object", "object",
+	}, resp)
 }
 
 func TestUnsafeFS(t *testing.T) {
@@ -201,18 +203,18 @@ func TestUnsafeFS(t *testing.T) {
 	defer tt.load().close()
 
 	var resp []string
-	err := tt.Execute("typeofs", nil, &resp)
+	err := tt.Execute("typeofs", nil, &resp, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"object", "object"}, resp)
 
-	err = tt.Execute("call_fs", nil, new(interface{}))
+	err = tt.Execute("call_fs", nil, new(interface{}), nil)
 	if assert.Error(t, err) {
-		assert.Contains(t, err.Error(), "Attempt to call fs.createReadStream which is not safe")
+		assert.Contains(t, err.Error(), "Attempt to access fs.createReadStream, which is not safe")
 	}
 
-	err = tt.Execute("call_os", nil, new(interface{}))
+	err = tt.Execute("call_os", nil, new(interface{}), nil)
 	if assert.Error(t, err) {
-		assert.Contains(t, err.Error(), "Attempt to call os.arch which is not safe")
+		assert.Contains(t, err.Error(), "Attempt to access os.arch, which is not safe")
 	}
 }
 
@@ -221,7 +223,7 @@ func TestAsync(t *testing.T) {
 	defer tt.load().close()
 
 	var resp int
-	err := tt.Execute("test", nil, &resp)
+	err := tt.Execute("test", nil, &resp, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 10, resp)
 }
@@ -231,7 +233,7 @@ func TestFetchUnavailableInExpressions(t *testing.T) {
 	defer tt.load().close()
 
 	var resp string
-	err := tt.Execute("", nil, &resp)
+	err := tt.Execute("", nil, &resp, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "undefined", resp)
 }
@@ -248,6 +250,7 @@ func TestDescribeModule(t *testing.T) {
 		"arr":  script.Symbol{Type: "object", Value: json.RawMessage(`[1,2,3]`)},
 		"obj":  script.Symbol{Type: "object", Value: json.RawMessage(`{"nested":4}`)},
 		"func": script.Symbol{Type: "function"},
+		"path": script.Symbol{Type: "string", Value: json.RawMessage(`"object"`)},
 	}, symbols)
 }
 
@@ -256,11 +259,11 @@ func TestFetchIsAvailableOnlyInValidatorModuleFunction(t *testing.T) {
 	defer tt.load().close()
 
 	var resp string
-	err := tt.Execute("validator", nil, &resp)
+	err := tt.Execute("validator", nil, &resp, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "function", resp)
 
-	err = tt.Execute("destination", nil, &resp)
+	err = tt.Execute("destination", nil, &resp, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "undefined", resp)
 }
@@ -270,7 +273,7 @@ func TestHeaders(t *testing.T) {
 	defer tt.load().close()
 
 	var emptyResp interface{}
-	err := tt.Execute("", script.Args{events.Event{}}, &emptyResp)
+	err := tt.Execute("", script.Args{events.Event{}}, &emptyResp, nil)
 	assert.NoError(t, err)
 	assert.Nil(t, emptyResp)
 
@@ -282,10 +285,43 @@ func TestHeaders(t *testing.T) {
 		events.HTTPContextField: events.HTTPContext{
 			Headers: headers,
 		},
-	}}, &resp)
+	}}, &resp, nil)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "application/json", resp)
+}
+
+type scriptLog struct {
+	level, message string
+}
+
+func (l *scriptLog) Data(_ []byte) {
+
+}
+
+func (l *scriptLog) Log(level, message string) {
+	l.level = level
+	l.message = message
+}
+
+func (l *scriptLog) Timeout() time.Duration {
+	return 0
+}
+
+func TestConsoleLog(t *testing.T) {
+	tt := &testingT{T: t, exec: script.File("testdata/js/log_test.js")}
+	defer tt.load().close()
+
+	var log scriptLog
+	err := tt.Execute("log", nil, nil, &log)
+	assert.NoError(t, err)
+	assert.Equal(t, "info", log.level)
+	assert.Equal(t, "test {\n  \"a\": 1,\n  \"b\": [\n    2\n  ]\n}", log.message)
+
+	err = tt.Execute("log_recursive", nil, nil, &log)
+	assert.NoError(t, err)
+	assert.Equal(t, "error", log.level)
+	assert.Equal(t, "test [object Object]", log.message)
 }
 
 //for manual testing – this can take a while

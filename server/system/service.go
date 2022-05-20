@@ -24,7 +24,6 @@ type Configuration struct {
 	DefaultS3Bucket             bool   `json:"default_s3_bucket"`
 	SupportTrackingDomains      bool   `json:"support_tracking_domains"`
 	TelemetryUsageDisabled      bool   `json:"telemetry_usage_disabled"`
-	ShowBecomeUser              bool   `json:"show_become_user"`
 	DockerHubID                 string `json:"docker_hub_id"`
 	OnlyAdminCanChangeUserEmail bool   `json:"only_admin_can_change_user_email"`
 	PluginScript                string `json:"plugin_script"`

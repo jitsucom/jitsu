@@ -22,7 +22,7 @@ import { OnboardingTourLazyLoader } from "./lib/components/Onboarding/Onboarding
 import { ErrorCard } from "./lib/components/ErrorCard/ErrorCard"
 import { LoginLink } from "./lib/components/LoginLink/LoginLink"
 // @Icons
-import { ExclamationCircleOutlined } from "@ant-design/icons"
+import { ExclamationCircleOutlined, ReloadOutlined } from "@ant-design/icons"
 // @Hooks
 import { useServices } from "./hooks/useServices"
 // @Utils
@@ -120,6 +120,7 @@ export const Application: React.FC = function () {
   const [initialized, setInitialized] = useState(false)
   const [error, setError] = useState<Error>()
   const { projectId } = useParams<{ projectId: string }>()
+  const location = useLocation()
 
   useEffect(() => {
     ;(async () => {
@@ -147,6 +148,30 @@ export const Application: React.FC = function () {
       }
     })()
   }, [projectId])
+
+  useEffect(() => {
+    ;(async () => {
+      const isAppOutdated = await services?.isAppVersionOutdated()
+      if (isAppOutdated) {
+        actionNotification.warn(
+          <>
+            New version of Jitsu available! Please reload the page to get the latest update.
+            <br />
+            <Button
+              className="mt-5 mb-2"
+              size="large"
+              type="primary"
+              icon={<ReloadOutlined />}
+              onClick={() => window.location.reload()}
+            >
+              Reload
+            </Button>{" "}
+          </>,
+          { duration: 0, className: "app-update-notice box-shadow-base" }
+        )
+      }
+    })()
+  }, [location, services])
 
   if (!error && !initialized) {
     return <Preloader />
