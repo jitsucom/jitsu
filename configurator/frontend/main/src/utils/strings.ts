@@ -66,6 +66,10 @@ const { rules, ...toTitleCaseDefaultOptionsWithoutRules }: ToTitleCaseOptions = 
  * ```
  */
 export const toTitleCase = (value: string, options?: ToTitleCaseOptions): string => {
+  if (!value) {
+    return ""
+  }
+
   const { rules } = options
     ? options.useDefaultRules === false
       ? { ...toTitleCaseDefaultOptionsWithoutRules, ...options }
