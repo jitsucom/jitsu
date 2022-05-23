@@ -184,6 +184,14 @@ func (r *Redis) Delete(collection string, id string) error {
 	return nil
 }
 
+func (r *Redis) AddScored(id string, score int64, entity []byte) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("ZADD", id, score, entity)
+	return err
+}
+
 func (r *Redis) GetIDs(collection string) ([]string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
