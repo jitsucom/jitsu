@@ -214,8 +214,8 @@ const CodeDebugger = ({
     return () => document.body.removeEventListener("click", handleCloseEvents)
   }, [])
 
-  const [activeTabKey, setActiveTabKey] = useState('console')
-  const onTabKeyChange = (key) => setActiveTabKey(key)
+  const [activeTabKey, setActiveTabKey] = useState("console")
+  const onTabKeyChange = key => setActiveTabKey(key)
 
   return (
     <div className={cn(className, "flex flex-col items-stretch h-screen max-h-full pt-4;")}>
@@ -292,7 +292,15 @@ const CodeDebugger = ({
           <ReflexSplitter propagate className={`${styles.splitterHorizontal}`} />
 
           <ReflexElement propagateDimensions={true} minSize={200}>
-            <Tabs defaultActiveKey="console" type="card" tabPosition="top" size="small" className={styles.eventTabs} activeKey={activeTabKey} onChange={onTabKeyChange}>
+            <Tabs
+              defaultActiveKey="console"
+              type="card"
+              tabPosition="top"
+              size="small"
+              className={styles.eventTabs}
+              activeKey={activeTabKey}
+              onChange={onTabKeyChange}
+            >
               <Tabs.TabPane tab="Console Debugger" key="console">
                 <div
                   className={`h-full box-border font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}
