@@ -295,6 +295,10 @@ func (cs ConfigurationsService) GetAllDestinations() (map[string]*entities.Desti
 	return result, nil
 }
 
+func (cs *ConfigurationsService) PurgeAudit(from, to int64) error {
+	return cs.storage.RemoveScored("audit:*", from, to)
+}
+
 func (cs *ConfigurationsService) addAuditLog(collection, id string, old, new interface{}) {
 	now := timestamp.Now()
 	data, _ := json.Marshal(struct {
@@ -303,10 +307,10 @@ func (cs *ConfigurationsService) addAuditLog(collection, id string, old, new int
 	}{Old: old, New: new})
 
 	if id != "" {
-		id = fmt.Sprintf("%s#%s", collection, id)
+		id = fmt.Sprintf("%s:%s", collection, id)
 	}
 
-	if err := cs.storage.AddScored(fmt.Sprintf("audit#%s", id), now.UnixMilli(), data); err != nil {
+	if err := cs.storage.AddScored(fmt.Sprintf("audit:%s", id), now.UnixMilli(), data); err != nil {
 		logging.Errorf("Failed to add audit log for %s: %v", id, err)
 	}
 }
