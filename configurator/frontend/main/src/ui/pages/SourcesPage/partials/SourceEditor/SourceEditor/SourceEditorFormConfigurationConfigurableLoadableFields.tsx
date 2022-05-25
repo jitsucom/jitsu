@@ -275,7 +275,7 @@ const transformAirbyteSpecResponse = (response: any) => {
     response?.["spec"]?.["spec"]?.["connectionSpecification"]
   ).map<Parameter>(parameter => ({
     ...parameter,
-    displayName: toTitleCase(parameter.displayName, { separator: "_" }),
+    displayName: toTitleCase(parameter.displayName || parameter.id.split(".").pop(), { separator: "_" }),
   }))
 }
 

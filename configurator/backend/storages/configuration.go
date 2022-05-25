@@ -25,6 +25,10 @@ type ConfigurationsStorage interface {
 	//Delete deletes entity and also must update _lastUpdated field of the collection
 	Delete(collection string, id string) error
 
+	AddScored(key string, score int64, entity []byte) error
+
+	RemoveScored(prefix string, from, to int64) error
+
 	// GetIDs returns all the keys from the `collection` hashmap.
 	// `collection` is required to be hashmap.
 	GetIDs(collection string) ([]string, error)

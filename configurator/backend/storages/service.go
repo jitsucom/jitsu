@@ -19,6 +19,7 @@ import (
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/random"
 	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/pkg/errors"
 )
 
@@ -83,7 +84,18 @@ func (cs *ConfigurationsService) saveWithLock(objectType, projectID string, proj
 	}
 	defer lock.Unlock()
 
-	return cs.save(objectType, projectID, projectConfig)
+	oldVersion, err := cs.get(objectType, projectID)
+	if err != nil {
+		return nil, errors.Wrap(err, "get object")
+	}
+
+	data, err := cs.save(objectType, projectID, projectConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	cs.addAuditLog(objectType, projectID, json.RawMessage(oldVersion), projectConfig)
+	return data, nil
 }
 
 //getWithLock locks and uses get func under the hood
@@ -178,6 +190,8 @@ func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*en
 			if err != nil {
 				return nil, err
 			}
+
+			cs.addAuditLog(objectType, "", nil, database)
 			return database, nil
 		} else {
 			return nil, err
@@ -222,6 +236,11 @@ func (cs *ConfigurationsService) CreateDefaultAPIKey(projectID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to store default key for project=[%s]: %v", projectID, err)
 	}
+
+	for _, apiKey := range apiKeyRecord.Keys {
+		cs.addAuditLog(objectType, apiKey.ID, nil, apiKey)
+	}
+
 	return nil
 }
 
@@ -274,6 +293,26 @@ func (cs ConfigurationsService) GetAllDestinations() (map[string]*entities.Desti
 	}
 
 	return result, nil
+}
+
+func (cs *ConfigurationsService) PurgeAudit(from, to int64) error {
+	return cs.storage.RemoveScored("audit:*", from, to)
+}
+
+func (cs *ConfigurationsService) addAuditLog(collection, id string, old, new interface{}) {
+	now := timestamp.Now()
+	data, _ := json.Marshal(struct {
+		Old interface{} `json:"old,omitempty"`
+		New interface{} `json:"new"`
+	}{Old: old, New: new})
+
+	if id != "" {
+		id = fmt.Sprintf("%s:%s", collection, id)
+	}
+
+	if err := cs.storage.AddScored(fmt.Sprintf("audit:%s", id), now.UnixMilli(), data); err != nil {
+		logging.Errorf("Failed to add audit log for %s: %v", id, err)
+	}
 }
 
 //GetDestinationsByProjectID uses getWithLock func under the hood, returns all destinations per project
@@ -596,6 +635,8 @@ func (cs *ConfigurationsService) CreateObjectWithLock(objectType string, project
 				return nil, err
 			}
 
+			cs.addAuditLog(objectType, generatedID, nil, object)
+
 			return object.MarshalJSON()
 		}
 
@@ -625,6 +666,7 @@ func (cs *ConfigurationsService) CreateObjectWithLock(objectType string, project
 		return nil, err
 	}
 
+	cs.addAuditLog(objectType, generatedID, nil, object)
 	return object.MarshalJSON()
 }
 
@@ -649,11 +691,18 @@ func (cs *ConfigurationsService) PatchObjectWithLock(objectType, projectID strin
 	ensureIDNotChanged(patchPayload)
 
 	//build projectConfig with patched object
-	var newProjectConfigWithObject map[string]interface{}
-	var patchedObject map[string]interface{}
+	var (
+		newProjectConfigWithObject map[string]interface{}
+		patchedObject              map[string]interface{}
+		oldVersion                 json.RawMessage
+		newVersion                 interface{}
+	)
+
 	if patchPayload.ObjectArrayPath == "" && objectsArray == nil {
 		//single object (geo data resolver or telemetry)
+		oldVersion, _ = json.Marshal(projectConfig)
 		newProjectConfigWithObject = jsonutils.Merge(projectConfig, patchPayload.Patch)
+		newVersion = newProjectConfigWithObject
 	} else {
 		objectPosition := unknownObjectPosition
 		for i, objectI := range objectsArray {
@@ -670,7 +719,10 @@ func (cs *ConfigurationsService) PatchObjectWithLock(objectType, projectID strin
 			return nil, fmt.Errorf("object hasn't been found by id in path [%s] in the collection", patchPayload.ObjectArrayPath)
 		}
 
-		patchedObject = jsonutils.Merge(objectsArray[objectPosition], patchPayload.Patch)
+		object := objectsArray[objectPosition]
+		oldVersion, _ = json.Marshal(object)
+		patchedObject = jsonutils.Merge(object, patchPayload.Patch)
+		newVersion = patchedObject
 
 		newProjectConfigWithObject = buildProjectDataObject(projectConfig, objectsArray, patchedObject, objectPosition, patchPayload.ObjectArrayPath)
 	}
@@ -678,6 +730,8 @@ func (cs *ConfigurationsService) PatchObjectWithLock(objectType, projectID strin
 	if _, err := cs.save(objectType, projectID, newProjectConfigWithObject); err != nil {
 		return nil, err
 	}
+
+	cs.addAuditLog(objectType, patchPayload.ObjectMeta.Value, oldVersion, newVersion)
 
 	newObjectBytes, err := json.Marshal(patchedObject)
 	if err != nil {
@@ -708,9 +762,15 @@ func (cs *ConfigurationsService) ReplaceObjectWithLock(objectType, projectID str
 	ensureIDNotChanged(patchPayload)
 
 	//build projectConfig with patched object
-	var newProjectConfigWithObject map[string]interface{}
+	var (
+		newProjectConfigWithObject map[string]interface{}
+		oldVersion                 interface{}
+		newVersion, _              = json.Marshal(patchPayload.Patch)
+	)
+
 	if patchPayload.ObjectArrayPath == "" && objectsArray == nil {
 		//single object (geo data resolver or telemetry)
+		oldVersion = projectConfig
 		newProjectConfigWithObject = patchPayload.Patch
 	} else {
 		objectPosition := unknownObjectPosition
@@ -725,12 +785,15 @@ func (cs *ConfigurationsService) ReplaceObjectWithLock(objectType, projectID str
 			}
 		}
 
+		oldVersion = objectsArray[objectPosition]
 		newProjectConfigWithObject = buildProjectDataObject(projectConfig, objectsArray, patchPayload.Patch, objectPosition, patchPayload.ObjectArrayPath)
 	}
 
 	if _, err := cs.save(objectType, projectID, newProjectConfigWithObject); err != nil {
 		return nil, err
 	}
+
+	cs.addAuditLog(objectType, patchPayload.ObjectMeta.Value, oldVersion, json.RawMessage(newVersion))
 
 	newObjectBytes, err := json.Marshal(patchPayload.Patch)
 	if err != nil {
@@ -764,6 +827,8 @@ func (cs *ConfigurationsService) DeleteObjectWithLock(objectType, projectID stri
 		if err := cs.delete(objectType, projectID); err != nil {
 			return nil, err
 		}
+
+		cs.addAuditLog(objectType, "", projectConfig, nil)
 		return data, nil
 	}
 
@@ -794,6 +859,8 @@ func (cs *ConfigurationsService) DeleteObjectWithLock(objectType, projectID stri
 	if err != nil {
 		return nil, err
 	}
+
+	cs.addAuditLog(objectType, deletePayload.ObjectMeta.Value, objectToDelete, nil)
 
 	deletedObjectBytes, err := json.Marshal(objectToDelete)
 	if err != nil {
@@ -1074,15 +1141,17 @@ func (cs *ConfigurationsService) Patch(id string, value CollectionItem, patch in
 		return false, errors.Wrap(err, "save")
 	}
 
+	cs.addAuditLog(value.Collection(), id, json.RawMessage(data), value)
 	return true, nil
 }
 
 func (cs *ConfigurationsService) Delete(id string, value CollectionItem) error {
 	if err := cs.delete(value.Collection(), id); err != nil {
 		return errors.Wrapf(err, "delete %s", value.Collection())
-	} else {
-		return nil
 	}
+
+	cs.addAuditLog(value.Collection(), id, value, nil)
+	return nil
 }
 
 func (cs *ConfigurationsService) Close() (multiErr error) {

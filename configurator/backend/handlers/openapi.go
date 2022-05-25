@@ -1221,6 +1221,29 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 	}
 }
 
+func (oa *OpenAPI) PurgeAudit(ctx *gin.Context, params openapi.PurgeAuditParams) {
+	if ctx.IsAborted() {
+		return
+	}
+
+	var from int64
+	if params.From != nil {
+		from = *params.From
+	}
+
+	to := timestamp.Now().UnixMilli()
+	if params.To != nil {
+		to = *params.To
+	}
+
+	if err := oa.Configurations.PurgeAudit(from, to); err != nil {
+		mw.BadRequest(ctx, "purge audit failed", err)
+		return
+	}
+
+	mw.StatusOk(ctx)
+}
+
 func (oa *OpenAPI) makeUserPlatformAdmin(ctx *gin.Context, userEmail string, authorizator LocalAuthorizator) error {
 	var platformAdmin = true
 

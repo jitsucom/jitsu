@@ -160,17 +160,24 @@ const CodeDebugger = ({
         userResult: response.user_result,
         userError: response.user_error,
       })
+
+      if (response.user_result) {
+        setActiveTabKey("user-transform")
+      }
     } catch (error) {
       const err = error?._response?.error || error?._response?.message || error?.message || "Error"
+      const logs = error._response?.logs || []
       setCalcResult({
         code: "error",
         format: error?._response?.format ?? null,
         result: error?._response?.result ?? "",
-        logs: [{ level: "error", message: err }],
+        logs: [...logs, { level: "error", message: error?._response?.user_error || err }],
         error: err,
         userResult: error?._response?.user_result ?? "",
         userError: error?._response?.user_error ?? "",
       })
+
+      setActiveTabKey("console")
     } finally {
       setRunIsLoading(false)
     }
@@ -206,6 +213,9 @@ const CodeDebugger = ({
     document.body.addEventListener("click", handleCloseEvents)
     return () => document.body.removeEventListener("click", handleCloseEvents)
   }, [])
+
+  const [activeTabKey, setActiveTabKey] = useState("console")
+  const onTabKeyChange = key => setActiveTabKey(key)
 
   return (
     <div className={cn(className, "flex flex-col items-stretch h-screen max-h-full pt-4;")}>
@@ -282,7 +292,15 @@ const CodeDebugger = ({
           <ReflexSplitter propagate className={`${styles.splitterHorizontal}`} />
 
           <ReflexElement propagateDimensions={true} minSize={200}>
-            <Tabs defaultActiveKey="console" type="card" tabPosition="top" size="small" className={styles.eventTabs}>
+            <Tabs
+              defaultActiveKey="console"
+              type="card"
+              tabPosition="top"
+              size="small"
+              className={styles.eventTabs}
+              activeKey={activeTabKey}
+              onChange={onTabKeyChange}
+            >
               <Tabs.TabPane tab="Console Debugger" key="console">
                 <div
                   className={`h-full box-border font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}
@@ -307,8 +325,8 @@ const CodeDebugger = ({
                     </strong>
                     {calcResult && (
                       <span className={`flex-auto min-w-0 text-xs`}>
-                        {calcResult.error ? (
-                          calcResult.error
+                        {calcResult.error || calcResult?.userError ? (
+                          calcResult?.userError || calcResult.error
                         ) : (
                           <SyntaxHighlighterAsync
                             language="json"

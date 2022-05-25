@@ -184,6 +184,42 @@ func (r *Redis) Delete(collection string, id string) error {
 	return nil
 }
 
+func (r *Redis) AddScored(key string, score int64, entity []byte) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("ZADD", key, score, entity)
+	return err
+}
+
+func (r *Redis) RemoveScored(prefix string, from, to int64) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	var cursor int
+	for {
+		if reply, err := redis.Values(conn.Do("SCAN", cursor, "MATCH", prefix+"*")); err != nil {
+			return errors.Wrap(err, "scan keys")
+		} else if cursor, err = redis.Int(reply[0], nil); err != nil {
+			return errors.Wrap(err, "parse cursor value")
+		} else if keys, err := redis.Strings(reply[1], nil); err != nil {
+			return errors.Wrap(err, "parse values")
+		} else {
+			for _, value := range keys {
+				if _, err := conn.Do("ZREMRANGEBYSCORE", value, from, to); err != nil {
+					return errors.Wrap(err, "remove range")
+				}
+			}
+		}
+
+		if cursor == 0 {
+			break
+		}
+	}
+
+	return nil
+}
+
 func (r *Redis) GetIDs(collection string) ([]string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
