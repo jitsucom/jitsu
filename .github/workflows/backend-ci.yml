@@ -70,7 +70,7 @@ jobs:
     - name: Build Backend
       if: ${{ success() && (steps.go-change.outputs.server == 1 || steps.go-change.outputs.backend == 1) }}
       run: |
-        go get github.com/deepmap/oapi-codegen/cmd/oapi-codegen
+        go get github.com/deepmap/oapi-codegen/cmd/oapi-codegen@v1.10.1
         go generate
         go mod download
         go build
