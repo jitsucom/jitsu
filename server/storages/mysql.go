@@ -6,6 +6,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -119,7 +120,7 @@ func (m *MySQL) DryRun(payload events.Event) ([][]adapters.TableField, error) {
 }
 
 //SyncStore is used in storing chunk of pulled data to Postgres with processing
-func (m *MySQL) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *adapters.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
+func (m *MySQL) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *base.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
 	return syncStoreImpl(m, overriddenDataSchema, objects, deleteConditions, cacheTable, needCopyEvent)
 }
 

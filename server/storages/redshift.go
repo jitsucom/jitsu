@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 )
@@ -142,7 +143,7 @@ func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile) (*adapters.Table,
 }
 
 // SyncStore is used in storing chunk of pulled data to AwsRedshift with processing
-func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *adapters.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
+func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *base.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
 	return syncStoreImpl(ar, overriddenDataSchema, objects, deleteConditions, cacheTable, needCopyEvent)
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/typing"
@@ -193,7 +194,7 @@ func (s *Snowflake) GetUsersRecognition() *UserRecognitionConfiguration {
 }
 
 // SyncStore is used in storing chunk of pulled data to Snowflake with processing
-func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *adapters.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
+func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *base.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
 	return syncStoreImpl(s, overriddenDataSchema, objects, deleteConditions, cacheTable, needCopyEvent)
 }
 

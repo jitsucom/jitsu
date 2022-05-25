@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/parsers"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/typing"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -172,7 +173,7 @@ func (gp *GooglePlay) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 			return nil, fmt.Errorf("GooglePlay file on gcp has wrong interval layout: %s", attrs.Name)
 		}
 
-		intervals = append(intervals, base.NewTimeInterval(base.MONTH, t))
+		intervals = append(intervals, base.NewTimeInterval(schema.MONTH, t))
 	}
 
 	return intervals, nil

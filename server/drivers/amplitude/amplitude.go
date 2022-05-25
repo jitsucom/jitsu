@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"time"
 
@@ -137,7 +138,7 @@ func (a *Amplitude) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	var intervals []*base.TimeInterval
 
 	if a.collection.Type == AmplitudeAnnotations || a.collection.Type == AmplitudeCohorts {
-		intervals = append(intervals, base.NewTimeInterval(base.ALL, time.Time{}))
+		intervals = append(intervals, base.NewTimeInterval(schema.ALL, time.Time{}))
 		return intervals, nil
 	}
 
@@ -149,7 +150,7 @@ func (a *Amplitude) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	now := timestamp.Now().UTC()
 	for i := 0; i < daysBackToLoad; i++ {
 		date := now.AddDate(0, 0, -i)
-		intervals = append(intervals, base.NewTimeInterval(base.DAY, date))
+		intervals = append(intervals, base.NewTimeInterval(schema.DAY, date))
 	}
 
 	return intervals, nil

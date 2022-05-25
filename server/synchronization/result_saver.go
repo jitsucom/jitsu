@@ -123,7 +123,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		//Sync stream
 		for _, storage := range rs.destinations {
 			rs.taskLogger.INFO("Stream [%s] Storing data to destination table [%s] in storage [%s]", streamName, tableName, storage.ID())
-			err := storage.SyncStore(stream.BatchHeader, stream.Objects, nil, false, needCopyEvent)
+			err := storage.SyncStore(stream.BatchHeader, stream.Objects, stream.DeleteConditions, false, needCopyEvent)
 			if err != nil {
 				errMsg := fmt.Sprintf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
 				metrics.ErrorSourceEvents(rs.task.SourceType, rs.tap, rs.task.Source, storage.Type(), storage.ID(), rowsCount)
@@ -154,7 +154,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 			return errors.New(errMsg)
 		}
 		rs.taskLogger.INFO("Saving state: %s", string(stateJSON))
-		err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey, driversbase.ALL.String(), string(stateJSON))
+		err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey, schema.ALL.String(), string(stateJSON))
 		if err != nil {
 			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] signature [%s]: %v", rs.task.Source, rs.tap, string(stateJSON), err)
 			logging.SystemError(errMsg)

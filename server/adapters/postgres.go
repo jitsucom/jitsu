@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/lib/pq"
@@ -82,6 +83,7 @@ type ErrorPayload struct {
 	Cluster         string
 	Schema          string
 	Table           string
+	Partition       string
 	PrimaryKeys     []string
 	Statement       string
 	Values          []interface{}
@@ -111,6 +113,9 @@ func (ep *ErrorPayload) String() string {
 	}
 	if ep.Table != "" {
 		msgParts = append(msgParts, fmt.Sprintf("table=%s", ep.Table))
+	}
+	if ep.Partition != "" {
+		msgParts = append(msgParts, fmt.Sprintf("partition=%s", ep.Partition))
 	}
 	if len(ep.PrimaryKeys) > 0 {
 		msgParts = append(msgParts, fmt.Sprintf("primary keys=%v", ep.PrimaryKeys))
@@ -353,7 +358,7 @@ func (p *Postgres) Insert(insertContext *InsertContext) error {
 	return p.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
 }
 
-func (p *Postgres) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) (err error) {
+func (p *Postgres) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) (err error) {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
 		return err
@@ -801,7 +806,7 @@ func (p *Postgres) dropTableInTransaction(wrappedTx *Transaction, table *Table) 
 	return nil
 }
 
-func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *base.DeleteConditions) error {
 	deleteCondition, values := p.toDeleteQuery(table, deleteConditions)
 	query := fmt.Sprintf(deleteQueryTemplate, p.config.Schema, table.Name, deleteCondition)
 	p.queryLogger.LogQueryWithValues(query, values)
@@ -820,7 +825,7 @@ func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, del
 	return nil
 }
 
-func (p *Postgres) toDeleteQuery(table *Table, conditions *DeleteConditions) (string, []interface{}) {
+func (p *Postgres) toDeleteQuery(table *Table, conditions *base.DeleteConditions) (string, []interface{}) {
 	var queryConditions []string
 	var values []interface{}
 
