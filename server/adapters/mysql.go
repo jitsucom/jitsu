@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
@@ -234,7 +235,7 @@ func (m *MySQL) Insert(insertContext *InsertContext) error {
 
 //insertBatch inserts batch of provided objects in mysql with typecasts
 //uses upsert if primary_keys are configured
-func (m *MySQL) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+func (m *MySQL) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) error {
 	var e error
 	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
 	for i := 0; i <= batchRetryAttempts; i++ {
@@ -337,7 +338,7 @@ func (m *MySQL) DropTable(table *Table) error {
 	return m.dropTableInTransaction(wrappedTx, table)
 }
 
-func (m *MySQL) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+func (m *MySQL) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *base.DeleteConditions) error {
 	deleteCondition, values := m.toDeleteQuery(deleteConditions)
 	query := fmt.Sprintf(mySQLDeleteQueryTemplate, m.config.Db, table.Name, deleteCondition)
 	m.queryLogger.LogQueryWithValues(query, values)
@@ -356,7 +357,7 @@ func (m *MySQL) deleteInTransaction(wrappedTx *Transaction, table *Table, delete
 	return nil
 }
 
-func (m *MySQL) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {
+func (m *MySQL) toDeleteQuery(conditions *base.DeleteConditions) (string, []interface{}) {
 	var queryConditions []string
 	var values []interface{}
 	for _, condition := range conditions.Conditions {
@@ -506,7 +507,7 @@ func mySQLDriverConnectionString(config *DataSourceConfig) string {
 //bulkStoreInTransaction checks PKFields and uses bulkInsert or bulkMerge
 //in bulkMerge - deduplicate objects
 //if there are any duplicates, do the job 2 times
-func (m *MySQL) insertBatchInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+func (m *MySQL) insertBatchInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) error {
 	if !deleteConditions.IsEmpty() {
 		if err := m.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
 			return err

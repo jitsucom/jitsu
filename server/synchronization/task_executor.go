@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/adapters"
 	"io"
 	"io/ioutil"
 	"runtime/debug"
@@ -458,10 +457,10 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			}
 			rowsCount := len(objects)
 			needCopyEvent := len(destinationStorages) > 1
-			deleteConditions := &adapters.DeleteConditions{}
+			deleteConditions := &driversbase.DeleteConditions{}
 			if pos == 0 {
 				//first chunk deletes full data from previous  load
-				deleteConditions = adapters.DeleteByTimeChunkCondition(intervalToSync.String())
+				deleteConditions = driversbase.DeleteByTimeChunkCondition(intervalToSync)
 			}
 			for _, storage := range destinationStorages {
 				err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTableName}, objects, deleteConditions, false, needCopyEvent)
@@ -504,13 +503,13 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 //syncCLI syncs singer/airbyte source
 func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver,
 	destinationStorages []storages.Storage, taskCloser *TaskCloser) error {
-	state, err := te.MetaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey(), driversbase.ALL.String())
+	state, err := te.MetaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey(), schema.ALL.String())
 
 	if err != nil {
 		return fmt.Errorf("Error getting state from meta storage: %v", err)
 	}
 
-	config, err := te.MetaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey()+driversbase.ConfigSignatureSuffix, driversbase.ALL.String())
+	config, err := te.MetaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey()+driversbase.ConfigSignatureSuffix, schema.ALL.String())
 	if err != nil {
 		return fmt.Errorf("Error getting persisted config from meta storage: %v", err)
 	}
@@ -545,7 +544,7 @@ func (te *TaskExecutor) persistConfig(task *meta.Task, taskLogger *TaskLogger, c
 	if cliDriver.GetConfigPath() != "" {
 		configBytes, err := ioutil.ReadFile(cliDriver.GetConfigPath())
 		if configBytes != nil {
-			err = te.MetaStorage.SaveSignature(task.Source, cliDriver.GetCollectionMetaKey()+driversbase.ConfigSignatureSuffix, driversbase.ALL.String(), string(configBytes))
+			err = te.MetaStorage.SaveSignature(task.Source, cliDriver.GetCollectionMetaKey()+driversbase.ConfigSignatureSuffix, schema.ALL.String(), string(configBytes))
 		}
 		if err != nil {
 			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] config: %v", task.Source, cliDriver.GetCollectionMetaKey(), err)

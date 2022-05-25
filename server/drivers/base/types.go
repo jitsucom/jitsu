@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/oauth"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -248,7 +247,7 @@ type StreamRepresentation struct {
 	KeepKeysUnhashed      bool
 	RemoveSourceKeyFields bool
 	NeedClean             bool
-	DeleteConditions      *adapters.DeleteConditions
+	DeleteConditions      *DeleteConditions
 }
 
 //DriversInfo is a dto for sharing information about the driver into telemetry

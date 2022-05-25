@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"math"
 	"sort"
 	"strings"
@@ -396,7 +397,7 @@ func (s *Snowflake) insertSingle(eventContext *EventContext) error {
 }
 
 //insertBatch deletes with deleteConditions and runs bulkMergeInTransaction
-func (s *Snowflake) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) (err error) {
+func (s *Snowflake) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) (err error) {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
 		return err
@@ -710,7 +711,7 @@ func (s *Snowflake) executeInsertInTransaction(wrappedTx *Transaction, table *Ta
 }
 
 // deleteInTransaction deletes objects from Snowflake in transaction
-func (s *Snowflake) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+func (s *Snowflake) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *base.DeleteConditions) error {
 	deleteCondition, values := s.toDeleteQuery(deleteConditions)
 	query := fmt.Sprintf(deleteSFTemplate, s.config.Schema, reformatValue(table.Name), deleteCondition)
 	s.queryLogger.LogQueryWithValues(query, values)
@@ -728,7 +729,7 @@ func (s *Snowflake) deleteInTransaction(wrappedTx *Transaction, table *Table, de
 	return nil
 }
 
-func (s *Snowflake) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {
+func (s *Snowflake) toDeleteQuery(conditions *base.DeleteConditions) (string, []interface{}) {
 	var queryConditions []string
 	var values []interface{}
 

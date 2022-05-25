@@ -58,8 +58,6 @@ const reply = async (result, error) => {
   }
 };
 
-const vms = {};
-
 //
 // Sandboxing
 //
@@ -174,20 +172,6 @@ const load = async (id, executable, variables, includes) => {
     value: await vm.run((includes ?? []).join("\n") + "\n" + executable),
     sandbox: vm.sandbox,
   };
-};
-
-/**
- * @explanation
- * `@googleapis` require 'process' both as a module and as a global var, therefore the same overloads are provided
- * via `sanbox.process` and `mock.process` config variables
- **/
-const processOverloads = {
-  env: {},
-  versions: process.versions,
-  version: process.version,
-  stderr: process.stderr,
-  stdout: process.stdout,
-  emitWarning: process.emitWarning,
 };
 
 const unload = (id) => {

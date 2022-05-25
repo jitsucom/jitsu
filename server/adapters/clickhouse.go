@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"io/ioutil"
 	"sort"
 	"strings"
@@ -450,7 +451,7 @@ func (ch *ClickHouse) Insert(insertContext *InsertContext) error {
 	return ch.insert(insertContext.table, insertContext.objects...)
 }
 
-func (ch *ClickHouse) delete(table *Table, deleteConditions *DeleteConditions) error {
+func (ch *ClickHouse) delete(table *Table, deleteConditions *base.DeleteConditions) error {
 	deleteCondition, values := ch.toDeleteQuery(table, deleteConditions)
 	deleteQuery := fmt.Sprintf(deleteQueryChTemplate, ch.database, table.Name, deleteCondition)
 
@@ -515,7 +516,7 @@ func (ch *ClickHouse) DropTable(table *Table) error {
 	return nil
 }
 
-func (ch *ClickHouse) toDeleteQuery(table *Table, conditions *DeleteConditions) (string, []interface{}) {
+func (ch *ClickHouse) toDeleteQuery(table *Table, conditions *base.DeleteConditions) (string, []interface{}) {
 	var queryConditions []string
 	var values []interface{}
 	for _, condition := range conditions.Conditions {

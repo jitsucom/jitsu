@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/utils"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
@@ -23,7 +23,9 @@ import (
 var ErrSDKSourceCancelled = errors.New("Source runner was cancelled.")
 
 const LatestVersion = "latest"
-const IdField = "__id"
+const IdField = "$id"
+const RecordTimestampSrc = "$recordTimestamp"
+const RecordTimestampDst = "_record_timestamp"
 
 //SdkSource is an SdkSource CLI driver
 type SdkSource struct {
@@ -40,8 +42,8 @@ type SdkSource struct {
 }
 
 type DeleteRecords struct {
-	WhenConditions []Condition `mapstructure:"whenConditions" json:"whenConditions,omitempty"`
-	JoinCondition  string      `mapstructure:"joinCondition" json:"joinCondition,omitempty"`
+	PartitionTimestamp string `mapstructure:"partitionTimestamp" json:"partitionTimestamp,omitempty"`
+	Granularity        string `mapstructure:"granularity" json:"granularity,omitempty"`
 }
 
 type Condition struct {
@@ -256,9 +258,35 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 
 	stream := s.collection
 	taskLogger.INFO("Starting processing stream: %s", stream.Name)
-	if stream.SyncMode == "" {
-		return fmt.Errorf("Required parameter \"mode\" is missing for stream config. Supported values are: \"full_sync\" or \"incremental\" based on stream type")
+	var supportedModes []interface{}
+	rawCat, err := s.sourceExecutor.Catalog()
+	if err != nil {
+		return fmt.Errorf("Failed to load source catalog: %v", err)
 	}
+	catArr, ok := rawCat.([]interface{})
+	if !ok {
+		return fmt.Errorf("Invalid type of source catalog: %T expected []interface{}", rawCat)
+	}
+	for _, c := range catArr {
+		cat, ok := c.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("Invalid type of source catalog stream: %T expected map[string]interface{}", c)
+		}
+		if cat["type"] == stream.Type {
+			supportedModes, ok = cat["supportedModes"].([]interface{})
+			if !ok {
+				return fmt.Errorf("Invalid value of stream supportedModes: %v expected array of strings", cat["supportedModes"])
+			}
+			if len(supportedModes) > 1 && stream.SyncMode == "" {
+				return fmt.Errorf("\"mode\" is required when stream supports multiple modes: %v", supportedModes)
+			} else if !utils.ArrayContains(supportedModes, stream.SyncMode) {
+				return fmt.Errorf("provided \"mode\": %s is not among supported by stream: %v", stream.SyncMode, supportedModes)
+			} else if len(supportedModes) == 1 && stream.SyncMode == "" {
+				stream.SyncMode = supportedModes[0].(string)
+			}
+		}
+	}
+	taskLogger.INFO("Sync mode selected: %s of supported %v", stream.SyncMode, supportedModes)
 
 	chunkNumber := 0
 	var currentChunk *base.CLIOutputRepresentation
@@ -296,6 +324,11 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 				if ok && currentChunk.CurrentStream().KeyFields == nil && fmt.Sprint(id) != "" {
 					currentChunk.CurrentStream().KeyFields = []string{IdField}
 				}
+				ts, ok := object[RecordTimestampSrc]
+				if ok {
+					object[RecordTimestampDst] = ts
+					delete(object, RecordTimestampSrc)
+				}
 				currentChunk.CurrentStream().Objects = append(currentChunk.CurrentStream().Objects, object)
 			case "delete_records":
 				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, false)
@@ -310,15 +343,20 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 				if err != nil {
 					return fmt.Errorf("Failed to parse delete_records message %s, %v", row.Message, err)
 				}
-				deleteConditions := adapters.DeleteConditions{}
-				deleteConditions.JoinCondition = deleteRecords.JoinCondition
-				if deleteConditions.JoinCondition == "" {
+				deleteConditions := base.DeleteConditions{}
+				if deleteRecords.Granularity != "" {
+					partitionTimestamp, err := time.Parse(time.RFC3339Nano, deleteRecords.PartitionTimestamp)
+					if err != nil {
+						return fmt.Errorf("Failed to parse partitionTimestamp from %s: %v", deleteRecords.PartitionTimestamp, err)
+
+					}
+					granularity := schema.Granularity(deleteRecords.Granularity)
+					deleteConditions.Partition = base.DatePartition{Field: RecordTimestampDst, Value: partitionTimestamp, Granularity: granularity}
 					deleteConditions.JoinCondition = "AND"
+					deleteConditions.Conditions = append(deleteConditions.Conditions, base.DeleteCondition{Field: RecordTimestampDst, Value: granularity.Lower(partitionTimestamp), Clause: ">="})
+					deleteConditions.Conditions = append(deleteConditions.Conditions, base.DeleteCondition{Field: RecordTimestampDst, Value: granularity.Upper(partitionTimestamp), Clause: "<="})
+					taskLogger.INFO("Delete Records: partitionTimestamp: %s + granularity: %s", deleteRecords.PartitionTimestamp, deleteRecords.Granularity)
 				}
-				for _, c := range deleteRecords.WhenConditions {
-					deleteConditions.Conditions = append(deleteConditions.Conditions, adapters.DeleteCondition{Field: c.Field, Value: c.Value, Clause: c.Clause})
-				}
-				taskLogger.INFO("Delete Records: %+v", deleteConditions)
 				currentChunk.CurrentStream().DeleteConditions = &deleteConditions
 			case "clear_stream":
 				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, false)

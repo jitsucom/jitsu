@@ -59,10 +59,11 @@ func NewTableHelper(dbSchema string, sqlAdapter adapters.SQLAdapter, coordinatio
 //applies column types mapping
 func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters.Table {
 	table := &adapters.Table{
-		Schema:   th.dbSchema,
-		Name:     batchHeader.TableName,
-		Columns:  adapters.Columns{},
-		PKFields: th.pkFields,
+		Schema:    th.dbSchema,
+		Name:      batchHeader.TableName,
+		Columns:   adapters.Columns{},
+		Partition: batchHeader.Partition,
+		PKFields:  th.pkFields,
 	}
 
 	//pk fields from the configuration

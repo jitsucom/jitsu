@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	ga "google.golang.org/api/analyticsreporting/v4"
@@ -158,7 +159,7 @@ func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*base.TimeInterval, erro
 	now := timestamp.Now().UTC()
 	for i := 0; i < daysBackToLoad; i++ {
 		date := now.AddDate(0, 0, -i)
-		intervals = append(intervals, base.NewTimeInterval(base.DAY, date))
+		intervals = append(intervals, base.NewTimeInterval(schema.DAY, date))
 	}
 	return intervals, nil
 }

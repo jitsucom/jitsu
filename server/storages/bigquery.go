@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/timestamp"
@@ -140,7 +141,7 @@ func (bq *BigQuery) Update(eventContext *adapters.EventContext) error {
 }
 
 // SyncStore is used in storing chunk of pulled data to BigQuery with processing
-func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *adapters.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
+func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *base.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
 	if len(objects) == 0 {
 		return nil
 	}
@@ -153,16 +154,20 @@ func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 	}
 
 	if deleteConditions == nil {
-		deleteConditions = &adapters.DeleteConditions{}
+		deleteConditions = &base.DeleteConditions{}
 	}
 
 	for _, flatData := range flatDataPerTable {
 		table := tableHelper.MapTableSchema(flatData.BatchHeader)
 
 		if !deleteConditions.IsEmpty() {
-			if err = bq.bqAdapter.DeleteWithConditions(table.Name, deleteConditions); err != nil {
-				return fmt.Errorf("Error deleting from BigQuery: %v", err)
+			if deleteConditions.Partition.Field != "" && deleteConditions.Partition.Granularity != schema.ALL {
+				flatData.BatchHeader.Partition = schema.DatePartition{Field: deleteConditions.Partition.Field, Granularity: deleteConditions.Partition.Granularity}
+				if err = bq.bqAdapter.DeletePartition(table.Name, &deleteConditions.Partition); err != nil {
+					return fmt.Errorf("Error deleting from BigQuery: %v", err)
+				}
 			}
+
 		}
 
 		start := timestamp.Now()

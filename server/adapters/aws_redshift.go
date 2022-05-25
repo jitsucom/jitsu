@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"strings"
@@ -131,7 +132,7 @@ func (ar *AwsRedshift) Insert(insertContext *InsertContext) error {
 }
 
 //insertBatch inserts batch of data in transaction
-func (ar *AwsRedshift) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) (err error) {
+func (ar *AwsRedshift) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) (err error) {
 	wrappedTx, err := ar.OpenTx()
 	if err != nil {
 		return err
@@ -488,7 +489,7 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 	return nil
 }
 
-func (ar *AwsRedshift) deleteWithConditions(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+func (ar *AwsRedshift) deleteWithConditions(wrappedTx *Transaction, table *Table, deleteConditions *base.DeleteConditions) error {
 	return ar.dataSourceProxy.deleteInTransaction(wrappedTx, table, deleteConditions)
 }
 
