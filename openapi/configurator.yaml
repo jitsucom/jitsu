@@ -584,13 +584,13 @@ paths:
     get:
       parameters:
         - name: from
-          description: Interval start.
+          description: Interval start in Unix millis. If not set, the interval will not be bounded on the left.
           in: query
           schema:
             type: integer
             x-go-type: int64
         - name: to
-          description: Interval end.
+          description: Interval end in Unix millis. If not set, the interval will not be bounded on the right.
           in: query
           schema:
             type: integer
@@ -598,7 +598,7 @@ paths:
       tags:
         - cluster-admin
       operationId: 'Purge audit'
-      description: Purges entity audit records in the specified interval.
+      description: Purges ALL audit records in the specified interval.
       security:
         - clusterAdminAuth: []
       responses:
