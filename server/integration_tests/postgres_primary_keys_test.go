@@ -35,7 +35,7 @@ func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 	err = appconfig.Init(false, "")
 	require.NoError(t, err)
 
-	enrichment.InitDefault("", "", "", "")
+	enrichment.InitDefault("", "", "", "", "")
 	dsConfig := &adapters.DataSourceConfig{Host: container.Host, Port: container.Port, Db: container.Database, Schema: container.Schema, Username: container.Username, Password: container.Password, Parameters: map[string]string{"sslmode": "disable"}}
 	pg, err := adapters.NewPostgres(ctx, dsConfig, logging.NewQueryLogger("test", nil, nil), typing.SQLTypes{})
 	require.NoError(t, err)
@@ -103,7 +103,7 @@ func TestPostgresNotManagedPrimaryKeyRemoval(t *testing.T) {
 	err = appconfig.Init(false, "")
 	require.NoError(t, err)
 
-	enrichment.InitDefault("", "", "", "")
+	enrichment.InitDefault("", "", "", "", "")
 	dsConfig := &adapters.DataSourceConfig{Host: container.Host, Port: container.Port, Db: container.Database, Schema: container.Schema, Username: container.Username, Password: container.Password, Parameters: map[string]string{"sslmode": "disable"}}
 	pg, err := adapters.NewPostgres(ctx, dsConfig, logging.NewQueryLogger(destinationID, nil, nil), typing.SQLTypes{})
 	require.NoError(t, err)
