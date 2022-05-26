@@ -11,21 +11,29 @@ var (
 	DefaultSrcIP jsonutils.JSONPath
 	DefaultDstIP jsonutils.JSONPath
 
-	DefaultJsUaRule = &UserAgentParseRule{}
+	DefaultJsUaRule  = &UserAgentParseRule{}
+	DefaultAPIUaRule = &UserAgentParseRule{}
 )
 
 //InitDefault initializes default lookup enrichment rules
-func InitDefault(srcIP, dstIP, srcUA, dstUA string) {
+func InitDefault(srcIP, dstIP, srcJsUA, srcAPIUA, dstUA string) {
 	DefaultSrcIP = jsonutils.NewJSONPath(srcIP)
 	DefaultDstIP = jsonutils.NewJSONPath(dstIP)
 
 	var err error
 	DefaultJsUaRule, err = newUserAgentParseRule(
-		jsonutils.NewJSONPath(srcUA),
+		jsonutils.NewJSONPath(srcJsUA),
 		jsonutils.NewJSONPath(dstUA),
 		func(m map[string]interface{}) bool {
 			src := events.ExtractSrc(m)
 			return src != "api"
+		})
+	DefaultAPIUaRule, err = newUserAgentParseRule(
+		jsonutils.NewJSONPath(srcAPIUA),
+		jsonutils.NewJSONPath(dstUA),
+		func(m map[string]interface{}) bool {
+			src := events.ExtractSrc(m)
+			return src == "api"
 		})
 	if err != nil {
 		logging.Fatalf("Failed to create default JS user-agent rule: %v", err)

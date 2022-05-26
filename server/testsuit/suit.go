@@ -82,12 +82,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	err := appconfig.Init(false, "")
 	require.NoError(t, err)
 
-	enrichment.InitDefault(
-		viper.GetString("server.fields_configuration.src_source_ip"),
-		viper.GetString("server.fields_configuration.dst_source_ip"),
-		viper.GetString("server.fields_configuration.src_ua"),
-		viper.GetString("server.fields_configuration.dst_ua"),
-	)
+	enrichment.InitDefault(viper.GetString("server.fields_configuration.src_source_ip"), viper.GetString("server.fields_configuration.dst_source_ip"), viper.GetString("server.fields_configuration.src_ua"), viper.GetString("server.fields_configuration.src_api_ua"), viper.GetString("server.fields_configuration.dst_ua"))
 
 	metaStorage := &meta.Dummy{}
 	//mock destinations

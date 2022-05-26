@@ -206,12 +206,7 @@ func main() {
 
 	geoService := geo.NewService(ctx, geoResolversURL, viper.GetString("geo.maxmind_path"), viper.GetString("maxmind.official_url"))
 
-	enrichment.InitDefault(
-		viper.GetString("server.fields_configuration.src_source_ip"),
-		viper.GetString("server.fields_configuration.dst_source_ip"),
-		viper.GetString("server.fields_configuration.src_ua"),
-		viper.GetString("server.fields_configuration.dst_ua"),
-	)
+	enrichment.InitDefault(viper.GetString("server.fields_configuration.src_source_ip"), viper.GetString("server.fields_configuration.dst_source_ip"), viper.GetString("server.fields_configuration.src_ua"), viper.GetString("server.fields_configuration.src_api_ua"), viper.GetString("server.fields_configuration.dst_ua"))
 
 	safego.GlobalRecoverHandler = func(value interface{}) {
 		logging.Error("panic")

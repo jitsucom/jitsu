@@ -32,12 +32,7 @@ func TestDefault(t *testing.T) {
 
 	geoService := geo.NewTestService(geo.Mock{"10.10.10.10": geoDataMock})
 
-	InitDefault(
-		viper.GetString("server.fields_configuration.src_source_ip"),
-		viper.GetString("server.fields_configuration.dst_source_ip"),
-		viper.GetString("server.fields_configuration.src_ua"),
-		viper.GetString("server.fields_configuration.dst_ua"),
-	)
+	InitDefault(viper.GetString("server.fields_configuration.src_source_ip"), viper.GetString("server.fields_configuration.dst_source_ip"), viper.GetString("server.fields_configuration.src_ua"), "", viper.GetString("server.fields_configuration.dst_ua"))
 
 	tests := []struct {
 		name     string
