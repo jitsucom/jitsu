@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"github.com/jitsucom/jitsu/configurator/common"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
+	mw "github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/openapi"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/locks"
@@ -34,7 +36,6 @@ const (
 	userProjectRelation                  = "user_project"
 
 	telemetryCollection = "telemetry"
-	TelemetryGlobalID   = "global_configuration"
 
 	systemCollection = "system"
 
@@ -45,8 +46,6 @@ const (
 	configField      = "config"
 
 	allObjectsIdentifier = "all"
-
-	LastUpdatedLayout = "2006-01-02T15:04:05.000Z"
 
 	defaultProjectObjectLockTimeout = time.Second * 40
 
@@ -77,7 +76,7 @@ func NewConfigurationsService(storage ConfigurationsStorage, defaultDestination 
 //** Data manipulation **
 
 //saveWithLock locks and uses save func under the hood
-func (cs *ConfigurationsService) saveWithLock(objectType, projectID string, projectConfig interface{}) ([]byte, error) {
+func (cs *ConfigurationsService) saveWithLock(ctx context.Context, objectType, projectID string, projectConfig interface{}) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
 		return nil, err
@@ -85,8 +84,8 @@ func (cs *ConfigurationsService) saveWithLock(objectType, projectID string, proj
 	defer lock.Unlock()
 
 	oldVersion, err := cs.get(objectType, projectID)
-	if err != nil {
-		return nil, errors.Wrap(err, "get object")
+	if err != nil && !errors.Is(err, ErrConfigurationNotFound) {
+		logging.Warnf("Failed to read [%s.%s] from DB: %v", objectType, projectID, err)
 	}
 
 	data, err := cs.save(objectType, projectID, projectConfig)
@@ -94,7 +93,10 @@ func (cs *ConfigurationsService) saveWithLock(objectType, projectID string, proj
 		return nil, err
 	}
 
-	cs.addAuditLog(objectType, projectID, json.RawMessage(oldVersion), projectConfig)
+	cs.addAuditLog(ctx, auditRecordKey{
+		ObjectType: objectType,
+		ProjectID:  projectID,
+	}, json.RawMessage(oldVersion), json.RawMessage(data))
 	return data, nil
 }
 
@@ -152,8 +154,8 @@ func (cs *ConfigurationsService) get(objectType, projectID string) ([]byte, erro
 // ** General functions **
 
 //SaveConfigWithLock proxies call to saveWithLock
-func (cs *ConfigurationsService) SaveConfigWithLock(objectType string, projectID string, projectConfig interface{}) ([]byte, error) {
-	return cs.saveWithLock(objectType, projectID, projectConfig)
+func (cs *ConfigurationsService) SaveConfigWithLock(ctx context.Context, objectType string, projectID string, projectConfig interface{}) ([]byte, error) {
+	return cs.saveWithLock(ctx, objectType, projectID, projectConfig)
 }
 
 //GetConfigWithLock proxies call to getWithLock
@@ -164,7 +166,7 @@ func (cs *ConfigurationsService) GetConfigWithLock(objectType string, projectID 
 // ** Utility **
 
 //CreateDefaultDestination Creates default destination in case no other destinations exist for the project
-func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*entities.Database, error) {
+func (cs *ConfigurationsService) CreateDefaultDestination(ctx context.Context, projectID string) (*entities.Database, error) {
 	if cs.defaultDestination == nil {
 		return nil, errors.New("Default destination postgres isn't configured")
 	}
@@ -191,7 +193,10 @@ func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*en
 				return nil, err
 			}
 
-			cs.addAuditLog(objectType, "", nil, database)
+			cs.addAuditLog(ctx, auditRecordKey{
+				ObjectType: objectType,
+				ProjectID:  projectID,
+			}, nil, database)
 			return database, nil
 		} else {
 			return nil, err
@@ -207,7 +212,7 @@ func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*en
 }
 
 //CreateDefaultAPIKey returns generated default key per project only in case if no other API key exists
-func (cs *ConfigurationsService) CreateDefaultAPIKey(projectID string) error {
+func (cs *ConfigurationsService) CreateDefaultAPIKey(ctx context.Context, projectID string) error {
 	objectType := apiKeysCollection
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
@@ -227,7 +232,7 @@ func (cs *ConfigurationsService) CreateDefaultAPIKey(projectID string) error {
 
 	if _, err = cs.get(objectType, projectID); err != nil {
 		if err != ErrConfigurationNotFound {
-			return fmt.Errorf("error getting api keys [%s] by projectID [%s]: %v", objectType, projectID, err)
+			return fmt.Errorf("error getting api keys [%s] by objectType [%s]: %v", objectType, projectID, err)
 		}
 	}
 
@@ -238,7 +243,11 @@ func (cs *ConfigurationsService) CreateDefaultAPIKey(projectID string) error {
 	}
 
 	for _, apiKey := range apiKeyRecord.Keys {
-		cs.addAuditLog(objectType, apiKey.ID, nil, apiKey)
+		cs.addAuditLog(ctx, auditRecordKey{
+			ObjectType: objectType,
+			ProjectID:  projectID,
+			ObjectID:   apiKey.ID,
+		}, nil, apiKey)
 	}
 
 	return nil
@@ -268,7 +277,7 @@ func (cs *ConfigurationsService) GetGeoDataResolversLastUpdated() (*time.Time, e
 
 // ** Destinations **
 
-//GetAllDestinations locks and returns all destinations in format map with projectID:destinations
+//GetAllDestinations locks and returns all destinations in format map with objectType:destinations
 func (cs ConfigurationsService) GetAllDestinations() (map[string]*entities.Destinations, error) {
 	objectType := destinationsCollection
 	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
@@ -299,19 +308,38 @@ func (cs *ConfigurationsService) PurgeAudit(from, to int64) error {
 	return cs.storage.RemoveScored("audit:*", from, to)
 }
 
-func (cs *ConfigurationsService) addAuditLog(collection, id string, old, new interface{}) {
+func (cs *ConfigurationsService) addAuditLog(ctx context.Context, key auditRecordKey, old, new interface{}) {
 	now := timestamp.Now()
-	data, _ := json.Marshal(struct {
-		Old interface{} `json:"old,omitempty"`
-		New interface{} `json:"new"`
-	}{Old: old, New: new})
-
-	if id != "" {
-		id = fmt.Sprintf("%s:%s", collection, id)
+	record := &auditRecord{
+		auditRecordKey: key,
+		OldValue:       old,
+		NewValue:       new,
+		RecordedAt:     now.Format(entities.LastUpdatedLayout),
 	}
 
-	if err := cs.storage.AddScored(fmt.Sprintf("audit:%s", id), now.UnixMilli(), data); err != nil {
-		logging.Errorf("Failed to add audit log for %s: %v", id, err)
+	if authority, err := mw.GetAuthority(ctx); err == nil {
+		if user, err := authority.User(); err == nil {
+			record.UserID = user.Id
+		} else if authority.IsAdmin {
+			record.UserID = "server"
+		}
+	}
+
+	if valid, err := record.isValid(); err != nil {
+		logging.SystemErrorf("Failed to validate audit record for [%s]: %v", key, err)
+		return
+	} else if !valid {
+		return
+	}
+
+	data, err := json.Marshal(record)
+	if err != nil {
+		logging.SystemErrorf("Failed to marshal audit record for [%s]: %v", key)
+		return
+	}
+
+	if err := cs.storage.AddScored(fmt.Sprintf("audit:%s", key), now.UnixMilli(), data); err != nil {
+		logging.SystemErrorf("Failed to add audit log for [%s]: %v", key, err)
 	}
 }
 
@@ -322,14 +350,14 @@ func (cs *ConfigurationsService) GetDestinationsByProjectID(projectID string) ([
 		if err == ErrConfigurationNotFound {
 			return make([]*entities.Destination, 0), nil
 		} else {
-			return nil, fmt.Errorf("error getting destinations by projectID [%s]: %v", projectID, err)
+			return nil, fmt.Errorf("error getting destinations by objectType [%s]: %v", projectID, err)
 		}
 	}
 
 	dest := &entities.Destinations{}
 	err = json.Unmarshal(doc, dest)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing destinations of projectID [%s]: %v", projectID, err)
+		return nil, fmt.Errorf("error parsing destinations of objectType [%s]: %v", projectID, err)
 	}
 	return dest.Destinations, nil
 }
@@ -417,19 +445,19 @@ func (cs *ConfigurationsService) getAPIKeysByProjectID(projectID string) ([]*ent
 			return make([]*entities.APIKey, 0), nil
 		}
 
-		return nil, fmt.Errorf("Error getting api keys by projectID [%s]: %v", projectID, err)
+		return nil, fmt.Errorf("Error getting api keys by objectType [%s]: %v", projectID, err)
 	}
 	apiKeys := &entities.APIKeys{}
 	err = json.Unmarshal(data, apiKeys)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing api keys of projectID [%s]: %v", projectID, err)
+		return nil, fmt.Errorf("Error parsing api keys of objectType [%s]: %v", projectID, err)
 	}
 	return apiKeys.Keys, nil
 }
 
 // ** Sources **
 
-//GetAllSources locks and returns all sources in format map with projectID:sources
+//GetAllSources locks and returns all sources in format map with objectType:sources
 func (cs *ConfigurationsService) GetAllSources() (map[string]*entities.Sources, error) {
 	objectType := sourcesCollection
 	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
@@ -464,20 +492,20 @@ func (cs *ConfigurationsService) GetSourcesByProjectID(projectID string) ([]*ent
 		if err == ErrConfigurationNotFound {
 			return make([]*entities.Source, 0), nil
 		} else {
-			return nil, fmt.Errorf("failed to get sources by projectID [%s]: %v", projectID, err)
+			return nil, fmt.Errorf("failed to get sources by objectType [%s]: %v", projectID, err)
 		}
 	}
 
 	sources := &entities.Sources{}
 	if err = json.Unmarshal(doc, sources); err != nil {
-		return nil, fmt.Errorf("failed to parse sources of projectID [%s]: %v", projectID, err)
+		return nil, fmt.Errorf("failed to parse sources of objectType [%s]: %v", projectID, err)
 	}
 	return sources.Sources, nil
 }
 
 // ** Geo Data Resolvers **
 
-//GetGeoDataResolvers locks and returns all sources in format map with projectID:geo_data_resolver
+//GetGeoDataResolvers locks and returns all sources in format map with objectType:geo_data_resolver
 func (cs *ConfigurationsService) GetGeoDataResolvers() (map[string]*entities.GeoDataResolver, error) {
 	objectType := geoDataResolversCollection
 	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
@@ -511,13 +539,13 @@ func (cs *ConfigurationsService) GetGeoDataResolverByProjectID(projectID string)
 		if err == ErrConfigurationNotFound {
 			return nil, nil
 		} else {
-			return nil, fmt.Errorf("error getting geo data resolvers by projectID [%s]: %v", projectID, err)
+			return nil, fmt.Errorf("error getting geo data resolvers by objectType [%s]: %v", projectID, err)
 		}
 	}
 
 	gdr := &entities.GeoDataResolver{}
 	if err = json.Unmarshal(doc, gdr); err != nil {
-		return nil, fmt.Errorf("error parsing geo data resolver of projectID [%s]: %v", projectID, err)
+		return nil, fmt.Errorf("error parsing geo data resolver of objectType [%s]: %v", projectID, err)
 	}
 
 	return gdr, nil
@@ -526,8 +554,8 @@ func (cs *ConfigurationsService) GetGeoDataResolverByProjectID(projectID string)
 // ** Telemetry **
 
 //SaveTelemetry uses saveWithLock for saving with lock telemetry settings
-func (cs *ConfigurationsService) SaveTelemetry(disabledConfiguration map[string]bool) error {
-	_, err := cs.saveWithLock(telemetryCollection, TelemetryGlobalID, telemetry.Configuration{Disabled: disabledConfiguration})
+func (cs *ConfigurationsService) SaveTelemetry(ctx context.Context, disabledConfiguration map[string]bool) error {
+	_, err := cs.saveWithLock(ctx, telemetryCollection, entities.TelemetryGlobalID, telemetry.Configuration{Disabled: disabledConfiguration})
 	if err != nil {
 		return fmt.Errorf("failed to store telemetry settings:: %v", err)
 	}
@@ -536,7 +564,7 @@ func (cs *ConfigurationsService) SaveTelemetry(disabledConfiguration map[string]
 
 //GetTelemetry uses getWithLock for getting with lock telemetry settings
 func (cs *ConfigurationsService) GetTelemetry() ([]byte, error) {
-	b, err := cs.getWithLock(telemetryCollection, TelemetryGlobalID)
+	b, err := cs.getWithLock(telemetryCollection, entities.TelemetryGlobalID)
 	if err != nil {
 		return nil, err
 	}
@@ -560,7 +588,7 @@ func (cs *ConfigurationsService) GetParsedTelemetry() (*telemetry.Configuration,
 
 // ** Domains **
 
-//GetAllCustomDomains locks and returns all domains in format map with projectID:domains
+//GetAllCustomDomains locks and returns all domains in format map with objectType:domains
 func (cs *ConfigurationsService) GetAllCustomDomains() (map[string]*entities.CustomDomains, error) {
 	objectType := customDomainsCollection
 	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
@@ -600,8 +628,8 @@ func (cs *ConfigurationsService) GetCustomDomainsByProjectID(projectID string) (
 }
 
 //UpdateCustomDomain proxies call to saveWithLock
-func (cs *ConfigurationsService) UpdateCustomDomain(projectID string, customDomains *entities.CustomDomains) error {
-	_, err := cs.saveWithLock(customDomainsCollection, projectID, customDomains)
+func (cs *ConfigurationsService) UpdateCustomDomain(ctx context.Context, projectID string, customDomains *entities.CustomDomains) error {
+	_, err := cs.saveWithLock(ctx, customDomainsCollection, projectID, customDomains)
 	return err
 }
 
@@ -609,7 +637,7 @@ func (cs *ConfigurationsService) UpdateCustomDomain(projectID string, customDoma
 
 //CreateObjectWithLock locks project object Types and add new object
 //returns new object
-func (cs *ConfigurationsService) CreateObjectWithLock(objectType string, projectID string, object *openapi.AnyObject) ([]byte, error) {
+func (cs *ConfigurationsService) CreateObjectWithLock(ctx context.Context, objectType string, projectID string, object *openapi.AnyObject) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
 		return nil, err
@@ -635,7 +663,11 @@ func (cs *ConfigurationsService) CreateObjectWithLock(objectType string, project
 				return nil, err
 			}
 
-			cs.addAuditLog(objectType, generatedID, nil, object)
+			cs.addAuditLog(ctx, auditRecordKey{
+				ObjectType: objectType,
+				ProjectID:  projectID,
+				ObjectID:   generatedID,
+			}, nil, object)
 
 			return object.MarshalJSON()
 		}
@@ -666,12 +698,16 @@ func (cs *ConfigurationsService) CreateObjectWithLock(objectType string, project
 		return nil, err
 	}
 
-	cs.addAuditLog(objectType, generatedID, nil, object)
+	cs.addAuditLog(ctx, auditRecordKey{
+		ObjectType: objectType,
+		ProjectID:  projectID,
+		ObjectID:   generatedID,
+	}, nil, object)
 	return object.MarshalJSON()
 }
 
-//PatchObjectWithLock locks by collection and projectID, applies pathPayload to data, saves and returns the updated object
-func (cs *ConfigurationsService) PatchObjectWithLock(objectType, projectID string, patchPayload *PatchPayload) ([]byte, error) {
+//PatchObjectWithLock locks by collection and objectType, applies pathPayload to data, saves and returns the updated object
+func (cs *ConfigurationsService) PatchObjectWithLock(ctx context.Context, objectType, projectID string, patchPayload *PatchPayload) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
 		return nil, err
@@ -731,7 +767,11 @@ func (cs *ConfigurationsService) PatchObjectWithLock(objectType, projectID strin
 		return nil, err
 	}
 
-	cs.addAuditLog(objectType, patchPayload.ObjectMeta.Value, oldVersion, newVersion)
+	cs.addAuditLog(ctx, auditRecordKey{
+		ObjectType: objectType,
+		ProjectID:  projectID,
+		ObjectID:   patchPayload.ObjectMeta.Value,
+	}, oldVersion, newVersion)
 
 	newObjectBytes, err := json.Marshal(patchedObject)
 	if err != nil {
@@ -741,8 +781,8 @@ func (cs *ConfigurationsService) PatchObjectWithLock(objectType, projectID strin
 	return newObjectBytes, nil
 }
 
-//ReplaceObjectWithLock locks by collection and projectID, rewrite pathPayload, saves and returns the updated object
-func (cs *ConfigurationsService) ReplaceObjectWithLock(objectType, projectID string, patchPayload *PatchPayload) ([]byte, error) {
+//ReplaceObjectWithLock locks by collection and objectType, rewrite pathPayload, saves and returns the updated object
+func (cs *ConfigurationsService) ReplaceObjectWithLock(ctx context.Context, objectType, projectID string, patchPayload *PatchPayload) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
 		return nil, err
@@ -793,7 +833,11 @@ func (cs *ConfigurationsService) ReplaceObjectWithLock(objectType, projectID str
 		return nil, err
 	}
 
-	cs.addAuditLog(objectType, patchPayload.ObjectMeta.Value, oldVersion, json.RawMessage(newVersion))
+	cs.addAuditLog(ctx, auditRecordKey{
+		ObjectType: objectType,
+		ProjectID:  projectID,
+		ObjectID:   patchPayload.ObjectMeta.Value,
+	}, oldVersion, json.RawMessage(newVersion))
 
 	newObjectBytes, err := json.Marshal(patchPayload.Patch)
 	if err != nil {
@@ -803,8 +847,8 @@ func (cs *ConfigurationsService) ReplaceObjectWithLock(objectType, projectID str
 	return newObjectBytes, nil
 }
 
-//DeleteObjectWithLock locks by collection and projectID, deletes object by objectUID, saves and returns deleted object
-func (cs *ConfigurationsService) DeleteObjectWithLock(objectType, projectID string, deletePayload *PatchPayload) ([]byte, error) {
+//DeleteObjectWithLock locks by collection and objectType, deletes object by objectUID, saves and returns deleted object
+func (cs *ConfigurationsService) DeleteObjectWithLock(ctx context.Context, objectType, projectID string, deletePayload *PatchPayload) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
 		return nil, err
@@ -828,7 +872,10 @@ func (cs *ConfigurationsService) DeleteObjectWithLock(objectType, projectID stri
 			return nil, err
 		}
 
-		cs.addAuditLog(objectType, "", projectConfig, nil)
+		cs.addAuditLog(ctx, auditRecordKey{
+			ObjectType: objectType,
+			ProjectID:  projectID,
+		}, projectConfig, nil)
 		return data, nil
 	}
 
@@ -860,7 +907,11 @@ func (cs *ConfigurationsService) DeleteObjectWithLock(objectType, projectID stri
 		return nil, err
 	}
 
-	cs.addAuditLog(objectType, deletePayload.ObjectMeta.Value, objectToDelete, nil)
+	cs.addAuditLog(ctx, auditRecordKey{
+		ObjectType: objectType,
+		ProjectID:  projectID,
+		ObjectID:   deletePayload.ObjectMeta.Value,
+	}, objectToDelete, nil)
 
 	deletedObjectBytes, err := json.Marshal(objectToDelete)
 	if err != nil {
@@ -870,7 +921,7 @@ func (cs *ConfigurationsService) DeleteObjectWithLock(objectType, projectID stri
 	return deletedObjectBytes, nil
 }
 
-//GetObjectWithLock locks by collection and projectID, gets object by objectUID and returns it
+//GetObjectWithLock locks by collection and objectType, gets object by objectUID and returns it
 func (cs *ConfigurationsService) GetObjectWithLock(objectType, projectID, objectArrayPath string, objectMeta *ObjectMeta) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
@@ -943,7 +994,7 @@ func (cs *ConfigurationsService) GetUserProjects(userID string) ([]string, error
 }
 
 func (cs *ConfigurationsService) GetProjectUsers(projectID string) ([]string, error) {
-	if err := cs.Load(projectID, new(Project)); err != nil {
+	if err := cs.Load(projectID, new(entities.Project)); err != nil {
 		return nil, err
 	}
 
@@ -973,17 +1024,17 @@ func (cs *ConfigurationsService) GetSystemSetting(settingID string) ([]byte, err
 	return cs.get(systemCollection, settingID)
 }
 
-func (cs *ConfigurationsService) Create(value CollectionItem, patch interface{}) error {
-	if _, err := cs.Patch(random.LowerString(22), value, patch, false); err != nil {
-		return errors.Wrapf(err, "failed to patch %s", value.Collection())
+func (cs *ConfigurationsService) Create(ctx context.Context, value Object, patch interface{}) error {
+	if _, err := cs.Patch(ctx, random.LowerString(22), value, patch, false); err != nil {
+		return errors.Wrapf(err, "failed to patch %s", value.ObjectType())
 	} else {
 		return nil
 	}
 }
 
-func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*RedisUserInfo, error) {
-	var result RedisUserInfo
-	if patched, err := cs.Patch(id, &result, patch, false); err != nil {
+func (cs *ConfigurationsService) UpdateUserInfo(ctx context.Context, id string, patch interface{}) (*entities.UserInfo, error) {
+	var result entities.UserInfo
+	if patched, err := cs.Patch(ctx, id, &result, patch, false); err != nil {
 		return nil, errors.Wrap(err, "failed to patch user info")
 	} else if patched {
 		if projectInfo := result.Project; projectInfo != nil {
@@ -994,7 +1045,7 @@ func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*
 				RequiresSetup: projectInfo.RequireSetup,
 			}
 
-			if _, err := cs.Patch(projectID, new(Project), patch, false); err != nil {
+			if _, err := cs.Patch(ctx, projectID, new(entities.Project), patch, false); err != nil {
 				return nil, errors.Wrap(err, "faild to patch project")
 			} else if err := cs.LinkUserToProject(id, projectID); err != nil {
 				return nil, errors.Wrap(err, "failed to link user to project")
@@ -1005,14 +1056,14 @@ func (cs *ConfigurationsService) UpdateUserInfo(id string, patch interface{}) (*
 	return &result, nil
 }
 
-func (cs *ConfigurationsService) GetUserInfo(id string) (*RedisUserInfo, error) {
-	var result RedisUserInfo
+func (cs *ConfigurationsService) GetUserInfo(id string) (*entities.UserInfo, error) {
+	var result entities.UserInfo
 	if err := cs.Load(id, &result); err != nil {
 		return nil, errors.Wrap(err, "failed to load user info")
 	}
 
 	if projectInfo := result.Project; projectInfo != nil {
-		var project Project
+		var project entities.Project
 		if err := cs.Load(projectInfo.Id, &project); err != nil {
 			return nil, errors.Wrap(err, "failed to load project from user info")
 		}
@@ -1027,11 +1078,11 @@ func (cs *ConfigurationsService) GetUserInfo(id string) (*RedisUserInfo, error) 
 	return &result, nil
 }
 
-func (cs *ConfigurationsService) Load(id string, value CollectionItem) error {
-	if data, err := cs.get(value.Collection(), id); err != nil {
-		return errors.Wrapf(err, "failed to get %s with lock", value.Collection())
+func (cs *ConfigurationsService) Load(id string, value Object) error {
+	if data, err := cs.get(value.ObjectType(), id); err != nil {
+		return errors.Wrapf(err, "failed to get %s with lock", value.ObjectType())
 	} else if err := json.Unmarshal(data, value); err != nil {
-		return errors.Wrapf(err, "unmarshal %s value", value.Collection())
+		return errors.Wrapf(err, "unmarshal %s value", value.ObjectType())
 	} else {
 		return nil
 	}
@@ -1041,21 +1092,21 @@ func (cs *ConfigurationsService) Load(id string, value CollectionItem) error {
 // A handler is responsible for unmarshaling of the stored object as well as calling the value handlers.
 type patchHandler interface {
 	// beforePatch is called before the patch is applied to the value.
-	beforePatch(data []byte, value CollectionItem) error
+	beforePatch(data []byte, value Object) error
 	// afterPatch is called after the patch is applied to the value.
 	// apply should be false if the value is not to be persisted.
-	afterPatch(value CollectionItem) (apply bool, err error)
+	afterPatch(value Object) (apply bool, err error)
 }
 
 type createPatchHandler struct {
 	id string
 }
 
-func (createPatchHandler) beforePatch([]byte, CollectionItem) error {
+func (createPatchHandler) beforePatch([]byte, Object) error {
 	return nil
 }
 
-func (h createPatchHandler) afterPatch(value CollectionItem) (bool, error) {
+func (h createPatchHandler) afterPatch(value Object) (bool, error) {
 	if handler, ok := value.(OnCreateHandler); ok {
 		handler.OnCreate(h.id)
 	}
@@ -1071,7 +1122,7 @@ func (h updatePatchHandler) unmask() map[string]interface{} {
 	return h
 }
 
-func (h updatePatchHandler) beforePatch(data []byte, value CollectionItem) error {
+func (h updatePatchHandler) beforePatch(data []byte, value Object) error {
 	if err := json.Unmarshal(data, value); err != nil {
 		return errors.Wrap(err, "unmarshal")
 	}
@@ -1083,7 +1134,7 @@ func (h updatePatchHandler) beforePatch(data []byte, value CollectionItem) error
 	return nil
 }
 
-func (h updatePatchHandler) afterPatch(value CollectionItem) (apply bool, err error) {
+func (h updatePatchHandler) afterPatch(value Object) (apply bool, err error) {
 	var values map[string]interface{}
 	if err := common.DecodeAsJSON(value, &values); err != nil {
 		return false, errors.Wrap(err, "decode updated values")
@@ -1105,15 +1156,15 @@ func (h updatePatchHandler) afterPatch(value CollectionItem) (apply bool, err er
 //   `value` should be an empty initialized pointer to the value of the target type. Slices are currently not supported.
 //	 `patch` may be anything that is acceptable for json.Marshal. Must define an object (not array or value).
 //	 `requireExist` indicates if the object with the specified ID must already exist. See patchHandler docs for more info.
-func (cs *ConfigurationsService) Patch(id string, value CollectionItem, patch interface{}, requireExist bool) (bool, error) {
-	if lock, err := cs.lockProjectObject(value.Collection(), id); err != nil {
+func (cs *ConfigurationsService) Patch(ctx context.Context, id string, value Object, patch interface{}, requireExist bool) (bool, error) {
+	if lock, err := cs.lockProjectObject(value.ObjectType(), id); err != nil {
 		return false, err
 	} else {
 		defer lock.Unlock()
 	}
 
 	var handler patchHandler
-	data, err := cs.get(value.Collection(), id)
+	data, err := cs.get(value.ObjectType(), id)
 	switch {
 	case err == nil:
 		handler = updatePatchHandler{}
@@ -1137,20 +1188,44 @@ func (cs *ConfigurationsService) Patch(id string, value CollectionItem, patch in
 		return false, nil
 	}
 
-	if _, err := cs.save(value.Collection(), id, value); err != nil {
+	if _, err := cs.save(value.ObjectType(), id, value); err != nil {
 		return false, errors.Wrap(err, "save")
 	}
 
-	cs.addAuditLog(value.Collection(), id, json.RawMessage(data), value)
+	cs.addAuditLog(ctx, auditRecordKey{
+		ObjectType: value.ObjectType(),
+		ObjectID:   id,
+	}, json.RawMessage(data), value)
 	return true, nil
 }
 
-func (cs *ConfigurationsService) Delete(id string, value CollectionItem) error {
-	if err := cs.delete(value.Collection(), id); err != nil {
-		return errors.Wrapf(err, "delete %s", value.Collection())
+func (cs *ConfigurationsService) Delete(ctx context.Context, id string, value Object) error {
+	if lock, err := cs.lockProjectObject(value.ObjectType(), id); err != nil {
+		return err
+	} else {
+		defer lock.Unlock()
 	}
 
-	cs.addAuditLog(value.Collection(), id, value, nil)
+	data, err := cs.get(value.ObjectType(), id)
+	switch {
+	case errors.Is(err, ErrConfigurationNotFound):
+		return nil
+	case err != nil:
+		logging.SystemErrorf("Failed to read value [%s.%s] from DB: %v", value.ObjectType(), id, err)
+	default:
+		if err := json.Unmarshal(data, value); err != nil {
+			logging.SystemErrorf("Failed to decode value [%s.%s] from DB: %v", value.ObjectType(), id, err)
+		}
+	}
+
+	if err := cs.delete(value.ObjectType(), id); err != nil {
+		return errors.Wrap(err, "on delete")
+	}
+
+	cs.addAuditLog(ctx, auditRecordKey{
+		ObjectType: value.ObjectType(),
+		ObjectID:   id,
+	}, json.RawMessage(data), nil)
 	return nil
 }
 
