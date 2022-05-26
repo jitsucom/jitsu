@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/common"
+	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/openapi"
-	"github.com/jitsucom/jitsu/configurator/storages"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/pkg/errors"
 )
@@ -50,10 +50,15 @@ type Authorizator interface {
 	FindOnlyUser(ctx context.Context) (*openapi.UserBasicInfo, error)
 }
 
+type Configurations interface {
+	UpdateUserInfo(ctx context.Context, id string, patch interface{}) (*entities.UserInfo, error)
+	GetUserProjects(userID string) ([]string, error)
+}
+
 type AuthorizationInterceptor struct {
 	ServerToken    string
 	Authorizator   Authorizator
-	Configurations *storages.ConfigurationsService
+	Configurations Configurations
 	IsSelfHosted   bool
 }
 
@@ -98,7 +103,7 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 	}
 
 	if user := authority.user; user != nil {
-		if userInfo, err := i.Configurations.UpdateUserInfo(user.Id, UserInfoEmailUpdate{Email: user.Email}); err != nil {
+		if userInfo, err := i.Configurations.UpdateUserInfo(ctx, user.Id, UserInfoEmailUpdate{Email: user.Email}); err != nil {
 			logging.Errorf("failed to update user info for id [%s] with email [%s]: %s", user.Id, user.Email, err)
 		} else if userInfo.PlatformAdmin != nil {
 			authority.IsAdmin = *userInfo.PlatformAdmin
@@ -117,7 +122,7 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 		}
 
 		if i.IsSelfHosted {
-			authority.ProjectIDs.Add(storages.TelemetryGlobalID)
+			authority.ProjectIDs.Add(entities.TelemetryGlobalID)
 		}
 	}
 
@@ -134,13 +139,11 @@ func (i *AuthorizationInterceptor) ManagementWrapper(body gin.HandlerFunc) gin.H
 	}
 }
 
-func GetAuthority(ctx *gin.Context) (*Authority, error) {
-	if value, ok := ctx.Get(authorityKey); !ok {
+func GetAuthority(ctx context.Context) (*Authority, error) {
+	if value, ok := ctx.Value(authorityKey).(*Authority); !ok {
 		return nil, errUnauthorized
-	} else if authority, ok := value.(*Authority); !ok {
-		return nil, errors.Errorf("unexpected authority %+v", authority)
 	} else {
-		return authority, nil
+		return value, nil
 	}
 }
 

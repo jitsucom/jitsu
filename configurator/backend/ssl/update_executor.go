@@ -1,16 +1,18 @@
 package ssl
 
 import (
+	"context"
 	"fmt"
+	"io/ioutil"
+	"os/exec"
+	"strings"
+	"time"
+
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/files"
 	entime "github.com/jitsucom/jitsu/configurator/time"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
-	"io/ioutil"
-	"os/exec"
-	"strings"
-	"time"
 )
 
 const maxDaysBeforeExpiration = 30
@@ -38,20 +40,20 @@ func (e *UpdateExecutor) Schedule(interval time.Duration) {
 	safego.RunWithRestart(func() {
 		for {
 			<-ticker.C
-			if err := e.Run(); err != nil {
+			if err := e.Run(context.Background()); err != nil {
 				logging.Errorf("Failed to update SSL certificates: %s", err)
 			}
 		}
 	})
 }
 
-func (e *UpdateExecutor) Run() error {
+func (e *UpdateExecutor) Run(ctx context.Context) error {
 	domainsPerProject, err := e.sslService.LoadCustomDomains()
 	if err != nil {
 		return err
 	}
 	for projectID, domains := range domainsPerProject {
-		if err := e.processProjectDomains(projectID, domains); err != nil {
+		if err := e.processProjectDomains(ctx, projectID, domains); err != nil {
 			logging.Error(err)
 			return err
 		}
@@ -59,22 +61,22 @@ func (e *UpdateExecutor) Run() error {
 	return nil
 }
 
-func (e *UpdateExecutor) RunForProject(projectID string) error {
+func (e *UpdateExecutor) RunForProject(ctx context.Context, projectID string) error {
 	domains, err := e.sslService.LoadCustomDomainsByProjectID(projectID)
 	if err != nil {
 		return err
 	}
-	return e.processProjectDomains(projectID, domains)
+	return e.processProjectDomains(ctx, projectID, domains)
 }
 
-func (e *UpdateExecutor) processProjectDomains(projectID string, domains *entities.CustomDomains) error {
+func (e *UpdateExecutor) processProjectDomains(ctx context.Context, projectID string, domains *entities.CustomDomains) error {
 	validDomains := filterExistingCNames(domains, e.enCName)
 	updateRequired, err := updateRequired(domains, validDomains)
 	if err != nil {
 		return err
 	}
 	if !updateRequired {
-		return e.sslService.UpdateCustomDomains(projectID, domains)
+		return e.sslService.UpdateCustomDomains(ctx, projectID, domains)
 	}
 
 	certificate, privateKey, err := e.sslService.ExecuteHTTP01Challenge(validDomains)
@@ -102,7 +104,7 @@ func (e *UpdateExecutor) processProjectDomains(projectID string, domains *entiti
 	}
 	expirationDate := time.Now().UTC().Add(time.Hour * time.Duration(24*90))
 	domains.CertificateExpirationDate = entime.AsISOString(expirationDate)
-	err = e.sslService.UpdateCustomDomains(projectID, domains)
+	err = e.sslService.UpdateCustomDomains(ctx, projectID, domains)
 	if err != nil {
 		return err
 	}
