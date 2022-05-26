@@ -1,12 +1,13 @@
 package middleware
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/jitsu/configurator/storages"
-	"github.com/jitsucom/jitsu/server/logging"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jitsucom/jitsu/configurator/entities"
+	"github.com/jitsucom/jitsu/server/logging"
 )
 
 const (
@@ -35,12 +36,12 @@ func (cc *ContentChanges) OldStyleIfModifiedSince(main gin.HandlerFunc) gin.Hand
 			if lastModified, err := getLastModifiedFunc(); err != nil {
 				logging.Warnf("Error getting last modified: %v", err)
 			} else {
-				c.Writer.Header().Add(lastModifiedHeader, lastModified.Format(storages.LastUpdatedLayout))
+				c.Writer.Header().Add(lastModifiedHeader, lastModified.Format(entities.LastUpdatedLayout))
 
 				ifModifiedSinceStr := c.GetHeader(ifModifiedSinceHeader)
 				if ifModifiedSinceStr != "" {
-					if ifModifiedSince, err := time.Parse(storages.LastUpdatedLayout, ifModifiedSinceStr); err != nil {
-						logging.Warnf("Error parsing [%s:%s] header with [%s] layout: %v", ifModifiedSinceHeader, ifModifiedSinceStr, storages.LastUpdatedLayout, err)
+					if ifModifiedSince, err := time.Parse(entities.LastUpdatedLayout, ifModifiedSinceStr); err != nil {
+						logging.Warnf("Error parsing [%s:%s] header with [%s] layout: %v", ifModifiedSinceHeader, ifModifiedSinceStr, entities.LastUpdatedLayout, err)
 					} else {
 						if !lastModified.After(ifModifiedSince) {
 							c.AbortWithStatus(http.StatusNotModified)
@@ -65,12 +66,12 @@ func (cc *ContentChanges) IfModifiedSince(c *gin.Context) {
 		if lastModified, err := getLastModifiedFunc(); err != nil {
 			logging.Warnf("Error getting last modified: %v", err)
 		} else {
-			c.Writer.Header().Add(lastModifiedHeader, lastModified.Format(storages.LastUpdatedLayout))
+			c.Writer.Header().Add(lastModifiedHeader, lastModified.Format(entities.LastUpdatedLayout))
 
 			ifModifiedSinceStr := c.GetHeader(ifModifiedSinceHeader)
 			if ifModifiedSinceStr != "" {
-				if ifModifiedSince, err := time.Parse(storages.LastUpdatedLayout, ifModifiedSinceStr); err != nil {
-					logging.Warnf("Error parsing [%s:%s] header with [%s] layout: %v", ifModifiedSinceHeader, ifModifiedSinceStr, storages.LastUpdatedLayout, err)
+				if ifModifiedSince, err := time.Parse(entities.LastUpdatedLayout, ifModifiedSinceStr); err != nil {
+					logging.Warnf("Error parsing [%s:%s] header with [%s] layout: %v", ifModifiedSinceHeader, ifModifiedSinceStr, entities.LastUpdatedLayout, err)
 				} else {
 					if !lastModified.After(ifModifiedSince) {
 						c.AbortWithStatus(http.StatusNotModified)
