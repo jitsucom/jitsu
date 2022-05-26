@@ -16,7 +16,7 @@ export const allSdkSources: SdkSource[] = [
     pic: logos.tap_helpscout,
     package_name: "jitsu-helpscout-source",
     package_version: "^0.7.3",
-    displayName: "Helpscout",
+    displayName: "Helpscout (SDK)",
     stable: true,
   },
 ]
