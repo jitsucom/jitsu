@@ -7,7 +7,6 @@ import (
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/openapi"
-	"github.com/jitsucom/jitsu/configurator/storages"
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/config"
 	jdrivers "github.com/jitsucom/jitsu/server/drivers"
@@ -115,7 +114,7 @@ func (oa *OpenAPI) mapSourcesConfiguration(sourcesByProjectID map[string]*entiti
 			}
 		}
 
-		var project storages.Project
+		var project entities.Project
 		if err := oa.Configurations.Load(projectID, &project); err != nil {
 			return nil, errors.Wrapf(err, "get project for id %s", projectID)
 		}
@@ -161,7 +160,7 @@ func mapYamlDestinations(projectDestinations []*entities.Destination) ([]string,
 	return postHandleDestinationIDs, destinationConfigs, nil
 }
 
-func mapYamlSources(projectSources []*entities.Source, postHandleDestinationIDs []string, project storages.Project) (map[string]*jdriversbase.SourceConfig, error) {
+func mapYamlSources(projectSources []*entities.Source, postHandleDestinationIDs []string, project entities.Project) (map[string]*jdriversbase.SourceConfig, error) {
 	sourceConfigs := make(map[string]*jdriversbase.SourceConfig)
 	for _, source := range projectSources {
 		sourceID := source.SourceID
@@ -179,7 +178,7 @@ func mapYamlSources(projectSources []*entities.Source, postHandleDestinationIDs 
 
 //mapSourceConfig mapped configurator source into server format
 //puts table names if not set
-func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, postHandleDestinations []string, projectSettings storages.Project) (jdriversbase.SourceConfig, error) {
+func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, postHandleDestinations []string, projectSettings entities.Project) (jdriversbase.SourceConfig, error) {
 	var notificationConfig map[string]interface{}
 	if projectSettings.Notifications != nil {
 		notificationConfig = map[string]interface{}{

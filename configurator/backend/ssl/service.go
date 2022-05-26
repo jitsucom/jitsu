@@ -2,11 +2,16 @@ package ssl
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
+	"io/ioutil"
+	"strings"
+	"text/template"
+
 	"github.com/go-acme/lego/certcrypto"
 	"github.com/go-acme/lego/certificate"
 	"github.com/go-acme/lego/lego"
@@ -16,9 +21,6 @@ import (
 	"github.com/jitsucom/jitsu/configurator/ssh"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	"github.com/jitsucom/jitsu/server/logging"
-	"io/ioutil"
-	"strings"
-	"text/template"
 )
 
 const email = "reg@ksense.co"
@@ -168,8 +170,8 @@ func NewCertificateService(sshClient *ssh.ClientWrapper, enHosts []string, confi
 	return &CertificateService{sshClient: sshClient, enHosts: enHosts, configurationsService: configurationsService, serverConfigTemplate: serverConfigTemplate, nginxConfigPath: files.FixPath(nginxSSLConfigPath), acmeChallengePath: files.FixPath(acmeChallengePath)}, nil
 }
 
-func (s *CertificateService) UpdateCustomDomains(projectID string, domains *entities.CustomDomains) error {
-	return s.configurationsService.UpdateCustomDomain(projectID, domains)
+func (s *CertificateService) UpdateCustomDomains(ctx context.Context, projectID string, domains *entities.CustomDomains) error {
+	return s.configurationsService.UpdateCustomDomain(ctx, projectID, domains)
 }
 
 func (s *CertificateService) LoadCustomDomains() (map[string]*entities.CustomDomains, error) {

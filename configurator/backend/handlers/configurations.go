@@ -84,7 +84,7 @@ func (ch *ConfigurationHandler) saveConfig(c *gin.Context, collection string, id
 		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse(bodyExtractionErrorMessage, nil))
 		return
 	}
-	_, err = ch.configurationsService.SaveConfigWithLock(collection, id, data)
+	_, err = ch.configurationsService.SaveConfigWithLock(c, collection, id, data)
 	if err != nil {
 		configStoreErrorMessage := fmt.Sprintf("Failed to save collection [%s], id=[%s]: %v", collection, id, err)
 		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse(configStoreErrorMessage, nil))
