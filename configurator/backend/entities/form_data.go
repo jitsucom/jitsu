@@ -2,6 +2,7 @@ package entities
 
 import (
 	"encoding/json"
+
 	"github.com/jitsucom/jitsu/server/adapters"
 )
 
@@ -164,13 +165,23 @@ type DbtCloudFormData struct {
 
 //S3FormData entity is stored in main storage (Firebase/Redis)
 type S3FormData struct {
-	TableName          string                    `firestore:"tableName" json:"tableName"`
-	AccessKeyID        string                    `firestore:"s3AccessKeyID" json:"s3AccessKeyID"`
-	SecretKey          string                    `firestore:"s3SecretKey" json:"s3SecretKey"`
-	Bucket             string                    `firestore:"s3Bucket" json:"s3Bucket"`
-	Region             string                    `firestore:"s3Region" json:"s3Region"`
-	Endpoint           string                    `firestore:"s3Endpoint" json:"s3Endpoint"`
-	Folder             string                    `firestore:"s3Folder" json:"s3Folder"`
-	Format             adapters.S3EncodingFormat `firestore:"s3Format" json:"s3Format"`
-	CompressionEnabled bool                      `firestore:"s3CompressionEnabled" json:"s3CompressionEnabled"`
+	TableName          string                      `firestore:"tableName" json:"tableName"`
+	AccessKeyID        string                      `firestore:"s3AccessKeyID" json:"s3AccessKeyID"`
+	SecretKey          string                      `firestore:"s3SecretKey" json:"s3SecretKey"`
+	Bucket             string                      `firestore:"s3Bucket" json:"s3Bucket"`
+	Region             string                      `firestore:"s3Region" json:"s3Region"`
+	Endpoint           string                      `firestore:"s3Endpoint" json:"s3Endpoint"`
+	Folder             string                      `firestore:"s3Folder" json:"s3Folder"`
+	Format             adapters.FileEncodingFormat `firestore:"s3Format" json:"s3Format"`
+	CompressionEnabled bool                        `firestore:"s3CompressionEnabled" json:"s3CompressionEnabled"`
+}
+
+//GCSFormData entity is stored in main storage (Firebase/Redis)
+type GCSFormData struct {
+	TableName          string                      `firestore:"tableName" json:"tableName"`
+	Key                string                      `firestore:"gcsKey" json:"gcsKey"`
+	Bucket             string                      `firestore:"gcsBucket" json:"gcsBucket"`
+	Folder             string                      `firestore:"gcsFolder" json:"gcsFolder"`
+	Format             adapters.FileEncodingFormat `firestore:"gcsFormat" json:"gcsFormat"`
+	CompressionEnabled bool                        `firestore:"gcsCompressionEnabled" json:"gcsCompressionEnabled"`
 }
