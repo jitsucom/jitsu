@@ -1,7 +1,6 @@
 package enrichment
 
 import (
-	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -11,7 +10,7 @@ var (
 	DefaultSrcIP jsonutils.JSONPath
 	DefaultDstIP jsonutils.JSONPath
 
-	DefaultJsUaRule = &UserAgentParseRule{}
+	DefaultUaRule = &UserAgentParseRule{}
 )
 
 //InitDefault initializes default lookup enrichment rules
@@ -20,12 +19,11 @@ func InitDefault(srcIP, dstIP, srcUA, dstUA string) {
 	DefaultDstIP = jsonutils.NewJSONPath(dstIP)
 
 	var err error
-	DefaultJsUaRule, err = newUserAgentParseRule(
+	DefaultUaRule, err = newUserAgentParseRule(
 		jsonutils.NewJSONPath(srcUA),
 		jsonutils.NewJSONPath(dstUA),
 		func(m map[string]interface{}) bool {
-			src := events.ExtractSrc(m)
-			return src != "api"
+			return true
 		})
 	if err != nil {
 		logging.Fatalf("Failed to create default JS user-agent rule: %v", err)
