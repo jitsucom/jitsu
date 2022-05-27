@@ -94,7 +94,7 @@ func TestDestinationAdapterInsert(t *testing.T) {
 	err := appconfig.Init(false, "")
 	require.NoError(t, err)
 
-	enrichment.InitDefault("", "", "", "", "")
+	enrichment.InitDefault("", "", "", "")
 
 	tests := []struct {
 		name                      string
