@@ -110,7 +110,7 @@ func TestDefault(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			defaultJSIPRule := CreateDefaultJsIPRule(geoService, "")
 			defaultJSIPRule.Execute(tt.input)
-			DefaultJsUaRule.Execute(tt.input)
+			DefaultUaRule.Execute(tt.input)
 			require.Equal(t, tt.expected, tt.input, "Enriched events aren't equal")
 		})
 	}
