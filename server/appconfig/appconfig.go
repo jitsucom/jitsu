@@ -99,7 +99,6 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.fields_configuration.src_source_ip", "/source_ip")
 	viper.SetDefault("server.fields_configuration.dst_source_ip", "/eventn_ctx/location||/location")
 	viper.SetDefault("server.fields_configuration.src_ua", "/eventn_ctx/user_agent||/user_agent")
-	viper.SetDefault("server.fields_configuration.src_api_ua", "/browser_user_agent")
 	viper.SetDefault("server.fields_configuration.dst_ua", "/eventn_ctx/parsed_ua||/parsed_ua")
 
 	viper.SetDefault("log.show_in_server", false)
