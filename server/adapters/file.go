@@ -32,14 +32,16 @@ func (c FileConfig) PrepareFile(fileName *string, fileBytes *[]byte) error {
 	}
 
 	if c.Compression == FileCompressionGZIP {
-		var err error
 		*fileName = fileNameGZIP(*fileName)
-		buf, err := compressGZIP(*fileBytes)
-		if err != nil {
-			return errors.Errorf("Error compressing file %v", err)
-		}
+		if fileBytes != nil {
+			var err error
+			buf, err := compressGZIP(*fileBytes)
+			if err != nil {
+				return errors.Errorf("Error compressing file %v", err)
+			}
 
-		*fileBytes = buf.Bytes()
+			*fileBytes = buf.Bytes()
+		}
 	}
 
 	return nil

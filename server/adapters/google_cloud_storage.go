@@ -24,7 +24,7 @@ type GoogleConfig struct {
 	Project    string      `mapstructure:"bq_project,omitempty" json:"bq_project,omitempty" yaml:"bq_project,omitempty"`
 	Dataset    string      `mapstructure:"bq_dataset,omitempty" json:"bq_dataset,omitempty" yaml:"bq_dataset,omitempty"`
 	KeyFile    interface{} `mapstructure:"key_file,omitempty" json:"key_file,omitempty" yaml:"key_file,omitempty"`
-	FileConfig `mapstructure:",inline" yaml:",inline"`
+	FileConfig `mapstructure:",squash" yaml:"-,inline"`
 
 	//will be set on validation
 	credentials option.ClientOption
@@ -106,6 +106,10 @@ func NewGoogleCloudStorage(ctx context.Context, config *GoogleConfig) (*GoogleCl
 		return nil, fmt.Errorf("Error creating google cloud storage client: %v", err)
 	}
 
+	if config.Format == "" {
+		config.Format = FileFormatJSON
+	}
+
 	return &GoogleCloudStorage{client: client, config: config, ctx: ctx, closed: atomic.NewBool(false)}, nil
 }
 
@@ -169,6 +173,7 @@ func (gcs *GoogleCloudStorage) DeleteObject(key string) (err error) {
 		return fmt.Errorf("attempt to use closed GoogleCloudStorage instance")
 	}
 	bucket := gcs.client.Bucket(gcs.config.Bucket)
+	_ = gcs.config.PrepareFile(&key, nil)
 	obj := bucket.Object(key)
 
 	if err := obj.Delete(gcs.ctx); err != nil {
