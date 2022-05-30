@@ -128,7 +128,11 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 
 //Insert inserts data with InsertContext as a single object or a batch into Redshift
 func (ar *AwsRedshift) Insert(insertContext *InsertContext) error {
-	return ar.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
+	if insertContext.eventContext != nil {
+		return ar.insertSingle(insertContext.eventContext)
+	} else {
+		return ar.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
+	}
 }
 
 //insertBatch inserts batch of data in transaction

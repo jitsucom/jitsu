@@ -116,7 +116,11 @@ func (bq *BigQuery) Test() error {
 
 //Insert inserts data with InsertContext as a single object or a batch into BigQuery
 func (bq *BigQuery) Insert(insertContext *InsertContext) error {
-	return bq.insertBatch(insertContext.table, insertContext.objects)
+	if insertContext.eventContext != nil {
+		return bq.insertSingle(insertContext.eventContext)
+	} else {
+		return bq.insertBatch(insertContext.table, insertContext.objects)
+	}
 }
 
 //GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct

@@ -354,7 +354,11 @@ func (s *Snowflake) Copy(fileName, tableName string, header []string) error {
 
 //Insert inserts data with InsertContext as a single object or a batch into Snowflake
 func (s *Snowflake) Insert(insertContext *InsertContext) error {
-	return s.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
+	if insertContext.eventContext != nil {
+		return s.insertSingle(insertContext.eventContext)
+	} else {
+		return s.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
+	}
 }
 
 // insertSingle inserts provided object into Snowflake
@@ -736,7 +740,7 @@ func (s *Snowflake) toDeleteQuery(conditions *base.DeleteConditions) (string, []
 	for _, condition := range conditions.Conditions {
 		conditionString := condition.Field + " " + condition.Clause + " ?"
 		queryConditions = append(queryConditions, conditionString)
-		values = append(values, condition.Value)
+		values = append(values, typing.ReformatValue(condition.Value))
 	}
 
 	return strings.Join(queryConditions, " "+conditions.JoinCondition+" "), values

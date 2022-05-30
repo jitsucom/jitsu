@@ -48,14 +48,14 @@ func (tr *TypeResolverImpl) Resolve(object map[string]interface{}) (Fields, erro
 			delete(object, k)
 			key := strings.ReplaceAll(k, SqlTypeKeyword, "")
 			switch val := v.(type) {
-				case []interface{}:
-					if len(val) > 1 {
-						mappedTypes[key] = typing.SQLColumn{Type: fmt.Sprint(val[0]), ColumnType: fmt.Sprint(val[1])}
-					} else {
-						mappedTypes[key] = typing.SQLColumn{Type: fmt.Sprint(val[0])}
-					}
-				case string:
-					mappedTypes[key] = typing.SQLColumn{Type: val}
+			case []interface{}:
+				if len(val) > 1 {
+					mappedTypes[key] = typing.SQLColumn{Type: fmt.Sprint(val[0]), ColumnType: fmt.Sprint(val[1])}
+				} else {
+					mappedTypes[key] = typing.SQLColumn{Type: fmt.Sprint(val[0])}
+				}
+			case string:
+				mappedTypes[key] = typing.SQLColumn{Type: val}
 			default:
 				return nil, fmt.Errorf("incorred type of value for __sql_type_: %T", v)
 			}
@@ -64,11 +64,7 @@ func (tr *TypeResolverImpl) Resolve(object map[string]interface{}) (Fields, erro
 	fields := Fields{}
 	//apply default typecast and define column types
 	for k, v := range object {
-		//reformat from json.Number into int64 or float64 and put back
 		v = typing.ReformatValue(v)
-
-		// reformat from string with timestamp into time.Time and put back
-		v = typing.ReformatTimeValue(v)
 
 		object[k] = v
 		//value type
