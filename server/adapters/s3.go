@@ -23,7 +23,7 @@ type S3Config struct {
 	Bucket      string `mapstructure:"bucket,omitempty" json:"bucket,omitempty" yaml:"bucket,omitempty"`
 	Region      string `mapstructure:"region,omitempty" json:"region,omitempty" yaml:"region,omitempty"`
 	Endpoint    string `mapstructure:"endpoint,omitempty" json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
-	FileConfig  `mapstructure:",inline" yaml:",inline"`
+	FileConfig  `mapstructure:",squash" yaml:"-,inline"`
 }
 
 //Validate returns err if invalid
@@ -121,12 +121,7 @@ func (a *S3) DeleteObject(key string) error {
 	if a.closed.Load() {
 		return fmt.Errorf("attempt to use closed S3 instance")
 	}
-	if a.config.Folder != "" {
-		key = a.config.Folder + "/" + key
-	}
-	if a.config.Compression == FileCompressionGZIP {
-		key = fileNameGZIP(key)
-	}
+	_ = a.config.PrepareFile(&key, nil)
 	input := &s3.DeleteObjectInput{Bucket: &a.config.Bucket, Key: &key}
 	output, err := a.client.DeleteObject(input)
 	if err != nil {
