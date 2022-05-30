@@ -521,7 +521,7 @@ func (ch *ClickHouse) toDeleteQuery(table *Table, conditions *base.DeleteConditi
 	var values []interface{}
 	for _, condition := range conditions.Conditions {
 		queryConditions = append(queryConditions, condition.Field+" "+condition.Clause+" "+ch.getPlaceholder(condition.Field, table.Columns[condition.Field]))
-		values = append(values, condition.Value)
+		values = append(values, typing.ReformatValue(condition.Value))
 	}
 	return strings.Join(queryConditions, " "+conditions.JoinCondition+" "), values
 }

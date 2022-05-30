@@ -527,7 +527,7 @@ const SourceEditorFormStreamsConfigurable = ({
                                   >
                                     <Select
                                       defaultActiveFirstOption={true}
-                                      // disabled={collectionModes[getStream(field.name).type]?.length == 1}
+                                      disabled={collectionModes[getStream(field.name).type]?.length == 1}
                                     >
                                       {collectionModes[getStream(field.name).type]?.map(m => (
                                         <Select.Option key={m} value={m}>
