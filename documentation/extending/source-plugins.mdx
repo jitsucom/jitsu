@@ -39,6 +39,8 @@ We need to use Jitsu SDK's CLI tool to bootstrap a project for new source plugin
 npx jitsu-cli extension create --type source
 ```
 
+`nodejs` and `npx` must be installed on your system.
+
 jitsu-cli creates a functioning project for a source plugin.
 All parts are working, but they are placeholder implementation and don't do anything meaningful –
 sample source project simply returns one data row with run_number and configuration parameters.
@@ -75,7 +77,7 @@ For more on these types please check files with full type descriptions:
 * https://github.com/jitsucom/jitsu-sdk/blob/main/packages/jitsu-types/extension.d.ts
 * https://github.com/jitsucom/jitsu-sdk/blob/main/packages/jitsu-types/sources.d.ts
 
-To make concrete implementation of these types we need to define types for Source config and Stream config.
+To make concrete implementation of these types we need to define our types for Source config and Stream config.
 
 ## Source Config
 
@@ -145,7 +147,7 @@ Will connect to airtable with apiKey=keyMy and baseId=app1234
 
 ## Catalog of Streams
 
-Source extension need a way to tell Jitsu what Stream types it supports and what parameters are required to configure these Streams
+Source extension need a way to tell Jitsu what types of Streams it supports and what parameters are required to configure these Streams
 and provide it with description and documentation required to build UI form.
 
 First we need to declare type from `StreamConfig`:
@@ -371,9 +373,9 @@ Jitsu supports following message types:
 | Type                | StreamSink helper method | Payload         | Description                                                                                                                                                                                                                                                                                                                               |
 |:--------------------|:-------------------------|-----------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **record**          | `addRecord`              | `DataRecord`    | The main message that sends a single data object to the stream.                                                                                                                                                                                                                                                                           |
-| **clear_stream**    | `clearStream`            | no              | Truncates table associated with stream in target destinations.<br/>`clear_stream` message must be the first message in transaction and can be used only once per stream.                                                                                                                                                                  |
+| **clear_stream**    | `clearStream`            | no              | Truncates table associated with stream in target destinations.<br/>When used `clear_stream` message must be the first message in transaction and can be used only once per stream.                                                                                                                                                        |
 | **state**           | `changeState`            | any object      | Stores provided object in persistent storage.                                                                                                                                                                                                                                                                                             |
-| **new_transaction** | `newTransaction`         | no              | Starts a new transaction. Previous transaction will be committed to the destination. All consequent messages will be processed in the new transaction.<br/>First transaction is started implicitly.                                                                                                                                       |
+| **new_transaction** | `newTransaction`         | no              | Starts a new transaction. Previous transaction will be committed to the destination. All consequent messages will be processed in the new transaction.<br/>First transaction is started implicitly even in the absence of `new_transaction` message.                                                                                      |
 | **delete_records**  | `deleteRecords`          | `DeleteRecords` | Deletes records that belongs to certain time period from destination storages.<br/>Time period is controlled with DeleteRecords's `partitionTimestamp` and `granularity` parameters.<br/>Requires  `DataRecord` objects to have `$recordTimestamp` set with value.<br/>`delete_records` must precede any `record` messages in transaction |
 | **log**             | `log`                    | `LogRecord`     | Prints log message to the Jitsu server task log.                                                                                                                                                                                                                                                                                          |
 
@@ -381,6 +383,7 @@ Jitsu supports following message types:
 ### Sync modes
 
 Each stream type can be declared to support `full_sync` mode, `incremental` or both.
+If both modes are supported, 'mode' parameter in `StreamConfiguration` object must be set to `full_sync` or `incremental`.
 Supported modes are declared in `supportedModes` property of StreamInstance's returned by `sourceCatalog`
 
 #### Full Sync
@@ -393,11 +396,11 @@ For such case Incremental mode may be a good choice despite being little harder 
 
 #### Incremental
 In Incremental mode a Source Extension download only fresh data on each run.
-Incremental mode usually requires Source to save some data between run, e.g. ID or _timestamp of last loaded data record.
-To save data between run use `state` message.
+Incremental mode usually requires Source to save some information between runs, e.g. ID or _timestamp of last loaded data record.
+To save data between run use `state` message. See [Persistent State](#persistent-state) section for more details.
 
 #### Refresh window
-Some third party services may update data during day and other service may even update data for longer periods like 30-day
+Some third party services may update data during a day and other service may even update data for longer periods like 30-day.
 It is still possible to use Incremental mode with such services. But we need to make sure that we delete all previous data
 for current refresh window before loading it again.
 For that we need to:
@@ -406,20 +409,24 @@ For that we need to:
 * Start `new_transaction` for each new date chunk processed.
 * Add `delete_records` message at the beginning of each new transaction(including the first one)
 
+You can use Jitsu Google-Analytics source as an example of Refresh Window implementation:
+https://github.com/jitsucom/jitsu-sdk/blob/main/source-connectors/google-analytics
+
 ### Persistent State
 It may be useful to make some information from previous source run available for consequent runs.
 For that purpose Source Extension may send any custom object as a payload with `state` message.
 Jitsu Service persist that object in meta storage and make it available to the `streamReader` via `StateService`
 We recommend using `StateService` for modifying state too instead of sending `state` message directly.
 
-To test that your source work correctly with state you can pass state object to the `execute` script using `-t` parameter:
+To test that your source work correctly with state you can pass path of the file containing state object to the `execute` script using `-t` parameter:
 ```shell
-yarn execute -c '{apiKey: "keyMy", baseId:"app1234"}' -s '{stream: "table", tableId:"tblMy"}'  -t '{run_number: 1}'
+yarn execute -c '{apiKey: "keyMy", baseId:"app1234"}' -s '{stream: "table", tableId:"tblMy"}'  -t ./state.json
 ```
 
 ### Record $id
+It is required to set `$id` property for each record.<br/>
 Usually Source data has some ID associated with its entities.
-When this is no the case you can use helper function `buildSignatureId`  from `@jitsu/jlib/lib/sources-lib`
+When this is not the case you can use helper function `buildSignatureId`  from `@jitsu/jlib/lib/sources-lib`
 to generate id as hash of object data.
 
 ### Flattening
