@@ -195,17 +195,15 @@ function GeoDataResolver() {
 
   const editionTagRender = (edition: Edition) => {
     if (edition.main.status === "unknown" && edition.analog.status === "unknown") {
-      let name = edition.main.name.split("-")[1];
+      let name = edition.main.name.split("-")[1]
       if (name === "ISP") {
         name = "ISP or ASN"
       }
       return (
         <span className="opacity-70">
-          <Tooltip title="Not connected yet" >
-          <Tag icon={<ClockCircleOutlined className="text-secondaryText" />}>
-            {name}
-          </Tag>
-        </Tooltip>
+          <Tooltip title="Not connected yet">
+            <Tag icon={<ClockCircleOutlined className="text-secondaryText" />}>{name}</Tag>
+          </Tooltip>
         </span>
       )
     }
@@ -222,13 +220,20 @@ function GeoDataResolver() {
         return null
       }
 
-      const messages = {ok: "Successfully connected", error: db.message}
-      const icons = {ok: <CheckCircleOutlined className="text-success" />, error: <CloseCircleOutlined className="text-error" />}
-      const colors = {ok: "green", error: "red"}
+      const messages = { ok: "Successfully connected", error: db.message }
+      const icons = {
+        ok: <CheckCircleOutlined className="text-success" />,
+        error: <CloseCircleOutlined className="text-error" />,
+      }
+      const colors = { ok: "green", error: "red" }
       return (
         <Tooltip title={messages[db.status] ?? "Not connected yet"} color={colors[db.status] ?? null}>
-          <Tag className={db.status === "unknown" ? "opacity-70" : null} color={colors[db.status] ?? null} icon={icons[db.status] ?? <ClockCircleOutlined className="text-secondaryText" />}>
-            {db.name} {" "}
+          <Tag
+            className={db.status === "unknown" ? "opacity-70" : null}
+            color={colors[db.status] ?? null}
+            icon={icons[db.status] ?? <ClockCircleOutlined className="text-secondaryText" />}
+          >
+            {db.name}{" "}
           </Tag>
         </Tooltip>
       )
@@ -314,13 +319,13 @@ function GeoDataResolver() {
               </Form.Item>
             </FormField>
             <div className="flex flex-nowrap items-start w-full py-4 false">
-              <div className="font-semibold" style={{width: "20em", minWidth: "20em"}}>
+              <div className="font-semibold" style={{ width: "20em", minWidth: "20em" }}>
                 <span>Databases</span>
               </div>
 
               <div className="flex-grow mb-6">
                 <div className="flex-wrap flex justify-content-center mb-3">
-                  {formConfig.editions.map((db) => editionTagRender(db))}
+                  {formConfig.editions.map(db => editionTagRender(db))}
                 </div>
               </div>
             </div>
