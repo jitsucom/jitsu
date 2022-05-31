@@ -377,8 +377,7 @@ func (a *Abstract) setupProcessor(cfg *Config) (processor *schema.Processor, sql
 	//default enrichment rules
 	enrichmentRules := []enrichment.Rule{
 		enrichment.CreateDefaultJsIPRule(cfg.geoService, destination.GeoDataResolverID),
-		enrichment.DefaultJsUaRule,
-		enrichment.DefaultAPIUaRule,
+		enrichment.DefaultUaRule,
 	}
 
 	// ** Enrichment rules **

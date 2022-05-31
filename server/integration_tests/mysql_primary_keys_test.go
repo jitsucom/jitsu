@@ -34,7 +34,7 @@ func TestMySQLPrimaryKeyNotRemoved(t *testing.T) {
 	err = appconfig.Init(false, "")
 	require.NoError(t, err)
 
-	enrichment.InitDefault("", "", "", "", "")
+	enrichment.InitDefault("", "", "", "")
 	dsConfig := &adapters.DataSourceConfig{
 		Host:       container.Host,
 		Port:       container.Port,
