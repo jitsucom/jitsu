@@ -19,6 +19,7 @@ const (
 	S3Type              = "s3"
 	SnowflakeType       = "snowflake"
 	GoogleAnalyticsType = "google_analytics"
+	GCSType             = "gcs"
 	FacebookType        = "facebook"
 	WebHookType         = "webhook"
 	NpmType             = "npm"
