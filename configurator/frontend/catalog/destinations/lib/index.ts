@@ -12,6 +12,7 @@ import amplitudeDestination from "./amplitude"
 import hubspotDestination from "./hubspot"
 import dbtcloudDestination from "./dbtcloud"
 import s3Destination from "./s3"
+import gcsDestination from "./googleCloudStorage"
 import mixpanelDestination from "./mixpanel"
 import mixpanel2Destination from "./mixpanel2"
 import npmDestination from "./npm"
@@ -33,6 +34,7 @@ export {
   hubspotDestination,
   dbtcloudDestination,
   s3Destination,
+  gcsDestination,
   mixpanelDestination,
   mixpanel2Destination,
   tagDestination,
@@ -52,6 +54,7 @@ export const destinationsReferenceMap = {
   hubspot: hubspotDestination,
   dbtcloud: dbtcloudDestination,
   s3: s3Destination,
+  gcs: gcsDestination,
   mixpanel: mixpanelDestination,
   mixpanel2: mixpanel2Destination,
   tag: tagDestination,

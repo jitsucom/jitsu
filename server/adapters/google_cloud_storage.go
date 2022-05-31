@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/schema"
 	"go.uber.org/atomic"
-	"strings"
 
 	"cloud.google.com/go/storage"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -18,19 +19,12 @@ import (
 
 var ErrMalformedBQDataset = errors.New("bq_dataset must be alphanumeric (plus underscores) and must be at most 1024 characters long")
 
-type GoogleCloudStorage struct {
-	config *GoogleConfig
-	client *storage.Client
-	ctx    context.Context
-
-	closed *atomic.Bool
-}
-
 type GoogleConfig struct {
-	Bucket  string      `mapstructure:"gcs_bucket,omitempty" json:"gcs_bucket,omitempty" yaml:"gcs_bucket,omitempty"`
-	Project string      `mapstructure:"bq_project,omitempty" json:"bq_project,omitempty" yaml:"bq_project,omitempty"`
-	Dataset string      `mapstructure:"bq_dataset,omitempty" json:"bq_dataset,omitempty" yaml:"bq_dataset,omitempty"`
-	KeyFile interface{} `mapstructure:"key_file,omitempty" json:"key_file,omitempty" yaml:"key_file,omitempty"`
+	Bucket     string      `mapstructure:"gcs_bucket,omitempty" json:"gcs_bucket,omitempty" yaml:"gcs_bucket,omitempty"`
+	Project    string      `mapstructure:"bq_project,omitempty" json:"bq_project,omitempty" yaml:"bq_project,omitempty"`
+	Dataset    string      `mapstructure:"bq_dataset,omitempty" json:"bq_dataset,omitempty" yaml:"bq_dataset,omitempty"`
+	KeyFile    interface{} `mapstructure:"key_file,omitempty" json:"key_file,omitempty" yaml:"key_file,omitempty"`
+	FileConfig `mapstructure:",squash" yaml:"-,inline"`
 
 	//will be set on validation
 	credentials option.ClientOption
@@ -43,6 +37,7 @@ func (gc *GoogleConfig) ValidateBatchMode() error {
 	}
 	return nil
 }
+
 func (gc *GoogleConfig) Validate() error {
 	if gc == nil {
 		return errors.New("Google config is required")
@@ -91,6 +86,14 @@ func (gc *GoogleConfig) Validate() error {
 	return nil
 }
 
+type GoogleCloudStorage struct {
+	config *GoogleConfig
+	client *storage.Client
+	ctx    context.Context
+
+	closed *atomic.Bool
+}
+
 func NewGoogleCloudStorage(ctx context.Context, config *GoogleConfig) (*GoogleCloudStorage, error) {
 	var client *storage.Client
 	var err error
@@ -103,7 +106,19 @@ func NewGoogleCloudStorage(ctx context.Context, config *GoogleConfig) (*GoogleCl
 		return nil, fmt.Errorf("Error creating google cloud storage client: %v", err)
 	}
 
+	if config.Format == "" {
+		config.Format = FileFormatJSON
+	}
+
 	return &GoogleCloudStorage{client: client, config: config, ctx: ctx, closed: atomic.NewBool(false)}, nil
+}
+
+func (gcs *GoogleCloudStorage) Format() FileEncodingFormat {
+	return gcs.config.Format
+}
+
+func (gcs *GoogleCloudStorage) Compression() FileCompression {
+	return gcs.config.Compression
 }
 
 //UploadBytes creates named file on google cloud storage with payload
@@ -118,6 +133,10 @@ func (gcs *GoogleCloudStorage) UploadBytes(fileName string, fileBytes []byte) (e
 	if gcs.closed.Load() {
 		return fmt.Errorf("attempt to use closed GoogleCloudStorage instance")
 	}
+	if err := gcs.config.PrepareFile(&fileName, &fileBytes); err != nil {
+		return err
+	}
+
 	bucket := gcs.client.Bucket(gcs.config.Bucket)
 	object := bucket.Object(fileName)
 	w := object.NewWriter(gcs.ctx)
@@ -154,6 +173,7 @@ func (gcs *GoogleCloudStorage) DeleteObject(key string) (err error) {
 		return fmt.Errorf("attempt to use closed GoogleCloudStorage instance")
 	}
 	bucket := gcs.client.Bucket(gcs.config.Bucket)
+	_ = gcs.config.PrepareFile(&key, nil)
 	obj := bucket.Object(key)
 
 	if err := obj.Delete(gcs.ctx); err != nil {

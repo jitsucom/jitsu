@@ -1,5 +1,15 @@
-import { Parameter, passwordType, selectionType, stringType, Function, hiddenValue } from "../../sources/types"
+import {
+  Parameter,
+  passwordType,
+  selectionType,
+  stringType,
+  Function,
+  hiddenValue,
+  jsonType,
+  booleanType,
+} from "../../sources/types"
 import { ReactNode } from "react"
+import * as React from "react"
 
 const S3_REGIONS = [
   "us-east-2",
@@ -91,6 +101,88 @@ export function s3Credentials(
       type: passwordType,
       required: true,
       constant: hiddenValue("", hide),
+    },
+  ]
+}
+
+export function gcsCredentials(
+  accessKey,
+  bucketField,
+  hide?: Function<any, boolean>,
+  help?: {
+    bucketField?: string
+  }
+): Parameter[] {
+  return [
+    {
+      id: accessKey,
+      displayName: "Access Key",
+      documentation: (
+        <>
+          Google Service Account JSON credentials for GCS Bucket.{" "}
+          <a
+            target="_blank"
+            href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration"
+          >
+            Read more about Google Authorization
+          </a>
+        </>
+      ),
+      required: true,
+      type: jsonType,
+      constant: hiddenValue("", hide),
+    },
+    {
+      id: bucketField,
+      documentation: <>Name of GCS Bucket.{help?.bucketField ? " " + help!.bucketField : ""}</>,
+      displayName: "GCS Bucket",
+      required: true,
+      type: stringType,
+      constant: hiddenValue("", hide),
+    },
+  ]
+}
+
+export function fileParameters(folderField, formatField, compressionField): Parameter[] {
+  return [
+    {
+      id: folderField,
+      displayName: "Folder",
+      required: false,
+      defaultValue: "",
+      type: stringType,
+    },
+    {
+      id: formatField,
+      displayName: "Format",
+      required: true,
+      defaultValue: "json",
+      type: selectionType(["json", "flat_json", "csv", "parquet"], 1),
+      documentation: (
+        <>
+          <b>json</b> - not flattened json objects with \n delimiter
+          <br />
+          <b>flat_json</b> - flattened json objects with \n delimiter
+          <br />
+          <b>csv</b> - flattened csv objects with \n delimiter
+          <br />
+          <b>parquet</b> - flattened objects which are stored as apache parquet file
+          <br />
+        </>
+      ),
+    },
+    {
+      id: compressionField,
+      displayName: "Enable gzip compression",
+      required: false,
+      type: booleanType,
+      defaultValue: false,
+      documentation: (
+        <>
+          If enabled - all files with events will be compressed (gzip) before uploading. All files will have the suffix
+          '.gz'
+        </>
+      ),
     },
   ]
 }
