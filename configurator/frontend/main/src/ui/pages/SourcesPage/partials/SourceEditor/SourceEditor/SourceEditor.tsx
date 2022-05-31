@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { useHistory, useParams } from "react-router"
 import { cloneDeep, snakeCase, uniqueId } from "lodash"
@@ -28,6 +28,10 @@ import {
   useSourceEditorDispatcher,
   useSourceEditorState,
 } from "./SourceEditor.state"
+import { destinationPageRoutes } from "../../../../DestinationsPage/DestinationsPage.routes"
+import { PageHeader } from "../../../../../components/PageHeader/PageHeader"
+import { DestinationsUtils } from "../../../../../../utils/destinations.utils"
+import { currentPageHeaderStore } from "../../../../../../stores/currentPageHeader"
 // @Utils
 
 /** Accumulated state of all forms that is transformed and sent to backend on source save */
@@ -289,6 +293,27 @@ const SourceEditorContainer: React.FC<CommonSourcePageProps> = ({ editorMode }) 
     const streamsErrorsCount = await state.streams.validateGetErrorsCount()
     if (streamsErrorsCount) throw new Error("some streams settings are invalid")
   }
+
+  useEffect(() => {
+    let breadcrumbs = []
+    breadcrumbs.push({
+      title: "Sources",
+      link: projectRoute(sourcesPageRoutes.root),
+    })
+
+    breadcrumbs.push({
+      title: (
+        <PageHeader
+          title={(initialSourceData.sourceId || initialSourceData.displayName) ?? "Not Found"}
+          icon={sourceDataFromCatalog?.pic}
+          mode={editorMode}
+        />
+      ),
+    })
+    setTimeout(() => {
+      currentPageHeaderStore.setBreadcrumbs(...breadcrumbs)
+    }, 100)
+  }, [initialSourceData, sourceDataFromCatalog])
 
   return (
     <SourceEditorView
