@@ -1,5 +1,4 @@
-import { fileParameters, filteringExpressionDocumentation, gcsCredentials, s3Credentials, tableName } from "./common"
-import { booleanType, hiddenValue, selectionType, stringType, jsonType } from "../../sources/types"
+import { fileParameters, filteringExpressionDocumentation, gcsCredentials, tableName } from "./common"
 import * as React from "react"
 import { ReactNode } from "react"
 
@@ -7,8 +6,8 @@ let icon: ReactNode = (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     xmlnsXlink="http://www.w3.org/1999/xlink"
-    height="800"
-    width="1200"
+    height="100%"
+    width="100%"
     viewBox="-19.20015 -28.483 166.4013 170.898"
   >
     <g transform="translate(0 -7.034)">
