@@ -131,12 +131,11 @@ const destination = {
     ...gcsCredentials(
       "_formData.snowflakeJSONKey",
       "_formData.snowflakeGCSBucket",
-      cfg => (
+      cfg =>
         cfg?.["_formData"]?.mode !== "batch" ||
-        (cfg?.["_formData"]?.mode === "batch" && cfg?.["_formData"]?.snowflakeStageType !== "gcs")
-      ),
+        (cfg?.["_formData"]?.mode === "batch" && cfg?.["_formData"]?.snowflakeStageType !== "gcs"),
       {
-        bucketField: "The bucket should be accessible with the same Access Key as dataset"
+        bucketField: "The bucket should be accessible with the same Access Key as dataset",
       }
     ),
     ...s3Credentials(

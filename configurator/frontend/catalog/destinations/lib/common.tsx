@@ -5,10 +5,11 @@ import {
   stringType,
   Function,
   hiddenValue,
-  jsonType, booleanType
+  jsonType,
+  booleanType,
 } from "../../sources/types"
 import { ReactNode } from "react"
-import * as React from "react";
+import * as React from "react"
 
 const S3_REGIONS = [
   "us-east-2",
@@ -133,20 +134,16 @@ export function gcsCredentials(
     },
     {
       id: bucketField,
-      documentation: <>Name of GCS Bucket.{ help?.bucketField ? " " + help!.bucketField : "" }</>,
+      documentation: <>Name of GCS Bucket.{help?.bucketField ? " " + help!.bucketField : ""}</>,
       displayName: "GCS Bucket",
       required: true,
       type: stringType,
       constant: hiddenValue("", hide),
-    }
+    },
   ]
 }
 
-export function fileParameters(
-  folderField,
-  formatField,
-  compressionField
-): Parameter[] {
+export function fileParameters(folderField, formatField, compressionField): Parameter[] {
   return [
     {
       id: folderField,
@@ -182,8 +179,8 @@ export function fileParameters(
       defaultValue: false,
       documentation: (
         <>
-          If enabled - all files with events will be compressed (gzip) before uploading. All files will have the
-          suffix '.gz'
+          If enabled - all files with events will be compressed (gzip) before uploading. All files will have the suffix
+          '.gz'
         </>
       ),
     },

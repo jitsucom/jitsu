@@ -63,11 +63,7 @@ const destination = {
       "_formData.s3SecretKey",
       _ => false
     ),
-    ...fileParameters(
-      "_formData.s3Folder",
-      "_formData.s3Format",
-      "_formData.s3CompressionEnabled"
-    ),
+    ...fileParameters("_formData.s3Folder", "_formData.s3Format", "_formData.s3CompressionEnabled"),
   ],
 } as const
 
