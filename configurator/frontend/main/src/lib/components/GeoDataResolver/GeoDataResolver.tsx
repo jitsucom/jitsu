@@ -194,7 +194,7 @@ function GeoDataResolver() {
   }
 
   const editionTagRender = (edition: Edition) => {
-    if (edition.main.status === "unknown" && edition.analog.status === "unknown") {
+    if (edition.main.status === "unknown" && (!edition.analog || edition.analog.status === "unknown")) {
       let name = edition.main.name.split("-")[1]
       if (name === "ISP") {
         name = "ISP or ASN"
