@@ -219,7 +219,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
       </Row>
     ) : (
       <Form form={form} onValuesChange={handleFormValuesChangeForm}>
-        {sourceDataFromCatalog.protoType === "airbyte" ?? (
+        {sourceDataFromCatalog.protoType === "airbyte" && (
           <AirbyteVersionSelection
             key={`Stream Version Selection`}
             defaultValue={airbyteImageVersion.current}
