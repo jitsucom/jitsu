@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/pkg/errors"
 )
 
@@ -45,6 +46,18 @@ func (c FileConfig) PrepareFile(fileName *string, fileBytes *[]byte) error {
 	}
 
 	return nil
+}
+
+func (c *FileConfig) RequireDefaultStage(storageType string) {
+	if c.Folder != "" {
+		logging.Warnf("customizing folder [%s] is not supported for [%s] stage, using root directory", c.Folder, storageType)
+		c.Folder = ""
+	}
+
+	if c.Compression != "" {
+		logging.Warnf("customizing compression [%s] is not supported for [%s] stage, using no compression", c.Compression, storageType)
+		c.Compression = ""
+	}
 }
 
 func fileNameGZIP(fileName string) string {
