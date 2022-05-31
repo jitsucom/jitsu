@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Button, Form, Input, Switch, Table, Tooltip } from "antd"
+import { Button, Form, Input, Switch, Tag, Tooltip } from "antd"
 import { FormActions, FormField, FormLayout } from "../Form/Form"
 import { useForm } from "antd/es/form/Form"
 import { useServices } from "../../../hooks/useServices"
@@ -8,9 +8,8 @@ import { actionNotification } from "../../../ui/components/ActionNotification/Ac
 import { CenteredError, CenteredSpin, CodeInline, handleError } from "../components"
 import { withQueryParams } from "../../../utils/queryParams"
 import { ApiOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined } from "@ant-design/icons"
-import QuestionCircleOutlined from "@ant-design/icons/lib/icons/QuestionCircleOutlined"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
-import { MaxMindConfig } from "./utils"
+import { Edition, MaxMindConfig } from "./utils"
 import Marshal from "lib/commons/marshalling"
 
 const geoDataResolversCollection = "geo_data_resolvers"
@@ -194,6 +193,48 @@ function GeoDataResolver() {
     return <CenteredSpin />
   }
 
+  const editionTagRender = (edition: Edition) => {
+    if (edition.main.status === "unknown" && edition.analog.status === "unknown") {
+      let name = edition.main.name.split("-")[1];
+      if (name === "ISP") {
+        name = "ISP or ASN"
+      }
+      return (
+        <span className="opacity-70">
+          <Tooltip title="Not connected yet" >
+          <Tag icon={<ClockCircleOutlined className="text-secondaryText" />}>
+            {name}
+          </Tag>
+        </Tooltip>
+        </span>
+      )
+    }
+
+    return ["main", "analog"].map(type => {
+      const db = edition[type]
+
+      // if main base has ok status - don't show analog base
+      if (type === "analog" && edition["main"].status === "ok") {
+        return null
+      }
+
+      if (!db?.name || db?.status === "unknown") {
+        return null
+      }
+
+      const messages = {ok: "Successfully connected", error: db.message}
+      const icons = {ok: <CheckCircleOutlined className="text-success" />, error: <CloseCircleOutlined className="text-error" />}
+      const colors = {ok: "green", error: "red"}
+      return (
+        <Tooltip title={messages[db.status] ?? "Not connected yet"} color={colors[db.status] ?? null}>
+          <Tag className={db.status === "unknown" ? "opacity-70" : null} color={colors[db.status] ?? null} icon={icons[db.status] ?? <ClockCircleOutlined className="text-secondaryText" />}>
+            {db.name} {" "}
+          </Tag>
+        </Tooltip>
+      )
+    })
+  }
+
   return (
     <div className="flex justify-center w-full">
       <div className="w-full pt-8 px-4" style={{ maxWidth: "1000px" }}>
@@ -209,42 +250,6 @@ function GeoDataResolver() {
           <CodeInline>{"M10sDzWKmnDYUBM0?edition_id=GeoIP2-City,GeoIP2-ISP"}</CodeInline>.
         </p>
 
-        <div className="w-96 flex-wrap flex justify-content-center">
-          <Table
-            pagination={false}
-            columns={[
-              {
-                title: (
-                  <>
-                    Database{" "}
-                    <Tooltip title="Paid MaxMind Database">
-                      <QuestionCircleOutlined className="label-with-tooltip_question-mark" />
-                    </Tooltip>
-                  </>
-                ),
-                dataIndex: "main",
-                key: "name",
-                render: databaseStatusesRepresentation,
-              },
-              {
-                title: (
-                  <>
-                    Analog{" "}
-                    <Tooltip title="Free MaxMind Database analog. Usually it is less accurate than paid version. It is downloaded only if paid one is unavailable.">
-                      <QuestionCircleOutlined className="label-with-tooltip_question-mark" />
-                    </Tooltip>
-                  </>
-                ),
-                dataIndex: "analog",
-                key: "name",
-                render: databaseStatusesRepresentation,
-              },
-            ]}
-            dataSource={formConfig.editions}
-          />
-        </div>
-
-        <br />
         <Form form={form} onFinish={submit}>
           <FormLayout>
             <FormField
@@ -302,13 +307,23 @@ function GeoDataResolver() {
               <Form.Item name="license_key">
                 <Input
                   disabled={formDisabled}
-                  size="large"
                   name="license_key"
                   placeholder="for example: M10sDzWKmnDYUBM0"
                   required={true}
                 />
               </Form.Item>
             </FormField>
+            <div className="flex flex-nowrap items-start w-full py-4 false">
+              <div className="font-semibold" style={{width: "20em", minWidth: "20em"}}>
+                <span>Databases</span>
+              </div>
+
+              <div className="flex-grow mb-6">
+                <div className="flex-wrap flex justify-content-center mb-3">
+                  {formConfig.editions.map((db) => editionTagRender(db))}
+                </div>
+              </div>
+            </div>
             <FormActions>
               <Button
                 size="large"
