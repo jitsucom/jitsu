@@ -44,13 +44,14 @@ const SecretKey: React.FC<{
   )
 }
 
-type EditorObject = Omit<ApiKey, "origins"> & { originsText?: string; connectedDestinations?: string }
+type EditorObject = Omit<ApiKey, "origins"> & { originsText?: string; connectedDestinations?: string[] }
 
 function getEditorObject({ origins, ...rest }: ApiKey) {
   return {
     ...rest,
     comment: rest.comment || rest.uid,
     originsText: origins ? origins.join("\n") : "",
+    connectedDestinations: destinationsStore.list.filter(d => d._onlyKeys.includes(rest.uid)).map(d => d._uid),
   }
 }
 
