@@ -32,7 +32,7 @@
 
 Read more about [our features](https://jitsu.com/#features) and check out the [platform overview](https://jitsu.com/overview)!
 
-<a href="#"><img align="right" src="https://raw.githubusercontent.com/jitsucom/jitsu/master/artwork/quickstart.gif" width="40px"/></a>
+<a href="#"><img align="right" src="https://raw.githubusercontent.com/jitsucom/jitsu/master/artwork/quickstart.gif" width="40px" height="40px"/></a>
 ## Quick Start
 
 Two easiest ways to start Jitsu are Heroku deployment and local docker-compose. 
