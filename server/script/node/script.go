@@ -65,7 +65,7 @@ func (s *Script) Close() {
 	}
 }
 
-var vmStackTraceLine = regexp.MustCompile(`^\s*at\s(.*?)\s\(vm\.js:(\d+):(\d+)\)$`)
+var vmStackTraceLineRegex = `^\s*at\s(.*?)\s\(.*?%s\.js:(\d+):(\d+)\)$`
 
 func (s *Script) exchange(command string, payload, result interface{}, listener script.Listener) error {
 	err := s.exchanger.exchange(command, payload, result, listener)
@@ -104,6 +104,7 @@ func (s *Script) rewriteJavaScriptStack(err error) error {
 		return err
 	}
 
+	regex := regexp.MustCompile(fmt.Sprintf(vmStackTraceLineRegex, s.Session.Session))
 	lines := strings.Split(jsErr.stack, "\n")
 	stack := make([]string, 0)
 	for i, line := range lines {
@@ -111,7 +112,7 @@ func (s *Script) rewriteJavaScriptStack(err error) error {
 			continue
 		}
 
-		match := vmStackTraceLine.FindStringSubmatch(line)
+		match := regex.FindStringSubmatch(line)
 		if len(match) == 0 {
 			continue
 		}

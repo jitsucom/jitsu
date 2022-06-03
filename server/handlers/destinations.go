@@ -191,6 +191,17 @@ func testDestinationConnection(config *config.DestinationConfig, globalConfigura
 		}
 		defer s3Adapter.Close()
 		return s3Adapter.ValidateWritePermission()
+	case storages.GCSType:
+		googleConfig := &adapters.GoogleConfig{}
+		if err := config.GetDestConfig(config.Google, googleConfig); err != nil {
+			return err
+		}
+		gcsAdapter, err := adapters.NewGoogleCloudStorage(context.Background(), googleConfig)
+		if err != nil {
+			return err
+		}
+		defer gcsAdapter.Close()
+		return gcsAdapter.ValidateWritePermission()
 	case storages.NpmType:
 		plugin := &templates.DestinationPlugin{
 			Package: config.Package,

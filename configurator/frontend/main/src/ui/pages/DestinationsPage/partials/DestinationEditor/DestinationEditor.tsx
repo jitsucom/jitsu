@@ -42,6 +42,7 @@ import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 import { currentPageHeaderStore } from "stores/currentPageHeader"
 import { connectionsHelper } from "stores/helpers"
 import { EntityNotFound } from "ui/components/EntityNotFound/EntityNotFound"
+import { DestinationsUtils } from "../../../../../utils/destinations.utils"
 
 type DestinationTabKey = "config" | "transform" | "mappings" | "sources" | "settings" | "statistics"
 
@@ -421,13 +422,15 @@ const DestinationEditor = ({
     breadcrumbs.push({
       title: (
         <PageHeader
-          title={destinationReference?.displayName ?? "Not Found"}
+          title={DestinationsUtils.getDisplayName(destinationData.current) ?? "Not Found"}
           icon={destinationReference?.ui.icon}
           mode={params.standalone ? "edit" : editorMode}
         />
       ),
     })
-    currentPageHeaderStore.setBreadcrumbs(...breadcrumbs)
+    setTimeout(() => {
+      currentPageHeaderStore.setBreadcrumbs(...breadcrumbs)
+    }, 100)
   }, [destinationReference])
 
   return (

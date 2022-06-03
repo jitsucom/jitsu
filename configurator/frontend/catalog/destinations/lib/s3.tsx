@@ -1,4 +1,4 @@
-import { filteringExpressionDocumentation, s3Credentials, tableName } from "./common"
+import { fileParameters, filteringExpressionDocumentation, s3Credentials, tableName } from "./common"
 import { booleanType, selectionType, stringType } from "../../sources/types"
 import * as React from "react"
 import { ReactNode } from "react"
@@ -63,45 +63,7 @@ const destination = {
       "_formData.s3SecretKey",
       _ => false
     ),
-    {
-      id: "_formData.s3Folder",
-      displayName: "Folder",
-      required: false,
-      defaultValue: "",
-      type: stringType,
-    },
-    {
-      id: "_formData.s3Format",
-      displayName: "Format",
-      required: true,
-      defaultValue: "json",
-      type: selectionType(["json", "flat_json", "csv", "parquet"], 1),
-      documentation: (
-        <>
-          <b>json</b> - not flattened json objects with \n delimiter
-          <br />
-          <b>flat_json</b> - flattened json objects with \n delimiter
-          <br />
-          <b>csv</b> - flattened csv objects with \n delimiter
-          <br />
-          <b>parquet</b> - flattened objects which are stored as apache parquet file
-          <br />
-        </>
-      ),
-    },
-    {
-      id: "_formData.s3CompressionEnabled",
-      displayName: "Enable gzip compression",
-      required: false,
-      type: booleanType,
-      defaultValue: false,
-      documentation: (
-        <>
-          If enabled - all files with events will be compressed (gzip) before uploading to S3. All files will have the
-          suffix '.gz'
-        </>
-      ),
-    },
+    ...fileParameters("_formData.s3Folder", "_formData.s3Format", "_formData.s3CompressionEnabled"),
   ],
 } as const
 

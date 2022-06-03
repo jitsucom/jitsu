@@ -4,14 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+	"strings"
+
+	"github.com/jitsucom/jitsu/configurator/common"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
 	enconfig "github.com/jitsucom/jitsu/server/config"
 	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/utils"
 	"github.com/mitchellh/mapstructure"
-	"reflect"
-	"strings"
 )
 
 const defaultPrimaryKey = "eventn_ctx_event_id"
@@ -32,6 +34,8 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		config, err = mapSnowflake(destination)
 	case enstorages.GoogleAnalyticsType:
 		config, err = mapGoogleAnalytics(destination)
+	case enstorages.GCSType:
+		config, err = mapGoogleCloudStorage(destination)
 	case enstorages.FacebookType:
 		config, err = mapFacebook(destination)
 	case enstorages.WebHookType:
@@ -119,9 +123,9 @@ func mapS3(dest *entities.Destination) (*enconfig.DestinationConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshaling s3 form data: %v", err)
 	}
-	var compression enadapters.S3Compression
+	var compression enadapters.FileCompression
 	if s3FormData.CompressionEnabled {
-		compression = enadapters.S3CompressionGZIP
+		compression = enadapters.FileCompressionGZIP
 	}
 	cfg := &enadapters.S3Config{
 		AccessKeyID: s3FormData.AccessKeyID,
@@ -129,9 +133,11 @@ func mapS3(dest *entities.Destination) (*enconfig.DestinationConfig, error) {
 		Bucket:      s3FormData.Bucket,
 		Region:      s3FormData.Region,
 		Endpoint:    s3FormData.Endpoint,
-		Folder:      s3FormData.Folder,
-		Format:      s3FormData.Format,
-		Compression: compression,
+		FileConfig: enadapters.FileConfig{
+			Folder:      s3FormData.Folder,
+			Format:      s3FormData.Format,
+			Compression: compression,
+		},
 	}
 	cfgMap := map[string]interface{}{}
 	err = mapstructure.Decode(cfg, &cfgMap)
@@ -145,6 +151,40 @@ func mapS3(dest *entities.Destination) (*enconfig.DestinationConfig, error) {
 			TableNameTemplate: s3FormData.TableName,
 		},
 		Config: cfgMap,
+	}, nil
+}
+
+func mapGoogleCloudStorage(dest *entities.Destination) (*enconfig.DestinationConfig, error) {
+	var formData entities.GCSFormData
+	if err := common.DecodeAsJSON(dest.Data, &formData); err != nil {
+		return nil, err
+	}
+
+	config := &enadapters.GoogleConfig{
+		Bucket:  formData.Bucket,
+		KeyFile: formData.Key,
+		FileConfig: enadapters.FileConfig{
+			Folder: formData.Folder,
+			Format: formData.Format,
+		},
+	}
+
+	if formData.CompressionEnabled {
+		config.Compression = enadapters.FileCompressionGZIP
+	}
+
+	var configValues map[string]interface{}
+	if err := mapstructure.Decode(config, &configValues); err != nil {
+		return nil, fmt.Errorf("Error marshalling config to map: %v", err)
+	}
+
+	return &enconfig.DestinationConfig{
+		Type: enstorages.GCSType,
+		Mode: "batch",
+		DataLayout: &enconfig.DataLayout{
+			TableNameTemplate: formData.TableName,
+		},
+		Config: configValues,
 	}, nil
 }
 
@@ -370,7 +410,9 @@ func mapRedshift(destinationID string, rsDestinations *entities.Destination, def
 				SecretKey:   defaultS3.SecretKey,
 				Bucket:      defaultS3.Bucket,
 				Region:      defaultS3.Region,
-				Folder:      destinationID,
+				FileConfig: enadapters.FileConfig{
+					Folder: destinationID,
+				},
 			}
 		} else {
 			s3 = &enadapters.S3Config{
@@ -378,7 +420,9 @@ func mapRedshift(destinationID string, rsDestinations *entities.Destination, def
 				SecretKey:   rsFormData.S3SecretKey,
 				Bucket:      rsFormData.S3Bucket,
 				Region:      rsFormData.S3Region,
-				Folder:      destinationID,
+				FileConfig: enadapters.FileConfig{
+					Folder: destinationID,
+				},
 			}
 		}
 	}

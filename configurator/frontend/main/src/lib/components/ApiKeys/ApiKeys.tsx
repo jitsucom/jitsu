@@ -1,5 +1,5 @@
 // @Libs
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { Button, Drawer, Popover, Select, Space, Switch, Tabs } from "antd"
 // @Components
@@ -20,7 +20,9 @@ import { default as JitsuClientLibraryCard, jitsuClientLibraries } from "../Jits
 import { Code } from "../Code/Code"
 import { ApiKeyCard } from "./ApiKeyCard"
 import { Link } from "react-router-dom"
-import ProjectLink from "../ProjectLink/ProjectLink"
+import ProjectLink, { projectRoute } from "../ProjectLink/ProjectLink"
+import { apiKeysRoutes } from "./ApiKeysRouter"
+import { currentPageHeaderStore } from "../../../stores/currentPageHeader"
 
 /**
  * What's displayed as loading?
@@ -37,6 +39,15 @@ const ApiKeysComponent: React.FC = () => {
 
   const [loading, setLoading] = useState<LoadingState>(null)
   const [documentationDrawerKey, setDocumentationDrawerKey] = useState<ApiKey>(null)
+
+  useEffect(() => {
+    let breadcrumbs = []
+    breadcrumbs.push({
+      title: "Api Keys",
+      link: projectRoute(apiKeysRoutes.listExact),
+    })
+    currentPageHeaderStore.setBreadcrumbs(...breadcrumbs)
+  }, [])
 
   return (
     <>

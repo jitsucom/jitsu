@@ -20,11 +20,11 @@ export const allSdkSources: SdkSource[] = [
     stable: true,
   },
   {
-    id: "sdk-google-analytics",
-    pic: logos.airtable,
-    package_name: "jitsu-google-analytics-source",
-    package_version: "latest",
-    displayName: "Google Analytics (SDK)",
+    id: "sdk-helpscout",
+    pic: logos.tap_helpscout,
+    package_name: "jitsu-helpscout-source",
+    package_version: "^0.7.3",
+    displayName: "Helpscout (SDK)",
     stable: true,
   },
 ]
