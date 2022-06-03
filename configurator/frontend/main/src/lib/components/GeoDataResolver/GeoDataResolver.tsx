@@ -207,12 +207,15 @@ function GeoDataResolver() {
         </span>
       )
     }
-
     return ["main", "analog"].map(type => {
       const db = edition[type]
 
       // if main base has ok status - don't show analog base
       if (type === "analog" && edition["main"].status === "ok") {
+        return null
+      }
+      // if analog base has ok status - don't show main base
+      if (type === "main" && edition["analog"]?.status === "ok") {
         return null
       }
 
