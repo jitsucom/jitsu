@@ -33,10 +33,11 @@ const (
 
 	createSFDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS %s`
 	addSFColumnTemplate                 = `ALTER TABLE %s.%s ADD COLUMN %s`
+	sfRenameTableTemplate               = `ALTER TABLE %s%s.%s RENAME TO %s`
 	createSFTableTemplate               = `CREATE TABLE %s.%s (%s)`
 	insertSFTemplate                    = `INSERT INTO %s.%s (%s) VALUES %s`
 	deleteSFTemplate                    = `DELETE FROM %s.%s WHERE %s`
-	dropSFTableTemplate                 = `DROP TABLE %s.%s`
+	dropSFTableTemplate                 = `DROP TABLE %s%s.%s`
 	truncateSFTableTemplate             = `TRUNCATE TABLE IF EXISTS %s.%s`
 	updateSFTemplate                    = `UPDATE %s.%s SET %s WHERE %s = ?`
 )
@@ -171,7 +172,7 @@ func (s *Snowflake) CreateDbSchema(dbSchemaName string) error {
 }
 
 //CreateTable runs createTableInTransaction
-func (s *Snowflake) CreateTable(table *Table) error {
+func (s *Snowflake) CreateTable(table *Table) (err error) {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
 		return err
@@ -192,7 +193,7 @@ func (s *Snowflake) CreateTable(table *Table) error {
 }
 
 //PatchTableSchema add new columns(from provided Table) to existing table
-func (s *Snowflake) PatchTableSchema(patchTable *Table) error {
+func (s *Snowflake) PatchTableSchema(patchTable *Table) (err error) {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
 		return err
@@ -441,7 +442,7 @@ func (s *Snowflake) insertBatch(table *Table, objects []map[string]interface{}, 
 }
 
 //DropTable drops table in transaction
-func (s *Snowflake) DropTable(table *Table) error {
+func (s *Snowflake) DropTable(table *Table) (err error) {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
 		return err
@@ -458,7 +459,32 @@ func (s *Snowflake) DropTable(table *Table) error {
 		}
 	}()
 
-	return s.dropTableInTransaction(wrappedTx, table)
+	return s.dropTableInTransaction(wrappedTx, table, false)
+}
+
+func (s *Snowflake) ReplaceTable(originalTable, replacementTable string) (err error) {
+	wrappedTx, err := s.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			rbErr := wrappedTx.Rollback()
+			if rbErr != nil {
+				err = errorj.Group(err, rbErr)
+			}
+		} else {
+			err = wrappedTx.Commit()
+		}
+	}()
+	tmpTable := replacementTable + "_tmp"
+	err1 := s.renameTableInTransaction(wrappedTx, true, originalTable, tmpTable)
+	err = s.renameTableInTransaction(wrappedTx, false, replacementTable, originalTable)
+	if err1 == nil {
+		_ = s.dropTableInTransaction(wrappedTx, &Table{Name: tmpTable}, true)
+	}
+	return
 }
 
 //Truncate deletes all records in tableName table
@@ -604,7 +630,7 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 
 	defer func() {
 		//delete tmp table
-		if err := s.dropTableInTransaction(wrappedTx, tmpTable); err != nil {
+		if err := s.dropTableInTransaction(wrappedTx, tmpTable, false); err != nil {
 			logging.Warnf("[snowflake] Failed to drop temporary table '%s': %v", tmpTable.Name, err)
 		}
 	}()
@@ -674,8 +700,12 @@ func (o dbObjects) String() string {
 }
 
 //dropTableInTransaction drops a table in transaction
-func (s *Snowflake) dropTableInTransaction(wrappedTx *Transaction, table *Table) error {
-	query := fmt.Sprintf(dropSFTableTemplate, s.config.Schema, table.Name)
+func (s *Snowflake) dropTableInTransaction(wrappedTx *Transaction, table *Table, ifExists bool) error {
+	ifExs := ""
+	if ifExists {
+		ifExs = "IF EXISTS "
+	}
+	query := fmt.Sprintf(dropSFTableTemplate, ifExs, s.config.Schema, table.Name)
 	s.queryLogger.LogDDL(query)
 
 	if _, err := wrappedTx.tx.ExecContext(s.ctx, query); err != nil {
@@ -683,6 +713,26 @@ func (s *Snowflake) dropTableInTransaction(wrappedTx *Transaction, table *Table)
 			WithProperty(errorj.DBInfo, &ErrorPayload{
 				Schema:    s.config.Schema,
 				Table:     table.Name,
+				Statement: query,
+			})
+	}
+
+	return nil
+}
+
+func (s *Snowflake) renameTableInTransaction(wrappedTx *Transaction, ifExists bool, tableName, newTableName string) error {
+	ifExs := ""
+	if ifExists {
+		ifExs = "IF EXISTS "
+	}
+	query := fmt.Sprintf(sfRenameTableTemplate, ifExs, s.config.Schema, tableName, newTableName)
+	s.queryLogger.LogDDL(query)
+
+	if _, err := wrappedTx.tx.ExecContext(s.ctx, query); err != nil {
+		return errorj.RenameError.Wrap(err, "failed to rename table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    s.config.Schema,
+				Table:     tableName,
 				Statement: query,
 			})
 	}

@@ -408,12 +408,52 @@ func (bq *BigQuery) DropTable(table *Table) error {
 	return nil
 }
 
+func (bq *BigQuery) ReplaceTable(originalTable, replacementTable string) error {
+	dataset := bq.client.Dataset(bq.config.Dataset)
+	copier := dataset.Table(originalTable).CopierFrom(dataset.Table(replacementTable))
+	copier.WriteDisposition = bigquery.WriteTruncate
+	job, err := copier.Run(bq.ctx)
+	if err != nil {
+		return errorj.CopyError.Wrap(err, "failed to replace table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   originalTable,
+			})
+	}
+	status, err := job.Wait(bq.ctx)
+	if err != nil {
+		return errorj.CopyError.Wrap(err, "failed to replace table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   originalTable,
+			})
+	}
+	if err := status.Err(); err != nil {
+		return errorj.CopyError.Wrap(err, "failed to replace table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   originalTable,
+			})
+	}
+	return bq.DropTable(&Table{Name: replacementTable})
+}
+
 //Truncate deletes all records in tableName table
 func (bq *BigQuery) Truncate(tableName string) error {
 	query := fmt.Sprintf(truncateBigQueryTemplate, bq.config.Project, bq.config.Dataset, tableName)
 	bq.queryLogger.LogQuery(query)
 	if _, err := bq.client.Query(query).Read(bq.ctx); err != nil {
-		return errorj.TruncateError.Wrap(err, "failed to truncate table").
+		extraText := ""
+		if strings.Contains(err.Error(), "Not found") {
+			extraText = ": " + ErrTableNotExist.Error()
+		}
+		return errorj.TruncateError.Wrap(err, "failed to truncate table"+extraText).
 			WithProperty(errorj.DBInfo, &ErrorPayload{
 				Dataset: bq.config.Dataset,
 				Bucket:  bq.config.Bucket,

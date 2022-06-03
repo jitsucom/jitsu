@@ -223,8 +223,6 @@ const streamReader: StreamReader<AirtableConfig, TableStreamConfig> = async (
     selectParams.view = streamConfiguration.parameters.viewId;
   }
   let allRecords = await table.select(selectParams).all();
-  //This is Full Sync mode. We need to clear destination table and pull all the data.
-  streamSink.clearStream();
   allRecords.forEach(r => {
     const { id, createdTime, fields } = r._rawJson;
     //add record message 
@@ -279,7 +277,6 @@ Result will look like that:
 ```text
 [info ] - 🏃 Getting available streams...
 [info ] - 🌊 Stream: table. Parameters: tableId - Table Id, viewId - View Id, fields - Fields
-[info ] - [clear_stream] 
 [info ] - [record] {"$id":"rec55g5x7GyRkz0Ex","$recordTimestamp":"2020-06-11T01:30:22.000Z","Client":["recNvBXPsvaiu5QaH"],"Due date":"2020-11-01","Project lead":{"id":"usrSdmrY5yGdbcZzg","email":"katherineduh+collab23@demo.htable.com","name":"Leslie Walker"},"Category":"Technology design","Name":"Lemon headband","Project team":[{"id":"usr6hWARwVNgmt3WW","email":"katherineduh+collab35@demo.htable.com","name":"Sam Epps"},{"id":"usru7j5m2lcNhriKv","email":"katherineduh+collab7@demo.htable.com","name":"Cameron Toth"},{"id":"usrSdmrY5yGdbcZzg","email":"katherineduh+collab23@demo.htable.com","name":"Leslie Walker"}],"Tasks":["recLLYKORkbdzQV1g","recUyxiAcW4x56HBH"],"Kickoff date":"2020-10-18"}
 [info ] - 🏁 Result data:
 [
@@ -370,14 +367,14 @@ Here we give more details on stream sink modes, data type conversions, persisten
 Source Extension communicates with Jitsu Server by means of `StreamSink` object and messages of `JitsuDataMessage` type.
 Jitsu supports following message types:
 
-| Type                | StreamSink helper method | Payload         | Description                                                                                                                                                                                                                                                                                                                               |
-|:--------------------|:-------------------------|-----------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **record**          | `addRecord`              | `DataRecord`    | The main message that sends a single data object to the stream.                                                                                                                                                                                                                                                                           |
-| **clear_stream**    | `clearStream`            | no              | Truncates table associated with stream in target destinations.<br/>When used `clear_stream` message must be the first message in transaction and can be used only once per stream.                                                                                                                                                        |
-| **state**           | `changeState`            | any object      | Stores provided object in persistent storage.                                                                                                                                                                                                                                                                                             |
-| **new_transaction** | `newTransaction`         | no              | Starts a new transaction. Previous transaction will be committed to the destination. All consequent messages will be processed in the new transaction.<br/>First transaction is started implicitly even in the absence of `new_transaction` message.                                                                                      |
-| **delete_records**  | `deleteRecords`          | `DeleteRecords` | Deletes records that belongs to certain time period from destination storages.<br/>Time period is controlled with DeleteRecords's `partitionTimestamp` and `granularity` parameters.<br/>Requires  `DataRecord` objects to have `$recordTimestamp` set with value.<br/>`delete_records` must precede any `record` messages in transaction |
-| **log**             | `log`                    | `LogRecord`     | Prints log message to the Jitsu server task log.                                                                                                                                                                                                                                                                                          |
+| Type                | StreamSink helper method | Mode        | Payload         | Description                                                                                                                                                                                                                                                                                                                               |
+|:--------------------|:-------------------------|-------------|-----------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **record**          | `addRecord`              | both        | `DataRecord`    | The main message that sends a single data object to the stream.                                                                                                                                                                                                                                                                           |
+| **clear_stream**    | `clearStream`            | incremental | no              | In case incremental Source need to clear all previous date. Truncates table associated with stream in target destinations.<br/>When used `clear_stream` message must be the first message in transaction and can be used only once per stream.                                                                                            |
+| **state**           | `changeState`            | both        | any object      | Stores provided object in persistent storage.                                                                                                                                                                                                                                                                                             |
+| **new_transaction** | `newTransaction`         | incremental | no              | Starts a new transaction. Previous transaction will be committed to the destination. All consequent messages will be processed in the new transaction.<br/>First transaction is started implicitly even in the absence of `new_transaction` message.                                                                                      |
+| **delete_records**  | `deleteRecords`          | incremental | `DeleteRecords` | Deletes records that belongs to certain time period from destination storages.<br/>Time period is controlled with DeleteRecords's `partitionTimestamp` and `granularity` parameters.<br/>Requires  `DataRecord` objects to have `$recordTimestamp` set with value.<br/>`delete_records` must precede any `record` messages in transaction |
+| **log**             | `log`                    | both        | `LogRecord`     | Prints log message to the Jitsu server task log.                                                                                                                                                                                                                                                                                          |
 
 
 ### Sync modes
@@ -388,7 +385,6 @@ Supported modes are declared in `supportedModes` property of StreamInstance's re
 
 #### Full Sync
 In Full Sync mode a Source Extension must download all data for the stream on each run.
-To avoid data duplication in destination it is required to send `clear_stream` message to the StreamSink before sending any data.
 
 Full Sync mode is recommended for the most of the Sources.
 Exceptions are sources that have big amount of data that it takes long time to process or services that charge money from pulling the data.

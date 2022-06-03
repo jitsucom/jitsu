@@ -36,10 +36,12 @@ const (
 	mySQLBulkMergeTemplate           = "INSERT INTO `%s`.`%s` (%s) SELECT * FROM (SELECT %s FROM `%s`.`%s`) AS tmp ON DUPLICATE KEY UPDATE %s"
 	mySQLDeleteQueryTemplate         = "DELETE FROM `%s`.`%s` WHERE %s"
 	mySQLAddColumnTemplate           = "ALTER TABLE `%s`.`%s` ADD COLUMN %s"
-	mySQLDropTableTemplate           = "DROP TABLE `%s`.`%s`"
-	mySQLTruncateTableTemplate       = "TRUNCATE TABLE `%s`.`%s`"
-	MySQLValuesLimit                 = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
-	batchRetryAttempts               = 3     //number of additional tries to proceed batch update or insert.
+	mySQLRenameTableTemplate         = "RENAME TABLE `%s`.`%s` TO `%s`.`%s`"
+
+	mySQLDropTableTemplate     = "DROP TABLE `%s`.`%s`"
+	mySQLTruncateTableTemplate = "TRUNCATE TABLE `%s`.`%s`"
+	MySQLValuesLimit           = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	batchRetryAttempts         = 3     //number of additional tries to proceed batch update or insert.
 	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
 )
 
@@ -127,7 +129,7 @@ func (m *MySQL) CreateDB(dbSchemaName string) error {
 }
 
 //CreateTable creates database table with name,columns provided in Table representation
-func (m *MySQL) CreateTable(table *Table) error {
+func (m *MySQL) CreateTable(table *Table) (err error) {
 	wrappedTx, err := m.OpenTx()
 	if err != nil {
 		return err
@@ -148,7 +150,7 @@ func (m *MySQL) CreateTable(table *Table) error {
 }
 
 //PatchTableSchema adds new columns(from provided Table) to existing table
-func (m *MySQL) PatchTableSchema(patchTable *Table) error {
+func (m *MySQL) PatchTableSchema(patchTable *Table) (err error) {
 	wrappedTx, err := m.OpenTx()
 	if err != nil {
 		return err
@@ -322,7 +324,7 @@ func (m *MySQL) Update(table *Table, object map[string]interface{}, whereKey str
 }
 
 //DropTable drops table in transaction
-func (m *MySQL) DropTable(table *Table) error {
+func (m *MySQL) DropTable(table *Table) (err error) {
 	wrappedTx, err := m.OpenTx()
 	if err != nil {
 		return err
@@ -340,6 +342,31 @@ func (m *MySQL) DropTable(table *Table) error {
 	}()
 
 	return m.dropTableInTransaction(wrappedTx, table)
+}
+
+func (m *MySQL) ReplaceTable(originalTable, replacementTable string) (err error) {
+	wrappedTx, err := m.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			rbErr := wrappedTx.Rollback()
+			if rbErr != nil {
+				err = errorj.Group(err, rbErr)
+			}
+		} else {
+			err = wrappedTx.Commit()
+		}
+	}()
+	tmpTable := replacementTable + "_tmp"
+	err1 := m.renameTableInTransaction(wrappedTx, originalTable, tmpTable)
+	err = m.renameTableInTransaction(wrappedTx, replacementTable, originalTable)
+	if err1 == nil {
+		_ = m.dropTableInTransaction(wrappedTx, &Table{Name: tmpTable})
+	}
+	return
 }
 
 func (m *MySQL) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *base.DeleteConditions) error {
@@ -669,6 +696,22 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 	//delete tmp table
 	if err := m.dropTableInTransaction(wrappedTx, tmpTable); err != nil {
 		return errorj.Decorate(err, "failed to drop temporary table")
+	}
+
+	return nil
+}
+
+func (m *MySQL) renameTableInTransaction(wrappedTx *Transaction, tableName, newTableName string) error {
+	query := fmt.Sprintf(mySQLRenameTableTemplate, m.config.Db, tableName, m.config.Db, newTableName)
+	m.queryLogger.LogDDL(query)
+
+	if _, err := wrappedTx.tx.ExecContext(m.ctx, query); err != nil {
+		return errorj.RenameError.Wrap(err, "failed to rename table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Database:  m.config.Db,
+				Table:     tableName,
+				Statement: query,
+			})
 	}
 
 	return nil
