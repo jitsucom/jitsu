@@ -22,6 +22,7 @@ import (
 
 var ErrSDKSourceCancelled = errors.New("Source runner was cancelled.")
 
+const FullSyncChunkSize = 1000
 const LatestVersion = "latest"
 const IdField = "$id"
 const RecordTimestampSrc = "$recordTimestamp"
@@ -82,7 +83,7 @@ func NewSdkSource(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	base.FillPreconfiguredOauth(packageName, config)
 
 	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, packageName, "", "", "", "",
-		"", "", map[string]string{collection.Name: collection.TableName})
+		"", "", map[string]string{collection.Name: collection.TableName, collection.Name + "_tmp": collection.TableName + "_tmp"})
 	s := &SdkSource{
 		activeCommands: map[string]*base.SyncCommand{},
 		mutex:          &sync.RWMutex{},
@@ -300,7 +301,8 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 			dataChannel <- err
 		}
 	}()
-
+	fullSync := stream.SyncMode == "full_sync"
+	recordCounter := 0
 	for rawData := range dataChannel {
 		switch data := rawData.(type) {
 		case []byte:
@@ -312,7 +314,7 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 			}
 			switch row.Type {
 			case "record":
-				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, false)
+				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, fullSync && recordCounter > 0 && recordCounter%FullSyncChunkSize == 0, false)
 				if err != nil {
 					return err
 				}
@@ -330,8 +332,12 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 					delete(object, RecordTimestampSrc)
 				}
 				currentChunk.CurrentStream().Objects = append(currentChunk.CurrentStream().Objects, object)
+				recordCounter++
 			case "delete_records":
-				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, false)
+				if fullSync {
+					return fmt.Errorf("Delete records message is not allowed in full_sync mode")
+				}
+				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, false, false)
 				if err != nil {
 					return err
 				}
@@ -359,7 +365,10 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 				}
 				currentChunk.CurrentStream().DeleteConditions = &deleteConditions
 			case "clear_stream":
-				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, false)
+				if fullSync {
+					return fmt.Errorf("Clear stream message is not allowed in full_sync mode")
+				}
+				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, false, false)
 				if err != nil {
 					return err
 				}
@@ -369,7 +378,10 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 				taskLogger.INFO("Table %s will be cleared", stream.TableName)
 				currentChunk.CurrentStream().NeedClean = true
 			case "new_transaction":
-				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, true)
+				if fullSync {
+					return fmt.Errorf("New transaction message is not allowed in full_sync mode")
+				}
+				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, true, false)
 				if err != nil {
 					return err
 				}
@@ -396,7 +408,7 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 
 	if !s.closed.Load() {
 		//rotate chunk to consume the last one
-		_, _, err := s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, true)
+		_, _, err := s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, true, true)
 		return err
 	} else {
 		taskLogger.WARN("Stopping processing. Task was closed")
@@ -404,7 +416,7 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 	}
 }
 
-func (s SdkSourceRunner) GetOrRotateChunk(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, currentChunk *base.CLIOutputRepresentation, chunkNumber int, forceCreate bool) (newChunk *base.CLIOutputRepresentation, newChunkNumber int, err error) {
+func (s SdkSourceRunner) GetOrRotateChunk(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, currentChunk *base.CLIOutputRepresentation, chunkNumber int, forceCreate bool, finalChunk bool) (newChunk *base.CLIOutputRepresentation, newChunkNumber int, err error) {
 	stream := s.collection
 	exists := currentChunk != nil
 	if !exists || forceCreate {
@@ -412,11 +424,14 @@ func (s SdkSourceRunner) GetOrRotateChunk(taskLogger logging.TaskLogger, dataCon
 		if exists && forceCreate {
 			if stream.SyncMode == "full_sync" {
 				if chunkNumber == 0 && currentChunk.CurrentStream().NeedClean == false {
-					taskLogger.WARN("Stream: %s No clear_stream was received for stream in \"full_sync\" mode. Forcing cleaning table", stream.Name)
+					//taskLogger.INFO("Stream: %s No clear_stream was received for stream in \"full_sync\" mode. Forcing cleaning table", stream.Name)
 					currentChunk.CurrentStream().NeedClean = true
 				}
 			}
 			taskLogger.INFO("Chunk: %s_%d finished. Objects count: %d", stream.Name, chunkNumber, len(currentChunk.CurrentStream().Objects))
+			if stream.SyncMode == "full_sync" && finalChunk {
+				currentChunk.CurrentStream().TargetStreamName = stream.Name
+			}
 			err = dataConsumer.Consume(currentChunk)
 			if err != nil {
 				return
@@ -424,9 +439,13 @@ func (s SdkSourceRunner) GetOrRotateChunk(taskLogger logging.TaskLogger, dataCon
 			//we create next chunk when some chunks already present. increment chunk number
 			newChunkNumber = chunkNumber + 1
 		}
+		name := stream.Name
+		if stream.SyncMode == "full_sync" {
+			name = fmt.Sprintf("%s_tmp", stream.Name)
+		}
 		newChunk = base.NewCLIOutputRepresentation()
 		newChunk.AddStream(stream.Name, &base.StreamRepresentation{
-			StreamName:            stream.Name,
+			StreamName:            name,
 			BatchHeader:           &schema.BatchHeader{TableName: stream.TableName, Fields: map[string]schema.Field{}},
 			Objects:               []map[string]interface{}{},
 			KeepKeysUnhashed:      true,

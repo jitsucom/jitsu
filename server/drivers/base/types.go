@@ -247,7 +247,9 @@ type StreamRepresentation struct {
 	KeepKeysUnhashed      bool
 	RemoveSourceKeyFields bool
 	NeedClean             bool
-	DeleteConditions      *DeleteConditions
+	//Replace TargetStreamName table with current stream table (swap tables)
+	TargetStreamName string
+	DeleteConditions *DeleteConditions
 }
 
 //DriversInfo is a dto for sharing information about the driver into telemetry

@@ -55,11 +55,13 @@ func NewResultSaver(task *meta.Task, tap, collectionMetaKey, tableNamePrefix str
 func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentation) error {
 	for _, stream := range representation.GetStreams() {
 		streamName := stream.StreamName
+
 		tableName, ok := rs.streamTableNames[streamName]
 		if !ok {
 			tableName = rs.tableNamePrefix + streamName
 		}
-		stream.BatchHeader.TableName = schema.Reformat(tableName)
+		tableName = schema.Reformat(tableName)
+		stream.BatchHeader.TableName = tableName
 
 		if stream.NeedClean {
 			for _, storage := range rs.destinations {
@@ -124,6 +126,17 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		for _, storage := range rs.destinations {
 			rs.taskLogger.INFO("Stream [%s] Storing data to destination table [%s] in storage [%s]", streamName, tableName, storage.ID())
 			err := storage.SyncStore(stream.BatchHeader, stream.Objects, stream.DeleteConditions, false, needCopyEvent)
+			if err == nil {
+				if stream.TargetStreamName != "" && stream.TargetStreamName != streamName {
+					targetTableName, ok := rs.streamTableNames[stream.TargetStreamName]
+					if !ok {
+						targetTableName = rs.tableNamePrefix + stream.TargetStreamName
+					}
+					targetTableName = schema.Reformat(targetTableName)
+					rs.taskLogger.INFO("Stream [%s] Replacing final table: %s with content of: %s", streamName, targetTableName, tableName)
+					err = storage.ReplaceTable(targetTableName, tableName)
+				}
+			}
 			if err != nil {
 				errMsg := fmt.Sprintf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
 				metrics.ErrorSourceEvents(rs.task.SourceType, rs.tap, rs.task.Source, storage.Type(), storage.ID(), rowsCount)

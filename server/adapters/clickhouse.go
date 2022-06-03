@@ -20,12 +20,15 @@ import (
 )
 
 const (
-	tableSchemaCHQuery        = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
-	createCHDBTemplate        = `CREATE DATABASE IF NOT EXISTS "%s" %s`
-	alterTableCHTemplate      = `ALTER TABLE "%s"."%s" %s %s`
+	tableSchemaCHQuery      = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
+	createCHDBTemplate      = `CREATE DATABASE IF NOT EXISTS "%s" %s`
+	alterTableCHTemplate    = `ALTER TABLE "%s"."%s" %s %s`
+	exchangeTableCHTemplate = `EXCHANGE TABLES "%s"."%s" AND "%s"."%s"`
+	renameTableCHTemplate   = `RENAME TABLE "%s"."%s" TO "%s"`
+
 	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES %s`
 	deleteQueryChTemplate     = `ALTER TABLE %s.%s DELETE WHERE %s`
-	dropTableCHTemplate       = `DROP TABLE "%s"."%s" %s`
+	dropTableCHTemplate       = `DROP TABLE %s"%s"."%s" %s`
 	onClusterCHClauseTemplate = ` ON CLUSTER "%s" `
 	columnCHNullableTemplate  = ` Nullable(%s) `
 
@@ -33,6 +36,9 @@ const (
 	createDistributedTableCHTemplate   = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
 	dropDistributedTableCHTemplate     = `DROP TABLE IF EXISTS "%s"."dist_%s" %s`
 	alterDistributedTableCHTemplate    = `ALTER TABLE "%s"."dist_%s" %s %s`
+	exchangeDistributedTableCHTemplate = `EXCHANGE TABLES "%s"."dist_%s" AND "%s"."dist_%s"`
+	renameDistributedTableCHTemplate   = `RENAME TABLE "%s"."dist_%s" TO "dist_%s"`
+
 	truncateTableCHTemplate            = `TRUNCATE TABLE IF EXISTS "%s"."%s"`
 	truncateDistributedTableCHTemplate = `TRUNCATE TABLE IF EXISTS "%s"."dist_%s" %s`
 
@@ -500,9 +506,17 @@ func (ch *ClickHouse) Truncate(tableName string) error {
 	return nil
 }
 
-//DropTable drops table in transaction
 func (ch *ClickHouse) DropTable(table *Table) error {
-	query := fmt.Sprintf(dropTableCHTemplate, ch.database, table.Name, ch.getOnClusterClause())
+	return ch.dropTable(table, false)
+}
+
+//dropTable drops table in transaction
+func (ch *ClickHouse) dropTable(table *Table, ifExists bool) error {
+	ifExs := ""
+	if ifExists {
+		ifExs = "IF EXISTS "
+	}
+	query := fmt.Sprintf(dropTableCHTemplate, ifExs, ch.database, table.Name, ch.getOnClusterClause())
 	ch.queryLogger.LogDDL(query)
 
 	if _, err := ch.dataSource.ExecContext(ch.ctx, query); err != nil {
@@ -514,6 +528,42 @@ func (ch *ClickHouse) DropTable(table *Table) error {
 	}
 
 	return nil
+}
+
+func (ch *ClickHouse) ReplaceTable(originalTable, replacementTable string) error {
+	query := fmt.Sprintf(exchangeTableCHTemplate, ch.database, originalTable, ch.database, replacementTable)
+	ch.queryLogger.LogDDL(query)
+
+	if _, err := ch.dataSource.ExecContext(ch.ctx, query); err != nil {
+		if mapError(err) == ErrTableNotExist {
+			query = fmt.Sprintf(renameTableCHTemplate, ch.database, replacementTable, originalTable)
+			ch.queryLogger.LogDDL(query)
+			if _, err := ch.dataSource.ExecContext(ch.ctx, query); err != nil {
+				return fmt.Errorf("Error renaming [%s] table: %v", replacementTable, err)
+			}
+			if ch.cluster != "" {
+				query := fmt.Sprintf(renameDistributedTableCHTemplate, ch.database, replacementTable, originalTable)
+				ch.queryLogger.LogDDL(query)
+				if _, err := ch.dataSource.ExecContext(ch.ctx, query); err != nil {
+					return fmt.Errorf("Error renaming [%s] distributed table: %v", originalTable, err)
+				}
+			}
+		} else {
+			return fmt.Errorf("Error replacing [%s] table: %v", originalTable, err)
+		}
+	}
+
+	if ch.cluster != "" {
+		query := fmt.Sprintf(exchangeDistributedTableCHTemplate, ch.database, originalTable, ch.database, replacementTable)
+		ch.queryLogger.LogDDL(query)
+
+		if _, err := ch.dataSource.ExecContext(ch.ctx, query); err != nil {
+			return fmt.Errorf("Error replacing [%s] distributed table: %v", originalTable, err)
+		}
+	}
+
+	return ch.dropTable(&Table{Name: replacementTable}, true)
+
 }
 
 func (ch *ClickHouse) toDeleteQuery(table *Table, conditions *base.DeleteConditions) (string, []interface{}) {

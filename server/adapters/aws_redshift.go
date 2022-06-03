@@ -423,6 +423,10 @@ func (ar *AwsRedshift) DropTable(table *Table) error {
 	return ar.dataSourceProxy.DropTable(table)
 }
 
+func (ar *AwsRedshift) ReplaceTable(originalTable, replacementTable string) (err error) {
+	return ar.dataSourceProxy.ReplaceTable(originalTable, replacementTable)
+}
+
 //bulkMergeInTransaction uses temporary table and insert from select statement
 func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	tmpTable := &Table{
@@ -486,7 +490,7 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 	}
 
 	//delete tmp table
-	if err := ar.dataSourceProxy.dropTableInTransaction(wrappedTx, tmpTable); err != nil {
+	if err := ar.dataSourceProxy.dropTableInTransaction(wrappedTx, tmpTable, false); err != nil {
 		return errorj.Decorate(err, "failed to drop temporary table")
 	}
 
