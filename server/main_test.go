@@ -216,7 +216,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			"",
 			http.StatusUnauthorized,
-			`{"message":"The token is not found","error":""}`,
+			`{"message":"The token is not found: wrongtoken","error":""}`,
 			false,
 		},
 		{
@@ -236,7 +236,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			"",
 			http.StatusUnauthorized,
-			`{"message":"The token is not found","error":""}`,
+			`{"message":"The token is not found: s2stoken","error":""}`,
 			false,
 		},
 		{
