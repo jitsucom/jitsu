@@ -41,6 +41,14 @@ type Usage struct {
 	SourceSchedule         string `json:"source_schedule,omitempty"`
 	SourceStreams          int    `json:"source_streams,omitempty"`
 
+	Task           string `json:"hashed_task_id,omitempty"`
+	TaskCollection string `json:"task_collection,omitempty"`
+	TaskCreatedAt  string `json:"task_created_at,omitempty"`
+	TaskStartedAt  string `json:"task_started_at,omitempty"`
+	TaskFinishedAt string `json:"task_finished_at,omitempty"`
+	TaskStatus     string `json:"task_status,omitempty"`
+	TaskError      string `json:"task_error,omitempty"`
+
 	Destination        string `json:"hashed_destination_id,omitempty"`
 	DestinationType    string `json:"destination_type,omitempty"`
 	DestinationMode    string `json:"destination_mode,omitempty"`

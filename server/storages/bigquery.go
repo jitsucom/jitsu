@@ -3,6 +3,7 @@ package storages
 import (
 	"errors"
 	"fmt"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/drivers/base"
@@ -57,6 +58,7 @@ func NewBigQuery(config *Config) (storage Storage, err error) {
 
 	var gcsAdapter *adapters.GoogleCloudStorage
 	if !config.streamMode {
+		gConfig.RequireDefaultStage(BigQueryType)
 		gcsAdapter, err = adapters.NewGoogleCloudStorage(config.ctx, gConfig)
 		if err != nil {
 			return

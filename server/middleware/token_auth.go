@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strings"
@@ -10,7 +11,7 @@ const (
 	TokenName        = "token"
 	APIKeyName       = "api_key"
 	TokenHeaderName  = "x-auth-token"
-	ErrTokenNotFound = "The token is not found"
+	ErrTokenNotFound = "The token is not found: %s"
 
 	JitsuAnonymIDCookie   = "__eventn_id"
 	CookiePolicyParameter = "cookie_policy"
@@ -72,11 +73,11 @@ func TokenAuth(main gin.HandlerFunc, originalToken string) gin.HandlerFunc {
 //2. exists in specific (js or api) token config
 func TokenFuncAuth(main gin.HandlerFunc, isAllowedOriginsFunc func(string) ([]string, bool), errMsg string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if errMsg == "" {
-			errMsg = ErrTokenNotFound
-		}
-		token := extractToken(c.Request)
 
+		token := extractToken(c.Request)
+		if errMsg == "" {
+			errMsg = fmt.Sprintf(ErrTokenNotFound, token)
+		}
 		_, allowed := isAllowedOriginsFunc(token)
 		if !allowed {
 			c.JSON(http.StatusUnauthorized, ErrResponse(errMsg, nil))
@@ -102,7 +103,7 @@ func TokenTwoFuncAuth(main gin.HandlerFunc, isAllowedOriginsFunc func(string) ([
 			if exist {
 				c.JSON(http.StatusUnauthorized, ErrResponse(errMsg, nil))
 			} else {
-				c.JSON(http.StatusUnauthorized, ErrResponse("The token is not found", nil))
+				c.JSON(http.StatusUnauthorized, ErrResponse(fmt.Sprintf(ErrTokenNotFound, token), nil))
 			}
 			return
 		}

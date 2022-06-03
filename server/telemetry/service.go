@@ -193,6 +193,23 @@ func Source(sourceID, sourceType, sourceConnectorOrigin, sourceConnectorVersion,
 	}
 }
 
+//SourceTaskStatus puts task status usage event with hashed source id, task id and type
+func SourceTaskStatus(taskID, sourceID, sourceType, collection, status, error, createdAt, startedAt, finishedAt string) {
+	if !instance.usageOptOut.Load() {
+		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
+			Source:         resources.GetStringHash(sourceID),
+			SourceType:     sourceType,
+			Task:           resources.GetStringHash(taskID),
+			TaskCollection: collection,
+			TaskStatus:     status,
+			TaskError:      error,
+			TaskCreatedAt:  createdAt,
+			TaskStartedAt:  startedAt,
+			TaskFinishedAt: finishedAt,
+		})
+	}
+}
+
 //Coordination puts usage event with coordination service type
 func Coordination(serviceType string) {
 	if !instance.usageOptOut.Load() {

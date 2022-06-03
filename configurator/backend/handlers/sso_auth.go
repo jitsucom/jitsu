@@ -3,11 +3,13 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
+
+	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/openapi"
 	"github.com/jitsucom/jitsu/configurator/storages"
-	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -79,11 +81,11 @@ func (h *SSOAuthHandler) AutoProvision(ctx *gin.Context, sso *SSOSession, author
 		return nil
 	}
 
-	var project storages.Project
+	var project entities.Project
 	req := &openapi.CreateProjectRequest{
 		Name: projectName,
 	}
-	err = h.Configurations.Create(&project, req)
+	err = h.Configurations.Create(ctx, &project, req)
 	if err != nil {
 		return middleware.ReadableError{
 			Description: "Cannot create new project",
@@ -93,7 +95,7 @@ func (h *SSOAuthHandler) AutoProvision(ctx *gin.Context, sso *SSOSession, author
 
 	var onboarded = true
 	var requireSetup = false
-	_, err = h.Configurations.UpdateUserInfo(user.ID, openapi.UpdateUserInfoRequest{
+	_, err = h.Configurations.UpdateUserInfo(ctx, user.ID, openapi.UpdateUserInfoRequest{
 		Name:      &userName,
 		Onboarded: &onboarded,
 		Project: &openapi.ProjectInfoUpdate{
@@ -110,7 +112,7 @@ func (h *SSOAuthHandler) AutoProvision(ctx *gin.Context, sso *SSOSession, author
 		}
 	}
 
-	err = h.Configurations.CreateDefaultAPIKey(project.Id)
+	err = h.Configurations.CreateDefaultAPIKey(ctx, project.Id)
 	if err != nil {
 		return middleware.ReadableError{
 			Description: "Cannot create default api key",

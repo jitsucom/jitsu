@@ -29,6 +29,7 @@
   "referer": "",
   "url": "http://track-demo.jitsu",
   "user": {
+    "hashed_anonymous_id":"c48e863c1710f147ad11fd2715f99d7a",
     "id": 123
   },
   "source_ip": "95.82.232.185",

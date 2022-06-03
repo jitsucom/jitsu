@@ -3,6 +3,9 @@ package synchronization
 import (
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/utils"
 
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -36,6 +39,7 @@ func (tc *TaskCloser) HandleCanceling() error {
 	}
 
 	if task.Status == CANCELED.String() {
+		telemetry.SourceTaskStatus(tc.ID, tc.Source, tc.SourceType, tc.Collection, CANCELED.String(), "", tc.CreatedAt, tc.StartedAt, timestamp.NowUTC())
 		return ErrTaskHasBeenCanceled
 	}
 
@@ -62,7 +66,7 @@ func (tc *TaskCloser) CloseWithError(msg string, systemErr bool) {
 		logging.SystemError(msg)
 		tc.taskLogger.ERROR(msg)
 	}
-
+	telemetry.SourceTaskStatus(tc.ID, tc.Source, tc.SourceType, tc.Collection, FAILED.String(), utils.ShortenString(msg, 1024), tc.CreatedAt, tc.StartedAt, timestamp.NowUTC())
 	tc.notify(FAILED.String())
 }
 
@@ -72,7 +76,7 @@ func (tc *TaskCloser) CloseWithSuccess() error {
 		tc.CloseWithError(msg, true)
 		return err
 	}
-
+	telemetry.SourceTaskStatus(tc.ID, tc.Source, tc.SourceType, tc.Collection, SUCCESS.String(), "", tc.CreatedAt, tc.StartedAt, timestamp.NowUTC())
 	tc.notify(SUCCESS.String())
 	return nil
 }

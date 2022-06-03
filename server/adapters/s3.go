@@ -2,9 +2,10 @@ package adapters
 
 import (
 	"bytes"
-	"compress/gzip"
 	"errors"
 	"fmt"
+	"net/http"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -13,39 +14,17 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"go.uber.org/atomic"
-	"net/http"
 )
-
-//S3 is a S3 adapter for uploading/deleting files
-type S3 struct {
-	config *S3Config
-	client *s3.S3
-
-	closed *atomic.Bool
-}
 
 //S3Config is a dto for config deserialization
 type S3Config struct {
-	AccessKeyID string           `mapstructure:"access_key_id,omitempty" json:"access_key_id,omitempty" yaml:"access_key_id,omitempty"`
-	SecretKey   string           `mapstructure:"secret_access_key,omitempty" json:"secret_access_key,omitempty" yaml:"secret_access_key,omitempty"`
-	Bucket      string           `mapstructure:"bucket,omitempty" json:"bucket,omitempty" yaml:"bucket,omitempty"`
-	Region      string           `mapstructure:"region,omitempty" json:"region,omitempty" yaml:"region,omitempty"`
-	Endpoint    string           `mapstructure:"endpoint,omitempty" json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
-	Folder      string           `mapstructure:"folder,omitempty" json:"folder,omitempty" yaml:"folder,omitempty"`
-	Format      S3EncodingFormat `mapstructure:"format,omitempty" json:"format,omitempty" yaml:"format,omitempty"`
-	Compression S3Compression    `mapstructure:"compression,omitempty" json:"compression,omitempty" yaml:"compression,omitempty"`
+	AccessKeyID string `mapstructure:"access_key_id,omitempty" json:"access_key_id,omitempty" yaml:"access_key_id,omitempty"`
+	SecretKey   string `mapstructure:"secret_access_key,omitempty" json:"secret_access_key,omitempty" yaml:"secret_access_key,omitempty"`
+	Bucket      string `mapstructure:"bucket,omitempty" json:"bucket,omitempty" yaml:"bucket,omitempty"`
+	Region      string `mapstructure:"region,omitempty" json:"region,omitempty" yaml:"region,omitempty"`
+	Endpoint    string `mapstructure:"endpoint,omitempty" json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	FileConfig  `mapstructure:",squash" yaml:"-,inline"`
 }
-
-type S3EncodingFormat string
-type S3Compression string
-
-const (
-	S3FormatFlatJSON  S3EncodingFormat = "flat_json" //flattened json objects with \n delimiter
-	S3FormatJSON      S3EncodingFormat = "json"      //file with json objects with \n delimiter (not flattened)
-	S3FormatCSV       S3EncodingFormat = "csv"       //flattened csv objects with \n delimiter
-	S3FormatParquet   S3EncodingFormat = "parquet"   //flattened objects which are marshalled in apache parquet file
-	S3CompressionGZIP S3Compression    = "gzip"      //gzip compression
-)
 
 //Validate returns err if invalid
 func (s3c *S3Config) Validate() error {
@@ -67,6 +46,14 @@ func (s3c *S3Config) Validate() error {
 	return nil
 }
 
+//S3 is a S3 adapter for uploading/deleting files
+type S3 struct {
+	config *S3Config
+	client *s3.S3
+
+	closed *atomic.Bool
+}
+
 //NewS3 returns configured S3 adapter
 func NewS3(s3Config *S3Config) (*S3, error) {
 	if err := s3Config.Validate(); err != nil {
@@ -80,18 +67,18 @@ func NewS3(s3Config *S3Config) (*S3, error) {
 		awsConfig.WithEndpoint(s3Config.Endpoint)
 	}
 	if s3Config.Format == "" {
-		s3Config.Format = S3FormatFlatJSON
+		s3Config.Format = FileFormatFlatJSON
 	}
 	s3Session := session.Must(session.NewSession())
 
 	return &S3{client: s3.New(s3Session, awsConfig), config: s3Config, closed: atomic.NewBool(false)}, nil
 }
 
-func (a *S3) Format() S3EncodingFormat {
+func (a *S3) Format() FileEncodingFormat {
 	return a.config.Format
 }
 
-func (a *S3) Compression() S3Compression {
+func (a *S3) Compression() FileCompression {
 	return a.config.Compression
 }
 
@@ -100,23 +87,17 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	if a.closed.Load() {
 		return fmt.Errorf("attempt to use closed S3 instance")
 	}
-	if a.config.Folder != "" {
-		fileName = a.config.Folder + "/" + fileName
-	}
 
 	params := &s3.PutObjectInput{
 		Bucket: aws.String(a.config.Bucket),
 	}
 
+	if err := a.config.PrepareFile(&fileName, &fileBytes); err != nil {
+		return err
+	}
+
 	var fileType string
-	if a.config.Compression == S3CompressionGZIP {
-		var err error
-		fileName = fileNameGZIP(fileName)
-		buf, err := a.compressGZIP(fileBytes)
-		if err != nil {
-			return fmt.Errorf("Error compressing file %v", err)
-		}
-		fileBytes = buf.Bytes()
+	if a.config.Compression == FileCompressionGZIP {
 		fileType = "application/gzip"
 	} else {
 		fileType = http.DetectContentType(fileBytes)
@@ -135,27 +116,12 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	return nil
 }
 
-func (a *S3) compressGZIP(b []byte) (*bytes.Buffer, error) {
-	buf := new(bytes.Buffer)
-	w := gzip.NewWriter(buf)
-	defer w.Close()
-	if _, err := w.Write(b); err != nil {
-		return nil, err
-	}
-	return buf, nil
-}
-
 //DeleteObject deletes object from s3 bucket by key
 func (a *S3) DeleteObject(key string) error {
 	if a.closed.Load() {
 		return fmt.Errorf("attempt to use closed S3 instance")
 	}
-	if a.config.Folder != "" {
-		key = a.config.Folder + "/" + key
-	}
-	if a.config.Compression == S3CompressionGZIP {
-		key = fileNameGZIP(key)
-	}
+	_ = a.config.PrepareFile(&key, nil)
 	input := &s3.DeleteObjectInput{Bucket: &a.config.Bucket, Key: &key}
 	output, err := a.client.DeleteObject(input)
 	if err != nil {
@@ -175,10 +141,6 @@ func (a *S3) DeleteObject(key string) error {
 	}
 
 	return nil
-}
-
-func fileNameGZIP(fileName string) string {
-	return fileName + ".gz"
 }
 
 //ValidateWritePermission tries to create temporary file and remove it.

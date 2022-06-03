@@ -4,7 +4,7 @@ import { apiKeysStore } from "../../../stores/apiKeys"
 import { Prompt, useHistory, useParams } from "react-router-dom"
 import { useForm } from "antd/es/form/Form"
 import ReloadOutlined from "@ant-design/icons/lib/icons/ReloadOutlined"
-import React, { ReactNode, useState } from "react"
+import React, { ReactNode, useEffect, useState } from "react"
 import { FormField, FormLayout, FormActions, unsavedMessage } from "../Form/Form"
 import TextArea from "antd/es/input/TextArea"
 import { confirmDelete } from "../../commons/deletionConfirmation"
@@ -16,6 +16,9 @@ import { connectionsHelper } from "stores/helpers"
 import { apiKeysRoutes } from "./ApiKeysRouter"
 import { projectRoute } from "../ProjectLink/ProjectLink"
 import { EntityNotFound } from "ui/components/EntityNotFound/EntityNotFound"
+import { apiKeysReferenceMap } from "@jitsu/catalog/apiKeys/lib"
+import { PageHeader } from "../../../ui/components/PageHeader/PageHeader"
+import { currentPageHeaderStore } from "../../../stores/currentPageHeader"
 
 const SecretKey: React.FC<{
   formFieldName: string
@@ -44,13 +47,14 @@ const SecretKey: React.FC<{
   )
 }
 
-type EditorObject = Omit<ApiKey, "origins"> & { originsText?: string; connectedDestinations?: string }
+type EditorObject = Omit<ApiKey, "origins"> & { originsText?: string; connectedDestinations?: string[] }
 
 function getEditorObject({ origins, ...rest }: ApiKey) {
   return {
     ...rest,
     comment: rest.comment || rest.uid,
     originsText: origins ? origins.join("\n") : "",
+    connectedDestinations: destinationsStore.list.filter(d => d._onlyKeys.includes(rest.uid)).map(d => d._uid),
   }
 }
 
@@ -68,11 +72,36 @@ const ApiKeyEditorComponent: React.FC = props => {
     id = id.replace("-", ".")
   }
   const initialApiKey = id ? apiKeysStore.get(id) : apiKeysStore.generateApiKey()
+  const [editorObject, setEditorObject] = useState<EditorObject>(initialApiKey ? getEditorObject(initialApiKey) : null)
+
+  useEffect(() => {
+    if (!initialApiKey) {
+      return
+    }
+
+    let breadcrumbs = []
+    breadcrumbs.push({
+      title: "Api Keys",
+      link: projectRoute(apiKeysRoutes.listExact),
+    })
+    breadcrumbs.push({
+      title: (
+        <PageHeader
+          title={id ? initialApiKey.comment ?? "Not Found" : "New key"}
+          icon={apiKeysReferenceMap.js.icon}
+          mode={id ? "edit" : "add"}
+        />
+      ),
+    })
+    setTimeout(() => {
+      currentPageHeaderStore.setBreadcrumbs(...breadcrumbs)
+    }, 100)
+  }, [initialApiKey])
+
   if (!initialApiKey) {
     return <EntityNotFound entityDisplayType="API Key" entityId={id} entitiesListRoute={apiKeysRoutes.listExact} />
   }
 
-  const [editorObject, setEditorObject] = useState<EditorObject>(getEditorObject(initialApiKey))
   const history = useHistory()
   const [deleting, setDeleting] = useState(false)
   const [saving, setSaving] = useState(false)

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gomodule/redigo/redis"
+	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/storages/migration"
 	entime "github.com/jitsucom/jitsu/configurator/time"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -130,7 +131,7 @@ func (r *Redis) GetCollectionLastUpdated(collection string) (*time.Time, error) 
 		return nil, fmt.Errorf("Empty [%s] _lastUpdated", collection)
 	}
 
-	t, err := time.Parse(LastUpdatedLayout, lastUpdated)
+	t, err := time.Parse(entities.LastUpdatedLayout, lastUpdated)
 	if err != nil {
 		return nil, fmt.Errorf("Error converting [%s] to time: %v", lastUpdated, err)
 	}

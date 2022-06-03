@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/drivers/base"
@@ -86,6 +87,7 @@ func NewSnowflake(config *Config) (storage Storage, err error) {
 				return
 			}
 		} else {
+			googleConfig.RequireDefaultStage(SnowflakeType)
 			stageAdapter, err = adapters.NewGoogleCloudStorage(config.ctx, googleConfig)
 			if err != nil {
 				return

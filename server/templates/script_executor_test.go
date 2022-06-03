@@ -32,7 +32,7 @@ func TestLoadSourcePlugins(t *testing.T) {
 		"jitsu-airtable-source",
 		"jitsu-amplitude-source",
 		"jitsu-facebook-marketing-source",
-		//"jitsu-firebase-source",
+		"jitsu-firebase-source",
 		"jitsu-google-ads-source",
 		"jitsu-google-analytics-source",
 		"jitsu-google-play-source",

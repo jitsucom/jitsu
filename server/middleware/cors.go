@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -37,7 +38,7 @@ func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) ht
 					w.WriteHeader(http.StatusOK)
 					return
 				}
-				response := ErrResponse(ErrTokenNotFound, nil)
+				response := ErrResponse(fmt.Sprintf(ErrTokenNotFound, token), nil)
 				b, _ := json.Marshal(response)
 				w.WriteHeader(http.StatusUnauthorized)
 				w.Write(b)
