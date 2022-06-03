@@ -59,7 +59,7 @@ func init() {
 	base.RegisterDriver(base.RedisType, func(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 		sourceConfig.Config["package_name"] = "jitsu-redis-source"
 		sourceConfig.Config["package_version"] = "^0.7.4"
-
+		collection.Type = "hash"
 		return NewSdkSource(ctx, sourceConfig, collection)
 	})
 	base.RegisterTestConnectionFunc(base.RedisType, func(sourceConfig *base.SourceConfig) error {
@@ -261,8 +261,9 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 	}
 
 	stream := s.collection
-	taskLogger.INFO("Starting processing stream: %s", stream.Name)
+	taskLogger.INFO("Starting processing stream: %s of type: %s", stream.Name, stream.Type)
 	var supportedModes []interface{}
+	var typeSupported bool
 	rawCat, err := s.sourceExecutor.Catalog()
 	if err != nil {
 		return fmt.Errorf("Failed to load source catalog: %v", err)
@@ -277,18 +278,22 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 			return fmt.Errorf("Invalid type of source catalog stream: %T expected map[string]interface{}", c)
 		}
 		if cat["type"] == stream.Type {
+			typeSupported = true
 			supportedModes, ok = cat["supportedModes"].([]interface{})
 			if !ok {
 				return fmt.Errorf("Invalid value of stream supportedModes: %v expected array of strings", cat["supportedModes"])
 			}
 			if len(supportedModes) > 1 && stream.SyncMode == "" {
 				return fmt.Errorf("\"mode\" is required when stream supports multiple modes: %v", supportedModes)
-			} else if !utils.ArrayContains(supportedModes, stream.SyncMode) {
-				return fmt.Errorf("provided \"mode\": %s is not among supported by stream: %v", stream.SyncMode, supportedModes)
 			} else if len(supportedModes) == 1 && stream.SyncMode == "" {
 				stream.SyncMode = supportedModes[0].(string)
+			} else if !utils.ArrayContains(supportedModes, stream.SyncMode) {
+				return fmt.Errorf("provided \"mode\": %s is not among supported by stream: %v", stream.SyncMode, supportedModes)
 			}
 		}
+	}
+	if !typeSupported {
+		return fmt.Errorf("Stream type: %s is not supported by source", stream.Type)
 	}
 	taskLogger.INFO("Sync mode selected: %s of supported %v", stream.SyncMode, supportedModes)
 

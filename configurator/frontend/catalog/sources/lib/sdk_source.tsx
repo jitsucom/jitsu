@@ -12,14 +12,6 @@ export const allSdkSources: SdkSource[] = [
     stable: true,
   },
   {
-    id: "sdk-redis",
-    pic: logos.airtable,
-    package_name: "jitsu-redis-source",
-    package_version: "latest",
-    displayName: "Redis (SDK)",
-    stable: true,
-  },
-  {
     id: "sdk-helpscout",
     pic: logos.tap_helpscout,
     package_name: "jitsu-helpscout-source",
