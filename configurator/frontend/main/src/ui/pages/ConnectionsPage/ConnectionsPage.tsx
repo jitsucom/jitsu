@@ -40,7 +40,7 @@ const ConnectionsPageComponent = () => {
     destinationsStore.list.forEach(({ _uid, _onlyKeys = [], _sources = [] }) => {
       ;[..._onlyKeys, ..._sources].forEach(sourceId => {
         const start = document.getElementById(sourceId)
-        const end = document.getElementById(_uid)
+        const end = document.getElementById("dst_" + _uid)
 
         if (start && end && !connectionLines[`${sourceId}-${_uid}`])
           connectionLines[`${sourceId}-${_uid}`] = new LeaderLine(start, end, {
@@ -172,7 +172,7 @@ const ConnectionsPageComponent = () => {
           {destinationsStore.list.length ? (
             destinationsStore.list.map(dst => {
               return (
-                <CardContainer id={dst._uid} key={dst._uid}>
+                <CardContainer id={"dst_" + dst._uid} key={"dst_" + dst._uid}>
                   <EntityCard
                     name={<CardTitle title={DestinationsUtils.getDisplayName(dst)} />}
                     message={<EntityMessage connectionTestOk={dst._connectionTestOk} />}
