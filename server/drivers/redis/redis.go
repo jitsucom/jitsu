@@ -32,8 +32,8 @@ type Redis struct {
 }
 
 func init() {
-	//base.RegisterDriver(base.RedisType, NewRedis)
-	//base.RegisterTestConnectionFunc(base.RedisType, TestRedis)
+	base.RegisterDriver(base.RedisType, NewRedis)
+	base.RegisterTestConnectionFunc(base.RedisType, TestRedis)
 }
 
 //NewRedis returns configured Redis driver instance
