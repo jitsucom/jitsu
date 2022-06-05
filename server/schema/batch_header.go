@@ -12,6 +12,12 @@ type Fields map[string]Field
 type BatchHeader struct {
 	TableName string
 	Fields    Fields
+	Partition DatePartition
+}
+
+type DatePartition struct {
+	Field       string
+	Granularity Granularity
 }
 
 //Exists returns true if there is at least one field

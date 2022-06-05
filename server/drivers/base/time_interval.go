@@ -1,6 +1,7 @@
 package base
 
 import (
+	"github.com/jitsucom/jitsu/server/schema"
 	"time"
 )
 
@@ -9,11 +10,11 @@ const SignatureLayout = "2006-01-02T15:04:05.000Z"
 type TimeInterval struct {
 	TimeZoneID string
 
-	granularity Granularity
+	granularity schema.Granularity
 	time        time.Time
 }
 
-func NewTimeInterval(granularity Granularity, t time.Time) *TimeInterval {
+func NewTimeInterval(granularity schema.Granularity, t time.Time) *TimeInterval {
 	return &TimeInterval{
 		TimeZoneID:  time.UTC.String(),
 		granularity: granularity,
@@ -27,6 +28,10 @@ func (ti *TimeInterval) LowerEndpoint() time.Time {
 
 func (ti *TimeInterval) UpperEndpoint() time.Time {
 	return ti.granularity.Upper(ti.time)
+}
+
+func (ti *TimeInterval) Granularity() schema.Granularity {
+	return ti.granularity
 }
 
 func (ti *TimeInterval) CalculateSignatureFrom(t time.Time, window time.Duration) string {
@@ -43,5 +48,5 @@ func (ti *TimeInterval) String() string {
 }
 
 func (ti *TimeInterval) IsAll() bool {
-	return ti.granularity == ALL
+	return ti.granularity == schema.ALL
 }

@@ -38,7 +38,7 @@ func (ah *SdkSourceHandler) SpecHandler(c *gin.Context) {
 		return
 	}
 	defer sourceExecutor.Close()
-	//TODO: enrich oauth fields
+
 	c.JSON(http.StatusOK, SpecResponse{
 		StatusResponse: middleware.OKResponse(),
 		Spec:           sourceExecutor.Spec(),

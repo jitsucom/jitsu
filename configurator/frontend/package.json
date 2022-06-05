@@ -3,8 +3,8 @@
   "private": true,
   "scripts": {
     "start": "lerna run start --stream",
-    "build": "yarn install && yarn all:check && yarn catalog:link && lerna run build",
-    "build:prod": "lerna run version:update && yarn build",
+    "build": "yarn install && yarn all:check && yarn catalog:link && lerna run version:update && lerna run build",
+    "build:prod": "yarn build",
     "build:dev": "lerna run build",
     "test": "lerna run test --stream",
     "clean": "rm -rf ./node_modules ./main/node_modules/ ./main/build ./main/dist",

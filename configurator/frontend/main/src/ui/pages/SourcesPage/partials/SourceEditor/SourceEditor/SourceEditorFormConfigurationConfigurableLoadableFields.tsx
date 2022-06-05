@@ -23,6 +23,7 @@ import { SourceEditorActionsTypes, useSourceEditorDispatcher } from "./SourceEdi
 type Props = {
   initialValues: Partial<SourceData>
   sourceDataFromCatalog: SourceConnector
+  availableOauthBackendSecrets?: string[]
   hideFields?: string[]
   patchConfig: PatchConfig
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
@@ -39,6 +40,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   ({
     initialValues,
     sourceDataFromCatalog,
+    availableOauthBackendSecrets,
     hideFields: _hideFields,
     patchConfig,
     setValidator,
@@ -109,7 +111,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
                     const response = await pullSdkSourceSpec(sourceDataFromCatalog.specEndpoint)
                     if (response?.message) throw new Error(response?.message)
                     if (response?.status && response?.status !== "pending") {
-                      const result = transformSdkSourceSpecResponse(response)
+                      const result = transformSdkSourceSpecResponse(response, availableOauthBackendSecrets)
                       end(result)
                     }
                   } catch (error) {
@@ -122,7 +124,8 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
               }
             },
           },
-          { interval_ms: 2000 }
+          { interval_ms: 2000 },
+          [availableOauthBackendSecrets]
         )
     }
 
@@ -276,8 +279,8 @@ const transformAirbyteSpecResponse = (response: any) => {
   }))
 }
 
-const transformSdkSourceSpecResponse = (response: any) => {
-  return mapSdkSourceSpecToSourceConnectorConfig(response?.["spec"])
+const transformSdkSourceSpecResponse = (response: any, availableOauthBackendSecrets: string[]) => {
+  return mapSdkSourceSpecToSourceConnectorConfig(response?.["spec"], availableOauthBackendSecrets)
 }
 
 type AirbyteVersionSelectionProps = {

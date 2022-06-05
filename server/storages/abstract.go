@@ -223,6 +223,11 @@ func (a *Abstract) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, err
 	return dbSchema, nil
 }
 
+func (a *Abstract) ReplaceTable(originalTable, replacementTable string) error {
+	adapter, _ := a.getAdapters()
+	return adapter.ReplaceTable(originalTable, replacementTable)
+}
+
 //Update updates record
 func (a *Abstract) Update(eventContext *adapters.EventContext) error {
 	sqlAdapter, tableHelper := a.getAdapters()

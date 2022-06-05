@@ -10,19 +10,19 @@ const (
 	SrcKey = "src"
 	//TimeChunkKey is a system field
 	TimeChunkKey      = "_time_interval"
-	timeIntervalStart = "_interval_start"
-	timeIntervalEnd   = "_interval_end"
-	collectionIDKey   = "_collection_id"
+	TimeIntervalStart = "_interval_start"
+	TimeIntervalEnd   = "_interval_end"
+	CollectionIDKey   = "_collection_id"
 )
 
 //EnrichWithCollection puts collection string to object
 func EnrichWithCollection(object map[string]interface{}, collection string) {
-	object[collectionIDKey] = collection
+	object[CollectionIDKey] = collection
 }
 
 //EnrichWithTimeInterval puts interval representation to object
 func EnrichWithTimeInterval(object map[string]interface{}, interval string, lower, upper time.Time) {
 	object[TimeChunkKey] = interval
-	object[timeIntervalStart] = timestamp.ToISOFormat(lower)
-	object[timeIntervalEnd] = timestamp.ToISOFormat(upper)
+	object[TimeIntervalStart] = timestamp.ToISOFormat(lower)
+	object[TimeIntervalEnd] = timestamp.ToISOFormat(upper)
 }

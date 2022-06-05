@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/jitsucom/jitsu/server/adapters"
 	enconfig "github.com/jitsucom/jitsu/server/config"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/utils"
 )
@@ -74,7 +75,7 @@ func (t *TagDestination) Close() error {
 	return nil
 }
 
-func (t *TagDestination) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
+func (t *TagDestination) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *base.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
 	return errors.New("TagDestination doesn't support sync store")
 }
 

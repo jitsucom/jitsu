@@ -1,7 +1,9 @@
-package adapters
+package base
 
 import (
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/schema"
+	"time"
 )
 
 //DeleteCondition is a representation of SQL delete condition
@@ -11,9 +13,16 @@ type DeleteCondition struct {
 	Clause string
 }
 
+type DatePartition struct {
+	Field       string
+	Value       time.Time
+	Granularity schema.Granularity
+}
+
 //DeleteConditions is a dto for multiple DeleteCondition instances with Joiner
 type DeleteConditions struct {
 	Conditions    []DeleteCondition
+	Partition     DatePartition
 	JoinCondition string
 }
 
@@ -24,13 +33,14 @@ func (dc *DeleteConditions) IsEmpty() bool {
 
 //DeleteByTimeChunkCondition return delete condition that removes objects based on eventn_ctx_time_interval value
 //or empty condition if timeIntervalValue is empty
-func DeleteByTimeChunkCondition(timeIntervalValue string) *DeleteConditions {
-	if timeIntervalValue == "" {
+func DeleteByTimeChunkCondition(timeInterval *TimeInterval) *DeleteConditions {
+	if timeInterval == nil {
 		return &DeleteConditions{}
 	}
 
 	return &DeleteConditions{
 		JoinCondition: "AND",
-		Conditions:    []DeleteCondition{{Field: events.TimeChunkKey, Clause: "=", Value: timeIntervalValue}},
+		Partition:     DatePartition{Field: events.TimeIntervalStart, Value: timeInterval.LowerEndpoint(), Granularity: timeInterval.Granularity()},
+		Conditions:    []DeleteCondition{{Field: events.TimeChunkKey, Clause: "=", Value: timeInterval.String()}},
 	}
 }

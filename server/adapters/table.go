@@ -1,6 +1,7 @@
 package adapters
 
 import (
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/typing"
 	"reflect"
 	"sort"
@@ -24,6 +25,7 @@ type Table struct {
 	Columns        Columns
 	PKFields       map[string]bool
 	PrimaryKeyName string
+	Partition      schema.DatePartition
 
 	DeletePkFields bool
 }

@@ -7,6 +7,7 @@ import { Badge, Menu, Modal, Skeleton, Tag, Tooltip } from "antd"
 import SubMenu from "antd/lib/menu/SubMenu"
 import CodeOutlined from "@ant-design/icons/lib/icons/CodeOutlined"
 import SyncOutlined from "@ant-design/icons/lib/icons/SyncOutlined"
+import ClearOutlined from "@ant-design/icons/lib/icons/ClearOutlined"
 import { useHistory, NavLink } from "react-router-dom"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { sourcesStore } from "../../../stores/sources"
@@ -175,11 +176,12 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
           <Menu.Item icon={<CodeOutlined />}>
             <NavLink to={viewLogsLink}>View Logs</NavLink>
           </Menu.Item>
-
-          <SubMenu title="Sync Now" icon={<SyncOutlined />}>
-            <Menu.Item onClick={async () => await scheduleTasks(src, false)}>Incremental Sync</Menu.Item>
-            <Menu.Item onClick={async () => await scheduleTasks(src, true)}>Full re-refresh</Menu.Item>
-          </SubMenu>
+          <Menu.Item icon={<ClearOutlined />} onClick={async () => await scheduleTasks(src, true)}>
+            Clear Destinations and Sync
+          </Menu.Item>
+          <Menu.Item icon={<SyncOutlined />} onClick={async () => await scheduleTasks(src, false)}>
+            Sync Now
+          </Menu.Item>
         </Menu>
       }
       title={SourcesUtils.getDisplayName(src)}

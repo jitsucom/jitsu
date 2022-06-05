@@ -7,6 +7,7 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/maputils"
+	"github.com/jitsucom/jitsu/server/schema"
 	"google.golang.org/genproto/googleapis/type/latlng"
 	"strings"
 
@@ -162,7 +163,7 @@ func (f *Firebase) GetRefreshWindow() (time.Duration, error) {
 }
 
 func (f *Firebase) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
-	return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil
+	return []*base.TimeInterval{base.NewTimeInterval(schema.ALL, time.Time{})}, nil
 }
 
 func (f *Firebase) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {

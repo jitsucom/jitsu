@@ -227,7 +227,10 @@ const SourceEditorContainer: React.FC<CommonSourcePageProps> = ({ editorMode }) 
 
   const handleValidateAndTestConnection: HandleValidateTestConnection = async (methodConfig): Promise<void> => {
     await validateAllForms()
-    dispatchSourceEditorAction(SourceEditorActionsTypes.SET_STATUS, { isTestingConnection: true, isConfigSealed: true })
+    dispatchSourceEditorAction(SourceEditorActionsTypes.SET_STATUS, {
+      isTestingConnection: true,
+      hasConfigSealed: true,
+    })
     try {
       await assertCanConnect({ ignoreErrors: methodConfig?.ignoreErrors })
     } finally {
@@ -304,7 +307,7 @@ const SourceEditorContainer: React.FC<CommonSourcePageProps> = ({ editorMode }) 
     breadcrumbs.push({
       title: (
         <PageHeader
-          title={(initialSourceData.sourceId || initialSourceData.displayName) ?? "Not Found"}
+          title={(initialSourceData.displayName || initialSourceData.sourceId) ?? "Not Found"}
           icon={sourceDataFromCatalog?.pic}
           mode={editorMode}
         />

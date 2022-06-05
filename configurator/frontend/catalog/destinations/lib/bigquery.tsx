@@ -57,7 +57,7 @@ const bigQueryDestination = {
       large volumes.
     </>
   ),
-  syncFromSourcesStatus: "coming_soon",
+  syncFromSourcesStatus: "supported",
   id: "bigquery",
   type: "database",
   displayName: "BigQuery",

@@ -126,8 +126,7 @@ func (f *Factory) Close() error {
 			continue
 		}
 
-		exchanger.Kill()
-		_ = exchanger.Wait()
+		_ = exchanger.Close()
 	}
 
 	_ = os.RemoveAll(f.dir)
@@ -212,10 +211,10 @@ module.exports = async (event) => {
 			Dir:  f.dir,
 			Path: node,
 			Args: []string{fmt.Sprintf("--max-old-space-size=%d", f.maxSpace), filepath.Join(f.dir, mainFile)},
-			Env:  []string{nodePathEnv + "=" + f.nodePath},
+			Env:  []string{nodePathEnv + "=" + f.nodePath, "TZ=Etc/UTC"},
 		}
 
-		governor, err := ipc.Govern(process)
+		governor, err := ipc.Govern(process, standalone)
 		if err != nil {
 			return nil, errors.Wrapf(err, "govern process")
 		}
