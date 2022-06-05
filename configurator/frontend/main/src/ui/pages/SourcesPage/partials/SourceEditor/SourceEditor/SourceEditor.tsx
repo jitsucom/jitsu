@@ -307,7 +307,7 @@ const SourceEditorContainer: React.FC<CommonSourcePageProps> = ({ editorMode }) 
     breadcrumbs.push({
       title: (
         <PageHeader
-          title={(initialSourceData.sourceId || initialSourceData.displayName) ?? "Not Found"}
+          title={(initialSourceData.displayName || initialSourceData.sourceId) ?? "Not Found"}
           icon={sourceDataFromCatalog?.pic}
           mode={editorMode}
         />
