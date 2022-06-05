@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -33,7 +34,7 @@ func (h *HTTPStorage) Store(fileName string, objects []map[string]interface{}, a
 }
 
 //SyncStore isn't supported
-func (h *HTTPStorage) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
+func (h *HTTPStorage) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *base.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
 	return fmt.Errorf("%s doesn't support Store() func", h.Type())
 }
 

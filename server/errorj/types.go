@@ -17,6 +17,7 @@ var (
 	PatchTableError           = sqlError.NewSubtype("patch_table")
 	GetTableError             = sqlError.NewSubtype("get_table")
 	DropError                 = sqlError.NewSubtype("drop_table")
+	RenameError               = sqlError.NewSubtype("rename_table")
 	CreatePrimaryKeysError    = sqlError.NewSubtype("create_primary_keys")
 	DeletePrimaryKeysError    = sqlError.NewSubtype("delete_primary_keys")
 	GetPrimaryKeysError       = sqlError.NewSubtype("get_primary_keys")

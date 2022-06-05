@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
@@ -96,8 +97,8 @@ func (ch *ClickHouse) Type() string {
 }
 
 //SyncStore is used in storing chunk of pulled data to ClickHouse with processing
-func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
-	return syncStoreImpl(ch, overriddenDataSchema, objects, timeIntervalValue, cacheTable, needCopyEvent)
+func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *base.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
+	return syncStoreImpl(ch, overriddenDataSchema, objects, deleteConditions, cacheTable, needCopyEvent)
 }
 
 func (ch *ClickHouse) Clean(tableName string) error {

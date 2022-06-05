@@ -121,7 +121,7 @@ func (p *StdIO) Kill() {
 	p.cancel()
 }
 
-func (p *StdIO) Wait() error {
+func (p *StdIO) Wait() (string, error) {
 	done := make(chan bool, 1)
 	go func() {
 		select {
@@ -136,7 +136,7 @@ func (p *StdIO) Wait() error {
 	err := p.cmd.Wait()
 	done <- true
 	if err != nil && strings.Contains(err.Error(), "exec: Wait was already called") {
-		return nil
+		return "", nil
 	}
 
 	_ = p.stdin.Close()
@@ -146,7 +146,7 @@ func (p *StdIO) Wait() error {
 	if err != nil {
 		if err, ok := err.(*exec.ExitError); ok {
 			if err.ExitCode() == 133 || err.ExitCode() == -1 && strings.Contains(stderr, "out of memory") {
-				return ErrOutOfMemory
+				return "", ErrOutOfMemory
 			}
 		}
 
@@ -154,12 +154,12 @@ func (p *StdIO) Wait() error {
 			logging.Warnf("%s stderr:\n%s", p, stderr)
 		}
 
-		return nil
+		return stderr, nil
 	} else if stderr != "" {
 		logging.Errorf("%s completed ok, but has stderr below:\n%s", p, stderr)
 	}
 
-	return nil
+	return "", nil
 }
 
 func (p *StdIO) String() string {

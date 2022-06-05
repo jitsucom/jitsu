@@ -2,6 +2,7 @@ package storages
 
 import (
 	"fmt"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"io"
 	"time"
 
@@ -138,7 +139,7 @@ func findStartEndTimestamp(fdata []map[string]interface{}) (time.Time, time.Time
 }
 
 //SyncStore isn't supported
-func (fs *FileStorage) SyncStore(*schema.BatchHeader, []map[string]interface{}, string, bool, bool) error {
+func (fs *FileStorage) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *base.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
 	return errors.Errorf("[%s] doesn't support sync store", fs.storageType)
 }
 

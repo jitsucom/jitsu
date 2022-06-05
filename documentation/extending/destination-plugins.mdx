@@ -31,6 +31,8 @@ We need to use Jitsu SDK's CLI tool to bootstrap a project for new destination p
 npx jitsu-cli extension create --type destination
 ```
 
+`nodejs` and `npx` must be installed on your system.
+
 jitsu-cli creates a functioning project for a destination plugin. All parts are working, but they are placeholder implementation and don't do anything meaningful.
 
 If you are an experienced developer, you can start replacing placeholder logic with your own right away.
@@ -119,11 +121,11 @@ export const validator: ConfigValidator<DestinationConfig> = async (config: Dest
 Now we can test our validator with validate-config action that jitsu-cli already added to the project
 
 ```shell
-yarn build && yarn validate-config --config-object '{"webhookUrl":"https://hooks.slack.com/services/ABC/XYZ/etc", "eventTypes":"registration,error", "messageTemplate": "Important event of type: ${event_type}"}'
+yarn build && yarn validate-config -c '{"webhookUrl":"https://hooks.slack.com/services/ABC/XYZ/etc", "eventTypes":"registration,error", "messageTemplate": "Important event of type: ${event_type}"}'
 ```
 alternatively config may be stored in JSON-file:
 ```shell
-yarn build && yarn validate-config --config config.json
+yarn build && yarn validate-config -c config.json
 ```
 
 If everything is fine, we should get the following output:
@@ -227,16 +229,16 @@ That is it!
 
 ### Testing destination
 
-We need Jitsu Server to run the plugin, but jitsu-cli created our project with the `exec` action that allows executing the plugin for a single event.
+We need Jitsu Server to run the plugin, but jitsu-cli created our project with the `execute` action that allows executing the plugin for a single event.
 `exec` action performs HTTP requests from returned `DestinationMessage`.
 
 You need to prepare JSON file `event.json` with a sample of a Jitsu event first.
 ```shell
-yarn build && yarn execute --file event.json --config-object '{"webhookUrl":"https://hooks.slack.com/services/ABC/XYZ/etc", "eventTypes":"registration,error", "messageTemplate": "Important event of type: ${event_type}"}'
+yarn build && yarn execute --file event.json -c '{"webhookUrl":"https://hooks.slack.com/services/ABC/XYZ/etc", "eventTypes":"registration,error", "messageTemplate": "Important event of type: ${event_type}"}'
 ```
 or with config from file:
 ```shell
-yarn build && yarn execute --file event.json --config config.json
+yarn build && yarn execute --file event.json -c config.json
 ```
 
 Since `exec` action actually performs HTTP request, it makes changes in the destination.

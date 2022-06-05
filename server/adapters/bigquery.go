@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/errorj"
+	"github.com/jitsucom/jitsu/server/schema"
 	"math"
 	"net/http"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/bigquery"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -118,7 +121,6 @@ func (bq *BigQuery) Insert(insertContext *InsertContext) error {
 	} else {
 		return bq.insertBatch(insertContext.table, insertContext.objects)
 	}
-
 }
 
 //GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct
@@ -180,7 +182,22 @@ func (bq *BigQuery) CreateTable(table *Table) error {
 		bqSchema = append(bqSchema, &bigquery.FieldSchema{Name: columnName, Type: bigQueryType})
 	}
 	bq.logQuery("Creating table for schema: ", bqSchema, true)
-	if err := bqTable.Create(bq.ctx, &bigquery.TableMetadata{Name: table.Name, Schema: bqSchema}); err != nil {
+	tableMetaData := bigquery.TableMetadata{Name: table.Name, Schema: bqSchema}
+	if table.Partition.Field != "" && table.Partition.Granularity != schema.ALL {
+		var partitioningType bigquery.TimePartitioningType
+		switch table.Partition.Granularity {
+		case schema.DAY:
+		case schema.WEEK:
+			partitioningType = bigquery.DayPartitioningType
+		case schema.MONTH:
+		case schema.QUARTER:
+			partitioningType = bigquery.MonthPartitioningType
+		case schema.YEAR:
+			partitioningType = bigquery.YearPartitioningType
+		}
+		tableMetaData.TimePartitioning = &bigquery.TimePartitioning{Field: table.Partition.Field, Type: partitioningType}
+	}
+	if err := bqTable.Create(bq.ctx, &tableMetaData); err != nil {
 		return errorj.GetTableError.Wrap(err, "failed to create table").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
 				Dataset:   bq.config.Dataset,
@@ -257,28 +274,58 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	return nil
 }
 
-// DeleteWithConditions tries to remove rows with specific conditions.
-// Note that rows that were written to a table recently by using streaming
-// (the tabledata.insertall method or the Storage Write API)
-// cannot be modified with UPDATE, DELETE, or MERGE statements.
-// Recent writes are typically those that occur within the last 30 minutes.
-// https://cloud.google.com/bigquery/docs/reference/standard-sql/data-manipulation-language#limitations
-func (bq *BigQuery) DeleteWithConditions(tableName string, deleteConditions *DeleteConditions) error {
-	deleteCondition := bq.toDeleteQuery(deleteConditions)
-	query := fmt.Sprintf(deleteBigQueryTemplate, bq.config.Project, bq.config.Dataset, tableName, deleteCondition)
-	bq.queryLogger.LogQuery(query)
-	if _, err := bq.client.Query(query).Read(bq.ctx); err != nil {
-		return errorj.DeleteFromTableError.Wrap(err, "failed to delete data").
-			WithProperty(errorj.DBInfo, &ErrorPayload{
-				Dataset:   bq.config.Dataset,
-				Bucket:    bq.config.Bucket,
-				Project:   bq.config.Project,
-				Table:     tableName,
-				Statement: query,
-			})
-	}
+func (bq *BigQuery) DeletePartition(tableName string, datePartiton *base.DatePartition) error {
+	partitions := GranularityToPartitionIds(datePartiton.Granularity, datePartiton.Value)
+	for _, partition := range partitions {
+		bq.logQuery("Deletion partition "+partition+" in table"+tableName, "", true)
+		logging.Infof("Deletion partition %s in table %s", partition, tableName)
+		if err := bq.client.Dataset(bq.config.Dataset).Table(tableName + "$" + partition).Delete(bq.ctx); err != nil {
+			gerr, ok := err.(*googleapi.Error)
+			if ok && gerr.Code == 404 {
+				logging.Infof("Partition %s$%s was not found", tableName, partition)
+				continue
+			}
+			return errorj.DeleteFromTableError.Wrap(err, "failed to delete partition").
+				WithProperty(errorj.DBInfo, &ErrorPayload{
+					Dataset:   bq.config.Dataset,
+					Bucket:    bq.config.Bucket,
+					Project:   bq.config.Project,
+					Table:     tableName,
+					Partition: partition,
+				})
+		}
 
+	}
 	return nil
+}
+
+func GranularityToPartitionIds(g schema.Granularity, t time.Time) []string {
+	t = g.Lower(t)
+	switch g {
+	case schema.HOUR:
+		return []string{t.Format("2006010215")}
+	case schema.DAY:
+		return []string{t.Format("20060102")}
+	case schema.WEEK:
+		week := make([]string, 0, 7)
+		for i := 0; i < 7; i++ {
+			week = append(week, t.AddDate(0, 0, i).Format("20060102"))
+		}
+		return week
+	case schema.MONTH:
+		return []string{t.Format("200601")}
+	case schema.QUARTER:
+		quarter := make([]string, 0, 3)
+		for i := 0; i < 3; i++ {
+			quarter = append(quarter, t.AddDate(0, i, 0).Format("200601"))
+		}
+		return quarter
+	case schema.YEAR:
+		return []string{t.Format("2006")}
+	default:
+		logging.SystemErrorf("Granularity %s is not mapped to any partition time unit:.", g)
+		return []string{}
+	}
 }
 
 //insertBatch streams data into BQ using stream API
@@ -361,12 +408,52 @@ func (bq *BigQuery) DropTable(table *Table) error {
 	return nil
 }
 
+func (bq *BigQuery) ReplaceTable(originalTable, replacementTable string) error {
+	dataset := bq.client.Dataset(bq.config.Dataset)
+	copier := dataset.Table(originalTable).CopierFrom(dataset.Table(replacementTable))
+	copier.WriteDisposition = bigquery.WriteTruncate
+	job, err := copier.Run(bq.ctx)
+	if err != nil {
+		return errorj.CopyError.Wrap(err, "failed to replace table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   originalTable,
+			})
+	}
+	status, err := job.Wait(bq.ctx)
+	if err != nil {
+		return errorj.CopyError.Wrap(err, "failed to replace table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   originalTable,
+			})
+	}
+	if err := status.Err(); err != nil {
+		return errorj.CopyError.Wrap(err, "failed to replace table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Dataset: bq.config.Dataset,
+				Bucket:  bq.config.Bucket,
+				Project: bq.config.Project,
+				Table:   originalTable,
+			})
+	}
+	return bq.DropTable(&Table{Name: replacementTable})
+}
+
 //Truncate deletes all records in tableName table
 func (bq *BigQuery) Truncate(tableName string) error {
 	query := fmt.Sprintf(truncateBigQueryTemplate, bq.config.Project, bq.config.Dataset, tableName)
 	bq.queryLogger.LogQuery(query)
 	if _, err := bq.client.Query(query).Read(bq.ctx); err != nil {
-		return errorj.TruncateError.Wrap(err, "failed to truncate table").
+		extraText := ""
+		if strings.Contains(err.Error(), "Not found") {
+			extraText = ": " + ErrTableNotExist.Error()
+		}
+		return errorj.TruncateError.Wrap(err, "failed to truncate table"+extraText).
 			WithProperty(errorj.DBInfo, &ErrorPayload{
 				Dataset: bq.config.Dataset,
 				Bucket:  bq.config.Bucket,
@@ -395,7 +482,7 @@ func (bq *BigQuery) insertItems(inserter *bigquery.Inserter, items []*BQItem) er
 	return nil
 }
 
-func (bq *BigQuery) toDeleteQuery(conditions *DeleteConditions) string {
+func (bq *BigQuery) toDeleteQuery(conditions *base.DeleteConditions) string {
 	var queryConditions []string
 
 	for _, condition := range conditions.Conditions {
@@ -403,7 +490,7 @@ func (bq *BigQuery) toDeleteQuery(conditions *DeleteConditions) string {
 		queryConditions = append(queryConditions, conditionString)
 	}
 
-	return strings.Join(queryConditions, conditions.JoinCondition)
+	return strings.Join(queryConditions, " "+conditions.JoinCondition+" ")
 }
 
 func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}, ddl bool) {

@@ -1,25 +1,30 @@
 package adapters
 
-import "github.com/jitsucom/jitsu/server/events"
+import (
+	"github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/events"
+)
 
 //InsertContext is used as a dto for insert operation
 type InsertContext struct {
-	// -- single --
+	// -- for http single request --
 	eventContext *EventContext
 
 	// -- batch --
 	objects          []map[string]interface{}
 	table            *Table
-	deleteConditions *DeleteConditions
+	deleteConditions *base.DeleteConditions
 }
 
 func NewSingleInsertContext(eventContext *EventContext) *InsertContext {
 	return &InsertContext{
 		eventContext: eventContext,
+		table:        eventContext.Table,
+		objects:      []map[string]interface{}{eventContext.ProcessedEvent},
 	}
 }
 
-func NewBatchInsertContext(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) *InsertContext {
+func NewBatchInsertContext(table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) *InsertContext {
 	return &InsertContext{
 		objects:          objects,
 		table:            table,

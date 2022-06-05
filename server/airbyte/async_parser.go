@@ -29,17 +29,16 @@ type asynchronousParser struct {
 func (ap *asynchronousParser) parse(stdout io.Reader) error {
 	ap.logger.INFO("Airbyte sync will store data as batches >= [%d] elements size", Instance.batchSize)
 
-	output := &base.CLIOutputRepresentation{
-		Streams: map[string]*base.StreamRepresentation{},
-	}
+	output := base.NewCLIOutputRepresentation()
 
 	for streamName, representation := range ap.streamsRepresentation {
-		output.Streams[streamName] = &base.StreamRepresentation{
+		output.AddStream(streamName, &base.StreamRepresentation{
+			StreamName:  streamName,
 			BatchHeader: &schema.BatchHeader{TableName: representation.BatchHeader.TableName, Fields: representation.BatchHeader.Fields.Clone()},
 			KeyFields:   representation.KeyFields,
 			Objects:     []map[string]interface{}{},
 			NeedClean:   representation.NeedClean,
-		}
+		})
 	}
 
 	scanner := bufio.NewScanner(stdout)
@@ -85,8 +84,8 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 			if row.Record == nil || row.Record.Data == nil {
 				return fmt.Errorf("Error parsing airbyte record line %s: %v", string(lineBytes), err)
 			}
-
-			output.Streams[row.Record.Stream].Objects = append(output.Streams[row.Record.Stream].Objects, row.Record.Data)
+			s, _ := output.GetStream(row.Record.Stream)
+			s.Objects = append(s.Objects, row.Record.Data)
 		default:
 			ap.logger.LOG(string(lineBytes), airbyteSystem, logging.DEBUG)
 		}
@@ -99,7 +98,7 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 			}
 
 			//remove already persisted objects
-			for _, stream := range output.Streams {
+			for _, stream := range output.GetStreams() {
 				stream.Objects = []map[string]interface{}{}
 			}
 			output.State = nil

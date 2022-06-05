@@ -53,13 +53,15 @@ func NewResultSaver(task *meta.Task, tap, collectionMetaKey, tableNamePrefix str
 
 //Consume consumes result batch and writes it to destinations and saves the State
 func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentation) error {
-	for streamName, stream := range representation.Streams {
+	for _, stream := range representation.GetStreams() {
+		streamName := stream.StreamName
 
 		tableName, ok := rs.streamTableNames[streamName]
 		if !ok {
 			tableName = rs.tableNamePrefix + streamName
 		}
-		stream.BatchHeader.TableName = schema.Reformat(tableName)
+		tableName = schema.Reformat(tableName)
+		stream.BatchHeader.TableName = tableName
 
 		if stream.NeedClean {
 			for _, storage := range rs.destinations {
@@ -91,7 +93,9 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		for _, object := range stream.Objects {
 			//enrich with system fields values
 			object[events.SrcKey] = srcSource
-			object[timestamp.Key] = timestamp.NowUTC()
+			if _, ok := object[timestamp.Key]; !ok {
+				object[timestamp.Key] = timestamp.NowUTC()
+			}
 
 			//calculate eventID from key fields or whole object
 			var eventID string
@@ -109,6 +113,11 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 				b, _ := json.Marshal(object)
 				return fmt.Errorf("Error setting unique ID field into %s: %v", string(b), err)
 			}
+			if stream.RemoveSourceKeyFields {
+				for _, kf := range stream.KeyFields {
+					delete(object, kf)
+				}
+			}
 		}
 
 		needCopyEvent := len(rs.destinations) > 1
@@ -116,7 +125,18 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		//Sync stream
 		for _, storage := range rs.destinations {
 			rs.taskLogger.INFO("Stream [%s] Storing data to destination table [%s] in storage [%s]", streamName, tableName, storage.ID())
-			err := storage.SyncStore(stream.BatchHeader, stream.Objects, "", false, needCopyEvent)
+			err := storage.SyncStore(stream.BatchHeader, stream.Objects, stream.DeleteConditions, false, needCopyEvent)
+			if err == nil {
+				if stream.TargetStreamName != "" && stream.TargetStreamName != streamName {
+					targetTableName, ok := rs.streamTableNames[stream.TargetStreamName]
+					if !ok {
+						targetTableName = rs.tableNamePrefix + stream.TargetStreamName
+					}
+					targetTableName = schema.Reformat(targetTableName)
+					rs.taskLogger.INFO("Stream [%s] Replacing final table: %s with content of: %s", streamName, targetTableName, tableName)
+					err = storage.ReplaceTable(targetTableName, tableName)
+				}
+			}
 			if err != nil {
 				errMsg := fmt.Sprintf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
 				metrics.ErrorSourceEvents(rs.task.SourceType, rs.tap, rs.task.Source, storage.Type(), storage.ID(), rowsCount)
@@ -147,7 +167,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 			return errors.New(errMsg)
 		}
 		rs.taskLogger.INFO("Saving state: %s", string(stateJSON))
-		err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey, driversbase.ALL.String(), string(stateJSON))
+		err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey, schema.ALL.String(), string(stateJSON))
 		if err != nil {
 			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] signature [%s]: %v", rs.task.Source, rs.tap, string(stateJSON), err)
 			logging.SystemError(errMsg)

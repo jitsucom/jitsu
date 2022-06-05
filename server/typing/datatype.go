@@ -89,11 +89,21 @@ func StringFromType(dataType DataType) (string, error) {
 	return str, nil
 }
 
-//ReformatValue process json.Number types into int64 or float64
+//ReformatNumberValue process json.Number types into int64 or float64
+//processes string with ISO DateTime or Golang layout into time.Time
 //note: json.Unmarshal returns json.Number type that can be int or float
 //      we have to check does json number have dot in string representation
 // if have -> return float64 otherwise int64
 func ReformatValue(v interface{}) interface{} {
+	v = ReformatNumberValue(v)
+	return ReformatTimeValue(v)
+}
+
+//ReformatNumberValue process json.Number types into int64 or float64
+//note: json.Unmarshal returns json.Number type that can be int or float
+//      we have to check does json number have dot in string representation
+// if have -> return float64 otherwise int64
+func ReformatNumberValue(v interface{}) interface{} {
 	jsonNumber, ok := v.(json.Number)
 	if !ok {
 		return v

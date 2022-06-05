@@ -11,12 +11,4 @@ export const allSdkSources: SdkSource[] = [
     displayName: "Airtable",
     stable: true,
   },
-  {
-    id: "sdk-helpscout",
-    pic: logos.tap_helpscout,
-    package_name: "jitsu-helpscout-source",
-    package_version: "^0.7.3",
-    displayName: "Helpscout (SDK)",
-    stable: true,
-  },
 ]

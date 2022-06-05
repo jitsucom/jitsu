@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/utils"
 	"sync"
 	"time"
 
@@ -14,13 +15,18 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/templates"
+	"github.com/mitchellh/mapstructure"
 	"go.uber.org/atomic"
+	"strings"
 )
 
 var ErrSDKSourceCancelled = errors.New("Source runner was cancelled.")
 
+const FullSyncChunkSize = 1000
 const LatestVersion = "latest"
-const IdField = "__id"
+const IdField = "$id"
+const RecordTimestampSrc = "$recordTimestamp"
+const RecordTimestampDst = "_record_timestamp"
 
 //SdkSource is an SdkSource CLI driver
 type SdkSource struct {
@@ -36,17 +42,31 @@ type SdkSource struct {
 	closed         chan struct{}
 }
 
+type DeleteRecords struct {
+	PartitionTimestamp string `mapstructure:"partitionTimestamp" json:"partitionTimestamp,omitempty"`
+	Granularity        string `mapstructure:"granularity" json:"granularity,omitempty"`
+}
+
+type Condition struct {
+	Field  string      `mapstructure:"field" json:"field,omitempty"`
+	Value  interface{} `mapstructure:"value" json:"value,omitempty"`
+	Clause string      `mapstructure:"clause" json:"clause,omitempty"`
+}
+
 func init() {
 	base.RegisterDriver(base.SdkSourceType, NewSdkSource)
 	base.RegisterTestConnectionFunc(base.SdkSourceType, TestSdkSource)
-	//base.RegisterDriver(base.RedisType, func(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
-	//	sourceConfig.Config["package_name"] = "jitsu-redis-source"
-	//	return NewSdkSource(ctx, sourceConfig, collection)
-	//})
-	//base.RegisterTestConnectionFunc(base.RedisType, func(sourceConfig *base.SourceConfig) error {
-	//	sourceConfig.Config["package_name"] = "jitsu-redis-source"
-	//	return TestSdkSource(sourceConfig)
-	//})
+	base.RegisterDriver(base.RedisType, func(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
+		sourceConfig.Config["package_name"] = "jitsu-redis-source"
+		sourceConfig.Config["package_version"] = "^0.7.4"
+		collection.Type = "hash"
+		return NewSdkSource(ctx, sourceConfig, collection)
+	})
+	base.RegisterTestConnectionFunc(base.RedisType, func(sourceConfig *base.SourceConfig) error {
+		sourceConfig.Config["package_name"] = "jitsu-redis-source"
+		sourceConfig.Config["package_version"] = "^0.7.4"
+		return TestSdkSource(sourceConfig)
+	})
 }
 
 //NewSdkSource returns SdkSource driver and
@@ -66,7 +86,7 @@ func NewSdkSource(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	base.FillPreconfiguredOauth(packageName, config)
 
 	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, packageName, "", "", "", "",
-		"", "", map[string]string{collection.Name: collection.TableName})
+		"", "", map[string]string{collection.Name: collection.TableName, collection.Name + "_tmp": collection.TableName + "_tmp"})
 	s := &SdkSource{
 		activeCommands: map[string]*base.SyncCommand{},
 		mutex:          &sync.RWMutex{},
@@ -172,7 +192,7 @@ func (s *SdkSource) Load(config string, state string, taskLogger logging.TaskLog
 		}
 	})
 
-	return sdkSourceRunner.Load(taskLogger, dataConsumer)
+	return sdkSourceRunner.Load(taskLogger, dataConsumer, state)
 }
 
 //GetDriversInfo returns telemetry information about the driver
@@ -227,33 +247,70 @@ type SdkSourceRunner struct {
 	closed         *atomic.Bool
 }
 
-func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer) error {
+func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, state string) error {
 	if s.closed.Load() {
 		return ErrSDKSourceCancelled
 	}
-	output := &base.CLIOutputRepresentation{
-		Streams: map[string]*base.StreamRepresentation{},
+
+	stateObj := map[string]interface{}{}
+	if state != "" {
+		err := json.Unmarshal([]byte(state), &stateObj)
+		if err != nil {
+			return fmt.Errorf("Failed to unmarshal state object %s: %v", state, err)
+		}
 	}
 
 	stream := s.collection
-	taskLogger.INFO("Starting processing stream: %s", stream.Name)
-	representation := &base.StreamRepresentation{
-		StreamName:       stream.Name,
-		BatchHeader:      &schema.BatchHeader{TableName: stream.TableName, Fields: map[string]schema.Field{}},
-		Objects:          []map[string]interface{}{},
-		KeepKeysUnhashed: true,
-		NeedClean:        stream.SyncMode == "full_sync",
+	taskLogger.INFO("Starting processing stream: %s of type: %s", stream.Name, stream.Type)
+	var supportedModes []interface{}
+	var typeSupported bool
+	rawCat, err := s.sourceExecutor.Catalog()
+	if err != nil {
+		return fmt.Errorf("Failed to load source catalog: %v", err)
 	}
-	output.Streams[stream.Name] = representation
+	catArr, ok := rawCat.([]interface{})
+	if !ok {
+		return fmt.Errorf("Invalid type of source catalog: %T expected []interface{}", rawCat)
+	}
+	for _, c := range catArr {
+		cat, ok := c.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("Invalid type of source catalog stream: %T expected map[string]interface{}", c)
+		}
+		if cat["type"] == stream.Type {
+			typeSupported = true
+			supportedModes, ok = cat["supportedModes"].([]interface{})
+			if !ok {
+				return fmt.Errorf("Invalid value of stream supportedModes: %v expected array of strings", cat["supportedModes"])
+			}
+			if len(supportedModes) > 1 && stream.SyncMode == "" {
+				return fmt.Errorf("\"mode\" is required when stream supports multiple modes: %v", supportedModes)
+			} else if len(supportedModes) == 1 && stream.SyncMode == "" {
+				stream.SyncMode = supportedModes[0].(string)
+			} else if !utils.ArrayContains(supportedModes, stream.SyncMode) {
+				return fmt.Errorf("provided \"mode\": %s is not among supported by stream: %v", stream.SyncMode, supportedModes)
+			}
+		}
+	}
+	if !typeSupported {
+		return fmt.Errorf("Stream type: %s is not supported by source", stream.Type)
+	}
+	taskLogger.INFO("Sync mode selected: %s of supported %v", stream.SyncMode, supportedModes)
+
+	chunkNumber := 0
+	var currentChunk *base.CLIOutputRepresentation
+
 	dataChannel := make(scriptListener, 1000)
+
 	go func() {
 		defer close(dataChannel)
-		_, err := s.sourceExecutor.Stream(stream.Type, stream, nil, dataChannel)
+		_, err := s.sourceExecutor.Stream(stream.Type, stream, stateObj, dataChannel)
 		if err != nil {
 			dataChannel <- err
 		}
 	}()
-
+	fullSync := stream.SyncMode == "full_sync"
+	recordCounter := 0
 	for rawData := range dataChannel {
 		switch data := rawData.(type) {
 		case []byte:
@@ -265,21 +322,87 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 			}
 			switch row.Type {
 			case "record":
+				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, fullSync && recordCounter > 0 && recordCounter%FullSyncChunkSize == 0, false)
+				if err != nil {
+					return err
+				}
 				object, ok := row.Message.(map[string]interface{})
 				if !ok {
-					taskLogger.ERROR("Record message expected to have type map[string]interface{} found: %T", row.Message)
+					return fmt.Errorf("Record message expected to have type map[string]interface{} found: %T", row.Message)
 				}
 				id, ok := object[IdField]
-				if ok && representation.KeyFields == nil && fmt.Sprint(id) != "" {
-					representation.KeyFields = []string{IdField}
+				if ok && currentChunk.CurrentStream().KeyFields == nil && fmt.Sprint(id) != "" {
+					currentChunk.CurrentStream().KeyFields = []string{IdField}
 				}
-				representation.Objects = append(representation.Objects, object)
+				ts, ok := object[RecordTimestampSrc]
+				if ok {
+					object[RecordTimestampDst] = ts
+					delete(object, RecordTimestampSrc)
+				}
+				currentChunk.CurrentStream().Objects = append(currentChunk.CurrentStream().Objects, object)
+				recordCounter++
+			case "delete_records":
+				if fullSync {
+					return fmt.Errorf("Delete records message is not allowed in full_sync mode")
+				}
+				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, false, false)
+				if err != nil {
+					return err
+				}
+				if len(currentChunk.CurrentStream().Objects) > 0 {
+					return fmt.Errorf("\"delete_records\" message must precede any \"record\" message in transaction. Current added records number: %d", len(currentChunk.CurrentStream().Objects))
+				}
+				deleteRecords := DeleteRecords{}
+				err = mapstructure.Decode(row.Message, &deleteRecords)
+				if err != nil {
+					return fmt.Errorf("Failed to parse delete_records message %s, %v", row.Message, err)
+				}
+				deleteConditions := base.DeleteConditions{}
+				if deleteRecords.Granularity != "" {
+					partitionTimestamp, err := time.Parse(time.RFC3339Nano, deleteRecords.PartitionTimestamp)
+					if err != nil {
+						return fmt.Errorf("Failed to parse partitionTimestamp from %s: %v", deleteRecords.PartitionTimestamp, err)
+
+					}
+					granularity := schema.Granularity(deleteRecords.Granularity)
+					deleteConditions.Partition = base.DatePartition{Field: RecordTimestampDst, Value: partitionTimestamp, Granularity: granularity}
+					deleteConditions.JoinCondition = "AND"
+					deleteConditions.Conditions = append(deleteConditions.Conditions, base.DeleteCondition{Field: RecordTimestampDst, Value: granularity.Lower(partitionTimestamp), Clause: ">="})
+					deleteConditions.Conditions = append(deleteConditions.Conditions, base.DeleteCondition{Field: RecordTimestampDst, Value: granularity.Upper(partitionTimestamp), Clause: "<="})
+					taskLogger.INFO("Delete Records: partitionTimestamp: %s + granularity: %s", deleteRecords.PartitionTimestamp, deleteRecords.Granularity)
+				}
+				currentChunk.CurrentStream().DeleteConditions = &deleteConditions
+			case "clear_stream":
+				if fullSync {
+					return fmt.Errorf("Clear stream message is not allowed in full_sync mode")
+				}
+				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, false, false)
+				if err != nil {
+					return err
+				}
+				if chunkNumber == 0 && len(currentChunk.CurrentStream().Objects) > 0 {
+					return fmt.Errorf("\"clear_stream\" message allowed only in the zero chunk and before any \"record\" message added. Current chunk number: %d Current chunk added records number: %d", chunkNumber, len(currentChunk.CurrentStream().Objects))
+				}
+				taskLogger.INFO("Table %s will be cleared", stream.TableName)
+				currentChunk.CurrentStream().NeedClean = true
+			case "new_transaction":
+				if fullSync {
+					return fmt.Errorf("New transaction message is not allowed in full_sync mode")
+				}
+				currentChunk, chunkNumber, err = s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, true, false)
+				if err != nil {
+					return err
+				}
+				taskLogger.INFO("New transaction for chunk number: %d", chunkNumber)
+			case "state":
+				taskLogger.INFO("State changed: %+v", row.Message)
+				currentChunk.State = row.Message
 			case "log":
 				log, ok := row.Message.(map[string]interface{})
 				if !ok {
 					taskLogger.ERROR("Log message expected to have type map[string]interface{} found: %T", row.Message)
 				}
-				taskLogger.LOG(log["message"].(string), "Jitsu", logging.ToLevel(log["level"].(string)))
+				taskLogger.LOG(strings.ReplaceAll(log["message"].(string), "%", "%%"), "Jitsu", logging.ToLevel(log["level"].(string)))
 			default:
 				taskLogger.ERROR("Message type %s is not supported yet.", row.Type)
 			}
@@ -290,14 +413,55 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 		}
 
 	}
-	taskLogger.INFO("Stream: %s finished. Objects count: %d", stream.Name, len(representation.Objects))
 
 	if !s.closed.Load() {
-		err := dataConsumer.Consume(output)
+		//rotate chunk to consume the last one
+		_, _, err := s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, true, true)
 		return err
 	} else {
 		taskLogger.WARN("Stopping processing. Task was closed")
 		return ErrSDKSourceCancelled
+	}
+}
+
+func (s SdkSourceRunner) GetOrRotateChunk(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, currentChunk *base.CLIOutputRepresentation, chunkNumber int, forceCreate bool, finalChunk bool) (newChunk *base.CLIOutputRepresentation, newChunkNumber int, err error) {
+	stream := s.collection
+	exists := currentChunk != nil
+	if !exists || forceCreate {
+		newChunkNumber = chunkNumber
+		if exists && forceCreate {
+			if stream.SyncMode == "full_sync" {
+				if chunkNumber == 0 && currentChunk.CurrentStream().NeedClean == false {
+					//taskLogger.INFO("Stream: %s No clear_stream was received for stream in \"full_sync\" mode. Forcing cleaning table", stream.Name)
+					currentChunk.CurrentStream().NeedClean = true
+				}
+			}
+			taskLogger.INFO("Chunk: %s_%d finished. Objects count: %d", stream.Name, chunkNumber, len(currentChunk.CurrentStream().Objects))
+			if stream.SyncMode == "full_sync" && finalChunk {
+				currentChunk.CurrentStream().TargetStreamName = stream.Name
+			}
+			err = dataConsumer.Consume(currentChunk)
+			if err != nil {
+				return
+			}
+			//we create next chunk when some chunks already present. increment chunk number
+			newChunkNumber = chunkNumber + 1
+		}
+		name := stream.Name
+		if stream.SyncMode == "full_sync" {
+			name = fmt.Sprintf("%s_tmp", stream.Name)
+		}
+		newChunk = base.NewCLIOutputRepresentation()
+		newChunk.AddStream(stream.Name, &base.StreamRepresentation{
+			StreamName:            name,
+			BatchHeader:           &schema.BatchHeader{TableName: stream.TableName, Fields: map[string]schema.Field{}},
+			Objects:               []map[string]interface{}{},
+			KeepKeysUnhashed:      true,
+			RemoveSourceKeyFields: true,
+		})
+		return
+	} else {
+		return currentChunk, chunkNumber, nil
 	}
 }
 

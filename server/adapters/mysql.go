@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
@@ -35,10 +36,12 @@ const (
 	mySQLBulkMergeTemplate           = "INSERT INTO `%s`.`%s` (%s) SELECT * FROM (SELECT %s FROM `%s`.`%s`) AS tmp ON DUPLICATE KEY UPDATE %s"
 	mySQLDeleteQueryTemplate         = "DELETE FROM `%s`.`%s` WHERE %s"
 	mySQLAddColumnTemplate           = "ALTER TABLE `%s`.`%s` ADD COLUMN %s"
-	mySQLDropTableTemplate           = "DROP TABLE `%s`.`%s`"
-	mySQLTruncateTableTemplate       = "TRUNCATE TABLE `%s`.`%s`"
-	MySQLValuesLimit                 = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
-	batchRetryAttempts               = 3     //number of additional tries to proceed batch update or insert.
+	mySQLRenameTableTemplate         = "RENAME TABLE `%s`.`%s` TO `%s`.`%s`"
+
+	mySQLDropTableTemplate     = "DROP TABLE `%s`.`%s`"
+	mySQLTruncateTableTemplate = "TRUNCATE TABLE `%s`.`%s`"
+	MySQLValuesLimit           = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	batchRetryAttempts         = 3     //number of additional tries to proceed batch update or insert.
 	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
 )
 
@@ -126,7 +129,7 @@ func (m *MySQL) CreateDB(dbSchemaName string) error {
 }
 
 //CreateTable creates database table with name,columns provided in Table representation
-func (m *MySQL) CreateTable(table *Table) error {
+func (m *MySQL) CreateTable(table *Table) (err error) {
 	wrappedTx, err := m.OpenTx()
 	if err != nil {
 		return err
@@ -147,7 +150,7 @@ func (m *MySQL) CreateTable(table *Table) error {
 }
 
 //PatchTableSchema adds new columns(from provided Table) to existing table
-func (m *MySQL) PatchTableSchema(patchTable *Table) error {
+func (m *MySQL) PatchTableSchema(patchTable *Table) (err error) {
 	wrappedTx, err := m.OpenTx()
 	if err != nil {
 		return err
@@ -238,7 +241,7 @@ func (m *MySQL) Insert(insertContext *InsertContext) error {
 
 //insertBatch inserts batch of provided objects in mysql with typecasts
 //uses upsert if primary_keys are configured
-func (m *MySQL) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+func (m *MySQL) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) error {
 	var e error
 	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
 	for i := 0; i <= batchRetryAttempts; i++ {
@@ -321,7 +324,7 @@ func (m *MySQL) Update(table *Table, object map[string]interface{}, whereKey str
 }
 
 //DropTable drops table in transaction
-func (m *MySQL) DropTable(table *Table) error {
+func (m *MySQL) DropTable(table *Table) (err error) {
 	wrappedTx, err := m.OpenTx()
 	if err != nil {
 		return err
@@ -341,7 +344,32 @@ func (m *MySQL) DropTable(table *Table) error {
 	return m.dropTableInTransaction(wrappedTx, table)
 }
 
-func (m *MySQL) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+func (m *MySQL) ReplaceTable(originalTable, replacementTable string) (err error) {
+	wrappedTx, err := m.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			rbErr := wrappedTx.Rollback()
+			if rbErr != nil {
+				err = errorj.Group(err, rbErr)
+			}
+		} else {
+			err = wrappedTx.Commit()
+		}
+	}()
+	tmpTable := replacementTable + "_tmp"
+	err1 := m.renameTableInTransaction(wrappedTx, originalTable, tmpTable)
+	err = m.renameTableInTransaction(wrappedTx, replacementTable, originalTable)
+	if err1 == nil {
+		_ = m.dropTableInTransaction(wrappedTx, &Table{Name: tmpTable})
+	}
+	return
+}
+
+func (m *MySQL) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *base.DeleteConditions) error {
 	deleteCondition, values := m.toDeleteQuery(deleteConditions)
 	query := fmt.Sprintf(mySQLDeleteQueryTemplate, m.config.Db, table.Name, deleteCondition)
 	m.queryLogger.LogQueryWithValues(query, values)
@@ -360,15 +388,15 @@ func (m *MySQL) deleteInTransaction(wrappedTx *Transaction, table *Table, delete
 	return nil
 }
 
-func (m *MySQL) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {
+func (m *MySQL) toDeleteQuery(conditions *base.DeleteConditions) (string, []interface{}) {
 	var queryConditions []string
 	var values []interface{}
 	for _, condition := range conditions.Conditions {
 		quotedField := m.quote(condition.Field)
 		queryConditions = append(queryConditions, quotedField+" "+condition.Clause+" ?")
-		values = append(values, condition.Value)
+		values = append(values, typing.ReformatValue(condition.Value))
 	}
-	return strings.Join(queryConditions, conditions.JoinCondition), values
+	return strings.Join(queryConditions, " "+conditions.JoinCondition+" "), values
 }
 
 //Truncate deletes all records in tableName table
@@ -510,7 +538,7 @@ func mySQLDriverConnectionString(config *DataSourceConfig) string {
 //bulkStoreInTransaction checks PKFields and uses bulkInsert or bulkMerge
 //in bulkMerge - deduplicate objects
 //if there are any duplicates, do the job 2 times
-func (m *MySQL) insertBatchInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+func (m *MySQL) insertBatchInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) error {
 	if !deleteConditions.IsEmpty() {
 		if err := m.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
 			return err
@@ -668,6 +696,22 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 	//delete tmp table
 	if err := m.dropTableInTransaction(wrappedTx, tmpTable); err != nil {
 		return errorj.Decorate(err, "failed to drop temporary table")
+	}
+
+	return nil
+}
+
+func (m *MySQL) renameTableInTransaction(wrappedTx *Transaction, tableName, newTableName string) error {
+	query := fmt.Sprintf(mySQLRenameTableTemplate, m.config.Db, tableName, m.config.Db, newTableName)
+	m.queryLogger.LogDDL(query)
+
+	if _, err := wrappedTx.tx.ExecContext(m.ctx, query); err != nil {
+		return errorj.RenameError.Wrap(err, "failed to rename table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Database:  m.config.Db,
+				Table:     tableName,
+				Statement: query,
+			})
 	}
 
 	return nil

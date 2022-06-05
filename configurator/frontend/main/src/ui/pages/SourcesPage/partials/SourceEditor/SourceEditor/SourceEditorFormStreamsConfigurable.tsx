@@ -1,15 +1,18 @@
 // @Libs
 import React, { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Button, Col, Collapse, Form, Input, Popover, Row } from "antd"
+import { Button, Col, Collapse, Form, Input, Popover, Row, Select } from "antd"
 // @Types
 import {
   booleanType,
   CollectionParameter,
   CollectionTemplate,
   intType,
+  isoUtcDateType,
   jsonType,
   ParameterType,
   passwordType,
+  selectionType,
+  singleSelectionType,
   SourceConnector,
   stringType,
 } from "@jitsu/catalog/sources/types"
@@ -24,10 +27,8 @@ import { getUniqueAutoIncId, randomId } from "utils/numbers"
 import { useDebouncedCallback } from "hooks/useDebouncedCallback"
 // @Styles
 import styles from "./SourceEditor.module.less"
-import { assert } from "../../../../../../utils/typeCheck"
-import ApplicationServices from "../../../../../../lib/services/ApplicationServices"
-import { withQueryParams } from "../../../../../../utils/queryParams"
-import { sourceEditorUtils } from "./SourceEditor.utils"
+import { convertSdkType } from "@jitsu/catalog/sources/lib/sdk_source.helper"
+
 import {
   PARSING_STREAMS_ERROR_NAME,
   pullAllSDKSourceStreams,
@@ -62,6 +63,8 @@ const SourceEditorFormStreamsConfigurable = ({
   const [addTemplateVisible, setAddTemplateVisible] = useState(false)
   const [collectionTypes, setCollectionTypes] = useState(sourceDataFromCatalog.collectionTypes)
   const [collectionParameters, setCollectionParameters] = useState(sourceDataFromCatalog.collectionParameters)
+  const [collectionModes, setCollectionModes] = useState({} as { string: StreamMode[] })
+
   const [activePanel, setActivePanel] = useState([])
 
   const input = useRef(null)
@@ -86,23 +89,12 @@ const SourceEditorFormStreamsConfigurable = ({
             const streamData = result as SDKSourceStreamData[]
             let ct = []
             let cp = []
+            let cm = {} as { string: StreamMode[] }
             for (const stream of streamData) {
+              cm[stream.type] = stream.supportedModes
               ct.push(stream.type)
               for (const param of stream.params) {
-                let tp: ParameterType<any> = stringType
-                switch (param["type"]) {
-                  case "int":
-                    tp = intType
-                    break
-                  case "json":
-                    tp = jsonType
-                    break
-                  case "boolean":
-                    tp = booleanType
-                    break
-                  case "password":
-                    tp = passwordType
-                }
+                let tp = convertSdkType(param["type"])
                 cp.push({
                   applyOnlyTo: stream.type,
                   id: param.id,
@@ -118,6 +110,7 @@ const SourceEditorFormStreamsConfigurable = ({
               setCollectionParameters(cp)
               setCollectionTypes(ct)
               setSelectedCollectionTypes(ct)
+              setCollectionModes(cm)
               end(result)
             }
           } else {
@@ -208,6 +201,7 @@ const SourceEditorFormStreamsConfigurable = ({
       let newCollection = {
         name: generateReportNameForType(type),
         type: type,
+        mode: collectionModes[type]?.length > 0 ? collectionModes[type]?.[0] : undefined,
         parameters: {},
         _id: randomId(),
       }
@@ -219,7 +213,7 @@ const SourceEditorFormStreamsConfigurable = ({
       operation.add(newCollection, 0)
       setActivePanel(activePanel.concat(newCollection._id))
     },
-    [, sourceDataFromCatalog.collectionTemplates, activePanel, setActivePanel]
+    [, sourceDataFromCatalog.collectionTemplates, activePanel, setActivePanel, collectionModes]
   )
 
   const remove = useCallback(
@@ -515,6 +509,38 @@ const SourceEditorFormStreamsConfigurable = ({
                                 </Form.Item>
                               </Col>
                             </Row>
+                            {collectionModes[getStream(field.name).type]?.length > 0 ? (
+                              <Row>
+                                <Col span={16}>
+                                  <Form.Item
+                                    className="form-field_fixed-label"
+                                    label={<>Sync Mode:</>}
+                                    name={[field.name, "mode"]}
+                                    rules={[
+                                      {
+                                        required: true,
+                                        message: "Field is required. You can remove this collection.",
+                                      },
+                                    ]}
+                                    labelCol={{ span: 6 }}
+                                    wrapperCol={{ span: 18 }}
+                                  >
+                                    <Select
+                                      defaultActiveFirstOption={true}
+                                      disabled={collectionModes[getStream(field.name).type]?.length == 1}
+                                    >
+                                      {collectionModes[getStream(field.name).type]?.map(m => (
+                                        <Select.Option key={m} value={m}>
+                                          {m}
+                                        </Select.Option>
+                                      ))}
+                                    </Select>
+                                  </Form.Item>
+                                </Col>
+                              </Row>
+                            ) : (
+                              <></>
+                            )}
                             {getCollectionParameters(field.name).map((collection: CollectionParameter) => (
                               <SourceEditorFormStreamsCollectionsField
                                 documentation={collection.documentation}

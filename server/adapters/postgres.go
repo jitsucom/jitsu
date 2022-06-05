@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/lib/pq"
@@ -54,11 +55,12 @@ WHERE tco.constraint_type = 'PRIMARY KEY' AND
 	deleteQueryTemplate               = `DELETE FROM "%s"."%s" WHERE %s`
 
 	updateStatement   = `UPDATE "%s"."%s" SET %s WHERE %s=$%d`
-	dropTableTemplate = `DROP TABLE "%s"."%s"`
+	dropTableTemplate = `DROP TABLE %s"%s"."%s"`
 
 	copyColumnTemplate            = `UPDATE "%s"."%s" SET %s = %s`
 	dropColumnTemplate            = `ALTER TABLE "%s"."%s" DROP COLUMN %s`
 	renameColumnTemplate          = `ALTER TABLE "%s"."%s" RENAME COLUMN %s TO %s`
+	renameTableTemplate           = `ALTER TABLE "%s"."%s" RENAME TO "%s"`
 	postgresTruncateTableTemplate = `TRUNCATE "%s"."%s"`
 	PostgresValuesLimit           = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
@@ -82,6 +84,7 @@ type ErrorPayload struct {
 	Cluster         string
 	Schema          string
 	Table           string
+	Partition       string
 	PrimaryKeys     []string
 	Statement       string
 	Values          []interface{}
@@ -111,6 +114,9 @@ func (ep *ErrorPayload) String() string {
 	}
 	if ep.Table != "" {
 		msgParts = append(msgParts, fmt.Sprintf("table=%s", ep.Table))
+	}
+	if ep.Partition != "" {
+		msgParts = append(msgParts, fmt.Sprintf("partition=%s", ep.Partition))
 	}
 	if len(ep.PrimaryKeys) > 0 {
 		msgParts = append(msgParts, fmt.Sprintf("primary keys=%v", ep.PrimaryKeys))
@@ -357,7 +363,7 @@ func (p *Postgres) Insert(insertContext *InsertContext) error {
 	}
 }
 
-func (p *Postgres) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) (err error) {
+func (p *Postgres) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) (err error) {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
 		return err
@@ -639,7 +645,32 @@ func (p *Postgres) DropTable(table *Table) (err error) {
 		}
 	}()
 
-	return p.dropTableInTransaction(wrappedTx, table)
+	return p.dropTableInTransaction(wrappedTx, table, false)
+}
+
+func (p *Postgres) ReplaceTable(originalTable, replacementTable string) (err error) {
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			rbErr := wrappedTx.Rollback()
+			if rbErr != nil {
+				err = errorj.Group(err, rbErr)
+			}
+		} else {
+			err = wrappedTx.Commit()
+		}
+	}()
+	tmpTable := replacementTable + "_tmp"
+	err1 := p.renameTableInTransaction(wrappedTx, true, originalTable, tmpTable)
+	err = p.renameTableInTransaction(wrappedTx, false, replacementTable, originalTable)
+	if err1 == nil {
+		_ = p.dropTableInTransaction(wrappedTx, &Table{Name: tmpTable}, true)
+	}
+	return
 }
 
 //Update one record in Postgres
@@ -779,15 +810,19 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 	}
 
 	//delete tmp table
-	if err := p.dropTableInTransaction(wrappedTx, tmpTable); err != nil {
+	if err := p.dropTableInTransaction(wrappedTx, tmpTable, false); err != nil {
 		return errorj.Decorate(err, "failed to drop temporary table")
 	}
 
 	return nil
 }
 
-func (p *Postgres) dropTableInTransaction(wrappedTx *Transaction, table *Table) error {
-	query := fmt.Sprintf(dropTableTemplate, p.config.Schema, table.Name)
+func (p *Postgres) dropTableInTransaction(wrappedTx *Transaction, table *Table, ifExists bool) error {
+	ifExs := ""
+	if ifExists {
+		ifExs = "IF EXISTS "
+	}
+	query := fmt.Sprintf(dropTableTemplate, ifExs, p.config.Schema, table.Name)
 	p.queryLogger.LogDDL(query)
 
 	if _, err := wrappedTx.tx.ExecContext(p.ctx, query); err != nil {
@@ -805,7 +840,36 @@ func (p *Postgres) dropTableInTransaction(wrappedTx *Transaction, table *Table) 
 	return nil
 }
 
-func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+func (p *Postgres) renameTableInTransaction(wrappedTx *Transaction, ifExists bool, tableName, newTableName string) error {
+	if ifExists {
+		row := wrappedTx.tx.QueryRowContext(p.ctx, fmt.Sprintf(`SELECT EXISTS (SELECT * FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s')`, p.config.Schema, tableName))
+		exists := false
+		err := row.Scan(&exists)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return nil
+		}
+	}
+	query := fmt.Sprintf(renameTableTemplate, p.config.Schema, tableName, newTableName)
+	p.queryLogger.LogDDL(query)
+
+	if _, err := wrappedTx.tx.ExecContext(p.ctx, query); err != nil {
+		err = checkErr(err)
+
+		return errorj.RenameError.Wrap(err, "failed to rename table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    p.config.Schema,
+				Table:     tableName,
+				Statement: query,
+			})
+	}
+
+	return nil
+}
+
+func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *base.DeleteConditions) error {
 	deleteCondition, values := p.toDeleteQuery(table, deleteConditions)
 	query := fmt.Sprintf(deleteQueryTemplate, p.config.Schema, table.Name, deleteCondition)
 	p.queryLogger.LogQueryWithValues(query, values)
@@ -824,17 +888,17 @@ func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, del
 	return nil
 }
 
-func (p *Postgres) toDeleteQuery(table *Table, conditions *DeleteConditions) (string, []interface{}) {
+func (p *Postgres) toDeleteQuery(table *Table, conditions *base.DeleteConditions) (string, []interface{}) {
 	var queryConditions []string
 	var values []interface{}
 
 	for i, condition := range conditions.Conditions {
 		conditionString := condition.Field + " " + condition.Clause + " $" + strconv.Itoa(i+1) + p.getCastClause(condition.Field, table.Columns[condition.Field])
 		queryConditions = append(queryConditions, conditionString)
-		values = append(values, condition.Value)
+		values = append(values, typing.ReformatValue(condition.Value))
 	}
 
-	return strings.Join(queryConditions, conditions.JoinCondition), values
+	return strings.Join(queryConditions, " "+conditions.JoinCondition+" "), values
 }
 
 //executeInsert execute insert with insertTemplate

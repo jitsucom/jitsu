@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"strings"
@@ -108,7 +109,7 @@ func (fm *FacebookMarketing) GetRefreshWindow() (time.Duration, error) {
 //GetAllAvailableIntervals return half a year by default
 func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	if fm.collection.Type == AdsCollection {
-		return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil
+		return []*base.TimeInterval{base.NewTimeInterval(schema.ALL, time.Time{})}, nil
 	}
 
 	//insights
@@ -121,7 +122,7 @@ func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*base.TimeInterval, e
 	now := timestamp.Now().UTC()
 	for i := 0; i < daysBackToLoad; i++ {
 		date := now.AddDate(0, 0, -i)
-		intervals = append(intervals, base.NewTimeInterval(base.DAY, date))
+		intervals = append(intervals, base.NewTimeInterval(schema.DAY, date))
 	}
 	return intervals, nil
 }
@@ -167,8 +168,8 @@ func (fm *FacebookMarketing) syncAdsReport(interval *base.TimeInterval) ([]map[s
 }
 
 func (fm *FacebookMarketing) buildTimeInterval(interval *base.TimeInterval) string {
-	since := base.DAY.Format(interval.LowerEndpoint())
-	until := base.DAY.Format(interval.UpperEndpoint())
+	since := schema.DAY.Format(interval.LowerEndpoint())
+	until := schema.DAY.Format(interval.UpperEndpoint())
 	return fmt.Sprintf("{'since': '%s', 'until': '%s'}", since, until)
 }
 

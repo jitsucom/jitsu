@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/schema"
 	"strings"
 	"time"
 )
@@ -31,8 +32,8 @@ type Redis struct {
 }
 
 func init() {
-	base.RegisterDriver(base.RedisType, NewRedis)
-	base.RegisterTestConnectionFunc(base.RedisType, TestRedis)
+	//base.RegisterDriver(base.RedisType, NewRedis)
+	//base.RegisterTestConnectionFunc(base.RedisType, TestRedis)
 }
 
 //NewRedis returns configured Redis driver instance
@@ -123,7 +124,7 @@ func (r *Redis) GetRefreshWindow() (time.Duration, error) {
 
 //GetAllAvailableIntervals returns ALL constant
 func (r *Redis) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
-	return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil
+	return []*base.TimeInterval{base.NewTimeInterval(schema.ALL, time.Time{})}, nil
 }
 
 //GetObjectsFor iterates over keys by mask and parses hash,string,list,set,zset types

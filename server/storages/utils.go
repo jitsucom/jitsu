@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -44,19 +45,21 @@ func IsConnectionError(err error) bool {
 }
 
 // syncStoreImpl implements common behaviour used to storing chunk of pulled data to any storages with processing
-func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool, needCopyEvent bool) error {
+func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *base.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
 	if len(objects) == 0 {
 		return nil
 	}
 
 	adapter, tableHelper := storage.getAdapters()
 
-	flatDataPerTable, err := processData(storage, overriddenDataSchema, objects, timeIntervalValue, needCopyEvent)
+	flatDataPerTable, err := processData(storage, overriddenDataSchema, objects, "", needCopyEvent)
 	if err != nil {
 		return err
 	}
 
-	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
+	if deleteConditions == nil {
+		deleteConditions = &base.DeleteConditions{}
+	}
 
 	for _, flatData := range flatDataPerTable {
 		table := tableHelper.MapTableSchema(flatData.BatchHeader)
@@ -82,7 +85,7 @@ func cleanImpl(storage Storage, tableName string) error {
 	return adapter.Truncate(tableName)
 }
 
-func processData(storage Storage, overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, needCopyEvent bool) (map[string]*schema.ProcessedFile, error) {
+func processData(storage Storage, overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, fileName string, needCopyEvent bool) (map[string]*schema.ProcessedFile, error) {
 	processor := storage.Processor()
 	if processor == nil {
 		return nil, fmt.Errorf("Storage '%v' of '%v' type was badly configured", storage.ID(), storage.Type())
@@ -104,7 +107,7 @@ func processData(storage Storage, overriddenDataSchema *schema.BatchHeader, obje
 	}
 
 	//Update call with single object or bulk uploading
-	flatDataPerTable, _, failedEvents, _, err := processor.ProcessEvents(timeIntervalValue, objects, map[string]bool{}, needCopyEvent)
+	flatDataPerTable, _, failedEvents, _, err := processor.ProcessEvents(fileName, objects, map[string]bool{}, needCopyEvent)
 	if err != nil {
 		return nil, err
 	}

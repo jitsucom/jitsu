@@ -58,12 +58,10 @@ func (s *Script) Execute(name string, args []interface{}, result interface{}, li
 }
 
 func (s *Script) Close() {
-	if s.exchanger != nil {
+	if s.standalone {
+		s.exchanger.Close()
+	} else {
 		_ = s.exchanger.exchangeDirect(unload, s.Session, nil, nil)
-		if s.standalone {
-			s.exchanger.Kill()
-			s.exchanger = nil
-		}
 	}
 }
 

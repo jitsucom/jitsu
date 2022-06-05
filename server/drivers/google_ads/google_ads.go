@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/httputils"
 	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"golang.org/x/oauth2/google"
 	"io"
@@ -34,14 +35,14 @@ var fieldsCsv string
 var fieldTypes = make(map[string]string)
 
 var intervalFields = [...]GoogleAdsFieldGranularity{
-	{"segments.hour", base.DAY}, //intended
-	{"segments.date", base.DAY},
-	{"segments.day_of_week", base.DAY},
-	{"segments.week", base.WEEK},
-	{"segments.month", base.MONTH},
-	{"segments.month_of_year", base.MONTH},
-	{"segments.quarter", base.QUARTER},
-	{"segments.year", base.YEAR},
+	{"segments.hour", schema.DAY}, //intended
+	{"segments.date", schema.DAY},
+	{"segments.day_of_week", schema.DAY},
+	{"segments.week", schema.WEEK},
+	{"segments.month", schema.MONTH},
+	{"segments.month_of_year", schema.MONTH},
+	{"segments.quarter", schema.QUARTER},
+	{"segments.year", schema.YEAR},
 }
 
 func init() {
@@ -58,7 +59,7 @@ func init() {
 
 type GoogleAdsFieldGranularity struct {
 	name        string
-	granularity base.Granularity
+	granularity schema.Granularity
 }
 type GoogleAds struct {
 	base.IntervalDriver
@@ -67,7 +68,7 @@ type GoogleAds struct {
 	config      *GoogleAdsConfig
 	fields      []string
 	httpClient  *http.Client
-	granularity base.Granularity
+	granularity schema.Granularity
 }
 
 //NewGoogleAds returns configured Google Ads driver instance
@@ -106,7 +107,7 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 
 	fields := strings.Split(strings.ReplaceAll(reportConfig.Fields, " ", ""), ",")
 
-	granularity := base.ALL
+	granularity := schema.ALL
 	//for binary search we make a sorted copy of fields
 	sortedFields := make([]string, len(fields))
 	copy(sortedFields, fields)
@@ -130,7 +131,7 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 }
 
 func (g *GoogleAds) GetRefreshWindow() (time.Duration, error) {
-	if g.granularity == base.ALL {
+	if g.granularity == schema.ALL {
 		return time.Hour * 24, nil
 	} else {
 		return time.Hour * 24 * 31, nil
@@ -138,8 +139,8 @@ func (g *GoogleAds) GetRefreshWindow() (time.Duration, error) {
 }
 
 func (g *GoogleAds) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
-	if g.granularity == base.ALL {
-		return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil
+	if g.granularity == schema.ALL {
+		return []*base.TimeInterval{base.NewTimeInterval(schema.ALL, time.Time{})}, nil
 	}
 	var intervals []*base.TimeInterval
 	daysBackToLoad := base.DefaultDaysBackToLoad
@@ -208,7 +209,7 @@ func (g *GoogleAds) Type() string {
 }
 
 func (g *GoogleAds) GetCollectionTable() string {
-	if g.granularity == base.ALL {
+	if g.granularity == schema.ALL {
 		return g.collection.GetTableName() + "_all"
 	} else {
 		return g.collection.GetTableName() + "_by_" + strings.ToLower(g.granularity.String())
