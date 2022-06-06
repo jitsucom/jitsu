@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"math"
 	"sort"
 	"strings"
@@ -462,7 +463,7 @@ func (s *Snowflake) DropTable(table *Table) (err error) {
 	return s.dropTableInTransaction(wrappedTx, table, false)
 }
 
-func (s *Snowflake) ReplaceTable(originalTable, replacementTable string) (err error) {
+func (s *Snowflake) ReplaceTable(originalTable, replacementTable string, dropOldTable bool) (err error) {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
 		return err
@@ -478,11 +479,11 @@ func (s *Snowflake) ReplaceTable(originalTable, replacementTable string) (err er
 			err = wrappedTx.Commit()
 		}
 	}()
-	tmpTable := replacementTable + "_tmp"
+	tmpTable := "deprecated_" + originalTable + timestamp.Now().Format("_20060102_150405")
 	err1 := s.renameTableInTransaction(wrappedTx, true, originalTable, tmpTable)
 	err = s.renameTableInTransaction(wrappedTx, false, replacementTable, originalTable)
-	if err1 == nil {
-		_ = s.dropTableInTransaction(wrappedTx, &Table{Name: tmpTable}, true)
+	if dropOldTable && err1 == nil && err == nil {
+		return s.dropTableInTransaction(wrappedTx, &Table{Name: tmpTable}, true)
 	}
 	return
 }

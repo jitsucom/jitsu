@@ -223,9 +223,14 @@ func (a *Abstract) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, err
 	return dbSchema, nil
 }
 
-func (a *Abstract) ReplaceTable(originalTable, replacementTable string) error {
+func (a *Abstract) ReplaceTable(originalTable, replacementTable string, dropOldTable bool) error {
 	adapter, _ := a.getAdapters()
-	return adapter.ReplaceTable(originalTable, replacementTable)
+	return adapter.ReplaceTable(originalTable, replacementTable, dropOldTable)
+}
+
+func (a *Abstract) DropTable(tableName string) error {
+	adapter, _ := a.getAdapters()
+	return adapter.DropTable(&adapters.Table{Name: tableName})
 }
 
 //Update updates record

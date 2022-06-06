@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"math"
@@ -344,7 +345,7 @@ func (m *MySQL) DropTable(table *Table) (err error) {
 	return m.dropTableInTransaction(wrappedTx, table)
 }
 
-func (m *MySQL) ReplaceTable(originalTable, replacementTable string) (err error) {
+func (m *MySQL) ReplaceTable(originalTable, replacementTable string, dropOldTable bool) (err error) {
 	wrappedTx, err := m.OpenTx()
 	if err != nil {
 		return err
@@ -360,11 +361,11 @@ func (m *MySQL) ReplaceTable(originalTable, replacementTable string) (err error)
 			err = wrappedTx.Commit()
 		}
 	}()
-	tmpTable := replacementTable + "_tmp"
+	tmpTable := "deprecated_" + originalTable + timestamp.Now().Format("_20060102_150405")
 	err1 := m.renameTableInTransaction(wrappedTx, originalTable, tmpTable)
 	err = m.renameTableInTransaction(wrappedTx, replacementTable, originalTable)
-	if err1 == nil {
-		_ = m.dropTableInTransaction(wrappedTx, &Table{Name: tmpTable})
+	if dropOldTable && err1 == nil && err == nil {
+		return m.dropTableInTransaction(wrappedTx, &Table{Name: tmpTable})
 	}
 	return
 }

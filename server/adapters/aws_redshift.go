@@ -423,8 +423,8 @@ func (ar *AwsRedshift) DropTable(table *Table) error {
 	return ar.dataSourceProxy.DropTable(table)
 }
 
-func (ar *AwsRedshift) ReplaceTable(originalTable, replacementTable string) (err error) {
-	return ar.dataSourceProxy.ReplaceTable(originalTable, replacementTable)
+func (ar *AwsRedshift) ReplaceTable(originalTable, replacementTable string, dropOldTable bool) (err error) {
+	return ar.dataSourceProxy.ReplaceTable(originalTable, replacementTable, true)
 }
 
 //bulkMergeInTransaction uses temporary table and insert from select statement

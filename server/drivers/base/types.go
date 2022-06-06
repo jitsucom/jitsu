@@ -188,6 +188,7 @@ type CLIDriver interface {
 //CLIDataConsumer is used for consuming CLI drivers output
 type CLIDataConsumer interface {
 	Consume(representation *CLIOutputRepresentation) error
+	CleanupAfterError(representation *CLIOutputRepresentation)
 }
 
 //CLITaskCloser is used for closing tasks
@@ -241,15 +242,16 @@ func (c *CLIOutputRepresentation) CurrentStream() *StreamRepresentation {
 type StreamRepresentation struct {
 	Namespace             string
 	StreamName            string
+	IntermediateTableName string
 	BatchHeader           *schema.BatchHeader
 	KeyFields             []string
 	Objects               []map[string]interface{}
 	KeepKeysUnhashed      bool
 	RemoveSourceKeyFields bool
 	NeedClean             bool
-	//Replace TargetStreamName table with current stream table (swap tables)
-	TargetStreamName string
-	DeleteConditions *DeleteConditions
+	//Replace Stream table with IntermediateTableName (swap tables) Set only on final chunk
+	SwapWithIntermediateTable bool
+	DeleteConditions          *DeleteConditions
 }
 
 //DriversInfo is a dto for sharing information about the driver into telemetry
