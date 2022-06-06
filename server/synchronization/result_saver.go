@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/errorj"
+	"github.com/jitsucom/jitsu/server/utils"
+	"github.com/joomcode/errorx"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/counters"
@@ -55,12 +58,11 @@ func NewResultSaver(task *meta.Task, tap, collectionMetaKey, tableNamePrefix str
 func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentation) error {
 	for _, stream := range representation.GetStreams() {
 		streamName := stream.StreamName
-
-		tableName, ok := rs.streamTableNames[streamName]
-		if !ok {
-			tableName = rs.tableNamePrefix + streamName
+		tableName := rs.generateTableName(utils.NvlString(stream.IntermediateTableName, streamName))
+		targetTableName := rs.generateTableName(streamName)
+		if targetTableName != tableName {
+			rs.taskLogger.INFO("Stream [%s] Is using intermediate temporary table %s for final table: %s", streamName, tableName, targetTableName)
 		}
-		tableName = schema.Reformat(tableName)
 		stream.BatchHeader.TableName = tableName
 
 		if stream.NeedClean {
@@ -127,14 +129,12 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 			rs.taskLogger.INFO("Stream [%s] Storing data to destination table [%s] in storage [%s]", streamName, tableName, storage.ID())
 			err := storage.SyncStore(stream.BatchHeader, stream.Objects, stream.DeleteConditions, false, needCopyEvent)
 			if err == nil {
-				if stream.TargetStreamName != "" && stream.TargetStreamName != streamName {
-					targetTableName, ok := rs.streamTableNames[stream.TargetStreamName]
-					if !ok {
-						targetTableName = rs.tableNamePrefix + stream.TargetStreamName
-					}
-					targetTableName = schema.Reformat(targetTableName)
+				if stream.SwapWithIntermediateTable && targetTableName != tableName {
 					rs.taskLogger.INFO("Stream [%s] Replacing final table: %s with content of: %s", streamName, targetTableName, tableName)
-					err = storage.ReplaceTable(targetTableName, tableName)
+					err = storage.ReplaceTable(targetTableName, tableName, true)
+					if errorx.IsOfType(err, errorj.DropError) {
+						err = storage.ReplaceTable(targetTableName, tableName, false)
+					}
 				}
 			}
 			if err != nil {
@@ -176,6 +176,32 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 	}
 
 	return nil
+}
+
+//CleanupAfterError do cleanup if necessary. Like deleting temporary tables after errors
+func (rs *ResultSaver) CleanupAfterError(representation *driversbase.CLIOutputRepresentation) {
+	if representation == nil {
+		return
+	}
+	for _, stream := range representation.GetStreams() {
+		streamName := stream.StreamName
+		//Only if current stream  has intermediate table - delete it
+		if stream.IntermediateTableName != "" {
+			tableName := rs.generateTableName(stream.IntermediateTableName)
+			for _, storage := range rs.destinations {
+				rs.taskLogger.INFO("Stream [%s] Deleting intermediate table [%s] in storage [%s]", streamName, tableName, storage.ID())
+				_ = storage.DropTable(tableName)
+			}
+		}
+	}
+}
+
+func (rs *ResultSaver) generateTableName(streamName string) string {
+	tableName, ok := rs.streamTableNames[streamName]
+	if !ok {
+		tableName = rs.tableNamePrefix + streamName
+	}
+	return schema.Reformat(tableName)
 }
 
 func (rs *ResultSaver) Tap() string {

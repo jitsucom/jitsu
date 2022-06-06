@@ -408,7 +408,7 @@ func (bq *BigQuery) DropTable(table *Table) error {
 	return nil
 }
 
-func (bq *BigQuery) ReplaceTable(originalTable, replacementTable string) error {
+func (bq *BigQuery) ReplaceTable(originalTable, replacementTable string, dropOldTable bool) error {
 	dataset := bq.client.Dataset(bq.config.Dataset)
 	copier := dataset.Table(originalTable).CopierFrom(dataset.Table(replacementTable))
 	copier.WriteDisposition = bigquery.WriteTruncate
@@ -441,7 +441,11 @@ func (bq *BigQuery) ReplaceTable(originalTable, replacementTable string) error {
 				Table:   originalTable,
 			})
 	}
-	return bq.DropTable(&Table{Name: replacementTable})
+	if dropOldTable {
+		return bq.DropTable(&Table{Name: replacementTable})
+	} else {
+		return nil
+	}
 }
 
 //Truncate deletes all records in tableName table

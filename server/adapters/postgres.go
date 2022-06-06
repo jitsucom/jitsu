@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/errorj"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/lib/pq"
 	"math"
@@ -648,7 +649,7 @@ func (p *Postgres) DropTable(table *Table) (err error) {
 	return p.dropTableInTransaction(wrappedTx, table, false)
 }
 
-func (p *Postgres) ReplaceTable(originalTable, replacementTable string) (err error) {
+func (p *Postgres) ReplaceTable(originalTable, replacementTable string, dropOldTable bool) (err error) {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
 		return err
@@ -664,11 +665,11 @@ func (p *Postgres) ReplaceTable(originalTable, replacementTable string) (err err
 			err = wrappedTx.Commit()
 		}
 	}()
-	tmpTable := replacementTable + "_tmp"
+	tmpTable := "deprecated_" + originalTable + timestamp.Now().Format("_20060102_150405")
 	err1 := p.renameTableInTransaction(wrappedTx, true, originalTable, tmpTable)
 	err = p.renameTableInTransaction(wrappedTx, false, replacementTable, originalTable)
-	if err1 == nil {
-		_ = p.dropTableInTransaction(wrappedTx, &Table{Name: tmpTable}, true)
+	if dropOldTable && err1 == nil && err == nil {
+		return p.dropTableInTransaction(wrappedTx, &Table{Name: tmpTable}, true)
 	}
 	return
 }

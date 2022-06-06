@@ -520,7 +520,12 @@ func (ch *ClickHouse) dropTable(table *Table, ifExists bool) error {
 	ch.queryLogger.LogDDL(query)
 
 	if _, err := ch.dataSource.ExecContext(ch.ctx, query); err != nil {
-		return fmt.Errorf("Error dropping [%s] table: %v", table.Name, err)
+		return errorj.DropError.Wrap(err, "failed to drop table").
+			WithProperty(errorj.DBInfo, &ErrorPayload{
+				Schema:    ch.database,
+				Table:     table.Name,
+				Statement: query,
+			})
 	}
 
 	if ch.cluster != "" {
@@ -530,7 +535,7 @@ func (ch *ClickHouse) dropTable(table *Table, ifExists bool) error {
 	return nil
 }
 
-func (ch *ClickHouse) ReplaceTable(originalTable, replacementTable string) error {
+func (ch *ClickHouse) ReplaceTable(originalTable, replacementTable string, dropOldTable bool) error {
 	query := fmt.Sprintf(exchangeTableCHTemplate, ch.database, originalTable, ch.database, replacementTable)
 	ch.queryLogger.LogDDL(query)
 
@@ -561,8 +566,11 @@ func (ch *ClickHouse) ReplaceTable(originalTable, replacementTable string) error
 			return fmt.Errorf("Error replacing [%s] distributed table: %v", originalTable, err)
 		}
 	}
-
-	return ch.dropTable(&Table{Name: replacementTable}, true)
+	if dropOldTable {
+		return ch.dropTable(&Table{Name: replacementTable}, true)
+	} else {
+		return nil
+	}
 
 }
 

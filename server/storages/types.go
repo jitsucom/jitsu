@@ -51,7 +51,8 @@ type Storage interface {
 	Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error)
 	SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *base.DeleteConditions, cacheTable bool, needCopyEvent bool) error
 	storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error)
-	ReplaceTable(originalTable, replacementTable string) error
+	ReplaceTable(originalTable, replacementTable string, dropOldTable bool) error
+	DropTable(tableName string) error
 
 	//Update(object map[string]interface{}) error
 	Fallback(events ...*events.FailedEvent)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/utils"
 	"sync"
 	"time"
@@ -56,17 +57,17 @@ type Condition struct {
 func init() {
 	base.RegisterDriver(base.SdkSourceType, NewSdkSource)
 	base.RegisterTestConnectionFunc(base.SdkSourceType, TestSdkSource)
-	//base.RegisterDriver(base.RedisType, func(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
-	//	sourceConfig.Config["package_name"] = "jitsu-redis-source"
-	//	sourceConfig.Config["package_version"] = "^0.7.4"
-	//	collection.Type = "hash"
-	//	return NewSdkSource(ctx, sourceConfig, collection)
-	//})
-	//base.RegisterTestConnectionFunc(base.RedisType, func(sourceConfig *base.SourceConfig) error {
-	//	sourceConfig.Config["package_name"] = "jitsu-redis-source"
-	//	sourceConfig.Config["package_version"] = "^0.7.4"
-	//	return TestSdkSource(sourceConfig)
-	//})
+	base.RegisterDriver(base.RedisType, func(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
+		sourceConfig.Config["package_name"] = "jitsu-redis-source"
+		sourceConfig.Config["package_version"] = "^0.7.4"
+		collection.Type = "hash"
+		return NewSdkSource(ctx, sourceConfig, collection)
+	})
+	base.RegisterTestConnectionFunc(base.RedisType, func(sourceConfig *base.SourceConfig) error {
+		sourceConfig.Config["package_name"] = "jitsu-redis-source"
+		sourceConfig.Config["package_version"] = "^0.7.4"
+		return TestSdkSource(sourceConfig)
+	})
 }
 
 //NewSdkSource returns SdkSource driver and
@@ -84,9 +85,10 @@ func NewSdkSource(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	}
 
 	base.FillPreconfiguredOauth(packageName, config)
-
+	idParts := strings.Split(sourceConfig.SourceID, ".")
 	abstract := base.NewAbstractCLIDriver(sourceConfig.SourceID, packageName, "", "", "", "",
-		"", "", map[string]string{collection.Name: collection.TableName, collection.Name + "_tmp": collection.TableName + "_tmp"})
+		idParts[len(idParts)-1]+"_", "",
+		map[string]string{collection.Name: collection.TableName})
 	s := &SdkSource{
 		activeCommands: map[string]*base.SyncCommand{},
 		mutex:          &sync.RWMutex{},
@@ -156,7 +158,7 @@ func (s *SdkSource) Load(config string, state string, taskLogger logging.TaskLog
 	if err != nil {
 		return err
 	}
-	sdkSourceRunner := SdkSourceRunner{name: s.packageName, sourceExecutor: sourceExecutor, config: s.config, collection: s.collection, closed: atomic.NewBool(false)}
+	sdkSourceRunner := SdkSourceRunner{name: s.packageName, sourceExecutor: sourceExecutor, config: s.config, collection: s.collection, startTime: timestamp.Now(), closed: atomic.NewBool(false)}
 	defer sdkSourceRunner.Close()
 	syncCommand := &base.SyncCommand{
 		Cmd:        sdkSourceRunner,
@@ -244,17 +246,18 @@ type SdkSourceRunner struct {
 	sourceExecutor *templates.SourceExecutor
 	config         map[string]interface{}
 	collection     *base.Collection
+	startTime      time.Time
 	closed         *atomic.Bool
 }
 
-func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, state string) error {
+func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, state string) (err error) {
 	if s.closed.Load() {
 		return ErrSDKSourceCancelled
 	}
 
 	stateObj := map[string]interface{}{}
 	if state != "" {
-		err := json.Unmarshal([]byte(state), &stateObj)
+		err = json.Unmarshal([]byte(state), &stateObj)
 		if err != nil {
 			return fmt.Errorf("Failed to unmarshal state object %s: %v", state, err)
 		}
@@ -302,6 +305,11 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 
 	dataChannel := make(scriptListener, 1000)
 
+	defer func() {
+		if err != nil {
+			dataConsumer.CleanupAfterError(currentChunk)
+		}
+	}()
 	go func() {
 		defer close(dataChannel)
 		_, err := s.sourceExecutor.Stream(stream.Type, stream, stateObj, dataChannel)
@@ -438,22 +446,24 @@ func (s SdkSourceRunner) GetOrRotateChunk(taskLogger logging.TaskLogger, dataCon
 			}
 			taskLogger.INFO("Chunk: %s_%d finished. Objects count: %d", stream.Name, chunkNumber, len(currentChunk.CurrentStream().Objects))
 			if stream.SyncMode == "full_sync" && finalChunk {
-				currentChunk.CurrentStream().TargetStreamName = stream.Name
+				currentChunk.CurrentStream().SwapWithIntermediateTable = true
 			}
 			err = dataConsumer.Consume(currentChunk)
 			if err != nil {
-				return
+				return currentChunk, chunkNumber, err
 			}
 			//we create next chunk when some chunks already present. increment chunk number
 			newChunkNumber = chunkNumber + 1
 		}
 		name := stream.Name
+		intermediateTableName := ""
 		if stream.SyncMode == "full_sync" {
-			name = fmt.Sprintf("%s_tmp", stream.Name)
+			intermediateTableName = fmt.Sprintf("%s_tmp_%s", stream.Name, s.startTime.Format("060102_150405"))
 		}
 		newChunk = base.NewCLIOutputRepresentation()
 		newChunk.AddStream(stream.Name, &base.StreamRepresentation{
 			StreamName:            name,
+			IntermediateTableName: intermediateTableName,
 			BatchHeader:           &schema.BatchHeader{TableName: stream.TableName, Fields: map[string]schema.Field{}},
 			Objects:               []map[string]interface{}{},
 			KeepKeysUnhashed:      true,
