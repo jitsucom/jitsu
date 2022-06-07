@@ -53,6 +53,9 @@ func (mmr *MaxMindResolver) Resolve(ip string) (*Data, error) {
 	}
 
 	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
+		return nil, fmt.Errorf("Error parsing IP from string: %s", ip)
+	}
 
 	if mmr.countryParser != nil {
 		country, err := mmr.countryParser.Country(parsedIP)
