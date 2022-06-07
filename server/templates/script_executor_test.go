@@ -57,7 +57,7 @@ func TestLoadSourcePlugins(t *testing.T) {
 }
 
 type testingSourceRecord struct {
-	ID   string `json:"__id"`
+	ID   string `json:"$id"`
 	Data string `json:"data"`
 }
 
