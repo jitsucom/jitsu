@@ -50,7 +50,7 @@ func (ir *IPLookupRule) Execute(event map[string]interface{}) {
 	geoData, err := ir.resolve(ip)
 	if err != nil {
 		if err != geo.EmptyIP {
-			logging.SystemErrorf("Error resolving geo ip [%s]: %v", ip, err)
+			logging.Errorf("Error resolving geo ip [%s]: %v", ip, err)
 		}
 		return
 	}
