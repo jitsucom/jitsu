@@ -14,14 +14,8 @@ title: Source Extensions
 8. [Descriptor](#descriptor)
 9. [Testing](#testing)
 10. [Adding to Jitsu](#adding-to-jitsu)
-11. [More Details](#adding-to-jitsu)
-    1. [Message types](#message-types)
-    2. [Sync Modes](#sync-modes)
-    3. [Persistent State](#persistent-state)
-    4. [Record $id](#record-id)
-    5. [Flattening](#flattening)
-    6. [Date Types Mapping](#data-types-mapping)
-    7. [Date timezone](#date-timezone)
+11. [Advanced](#more-details)
+
 
 
 ## Overview
@@ -41,8 +35,7 @@ npx jitsu-cli extension create --type source
 
 `nodejs` and `npx` must be installed on your system.
 
-jitsu-cli creates a functioning project for a source plugin.
-All parts are working, but they are placeholder implementation and don't do anything meaningful –
+`jitsu-cli` creates a project for a source plugin. All parts are working, but they are placeholder implementation and don't do anything meaningful –
 sample source project simply returns one data row with run_number and configuration parameters.
 
 If you are an experienced developer, you can start replacing placeholder logic with your own right away.
@@ -63,19 +56,18 @@ jitsu-cli generates project directory structure with a set of files typical for 
 * `__test__/` – directory for tests
 * `tsconfig.json` – settings for Typescript compiler. No need to change that
 
-We recommend working on the project in an integrated development environment (IDE) like Visual Studio Code or WebStorm.
-
 ## Source Extension Interface
 
 Jitsu Source Extension must export following symbols:
-* `descriptor` - instance of generic type ExtensionDescriptor
-* `validator` - instance of generic type ConfigValidator
-* `sourceCatalog` - instance of generic type SourceCatalog
-* `streamReader` - instance of generic type StreamReader 
+* `descriptor` - instance of `ExtensionDescriptor`, to describe the extension - name, icon, config params
+* `validator` - instance of`ConfigValidator`, to run validation again
+* `sourceCatalog` - instance of `SourceCatalog`, to describe the data
+* `streamReader` - instance of `StreamReader`, to
 
-For more on these types please check files with full type descriptions:
-* https://github.com/jitsucom/jitsu-sdk/blob/main/core/jitsu-types/extension.d.ts
-* https://github.com/jitsucom/jitsu-sdk/blob/main/core/jitsu-types/sources.d.ts
+For more on these types please check files with full type descriptions, or check out `@jitsu/types` npm package
+
+* [extension.d.ts](https://github.com/jitsucom/jitsu-sdk/blob/main/core/jitsu-types/extension.d.ts)
+* [sources.d.ts](https://github.com/jitsucom/jitsu-sdk/blob/main/core/jitsu-types/sources.d.ts)
 
 To make concrete implementation of these types we need to define our types for Source config and Stream config.
 
@@ -93,17 +85,16 @@ export interface AirtableConfig {
   //API Key. Read on how to get API key here: https://support.airtable.com/hc/en-us/articles/219046777-How-do-I-get-my-API-key-
   apiKey: string;
   //Base ID. Read how to get Base ID: https://support.airtable.com/hc/en-us/articles/4405741487383-Understanding-Airtable-IDs
-  baseId: string; 
+  baseId: string;
 }
 ```
 
-It is nice to tell users in advance if they make a mistake in their config.
-That is why source plugins have ConfigValidator
+If you're using [Jitsu Configurator](/docs/configuration-ui), those parameters will be displayed properly in the UI
 
 ### Validating Config
 
-Once we have the source config, we can implement the `validator`.
-It is an optional part, but we highly recommend implementing it.
+Once we have the source config, we implement the `validator`.
+The validator is an optional part, but highly recommend
 
 In the validator we need to check whether provided config grants access to the API.
 
@@ -147,10 +138,13 @@ Will connect to airtable with apiKey=keyMy and baseId=app1234
 
 ## Catalog of Streams
 
-Source extension need a way to tell Jitsu what types of Streams it supports and what parameters are required to configure these Streams
-and provide it with description and documentation required to build UI form.
+The source extension need a way to tell Jitsu what types of Streams it supports, and those Streams should be configured.
+
+Think of streams as tables in database. In fact, each stream will be represented as a table in destination database.
+
 
 First we need to declare type from `StreamConfig`:
+
 ```typescript
 export interface TableStreamConfig {
   //Table Id. Read how to get table id: https://support.airtable.com/hc/en-us/articles/4405741487383-Understanding-Airtable-IDs
@@ -162,7 +156,8 @@ export interface TableStreamConfig {
 }
 ```
 
-And then declare `sourceCatalog` function that returns an array of StreamInstance type:
+And then declare `sourceCatalog` function that returns an array of `StreamPrototype` type:
+
 ```typescript
 const sourceCatalog: SourceCatalog<AirtableConfig, TableStreamConfig> = async (config: AirtableConfig) => {
   return [
@@ -196,10 +191,15 @@ const sourceCatalog: SourceCatalog<AirtableConfig, TableStreamConfig> = async (c
 };
 ```
 
+In this example, the source exports on stream type (called `table`), which is configurable with `tableId`, `viewId` and `fields` parameter. User
+can configure a multiple instances of one stream type. In case of Airtable, each stream will represent a view of a table. Optionally, with a
+subset of fields (see `fields` parameter)
+
 ## Pulling data
 
-The main logic part os Source Extension is `streamReader` function that must pull data from third party API and send it to Jitsu Server
-with help of `StreamSink` object:
+The main logic happens in `streamReader` function. This function pulls data from third party API and send it to Jitsu Server
+as **messages** through `StreamSink` interface (see detailed description of [all message types below](/docs/extending/source-plugins#message-types))
+
 ```typescript
 const streamReader: StreamReader<AirtableConfig, TableStreamConfig> = async (
         sourceConfig: AirtableConfig,
@@ -225,7 +225,7 @@ const streamReader: StreamReader<AirtableConfig, TableStreamConfig> = async (
   let allRecords = await table.select(selectParams).all();
   allRecords.forEach(r => {
     const { id, createdTime, fields } = r._rawJson;
-    //add record message 
+    //add record message
     streamSink.addRecord({
       $id: id,
       $recordTimestamp: new Date(createdTime),
@@ -235,6 +235,7 @@ const streamReader: StreamReader<AirtableConfig, TableStreamConfig> = async (
   });
 };
 ```
+
 
 ## Descriptor
 
@@ -267,11 +268,11 @@ const descriptor: ExtensionDescriptor = {
 
 ## Testing
 
-We need Jitsu Server to run the Source extension, but jitsu-cli created our project with the `execute` action that allows executing the source in command line mode with provided configs.
+We need Jitsu Server to run the Source extension, but `jitsu-cli` created our project with the `execute` action that allows executing the source in command line mode with provided configs.
 Pass Source Config json to with `-c` parameter and StreamConfig with `-s`
-If source supports multiple types of streams it is required to pass stream type with `stream` parameter of StreamConfig object 
+If source supports multiple types of streams it is required to pass stream type with `stream` parameter of StreamConfig object
 ```shell
-yarn execute -c '{apiKey: "keyMy", baseId:"app1234"}' -s '{stream: "table", tableId:"tblMy"}' 
+yarn execute -c '{apiKey: "keyMy", baseId:"app1234"}' -s '{stream: "table", tableId:"tblMy"}'
 ```
 Result will look like that:
 ```text
@@ -297,7 +298,7 @@ Result will look like that:
     "Kickoff date": "2020-10-18"
   }
 ]
-Special column types: 
+Special column types:
 
 [info ] - ✨ Done
 ```
@@ -352,7 +353,7 @@ sources:
 
 ### Setting up Jitsu Joint Image or Configurator UI
 
-UI support for adding plugin based sources is not ready yet.
+[The Configurator](/docs/configuration-ui) doesn't support an addition of custom sources yet
 To make your source plugin appear in Jitsu Configurator UI please create a new ticket or pull request in the
 [jitsu repository](https://github.com/jitsucom/jitsu)
 
@@ -375,6 +376,7 @@ Jitsu supports following message types:
 | **new_transaction** | `newTransaction`         | incremental | no              | Starts a new transaction. Previous transaction will be committed to the destination. All consequent messages will be processed in the new transaction.<br/>First transaction is started implicitly even in the absence of `new_transaction` message.                                                                                      |
 | **delete_records**  | `deleteRecords`          | incremental | `DeleteRecords` | Deletes records that belongs to certain time period from destination storages.<br/>Time period is controlled with DeleteRecords's `partitionTimestamp` and `granularity` parameters.<br/>Requires  `DataRecord` objects to have `$recordTimestamp` set with value.<br/>`delete_records` must precede any `record` messages in transaction |
 | **log**             | `log`                    | both        | `LogRecord`     | Prints log message to the Jitsu server task log.                                                                                                                                                                                                                                                                                          |
+| **schema**          | `schema`                 | both        | `StreamSchema`  | Defines stream schema. Not implemented yet
 
 
 ### Sync modes
@@ -396,6 +398,7 @@ Incremental mode usually requires Source to save some information between runs, 
 To save data between run use `state` message. See [Persistent State](#persistent-state) section for more details.
 
 #### Refresh window
+
 Some third party services may update data during a day and other service may even update data for longer periods like 30-day.
 It is still possible to use Incremental mode with such services. But we need to make sure that we delete all previous data
 for current refresh window before loading it again.
@@ -426,12 +429,14 @@ When this is not the case you can use helper function `buildSignatureId`  from `
 to generate id as hash of object data.
 
 ### Flattening
+
 Source Extension is allowed to use object with nested objects as `DataRecord`.
 If target destination is SQL based warehouse - Jitsu will automatically convert record to flat structure.
 Otherwise, object structure will be left intact.
 If you want to force flat structure for all warehouses you can use `flatten` function from `@jitsu/jlib` module
 
 ### Data types mapping
+
 Jitsu assumes types of data record parameters in destination based on original type
 with exception to dates represented as string in simplified extended ISO format: `YYYY-MM-DDTHH:mm:ss.sssZ` – such string will be converted to the Date type in the destination storage
 

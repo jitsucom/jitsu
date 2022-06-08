@@ -1,19 +1,34 @@
 # Configuration File
 
-If **Jitsu Server** is deployed in a standalone mode, it should be configured via single YAML file
-(read more about deployment options [here](/docs/deployment/)). We follow
-[convention over configuration](https://en.wikipedia.org/wiki/Convention_over_configuration) so the majority of
+If **Jitsu Server** is deployed in a standalone mode, it could be configured via single YAML file
+(read more about deployment options [here](/docs/deployment/)). The most popular options can be defined as
+[environment variables too](/docs/deployment/deploy-with-docker/jitsu-server#environment-variable). We're aiming to make
+Jitsu 100% configurable with env variables, but we're not there yet. Besides, you can host Jitsu config file
+on an external storage - S3, HTTP etc - with [`JITSU_CONFIGURATOR_URL` env var](/docs/deployment/deploy-with-docker/jitsu-server#environment-variable)
+
+
+We follow [convention over configuration](https://en.wikipedia.org/wiki/Convention_over_configuration) so the majority of
 parameters are optional. To get a base file, clone it from
 [GitHub](https://github.com/jitsucom/jitsu/blob/master/server/appconfig/config.template.yaml).
-**Jitsu Server** can be used either with [Redis](https://redis.io/) or not. Redis version 5 and higher is supported.
-Storage is required for some features (but if youwould like to work without them, then Redis configuration can be omitted):
+
+## Redis
+
+**Jitsu Server** requires [Redis](https://redis.io/). Jitsu can run without it, however it will work
+in single-node mode without synchronization, queue persistence and other high-availability features.
+It's good enough for development, but not recommended to for production.
+
+Redis version 5 and higher is supported. Here's a full list of features that **will not** work if Redis is not available
 
 - Last events caching (see [Events Cache](/docs/other-features/events-cache))
 - Sources synchronization (see [Sources Configuration](/docs/sources-configuration/))
 - [Retroactive Users Recognition](/docs/other-features/retroactive-user-recognition)
 - [Coordination](/docs/other-features/scaling-eventnative).
 
-Our config file consists of the following sections:
+Redis credentials should be put into to `meta.storage.redis` section (see below)
+
+## Configuration file structure
+
+Jitsu config file consists of the following sections:
 
 * `server` — General configuration parameters such as port, application logs configuration, singer bridge configuration, etc.
 * `geo` — Geo resolution data (extracting city/state information from the IP address). We currently only support [MaxMind](https://www.maxmind.com/en/home) as a data provider. see [Geo Data resolution](/docs/other-features/geo-data-resolution)
