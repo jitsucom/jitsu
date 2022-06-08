@@ -1,6 +1,8 @@
 # Geo Data resolution
 
-**Jitsu** looks up geolocation data by IP address [enrichment step](/docs/how-it-works/architecture#context-enrichment-step).
+<ConfigurationAvailability name={"Geolocation Enrichment"} ui={true} envVar={true} configFile={true} />
+
+**Jitsu** looks up geolocation data by IP address during [enrichment step](/docs/how-it-works/architecture#context-enrichment-step).
 Here's a full list of fields Jitsu could get from the IP address:
 
 ```json
@@ -27,7 +29,7 @@ Here's a full list of fields Jitsu could get from the IP address:
 </Hint>
 
 
-### MaxMind
+### Configuration
 
 **Jitsu** uses [MaxMind](https://www.maxmind.com/) databases for doing geo lookup. There are two families of MaxMind databases: `GeoIP2` and `GeoLite2`.
 
@@ -42,6 +44,10 @@ generate a license key. Configuration steps are the same as with paid database: 
 With the key, Jitsu will download all databases available for the key. If you want to limit the databases, you can specify them as a postfix to Maxmind license key as `[key]?edition_id=GeoIP2-City,GeoIP2-ISP`
 
 Also, you can point MAX_MIND_PATH environment variable directly to a local file
+
+### Configuration with Configurator
+
+MaxMind can be configure with Jitsu
 
 
 ### Configuration with env var or config file
