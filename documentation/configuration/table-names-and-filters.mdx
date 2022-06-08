@@ -1,10 +1,5 @@
 # Table Names and Filters
 
-<PageNotice type="deprecated">
-  Please use [JavaScript Transformation](/docs/configuration/javascript-transform)
-  instead. You can set the destination table with `$.JITSU_TABLE_NAME = '...'`
-</PageNotice>
-
 **Jitsu** supports splitting events stream into different tables in DWH based on event JSON payload. It works by applying [JavaScript functions](/docs/configuration/javascript-functions) to incoming JSON objects. It can select a table name or pass a constant or even filter certain events from the destination. It is configured in the destination section and each destination has its own rules.
 
 See also [JavaScript Transform](/docs/configuration/javascript-transform) for full event transformation using JavaScript
