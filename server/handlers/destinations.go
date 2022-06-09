@@ -57,8 +57,9 @@ func (dh *DestinationsHandler) Handler(c *gin.Context) {
 		if strings.Contains(err.Error(), "i/o timeout") || storages.IsConnectionError(err) {
 			msg = fmt.Sprintf(connectionErrMsg, err)
 		}
-
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(msg, nil))
+		errorId := uuid.NewLettersNumbers()
+		logging.Errorf("Testing Destination %s Error ID:%s Config:%s : %v", destinationConfig.Type, errorId, destinationConfig.Config, err)
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("", fmt.Errorf("Error ID:%s: %s", errorId, msg)))
 		return
 	}
 	c.Status(http.StatusOK)

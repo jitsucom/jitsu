@@ -441,19 +441,23 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			if percent >= 0 {
 				percentString = fmt.Sprintf("%d%% ", percent)
 			}
-			taskLogger.INFO("%sLoading objects [%d..%d]%s to destinations ...", percentString, pos+1, pos+len(objects), totalString)
-			//Note: we assume that destinations connected to 1 source can't have different unique ID configuration
-			uniqueIDField := destinationStorages[0].GetUniqueIDField()
-			for _, object := range objects {
-				//enrich with values
-				object[events.SrcKey] = srcSource
-				object[timestamp.Key] = timestamp.NowUTC()
-				if err := uniqueIDField.Set(object, uuid.GetHash(object)); err != nil {
-					b, _ := json.Marshal(object)
-					return fmt.Errorf("Error setting unique ID field into %s: %v", string(b), err)
+			if len(objects) > 0 {
+				taskLogger.INFO("%sLoading objects [%d..%d]%s to destinations ...", percentString, pos+1, pos+len(objects), totalString)
+				//Note: we assume that destinations connected to 1 source can't have different unique ID configuration
+				uniqueIDField := destinationStorages[0].GetUniqueIDField()
+				for _, object := range objects {
+					//enrich with values
+					object[events.SrcKey] = srcSource
+					object[timestamp.Key] = timestamp.NowUTC()
+					if err := uniqueIDField.Set(object, uuid.GetHash(object)); err != nil {
+						b, _ := json.Marshal(object)
+						return fmt.Errorf("Error setting unique ID field into %s: %v", string(b), err)
+					}
+					events.EnrichWithCollection(object, task.Collection)
+					events.EnrichWithTimeInterval(object, intervalToSync.String(), intervalToSync.LowerEndpoint(), intervalToSync.UpperEndpoint())
 				}
-				events.EnrichWithCollection(object, task.Collection)
-				events.EnrichWithTimeInterval(object, intervalToSync.String(), intervalToSync.LowerEndpoint(), intervalToSync.UpperEndpoint())
+			} else {
+				taskLogger.INFO("No objects were loaded.")
 			}
 			rowsCount := len(objects)
 			needCopyEvent := len(destinationStorages) > 1
@@ -480,7 +484,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			}
 
 			counters.SuccessPullSourceEvents(task.Source, int64(rowsCount))
-			taskLogger.INFO("Chunk loaded.")
+			taskLogger.INFO("Chunk completed.")
 
 			return nil
 		}
