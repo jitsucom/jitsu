@@ -602,6 +602,40 @@ export const allSingerTaps: SingerTap[] = [
     pic: logos.tap_kustomer,
     displayName: "Kustomer",
     tap: "tap-kustomer",
+    parameters: customParameters("tap-kustomer", {
+      customConfig: [
+        {
+          displayName: "API Token",
+          id: "api_token",
+          type: stringType,
+          required: true,
+          documentation: (
+            <>
+              Kustomer API Token. See{" "}
+              <a target="_blank" href="https://developer.kustomer.com/kustomer-api-docs/reference/authentication">
+                the docs
+              </a>{" "}
+              on how to obtain this
+            </>
+          ),
+        },
+        {
+          displayName: "Start Date",
+          id: "start_date",
+          type: isoUtcDateType,
+          defaultValue: "2022-01-01T00:00:00Z",
+          required: true,
+          documentation: <>The date from which you'd like to replicate the data</>,
+        },
+        {
+          displayName: "User Agent",
+          id: "user_agent",
+          type: stringType,
+          constant: "Jitsu Bot (https://jitsu.com)",
+        },
+      ],
+    }),
+
     stable: true,
     hasNativeEquivalent: false,
   },
