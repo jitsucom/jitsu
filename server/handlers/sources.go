@@ -15,6 +15,7 @@ import (
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/sources"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/spf13/viper"
 	"net/http"
 	"strings"
@@ -159,8 +160,9 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 			c.JSON(http.StatusOK, middleware.PendingResponse())
 			return
 		}
-
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse("", err))
+		errorId := uuid.NewLettersNumbers()
+		logging.Errorf("Testing Source %s Error ID:%s Config:%s : %v", sourceConfig.Type, errorId, sourceConfig.Config, err)
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("", fmt.Errorf("Error ID:%s: %v", errorId, err)))
 		return
 	}
 
