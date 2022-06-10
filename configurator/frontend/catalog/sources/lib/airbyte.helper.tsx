@@ -22,6 +22,7 @@ export const makeAirbyteSource = (airbyteSource: AirbyteSource): SourceConnector
     id: `airbyte-${dockerImageNameWithoutPrefix}` as const,
     collectionTypes: [],
     documentation: airbyteSource.documentation,
+    deprecated: airbyteSource.deprecated,
     collectionParameters: [],
     staticStreamsConfigEndpoint: `/airbyte/${dockerImageNameWithoutPrefix}/catalog`,
     configParameters: [

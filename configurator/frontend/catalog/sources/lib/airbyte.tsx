@@ -4495,6 +4495,8 @@ export const allAirbyteSources: AirbyteSource[] = [
   },
   {
     pic: logos.tap_kustomer,
+    //Deprecated until https://github.com/singer-io/tap-kustomer/issues/21 resolved
+    deprecated: true,
     docker_image_name: "airbyte/source-kustomer",
     displayName: "Kustomer",
     stable: false,

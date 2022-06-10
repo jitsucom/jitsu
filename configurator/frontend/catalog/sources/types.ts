@@ -463,6 +463,10 @@ export interface AirbyteSource {
    * API Connector documentation
    */
   documentation?: ConnectorDocumentation
+  /**
+   * Allows only editing the existing sources
+   */
+  deprecated?: boolean
 }
 
 export interface SdkSource {
