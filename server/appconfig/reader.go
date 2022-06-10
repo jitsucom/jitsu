@@ -68,7 +68,7 @@ func Read(configSourceStr string, containerizedRun bool, configNotFoundErrMsg st
 	//resolve ${env.VAR} placeholders from config values
 	envPlaceholderValues := map[string]interface{}{}
 	for _, k := range viper.AllKeys() {
-		value := viper.GetString(k)
+		value := viper.Get(k)
 		enrichWithResolvedPlaceholders(k, value, envPlaceholderValues)
 	}
 
@@ -82,40 +82,63 @@ func Read(configSourceStr string, containerizedRun bool, configNotFoundErrMsg st
 	return nil
 }
 
-func enrichWithResolvedPlaceholders(key string, value string, result map[string]interface{}) {
-	if templateVariablePattern.MatchString(value) {
-		res := templateVariablePattern.ReplaceAllStringFunc(value, func(value string) string {
-			envExpression := strings.TrimSuffix(strings.TrimPrefix(value, "${"), "}")
+func regexReplace(value string) string {
+	envExpression := strings.TrimSuffix(strings.TrimPrefix(value, "${"), "}")
 
-			var varsNotFound []string
-			//alternatives in case of ${env.VAR1|env.VAR2|default_value}
-			expressionValues := strings.Split(envExpression, "|")
-			for _, expressionValue := range expressionValues {
-				if strings.HasPrefix(expressionValue, "env.") {
-					//from env
-					envVarName := strings.TrimPrefix(expressionValue, "env.")
-					if envVarValue := os.Getenv(envVarName); envVarValue != "" {
-						return envVarValue
-					}
-
-					//not found
-					varsNotFound = append(varsNotFound, envVarName)
-				} else {
-					//constant
-					return expressionValue
-				}
+	var varsNotFound []string
+	//alternatives in case of ${env.VAR1|env.VAR2|default_value}
+	expressionValues := strings.Split(envExpression, "|")
+	for _, expressionValue := range expressionValues {
+		if strings.HasPrefix(expressionValue, "env.") {
+			//from env
+			envVarName := strings.TrimPrefix(expressionValue, "env.")
+			if envVarValue := os.Getenv(envVarName); envVarValue != "" {
+				return envVarValue
 			}
 
 			//not found
-			if len(varsNotFound) == 1 {
-				logging.Fatalf("Mandatory env variable was not found: %s", varsNotFound[0])
+			varsNotFound = append(varsNotFound, envVarName)
+		} else {
+			//constant
+			return expressionValue
+		}
+	}
+
+	//not found
+	if len(varsNotFound) == 1 {
+		logging.Fatalf("Mandatory env variable was not found: %s", varsNotFound[0])
+	} else {
+		logging.Fatalf("No one of env variables [%s] were not found. Please set any", strings.Join(varsNotFound, " or "))
+	}
+
+	return ""
+}
+
+func enrichWithResolvedPlaceholders(key string, value interface{}, result map[string]interface{}) {
+	var res interface{}
+	switch typed := value.(type) {
+	case []interface{}:
+		needReplace := false
+		arr := make([]interface{}, len(typed))
+		for i, v := range typed {
+			sValue := fmt.Sprint(v)
+			if templateVariablePattern.MatchString(sValue) {
+				needReplace = true
+				arr[i] = templateVariablePattern.ReplaceAllStringFunc(sValue, regexReplace)
 			} else {
-				logging.Fatalf("No one of env variables [%s] were not found. Please set any", strings.Join(varsNotFound, " or "))
+				arr[i] = v
 			}
-
-			return ""
-		})
-
+		}
+		if needReplace {
+			res = arr
+		}
+	default:
+		sValue := viper.GetString(key)
+		if templateVariablePattern.MatchString(sValue) {
+			res = templateVariablePattern.ReplaceAllStringFunc(sValue, regexReplace)
+		}
+	}
+	if res != nil {
 		//set value
 		valuePath := jsonutils.NewJSONPath(strings.ReplaceAll(key, ".", "/"))
 		err := valuePath.Set(result, res)
