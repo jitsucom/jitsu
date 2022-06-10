@@ -598,7 +598,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false,
   },
   {
-    deprecated: true,
+    deprecated: false,
     pic: logos.tap_kustomer,
     displayName: "Kustomer",
     tap: "tap-kustomer",
