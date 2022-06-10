@@ -309,9 +309,11 @@ func (s *Singer) Load(config string, state string, taskLogger logging.TaskLogger
 		return readyErr
 	}
 
-	//update tap
-	if err := singer.Instance.UpdateTap(s.GetTap()); err != nil {
-		return fmt.Errorf("Error updating singer tap [%s]: %v", s.GetTap(), err)
+	if singer.Instance.UpdateTaps {
+		//update tap
+		if err := singer.Instance.UpdateTap(s.GetTap()); err != nil {
+			return fmt.Errorf("Error updating singer tap [%s]: %v", s.GetTap(), err)
+		}
 	}
 
 	statePath, err := s.GetStateFilePath(state)

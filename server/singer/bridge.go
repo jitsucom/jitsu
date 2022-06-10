@@ -24,6 +24,20 @@ const singerBridgeType = "singer_bridge"
 
 var Instance *Bridge
 
+var Patches = map[string]string{"tap-kustomer": `diff --git a/tap_kustomer/client.py b/tap_kustomer/client.py
+index 420ae93..5ff8536 100644
+--- a/tap_kustomer/client.py
++++ b/tap_kustomer/client.py
+@@ -99,7 +99,7 @@ class KustomerClient():
+         self.__user_agent = user_agent
+         self.__session = requests.Session()
+         self.__verified = False
+-        self.base_url = 'https://api.kustomerapp.com/{}'.format(API_VERSION)
++        self.base_url = 'https://api.prod2.kustomerapp.com:443/{}'.format(API_VERSION)
+ 
+     def __enter__(self):
+         self.__verified = self.check_token()`}
+
 type Bridge struct {
 	mutex               *sync.RWMutex
 	MetaStorage         meta.Storage
@@ -34,7 +48,7 @@ type Bridge struct {
 	BatchSize           int
 
 	installTaps bool
-	updateTaps  bool
+	UpdateTaps  bool
 
 	LogWriter io.Writer
 
@@ -81,7 +95,7 @@ func Init(pythonExecPath string, metaStorage meta.Storage, coordinationService *
 		installTaps:           installTaps,
 		LogWriter:             logWriter,
 		installedTaps:         installedTaps,
-		updateTaps:            updateTaps,
+		UpdateTaps:            updateTaps,
 		installInProgressTaps: &sync.Map{},
 		installErrorsByTap:    map[string]error{},
 	}
@@ -170,15 +184,32 @@ func (b *Bridge) installTap(tap string) error {
 		return fmt.Errorf("error installing singer tap [%s]: %v", tap, err)
 	}
 
+	patch, ok := Patches[tap]
+	if ok {
+		err := b.PatchTap(tap, patch)
+		if err != nil {
+			logging.Error(err)
+		}
+	}
 	return nil
+}
+
+//PatchTap applies patches to the sources of tap and update it
+func (b *Bridge) PatchTap(tap string, patch string) error {
+	logging.Infof("Patching tap [%s]", tap)
+	pathToSitePackages := path.Join(b.VenvDir, tap, "lib/python3.9/site-packages")
+	ioutil.WriteFile(path.Join(pathToSitePackages, "patch.diff"), []byte(patch), 0644)
+
+	err := runner.ExecCmd(singerBridgeType, pathToSitePackages, "patch", b.LogWriter, b.LogWriter, time.Minute*20, "-p1", "-f", "--input=patch.diff")
+	if err != nil {
+		return fmt.Errorf("Error at patching singer tap [%s]: %v", tap, err)
+	}
+
+	return b.UpdateTap(tap)
 }
 
 //UpdateTap runs sync update singer tap and returns err if occurred
 func (b *Bridge) UpdateTap(tap string) error {
-	if !b.updateTaps {
-		return nil
-	}
-
 	pathToTap := path.Join(b.VenvDir, tap)
 	command := path.Join(pathToTap, "/bin/pip3")
 	args := []string{"install", tap, "--upgrade"}
