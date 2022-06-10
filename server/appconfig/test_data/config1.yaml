@@ -1,0 +1,13 @@
+myurl: ${env.URL}
+dummy: dummy
+urls:
+  - ${env.URL}
+
+config:
+  myurl: ${env.URL}
+
+numbers:
+  - 1
+  - 2
+
+redisurl: redis://${env.REDIS_HOST}:6379
