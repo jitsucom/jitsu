@@ -25,8 +25,7 @@ const (
 	userIDField              = "uid"
 	firestoreDocumentIDField = "_firestore_document_id"
 
-	batchSize        = 100
-	objectsChunkSize = 10000
+	batchSize = 10000
 )
 
 type subCollectionResult struct {
@@ -200,71 +199,62 @@ func (f *Firebase) loadCollection(objectsLoader base.ObjectsLoader) error {
 func (f *Firebase) diveAndFetch(collection *firestore.CollectionRef, parentIDs map[string]interface{}, idFieldName string, paths []string, objectsLoader base.ObjectsLoader, result *subCollectionResult) error {
 	//firebase doesn't respect big requests
 	iter := collection.Limit(batchSize).Documents(f.ctx)
-	defer iter.Stop()
-
-	current := 0
 	batchesCount := 0
 	for {
-		doc, err := iter.Next()
+		docs, err := iter.GetAll()
 		if err != nil {
-			if err == iterator.Done {
-				//get next batch
-				if batchSize == current {
-					current = 0
-					batchesCount++
-					iter = collection.Offset(batchSize * batchesCount).Limit(batchSize).Documents(f.ctx)
-					continue
-				}
-				break
-			}
-
 			return err
 		}
+		for _, doc := range docs {
+			//dive
+			if len(paths) > 0 {
+				subCollectionName := paths[0]
+				subCollection := doc.Ref.Collection(subCollectionName)
+				if subCollection == nil {
+					continue
+				}
 
-		current++
+				//get parent ID
+				parentIDs = maputils.CopyMap(parentIDs)
+				parentIDs[idFieldName] = doc.Ref.ID
 
-		//dive
-		if len(paths) > 0 {
-			subCollectionName := paths[0]
-			subCollection := doc.Ref.Collection(subCollectionName)
-			if subCollection == nil {
-				continue
-			}
+				subCollectionIDField := idFieldName + "_" + subCollectionName
 
-			//get parent ID
-			parentIDs = maputils.CopyMap(parentIDs)
-			parentIDs[idFieldName] = doc.Ref.ID
-
-			subCollectionIDField := idFieldName + "_" + subCollectionName
-
-			err := f.diveAndFetch(subCollection, parentIDs, subCollectionIDField, paths[1:], objectsLoader, result)
-			if err != nil {
-				return err
-			}
-		} else {
-			//fetch
-			data := doc.Data()
-			if data == nil {
-				continue
-			}
-			data = convertSpecificTypes(data)
-
-			data[idFieldName] = doc.Ref.ID
-
-			//parent ids
-			for parentIDKey, parentIDValue := range parentIDs {
-				data[parentIDKey] = parentIDValue
-			}
-
-			result.objectsChunk = append(result.objectsChunk, data)
-			if len(result.objectsChunk) == objectsChunkSize {
-				err = objectsLoader(result.objectsChunk, result.counter, -1, -1)
+				err := f.diveAndFetch(subCollection, parentIDs, subCollectionIDField, paths[1:], objectsLoader, result)
 				if err != nil {
 					return err
 				}
-				result.counter += len(result.objectsChunk)
-				result.objectsChunk = nil
+			} else {
+				//fetch
+				data := doc.Data()
+				if data == nil {
+					continue
+				}
+				data = convertSpecificTypes(data)
+
+				data[idFieldName] = doc.Ref.ID
+
+				//parent ids
+				for parentIDKey, parentIDValue := range parentIDs {
+					data[parentIDKey] = parentIDValue
+				}
+
+				result.objectsChunk = append(result.objectsChunk, data)
+				if len(result.objectsChunk) == batchSize {
+					err = objectsLoader(result.objectsChunk, result.counter, -1, -1)
+					if err != nil {
+						return err
+					}
+					result.counter += len(result.objectsChunk)
+					result.objectsChunk = nil
+				}
 			}
+		}
+		batchesCount++
+		if len(docs) == batchSize {
+			iter = collection.OrderBy(firestore.DocumentID, firestore.Asc).StartAfter(docs[batchSize-1].Ref.ID).Limit(batchSize).Documents(f.ctx)
+		} else {
+			break
 		}
 	}
 	if len(result.objectsChunk) > 0 {
@@ -313,7 +303,7 @@ func (f *Firebase) loadUsers(objectsLoader base.ObjectsLoader) error {
 		user["last_login"] = f.unixTimestampToISOString(authUser.UserMetadata.LastLogInTimestamp)
 		user["last_refresh"] = f.unixTimestampToISOString(authUser.UserMetadata.LastRefreshTimestamp)
 		users = append(users, user)
-		if len(users) == objectsChunkSize {
+		if len(users) == batchSize {
 			err = objectsLoader(users, loaded, -1, -1)
 			if err != nil {
 				return err

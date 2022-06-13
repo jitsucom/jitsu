@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/bigquery v1.32.0
 	cloud.google.com/go/firestore v1.6.1
 	cloud.google.com/go/storage v1.22.1
-	firebase.google.com/go/v4 v4.1.0
+	firebase.google.com/go/v4 v4.8.0
 	github.com/FZambia/sentinel v1.1.0
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/carlmjohnson/requests v0.22.1
@@ -153,6 +153,7 @@ require (
 	golang.org/x/sys v0.0.0-20220503163025-988cb79eb6c6 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
 	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/appengine/v2 v2.0.1 // indirect
 	google.golang.org/grpc v1.46.2 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
