@@ -3,7 +3,7 @@ module github.com/jitsucom/jitsu/configurator
 go 1.17
 
 require (
-	firebase.google.com/go/v4 v4.7.1
+	firebase.google.com/go/v4 v4.8.0
 	github.com/bramvdbogaerde/go-scp v0.0.0-20200820121624-ded9ee94aef5
 	github.com/carlmjohnson/requests v0.22.1
 	github.com/deepmap/oapi-codegen v1.10.1
@@ -158,6 +158,7 @@ require (
 	golang.org/x/tools v0.1.10 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
 	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/appengine/v2 v2.0.1 // indirect
 	google.golang.org/genproto v0.0.0-20220518221133-4f43b3371335 // indirect
 	google.golang.org/grpc v1.46.2 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
