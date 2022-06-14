@@ -202,8 +202,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
         <Col span={20}>
           <ErrorCard
             title={`Failed to load the source specification data`}
-            descriptionWithContacts={null}
-            stackTrace={loadingParametersError.stack}
+            error={loadingParametersError}
             className={`form-fields-card`}
           />
         </Col>

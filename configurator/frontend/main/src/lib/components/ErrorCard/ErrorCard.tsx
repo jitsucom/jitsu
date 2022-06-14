@@ -66,7 +66,7 @@ export const ErrorCard: FC<ErrorCardProps> = ({
             </Fragment>
             {stackTrace && (
               <Collapse key="stack-trace" bordered={false} className={`mt-2 ${styles.stackTraceCard}`}>
-                <Collapse.Panel key={1} header="Error Stack Trace">
+                <Collapse.Panel key={1} header="Technical details">
                   <div className="overflow-y-auto">
                     <Typography.Paragraph
                       copyable={{
