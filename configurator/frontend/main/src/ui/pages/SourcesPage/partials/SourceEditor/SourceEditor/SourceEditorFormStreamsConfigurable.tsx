@@ -308,12 +308,7 @@ const SourceEditorFormStreamsConfigurable = ({
                 <Col span={24}>
                   <ErrorCard
                     title={`Source configuration validation failed`}
-                    description={
-                      error && error.name !== PARSING_STREAMS_ERROR_NAME
-                        ? `Connection is not configured.${error.stack ? " See more details in the error stack." : ""}`
-                        : `Internal error. Please, file an issue.`
-                    }
-                    stackTrace={error?.stack}
+                    error={error}
                     className={"form-fields-card"}
                   />
                 </Col>

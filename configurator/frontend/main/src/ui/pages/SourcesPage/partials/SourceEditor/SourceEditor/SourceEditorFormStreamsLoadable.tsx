@@ -144,16 +144,7 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
       ) : error ? (
         <Row>
           <Col span={24}>
-            <ErrorCard
-              title={`Source configuration validation failed`}
-              description={
-                error && error.name !== PARSING_STREAMS_ERROR_NAME
-                  ? `Connection is not configured.${error.stack ? " See more details in the error stack." : ""}`
-                  : `Internal error. Please, file an issue.`
-              }
-              stackTrace={error?.stack}
-              className={"form-fields-card"}
-            />
+            <ErrorCard title={`Source configuration validation failed`} error={error} className={"form-fields-card"} />
           </Col>
         </Row>
       ) : !data ? (
