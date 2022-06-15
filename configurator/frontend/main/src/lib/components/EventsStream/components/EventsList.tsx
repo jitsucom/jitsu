@@ -25,10 +25,9 @@ import ApplicationServices from "lib/services/ApplicationServices"
 import styles from "../EventsSteam.module.less"
 
 function getEventId(type: EventType, json: any) {
-  if (type === EventType.Token) {
-    return uuid.v4()
-  }
-  return json?.eventn_ctx_event_id || json?.eventn_ctx?.event_id || murmurhash.v3(JSON.stringify(json))
+  //simply to distinguish events with same timestamp and payload
+  return uuid.v4()
+  //return json?.eventn_ctx_event_id || json?.eventn_ctx?.event_id || murmurhash.v3(JSON.stringify(json))
 }
 
 function processEventOriginal(original: any) {
@@ -47,17 +46,16 @@ function normalizeEvent(type: EventType, id: string, status: EventStatus, data: 
   return {
     type: type,
     timestamp: moment.utc(data.timestamp || original._timestamp || original.utc_time || new Date(2022, 2, 20)),
-    eventId: getEventId(type, original),
+    id: getEventId(type, original),
     rawJson: original,
-    id: id,
+    entityId: id,
     status: status,
     resultJson: data.success || data.error || data.skip || data.malformed,
   }
 }
 
 function processEvents(type: EventType, data: { id: string; events: any }) {
-  let eventsIndex: Record<string, Event> = {}
-  data.events.events.forEach(event => {
+  return data.events.events.map(event => {
     let status
     if (event.success) {
       status = EventStatus.Success
@@ -68,16 +66,8 @@ function processEvents(type: EventType, data: { id: string; events: any }) {
     } else {
       status = type === EventType.Token ? EventStatus.Success : EventStatus.Pending
     }
-    let normalizedEvent = normalizeEvent(type, data.id, status, event)
-    if (!eventsIndex[normalizedEvent.eventId]) {
-      eventsIndex[normalizedEvent.eventId] = normalizedEvent
-    }
+    return normalizeEvent(type, data.id, status, event)
   })
-
-  let events = [...Object.values(eventsIndex)]
-  eventsIndex = {} //for GC
-
-  return events
 }
 
 const NoDataFlowing: React.FC<{ showAPIKeyHint: boolean }> = ({ showAPIKeyHint }) => {
@@ -307,15 +297,16 @@ export const EventsList: React.FC<{
         <div className={styles.eventsList} ref={listInnerRef} onScroll={onScroll}>
           {!filteredEvents.length ? <NoDataFlowing showAPIKeyHint={false} /> : null}
           {filteredEvents.map(event => {
-            const active = event.eventId === selectedEvent
+            const key = `${event.id}`
+            const active = key === selectedEvent
             return (
-              <div key={event.eventId}>
+              <div key={key}>
                 <div
                   className={`overflow-hidden w-full flex flex-row border-b border-secondaryText border-opacity-50 items-center cursor-pointer h-12 ${
-                    selectedEvent === event.eventId ? "bg-bgSecondary" : "hover:bg-bgComponent"
+                    selectedEvent === key ? "bg-bgSecondary" : "hover:bg-bgComponent"
                   }`}
                   key="header"
-                  onClick={() => setSelectedEvent(active ? null : event.eventId)}
+                  onClick={() => setSelectedEvent(active ? null : key)}
                 >
                   <div className="w-6 flex items-center justify-center px-3 text-lg" key="icon">
                     <Tooltip title={eventStatusMessage(event)}>
