@@ -136,7 +136,7 @@ export const EventsView: React.FC<{
     )
   }
 
-  const destination = allDestinations[event.id]
+  const destination = allDestinations[event.entityId]
   const destinationType = destinationsReferenceMap[destination._type]
 
   let display
@@ -190,7 +190,7 @@ export const EventsView: React.FC<{
             {destination.displayName || destination._id}
           </TabTitle>
         }
-        key={event.id}
+        key={event.entityId}
       >
         {display}
       </Tabs.TabPane>

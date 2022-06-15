@@ -16,9 +16,9 @@ export enum EventStatus {
 export type Event = {
   type: EventType
   timestamp: Moment
-  eventId: string
-  rawJson: any
   id: string
+  rawJson: any
+  entityId: string
   status: EventStatus
   resultJson: any
 }
