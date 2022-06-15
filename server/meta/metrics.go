@@ -2,7 +2,6 @@ package meta
 
 import (
 	"github.com/gomodule/redigo/redis"
-	"github.com/jitsucom/jitsu/server/logging"
 	"strings"
 )
 
@@ -24,7 +23,6 @@ func (em *ErrorMetrics) NoticeError(err error) {
 			em.metricFunc("ERR_TIMEOUT")
 		} else {
 			em.metricFunc("UNKNOWN")
-			logging.Error("Unknown redis error:", err)
 		}
 	}
 }

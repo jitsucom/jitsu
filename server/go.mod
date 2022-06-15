@@ -15,9 +15,9 @@ require (
 	github.com/docker/docker v20.10.11+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/gin-gonic/gin v1.7.3
-	github.com/go-redsync/redsync/v4 v4.3.0
+	github.com/go-redsync/redsync/v4 v4.5.0
 	github.com/go-sql-driver/mysql v1.6.0
-	github.com/gomodule/redigo v1.8.2
+	github.com/gomodule/redigo v1.8.8
 	github.com/google/go-cmp v0.5.8
 	github.com/google/go-github/v32 v32.1.0
 	github.com/google/go-querystring v1.1.0 // indirect

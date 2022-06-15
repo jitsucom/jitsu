@@ -107,18 +107,20 @@ func (rpf *RedisPoolFactory) Create() (*RedisPool, error) {
 		Wait: false,
 		Dial: dialFunc,
 		TestOnBorrow: func(c redis.Conn, t time.Time) error {
+			if time.Since(t) < time.Minute {
+				return nil
+			}
 			_, err := c.Do("PING")
 			return err
 		},
 	}
 
-	//test connection
-	connection := poolToRedis.Get()
-	defer connection.Close()
-
 	start := timestamp.Now()
 	for timestamp.Now().Sub(start) <= rpf.options.PingTimeout {
+		//test connection
+		connection := poolToRedis.Get()
 		_, err = redis.String(connection.Do("PING"))
+		connection.Close()
 		if err == nil {
 			break
 		}
@@ -277,21 +279,13 @@ func (rpf *RedisPoolFactory) Details() string {
 
 func newDialTcpFunc(host string, port int, options []redis.DialOption) func() (redis.Conn, error) {
 	return func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", fmt.Sprintf("%s:%d", host, port), options...)
-		if err != nil {
-			return nil, err
-		}
-		return c, err
+		return redis.Dial("tcp", fmt.Sprintf("%s:%d", host, port), options...)
 	}
 }
 
 func newDialURLFunc(url string, options []redis.DialOption) func() (redis.Conn, error) {
 	return func() (redis.Conn, error) {
-		c, err := redis.DialURL(url, options...)
-		if err != nil {
-			return nil, err
-		}
-		return c, err
+		return redis.DialURL(url, options...)
 	}
 }
 
@@ -305,11 +299,7 @@ func newSentinelDialFunc(sntnl *sentinel.Sentinel, options []redis.DialOption) f
 		if err != nil {
 			return nil, err
 		}
-		c, err := redis.Dial("tcp", masterAddr, options...)
-		if err != nil {
-			return nil, err
-		}
-		return c, nil
+		return redis.Dial("tcp", masterAddr, options...)
 	}
 }
 
