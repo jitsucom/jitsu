@@ -122,8 +122,8 @@ func (rs *RecognitionService) startAnonymousObserver() {
 			if rs.closed.Load() {
 				continue
 			}
-
 			rs.systemErrorf("Error reading recognition payload from queue: %v", err)
+			time.Sleep(time.Second)
 			continue
 		}
 		rp, ok := rpi.(*RecognitionPayload)
@@ -198,6 +198,7 @@ func (rs *RecognitionService) startIdentifiedObserver() {
 		aggregatedIdentifiers, err := rs.getAggregatedIdentifiers()
 		if err != nil {
 			rs.systemErrorf("System error: %v", err)
+			time.Sleep(time.Second)
 			continue
 		}
 		for eventKey, values := range aggregatedIdentifiers {
@@ -228,6 +229,7 @@ func (rs *RecognitionService) startAggregatedIdentifiedObserver(queue *Queue) {
 				continue
 			}
 			rs.systemErrorf("Error reading recognition payload from queue: %v", err)
+			time.Sleep(time.Second)
 			continue
 		}
 		ids, ok := eventIdentifiers.(*RecognitionPayload)
@@ -236,6 +238,7 @@ func (rs *RecognitionService) startAggregatedIdentifiedObserver(queue *Queue) {
 		}
 		if err := rs.reprocessAnonymousEvents(ids.EventKey, ids.IdentificationValues); err != nil {
 			rs.systemErrorf("System error: %v", err)
+			time.Sleep(time.Second)
 			break
 		}
 	}

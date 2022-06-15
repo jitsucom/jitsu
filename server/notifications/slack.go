@@ -173,7 +173,7 @@ func (sn *SlackNotifier) observe() {
 	instance.mutex.Lock()
 	for errPayload, count := range sn.systemErrorsCounter {
 		if count > 1 {
-			instance.messagesCh <- fmt.Sprintf(groupedSystemErrorTemplate, instance.serviceName, instance.version, instance.serverName, count, errPayload)
+			enqueueMessage(fmt.Sprintf(groupedSystemErrorTemplate, instance.serviceName, instance.version, instance.serverName, count, errPayload))
 			//made error known. It prevents extra system error notification after group notification
 			knownSystemErrors[errPayload] = 1
 		}
@@ -228,7 +228,7 @@ func Custom(payload string) {
 				},
 			}}
 		b, _ := json.Marshal(sm)
-		instance.messagesCh <- string(b)
+		enqueueMessage(string(b))
 	}
 }
 
@@ -248,7 +248,7 @@ func ServerStart(systemInfo *runtime.Info) {
 		}
 
 		body := fmt.Sprintf("Service [%s] has been started!", systemInfoStr)
-		instance.messagesCh <- fmt.Sprintf(serverStartTemplate, instance.serviceName, instance.version, instance.serverName, ip, body)
+		enqueueMessage(fmt.Sprintf(serverStartTemplate, instance.serviceName, instance.version, instance.serverName, ip, body))
 	}
 }
 
@@ -273,7 +273,16 @@ func SystemError(msg ...interface{}) {
 
 		//send if an error occurred first time or it will be sent in startErrorsObserver()
 		if counter == 1 {
-			instance.messagesCh <- fmt.Sprintf(systemErrorTemplate, instance.serviceName, instance.version, instance.serverName, errPayload)
+			enqueueMessage(fmt.Sprintf(systemErrorTemplate, instance.serviceName, instance.version, instance.serverName, errPayload))
+		}
+	}
+}
+
+func enqueueMessage(message string) {
+	if instance != nil {
+		select {
+		case instance.messagesCh <- message:
+		default:
 		}
 	}
 }

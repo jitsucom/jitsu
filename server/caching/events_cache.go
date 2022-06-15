@@ -103,12 +103,12 @@ func (ec *EventsCache) start() {
 		for cf := range ec.statusEventsChannel {
 			eventEntity, err := ec.createEventEntity(cf)
 			if err != nil {
-				logging.SystemErrorf("[%s] failed to create meta event entity [%v] before saving in the cache: %v", cf.successEventContext.DestinationID, cf, err)
+				logging.Errorf("[%s] failed to create meta event entity [%v] before saving in the cache: %v", cf.destinationID, cf, err)
 				continue
 			}
 
 			if err := ec.saveDestinationEventWithStatus(eventEntity, cf.eventMetaStatus); err != nil {
-				logging.SystemErrorf("[%s] failed to save meta event entity [%v] into the cache: %v", cf.successEventContext.DestinationID, cf, err)
+				logging.Errorf("[%s] failed to save meta event entity [%v] into the cache: %v", cf.destinationID, cf, err)
 				continue
 			}
 		}
@@ -273,14 +273,14 @@ func (ec *EventsCache) saveTokenEvent(tokenID string, serializedPayload, seriali
 	if eventMetaStatus == meta.EventsPureStatus {
 		err := ec.storage.AddEvent(meta.EventsTokenNamespace, tokenID, meta.EventsPureStatus, entity)
 		if err != nil {
-			logging.SystemErrorf("failed to save raw JSON event %v by tokenID %s in meta.storage: %v", string(serializedPayload), tokenID, err)
+			logging.Errorf("failed to save raw JSON event %v by tokenID %s in meta.storage: %v", string(serializedPayload), tokenID, err)
 			return
 		}
 		ec.lastTokens.LoadOrStore(tokenID, true)
 	} else if eventMetaStatus == meta.EventsErrorStatus {
 		err := ec.storage.AddEvent(meta.EventsTokenNamespace, tokenID, meta.EventsErrorStatus, entity)
 		if err != nil {
-			logging.SystemErrorf("failed to save raw JSON event with error %v by tokenID %s in meta.storage: %v", string(serializedPayload), tokenID, err)
+			logging.Errorf("failed to save raw JSON event with error %v by tokenID %s in meta.storage: %v", string(serializedPayload), tokenID, err)
 			return
 		}
 

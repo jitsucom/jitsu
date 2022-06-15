@@ -114,8 +114,8 @@ func (h *HTTPAdapter) startObserver() {
 					if err == queue.ErrQueueClosed && h.closed.Load() {
 						continue
 					}
-
 					logging.SystemErrorf("[%s] Error reading HTTP request from the queue: %v", h.destinationID, err)
+					time.Sleep(time.Second)
 					continue
 				}
 				//dequeued request was from retry call and retry timeout hasn't come
