@@ -69,20 +69,13 @@ function processEvents(type: EventType, data: { id: string; events: any }) {
       status = type === EventType.Token ? EventStatus.Success : EventStatus.Pending
     }
     let normalizedEvent = normalizeEvent(type, data.id, status, event)
-    eventsIndex[normalizedEvent.eventId] = normalizedEvent
+    if (!eventsIndex[normalizedEvent.eventId]) {
+      eventsIndex[normalizedEvent.eventId] = normalizedEvent
+    }
   })
 
   let events = [...Object.values(eventsIndex)]
   eventsIndex = {} //for GC
-
-  events = events.sort((a, b) => {
-    if (isNaN(a.timestamp.unix())) {
-      return 1
-    } else if (isNaN(b.timestamp.unix())) {
-      return -1
-    }
-    return b.timestamp.unix() - a.timestamp.unix()
-  })
 
   return events
 }
