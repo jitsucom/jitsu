@@ -22,7 +22,7 @@ type ApiKeyIconProps = {
   entitySubType?: undefined
 }
 
-const EntityIconComponent: React.FC<EntityIconProps> = ({ entityType, entitySubType }) => {
+const EntityIconComponent = ({ entityType, entitySubType = undefined }: EntityIconProps) => {
   switch (entityType) {
     case "source":
       return <>{allSourcesMap[entitySubType]?.pic}</>

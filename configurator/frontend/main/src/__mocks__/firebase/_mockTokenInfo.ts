@@ -1,3 +1,5 @@
+import { IdTokenResult } from "firebase/auth"
+
 const now = Date.now()
 const plusHour = now + 3_600_000
 
@@ -29,4 +31,4 @@ export const mockTokenInfo = {
       sign_in_provider: "password",
     },
   },
-}
+} as unknown as IdTokenResult
