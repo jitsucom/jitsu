@@ -48,7 +48,7 @@ type PollingHookConfigurator<T = unknown, StartOpts = any, EndOpts = any> = {
 
 const defaultOptions: UsePollingOptions = {
   interval_ms: 1000,
-  timeout_ms: 5 * 60 * 1000,
+  timeout_ms: 10 * 60 * 1000,
 }
 
 /**

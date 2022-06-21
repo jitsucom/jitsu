@@ -77,6 +77,8 @@
     "ws": "^8.2.3",
     "tar": "^6.1.11",
     "nth-check": "^2.0.1",
-    "browserslist": "^4.17.3"
+    "browserslist": "^4.17.3",
+    "@types/react": "^17.0.47",
+    "@types/react-dom": "^17.0.17"
   }
 }

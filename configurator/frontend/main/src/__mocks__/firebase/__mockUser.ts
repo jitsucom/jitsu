@@ -7,5 +7,5 @@ export type MockFirebaseUser = Pick<User, keyof UserFields | "getIdTokenResult">
 
 export const mockUser: MockFirebaseUser = {
   ...mockUserFields,
-  getIdTokenResult: jest.fn(() => Promise.resolve(mockTokenInfo)),
+  getIdTokenResult: jest.fn((forceRefresh?) => Promise.resolve(mockTokenInfo)),
 }

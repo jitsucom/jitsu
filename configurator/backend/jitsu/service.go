@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-var ErrServerTimeout = errors.New("The server did not respond within 1 minute. Please try again. If you think this is a system error, write to us support@jitsu.com")
+var ErrServerTimeout = errors.New("The server did not respond within 10 minutes. Please try again. If you think this is a system error, write to us support@jitsu.com")
 
 //Service is used for communicate with Jitsu Server
 type Service struct {
@@ -32,7 +32,7 @@ func NewService(balancerAPIURL, adminToken string) *Service {
 	return &Service{
 		balancerAPIURL: strings.TrimSuffix(balancerAPIURL, "/"),
 		adminToken:     adminToken,
-		client:         &http.Client{Timeout: 3 * time.Minute},
+		client:         &http.Client{Timeout: 10 * time.Minute},
 	}
 }
 
