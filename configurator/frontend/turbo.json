@@ -1,18 +1,14 @@
 {
   "$schema": "https://turborepo.org/schema.json",
   "pipeline": {
-    "lint": {
-      "dependsOn": ["^lint"]
+    "test": {
+      "dependsOn": [
+        "build"
+      ]
     },
     "clean": {
       "dependsOn": [
         "^clean"
-      ]
-    },
-    "test": {
-      "dependsOn": [
-        "build",
-        "^test"
       ]
     },
     "compile": {
@@ -37,6 +33,6 @@
         "$OAUTH_BACKEND_API_BASE",
         "$FIREBASE_CONFIG"
       ]
-    }
+    },
   }
 }

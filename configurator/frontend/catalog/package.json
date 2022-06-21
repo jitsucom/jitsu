@@ -1,6 +1,6 @@
 {
   "name": "@jitsu/catalog",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "description": "This package contains the code that enables variety of features of Jitsu Sources, Destinations and API Keys. ",
   "author": "Jitsu Dev Team <dev@jitsu.com>",
   "homepage": "https://jitsu.com",
