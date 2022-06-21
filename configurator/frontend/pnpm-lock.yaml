@@ -7,7 +7,6 @@ importers:
       '@types/jest': ^26.0.24
       '@types/node': ^12.0.0
       '@types/react': ^17.0.0
-      monorel: 0.2.2
       prettier: ^2.5.1
       ts-jest: ^27.0.3
       turbo: ^1.2.11
@@ -16,7 +15,6 @@ importers:
       '@types/jest': 26.0.24
       '@types/node': 12.20.55
       '@types/react': 17.0.47
-      monorel: 0.2.2
       prettier: 2.7.1
       ts-jest: 27.1.5_e7pcgvri6oop2rhopjrbvevyai
       turbo: 1.2.16
@@ -9873,14 +9871,6 @@ packages:
 
   /monaco-editor/0.28.1:
     resolution: {integrity: sha512-P1vPqxB4B1ZFzTeR1ScggSp9/5NoQrLCq88fnlNUsuRAP1usEBN4TIpI2lw0AYIZNVIanHk0qwjze2uJwGOHUw==}
-
-  /monorel/0.2.2:
-    resolution: {integrity: sha512-jiT0YnbYn3tUwZP0jJyzpfgDhhAOUtY6T8zj80vc1Y9X1s4iJ6IWzCEEKgXOkFEBSFWrJsz5TR0gBasS0SAjjQ==}
-    hasBin: true
-    dependencies:
-      minimist: 1.2.6
-      tslib: 2.4.0
-    dev: true
 
   /move-concurrently/1.0.1:
     resolution: {integrity: sha512-hdrFxZOycD/g6A6SoI2bB5NA/5NEqD0569+S47WZhPvm46sD50ZHdYaFmnua5lndde9rCHGjmfK7Z8BuCt/PcQ==}

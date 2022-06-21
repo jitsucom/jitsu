@@ -15,7 +15,7 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "outDir": "./dist/",
+    "outDir": ".",
     "declaration": true
   },
   "include": ["./src/**/*.ts", "./src/**/*.tsx"],

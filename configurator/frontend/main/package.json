@@ -1,6 +1,6 @@
 {
   "name": "jitsu-configurator-ui",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "private": true,
   "dependencies": {
     "@firebase/auth": "^0.20.3",
@@ -75,12 +75,11 @@
     ]
   },
   "scripts": {
-    "clean": "rm -rf build dist",
-    "compile": "tsc -p . --noEmit",
+    "clean": "rm -rf ./node_modules/ build dist",
+    "compile": "tsc -p .",
     "dev": "pnpm build:openapi && pnpm compile && NODE_ENV=development craco start",
     "build": "pnpm build:openapi && pnpm version:update && NODE_ENV=production craco build",
     "build:openapi": "openapi -i ../../../openapi/configurator.yaml -o src/generated/conf-openapi --exportCore false  --exportServices false  --exportModels true\n",
-    "lint": "eslint './src/**/*.{ts,tsx,js,jsx}' --ignore-pattern **/node_modules/",
     "stats": "rm -rf build && pnpm build --stats",
     "bundle": "pnpm webpack-bundle-analyzer ./build/bundle-stats.json",
     "analyze": "source-map-explorer 'build/static/js/*.js' --no-border-checks",
