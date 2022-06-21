@@ -1,5 +1,5 @@
 // @Libs
-import { memo } from "react"
+import { memo, PropsWithChildren } from "react"
 // @Data
 import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
 import { allSourcesMap } from "@jitsu/catalog/sources/lib"
@@ -25,13 +25,13 @@ type ApiKeyIconProps = {
 const EntityIconComponent: React.FC<EntityIconProps> = ({ entityType, entitySubType }) => {
   switch (entityType) {
     case "source":
-      return allSourcesMap[entitySubType]?.pic || null
+      return <>{allSourcesMap[entitySubType]?.pic}</>
     case "destination":
-      return destinationsReferenceMap[entitySubType]?.ui?.icon || null
+      return <>{destinationsReferenceMap[entitySubType]?.ui?.icon}</>
     case "api_key":
-      return apiKeysReferenceMap.js.icon || null
+      return <>{apiKeysReferenceMap.js.icon}</>
     default:
-      return null
+      return <></>
   }
 }
 

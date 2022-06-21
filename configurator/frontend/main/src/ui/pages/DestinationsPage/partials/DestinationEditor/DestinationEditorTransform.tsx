@@ -13,8 +13,6 @@ import styles from "./DestinationEditor.module.less"
 import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
 import { CodeSnippet } from "../../../../../lib/components/components"
 import { camelCase } from "lodash"
-import set from "lodash/set"
-import { FieldData } from "rc-field-form/lib/interface"
 
 export interface Props {
   destinationData: DestinationData

@@ -104,13 +104,13 @@ module.exports = {
     },
   },
   plugins: [
-    {
-      // transpile some of the node_modules using babel
-      plugin: CracoBabelLoader,
-      options: {
-        includes: [resolvePackage("../node_modules/@jitsu/catalog"), resolvePackage("../catalog")],
-      },
-    },
+    // {
+    //   // transpile some of the node_modules using babel
+    //   plugin: CracoBabelLoader,
+    //   options: {
+    //     includes: [resolvePackage("../node_modules/@jitsu/catalog"), resolvePackage("../catalog")],
+    //   },
+    // },
     {
       plugin: CracoAntDesignPlugin,
       options: {

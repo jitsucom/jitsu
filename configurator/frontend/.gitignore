@@ -10,17 +10,17 @@
 **/build
 **/dist
 
-# yarn
-**/npm-debug.log*
-**/yarn-debug.log*
-**/yarn-error.log
-
-# lerna
-lerna-debug.log
+**/.pnpm-debug.log
 
 # env variables
 **/.env*
 
 # misc
 **/.DS_Store
+
+**/tsconfig.tsbuildinfo
+configurator/frontend/main/public/app-version.json
+**/.turbo
+
+
 

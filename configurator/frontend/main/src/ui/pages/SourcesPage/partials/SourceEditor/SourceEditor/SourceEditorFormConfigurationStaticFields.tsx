@@ -7,7 +7,7 @@ import { sourcesStore } from "stores/sources"
 import { COLLECTIONS_SCHEDULES } from "constants/schedule"
 // @Types
 import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
-import { Rule as AntdFormItemValidationRule } from "rc-field-form/lib/interface"
+import { Rule as AntdFormItemValidationRule } from "antd/lib/form"
 // @Services
 import { useServices } from "hooks/useServices"
 import { observer } from "mobx-react-lite"

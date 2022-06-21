@@ -66,7 +66,7 @@ const DownloadConfig = React.lazy(
   () => import(/* webpackPrefetch: true */ "./lib/components/DownloadConfig/DownloadConfig")
 )
 
-export const initializeApplication = async (projectId: string): Promise<ApplicationServices> => {
+export const initializeApplication = async (): Promise<ApplicationServices> => {
   const services = ApplicationServices.get()
   await services.init()
   console.log("Waiting for user")
@@ -125,7 +125,7 @@ export const Application: React.FC = function () {
   useEffect(() => {
     ;(async () => {
       try {
-        const application = await initializeApplication(projectId)
+        const application = await initializeApplication()
         if (application.userService.hasUser()) {
           const projects = await application.projectService.getAvailableProjects()
           if (projects.length === 0) {

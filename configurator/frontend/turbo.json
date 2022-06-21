@@ -1,0 +1,38 @@
+{
+  "$schema": "https://turborepo.org/schema.json",
+  "pipeline": {
+    "test": {
+      "dependsOn": [
+        "build"
+      ]
+    },
+    "clean": {
+      "dependsOn": [
+        "^clean"
+      ]
+    },
+    "compile": {
+      "dependsOn": [
+        "^compile"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "dependsOn": [
+        "^dev"
+      ]
+    },
+    "build": {
+      "dependsOn": [
+        "^build",
+        "clean",
+        "$BACKEND_API_BASE",
+        "$NODE_ENV",
+        "$ANALYTICS_KEYS",
+        "$BILLING_API_BASE_URL",
+        "$OAUTH_BACKEND_API_BASE",
+        "$FIREBASE_CONFIG"
+      ]
+    },
+  }
+}
