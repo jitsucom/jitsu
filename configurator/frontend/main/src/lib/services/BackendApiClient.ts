@@ -169,6 +169,7 @@ export class JWTBackendClient implements BackendApiClient {
       method: method,
       url: fullUrl,
       transformResponse: transform,
+      timeout: 600000,
     }
 
     if (!opts.noauth) {
