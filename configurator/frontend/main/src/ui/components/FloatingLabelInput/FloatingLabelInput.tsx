@@ -6,14 +6,13 @@ import get from "lodash/get"
 // @Components
 import { FloatingLabel } from "ui/components/FloatingLabelInput/FloatingLabel"
 // @Types
-import { NamePath } from "rc-field-form/lib/interface"
 import { Rule } from "antd/lib/form"
 import { SizeType } from "antd/lib/config-provider/SizeContext"
 
 export interface Props {
   className?: string
   wrapClassName?: string
-  name: NamePath
+  name: any,
   formName: string
   floatingLabelText: React.ReactNode
   rules?: Rule[]

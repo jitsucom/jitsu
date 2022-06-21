@@ -6,8 +6,10 @@ import { useMemo } from "react"
 type Props = {
   /** Text to display if the button is blocked */
   tooltipTitle?: string
-} & BlockingSchema &
-  ButtonProps
+  isBlocked?: boolean
+  plansBlacklist?: PricingPlanId[]
+  plansWhitelist?: PricingPlanId[]
+} & ButtonProps
 
 /**
  * Button that is blocked depending on the current subscription.
@@ -48,31 +50,3 @@ export const BilledButton: React.FC<Props> = ({
   )
 }
 
-/**
- * One of the following:
- * - explicit boolean
- * - plans blacklist
- * - plans whitelist
- **/
-type BlockingSchema = IsExplicitlyBlocked | PlansBlacklist | PlansWhitelist
-
-type IsExplicitlyBlocked = {
-  /** Whether to block the button explicitly */
-  isBlocked: boolean
-  plansBlacklist?: never
-  plansWhitelist?: never
-}
-
-type PlansBlacklist = {
-  isBlocked?: never
-  /** Plans IDs to block the button for */
-  plansBlacklist: PricingPlanId[] | Readonly<PricingPlanId[]>
-  plansWhitelist?: never
-}
-
-type PlansWhitelist = {
-  isBlocked?: never
-  plansBlacklist?: never
-  /** Plans IDs to unblock the button for */
-  plansWhitelist: PricingPlanId[] | Readonly<PricingPlanId[]>
-}

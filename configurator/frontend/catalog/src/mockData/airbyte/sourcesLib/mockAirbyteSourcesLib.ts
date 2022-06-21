@@ -1,5 +1,5 @@
-import { AirbyteSource } from "./sources/types"
-import * as logos from "./sources/lib/logos"
+import { AirbyteSource } from "../../../sources/types"
+import * as logos from "../../../sources/lib/logos"
 
 export const allMockAirbyteSources: AirbyteSource[] = [
   {
