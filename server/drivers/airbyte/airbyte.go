@@ -13,7 +13,6 @@ import (
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/safego"
-	"github.com/jitsucom/jitsu/server/utils"
 	"go.uber.org/atomic"
 	"path"
 	"strings"
@@ -160,30 +159,32 @@ func TestAirbyte(sourceConfig *base.SourceConfig) error {
 		return err
 	}
 
-	selectedStreamsWithNamespace := selectedStreamsWithNamespace(config)
-	if len(selectedStreamsWithNamespace) > 0 {
-		airbyteRunner = airbyte.NewRunner(sourceConfig.SourceID, config.DockerImage, config.ImageVersion, "")
-		catalog, err := airbyteRunner.Discover(config.Config, time.Second*585)
-		if err != nil {
-			return err
-		}
-		var missingStreams []base.StreamConfiguration
-		var missingStreamsStr []string
-		availableStreams := map[string]interface{}{}
-		for _, stream := range catalog.Streams {
-			availableStreams[base.StreamIdentifier(stream.Namespace, stream.Name)] = true
-		}
-		for key, stream := range selectedStreamsWithNamespace {
-			_, ok := availableStreams[key]
-			if !ok {
-				missingStreams = append(missingStreams, stream)
-				missingStreamsStr = append(missingStreamsStr, stream.Name)
-			}
-		}
-		if len(missingStreams) > 0 {
-			return utils.NewRichError(fmt.Sprintf("selected streams unavailable: %s", strings.Join(missingStreamsStr, ",")), missingStreams)
-		}
-	}
+	// Disabled for now, because it takes too long to run for some sources
+	//
+	//selectedStreamsWithNamespace := selectedStreamsWithNamespace(config)
+	//if len(selectedStreamsWithNamespace) > 0 {
+	//	airbyteRunner = airbyte.NewRunner(sourceConfig.SourceID, config.DockerImage, config.ImageVersion, "")
+	//	catalog, err := airbyteRunner.Discover(config.Config, time.Second*585)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	var missingStreams []base.StreamConfiguration
+	//	var missingStreamsStr []string
+	//	availableStreams := map[string]interface{}{}
+	//	for _, stream := range catalog.Streams {
+	//		availableStreams[base.StreamIdentifier(stream.Namespace, stream.Name)] = true
+	//	}
+	//	for key, stream := range selectedStreamsWithNamespace {
+	//		_, ok := availableStreams[key]
+	//		if !ok {
+	//			missingStreams = append(missingStreams, stream)
+	//			missingStreamsStr = append(missingStreamsStr, stream.Name)
+	//		}
+	//	}
+	//	if len(missingStreams) > 0 {
+	//		return utils.NewRichError(fmt.Sprintf("selected streams unavailable: %s", strings.Join(missingStreamsStr, ",")), missingStreams)
+	//	}
+	//}
 	return nil
 }
 
