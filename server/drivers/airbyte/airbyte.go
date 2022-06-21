@@ -163,7 +163,7 @@ func TestAirbyte(sourceConfig *base.SourceConfig) error {
 	selectedStreamsWithNamespace := selectedStreamsWithNamespace(config)
 	if len(selectedStreamsWithNamespace) > 0 {
 		airbyteRunner = airbyte.NewRunner(sourceConfig.SourceID, config.DockerImage, config.ImageVersion, "")
-		catalog, err := airbyteRunner.Discover(config.Config, time.Minute*3)
+		catalog, err := airbyteRunner.Discover(config.Config, time.Second*585)
 		if err != nil {
 			return err
 		}
@@ -358,7 +358,7 @@ func (a *Airbyte) Close() (multiErr error) {
 //returns catalog
 func (a *Airbyte) loadCatalog() (string, map[string]*base.StreamRepresentation, error) {
 	airbyteRunner := airbyte.NewRunner(a.ID(), a.GetTap(), a.config.ImageVersion, "")
-	rawCatalog, err := airbyteRunner.Discover(a.config.Config, 5*time.Minute)
+	rawCatalog, err := airbyteRunner.Discover(a.config.Config, time.Second*585)
 	if err != nil {
 		return "", nil, err
 	}
