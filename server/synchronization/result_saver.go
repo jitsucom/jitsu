@@ -60,8 +60,8 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		streamName := stream.StreamName
 		tableName := rs.generateTableName(utils.NvlString(stream.IntermediateTableName, streamName))
 		targetTableName := rs.generateTableName(streamName)
-		if targetTableName != tableName {
-			rs.taskLogger.INFO("Stream [%s] Is using intermediate temporary table %s for final table: %s", streamName, tableName, targetTableName)
+		if targetTableName != tableName && stream.ChunkNumber == 0 {
+			rs.taskLogger.INFO("Stream [%s] Is using intermediate temporary table [%s] final table is: [%s]", streamName, tableName, targetTableName)
 		}
 		stream.BatchHeader.TableName = tableName
 
@@ -84,8 +84,6 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		if len(stream.Objects) == 0 {
 			continue
 		}
-		rs.taskLogger.INFO("Stream [%s] Table name [%s] key fields [%s] objects [%d]", streamName, tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
-
 		//Note: we assume that destinations connected to 1 source can't have different unique ID configuration
 		uniqueIDField := rs.destinations[0].GetUniqueIDField()
 		stream.BatchHeader.Fields[uniqueIDField.GetFlatFieldName()] = schema.NewField(typing.STRING)
@@ -127,14 +125,19 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		//Sync stream
 		for _, storage := range rs.destinations {
 			batchStart := timestamp.Now()
-			rs.taskLogger.INFO("Stream [%s] Storing data to destination table [%s] in storage [%s]", streamName, tableName, storage.ID())
+			rs.taskLogger.INFO("Stream [%s] Flushing batch - adding %d objects to [%s]. Key fields=[%s] Storage=[%s]", streamName, len(stream.Objects), tableName, strings.Join(stream.KeyFields, ","), storage.ID())
 			err := storage.SyncStore(stream.BatchHeader, stream.Objects, stream.DeleteConditions, false, needCopyEvent)
 			batchLoadTime := timestamp.Now().Sub(batchStart)
 			var replaceTableTime time.Duration
 			if err == nil {
+				replaceTableText := ""
+				if replaceTableTime > 0 {
+					replaceTableText = fmt.Sprintf(" Replace table time: %s", replaceTableTime.String())
+				}
+				rs.taskLogger.INFO("Stream [%s] %d objects stored to [%s]. Columns count: %d. Time: %s, Rows/sec: %.2f. Storage=[%s]%s", streamName, rowsCount, tableName, len(stream.Objects[0]), batchLoadTime.Round(time.Millisecond), float64(rowsCount)/batchLoadTime.Seconds(), storage.ID(), replaceTableText)
 				if stream.SwapWithIntermediateTable && targetTableName != tableName {
 					batchStart := timestamp.Now()
-					rs.taskLogger.INFO("Stream [%s] Replacing final table: %s with content of: %s", streamName, targetTableName, tableName)
+					rs.taskLogger.INFO("Stream [%s] Replacing final table: [%s] with content of: [%s]", streamName, targetTableName, tableName)
 					replaceTableTime = timestamp.Now().Sub(batchStart)
 					err = storage.ReplaceTable(targetTableName, tableName, true)
 					if errorx.IsOfType(err, errorj.DropError) {
@@ -150,13 +153,6 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 				counters.ErrorPullDestinationEvents(storage.ID(), int64(rowsCount))
 				counters.ErrorPullSourceEvents(rs.task.Source, int64(rowsCount))
 				return errors.New(errMsg)
-			} else {
-				replaceTableText := ""
-				if replaceTableTime > 0 {
-					replaceTableText = fmt.Sprintf(" (replace table time: %s)", replaceTableTime.String())
-				}
-				rs.taskLogger.INFO("Stream [%s] [%s].[%s] Loaded in %s speed: %.2f rows per sec %s", streamName, storage.ID(), tableName, batchLoadTime.Round(time.Millisecond), float64(rowsCount)/batchLoadTime.Seconds(), replaceTableText)
-
 			}
 
 			metrics.SuccessSourceEvents(rs.task.SourceType, rs.tap, rs.task.Source, storage.Type(), storage.ID(), rowsCount)
@@ -166,8 +162,6 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		}
 
 		counters.SuccessPullSourceEvents(rs.task.Source, int64(rowsCount))
-
-		rs.taskLogger.INFO("Synchronized successfully Table [%s] key fields [%s] objects [%d]", tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
 	}
 
 	//save state
