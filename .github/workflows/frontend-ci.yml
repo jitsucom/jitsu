@@ -49,18 +49,18 @@ jobs:
         name: "[Frontend CI] building"
         working-directory: ./configurator/frontend
 
-      - name: "[Frontend CI] configure github "
-        run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "<>"
-
-      - run: pnpm canary:publish
-        env:
-          NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
-        # So far run publish only on refs/heads/feature/945_pnpm_turbo
-        if: ${{ success() && steps.frontend-change.outputs.status == 1 && github.ref == 'refs/heads/feature/945_pnpm_turbo' }}
-        name: "[Frontend CI] publishing canary release"
-        working-directory: ./configurator/frontend
+#      - name: "[Frontend CI] configure github "
+#        run: |
+#          git config user.name "GitHub Actions Bot"
+#          git config user.email "<>"
+#
+#      - run: pnpm canary:publish
+#        env:
+#          NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
+#        # So far run publish only on refs/heads/feature/945_pnpm_turbo
+#        if: ${{ success() && steps.frontend-change.outputs.status == 1 && github.ref == 'refs/heads/feature/945_pnpm_turbo' }}
+#        name: "[Frontend CI] publishing canary release"
+#        working-directory: ./configurator/frontend
 
       - name: Notify to Slack on Errors
         uses: rtCamp/action-slack-notify@v2.2.0
