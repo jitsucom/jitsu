@@ -30,6 +30,13 @@ jobs:
         if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
         with:
           node-version: "14"
+      - uses: pnpm/action-setup@v2
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: 7
+          run_install: false
+
       - run: pnpm install
         if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
         name: "[Frontend CI] installing packages (pnpm install)"
