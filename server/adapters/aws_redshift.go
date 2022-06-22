@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/errorj"
-	"github.com/jitsucom/jitsu/server/uuid"
-	"strings"
-
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
+	"github.com/jitsucom/jitsu/server/uuid"
 	_ "github.com/lib/pq"
+	"strings"
 )
 
 const (
@@ -131,12 +130,14 @@ func (ar *AwsRedshift) Insert(insertContext *InsertContext) error {
 	if insertContext.eventContext != nil {
 		return ar.insertSingle(insertContext.eventContext)
 	} else {
-		return ar.insertBatch(insertContext.table, insertContext.objects, insertContext.deleteConditions)
+		return ar.insertBatch(insertContext)
 	}
 }
 
 //insertBatch inserts batch of data in transaction
-func (ar *AwsRedshift) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) (err error) {
+func (ar *AwsRedshift) insertBatch(insertContext *InsertContext) (err error) {
+	table := insertContext.table
+	objects := insertContext.objects
 	wrappedTx, err := ar.OpenTx()
 	if err != nil {
 		return err
@@ -153,8 +154,8 @@ func (ar *AwsRedshift) insertBatch(table *Table, objects []map[string]interface{
 		}
 	}()
 
-	if !deleteConditions.IsEmpty() {
-		if err = ar.deleteWithConditions(wrappedTx, table, deleteConditions); err != nil {
+	if !insertContext.deleteConditions.IsEmpty() {
+		if err = ar.deleteWithConditions(wrappedTx, table, insertContext.deleteConditions); err != nil {
 			return err
 		}
 	}
@@ -166,10 +167,14 @@ func (ar *AwsRedshift) insertBatch(table *Table, objects []map[string]interface{
 	//deduplication for bulkMerge success (it fails if there is any duplicate)
 	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
 
-	for _, objectsBucket := range deduplicatedObjectsBuckets {
-		if err = ar.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
-			return err
+	if insertContext.merge {
+		for _, objectsBucket := range deduplicatedObjectsBuckets {
+			if err = ar.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
+				return err
+			}
 		}
+	} else {
+		ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, table, deduplicatedObjectsBuckets[0], RedshiftValuesLimit)
 	}
 
 	return nil
