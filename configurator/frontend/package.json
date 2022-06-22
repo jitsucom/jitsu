@@ -12,10 +12,10 @@
     "dev": "turbo run compile --filter=./catalog && turbo run dev --continue --parallel",
     "verify": "pnpm lint",
     "_verify": "pnpm code-style:check && pnpm lint",
-    "build": "pnpm verify && turbo run build",
+    "build": "pnpm verify && turbo run build --no-cache",
     "test": "turbo run test",
     "factory-reset": "pnpm clean && rm -rf `find . -type d -name node_modules`",
-    "code-style:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run pnpm format:fix!\" && exit 1)",
+    "code-style:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run pnpm code-style format:fix!\" && exit 1)",
     "code-style:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore ./",
     "lint": "turbo run lint",
     "canary:publish": "monorel  --filter './catalog' --version '1.1.0-alpha.${rev}' --tag canary --publish"

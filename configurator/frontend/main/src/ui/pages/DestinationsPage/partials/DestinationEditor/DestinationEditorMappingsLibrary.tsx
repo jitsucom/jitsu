@@ -5,7 +5,7 @@ import mappings from "@jitsu/catalog/mappings/lib"
 // @Styles
 import styles from "./DestinationEditor.module.less"
 // @Types
-import { FieldMapping, DestinationConfigurationTemplate } from "@jitsu/catalog/mappings/types"
+import { FieldMapping, DestinationConfigurationTemplate } from "@jitsu/catalog"
 // @Icons
 import ExclamationCircleOutlined from "@ant-design/icons/lib/icons/ExclamationCircleOutlined"
 // @Components
