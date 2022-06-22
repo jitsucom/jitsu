@@ -134,7 +134,7 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, er
 	}
 
 	//stream mode
-	return dbTable, bq.bqAdapter.Insert(adapters.NewBatchInsertContext(table, fdata.GetPayload(), nil))
+	return dbTable, bq.bqAdapter.Insert(adapters.NewBatchInsertContext(table, fdata.GetPayload(), true, nil))
 }
 
 //Update isn't supported
