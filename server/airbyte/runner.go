@@ -144,7 +144,14 @@ func (r *Runner) Discover(airbyteSourceConfig interface{}, timeout time.Duration
 		logging.Error(errMsg)
 		return nil, errors.New(errMsg)
 	}
-
+	filteredStreams := make([]*Stream, 0, 0)
+	//filter out streams that have no schema
+	for _, stream := range resultParser.parsedRow.Catalog.Streams {
+		if stream.JsonSchema.Properties != nil && len(stream.JsonSchema.Properties) > 0 {
+			filteredStreams = append(filteredStreams, stream)
+		}
+	}
+	resultParser.parsedRow.Catalog.Streams = filteredStreams
 	return resultParser.parsedRow.Catalog, nil
 }
 
