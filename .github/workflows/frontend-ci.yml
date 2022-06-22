@@ -43,6 +43,11 @@ jobs:
         name: "[Frontend CI] building"
         working-directory: ./configurator/frontend
 
+      - name: "[Frontend CI] publishing canary release"
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+
       - run: pnpm canary:publish
         env:
           NODE_TOKEN: ${{ secrets.LERNA_CI_NPM }}
