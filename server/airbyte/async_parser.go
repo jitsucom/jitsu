@@ -129,6 +129,6 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 		return err
 	}
 	totalTime := timestamp.Now().Sub(startTime)
-	ap.logger.INFO("Sync finished in %s (storage time: %s), %d records processed, avg speed: %.2f records per sec", totalTime.Round(time.Second), (totalTime - timeInDestinations).Round(time.Second), totalCount, float64(totalCount)/totalTime.Seconds())
+	ap.logger.INFO("Sync finished in %s (storage time: %s), %d records processed, avg speed: %.2f records per sec", totalTime.Round(time.Second), timeInDestinations.Round(time.Second), totalCount, float64(totalCount)/totalTime.Seconds())
 	return nil
 }
