@@ -14,6 +14,7 @@ type InsertContext struct {
 	objects          []map[string]interface{}
 	table            *Table
 	deleteConditions *base.DeleteConditions
+	merge            bool
 }
 
 func NewSingleInsertContext(eventContext *EventContext) *InsertContext {
@@ -24,11 +25,12 @@ func NewSingleInsertContext(eventContext *EventContext) *InsertContext {
 	}
 }
 
-func NewBatchInsertContext(table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) *InsertContext {
+func NewBatchInsertContext(table *Table, objects []map[string]interface{}, merge bool, deleteConditions *base.DeleteConditions) *InsertContext {
 	return &InsertContext{
 		objects:          objects,
 		table:            table,
 		deleteConditions: deleteConditions,
+		merge:            merge,
 	}
 }
 

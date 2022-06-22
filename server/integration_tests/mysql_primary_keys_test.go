@@ -61,7 +61,7 @@ func TestMySQLPrimaryKeyNotRemoved(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
-		err = mySQL.Insert(adapters.NewBatchInsertContext(ensuredWithMerge, []map[string]interface{}{data}, nil))
+		err = mySQL.Insert(adapters.NewBatchInsertContext(ensuredWithMerge, []map[string]interface{}{data}, true, nil))
 		if err != nil {
 			t.Fatal("failed to bulk insert", err)
 		}

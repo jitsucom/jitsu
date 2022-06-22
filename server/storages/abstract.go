@@ -215,7 +215,7 @@ func (a *Abstract) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, err
 	}
 
 	start := timestamp.Now()
-	if err := adapter.Insert(adapters.NewBatchInsertContext(dbSchema, fdata.GetPayload(), nil)); err != nil {
+	if err := adapter.Insert(adapters.NewBatchInsertContext(dbSchema, fdata.GetPayload(), true, nil)); err != nil {
 		return dbSchema, err
 	}
 	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", a.ID(), len(fdata.GetPayload()), timestamp.Now().Sub(start).Seconds())
