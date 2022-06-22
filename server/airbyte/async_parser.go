@@ -7,8 +7,10 @@ import (
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"io"
 	"math"
+	"time"
 )
 
 const (
@@ -27,6 +29,9 @@ type asynchronousParser struct {
 //  applies input schemas
 //  passes data as batches to dataConsumer
 func (ap *asynchronousParser) parse(stdout io.Reader) error {
+	startTime := timestamp.Now()
+	timeInDestinations := time.Duration(0)
+	totalCount := 0
 	ap.logger.INFO("Airbyte sync will store data as batches >= [%d] elements size", Instance.batchSize)
 
 	output := base.NewCLIOutputRepresentation()
@@ -92,11 +97,13 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 
 		//persist batch and recreate variables
 		if records >= Instance.batchSize {
+			startDestinationTime := timestamp.Now()
 			err := ap.dataConsumer.Consume(output)
 			if err != nil {
 				return err
 			}
-
+			timeInDestinations += timestamp.Now().Sub(startDestinationTime)
+			totalCount += records
 			//remove already persisted objects
 			for _, stream := range output.GetStreams() {
 				stream.Objects = []map[string]interface{}{}
@@ -108,16 +115,20 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 
 	//persist last batch
 	if records > 0 || output.State != nil {
+		startDestinationTime := timestamp.Now()
 		err := ap.dataConsumer.Consume(output)
 		if err != nil {
 			return err
 		}
+		timeInDestinations += timestamp.Now().Sub(startDestinationTime)
+		totalCount += records
 	}
 
 	err := scanner.Err()
 	if err != nil {
 		return err
 	}
-
+	totalTime := timestamp.Now().Sub(startTime)
+	ap.logger.INFO("Sync finished in %s (storage time: %s), %d records processed, avg speed: %.2f records per sec", totalTime.Round(time.Second), (totalTime - timeInDestinations).Round(time.Second), totalCount, float64(totalCount)/totalTime.Seconds())
 	return nil
 }
