@@ -248,12 +248,16 @@ type SdkSourceRunner struct {
 	collection     *base.Collection
 	startTime      time.Time
 	closed         *atomic.Bool
+
+	timeInDestinations time.Duration
+	totalCount         int
 }
 
 func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, state string) (err error) {
 	if s.closed.Load() {
 		return ErrSDKSourceCancelled
 	}
+	startTime := timestamp.Now()
 
 	stateObj := map[string]interface{}{}
 	if state != "" {
@@ -425,7 +429,12 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 	if !s.closed.Load() {
 		//rotate chunk to consume the last one
 		_, _, err := s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, true, true)
-		return err
+		if err != nil {
+			return err
+		}
+		totalTime := timestamp.Now().Sub(startTime)
+		taskLogger.INFO("Sync finished in %s (storage time: %s), %d records processed, avg speed: %.2f records per sec", totalTime.Round(time.Second), (totalTime - s.timeInDestinations).Round(time.Second), s.totalCount, float64(s.totalCount)/totalTime.Seconds())
+		return nil
 	} else {
 		taskLogger.WARN("Stopping processing. Task was closed")
 		return ErrSDKSourceCancelled
@@ -448,10 +457,13 @@ func (s SdkSourceRunner) GetOrRotateChunk(taskLogger logging.TaskLogger, dataCon
 			if stream.SyncMode == "full_sync" && finalChunk {
 				currentChunk.CurrentStream().SwapWithIntermediateTable = true
 			}
+			startDestinationTime := timestamp.Now()
 			err = dataConsumer.Consume(currentChunk)
 			if err != nil {
 				return currentChunk, chunkNumber, err
 			}
+			s.timeInDestinations += timestamp.Now().Sub(startDestinationTime)
+			s.totalCount += len(currentChunk.CurrentStream().Objects)
 			//we create next chunk when some chunks already present. increment chunk number
 			newChunkNumber = chunkNumber + 1
 		}
