@@ -3,11 +3,9 @@ import googleAnalytics from "./googleAnalytics"
 import segment from "./segment"
 import amplitude from "./amplitude"
 
-const mappings = {
+export const destinationMappings = {
   facebookPixel,
   googleAnalytics,
   segment,
   amplitude,
 }
-
-export default mappings

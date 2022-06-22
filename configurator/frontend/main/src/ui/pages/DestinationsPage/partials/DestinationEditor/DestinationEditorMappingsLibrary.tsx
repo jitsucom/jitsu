@@ -1,7 +1,7 @@
 // @Libs
 import { Button, Modal } from "antd"
 // @Catalog
-import mappings from "@jitsu/catalog/mappings/lib"
+import {destinationMappings} from "@jitsu/catalog"
 // @Styles
 import styles from "./DestinationEditor.module.less"
 // @Types
@@ -63,7 +63,7 @@ const DestinationEditorMappingsLibrary = ({ handleDataUpdate }: Props) => {
   return (
     <>
       <div className={styles.library}>
-        {Object.entries(mappings).map(([key, library]) => (
+        {Object.entries(destinationMappings).map(([key, library]) => (
           <div key={key} className={styles.item}>
             <div>
               <p className="font-bold capitalize">{library.displayName || key}</p>
