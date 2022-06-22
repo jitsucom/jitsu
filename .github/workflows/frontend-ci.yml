@@ -30,13 +30,6 @@ jobs:
         if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
         with:
           node-version: "14"
-      - uses: pnpm/action-setup@v2
-        name: Install pnpm
-        id: pnpm-install
-        with:
-          version: 7
-          run_install: false
-
       - run: pnpm install
         if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
         name: "[Frontend CI] installing packages (pnpm install)"
@@ -52,7 +45,7 @@ jobs:
 
       - run: pnpm canary:publish
         env:
-          NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
+          NODE_TOKEN: ${{ secrets.LERNA_CI_NPM }}
         # So far run publish only on refs/heads/feature/945_pnpm_turbo
         if: ${{ success() && steps.frontend-change.outputs.status == 1 && github.ref == 'refs/heads/feature/945_pnpm_turbo' }}
         name: "[Frontend CI] publishing canary release"
