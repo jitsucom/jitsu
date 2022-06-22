@@ -5,7 +5,7 @@ import debounce from "lodash/debounce"
 // @Components
 import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 // @Types
-import { Destination } from "@jitsu/catalog/destinations/types"
+import { Destination } from "@jitsu/catalog"
 import { FormInstance } from "antd/lib/form/hooks/useForm"
 
 export interface Props {

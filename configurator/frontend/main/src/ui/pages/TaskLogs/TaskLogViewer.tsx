@@ -16,13 +16,13 @@ import { CenteredError, CenteredSpin, handleError } from "lib/components/compone
 import ArrowLeftOutlined from "@ant-design/icons/lib/icons/ArrowLeftOutlined"
 import ReloadOutlined from "@ant-design/icons/lib/icons/ReloadOutlined"
 // @Lib
-import { allSources } from "@jitsu/catalog/sources/lib"
+import { allSources } from "@jitsu/catalog"
 // @Routes
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 // @Utils
 import { Task, TaskId, TaskLogEntry } from "./utils"
 // @Types
-import type { SourceConnector } from "@jitsu/catalog/sources/types"
+import type { SourceConnector } from "@jitsu/catalog"
 // @Styles
 import styles from "./TaskLogsPage.module.less"
 import { sourcesStore } from "stores/sources"
@@ -158,7 +158,7 @@ const TaskLogViewerComponent: React.FC = () => {
             taskLogs
               .filter(l => filter === "all" || (filter === "errors" && l.level === "error"))
               .map(l => (
-                <span className={classNames(styles["logEntry_" + l.level], styles.logEntry)}>
+                <span key={l.time + l.level} className={classNames(styles["logEntry_" + l.level], styles.logEntry)}>
                   <span className={styles.logTime}>{moment.utc(l.time).format("YYYY-MM-DD HH:mm:ss")}</span>
                   <span className={styles.logLevel}> [{l.level.toUpperCase().padEnd(5)}]</span> -{" "}
                   <span className={styles.logMessage}>{l.message.replace(`[${taskId}] `, "")}</span>

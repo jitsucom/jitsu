@@ -9,7 +9,6 @@ on:
 jobs:
   frontend-build-and-test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -31,17 +30,25 @@ jobs:
         if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
         with:
           node-version: "14"
-      - run: yarn install
+      - run: pnpm install
         if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
-        name: "[Frontend CI] installing packages (yarn install)"
+        name: "[Frontend CI] installing packages (pnpm install)"
         working-directory: ./configurator/frontend
-      - run: yarn build
+      - run: pnpm verify
+        if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
+        name: "[Frontend CI] verify (code style & linter)"
+        working-directory: ./configurator/frontend
+      - run: pnpm build
         if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
         name: "[Frontend CI] building"
         working-directory: ./configurator/frontend
-      - run: yarn all:check
-        if: ${{ success() && steps.frontend-change.outputs.status == 1 }}
-        name: "[Frontend CI] running prettier & eslint checks"
+
+      - run: pnpm canary:publish
+        env:
+          NODE_TOKEN: ${{ secrets.LERNA_CI_NPM }}
+        # So far run publish only on refs/heads/feature/945_pnpm_turbo
+        if: ${{ success() && steps.frontend-change.outputs.status == 1 && github.ref == 'refs/heads/feature/945_pnpm_turbo' }}
+        name: "[Frontend CI] publishing canary release"
         working-directory: ./configurator/frontend
 
       - name: Notify to Slack on Errors

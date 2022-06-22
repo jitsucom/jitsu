@@ -5,7 +5,7 @@ import { Col, Form, Input, Row, Select } from "antd"
 import { LabelWithTooltip } from "ui/components/LabelWithTooltip/LabelWithTooltip"
 // @Types
 import { Rule } from "antd/lib/form"
-import { CollectionParameter } from "@jitsu/catalog/sources/types"
+import { CollectionParameter } from "@jitsu/catalog"
 import { FormListFieldData } from "antd/es/form/FormList"
 
 export interface Props {

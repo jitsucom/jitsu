@@ -5,12 +5,12 @@ import debounce from "lodash/debounce"
 // @Components
 import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 // @Types
-import { Destination } from "@jitsu/catalog/destinations/types"
+import { Destination } from "@jitsu/catalog"
 import { FormInstance } from "antd/lib/form/hooks/useForm"
-import { booleanType, jsType, stringType } from "@jitsu/catalog/sources/types"
+import { booleanType, jsType, stringType } from "@jitsu/catalog"
 import { TabDescription } from "../../../../components/Tabs/TabDescription"
 import styles from "./DestinationEditor.module.less"
-import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
+import { destinationsReferenceMap } from "@jitsu/catalog"
 import { CodeSnippet } from "../../../../../lib/components/components"
 import { camelCase } from "lodash"
 

@@ -1,7 +1,7 @@
 // @Libs
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Col, Row, Form, Select, FormProps } from "antd"
-import { Parameter, singleSelectionType, SourceConnector } from "@jitsu/catalog/sources/types"
+import { Parameter, singleSelectionType, SourceConnector } from "@jitsu/catalog"
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Components
@@ -16,8 +16,8 @@ import { usePolling } from "hooks/usePolling"
 import { toTitleCase } from "utils/strings"
 import { uniqueId } from "lodash"
 import { withQueryParams } from "utils/queryParams"
-import { mapAirbyteSpecToSourceConnectorConfig } from "@jitsu/catalog/sources/lib/airbyte.helper"
-import { mapSdkSourceSpecToSourceConnectorConfig } from "@jitsu/catalog/sources/lib/sdk_source.helper"
+import { mapAirbyteSpecToSourceConnectorConfig } from "@jitsu/catalog"
+import { mapSdkSourceSpecToSourceConnectorConfig } from "@jitsu/catalog"
 import { SourceEditorActionsTypes, useSourceEditorDispatcher } from "./SourceEditor.state"
 
 type Props = {

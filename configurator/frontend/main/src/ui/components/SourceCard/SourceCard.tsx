@@ -1,5 +1,5 @@
-import { SourceConnector } from "@jitsu/catalog/sources/types"
-import { allSources } from "@jitsu/catalog/sources/lib"
+import { SourceConnector } from "@jitsu/catalog"
+import { allSources } from "@jitsu/catalog"
 import snakeCase from "lodash/snakeCase"
 import EditOutlined from "@ant-design/icons/lib/icons/EditOutlined"
 import DeleteOutlined from "@ant-design/icons/lib/icons/DeleteOutlined"

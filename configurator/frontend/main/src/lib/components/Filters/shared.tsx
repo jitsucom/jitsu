@@ -1,7 +1,7 @@
 import { destinationsStore } from "../../../stores/destinations"
-import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
+import { destinationsReferenceMap } from "@jitsu/catalog"
 import { apiKeysStore } from "../../../stores/apiKeys"
-import { apiKeysReferenceMap } from "@jitsu/catalog/apiKeys/lib"
+import { apiKeysReferenceMap } from "@jitsu/catalog"
 import { sourcesStore } from "../../../stores/sources"
 import { EventStatus } from "../EventsStream/shared"
 
