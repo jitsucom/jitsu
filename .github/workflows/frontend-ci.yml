@@ -52,7 +52,7 @@ jobs:
 
       - run: pnpm canary:publish
         env:
-          NODE_TOKEN: ${{ secrets.LERNA_CI_NPM }}
+          NPM_TOKEN: ${{ secrets.LERNA_CI_NPM }}
         # So far run publish only on refs/heads/feature/945_pnpm_turbo
         if: ${{ success() && steps.frontend-change.outputs.status == 1 && github.ref == 'refs/heads/feature/945_pnpm_turbo' }}
         name: "[Frontend CI] publishing canary release"
