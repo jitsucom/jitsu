@@ -5,13 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/errorj"
-	"github.com/jitsucom/jitsu/server/utils"
-	"github.com/joomcode/errorx"
-	"strings"
-
 	"github.com/jitsucom/jitsu/server/counters"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -21,7 +17,11 @@ import (
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
+	"github.com/jitsucom/jitsu/server/utils"
 	"github.com/jitsucom/jitsu/server/uuid"
+	"github.com/joomcode/errorx"
+	"strings"
+	"time"
 )
 
 //ResultSaver is a Singer/Airbyte result consumer
@@ -126,11 +126,16 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		rowsCount := len(stream.Objects)
 		//Sync stream
 		for _, storage := range rs.destinations {
+			batchStart := timestamp.Now()
 			rs.taskLogger.INFO("Stream [%s] Storing data to destination table [%s] in storage [%s]", streamName, tableName, storage.ID())
 			err := storage.SyncStore(stream.BatchHeader, stream.Objects, stream.DeleteConditions, false, needCopyEvent)
+			batchLoadTime := timestamp.Now().Sub(batchStart)
+			var replaceTableTime time.Duration
 			if err == nil {
 				if stream.SwapWithIntermediateTable && targetTableName != tableName {
+					batchStart := timestamp.Now()
 					rs.taskLogger.INFO("Stream [%s] Replacing final table: %s with content of: %s", streamName, targetTableName, tableName)
+					replaceTableTime = timestamp.Now().Sub(batchStart)
 					err = storage.ReplaceTable(targetTableName, tableName, true)
 					if errorx.IsOfType(err, errorj.DropError) {
 						err = storage.ReplaceTable(targetTableName, tableName, false)
@@ -145,6 +150,13 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 				counters.ErrorPullDestinationEvents(storage.ID(), int64(rowsCount))
 				counters.ErrorPullSourceEvents(rs.task.Source, int64(rowsCount))
 				return errors.New(errMsg)
+			} else {
+				replaceTableText := ""
+				if replaceTableTime > 0 {
+					replaceTableText = fmt.Sprintf(" (replace table time: %s)", replaceTableTime.String())
+				}
+				rs.taskLogger.INFO("Stream [%s] [%s].[%s] Loaded in %s speed: %.2f rows per sec %s", streamName, storage.ID(), tableName, batchLoadTime.Round(time.Millisecond), float64(rowsCount)/batchLoadTime.Seconds(), replaceTableText)
+
 			}
 
 			metrics.SuccessSourceEvents(rs.task.SourceType, rs.tap, rs.task.Source, storage.Type(), storage.ID(), rowsCount)
