@@ -22,3 +22,6 @@ export const allSourcesMap: { [sourceId: string]: SourceConnector } = allSources
   }),
   {}
 )
+
+export * from './sdk_source.helper'
+export * from './airbyte.helper'

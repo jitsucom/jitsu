@@ -16,7 +16,7 @@ import { connectionsHelper } from "stores/helpers"
 import { apiKeysRoutes } from "./ApiKeysRouter"
 import { projectRoute } from "../ProjectLink/ProjectLink"
 import { EntityNotFound } from "ui/components/EntityNotFound/EntityNotFound"
-import { apiKeysReferenceMap } from "@jitsu/catalog/apiKeys/lib"
+import { apiKeysReferenceMap } from "@jitsu/catalog"
 import { PageHeader } from "../../../ui/components/PageHeader/PageHeader"
 import { currentPageHeaderStore } from "../../../stores/currentPageHeader"
 

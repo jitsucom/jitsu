@@ -305,8 +305,8 @@ const CodeDebugger = ({
                 <div
                   className={`h-full box-border font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}
                 >
-                  {(calcResult?.logs ?? []).map(log => (
-                    <div className={`w-full log-line log-${log.level}`}>
+                  {(calcResult?.logs ?? []).map((log, idx) => (
+                    <div key={log.level + idx} className={`w-full log-line log-${log.level}`}>
                       <pre>{log.message}</pre>
                     </div>
                   ))}

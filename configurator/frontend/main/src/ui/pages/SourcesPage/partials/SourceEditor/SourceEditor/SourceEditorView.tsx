@@ -5,7 +5,7 @@ import { SourceEditorFormStreams } from "./SourceEditorFormStreams"
 import { SourceEditorFormConnections } from "./SourceEditorFormConnections"
 import { SourceEditorDocumentationDrawer } from "./SourceEditorDocumentationDrawer"
 // @Types
-import type { SourceConnector as CatalogSourceConnector } from "@jitsu/catalog/sources/types"
+import type { SourceConnector as CatalogSourceConnector } from "@jitsu/catalog"
 import type {
   HandleSaveSource,
   HandleValidateTestConnection,

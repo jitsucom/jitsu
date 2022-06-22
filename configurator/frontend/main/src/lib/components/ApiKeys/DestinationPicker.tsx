@@ -2,7 +2,7 @@ import React from "react"
 import { observer } from "mobx-react-lite"
 import { Select } from "antd"
 import { DestinationsUtils } from "../../../utils/destinations.utils"
-import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
+import { destinationsReferenceMap } from "@jitsu/catalog"
 
 export type DestinationPickerProps = {
   isSelected: (dst: DestinationData) => boolean
