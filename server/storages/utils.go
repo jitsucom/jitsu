@@ -70,7 +70,7 @@ func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, ob
 		}
 
 		start := timestamp.Now()
-		if err = adapter.Insert(adapters.NewBatchInsertContext(dbSchema, flatData.GetPayload(), deleteConditions)); err != nil {
+		if err = adapter.Insert(adapters.NewBatchInsertContext(dbSchema, flatData.GetPayload(), false, deleteConditions)); err != nil {
 			return err
 		}
 		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", storage.ID(), flatData.GetPayloadLen(), timestamp.Now().Sub(start).Seconds())
