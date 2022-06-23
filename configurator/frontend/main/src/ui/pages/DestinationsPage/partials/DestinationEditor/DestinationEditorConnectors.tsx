@@ -12,9 +12,9 @@ import { CenteredError, CenteredSpin } from "lib/components/components"
 import { TabDescription } from "ui/components/Tabs/TabDescription"
 // @Types
 import { FormInstance } from "antd/lib/form/hooks/useForm"
-import { Destination } from "@jitsu/catalog/destinations/types"
+import { Destination } from "@jitsu/catalog"
 // @Catalog sources
-import { allSources } from "@jitsu/catalog/sources/lib"
+import { allSources } from "@jitsu/catalog"
 // @Constants
 import { DESTINATIONS_CONNECTED_SOURCES } from "embeddedDocs/destinationsConnectedItems"
 import { APIKeyUtil } from "../../../../../utils/apiKeys.utils"

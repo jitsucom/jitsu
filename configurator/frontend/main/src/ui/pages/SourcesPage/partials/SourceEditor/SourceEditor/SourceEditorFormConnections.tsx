@@ -4,11 +4,11 @@ import { observer } from "mobx-react-lite"
 // @Store
 import { destinationsStore } from "stores/destinations"
 // @Catalog
-import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
+import { destinationsReferenceMap } from "@jitsu/catalog"
 // @Components
 import { SourceEditorFormConnectionsView } from "./SourceEditorFormConnectionsView"
 // @Types
-import { Destination } from "@jitsu/catalog/destinations/types"
+import { Destination } from "@jitsu/catalog"
 import { SetSourceEditorState } from "./SourceEditor"
 // @Utils
 import { cloneDeep } from "lodash"

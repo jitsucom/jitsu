@@ -15,7 +15,7 @@ import {
   singleSelectionType,
   SourceConnector,
   stringType,
-} from "@jitsu/catalog/sources/types"
+} from "@jitsu/catalog"
 import { FormListFieldData, FormListOperation } from "antd/es/form/FormList"
 import { SetSourceEditorState, SourceEditorState } from "./SourceEditor"
 // @Components
@@ -27,7 +27,7 @@ import { getUniqueAutoIncId, randomId } from "utils/numbers"
 import { useDebouncedCallback } from "hooks/useDebouncedCallback"
 // @Styles
 import styles from "./SourceEditor.module.less"
-import { convertSdkType } from "@jitsu/catalog/sources/lib/sdk_source.helper"
+import { convertSdkType } from "@jitsu/catalog"
 
 import {
   PARSING_STREAMS_ERROR_NAME,

@@ -16,7 +16,7 @@ import {
   destinationsReferenceList,
   destinationsReferenceMap,
   DestinationReference,
-} from "@jitsu/catalog/destinations/lib"
+} from "@jitsu/catalog"
 
 // @Hooks
 import { useServices } from "hooks/useServices"

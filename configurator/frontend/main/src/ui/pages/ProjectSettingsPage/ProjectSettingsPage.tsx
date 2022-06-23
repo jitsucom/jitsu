@@ -205,7 +205,6 @@ const InviteUserForm: React.FC<{ invite: (email: string) => Promise<void> }> = (
   const [pending, setPending] = useState(false)
   const [email, setEmail] = useState<string>()
   const [errorMessage, setErrorMessage] = useState<string>()
-  const blacklistedPlans = ["free"] as const
 
   return (
     <>
@@ -218,7 +217,7 @@ const InviteUserForm: React.FC<{ invite: (email: string) => Promise<void> }> = (
           className={`${inputVisible ? "opacity-100 w-full mr-4" : "opacity-0 w-0 m-0 p-0 invisible"}`}
         />
         <BilledButton
-          plansBlacklist={blacklistedPlans}
+          plansBlacklist={["free"]}
           type="primary"
           size="large"
           loading={pending}

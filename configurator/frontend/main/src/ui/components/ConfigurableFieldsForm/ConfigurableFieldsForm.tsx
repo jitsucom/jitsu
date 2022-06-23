@@ -13,7 +13,7 @@ import { FormValues as DebuggerFormValues } from "ui/components/CodeDebugger/Cod
 // @Services
 import ApplicationServices from "lib/services/ApplicationServices"
 // @Types
-import { Parameter, ParameterType } from "@jitsu/catalog/sources/types"
+import { Parameter, ParameterType } from "@jitsu/catalog"
 import { FormInstance } from "antd/lib/form/hooks/useForm"
 // @Utils
 import { makeObjectFromFieldsValues } from "utils/forms/marshalling"

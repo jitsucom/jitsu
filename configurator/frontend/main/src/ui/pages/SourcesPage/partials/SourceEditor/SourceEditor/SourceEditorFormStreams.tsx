@@ -4,7 +4,7 @@
 import { SourceEditorFormStreamsConfigurable } from "./SourceEditorFormStreamsConfigurable"
 import { SourceEditorFormStreamsLoadable } from "./SourceEditorFormStreamsLoadable"
 // @Types
-import { SourceConnector } from "@jitsu/catalog/sources/types"
+import { SourceConnector } from "@jitsu/catalog"
 import { SetSourceEditorState } from "./SourceEditor"
 
 type Props = {

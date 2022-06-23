@@ -230,7 +230,7 @@ function GeoDataResolver() {
       }
       const colors = { ok: "green", error: "red" }
       return (
-        <Tooltip title={messages[db.status] ?? "Not connected yet"} color={colors[db.status] ?? null}>
+        <Tooltip key={type} title={messages[db.status] ?? "Not connected yet"} color={colors[db.status] ?? null}>
           <Tag
             className={db.status === "unknown" ? "opacity-70" : null}
             color={colors[db.status] ?? null}

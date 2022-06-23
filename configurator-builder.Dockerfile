@@ -4,8 +4,9 @@ FROM golang:1.17.5-alpine3.15
 # Install dependencies
 RUN apk add git make bash npm yarn
 
-# Install yarn dependencies
-RUN yarn add global webpack @craco/craco@6.1.1 postcss@7 react@17.0.1 --prefer-offline --frozen-lockfile --network-timeout 1000000
+RUN npm install -g pnpm
+# Install npm dependencies
+RUN pnpm add global webpack @craco/craco@6.1.1 postcss@7 react@17.0.1 --prefer-offline
 
 # GO
 RUN mkdir -p /go/src/github.com/deps/install

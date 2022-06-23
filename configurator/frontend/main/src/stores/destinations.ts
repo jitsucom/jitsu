@@ -6,7 +6,7 @@ import ApplicationServices from "lib/services/ApplicationServices"
 import { EntitiesStore } from "./entitiesStore"
 import { apiKeysStore, ApiKeysStore } from "./apiKeys"
 // @Catalog
-import { destinationsReferenceMap, DestinationReference } from "@jitsu/catalog/destinations/lib"
+import { destinationsReferenceMap, DestinationReference } from "@jitsu/catalog"
 // @Utils
 import { randomId } from "utils/numbers"
 // @Types
