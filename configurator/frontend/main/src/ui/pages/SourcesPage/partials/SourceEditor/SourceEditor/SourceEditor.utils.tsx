@@ -15,7 +15,7 @@ import {
   singleSelectionType,
   SourceConnector,
   stringType,
-} from "@jitsu/catalog/sources/types"
+} from "@jitsu/catalog"
 import { makeObjectFromFieldsValues } from "utils/forms/marshalling"
 import { sourcesStore } from "stores/sources"
 import { COLLECTIONS_SCHEDULES } from "constants/schedule"

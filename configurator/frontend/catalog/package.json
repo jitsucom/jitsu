@@ -1,19 +1,38 @@
 {
   "name": "@jitsu/catalog",
-  "version": "1.0.15-alpha.1+28a336a9",
+  "version": "1.0.0",
   "description": "This package contains the code that enables variety of features of Jitsu Sources, Destinations and API Keys. ",
   "author": "Jitsu Dev Team <dev@jitsu.com>",
   "homepage": "https://jitsu.com",
-  "main": "./index.ts",
-  "scripts": {},
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "scripts": {
+    "clean": "rm -rf ./build",
+    "build": "tsc -p .",
+    "dev": "tsc -p . --watch --preserveWatchOutput"
+  },
   "publishConfig": {
     "access": "public"
   },
+  "files": [
+    "dist"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jitsucom/jitsu.git"
   },
   "bugs": {
     "url": "https://github.com/jitsucom/jitsu/issues"
+  },
+  "peerDependencies": {
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.14.182"
+  },
+  "packageManager": "pnpm",
+  "engines": {
+    "pnpm": ">=3",
+    "node": ">=14"
   }
 }

@@ -25,7 +25,7 @@ function fail() {
 function build_configurator() {
   echo "Building Configurator UI locally.."
   rm -f configurator/backend/build/dist/configurator && rm -rf configurator/frontend/main/build && \
-  cd configurator/frontend/ && yarn clean && yarn install --prefer-offline && CI=false ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi", "sentry": "https://5d29508173c04d86b31638517ebf89b3@o330694.ingest.sentry.io/6365760"}' yarn build && \
+  cd configurator/frontend/ && pnpm clean && pnpm i && CI=false ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi", "sentry": "https://5d29508173c04d86b31638517ebf89b3@o330694.ingest.sentry.io/6365760"}' pnpm build && \
   cd ../../ || fail 'Configurator build failed'
 }
 
@@ -112,7 +112,7 @@ else
   echo "   ⚠️ Git branch $CURRENT_BRANCH is not master or beta."
 fi
 
-git diff-index --quiet HEAD || fail "   ❌ Repository has local changes. Run git diff. And commit them! (And sometimes this command fails due to cache try to re-run it)"
+#git diff-index --quiet HEAD || fail "   ❌ Repository has local changes. Run git diff. And commit them! (And sometimes this command fails due to cache try to re-run it)"
 echo "   ✅ No local changes"
 
 [[ -z $(git cherry) ]] || fail "   ❌ Not all changes are pushed. Please run git diff HEAD^ HEAD to see them"

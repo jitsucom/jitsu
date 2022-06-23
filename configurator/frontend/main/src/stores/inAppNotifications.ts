@@ -2,8 +2,8 @@
 import { makeAutoObservable } from "mobx"
 import React from "react"
 // @Reference
-import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
-import { allSourcesMap } from "@jitsu/catalog/sources/lib"
+import { destinationsReferenceMap } from "@jitsu/catalog"
+import { allSourcesMap } from "@jitsu/catalog"
 // @Routes
 import { destinationPageRoutes } from "ui/pages/DestinationsPage/DestinationsPage.routes"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
@@ -11,7 +11,7 @@ import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { destinationsStore } from "./destinations"
 import { apiKeysStore } from "./apiKeys"
 import { sourcesStore } from "./sources"
-import { apiKeysReferenceMap } from "@jitsu/catalog/apiKeys/lib"
+import { apiKeysReferenceMap } from "@jitsu/catalog"
 import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 import { apiKeysRoutes } from "lib/components/ApiKeys/ApiKeysRouter"
 

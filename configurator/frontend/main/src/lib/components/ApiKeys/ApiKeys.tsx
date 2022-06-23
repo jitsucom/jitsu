@@ -168,7 +168,7 @@ export const KeyDocumentation: React.FC<KeyDocumentationProps> = function ({ tok
               <LabelWithTooltip documentation="Domain" render="Domain" />:{" "}
               <Select defaultValue={domains[0]} onChange={value => setSelectedDomain(value)}>
                 {domains.map(domain => {
-                  return <Select.Option value={domain}>{domain.replace("https://", "")}</Select.Option>
+                  return <Select.Option key={domain} value={domain}>{domain.replace("https://", "")}</Select.Option>
                 })}
               </Select>
             </>

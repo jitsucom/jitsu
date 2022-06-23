@@ -9,7 +9,7 @@ import { LoadableFieldsLoadingMessageCard } from "lib/components/LoadingFormCard
 // @Hooks
 import { usePolling } from "hooks/usePolling"
 // @Types
-import { SourceConnector } from "@jitsu/catalog/sources/types"
+import { SourceConnector } from "@jitsu/catalog"
 import { SetSourceEditorState } from "./SourceEditor"
 // @Utils
 import {
@@ -169,7 +169,7 @@ const StreamsUnavailableWarning: React.FC<{ unavailableStreams: StreamConfig[] }
       <div className="flex flex-col w-full mt-2 mb-2">
         <span>{`The list of unavalilable streams:`}</span>
         {unavailableStreams.map(({ name, namespace }) => (
-          <span className={"ml-2"}>
+          <span key={name} className={"ml-2"}>
             {`• name: `}
             <span className="font-bold">{name}</span>
             {namespace ? (

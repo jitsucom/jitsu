@@ -16,10 +16,10 @@ import { DestinationEditorMappings } from "./DestinationEditorMappings"
 import { sourcesStore } from "stores/sources"
 import { destinationsStore } from "stores/destinations"
 // @CatalogDestinations
-import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
+import { destinationsReferenceMap } from "@jitsu/catalog"
 // @Types
 import { FormInstance } from "antd/es"
-import { Destination } from "@jitsu/catalog/destinations/types"
+import { Destination } from "@jitsu/catalog"
 import { Tab } from "ui/components/Tabs/TabsConfigurator"
 import { CommonDestinationPageProps } from "ui/pages/DestinationsPage/DestinationsPage"
 // @Services

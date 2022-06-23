@@ -1,5 +1,5 @@
 import { JSON_FORMAT } from "./model"
-import axios, { AxiosRequestConfig } from "axios"
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import * as uuid from "uuid"
 import AnalyticsService from "./analytics"
 import { BackendUserService } from "./UserServiceBackend"
@@ -19,6 +19,7 @@ import { UserSettingsService, UserSettingsLocalService, Settings } from "./UserS
 
 export interface IApplicationServices {
   init(): Promise<void>
+
   userService: UserService
   activeProject: Project
   storageService: ServerStorage
@@ -29,6 +30,7 @@ export interface IApplicationServices {
   slackApiSercice: ISlackApiService
   oauthService: IOauthService
   projectService: ProjectService
+
   showSelfHostedSignUp(): boolean
 }
 
@@ -165,30 +167,31 @@ export default class ApplicationServices implements IApplicationServices {
     return window["_en_instance"]
   }
 
-  public async isAppVersionOutdated() {
+  public async isAppVersionOutdated(): Promise<boolean> {
     const appVersion = await this.getAppVersion()
     const currentVersion = localStorage.getItem("app_version")
-    if (appVersion !== null && appVersion != currentVersion) {
-      return true
-    }
+    return appVersion !== null && appVersion != currentVersion;
 
-    return false
   }
 
-  private async getAppVersion() {
-    let request: AxiosRequestConfig = {
+  private async getAppVersion(): Promise<string> {
+    const request: AxiosRequestConfig = {
       method: "GET",
       url: "/app-version.json",
       transformResponse: JSON_FORMAT,
     }
-
-    let response = await axios(request)
-
-    if (response?.status == 200 && response?.data) {
-      return response.data
+    try {
+      const response = await axios(request)
+      if (response?.status !== 200) {
+        console.warn(`Can't get application version: ${response.statusText}`)
+        return "0"
+      } else {
+        return response?.data;
+      }
+    } catch (e) {
+      console.warn(`Failed to get data from /app-version.json: ${e?.message || "unknown error"}`, e);
+      return "0";
     }
-
-    return null
   }
 
   private async loadBackendConfiguration(): Promise<FeatureSettings> {

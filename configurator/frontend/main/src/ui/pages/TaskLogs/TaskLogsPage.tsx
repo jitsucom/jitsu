@@ -7,9 +7,9 @@ import { useServices } from "hooks/useServices"
 import { colorMap, TaskStatus } from "./utils"
 import styles from "./TaskLogsPage.module.less"
 import moment from "moment"
-import { allSources } from "@jitsu/catalog/sources/lib"
+import { allSources } from "@jitsu/catalog"
 import snakeCase from "lodash/snakeCase"
-import { SourceConnector } from "@jitsu/catalog/sources/types"
+import { SourceConnector } from "@jitsu/catalog"
 import { PageHeader } from "ui/components/PageHeader/PageHeader"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { currentPageHeaderStore } from "../../../stores/currentPageHeader"
@@ -84,7 +84,7 @@ const TaskLogsPageComponent: React.FC = () => {
             >
               <Select.Option value="ALL">ALL</Select.Option>
               {Object.entries(colorMap).map(([status, color]) => (
-                <Select.Option value={status}>
+                <Select.Option key={status} value={status}>
                   <Tag color={color}>{status}</Tag>
                 </Select.Option>
               ))}
@@ -103,7 +103,7 @@ const TaskLogsPageComponent: React.FC = () => {
             >
               <Select.Option value="ALL">ALL</Select.Option>
               {(source["collections"] ?? []).map(({ name }) => (
-                <Select.Option value={name}>{name}</Select.Option>
+                <Select.Option key={name} value={name}>{name}</Select.Option>
               ))}
             </Select>
           </span>

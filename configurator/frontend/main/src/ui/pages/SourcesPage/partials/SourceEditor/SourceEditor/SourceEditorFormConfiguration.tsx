@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { cloneDeep } from "lodash"
 import { FormInstance } from "antd"
 // @Types
-import type { SourceConnector as CatalogSourceConnector } from "@jitsu/catalog/sources/types"
+import type { SourceConnector as CatalogSourceConnector } from "@jitsu/catalog"
 import type { SetSourceEditorState, SourceEditorState } from "./SourceEditor"
 // @Components
 import { SourceEditorFormConfigurationStaticFields } from "./SourceEditorFormConfigurationStaticFields"
