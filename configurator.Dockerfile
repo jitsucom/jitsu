@@ -29,7 +29,7 @@ RUN ln -s /home/$CONFIGURATOR_USER/data/config /home/$CONFIGURATOR_USER/app/res 
 # BUILD JS STAGE
 FROM jitsucom/configurator-builder as jsbuilder
 
-# Install yarn dependencies
+# Install npm dependencies
 ADD configurator/frontend/package.json /frontend/package.json
 
 ARG SKIP_UI_BUILD
@@ -40,7 +40,7 @@ WORKDIR /frontend
 # Copy project
 ADD configurator/frontend/. ./
 
-# We need to make sure empty 'build' directory exists if SKIP_UI_BUILD==true and yarn won't make it
+# We need to make sure empty 'build' directory exists if SKIP_UI_BUILD==true and pnpm won't make it
 RUN mkdir -p ./main/build
 
 # write the output of the date command into a file called tmp_variable
@@ -49,11 +49,8 @@ RUN free | awk 'FNR == 2 {print $2}' > ./main/build/mem
 # Check RAM > 4gb else error (JS build requires >4gb RAM)
 RUN if [ $(cat ./main/build/mem) < "4000000" ]; then echo echo Docker build requires 4gb of RAM. Configure it in the machine Docker configuration && exit 1; else rm ./main/build/mem; fi
 
-# Install dependencies
-RUN if [ "$SKIP_UI" != "true" ]; then yarn install --prefer-offline --frozen-lockfile --network-timeout 1000000; fi
-
 # Build
-RUN if [ "$SKIP_UI" != "true" ]; then CI=false ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi", "sentry": "https://5d29508173c04d86b31638517ebf89b3@o330694.ingest.sentry.io/6365760"}' yarn build; fi
+RUN if [ "$SKIP_UI" != "true" ]; then CI=false ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi", "sentry": "https://5d29508173c04d86b31638517ebf89b3@o330694.ingest.sentry.io/6365760"}' pnpm build; fi
 
 
 #######################################

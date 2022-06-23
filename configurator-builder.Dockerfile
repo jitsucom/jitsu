@@ -2,9 +2,9 @@
 FROM golang:1.17.5-alpine3.15
 
 # Install dependencies
-RUN apk add git make bash npm pnpm
+RUN apk add git make bash npm yarn pnpm
 
-# Install yarn dependencies
+# Install npm dependencies
 RUN pnpm add global webpack @craco/craco@6.1.1 postcss@7 react@17.0.1 --prefer-offline
 
 # GO
