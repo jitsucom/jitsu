@@ -9,7 +9,7 @@
   "scripts": {
     "turbo": "turbo",
     "clean": "turbo run clean",
-    "dev": "turbo run compile --filter=./catalog && turbo run dev --continue --parallel",
+    "dev": "turbo run build --filter=./catalog && turbo run dev --continue --parallel",
     "verify": "pnpm lint",
     "_verify": "pnpm code-style:check && pnpm lint",
     "build": "pnpm verify && turbo run build",

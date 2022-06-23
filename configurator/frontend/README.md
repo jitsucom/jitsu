@@ -4,7 +4,7 @@ This package contains the Configurator UI core code in the `main` folder and sup
 
 ## Before You Start
 
-Just run `pnpm i`. In case of any probles try `pnpm factory-reset && pnpn i`
+Just run `pnpm i`. In case of any problems try `pnpm factory-reset && pnpn i`
 
 ## Development
 
@@ -14,7 +14,7 @@ Run `pnpm dev` in the `frontend` folder to start the UI dev server; The script w
 ### Environment Variables
 
 The UI recognizes following environment variables. Those marked with '\*' **must** be provided
-before building the app or running it with `yarn start`.
+before building the app or running it with `pnpm dev`.
 
 <table>
     <tr>
@@ -64,7 +64,7 @@ before building the app or running it with `yarn start`.
     </tr>
 </table>
 
-**Note**: for adding new environment varialbles please list them in \_webpack.config.js
+**Note**: for adding new environment variables please list them in \_webpack.config.js
 (look for `webpack.DefinePlugin`) and in env.js (look for `getClientEnvironment`)
 
 ## Available Scripts
@@ -72,7 +72,7 @@ before building the app or running it with `yarn start`.
 **Note**: DO NOT USE NPM!
 
 - `pnpm dev` - dev application (with hot reload) will be started on [http://localhost:9876](http://localhost:9876)
-- `pnpm build` - run all checks (see `yarn verify`) and build production configurator UI, see `main/build/` folder for results
+- `pnpm build` - run all checks (see `pnpm verify`) and build production configurator UI, see `main/build/` folder for results
 - (disabled)` pnpm test` - run tests in all subpackages
 - `pnpm code-style:check` / `pnpm code-style:fix` - check code style with prettier / fix it 
 - `pnpm lint` - run linter
