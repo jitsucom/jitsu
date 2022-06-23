@@ -7,6 +7,7 @@
   "name": "root",
   "private": true,
   "scripts": {
+    "preinstall": "echo 'pnpm version:' `node --version` && echo 'NodeJs Version:' `node --version`",
     "turbo": "turbo",
     "clean": "turbo run clean",
     "dev": "turbo run build --filter=./catalog && turbo run dev --continue --parallel",
