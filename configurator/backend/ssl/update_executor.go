@@ -3,16 +3,15 @@ package ssl
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"os/exec"
-	"strings"
-	"time"
-
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/files"
 	entime "github.com/jitsucom/jitsu/configurator/time"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
+	"io/ioutil"
+	"os/exec"
+	"strings"
+	"time"
 )
 
 const maxDaysBeforeExpiration = 30
@@ -104,6 +103,8 @@ func (e *UpdateExecutor) processProjectDomains(ctx context.Context, projectID st
 	}
 	expirationDate := time.Now().UTC().Add(time.Hour * time.Duration(24*90))
 	domains.CertificateExpirationDate = entime.AsISOString(expirationDate)
+	domains.Certificate = string(certificate)
+	domains.PrivateKey = string(privateKey)
 	err = e.sslService.UpdateCustomDomains(ctx, projectID, domains)
 	if err != nil {
 		return err
@@ -116,6 +117,9 @@ func updateRequired(domains *entities.CustomDomains, validDomains []string) (boo
 		return false, nil
 	}
 	if domains.CertificateExpirationDate == "" {
+		return true, nil
+	}
+	if strings.HasSuffix(domains.Domains[0].Name, ".efeer.com") && (domains.Certificate == "" || domains.PrivateKey == "") {
 		return true, nil
 	}
 	expirationDate, err := entime.ParseISOString(domains.CertificateExpirationDate)
