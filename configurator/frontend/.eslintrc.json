@@ -4,6 +4,7 @@
     "es6": true
   },
   "extends": [
+    "plugin:react/recommended"
   ],
   "globals": {
     "Atomics": "readonly",
@@ -22,7 +23,13 @@
     "@typescript-eslint"
   ],
   "rules": {
-    "no-debugger": "error"
+    "no-debugger": "error",
+    "react/prop-types": "off",
+    "react/react-in-jsx-scope": "off",
+    "react/jsx-no-target-blank": "off",
+    "react/display-name": "off",
+    "react/no-unescaped-entities": "off"
+
     //this rule fails on prompt usage as well. We have a few legitimate cases
     //where we use promt, so we can't really use it
     //"no-alert": "error"

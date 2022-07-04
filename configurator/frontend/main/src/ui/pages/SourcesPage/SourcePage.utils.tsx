@@ -2,7 +2,7 @@
 import snakeCase from "lodash/snakeCase"
 import { FormInstance } from "antd"
 // @Types
-import { SourceConnector } from "@jitsu/catalog/sources/types"
+import { SourceConnector } from "@jitsu/catalog"
 // @Utils
 import { getUniqueAutoIncId } from "utils/numbers"
 import { handleError } from "lib/components/components"

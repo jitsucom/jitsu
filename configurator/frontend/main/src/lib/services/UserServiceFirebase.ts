@@ -1,7 +1,7 @@
 import { LoginFeatures, TelemetrySettings, UserEmailStatus, UserService } from "./UserService"
 import { FirebaseApp, initializeApp } from "firebase/app"
 import { ApiAccess, userFromDTO, userToDTO } from "./model"
-import { User as FirebaseUser } from "@firebase/auth"
+import type { User as FirebaseUser } from "@firebase/auth"
 import { BackendApiClient } from "./BackendApiClient"
 import { ServerStorage } from "./ServerStorage"
 import AnalyticsService from "./analytics"

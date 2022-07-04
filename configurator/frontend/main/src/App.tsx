@@ -66,10 +66,9 @@ const DownloadConfig = React.lazy(
   () => import(/* webpackPrefetch: true */ "./lib/components/DownloadConfig/DownloadConfig")
 )
 
-export const initializeApplication = async (projectId: string): Promise<ApplicationServices> => {
+export const initializeApplication = async (): Promise<ApplicationServices> => {
   const services = ApplicationServices.get()
   await services.init()
-  console.log("Waiting for user")
   await services.userService.waitForUser()
   await services.loadPluginScript()
   if (services.userService.hasUser()) {
@@ -125,7 +124,7 @@ export const Application: React.FC = function () {
   useEffect(() => {
     ;(async () => {
       try {
-        const application = await initializeApplication(projectId)
+        const application = await initializeApplication()
         if (application.userService.hasUser()) {
           const projects = await application.projectService.getAvailableProjects()
           if (projects.length === 0) {
@@ -140,9 +139,9 @@ export const Application: React.FC = function () {
         setServices(application)
         setInitialized(true)
       } catch (e) {
-        let msg = `Can't initialize application with backend ${
+        const msg = `Can't initialize application with backend ${
           process.env.BACKEND_API_BASE || " (BACKEND_API_BASE is not set)"
-        }`
+        }: ${e?.message || "unknown error"}`
         console.log(msg, e)
         setError(createError(msg, e))
       }

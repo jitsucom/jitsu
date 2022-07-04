@@ -10,6 +10,7 @@ export interface FieldMapping {
    * For action === cast only
    */
   type?: string
+
   /**
    * For action === constant only
    */

@@ -81,7 +81,7 @@ const ProjectSwitch: React.FC<ProjectSwitchProps> = () => {
         <div className="text-xl">Select project</div>
         <div>
           <BilledButton
-            plansBlacklist={["free"] as const}
+            plansBlacklist={["free"]}
             type="default"
             icon={<PlusOutlined />}
             onClick={onCreateNewProject}

@@ -2,7 +2,7 @@
 import { memo, useCallback, useEffect } from "react"
 import { Form, FormProps } from "antd"
 // @Types
-import { Parameter } from "@jitsu/catalog/sources/types"
+import { Parameter } from "@jitsu/catalog"
 import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 // @Components
 import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"

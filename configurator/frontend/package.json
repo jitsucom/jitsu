@@ -1,27 +1,25 @@
 {
+  "version": "1.0.0",
+  "workspaces": [
+    "catalog",
+    "main"
+  ],
   "name": "root",
   "private": true,
   "scripts": {
-    "start": "lerna run start --stream",
-    "build": "yarn install && yarn all:check && yarn catalog:link && lerna run version:update && lerna run build",
-    "build:prod": "yarn build",
-    "build:dev": "lerna run build",
-    "test": "lerna run test --stream",
-    "clean": "rm -rf ./node_modules ./main/node_modules/ ./main/build ./main/dist",
-    "reset": "yarn clean && yarn install",
-    "reset:full": "yarn clean && rm -rf yarn.lock ./main/yarn.lock ./catalog/yarn.lock",
-    "lerna:publish": "lerna publish --canary --no-private --no-verify-access --yes",
-    "prettier:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run yarn prettier:fix!\" && exit 1)",
-    "prettier:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore ./",
-    "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern **/node_modules/",
-    "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern **/node_modules/ --fix",
-    "all:check": "yarn prettier:check && yarn eslint:check",
-    "catalog:link": "(cd catalog && yarn link) && yarn link @jitsu/catalog",
-    "catalog:unlink": "yarn unlink @jitsu/catalog && (cd catalog && yarn unlink) && yarn install --force"
-  },
-  "dependencies": {
-    "@jitsu/catalog": "file:catalog",
-    "jitsu-configurator-ui": "file:main"
+    "preinstall": "echo 'pnpm version:' `pnpm --version` && echo 'NodeJs Version:' `node --version`",
+    "turbo": "turbo",
+    "clean": "turbo run clean",
+    "dev": "turbo run build --filter=./catalog && turbo run dev --continue --parallel",
+    "verify": "pnpm lint",
+    "_verify": "pnpm code-style:check && pnpm lint",
+    "build": "pnpm verify && turbo run build",
+    "test": "turbo run test",
+    "factory-reset": "pnpm clean && rm -rf `find . -type d -name node_modules`",
+    "code-style:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run pnpm format:fix!\" && exit 1)",
+    "code-style:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore ./",
+    "lint": "turbo run lint",
+    "canary:publish": "monorel  --filter './catalog' --version '1.1.0-alpha.{rev}.{time}' --npm-tag canary --git-tag 'frontend-v{version}' --push-tag --publish"
   },
   "publishConfig": {
     "access": "restricted"
@@ -33,45 +31,19 @@
   "bugs": {
     "url": "https://github.com/jitsucom/jitsu/issues"
   },
-  "devDependencies": {
-    "@ant-design/icons": "^4.5.0",
-    "@craco/craco": "^6.1.1",
-    "@tailwindcss/postcss7-compat": "^2.0.3",
-    "@testing-library/jest-dom": "^5.14.1",
-    "@testing-library/react": "^11.1.0",
-    "@testing-library/user-event": "^12.1.10",
-    "@types/highlightjs": "^9.12.2",
-    "@types/jest": "^26.0.24",
-    "@types/lodash": "^4.14.168",
-    "@types/lodash-es": "^4.17.4",
-    "@types/node": "^12.0.0",
-    "@types/react": "^17.0.47",
-    "@types/react-dom": "^17.0.17",
-    "@types/react-router-dom": "^5.1.7",
-    "autoprefixer": "^9",
-    "babel-plugin-lodash": "^3.3.4",
-    "craco-antd": "^1.19.0",
-    "craco-babel-loader": "^1.0.3",
-    "craco-less": "^1.17.1",
-    "lerna": "^4.0.0",
-    "monaco-editor-webpack-plugin": "^4.2.0",
-    "msw": "^0.35.0",
-    "openapi": "^1.0.1",
-    "openapi-typescript-codegen": "^0.19.0",
-    "prettier": "^2.5.1",
-    "progress-bar-webpack-plugin": "^2.1.0",
-    "react-scripts": "^4.0.3",
-    "source-map-explorer": "^2.5.2",
-    "tailwindcss": "npm:@tailwindcss/postcss7-compat",
-    "terser-webpack-plugin": "^5.1.1",
-    "ts-jest": "^27.0.3",
-    "typescript": "^4.7.4",
-    "web-vitals": "^1.0.1",
-    "webpack-bundle-analyzer": "^4.4.0"
+  "packageManager": "pnpm",
+  "engines": {
+    "pnpm": ">=3",
+    "node": ">=14"
   },
-  "resolutions": {
-    "react-error-overlay": "6.0.9",
-    "@types/react": "^17.0.47",
-    "@types/react-dom": "^17.0.17"
+  "devDependencies": {
+    "@types/jest": "^26.0.24",
+    "@types/node": "^12.0.0",
+    "@types/react": "^17.0.0",
+    "monorel": "0.3.0",
+    "prettier": "^2.5.1",
+    "ts-jest": "^27.0.3",
+    "turbo": "^1.2.11",
+    "typescript": "4.7.4"
   }
 }

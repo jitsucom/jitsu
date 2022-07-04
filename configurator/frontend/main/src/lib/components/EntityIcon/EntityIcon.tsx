@@ -1,9 +1,9 @@
 // @Libs
-import { memo } from "react"
+import { memo, PropsWithChildren } from "react"
 // @Data
-import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
-import { allSourcesMap } from "@jitsu/catalog/sources/lib"
-import { apiKeysReferenceMap } from "@jitsu/catalog/apiKeys/lib"
+import { destinationsReferenceMap } from "@jitsu/catalog"
+import { allSourcesMap } from "@jitsu/catalog"
+import { apiKeysReferenceMap } from "@jitsu/catalog"
 
 type EntityIconProps = DestinationIconProps | SourceIconProps | ApiKeyIconProps
 
@@ -25,13 +25,13 @@ type ApiKeyIconProps = {
 const EntityIconComponent = ({ entityType, entitySubType = undefined }: EntityIconProps) => {
   switch (entityType) {
     case "source":
-      return allSourcesMap[entitySubType]?.pic || null
+      return <>{allSourcesMap[entitySubType]?.pic}</>
     case "destination":
-      return destinationsReferenceMap[entitySubType]?.ui?.icon || null
+      return <>{destinationsReferenceMap[entitySubType]?.ui?.icon}</>
     case "api_key":
-      return apiKeysReferenceMap.js.icon || null
+      return <>{apiKeysReferenceMap.js.icon}</>
     default:
-      return null
+      return <></>
   }
 }
 

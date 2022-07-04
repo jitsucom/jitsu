@@ -1,4 +1,4 @@
-import { SourceConnector } from "@jitsu/catalog/sources/types"
+import { SourceConnector } from "@jitsu/catalog"
 import ApplicationServices from "lib/services/ApplicationServices"
 import { withQueryParams } from "utils/queryParams"
 import { assert, assertIsArrayOfTypes, assertIsBoolean, assertIsObject, assertIsString } from "utils/typeCheck"
