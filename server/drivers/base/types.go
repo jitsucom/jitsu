@@ -241,6 +241,7 @@ func (c *CLIOutputRepresentation) CurrentStream() *StreamRepresentation {
 //StreamRepresentation is a singer/airbyte stream representation
 type StreamRepresentation struct {
 	Namespace             string
+	ChunkNumber           int
 	StreamName            string
 	IntermediateTableName string
 	BatchHeader           *schema.BatchHeader

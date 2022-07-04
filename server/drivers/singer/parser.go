@@ -9,8 +9,10 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/singer"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"io"
 	"math"
+	"time"
 )
 
 const (
@@ -40,6 +42,9 @@ type Schema struct {
 //  parses singer output
 //  passes data as batches to dataConsumer
 func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
+	startTime := timestamp.Now()
+	timeInDestinations := time.Duration(0)
+	totalCount := 0
 	sop.logger.INFO("Singer sync will store data as batches >= [%d] elements size", singer.Instance.BatchSize)
 
 	outputPortion := base.NewCLIOutputRepresentation()
@@ -107,11 +112,13 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 
 		//persist batch and recreate variables
 		if records >= singer.Instance.BatchSize {
+			startDestinationTime := timestamp.Now()
 			err := sop.dataConsumer.Consume(outputPortion)
 			if err != nil {
 				return err
 			}
-
+			timeInDestinations += timestamp.Now().Sub(startDestinationTime)
+			totalCount += records
 			//remove already persisted objects
 			//remember streams that has tables cleaned already.
 			for _, stream := range outputPortion.GetStreams() {
@@ -124,17 +131,21 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 
 	//persist last batch
 	if records > 0 {
+		startDestinationTime := timestamp.Now()
 		err := sop.dataConsumer.Consume(outputPortion)
 		if err != nil {
 			return err
 		}
+		timeInDestinations += timestamp.Now().Sub(startDestinationTime)
+		totalCount += records
 	}
 
 	err := scanner.Err()
 	if err != nil {
 		return err
 	}
-
+	totalTime := timestamp.Now().Sub(startTime)
+	sop.logger.INFO("Sync finished in %s (storage time: %s), %d records processed, avg speed: %.2f records per sec", totalTime.Round(time.Second), timeInDestinations.Round(time.Second), totalCount, float64(totalCount)/totalTime.Seconds())
 	return nil
 }
 

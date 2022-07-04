@@ -30,7 +30,9 @@ export const BilledButton: React.FC<Props> = ({
   const currentPlan = useServices().currentSubscription.currentPlan
   const isButtonBlocked = useMemo<boolean>(() => {
     if (currentPlan.id === "opensource") return false
-    return isBlocked ?? plansBlacklist?.includes(currentPlan.id) ?? !plansWhitelist?.includes(currentPlan.id) ?? false
+    const blackList = plansBlacklist ?? []
+    const whiteList = plansWhitelist ?? []
+    return isBlocked ?? blackList.includes(currentPlan.id) ?? !whiteList.includes(currentPlan.id) ?? false
   }, [isBlocked, currentPlan])
 
   const Wrapper = isButtonBlocked

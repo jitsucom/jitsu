@@ -1027,6 +1027,25 @@ export const allAirbyteSources: AirbyteSource[] = [
   {
     pic: logos.mongodb,
     docker_image_name: "airbyte/source-mongodb",
+    displayName: "Mongo DB (v1 deprecated)",
+    deprecated: true,
+    stable: false,
+    documentation: {
+      overview: <>MongoDB connector pulls data from the remote database.</>,
+      connection: (
+        <>
+          Please read{" "}
+          <a target="_blank" href="https://docs.airbyte.io/integrations/sources/mongodb#getting-started">
+            setup guide
+          </a>{" "}
+          for more information.
+        </>
+      ),
+    },
+  },
+  {
+    pic: logos.mongodb,
+    docker_image_name: "airbyte/source-mongodb-v2",
     displayName: "Mongo DB",
     stable: false,
     documentation: {
