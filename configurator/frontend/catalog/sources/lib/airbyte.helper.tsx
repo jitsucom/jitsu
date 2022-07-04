@@ -190,10 +190,15 @@ const mapAirbyteSpecNode = function mapSpecNode(
         // this is a rare case, see the Postgres source spec for an example
         const name = specNode["title"] ?? nodeName
         optionsEntries = getEntriesFromOneOfField(specNode, nodeName)
-        const [optionsFieldName] = Object.entries(optionsEntries[0][1]["properties"]).find(
-          ([fieldName, fieldNode]) => !!fieldNode["const"]
+        const [optionsFieldName] = Object.entries(optionsEntries[0][1]["properties"]).find(([fieldName, fieldNode]) => {
+          return !!fieldNode["const"] || fieldNode["enum"]?.length == 1
+        })
+
+        const options = optionsEntries.map(
+          ([_, childNode]) =>
+            childNode["properties"]?.[optionsFieldName]?.["const"] ||
+            childNode["properties"]?.[optionsFieldName]?.["enum"][0]
         )
-        const options = optionsEntries.map(([_, childNode]) => childNode["properties"]?.[optionsFieldName]?.["const"])
         const defaultAuthOption = options.find(option => option.toLowerCase?.().includes("oauth"))
         const defaultOption = defaultAuthOption ?? options[0]
         const mappedSelectionField: Parameter = {
@@ -264,11 +269,13 @@ const mapAirbyteSpecNode = function mapSpecNode(
           ([_, nodeA], [__, nodeB]) => nodeA?.["order"] - nodeB?.["order"]
         )
 
-        const [parentNodeValueProperty, selectValueNode] = childrenNodesEntries.find(([_, node]) => !!node["const"])
+        const [parentNodeValueProperty, selectValueNode] = childrenNodesEntries.find(
+          ([_, node]) => !!node["const"] || node["enum"]?.length == 1
+        )
         const parentNodeValueKey = `${parentNode.id}.${parentNodeValueProperty}`
         const _listOfRequiredFields: string[] = specNode["required"] || []
         childrenNodesEntries
-          .filter(([_, node]) => !node["const"]) // Ecludes the entry with the select option value
+          .filter(([_, node]) => !node["const"] && node["enum"]?.length != 1) // Excludes the entry with the select option value
           .forEach(([nodeName, node]) =>
             result.push(
               ...mapSpecNode(node, {
@@ -279,7 +286,8 @@ const mapAirbyteSpecNode = function mapSpecNode(
                   const parentSelectionNodeValue = parentNodeValueKey
                     .split(".")
                     .reduce((obj, key) => obj[key] || {}, config)
-                  const showChildFieldIfThisParentValueSelected = selectValueNode?.["const"]
+                  const showChildFieldIfThisParentValueSelected =
+                    selectValueNode?.["const"] || selectValueNode?.["enum"]?.[0]
                   return parentSelectionNodeValue !== showChildFieldIfThisParentValueSelected
                 },
               })

@@ -136,7 +136,7 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
           <Col span={24}>
             <LoadableFieldsLoadingMessageCard
               title="Loading the list of streams"
-              longLoadingMessage="This operation may take up to 3 minutes if you are configuring streams of this source type for the first time."
+              longLoadingMessage="This operation may take minutes if you are configuring streams of this source type for the first time."
               showLongLoadingMessageAfterMs={10000}
             />
           </Col>

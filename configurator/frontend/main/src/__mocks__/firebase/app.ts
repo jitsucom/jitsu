@@ -1,9 +1,10 @@
 // jest.requireActual('firebase');
+import { MockFirebaseUser, mockUser } from "./__mockUser"
+
 jest.unmock("firebase/auth")
 jest.unmock("firebase/app")
 import { FirebaseApp } from "firebase/app"
 import firebase from "firebase/auth"
-import { mockUser, MockFirebaseUser } from "./__mockUser"
 
 /**
  * need to mock:

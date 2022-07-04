@@ -9,7 +9,7 @@
     "test": "lerna run test --stream",
     "clean": "rm -rf ./node_modules ./main/node_modules/ ./main/build ./main/dist",
     "reset": "yarn clean && yarn install",
-    "reset:full": "yarn reset && rm -rf yarn.lock ./main/yarn.lock ./catalog/yarn.lock",
+    "reset:full": "yarn clean && rm -rf yarn.lock ./main/yarn.lock ./catalog/yarn.lock",
     "lerna:publish": "lerna publish --canary --no-private --no-verify-access --yes",
     "prettier:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run yarn prettier:fix!\" && exit 1)",
     "prettier:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore ./",
@@ -45,8 +45,8 @@
     "@types/lodash": "^4.14.168",
     "@types/lodash-es": "^4.17.4",
     "@types/node": "^12.0.0",
-    "@types/react": "^17.0.0",
-    "@types/react-dom": "^17.0.0",
+    "@types/react": "^17.0.47",
+    "@types/react-dom": "^17.0.17",
     "@types/react-router-dom": "^5.1.7",
     "autoprefixer": "^9",
     "babel-plugin-lodash": "^3.3.4",
@@ -65,11 +65,13 @@
     "tailwindcss": "npm:@tailwindcss/postcss7-compat",
     "terser-webpack-plugin": "^5.1.1",
     "ts-jest": "^27.0.3",
-    "typescript": "^4.4.3",
+    "typescript": "^4.7.4",
     "web-vitals": "^1.0.1",
     "webpack-bundle-analyzer": "^4.4.0"
   },
   "resolutions": {
-    "react-error-overlay": "6.0.9"
+    "react-error-overlay": "6.0.9",
+    "@types/react": "^17.0.47",
+    "@types/react-dom": "^17.0.17"
   }
 }

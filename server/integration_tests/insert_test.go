@@ -251,7 +251,7 @@ func insertBatch(t *testing.T, processor *schema.Processor, adapter adapters.SQL
 		table, err := tableHelper.EnsureTableWithCaching("test", dataSchema)
 		require.NoError(t, err, "failed to ensure table with random data: %v", err)
 
-		err = adapter.Insert(adapters.NewBatchInsertContext(table, batch.GetPayload(), nil))
+		err = adapter.Insert(adapters.NewBatchInsertContext(table, batch.GetPayload(), true, nil))
 		require.NoError(t, err)
 	}
 	operationTime := time.Since(start)

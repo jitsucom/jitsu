@@ -158,7 +158,7 @@ func (s *SdkSource) Load(config string, state string, taskLogger logging.TaskLog
 	if err != nil {
 		return err
 	}
-	sdkSourceRunner := SdkSourceRunner{name: s.packageName, sourceExecutor: sourceExecutor, config: s.config, collection: s.collection, startTime: timestamp.Now(), closed: atomic.NewBool(false)}
+	sdkSourceRunner := &SdkSourceRunner{name: s.packageName, sourceExecutor: sourceExecutor, config: s.config, collection: s.collection, startTime: timestamp.Now(), closed: atomic.NewBool(false)}
 	defer sdkSourceRunner.Close()
 	syncCommand := &base.SyncCommand{
 		Cmd:        sdkSourceRunner,
@@ -248,12 +248,16 @@ type SdkSourceRunner struct {
 	collection     *base.Collection
 	startTime      time.Time
 	closed         *atomic.Bool
+
+	timeInDestinations time.Duration
+	totalCount         int
 }
 
 func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, state string) (err error) {
 	if s.closed.Load() {
 		return ErrSDKSourceCancelled
 	}
+	startTime := timestamp.Now()
 
 	stateObj := map[string]interface{}{}
 	if state != "" {
@@ -425,14 +429,19 @@ func (s *SdkSourceRunner) Load(taskLogger logging.TaskLogger, dataConsumer base.
 	if !s.closed.Load() {
 		//rotate chunk to consume the last one
 		_, _, err := s.GetOrRotateChunk(taskLogger, dataConsumer, currentChunk, chunkNumber, true, true)
-		return err
+		if err != nil {
+			return err
+		}
+		totalTime := timestamp.Now().Sub(startTime)
+		taskLogger.INFO("Sync finished in %s (storage time: %s), %d records processed, avg speed: %.2f records per sec", totalTime.Round(time.Second), s.timeInDestinations.Round(time.Second), s.totalCount, float64(s.totalCount)/totalTime.Seconds())
+		return nil
 	} else {
 		taskLogger.WARN("Stopping processing. Task was closed")
 		return ErrSDKSourceCancelled
 	}
 }
 
-func (s SdkSourceRunner) GetOrRotateChunk(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, currentChunk *base.CLIOutputRepresentation, chunkNumber int, forceCreate bool, finalChunk bool) (newChunk *base.CLIOutputRepresentation, newChunkNumber int, err error) {
+func (s *SdkSourceRunner) GetOrRotateChunk(taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, currentChunk *base.CLIOutputRepresentation, chunkNumber int, forceCreate bool, finalChunk bool) (newChunk *base.CLIOutputRepresentation, newChunkNumber int, err error) {
 	stream := s.collection
 	exists := currentChunk != nil
 	if !exists || forceCreate {
@@ -444,14 +453,17 @@ func (s SdkSourceRunner) GetOrRotateChunk(taskLogger logging.TaskLogger, dataCon
 					currentChunk.CurrentStream().NeedClean = true
 				}
 			}
-			taskLogger.INFO("Chunk: %s_%d finished. Objects count: %d", stream.Name, chunkNumber, len(currentChunk.CurrentStream().Objects))
+			taskLogger.INFO("Stream [%s] Chunk #%d loaded from source. Objects count: %d", stream.Name, chunkNumber, len(currentChunk.CurrentStream().Objects))
 			if stream.SyncMode == "full_sync" && finalChunk {
 				currentChunk.CurrentStream().SwapWithIntermediateTable = true
 			}
+			startDestinationTime := timestamp.Now()
 			err = dataConsumer.Consume(currentChunk)
 			if err != nil {
 				return currentChunk, chunkNumber, err
 			}
+			s.timeInDestinations += timestamp.Now().Sub(startDestinationTime)
+			s.totalCount += len(currentChunk.CurrentStream().Objects)
 			//we create next chunk when some chunks already present. increment chunk number
 			newChunkNumber = chunkNumber + 1
 		}
@@ -463,6 +475,7 @@ func (s SdkSourceRunner) GetOrRotateChunk(taskLogger logging.TaskLogger, dataCon
 		newChunk = base.NewCLIOutputRepresentation()
 		newChunk.AddStream(stream.Name, &base.StreamRepresentation{
 			StreamName:            name,
+			ChunkNumber:           newChunkNumber,
 			IntermediateTableName: intermediateTableName,
 			BatchHeader:           &schema.BatchHeader{TableName: stream.TableName, Fields: map[string]schema.Field{}},
 			Objects:               []map[string]interface{}{},
@@ -475,11 +488,11 @@ func (s SdkSourceRunner) GetOrRotateChunk(taskLogger logging.TaskLogger, dataCon
 	}
 }
 
-func (s SdkSourceRunner) String() string {
+func (s *SdkSourceRunner) String() string {
 	return s.name + "_" + s.collection.Name
 }
 
-func (s SdkSourceRunner) Close() error {
+func (s *SdkSourceRunner) Close() error {
 	s.closed.Store(true)
 	s.sourceExecutor.Close()
 	return nil
