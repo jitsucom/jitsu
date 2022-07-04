@@ -236,7 +236,7 @@ func query(config *GoogleAdsConfig, httpClient *http.Client, query string) ([]ma
 		return nil, fmt.Errorf("failed to marshal query request body: %s", err)
 	}
 
-	urlStr := serviceEndpoint + "/v8/customers/" + config.CustomerId + "/googleAds:searchStream"
+	urlStr := serviceEndpoint + "/v11/customers/" + config.CustomerId + "/googleAds:searchStream"
 	headers := map[string]string{
 		"Content-Type":    "application/json",
 		"Authorization":   "Bearer " + accessToken,
