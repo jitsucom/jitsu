@@ -71,7 +71,7 @@ export const ErrorCard: FC<ErrorCardProps> = ({
                     <Typography.Paragraph
                       copyable={{
                         text: stackTrace,
-                        icon: [<CopyOutlined />, <CheckOutlined />],
+                        icon: [<CopyOutlined key="first" />, <CheckOutlined key="second" />],
                       }}
                       className={`flex flex-row ${styles.errorStackContainer}`}
                     >

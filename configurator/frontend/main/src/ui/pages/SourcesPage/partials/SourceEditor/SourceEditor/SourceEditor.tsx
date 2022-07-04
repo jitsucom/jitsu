@@ -5,11 +5,11 @@ import { useHistory, useParams } from "react-router"
 import { cloneDeep, snakeCase, uniqueId } from "lodash"
 // @Types
 import { CommonSourcePageProps } from "ui/pages/SourcesPage/SourcesPage"
-import { SourceConnector as CatalogSourceConnector } from "@jitsu/catalog/sources/types"
+import { SourceConnector as CatalogSourceConnector } from "@jitsu/catalog"
 // @Store
 import { sourcesStore } from "stores/sources"
 // @Catalog
-import { allSources as sourcesCatalog } from "@jitsu/catalog/sources/lib"
+import { allSources as sourcesCatalog } from "@jitsu/catalog"
 // @Components
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { createInitialSourceData, sourceEditorUtils } from "./SourceEditor.utils"

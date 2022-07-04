@@ -2,7 +2,7 @@
 import { useCallback, useState } from "react"
 import { Button, Col, FormInstance, Popconfirm, Row } from "antd"
 // @Types
-import { SourceConnector as CatalogSourceConnector } from "@jitsu/catalog/sources/types"
+import { SourceConnector as CatalogSourceConnector } from "@jitsu/catalog"
 // @Components
 import { OauthButton } from "../OauthButton/OauthButton"
 

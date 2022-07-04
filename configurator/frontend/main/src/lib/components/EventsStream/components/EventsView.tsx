@@ -1,7 +1,7 @@
 import * as React from "react"
 import { useEffect, useState } from "react"
 import { Code } from "../../Code/Code"
-import { destinationsReferenceMap } from "@jitsu/catalog/destinations/lib"
+import { destinationsReferenceMap } from "@jitsu/catalog"
 import { Badge, Table, Tabs, Tooltip } from "antd"
 import cn from "classnames"
 import { Event, EventStatus, EventType } from "../shared"
