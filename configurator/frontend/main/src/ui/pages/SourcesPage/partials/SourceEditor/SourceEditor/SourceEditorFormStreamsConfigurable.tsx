@@ -433,18 +433,18 @@ const SourceEditorFormStreamsConfigurable = ({
                         header={
                           <div className={"flex items-center w-full flex-wrap lg:flex-nowrap pr-8"}>
                             <div
-                              className={"whitespace-nowrap lg:w-1/4 w-1/3 overflow-hidden overflow-ellipsis pr-2"}
+                              className={"whitespace-nowrap w-80 overflow-hidden overflow-ellipsis pr-2"}
                               title={getStream(field.name).name}
                             >
                               Name:&nbsp;&nbsp;<b>{getStream(field.name).name}</b>
                             </div>
                             <div
-                              className={"whitespace-nowrap lg:w-1/4 w-1/3 overflow-hidden overflow-ellipsis pr-2"}
+                              className={"whitespace-nowrap w-80 overflow-hidden overflow-ellipsis pr-2"}
                               title={getStream(field.name).type}
                             >
                               Type:&nbsp;&nbsp;<b>{getStream(field.name).type}</b>
                             </div>
-                            <div className={"whitespace-nowrap lg:w-1/4 w-1/3 overflow-hidden overflow-ellipsis pr-2"}>
+                            <div className={"whitespace-nowrap w-96 overflow-hidden overflow-ellipsis pr-2"}>
                               Table Name:&nbsp;&nbsp;
                               <b title={`${initialSourceData.sourceId}_${getStream(field.name).name ?? "[Name]"}`}>
                                 {`${initialSourceData.sourceId}_${getStream(field.name).name ?? "[Name]"}`}
