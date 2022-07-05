@@ -70,7 +70,8 @@ func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, ob
 		}
 
 		start := timestamp.Now()
-		if err = adapter.Insert(adapters.NewBatchInsertContext(dbSchema, flatData.GetPayload(), false, deleteConditions)); err != nil {
+		//TODO: detect when merge is not necessary (full sync) and set merge to false. Implement it in adapters
+		if err = adapter.Insert(adapters.NewBatchInsertContext(dbSchema, flatData.GetPayload(), true, deleteConditions)); err != nil {
 			return err
 		}
 		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", storage.ID(), flatData.GetPayloadLen(), timestamp.Now().Sub(start).Seconds())
