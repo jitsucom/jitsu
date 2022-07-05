@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/utils"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -96,12 +97,12 @@ func LoadFromHTTP(fullURL, ifModifiedSinceValue string) (*ResponsePayload, error
 	if resp.StatusCode == 304 {
 		return nil, ErrNoModified
 	}
+	b, err := ioutil.ReadAll(resp.Body)
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Error loading resource from url %s: http code isn't 200 [%d]", fullURL, resp.StatusCode)
+		return nil, fmt.Errorf("Error loading resource from url %s: http code: %d response: %s", fullURL, resp.StatusCode, utils.ShortenString(string(b), 256))
 	}
 
-	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("Error reading resource from url %s: %v", fullURL, err)
 	}
