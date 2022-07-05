@@ -249,6 +249,30 @@ export const allSingerTaps: SingerTap[] = [
     pic: logos.tap_close_io,
     displayName: "Close",
     tap: "tap-closeio",
+    parameters: customParameters("tap-closeio", {
+      customConfig: [
+        {
+          displayName: "API Token",
+          id: "api_key",
+          type: stringType,
+          required: true,
+          documentation: (
+            <>
+              Close.com API Token. To obtain API Key login to your Close.com account, navigate to your Settings – API
+              Keys. Generate a New API Key.
+            </>
+          ),
+        },
+        {
+          displayName: "Start Date",
+          id: "start_date",
+          type: isoUtcDateType,
+          defaultValue: "2022-01-01T00:00:00Z",
+          required: true,
+          documentation: <>The date from which you'd like to replicate the data</>,
+        },
+      ],
+    }),
     stable: true,
     hasNativeEquivalent: false,
   },
