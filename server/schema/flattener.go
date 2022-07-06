@@ -31,7 +31,11 @@ func (f *FlattenerImpl) FlattenObject(json map[string]interface{}) (map[string]i
 	if err != nil {
 		return nil, err
 	}
-
+	emptyKeyValue, hasEmptyKey := flattenMap[""]
+	if hasEmptyKey {
+		flattenMap["_unnamed"] = emptyKeyValue
+		delete(flattenMap, "")
+	}
 	return flattenMap, nil
 }
 
