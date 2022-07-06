@@ -2,8 +2,8 @@
 sort: 3
 ---
 
-
 # Deploy on Plural
+
 
 [Plural](https://www.plural.sh/) is a free, open-source tool that enables you to deploy Jitsu on Kubernetes with the cloud provider of your choice. Plural is a unified application deployment platform that makes it easy to run open-source software on Kubernetes. It aims to make applications as portable as possible, without sacrificing the ability for the users to own the applications they desire to use.
 
@@ -22,6 +22,11 @@ You have two options:
 Running `plural init` will start a configuration wizard to configure your Git repo and your cloud provider for use with Plural. You're now ready to install Jitsu on your Plural repo.
 
 ## Installing Jitsu
+
+<Hint>
+  Plural installs a specific version of Jitsu rather than a latest one. See the version that is available
+  on [Plural in this file here](https://github.com/pluralsh/plural-artifacts/blob/main/jitsu/vendor_images)
+</Hint>
 
 To find the console bundle name for your cloud provider, run:
 
@@ -81,6 +86,10 @@ To bring your entire Plural deployment down, run:
 ```bash
 plural destroy
 ```
+
+## Known issues
+
+The only way to run Airbyte connectors on Plural is Docker-in-Docker (aka `DinD`). See [GitHub discussion about that](https://github.com/jitsucom/jitsu/issues/863).
 
 ## Troubleshooting
 
