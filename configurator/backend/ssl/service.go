@@ -157,15 +157,16 @@ func (s *CertificateService) UploadCertificate(certificatePath string, privateKe
 }
 
 func NewCertificateService(sshClient *ssh.ClientWrapper, enHosts []string, configurationsService *storages.ConfigurationsService, serverConfigTemplatePath string, nginxSSLConfigPath string, acmeChallengePath string) (*CertificateService, error) {
-	if enHosts == nil || len(enHosts) == 0 {
-		return nil, fmt.Errorf("failed to create custom domain processor: [enHosts] must not be empty")
-	}
 	if configurationsService == nil {
 		return nil, fmt.Errorf("failed to create custom domain processor: [firebase] must not be nil")
 	}
-	serverConfigTemplate, err := template.ParseFiles(serverConfigTemplatePath)
-	if err != nil {
-		return nil, err
+	var serverConfigTemplate *template.Template
+	if serverConfigTemplatePath != "" {
+		var err error
+		serverConfigTemplate, err = template.ParseFiles(serverConfigTemplatePath)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &CertificateService{sshClient: sshClient, enHosts: enHosts, configurationsService: configurationsService, serverConfigTemplate: serverConfigTemplate, nginxConfigPath: files.FixPath(nginxSSLConfigPath), acmeChallengePath: files.FixPath(acmeChallengePath)}, nil
 }
