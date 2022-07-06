@@ -236,6 +236,9 @@ func main() {
 		customDomainProcessor, err := ssl.NewCertificateService(sshClient, jitsuConfig.SSL.Hosts, configurationsService, jitsuConfig.SSL.ServerConfigTemplate, jitsuConfig.SSL.NginxConfigPath, jitsuConfig.SSL.AcmeChallengePath)
 
 		sslUpdateExecutor = ssl.NewSSLUpdateExecutor(customDomainProcessor, jitsuConfig.SSL.Hosts, jitsuConfig.SSL.SSH.User, jitsuConfig.SSL.SSH.PrivateKeyPath, jitsuConfig.CName, jitsuConfig.SSL.CertificatePath, jitsuConfig.SSL.PKPath, jitsuConfig.SSL.AcmeChallengePath)
+	} else {
+		customDomainProcessor, _ := ssl.NewCertificateService(nil, nil, configurationsService, "", "", "")
+		sslUpdateExecutor = ssl.NewSSLUpdateExecutor(customDomainProcessor, nil, "", "", "", "", "", "")
 	}
 
 	cors.Init(viper.GetString("server.domain"), viper.GetStringSlice("server.allowed_domains"))
@@ -410,6 +413,14 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 		"/proxy/api/v1/statistics/detailed": jitsu.NewStatisticsDecorator().Decorate,
 	})
 	router.Any("/proxy/*path", authenticatorMiddleware.ManagementWrapper(proxyHandler.Handler))
+
+	router.Any("/check_domain", authenticatorMiddleware.ManagementWrapper(func(c *gin.Context) {
+		if sslUpdateExecutor.CheckDomain(c.Query("domain")) {
+			c.Status(http.StatusOK)
+		} else {
+			c.Status(http.StatusForbidden)
+		}
+	}))
 
 	// ** OLD API (delete after migrating UI to api/v2) **
 	jConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsService)
