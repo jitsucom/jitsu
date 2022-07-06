@@ -72,6 +72,7 @@ To learn more check out [Jitsu deployment documentation](https://jitsu.com/docs/
 
 - [Docker deployment](https://jitsu.com/docs/deployment/deploy-with-docker)
 - [Heroku Deployment](https://jitsu.com/docs/deployment/deploy-on-heroku)
+- [Plural Deployment (On Kubernetes)](https://jitsu.com/docs/deployment/deploy-on-plural)  
 - [Building from sources](https://jitsu.com/docs/deployment/build-from-sources)
 
 Also, we maintain a [Jitsu.Cloud](https://cloud.jitsu.com) — a hosted version of Jitsu. Jitsu.Cloud [is free](https://jitsu.com/pricing) for up to 250,000 events per month. Each
