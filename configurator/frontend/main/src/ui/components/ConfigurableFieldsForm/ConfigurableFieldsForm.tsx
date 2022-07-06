@@ -136,7 +136,7 @@ const ConfigurableFieldsFormComponent = ({
     }
 
     let calcValue: any
-    if (typeof defaultValue !== "undefined") {
+    if (typeof defaultValue !== "undefined" && defaultValue !== null) {
       calcValue = defaultValue
     } else if (typeof constantValue !== "undefined") {
       calcValue = constantValue
@@ -150,6 +150,12 @@ const ConfigurableFieldsFormComponent = ({
       calcValue = "<script>\n</script>"
     } else if (type.indexOf("array/") === 0) {
       calcValue = []
+    } else if (type === "string") {
+      if (defaultValue === null) {
+        calcValue = undefined
+      } else {
+        calcValue = ""
+      }
     } else {
       calcValue = ""
     }

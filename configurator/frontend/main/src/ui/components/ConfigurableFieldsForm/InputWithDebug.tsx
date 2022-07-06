@@ -16,11 +16,11 @@ const InputWithDebug: React.FC<InputWithDebugProps> = ({
   id,
   placeholder,
   jsDebugger,
-  value = "",
+  value,
   onChange,
   onButtonClick,
 }) => {
-  const [text, setText] = useState(value || "")
+  const [text, setText] = useState(value)
 
   const triggerChange = (changedValue: string) => {
     onChange?.(changedValue)
@@ -31,14 +31,22 @@ const InputWithDebug: React.FC<InputWithDebugProps> = ({
     triggerChange(e.target.value)
   }
 
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (text?.length == 0 && (e.key == "Backspace" || e.key == "Delete")) {
+      setText(undefined)
+      triggerChange(undefined)
+    }
+  }
+
   return (
     <>
       <Input.TextArea
         autoSize={{ minRows: 1, maxRows: 5 }}
         value={value || text}
         autoComplete="off"
-        placeholder={placeholder}
+        placeholder={placeholder || typeof text === "undefined" ? "Not set" : undefined}
         onChange={onValueChange}
+        onKeyDown={onKeyDown}
       />
       <span className="z-50 absolute top-1.5 right-3">
         {jsDebugger && (
