@@ -145,6 +145,8 @@ const mapAirbyteSpecNode = function mapSpecNode(
       }
       if (defaultValue) {
         mappedStringField.defaultValue = defaultValue
+      } else {
+        mappedStringField.defaultValue = null
       }
       return [mappedStringField]
     }
