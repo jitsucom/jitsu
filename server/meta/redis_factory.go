@@ -30,6 +30,7 @@ var (
 type Options struct {
 	DefaultDialConnectTimeout time.Duration
 	DefaultDialReadTimeout    time.Duration
+	DefaultDialWriteTimeout   time.Duration
 
 	MaxIdle     int
 	MaxActive   int
@@ -41,10 +42,12 @@ type Options struct {
 var DefaultOptions = Options{
 	DefaultDialConnectTimeout: 10 * time.Second,
 	DefaultDialReadTimeout:    10 * time.Second,
-	MaxIdle:                   100,
-	MaxActive:                 600,
-	IdleTimeout:               240 * time.Second,
-	PingTimeout:               30 * time.Second,
+	DefaultDialWriteTimeout:   10 * time.Second,
+
+	MaxIdle:     100,
+	MaxActive:   600,
+	IdleTimeout: 240 * time.Second,
+	PingTimeout: 30 * time.Second,
 }
 
 //RedisPoolFactory is a factory for creating RedisPool
@@ -143,8 +146,9 @@ func (rpf *RedisPoolFactory) Create() (*RedisPool, error) {
 func (rpf *RedisPoolFactory) getSentinelAndDialFunc() (*sentinel.Sentinel, func() (redis.Conn, error), error) {
 	defaultDialConnectTimeout := redis.DialConnectTimeout(rpf.options.DefaultDialConnectTimeout)
 	defaultDialReadTimeout := redis.DialReadTimeout(rpf.options.DefaultDialReadTimeout)
+	defaultDialWriteTimeout := redis.DialWriteTimeout(rpf.options.DefaultDialWriteTimeout)
 
-	options := []redis.DialOption{defaultDialConnectTimeout, defaultDialReadTimeout}
+	options := []redis.DialOption{defaultDialConnectTimeout, defaultDialReadTimeout, defaultDialWriteTimeout}
 
 	// 1. redis:// redis://
 	if rpf.isURL() || rpf.isSecuredURL() {
