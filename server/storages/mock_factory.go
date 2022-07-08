@@ -10,7 +10,9 @@ import (
 )
 
 //Mock proxy
-type testProxyMock struct{}
+type testProxyMock struct {
+	mode string
+}
 
 //Get is a mock func
 func (tpm *testProxyMock) Get() (Storage, bool) { return nil, false }
@@ -27,7 +29,7 @@ func (tpm *testProxyMock) ID() string { return "" }
 func (tpm *testProxyMock) Type() string { return "" }
 
 //Mode is a mock func
-func (tpm *testProxyMock) Mode() string { return "" }
+func (tpm *testProxyMock) Mode() string { return tpm.mode }
 
 //Close is a mock func
 func (tpm *testProxyMock) Close() error { return nil }
@@ -54,7 +56,7 @@ func (mf *MockFactory) Create(id string, destination config.DestinationConfig) (
 		qf := events.NewQueueFactory(nil, 0)
 		eventQueue, _ = qf.CreateEventsQueue(destination.Type, id)
 	}
-	return &testProxyMock{}, eventQueue, nil
+	return &testProxyMock{mode: destination.Mode}, eventQueue, nil
 }
 
 func (mf *MockFactory) Configure(_ string, _ config.DestinationConfig) (func(config *Config) (Storage, error), *Config, error) {
