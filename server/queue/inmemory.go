@@ -2,7 +2,6 @@ package queue
 
 import (
 	"errors"
-	"fmt"
 )
 
 var (
@@ -10,16 +9,14 @@ var (
 )
 
 type InMemory struct {
-	capacity int
-	queue    chan interface{}
-	closed   chan struct{}
+	linkedQueue *ConcurrentQueue
+	closed      chan struct{}
 }
 
 func NewInMemory(capacity int) Queue {
 	im := &InMemory{
-		capacity: capacity,
-		queue:    make(chan interface{}, capacity),
-		closed:   make(chan struct{}, 1),
+		linkedQueue: NewConcurrentQueue(uint32(capacity)),
+		closed:      make(chan struct{}, 1),
 	}
 
 	return im
@@ -31,10 +28,8 @@ func (im *InMemory) Push(value interface{}) error {
 	select {
 	case <-im.closed:
 		return ErrQueueClosed
-	case im.queue <- value:
-		return nil
 	default:
-		return fmt.Errorf("queue reached max capacity: %d", im.capacity)
+		return im.linkedQueue.Enqueue(value)
 	}
 
 }
@@ -46,13 +41,13 @@ func (im *InMemory) Pop() (interface{}, error) {
 	case <-im.closed:
 		return nil, ErrQueueClosed
 	default:
-		return <-im.queue, nil
+		return im.linkedQueue.Dequeue()
 	}
 }
 
 //Size returns the number of enqueued elements
 func (im *InMemory) Size() int64 {
-	return int64(len(im.queue))
+	return int64(im.linkedQueue.GetSize())
 }
 
 func (im *InMemory) BufferSize() int64 {
@@ -65,5 +60,6 @@ func (im *InMemory) Type() string {
 
 func (im *InMemory) Close() error {
 	close(im.closed)
+	im.linkedQueue.Close()
 	return nil
 }
