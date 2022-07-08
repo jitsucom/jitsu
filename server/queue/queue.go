@@ -19,5 +19,6 @@ type Queue interface {
 	Push(interface{}) error
 	Pop() (interface{}, error)
 	Size() int64
+	BufferSize() int64
 	Type() string
 }

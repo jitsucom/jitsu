@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
+	"github.com/jitsucom/jitsu/server/safego"
 	"time"
 )
 
@@ -34,6 +36,8 @@ type Redis struct {
 	sharedPool   *meta.RedisPool
 	errorMetrics *meta.ErrorMetrics
 
+	bufferQueue *ConcurrentQueue
+
 	closed chan struct{}
 }
 
@@ -45,15 +49,18 @@ func NewRedis(namespace, identifier string, redisPool *meta.RedisPool, serializa
 		waitTimeoutSeconds = defaultWaitTimeoutSeconds
 	}
 
-	return &Redis{
+	r := &Redis{
 		identifier:                identifier,
 		queueKey:                  fmt.Sprintf(eventsQueueKeyPrefix, namespace, identifier),
 		serializationModelBuilder: serializationModelBuilder,
 		waitTimeoutSeconds:        waitTimeoutSeconds,
 		sharedPool:                redisPool,
 		errorMetrics:              meta.NewErrorMetrics(metrics.EventsRedisErrors),
+		bufferQueue:               NewConcurrentQueue(1_000_000),
 		closed:                    make(chan struct{}),
 	}
+	safego.RunWithRestart(r.processBuffer)
+	return r
 }
 
 func (r *Redis) Push(v interface{}) error {
@@ -65,7 +72,34 @@ func (r *Redis) Push(v interface{}) error {
 		if err != nil {
 			return fmt.Errorf("error serializing %v into json: %v", v, err)
 		}
-		return r.rpush(string(b))
+		return r.bufferQueue.Enqueue(string(b))
+	}
+}
+
+func (r *Redis) processBuffer() {
+	for {
+		v, err := r.bufferQueue.Dequeue()
+		if err != nil {
+			if err == ErrQueueClosed {
+				return
+			}
+			logging.SystemErrorf("Redis queue %s Error dequeueing from buffer queue: %v", r.identifier, err)
+			time.Sleep(10 * time.Second)
+		}
+	Cycle:
+		for {
+			select {
+			case <-r.closed:
+				return
+			default:
+				err = r.rpush(v.(string))
+				if err != nil {
+					time.Sleep(10 * time.Second)
+				} else {
+					break Cycle
+				}
+			}
+		}
 	}
 }
 
@@ -111,6 +145,10 @@ func (r *Redis) Size() int64 {
 	return size
 }
 
+func (r *Redis) BufferSize() int64 {
+	return int64(r.bufferQueue.GetSize())
+}
+
 func (r *Redis) Type() string {
 	return RedisType
 }
@@ -118,6 +156,7 @@ func (r *Redis) Type() string {
 //Close doesn't close sharedPool
 func (r *Redis) Close() error {
 	close(r.closed)
+	r.bufferQueue.Close()
 	return nil
 }
 
