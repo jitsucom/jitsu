@@ -26,6 +26,9 @@ func (tpm *testProxyMock) ID() string { return "" }
 //Type is a mock func
 func (tpm *testProxyMock) Type() string { return "" }
 
+//Mode is a mock func
+func (tpm *testProxyMock) Mode() string { return "" }
+
 //Close is a mock func
 func (tpm *testProxyMock) Close() error { return nil }
 

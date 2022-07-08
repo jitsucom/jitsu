@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/appstatus"
@@ -22,6 +23,8 @@ import (
 )
 
 const parsingErrSrc = "parsing"
+
+var DateExtractRegexp = regexp.MustCompile("incoming.tok=.*-(\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2})")
 
 //PeriodicUploader read already rotated and closed log files
 //Pass them to storages according to tokens
@@ -79,17 +82,24 @@ func (u *PeriodicUploader) Start() {
 			for _, filePath := range files {
 				fileName := filepath.Base(filePath)
 
-				fileBytes, err := ioutil.ReadFile(filePath)
+				regexResult := DateExtractRegexp.FindStringSubmatch(fileName)
+				if len(regexResult) != 2 {
+					logging.SystemErrorf("Error processing file %s. Malformed name", filePath)
+					continue
+				}
+				fileDate, err := time.Parse("2006-01-02T15-04-05", regexResult[1])
 				if err != nil {
-					logging.SystemErrorf("Error reading file [%s] with events: %v", filePath, err)
+					logging.SystemErrorf("Error processing file %s. Cant parse file date: %s", filePath, fileDate)
 					continue
 				}
-				if len(fileBytes) == 0 {
-					os.Remove(filePath)
+
+				if timestamp.Now().Sub(fileDate) > time.Hour*24*30 {
+					logging.Infof("Skipping file %s. File is more than 30 days old: %s", filePath, fileDate)
 					continue
 				}
+
 				//get token from filename
-				regexResult := logging.TokenIDExtractRegexp.FindStringSubmatch(fileName)
+				regexResult = logging.TokenIDExtractRegexp.FindStringSubmatch(fileName)
 				if len(regexResult) != 2 {
 					logging.SystemErrorf("Error processing file %s. Malformed name", filePath)
 					continue
@@ -101,6 +111,17 @@ func (u *PeriodicUploader) Start() {
 					logging.Warnf("Destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
 					continue
 				}
+
+				fileBytes, err := ioutil.ReadFile(filePath)
+				if err != nil {
+					logging.SystemErrorf("Error reading file [%s] with events: %v", filePath, err)
+					continue
+				}
+				if len(fileBytes) == 0 {
+					os.Remove(filePath)
+					continue
+				}
+
 				needCopyEvent := len(storageProxies) > 1
 
 				objects, parsingErrors, err := parsers.ParseJSONFileWithFuncFallback(fileBytes, parsers.ParseJSON)

@@ -391,8 +391,29 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 func (s *Service) removeAndClose(destinationID string, unit *Unit) {
 	//remove from other collections: queue or logger(if needed) + storage
 	for _, tokenID := range unit.tokenIDs {
+		//id
+		ids, ok := s.destinationsIDByTokenID[tokenID]
+		if ok {
+			delete(ids, destinationID)
+			if len(ids) == 0 {
+				delete(s.destinationsIDByTokenID, tokenID)
+			}
+		}
+
+		if unit.storage.Mode() == storages.SynchronousMode {
+			//sync storage
+			oldSyncStorages, ok := s.synchronousStoragesByTokenID[tokenID]
+			if ok {
+				delete(oldSyncStorages, destinationID)
+				if len(oldSyncStorages) == 0 {
+					delete(s.synchronousStoragesByTokenID, tokenID)
+				}
+			}
+			continue
+		}
+
 		oldConsumers := s.consumersByTokenID[tokenID]
-		if unit.eventQueue != nil {
+		if unit.storage.Mode() == storages.StreamMode {
 			delete(oldConsumers, destinationID)
 		} else {
 			//logger
@@ -417,24 +438,6 @@ func (s *Service) removeAndClose(destinationID string, unit *Unit) {
 			delete(oldStorages, destinationID)
 			if len(oldStorages) == 0 {
 				delete(s.batchStoragesByTokenID, tokenID)
-			}
-		}
-
-		//sync storage
-		oldSyncStorages, ok := s.synchronousStoragesByTokenID[tokenID]
-		if ok {
-			delete(oldSyncStorages, destinationID)
-			if len(oldSyncStorages) == 0 {
-				delete(s.synchronousStoragesByTokenID, tokenID)
-			}
-		}
-
-		//id
-		ids, ok := s.destinationsIDByTokenID[tokenID]
-		if ok {
-			delete(ids, destinationID)
-			if len(ids) == 0 {
-				delete(s.destinationsIDByTokenID, tokenID)
 			}
 		}
 
