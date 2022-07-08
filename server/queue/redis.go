@@ -36,7 +36,7 @@ type Redis struct {
 	sharedPool   *meta.RedisPool
 	errorMetrics *meta.ErrorMetrics
 
-	bufferQueue *ConcurrentQueue
+	bufferQueue *ConcurrentLinkedQueue
 
 	closed chan struct{}
 }
@@ -56,7 +56,7 @@ func NewRedis(namespace, identifier string, redisPool *meta.RedisPool, serializa
 		waitTimeoutSeconds:        waitTimeoutSeconds,
 		sharedPool:                redisPool,
 		errorMetrics:              meta.NewErrorMetrics(metrics.EventsRedisErrors),
-		bufferQueue:               NewConcurrentQueue(1_000_000),
+		bufferQueue:               NewConcurrentLinkedQueue(1_000_000),
 		closed:                    make(chan struct{}),
 	}
 	safego.RunWithRestart(r.processBuffer)

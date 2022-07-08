@@ -5,34 +5,32 @@ import (
 	"sync"
 )
 
-//Node storage of queue data
-type Node struct {
+//node storage of queue data
+type node struct {
 	data interface{}
-	prev *Node
-	next *Node
+	prev *node
+	next *node
 }
 
-//QueueBackend Backend storage of the queue, a double linked list
-type QueueBackend struct {
+//queueBackend Backend storage of the queue, a double linked list
+type queueBackend struct {
 	//Pointers to root and end
-	head *Node
-	tail *Node
+	head *node
+	tail *node
 
 	//keep track of current size
 	size    uint32
 	maxSize uint32
 }
 
-func (queue *QueueBackend) createNode(data interface{}) *Node {
-	node := Node{}
+func (queue *queueBackend) createNode(data interface{}) *node {
+	node := node{}
 	node.data = data
-	node.next = nil
-	node.prev = nil
 
 	return &node
 }
 
-func (queue *QueueBackend) put(data interface{}) error {
+func (queue *queueBackend) put(data interface{}) error {
 	if queue.size >= queue.maxSize {
 		err := errors.New("Queue full")
 		return err
@@ -50,48 +48,50 @@ func (queue *QueueBackend) put(data interface{}) error {
 	}
 
 	//queue non-empty append to head
-	currentHead := queue.head
-	newHead := queue.createNode(data)
-	newHead.next = currentHead
-	currentHead.prev = newHead
+	currentTail := queue.tail
+	newTail := queue.createNode(data)
+	newTail.prev = currentTail
+	currentTail.next = newTail
 
-	queue.head = currentHead
+	queue.tail = newTail
 	queue.size++
 	return nil
 }
 
-func (queue *QueueBackend) pop() (interface{}, error) {
+func (queue *queueBackend) pop() (interface{}, error) {
 	if queue.size == 0 {
 		err := errors.New("Queue empty")
 		return nil, err
 	}
 
-	currentEnd := queue.tail
-	newEnd := currentEnd.prev
+	currentHead := queue.head
+	newHead := currentHead.next
 
-	if newEnd != nil {
-		newEnd.next = nil
+	if newHead != nil {
+		newHead.prev = nil
 	}
 
 	queue.size--
 	if queue.size == 0 {
 		queue.head = nil
 		queue.tail = nil
+	} else {
+		queue.head = newHead
 	}
 
-	return currentEnd.data, nil
+	return currentHead.data, nil
 }
 
-func (queue *QueueBackend) isEmpty() bool {
+func (queue *queueBackend) isEmpty() bool {
 	return queue.size == 0
 }
 
-func (queue *QueueBackend) isFull() bool {
+func (queue *queueBackend) isFull() bool {
 	return queue.size >= queue.maxSize
 }
 
-//ConcurrentQueue concurrent queue
-type ConcurrentQueue struct {
+//ConcurrentLinkedQueue concurrent queue
+type ConcurrentLinkedQueue struct {
 	//mutex lock
 	lock *sync.Mutex
 
@@ -101,10 +101,10 @@ type ConcurrentQueue struct {
 
 	closed bool
 	//queue storage backend
-	backend *QueueBackend
+	backend *queueBackend
 }
 
-func (c *ConcurrentQueue) Enqueue(data interface{}) error {
+func (c *ConcurrentLinkedQueue) Enqueue(data interface{}) error {
 	c.lock.Lock()
 
 	for c.backend.isFull() && !c.closed {
@@ -126,7 +126,7 @@ func (c *ConcurrentQueue) Enqueue(data interface{}) error {
 	return err
 }
 
-func (c *ConcurrentQueue) Dequeue() (interface{}, error) {
+func (c *ConcurrentLinkedQueue) Dequeue() (interface{}, error) {
 	c.lock.Lock()
 
 	for c.backend.isEmpty() && !c.closed {
@@ -147,7 +147,7 @@ func (c *ConcurrentQueue) Dequeue() (interface{}, error) {
 	return data, err
 }
 
-func (c *ConcurrentQueue) GetSize() uint32 {
+func (c *ConcurrentLinkedQueue) GetSize() uint32 {
 	c.lock.Lock()
 	size := c.backend.size
 	c.lock.Unlock()
@@ -155,7 +155,7 @@ func (c *ConcurrentQueue) GetSize() uint32 {
 	return size
 }
 
-func (c *ConcurrentQueue) GetMaxSize() uint32 {
+func (c *ConcurrentLinkedQueue) GetMaxSize() uint32 {
 	c.lock.Lock()
 	maxSize := c.backend.maxSize
 	c.lock.Unlock()
@@ -163,7 +163,7 @@ func (c *ConcurrentQueue) GetMaxSize() uint32 {
 	return maxSize
 }
 
-func (c *ConcurrentQueue) Close() {
+func (c *ConcurrentLinkedQueue) Close() {
 	c.lock.Lock()
 	c.closed = true
 	c.notFull.Broadcast()
@@ -171,21 +171,18 @@ func (c *ConcurrentQueue) Close() {
 	c.lock.Unlock()
 }
 
-//NewConcurrentQueue Creates a new queue
-func NewConcurrentQueue(maxSize uint32) *ConcurrentQueue {
-	queue := ConcurrentQueue{}
+//NewConcurrentLinkedQueue Creates a new queue
+func NewConcurrentLinkedQueue(maxSize uint32) *ConcurrentLinkedQueue {
+	queue := ConcurrentLinkedQueue{}
 
 	//init mutexes
 	queue.lock = &sync.Mutex{}
 	queue.notFull = sync.NewCond(queue.lock)
 	queue.notEmpty = sync.NewCond(queue.lock)
-
+	if maxSize == 0 {
+		maxSize = 1
+	}
 	//init backend
-	queue.backend = &QueueBackend{}
-	queue.backend.size = 0
-	queue.backend.head = nil
-	queue.backend.tail = nil
-
-	queue.backend.maxSize = maxSize
+	queue.backend = &queueBackend{maxSize: maxSize}
 	return &queue
 }
