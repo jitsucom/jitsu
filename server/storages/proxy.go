@@ -105,6 +105,11 @@ func (rsp *RetryableProxy) Type() string {
 	return rsp.storage.Type()
 }
 
+//Mode returns destination mode
+func (rsp *RetryableProxy) Mode() string {
+	return rsp.config.destination.Mode
+}
+
 //IsCachingDisabled returns true if caching is disabled in destination configuration
 func (rsp *RetryableProxy) IsCachingDisabled() bool {
 	return rsp.config.destination.CachingConfiguration != nil &&

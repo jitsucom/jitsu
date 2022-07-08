@@ -80,6 +80,7 @@ type StorageProxy interface {
 	IsCachingDisabled() bool
 	ID() string
 	Type() string
+	Mode() string
 }
 
 //StoreResult is used as a Batch storing result
