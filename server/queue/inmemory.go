@@ -9,13 +9,13 @@ var (
 )
 
 type InMemory struct {
-	linkedQueue *ConcurrentQueue
+	linkedQueue *ConcurrentLinkedQueue
 	closed      chan struct{}
 }
 
 func NewInMemory(capacity int) Queue {
 	im := &InMemory{
-		linkedQueue: NewConcurrentQueue(uint32(capacity)),
+		linkedQueue: NewConcurrentLinkedQueue(uint32(capacity)),
 		closed:      make(chan struct{}, 1),
 	}
 
