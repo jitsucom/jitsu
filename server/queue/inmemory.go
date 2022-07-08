@@ -55,6 +55,10 @@ func (im *InMemory) Size() int64 {
 	return int64(len(im.queue))
 }
 
+func (im *InMemory) BufferSize() int64 {
+	return 0
+}
+
 func (im *InMemory) Type() string {
 	return InMemoryType
 }

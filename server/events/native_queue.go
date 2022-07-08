@@ -39,7 +39,7 @@ func NewNativeQueue(namespace, subsystem, identifier string, underlyingQueue que
 		metricsReporter = &internal.ServerMetricReporter{}
 	}
 
-	metricsReporter.SetMetrics(subsystem, identifier, int(underlyingQueue.Size()))
+	metricsReporter.SetMetrics(subsystem, identifier, int(underlyingQueue.Size()), int(underlyingQueue.BufferSize()))
 
 	nq := &NativeQueue{
 		queue:           underlyingQueue,
@@ -56,13 +56,13 @@ func NewNativeQueue(namespace, subsystem, identifier string, underlyingQueue que
 
 func (q *NativeQueue) startMonitor() {
 	debugTicker := time.NewTicker(time.Minute * 10)
-	metricsTicker := time.NewTicker(time.Second * 10)
+	metricsTicker := time.NewTicker(time.Second * 60)
 	for {
 		select {
 		case <-q.closed:
 			return
 		case <-metricsTicker.C:
-			q.metricsReporter.SetMetrics(q.subsystem, q.identifier, int(q.queue.Size()))
+			q.metricsReporter.SetMetrics(q.subsystem, q.identifier, int(q.queue.Size()), int(q.queue.BufferSize()))
 		case <-debugTicker.C:
 			size := q.queue.Size()
 			logging.Infof("[queue: %s_%s_%s] current size: %d", q.namespace, q.subsystem, q.identifier, size)
