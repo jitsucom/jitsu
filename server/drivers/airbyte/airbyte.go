@@ -238,7 +238,10 @@ func (a *Airbyte) EnsureCatalog() {
 //Ready returns true if catalog is discovered
 func (a *Airbyte) Ready() (bool, error) {
 	//check if docker image isn't pulled
-	ready := airbyte.Instance.IsImagePulled(airbyte.Instance.AddAirbytePrefix(a.GetTap()), a.config.ImageVersion)
+	ready, err := airbyte.Instance.IsImagePulled(airbyte.Instance.AddAirbytePrefix(a.GetTap()), a.config.ImageVersion)
+	if err != nil {
+		return false, err
+	}
 	if !ready {
 		return false, runner.ErrNotReady
 	}

@@ -29,7 +29,8 @@ const (
 )
 
 var (
-	Instance *Bridge
+	Instance      *Bridge
+	InstanceError error
 )
 
 type Bridge struct {
@@ -64,14 +65,16 @@ func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume
 
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return fmt.Errorf("error creating docker client: %v. %s", err, mountDockerSockMsg)
+		InstanceError = fmt.Errorf("error creating docker client: %v. %s", err, mountDockerSockMsg)
+		return InstanceError
 	}
 	defer cli.Close()
 
 	logging.Infof("[airbyte] Loading local airbyte docker images..")
 	images, err := cli.ImageList(ctx, types.ImageListOptions{})
 	if err != nil {
-		return fmt.Errorf("error executing docker image ls: %v. %s", err, mountDockerSockMsg)
+		InstanceError = fmt.Errorf("error executing docker image ls: %v. %s", err, mountDockerSockMsg)
+		return InstanceError
 	}
 
 	logging.Debug("[airbyte] pulled docker images:")
@@ -96,7 +99,8 @@ func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume
 		}
 	} else {
 		if instance.ConfigDir != workspaceVolume {
-			return fmt.Errorf("for non-docker Jitsu instances (started via binary file) 'airbyte-bridge.config_dir' parameter (current value: %s) should be equal to 'server.volumes.workspace' parameter (current value: %s) in config", instance.ConfigDir, workspaceVolume)
+			InstanceError = fmt.Errorf("for non-docker Jitsu instances (started via binary file) 'airbyte-bridge.config_dir' parameter (current value: %s) should be equal to 'server.volumes.workspace' parameter (current value: %s) in config", instance.ConfigDir, workspaceVolume)
+			return InstanceError
 		}
 	}
 
@@ -128,13 +132,16 @@ func (b *Bridge) checkVolume(ctx context.Context, instance *Bridge, cli *client.
 }
 
 //IsImagePulled returns true if the image is pulled or start pulling the image asynchronously and returns false
-func (b *Bridge) IsImagePulled(dockerRepoImage, version string) bool {
+func (b *Bridge) IsImagePulled(dockerRepoImage, version string) (bool, error) {
+	if b == nil {
+		return false, fmt.Errorf("Airbyte was not initialized: %v", InstanceError)
+	}
 	dockerVersionedImage := fmt.Sprintf("%s:%s", dockerRepoImage, version)
 	b.imageMutex.RLock()
 	_, exist := b.pulledImages[dockerVersionedImage]
 	b.imageMutex.RUnlock()
 	if exist {
-		return true
+		return true, nil
 	}
 
 	//or do pull
@@ -144,7 +151,7 @@ func (b *Bridge) IsImagePulled(dockerRepoImage, version string) bool {
 		})
 	}
 
-	return false
+	return false, nil
 }
 
 //pullImage executes docker pull
