@@ -243,7 +243,11 @@ func (r *Runner) run(stdoutHandler, stderrHandler func(io.Reader) error, timeout
 		return runner.ErrAirbyteAlreadyTerminated
 	}
 
-	if !Instance.IsImagePulled(Instance.AddAirbytePrefix(r.DockerImage), r.Version) {
+	pulled, err := Instance.IsImagePulled(Instance.AddAirbytePrefix(r.DockerImage), r.Version)
+	if err != nil {
+		return err
+	}
+	if !pulled {
 		return runner.ErrNotReady
 	}
 
@@ -274,7 +278,7 @@ func (r *Runner) run(stdoutHandler, stderrHandler func(io.Reader) error, timeout
 	stderr, _ := r.command.StderrPipe()
 	defer stderr.Close()
 
-	err := r.command.Start()
+	err = r.command.Start()
 	if err != nil {
 		return err
 	}
