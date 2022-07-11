@@ -8,7 +8,7 @@ import (
 //node storage of queue data
 type node struct {
 	data interface{}
-	prev *node
+	//prev *node
 	next *node
 }
 
@@ -24,10 +24,7 @@ type queueBackend struct {
 }
 
 func (queue *queueBackend) createNode(data interface{}) *node {
-	node := node{}
-	node.data = data
-
-	return &node
+	return &node{data: data}
 }
 
 func (queue *queueBackend) put(data interface{}) error {
@@ -35,10 +32,10 @@ func (queue *queueBackend) put(data interface{}) error {
 		err := errors.New("Queue full")
 		return err
 	}
+	node := queue.createNode(data)
 
 	if queue.size == 0 {
 		//new root node
-		node := queue.createNode(data)
 		queue.head = node
 		queue.tail = node
 
@@ -49,8 +46,8 @@ func (queue *queueBackend) put(data interface{}) error {
 
 	//queue non-empty append to head
 	currentTail := queue.tail
-	newTail := queue.createNode(data)
-	newTail.prev = currentTail
+	newTail := node
+	//newTail.prev = currentTail
 	currentTail.next = newTail
 
 	queue.tail = newTail
@@ -65,17 +62,16 @@ func (queue *queueBackend) pop() (interface{}, error) {
 	}
 
 	currentHead := queue.head
-	newHead := currentHead.next
-
-	if newHead != nil {
-		newHead.prev = nil
-	}
 
 	queue.size--
 	if queue.size == 0 {
 		queue.head = nil
 		queue.tail = nil
 	} else {
+		newHead := currentHead.next
+		//if newHead != nil {
+		//	newHead.prev = nil
+		//}
 		queue.head = newHead
 	}
 
@@ -156,11 +152,7 @@ func (c *ConcurrentLinkedQueue) GetSize() uint32 {
 }
 
 func (c *ConcurrentLinkedQueue) GetMaxSize() uint32 {
-	c.lock.Lock()
-	maxSize := c.backend.maxSize
-	c.lock.Unlock()
-
-	return maxSize
+	return c.backend.maxSize
 }
 
 func (c *ConcurrentLinkedQueue) Close() {
