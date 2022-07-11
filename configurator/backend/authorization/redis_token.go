@@ -14,7 +14,7 @@ type tokenPairTTL struct {
 }
 
 var defaultTokenPairTTL = tokenPairTTL{
-	access:  time.Hour,
+	access:  24 * time.Hour,
 	refresh: 7 * 24 * time.Hour,
 }
 

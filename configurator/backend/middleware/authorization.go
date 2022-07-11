@@ -14,7 +14,6 @@ import (
 var (
 	errUnauthorized        = errors.New("unauthorized")
 	errServerTokenMismatch = errors.New("server token mismatch")
-	errTokenMismatch       = errors.New("token mismatch")
 )
 
 const (
@@ -92,7 +91,7 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 		return
 	} else if auth, err := i.Authorizator.Authorize(ctx, token); err != nil {
 		logging.Errorf("failed to authenticate with token %s: %s", token, err)
-		invalidToken(ctx, errTokenMismatch)
+		invalidToken(ctx, err)
 		return
 	} else {
 		authority = Authority{
