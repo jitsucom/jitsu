@@ -16,7 +16,7 @@ const (
 	defaultRetries    = 100
 	defaultExpiration = 8 * time.Second
 
-	defaultUnlockRetries = 5
+	defaultUnlockRetries = 20
 )
 
 //Lock is a Redis lock
@@ -85,17 +85,16 @@ func (l *Lock) Unlock() {
 	l.controller.Close()
 
 	i := 0
-	for i <= defaultUnlockRetries {
+	var err error
+	for i < defaultUnlockRetries {
 		i++
-		_, err := l.mutex.Unlock()
-		if err != nil {
-			logging.SystemErrorf("error unlocking %s after %d attempts: %v", l.mutexName, i, err)
-			continue
+		_, err = l.mutex.Unlock()
+		if err == nil {
+			l.lockCloser.Remove(l.mutexName)
+			return
 		}
-
-		l.lockCloser.Remove(l.mutexName)
-		return
 	}
+	logging.SystemErrorf("error unlocking %s after %d attempts: %v", l.mutexName, i, err)
 }
 
 //Extend extends the lock expiration
