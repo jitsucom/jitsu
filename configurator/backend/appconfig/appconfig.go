@@ -10,6 +10,7 @@ import (
 )
 
 type AppConfig struct {
+	Domain     string
 	ServerName string
 	Authority  string
 
@@ -20,6 +21,7 @@ type AppConfig struct {
 var Instance *AppConfig
 
 func setDefaultParams(containerized bool) {
+	viper.SetDefault("jitsu.domain", "jitsu.com")
 	viper.SetDefault("server.port", "7000")
 	viper.SetDefault("server.self_hosted", true)
 	viper.SetDefault("server.log.level", "info")
@@ -44,7 +46,7 @@ func Init(containerized bool) error {
 	if serverName == "" {
 		serverName = "unnamed-server"
 	}
-
+	appConfig.Domain = viper.GetString("jitsu.domain")
 	appConfig.ServerName = serverName
 	var port = viper.GetString("server.port")
 	appConfig.Authority = "0.0.0.0:" + port
