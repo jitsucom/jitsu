@@ -3,6 +3,7 @@ package ssl
 import (
 	"context"
 	"fmt"
+	"github.com/jitsucom/jitsu/configurator/appconfig"
 	"io/ioutil"
 	"os/exec"
 	"strings"
@@ -48,18 +49,30 @@ func (e *UpdateExecutor) Schedule(interval time.Duration) {
 }
 
 func (e *UpdateExecutor) CheckDomain(domainName string) bool {
+
+	jitsuDomain := appconfig.Instance.Domain
+	if jitsuDomain[0] != '.' {
+		jitsuDomain = "." + jitsuDomain
+	}
+	if strings.HasSuffix(domainName, jitsuDomain) {
+		logging.Infof("[CheckDomain] [OK] Requested for Jitsu domain: %s", domainName)
+		return true
+	}
+
 	domainsPerProject, err := e.sslService.LoadCustomDomains()
 	if err != nil {
-		logging.SystemErrorf("[CheckDomain] Cannot load Custom Domains: %s", err)
+		logging.SystemErrorf("[CheckDomain] [ERROR] Cannot load Custom Domains: %s", err)
 		return false
 	}
 	for _, domains := range domainsPerProject {
 		for _, domain := range domains.Domains {
 			if domain.Name == domainName {
+				logging.Infof("[CheckDomain] [OK] Requested for valid custom domain: %s", domainName)
 				return true
 			}
 		}
 	}
+	logging.Infof("[CheckDomain] [FAIL] Requested for not existing domain: %s", domainName)
 	return false
 }
 
