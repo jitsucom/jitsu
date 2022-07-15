@@ -32,7 +32,6 @@ type Airbyte struct {
 	pathToConfigs                string
 	streamsRepresentation        map[string]*base.StreamRepresentation
 	catalogDiscovered            *atomic.Bool
-	discoverCatalogLastError     error
 
 	closed chan struct{}
 }
@@ -128,7 +127,7 @@ func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection
 	s.AbstractCLIDriver = *abstract
 	s.AbstractCLIDriver.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
 
-	safego.Run(s.EnsureCatalog)
+	//safego.Run(s.EnsureCatalog)
 
 	return s, nil
 }
@@ -189,50 +188,30 @@ func TestAirbyte(sourceConfig *base.SourceConfig) error {
 }
 
 //EnsureCatalog does discover if catalog wasn't provided
-func (a *Airbyte) EnsureCatalog() {
-	retry := 0
-	for {
-		if a.IsClosed() {
-			break
-		}
-
-		if a.catalogDiscovered.Load() {
-			break
-		}
-
-		catalogPath, streamsRepresentation, err := a.loadCatalog()
-		if err != nil {
-			if err == runner.ErrNotReady {
-				time.Sleep(time.Second)
-				continue
-			}
-
-			a.mutex.Lock()
-			a.discoverCatalogLastError = err
-			a.mutex.Unlock()
-
-			retry++
-
-			logging.Errorf("[%s] Error configuring airbyte: %v. Scheduled next try after: %d minutes", a.ID(), err, retry)
-			time.Sleep(time.Duration(retry) * time.Minute)
-			continue
-		}
-
-		streamTableNameMapping := map[string]string{}
-		for streamName := range streamsRepresentation {
-			streamTableNameMapping[streamName] = a.GetTableNamePrefix() + streamName
-		}
-
-		a.mutex.Lock()
-		a.discoverCatalogLastError = nil
-		a.mutex.Unlock()
-
-		a.SetCatalogPath(catalogPath)
-		a.streamsRepresentation = streamsRepresentation
-		a.AbstractCLIDriver.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
-		a.catalogDiscovered.Store(true)
-		return
+func (a *Airbyte) EnsureCatalog() error {
+	if a.IsClosed() {
+		return fmt.Errorf("%s has already been closed", a.Type())
 	}
+
+	if a.catalogDiscovered.Load() {
+		return nil
+	}
+
+	catalogPath, streamsRepresentation, err := a.loadCatalog()
+	if err != nil {
+		return err
+	}
+
+	streamTableNameMapping := map[string]string{}
+	for streamName := range streamsRepresentation {
+		streamTableNameMapping[streamName] = a.GetTableNamePrefix() + streamName
+	}
+
+	a.SetCatalogPath(catalogPath)
+	a.streamsRepresentation = streamsRepresentation
+	a.AbstractCLIDriver.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
+	a.catalogDiscovered.Store(true)
+	return nil
 }
 
 //Ready returns true if catalog is discovered
@@ -246,19 +225,21 @@ func (a *Airbyte) Ready() (bool, error) {
 		return false, runner.ErrNotReady
 	}
 
-	//check catalog after docker image because catalog can be configured and discovered by user
-	if a.catalogDiscovered.Load() {
-		return true, nil
-	}
+	return true, nil
 
-	a.mutex.RLock()
-	defer a.mutex.RUnlock()
-	msg := ""
-	if a.discoverCatalogLastError != nil {
-		msg = a.discoverCatalogLastError.Error()
-	}
-
-	return false, runner.NewCompositeNotReadyError(msg)
+	////check catalog after docker image because catalog can be configured and discovered by user
+	//if a.catalogDiscovered.Load() {
+	//	return true, nil
+	//}
+	//
+	//a.mutex.RLock()
+	//defer a.mutex.RUnlock()
+	//msg := ""
+	//if a.discoverCatalogLastError != nil {
+	//	msg = a.discoverCatalogLastError.Error()
+	//}
+	//
+	//return false, runner.NewCompositeNotReadyError(msg)
 }
 
 func (a *Airbyte) Load(config string, state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
@@ -274,6 +255,17 @@ func (a *Airbyte) Load(config string, state string, taskLogger logging.TaskLogge
 	ready, readyErr := base.WaitReadiness(a, taskLogger)
 	if !ready {
 		return readyErr
+	}
+	if !a.catalogDiscovered.Load() {
+		taskLogger.INFO("Discovering catalog...")
+		err := a.EnsureCatalog()
+		if err != nil {
+			err := fmt.Errorf("Failed to discover catalog: %v", err)
+			taskLogger.ERROR(err.Error())
+			return err
+		} else {
+			taskLogger.INFO("Catalog discovered")
+		}
 	}
 
 	statePath, err := a.GetStateFilePath(state)

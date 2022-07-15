@@ -142,7 +142,10 @@ func (s *Service) init(sc map[string]driversbase.SourceConfig) {
 		//common case
 		sourceConfig := config
 		name := sourceName
-
+		if len(sourceConfig.Destinations) == 0 {
+			logging.Warnf("[%s] Skipping source: no destinations mapped to the source", name)
+			continue
+		}
 		hash, err := resources.GetHash(config)
 		if err != nil {
 			logging.SystemErrorf("Error getting hash from [%s] source: %v. Source will be skipped!", name, err)
