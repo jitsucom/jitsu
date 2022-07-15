@@ -227,16 +227,6 @@ func (b *Bridge) UpdateTap(tap string) error {
 //that is we persist config in metaStorage
 //initialConfig is used only if it is first attempt to run current source
 func (b *Bridge) Discover(sourceId, tap string, initialConfig interface{}) (*RawCatalog, error) {
-	collectionLock := b.CoordinationService.CreateLock(sourceId + "_all")
-	locked, err := collectionLock.TryLock(coordination.CollectionLockTimeout)
-	if err != nil {
-		return nil, fmt.Errorf("unable to lock source [%s]: %v", sourceId, err)
-	}
-
-	if !locked {
-		return nil, fmt.Errorf("unable to lock source [%s]. Collection has been already locked: timeout after %s", sourceId, coordination.CollectionLockTimeout)
-	}
-	defer collectionLock.Unlock()
 	outWriter := logging.NewStringWriter()
 	errStrWriter := logging.NewStringWriter()
 	dualStdErrWriter := logging.Dual{FileWriter: errStrWriter, Stdout: logging.NewPrefixDateTimeProxy("[discover]", b.LogWriter)}

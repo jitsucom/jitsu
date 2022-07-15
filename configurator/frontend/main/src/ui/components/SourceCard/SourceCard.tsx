@@ -167,19 +167,29 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
       editAction={editLink}
       menuOverlay={
         <Menu>
-          <Menu.Item icon={<EditOutlined />}>
+          <Menu.Item key={"edit"} icon={<EditOutlined />}>
             <NavLink to={editLink}>Edit</NavLink>
           </Menu.Item>
-          <Menu.Item icon={<DeleteOutlined />} onClick={() => deleteSrc(src)}>
+          <Menu.Item key={"delete"} icon={<DeleteOutlined />} onClick={() => deleteSrc(src)}>
             Delete
           </Menu.Item>
-          <Menu.Item icon={<CodeOutlined />}>
+          <Menu.Item key={"logs"} icon={<CodeOutlined />} disabled={src.destinations?.length === 0}>
             <NavLink to={viewLogsLink}>View Logs</NavLink>
           </Menu.Item>
-          <Menu.Item icon={<ClearOutlined />} onClick={async () => await scheduleTasks(src, true)}>
+          <Menu.Item
+            key={"clear_sync"}
+            icon={<ClearOutlined />}
+            disabled={src.destinations?.length === 0}
+            onClick={async () => await scheduleTasks(src, true)}
+          >
             Clear Destinations and Sync
           </Menu.Item>
-          <Menu.Item icon={<SyncOutlined />} onClick={async () => await scheduleTasks(src, false)}>
+          <Menu.Item
+            key={"sync"}
+            icon={<SyncOutlined />}
+            disabled={src.destinations?.length === 0}
+            onClick={async () => await scheduleTasks(src, false)}
+          >
             Sync Now
           </Menu.Item>
         </Menu>
@@ -192,13 +202,20 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
           {!short && connectionStatus}
         </>
       }
-      status={short ? connectionStatus : <LastTaskStatus sourceId={src.sourceId} />}
+      status={short ? connectionStatus : <LastTaskStatus src={src} />}
     />
   )
 }
 
-function LastTaskStatus({ sourceId }) {
+function LastTaskStatus({ src }: { src: SourceData }) {
   const services = useServices()
+  if (src.destinations?.length === 0) {
+    return (
+      <Tooltip overlay={<>No destinations are linked to this connector</>}>
+        <Tag color="default">NO DESTINATIONS</Tag>
+      </Tooltip>
+    )
+  }
   const {
     error,
     data: task,
@@ -208,7 +225,7 @@ function LastTaskStatus({ sourceId }) {
       proxy: true,
       urlParams: {
         project_id: services.activeProject.id,
-        source: `${services.activeProject.id}.${sourceId}`,
+        source: `${services.activeProject.id}.${src.sourceId}`,
         end: new Date().toISOString(),
         start: moment().subtract(90, "days").toISOString(),
         limit: 100,
@@ -239,7 +256,7 @@ function LastTaskStatus({ sourceId }) {
     <span>
       <NavLink
         to={projectRoute(sourcesPageRoutes.task, {
-          sourceId: sourceId,
+          sourceId: src.sourceId,
           taskId: TaskId.encode(task.id),
         })}
       >

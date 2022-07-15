@@ -47,8 +47,6 @@ type Singer struct {
 	streamReplication            map[string]string
 	catalogDiscovered            *atomic.Bool
 
-	discoverCatalogLastError error
-
 	closed chan struct{}
 }
 
@@ -160,8 +158,6 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 
 	s.AbstractCLIDriver = *abstract
 
-	safego.Run(s.EnsureTapAndCatalog)
-
 	return s, nil
 }
 
@@ -221,51 +217,31 @@ func TestSinger(sourceConfig *base.SourceConfig) error {
 
 //EnsureTapAndCatalog ensures Singer tap via singer.Instance
 // and does discover if catalog wasn't provided
-func (s *Singer) EnsureTapAndCatalog() {
-	retry := 0
-
-	for {
-		if s.IsClosed() {
-			break
-		}
-
-		if s.catalogDiscovered.Load() {
-			break
-		}
-
-		if ready, _ := singer.Instance.IsTapReady(s.GetTap()); !ready {
-			time.Sleep(time.Second)
-			continue
-		}
-
-		catalogPath, propertiesPath, streamNames, err := s.doDiscover(s.GetTap(), s.pathToConfigs)
-		if err != nil {
-			s.mutex.Lock()
-			s.discoverCatalogLastError = err
-			s.mutex.Unlock()
-
-			retry++
-			logging.Errorf("[%s] Error configuring Singer: %v. Scheduled next try after: %d minutes", s.ID(), err, retry)
-			time.Sleep(time.Duration(retry) * time.Minute)
-			continue
-		}
-
-		streamTableNameMapping := map[string]string{}
-		for _, streamName := range streamNames {
-			streamTableNameMapping[streamName] = s.GetTableNamePrefix() + streamName
-		}
-
-		s.mutex.Lock()
-		s.discoverCatalogLastError = nil
-		s.mutex.Unlock()
-
-		s.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
-		s.SetCatalogPath(catalogPath)
-		s.SetPropertiesPath(propertiesPath)
-
-		s.catalogDiscovered.Store(true)
-		return
+func (s *Singer) EnsureTapAndCatalog() error {
+	if s.IsClosed() {
+		return fmt.Errorf("%s has already been closed", s.Type())
 	}
+
+	if s.catalogDiscovered.Load() {
+		return nil
+	}
+
+	catalogPath, propertiesPath, streamNames, err := s.doDiscover(s.GetTap(), s.pathToConfigs)
+	if err != nil {
+		return err
+	}
+
+	streamTableNameMapping := map[string]string{}
+	for _, streamName := range streamNames {
+		streamTableNameMapping[streamName] = s.GetTableNamePrefix() + streamName
+	}
+
+	s.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
+	s.SetCatalogPath(catalogPath)
+	s.SetPropertiesPath(propertiesPath)
+
+	s.catalogDiscovered.Store(true)
+	return nil
 }
 
 func (s *Singer) Delete() error {
@@ -283,19 +259,21 @@ func (s *Singer) Ready() (bool, error) {
 		return false, runner.ErrNotReady
 	}
 
-	//check catalog after tap because catalog can be configured and discovered by user
-	if s.catalogDiscovered.Load() {
-		return true, nil
-	}
+	return true, nil
 
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-	msg := ""
-	if s.discoverCatalogLastError != nil {
-		msg = s.discoverCatalogLastError.Error()
-	}
-
-	return false, runner.NewCompositeNotReadyError(msg)
+	////check catalog after tap because catalog can be configured and discovered by user
+	//if s.catalogDiscovered.Load() {
+	//	return true, nil
+	//}
+	//
+	//s.mutex.RLock()
+	//defer s.mutex.RUnlock()
+	//msg := ""
+	//if s.discoverCatalogLastError != nil {
+	//	msg = s.discoverCatalogLastError.Error()
+	//}
+	//
+	//return false, runner.NewCompositeNotReadyError(msg)
 }
 
 func (s *Singer) Load(config string, state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
@@ -307,6 +285,17 @@ func (s *Singer) Load(config string, state string, taskLogger logging.TaskLogger
 	ready, readyErr := base.WaitReadiness(s, taskLogger)
 	if !ready {
 		return readyErr
+	}
+	if !s.catalogDiscovered.Load() {
+		taskLogger.INFO("Discovering catalog...")
+		err := s.EnsureTapAndCatalog()
+		if err != nil {
+			err := fmt.Errorf("Failed to discover catalog: %v", err)
+			taskLogger.ERROR(err.Error())
+			return err
+		} else {
+			taskLogger.INFO("Catalog discovered")
+		}
 	}
 
 	if singer.Instance.UpdateTaps {
