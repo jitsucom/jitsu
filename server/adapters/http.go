@@ -114,7 +114,7 @@ func (h *HTTPAdapter) startObserver() {
 					if err == queue.ErrQueueClosed && h.closed.Load() {
 						continue
 					}
-					logging.SystemErrorf("[%s] Error reading HTTP request from the queue: %v", h.destinationID, err)
+					logging.Errorf("[%s] Error reading HTTP request from the queue: %v", h.destinationID, err)
 					time.Sleep(time.Second)
 					continue
 				}
