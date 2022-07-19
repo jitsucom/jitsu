@@ -32,8 +32,8 @@ func ErrorLogWriter(ctx *gin.Context) {
 		body, err = io.ReadAll(ctx.Request.Body)
 		_ = ctx.Request.Body.Close()
 		if err != nil {
-			logging.Warnf("Failed to buffer HTTP request body for %s %s with content length %d : %v",
-				ctx.Request.Method, ctx.Request.URL.String(), ctx.Request.ContentLength, err)
+			logging.Warnf("Failed to buffer HTTP request body for %s %s with headers: %+v ip: %s  : %v : %s",
+				ctx.Request.Method, ctx.Request.URL.String(), ctx.Request.Header, ctx.Request.RemoteAddr, err, body)
 			ctx.AbortWithStatusJSON(http.StatusBadRequest, ErrResponse("failed to read request body", err))
 			return
 		}
