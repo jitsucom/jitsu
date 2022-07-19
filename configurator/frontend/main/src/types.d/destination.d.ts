@@ -12,6 +12,7 @@ declare type DestinationType =
   | "s3"
   | "mixpanel"
   | "mixpanel2"
+  | "plausible"
 
 declare interface DestinationData {
   readonly _type: DestinationType

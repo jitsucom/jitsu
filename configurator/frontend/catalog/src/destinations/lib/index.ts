@@ -16,6 +16,7 @@ import gcsDestination from "./googleCloudStorage"
 import mixpanelDestination from "./mixpanel"
 import mixpanel2Destination from "./mixpanel2"
 import npmDestination from "./npm"
+import plausibleDestination from "./plausible"
 
 import { Destination } from "../types"
 import tagDestination from "./tag"
@@ -38,6 +39,7 @@ export {
   mixpanelDestination,
   mixpanel2Destination,
   tagDestination,
+  plausibleDestination,
 }
 
 export const destinationsReferenceMap = {
@@ -58,6 +60,7 @@ export const destinationsReferenceMap = {
   mixpanel: mixpanelDestination,
   mixpanel2: mixpanel2Destination,
   tag: tagDestination,
+  plausible: plausibleDestination,
 } as const
 
 export type DestinationReference = typeof destinationsReferenceMap[keyof typeof destinationsReferenceMap]
