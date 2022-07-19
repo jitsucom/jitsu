@@ -67,8 +67,13 @@ func (e *UpdateExecutor) CheckDomain(domainName string) bool {
 	for _, domains := range domainsPerProject {
 		for _, domain := range domains.Domains {
 			if domain.Name == domainName {
-				logging.Infof("[CheckDomain] [OK] Requested for valid custom domain: %s", domainName)
-				return true
+				if domain.Status == okStatus || domain.Status == cnameOkStatus {
+					logging.Infof("[CheckDomain] [OK] Requested for valid custom domain: %s", domainName)
+					return true
+				} else {
+					logging.Infof("[CheckDomain] [FAIL] Requested for domain not passed cname check: %s", domainName)
+					return false
+				}
 			}
 		}
 	}
