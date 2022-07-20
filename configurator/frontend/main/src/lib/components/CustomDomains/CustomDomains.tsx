@@ -88,7 +88,7 @@ export default class CustomDomains extends LoadableComponent<any, State> {
           let displayStatus
           let icon
           let color
-          if (status == "ok") {
+          if (status == "ok" || status == "cname_ok") {
             icon = <CheckOutlined />
             displayStatus = "VERIFIED"
             color = "text-success border-success"
@@ -107,12 +107,10 @@ export default class CustomDomains extends LoadableComponent<any, State> {
             </Tag>
           )
           let description = undefined
-          if (status == "ok" && this.state.certificateExpiration) {
+          if (status == "ok" || status == "cname_ok") {
             description =
               status == "verified" ? undefined : (
-                <div className="custom-domain-verified-comments">
-                  SSL certificate expires at <b>{this.state.certificateExpiration.toDateString()}</b>
-                </div>
+                <div className="custom-domain-verified-comments">CNAME is verified.</div>
               )
           } else if (status == "cname_failed") {
             description = (
@@ -121,10 +119,6 @@ export default class CustomDomains extends LoadableComponent<any, State> {
                 <a onClick={() => this.forceVerification()}>force verification</a>. Please note, due to nature of DNS
                 protocol changes might take up to 24 hours to populate accross internet
               </div>
-            )
-          } else if (status == "cname_ok") {
-            description = (
-              <div className="custom-domain-verified-comments">CNAME is verified. Issuing SSL certificate</div>
             )
           } else {
             description = (
