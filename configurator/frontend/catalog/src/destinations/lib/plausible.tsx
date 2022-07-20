@@ -67,7 +67,7 @@ const plausibleDestination = {
     },
     {
       id: "_package",
-      constant: "@tangible/jitsu-plausible-destination",
+      constant: "@tangible/jitsu-plausible-destination@latest",
     },
     {
       id: "_formData.meta_package",
