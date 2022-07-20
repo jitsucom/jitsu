@@ -30,7 +30,7 @@ const DestinationPickerComponent: React.FC<DestinationPickerProps> = props => {
               <span className="w-6 h-6">{destinationsReferenceMap[dst._type]?.ui?.icon}</span>
             )}
             <span>
-              {DestinationsUtils.getDisplayName(dst)} ({destinationsReferenceMap[dst._type].displayName})
+              {DestinationsUtils.getDisplayName(dst)} ({destinationsReferenceMap[dst._type]?.displayName})
             </span>
           </div>
         </Select.Option>

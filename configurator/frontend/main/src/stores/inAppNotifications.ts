@@ -63,7 +63,7 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
         title: _id,
         message: `The destination does not have any linked Connectors or API keys and thus will not recieve data.`,
         type: "danger" as const,
-        icon: destinationsReferenceMap[_type].ui.icon,
+        icon: destinationsReferenceMap[_type]?.ui.icon,
         editEntityRoute: projectRoute(`${destinationPageRoutes.editExact}`, { id: _id }),
       })),
       ...this.orphanApiKeys.map(({ uid }) => ({

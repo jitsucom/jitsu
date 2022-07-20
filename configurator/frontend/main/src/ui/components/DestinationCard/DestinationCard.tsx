@@ -46,7 +46,7 @@ export function DestinationCard({ dst }: DestinationCardProps) {
   return (
     <ConnectionCard
       title={DestinationsUtils.getDisplayName(dst)}
-      icon={reference.ui.icon}
+      icon={reference?.ui.icon}
       deleteAction={deleteAction}
       editAction={editLink}
       rename={rename}
@@ -63,7 +63,7 @@ export function DestinationCard({ dst }: DestinationCardProps) {
           </Menu.Item>
         </Menu>
       }
-      subtitle={dst._formData?.mode ? <>mode: {dst._formData?.mode}</> : <>{reference.ui.title(dst)}</>}
+      subtitle={dst._formData?.mode ? <>mode: {dst._formData?.mode}</> : <>{reference?.ui.title(dst)}</>}
       status={
         <Tooltip
           overlay={
@@ -78,7 +78,7 @@ export function DestinationCard({ dst }: DestinationCardProps) {
                 <span className={`text-${dst._connectionTestOk ? "success" : "error"}`}>
                   {dst._connectionTestOk ? "Active" : "Connection test failed"}
                 </span>
-                {reference.deprecated ? <span className={"text-warning"}> (Deprecated)</span> : <></>}
+                {reference?.deprecated ? <span className={"text-warning"}> (Deprecated)</span> : <></>}
               </>
             }
           />
