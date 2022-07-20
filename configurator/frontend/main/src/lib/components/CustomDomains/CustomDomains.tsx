@@ -91,11 +91,11 @@ export default class CustomDomains extends LoadableComponent<any, State> {
           if (status == "ok" || status == "cname_ok") {
             icon = <CheckOutlined />
             displayStatus = "VERIFIED"
-            color = "text-success border-success"
+            color = "success"
           } else if (status == "cname_failed") {
             icon = <ExclamationCircleOutlined />
             displayStatus = "FAILED"
-            color = "text-error border-error"
+            color = "error"
           } else {
             icon = <ClockCircleOutlined />
             displayStatus = "PENDING"
