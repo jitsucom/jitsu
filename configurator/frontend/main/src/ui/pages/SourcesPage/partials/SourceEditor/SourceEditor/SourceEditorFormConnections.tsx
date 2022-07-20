@@ -36,10 +36,10 @@ const SourceEditorFormConnectionsComponent: React.FC<Props> = ({ initialSourceDa
         const reference = destinationsReferenceMap[dst._type]
         return {
           id: dst._uid,
-          disabled: reference.syncFromSourcesStatus !== "supported",
+          disabled: reference?.syncFromSourcesStatus !== "supported",
           title: (
-            <NameWithPicture icon={reference.ui.icon}>
-              <b>{reference.displayName}</b>: {dst.displayName || dst._id}
+            <NameWithPicture icon={reference?.ui.icon}>
+              <b>{reference?.displayName}</b>: {dst.displayName || dst._id}
             </NameWithPicture>
           ),
           description: <i className="text-xs">{getDescription(reference)}</i>,
@@ -103,12 +103,12 @@ const setConnections = (
 }
 
 function getDescription(reference: Destination) {
-  if (reference.syncFromSourcesStatus === "supported") {
+  if (reference?.syncFromSourcesStatus === "supported") {
     return null
-  } else if (reference.syncFromSourcesStatus === "coming_soon") {
-    return `${reference.displayName} synchronization is coming soon! At the moment, it's not available`
+  } else if (reference?.syncFromSourcesStatus === "coming_soon") {
+    return `${reference?.displayName} synchronization is coming soon! At the moment, it's not available`
   } else {
-    return `${reference.displayName} synchronization is not supported`
+    return `${reference?.displayName} synchronization is not supported`
   }
 }
 
