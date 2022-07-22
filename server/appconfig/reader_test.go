@@ -25,6 +25,10 @@ func TestEnvVarSubstitution(t *testing.T) {
 				"numbers":  []interface{}{1, 2},
 				"config":   map[string]interface{}{"myurl": "http://localhost:8080"},
 				"redisurl": "redis://localhost:6379",
+				"obj": []interface{}{
+					map[interface{}]interface{}{"id": 1, "name": "http://localhost:8080"},
+					map[interface{}]interface{}{"id": 2, "names": []interface{}{"http://localhost:8080", "localhost"}},
+				},
 			},
 		},
 	}
@@ -42,7 +46,7 @@ func TestEnvVarSubstitution(t *testing.T) {
 			for k, v := range tt.Expected {
 				value := viper.Get(k)
 				if !cmp.Equal(value, v) {
-					t.Errorf("expected %s to be %s, got %s", k, v, value)
+					t.Errorf("expected %s to be %s, got %s, diff: %s", k, v, value, cmp.Diff(value, v))
 				}
 			}
 		})
