@@ -118,19 +118,9 @@ func enrichWithResolvedPlaceholders(key string, value interface{}, result map[st
 	var res interface{}
 	switch typed := value.(type) {
 	case []interface{}:
-		needReplace := false
-		arr := make([]interface{}, len(typed))
-		for i, v := range typed {
-			sValue := fmt.Sprint(v)
-			if templateVariablePattern.MatchString(sValue) {
-				needReplace = true
-				arr[i] = templateVariablePattern.ReplaceAllStringFunc(sValue, regexReplace)
-			} else {
-				arr[i] = v
-			}
-		}
+		newValue, needReplace := enrichNestedObject(typed)
 		if needReplace {
-			res = arr
+			res = newValue
 		}
 	default:
 		sValue := viper.GetString(key)
@@ -145,6 +135,40 @@ func enrichWithResolvedPlaceholders(key string, value interface{}, result map[st
 		if err != nil {
 			logging.Fatalf("Unable to set value in %s config path", key)
 		}
+	}
+}
+
+func enrichNestedObject(value interface{}) (interface{}, bool) {
+	valueChanged := false
+	switch typed := value.(type) {
+	case []interface{}:
+		arr := make([]interface{}, len(typed))
+		for i, v := range typed {
+			changed := false
+			arr[i], changed = enrichNestedObject(v)
+			if changed {
+				valueChanged = true
+			}
+		}
+		return arr, valueChanged
+	case map[interface{}]interface{}:
+		mp := make(map[interface{}]interface{}, len(typed))
+		for i, v := range typed {
+			changed := false
+			mp[i], changed = enrichNestedObject(v)
+			if changed {
+				valueChanged = true
+			}
+		}
+		return mp, valueChanged
+	case string:
+		if templateVariablePattern.MatchString(typed) {
+			return templateVariablePattern.ReplaceAllStringFunc(typed, regexReplace), true
+		} else {
+			return value, false
+		}
+	default:
+		return value, false
 	}
 }
 

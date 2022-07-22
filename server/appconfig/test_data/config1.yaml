@@ -10,4 +10,12 @@ numbers:
   - 1
   - 2
 
+obj:
+  - id: 1
+    name: ${env.URL}
+  - id: 2
+    names:
+      - ${env.URL}
+      - ${env.REDIS_HOST}
+
 redisurl: redis://${env.REDIS_HOST}:6379
