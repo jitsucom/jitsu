@@ -18,9 +18,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jitsucom/jitsu/server/script/node"
-	"github.com/jitsucom/jitsu/server/templates"
-
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/appconfig"
@@ -48,12 +45,14 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/scheduling"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/script/node"
 	"github.com/jitsucom/jitsu/server/singer"
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/synchronization"
 	"github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/users"
 	"github.com/jitsucom/jitsu/server/uuid"
@@ -241,7 +240,8 @@ func main() {
 
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")
 	if slackNotificationsWebHook != "" {
-		notifications.Init(notifications.ServiceName, tag, slackNotificationsWebHook, appconfig.Instance.ServerName, logging.Errorf)
+		notifications.Init(notifications.ServiceName, tag, slackNotificationsWebHook, appconfig.Instance.ServerName,
+			logging.Errorf, metrics.SuccessSlackNotification, metrics.ErrorSlackNotification)
 	}
 
 	//listen to shutdown signal to free up all resources

@@ -25,6 +25,12 @@ func Enabled() bool {
 	return Registry != nil
 }
 
+func NewCounter(opts prometheus.CounterOpts) *prometheus.Counter {
+	counter := prometheus.NewCounter(opts)
+	Registry.MustRegister(counter)
+	return &counter
+}
+
 func NewCounterVec(opts prometheus.CounterOpts, labels []string) *prometheus.CounterVec {
 	vec := prometheus.NewCounterVec(opts, labels)
 	Registry.MustRegister(vec)
@@ -47,15 +53,20 @@ func Init(exported bool) {
 
 	Registry = prometheus.DefaultRegisterer.(*prometheus.Registry)
 
-	initEvents()
-	initSourcesPool()
-	initSourceObjects()
-	initMetaRedis()
+	initApplication()
+	initAuthorization()
 	initCoordinationRedis()
+	initDestinations()
+	initEvents()
 	initEventsRedis()
+	initMetaRedis()
+	initNotifications()
+	initSourceObjects()
+	initSources()
+	initSourcesPool()
+	initStreamEventsQueue()
 	initUsersRecognitionQueue()
 	initUsersRecognitionRedis()
-	initStreamEventsQueue()
 }
 
 func InitRelay(clusterID string, viper *viper.Viper) *Relay {

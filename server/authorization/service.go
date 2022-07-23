@@ -3,12 +3,14 @@ package authorization
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/uuid"
-	"github.com/spf13/viper"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/metrics"
+	"github.com/jitsucom/jitsu/server/uuid"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -182,11 +184,14 @@ func (s *Service) GetTokenID(tokenFilter string) string {
 func (s *Service) updateTokens(payload []byte) {
 	tokens, err := parseFromBytes(payload)
 	if err != nil {
+		metrics.ErrorTokenUpdating()
 		logging.Errorf("Error updating authorization tokens: %v", err)
 	} else {
 		s.Lock()
 		s.tokensHolder = reformat(tokens)
 		s.Unlock()
+
+		metrics.SuccessTokenUpdating()
 
 		//we should reload destinations after all changes in authorization service
 		if s.DestinationsForceReload != nil {
