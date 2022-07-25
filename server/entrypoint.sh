@@ -2,7 +2,10 @@
 PID_SERVER=0
 echo "Starting Jitsu Server $@"
 
-sudo chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER
+USER=$(stat -c '%U' /home/$EVENTNATIVE_USER)
+if [ "$USER" != "$EVENTNATIVE_USER" ]; then
+  sudo chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER
+fi
 
 # Apply bashrc
 source ~/.bashrc

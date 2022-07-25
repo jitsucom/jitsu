@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 echo "Starting Jitsu. $@"
 
-sudo chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/configurator
-sudo chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/eventnative
+USER=$(stat -c '%U' /home/configurator)
+if [ "$USER" != "$EVENTNATIVE_USER" ]; then
+  sudo chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/configurator
+fi
+USER=$(stat -c '%U' /home/eventnative)
+if [ "$USER" != "$EVENTNATIVE_USER" ]; then
+  sudo chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/eventnative
+fi
+
 
 ### Vars
 PID_SERVER=0
