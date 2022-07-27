@@ -104,7 +104,7 @@ const AddSourceDialogComponent = () => {
       Modal.info({
         title: (
           <>
-            <b>{src.displayName}</b> connector is not availabale for Heroku-based applications.
+            <b>{src.displayName}</b> connector is not available for Heroku-based applications.
           </>
         ),
         icon: <ExclamationCircleOutlined />,
