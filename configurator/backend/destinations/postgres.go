@@ -115,7 +115,7 @@ func (p *Postgres) CreateDatabase(projectID string) (*entities.Database, error) 
 
 	queries = append(queries, fmt.Sprintf("GRANT CONNECT ON DATABASE %s TO %s;", db, username))
 	queries = append(queries, fmt.Sprintf("GRANT CREATE ON DATABASE %s TO %s;", db, username))
-	queries = append(queries, fmt.Sprintf("ALTER DEFAULT PRIVILEGES FOR USER %s GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %s;", username, username))
+	//queries = append(queries, fmt.Sprintf("ALTER DEFAULT PRIVILEGES FOR USER %s GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %s;", username, username))
 
 	err = executeQueriesInTx(queries, tx)
 	if err != nil {
