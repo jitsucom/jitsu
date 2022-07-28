@@ -38,6 +38,7 @@ func IsConnectionError(err error) bool {
 	return strings.Contains(err.Error(), "connection refused") ||
 		strings.Contains(err.Error(), "EOF") ||
 		strings.Contains(err.Error(), "write: broken pipe") ||
+		strings.Contains(err.Error(), "read-only transaction") ||
 		strings.Contains(err.Error(), "context deadline exceeded") ||
 		strings.Contains(err.Error(), "connection reset by peer") ||
 		strings.Contains(err.Error(), "timed out") ||
