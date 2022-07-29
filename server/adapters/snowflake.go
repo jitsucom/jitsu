@@ -22,7 +22,7 @@ import (
 const (
 	tableExistenceSFQuery   = `SELECT count(*) from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = ? and TABLE_NAME = ?`
 	descSchemaSFQuery       = `desc table %s.%s`
-	copyStatementFileFormat = ` FILE_FORMAT=(TYPE= 'CSV', FIELD_OPTIONALLY_ENCLOSED_BY = '"' SKIP_HEADER = 1 EMPTY_FIELD_AS_NULL = true) `
+	copyStatementFileFormat = ` FILE_FORMAT=(TYPE= 'CSV', FIELD_OPTIONALLY_ENCLOSED_BY = '"' ESCAPE_UNENCLOSED_FIELD = NONE SKIP_HEADER = 1 EMPTY_FIELD_AS_NULL = true) `
 	gcpFrom                 = `FROM @%s
    							   %s
                                PATTERN = '%s'`
