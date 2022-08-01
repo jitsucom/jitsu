@@ -14,7 +14,7 @@ const defaultWorkersPoolSize = 10
 var DefaultHTTPConfiguration = &adapters.HTTPConfiguration{
 	GlobalClientTimeout:       10 * time.Second,
 	RetryDelay:                10 * time.Second,
-	RetryCount:                9,
+	RetryCount:                0,
 	ClientMaxIdleConns:        1000,
 	ClientMaxIdleConnsPerHost: 1000,
 	QueueFullnessThreshold:    100_000, //assume that JSON event consumes 2KB => inmemory queue will max 200MB

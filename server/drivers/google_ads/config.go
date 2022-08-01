@@ -14,7 +14,7 @@ import (
 var googleAdsHTTPConfiguration = &adapters.HTTPConfiguration{
 	GlobalClientTimeout:       10 * time.Minute,
 	RetryDelay:                10 * time.Second,
-	RetryCount:                5,
+	RetryCount:                0,
 	ClientMaxIdleConns:        1000,
 	ClientMaxIdleConnsPerHost: 1000,
 }
