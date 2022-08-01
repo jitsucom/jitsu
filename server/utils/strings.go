@@ -19,3 +19,11 @@ func ShortenString(str string, n int) string {
 	}
 	return str[:n]
 }
+
+// ShortenStringWithEllipsis returns the first N slice of a string and ends with ellipsis.
+func ShortenStringWithEllipsis(str string, n int) string {
+	if len(str) <= n {
+		return str
+	}
+	return str[:n] + "..."
+}
