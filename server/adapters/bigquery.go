@@ -360,7 +360,7 @@ func (bq *BigQuery) insertBatch(table *Table, objects []map[string]interface{}) 
 		if len(items) > rowsLimitPerInsertOperation {
 			operation++
 			if err := bq.insertItems(inserter, items); err != nil {
-				return errorj.DeleteFromTableError.Wrap(err, "failed to execute middle insert %d of %d in batch", operation, operations).
+				return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute middle insert %d of %d in batch", operation, operations).
 					WithProperty(errorj.DBInfo, &ErrorPayload{
 						Dataset: bq.config.Dataset,
 						Bucket:  bq.config.Bucket,
@@ -465,7 +465,8 @@ func (bq *BigQuery) Truncate(tableName string) error {
 				Table:   tableName,
 			})
 	}
-
+	//TODO: temporary workaround for "404: Table is truncated" error until #958 is done
+	time.Sleep(time.Minute)
 	return nil
 }
 
