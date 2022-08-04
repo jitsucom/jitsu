@@ -42,7 +42,7 @@ export const pullAllAirbyteStreams = async (
 
   if (response.status !== "pending") {
     assertHasCatalog(response, `Airbyte catalog parsing error`)
-    const rawAirbyteStreams: UnknownObject[] = response.catalog?.streams
+    const rawAirbyteStreams: UnknownObject[] = response.catalog?.streams || []
     const streams: AirbyteStreamData[] = rawAirbyteStreams.map((stream, idx) => {
       assertIsAirbyteCatalogStream(stream, `Failed to parse Airbyte stream ${stream} with index ${idx}`)
       const streamMinimalConfig = { name: stream.name, namespace: stream.namespace }
@@ -154,12 +154,12 @@ function assertHasCatalog(
 ): asserts response is { catalog: { streams: UnknownObject[] } } {
   assertIsObject(response, `${errorMessage}: Backend response is not an object`)
   assertIsObject(response.catalog, `${errorMessage}: Backend response.catalog is not an object`)
-  assertIsArrayOfTypes<UnknownObject>(
-    response.catalog.streams,
-    {},
-    `${errorMessage}: Backend response.catalog.streams is not an array of objects`,
-    PARSING_STREAMS_ERROR_NAME
-  )
+  // assertIsArrayOfTypes<UnknownObject>(
+  //   response.catalog.streams,
+  //   {},
+  //   `${errorMessage}: Backend response.catalog.streams is not an array of objects`,
+  //   PARSING_STREAMS_ERROR_NAME
+  // )
 }
 
 function assertIsAirbyteCatalogStream(
