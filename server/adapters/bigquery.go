@@ -198,13 +198,14 @@ func (bq *BigQuery) CreateTable(table *Table) error {
 		tableMetaData.TimePartitioning = &bigquery.TimePartitioning{Field: table.Partition.Field, Type: partitioningType}
 	}
 	if err := bqTable.Create(bq.ctx, &tableMetaData); err != nil {
+		schemaJson, _ := bqSchema.ToJSONFields()
 		return errorj.GetTableError.Wrap(err, "failed to create table").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
 				Dataset:   bq.config.Dataset,
 				Bucket:    bq.config.Bucket,
 				Project:   bq.config.Project,
 				Table:     table.Name,
-				Statement: fmt.Sprintf("%v", bqSchema),
+				Statement: string(schemaJson),
 			})
 	}
 
@@ -261,13 +262,14 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	updateReq := bigquery.TableMetadataToUpdate{Schema: metadata.Schema}
 	bq.logQuery("Patch update request: ", updateReq, true)
 	if _, err := bqTable.Update(bq.ctx, updateReq, metadata.ETag); err != nil {
+		schemaJson, _ := metadata.Schema.ToJSONFields()
 		return errorj.PatchTableError.Wrap(err, "failed to patch table").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
 				Dataset:   bq.config.Dataset,
 				Bucket:    bq.config.Bucket,
 				Project:   bq.config.Project,
 				Table:     patchSchema.Name,
-				Statement: fmt.Sprintf("%v", updateReq),
+				Statement: string(schemaJson),
 			})
 	}
 
@@ -336,11 +338,11 @@ func (bq *BigQuery) insertSingle(eventContext *EventContext) error {
 	if err := bq.insertItems(inserter, []*BQItem{{values: eventContext.ProcessedEvent}}); err != nil {
 		return errorj.ExecuteInsertError.Wrap(err, "failed to execute single insert").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
-				Dataset:   bq.config.Dataset,
-				Bucket:    bq.config.Bucket,
-				Project:   bq.config.Project,
-				Table:     eventContext.Table.Name,
-				Statement: fmt.Sprintf("%v", eventContext.ProcessedEvent),
+				Dataset:         bq.config.Dataset,
+				Bucket:          bq.config.Bucket,
+				Project:         bq.config.Project,
+				Table:           eventContext.Table.Name,
+				ValuesMapString: fmt.Sprintf("%v", eventContext.ProcessedEvent),
 			})
 	}
 

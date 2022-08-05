@@ -184,15 +184,23 @@ func (ec *EventsCache) RawEvent(disabled bool, tokenID string, serializedPayload
 //RawErrorEvent puts value into channel which will be read and written to storage
 func (ec *EventsCache) RawErrorEvent(disabled bool, tokenID string, serializedMalformedPayload []byte, err error) {
 	if !disabled && ec.isActive() {
-		if !ec.isRateLimiterAllowed(tokenID, meta.EventsErrorStatus) {
-			return
+		//error goes both in general collection and dedicated errors' collection.
+		if ec.isRateLimiterAllowed(tokenID, meta.EventsPureStatus) {
+			select {
+			case ec.rawEventsChannel <- &rawEvent{tokenID: tokenID, serializedMalformedPayload: serializedMalformedPayload, error: err.Error()}:
+			default:
+				if rand.Int31n(1000) == 0 {
+					logging.Debugf("[events cache] raw events queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+				}
+			}
 		}
-
-		select {
-		case ec.rawEventsChannel <- &rawEvent{tokenID: tokenID, serializedMalformedPayload: serializedMalformedPayload, error: err.Error(), eventMetaStatus: meta.EventsErrorStatus}:
-		default:
-			if rand.Int31n(1000) == 0 {
-				logging.Debugf("[events cache] raw error events queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+		if ec.isRateLimiterAllowed(tokenID, meta.EventsErrorStatus) {
+			select {
+			case ec.rawEventsChannel <- &rawEvent{tokenID: tokenID, serializedMalformedPayload: serializedMalformedPayload, error: err.Error(), eventMetaStatus: meta.EventsErrorStatus}:
+			default:
+				if rand.Int31n(1000) == 0 {
+					logging.Debugf("[events cache] raw error events queue overflow. Live Events UI may show inaccurate results. Consider increasing config variable: server.cache.pool.size (current value: %d)", ec.poolSize)
+				}
 			}
 		}
 	}
@@ -218,6 +226,7 @@ func (ec *EventsCache) Succeed(eventContext *adapters.EventContext) {
 //Error puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Error(cacheDisabled bool, destinationID, originEvent string, errMsg string) {
 	if !cacheDisabled && ec.isActive() {
+		//error goes both in general collection and dedicated errors' collection.
 		if ec.isRateLimiterAllowed(destinationID, meta.EventsPureStatus) {
 			select {
 			case ec.statusEventsChannel <- &statusEvent{originEvent: originEvent, destinationID: destinationID, error: errMsg}:

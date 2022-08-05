@@ -142,8 +142,8 @@ export const EventsView: React.FC<{
   let display
   if (event.status === EventStatus.Error) {
     display = (
-      <div className="font-monospace flex justify-center items-center text-error break-all">
-        {JSON.stringify(event.resultJson)} (error)
+      <div className="font-monospace flex items-center text-error whitespace-pre-wrap break-all">
+        {event.resultJson}
       </div>
     )
   } else if (event.status === EventStatus.Pending) {
