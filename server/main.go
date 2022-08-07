@@ -226,7 +226,7 @@ func main() {
 	metricsExported := viper.GetBool("server.metrics.prometheus.enabled")
 	metricsRelay := metrics.InitRelay(clusterID, viper.Sub("server.metrics.relay"))
 	if metricsExported || metricsRelay != nil {
-		metrics.Init(metricsExported)
+		metrics.InitMain(metricsExported)
 		if metricsRelay != nil {
 			interval := 5 * time.Minute
 			if viper.IsSet("server.metrics.relay.interval") {

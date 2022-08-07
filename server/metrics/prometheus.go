@@ -45,13 +45,17 @@ func NewGaugeVec(opts prometheus.GaugeOpts, labels []string) *prometheus.GaugeVe
 
 const Unknown = "unknown"
 
-func Init(exported bool) {
+func initRegistry(exported bool) {
 	Exported = exported
 	if Exported {
-		logging.Info("✅ Initializing Prometheus metrics..")
+		logging.Info("✅ Initializing Prometheus metrics.")
 	}
 
 	Registry = prometheus.DefaultRegisterer.(*prometheus.Registry)
+}
+
+func InitMain(exported bool) {
+	initRegistry(exported)
 
 	initApplication()
 	initAuthorization()
@@ -67,6 +71,13 @@ func Init(exported bool) {
 	initStreamEventsQueue()
 	initUsersRecognitionQueue()
 	initUsersRecognitionRedis()
+}
+
+func InitReplay(exported bool) {
+	initRegistry(exported)
+
+	initApplication()
+	initFileSending()
 }
 
 func InitRelay(clusterID string, viper *viper.Viper) *Relay {
