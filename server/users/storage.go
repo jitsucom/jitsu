@@ -59,11 +59,13 @@ func InitializeStorage(enabled bool, metaStorageConfiguration *viper.Viper) (Sto
 	host := redisConfigurationSource.GetString("host")
 	port := redisConfigurationSource.GetInt("port")
 	password := redisConfigurationSource.GetString("password")
+	database := redisConfigurationSource.GetInt("database")
+
 	sentinelMaster := redisConfigurationSource.GetString("sentinel_master_name")
 	tlsSkipVerify := redisConfigurationSource.GetBool("tls_skip_verify")
 	anonymousEventsMinutesTTL := redisConfigurationSource.GetInt("ttl_minutes.anonymous_events")
 
-	factory := meta.NewRedisPoolFactory(host, port, password, tlsSkipVerify, sentinelMaster)
+	factory := meta.NewRedisPoolFactory(host, port, password, database, tlsSkipVerify, sentinelMaster)
 	options := factory.GetOptions()
 	options.MaxActive = 100
 	factory.WithOptions(options)
