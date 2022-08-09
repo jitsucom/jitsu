@@ -52,7 +52,7 @@ require (
 	github.com/spf13/viper v1.8.1
 	github.com/stretchr/testify v1.7.0
 	github.com/testcontainers/testcontainers-go v0.12.0
-	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
+	github.com/ua-parser/uap-go v0.0.0-20211112212520-00c877edfe0f
 	github.com/vbauerster/mpb/v7 v7.3.1
 	github.com/xitongsys/parquet-go v1.6.1
 	github.com/xitongsys/parquet-go-source v0.0.0-20211010230925-397910c5e371
