@@ -76,9 +76,11 @@ func InitializeStorage(metaStorageConfiguration *viper.Viper) (Storage, error) {
 	host := metaStorageConfiguration.GetString("redis.host")
 	port := metaStorageConfiguration.GetInt("redis.port")
 	password := metaStorageConfiguration.GetString("redis.password")
+	database := metaStorageConfiguration.GetInt("redis.database")
+
 	sentinelMaster := metaStorageConfiguration.GetString("redis.sentinel_master_name")
 	tlsSkipVerify := metaStorageConfiguration.GetBool("redis.tls_skip_verify")
-	factory := NewRedisPoolFactory(host, port, password, tlsSkipVerify, sentinelMaster)
+	factory := NewRedisPoolFactory(host, port, password, database, tlsSkipVerify, sentinelMaster)
 	factory.CheckAndSetDefaultPort()
 
 	logging.Infof("🏪 Initializing meta storage redis [%s]...", factory.Details())

@@ -570,11 +570,7 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 		}
 
 		telemetry.Coordination("redis")
-		factory := meta.NewRedisPoolFactory(host,
-			coordinationRedisConfiguration.GetInt("port"),
-			coordinationRedisConfiguration.GetString("password"),
-			coordinationRedisConfiguration.GetBool("tls_skip_verify"),
-			coordinationRedisConfiguration.GetString("sentinel_master_name"))
+		factory := meta.NewRedisPoolFactory(host, coordinationRedisConfiguration.GetInt("port"), coordinationRedisConfiguration.GetString("password"), coordinationRedisConfiguration.GetInt("database"), coordinationRedisConfiguration.GetBool("tls_skip_verify"), coordinationRedisConfiguration.GetString("sentinel_master_name"))
 		factory.CheckAndSetDefaultPort()
 		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, factory)
 	}
@@ -601,11 +597,7 @@ func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*event
 	var eventsQueueRedisPool *meta.RedisPool
 	var err error
 	if redisConfigurationSource != nil && redisConfigurationSource.GetString("host") != "" {
-		factory := meta.NewRedisPoolFactory(redisConfigurationSource.GetString("host"),
-			redisConfigurationSource.GetInt("port"),
-			redisConfigurationSource.GetString("password"),
-			redisConfigurationSource.GetBool("tls_skip_verify"),
-			redisConfigurationSource.GetString("sentinel_master_name"))
+		factory := meta.NewRedisPoolFactory(redisConfigurationSource.GetString("host"), redisConfigurationSource.GetInt("port"), redisConfigurationSource.GetString("password"), redisConfigurationSource.GetInt("database"), redisConfigurationSource.GetBool("tls_skip_verify"), redisConfigurationSource.GetString("sentinel_master_name"))
 		opts := meta.DefaultOptions
 		opts.MaxActive = 5000
 		factory.WithOptions(opts)
