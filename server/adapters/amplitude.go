@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/utils"
 	"io/ioutil"
 	"net/http"
 )
 
 const (
-	amplitudeAPIURL = "https://api.amplitude.com/2/httpapi"
+	amplitudeDefaultAPIURL = "https://api2.amplitude.com/2/httpapi"
 )
 
 //AmplitudeRequest is a dto for sending requests to Amplitude
@@ -27,12 +28,13 @@ type AmplitudeResponse struct {
 
 //AmplitudeRequestFactory is a factory for building Amplitude HTTP requests from input events
 type AmplitudeRequestFactory struct {
-	apiKey string
+	apiKey   string
+	endpoint string
 }
 
 //newAmplitudeRequestFactory returns configured HTTPRequestFactory instance for amplitude requests
-func newAmplitudeRequestFactory(apiKey string) (HTTPRequestFactory, error) {
-	return &AmplitudeRequestFactory{apiKey: apiKey}, nil
+func newAmplitudeRequestFactory(apiKey, endpoint string) (HTTPRequestFactory, error) {
+	return &AmplitudeRequestFactory{apiKey: apiKey, endpoint: endpoint}, nil
 }
 
 //Create returns created amplitude request
@@ -50,7 +52,7 @@ func (arf *AmplitudeRequestFactory) Create(object map[string]interface{}) (*Requ
 		return nil, fmt.Errorf("Error marshalling amplitude request [%v]: %v", req, err)
 	}
 	return &Request{
-		URL:     amplitudeAPIURL,
+		URL:     utils.NvlString(arf.endpoint, amplitudeDefaultAPIURL),
 		Method:  http.MethodPost,
 		Body:    b,
 		Headers: map[string]string{"Content-Type": "application/json"},
@@ -62,7 +64,8 @@ func (arf *AmplitudeRequestFactory) Close() {
 
 //AmplitudeConfig is a dto for parsing Amplitude configuration
 type AmplitudeConfig struct {
-	APIKey string `mapstructure:"api_key" json:"api_key,omitempty" yaml:"api_key,omitempty"`
+	APIKey   string `mapstructure:"api_key" json:"api_key,omitempty" yaml:"api_key,omitempty"`
+	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
 }
 
 //Validate returns err if invalid
@@ -86,7 +89,7 @@ type Amplitude struct {
 
 //NewAmplitude returns configured Amplitude adapter instance
 func NewAmplitude(config *AmplitudeConfig, httpAdapterConfiguration *HTTPAdapterConfiguration) (*Amplitude, error) {
-	httpReqFactory, err := newAmplitudeRequestFactory(config.APIKey)
+	httpReqFactory, err := newAmplitudeRequestFactory(config.APIKey, config.Endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +112,7 @@ func NewTestAmplitude(config *AmplitudeConfig) *Amplitude {
 
 //TestAccess sends test request (empty POST) to Amplitude and check if error has occurred
 func (a *Amplitude) TestAccess() error {
-	httpReqFactory, err := newAmplitudeRequestFactory(a.config.APIKey)
+	httpReqFactory, err := newAmplitudeRequestFactory(a.config.APIKey, a.config.Endpoint)
 	if err != nil {
 		return err
 	}
