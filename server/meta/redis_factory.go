@@ -57,6 +57,7 @@ type RedisPoolFactory struct {
 	host               string
 	port               int
 	password           string
+	database           int
 	sentinelMasterName string
 	tlsSkipVerify      bool
 
@@ -64,7 +65,7 @@ type RedisPoolFactory struct {
 }
 
 //NewRedisPoolFactory returns filled RedisPoolFactory and removes quotes in host
-func NewRedisPoolFactory(host string, port int, password string, tlsSkipVerify bool, sentinelMasterMame string) *RedisPoolFactory {
+func NewRedisPoolFactory(host string, port int, password string, database int, tlsSkipVerify bool, sentinelMasterMame string) *RedisPoolFactory {
 	host = strings.TrimPrefix(host, `"`)
 	host = strings.TrimPrefix(host, `'`)
 	host = strings.TrimSuffix(host, `"`)
@@ -74,6 +75,7 @@ func NewRedisPoolFactory(host string, port int, password string, tlsSkipVerify b
 		host:               host,
 		port:               port,
 		password:           password,
+		database:           database,
 		tlsSkipVerify:      tlsSkipVerify,
 		sentinelMasterName: sentinelMasterMame,
 		options:            DefaultOptions,
@@ -149,6 +151,9 @@ func (rpf *RedisPoolFactory) getSentinelAndDialFunc() (*sentinel.Sentinel, func(
 	defaultDialWriteTimeout := redis.DialWriteTimeout(rpf.options.DefaultDialWriteTimeout)
 
 	options := []redis.DialOption{defaultDialConnectTimeout, defaultDialReadTimeout, defaultDialWriteTimeout}
+	if rpf.database > 0 {
+		options = append(options, redis.DialDatabase(rpf.database))
+	}
 
 	// 1. redis:// redis://
 	if rpf.isURL() || rpf.isSecuredURL() {
