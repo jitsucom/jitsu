@@ -343,8 +343,10 @@ func newAuthorizator(ctx context.Context, vp *viper.Viper, mailSender authorizat
 		port := vp.GetInt("auth.redis.port")
 		sentinelMaster := vp.GetString("auth.redis.sentinel_master_name")
 		redisPassword := vp.GetString("auth.redis.password")
+		redisDatabase := vp.GetInt("auth.redis.database")
+
 		tlsSkipVerify := vp.GetBool("auth.redis.tls_skip_verify")
-		redisPoolFactory := meta.NewRedisPoolFactory(host, port, redisPassword, tlsSkipVerify, sentinelMaster)
+		redisPoolFactory := meta.NewRedisPoolFactory(host, port, redisPassword, redisDatabase, tlsSkipVerify, sentinelMaster)
 		if defaultPort, ok := redisPoolFactory.CheckAndSetDefaultPort(); ok {
 			logging.Infof("auth.redis.port isn't configured. Will be used default: %d", defaultPort)
 		}
@@ -464,10 +466,12 @@ func initializeStorage(vp *viper.Viper) (storages.ConfigurationsStorage, *meta.R
 
 		port := vp.GetInt("storage.redis.port")
 		password := vp.GetString("storage.redis.password")
+		database := vp.GetInt("storage.redis.database")
+
 		tlsSkipVerify := vp.GetBool("storage.redis.tls_skip_verify")
 		sentinelMaster := vp.GetString("storage.redis.sentinel_master_name")
 
-		redisPoolFactory := meta.NewRedisPoolFactory(host, port, password, tlsSkipVerify, sentinelMaster)
+		redisPoolFactory := meta.NewRedisPoolFactory(host, port, password, database, tlsSkipVerify, sentinelMaster)
 		if defaultPort, ok := redisPoolFactory.CheckAndSetDefaultPort(); ok {
 			logging.Infof("storage.redis.port isn't configured. Will be used default: %d", defaultPort)
 		}

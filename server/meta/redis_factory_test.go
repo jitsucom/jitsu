@@ -81,31 +81,31 @@ func TestGetSentinelAndDialFunc(t *testing.T) {
 	}{
 		{
 			"redis URL",
-			NewRedisPoolFactory("redis://localhost:6379", 0, "", false, ""),
+			NewRedisPoolFactory("redis://localhost:6379", 0, "", 0, false, ""),
 			false,
 			"",
 		},
 		{
 			"redis secured URL",
-			NewRedisPoolFactory("rediss://localhost:6379", 0, "", false, ""),
+			NewRedisPoolFactory("rediss://localhost:6379", 0, "", 0, false, ""),
 			false,
 			"",
 		},
 		{
 			"redis sentinel URL",
-			NewRedisPoolFactory("sentinel://master:pas@localhost:6379", 0, "", false, ""),
+			NewRedisPoolFactory("sentinel://master:pas@localhost:6379", 0, "", 0, false, ""),
 			true,
 			"",
 		},
 		{
 			"redis plain config",
-			NewRedisPoolFactory("host", 0, "pass", false, ""),
+			NewRedisPoolFactory("host", 0, "pass", 0, false, ""),
 			false,
 			"",
 		},
 		{
 			"redis plain config with sentinel",
-			NewRedisPoolFactory("host", 0, "pass", false, "sent"),
+			NewRedisPoolFactory("host", 0, "pass", 0, false, "sent"),
 			true,
 			"",
 		},

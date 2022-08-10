@@ -62,7 +62,7 @@ func NewRedis(_ context.Context, sourceConfig *base.SourceConfig, collection *ba
 		return nil, fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
 	}
 
-	factory := meta.NewRedisPoolFactory(config.Host, int(intPort), config.Password, config.TLSSkipVerify, config.SentinelMasterName)
+	factory := meta.NewRedisPoolFactory(config.Host, int(intPort), config.Password, 0, config.TLSSkipVerify, config.SentinelMasterName)
 	if defaultPort, ok := factory.CheckAndSetDefaultPort(); ok {
 		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", sourceConfig.SourceID, defaultPort)
 	}
@@ -96,7 +96,7 @@ func TestRedis(sourceConfig *base.SourceConfig) error {
 		return fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
 	}
 
-	factory := meta.NewRedisPoolFactory(config.Host, int(intPort), config.Password, config.TLSSkipVerify, config.SentinelMasterName)
+	factory := meta.NewRedisPoolFactory(config.Host, int(intPort), config.Password, 0, config.TLSSkipVerify, config.SentinelMasterName)
 	factory.CheckAndSetDefaultPort()
 
 	pool, err := factory.Create()

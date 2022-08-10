@@ -80,6 +80,7 @@ coordination:
     host: your_redis_host
     port: 6379
     password: secret_password
+    database: 0
 
 ```
 
@@ -98,6 +99,7 @@ meta.storage:
     host: your_redis_host
     port: 6379
     password: secret_password
+    database: 0
 
 coordination:
   type: redis
@@ -117,6 +119,7 @@ meta:
       host: your_sentinel_host # eg: localhost, redis-headless.redis.svc.cluster.local
       port: 26379
       sentinel_master_name: redis_dev_master
+      database: 0
 
 ## or configuration via sentinel URL
 meta:
@@ -131,12 +134,14 @@ storage:
     sentinel_master_name: 'redis_dev_master'
     port: 26379
     tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+    database: 0
 
 auth:
   redis:
     host: '${env.REDIS_URL}'
     port: 26379
     sentinel_master_name: 'redis_dev_master'
+    database: 0
 ```
 
 Every **Jitsu Server** instance with configured coordination sends heartbeat requests every 90 seconds.
