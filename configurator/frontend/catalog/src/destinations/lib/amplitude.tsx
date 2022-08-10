@@ -76,6 +76,21 @@ return toAmplitude($)`,
         </>
       ),
     },
+    {
+      id: "_formData.endpoint",
+      displayName: "API Endpoint",
+      required: false,
+      type: stringType,
+      documentation: (
+        <>
+          Alternative Amplitude API endpoint
+          <br />
+          For project with EU data residency set:
+          <br />
+          <code>https://api.eu.amplitude.com/2/httpapi</code>
+        </>
+      ),
+    },
   ],
 } as const
 

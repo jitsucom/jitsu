@@ -655,7 +655,8 @@ func mapAmplitude(aDestination *entities.Destination) (*enconfig.DestinationConf
 	}
 
 	cfg := &enadapters.AmplitudeConfig{
-		APIKey: aFormData.APIKey,
+		APIKey:   aFormData.APIKey,
+		Endpoint: aFormData.Endpoint,
 	}
 	cfgMap := map[string]interface{}{}
 	err = mapstructure.Decode(cfg, &cfgMap)
