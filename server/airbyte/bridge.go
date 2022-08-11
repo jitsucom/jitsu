@@ -95,7 +95,8 @@ func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume
 	logging.Infof("[airbyte] Checking mounted volume: %s ...", workspaceVolume)
 	if containerizedRun {
 		if err = instance.checkVolume(ctx, instance, cli); err != nil {
-			return err
+			InstanceError = fmt.Errorf("for non-docker Jitsu instances (started via binary file) 'airbyte-bridge.config_dir' parameter (current value: %s) should be equal to 'server.volumes.workspace' parameter (current value: %s) in config", instance.ConfigDir, workspaceVolume)
+			return InstanceError
 		}
 	} else {
 		if instance.ConfigDir != workspaceVolume {

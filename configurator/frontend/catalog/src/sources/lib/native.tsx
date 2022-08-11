@@ -1240,6 +1240,21 @@ export const amplitude: SourceConnector = {
         </>
       ),
     },
+    {
+      displayName: "API Server",
+      id: "config.server",
+      type: stringType,
+      required: false,
+      documentation: (
+        <>
+          Alternative Amplitude server hostname
+          <br />
+          For project with EU data residency set:
+          <br />
+          <code>https://analytics.eu.amplitude.com</code>
+        </>
+      ),
+    },
   ],
   collectionParameters: [],
 }
