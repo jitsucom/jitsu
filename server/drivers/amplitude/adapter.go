@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/utils"
 	"io/ioutil"
 	"net/http"
 
@@ -16,9 +17,9 @@ import (
 )
 
 const (
-	amplitudeURL        = "https://amplitude.com"
-	amplitudeLayout     = "20060102T15"
-	authorizationHeader = "Authorization"
+	defaultAmplitudeHost = "https://amplitude.com"
+	amplitudeLayout      = "20060102T15"
+	authorizationHeader  = "Authorization"
 
 	AmplitudeActiveUsers     = "active_users"
 	AmplitudeAnnotations     = "annotations"
@@ -33,10 +34,11 @@ const (
 
 type AmplitudeAdapter struct {
 	httpClient *http.Client
+	server     string
 	authToken  string
 }
 
-func NewAmplitudeAdapter(apiKey, secretKey string, config *adapters.HTTPConfiguration) (*AmplitudeAdapter, error) {
+func NewAmplitudeAdapter(apiKey, secretKey, server string, config *adapters.HTTPConfiguration) (*AmplitudeAdapter, error) {
 	httpClient := &http.Client{
 		Timeout: config.GlobalClientTimeout,
 		Transport: &http.Transport{
@@ -51,6 +53,7 @@ func NewAmplitudeAdapter(apiKey, secretKey string, config *adapters.HTTPConfigur
 
 	return &AmplitudeAdapter{
 		httpClient: httpClient,
+		server:     utils.NvlString(server, defaultAmplitudeHost),
 		authToken:  secretToken,
 	}, nil
 }
@@ -62,7 +65,7 @@ func (a *AmplitudeAdapter) Close() error {
 
 func (a *AmplitudeAdapter) GetStatus() error {
 	request := &adapters.Request{
-		URL:    amplitudeURL + "/status",
+		URL:    a.server + "/status",
 		Method: "GET",
 	}
 
@@ -82,7 +85,7 @@ func (a *AmplitudeAdapter) GetEvents(interval *base.TimeInterval) ([]map[string]
 	start := interval.LowerEndpoint().Format(amplitudeLayout)
 	end := interval.UpperEndpoint().Format(amplitudeLayout)
 
-	url := fmt.Sprintf("%v/api/2/export?start=%s&end=%s", amplitudeURL, start, end)
+	url := fmt.Sprintf("%v/api/2/export?start=%s&end=%s", a.server, start, end)
 
 	request := &adapters.Request{
 		URL:    url,
@@ -127,7 +130,7 @@ func (a *AmplitudeAdapter) GetUsers(interval *base.TimeInterval, collectionName 
 
 	start := interval.LowerEndpoint().Format(amplitudeLayout)
 	end := interval.UpperEndpoint().Format(amplitudeLayout)
-	url := fmt.Sprintf("%v/api/2/users?start=%s&end=%s&m=%s", amplitudeURL, start, end, userType)
+	url := fmt.Sprintf("%v/api/2/users?start=%s&end=%s&m=%s", a.server, start, end, userType)
 
 	request := &adapters.Request{
 		URL:    url,
@@ -157,7 +160,7 @@ func (a *AmplitudeAdapter) GetUsers(interval *base.TimeInterval, collectionName 
 func (a *AmplitudeAdapter) GetSessions(interval *base.TimeInterval) ([]map[string]interface{}, error) {
 	start := interval.LowerEndpoint().Format(amplitudeLayout)
 	end := interval.UpperEndpoint().Format(amplitudeLayout)
-	url := fmt.Sprintf("%v/api/2/sessions/average?start=%s&end=%s", amplitudeURL, start, end)
+	url := fmt.Sprintf("%v/api/2/sessions/average?start=%s&end=%s", a.server, start, end)
 
 	request := &adapters.Request{
 		URL:    url,
@@ -185,7 +188,7 @@ func (a *AmplitudeAdapter) GetSessions(interval *base.TimeInterval) ([]map[strin
 }
 
 func (a *AmplitudeAdapter) GetAnnotations() ([]map[string]interface{}, error) {
-	url := fmt.Sprintf("%v/api/2/annotations", amplitudeURL)
+	url := fmt.Sprintf("%v/api/2/annotations", a.server)
 
 	request := &adapters.Request{
 		URL:    url,
@@ -213,7 +216,7 @@ func (a *AmplitudeAdapter) GetAnnotations() ([]map[string]interface{}, error) {
 }
 
 func (a *AmplitudeAdapter) GetCohorts() ([]map[string]interface{}, error) {
-	url := fmt.Sprintf("%v/api/3/cohorts", amplitudeURL)
+	url := fmt.Sprintf("%v/api/3/cohorts", a.server)
 
 	request := &adapters.Request{
 		URL:    url,
