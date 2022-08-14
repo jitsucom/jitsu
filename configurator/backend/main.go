@@ -6,12 +6,14 @@ import (
 	"flag"
 	"io"
 	"math/rand"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
@@ -36,16 +38,15 @@ import (
 	locksredis "github.com/jitsucom/jitsu/server/locks/redis"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/metrics"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
-
-	"net/http"
-	"time"
 )
 
 const (
@@ -127,10 +128,24 @@ func main() {
 		notifications.SystemErrorf("Panic:\n%s\n%s", value, string(debug.Stack()))
 	}
 
+	//** Metrics **
+	clusterID := uuid.New()
+	metricsRelay := metrics.InitRelay(clusterID, nil)
+	if metricsRelay != nil {
+		metrics.InitConfigurator(true)
+		interval := metricsRelay.Timeout
+		trigger := metrics.TickerTrigger{
+			Ticker: time.NewTicker(interval),
+		}
+		metricsRelay.Run(ctx, trigger, metrics.Registry)
+		defer metricsRelay.Stop()
+	}
+
 	//** Slack Notifications **
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")
 	if slackNotificationsWebHook != "" {
-		notifications.Init(serviceName, tag, slackNotificationsWebHook, appconfig.Instance.ServerName, logging.Errorf)
+		notifications.Init(serviceName, tag, slackNotificationsWebHook, appconfig.Instance.ServerName,
+			logging.Errorf, metrics.SuccessSlackNotification, metrics.ErrorSlackNotification)
 	}
 
 	//** Default S3 **
@@ -423,6 +438,10 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 			c.Status(http.StatusForbidden)
 		}
 	}))
+
+	if metrics.Exported {
+		router.GET("/prometheus", authenticatorMiddleware.ManagementWrapper(gin.WrapH(metrics.Handler())))
+	}
 
 	// ** OLD API (delete after migrating UI to api/v2) **
 	jConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsService)

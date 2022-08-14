@@ -73,6 +73,14 @@ func InitMain(exported bool) {
 	initUsersRecognitionRedis()
 }
 
+func InitConfigurator(exported bool) {
+	initRegistry(exported)
+
+	initApplication()
+	initEmails()
+	initNotifications()
+}
+
 func InitReplay(exported bool) {
 	initRegistry(exported)
 

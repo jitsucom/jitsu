@@ -5,6 +5,7 @@ import (
 	"text/template"
 
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/pkg/errors"
 	gomail "gopkg.in/mail.v2"
 )
@@ -108,7 +109,14 @@ func (s *Service) send(subject templateSubject, email, link string) error {
 	msg.SetBody("text/html", body.String())
 
 	dialer := gomail.NewDialer(s.smtp.Host, s.smtp.Port, s.smtp.User, s.smtp.Password)
-	return dialer.DialAndSend(msg)
+	err := dialer.DialAndSend(msg)
+	if err != nil {
+		metrics.ErrorEmail()
+	} else {
+		metrics.SuccessEmail()
+	}
+
+	return err
 }
 
 func (s *Service) SendResetPassword(email, link string) error {
