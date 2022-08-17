@@ -12,12 +12,15 @@ import (
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/oauth"
 	"github.com/jitsucom/jitsu/server/runner"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/utils"
+	"github.com/mitchellh/hashstructure/v2"
 	"github.com/spf13/viper"
 	"io/ioutil"
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -26,13 +29,13 @@ const (
 	defaultTimeout       = 40 * time.Second
 )
 
-//DockerHubResponse is a DockerHub tags response dto
+// DockerHubResponse is a DockerHub tags response dto
 type DockerHubResponse struct {
 	Next    string          `json:"next"`
 	Results []*DockerHubTag `json:"results"`
 }
 
-//DockerHubTag is a DockerHub tags dto
+// DockerHubTag is a DockerHub tags dto
 type DockerHubTag struct {
 	Name          string `json:"name"`
 	TagLastPushed string `json:"tag_last_pushed"`
@@ -55,14 +58,21 @@ type CatalogResponse struct {
 }
 
 type AirbyteHandler struct {
-	httpClient *http.Client
+	httpClient    *http.Client
+	discoverTasks sync.Map
+}
+
+type AirbyteDiscoverTask struct {
+	result   *airbyte.CatalogRow
+	err      error
+	finished bool
 }
 
 func NewAirbyteHandler() *AirbyteHandler {
-	return &AirbyteHandler{httpClient: &http.Client{Timeout: defaultTimeout}}
+	return &AirbyteHandler{httpClient: &http.Client{Timeout: defaultTimeout}, discoverTasks: sync.Map{}}
 }
 
-//VersionsHandler requests available docker version from DockerHub and returns them by docker image name
+// VersionsHandler requests available docker version from DockerHub and returns them by docker image name
 func (ah *AirbyteHandler) VersionsHandler(c *gin.Context) {
 	dockerImage := c.Param("dockerImageName")
 	if dockerImage == "" {
@@ -86,7 +96,7 @@ func (ah *AirbyteHandler) VersionsHandler(c *gin.Context) {
 	})
 }
 
-//SpecHandler returns airbyte spec by docker name
+// SpecHandler returns airbyte spec by docker name
 func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 	dockerImage := c.Param("dockerImageName")
 	if dockerImage == "" {
@@ -169,7 +179,7 @@ func enrichOathFields(dockerImage string, spec interface{}) {
 	}
 }
 
-//CatalogHandler returns airbyte catalog by docker name and config
+// CatalogHandler returns airbyte catalog by docker name and config
 func (ah *AirbyteHandler) CatalogHandler(c *gin.Context) {
 	dockerImage := c.Param("dockerImageName")
 	if dockerImage == "" {
@@ -189,23 +199,59 @@ func (ah *AirbyteHandler) CatalogHandler(c *gin.Context) {
 	if imageVersion == "" {
 		imageVersion = airbyte.LatestVersion
 	}
-
-	airbyteRunner := airbyte.NewRunner("CatalogHandler", dockerImage, imageVersion, "")
-	catalogRow, err := airbyteRunner.Discover(airbyteSourceConnectorConfig, time.Second*585)
+	configHash, err := hashstructure.Hash(airbyteSourceConnectorConfig, hashstructure.FormatV2, nil)
 	if err != nil {
-		if err == runner.ErrNotReady {
-			c.JSON(http.StatusOK, middleware.PendingResponse())
-			return
-		}
-
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
+		logging.Errorf("Failed to hash config: %v", err)
+		c.JSON(http.StatusInternalServerError, middleware.ErrResponse("Failed to hash config", err))
 		return
 	}
-
-	c.JSON(http.StatusOK, CatalogResponse{
-		StatusResponse: middleware.OKResponse(),
-		Catalog:        catalogRow,
-	})
+	key := fmt.Sprintf("%s:%s:%d", dockerImage, imageVersion, configHash)
+	discTaskRaw, ok := ah.discoverTasks.LoadOrStore(key, AirbyteDiscoverTask{})
+	if !ok {
+		go func(key string) {
+			start := timestamp.Now()
+			defer func() {
+				logging.Infof("Background discover for: %s:%s finished in: %s", dockerImage, imageVersion, timestamp.Now().Sub(start))
+			}()
+			logging.Infof("Started background discover for: %s:%s", dockerImage, imageVersion)
+			airbyteRunner := airbyte.NewRunner("CatalogHandler", dockerImage, imageVersion, "")
+			ready := false
+			for i := 0; i < 12; i++ {
+				ready, err = airbyteRunner.IsReady()
+				if err != nil {
+					ah.discoverTasks.Store(key, AirbyteDiscoverTask{err: err, finished: true})
+					return
+				}
+				if ready {
+					break
+				}
+				time.Sleep(time.Second * 10)
+			}
+			if !ready {
+				ah.discoverTasks.Store(key, AirbyteDiscoverTask{err: runner.ErrNotReady, finished: true})
+				return
+			}
+			catalogRow, err := airbyteRunner.Discover(airbyteSourceConnectorConfig, time.Minute*30)
+			ah.discoverTasks.Store(key, AirbyteDiscoverTask{result: catalogRow, err: err, finished: true})
+		}(key)
+	}
+	discTask := discTaskRaw.(AirbyteDiscoverTask)
+	logging.Debugf("Background discover task: %s:%s => finished: %v err: %v", dockerImage, imageVersion, discTask.finished, discTask.err)
+	if discTask.finished {
+		ah.discoverTasks.Delete(key)
+		if discTask.err != nil {
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse(discTask.err.Error(), nil))
+			return
+		}
+		c.JSON(http.StatusOK, CatalogResponse{
+			StatusResponse: middleware.OKResponse(),
+			Catalog:        discTask.result,
+		})
+		return
+	} else {
+		c.JSON(http.StatusOK, middleware.PendingResponse())
+		return
+	}
 }
 
 func (ah *AirbyteHandler) getAvailableDockerVersions(dockerImageName string) ([]string, error) {
@@ -241,8 +287,8 @@ func (ah *AirbyteHandler) getAvailableDockerVersions(dockerImageName string) ([]
 	return versions, nil
 }
 
-//requestDockerHubTags returns docker tags, next link or empty string
-//err if occurred
+// requestDockerHubTags returns docker tags, next link or empty string
+// err if occurred
 func (ah *AirbyteHandler) requestDockerHubTags(reqURL string) ([]*DockerHubTag, string, error) {
 	resp, err := ah.httpClient.Get(reqURL)
 	if err != nil {

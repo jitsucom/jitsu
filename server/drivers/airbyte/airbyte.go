@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-//Airbyte is an Airbyte CLI driver
+// Airbyte is an Airbyte CLI driver
 type Airbyte struct {
 	mutex *sync.RWMutex
 	base.AbstractCLIDriver
@@ -41,9 +41,9 @@ func init() {
 	base.RegisterTestConnectionFunc(base.AirbyteType, TestAirbyte)
 }
 
-//NewAirbyte returns Airbyte driver and
-//1. writes json files (config, catalog, state) if string/raw json was provided
-//2. runs discover and collects catalog.json
+// NewAirbyte returns Airbyte driver and
+// 1. writes json files (config, catalog, state) if string/raw json was provided
+// 2. runs discover and collects catalog.json
 func NewAirbyte(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &Config{}
 	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
@@ -136,7 +136,7 @@ func (a *Airbyte) Delete() error {
 	return nil
 }
 
-//TestAirbyte tests airbyte connection (runs check) if docker has been ready otherwise returns errNotReady
+// TestAirbyte tests airbyte connection (runs check) if docker has been ready otherwise returns errNotReady
 func TestAirbyte(sourceConfig *base.SourceConfig) error {
 	config := &Config{}
 	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
@@ -187,7 +187,7 @@ func TestAirbyte(sourceConfig *base.SourceConfig) error {
 	return nil
 }
 
-//EnsureCatalog does discover if catalog wasn't provided
+// EnsureCatalog does discover if catalog wasn't provided
 func (a *Airbyte) EnsureCatalog() error {
 	if a.IsClosed() {
 		return fmt.Errorf("%s has already been closed", a.Type())
@@ -214,7 +214,7 @@ func (a *Airbyte) EnsureCatalog() error {
 	return nil
 }
 
-//Ready returns true if catalog is discovered
+// Ready returns true if catalog is discovered
 func (a *Airbyte) Ready() (bool, error) {
 	//check if docker image isn't pulled
 	ready, err := airbyte.Instance.IsImagePulled(airbyte.Instance.AddAirbytePrefix(a.GetTap()), a.config.ImageVersion)
@@ -312,7 +312,7 @@ func (a *Airbyte) Load(config string, state string, taskLogger logging.TaskLogge
 	return airbyteRunner.Read(dataConsumer, a.streamsRepresentation, taskLogger, taskCloser, a.ID(), statePath)
 }
 
-//GetDriversInfo returns telemetry information about the driver
+// GetDriversInfo returns telemetry information about the driver
 func (a *Airbyte) GetDriversInfo() *base.DriversInfo {
 	return &base.DriversInfo{
 		SourceType:       a.config.DockerImage,
@@ -326,7 +326,7 @@ func (a *Airbyte) Type() string {
 	return base.AirbyteType
 }
 
-//Close kills all runners and returns errors if occurred
+// Close kills all runners and returns errors if occurred
 func (a *Airbyte) Close() (multiErr error) {
 	if a.IsClosed() {
 		return nil
@@ -347,14 +347,14 @@ func (a *Airbyte) Close() (multiErr error) {
 	return multiErr
 }
 
-//loadCatalog:
-//1. discovers source catalog
-//2. applies selected streams
-//3. reformat catalog to airbyte format and writes it to the file system
-//returns catalog
+// loadCatalog:
+// 1. discovers source catalog
+// 2. applies selected streams
+// 3. reformat catalog to airbyte format and writes it to the file system
+// returns catalog
 func (a *Airbyte) loadCatalog() (string, map[string]*base.StreamRepresentation, error) {
 	airbyteRunner := airbyte.NewRunner(a.ID(), a.GetTap(), a.config.ImageVersion, "")
-	rawCatalog, err := airbyteRunner.Discover(a.config.Config, time.Second*585)
+	rawCatalog, err := airbyteRunner.Discover(a.config.Config, time.Minute*30)
 	if err != nil {
 		return "", nil, err
 	}
