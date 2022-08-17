@@ -61,24 +61,27 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
     data,
     error,
     reload: reloadStreamsList,
-  } = usePolling<StreamData[]>({
-    configure: () => ({
-      pollingCallback: (end, fail) => async () => {
-        try {
-          const result = await pullAllStreams(sourceDataFromCatalog, handleBringSourceData)
-          if (result !== undefined) end(result)
-        } catch (error) {
-          fail(error)
-        }
-      },
-      onBeforePollingStart: () => {
-        dispatch(SourceEditorActionsTypes.SET_STATUS, { isLoadingStreams: true })
-      },
-      onAfterPollingEnd: () => {
-        dispatch(SourceEditorActionsTypes.SET_STATUS, { isLoadingStreams: false })
-      },
-    }),
-  })
+  } = usePolling<StreamData[]>(
+    {
+      configure: () => ({
+        pollingCallback: (end, fail) => async () => {
+          try {
+            const result = await pullAllStreams(sourceDataFromCatalog, handleBringSourceData)
+            if (result !== undefined) end(result)
+          } catch (error) {
+            fail(error)
+          }
+        },
+        onBeforePollingStart: () => {
+          dispatch(SourceEditorActionsTypes.SET_STATUS, { isLoadingStreams: true })
+        },
+        onAfterPollingEnd: () => {
+          dispatch(SourceEditorActionsTypes.SET_STATUS, { isLoadingStreams: false })
+        },
+      }),
+    },
+    { timeout_ms: 30 * 60 * 1000 }
+  )
 
   const selectAllFieldsByDefault: boolean = editorMode === "add"
 
