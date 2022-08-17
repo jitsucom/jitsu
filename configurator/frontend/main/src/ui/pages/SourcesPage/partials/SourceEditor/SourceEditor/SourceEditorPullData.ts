@@ -229,7 +229,7 @@ function assertIsSingerCatalogStream(stream: UnknownObject, errorMessage): asser
     PARSING_STREAMS_ERROR_NAME
   )
   assertIsArrayOfTypes(
-    stream.key_properties,
+    stream.key_properties || [],
     "",
     `${errorMessage}: stream.key_properties is not an array of strings`,
     PARSING_STREAMS_ERROR_NAME
