@@ -43,7 +43,7 @@ const (
 	AdsCollection      = "ads"
 	fbMaxAttempts      = 2
 
-	fbMarketingAPIVersion      = "v13.0"
+	fbMarketingAPIVersion      = "v14.0"
 	defaultFacebookReportLevel = "ad"
 )
 
@@ -52,7 +52,7 @@ func init() {
 	base.RegisterTestConnectionFunc(base.FbMarketingType, TestFacebookMarketingConnection)
 }
 
-//NewFacebookMarketing returns configured Facebook Marketing driver instance
+// NewFacebookMarketing returns configured Facebook Marketing driver instance
 func NewFacebookMarketing(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &FacebookMarketingConfig{}
 	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
@@ -82,7 +82,7 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *base.SourceConfig, 
 	}, nil
 }
 
-//TestFacebookMarketingConnection tests connection to Facebook without creating Driver instance
+// TestFacebookMarketingConnection tests connection to Facebook without creating Driver instance
 func TestFacebookMarketingConnection(sourceConfig *base.SourceConfig) error {
 	config := &FacebookMarketingConfig{}
 	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
@@ -106,7 +106,7 @@ func (fm *FacebookMarketing) GetRefreshWindow() (time.Duration, error) {
 	return time.Hour * 24 * 31, nil
 }
 
-//GetAllAvailableIntervals return half a year by default
+// GetAllAvailableIntervals return half a year by default
 func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	if fm.collection.Type == AdsCollection {
 		return []*base.TimeInterval{base.NewTimeInterval(schema.ALL, time.Time{})}, nil
@@ -241,7 +241,7 @@ func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, in
 	return nil, err
 }
 
-//parseData read all data (if paging) and return result
+// parseData read all data (if paging) and return result
 func (fm *FacebookMarketing) parseData(response fb.Result) ([]map[string]interface{}, error) {
 	session := &fb.Session{
 		Version: "v9.0",
