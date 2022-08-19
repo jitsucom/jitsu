@@ -347,7 +347,7 @@ const AirbyteStreamParameters: React.FC<AirbyteStreamParametersProps> = ({
           <StreamParameter title="Cursor field">
             <Select
               size="small"
-              value={config.cursor_field.join(cursorFieldPathDelimiter)}
+              value={config.cursor_field?.join(cursorFieldPathDelimiter)}
               disabled={!checked || streamData.stream.source_defined_cursor}
               // className={`w-56`}
               dropdownMatchSelectWidth={false}
