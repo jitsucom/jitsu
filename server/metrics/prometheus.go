@@ -37,6 +37,12 @@ func NewCounterVec(opts prometheus.CounterOpts, labels []string) *prometheus.Cou
 	return vec
 }
 
+func NewGauge(opts prometheus.GaugeOpts) *prometheus.Gauge {
+	gauge := prometheus.NewGauge(opts)
+	Registry.MustRegister(gauge)
+	return &gauge
+}
+
 func NewGaugeVec(opts prometheus.GaugeOpts, labels []string) *prometheus.GaugeVec {
 	vec := prometheus.NewGaugeVec(opts, labels)
 	Registry.MustRegister(vec)

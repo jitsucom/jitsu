@@ -289,7 +289,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 		hash, err := resources.GetHash(destinationConfig)
 		if err != nil {
 			logging.SystemErrorf("Error getting hash from [%s] destination: %v. Destination will be skipped!", id, err)
-			metrics.ErrorDestination()
+			metrics.ErrorInitDestination()
 			continue
 		}
 
@@ -307,7 +307,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 
 		if !s.strictAuth && len(destinationConfig.OnlyTokens) == 0 {
 			logging.Warnf("[%s] destination's authorization isn't ready. Will be created in next reloading cycle.", id)
-			metrics.ErrorDestination()
+			metrics.ErrorInitDestination()
 			//authorization tokens weren't loaded => create this destination when authorization service will be reloaded
 			//and call force reload on this service
 			continue
@@ -317,7 +317,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 		newStorageProxy, eventQueue, err := s.storageFactory.Create(id, destinationConfig)
 		if err != nil {
 			logging.Errorf("[%s] Error initializing destination of type %s: %v", id, destinationConfig.Type, err)
-			metrics.ErrorDestination()
+			metrics.ErrorInitDestination()
 			continue
 		}
 		storageType, ok := storages.StorageTypes[destinationConfig.Type]
@@ -335,7 +335,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 			tokenIDs:   destinationConfig.OnlyTokens,
 			hash:       hash,
 		}
-		metrics.SuccessDestination()
+		metrics.SuccessInitDestination()
 
 		//create:
 		//  1 logger per token id

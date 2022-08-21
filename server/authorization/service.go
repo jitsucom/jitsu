@@ -184,14 +184,14 @@ func (s *Service) GetTokenID(tokenFilter string) string {
 func (s *Service) updateTokens(payload []byte) {
 	tokens, err := parseFromBytes(payload)
 	if err != nil {
-		metrics.ErrorTokenUpdating()
+		metrics.ErrorApiKeyUpdating()
 		logging.Errorf("Error updating authorization tokens: %v", err)
 	} else {
 		s.Lock()
 		s.tokensHolder = reformat(tokens)
 		s.Unlock()
 
-		metrics.SuccessTokenUpdating()
+		metrics.SuccessApiKeyUpdating()
 
 		//we should reload destinations after all changes in authorization service
 		if s.DestinationsForceReload != nil {

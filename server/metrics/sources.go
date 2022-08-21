@@ -5,33 +5,33 @@ import (
 )
 
 var (
-	successSources *prometheus.Counter
-	errorSources   *prometheus.Counter
+	successInitSources *prometheus.Counter
+	errorInitSources   *prometheus.Counter
 )
 
 func initSources() {
-	successSources = NewCounter(
+	successInitSources = NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "eventnative",
-			Subsystem: "sources",
+			Subsystem: "sources_init",
 			Name:      "success",
 		})
-	errorSources = NewCounter(
+	errorInitSources = NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "eventnative",
-			Subsystem: "sources",
+			Subsystem: "sources_init",
 			Name:      "error",
 		})
 }
 
-func SuccessSource() {
+func SuccessInitSource() {
 	if Enabled() {
-		(*successSources).Inc()
+		(*successInitSources).Inc()
 	}
 }
 
-func ErrorSource() {
+func ErrorInitSource() {
 	if Enabled() {
-		(*errorSources).Inc()
+		(*errorInitSources).Inc()
 	}
 }

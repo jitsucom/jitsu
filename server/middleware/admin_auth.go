@@ -1,8 +1,10 @@
 package middleware
 
 import (
-	"github.com/gin-gonic/gin"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jitsucom/jitsu/server/metrics"
 )
 
 const (
@@ -27,6 +29,7 @@ func (a *AdminToken) AdminAuth(main gin.HandlerFunc) gin.HandlerFunc {
 		}
 
 		if token != a.Token {
+			metrics.UnauthorizedAdminAccess()
 			c.JSON(http.StatusUnauthorized, ErrResponse(AdminTokenErr, nil))
 			return
 		}

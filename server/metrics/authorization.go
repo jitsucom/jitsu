@@ -5,33 +5,74 @@ import (
 )
 
 var (
-	successTokenUpdating *prometheus.Counter
-	errorTokenUpdating   *prometheus.Counter
+	successApiKeyUpdating *prometheus.Counter
+	errorApiKeyUpdating   *prometheus.Counter
+
+	unauthorizedAccess      *prometheus.Counter
+	unauthorizedAdminAccess *prometheus.Counter
+	unauthorizedTokenAccess *prometheus.Counter
 )
 
 func initAuthorization() {
-	successTokenUpdating = NewCounter(
+	successApiKeyUpdating = NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "eventnative",
-			Subsystem: "authorization",
+			Subsystem: "authorization_apiKey_updating",
 			Name:      "success",
 		})
-	errorTokenUpdating = NewCounter(
+	errorApiKeyUpdating = NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "eventnative",
+			Subsystem: "authorization_apiKey_updating",
+			Name:      "error",
+		})
+
+	unauthorizedAccess = NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "eventnative",
 			Subsystem: "authorization",
-			Name:      "error",
+			Name:      "unauthorized_access",
+		})
+	unauthorizedAdminAccess = NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "eventnative",
+			Subsystem: "authorization",
+			Name:      "unauthorized_admin_access",
+		})
+	unauthorizedTokenAccess = NewCounter(
+		prometheus.CounterOpts{
+			Namespace: "eventnative",
+			Subsystem: "authorization",
+			Name:      "unauthorized_token_access",
 		})
 }
 
-func SuccessTokenUpdating() {
+func SuccessApiKeyUpdating() {
 	if Enabled() {
-		(*successTokenUpdating).Inc()
+		(*successApiKeyUpdating).Inc()
 	}
 }
 
-func ErrorTokenUpdating() {
+func ErrorApiKeyUpdating() {
 	if Enabled() {
-		(*errorTokenUpdating).Inc()
+		(*errorApiKeyUpdating).Inc()
+	}
+}
+
+func UnauthorizedAccess() {
+	if Enabled() {
+		(*unauthorizedAccess).Inc()
+	}
+}
+
+func UnauthorizedTokenAccess() {
+	if Enabled() {
+		(*unauthorizedTokenAccess).Inc()
+	}
+}
+
+func UnauthorizedAdminAccess() {
+	if Enabled() {
+		(*unauthorizedAdminAccess).Inc()
 	}
 }

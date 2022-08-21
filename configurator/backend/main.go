@@ -45,6 +45,7 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/uuid"
+	"github.com/penglongli/gin-metrics/ginmetrics"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 )
@@ -380,6 +381,17 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 	emailService *emails.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
+
+	if metrics.Enabled() {
+		// get global Monitor object
+		m := ginmetrics.GetMonitor()
+		m.SetSlowTime(1)
+		// set request duration, default {0.1, 0.3, 1.2, 5, 10}
+		// used to p95, p99
+		m.SetDuration([]float64{0.01, 0.05, 0.1, 0.3, 1.2, 5, 10})
+		m.UseWithoutExposingEndpoint(router)
+	}
+
 	router.Use(gin.Recovery(), enmiddleware.GinLogErrorBody)
 	router.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
 		logging.SystemErrorf("Panic on request %s: %v\n%s", c.Request.URL.String(), recovered, string(debug.Stack()))

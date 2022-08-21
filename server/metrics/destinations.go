@@ -5,33 +5,33 @@ import (
 )
 
 var (
-	successDestinations *prometheus.Counter
-	errorDestination    *prometheus.Counter
+	successInitDestinations *prometheus.Counter
+	errorInitDestination    *prometheus.Counter
 )
 
 func initDestinations() {
-	successDestinations = NewCounter(
+	successInitDestinations = NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "eventnative",
-			Subsystem: "destinations",
+			Subsystem: "destinations_init",
 			Name:      "success",
 		})
-	errorDestination = NewCounter(
+	errorInitDestination = NewCounter(
 		prometheus.CounterOpts{
 			Namespace: "eventnative",
-			Subsystem: "destinations",
+			Subsystem: "destinations_init",
 			Name:      "error",
 		})
 }
 
-func SuccessDestination() {
+func SuccessInitDestination() {
 	if Enabled() {
-		(*successDestinations).Inc()
+		(*successInitDestinations).Inc()
 	}
 }
 
-func ErrorDestination() {
+func ErrorInitDestination() {
 	if Enabled() {
-		(*errorDestination).Inc()
+		(*errorInitDestination).Inc()
 	}
 }

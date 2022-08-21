@@ -160,6 +160,7 @@ func (u *PeriodicUploader) Start() {
 
 					if !skippedEvents.IsEmpty() {
 						metrics.SkipTokenEvents(tokenID, storage.Type(), storage.ID(), len(skippedEvents.Events))
+						metrics.SkipDestinationEvents(storage.Type(), len(skippedEvents.Events))
 						counters.SkipPushDestinationEvents(storage.ID(), int64(len(skippedEvents.Events)))
 					}
 
@@ -175,6 +176,7 @@ func (u *PeriodicUploader) Start() {
 
 						errRowsCount := len(objects)
 						metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), errRowsCount)
+						metrics.ErrorDestinationEvents(storage.Type(), errRowsCount)
 						counters.ErrorPushDestinationEvents(storage.ID(), int64(errRowsCount))
 
 						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), eventsSrc)
@@ -207,6 +209,7 @@ func (u *PeriodicUploader) Start() {
 							archiveFile = false
 							logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.ID(), tableName, filePath, result.Err)
 							metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), result.RowsCount)
+							metrics.ErrorPushDestinationEvents(storage.Type(), tableName, result.RowsCount)
 							counters.ErrorPushDestinationEvents(storage.ID(), int64(result.RowsCount))
 
 							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
@@ -223,6 +226,7 @@ func (u *PeriodicUploader) Start() {
 								}
 							}
 							metrics.SuccessTokenEvents(tokenID, storage.Type(), storage.ID(), result.RowsCount)
+							metrics.SuccessPushDestinationEvents(storage.Type(), tableName, result.RowsCount)
 							counters.SuccessPushDestinationEvents(storage.ID(), int64(result.RowsCount))
 
 							telemetry.PushedEventsPerSrc(tokenID, storage.ID(), result.EventsSrc)
@@ -241,9 +245,9 @@ func (u *PeriodicUploader) Start() {
 					}
 				}
 			}
+
 			u.postHandle(startTime, timestamp.Now(), postHandlesMap)
 			time.Sleep(u.uploadEvery - time.Since(startTime))
-
 		}
 	})
 }
@@ -267,5 +271,4 @@ func (u *PeriodicUploader) postHandle(start, end time.Time, postHandlesMap map[s
 		}
 		logging.Infof("Successful run of %v triggered postHandle destination: %s", dests, phID)
 	}
-
 }

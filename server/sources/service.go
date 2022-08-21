@@ -150,7 +150,7 @@ func (s *Service) init(sc map[string]driversbase.SourceConfig) {
 		hash, err := resources.GetHash(config)
 		if err != nil {
 			logging.SystemErrorf("Error getting hash from [%s] source: %v. Source will be skipped!", name, err)
-			metrics.ErrorSource()
+			metrics.ErrorInitSource()
 			continue
 		}
 
@@ -172,7 +172,7 @@ func (s *Service) init(sc map[string]driversbase.SourceConfig) {
 		driverPerCollection, err := drivers.Create(s.ctx, name, &sourceConfig, s.cronScheduler)
 		if err != nil {
 			logging.Errorf("[%s] Error initializing source of type %s: %v", name, sourceConfig.Type, err)
-			metrics.ErrorSource()
+			metrics.ErrorInitSource()
 			continue
 		}
 
@@ -202,7 +202,7 @@ func (s *Service) init(sc map[string]driversbase.SourceConfig) {
 		}
 
 		telemetry.Source(name, sourceType, connectorOrigin, connectorVersion, sourceConfig.Schedule, streams)
-		metrics.SuccessSource()
+		metrics.SuccessInitSource()
 	}
 }
 
