@@ -7,7 +7,10 @@ import ApplicationServices from "lib/services/ApplicationServices"
 // @Components
 import { ErrorCard } from "lib/components/ErrorCard/ErrorCard"
 import { LoadableFieldsLoadingMessageCard } from "lib/components/LoadingFormCard/LoadingFormCard"
-import { ConfigurableFieldsForm, FormItemWrapper } from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
+import {
+  IMAGE_VERSION_FIELD_ID,
+  ConfigurableFieldsForm,
+} from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm"
 // @Types
 import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
 // @Hooks
@@ -34,7 +37,6 @@ type Props = {
 
 const CONFIG_INTERNAL_STATE_KEY = "loadableParameters"
 const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
-const AIRBYTE_IMAGE_VERSION_FIELD_ID = "config.image_version"
 
 export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> = memo(
   ({
@@ -50,7 +52,6 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
   }) => {
     const [form] = Form.useForm()
     const dispatchAction = useSourceEditorDispatcher()
-    const [availableAirbyteImageVersions, setAvailableAirbyteImageVersions] = useState<string[]>([])
     const airbyteImageVersion = useRef<string>(
       sourceDataFromCatalog.protoType === "airbyte"
         ? (initialValues as Partial<AirbyteSourceData>).config?.image_version ?? ""
@@ -70,7 +71,6 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
                 onBeforePollingStart: async () => {
                   dispatchAction(SourceEditorActionsTypes.SET_STATUS, { isLoadingConfig: true })
                   availableImageVersions = (await pullAvailableAirbyteImageVersions(sourceDataFromCatalog.id)) || []
-                  setAvailableAirbyteImageVersions(availableImageVersions)
                 },
                 pollingCallback: (end, fail) => async () => {
                   try {
@@ -81,6 +81,13 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
                     if (response?.message) throw new Error(response?.message)
                     if (response?.status && response?.status !== "pending") {
                       const result = transformAirbyteSpecResponse(response)
+                      result.unshift({
+                        id: IMAGE_VERSION_FIELD_ID,
+                        displayName: "Airbyte Image Version",
+                        type: singleSelectionType(availableImageVersions),
+                        defaultValue: imageVersion || availableImageVersions[0],
+                        required: true,
+                      })
                       end(result)
                     }
                   } catch (error) {
@@ -162,7 +169,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
     )
 
     const handleIfAirbyteVersionChanged = async (changedFormValues: PlainObjectWithPrimitiveValues): Promise<void> => {
-      const newImageVersion = changedFormValues[AIRBYTE_IMAGE_VERSION_FIELD_ID]
+      const newImageVersion = changedFormValues[IMAGE_VERSION_FIELD_ID]
       if (newImageVersion && typeof newImageVersion === "string") {
         airbyteImageVersion.current = newImageVersion
         handleResetOauth()
@@ -221,13 +228,6 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
       </Row>
     ) : (
       <Form form={form} onValuesChange={handleFormValuesChangeForm}>
-        {sourceDataFromCatalog.protoType === "airbyte" && (
-          <AirbyteVersionSelection
-            key={`Stream Version Selection`}
-            defaultValue={airbyteImageVersion.current}
-            options={availableAirbyteImageVersions}
-          />
-        )}
         <ConfigurableFieldsForm
           fieldsParamsList={fieldsParameters || []}
           form={form}
@@ -280,44 +280,4 @@ const transformAirbyteSpecResponse = (response: any) => {
 
 const transformSdkSourceSpecResponse = (response: any, availableOauthBackendSecrets: string[]) => {
   return mapSdkSourceSpecToSourceConnectorConfig(response?.["spec"], availableOauthBackendSecrets)
-}
-
-type AirbyteVersionSelectionProps = {
-  defaultValue?: string
-  options: string[]
-}
-
-const AirbyteVersionSelection: React.FC<AirbyteVersionSelectionProps> = ({ defaultValue, options }) => {
-  const [selectedVersion, setSelectedVersion] = useState<string>(defaultValue || options[0])
-  const isLatestVersionSelected = selectedVersion === options[0]
-  const handleChange = useCallback<(value: string) => void>(version => {
-    setSelectedVersion(version)
-  }, [])
-  return (
-    <FormItemWrapper
-      id={AIRBYTE_IMAGE_VERSION_FIELD_ID}
-      name={AIRBYTE_IMAGE_VERSION_FIELD_ID}
-      displayName={`Airbyte Image Version`}
-      type={singleSelectionType(options)}
-      required={true}
-      initialValue={selectedVersion}
-      // help={!isLatestVersionSelected && <span className={`text-xs text-success`}>{"New version available!"}</span>}
-    >
-      <Select value={selectedVersion} onChange={handleChange}>
-        {options.map(option => {
-          return (
-            <Select.Option value={option} key={option}>
-              {option === selectedVersion && !isLatestVersionSelected ? (
-                <span>
-                  {option} <span className={`text-secondaryText`}>{"(New version available)"}</span>
-                </span>
-              ) : (
-                option
-              )}
-            </Select.Option>
-          )
-        })}
-      </Select>
-    </FormItemWrapper>
-  )
 }
