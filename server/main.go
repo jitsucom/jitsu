@@ -255,6 +255,7 @@ func main() {
 			metricsRelay.Stop()
 		}
 
+		metrics.StopRunningCounter()
 		telemetry.ServerStop()
 		appstatus.Instance.Idle.Store(true)
 		cancel()

@@ -10,6 +10,7 @@ import (
 var (
 	runningApplication *prometheus.Counter
 	runningTicker      *time.Ticker
+	closed             chan struct{}
 )
 
 func initApplication() {
@@ -25,15 +26,26 @@ func initApplication() {
 }
 
 func StartRunningCounter(seconds int) {
+	closed = make(chan struct{})
 	runningTicker = time.NewTicker(time.Duration(seconds) * time.Second)
 	safego.RunWithRestart(func() {
 		for {
 			select {
+			case <-closed:
+				runningTicker.Stop()
+				return
 			case <-runningTicker.C:
 				ApplicationRunning(float64(seconds))
 			}
 		}
 	})
+}
+
+func StopRunningCounter() {
+	if closed != nil {
+		close(closed)
+		closed = nil
+	}
 }
 
 func ApplicationRunning(value float64) {

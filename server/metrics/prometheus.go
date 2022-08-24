@@ -67,7 +67,6 @@ func InitMain(exported bool) {
 	initAuthorization()
 	initCoordinationRedis()
 	initDestinations()
-	initEvents()
 	initEventsRedis()
 	initMetaRedis()
 	initNotifications()

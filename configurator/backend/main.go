@@ -134,6 +134,7 @@ func main() {
 	metricsRelay := metrics.InitRelay(clusterID, nil)
 	if metricsRelay != nil {
 		metrics.InitConfigurator(true)
+		defer metrics.StopRunningCounter()
 		interval := metricsRelay.Timeout
 		trigger := metrics.TickerTrigger{
 			Ticker: time.NewTicker(interval),
