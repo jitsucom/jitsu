@@ -80,6 +80,16 @@ const DestinationEditorTransform = ({
               id: "_transform",
               codeSuggestions: `${templateVarsSuggestions}declare const destinationId = "${destinationData._uid}";
 declare const destinationType = "${destinationData._type}";
+declare type KeyValue = {
+  get(key: string): Promise<any>
+  del(key: string): Promise<void>
+  set(key: string, value: any, opts?: {ttlMs?: number}): Promise<void>
+}
+declare const $kv:KeyValue
+declare type Context = typeof $.__HTTP_CONTEXT__ & {
+  header(name: string): string
+}
+declare const $context:Context = $.__HTTP_CONTEXT__
 ${[destinationData._type, "segment"]
   .map(type => `declare function ${camelCase("to_" + type)}(event: object): object`)
   .join("\n")}`,

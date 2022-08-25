@@ -46,6 +46,13 @@ users_recognition:
     ttl_minutes:
       anonymous_events: '${env.USER_RECOGNITION_TTL_MINUTES|10080}'
 
+transform:
+  redis:
+    host: '${env.TRANSFORM_REDIS_URL|env.USER_RECOGNITION_REDIS_URL|}'
+    database: 1
+    ttl_sec: 5184000
+    tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+
 meta:
   storage:
     redis:

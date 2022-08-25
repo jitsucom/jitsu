@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"github.com/spf13/viper"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -103,8 +104,11 @@ func NewFactory(poolSize, maxSpace int, tmpDir ...string) (*Factory, error) {
 		return nil, errors.Wrapf(err, "create %s", scriptPath)
 	}
 
+	replacer := strings.NewReplacer("[[SERVER_PORT]]", viper.GetString("server.port"),
+		"[[SERVER_ADMIN_TOKEN]]", viper.GetString("server.admin_token"))
+
 	defer closeQuietly(scriptFile)
-	if _, err = scriptFile.WriteString(scriptContent); err != nil {
+	if _, err = replacer.WriteString(scriptFile, scriptContent); err != nil {
 		return nil, errors.Wrapf(err, "write to %s", scriptPath)
 	}
 
