@@ -2,6 +2,17 @@
 
 Use the power of Javascript to modify incoming event object, replace it with a completely new event or produce multiple events based on incoming data.<br/>
 Also, you can use Transform to assign Data Warehouse specific SQL types for object fields, set the destination table name for each event or to skip the event altogether.
+
+- [Overview](#overview)
+- [Server YAML configuration](#server-yaml-configuration)
+- [Modify incoming event](#modify-incoming-event)
+- [Build new event](#build-new-event)
+- [Produce multiple events](#produce-multiple-events)
+- [Override destination table](#override-destination-table)
+- [Override SQL column type](#override-sql-column-type)
+- [Predefined constants and functions](#predefined-constants-and-functions)
+- [Using HTTP headers in transformations](#using-http-headers-in-transformations)
+
 ## Overview
 
 <Hint>
@@ -17,7 +28,7 @@ Provided javascript must return:
  * **array of objects** - a single incoming event will result in multiple events in destinations 
  * **null** - to skip event from processing
 
-To override the destination table, you need to add a special property `JITSU_TABLE_NAME` to the resulting events.
+To override the destination table, you need to add a special property named `JITSU_TABLE_NAME` to the resulting events.
 
 To override the destination SQL column type for a specific object field, you need to add an extra property with the special prefix `__sql_type_` added to the name of a field to resulting events. E.g.: `__sql_type_utc_time: "date"` sets SQL type **date** for column **utc_time**
 

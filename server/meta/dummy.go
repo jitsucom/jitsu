@@ -56,7 +56,7 @@ func (d *Dummy) GetTaskLogs(taskID string, from, to time.Time) ([]TaskLogRecord,
 	return nil, nil
 }
 
-//task queue
+// task queue
 func (d *Dummy) PushTask(task *Task) error { return nil }
 func (d *Dummy) PollTask() (*Task, error)  { return nil, nil }
 

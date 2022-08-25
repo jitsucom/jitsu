@@ -61,7 +61,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-//some inner parameters
+// some inner parameters
 const (
 	//incoming.tok=$token-$timestamp.log
 	uploaderFileMask = "incoming.tok=*-20*.log"
@@ -380,6 +380,11 @@ func main() {
 	}
 	appconfig.Instance.ScheduleClosing(destinationsService)
 
+	transformStorage, err := templates.InitializeStorage(true, metaStorageConfiguration)
+	if err != nil {
+		logging.Fatalf("Error initializing transform key value storage: %v", err)
+	}
+
 	userRecognitionStorage, err := users.InitializeStorage(globalRecognitionConfiguration.Enabled, metaStorageConfiguration)
 	if err != nil {
 		logging.Fatalf("Error initializing users recognition storage: %v", err)
@@ -522,7 +527,7 @@ func main() {
 
 	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, fallbackService,
 		coordinationService, eventsCache, systemService, segmentRequestFieldsMapper, segmentCompatRequestFieldsMapper, processorHolder,
-		multiplexingService, walService, geoService, globalRecognitionConfiguration)
+		multiplexingService, walService, geoService, globalRecognitionConfiguration, transformStorage)
 
 	telemetry.ServerStart()
 	notifications.ServerStart(systemInfo)
@@ -537,7 +542,7 @@ func main() {
 	logging.Fatal(server.ListenAndServe())
 }
 
-//initializeCoordinationService returns configured coordination.Service (redis or inmemory)
+// initializeCoordinationService returns configured coordination.Service (redis or inmemory)
 func initializeCoordinationService(ctx context.Context, metaStorageConfiguration *viper.Viper) (*coordination.Service, error) {
 	//check deprecated etcd
 	if viper.GetString("coordination.etcd.endpoint") != "" || viper.IsSet("synchronization_service") {
@@ -579,7 +584,7 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 		"\n\tRead more about coordination service configuration: https://jitsu.com/docs/deployment/scale#coordination")
 }
 
-//initializeEventsQueueFactory returns configured events.QueueFactory (redis or inmemory)
+// initializeEventsQueueFactory returns configured events.QueueFactory (redis or inmemory)
 func initializeEventsQueueFactory(metaStorageConfiguration *viper.Viper) (*events.QueueFactory, error) {
 	var redisConfigurationSource *viper.Viper
 
