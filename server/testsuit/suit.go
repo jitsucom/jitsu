@@ -222,7 +222,7 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		fallback.NewTestService(), coordination.NewInMemoryService(""), sb.eventsCache, sb.systemService,
-		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService, sb.globalUsersRecognitionConfig, nil)
+		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService, sb.geoService, sb.globalUsersRecognitionConfig)
 
 	server := &http.Server{
 		Addr:              sb.httpAuthority,
