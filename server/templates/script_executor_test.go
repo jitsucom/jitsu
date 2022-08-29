@@ -1,13 +1,12 @@
-package templates_test
+package templates
 
 import (
 	"encoding/json"
+	"github.com/jitsucom/jitsu/server/script/node"
 	"testing"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/script/node"
-	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,7 +25,7 @@ func TestLoadSourcePlugins(t *testing.T) {
 
 	defer factory.Close()
 
-	templates.SetScriptFactory(factory)
+	SetScriptFactory(factory)
 
 	plugins := []string{
 		"jitsu-airtable-source",
@@ -40,7 +39,7 @@ func TestLoadSourcePlugins(t *testing.T) {
 	}
 
 	for _, plugin := range plugins {
-		executor, err := templates.NewSourceExecutor(&templates.SourcePlugin{
+		executor, err := NewSourceExecutor(&SourcePlugin{
 			Package: plugin,
 			ID:      "test-source",
 			Type:    "test-type",
@@ -99,16 +98,16 @@ func TestExecuteTestingSource(t *testing.T) {
 
 	defer factory.Close()
 
-	templates.SetScriptFactory(factory)
+	SetScriptFactory(factory)
 
-	plugin := &templates.SourcePlugin{
+	plugin := &SourcePlugin{
 		Package: "jitsu-testing-source",
 		ID:      "test-source",
 		Type:    "test-type",
 		Config:  anyMap{},
 	}
 
-	executor, err := templates.NewSourceExecutor(plugin)
+	executor, err := NewSourceExecutor(plugin)
 
 	if !assert.NoError(t, err) {
 		t.FailNow()

@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/utils"
 	"os"
 	"os/exec"
@@ -54,10 +53,10 @@ type Factory struct {
 	plugins          *sync.Map
 	exchangers       []*exchanger
 	mu               ipc.Mutex
-	transformStorage templates.Storage
+	transformStorage script.Storage
 }
 
-func NewFactory(poolSize, maxSpace int, transformStorage templates.Storage, tmpDir ...string) (*Factory, error) {
+func NewFactory(poolSize, maxSpace int, transformStorage script.Storage, tmpDir ...string) (*Factory, error) {
 	if _, err := exec.LookPath(node); err != nil {
 		return nil, errNodeRequired
 	}
