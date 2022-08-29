@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/script"
 	"math/rand"
 	"net/http"
 	"os"
@@ -353,7 +354,7 @@ func main() {
 		globalRecognitionConfiguration.PoolSize = 1
 		logging.Infof("users_recognition.pool.size can't be 0. Using default value=1 instead")
 	}
-	transformStorage, err := templates.InitializeStorage(true, metaStorageConfiguration)
+	transformStorage, err := script.InitializeStorage(true, metaStorageConfiguration)
 	if err != nil {
 		logging.Fatalf("Error initializing transform key value storage: %v", err)
 	}
