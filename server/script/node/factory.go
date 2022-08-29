@@ -3,8 +3,10 @@ package node
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
-	"github.com/spf13/viper"
+	"github.com/jitsucom/jitsu/server/templates"
+	"github.com/jitsucom/jitsu/server/utils"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,6 +28,9 @@ const (
 	npm         = "npm"
 	nodePathEnv = "NODE_PATH"
 	mainFile    = "main.cjs"
+
+	JitsuKvGetCommand = "_JITSU_KV_GET"
+	JitsuKvSetCommand = "_JITSU_KV_SET"
 )
 
 var (
@@ -43,15 +48,16 @@ var errNodeRequired = errors.New(`node and/or npm is not found in $PATH.
 	Or use @jitsucom/* docker images where all necessary packages are pre-installed`)
 
 type Factory struct {
-	maxSpace   int
-	dir        string
-	nodePath   string
-	plugins    *sync.Map
-	exchangers []*exchanger
-	mu         ipc.Mutex
+	maxSpace         int
+	dir              string
+	nodePath         string
+	plugins          *sync.Map
+	exchangers       []*exchanger
+	mu               ipc.Mutex
+	transformStorage templates.Storage
 }
 
-func NewFactory(poolSize, maxSpace int, tmpDir ...string) (*Factory, error) {
+func NewFactory(poolSize, maxSpace int, transformStorage templates.Storage, tmpDir ...string) (*Factory, error) {
 	if _, err := exec.LookPath(node); err != nil {
 		return nil, errNodeRequired
 	}
@@ -104,8 +110,9 @@ func NewFactory(poolSize, maxSpace int, tmpDir ...string) (*Factory, error) {
 		return nil, errors.Wrapf(err, "create %s", scriptPath)
 	}
 
-	replacer := strings.NewReplacer("[[SERVER_PORT]]", viper.GetString("server.port"),
-		"[[SERVER_ADMIN_TOKEN]]", viper.GetString("server.admin_token"))
+	replacer := strings.NewReplacer("[[JITSU_RESULT_COMMAND]]", ipc.JitsuScriptResultCommand,
+		"[[JITSU_KV_GET_COMMAND]]", JitsuKvGetCommand,
+		"[[JITSU_KV_SET_COMMAND]]", JitsuKvSetCommand)
 
 	defer closeQuietly(scriptFile)
 	if _, err = replacer.WriteString(scriptFile, scriptContent); err != nil {
@@ -113,11 +120,12 @@ func NewFactory(poolSize, maxSpace int, tmpDir ...string) (*Factory, error) {
 	}
 
 	return &Factory{
-		maxSpace:   maxSpace,
-		dir:        dir,
-		nodePath:   nodePath,
-		plugins:    new(sync.Map),
-		exchangers: make([]*exchanger, poolSize),
+		maxSpace:         maxSpace,
+		dir:              dir,
+		nodePath:         nodePath,
+		plugins:          new(sync.Map),
+		exchangers:       make([]*exchanger, poolSize),
+		transformStorage: transformStorage,
 	}, nil
 }
 
@@ -212,10 +220,11 @@ module.exports = async (event) => {
 	}
 	if exer == nil {
 		process := &ipc.StdIO{
-			Dir:  f.dir,
-			Path: node,
-			Args: []string{fmt.Sprintf("--max-old-space-size=%d", f.maxSpace), filepath.Join(f.dir, mainFile)},
-			Env:  []string{nodePathEnv + "=" + f.nodePath, "TZ=Etc/UTC"},
+			Dir:              f.dir,
+			Path:             node,
+			Args:             []string{fmt.Sprintf("--max-old-space-size=%d", f.maxSpace), filepath.Join(f.dir, mainFile)},
+			Env:              []string{nodePathEnv + "=" + f.nodePath, "TZ=Etc/UTC"},
+			CommandProcessor: f.ProcessCustomCommand,
 		}
 
 		governor, err := ipc.Govern(process, standalone)
@@ -238,4 +247,53 @@ module.exports = async (event) => {
 		colOffset:  colOffset,
 		standalone: standalone,
 	}, nil
+}
+
+// KeyValueCommand is used to pass payload of key-value storage commands and results.
+type KeyValueCommand struct {
+	RequestId     int64   `json:"requestId"`
+	DestinationId string  `json:"destinationId"`
+	Key           string  `json:"key"`
+	Value         *string `json:"value,omitempty"`
+	TTLms         *int64  `json:"ttlMs,omitempty"`
+	Success       bool    `json:"success"`
+	Error         string  `json:"error"`
+}
+
+func (f *Factory) ProcessCustomCommand(command string, payload []byte) (*ipc.CommandResponse, error) {
+	logging.Infof("Received custom command: %s", command)
+	switch command {
+	case JitsuKvGetCommand, JitsuKvSetCommand:
+		kv := &KeyValueCommand{}
+		err := json.Unmarshal(payload, kv)
+		if err != nil {
+			err = fmt.Errorf("Transform Key-Value error: failed to unmarshal kv command: %s: %w", payload, err)
+			logging.SystemErrorf(err.Error())
+			return nil, err
+		}
+		var value *string
+		if command == JitsuKvGetCommand {
+			value, err = f.transformStorage.GetTransformValue(kv.DestinationId, kv.Key)
+		} else if kv.Value != nil {
+			if len(*kv.Value) > 10000 {
+				err = fmt.Errorf("Transform Key-Value Set error: value length (%d) exceeds allowed limit: %d value(trimmed):\n%s", len(*kv.Value), 10000, utils.ShortenStringWithEllipsis(*kv.Value, 200))
+			} else {
+				err = f.transformStorage.SetTransformValue(kv.DestinationId, kv.Key, *kv.Value, kv.TTLms)
+			}
+		} else {
+			err = f.transformStorage.DeleteTransformValue(kv.DestinationId, kv.Key)
+		}
+		if err != nil {
+			kv.Error = err.Error()
+		} else {
+			kv.Success = true
+			kv.Value = value
+		}
+		return &ipc.CommandResponse{
+			Command: command,
+			Payload: kv,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown command: %s", command)
+	}
 }

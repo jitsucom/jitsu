@@ -132,7 +132,7 @@ Response will be either HTTP 200 OK, or error with description as JSON
 
 <APIMethod method="POST" path="/api/v1/templates/evaluate"/>
 
-Evaluates input [JavaScript functions](/docs/configuration/javascript-functions) or [GO text/template](https://golang.org/pkg/text/template/) expression with input object. It is suitable for:
+Evaluates input [JavaScript functions](/docs/other-features/javascript-transform) or [GO text/template](https://golang.org/pkg/text/template/) expression with input object. It is suitable for:
 * testing [table name template](/docs/configuration/table-names-and-filters) - rules for choosing table name for every income JSON event.
 * testing [HTTP body payload and HTTP URL](https://jitsu.com/docs/destinations-configuration/webhook#webhook-configuration-parameters) - expressions in [WebHook](https://jitsu.com/docs/destinations-configuration/webhook) destination configuration.
 

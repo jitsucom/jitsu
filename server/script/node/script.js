@@ -1,6 +1,11 @@
 // noinspection ExceptionCaughtLocallyJS
 
 const __jts_log__ = [];
+const __jts_result = "[[JITSU_RESULT_COMMAND]]";
+const __jts_keyvalue_get = "[[JITSU_KV_GET_COMMAND]]";
+const __jts_keyvalue_set = "[[JITSU_KV_SET_COMMAND]]";
+const __jts_command_callbacks = new Map();
+let __jts_command_id = 0;
 
 for (let level of ["trace", "info", "warn", "error"]) {
   console[level] = (...args) => {
@@ -31,13 +36,12 @@ const { NodeVM } = require("vm2");
 const fs = require("fs");
 const path = require("path");
 
-const send = (data) => {
-  process.stdout.write("\nJ:" + data + "\n");
+const send = (type, data) => {
+  process.stdout.write(`\nJ$${type}:${data}\n`);
 };
 
 const reply = async (result, error) => {
   let data = {
-    type: "_JITSU_SCRIPT_RESULT",
     ok: !error,
     result: result,
     error: !!error ? error.toString() : null,
@@ -46,15 +50,7 @@ const reply = async (result, error) => {
   };
 
   try {
-    await send(JSON.stringify(data));
-  } catch (error) {
-    let edata = {
-      type: "_JITSU_SCRIPT_RESULT",
-      ok: false,
-      error: `Failed to send reply data ${JSON.stringify(data)}: ${error}`,
-    };
-
-    await send(JSON.stringify(edata));
+    send(__jts_result, JSON.stringify(data));
   } finally {
     __jts_log__.length = 0;
   }
@@ -182,11 +178,15 @@ const load = async (id, executable, variables, includes) => {
     // adding extra builtin functions to sandbox
     const destinationId = vm.sandbox["destinationId"];
     const $kv = {};
-    $kv.get = async (key) => await jitsuTransformKeyGet(destinationId, key);
+    $kv.get = async (key) => jitsuTransformKeyGet(destinationId, key);
     $kv.set = async (key, value, opts) =>
-      await jitsuTransformKeySet(destinationId, key, value, opts?.ttlMs);
-    $kv.del = async (key) =>
-      await jitsuTransformKeySet(destinationId, key, null);
+      jitsuTransformKeySet(
+        destinationId,
+        key,
+        value,
+        opts?.ttlMs || opts?.ttlSec * 1000
+      );
+    $kv.del = async (key) => jitsuTransformKeySet(destinationId, key, null);
     vm.sandbox.$kv = $kv;
   }
 
@@ -223,69 +223,28 @@ const vm = (id) => {
   throw "__load_required__";
 };
 
-const jitsuTransformKvEndpoint =
-  "http://localhost:[[SERVER_PORT]]/api/v1/transform/kv";
 const jitsuTransformKeyGet = async function (destinationId, key) {
-  try {
-    let value = await fetch(
-      jitsuTransformKvEndpoint +
-        "?destination_id=" +
-        encodeURIComponent(destinationId) +
-        "&key=" +
-        encodeURIComponent(key),
-      {
-        headers: { "X-Admin-Token": "[[SERVER_ADMIN_TOKEN]]" },
-      }
-    ).then((response) => {
-      if (!response.ok) {
-        throw new Error("http error: " + response.status);
-      } else if (response.status === 204) {
-        return null;
-      }
-      return response.text();
-    });
-    if (value) {
-      value = JSON.parse(value);
-    }
-    return value;
-  } catch (error) {
-    throw new Error("Transform Key-Value Get error: " + error.message);
-  }
+  return new Promise((resolve, reject) => {
+    const requestId = __jts_command_id++;
+    __jts_command_callbacks.set(requestId, { resolve, reject });
+    const req = { requestId, destinationId, key };
+    send(__jts_keyvalue_get, JSON.stringify(req));
+  });
 };
 
-jitsuTransformKeySet = async function (destinationId, key, value, ttlMs) {
-  try {
-    let method = "PUT";
-    if (value == null || typeof value === "undefined") {
-      method = "DELETE";
-    } else if (value !== "") {
-      value = JSON.stringify(value);
-      if (value.toString().length > 10000) {
-        throw new Error(
-          "max size of value exceeds 10000: " + value.toString().length
-        );
-      }
-    }
-    await fetch(
-      jitsuTransformKvEndpoint +
-        "?destination_id=" +
-        encodeURIComponent(destinationId) +
-        "&key=" +
-        encodeURIComponent(key) +
-        (ttlMs ? "&ttl_ms=" + encodeURIComponent(ttlMs) : ""),
-      {
-        headers: { "X-Admin-Token": "[[SERVER_ADMIN_TOKEN]]" },
-        method: method,
-        body: value,
-      }
-    ).then((response) => {
-      if (!response.ok) {
-        throw new Error("http error: " + response.status);
-      }
-    });
-  } catch (error) {
-    throw new Error("Transform Key-Value Set error: " + error.message);
-  }
+const jitsuTransformKeySet = async function (destinationId, key, value, ttlMs) {
+  return new Promise((resolve, reject) => {
+    const requestId = __jts_command_id++;
+    __jts_command_callbacks.set(requestId, { resolve, reject });
+    const req = {
+      requestId,
+      destinationId,
+      key,
+      value: value && JSON.stringify(value),
+      ttlMs,
+    };
+    send(__jts_keyvalue_set, JSON.stringify(req));
+  });
 };
 
 //
@@ -376,6 +335,22 @@ readline
         case "unload":
           unload(payload.session);
           break;
+        case __jts_keyvalue_get:
+        case __jts_keyvalue_set:
+          const requestId = payload.requestId;
+          let cb = __jts_command_callbacks.get(requestId);
+          try {
+            if (payload.success) {
+              cb?.resolve(payload.value && JSON.parse(payload.value));
+            } else {
+              cb?.reject(payload.error);
+            }
+          } catch (error) {
+            cb?.reject(error);
+          } finally {
+            __jts_command_callbacks.delete(requestId);
+          }
+          return;
         default:
           throw new Error(`Unsupported command: ${req.command}`);
       }

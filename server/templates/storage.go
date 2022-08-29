@@ -67,7 +67,10 @@ func InitializeStorage(enabled bool, metaStorageConfiguration *viper.Viper) (Sto
 
 	sentinelMaster := redisConfigurationSource.GetString("sentinel_master_name")
 	tlsSkipVerify := redisConfigurationSource.GetBool("tls_skip_verify")
-	defaultTransformKeyValueTTLms := redisConfigurationSource.GetInt64("ttl_sec") * 1000
+	defaultTransformKeyValueTTLms := int64(60 * 24 * 60 * 60 * 1000) //default 60 days
+	if redisConfigurationSource.Get("ttl_sec") != nil {
+		defaultTransformKeyValueTTLms = redisConfigurationSource.GetInt64("ttl_sec") * 1000
+	}
 
 	factory := meta.NewRedisPoolFactory(host, port, password, database, tlsSkipVerify, sentinelMaster)
 	options := factory.GetOptions()

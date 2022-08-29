@@ -1,9 +1,5 @@
 # Redis optimization
 
-<Hint>
-  Most of those configuration parameters are available in <code inline={true}>beta</code> version only (<a href="/docs/changelog/release-cycle">read more about release cycles</a>).
-</Hint>
-
 Retroactive User Recognition is using Redis to store all anonymous incoming events. Usually,
 the volume of such event can be pretty huge, so Redis can take a lot of RAM (note: Redis keeps
 all data in RAM, disk is used only for persistence)

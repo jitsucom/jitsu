@@ -353,8 +353,12 @@ func main() {
 		globalRecognitionConfiguration.PoolSize = 1
 		logging.Infof("users_recognition.pool.size can't be 0. Using default value=1 instead")
 	}
+	transformStorage, err := templates.InitializeStorage(true, metaStorageConfiguration)
+	if err != nil {
+		logging.Fatalf("Error initializing transform key value storage: %v", err)
+	}
 
-	scriptFactory, err := node.NewFactory(viper.GetInt("node.pool_size"), viper.GetInt("node.max_space"))
+	scriptFactory, err := node.NewFactory(viper.GetInt("node.pool_size"), viper.GetInt("node.max_space"), transformStorage)
 	if err != nil {
 		logging.Warn(err)
 	} else {
@@ -379,11 +383,6 @@ func main() {
 		logging.Fatal(err)
 	}
 	appconfig.Instance.ScheduleClosing(destinationsService)
-
-	transformStorage, err := templates.InitializeStorage(true, metaStorageConfiguration)
-	if err != nil {
-		logging.Fatalf("Error initializing transform key value storage: %v", err)
-	}
 
 	userRecognitionStorage, err := users.InitializeStorage(globalRecognitionConfiguration.Enabled, metaStorageConfiguration)
 	if err != nil {
@@ -527,7 +526,7 @@ func main() {
 
 	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, fallbackService,
 		coordinationService, eventsCache, systemService, segmentRequestFieldsMapper, segmentCompatRequestFieldsMapper, processorHolder,
-		multiplexingService, walService, geoService, globalRecognitionConfiguration, transformStorage)
+		multiplexingService, walService, geoService, globalRecognitionConfiguration)
 
 	telemetry.ServerStart()
 	notifications.ServerStart(systemInfo)

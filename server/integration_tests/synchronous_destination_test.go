@@ -16,11 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//TestMySQLStreamInsert stores two events into MySQL (without/with parsed ua and geo)
-//tests full cycle of event processing
+// TestMySQLStreamInsert stores two events into MySQL (without/with parsed ua and geo)
+// tests full cycle of event processing
 func TestSyncronousDestination(t *testing.T) {
 	logging.LogLevel = logging.DEBUG
-	nodeFactory, err := node.NewFactory(1, 20)
+	nodeFactory, err := node.NewFactory(1, 20, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
