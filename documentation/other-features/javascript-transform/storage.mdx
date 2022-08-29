@@ -4,6 +4,8 @@ title: Key-Value Storage
 
 # JavaScript Transform Key-Value Storage
 
+<PageNotice type="version" version="1.43.0" />
+
 Jitsu allows accessing a key-value storage from JavaScript transformations.
 
 During processing of one event you can store some data and access it later while processing another event.
@@ -11,11 +13,11 @@ During processing of one event you can store some data and access it later while
 Key value storage can be accessed via `$kv` global object that implements the following interface:
 ```typescript
 type KeyValue = {
-  // set value for a key. You can provide 'opts' object with 'ttlMs' - time-to-live value in milliseconds.
-  // Value will be automatically deleted after provided value of milliseconds.
-  // If 'ttlMs' is not provided, default TTL value configured on storage level will be used. 
+  // set value for a key. You can provide 'opts' object with 'ttlMs' or 'ttlSec' - time-to-live value in milliseconds or seconds respectively.
+  // Value will be automatically deleted after provided time.
+  // If 'ttlMs' or 'ttlSec' is not provided, default TTL value configured on storage level will be used. 
   // Default TTL on storage level is 60 days
-  set(key: string, value: any, opts?: {ttlMs?: number}): Promise<void>
+  set(key: string, value: any, opts?: {ttlMs?: number}|{ttlSec?: number}): Promise<void>
   // get value associated with a key
   get(key: string): Promise<any>
   // delete value associated with a key

@@ -83,7 +83,7 @@ declare const destinationType = "${destinationData._type}";
 declare type KeyValue = {
   get(key: string): Promise<any>
   del(key: string): Promise<void>
-  set(key: string, value: any, opts?: {ttlMs?: number}): Promise<void>
+  set(key: string, value: any, opts?: {ttlMs?: number}|{ttlSec?: number}): Promise<void>
 }
 declare const $kv:KeyValue
 declare type Context = typeof $.__HTTP_CONTEXT__ & {

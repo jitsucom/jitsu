@@ -1,7 +1,6 @@
 package routers
 
 import (
-	"github.com/jitsucom/jitsu/server/templates"
 	"net/http"
 	"net/http/pprof"
 	"runtime/debug"
@@ -33,7 +32,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	taskService *synchronization.TaskService, fallbackService *fallback.Service, coordinationService *coordination.Service,
 	eventsCache *caching.EventsCache, systemService *system.Service, segmentEndpointFieldMapper, segmentCompatEndpointFieldMapper events.Mapper,
 	processorHolder *events.ProcessorHolder, multiplexingService *multiplexing.Service, walService *wal.Service, geoService *geo.Service,
-	userRecognition *config.UsersRecognition, transformStorage templates.Storage) *gin.Engine {
+	userRecognition *config.UsersRecognition) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -96,7 +95,6 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	bulkHandler := handlers.NewBulkHandler(destinations, processorHolder.GetBulkPreprocessor())
 
 	geoDataResolverHandler := handlers.NewGeoDataResolverHandler(geoService)
-	transformKeyValueHandler := handlers.NewTransformKeyValueHandler(transformStorage)
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
@@ -126,10 +124,6 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.POST("/geo_data_resolvers/test", adminTokenMiddleware.AdminAuth(geoDataResolverHandler.TestHandler))
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.NewDestinationsHandler(userRecognition).Handler))
 		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.NewEventTemplateHandler(destinations.GetFactory()).Handler))
-
-		apiV1.GET("/transform/kv", adminTokenMiddleware.AdminAuth(transformKeyValueHandler.GetHandler))
-		apiV1.PUT("/transform/kv", adminTokenMiddleware.AdminAuth(transformKeyValueHandler.SetHandler))
-		apiV1.DELETE("/transform/kv", adminTokenMiddleware.AdminAuth(transformKeyValueHandler.DeleteHandler))
 
 		sourcesRoute := apiV1.Group("/sources")
 		{

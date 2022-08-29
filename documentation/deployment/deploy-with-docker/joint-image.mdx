@@ -51,10 +51,6 @@ under `/configurator` path
   Please note that when upgrading from Jitsu 1.41.6 you can switch this setting to `true` only separately from the upgrade itself, otherwise event data may get corrupted.
 </APIParam>
 
-<Hint>
-  Variables below are available only in <code inline={true}>beta</code> version
-</Hint>
-
 <APIParam small={true} name="USER_RECOGNITION_TTL_MINUTES" dataType="number" required={false} type="Docker Env Var">
   Default value is 10080 minutes (7 days). This setting controls when user events are evicted from user recognition cache. Read
   more about <a href="/docs/other-features/retroactive-user-recognition/redis-optimization">user recognition eviction policy</a>
