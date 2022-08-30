@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
-	"strings"
 )
 
 var transformLabels = []string{"project_id", "destination_id"}
@@ -52,24 +51,24 @@ func initTransform() {
 
 func TransformErrors(destinationId string) {
 	if Enabled() {
-		transformErrors.WithLabelValues(strings.Split(destinationId, ".")...).Inc()
+		transformErrors.WithLabelValues(extractLabels(destinationId)).Inc()
 	}
 }
 func TransformKeyValueGet(destinationId string) {
 	if Enabled() {
-		transformKeyValueGets.WithLabelValues(strings.Split(destinationId, ".")...).Inc()
+		transformKeyValueGets.WithLabelValues(extractLabels(destinationId)).Inc()
 	}
 }
 
 func TransformKeyValueDel(destinationId string) {
 	if Enabled() {
-		transformKeyValueDels.WithLabelValues(strings.Split(destinationId, ".")...).Inc()
+		transformKeyValueDels.WithLabelValues(extractLabels(destinationId)).Inc()
 	}
 }
 
 func TransformKeyValueSet(destinationId string, size int) {
 	if Enabled() {
-		transformKeyValueSets.WithLabelValues(strings.Split(destinationId, ".")...).Observe(float64(size))
+		transformKeyValueSets.WithLabelValues(extractLabels(destinationId)).Observe(float64(size))
 	}
 }
 
