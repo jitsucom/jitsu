@@ -101,12 +101,12 @@ type Redis struct {
 //sync_tasks#taskID:logs [timestamp, log record object] - sorted set of log objects and timestamps
 //sync_tasks#taskID hash with fields [id, source, collection, priority, created_at, started_at, finished_at, status]
 
-//NewRedis returns configured Redis struct with connection pool
+// NewRedis returns configured Redis struct with connection pool
 func NewRedis(pool *RedisPool) *Redis {
 	return &Redis{pool: pool, errorMetrics: NewErrorMetrics(metrics.MetaRedisErrors)}
 }
 
-//GetSignature returns sync interval signature from Redis
+// GetSignature returns sync interval signature from Redis
 func (r *Redis) GetSignature(sourceID, collection, interval string) (string, error) {
 	key := "source#" + sourceID + ":collection#" + collection + ":chunks"
 	field := interval
@@ -125,7 +125,7 @@ func (r *Redis) GetSignature(sourceID, collection, interval string) (string, err
 	return signature, nil
 }
 
-//SaveSignature saves sync interval signature in Redis
+// SaveSignature saves sync interval signature in Redis
 func (r *Redis) SaveSignature(sourceID, collection, interval, signature string) error {
 	key := "source#" + sourceID + ":collection#" + collection + ":chunks"
 	field := interval
@@ -141,7 +141,7 @@ func (r *Redis) SaveSignature(sourceID, collection, interval, signature string) 
 	return nil
 }
 
-//DeleteSignature deletes source collection signature from Redis
+// DeleteSignature deletes source collection signature from Redis
 func (r *Redis) DeleteSignature(sourceID, collection string) error {
 	key := "source#" + sourceID + ":collection#" + collection + ":chunks"
 	connection := r.pool.Get()
@@ -156,10 +156,10 @@ func (r *Redis) DeleteSignature(sourceID, collection string) error {
 	return nil
 }
 
-//IncrementEventsCount increment events counter
-//namespaces: [destination, source]
-//eventType: [push, pull]
-//status: [success, error, skip]
+// IncrementEventsCount increment events counter
+// namespaces: [destination, source]
+// eventType: [push, pull]
+// status: [success, error, skip]
 func (r *Redis) IncrementEventsCount(id, namespace, eventType, status string, now time.Time, value int64) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -192,7 +192,7 @@ func (r *Redis) IncrementEventsCount(id, namespace, eventType, status string, no
 	return nil
 }
 
-//AddEvent saves event JSON string into Redis
+// AddEvent saves event JSON string into Redis
 func (r *Redis) AddEvent(namespace, id, status string, entity *Event) error {
 	serialized, err := json.Marshal(entity)
 	if err != nil {
@@ -212,7 +212,7 @@ func (r *Redis) AddEvent(namespace, id, status string, entity *Event) error {
 	return nil
 }
 
-//TrimEvents keeps only last capacity events in Redis list key with trim function
+// TrimEvents keeps only last capacity events in Redis list key with trim function
 func (r *Redis) TrimEvents(namespace, id, status string, capacity int) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -227,7 +227,7 @@ func (r *Redis) TrimEvents(namespace, id, status string, capacity int) error {
 	return nil
 }
 
-//GetEvents returns last n events from namespace with id
+// GetEvents returns last n events from namespace with id
 func (r *Redis) GetEvents(namespace, id, status string, limit int) ([]Event, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -252,7 +252,7 @@ func (r *Redis) GetEvents(namespace, id, status string, limit int) ([]Event, err
 	return events, nil
 }
 
-//GetTotalEvents returns total of cached events
+// GetTotalEvents returns total of cached events
 func (r *Redis) GetTotalEvents(namespace, id, status string) (int, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -267,7 +267,7 @@ func (r *Redis) GetTotalEvents(namespace, id, status string) (int, error) {
 	return count, nil
 }
 
-//CreateTask saves task into Redis and add Task ID in index
+// CreateTask saves task into Redis and add Task ID in index
 func (r *Redis) CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error {
 	err := r.upsertTask(task)
 	if err != nil {
@@ -289,7 +289,7 @@ func (r *Redis) CreateTask(sourceID, collection string, task *Task, createdAt ti
 	return nil
 }
 
-//upsertTask overwrite task in Redis (save or update)
+// upsertTask overwrite task in Redis (save or update)
 func (r *Redis) upsertTask(task *Task) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -305,7 +305,7 @@ func (r *Redis) upsertTask(task *Task) error {
 	return nil
 }
 
-//GetAllTaskIDs returns all source's tasks ids by collection
+// GetAllTaskIDs returns all source's tasks ids by collection
 func (r *Redis) GetAllTaskIDs(sourceID, collection string, descendingOrder bool) ([]string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -328,8 +328,8 @@ func (r *Redis) GetAllTaskIDs(sourceID, collection string, descendingOrder bool)
 	return taskIDs, nil
 }
 
-//RemoveTasks tasks with provided taskIds from specified source's collections.
-//All task logs removed as well
+// RemoveTasks tasks with provided taskIds from specified source's collections.
+// All task logs removed as well
 func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ...string) (int, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -376,7 +376,7 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ...string) (int
 	return removed, nil
 }
 
-//UpdateStartedTask updates only status and started_at field in the task
+// UpdateStartedTask updates only status and started_at field in the task
 func (r *Redis) UpdateStartedTask(taskID, status string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -390,7 +390,7 @@ func (r *Redis) UpdateStartedTask(taskID, status string) error {
 	return nil
 }
 
-//UpdateFinishedTask updates only status and finished_at field in the task
+// UpdateFinishedTask updates only status and finished_at field in the task
 func (r *Redis) UpdateFinishedTask(taskID, status string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -404,7 +404,7 @@ func (r *Redis) UpdateFinishedTask(taskID, status string) error {
 	return nil
 }
 
-//TaskHeartBeat sets current timestamp into heartbeat key
+// TaskHeartBeat sets current timestamp into heartbeat key
 func (r *Redis) TaskHeartBeat(taskID string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -418,7 +418,7 @@ func (r *Redis) TaskHeartBeat(taskID string) error {
 	return nil
 }
 
-//RemoveTaskFromHeartBeat removes taskID current timestamp from heartbeat key
+// RemoveTaskFromHeartBeat removes taskID current timestamp from heartbeat key
 func (r *Redis) RemoveTaskFromHeartBeat(taskID string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -432,7 +432,7 @@ func (r *Redis) RemoveTaskFromHeartBeat(taskID string) error {
 	return nil
 }
 
-//GetAllTasksHeartBeat returns map with taskID-last heartbeat timestamp pairs
+// GetAllTasksHeartBeat returns map with taskID-last heartbeat timestamp pairs
 func (r *Redis) GetAllTasksHeartBeat() (map[string]string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -451,9 +451,9 @@ func (r *Redis) GetAllTasksHeartBeat() (map[string]string, error) {
 	return tasksHeartBeat, nil
 }
 
-//GetAllTasksForInitialHeartbeat returns all task IDs where:
-//1. task is RUNNING and last log time more than last activity threshold
-//2. task is SCHEDULED and task creation time more than last activity threshold
+// GetAllTasksForInitialHeartbeat returns all task IDs where:
+// 1. task is RUNNING and last log time more than last activity threshold
+// 2. task is SCHEDULED and task creation time more than last activity threshold
 func (r *Redis) GetAllTasksForInitialHeartbeat(runningStatus, scheduledStatus string, lastActivityThreshold time.Duration) ([]string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -524,8 +524,8 @@ func (r *Redis) GetAllTasksForInitialHeartbeat(runningStatus, scheduledStatus st
 	return taskIDs, nil
 }
 
-//filterStalledTaskInRunningStatus gets last logs and compares with stalledTime. If there is no logs, compare task creation time
-//returns true if task is stalled
+// filterStalledTaskInRunningStatus gets last logs and compares with stalledTime. If there is no logs, compare task creation time
+// returns true if task is stalled
 func (r *Redis) filterStalledTaskInRunningStatus(conn redis.Conn, task *Task, stalledTime time.Time) (bool, error) {
 	lastLogArr, err := redis.Values(conn.Do("ZREVRANGEBYSCORE", syncTasksPrefix+task.ID+":logs", timestamp.Now().Unix(), 0, "LIMIT", 0, 1, "WITHSCORES"))
 	if err != nil {
@@ -551,8 +551,8 @@ func (r *Redis) filterStalledTaskInRunningStatus(conn redis.Conn, task *Task, st
 	return startedAt.Before(stalledTime), nil
 }
 
-//filterStalledTaskInScheduledStatus gets task creation time and compares with stalledTime
-//returns true if task is stalled
+// filterStalledTaskInScheduledStatus gets task creation time and compares with stalledTime
+// returns true if task is stalled
 func (r *Redis) filterStalledTaskInScheduledStatus(task *Task, stalledTime time.Time) (bool, error) {
 	createdAt, err := time.Parse(time.RFC3339Nano, task.CreatedAt)
 	if err != nil {
@@ -562,7 +562,7 @@ func (r *Redis) filterStalledTaskInScheduledStatus(task *Task, stalledTime time.
 	return createdAt.Before(stalledTime), nil
 }
 
-//GetAllTasks returns all source's tasks by collection and time criteria
+// GetAllTasks returns all source's tasks by collection and time criteria
 func (r *Redis) GetAllTasks(sourceID, collection string, start, end time.Time, limit int) ([]Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -604,7 +604,7 @@ func (r *Redis) GetAllTasks(sourceID, collection string, start, end time.Time, l
 	return tasks, nil
 }
 
-//GetLastTask returns last sync task
+// GetLastTask returns last sync task
 func (r *Redis) GetLastTask(sourceID, collection string, offset int) (*Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -635,7 +635,7 @@ func (r *Redis) GetLastTask(sourceID, collection string, offset int) (*Task, err
 	return task, err
 }
 
-//GetTask opens connection and returns result of getTask
+// GetTask opens connection and returns result of getTask
 func (r *Redis) GetTask(taskID string) (*Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -643,7 +643,7 @@ func (r *Redis) GetTask(taskID string) (*Task, error) {
 	return r.getTask(conn, taskID)
 }
 
-//getTask returns task by task ID or ErrTaskNotFound
+// getTask returns task by task ID or ErrTaskNotFound
 func (r *Redis) getTask(conn redis.Conn, taskID string) (*Task, error) {
 	taskFields, err := redis.Values(conn.Do("HGETALL", syncTasksPrefix+taskID))
 	if err != nil {
@@ -669,7 +669,7 @@ func (r *Redis) getTask(conn redis.Conn, taskID string) (*Task, error) {
 	return task, nil
 }
 
-//AppendTaskLog appends log record into task logs sorted set
+// AppendTaskLog appends log record into task logs sorted set
 func (r *Redis) AppendTaskLog(taskID string, now time.Time, system, message, level string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -691,7 +691,7 @@ func (r *Redis) AppendTaskLog(taskID string, now time.Time, system, message, lev
 	return nil
 }
 
-//GetTaskLogs returns task logs with time criteria
+// GetTaskLogs returns task logs with time criteria
 func (r *Redis) GetTaskLogs(taskID string, start, end time.Time) ([]TaskLogRecord, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -717,7 +717,7 @@ func (r *Redis) GetTaskLogs(taskID string, start, end time.Time) ([]TaskLogRecor
 	return taskLogs, nil
 }
 
-//PollTask return task from the Queue or nil if the queue is empty
+// PollTask return task from the Queue or nil if the queue is empty
 func (r *Redis) PollTask() (*Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -746,7 +746,7 @@ func (r *Redis) PollTask() (*Task, error) {
 	return task, err
 }
 
-//PushTask saves task into priority queue
+// PushTask saves task into priority queue
 func (r *Redis) PushTask(task *Task) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -764,22 +764,22 @@ func (r *Redis) PushTask(task *Task) error {
 	return nil
 }
 
-//GetProjectSourceIDs returns project's sources ids
+// GetProjectSourceIDs returns project's sources ids
 func (r *Redis) GetProjectSourceIDs(projectID string) ([]string, error) {
 	return r.getProjectIDs(projectID, sourceIndex)
 }
 
-//GetProjectPushSourceIDs returns project's pushed sources ids (api keys)
+// GetProjectPushSourceIDs returns project's pushed sources ids (api keys)
 func (r *Redis) GetProjectPushSourceIDs(projectID string) ([]string, error) {
 	return r.getProjectIDs(projectID, pushSourceIndex)
 }
 
-//GetProjectDestinationIDs returns project's destination ids
+// GetProjectDestinationIDs returns project's destination ids
 func (r *Redis) GetProjectDestinationIDs(projectID string) ([]string, error) {
 	return r.getProjectIDs(projectID, destinationIndex)
 }
 
-//GetEventsWithGranularity returns events amount with time criteria by granularity, status and sources/destination ids
+// GetEventsWithGranularity returns events amount with time criteria by granularity, status and sources/destination ids
 func (r *Redis) GetEventsWithGranularity(namespace, status, eventType string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -793,10 +793,10 @@ func (r *Redis) GetEventsWithGranularity(namespace, status, eventType string, id
 	return nil, fmt.Errorf("Unknown granularity: %s", granularity.String())
 }
 
-//getEventsPerHour returns sum of sources/destinations events per hour (between start and end)
-//namespace: [destination, source]
-//status: [success, error, skip]
-//identifiers: sources/destinations ids
+// getEventsPerHour returns sum of sources/destinations events per hour (between start and end)
+// namespace: [destination, source]
+// status: [success, error, skip]
+// identifiers: sources/destinations ids
 func (r *Redis) getEventsPerHour(conn redis.Conn, namespace, eventType, status string, identifiers []string, start, end time.Time) ([]EventsPerTime, error) {
 	eventsPerChunk := map[string]int{} //key = 2021-03-17T00:00:00+0000 | value = events count
 
@@ -850,9 +850,9 @@ func (r *Redis) getEventsPerHour(conn redis.Conn, namespace, eventType, status s
 	return eventsPerTime, nil
 }
 
-//getEventsPerHour returns sum of sources/destinations events per day (between start and end)
-//namespace: [destination, source]
-//status: [success, error, skip]
+// getEventsPerHour returns sum of sources/destinations events per day (between start and end)
+// namespace: [destination, source]
+// status: [success, error, skip]
 func (r *Redis) getEventsPerDay(conn redis.Conn, namespace, eventType, status string, identifiers []string, start, end time.Time) ([]EventsPerTime, error) {
 	eventsPerChunk := map[string]int{} //key = 2021-03-17T00:00:00+0000 | value = events count
 
@@ -906,7 +906,7 @@ func (r *Redis) getEventsPerDay(conn redis.Conn, namespace, eventType, status st
 	return eventsPerTime, nil
 }
 
-//GetOrCreateClusterID returns clusterID from Redis or save input one
+// GetOrCreateClusterID returns clusterID from Redis or save input one
 func (r *Redis) GetOrCreateClusterID(generatedClusterID string) string {
 	key := ConfigPrefix + SystemKey
 	field := "cluster_id"
@@ -946,7 +946,7 @@ func (r *Redis) Close() error {
 	return r.pool.Close()
 }
 
-//getProjectIDs returns project's entities with indexName
+// getProjectIDs returns project's entities with indexName
 func (r *Redis) getProjectIDs(projectID, indexName string) ([]string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -966,8 +966,8 @@ func (r *Redis) getProjectIDs(projectID, indexName string) ([]string, error) {
 	return IDs, nil
 }
 
-//ensureIDInIndex add id to corresponding index by projectID
-//namespaces: [destination, source]
+// ensureIDInIndex add id to corresponding index by projectID
+// namespaces: [destination, source]
 func (r *Redis) ensureIDInIndex(conn redis.Conn, id, namespace string) error {
 	var indexName string
 	switch namespace {
@@ -1000,7 +1000,7 @@ func (r *Redis) ensureIDInIndex(conn redis.Conn, id, namespace string) error {
 	return nil
 }
 
-//getCoveredDays return array of YYYYMMDD day strings which are covered input interval
+// getCoveredDays return array of YYYYMMDD day strings which are covered input interval
 func getCoveredDays(start, end time.Time) []string {
 	days := []string{start.Format(timestamp.DayLayout)}
 
@@ -1017,7 +1017,7 @@ func getCoveredDays(start, end time.Time) []string {
 	return days
 }
 
-//getCoveredMonths return array of YYYYMM month strings which are covered input interval
+// getCoveredMonths return array of YYYYMM month strings which are covered input interval
 func getCoveredMonths(start, end time.Time) []string {
 	months := []string{start.Format(timestamp.MonthLayout)}
 

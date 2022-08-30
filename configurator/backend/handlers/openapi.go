@@ -48,7 +48,7 @@ log:
 	jsonContentType = "application/json"
 )
 
-//stubS3Config is used in generate Jitsu Server yaml config
+// stubS3Config is used in generate Jitsu Server yaml config
 var stubS3Config = &jadapters.S3Config{
 	AccessKeyID: "Please fill this field with your S3 credentials",
 	SecretKey:   "Please fill this field with your S3 credentials",
@@ -175,34 +175,58 @@ func (oa *OpenAPI) EvaluateDestinationJSTransformationScript(ctx *gin.Context) {
 	}
 
 	var req openapi.AnyObject
-	if err := ctx.BindJSON(&req); err != nil {
+	projectID := ctx.Query("project_id")
+	if authority, err := mw.GetAuthority(ctx); err != nil {
+		mw.Unauthorized(ctx, err)
+	} else if err := ctx.BindJSON(&req); err != nil {
 		mw.InvalidInputJSON(ctx, err)
-		return
-	} else if field, ok := req.Get("field"); ok && fmt.Sprint(field) == "_transform" {
-		var wrapper struct {
-			Config *entities.Destination `json:"config"`
-		}
-
-		if err := common.DecodeAsJSON(req.AdditionalProperties, &wrapper); err != nil {
-			mw.BadRequest(ctx, "Failed to unmarshal destination config", nil)
-			return
-		} else if wrapper.Config == nil {
-			mw.BadRequest(ctx, "Invalid input data", errors.New("config is required field when field = _transform"))
-			return
-		} else if destinationConfig, err := destinations.MapConfig("evaluate", wrapper.Config, oa.DefaultS3, nil); err != nil {
-			mw.BadRequest(ctx, fmt.Sprintf("Failed to map [%s] config to Jitsu format", wrapper.Config.Type), err)
-			return
-		} else {
-			req.Set("config", destinationConfig)
-		}
-	}
-
-	if reqData, err := req.MarshalJSON(); err != nil {
-		mw.BadRequest(ctx, "Failed to marshal request body to json", err)
-	} else if serverStatusCode, serverResponse, err := oa.JitsuService.EvaluateExpression(reqData); err != nil {
-		mw.BadRequest(ctx, "Failed to get response from Jitsu server", err)
+	} else if projectID == "" {
+		mw.RequiredField(ctx, "project_id")
+	} else if !authority.Allow(projectID) {
+		mw.ForbiddenProject(ctx, projectID)
 	} else {
-		ctx.Data(serverStatusCode, jsonContentType, serverResponse)
+		uid, ok := req.Get("uid")
+		if !ok {
+			mw.RequiredField(ctx, "uid")
+			return
+		}
+		uidParts := strings.Split(uid.(string), ".")
+		if len(uidParts) < 2 {
+			mw.BadRequest(ctx, "destination's uid must have project id part: '{project_id}.{destination_id}'", nil)
+			return
+		}
+		//additionally check project id of destination we work with
+		projectID = strings.Split(uid.(string), ".")[0]
+		if !authority.Allow(projectID) {
+			mw.ForbiddenProject(ctx, projectID)
+			return
+		}
+		if field, ok := req.Get("field"); ok && fmt.Sprint(field) == "_transform" {
+			var wrapper struct {
+				Config *entities.Destination `json:"config"`
+			}
+
+			if err := common.DecodeAsJSON(req.AdditionalProperties, &wrapper); err != nil {
+				mw.BadRequest(ctx, "Failed to unmarshal destination config", nil)
+				return
+			} else if wrapper.Config == nil {
+				mw.BadRequest(ctx, "Invalid input data", errors.New("config is required field when field = _transform"))
+				return
+			} else if destinationConfig, err := destinations.MapConfig("evaluate", wrapper.Config, oa.DefaultS3, nil); err != nil {
+				mw.BadRequest(ctx, fmt.Sprintf("Failed to map [%s] config to Jitsu format", wrapper.Config.Type), err)
+				return
+			} else {
+				req.Set("config", destinationConfig)
+			}
+		}
+
+		if reqData, err := req.MarshalJSON(); err != nil {
+			mw.BadRequest(ctx, "Failed to marshal request body to json", err)
+		} else if serverStatusCode, serverResponse, err := oa.JitsuService.EvaluateExpression(reqData); err != nil {
+			mw.BadRequest(ctx, "Failed to get response from Jitsu server", err)
+		} else {
+			ctx.Data(serverStatusCode, jsonContentType, serverResponse)
+		}
 	}
 }
 

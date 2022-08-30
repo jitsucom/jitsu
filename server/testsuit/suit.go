@@ -37,18 +37,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//Suit is a common test suit for configuring Jitsu Server and keeping test data
+// Suit is a common test suit for configuring Jitsu Server and keeping test data
 type Suit interface {
 	HTTPAuthority() string
 	Close()
 }
 
-//suit is an immutable test suit implementation of Suit
+// suit is an immutable test suit implementation of Suit
 type suit struct {
 	httpAuthority string
 }
 
-//SuiteBuilder is a test Suit builder
+// SuiteBuilder is a test Suit builder
 type SuiteBuilder interface {
 	WithGeoDataMock(geoDataMock *geo.Data) SuiteBuilder
 	WithMetaStorage(t *testing.T) SuiteBuilder
@@ -57,7 +57,7 @@ type SuiteBuilder interface {
 	Build(t *testing.T) Suit
 }
 
-//suiteBuilder is a test Suit builder implementation
+// suiteBuilder is a test Suit builder implementation
 type suiteBuilder struct {
 	httpAuthority                    string
 	segmentRequestFieldsMapper       events.Mapper
@@ -72,7 +72,7 @@ type suiteBuilder struct {
 	recognitionService *users.RecognitionService
 }
 
-//NewSuiteBuilder returns configured SuiteBuilder
+// NewSuiteBuilder returns configured SuiteBuilder
 func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	timestamp.FreezeTime()
 
@@ -145,7 +145,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	}
 }
 
-//WithGeoDataMock overrides geo.Data and GeoResolver with mock
+// WithGeoDataMock overrides geo.Data and GeoResolver with mock
 func (sb *suiteBuilder) WithGeoDataMock(geoDataMock *geo.Data) SuiteBuilder {
 	if geoDataMock == nil {
 		geoDataMock = &geo.Data{
@@ -163,7 +163,7 @@ func (sb *suiteBuilder) WithGeoDataMock(geoDataMock *geo.Data) SuiteBuilder {
 	return sb
 }
 
-//WithMetaStorage overrides meta.Storage with configured from viper
+// WithMetaStorage overrides meta.Storage with configured from viper
 func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
 	metaStorage, err := meta.InitializeStorage(viper.Sub("meta.storage"))
 	require.NoError(t, err)
@@ -175,7 +175,7 @@ func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
 	return sb
 }
 
-//WithDestinationService overrides destinations.Service with input data configured
+// WithDestinationService overrides destinations.Service with input data configured
 func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig string) SuiteBuilder {
 	monitor := coordination.NewInMemoryService("")
 	tempDir := os.TempDir()
@@ -191,7 +191,7 @@ func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig s
 	return sb
 }
 
-//WithUserRecognition overrides users.RecognitionService with configured one
+// WithUserRecognition overrides users.RecognitionService with configured one
 func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
 	storage, err := users.InitializeStorage(true, viper.Sub("meta.storage"))
 	require.NoError(t, err)
@@ -205,8 +205,8 @@ func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
 	return sb
 }
 
-//Build returns Suit and runs HTTP server
-//performs ping check before return
+// Build returns Suit and runs HTTP server
+// performs ping check before return
 func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	//event processors
 	apiProcessor := events.NewAPIProcessor(sb.recognitionService)
@@ -250,7 +250,7 @@ func (s *suit) HTTPAuthority() string {
 	return s.httpAuthority
 }
 
-//Close releases all resources
+// Close releases all resources
 func (s *suit) Close() {
 	timestamp.UnfreezeTime()
 	appconfig.Instance.Close()

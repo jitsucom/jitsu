@@ -1,0 +1,71 @@
+---
+title: Key-Value Storage
+---
+
+# JavaScript Transform Key-Value Storage
+
+<PageNotice type="version" version="1.43.0" />
+
+Jitsu allows accessing a key-value storage from JavaScript transformations.
+
+During processing of one event you can store some data and access it later while processing another event.
+
+Key value storage can be accessed via `$kv` global object that implements the following interface:
+```typescript
+type KeyValue = {
+  // set value for a key. You can provide 'opts' object with 'ttlMs' or 'ttlSec' - time-to-live value in milliseconds or seconds respectively.
+  // Value will be automatically deleted after provided time.
+  // If 'ttlMs' or 'ttlSec' is not provided, default TTL value configured on storage level will be used. 
+  // Default TTL on storage level is 60 days
+  set(key: string, value: any, opts?: {ttlMs?: number}|{ttlSec?: number}): Promise<void>
+  // get value associated with a key
+  get(key: string): Promise<any>
+  // delete value associated with a key
+  del(key: string): Promise<void>
+
+}
+```
+
+<Hint>
+All key values storage methods are asynchronous and return Promise objects as results.
+It is important to resolve returned Promise objects with `await` keyword to avoid unexpected behavior.
+See an example below.
+</Hint>
+
+## Example
+Managing user sessions:
+```javascript
+// generate anonymous user id based on user agent and first 3 octets of IP address
+const IP3octets = ($.source_ip??"").split(".", 3).join(".")
+const anonymousId = $.user_agent + IP3octets;
+// try to get session data from key value storage
+let sessionData = await $kv.get(`session_${anonymousId}`);
+if (!sessionData) {
+  // create a new session if previoud one doesn't exist or expired
+  sessionId = Math.random().toString(36).substring(2)
+  sessionData = {id: sessionId, start: new Date(), pageViews: 0}
+}
+// increment session page views
+sessionData.pageViews++
+// store updated session data in key value storage with TTL 30 minutes
+await $kv.set(`session_${anonymousId}`, sessionData, {ttlMs: 1000*60*30})
+// enrich event with session data
+$.session = sessionData
+return $;
+```
+
+## Server configuration
+
+By default, transform key-value storage uses the same redis credentials that are used for meta storage (the main redis used by jitsu).
+It is recommended to use a separate redis instance for transform key-value storage to avoid performance issues or memory overflows on main redis.
+That can be done using `TRANSFORM_REDIS_URL` environment variables or in server yaml configuration:
+
+```yaml
+transform:
+  redis:
+    host: localhost
+    port: 6379
+    password: 
+    database: 1
+    ttl_sec: 5184000 # default ttl for all keys
+```

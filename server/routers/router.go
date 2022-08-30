@@ -42,7 +42,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		m.SetSlowTime(1)
 		// set request duration, default {0.1, 0.3, 1.2, 5, 10}
 		// used to p95, p99
-		m.SetDuration([]float64{0.01, 0.05, 0.1, 0.3, 1.0, 2.0, 3.0})
+		m.SetDuration([]float64{0.01, 0.05, 0.1, 0.3, 1.0, 2.0, 3.0, 10})
 		m.UseWithoutExposingEndpoint(router)
 	}
 

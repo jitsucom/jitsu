@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os/exec"
@@ -12,6 +13,10 @@ import (
 
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/pkg/errors"
+)
+
+const (
+	JitsuScriptResultCommand = "_JITSU_RESULT"
 )
 
 // DataListener is used to listen for multiline execution output.
@@ -34,6 +39,13 @@ type StdIO struct {
 	stdout io.ReadCloser
 	stderr *bytes.Buffer
 	cancel func()
+
+	CommandProcessor func(commandName string, payload []byte) (*CommandResponse, error)
+}
+
+type CommandResponse struct {
+	Command string      `json:"command"`
+	Payload interface{} `json:"payload"`
 }
 
 func (p *StdIO) Spawn() (Process, error) {
@@ -68,14 +80,15 @@ func (p *StdIO) Spawn() (Process, error) {
 	}
 
 	return &StdIO{
-		Dir:    p.Dir,
-		Path:   p.Path,
-		Args:   p.Args,
-		cmd:    cmd,
-		stdin:  stdin,
-		stdout: stdout,
-		stderr: stderr,
-		cancel: cancel,
+		Dir:              p.Dir,
+		Path:             p.Path,
+		Args:             p.Args,
+		cmd:              cmd,
+		stdin:            stdin,
+		stdout:           stdout,
+		stderr:           stderr,
+		cancel:           cancel,
+		CommandProcessor: p.CommandProcessor,
 	}, nil
 }
 
@@ -103,11 +116,34 @@ func (p *StdIO) Receive(ctx context.Context, listener DataListener) ([]byte, err
 		if err != nil {
 			done <- true
 			return line, err
-		} else if len(line) > 30 && string(line[:2]) == "J:" &&
-			strings.Contains(string(line), "_JITSU_SCRIPT_RESULT") {
-			done <- true
-			return line[2:], nil
-		} else if len(line) > 1 {
+		} else if line[0] == 'J' && line[1] == '$' {
+			iof := bytes.IndexRune(line, ':')
+			if iof > 0 {
+				command := string(line[2:iof])
+				payload := line[iof+1:]
+				switch command {
+				case JitsuScriptResultCommand:
+					done <- true
+					return payload, nil
+				default:
+					//additional commands
+					commandResponse, err := p.CommandProcessor(command, payload)
+					if err != nil {
+						logging.Errorf("Custom command [%s] error: %s", command, err)
+					}
+					if commandResponse != nil {
+						resp, err := json.Marshal(commandResponse)
+						if err != nil {
+							logging.SystemErrorf("Failed to marshal kv command response: %+v: %v", commandResponse, err)
+						} else {
+							p.Send(ctx, resp)
+						}
+						continue
+					}
+				}
+			}
+		}
+		if len(line) > 1 {
 			if listener != nil {
 				listener.Data(line)
 			} else {
