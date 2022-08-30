@@ -23,12 +23,12 @@ func NewRedis(pool *meta.RedisPool, keyvalueDefaultTTLMs int64) *Redis {
 		errorMetrics:         meta.NewErrorMetrics(metrics.TransformKeyValueRedisErrors),
 	}
 }
-func (r *Redis) GetTransformValue(destinationId string, key string) (*string, error) {
+func (r *Redis) GetTransformValue(namespace string, entityId string, key string) (*string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
-	metrics.TransformKeyValueGet(destinationId)
+	metrics.TransformKeyValueGet(entityId)
 
-	kvKey := getTransformValueKey(destinationId, key)
+	kvKey := getTransformValueKey(namespace, entityId, key)
 	value, err := redis.String(conn.Do("GET", kvKey))
 	if err != nil {
 		if err != redis.ErrNil {
@@ -41,12 +41,12 @@ func (r *Redis) GetTransformValue(destinationId string, key string) (*string, er
 	return &value, nil
 }
 
-func (r *Redis) SetTransformValue(destinationId, key, value string, ttlMs *int64) error {
+func (r *Redis) SetTransformValue(namespace, entityId, key, value string, ttlMs *int64) error {
 	conn := r.pool.Get()
 	defer conn.Close()
-	metrics.TransformKeyValueSet(destinationId, len(value))
+	metrics.TransformKeyValueSet(entityId, len(value))
 
-	kvKey := getTransformValueKey(destinationId, key)
+	kvKey := getTransformValueKey(namespace, entityId, key)
 	args := []interface{}{kvKey, value}
 	ttl := r.keyvalueDefaultTTLms
 	if ttlMs != nil {
@@ -64,12 +64,12 @@ func (r *Redis) SetTransformValue(destinationId, key, value string, ttlMs *int64
 	return nil
 }
 
-func (r *Redis) DeleteTransformValue(destinationId, key string) error {
+func (r *Redis) DeleteTransformValue(namespace, entityId, key string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
-	metrics.TransformKeyValueDel(destinationId)
+	metrics.TransformKeyValueDel(entityId)
 
-	kvKey := getTransformValueKey(destinationId, key)
+	kvKey := getTransformValueKey(namespace, entityId, key)
 	_, err := conn.Do("DEL", kvKey)
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
@@ -78,8 +78,8 @@ func (r *Redis) DeleteTransformValue(destinationId, key string) error {
 	return nil
 }
 
-func getTransformValueKey(destinationId, key string) string {
-	return fmt.Sprintf("transform_kv:%s#%s", destinationId, key)
+func getTransformValueKey(namespace, entityId, key string) string {
+	return fmt.Sprintf("javascript_kv:%s#%s#%s", namespace, entityId, key)
 }
 
 func (r *Redis) Type() string {

@@ -20,31 +20,31 @@ var (
 func initTransform() {
 	transformKeyValueGets = NewCounterVec(prometheus.CounterOpts{
 		Namespace: "eventnative",
-		Subsystem: "transform",
+		Subsystem: "javascript",
 		Name:      "kv_get",
 	}, transformLabels)
 
 	transformKeyValueDels = NewCounterVec(prometheus.CounterOpts{
 		Namespace: "eventnative",
-		Subsystem: "transform",
+		Subsystem: "javascript",
 		Name:      "kv_del",
 	}, transformLabels)
 	transformKeyValueSets = NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "eventnative",
-		Subsystem: "transform",
+		Subsystem: "javascript",
 		Name:      "kv_set",
 		Buckets:   []float64{40, 1000},
 	}, transformLabels)
 
 	transformErrors = NewCounterVec(prometheus.CounterOpts{
 		Namespace: "eventnative",
-		Subsystem: "transform",
+		Subsystem: "javascript",
 		Name:      "errors",
 	}, transformLabels)
 
 	transformKeyValueErrors = NewCounterVec(prometheus.CounterOpts{
 		Namespace: "eventnative",
-		Subsystem: "transform",
+		Subsystem: "javascript",
 		Name:      "redis",
 	}, []string{"error_type"})
 
