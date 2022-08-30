@@ -9,7 +9,7 @@ For that, we provide to different approaches:
  * If you're sending events directly from [JS SDK](/docs/sending-data/javascript-reference/npm-or-yarn)
 or [through API](/docs/sending-data/api) Segment compatible data still can be produced.
 
-For both approaches you'll need to configure [Transform](/docs/configuration/javascript-transform).
+For both approaches you'll need to configure [Transform](/docs/other-features/javascript-transform).
 See [Mappings for Segment Compatibility](#mappings-for-segment-compatibility) section.
 
 Also, you'll need to create a view to mimic Segment's `users` table. See below
@@ -45,7 +45,7 @@ from identifies;
 If you're using analytics.js on frontend already - **EventNative** javascript should be configured according to [the following javascript reference](../sending-data/javascript-reference/events-interception).
 If you're sending events directly - **EventNative** javascript should be set up, tracking event calls should be placed according to your requirements and the destination should contain the following mapping configuration:
 
-Destination configuration should have the following [Transform](/docs/configuration/javascript-transform) configuration:
+Destination configuration should have the following [Transform](/docs/other-features/javascript-transform) configuration:
 ```yaml
 destinations:
   example:

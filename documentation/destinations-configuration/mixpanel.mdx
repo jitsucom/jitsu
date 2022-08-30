@@ -35,7 +35,7 @@ Jitsu automatically increments `Lifetime Revenue` User Profile property on event
 
 ## Events Customization
 
-Use [JavaScript Transform](/docs/configuration/javascript-transform) to set your own event names based on incoming event data:
+Use [JavaScript Transform](/docs/other-features/javascript-transform) to set your own event names based on incoming event data:
 
 ```javascript
 if ($.doc_path?.startsWith("/shop/")) {
@@ -46,11 +46,11 @@ return $;
 ### Custom event properties
 
 Jitsu automatically pass all non standard jitsu event properties from original event to Mixpanel.
-You can add custom property by adding it with JS SDK on the web site or using [JavaScript Transform](/docs/configuration/javascript-transform) on server side.
+You can add custom property by adding it with JS SDK on the web site or using [JavaScript Transform](/docs/other-features/javascript-transform) on server side.
 
 ## Skipping events
 
-If not all event types are needed in Mixpanel – you can skip unnecessary evens using [JavaScript Transform](/docs/configuration/javascript-transform) general skip logic by returning `null`:
+If not all event types are needed in Mixpanel – you can skip unnecessary evens using [JavaScript Transform](/docs/other-features/javascript-transform) general skip logic by returning `null`:
 
 ```javascript
 if ($.event_type === "not_interesting") {

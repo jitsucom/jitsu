@@ -1,13 +1,8 @@
 # WebHook
 
-
 **Jitsu** supports any HTTP destinations. WebHook destination can send configurable HTTP requests based on input JS/API event objects.
 For instance WebHook destination can send notifications about important conversion events to [Slack](https://slack.com/) or another notification channel.
-URL and Body might be configured [JavaScript functions](/docs/configuration/javascript-functions). It allows enriching HTTP request with data from JS/API events.
-
-<Hint>
-    WebHook destination supports only <code inline={true}>stream</code> mode.
-</Hint>
+URL and Body might be configured with [JavaScript](#javascript-support). It allows enriching HTTP request with data from JS/API events.
 
 
 ## Filtering events
@@ -17,37 +12,103 @@ For more information see [Table Names and Filters](/docs/configuration/table-nam
 
 ## Configuration
 
-WebHook destination config consists of the following schema:
+### WebHook Configuration Parameters
 
+| Parameter | Description                                                                                                                        |
+| :--- |:-----------------------------------------------------------------------------------------------------------------------------------|
+| `url` (required) | HTTP URL. Can be a string constant or [JavaScript](#javascript-support)                                                            |
+| `method`| HTTP method. Optional. Default value is: `GET`                                                                                     |
+| `body`| HTTP request JSON body. Can be a JSON constant or [JavaScript](#javascript-support) returning Object |
+| `headers`| HTTP headers Map. All HTTP requests will be enriched with configured HTTP headers.                                                 |
+
+## JavaScript support
+
+JavaScript code runs in a context where Jitsu put incoming event as global variables `event` and short convenient synonyms `$` or `_`
+```javascript
+//all 3 expressions are equivalent:
+event.event_type
+$.event_type
+_.event_type //this one better suits Template literals `Welcome, ${_.user?.name}!`
+```
+
+Jitsu automatically converts returned value to the type expected by underlying destination property:
+
+* text string – HTTP URL
+* JSON – for HTTP JSON Body
+
+### Select WebHook URL based on event parameters
+Choose different URL for error events:
+```javascript
+if ($.event_type === "error") {
+  return "https://hooks.example.com/notify/error"
+}
+return "https://hooks.example.com/notify/event"
+````
+
+### Build WebHook JSON Body
+With javascript you can simply return `Object` where JSON is expected - it will be automatically converted
+```javascript
+return {
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": ` ${_.metric_type} event on ${_.doc_host}`
+      }
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": `*${_.metric_type}* event happened on ${_.url}`
+      }
+    }
+  ]
+}
+```
+
+## Server Yaml configuration
+In server's yaml configuration final WebHook setup may look like this:
 ```yaml
 destinations:
   my_webhook:
+    only_tokens:
+      - abc.example
     type: webhook
     mode: stream
-    webhook:
-      url: https://my_domain.com/notification #or `https://my_domain.com/${_.event_type}/notification`
-      method: POST
+    data_layout:
+      table_name_template: '$.event_type' #Optional. It is used for filtering events.
+    config:
       body: |-
-             {
-               "user": _.user?.email,
-               "time": _._timestamp,
-               "conversion_id": _.conversion.id
-             }
+        return {
+        	"blocks": [
+        		{
+        			"type": "header",
+        			"text": {
+        				"type": "plain_text",
+        				"text": ` ${_.metric_type} event on ${_.doc_host}`
+        			}
+        		},
+        		{
+        			"type": "section",
+        			"text": {
+        				"type": "mrkdwn",
+        				"text": `*${_.metric_type}* event happened on ${_.url}`
+        			}
+        		}
+        	]
+        }
+      method: POST
       headers:
         authorization: <my_authorization_token>
         content-type: application/json
-    data_layout:
-      table_name_template: '$.event_type' #Optional. It is used for filtering events.
+      url: |-
+        if ($.event_type === "error") {
+          return "https://hooks.example.com/notify/error"
+        }
+        return "https://hooks.example.com/notify/event"
 ```
-
-## WebHook Configuration Parameters
-
-| Parameter | Description |
-| :--- | :--- |
-| `url` (required) | HTTP URL. Can be a string constant or [JavaScript function](/docs/configuration/javascript-functions) |
-| `method`| HTTP method. Optional. Default value is: `GET`|
-| `body`| HTTP request JSON body. Can be a JSON constant or [JavaScript function](/docs/configuration/javascript-functions) returning Object |
-| `headers`| HTTP headers Map. All HTTP requests will be enriched with configured HTTP headers. |
 
 ## Slack Example
 WebHook destination will send only `conversion` events with constructed body to Slack:
@@ -76,4 +137,23 @@ destinations:
         content-type: application/json
     data_layout:
       table_name_template: '_.event_type == "conversion" && _.event_type' #Consumes only conversions
+```
+
+## Data Masking
+
+You can remove sensitive data from payload before sending it to the webhook:
+```javascript
+//simple Data Masking: filter event from all email occurrences
+var emailRegexp = /^([a-zA-Z0-9_\-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([a-zA-Z0-9\-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$/
+function removeEmails(obj) {
+	for (const key in obj) {
+		if (typeof obj[key] === "object") {
+			removeEmails(obj[key])
+		} else if (typeof obj[key] === "string" && obj[key].match(emailRegexp)) {
+			delete obj[key]
+		}
+	}
+}
+removeEmails($)
+return $
 ```

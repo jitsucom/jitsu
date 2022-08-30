@@ -362,7 +362,7 @@ const ConfigurableFieldsFormComponent = ({
 
     const data = {
       reformat: debuggerType == "string",
-      uid: initialValues._uid,
+      uid: `${services.activeProject.id}.${initialValues._uid}`,
       type: initialValues._type,
       field: field,
       expression: values.code,
