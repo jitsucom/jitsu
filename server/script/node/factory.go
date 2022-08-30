@@ -260,7 +260,6 @@ type KeyValueCommand struct {
 }
 
 func (f *Factory) ProcessCustomCommand(command string, payload []byte) (*ipc.CommandResponse, error) {
-	logging.Infof("Received custom command: %s", command)
 	switch command {
 	case JitsuKvGetCommand, JitsuKvSetCommand:
 		kv := &KeyValueCommand{}
@@ -272,15 +271,15 @@ func (f *Factory) ProcessCustomCommand(command string, payload []byte) (*ipc.Com
 		}
 		var value *string
 		if command == JitsuKvGetCommand {
-			value, err = f.transformStorage.GetTransformValue(kv.DestinationId, kv.Key)
+			value, err = f.transformStorage.GetTransformValue(script.DestinationNamespace, kv.DestinationId, kv.Key)
 		} else if kv.Value != nil {
 			if len(*kv.Value) > 10000 {
 				err = fmt.Errorf("Transform Key-Value Set error: value length (%d) exceeds allowed limit: %d value(trimmed):\n%s", len(*kv.Value), 10000, utils.ShortenStringWithEllipsis(*kv.Value, 200))
 			} else {
-				err = f.transformStorage.SetTransformValue(kv.DestinationId, kv.Key, *kv.Value, kv.TTLms)
+				err = f.transformStorage.SetTransformValue(script.DestinationNamespace, kv.DestinationId, kv.Key, *kv.Value, kv.TTLms)
 			}
 		} else {
-			err = f.transformStorage.DeleteTransformValue(kv.DestinationId, kv.Key)
+			err = f.transformStorage.DeleteTransformValue(script.DestinationNamespace, kv.DestinationId, kv.Key)
 		}
 		if err != nil {
 			kv.Error = err.Error()

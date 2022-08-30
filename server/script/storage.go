@@ -8,30 +8,31 @@ import (
 )
 
 const (
-	DummyStorageType = "dummy"
-	RedisStorageType = "redis"
+	DestinationNamespace = "destination"
+	DummyStorageType     = "dummy"
+	RedisStorageType     = "redis"
 )
 
 type Storage interface {
 	io.Closer
 	//** Transformation Key Value **
-	GetTransformValue(destinationId string, key string) (*string, error)
-	SetTransformValue(destinationId, key, value string, ttlSec *int64) error
-	DeleteTransformValue(destinationId, key string) error
+	GetTransformValue(namespace string, entityId string, key string) (*string, error)
+	SetTransformValue(namespace, entityId, key, value string, ttlMs *int64) error
+	DeleteTransformValue(namespace, entityId, key string) error
 	Type() string
 }
 
 type Dummy struct{}
 
-func (d *Dummy) GetTransformValue(destinationId string, key string) (*string, error) {
+func (d *Dummy) GetTransformValue(namespace string, entityId string, key string) (*string, error) {
 	return nil, nil
 }
 
-func (d *Dummy) SetTransformValue(destinationId, key, value string, ttlSec *int64) error {
+func (d *Dummy) SetTransformValue(namespace, entityId, key, value string, ttlSec *int64) error {
 	return nil
 }
 
-func (d *Dummy) DeleteTransformValue(destinationId, key string) error {
+func (d *Dummy) DeleteTransformValue(namespace, entityId, key string) error {
 	return nil
 }
 
