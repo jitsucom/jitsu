@@ -29,7 +29,7 @@ const icon = (
   </svg>
 )
 
-const bigQueryDestination = {
+const bigQueryDestination: Destination = {
   description: (
     <>
       <a target="_blank" href="https://cloud.google.com/bigquery">
@@ -61,9 +61,6 @@ const bigQueryDestination = {
   id: "bigquery",
   type: "database",
   displayName: "BigQuery",
-  defaultTransform: "",
-  hidden: false,
-  deprecated: false,
   ui: {
     icon: icon,
     connectCmd: (cfg: object) => {
@@ -123,6 +120,6 @@ const bigQueryDestination = {
       }),
     },
   ],
-} as const
+}
 
 export default bigQueryDestination

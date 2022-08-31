@@ -1,5 +1,6 @@
 import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
 import { arrayOf, jsType, selectionType, stringType } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="100%" height="100%" viewBox="0 0 18 7">
@@ -13,14 +14,14 @@ const icon = (
   </svg>
 )
 
-const npmDestination = {
+const npmDestination: Destination = {
   description: <></>,
   syncFromSourcesStatus: "not_supported",
   id: "npm",
   type: "other",
   defaultTransform: "return exports.adapter($, globalThis)",
   displayName: "External package (NPM)",
-  hidden: false,
+  hidden: true,
   parameters: [
     modeParameter("stream"),
     {
@@ -36,6 +37,6 @@ const npmDestination = {
     connectCmd: null,
     title: cfg => cfg["_package"],
   },
-} as const
+}
 
 export default npmDestination

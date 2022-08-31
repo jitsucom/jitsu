@@ -1,5 +1,6 @@
 import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
 import { arrayOf, jsType, selectionType, stringType } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg
@@ -27,7 +28,7 @@ const icon = (
   </svg>
 )
 
-const webhookDestination = {
+const webhookDestination: Destination = {
   description: (
     <>
       Jitsu can send events from JS SDK or Events API to Google Analytics API to any HTTP(s) endpoint. Data format is
@@ -104,6 +105,6 @@ declare let destinationType = "";`,
     connectCmd: null,
     title: cfg => cfg["_formData"]["method"] + " " + cfg["_formData"]["url"],
   },
-} as const
+}
 
 export default webhookDestination

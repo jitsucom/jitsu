@@ -1,5 +1,6 @@
 import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
 import { stringType } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg
@@ -33,7 +34,7 @@ const icon = (
   </svg>
 )
 
-const amplitudeDestination = {
+const amplitudeDestination: Destination = {
   description: (
     <>
       Jitsu can send events from JS SDK or Events API to{" "}
@@ -51,8 +52,6 @@ const amplitudeDestination = {
   defaultTransform: `// Code of Amplitude transform:
 // https://github.com/jitsucom/jitsu/blob/master/server/storages/transform/amplitude.js
 return toAmplitude($)`,
-  hidden: false,
-  deprecated: false,
   ui: {
     icon,
     title: cfg => `API Key: ${cfg._formData.apiKey.substr(0, cfg._formData.apiKey.length / 2)}*****`,
@@ -92,6 +91,6 @@ return toAmplitude($)`,
       ),
     },
   ],
-} as const
+}
 
 export default amplitudeDestination

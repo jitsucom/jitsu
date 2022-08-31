@@ -1,5 +1,6 @@
 import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
 import { stringType } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg xmlns="http://www.w3.org/2000/svg" height="100%" width="100%" viewBox="0 0 48 48">
@@ -25,7 +26,7 @@ const icon = (
   </svg>
 )
 
-const facebookDestination = {
+const facebookDestination: Destination = {
   description: (
     <>
       Jitsu can send events from JS SDK or Events API to Facebook Marketing API. The common use-case is to send
@@ -39,8 +40,6 @@ const facebookDestination = {
   defaultTransform: `// Code of Facebook transform:
 // https://github.com/jitsucom/jitsu/blob/master/server/storages/transform/facebook.js
 return toFacebook($)`,
-  hidden: false,
-  deprecated: false,
   ui: {
     icon,
     title: cfg => `Pixel ID: ${cfg._formData.fbPixelId}`,
@@ -97,6 +96,6 @@ return toFacebook($)`,
       ),
     },
   ],
-} as const
+}
 
 export default facebookDestination

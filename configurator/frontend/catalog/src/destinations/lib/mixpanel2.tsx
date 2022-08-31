@@ -8,6 +8,7 @@ import {
   selectionType,
   stringType,
 } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg width="100%" height="100%" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -18,7 +19,7 @@ const icon = (
   </svg>
 )
 
-const mixpanelDestination = {
+const mixpanelDestination: Destination = {
   description: (
     <>
       Jitsu can send events from JS SDK or Events API to Mixpanel Ingestion API filling as much Mixpanel Events
@@ -37,9 +38,6 @@ const mixpanelDestination = {
   id: "mixpanel2",
   type: "other",
   displayName: "Mixpanel v2",
-  defaultTransform: "",
-  hidden: false,
-  deprecated: false,
   parameters: [
     {
       id: "_super_type",
@@ -161,6 +159,6 @@ const mixpanelDestination = {
     connectCmd: null,
     title: cfg => "project id: " + cfg["_formData"]["project_id"],
   },
-} as const
+}
 
 export default mixpanelDestination

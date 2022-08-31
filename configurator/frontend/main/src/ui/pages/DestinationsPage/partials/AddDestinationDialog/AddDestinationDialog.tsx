@@ -28,7 +28,7 @@ import { projectRoute } from "../../../../../lib/components/ProjectLink/ProjectL
  * 4. deprecated(disabled)
  */
 
-const allAvailableDestinations = destinationsReferenceList
+const allAvailableDestinations: Destination[] = destinationsReferenceList
   .filter(d => !d.hidden)
   .sort((a, b) => {
     if (a.deprecated && !b.deprecated) {
@@ -38,10 +38,12 @@ const allAvailableDestinations = destinationsReferenceList
     }
     return a.displayName.localeCompare(b.displayName)
   })
+  .map(d => d as Destination)
 
 const destinations = {
   "Data Warehouses": allAvailableDestinations.filter(d => d.type === "database"),
-  Services: allAvailableDestinations.filter(d => d.type === "other"),
+  Services: allAvailableDestinations.filter(d => d.type === "other" && !d.community),
+  "Community Plugins": allAvailableDestinations.filter(d => d.type === "other" && d.community),
 }
 
 const AddDestinationDialogComponent = () => {

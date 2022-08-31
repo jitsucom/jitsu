@@ -1,5 +1,6 @@
 import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
 import { stringType } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg
@@ -22,7 +23,7 @@ const icon = (
   </svg>
 )
 
-const hubspotDestination = {
+const hubspotDestination: Destination = {
   description: (
     <>
       Jitsu can send events from JS SDK or Events API to{" "}
@@ -37,9 +38,6 @@ const hubspotDestination = {
   id: "hubspot",
   type: "other",
   displayName: "HubSpot",
-  defaultTransform: "",
-  hidden: false,
-  deprecated: false,
   ui: {
     icon,
     title: cfg => `Hub ID: ${cfg._formData.hubID}`,
@@ -98,6 +96,6 @@ const hubspotDestination = {
       ),
     },
   ],
-} as const
+}
 
 export default hubspotDestination

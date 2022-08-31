@@ -16,7 +16,7 @@ import { DestinationEditorMappings } from "./DestinationEditorMappings"
 import { sourcesStore } from "stores/sources"
 import { destinationsStore } from "stores/destinations"
 // @CatalogDestinations
-import { destinationsReferenceMap } from "@jitsu/catalog"
+import { destinationsReferenceMap, DestinationType } from "@jitsu/catalog"
 // @Types
 import { FormInstance } from "antd/es"
 import { Destination } from "@jitsu/catalog"
@@ -191,7 +191,7 @@ const DestinationEditor = ({
     params.standalone == "true" ||
     isOnboarding ||
     editorMode === "add" ||
-    (destinationsReferenceMap[destinationReference.id].defaultTransform.length > 0 &&
+    (destinationsReferenceMap[destinationReference.id].defaultTransform &&
       !destinationData.current._mappings?._mappings) ||
     !destinationData.current._mappings?._mappings
   let mappingForm = undefined

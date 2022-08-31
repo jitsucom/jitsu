@@ -1,5 +1,6 @@
 import { modeParameter, s3Credentials, tableName } from "./common"
 import { stringType, passwordType, booleanType } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg
@@ -21,7 +22,7 @@ const icon = (
   </svg>
 )
 
-const destination = {
+const destination: Destination = {
   description: (
     <>
       RedShift is a fast and scalable data warehouse provided by AWS. Jitsu can send data to RedShift in both stream,
@@ -33,9 +34,6 @@ const destination = {
   id: "redshift",
   type: "database",
   displayName: "Redshift",
-  defaultTransform: "",
-  hidden: false,
-  deprecated: false,
   ui: {
     title: cfg => cfg._formData.redshiftHost,
     connectCmd: (cfg: object) => {
@@ -104,6 +102,6 @@ const destination = {
       type: booleanType,
     },
   ],
-} as const
+}
 
 export default destination

@@ -1,6 +1,7 @@
 import { modeParameter, tableName } from "./common"
 import { arrayOf, booleanType, stringType } from "../../sources/types"
 import { ReactNode } from "react"
+import { Destination } from "../types"
 
 let icon: ReactNode = (
   <svg xmlns="http://www.w3.org/2000/svg" height="100%" width="100%" viewBox="0 0 9 8">
@@ -14,7 +15,7 @@ let icon: ReactNode = (
   </svg>
 )
 
-const destination = {
+const destination: Destination = {
   description: (
     <>
       ClickHouse is a fast and scalable database developed by Yandex. ClickHouse is not easy to mainatain, however the
@@ -28,9 +29,6 @@ const destination = {
   id: "clickhouse",
   type: "database",
   displayName: "ClickHouse",
-  defaultTransform: "",
-  hidden: false,
-  deprecated: false,
   ui: {
     icon,
     title: cfg => (cfg?._formData?.ch_dsns_list?.length ? cfg._formData.ch_dsns_list[0] : "Unknown"),
@@ -115,6 +113,6 @@ const destination = {
       type: booleanType,
     },
   ],
-} as const
+}
 
 export default destination
