@@ -25,8 +25,12 @@ export const makeSdkSource = (sdkSource: SdkSource): SourceConnector => {
     collectionTypes: [],
     documentation: sdkSource.documentation,
     collectionParameters: [],
-    staticStreamsConfigEndpoint: `/sdk_source/${sdkSource.package_name}@${sdkSource.package_version}/catalog`,
-    specEndpoint: `/sdk_source/${sdkSource.package_name}@${sdkSource.package_version}/spec`,
+    staticStreamsConfigEndpoint: `/sdk_source/catalog?package=${encodeURIComponent(
+      sdkSource.package_name + "@" + sdkSource.package_version
+    )}`,
+    specEndpoint: `/sdk_source/spec?package=${encodeURIComponent(
+      sdkSource.package_name + "@" + sdkSource.package_version
+    )}`,
     configParameters: [
       {
         displayName: "Sdk Source Package Name",
