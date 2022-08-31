@@ -4868,4 +4868,22 @@ export const allAirbyteSources: AirbyteSource[] = [
       ),
     },
   },
+  {
+    pic: logos.elasticsearch,
+    docker_image_name: "airbyte/source-elasticsearch",
+    displayName: "Elasticsearch",
+    stable: false,
+    documentation: {
+      overview: (
+        <>
+          This source syncs data from an ElasticSearch domain.
+          <br />
+          This source automatically discovers all indices in the domain and can sync any of them.
+          <br />
+          ElasticSearch calls may be rate limited by the underlying service. This is specific to each deployment.
+        </>
+      ),
+      connection: <></>,
+    },
+  },
 ]
