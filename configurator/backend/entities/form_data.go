@@ -6,7 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/adapters"
 )
 
-//MySQLFormData entity is stored in main storage (Firebase/Redis)
+// MySQLFormData entity is stored in main storage (Firebase/Redis)
 type MySQLFormData struct {
 	Mode      string   `firestore:"mode" json:"mode"`
 	TableName string   `firestore:"tableName" json:"tableName"`
@@ -20,7 +20,7 @@ type MySQLFormData struct {
 	DisableTLS bool        `firestore:"mysqlDisableTLS" json:"mysqlDisableTLS"`
 }
 
-//PostgresFormData entity is stored in main storage (Firebase/Redis)
+// PostgresFormData entity is stored in main storage (Firebase/Redis)
 type PostgresFormData struct {
 	Mode      string   `firestore:"mode" json:"mode"`
 	TableName string   `firestore:"tableName" json:"tableName"`
@@ -40,7 +40,7 @@ type PostgresFormData struct {
 	Parameters       []string            `firestore:"parameters" json:"parameters"`
 }
 
-//ClickHouseFormData entity is stored in main storage (Firebase/Redis)
+// ClickHouseFormData entity is stored in main storage (Firebase/Redis)
 type ClickHouseFormData struct {
 	Mode       string   `firestore:"mode" json:"mode"`
 	TableName  string   `firestore:"tableName" json:"tableName"`
@@ -51,7 +51,7 @@ type ClickHouseFormData struct {
 	ChDsnsList []string `firestore:"ch_dsns_list" json:"ch_dsns_list"`
 }
 
-//RedshiftFormData entity is stored in main storage (Firebase/Redis)
+// RedshiftFormData entity is stored in main storage (Firebase/Redis)
 type RedshiftFormData struct {
 	Mode      string `firestore:"mode" json:"mode"`
 	TableName string `firestore:"tableName" json:"tableName"`
@@ -102,7 +102,7 @@ type SnowflakeFormData struct {
 	GCSKey    interface{} `firestore:"snowflakeJSONKey" json:"snowflakeJSONKey"`
 }
 
-//GoogleAnalyticsFormData entity is stored in main storage (Firebase/Redis)
+// GoogleAnalyticsFormData entity is stored in main storage (Firebase/Redis)
 type GoogleAnalyticsFormData struct {
 	Mode      string `firestore:"mode" json:"mode"`
 	TableName string `firestore:"tableName" json:"tableName"`
@@ -110,7 +110,7 @@ type GoogleAnalyticsFormData struct {
 	TrackingID string `firestore:"gaTrackingID" json:"gaTrackingID"`
 }
 
-//FacebookFormData entity is stored in main storage (Firebase/Redis)
+// FacebookFormData entity is stored in main storage (Firebase/Redis)
 type FacebookFormData struct {
 	Mode      string `firestore:"mode" json:"mode"`
 	TableName string `firestore:"tableName" json:"tableName"`
@@ -119,7 +119,7 @@ type FacebookFormData struct {
 	AccessToken string `firestore:"fbAccessToken" json:"fbAccessToken"`
 }
 
-//WebhookFormData entity is stored in main storage (Firebase/Redis)
+// WebhookFormData entity is stored in main storage (Firebase/Redis)
 type WebhookFormData struct {
 	Mode      string `firestore:"mode" json:"mode"`
 	TableName string `firestore:"tableName" json:"tableName"`
@@ -137,7 +137,7 @@ type TagFormData struct {
 	Template string `firestore:"template" json:"template"`
 }
 
-//AmplitudeFormData entity is stored in main storage (Firebase/Redis)
+// AmplitudeFormData entity is stored in main storage (Firebase/Redis)
 type AmplitudeFormData struct {
 	Mode      string `firestore:"mode" json:"mode"`
 	TableName string `firestore:"tableName" json:"tableName"`
@@ -146,16 +146,17 @@ type AmplitudeFormData struct {
 	Endpoint string `firestore:"endpoint" json:"endpoint"`
 }
 
-//HubSpotFormData entity is stored in main storage (Firebase/Redis)
+// HubSpotFormData entity is stored in main storage (Firebase/Redis)
 type HubSpotFormData struct {
 	Mode      string `firestore:"mode" json:"mode"`
 	TableName string `firestore:"tableName" json:"tableName"`
 
-	APIKey string `firestore:"apiKey" json:"apiKey"`
-	HubID  string `firestore:"hubID" json:"hubID"`
+	AccessToken string `firestore:"accessToken" json:"accessToken"`
+	APIKey      string `firestore:"apiKey" json:"apiKey"`
+	HubID       string `firestore:"hubID" json:"hubID"`
 }
 
-//DbtCloudFormData entity is stored in main storage (Firebase/Redis)
+// DbtCloudFormData entity is stored in main storage (Firebase/Redis)
 type DbtCloudFormData struct {
 	AccountId json.Number `firestore:"dbtAccountId" json:"dbtAccountId"`
 	JobId     json.Number `firestore:"dbtJobId" json:"dbtJobId"`
@@ -164,7 +165,7 @@ type DbtCloudFormData struct {
 	Enabled   bool        `firestore:"dbtEnabled" json:"dbtEnabled"`
 }
 
-//S3FormData entity is stored in main storage (Firebase/Redis)
+// S3FormData entity is stored in main storage (Firebase/Redis)
 type S3FormData struct {
 	TableName          string                      `firestore:"tableName" json:"tableName"`
 	AccessKeyID        string                      `firestore:"s3AccessKeyID" json:"s3AccessKeyID"`
@@ -177,7 +178,7 @@ type S3FormData struct {
 	CompressionEnabled bool                        `firestore:"s3CompressionEnabled" json:"s3CompressionEnabled"`
 }
 
-//GCSFormData entity is stored in main storage (Firebase/Redis)
+// GCSFormData entity is stored in main storage (Firebase/Redis)
 type GCSFormData struct {
 	TableName          string                      `firestore:"tableName" json:"tableName"`
 	Key                string                      `firestore:"gcsKey" json:"gcsKey"`
