@@ -46,7 +46,7 @@ or if you are using [Jitsu Events API](/docs/sending-data/api) you should send `
 }
 ```
 
-or you, also, could use [Mappings](/docs/configuration/schema-and-mappings) for deliver all user properties into `user` JSON node.
+or you, also, could use [JavaScript Transformations](/docs/other-features/javascript-transform) for deliver all user properties into `user` JSON node.
 
 <Hint>
   All fields that aren't in default HubSpot properties or that aren't configured
@@ -99,7 +99,7 @@ destinations:
     type: hubspot
     mode: stream
     hubspot:
-      api_key: "b7bc95dc-4d52-48c1-8dcd-406aaa56c3cc" #Your HubSpot API Key - see below
+      access_token: "pat-abc-b7bc95dc-abcd-abcd-abcd-406aaa56c3cc" #Your HubSpot API Key - see below
       hub_id: "20546336" #Your Hub ID - see below
     data_layout:
       table_name_template: "{{text template}}" #Optional. It is used for filtering events.
@@ -118,21 +118,32 @@ destinations:
   <tbody>
     <tr>
       <td>
-        <b>api_key</b>
+        <b>access_token</b>
         <br />
         <em>(required)</em>
       </td>
       <td>string</td>
       <td>
-        Your HubSpot API Key (in UUID format, like:
-        e91eb0d4-a72e-4688-9fe4-60cecf8376eb).{" "}
+        HubSpot Private App Access Token. Read{" "}
         <a
           target="_blank"
-          href="https://knowledge.hubspot.com/integrations/how-do-i-get-my-hubspot-api-key"
-        >
-          Read How to obtain API Key
-        </a>
-        .
+          href="https://developers.hubspot.com/docs/api/private-apps#make-api-calls-with-your-app-s-access-token"
+        >How to obtain Access Token</a>. You need to enable following scopes for you private app: <code>crm.objects.contacts.write</code> <code>crm.schemas.contacts.read</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <b>api_key</b>
+        <br />
+        <em>(deprecated)</em>
+      </td>
+      <td>string</td>
+      <td>
+        Your HubSpot API Key. Deprecated in favor of <b>Private App Access Token</b>. Read{" "}
+        <a
+          target="_blank"
+          href="https://developers.hubspot.com/docs/api/migrate-an-api-key-integration-to-a-private-app"
+        >How to migrate to Private App Access Token </a>
       </td>
     </tr>
     <tr>
@@ -143,14 +154,11 @@ destinations:
       </td>
       <td>string</td>
       <td>
-        Your HubSpot Hub ID (in number format, like 453283).{" "}
+        Your HubSpot Hub ID (in number format, like 453283). Read{" "}
         <a
           target="_blank"
           href="http://help.hubspot.com/articles/KCS_Article/Account/Where-can-I-find-my-HUB-ID"
-        >
-          Read How to obtain HubSpot Hub ID
-        </a>
-        .
+        >How to obtain HubSpot Hub ID</a>
       </td>
     </tr>
   </tbody>

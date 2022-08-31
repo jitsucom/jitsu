@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	hubSpotContactPropertiesAPIURLTemplate   = "https://api.hubapi.com/properties/v1/contacts/properties?hapikey=%s"
+	hubSpotContactPropertiesAPIURLTemplate   = "https://api.hubapi.com/properties/v1/contacts/properties"
 	hubSpotContactWithEmailAPIURLTemplate    = "https://api.hubapi.com/contacts/v1/contact/createOrUpdate/email/%v"
 	hubSpotContactWithoutEmailAPIURLTemplate = "https://api.hubapi.com/contacts/v1/contact"
 	hubSpotEventURL                          = "https://track.hubspot.com/v1/event"
@@ -34,52 +34,54 @@ var (
 	revenuePath          = jsonutils.NewJSONPath("/revenue||/conversion/revenue")
 )
 
-//HubSpotContactProperty is a dto for serializing contact (user) properties from HubSpot
+// HubSpotContactProperty is a dto for serializing contact (user) properties from HubSpot
 type HubSpotContactProperty struct {
 	Name string `json:"name"`
 }
 
-//HubSpotContactPropertyWithValues is a dto for serializing contact (user) properties that are sent to HubSpot
+// HubSpotContactPropertyWithValues is a dto for serializing contact (user) properties that are sent to HubSpot
 type HubSpotContactPropertyWithValues struct {
 	Property string      `json:"property"`
 	Value    interface{} `json:"value"`
 }
 
-//HubSpotResponse is a dto for receiving response from HubSpot
+// HubSpotResponse is a dto for receiving response from HubSpot
 type HubSpotResponse struct {
 	Category string `json:"category"`
 	Status   string `json:"status"`
 	Message  string `json:"message"`
 }
 
-//HubSpotContactRequest is a dto for sending contact requests to HubSpot
+// HubSpotContactRequest is a dto for sending contact requests to HubSpot
 type HubSpotContactRequest struct {
 	Properties []HubSpotContactPropertyWithValues `json:"properties"`
 }
 
-//HubSpotRequestFactory is a factory for building HubSpot HTTP requests from input events
-//reloads properties configuration every minutes in background goroutine
+// HubSpotRequestFactory is a factory for building HubSpot HTTP requests from input events
+// reloads properties configuration every minutes in background goroutine
 type HubSpotRequestFactory struct {
-	mutex  *sync.RWMutex
-	apiKey string
-	hubID  string
+	mutex       *sync.RWMutex
+	apiKey      string
+	accessToken string
+	hubID       string
 
 	userProperties map[string]bool
 
 	closed *atomic.Bool
 }
 
-//newHubSpotRequestFactory returns configured HTTPRequestFactory instance for hubspot requests
-//starts goroutine for getting user properties
-func newHubSpotRequestFactory(apiKey, hubID string) (*HubSpotRequestFactory, error) {
+// newHubSpotRequestFactory returns configured HTTPRequestFactory instance for hubspot requests
+// starts goroutine for getting user properties
+func newHubSpotRequestFactory(apiKey, hubID, accessToken string) (*HubSpotRequestFactory, error) {
 	hf := &HubSpotRequestFactory{
-		mutex:  &sync.RWMutex{},
-		apiKey: apiKey,
-		hubID:  hubID,
-		closed: atomic.NewBool(false),
+		mutex:       &sync.RWMutex{},
+		apiKey:      apiKey,
+		accessToken: accessToken,
+		hubID:       hubID,
+		closed:      atomic.NewBool(false),
 	}
 
-	userProperties, err := loadContactProperties(apiKey)
+	userProperties, err := loadContactProperties(accessToken, apiKey)
 	if err != nil {
 		return nil, fmt.Errorf("Error loading contact properties: %v", err)
 	}
@@ -88,7 +90,7 @@ func newHubSpotRequestFactory(apiKey, hubID string) (*HubSpotRequestFactory, err
 	return hf, nil
 }
 
-//start runs a goroutines that gets user properties every 1 minute
+// start runs a goroutines that gets user properties every 1 minute
 func (hf *HubSpotRequestFactory) start() {
 	safego.RunWithRestart(func() {
 		for {
@@ -96,7 +98,7 @@ func (hf *HubSpotRequestFactory) start() {
 				break
 			}
 
-			properties, err := loadContactProperties(hf.apiKey)
+			properties, err := loadContactProperties(hf.accessToken, hf.apiKey)
 			if err != nil {
 				logging.Errorf("Error loading contact properties for [%s] Hub ID: %v", hf.hubID, err)
 			} else {
@@ -110,7 +112,7 @@ func (hf *HubSpotRequestFactory) start() {
 	})
 }
 
-//Create returns created hubspot request depends on event type
+// Create returns created hubspot request depends on event type
 func (hf *HubSpotRequestFactory) Create(object map[string]interface{}) (*Request, error) {
 	eventType, ok := object[events.EventType]
 	if !ok {
@@ -129,8 +131,12 @@ func (hf *HubSpotRequestFactory) Create(object map[string]interface{}) (*Request
 		if email, ok := userEmailPath.Get(object); ok {
 			reqURL = fmt.Sprintf(hubSpotContactWithEmailAPIURLTemplate, email)
 		}
-
-		reqURL += "?hapikey=" + hf.apiKey
+		headers := map[string]string{"Content-Type": "application/json", "user-agent": JitsuUserAgent}
+		if hf.accessToken != "" {
+			headers["Authorization"] = "Bearer " + hf.accessToken
+		} else {
+			reqURL += "?hapikey=" + hf.apiKey
+		}
 
 		body := HubSpotContactRequest{Properties: objectUserProperties}
 		b, err := json.Marshal(body)
@@ -141,7 +147,7 @@ func (hf *HubSpotRequestFactory) Create(object map[string]interface{}) (*Request
 			URL:     reqURL,
 			Method:  http.MethodPost,
 			Body:    b,
-			Headers: map[string]string{"Content-Type": "application/json", "user-agent": JitsuUserAgent},
+			Headers: headers,
 		}, nil
 	} else {
 		//event request
@@ -166,12 +172,12 @@ func (hf *HubSpotRequestFactory) Create(object map[string]interface{}) (*Request
 	}
 }
 
-//Close closes underlying goroutine
+// Close closes underlying goroutine
 func (hf *HubSpotRequestFactory) Close() {
 	hf.closed.Store(true)
 }
 
-//extractUserProperties returns hubspot user properties from input objects
+// extractUserProperties returns hubspot user properties from input objects
 func (hf *HubSpotRequestFactory) extractUserProperties(object map[string]interface{}, properties map[string]bool) []HubSpotContactPropertyWithValues {
 	result := []HubSpotContactPropertyWithValues{}
 
@@ -197,19 +203,20 @@ func (hf *HubSpotRequestFactory) extractUserProperties(object map[string]interfa
 	return result
 }
 
-//HubSpotConfig is a dto for parsing HubSpot configuration
+// HubSpotConfig is a dto for parsing HubSpot configuration
 type HubSpotConfig struct {
-	APIKey string `mapstructure:"api_key,omitempty" json:"api_key,omitempty" yaml:"api_key,omitempty"`
-	HubID  string `mapstructure:"hub_id,omitempty" json:"hub_id,omitempty" yaml:"hub_id,omitempty"`
+	APIKey      string `mapstructure:"api_key,omitempty" json:"api_key,omitempty" yaml:"api_key,omitempty"`
+	AccessToken string `mapstructure:"access_token,omitempty" json:"access_token,omitempty" yaml:"access_token,omitempty"`
+	HubID       string `mapstructure:"hub_id,omitempty" json:"hub_id,omitempty" yaml:"hub_id,omitempty"`
 }
 
-//Validate returns err if invalid
+// Validate returns err if invalid
 func (hc *HubSpotConfig) Validate() error {
 	if hc == nil {
 		return errors.New("hubspot config is required")
 	}
-	if hc.APIKey == "" {
-		return errors.New("'api_key' is required parameter")
+	if hc.APIKey == "" && hc.AccessToken == "" {
+		return errors.New("'access_token' or 'api_key' must be provided")
 	}
 	if hc.HubID == "" {
 		return errors.New("'hub_id' is required parameter")
@@ -218,16 +225,16 @@ func (hc *HubSpotConfig) Validate() error {
 	return nil
 }
 
-//HubSpot is an adapter for sending HTTP requests to HubSpot
+// HubSpot is an adapter for sending HTTP requests to HubSpot
 type HubSpot struct {
 	AbstractHTTP
 
 	config *HubSpotConfig
 }
 
-//NewHubSpot returns configured HubSpot adapter instance
+// NewHubSpot returns configured HubSpot adapter instance
 func NewHubSpot(config *HubSpotConfig, httpAdapterConfiguration *HTTPAdapterConfiguration) (*HubSpot, error) {
-	httpReqFactory, err := newHubSpotRequestFactory(config.APIKey, config.HubID)
+	httpReqFactory, err := newHubSpotRequestFactory(config.APIKey, config.HubID, config.AccessToken)
 	if err != nil {
 		return nil, err
 	}
@@ -244,29 +251,38 @@ func NewHubSpot(config *HubSpotConfig, httpAdapterConfiguration *HTTPAdapterConf
 	return h, nil
 }
 
-//NewTestHubSpot returns test instance of adapter
+// NewTestHubSpot returns test instance of adapter
 func NewTestHubSpot(config *HubSpotConfig) *HubSpot {
 	return &HubSpot{config: config}
 }
 
-//TestAccess sends get user properties request to HubSpot and check if error has occurred
+// TestAccess sends get user properties request to HubSpot and check if error has occurred
 func (h *HubSpot) TestAccess() error {
-	_, err := loadContactProperties(h.config.APIKey)
+	_, err := loadContactProperties(h.config.AccessToken, h.config.APIKey)
 	return err
 }
 
-//Type returns adapter type
+// Type returns adapter type
 func (h *HubSpot) Type() string {
 	return "HubSpot"
 }
 
-//loadContactProperties requests (HTTP GET) contact properties from HubSpot
-func loadContactProperties(apiKey string) (map[string]bool, error) {
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(hubSpotContactPropertiesAPIURLTemplate, apiKey), nil)
+// loadContactProperties requests (HTTP GET) contact properties from HubSpot
+func loadContactProperties(accessToken, apiKey string) (map[string]bool, error) {
+	headers := map[string]string{"user-agent": JitsuUserAgent}
+	reqURL := hubSpotContactPropertiesAPIURLTemplate
+	if accessToken != "" {
+		headers["Authorization"] = "Bearer " + accessToken
+	} else {
+		reqURL += "?hapikey=" + apiKey
+	}
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add("user-agent", JitsuUserAgent)
+	for k, v := range headers {
+		req.Header.Add(k, v)
+	}
 	r, err := http.DefaultClient.Do(req)
 	if r != nil && r.Body != nil {
 		defer r.Body.Close()
