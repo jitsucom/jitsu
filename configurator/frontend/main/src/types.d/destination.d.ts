@@ -1,17 +1,6 @@
-declare type DestinationType =
-  | "postgres"
-  | "bigquery"
-  | "redshift"
-  | "clickhouse"
-  | "snowflake"
-  | "facebook"
-  | "google_analytics"
-  | "webhook"
-  | "mysql"
-  | "dbtcloud"
-  | "s3"
-  | "mixpanel"
-  | "mixpanel2"
+/**
+ * @typedef { import( "@jitsu/catalog").DestinationType } DestinationType
+ */
 
 declare interface DestinationData {
   readonly _type: DestinationType

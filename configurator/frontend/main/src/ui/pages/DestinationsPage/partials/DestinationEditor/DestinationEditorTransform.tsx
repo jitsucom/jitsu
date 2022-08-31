@@ -63,7 +63,7 @@ const DestinationEditorTransform = ({
               defaultValue: !destinationData._mappings?._mappings,
               required: false,
               omitFieldRule: cfg =>
-                destinationsReferenceMap[destinationData._type].defaultTransform.length > 0 &&
+                destinationsReferenceMap[destinationData._type].defaultTransform &&
                 !destinationData._mappings?._mappings,
               type: booleanType,
               validator: (rule, value) => {
@@ -95,7 +95,7 @@ ${[destinationData._type, "segment"]
   .join("\n")}`,
               displayName: "Javascript Transformation",
               defaultValue: !destinationData._mappings?._mappings
-                ? destinationsReferenceMap[destinationData._type].defaultTransform
+                ? destinationsReferenceMap[destinationData._type].defaultTransform ?? ""
                 : "",
               required: false,
               jsDebugger: "object",

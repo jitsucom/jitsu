@@ -1,5 +1,6 @@
 import { modeParameter } from "./common"
 import { descriptionType, htmlType, stringType } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg
@@ -44,7 +45,7 @@ const icon = (
   </svg>
 )
 
-const tagDestination = {
+const tagDestination: Destination = {
   description: (
     <>
       Destination Tag installs provided HTML/Javascript tag to the website page. Destination triggered by incoming event
@@ -55,9 +56,6 @@ const tagDestination = {
   id: "tag",
   type: "other",
   displayName: "Destination Tag",
-  defaultTransform: "",
-  hidden: false,
-  deprecated: false,
   parameters: [
     {
       id: "_formData.description",
@@ -134,6 +132,6 @@ const tagDestination = {
     title: cfg => "",
     connectCmd: null,
   },
-} as const
+}
 
 export default tagDestination

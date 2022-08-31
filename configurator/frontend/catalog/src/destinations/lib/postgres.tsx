@@ -9,6 +9,7 @@ import {
   selectionTypeWithOptions,
   stringType,
 } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg viewBox="0 0 25.6 25.6" height="100%" width="100%" xmlns="http://www.w3.org/2000/svg">
@@ -63,7 +64,7 @@ const icon = (
   </svg>
 )
 
-const postgresDestination = {
+const postgresDestination: Destination = {
   description: (
     <>
       Postgres SQL is a one of the most popular databases. While it's not suitable for large datasets (more than 100m
@@ -76,10 +77,7 @@ const postgresDestination = {
   syncFromSourcesStatus: "supported",
   id: "postgres",
   type: "database",
-  defaultTransform: "",
   displayName: "Postgres SQL",
-  hidden: false,
-  deprecated: false,
   ui: {
     icon: icon,
     connectCmd: (cfg: object) => {
@@ -221,6 +219,6 @@ const postgresDestination = {
       ),
     },
   ],
-} as const
+}
 
 export default postgresDestination

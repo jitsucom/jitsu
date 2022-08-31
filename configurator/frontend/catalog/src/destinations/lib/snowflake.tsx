@@ -8,6 +8,7 @@ import {
   stringType,
   booleanType,
 } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg viewBox="0 0 44 44" height="100%" width="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -54,7 +55,7 @@ function displayForBatchOnly<T>(defaultValue: T): Function<any, T> {
   }
 }
 
-const destination = {
+const destination: Destination = {
   description: (
     <>
       Snowflake is a fast and scalable data warehouse. Jitsu can works with Snowflake both in stream and batch modes.
@@ -65,9 +66,6 @@ const destination = {
   id: "snowflake",
   type: "database",
   displayName: "Snowflake",
-  defaultTransform: "",
-  hidden: false,
-  deprecated: false,
   ui: {
     icon,
     title: cfg => cfg._formData?.snowflakeDB,
@@ -161,6 +159,6 @@ const destination = {
       type: booleanType,
     },
   ],
-} as const
+}
 
 export default destination

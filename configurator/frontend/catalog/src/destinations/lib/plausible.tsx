@@ -11,20 +11,20 @@ import {
 import * as logos from "../../sources/lib/logos"
 import { Destination } from "../types"
 
-const icon = logos.default_logo
+const icon = logos.plausible
 
-const bentoDestination: Destination = {
+const plausibleDestination: Destination = {
   description: (
     <>
-      Jitsu can send events from JS SDK or Events API to Bento API filling as much Bento Events Properties as possible
-      from original event data.
+      Jitsu can send events from JS SDK or Events API to Plausible API filling as much Plausible Events Properties as
+      possible from original event data.
     </>
   ),
   syncFromSourcesStatus: "not_supported",
-  id: "bento",
+  id: "plausible",
   type: "other",
-  displayName: "Bento",
   community: true,
+  displayName: "Plausible",
   parameters: [
     {
       id: "_super_type",
@@ -32,7 +32,7 @@ const bentoDestination: Destination = {
     },
     {
       id: "_package",
-      constant: "@tangible/jitsu-bento-destination@^1.0.0",
+      constant: "@tangible/jitsu-plausible-destination@^1.1.0",
     },
     {
       id: "_formData.meta_package",
@@ -41,10 +41,10 @@ const bentoDestination: Destination = {
       defaultValue: (
         <>
           Implementation is based on <b>npm-package:</b>{" "}
-          <a target={"_blank"} href={"https://www.npmjs.com/package/@tangible/jitsu-bento-destination"}>
-            @tangible/jitsu-bento-destination
+          <a target={"_blank"} href={"https://www.npmjs.com/package/@tangible/jitsu-plausible-destination"}>
+            @tangible/jitsu-plausible-destination
           </a>{" "}
-          (version: ^1.0.0)
+          (version: ^1.1.0)
           <br />
           Developed by{" "}
           <a target={"_blank"} href={"https://teamtangible.com"}>
@@ -59,37 +59,44 @@ const bentoDestination: Destination = {
       type: descriptionType,
       defaultValue: (
         <span>
-          Jitsu can send events from JS SDK or Events API to Bento API filling as much Bento Events Properties as
-          possible from original event data.
+          Jitsu can send events from JS SDK or Events API to Plausible API filling as much Plausible Events Properties
+          as possible from original event data.
         </span>
       ),
     },
     {
-      id: "_formData.site_key",
-      displayName: "Bento Site Key/UUID",
+      id: "_formData.plausible_domain",
+      displayName: "Plausible Server base URL",
       required: true,
       type: stringType,
+      defaultValue: "https://plausible.io",
+      documentation: (
+        <>
+          Plausible server URL including protocol, e.g.: <code>https://plausible.io</code>
+        </>
+      ),
     },
     {
-      id: "_formData.your_integration_name",
-      displayName: "Your integration name",
+      id: "_formData.plausible_port",
+      displayName: "Plausible server port",
       required: true,
       type: stringType,
-      documentation: <>Your integration name configured in Bento</>,
+      documentation: <>Plausible server port</>,
+      defaultValue: "443",
     },
     {
       id: "_formData.anonymous",
       displayName: "Send anonymous data",
       required: false,
       type: booleanType,
-      documentation: <>Send anonymous data to Bento if true or all data including user data if false.</>,
+      documentation: <>Send anonymous data to Plausible if true or all data including user data if false</>,
     },
   ],
   ui: {
     icon,
     connectCmd: null,
-    title: cfg => "bento site key: " + cfg["_formData"]["site_key"],
+    title: cfg => "",
   },
 }
 
-export default bentoDestination
+export default plausibleDestination

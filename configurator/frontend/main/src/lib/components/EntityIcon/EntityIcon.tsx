@@ -1,7 +1,7 @@
 // @Libs
 import { memo, PropsWithChildren } from "react"
 // @Data
-import { destinationsReferenceMap } from "@jitsu/catalog"
+import { destinationsReferenceMap, DestinationType } from "@jitsu/catalog"
 import { allSourcesMap } from "@jitsu/catalog"
 import { apiKeysReferenceMap } from "@jitsu/catalog"
 
