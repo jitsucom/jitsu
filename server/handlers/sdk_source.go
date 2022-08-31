@@ -18,9 +18,9 @@ func NewSdkSourceHandler() *SdkSourceHandler {
 	return &SdkSourceHandler{httpClient: &http.Client{Timeout: defaultTimeout}}
 }
 
-//SpecHandler returns sdk source spec by package name (with version)
+// SpecHandler returns sdk source spec by package name (with version)
 func (ah *SdkSourceHandler) SpecHandler(c *gin.Context) {
-	packageNameVer := c.Param("packageNameVer")
+	packageNameVer := c.Query("package")
 	if packageNameVer == "" {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("package is required path parameter", nil))
 		return
@@ -45,9 +45,9 @@ func (ah *SdkSourceHandler) SpecHandler(c *gin.Context) {
 	})
 }
 
-//CatalogHandler returns sdk source catalog by package_name@version and config
+// CatalogHandler returns sdk source catalog by package_name@version and config
 func (ah *SdkSourceHandler) CatalogHandler(c *gin.Context) {
-	packageNameVer := c.Param("packageNameVer")
+	packageNameVer := c.Query("package")
 	if packageNameVer == "" {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("package is required path parameter", nil))
 		return
