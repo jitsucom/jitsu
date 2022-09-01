@@ -4,7 +4,7 @@ This package contains the Configurator UI core code in the `main` folder and sup
 
 ## Before You Start
 
-Just run `pnpm i`. In case of any problems try `pnpm factory-reset && pnpn i`
+Just run `pnpm i`. In case of any problems try `pnpm factory-reset && pnpm i`
 
 ## Development
 
