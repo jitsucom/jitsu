@@ -11,7 +11,7 @@ import {
 import * as logos from "../../sources/lib/logos"
 import { Destination } from "../types"
 
-const icon = logos.default_logo
+const icon = logos.bento
 
 const bentoDestination: Destination = {
   description: (
