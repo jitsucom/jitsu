@@ -32,6 +32,11 @@ server:
   ### Sources reloading. If 'sources' key is http or file:/// URL than it will be reloaded every sources_reload_sec
   #sources_reload_sec: 1 #Optional. Default value is 1.
 
+  # Interval to retry failed event. Optional. Default value is 1
+  streaming_retry_delay_minutes: 1
+  # Clear failed event after retry period. Optional. Default value is 24
+  error_retry_period_hours: 24
+
   ### Application metrics
   ### At present only Prometheus is supported. Read more about application metrics https://jitsu.com/docs/other-features/application-metrics
 #  metrics:
@@ -126,6 +131,7 @@ destinations:
 #          type: varchar(256) #SQL type
 #          column_type: varchar(256) encode zstd
 #      max_columns: 100 # Optional. The limit of the count of columns.
+#      error_retry_period_hours: 24 # Optional. Clear failed event after retry period.
 #      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #Optional. Default value constant is 'events'. Template for extracting table name
 #
    ### BigQuery https://jitsu.com/docs/destinations-configuration/bigquery
@@ -138,6 +144,7 @@ destinations:
 #      key_file: /home/eventnative/data/config/bqkey.json # or json string of key e.g. "{"service_account":...}"
 #    data_layout:
 #      max_columns: 100 # Optional. The limit of the count of columns.
+#      error_retry_period_hours: 24 # Optional. Clear failed event after retry period.
 #      table_name_template: 'my_events' #Optional. Default value constant is 'events'. Template for extracting table name
 
   ### Postgres https://jitsu.com/docs/destinations-configuration/postgres
@@ -156,6 +163,7 @@ destinations:
 #        connect_timeout: 300
 #    data_layout:
 #      max_columns: 100 # Optional. The limit of the count of columns.
+#      error_retry_period_hours: 24 # Optional. Clear failed event after retry period.
 #      table_name_template: 'my_events' #Optional. Default value constant is 'events'. Template for extracting table name
 #      #Required for Postgres users recognition feature.
 #      primary_key_fields:
@@ -207,6 +215,7 @@ destinations:
 #      endpoint: #Optional. Default value is AWS s3 endpoint. If you use DigitalOcean spaces or others - specify your endpoint
 #    data_layout:
 #      max_columns: 100 # Optional. The limit of the count of columns.
+#      error_retry_period_hours: 24 # Optional. Clear failed event after retry period.
 #      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #Template will be used for file naming
 
   ### Snowflake https://jitsu.com/docs/destinations-configuration/snowflake
