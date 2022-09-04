@@ -27,11 +27,14 @@ type NativeQueue struct {
 	identifier string
 	queue      queue.Queue
 
+	streamingRetryDelay int
+	errorRetryPeriod    int
+
 	metricsReporter internal.MetricReporter
 	closed          chan struct{}
 }
 
-func NewNativeQueue(namespace, subsystem, identifier string, underlyingQueue queue.Queue) (Queue, error) {
+func NewNativeQueue(namespace, subsystem, identifier string, underlyingQueue queue.Queue, streamingRetryDelay int, errorRetryPeriod int) (Queue, error) {
 	var metricsReporter internal.MetricReporter
 	if underlyingQueue.Type() == queue.RedisType {
 		metricsReporter = &internal.SharedQueueMetricReporter{}
@@ -42,12 +45,14 @@ func NewNativeQueue(namespace, subsystem, identifier string, underlyingQueue que
 	metricsReporter.SetMetrics(subsystem, identifier, int(underlyingQueue.Size()), int(underlyingQueue.BufferSize()))
 
 	nq := &NativeQueue{
-		queue:           underlyingQueue,
-		namespace:       namespace,
-		subsystem:       subsystem,
-		identifier:      identifier,
-		metricsReporter: metricsReporter,
-		closed:          make(chan struct{}, 1),
+		queue:               underlyingQueue,
+		namespace:           namespace,
+		subsystem:           subsystem,
+		identifier:          identifier,
+		streamingRetryDelay: streamingRetryDelay,
+		errorRetryPeriod:    errorRetryPeriod,
+		metricsReporter:     metricsReporter,
+		closed:              make(chan struct{}, 1),
 	}
 
 	safego.Run(nq.startMonitor)
@@ -71,13 +76,16 @@ func (q *NativeQueue) startMonitor() {
 }
 
 func (q *NativeQueue) Consume(f map[string]interface{}, tokenID string) {
-	q.ConsumeTimed(f, timestamp.Now().UTC(), tokenID)
+	initial := timestamp.Now().UTC()
+	finish := initial.Add(time.Duration(q.errorRetryPeriod) * time.Hour)
+	q.ConsumeTimed(f, initial, finish, tokenID)
 }
 
-func (q *NativeQueue) ConsumeTimed(payload map[string]interface{}, t time.Time, tokenID string) {
+func (q *NativeQueue) ConsumeTimed(payload map[string]interface{}, dequeuedTime, finishTime time.Time, tokenID string) {
 	te := &TimedEvent{
 		Payload:      payload,
-		DequeuedTime: t,
+		DequeuedTime: dequeuedTime,
+		FinishTime:   finishTime,
 		TokenID:      tokenID,
 	}
 
@@ -89,24 +97,28 @@ func (q *NativeQueue) ConsumeTimed(payload map[string]interface{}, t time.Time, 
 	q.metricsReporter.EnqueuedEvent(q.subsystem, q.identifier)
 }
 
-func (q *NativeQueue) DequeueBlock() (Event, time.Time, string, error) {
+func (q *NativeQueue) DequeueBlock() (Event, time.Time, time.Time, string, error) {
 	ite, err := q.queue.Pop()
 	if err != nil {
 		if err == queue.ErrQueueClosed {
-			return nil, time.Time{}, "", ErrQueueClosed
+			return nil, time.Time{}, time.Time{}, "", ErrQueueClosed
 		}
 
-		return nil, time.Time{}, "", err
+		return nil, time.Time{}, time.Time{}, "", err
 	}
 
 	q.metricsReporter.DequeuedEvent(q.subsystem, q.identifier)
 
 	te, ok := ite.(*TimedEvent)
 	if !ok {
-		return nil, time.Time{}, "", fmt.Errorf("wrong type of event dto in queue. Expected: *TimedEvent, actual: %T (%s)", ite, ite)
+		return nil, time.Time{}, time.Time{}, "", fmt.Errorf("wrong type of event dto in queue. Expected: *TimedEvent, actual: %T (%s)", ite, ite)
 	}
 
-	return te.Payload, te.DequeuedTime, te.TokenID, nil
+	return te.Payload, te.DequeuedTime, te.FinishTime, te.TokenID, nil
+}
+
+func (q *NativeQueue) GetDelay() int {
+	return q.streamingRetryDelay
 }
 
 //Close closes underlying queue

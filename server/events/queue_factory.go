@@ -14,6 +14,7 @@ import (
 type TimedEvent struct {
 	Payload      map[string]interface{}
 	DequeuedTime time.Time
+	FinishTime   time.Time
 	TokenID      string
 }
 
@@ -27,19 +28,20 @@ func (d *DummyQueue) Close() error {
 func (d *DummyQueue) Consume(f map[string]interface{}, tokenID string) {
 }
 
-func (d *DummyQueue) ConsumeTimed(f map[string]interface{}, t time.Time, tokenID string) {
+func (d *DummyQueue) ConsumeTimed(f map[string]interface{}, dequeuedTime, finishTime time.Time, tokenID string) {
 }
 
-func (d *DummyQueue) DequeueBlock() (Event, time.Time, string, error) {
-	return nil, time.Time{}, "", fmt.Errorf("DequeueBlock not supported on DummyQueue")
+func (d *DummyQueue) DequeueBlock() (Event, time.Time, time.Time, string, error) {
+	return nil, time.Time{}, time.Time{}, "", fmt.Errorf("DequeueBlock not supported on DummyQueue")
 }
 
 //Queue is an events queue. Possible implementations (dque, leveldbqueue, native)
 type Queue interface {
 	io.Closer
 	Consume(f map[string]interface{}, tokenID string)
-	ConsumeTimed(f map[string]interface{}, t time.Time, tokenID string)
-	DequeueBlock() (Event, time.Time, string, error)
+	ConsumeTimed(f map[string]interface{}, dequeuedTime, finishTime time.Time, tokenID string)
+	DequeueBlock() (Event, time.Time, time.Time, string, error)
+	GetDelay() int
 }
 
 type QueueFactory struct {
@@ -51,7 +53,7 @@ func NewQueueFactory(redisPool *meta.RedisPool, redisReadTimeout time.Duration) 
 	return &QueueFactory{redisPool: redisPool, redisReadTimeout: redisReadTimeout}
 }
 
-func (qf *QueueFactory) CreateEventsQueue(subsystem, identifier string) (Queue, error) {
+func (qf *QueueFactory) CreateEventsQueue(subsystem, identifier string, streamingRetryDelay int, errorRetryPeriod int) (Queue, error) {
 	var underlyingQueue queue.Queue
 	if qf.redisPool != nil {
 		logging.Infof("[%s] initializing redis events queue", identifier)
@@ -60,7 +62,7 @@ func (qf *QueueFactory) CreateEventsQueue(subsystem, identifier string) (Queue, 
 		logging.Infof("[%s] initializing inmemory events queue", identifier)
 		underlyingQueue = queue.NewInMemory(1_000_000)
 	}
-	return NewNativeQueue(queue.DestinationNamespace, subsystem, identifier, underlyingQueue)
+	return NewNativeQueue(queue.DestinationNamespace, subsystem, identifier, underlyingQueue, streamingRetryDelay, errorRetryPeriod)
 }
 
 func (qf *QueueFactory) CreateHTTPQueue(identifier string, serializationModelBuilder func() interface{}) queue.Queue {
