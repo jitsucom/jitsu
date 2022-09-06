@@ -143,6 +143,7 @@ const destination = {
       "_formData.snowflakeS3Bucket",
       "_formData.snowflakeS3AccessKey",
       "_formData.snowflakeS3SecretKey",
+      null,
       cfg =>
         cfg._formData?.mode !== "batch" ||
         (cfg._formData?.mode === "batch" && cfg._formData?.snowflakeStageType !== "s3")

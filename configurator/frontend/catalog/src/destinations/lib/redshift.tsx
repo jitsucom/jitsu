@@ -88,6 +88,7 @@ const destination = {
       "_formData.redshiftS3Bucket",
       "_formData.redshiftS3AccessKey",
       "_formData.redshiftS3SecretKey",
+      null,
       cfg => cfg?._formData?.mode !== "batch"
     ),
     {
