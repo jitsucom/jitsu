@@ -39,7 +39,7 @@ var (
 	}
 )
 
-//BigQuery adapter for creating,patching (schema or table), inserting and copying data from gcs to BigQuery
+// BigQuery adapter for creating,patching (schema or table), inserting and copying data from gcs to BigQuery
 type BigQuery struct {
 	ctx         context.Context
 	client      *bigquery.Client
@@ -48,7 +48,7 @@ type BigQuery struct {
 	sqlTypes    typing.SQLTypes
 }
 
-//NewBigQuery return configured BigQuery adapter instance
+// NewBigQuery return configured BigQuery adapter instance
 func NewBigQuery(ctx context.Context, config *GoogleConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*BigQuery, error) {
 
 	var client *bigquery.Client
@@ -66,7 +66,7 @@ func NewBigQuery(ctx context.Context, config *GoogleConfig, queryLogger *logging
 	return &BigQuery{ctx: ctx, client: client, config: config, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToBigQueryString)}, nil
 }
 
-//Copy transfers data from google cloud storage file to google BigQuery table as one batch
+// Copy transfers data from google cloud storage file to google BigQuery table as one batch
 func (bq *BigQuery) Copy(fileKey, tableName string) error {
 	table := bq.client.Dataset(bq.config.Dataset).Table(tableName)
 
@@ -114,7 +114,7 @@ func (bq *BigQuery) Test() error {
 	return err
 }
 
-//Insert inserts data with InsertContext as a single object or a batch into BigQuery
+// Insert inserts data with InsertContext as a single object or a batch into BigQuery
 func (bq *BigQuery) Insert(insertContext *InsertContext) error {
 	if insertContext.eventContext != nil {
 		return bq.insertSingle(insertContext.eventContext)
@@ -123,7 +123,7 @@ func (bq *BigQuery) Insert(insertContext *InsertContext) error {
 	}
 }
 
-//GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct
+// GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct
 func (bq *BigQuery) GetTableSchema(tableName string) (*Table, error) {
 	table := &Table{Schema: bq.config.Dataset, Name: tableName, Columns: Columns{}}
 
@@ -151,7 +151,7 @@ func (bq *BigQuery) GetTableSchema(tableName string) (*Table, error) {
 	return table, nil
 }
 
-//CreateTable creates google BigQuery table from Table
+// CreateTable creates google BigQuery table from Table
 func (bq *BigQuery) CreateTable(table *Table) error {
 	bqTable := bq.client.Dataset(bq.config.Dataset).Table(table.Name)
 
@@ -212,7 +212,7 @@ func (bq *BigQuery) CreateTable(table *Table) error {
 	return nil
 }
 
-//CreateDataset creates google BigQuery Dataset if doesn't exist
+// CreateDataset creates google BigQuery Dataset if doesn't exist
 func (bq *BigQuery) CreateDataset(dataset string) error {
 	bqDataset := bq.client.Dataset(dataset)
 	if _, err := bqDataset.Metadata(bq.ctx); err != nil {
@@ -236,7 +236,7 @@ func (bq *BigQuery) CreateDataset(dataset string) error {
 	return nil
 }
 
-//PatchTableSchema adds Table columns to google BigQuery table
+// PatchTableSchema adds Table columns to google BigQuery table
 func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	bqTable := bq.client.Dataset(bq.config.Dataset).Table(patchSchema.Name)
 	metadata, err := bqTable.Metadata(bq.ctx)
@@ -330,7 +330,7 @@ func GranularityToPartitionIds(g schema.Granularity, t time.Time) []string {
 	}
 }
 
-//insertBatch streams data into BQ using stream API
+// insertBatch streams data into BQ using stream API
 func (bq *BigQuery) insertSingle(eventContext *EventContext) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(eventContext.Table.Name).Inserter()
 	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", eventContext.Table.Name), eventContext.ProcessedEvent, false)
@@ -349,8 +349,8 @@ func (bq *BigQuery) insertSingle(eventContext *EventContext) error {
 	return nil
 }
 
-//insertBatch streams data into BQ using stream API
-//1 insert = max 500 rows
+// insertBatch streams data into BQ using stream API
+// 1 insert = max 500 rows
 func (bq *BigQuery) insertBatch(table *Table, objects []map[string]interface{}) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(table.Name).Inserter()
 	bq.logQuery(fmt.Sprintf("Inserting [%d] values to table %s using BigQuery Streaming API with chunks [%d]: ", len(objects), table.Name, rowsLimitPerInsertOperation), objects, false)
@@ -380,7 +380,7 @@ func (bq *BigQuery) insertBatch(table *Table, objects []map[string]interface{}) 
 	if len(items) > 0 {
 		operation++
 		if err := bq.insertItems(inserter, items); err != nil {
-			return errorj.DeleteFromTableError.Wrap(err, "failed to execute last insert %d of %d in batch", operation, operations).
+			return errorj.ExecuteInsertInBatchError.Wrap(err, "failed to execute last insert %d of %d in batch", operation, operations).
 				WithProperty(errorj.DBInfo, &ErrorPayload{
 					Dataset: bq.config.Dataset,
 					Bucket:  bq.config.Bucket,
@@ -393,7 +393,7 @@ func (bq *BigQuery) insertBatch(table *Table, objects []map[string]interface{}) 
 	return nil
 }
 
-//DropTable drops table from BigQuery
+// DropTable drops table from BigQuery
 func (bq *BigQuery) DropTable(table *Table) error {
 	bqTable := bq.client.Dataset(bq.config.Dataset).Table(table.Name)
 
@@ -450,7 +450,7 @@ func (bq *BigQuery) ReplaceTable(originalTable, replacementTable string, dropOld
 	}
 }
 
-//Truncate deletes all records in tableName table
+// Truncate deletes all records in tableName table
 func (bq *BigQuery) Truncate(tableName string) error {
 	query := fmt.Sprintf(truncateBigQueryTemplate, bq.config.Project, bq.config.Dataset, tableName)
 	bq.queryLogger.LogQuery(query)
@@ -517,13 +517,13 @@ func (bq *BigQuery) Close() error {
 	return bq.client.Close()
 }
 
-//Return true if google err is 404
+// Return true if google err is 404
 func isNotFoundErr(err error) bool {
 	e, ok := err.(*googleapi.Error)
 	return ok && e.Code == http.StatusNotFound
 }
 
-//BQItem struct for streaming inserts to BigQuery
+// BQItem struct for streaming inserts to BigQuery
 type BQItem struct {
 	values map[string]interface{}
 }

@@ -61,6 +61,7 @@ const destination = {
       "_formData.s3Bucket",
       "_formData.s3AccessKeyID",
       "_formData.s3SecretKey",
+      "_formData.s3Endpoint",
       _ => false
     ),
     ...fileParameters("_formData.s3Folder", "_formData.s3Format", "_formData.s3CompressionEnabled"),
