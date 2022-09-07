@@ -60,7 +60,7 @@ func (d *Dummy) GetTaskLogs(taskID string, from, to time.Time) ([]TaskLogRecord,
 func (d *Dummy) PushTask(task *Task) error { return nil }
 func (d *Dummy) PollTask() (*Task, error)  { return nil, nil }
 
-func (d *Dummy) GetOrCreateClusterID(generatedClusterID string) string { return generatedClusterID }
+func (d *Dummy) GetOrCreateClusterID() string { return "" }
 
 func (d *Dummy) Type() string {
 	return DummyType
