@@ -56,7 +56,6 @@ import (
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/users"
-	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/jitsucom/jitsu/server/wal"
 	"github.com/spf13/viper"
 )
@@ -170,6 +169,8 @@ func main() {
 	if err != nil {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
+	telemetry.EnrichMetaStorage(metaStorage)
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// ** Coordination Service **
@@ -220,7 +221,7 @@ func main() {
 		notifications.SystemErrorf("Panic:\n%s\n%s", value, string(debug.Stack()))
 	}
 
-	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
+	clusterID := metaStorage.GetOrCreateClusterID()
 	systemInfo := runtime.GetInfo()
 	telemetry.EnrichSystemInfo(clusterID, systemInfo)
 

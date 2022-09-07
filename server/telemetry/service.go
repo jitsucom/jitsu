@@ -3,6 +3,7 @@ package telemetry
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/runtime"
 	"github.com/jitsucom/jitsu/server/safego"
@@ -14,14 +15,14 @@ import (
 
 var reloadEvery = 20 * time.Second
 
-//Configuration dto for telemetry enable/disable configuration
+// Configuration dto for telemetry enable/disable configuration
 type Configuration struct {
 	Disabled map[string]bool `json:"disabled,omitempty"`
 }
 
 var instance Service
 
-//Service is used for sending telemetry
+// Service is used for sending telemetry
 type Service struct {
 	reqFactory *RequestFactory
 	client     *http.Client
@@ -36,13 +37,13 @@ type Service struct {
 	closed  bool
 }
 
-//InitTest for tests only
+// InitTest for tests only
 func InitTest() {
 	instance = Service{usageOptOut: atomic.NewBool(true)}
 }
 
-//InitFromViper creates telemetry instance, starts goroutine
-//if configuration is provided as a url - starts another goroutine (see resources.Watch)
+// InitFromViper creates telemetry instance, starts goroutine
+// if configuration is provided as a url - starts another goroutine (see resources.Watch)
 func InitFromViper(telemetrySourceURL, serviceName, commit, tag, builtAt, dockerHubID string) {
 	Init(serviceName, commit, tag, builtAt, dockerHubID)
 
@@ -53,7 +54,7 @@ func InitFromViper(telemetrySourceURL, serviceName, commit, tag, builtAt, docker
 	}
 }
 
-//Init creates telemetry instance and starts goroutine
+// Init creates telemetry instance and starts goroutine
 func Init(serviceName, commit, tag, builtAt, dockerHubID string) {
 	instance = Service{
 		reqFactory: newRequestFactory(serviceName, commit, tag, builtAt, dockerHubID),
@@ -77,7 +78,11 @@ func Init(serviceName, commit, tag, builtAt, dockerHubID string) {
 	instance.startUsage()
 }
 
-//EnrichSystemInfo enriches request factory (every request) with system information (CPU/RAM)
+func EnrichMetaStorage(storage meta.Storage) {
+	instance.reqFactory.iInfo.MetaStorage = storage.Type()
+}
+
+// EnrichSystemInfo enriches request factory (every request) with system information (CPU/RAM)
 func EnrichSystemInfo(clusterID string, systemInfo *runtime.Info) {
 	instance.reqFactory.iInfo.ClusterID = clusterID
 
@@ -97,8 +102,8 @@ func GetSystemInfo() *InstanceInfo {
 	return instance.reqFactory.iInfo
 }
 
-//reInit initializes telemetry configuration
-//it is used in case of reloadable telemetry configuration (when configuration is provided as a url)
+// reInit initializes telemetry configuration
+// it is used in case of reloadable telemetry configuration (when configuration is provided as a url)
 func reInit(payload []byte) {
 	c := &Configuration{}
 	err := json.Unmarshal(payload, c)
@@ -118,22 +123,22 @@ func reInit(payload []byte) {
 	}
 }
 
-//ServerStart puts server start event into the queue
+// ServerStart puts server start event into the queue
 func ServerStart() {
 	instance.usage(&Usage{ServerStart: 1})
 }
 
-//ServerStop puts server stop event into the queue
+// ServerStop puts server stop event into the queue
 func ServerStop() {
 	instance.usage(&Usage{ServerStop: 1})
 }
 
-//CLIStart puts cli start event into the queue
+// CLIStart puts cli start event into the queue
 func CLIStart(command string, dateFilters, state bool, chunkSize int64) {
 	instance.usage(&Usage{CLIStart: 1, CLICommand: command, CLIDateFilters: dateFilters, CLIState: state, CLIChunkSize: chunkSize})
 }
 
-//PushedEventsPerSrc increments events collector counter per Src
+// PushedEventsPerSrc increments events collector counter per Src
 func PushedEventsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
 	if !instance.usageOptOut.Load() {
 		for src, quantity := range quantityPerSrc {
@@ -142,14 +147,14 @@ func PushedEventsPerSrc(sourceID, destinationID string, quantityPerSrc map[strin
 	}
 }
 
-//Event increments events collector counter
+// Event increments events collector counter
 func Event(sourceID, destinationID, src, sourceType string, quantity int) {
 	if !instance.usageOptOut.Load() {
 		instance.collector.Event(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, sourceType, uint64(quantity))
 	}
 }
 
-//PushedErrorsPerSrc increments errors collector counter per Src
+// PushedErrorsPerSrc increments errors collector counter per Src
 func PushedErrorsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
 	if !instance.usageOptOut.Load() {
 		for src, quantity := range quantityPerSrc {
@@ -158,14 +163,14 @@ func PushedErrorsPerSrc(sourceID, destinationID string, quantityPerSrc map[strin
 	}
 }
 
-//Error increments errors collector counter
+// Error increments errors collector counter
 func Error(sourceID, destinationID, src, sourceType string, quantity int) {
 	if !instance.usageOptOut.Load() {
 		instance.collector.Error(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, sourceType, uint64(quantity))
 	}
 }
 
-//Destination puts usage event with hashed destination id and type
+// Destination puts usage event with hashed destination id and type
 func Destination(destinationID, destinationType, mode, mappingsStyle string, usersRecognition, primaryKeysPresent bool) {
 	if !instance.usageOptOut.Load() {
 		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
@@ -179,7 +184,7 @@ func Destination(destinationID, destinationType, mode, mappingsStyle string, use
 	}
 }
 
-//Source puts usage event with hashed source id and type
+// Source puts usage event with hashed source id and type
 func Source(sourceID, sourceType, sourceConnectorOrigin, sourceConnectorVersion, sourceSchedule string, streams int) {
 	if !instance.usageOptOut.Load() {
 		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
@@ -193,7 +198,7 @@ func Source(sourceID, sourceType, sourceConnectorOrigin, sourceConnectorVersion,
 	}
 }
 
-//SourceTaskStatus puts task status usage event with hashed source id, task id and type
+// SourceTaskStatus puts task status usage event with hashed source id, task id and type
 func SourceTaskStatus(taskID, sourceID, sourceType, collection, status, error, createdAt, startedAt, finishedAt string) {
 	if !instance.usageOptOut.Load() {
 		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
@@ -210,7 +215,7 @@ func SourceTaskStatus(taskID, sourceID, sourceType, collection, status, error, c
 	}
 }
 
-//Coordination puts usage event with coordination service type
+// Coordination puts usage event with coordination service type
 func Coordination(serviceType string) {
 	if !instance.usageOptOut.Load() {
 		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
@@ -219,8 +224,8 @@ func Coordination(serviceType string) {
 	}
 }
 
-//User puts user request into the queue
-//it is used in manager
+// User puts user request into the queue
+// it is used in manager
 func User(user *UserData) {
 	instance.usageCh <- instance.reqFactory.fromUser(user)
 }
@@ -311,12 +316,12 @@ func (s *Service) getUsage() []*Usage {
 	return usage
 }
 
-//Flush sends all requests that are in a queue
+// Flush sends all requests that are in a queue
 func Flush() {
 	instance.flushCh <- true
 }
 
-//Close stops underline goroutines
+// Close stops underline goroutines
 func Close() {
 	instance.closed = true
 }
