@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/logging"
@@ -70,7 +71,7 @@ func (e *exchanger) exchange0(command string, payload, result interface{}, liste
 	})
 
 	if err != nil {
-		return err
+		return fmt.Errorf("error building javascript command: %w", err)
 	}
 
 	timeout := DefaultExchangeTimeout
