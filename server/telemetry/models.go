@@ -1,6 +1,6 @@
 package telemetry
 
-//InstanceInfo is a deployed server data dto
+// InstanceInfo is a deployed server data dto
 type InstanceInfo struct {
 	ID string `json:"id,omitempty"`
 
@@ -11,6 +11,8 @@ type InstanceInfo struct {
 	RunID       string `json:"run_id,omitempty"`
 	ClusterID   string `json:"cluster_id,omitempty"`
 	Arch        string `json:"arch,omitempty"`
+
+	MetaStorage string `json:"meta_storage,omitempty"`
 
 	CPUInfoInstances int    `json:"cpu_info_instances,omitempty"`
 	CPUCores         int    `json:"cpu_cores,omitempty"`
@@ -24,7 +26,7 @@ type InstanceInfo struct {
 	RAMUsage   string  `json:"ram_usage,omitempty"`
 }
 
-//Usage is a usage accounting dto
+// Usage is a usage accounting dto
 type Usage struct {
 	DockerHubID string `json:"docker_hub_id,omitempty"`
 	ServerStart int    `json:"server_start,omitempty"`
@@ -65,13 +67,13 @@ type Usage struct {
 	CLIChunkSize   int64  `json:"cli_chunk_size,omitempty"`
 }
 
-//Errors is a error accounting dto
+// Errors is a error accounting dto
 type Errors struct {
 	ID       int64 `json:"id,omitempty"`
 	Quantity int64 `json:"quantity,omitempty"`
 }
 
-//UserData is a registered user data dto
+// UserData is a registered user data dto
 type UserData struct {
 	Email       string `json:"email,omitempty"`
 	Name        string `json:"name,omitempty"`
@@ -80,7 +82,7 @@ type UserData struct {
 	UsageOptout bool   `json:"telemetry_usage_optout"`
 }
 
-//Request is a telemetry request dto
+// Request is a telemetry request dto
 type Request struct {
 	Timestamp    string        `json:"timestamp,omitempty"`
 	InstanceInfo *InstanceInfo `json:"instance_info,omitempty"`

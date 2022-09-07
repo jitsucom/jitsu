@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"strconv"
 	"strings"
 	"time"
@@ -907,7 +908,7 @@ func (r *Redis) getEventsPerDay(conn redis.Conn, namespace, eventType, status st
 }
 
 // GetOrCreateClusterID returns clusterID from Redis or save input one
-func (r *Redis) GetOrCreateClusterID(generatedClusterID string) string {
+func (r *Redis) GetOrCreateClusterID() string {
 	key := ConfigPrefix + SystemKey
 	field := "cluster_id"
 
@@ -924,10 +925,12 @@ func (r *Redis) GetOrCreateClusterID(generatedClusterID string) string {
 
 	if clusterID != "" {
 		return clusterID
+	} else {
+		clusterID = uuid.New()
 	}
 
 	//save and return generated
-	_, err = conn.Do("HSET", key, field, generatedClusterID)
+	_, err = conn.Do("HSET", key, field, clusterID)
 	if err != nil {
 		if err != redis.ErrNil {
 			r.errorMetrics.NoticeError(err)
@@ -935,7 +938,7 @@ func (r *Redis) GetOrCreateClusterID(generatedClusterID string) string {
 		}
 	}
 
-	return generatedClusterID
+	return clusterID
 }
 
 func (r *Redis) Type() string {
