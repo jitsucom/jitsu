@@ -63,7 +63,7 @@ type Storage interface {
 	PollTask() (*Task, error)
 
 	//system
-	GetOrCreateClusterID(generatedClusterID string) string
+	GetOrCreateClusterID() string
 
 	Type() string
 }
