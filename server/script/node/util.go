@@ -77,7 +77,7 @@ var nodeModuleMu sync.Mutex
 func installNodeModule(dir string, spec string) error {
 	nodeModuleMu.Lock()
 	defer nodeModuleMu.Unlock()
-	args := []string{"install", "--no-audit", "--prefer-offline"}
+	args := []string{"install", "--no-audit", "--prefer-online"}
 	args = append(args, spec)
 	return script.Exec(dir, npm, args...)
 }
