@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	tableSchemaCHQuery      = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
+	tableSchemaCHQuery      = `SELECT name, type FROM system.columns WHERE database = ? and table = ? and default_kind not in ('MATERIALIZED', 'ALIAS', 'EPHEMERAL')`
 	createCHDBTemplate      = `CREATE DATABASE IF NOT EXISTS "%s" %s`
 	alterTableCHTemplate    = `ALTER TABLE "%s"."%s" %s %s`
 	exchangeTableCHTemplate = `EXCHANGE TABLES "%s"."%s" AND "%s"."%s"`
@@ -96,7 +96,7 @@ var (
 	}
 )
 
-//ClickHouseConfig dto for deserialized clickhouse config
+// ClickHouseConfig dto for deserialized clickhouse config
 type ClickHouseConfig struct {
 	Dsns     []string          `mapstructure:"dsns,omitempty" json:"dsns,omitempty" yaml:"dsns,omitempty"`
 	Database string            `mapstructure:"db,omitempty" json:"db,omitempty" yaml:"db,omitempty"`
@@ -105,7 +105,7 @@ type ClickHouseConfig struct {
 	Engine   *EngineConfig     `mapstructure:"engine,omitempty" json:"engine,omitempty" yaml:"engine,omitempty"`
 }
 
-//EngineConfig dto for deserialized clickhouse engine config
+// EngineConfig dto for deserialized clickhouse engine config
 type EngineConfig struct {
 	RawStatement    string        `mapstructure:"raw_statement,omitempty" json:"raw_statement,omitempty" yaml:"raw_statement,omitempty"`
 	NullableFields  []string      `mapstructure:"nullable_fields,omitempty" json:"nullable_fields,omitempty" yaml:"nullable_fields,omitempty"`
@@ -114,13 +114,13 @@ type EngineConfig struct {
 	PrimaryKeys     []string      `mapstructure:"primary_keys,omitempty" json:"primary_keys,omitempty" yaml:"primary_keys,omitempty"`
 }
 
-//FieldConfig dto for deserialized clickhouse engine fields
+// FieldConfig dto for deserialized clickhouse engine fields
 type FieldConfig struct {
 	Function string `mapstructure:"function,omitempty" json:"function,omitempty" yaml:"function,omitempty"`
 	Field    string `mapstructure:"field,omitempty" json:"field,omitempty" yaml:"field,omitempty"`
 }
 
-//Validate required fields in ClickHouseConfig
+// Validate required fields in ClickHouseConfig
 func (chc *ClickHouseConfig) Validate() error {
 	if chc == nil {
 		return errors.New("ClickHouse config is required")
@@ -151,7 +151,7 @@ func (chc *ClickHouseConfig) Validate() error {
 	return nil
 }
 
-//TableStatementFactory is used for creating CREATE TABLE statements depends on config
+// TableStatementFactory is used for creating CREATE TABLE statements depends on config
 type TableStatementFactory struct {
 	engineStatement string
 	database        string
@@ -219,7 +219,7 @@ func NewTableStatementFactory(config *ClickHouseConfig) (*TableStatementFactory,
 	}, nil
 }
 
-//CreateTableStatement return clickhouse DDL for creating table statement
+// CreateTableStatement return clickhouse DDL for creating table statement
 func (tsf TableStatementFactory) CreateTableStatement(tableName, columnsClause string) string {
 	engineStatement := tsf.engineStatement
 	if tsf.engineStatementFormat {
@@ -229,7 +229,7 @@ func (tsf TableStatementFactory) CreateTableStatement(tableName, columnsClause s
 		tsf.partitionClause, tsf.orderByClause, tsf.primaryKeyClause)
 }
 
-//ClickHouse is adapter for creating,patching (schema or table), inserting data to clickhouse
+// ClickHouse is adapter for creating,patching (schema or table), inserting data to clickhouse
 type ClickHouse struct {
 	ctx                   context.Context
 	database              string
@@ -241,7 +241,7 @@ type ClickHouse struct {
 	sqlTypes              typing.SQLTypes
 }
 
-//NewClickHouse returns configured ClickHouse adapter instance
+// NewClickHouse returns configured ClickHouse adapter instance
 func NewClickHouse(ctx context.Context, connectionString, database, cluster string, tlsConfig map[string]string,
 	tableStatementFactory *TableStatementFactory, nullableFields map[string]bool,
 	queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*ClickHouse, error) {
@@ -298,7 +298,7 @@ func (ClickHouse) Type() string {
 	return "ClickHouse"
 }
 
-//CreateDB create database instance if doesn't exist
+// CreateDB create database instance if doesn't exist
 func (ch *ClickHouse) CreateDB(dbName string) error {
 	query := fmt.Sprintf(createCHDBTemplate, dbName, ch.getOnClusterClause())
 	ch.queryLogger.LogDDL(query)
@@ -314,8 +314,8 @@ func (ch *ClickHouse) CreateDB(dbName string) error {
 	return nil
 }
 
-//CreateTable create database table with name,columns provided in Table representation
-//New tables will have MergeTree() or ReplicatedMergeTree() engine depends on config.cluster empty or not
+// CreateTable create database table with name,columns provided in Table representation
+// New tables will have MergeTree() or ReplicatedMergeTree() engine depends on config.cluster empty or not
 func (ch *ClickHouse) CreateTable(table *Table) error {
 	var columnsDDL []string
 	for _, columnName := range table.SortedColumnNames() {
@@ -348,7 +348,7 @@ func (ch *ClickHouse) CreateTable(table *Table) error {
 	return nil
 }
 
-//GetTableSchema return table (name,columns with name and types) representation wrapped in Table struct
+// GetTableSchema return table (name,columns with name and types) representation wrapped in Table struct
 func (ch *ClickHouse) GetTableSchema(tableName string) (*Table, error) {
 	table := &Table{Schema: ch.database, Name: tableName, Columns: map[string]typing.SQLColumn{}}
 	rows, err := ch.dataSource.QueryContext(ch.ctx, tableSchemaCHQuery, ch.database, tableName)
@@ -396,8 +396,8 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*Table, error) {
 	return table, nil
 }
 
-//PatchTableSchema add new columns(from provided Table) to existing table
-//drop and create distributed table
+// PatchTableSchema add new columns(from provided Table) to existing table
+// drop and create distributed table
 func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 	if len(patchSchema.Columns) == 0 {
 		return nil
@@ -447,7 +447,7 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 	return nil
 }
 
-//Insert inserts provided object in ClickHouse as a single record or batch
+// Insert inserts provided object in ClickHouse as a single record or batch
 func (ch *ClickHouse) Insert(insertContext *InsertContext) error {
 	if !insertContext.deleteConditions.IsEmpty() {
 		if err := ch.delete(insertContext.table, insertContext.deleteConditions); err != nil {
@@ -478,7 +478,7 @@ func (ch *ClickHouse) delete(table *Table, deleteConditions *base.DeleteConditio
 	return nil
 }
 
-//Truncate deletes all records in tableName table
+// Truncate deletes all records in tableName table
 func (ch *ClickHouse) Truncate(tableName string) error {
 	sqlParams := SqlParams{
 		dataSource:  ch.dataSource,
@@ -510,7 +510,7 @@ func (ch *ClickHouse) DropTable(table *Table) error {
 	return ch.dropTable(table, false)
 }
 
-//dropTable drops table in transaction
+// dropTable drops table in transaction
 func (ch *ClickHouse) dropTable(table *Table, ifExists bool) error {
 	ifExs := ""
 	if ifExists {
@@ -584,8 +584,8 @@ func (ch *ClickHouse) toDeleteQuery(table *Table, conditions *base.DeleteConditi
 	return strings.Join(queryConditions, " "+conditions.JoinCondition+" "), values
 }
 
-//insert creates statement like insert ... values (), (), ()
-//runs executeInsert func
+// insert creates statement like insert ... values (), (), ()
+// runs executeInsert func
 func (ch *ClickHouse) insert(table *Table, objects ...map[string]interface{}) error {
 	var placeholdersBuilder strings.Builder
 	var headerWithoutQuotes, headerWithQuotes []string
@@ -632,7 +632,7 @@ func (ch *ClickHouse) insert(table *Table, objects ...map[string]interface{}) er
 	return nil
 }
 
-//executeInsert execute insert with insertTemplate
+// executeInsert execute insert with insertTemplate
 func (ch *ClickHouse) executeInsert(table *Table, headerWithQuotes []string, placeholders string, valueArgs []interface{}, objectsCount int) error {
 	statement := fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(headerWithQuotes, ", "), placeholders)
 
@@ -654,12 +654,12 @@ func (ch *ClickHouse) executeInsert(table *Table, headerWithQuotes []string, pla
 	return nil
 }
 
-//Close underlying sql.DB
+// Close underlying sql.DB
 func (ch *ClickHouse) Close() error {
 	return ch.dataSource.Close()
 }
 
-//return ON CLUSTER name clause or "" if config.cluster is empty
+// return ON CLUSTER name clause or "" if config.cluster is empty
 func (ch *ClickHouse) getOnClusterClause() string {
 	if ch.cluster == "" {
 		return ""
@@ -668,7 +668,7 @@ func (ch *ClickHouse) getOnClusterClause() string {
 	return fmt.Sprintf(onClusterCHClauseTemplate, ch.cluster)
 }
 
-//create distributed table, ignore errors
+// create distributed table, ignore errors
 func (ch *ClickHouse) createDistributedTableInTransaction(originTableName string) {
 	statement := fmt.Sprintf(createDistributedTableCHTemplate,
 		ch.database, originTableName, ch.getOnClusterClause(), ch.database, originTableName, ch.cluster, ch.database, originTableName)
@@ -679,7 +679,7 @@ func (ch *ClickHouse) createDistributedTableInTransaction(originTableName string
 	}
 }
 
-//drop distributed table, ignore errors
+// drop distributed table, ignore errors
 func (ch *ClickHouse) dropDistributedTableInTransaction(originTableName string) {
 	query := fmt.Sprintf(dropDistributedTableCHTemplate, ch.database, originTableName, ch.getOnClusterClause())
 	ch.queryLogger.LogDDL(query)
@@ -688,7 +688,7 @@ func (ch *ClickHouse) dropDistributedTableInTransaction(originTableName string) 
 	}
 }
 
-//columnDDL returns column DDL (column name, mapped sql type)
+// columnDDL returns column DDL (column name, mapped sql type)
 func (ch *ClickHouse) columnDDL(name string, column typing.SQLColumn) string {
 	//get sql type
 	columnSQLType := column.DDLType()
@@ -708,7 +708,7 @@ func (ch *ClickHouse) columnDDL(name string, column typing.SQLColumn) string {
 	return fmt.Sprintf(`"%s" %s`, name, columnTypeDDL)
 }
 
-//getPlaceholder returns "?" placeholder or with typecast
+// getPlaceholder returns "?" placeholder or with typecast
 func (ch *ClickHouse) getPlaceholder(columnName string, column typing.SQLColumn) string {
 	castType, ok := ch.sqlTypes[columnName]
 	if !ok && column.Override {
@@ -722,7 +722,7 @@ func (ch *ClickHouse) getPlaceholder(columnName string, column typing.SQLColumn)
 	return "?"
 }
 
-//return nil if column type is nullable or default value for input type
+// return nil if column type is nullable or default value for input type
 func (ch *ClickHouse) getDefaultValue(sqlType string) (interface{}, bool) {
 	if !strings.Contains(strings.ToLower(sqlType), "nullable") {
 		//get default value based on type
@@ -737,8 +737,8 @@ func (ch *ClickHouse) getDefaultValue(sqlType string) (interface{}, bool) {
 	return nil, false
 }
 
-//if value is boolean - reformat it [true = 1; false = 0] ClickHouse supports UInt8 instead of boolean
-//otherwise return value as is
+// if value is boolean - reformat it [true = 1; false = 0] ClickHouse supports UInt8 instead of boolean
+// otherwise return value as is
 func (ch *ClickHouse) reformatValue(v interface{}) interface{} {
 	//reformat boolean
 	booleanValue, ok := v.(bool)
