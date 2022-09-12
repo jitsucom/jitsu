@@ -243,13 +243,6 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	} else {
 		workingObject = object
 	}
-	tableName, err := p.tableNameExtractor.Extract(workingObject)
-	if err != nil {
-		return nil, err
-	}
-	if tableName == "" || tableName == "null" || tableName == "false" {
-		return nil, ErrSkipObject
-	}
 
 	p.lookupEnrichmentStep.Execute(workingObject)
 	mappedObject, err := p.fieldMapper.Map(workingObject)
@@ -335,14 +328,20 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 				prObject[timestamp.Key] = timestamp.NowUTC()
 			}
 		}
-		newTableName, ok := prObject[templates.TableNameParameter].(string)
-		if !ok {
-			newTableName = tableName
+		tableName, tableNameFromTransform := prObject[templates.TableNameParameter].(string)
+		if !tableNameFromTransform {
+			tableName, err = p.tableNameExtractor.Extract(prObject)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if tableName == "" || tableName == "null" || tableName == "false" {
+			return nil, ErrSkipObject
 		}
 		delete(prObject, templates.TableNameParameter)
 		delete(prObject, events.HTTPContextField)
 		//object has been already processed (storage:table pair might be already processed)
-		_, ok = alreadyUploadedTables[newTableName]
+		_, ok := alreadyUploadedTables[tableName]
 		if ok {
 			continue
 		}
@@ -355,7 +354,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 			return nil, err
 		}
 		ClearTypeMetaFields(flatObject)
-		bh, obj, err := p.foldLongFields(&BatchHeader{TableName: newTableName, Fields: fields}, flatObject)
+		bh, obj, err := p.foldLongFields(&BatchHeader{TableName: tableName, Fields: fields}, flatObject)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process long fields: %v", err)
 		}
