@@ -11,6 +11,8 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -112,10 +114,11 @@ func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume
 
 // checkVolume checks if current image has a mounted volume with server.volumes.workspace value
 func (b *Bridge) checkVolume(ctx context.Context, instance *Bridge, cli *client.Client) error {
-	containerID, err := os.Hostname()
+	containerRaw, err := exec.Command("cat", "/proc/1/cpuset").Output()
 	if err != nil {
-		return fmt.Errorf("failed to get current docker container ID from hostname: %v", err)
+		return fmt.Errorf("failed to get current docker container ID: %v", err)
 	}
+	containerID := path.Base(string(containerRaw))
 
 	container, err := cli.ContainerInspect(ctx, containerID)
 	if err != nil {
