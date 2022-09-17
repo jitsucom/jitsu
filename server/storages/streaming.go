@@ -24,12 +24,15 @@ type StreamingStorage interface {
 	Insert(eventContext *adapters.EventContext) (err error)
 
 	Update(eventContext *adapters.EventContext) (err error)
+
 	//SuccessEvent writes metrics/counters/events cache, etc
 	SuccessEvent(eventCtx *adapters.EventContext)
 	//ErrorEvent writes metrics/counters/events cache, etc
-	ErrorEvent(fallback bool, eventCtx *adapters.EventContext, err error)
+	ErrorEvent(eventCtx *adapters.EventContext, err error)
 	//SkipEvent writes metrics/counters/events cache, etc
 	SkipEvent(eventCtx *adapters.EventContext, err error)
+	//RetireEvent writes metrics/counters/events cache, etc
+	RetireEvent(eventContext *events.Event)
 }
 
 //StreamingWorker reads events from queue and using events.StreamingStorage writes them
@@ -109,7 +112,7 @@ func (sw *StreamingWorker) start() {
 					sw.streamingStorage.SkipEvent(preliminaryEventContext, err)
 				} else {
 					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.ID(), fact.DebugString(), err)
-					sw.streamingStorage.ErrorEvent(true, preliminaryEventContext, err)
+					sw.streamingStorage.ErrorEvent(preliminaryEventContext, err)
 				}
 
 				continue
@@ -171,6 +174,8 @@ func (sw *StreamingWorker) start() {
 				retryTime := timestamp.Now().Add(time.Duration(seconds_delay) * time.Second)
 				if retryTime.Before(finishTime) {
 					sw.eventQueue.ConsumeTimed(fact, retryTime, finishTime, tokenID)
+				} else {
+					sw.streamingStorage.RetireEvent(&fact)
 				}
 			}
 		}
