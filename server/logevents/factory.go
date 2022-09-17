@@ -1,15 +1,17 @@
 package logevents
 
 import (
-	"github.com/jitsucom/jitsu/server/logging"
 	"io"
 	"path"
+
+	"github.com/jitsucom/jitsu/server/logging"
 )
 
 const (
 	ArchiveDir  = "archive"
 	FailedDir   = "failed"
 	IncomingDir = "incoming"
+	RetireDir   = "retired"
 )
 
 type Factory struct {
@@ -99,6 +101,19 @@ func (f *Factory) CreateFailedLogger(destinationName string) logging.ObjectLogge
 
 func (f *Factory) CreateSQLQueryLogger(destinationName string) *logging.QueryLogger {
 	return logging.NewQueryLogger(destinationName, f.ddlLogsWriter, f.queryLogsWriter)
+}
+
+func (f *Factory) CreateRetireLogger(destinationName string) logging.ObjectLogger {
+	retireWriter := logging.NewRollingWriter(&logging.Config{
+		FileName:      "retire.dst=" + destinationName,
+		FileDir:       path.Join(f.logEventPath, RetireDir),
+		RotationMin:   f.logRotationMin,
+		RotateOnClose: true,
+	})
+	if f.asyncLoggers {
+		return NewAsyncLogger(retireWriter, false, f.asyncLoggerPoolSize)
+	}
+	return NewSyncLogger(retireWriter, false)
 }
 
 func (f *Factory) CreateStreamingArchiveLogger(destinationName string) logging.ObjectLogger {

@@ -2,26 +2,24 @@ package storages
 
 import (
 	"fmt"
-	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/enrichment"
-	"github.com/jitsucom/jitsu/server/errorj"
-	"github.com/jitsucom/jitsu/server/timestamp"
-	"github.com/jitsucom/jitsu/server/typing"
 	"math/rand"
-
-	"github.com/jitsucom/jitsu/server/config"
-	"github.com/jitsucom/jitsu/server/logging"
-
-	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/counters"
+	"github.com/jitsucom/jitsu/server/enrichment"
+	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/typing"
 )
 
 //Abstract is an Abstract destination storage
@@ -30,7 +28,6 @@ import (
 type Abstract struct {
 	implementation Storage
 	destinationID  string
-	fallbackLogger logging.ObjectLogger
 	eventsCache    *caching.EventsCache
 	processor      *schema.Processor
 
@@ -44,7 +41,9 @@ type Abstract struct {
 
 	streamingWorker *StreamingWorker
 
-	archiveLogger logging.ObjectLogger
+	archiveLogger  logging.ObjectLogger
+	fallbackLogger logging.ObjectLogger
+	retireLogger   logging.ObjectLogger
 }
 
 //ID returns destination ID
@@ -77,7 +76,7 @@ func (a *Abstract) DryRun(payload events.Event) ([][]adapters.TableField, error)
 }
 
 //ErrorEvent writes error to metrics/counters/telemetry/events cache
-func (a *Abstract) ErrorEvent(fallback bool, eventCtx *adapters.EventContext, err error) {
+func (a *Abstract) ErrorEvent(eventCtx *adapters.EventContext, err error) {
 	metrics.ErrorTokenEvent(eventCtx.TokenID, a.Processor().DestinationType(), a.destinationID)
 	counters.ErrorPushDestinationEvents(a.destinationID, 1)
 	telemetry.Error(eventCtx.TokenID, a.destinationID, eventCtx.Src, "", 1)
@@ -85,13 +84,11 @@ func (a *Abstract) ErrorEvent(fallback bool, eventCtx *adapters.EventContext, er
 	//cache
 	a.eventsCache.Error(eventCtx.CacheDisabled, a.ID(), eventCtx.GetSerializedOriginalEvent(), err.Error())
 
-	if fallback {
-		a.Fallback(&events.FailedEvent{
-			Event:   []byte(eventCtx.RawEvent.Serialize()),
-			Error:   err.Error(),
-			EventID: eventCtx.EventID,
-		})
-	}
+	a.Fallback(&events.FailedEvent{
+		Event:   []byte(eventCtx.RawEvent.Serialize()),
+		Error:   err.Error(),
+		EventID: eventCtx.EventID,
+	})
 }
 
 //SuccessEvent writes success to metrics/counters/telemetry/events cache
@@ -102,6 +99,9 @@ func (a *Abstract) SuccessEvent(eventCtx *adapters.EventContext) {
 
 	//cache
 	a.eventsCache.Succeed(eventCtx)
+
+	//archive
+	a.archiveLogger.Consume(eventCtx.RawEvent, eventCtx.TokenID)
 }
 
 //SkipEvent writes skip to metrics/counters/telemetry and error to events cache
@@ -120,16 +120,20 @@ func (a *Abstract) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
+// Retire logs event with error to retire logger
+func (a *Abstract) RetireEvent(failedEvent *events.Event) {
+	a.retireLogger.ConsumeAny(failedEvent)
+}
+
 //Insert ensures table and sends input event to Destination (with 1 retry if error)
 func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error) {
 	defer func() {
 		if !eventContext.RecognizedEvent {
 			//metrics/counters/cache/fallback
-			a.AccountResult(eventContext, insertErr)
-
-			//archive
-			if insertErr == nil {
-				a.archiveLogger.Consume(eventContext.RawEvent, eventContext.TokenID)
+			if insertErr != nil {
+				a.ErrorEvent(eventContext, insertErr)
+			} else {
+				a.SuccessEvent(eventContext)
 			}
 		}
 	}()
@@ -276,19 +280,6 @@ func (a *Abstract) retryInsert(sqlAdapter adapters.SQLAdapter, tableHelper *Tabl
 	return nil
 }
 
-//AccountResult checks input error and calls ErrorEvent or SuccessEvent
-func (a *Abstract) AccountResult(eventContext *adapters.EventContext, err error) {
-	if err != nil {
-		if IsConnectionError(err) {
-			a.ErrorEvent(false, eventContext, err)
-		} else {
-			a.ErrorEvent(true, eventContext, err)
-		}
-	} else {
-		a.SuccessEvent(eventContext)
-	}
-}
-
 //Clean removes all records from storage
 func (a *Abstract) Clean(tableName string) error {
 	return nil
@@ -298,6 +289,11 @@ func (a *Abstract) close() (multiErr error) {
 	if a.streamingWorker != nil {
 		if err := a.streamingWorker.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", a.ID(), err))
+		}
+	}
+	if a.retireLogger != nil {
+		if err := a.retireLogger.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing retire logger: %v", a.ID(), err))
 		}
 	}
 	if a.fallbackLogger != nil {
@@ -340,12 +336,14 @@ func (a *Abstract) Init(config *Config, impl Storage, preinstalledJavaScript str
 }
 
 func (a *Abstract) Start(config *Config) error {
-	a.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	a.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+	a.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
+	a.retireLogger = config.loggerFactory.CreateRetireLogger(config.destinationID)
 
 	if a.streamingWorker != nil {
 		a.streamingWorker.start()
 	}
+
 	return nil
 }
 

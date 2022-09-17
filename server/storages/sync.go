@@ -1,6 +1,8 @@
 package storages
 
 import (
+	"math/rand"
+
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/errorj"
@@ -9,18 +11,18 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/utils"
 	"go.uber.org/atomic"
-	"math/rand"
 )
 
 //SyncStorage supports ProcessEvent synchronous operation
 type SyncStorage interface {
 	Storage
+
 	//ProcessEvent process event in sync fashion. Return resulting object immediately
 	ProcessEvent(eventContext *adapters.EventContext) (map[string]interface{}, error)
 	//SuccessEvent writes metrics/counters/events cache, etc
 	SuccessEvent(eventCtx *adapters.EventContext)
 	//ErrorEvent writes metrics/counters/events cache, etc
-	ErrorEvent(fallback bool, eventCtx *adapters.EventContext, err error)
+	ErrorEvent(eventCtx *adapters.EventContext, err error)
 	//SkipEvent writes metrics/counters/events cache, etc
 	SkipEvent(eventCtx *adapters.EventContext, err error)
 }
@@ -77,7 +79,7 @@ func (sw *SyncWorker) ProcessEvent(fact events.Event, tokenID string) []map[stri
 			sw.syncStorage.SkipEvent(preliminaryEventContext, err)
 		} else {
 			logging.Errorf("[%s] Unable to process object %s: %v", sw.syncStorage.ID(), fact.DebugString(), err)
-			sw.syncStorage.ErrorEvent(true, preliminaryEventContext, err)
+			sw.syncStorage.ErrorEvent(preliminaryEventContext, err)
 		}
 
 		return nil
@@ -118,7 +120,8 @@ func (sw *SyncWorker) ProcessEvent(fact events.Event, tokenID string) []map[stri
 			} else {
 				logging.Errorf("%+v\norigin event: %s", err, flattenObject.DebugString())
 			}
-			sw.syncStorage.ErrorEvent(true, eventContext, err)
+
+			sw.syncStorage.ErrorEvent(eventContext, err)
 		} else {
 			results = append(results, result)
 			sw.syncStorage.SuccessEvent(eventContext)
