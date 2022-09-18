@@ -43,7 +43,7 @@ type Abstract struct {
 
 	archiveLogger  logging.ObjectLogger
 	fallbackLogger logging.ObjectLogger
-	retireLogger   logging.ObjectLogger
+	retiredLogger  logging.ObjectLogger
 }
 
 //ID returns destination ID
@@ -120,9 +120,9 @@ func (a *Abstract) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-// Retire logs event with error to retire logger
-func (a *Abstract) RetireEvent(failedEvent *events.Event) {
-	a.retireLogger.ConsumeAny(failedEvent)
+// RetiredEvent logs event with error to retired logger
+func (a *Abstract) RetiredEvent(retiredEvent *adapters.EventContext) {
+	a.retiredLogger.ConsumeAny(retiredEvent.RawEvent)
 }
 
 //Insert ensures table and sends input event to Destination (with 1 retry if error)
@@ -291,9 +291,9 @@ func (a *Abstract) close() (multiErr error) {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", a.ID(), err))
 		}
 	}
-	if a.retireLogger != nil {
-		if err := a.retireLogger.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing retire logger: %v", a.ID(), err))
+	if a.retiredLogger != nil {
+		if err := a.retiredLogger.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing retired logger: %v", a.ID(), err))
 		}
 	}
 	if a.fallbackLogger != nil {
@@ -338,7 +338,7 @@ func (a *Abstract) Init(config *Config, impl Storage, preinstalledJavaScript str
 func (a *Abstract) Start(config *Config) error {
 	a.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 	a.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
-	a.retireLogger = config.loggerFactory.CreateRetireLogger(config.destinationID)
+	a.retiredLogger = config.loggerFactory.CreateRetiredLogger(config.destinationID)
 
 	if a.streamingWorker != nil {
 		a.streamingWorker.start()

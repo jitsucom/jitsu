@@ -11,7 +11,7 @@ const (
 	ArchiveDir  = "archive"
 	FailedDir   = "failed"
 	IncomingDir = "incoming"
-	RetireDir   = "retired"
+	RetiredDir  = "retired"
 )
 
 type Factory struct {
@@ -25,8 +25,8 @@ type Factory struct {
 	queryLogsWriter io.Writer
 }
 
-func NewFactory(logEventPath string, logRotationMin int64, showInServer bool, ddlLogsWriter io.Writer, queryLogsWriter io.Writer,
-	asyncLoggers bool, asyncLoggerPoolSize int) *Factory {
+func NewFactory(logEventPath string, logRotationMin int64, showInServer bool,
+	ddlLogsWriter io.Writer, queryLogsWriter io.Writer, asyncLoggers bool, asyncLoggerPoolSize int) *Factory {
 	if asyncLoggers {
 		var defaultValueMsg string
 		if asyncLoggerPoolSize == 0 {
@@ -71,74 +71,41 @@ func (f *Factory) NewFactoryWithQueryLogsWriter(overriddenQueryLogsWriter io.Wri
 	}
 }
 
-func (f *Factory) CreateIncomingLogger(tokenID string) logging.ObjectLogger {
-	eventLogWriter := logging.NewRollingWriter(&logging.Config{
-		FileName:      "incoming.tok=" + tokenID,
-		FileDir:       path.Join(f.logEventPath, IncomingDir),
-		RotationMin:   f.logRotationMin,
-		RotateOnClose: true,
-	})
-
-	if f.asyncLoggers {
-		return NewAsyncLogger(eventLogWriter, f.showInServer, f.asyncLoggerPoolSize)
-	}
-	return NewSyncLogger(eventLogWriter, f.showInServer)
-}
-
-func (f *Factory) CreateFailedLogger(destinationName string) logging.ObjectLogger {
-	failedEventWriter := logging.NewRollingWriter(&logging.Config{
-		FileName:      "failed.dst=" + destinationName,
-		FileDir:       path.Join(f.logEventPath, FailedDir),
-		RotationMin:   f.logRotationMin,
-		RotateOnClose: true,
-	})
-
-	if f.asyncLoggers {
-		return NewAsyncLogger(failedEventWriter, false, f.asyncLoggerPoolSize)
-	}
-	return NewSyncLogger(failedEventWriter, false)
-}
-
 func (f *Factory) CreateSQLQueryLogger(destinationName string) *logging.QueryLogger {
 	return logging.NewQueryLogger(destinationName, f.ddlLogsWriter, f.queryLogsWriter)
 }
 
-func (f *Factory) CreateRetireLogger(destinationName string) logging.ObjectLogger {
-	retireWriter := logging.NewRollingWriter(&logging.Config{
-		FileName:      "retire.dst=" + destinationName,
-		FileDir:       path.Join(f.logEventPath, RetireDir),
-		RotationMin:   f.logRotationMin,
-		RotateOnClose: true,
-	})
-	if f.asyncLoggers {
-		return NewAsyncLogger(retireWriter, false, f.asyncLoggerPoolSize)
-	}
-	return NewSyncLogger(retireWriter, false)
+func (f *Factory) CreateIncomingLogger(tokenID string) logging.ObjectLogger {
+	return f.createLogger(IncomingDir, "incoming.tok="+tokenID, f.showInServer)
+}
+
+func (f *Factory) CreateFailedLogger(destinationName string) logging.ObjectLogger {
+	return f.createLogger(FailedDir, "failed.dst="+destinationName, false)
+}
+
+func (f *Factory) CreateRetiredLogger(destinationName string) logging.ObjectLogger {
+	return f.createLogger(RetiredDir, "retired.dst="+destinationName, false)
 }
 
 func (f *Factory) CreateStreamingArchiveLogger(destinationName string) logging.ObjectLogger {
-	archiveWriter := logging.NewRollingWriter(&logging.Config{
-		FileName:      "streaming-archive.dst=" + destinationName,
-		FileDir:       path.Join(f.logEventPath, ArchiveDir),
-		RotationMin:   f.logRotationMin,
-		RotateOnClose: true,
-	})
-	if f.asyncLoggers {
-		return NewAsyncLogger(archiveWriter, false, f.asyncLoggerPoolSize)
-	}
-	return NewSyncLogger(archiveWriter, false)
+	return f.createLogger(ArchiveDir, "streaming-archive.dst="+destinationName, false)
 }
 
 func (f *Factory) CreateWriteAheadLogger() logging.ObjectLogger {
-	walWriter := logging.NewRollingWriter(&logging.Config{
-		FileName:      "write-ahead-log",
-		FileDir:       path.Join(f.logEventPath, IncomingDir),
+	return f.createLogger(IncomingDir, "write-ahead-log", false)
+}
+
+func (f *Factory) createLogger(subDir, fileName string, showInGlobalLogger bool) logging.ObjectLogger {
+	logWriter := logging.NewRollingWriter(&logging.Config{
+		FileName:      fileName,
+		FileDir:       path.Join(f.logEventPath, subDir),
 		RotationMin:   f.logRotationMin,
 		RotateOnClose: true,
 	})
 
 	if f.asyncLoggers {
-		return NewAsyncLogger(walWriter, false, f.asyncLoggerPoolSize)
+		return NewAsyncLogger(logWriter, showInGlobalLogger, f.asyncLoggerPoolSize)
 	}
-	return NewSyncLogger(walWriter, false)
+
+	return NewSyncLogger(logWriter, showInGlobalLogger)
 }
