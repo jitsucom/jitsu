@@ -102,7 +102,7 @@ func (u *PeriodicUploader) Start() {
 				//get token from filename
 				tokenID, err := parseFileToken(fileName)
 				if err != nil {
-					logging.SystemErrorf("Error processing file [%s]: %v", err)
+					logging.SystemErrorf("Error processing file [%s]: %v", fileName, err)
 					continue
 				}
 

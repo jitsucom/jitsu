@@ -1,0 +1,38 @@
+# Error Handling and Retries
+
+**Jitsu** supports sending events and re-sending them at failures.
+
+##  Configuration
+
+```yaml
+server:
+  ...
+  streaming_retry_delay_minutes: 1 # Optional. Default value is 1
+  error_retry_period_hours: 24 # Optional. Default value is 24
+log:
+  ...
+  rotation_min: 5 # Optional. Default value is 5
+...
+destinations:
+  ...
+  destination_id:
+    ...
+    data_layout:
+      ...
+      # Positive value overrides server option for destination
+      error_retry_period_hours: 0 # Optional. Default value is 0
+```
+
+## Batch mode
+
+**Jitsu** receives a lot of events. All of them are saved into a file system.
+Every `log.rotation_min` minutes **Jitsu** parses saved files with events and tries to send them to destinations.
+If an event was sent correctly it will be archived into a special folder with successful events. Otherwise, **Jitsu** tries to resend it at the next uploading iteration.
+If an event cannot be sent for any reason during `server.error_retry_period_hours` hours **Jitsu** stops resending an event and archives it into a special folder with unsuccessful events.
+
+## Streaming mode
+
+**Jitsu** receives an event and tries to send it to destinations.
+If an event was sent correctly it will be archived into a special folder with successful events. Otherwise, **Jitsu** tries to resend it at the next uploading iteration that happens every `server.streaming_retry_delay_minutes` minutes.
+If an event cannot be sent for any reason during `server.error_retry_period_hours` hours **Jitsu** stops resending an event and archives it into a special folder with unsuccessful events.
+Any destination supports local `destinations.destination_id.data_layout.error_retry_period_hours` option that overrides global `server.error_retry_period_hours` option.
