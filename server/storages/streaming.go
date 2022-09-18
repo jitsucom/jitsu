@@ -31,8 +31,8 @@ type StreamingStorage interface {
 	ErrorEvent(eventCtx *adapters.EventContext, err error)
 	//SkipEvent writes metrics/counters/events cache, etc
 	SkipEvent(eventCtx *adapters.EventContext, err error)
-	//RetireEvent writes metrics/counters/events cache, etc
-	RetireEvent(eventContext *events.Event)
+	//RetiredEvent writes metrics/counters/events cache, etc
+	RetiredEvent(eventCtx *adapters.EventContext)
 }
 
 //StreamingWorker reads events from queue and using events.StreamingStorage writes them
@@ -175,7 +175,7 @@ func (sw *StreamingWorker) start() {
 				if retryTime.Before(finishTime) {
 					sw.eventQueue.ConsumeTimed(fact, retryTime, finishTime, tokenID)
 				} else {
-					sw.streamingStorage.RetireEvent(&fact)
+					sw.streamingStorage.RetiredEvent(eventContext)
 				}
 			}
 		}

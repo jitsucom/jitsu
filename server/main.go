@@ -457,7 +457,7 @@ func main() {
 	//for now use the same interval as for log rotation
 	uploaderRunInterval := viper.GetInt("log.rotation_min")
 	//Uploader must read event logger directory
-	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderRunInterval, destinationsService)
+	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderRunInterval, appconfig.Instance.ErrorRetryPeriod, destinationsService)
 	if err != nil {
 		logging.Fatal("Error while creating file uploader", err)
 	}
