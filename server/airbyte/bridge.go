@@ -118,7 +118,7 @@ func (b *Bridge) checkVolume(ctx context.Context, instance *Bridge, cli *client.
 	if err != nil {
 		return fmt.Errorf("failed to get current docker container ID: %v", err)
 	}
-	containerID := path.Base(string(containerRaw))
+	containerID := path.Base(strings.TrimSpace(string(containerRaw)))
 
 	container, err := cli.ContainerInspect(ctx, containerID)
 	if err != nil {
