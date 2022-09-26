@@ -1,7 +1,13 @@
 /**
  * Class for working with projects and users
  */
-import { Project, UserBasicInfo } from "../../generated/conf-openapi"
+import {
+  LinkProjectRequest,
+  Project,
+  ProjectUserPermissions,
+  ProjectWithPermissions,
+  UserBasicInfo,
+} from "../../generated/conf-openapi"
 import { BackendApiClient } from "./BackendApiClient"
 import { assertHasAllProperties, assertIsArray, assertIsObject } from "utils/typeCheck"
 import { assert } from "../../utils/typeCheck"
@@ -9,6 +15,7 @@ import { withQueryParams } from "utils/queryParams"
 import { concatenateURLs } from "lib/commons/utils"
 import { getFullUiPath } from "lib/commons/pathHelper"
 import { errorIncludes } from "utils/errorIncludes"
+import { PermissionType } from "./permissions"
 
 export interface ProjectService {
   /**
@@ -28,10 +35,15 @@ export interface ProjectService {
   updateProject(projectId: string, patch: Partial<Project>): Promise<void>
 
   /**
+   * Patches the project with provided data. Project ID field is required.
+   */
+  updatePermissions(projectId: string, userId: string, permissions: PermissionType[]): Promise<void>
+
+  /**
    * Get user
    * @param projectId
    */
-  getProjectUsers(projectId: string): Promise<UserBasicInfo[]>
+  getProjectUsers(projectId: string): Promise<ProjectUserPermissions[]>
 
   /**
    * Links user with given email to project
@@ -40,7 +52,7 @@ export interface ProjectService {
    */
   linkUserToProject(
     projectId: string,
-    link: { userId: string; userEmail?: never } | { userId?: never; userEmail: string }
+    link: Omit<LinkProjectRequest, "callback">
   ): Promise<"invitation_sent" | "user_linked">
 
   /**
@@ -53,7 +65,11 @@ export interface ProjectService {
 
 export function createProjectService(backend: BackendApiClient): ProjectService {
   return {
-    async getProjectUsers(projectId: string): Promise<UserBasicInfo[]> {
+    async updatePermissions(projectId: string, userId: string, permissions: PermissionType[]): Promise<void> {
+      await backend.post<unknown>(`/project/${projectId}/permissions/${userId}`, { permissions }, { version: 2 })
+    },
+
+    async getProjectUsers(projectId: string): Promise<ProjectUserPermissions[]> {
       const response = await backend.get<unknown>(`/project/${projectId}/users`, { version: 2 })
       assertIsArray(response, "Assertion error in getProjectUsers: response is not an array")
       return response.map((value, index) => {
@@ -108,7 +124,7 @@ export function createProjectService(backend: BackendApiClient): ProjectService 
       return result
     },
 
-    async getAvailableProjects(): Promise<Project[]> {
+    async getAvailableProjects(): Promise<ProjectWithPermissions[]> {
       const userProjects = await backend.get<unknown>(`/projects`, { version: 2 })
       assertIsArray(
         userProjects,

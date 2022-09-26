@@ -33,7 +33,8 @@ components:
         HTTP Bearer Auth.
         Use `Authorization: Bearer <access token>` header.<br />
 
-        You should use possible to use an admin token
+        As an <access token> it should be possible to use cluster admin key,
+        or key created in UI
       type: http
       scheme: bearer
     configurationManagementAuth:
@@ -170,6 +171,19 @@ components:
         name: { type: "string" }
         requiresSetup: { type: "boolean" }
       required: [ 'id', 'name' ]
+
+    PermissionsInfo:
+      type: object
+      properties:
+        permissions:
+          type: array
+          items: { type: "string", enum: [ "modify_config", "view_config" ] }
+
+    ProjectWithPermissions:
+      allOf:
+        - $ref: '#/components/schemas/Project'
+        - $ref: '#/components/schemas/PermissionsInfo'
+
     CreateProjectRequest:
       type: object
       properties:
@@ -183,6 +197,12 @@ components:
         id: { type: "string" }
         email: { type: "string" }
       required: [ 'id', 'email' ]
+
+    ProjectUserPermissions:
+      allOf: # Combines the BasicErrorModel and the inline model
+        - $ref: '#/components/schemas/UserBasicInfo'
+        - $ref: '#/components/schemas/PermissionsInfo'
+
 
     User:
       allOf: # Combines the BasicErrorModel and the inline model
@@ -278,7 +298,7 @@ components:
         callback:
           type: string
           description: >
-            Callback URL will be used for generating reset password links 
+            Callback URL will be used for generating reset password links
             when creating a new user (only on Redis-backed authorization).
     PatchProjectRequest:
       type: object
@@ -354,7 +374,7 @@ components:
               userStatus:
                 type: string
                 description: existing if user has been found, or created if user has been created
-            required: ['projectUsers', 'userStatus']
+            required: [ 'projectUsers', 'userStatus' ]
 paths:
   /api/v1/users/signin:
     post:
@@ -600,7 +620,7 @@ paths:
       operationId: 'Purge audit'
       description: Purges ALL audit records in the specified interval.
       security:
-        - clusterAdminAuth: []
+        - clusterAdminAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/StatusResponse'
@@ -630,8 +650,41 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/UserBasicInfo'
+                  $ref: '#/components/schemas/ProjectUserPermissions'
 
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v2/project/{projectId}/permissions/{user}:
+    post:
+      parameters:
+        - name: projectId
+          description: Project id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          description: User ID
+          in: path
+          required: true
+          schema:
+            type: string
+      tags:
+        - user-provisioning
+      operationId: "Update user permissions on a project"
+      description: >
+        Updates user permissions on a project. Accepts a list of permissions as body
+      security:
+        - configurationManagementAuth: [ ]
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              $ref: '#/components/schemas/PermissionsInfo'
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusResponse'
         default:
           $ref: '#/components/responses/Error'
 
@@ -812,7 +865,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Project'
+                  $ref: '#/components/schemas/ProjectWithPermissions'
         default:
           $ref: '#/components/responses/Error'
     post:

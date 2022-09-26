@@ -12,10 +12,11 @@ import { ApplicationConfiguration } from "./ApplicationConfiguration"
 import { CurrentSubscription } from "./billing"
 import { ISlackApiService, SlackApiService } from "./slack"
 import { IOauthService, OauthService } from "./oauth"
-import { Project } from "../../generated/conf-openapi"
+import { Project, ProjectWithPermissions } from "../../generated/conf-openapi"
 import { createProjectService, ProjectService } from "./ProjectService"
 import { FirebaseUserService } from "./UserServiceFirebase"
 import { UserSettingsService, UserSettingsLocalService, Settings } from "./UserSettingsService"
+import { PermissionType } from "./permissions"
 
 export interface IApplicationServices {
   init(): Promise<void>
@@ -107,11 +108,15 @@ export default class ApplicationServices implements IApplicationServices {
     return this._userService
   }
 
-  get activeProject(): Project {
+  get activeProject(): ProjectWithPermissions {
     return this._userSettingsService.get(Settings.ActiveProject) as Project
   }
 
-  set activeProject(value: Project) {
+  get currentProjectPermissions(): Set<PermissionType> {
+    return new Set(this.activeProject.permissions || [])
+  }
+
+  set activeProject(value: ProjectWithPermissions) {
     this._userSettingsService.set({ [Settings.ActiveProject]: value })
   }
 
