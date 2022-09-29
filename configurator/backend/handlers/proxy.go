@@ -1,9 +1,6 @@
 package handlers
 
 import (
-	"bytes"
-	"encoding/json"
-	"io/ioutil"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,10 +8,6 @@ import (
 	mw "github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/server/logging"
 )
-
-type ProjectIDBody struct {
-	ProjectID string `json:"project_id"`
-}
 
 type ProxyHandler struct {
 	jitsuService *jitsu.Service
@@ -28,7 +21,7 @@ func NewProxyHandler(jitsuService *jitsu.Service, decorators map[string]jitsu.AP
 	}
 }
 
-//Handler proxies requests to Jitsu Server with validation
+// Handler proxies requests to Jitsu Server with validation
 func (ph *ProxyHandler) Handler(ctx *gin.Context) {
 	if ctx.IsAborted() {
 		return
@@ -37,7 +30,7 @@ func (ph *ProxyHandler) Handler(ctx *gin.Context) {
 	start := time.Now()
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if projectID := extractProjectID(ctx); projectID == "" {
+	} else if projectID := mw.ExtractProjectID(ctx); projectID == "" {
 		mw.RequiredField(ctx, "project_id")
 	} else if !authority.Allow(projectID) {
 		mw.ForbiddenProject(ctx, projectID)
@@ -58,24 +51,4 @@ func (ph *ProxyHandler) getJitsuRequest(c *gin.Context) (*jitsu.Request, error) 
 	}
 
 	return jitsu.BuildRequest(c), nil
-}
-
-func extractProjectID(c *gin.Context) string {
-	projectID := c.Query("project_id")
-	if projectID != "" {
-		return projectID
-	}
-
-	//read project_id from body
-	contents, _ := ioutil.ReadAll(c.Request.Body)
-	reqModel := &ProjectIDBody{}
-	err := json.Unmarshal(contents, reqModel)
-	if err != nil {
-		logging.Errorf("Error reading project_id from unmarshalled request body: %v", err)
-		return ""
-	}
-
-	c.Request.Body = ioutil.NopCloser(bytes.NewReader(contents))
-
-	return reqModel.ProjectID
 }

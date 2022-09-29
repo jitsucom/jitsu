@@ -104,7 +104,10 @@ const initializeBilling = async (services: ApplicationServices, projectId: strin
   services.currentSubscription = currenSubscription
 }
 
-const initializeProject = async (projectId: string, projects: ProjectWithPermissions[]): Promise<ProjectWithPermissions | null> => {
+const initializeProject = async (
+  projectId: string,
+  projects: ProjectWithPermissions[]
+): Promise<ProjectWithPermissions | null> => {
   const project = projects.find(project => project.id === projectId) ?? null
   if (project) {
     const services = ApplicationServices.get()

@@ -52,7 +52,7 @@ const (
 	unknownObjectPosition = -1
 )
 
-//collectionsDependencies is used for updating last_updated field in db. It leads Jitsu Server to reload configuration with new changes
+// collectionsDependencies is used for updating last_updated field in db. It leads Jitsu Server to reload configuration with new changes
 var collectionsDependencies = map[string]string{
 	geoDataResolversCollection: destinationsCollection,
 }
@@ -75,7 +75,7 @@ func NewConfigurationsService(storage ConfigurationsStorage, defaultDestination 
 
 //** Data manipulation **
 
-//saveWithLock locks and uses save func under the hood
+// saveWithLock locks and uses save func under the hood
 func (cs *ConfigurationsService) saveWithLock(ctx context.Context, objectType, projectID string, projectConfig interface{}) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
@@ -100,7 +100,7 @@ func (cs *ConfigurationsService) saveWithLock(ctx context.Context, objectType, p
 	return data, nil
 }
 
-//getWithLock locks and uses get func under the hood
+// getWithLock locks and uses get func under the hood
 func (cs *ConfigurationsService) getWithLock(objectType, projectID string) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
@@ -111,7 +111,7 @@ func (cs *ConfigurationsService) getWithLock(objectType, projectID string) ([]by
 	return cs.get(objectType, projectID)
 }
 
-//save proxies save request to the storage and updates dependency collection last_update (if a dependency is present)
+// save proxies save request to the storage and updates dependency collection last_update (if a dependency is present)
 func (cs *ConfigurationsService) save(objectType, projectID string, projectConfig interface{}) ([]byte, error) {
 	serialized, err := json.MarshalIndent(projectConfig, "", "    ")
 	if err != nil {
@@ -131,7 +131,7 @@ func (cs *ConfigurationsService) save(objectType, projectID string, projectConfi
 	return serialized, nil
 }
 
-//save proxies delete request to the storage and updates dependency collection last_update (if a dependency is present)
+// save proxies delete request to the storage and updates dependency collection last_update (if a dependency is present)
 func (cs *ConfigurationsService) delete(objectType, projectID string) error {
 	if err := cs.storage.Delete(objectType, projectID); err != nil {
 		return err
@@ -146,26 +146,26 @@ func (cs *ConfigurationsService) delete(objectType, projectID string) error {
 	return nil
 }
 
-//get proxies get request to the storage
+// get proxies get request to the storage
 func (cs *ConfigurationsService) get(objectType, projectID string) ([]byte, error) {
 	return cs.storage.Get(objectType, projectID)
 }
 
 // ** General functions **
 
-//SaveConfigWithLock proxies call to saveWithLock
+// SaveConfigWithLock proxies call to saveWithLock
 func (cs *ConfigurationsService) SaveConfigWithLock(ctx context.Context, objectType string, projectID string, projectConfig interface{}) ([]byte, error) {
 	return cs.saveWithLock(ctx, objectType, projectID, projectConfig)
 }
 
-//GetConfigWithLock proxies call to getWithLock
+// GetConfigWithLock proxies call to getWithLock
 func (cs *ConfigurationsService) GetConfigWithLock(objectType string, projectID string) (json.RawMessage, error) {
 	return cs.getWithLock(objectType, projectID)
 }
 
 // ** Utility **
 
-//CreateDefaultDestination Creates default destination in case no other destinations exist for the project
+// CreateDefaultDestination Creates default destination in case no other destinations exist for the project
 func (cs *ConfigurationsService) CreateDefaultDestination(ctx context.Context, projectID string) (*entities.Database, error) {
 	if cs.defaultDestination == nil {
 		return nil, errors.New("Default destination postgres isn't configured")
@@ -211,7 +211,7 @@ func (cs *ConfigurationsService) CreateDefaultDestination(ctx context.Context, p
 	return database, err
 }
 
-//CreateDefaultAPIKey returns generated default key per project only in case if no other API key exists
+// CreateDefaultAPIKey returns generated default key per project only in case if no other API key exists
 func (cs *ConfigurationsService) CreateDefaultAPIKey(ctx context.Context, projectID string) error {
 	objectType := apiKeysCollection
 	lock, err := cs.lockProjectObject(objectType, projectID)
@@ -255,30 +255,30 @@ func (cs *ConfigurationsService) CreateDefaultAPIKey(ctx context.Context, projec
 
 // ** Last Updated **
 
-//GetDestinationsLastUpdated returns destinations last updated time
+// GetDestinationsLastUpdated returns destinations last updated time
 func (cs *ConfigurationsService) GetDestinationsLastUpdated() (*time.Time, error) {
 	return cs.storage.GetCollectionLastUpdated(destinationsCollection)
 }
 
-//GetAPIKeysLastUpdated returns api keys last updated
+// GetAPIKeysLastUpdated returns api keys last updated
 func (cs *ConfigurationsService) GetAPIKeysLastUpdated() (*time.Time, error) {
 	return cs.storage.GetCollectionLastUpdated(apiKeysCollection)
 }
 
-//GetSourcesLastUpdated returns sources last updated
+// GetSourcesLastUpdated returns sources last updated
 func (cs *ConfigurationsService) GetSourcesLastUpdated() (*time.Time, error) {
 	return cs.storage.GetCollectionLastUpdated(sourcesCollection)
 }
 
-//GetGeoDataResolversLastUpdated returns geo data resolvers last updated
+// GetGeoDataResolversLastUpdated returns geo data resolvers last updated
 func (cs *ConfigurationsService) GetGeoDataResolversLastUpdated() (*time.Time, error) {
 	return cs.storage.GetCollectionLastUpdated(geoDataResolversCollection)
 }
 
 // ** Destinations **
 
-//GetAllDestinations locks and returns all destinations in format map with objectType:destinations
-func (cs ConfigurationsService) GetAllDestinations() (map[string]*entities.Destinations, error) {
+// GetAllDestinations locks and returns all destinations in format map with objectType:destinations
+func (cs *ConfigurationsService) GetAllDestinations() (map[string]*entities.Destinations, error) {
 	objectType := destinationsCollection
 	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
 	if err != nil {
@@ -343,7 +343,7 @@ func (cs *ConfigurationsService) addAuditLog(ctx context.Context, key auditRecor
 	}
 }
 
-//GetDestinationsByProjectID uses getWithLock func under the hood, returns all destinations per project
+// GetDestinationsByProjectID uses getWithLock func under the hood, returns all destinations per project
 func (cs *ConfigurationsService) GetDestinationsByProjectID(projectID string) ([]*entities.Destination, error) {
 	doc, err := cs.getWithLock(destinationsCollection, projectID)
 	if err != nil {
@@ -364,7 +364,7 @@ func (cs *ConfigurationsService) GetDestinationsByProjectID(projectID string) ([
 
 // ** API Keys **
 
-//GetAllAPIKeys locks and returns all api keys
+// GetAllAPIKeys locks and returns all api keys
 func (cs *ConfigurationsService) GetAllAPIKeys() ([]*entities.APIKey, error) {
 	objectType := apiKeysCollection
 	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
@@ -391,7 +391,7 @@ func (cs *ConfigurationsService) GetAllAPIKeys() ([]*entities.APIKey, error) {
 	return result, nil
 }
 
-//GetAllAPIKeysPerProjectByID locks and returns all api keys grouped by project
+// GetAllAPIKeysPerProjectByID locks and returns all api keys grouped by project
 func (cs *ConfigurationsService) GetAllAPIKeysPerProjectByID() (map[string]map[string]entities.APIKey, error) {
 	objectType := apiKeysCollection
 	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
@@ -423,7 +423,7 @@ func (cs *ConfigurationsService) GetAllAPIKeysPerProjectByID() (map[string]map[s
 	return result, nil
 }
 
-//GetAPIKeysByProjectID uses getWithLock func under the hood, returns all api keys per project
+// GetAPIKeysByProjectID uses getWithLock func under the hood, returns all api keys per project
 func (cs *ConfigurationsService) GetAPIKeysByProjectID(projectID string) ([]*entities.APIKey, error) {
 	lock, err := cs.lockProjectObject(apiKeysCollection, projectID)
 	if err != nil {
@@ -437,7 +437,7 @@ func (cs *ConfigurationsService) GetAPIKeysByProjectID(projectID string) ([]*ent
 	return apiKeys, nil
 }
 
-//getAPIKeysByProjectID uses get func under the hood, returns all api keys per project
+// getAPIKeysByProjectID uses get func under the hood, returns all api keys per project
 func (cs *ConfigurationsService) getAPIKeysByProjectID(projectID string) ([]*entities.APIKey, error) {
 	data, err := cs.get(apiKeysCollection, projectID)
 	if err != nil {
@@ -457,7 +457,7 @@ func (cs *ConfigurationsService) getAPIKeysByProjectID(projectID string) ([]*ent
 
 // ** Sources **
 
-//GetAllSources locks and returns all sources in format map with objectType:sources
+// GetAllSources locks and returns all sources in format map with objectType:sources
 func (cs *ConfigurationsService) GetAllSources() (map[string]*entities.Sources, error) {
 	objectType := sourcesCollection
 	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
@@ -485,7 +485,7 @@ func (cs *ConfigurationsService) GetAllSources() (map[string]*entities.Sources, 
 	return result, nil
 }
 
-//GetSourcesByProjectID uses getWithLock func under the hood, returns all sources per project
+// GetSourcesByProjectID uses getWithLock func under the hood, returns all sources per project
 func (cs *ConfigurationsService) GetSourcesByProjectID(projectID string) ([]*entities.Source, error) {
 	doc, err := cs.getWithLock(sourcesCollection, projectID)
 	if err != nil {
@@ -505,7 +505,7 @@ func (cs *ConfigurationsService) GetSourcesByProjectID(projectID string) ([]*ent
 
 // ** Geo Data Resolvers **
 
-//GetGeoDataResolvers locks and returns all sources in format map with objectType:geo_data_resolver
+// GetGeoDataResolvers locks and returns all sources in format map with objectType:geo_data_resolver
 func (cs *ConfigurationsService) GetGeoDataResolvers() (map[string]*entities.GeoDataResolver, error) {
 	objectType := geoDataResolversCollection
 	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
@@ -532,7 +532,7 @@ func (cs *ConfigurationsService) GetGeoDataResolvers() (map[string]*entities.Geo
 	return result, nil
 }
 
-//GetGeoDataResolverByProjectID uses getWithLock func under the hood, returns all geo data resolvers per project
+// GetGeoDataResolverByProjectID uses getWithLock func under the hood, returns all geo data resolvers per project
 func (cs *ConfigurationsService) GetGeoDataResolverByProjectID(projectID string) (*entities.GeoDataResolver, error) {
 	doc, err := cs.getWithLock(geoDataResolversCollection, projectID)
 	if err != nil {
@@ -553,7 +553,7 @@ func (cs *ConfigurationsService) GetGeoDataResolverByProjectID(projectID string)
 
 // ** Telemetry **
 
-//SaveTelemetry uses saveWithLock for saving with lock telemetry settings
+// SaveTelemetry uses saveWithLock for saving with lock telemetry settings
 func (cs *ConfigurationsService) SaveTelemetry(ctx context.Context, disabledConfiguration map[string]bool) error {
 	_, err := cs.saveWithLock(ctx, telemetryCollection, entities.TelemetryGlobalID, telemetry.Configuration{Disabled: disabledConfiguration})
 	if err != nil {
@@ -562,7 +562,7 @@ func (cs *ConfigurationsService) SaveTelemetry(ctx context.Context, disabledConf
 	return nil
 }
 
-//GetTelemetry uses getWithLock for getting with lock telemetry settings
+// GetTelemetry uses getWithLock for getting with lock telemetry settings
 func (cs *ConfigurationsService) GetTelemetry() ([]byte, error) {
 	b, err := cs.getWithLock(telemetryCollection, entities.TelemetryGlobalID)
 	if err != nil {
@@ -572,7 +572,7 @@ func (cs *ConfigurationsService) GetTelemetry() ([]byte, error) {
 	return b, nil
 }
 
-//GetParsedTelemetry returns telemetry configuration using GetTelemetry func
+// GetParsedTelemetry returns telemetry configuration using GetTelemetry func
 func (cs *ConfigurationsService) GetParsedTelemetry() (*telemetry.Configuration, error) {
 	b, err := cs.GetTelemetry()
 	if err != nil {
@@ -588,7 +588,7 @@ func (cs *ConfigurationsService) GetParsedTelemetry() (*telemetry.Configuration,
 
 // ** Domains **
 
-//GetAllCustomDomains locks and returns all domains in format map with objectType:domains
+// GetAllCustomDomains locks and returns all domains in format map with objectType:domains
 func (cs *ConfigurationsService) GetAllCustomDomains() (map[string]*entities.CustomDomains, error) {
 	objectType := customDomainsCollection
 	lock, err := cs.lockProjectObject(objectType, allObjectsIdentifier)
@@ -614,7 +614,7 @@ func (cs *ConfigurationsService) GetAllCustomDomains() (map[string]*entities.Cus
 	return result, nil
 }
 
-//GetCustomDomainsByProjectID uses getWithLock func under the hood, returns all domains per project
+// GetCustomDomainsByProjectID uses getWithLock func under the hood, returns all domains per project
 func (cs *ConfigurationsService) GetCustomDomainsByProjectID(projectID string) (*entities.CustomDomains, error) {
 	data, err := cs.getWithLock(customDomainsCollection, projectID)
 	if err != nil {
@@ -627,7 +627,7 @@ func (cs *ConfigurationsService) GetCustomDomainsByProjectID(projectID string) (
 	return domains, nil
 }
 
-//UpdateCustomDomain proxies call to saveWithLock
+// UpdateCustomDomain proxies call to saveWithLock
 func (cs *ConfigurationsService) UpdateCustomDomain(ctx context.Context, projectID string, customDomains *entities.CustomDomains) error {
 	_, err := cs.saveWithLock(ctx, customDomainsCollection, projectID, customDomains)
 	return err
@@ -635,8 +635,8 @@ func (cs *ConfigurationsService) UpdateCustomDomain(ctx context.Context, project
 
 // ** Objects API **
 
-//CreateObjectWithLock locks project object Types and add new object
-//returns new object
+// CreateObjectWithLock locks project object Types and add new object
+// returns new object
 func (cs *ConfigurationsService) CreateObjectWithLock(ctx context.Context, objectType string, projectID string, object *openapi.AnyObject) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
@@ -706,7 +706,7 @@ func (cs *ConfigurationsService) CreateObjectWithLock(ctx context.Context, objec
 	return object.MarshalJSON()
 }
 
-//PatchObjectWithLock locks by collection and objectType, applies pathPayload to data, saves and returns the updated object
+// PatchObjectWithLock locks by collection and objectType, applies pathPayload to data, saves and returns the updated object
 func (cs *ConfigurationsService) PatchObjectWithLock(ctx context.Context, objectType, projectID string, patchPayload *PatchPayload) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
@@ -781,7 +781,7 @@ func (cs *ConfigurationsService) PatchObjectWithLock(ctx context.Context, object
 	return newObjectBytes, nil
 }
 
-//ReplaceObjectWithLock locks by collection and objectType, rewrite pathPayload, saves and returns the updated object
+// ReplaceObjectWithLock locks by collection and objectType, rewrite pathPayload, saves and returns the updated object
 func (cs *ConfigurationsService) ReplaceObjectWithLock(ctx context.Context, objectType, projectID string, patchPayload *PatchPayload) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
@@ -847,7 +847,7 @@ func (cs *ConfigurationsService) ReplaceObjectWithLock(ctx context.Context, obje
 	return newObjectBytes, nil
 }
 
-//DeleteObjectWithLock locks by collection and objectType, deletes object by objectUID, saves and returns deleted object
+// DeleteObjectWithLock locks by collection and objectType, deletes object by objectUID, saves and returns deleted object
 func (cs *ConfigurationsService) DeleteObjectWithLock(ctx context.Context, objectType, projectID string, deletePayload *PatchPayload) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
@@ -921,7 +921,7 @@ func (cs *ConfigurationsService) DeleteObjectWithLock(ctx context.Context, objec
 	return deletedObjectBytes, nil
 }
 
-//GetObjectWithLock locks by collection and objectType, gets object by objectUID and returns it
+// GetObjectWithLock locks by collection and objectType, gets object by objectUID and returns it
 func (cs *ConfigurationsService) GetObjectWithLock(objectType, projectID, objectArrayPath string, objectMeta *ObjectMeta) ([]byte, error) {
 	lock, err := cs.lockProjectObject(objectType, projectID)
 	if err != nil {
@@ -1030,6 +1030,39 @@ func (cs *ConfigurationsService) Create(ctx context.Context, value Object, patch
 	} else {
 		return nil
 	}
+}
+
+func getProjectPermissionKey(userId, projectId string) string {
+	return fmt.Sprintf("%s:%s", userId, projectId)
+}
+
+func (cs *ConfigurationsService) GetProjectPermissions(userId, projectId string) (*entities.ProjectPermissions, error) {
+	var permissions entities.ProjectPermissions
+	permissionsBytes, err := cs.get(permissions.ObjectType(), getProjectPermissionKey(userId, projectId))
+	if err == ErrConfigurationNotFound {
+		return &entities.DefaultProjectPermissions, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to load project permissions for projectId: %s userId: %s : %w", projectId, userId, err)
+	}
+
+	if err = json.Unmarshal(permissionsBytes, &permissions); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal project permissions from json for projectId: %s userId: %s : %w", projectId, userId, err)
+	}
+
+	return &permissions, nil
+}
+
+func (cs *ConfigurationsService) UpdateProjectPermissions(projectId string, userId string, permissions entities.ProjectPermissions) error {
+	data, err := json.Marshal(permissions)
+	if err != nil {
+		return fmt.Errorf("failed to marshall project permissions to json for projectId: %s userId: %s : %w", projectId, userId, err)
+	}
+	err = cs.storage.Store(permissions.ObjectType(), getProjectPermissionKey(userId, projectId), data)
+	if err != nil {
+		return fmt.Errorf("failed to store project permissions for projectId: %s userId: %s : %w", projectId, userId, err)
+	}
+	return nil
 }
 
 func (cs *ConfigurationsService) UpdateUserInfo(ctx context.Context, id string, patch interface{}) (*entities.UserInfo, error) {
@@ -1152,10 +1185,11 @@ func (h updatePatchHandler) afterPatch(value Object) (apply bool, err error) {
 }
 
 // Patch patches the collection item.
-//   `id` is the ID of the collection item.
-//   `value` should be an empty initialized pointer to the value of the target type. Slices are currently not supported.
-//	 `patch` may be anything that is acceptable for json.Marshal. Must define an object (not array or value).
-//	 `requireExist` indicates if the object with the specified ID must already exist. See patchHandler docs for more info.
+//
+//	  `id` is the ID of the collection item.
+//	  `value` should be an empty initialized pointer to the value of the target type. Slices are currently not supported.
+//		 `patch` may be anything that is acceptable for json.Marshal. Must define an object (not array or value).
+//		 `requireExist` indicates if the object with the specified ID must already exist. See patchHandler docs for more info.
 func (cs *ConfigurationsService) Patch(ctx context.Context, id string, value Object, patch interface{}, requireExist bool) (bool, error) {
 	if lock, err := cs.lockProjectObject(value.ObjectType(), id); err != nil {
 		return false, err
@@ -1258,8 +1292,8 @@ func (cs *ConfigurationsService) lockProjectObject(objectType, projectID string)
 	return lock, nil
 }
 
-//GetObjectArrayPathByObjectType returns paths in JSON
-//some entities arrays can be different from entity type
+// GetObjectArrayPathByObjectType returns paths in JSON
+// some entities arrays can be different from entity type
 func (cs *ConfigurationsService) GetObjectArrayPathByObjectType(objectType string) string {
 	switch objectType {
 	case apiKeysCollection:
@@ -1275,7 +1309,7 @@ func (cs *ConfigurationsService) GetObjectArrayPathByObjectType(objectType strin
 	}
 }
 
-//GetObjectIDField returns id field name by object type
+// GetObjectIDField returns id field name by object type
 func (cs *ConfigurationsService) GetObjectIDField(objectType string) string {
 	switch objectType {
 	case apiKeysCollection:
@@ -1287,7 +1321,7 @@ func (cs *ConfigurationsService) GetObjectIDField(objectType string) string {
 	}
 }
 
-//GetObjectTypeField returns type field name
+// GetObjectTypeField returns type field name
 func (cs *ConfigurationsService) GetObjectTypeField(objectType string) string {
 	switch objectType {
 	case sourcesCollection:
@@ -1299,7 +1333,7 @@ func (cs *ConfigurationsService) GetObjectTypeField(objectType string) string {
 	}
 }
 
-//GenerateID returns auto incremented ID based on jserver entity type
+// GenerateID returns auto incremented ID based on jserver entity type
 func (cs *ConfigurationsService) GenerateID(typeField, idField, objectType, projectID string, object *openapi.AnyObject, alreadyUsedIDs map[string]bool) string {
 	if idField != "" {
 		id, ok := object.Get(idField)
@@ -1383,8 +1417,8 @@ func extractSingerSourceType(object *openapi.AnyObject) (string, error) {
 	return strings.TrimLeft(fmt.Sprint(singerTypeValue), "tap-"), nil
 }
 
-//buildProjectDataObject puts input object into array with position and into projectData with arrayPath (if arrayPath is empty puts as is)
-//depends on the arrayPath can return { array_path: []objects} or just { object ... }
+// buildProjectDataObject puts input object into array with position and into projectData with arrayPath (if arrayPath is empty puts as is)
+// depends on the arrayPath can return { array_path: []objects} or just { object ... }
 func buildProjectDataObject(projectData map[string]interface{}, array []map[string]interface{}, object map[string]interface{}, position int, arrayPath string) map[string]interface{} {
 	if arrayPath != "" {
 		if array == nil {
@@ -1408,7 +1442,7 @@ func buildProjectDataObject(projectData map[string]interface{}, array []map[stri
 	}
 }
 
-//deserializeProjectObjects returns high level object wrapper (which is stored in Redis) and underlying deserialized objects array
+// deserializeProjectObjects returns high level object wrapper (which is stored in Redis) and underlying deserialized objects array
 // { array_path: [objects..], other_field1: ..., other_fieldN:...}
 // if array_path is "" just return serialized object
 func deserializeProjectObjects(projectObjectsBytes []byte, arrayPath, objectType, projectID string) (map[string]interface{}, []map[string]interface{}, error) {
@@ -1452,7 +1486,7 @@ func ensureIDNotChanged(patchPayload *PatchPayload) {
 	}
 }
 
-//findObject returns object and true if input objectI has the same ID as in objectMeta
+// findObject returns object and true if input objectI has the same ID as in objectMeta
 func findObject(i int, object map[string]interface{}, collection, projectID string, objectMeta *ObjectMeta) (map[string]interface{}, bool, error) {
 	idValue, ok := object[objectMeta.IDFieldPath]
 	if !ok {
@@ -1485,7 +1519,7 @@ func getObjectLockIdentifier(objectType, projectID string) string {
 	return objectType + "_" + projectID
 }
 
-//generateUniqueID generated id in format: base + i, where i if previous value of i has already been used
+// generateUniqueID generated id in format: base + i, where i if previous value of i has already been used
 func generateUniqueID(base string, alreadyUsedIDs map[string]bool) string {
 	id := base
 	_, used := alreadyUsedIDs[id]

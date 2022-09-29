@@ -64,6 +64,10 @@ func ForbiddenProject(ctx *gin.Context, projectID string) {
 	Forbidden(ctx, fmt.Sprintf("User does not have access to the project: %s", projectID))
 }
 
+func NoPermission(ctx *gin.Context, projectID string, permission openapi.ProjectPermission) {
+	Forbidden(ctx, fmt.Sprintf("User does not have %s permission to the project: %s", permission, projectID))
+}
+
 func BadRequest(ctx *gin.Context, msg string, err error) {
 	Error(ctx, http.StatusBadRequest, msg, err)
 }
