@@ -123,10 +123,11 @@ const UserSettings: React.FC<{
 }> = ({ user, unlinkUser }) => {
   const services = useServices()
   const [showPermissions, setShowPermissions] = useState(false)
+
   const canEditPermissions =
     services.userService.getUser().id === user.id
       ? "You can't edit your own permissions"
-      : services.currentProjectPermissions.has("modify_config")
+      : !services.currentProjectPermissions.has("modify_config")
       ? " You don't have enough permissions to edit other users"
       : null
   return (
@@ -169,7 +170,8 @@ const PermissionsEditor: React.FC<{
   return (
     <div className="flex items-center">
       {allPermissions.map(p => (
-        <Checkbox key={p}
+        <Checkbox
+          key={p}
           disabled={updating || !!blockedReason}
           checked={grantedPermissions.has(p)}
           onChange={async e => {

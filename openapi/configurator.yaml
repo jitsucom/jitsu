@@ -75,6 +75,13 @@ components:
       required: true
       schema:
         type: string
+    userId:
+      name: userId
+      description: Id of the user
+      in: path
+      required: true
+      schema:
+        type: string
 
   schemas:
     #Object that represents error with message and
@@ -118,6 +125,19 @@ components:
       properties:
         notifications:
           $ref: "#/components/schemas/NotificationConfig"
+    ProjectPermission:
+      description: Enum of permissions types
+      type: string
+      enum:
+       - view_config
+       - modify_config
+    PermissionsInfo:
+      type: object
+      properties:
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectPermission"
     AnyObject:
       description: Any JSON Object
       type: object
@@ -172,13 +192,6 @@ components:
         requiresSetup: { type: "boolean" }
       required: [ 'id', 'name' ]
 
-    PermissionsInfo:
-      type: object
-      properties:
-        permissions:
-          type: array
-          items: { type: "string", enum: [ "modify_config", "view_config" ] }
-
     ProjectWithPermissions:
       allOf:
         - $ref: '#/components/schemas/Project'
@@ -199,7 +212,7 @@ components:
       required: [ 'id', 'email' ]
 
     ProjectUserPermissions:
-      allOf: # Combines the BasicErrorModel and the inline model
+      allOf: # Combines the UserBasicInfo and the PermissionsInfo
         - $ref: '#/components/schemas/UserBasicInfo'
         - $ref: '#/components/schemas/PermissionsInfo'
 
@@ -630,12 +643,7 @@ paths:
   /api/v2/project/{projectId}/users:
     get:
       parameters:
-        - name: projectId
-          description: Project id
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/projectId'
       tags:
         - configuration-management
       operationId: "Get users link to projects"
@@ -655,48 +663,10 @@ paths:
         default:
           $ref: '#/components/responses/Error'
 
-  /api/v2/project/{projectId}/permissions/{user}:
-    post:
-      parameters:
-        - name: projectId
-          description: Project id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: userId
-          description: User ID
-          in: path
-          required: true
-          schema:
-            type: string
-      tags:
-        - user-provisioning
-      operationId: "Update user permissions on a project"
-      description: >
-        Updates user permissions on a project. Accepts a list of permissions as body
-      security:
-        - configurationManagementAuth: [ ]
-      requestBody:
-        content:
-          "application/json":
-            schema:
-              $ref: '#/components/schemas/PermissionsInfo'
-      responses:
-        '200':
-          $ref: '#/components/responses/StatusResponse'
-        default:
-          $ref: '#/components/responses/Error'
-
   /api/v2/project/{projectId}/link:
     post:
       parameters:
-        - name: projectId
-          description: Project id
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/projectId'
       tags:
         - user-provisioning
       operationId: "Link user to project"
@@ -720,12 +690,7 @@ paths:
   /api/v2/project/{projectId}/unlink:
     get:
       parameters:
-        - name: projectId
-          description: Project id
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/projectId'
         - name: userId
           description: User Id to link to the project. Alternatively, userEmail could be specified
           in: query
@@ -739,6 +704,29 @@ paths:
         Removes user from the project. Note: users can remove themselves from the project
       security:
         - configurationManagementAuth: [ ]
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v2/project/{projectId}/permissions/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/userId'
+    post:
+      tags:
+        - configuration-management
+      operationId: 'Update project permission for user'
+      security:
+        - configurationManagementAuth: [ ]
+      description: >
+        Updates permissions for provided userId to access projectId (view_config, modify_config). Object will be replaced.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PermissionsInfo'
       responses:
         '200':
           $ref: '#/components/responses/StatusResponse'
@@ -789,6 +777,8 @@ paths:
         default:
           $ref: '#/components/responses/Error'
   /api/v2/users/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/userId'
     delete:
       tags:
         - user-provisioning
@@ -796,13 +786,6 @@ paths:
       description: Delete user by id. Available only for Redis-backed authorization
       security:
         - clusterAdminAuth: [ ]
-      parameters:
-        - name: userId
-          description: Id of the user
-          in: path
-          required: true
-          schema:
-            type: string
       responses:
         '200':
           $ref: '#/components/responses/StatusResponse'
@@ -815,13 +798,6 @@ paths:
       description: Update user. See documentation on request body. Available only for Redis-backed authorization
       security:
         - clusterAdminAuth: [ ]
-      parameters:
-        - name: userId
-          description: Id of the user
-          in: path
-          required: true
-          schema:
-            type: string
       requestBody:
         description: >
           Any combination of the fields should be present. Only fields present in request will be updated

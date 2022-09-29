@@ -175,8 +175,7 @@ export default class ApplicationServices implements IApplicationServices {
   public async isAppVersionOutdated(): Promise<boolean> {
     const appVersion = await this.getAppVersion()
     const currentVersion = localStorage.getItem("app_version")
-    return appVersion !== null && appVersion != currentVersion;
-
+    return appVersion !== null && appVersion != currentVersion
   }
 
   private async getAppVersion(): Promise<string> {
@@ -191,11 +190,11 @@ export default class ApplicationServices implements IApplicationServices {
         console.warn(`Can't get application version: ${response.statusText}`)
         return "0"
       } else {
-        return response?.data;
+        return response?.data
       }
     } catch (e) {
-      console.warn(`Failed to get data from /app-version.json: ${e?.message || "unknown error"}`, e);
-      return "0";
+      console.warn(`Failed to get data from /app-version.json: ${e?.message || "unknown error"}`, e)
+      return "0"
     }
   }
 

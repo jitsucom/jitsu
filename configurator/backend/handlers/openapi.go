@@ -85,6 +85,8 @@ type OpenAPI struct {
 	DefaultS3      *jadapters.S3Config
 }
 
+var t openapi.ServerInterface = &OpenAPI{}
+
 func (oa *OpenAPI) GetApiKeysConfiguration(ctx *gin.Context) {
 	if ctx.IsAborted() {
 		return
@@ -121,12 +123,12 @@ func (oa *OpenAPI) GenerateDefaultProjectApiKey(ctx *gin.Context) {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.ProjectID == "" {
 		mw.RequiredField(ctx, "projectID")
-	} else if !authority.Allow(req.ProjectID) {
-		mw.ForbiddenProject(ctx, req.ProjectID)
-	} else if err := oa.Configurations.CreateDefaultAPIKey(ctx, req.ProjectID); err != nil {
-		mw.BadRequest(ctx, "Failed to create default key for project", err)
-	} else {
-		mw.StatusOk(ctx)
+	} else if authority.CheckPermission(ctx, req.ProjectID, entities.ModifyConfigPermission) {
+		if err := oa.Configurations.CreateDefaultAPIKey(ctx, req.ProjectID); err != nil {
+			mw.BadRequest(ctx, "Failed to create default key for project", err)
+		} else {
+			mw.StatusOk(ctx)
+		}
 	}
 }
 
@@ -142,12 +144,12 @@ func (oa *OpenAPI) CreateFreeTierPostgresDatabase(ctx *gin.Context) {
 		mw.InvalidInputJSON(ctx, err)
 	} else if req.ProjectID == "" {
 		mw.RequiredField(ctx, "projectID")
-	} else if !authority.Allow(req.ProjectID) {
-		mw.ForbiddenProject(ctx, req.ProjectID)
-	} else if database, err := oa.Configurations.CreateDefaultDestination(ctx, req.ProjectID); err != nil {
-		mw.BadRequest(ctx, "Failed to create a free tier database", err)
-	} else {
-		ctx.JSON(http.StatusOK, database)
+	} else if authority.CheckPermission(ctx, req.ProjectID, entities.ModifyConfigPermission) {
+		if database, err := oa.Configurations.CreateDefaultDestination(ctx, req.ProjectID); err != nil {
+			mw.BadRequest(ctx, "Failed to create a free tier database", err)
+		} else {
+			ctx.JSON(http.StatusOK, database)
+		}
 	}
 }
 
@@ -182,9 +184,7 @@ func (oa *OpenAPI) EvaluateDestinationJSTransformationScript(ctx *gin.Context) {
 		mw.InvalidInputJSON(ctx, err)
 	} else if projectID == "" {
 		mw.RequiredField(ctx, "project_id")
-	} else if !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else {
+	} else if authority.CheckPermission(ctx, projectID, entities.ViewConfigPermission) {
 		uid, ok := req.Get("uid")
 		if !ok {
 			mw.RequiredField(ctx, "uid")
@@ -294,43 +294,43 @@ func (oa *OpenAPI) GenerateJitsuServerYamlConfiguration(ctx *gin.Context, params
 		mw.Unauthorized(ctx, err)
 	} else if projectID := string(params.ProjectId); projectID == "" {
 		mw.RequiredField(ctx, "project_id")
-	} else if !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else if apiKeys, err := oa.Configurations.GetAPIKeysByProjectID(projectID); err != nil {
-		mw.BadRequest(ctx, getApiKeysErrMsg, err)
-	} else if projectDestinations, err := oa.Configurations.GetDestinationsByProjectID(projectID); err != nil {
-		mw.BadRequest(ctx, getDestinationsErrMsg, err)
-	} else if postHandleDestinationIDs, destinationConfigs, err := mapYamlDestinations(projectDestinations); err != nil {
-		mw.BadRequest(ctx, "map destination configs", err)
-	} else if projectSources, err := oa.Configurations.GetSourcesByProjectID(projectID); err != nil {
-		mw.BadRequest(ctx, getSourcesErrMsg, err)
-	} else if err := oa.Configurations.Load(projectID, &project); err != nil {
-		mw.BadRequest(ctx, getProjectErrMsg, err)
-	} else if sourceConfigs, err := mapYamlSources(projectSources, postHandleDestinationIDs, project); err != nil {
-		mw.BadRequest(ctx, "map source configs", err)
-	} else if data, err := yaml.Marshal(Config{
-		Server: Server{
-			Name: &yaml.Node{
-				Kind:        yaml.ScalarNode,
-				Value:       random.String(5),
-				LineComment: "rename server if another name is desired",
+	} else if authority.CheckPermission(ctx, projectID, entities.ViewConfigPermission) {
+		if apiKeys, err := oa.Configurations.GetAPIKeysByProjectID(projectID); err != nil {
+			mw.BadRequest(ctx, getApiKeysErrMsg, err)
+		} else if projectDestinations, err := oa.Configurations.GetDestinationsByProjectID(projectID); err != nil {
+			mw.BadRequest(ctx, getDestinationsErrMsg, err)
+		} else if postHandleDestinationIDs, destinationConfigs, err := mapYamlDestinations(projectDestinations); err != nil {
+			mw.BadRequest(ctx, "map destination configs", err)
+		} else if projectSources, err := oa.Configurations.GetSourcesByProjectID(projectID); err != nil {
+			mw.BadRequest(ctx, getSourcesErrMsg, err)
+		} else if err := oa.Configurations.Load(projectID, &project); err != nil {
+			mw.BadRequest(ctx, getProjectErrMsg, err)
+		} else if sourceConfigs, err := mapYamlSources(projectSources, postHandleDestinationIDs, project); err != nil {
+			mw.BadRequest(ctx, "map source configs", err)
+		} else if data, err := yaml.Marshal(Config{
+			Server: Server{
+				Name: &yaml.Node{
+					Kind:        yaml.ScalarNode,
+					Value:       random.String(5),
+					LineComment: "rename server if another name is desired",
+				},
 			},
-		},
-		APIKeys:      apiKeys,
-		Destinations: destinationConfigs,
-		Sources:      sourceConfigs,
-	}); err != nil {
-		mw.InternalError(ctx, "marshal config", err)
-	} else if err := yaml.Unmarshal(data, &response); err != nil {
-		mw.BadRequest(ctx, "Failed to deserialize result configuration", err)
-	} else {
-		response.HeadComment = configHeaderText
-		ctx.Header("Content-Type", "application/yaml")
-		encoder := yaml.NewEncoder(ctx.Writer)
-		defer encoder.Close()
-		encoder.SetIndent(2)
-		if err := encoder.Encode(&response); err != nil {
-			mw.BadRequest(ctx, "Failed to write response", err)
+			APIKeys:      apiKeys,
+			Destinations: destinationConfigs,
+			Sources:      sourceConfigs,
+		}); err != nil {
+			mw.InternalError(ctx, "marshal config", err)
+		} else if err := yaml.Unmarshal(data, &response); err != nil {
+			mw.BadRequest(ctx, "Failed to deserialize result configuration", err)
+		} else {
+			response.HeadComment = configHeaderText
+			ctx.Header("Content-Type", "application/yaml")
+			encoder := yaml.NewEncoder(ctx.Writer)
+			defer encoder.Close()
+			encoder.SetIndent(2)
+			if err := encoder.Encode(&response); err != nil {
+				mw.BadRequest(ctx, "Failed to write response", err)
+			}
 		}
 	}
 }
@@ -381,21 +381,21 @@ func (oa *OpenAPI) ReissueProjectSSLCertificates(ctx *gin.Context, params openap
 		mw.Unsupported(ctx, errSSLNotConfigured)
 	} else if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if projectID := string(params.ProjectId); !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else if params.Async != nil && *params.Async {
-		safego.Run(func() {
-			if err := updater.RunForProject(ctx, projectID); err != nil {
-				logging.Errorf("Error updating SSL for project [%s]: %v", projectID, err)
-			}
-		})
+	} else if projectID := string(params.ProjectId); authority.CheckPermission(ctx, projectID, entities.ModifyConfigPermission) {
+		if params.Async != nil && *params.Async {
+			safego.Run(func() {
+				if err := updater.RunForProject(ctx, projectID); err != nil {
+					logging.Errorf("Error updating SSL for project [%s]: %v", projectID, err)
+				}
+			})
 
-		ctx.JSON(http.StatusOK, &openapi.StatusResponse{Status: "scheduled SSL update"})
-	} else if err := updater.RunForProject(ctx, projectID); err != nil {
-		logging.Errorf("Error updating SSL for project [%s]: %v", projectID, err)
-		mw.BadRequest(ctx, fmt.Sprintf("Error running SSL update for project [%s]", projectID), err)
-	} else {
-		mw.StatusOk(ctx)
+			ctx.JSON(http.StatusOK, &openapi.StatusResponse{Status: "scheduled SSL update"})
+		} else if err := updater.RunForProject(ctx, projectID); err != nil {
+			logging.Errorf("Error updating SSL for project [%s]: %v", projectID, err)
+			mw.BadRequest(ctx, fmt.Sprintf("Error running SSL update for project [%s]", projectID), err)
+		} else {
+			mw.StatusOk(ctx)
+		}
 	}
 }
 
@@ -718,9 +718,7 @@ func (oa *OpenAPI) GetObjectsByProjectIdAndObjectType(ctx *gin.Context, projectI
 
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if projectID := string(projectID); !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else {
+	} else if projectID := string(projectID); authority.CheckPermission(ctx, projectID, entities.ViewConfigPermission) {
 		objectType := string(objectType)
 		if objectsData, err := oa.Configurations.GetConfigWithLock(objectType, projectID); errors.Is(err, storages.ErrConfigurationNotFound) {
 			ctx.Data(http.StatusOK, jsonContentType, []byte("[]"))
@@ -749,14 +747,14 @@ func (oa *OpenAPI) CreateObjectInProject(ctx *gin.Context, projectID openapi.Pro
 	var req openapi.AnyObject
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unsupported(ctx, err)
-	} else if projectID := string(projectID); !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else if err := ctx.BindJSON(&req); err != nil {
-		mw.InvalidInputJSON(ctx, err)
-	} else if newObject, err := oa.Configurations.CreateObjectWithLock(ctx, string(objectType), projectID, &req); err != nil {
-		mw.BadRequest(ctx, fmt.Sprintf("failed to create object [%s], project id=[%s]", objectType, projectID), err)
-	} else {
-		ctx.Data(http.StatusOK, jsonContentType, newObject)
+	} else if projectID := string(projectID); authority.CheckPermission(ctx, projectID, entities.ModifyConfigPermission) {
+		if err := ctx.BindJSON(&req); err != nil {
+			mw.InvalidInputJSON(ctx, err)
+		} else if newObject, err := oa.Configurations.CreateObjectWithLock(ctx, string(objectType), projectID, &req); err != nil {
+			mw.BadRequest(ctx, fmt.Sprintf("failed to create object [%s], project id=[%s]", objectType, projectID), err)
+		} else {
+			ctx.Data(http.StatusOK, jsonContentType, newObject)
+		}
 	}
 }
 
@@ -767,9 +765,7 @@ func (oa *OpenAPI) DeleteObjectByUid(ctx *gin.Context, projectID openapi.Project
 
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if projectID := string(projectID); !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else {
+	} else if projectID := string(projectID); authority.CheckPermission(ctx, projectID, entities.ModifyConfigPermission) {
 		objectType, objectUID := string(objectType), string(objectUID)
 		payload := &storages.PatchPayload{
 			ObjectArrayPath: oa.Configurations.GetObjectArrayPathByObjectType(objectType),
@@ -795,9 +791,7 @@ func (oa *OpenAPI) GetObjectByUid(ctx *gin.Context, projectID openapi.ProjectId,
 
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if projectID := string(projectID); !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else {
+	} else if projectID := string(projectID); authority.CheckPermission(ctx, projectID, entities.ViewConfigPermission) {
 		objectType, objectUID := string(objectType), string(objectUID)
 		objectArrayPath := oa.Configurations.GetObjectArrayPathByObjectType(objectType)
 		objectMeta := &storages.ObjectMeta{
@@ -821,25 +815,25 @@ func (oa *OpenAPI) PatchObjectByUid(ctx *gin.Context, projectID openapi.ProjectI
 	req := make(map[string]interface{})
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if projectID := string(projectID); !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else if err := ctx.BindJSON(&req); err != nil {
-		mw.InvalidInputJSON(ctx, err)
-	} else {
-		objectType, objectUID := string(objectType), string(objectUID)
-		patch := &storages.PatchPayload{
-			ObjectArrayPath: oa.Configurations.GetObjectArrayPathByObjectType(objectType),
-			ObjectMeta: &storages.ObjectMeta{
-				IDFieldPath: oa.Configurations.GetObjectIDField(objectType),
-				Value:       objectUID,
-			},
-			Patch: req,
-		}
-
-		if newObject, err := oa.Configurations.PatchObjectWithLock(ctx, objectType, projectID, patch); err != nil {
-			mw.BadRequest(ctx, fmt.Sprintf("failed to patch object [%s] in project [%s], id=[%s]", objectType, projectID, objectUID), err)
+	} else if projectID := string(projectID); authority.CheckPermission(ctx, projectID, entities.ModifyConfigPermission) {
+		if err := ctx.BindJSON(&req); err != nil {
+			mw.InvalidInputJSON(ctx, err)
 		} else {
-			ctx.Data(http.StatusOK, jsonContentType, newObject)
+			objectType, objectUID := string(objectType), string(objectUID)
+			patch := &storages.PatchPayload{
+				ObjectArrayPath: oa.Configurations.GetObjectArrayPathByObjectType(objectType),
+				ObjectMeta: &storages.ObjectMeta{
+					IDFieldPath: oa.Configurations.GetObjectIDField(objectType),
+					Value:       objectUID,
+				},
+				Patch: req,
+			}
+
+			if newObject, err := oa.Configurations.PatchObjectWithLock(ctx, objectType, projectID, patch); err != nil {
+				mw.BadRequest(ctx, fmt.Sprintf("failed to patch object [%s] in project [%s], id=[%s]", objectType, projectID, objectUID), err)
+			} else {
+				ctx.Data(http.StatusOK, jsonContentType, newObject)
+			}
 		}
 	}
 }
@@ -852,25 +846,25 @@ func (oa *OpenAPI) ReplaceObjectByUid(ctx *gin.Context, projectID openapi.Projec
 	req := make(map[string]interface{})
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if projectID := string(projectID); !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else if err := ctx.BindJSON(&req); err != nil {
-		mw.InvalidInputJSON(ctx, err)
-	} else {
-		objectType, objectUID := string(objectType), string(objectUID)
-		patch := &storages.PatchPayload{
-			ObjectArrayPath: oa.Configurations.GetObjectArrayPathByObjectType(objectType),
-			ObjectMeta: &storages.ObjectMeta{
-				IDFieldPath: oa.Configurations.GetObjectIDField(objectType),
-				Value:       objectUID,
-			},
-			Patch: req,
-		}
-
-		if newObject, err := oa.Configurations.ReplaceObjectWithLock(ctx, objectType, projectID, patch); err != nil {
-			mw.BadRequest(ctx, fmt.Sprintf("failed to patch object [%s] in project [%s], id=[%s]", objectType, projectID, objectUID), err)
+	} else if projectID := string(projectID); authority.CheckPermission(ctx, projectID, entities.ModifyConfigPermission) {
+		if err := ctx.BindJSON(&req); err != nil {
+			mw.InvalidInputJSON(ctx, err)
 		} else {
-			ctx.Data(http.StatusOK, jsonContentType, newObject)
+			objectType, objectUID := string(objectType), string(objectUID)
+			patch := &storages.PatchPayload{
+				ObjectArrayPath: oa.Configurations.GetObjectArrayPathByObjectType(objectType),
+				ObjectMeta: &storages.ObjectMeta{
+					IDFieldPath: oa.Configurations.GetObjectIDField(objectType),
+					Value:       objectUID,
+				},
+				Patch: req,
+			}
+
+			if newObject, err := oa.Configurations.ReplaceObjectWithLock(ctx, objectType, projectID, patch); err != nil {
+				mw.BadRequest(ctx, fmt.Sprintf("failed to patch object [%s] in project [%s], id=[%s]", objectType, projectID, objectUID), err)
+			} else {
+				ctx.Data(http.StatusOK, jsonContentType, newObject)
+			}
 		}
 	}
 }
@@ -883,12 +877,12 @@ func (oa *OpenAPI) GetProjectSettings(ctx *gin.Context, projectID openapi.Projec
 	var result entities.Project
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if projectID := string(projectID); !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else if err := oa.Configurations.Load(projectID, &result); err != nil {
-		mw.BadRequest(ctx, "Failed to get project settings", err)
-	} else {
-		ctx.JSON(http.StatusOK, result.ProjectSettings)
+	} else if projectID := string(projectID); authority.CheckPermission(ctx, projectID, entities.ViewConfigPermission) {
+		if err := oa.Configurations.Load(projectID, &result); err != nil {
+			mw.BadRequest(ctx, "Failed to get project settings", err)
+		} else {
+			ctx.JSON(http.StatusOK, result.ProjectSettings)
+		}
 	}
 }
 
@@ -904,95 +898,122 @@ func (oa *OpenAPI) PatchProjectSettings(ctx *gin.Context, projectID openapi.Proj
 
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if projectID := string(projectID); !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else if err := ctx.BindJSON(&req); err != nil {
-		mw.InvalidInputJSON(ctx, err)
-	} else if _, err := oa.Configurations.Patch(ctx, projectID, &result, req, false); err != nil {
-		mw.BadRequest(ctx, "Failed to patch project settings", err)
-	} else {
-		ctx.JSON(http.StatusOK, result.ProjectSettings)
+	} else if projectID := string(projectID); authority.CheckPermission(ctx, projectID, entities.ModifyConfigPermission) {
+		if err := ctx.BindJSON(&req); err != nil {
+			mw.InvalidInputJSON(ctx, err)
+		} else if _, err := oa.Configurations.Patch(ctx, projectID, &result, req, false); err != nil {
+			mw.BadRequest(ctx, "Failed to patch project settings", err)
+		} else {
+			ctx.JSON(http.StatusOK, result.ProjectSettings)
+		}
 	}
 }
 
-func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID string) {
+func (oa *OpenAPI) LinkUserToProject(ctx *gin.Context, projectID openapi.ProjectId) {
 	if ctx.IsAborted() {
 		return
 	}
-
+	projectId := string(projectID)
 	var req openapi.LinkProjectRequest
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
 		return
-	} else if !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-		return
-	} else if err := ctx.BindJSON(&req); err != nil {
-		mw.InvalidInputJSON(ctx, err)
-		return
-	}
-
-	var (
-		userID     string
-		userStatus = "created"
-	)
-
-	if req.UserId != nil && *req.UserId != "" {
-		userID = *req.UserId
-	} else if req.UserEmail != nil && *req.UserEmail != "" {
-		var err error
-		if userID, err = oa.Authorizator.AutoSignUp(ctx, *req.UserEmail, req.Callback); errors.Is(err, ErrUserExists) {
-			userStatus = "existing"
-		} else if err != nil {
-			mw.BadRequest(ctx, "Failed to load or create user", err)
+	} else if authority.CheckPermission(ctx, projectId, entities.ModifyConfigPermission) {
+		if err := ctx.BindJSON(&req); err != nil {
+			mw.InvalidInputJSON(ctx, err)
 			return
 		}
-	} else {
-		mw.RequiredField(ctx, "either userId or userEmail")
-		return
-	}
 
-	if err := oa.Configurations.LinkUserToProject(userID, projectID); err != nil {
-		mw.BadRequest(ctx, "Failed to link user to project", err)
-	} else if users, err := oa.getProjectUsers(ctx, projectID); err != nil {
-		mw.BadRequest(ctx, "Failed to load project users", err)
-	} else {
-		ctx.JSON(http.StatusOK, openapi.LinkProjectResponse{
-			ProjectUsers: users,
-			UserStatus:   userStatus,
-		})
+		var (
+			userID     string
+			userStatus = "created"
+		)
+
+		if req.UserId != nil && *req.UserId != "" {
+			userID = *req.UserId
+		} else if req.UserEmail != nil && *req.UserEmail != "" {
+			var err error
+			if userID, err = oa.Authorizator.AutoSignUp(ctx, *req.UserEmail, req.Callback); errors.Is(err, ErrUserExists) {
+				userStatus = "existing"
+			} else if err != nil {
+				mw.BadRequest(ctx, "Failed to load or create user", err)
+				return
+			}
+		} else {
+			mw.RequiredField(ctx, "either userId or userEmail")
+			return
+		}
+
+		if err := oa.Configurations.LinkUserToProject(userID, projectId); err != nil {
+			mw.BadRequest(ctx, "Failed to link user to project", err)
+		} else if users, err := oa.getProjectUsers(ctx, projectId); err != nil {
+			mw.BadRequest(ctx, "Failed to load project users", err)
+		} else {
+			projectUsers := make([]openapi.UserBasicInfo, len(users))
+			for i, user := range users {
+				projectUsers[i] = user.UserBasicInfo
+			}
+			ctx.JSON(http.StatusOK, openapi.LinkProjectResponse{
+				ProjectUsers: projectUsers,
+				UserStatus:   userStatus,
+			})
+		}
 	}
 }
 
-func (oa *OpenAPI) UnlinkUserFromProject(ctx *gin.Context, projectID string, params openapi.UnlinkUserFromProjectParams) {
+func (oa *OpenAPI) UnlinkUserFromProject(ctx *gin.Context, projectID openapi.ProjectId, params openapi.UnlinkUserFromProjectParams) {
 	if ctx.IsAborted() {
 		return
 	}
+	projectId := string(projectID)
 
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else if err := oa.Configurations.UnlinkUserFromProject(params.UserId, projectID); err != nil {
-		mw.BadRequest(ctx, "Failed to unlink user from project", err)
-	} else {
-		ctx.JSON(http.StatusOK, mw.OkResponse)
+	} else if authority.CheckPermission(ctx, projectId, entities.ModifyConfigPermission) {
+		if err := oa.Configurations.UnlinkUserFromProject(params.UserId, projectId); err != nil {
+			mw.BadRequest(ctx, "Failed to unlink user from project", err)
+		} else {
+			ctx.JSON(http.StatusOK, mw.OkResponse)
+		}
 	}
 }
 
-func (oa *OpenAPI) GetUsersLinkToProjects(ctx *gin.Context, projectID string) {
+func (oa *OpenAPI) GetUsersLinkToProjects(ctx *gin.Context, projectID openapi.ProjectId) {
 	if ctx.IsAborted() {
 		return
 	}
-
+	projectId := string(projectID)
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else if users, err := oa.getProjectUsers(ctx, projectID); err != nil {
-		mw.BadRequest(ctx, "Failed to get project users", err)
-	} else {
-		ctx.JSON(http.StatusOK, users)
+	} else if authority.CheckPermission(ctx, projectId, entities.ViewConfigPermission) {
+		if users, err := oa.getProjectUsers(ctx, projectId); err != nil {
+			mw.BadRequest(ctx, "Failed to get project users", err)
+		} else {
+			ctx.JSON(http.StatusOK, users)
+		}
+	}
+}
+
+func (oa *OpenAPI) UpdateProjectPermissionForUser(ctx *gin.Context, projectID openapi.ProjectId, userID openapi.UserId) {
+	if ctx.IsAborted() {
+		return
+	}
+	userId := string(userID)
+	projectId := string(projectID)
+	if authority, err := mw.GetAuthority(ctx); err != nil {
+		mw.Unauthorized(ctx, err)
+	} else if authority.CheckPermission(ctx, projectId, entities.ModifyConfigPermission) {
+		var req openapi.UpdateProjectPermissionForUserJSONRequestBody
+		if err := ctx.BindJSON(&req); err != nil {
+			mw.InvalidInputJSON(ctx, err)
+			return
+		}
+		err = oa.Configurations.UpdateProjectPermissions(projectId, userId, entities.ProjectPermissions(req))
+		if err != nil {
+			mw.BadRequest(ctx, "Failed to update project permission", err)
+		} else {
+			ctx.JSON(http.StatusOK, mw.OkResponse)
+		}
 	}
 }
 
@@ -1023,8 +1044,8 @@ func (oa *OpenAPI) GetProjects(ctx *gin.Context, params openapi.GetProjectsParam
 		return
 	}
 
-	projects := make([]openapi.Project, 0, len(authority.ProjectIDs))
-	for projectID := range authority.ProjectIDs {
+	projects := make([]openapi.ProjectWithPermissions, 0, len(authority.Projects))
+	for projectID, permissions := range authority.Projects {
 		var project entities.Project
 		if err := oa.Configurations.Load(projectID, &project); errors.Is(err, storages.ErrConfigurationNotFound) {
 			continue
@@ -1032,7 +1053,8 @@ func (oa *OpenAPI) GetProjects(ctx *gin.Context, params openapi.GetProjectsParam
 			mw.BadRequest(ctx, fmt.Sprintf("Failed to load project %s", projectID), err)
 			return
 		} else {
-			projects = append(projects, project.Project)
+			p := openapi.PermissionsInfo(*permissions)
+			projects = append(projects, openapi.ProjectWithPermissions{Project: project.Project, PermissionsInfo: p})
 		}
 	}
 
@@ -1080,14 +1102,14 @@ func (oa *OpenAPI) PatchProject(ctx *gin.Context, _projectID openapi.ProjectId) 
 
 	if authority, err := mw.GetAuthority(ctx); err != nil {
 		mw.Unauthorized(ctx, err)
-	} else if !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else if err := ctx.BindJSON(&req); err != nil {
-		mw.InvalidInputJSON(ctx, err)
-	} else if _, err := oa.Configurations.Patch(ctx, projectID, &result, req, true); err != nil {
-		mw.BadRequest(ctx, "Failed to patch project", err)
-	} else {
-		ctx.JSON(http.StatusOK, result.Project)
+	} else if authority.CheckPermission(ctx, projectID, entities.ModifyConfigPermission) {
+		if err := ctx.BindJSON(&req); err != nil {
+			mw.InvalidInputJSON(ctx, err)
+		} else if _, err := oa.Configurations.Patch(ctx, projectID, &result, req, true); err != nil {
+			mw.BadRequest(ctx, "Failed to patch project", err)
+		} else {
+			ctx.JSON(http.StatusOK, result.Project)
+		}
 	}
 }
 
@@ -1169,21 +1191,21 @@ func (oa *OpenAPI) CreateNewUser(ctx *gin.Context) {
 	})
 }
 
-func (oa *OpenAPI) DeleteUser(ctx *gin.Context, userID string) {
+func (oa *OpenAPI) DeleteUser(ctx *gin.Context, userID openapi.UserId) {
 	if ctx.IsAborted() {
 		return
 	}
-
+	userId := string(userID)
 	if authorizator, err := oa.Authorizator.Local(); err != nil {
 		mw.Unsupported(ctx, err)
-	} else if err := authorizator.DeleteUser(ctx, userID); err != nil {
+	} else if err := authorizator.DeleteUser(ctx, userId); err != nil {
 		mw.BadRequest(ctx, "Failed to delete user", err)
 	} else {
-		if err := oa.Configurations.Delete(ctx, userID, new(entities.UserInfo)); err != nil {
+		if err := oa.Configurations.Delete(ctx, userId, new(entities.UserInfo)); err != nil {
 			logging.Warnf("failed to delete user info for id %s: %s", userID, err)
 		}
 
-		if err := oa.Configurations.UnlinkUserFromAllProjects(userID); err != nil {
+		if err := oa.Configurations.UnlinkUserFromAllProjects(userId); err != nil {
 			logging.Warnf("failed to unlink user %s from all projects: %s", err)
 		}
 
@@ -1191,12 +1213,12 @@ func (oa *OpenAPI) DeleteUser(ctx *gin.Context, userID string) {
 	}
 }
 
-func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
+func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID openapi.UserId) {
 	if ctx.IsAborted() {
 		return
 	}
-
-	email, err := oa.Authorizator.GetUserEmail(ctx, userID)
+	userId := string(userID)
+	email, err := oa.Authorizator.GetUserEmail(ctx, userId)
 	if err != nil {
 		mw.BadRequest(ctx, "get user email failed", err)
 		return
@@ -1212,13 +1234,13 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 		if authorizator, err := oa.Authorizator.Local(); err != nil {
 			mw.Unsupported(ctx, err)
 			return
-		} else if err := authorizator.UpdatePassword(ctx, userID, *req.Password); err != nil {
+		} else if err := authorizator.UpdatePassword(ctx, userId, *req.Password); err != nil {
 			mw.BadRequest(ctx, "update user failed", err)
 			return
 		}
 	}
 
-	if userInfo, err := oa.Configurations.UpdateUserInfo(ctx, userID, openapi.UpdateUserInfoRequest{
+	if userInfo, err := oa.Configurations.UpdateUserInfo(ctx, userId, openapi.UpdateUserInfoRequest{
 		Name:                req.Name,
 		ForcePasswordChange: req.ForcePasswordChange,
 		PlatformAdmin:       req.PlatformAdmin,
@@ -1227,7 +1249,7 @@ func (oa *OpenAPI) UpdateUser(ctx *gin.Context, userID string) {
 	} else {
 		result := &openapi.User{
 			UserBasicInfo: openapi.UserBasicInfo{
-				Id:    userID,
+				Id:    userId,
 				Email: email,
 			},
 			EmailOptout:         userInfo.EmailOptout,
