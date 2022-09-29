@@ -92,6 +92,7 @@ func (r *UaResolver) Resolve(ua string) *ResolvedUa {
 	resolved.Bot = resolved.DeviceFamily == "Spider" || resolved.DeviceBrand == "Spider" ||
 		strings.Contains(ual, "bot") ||
 		strings.Contains(ual, "spider") ||
+		strings.Contains(ual, "headless") ||
 		strings.Contains(ual, "crawler")
 
 	return resolved
