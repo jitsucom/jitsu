@@ -1,11 +1,11 @@
 package logfiles
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/appstatus"
@@ -33,6 +33,7 @@ type PeriodicUploader struct {
 	logIncomingEventPath string
 	fileMask             string
 	uploadEvery          time.Duration
+	concurrentUploads    int
 
 	archiver           *Archiver
 	statusManager      *StatusManager
@@ -40,7 +41,7 @@ type PeriodicUploader struct {
 }
 
 // NewUploader returns new configured PeriodicUploader instance
-func NewUploader(logEventPath, fileMask string, uploadEveryMin int, destinationService *destinations.Service) (*PeriodicUploader, error) {
+func NewUploader(logEventPath, fileMask string, uploadEveryMin int, concurrentUploads int, destinationService *destinations.Service) (*PeriodicUploader, error) {
 	logIncomingEventPath := path.Join(logEventPath, logevents.IncomingDir)
 	logArchiveEventPath := path.Join(logEventPath, logevents.ArchiveDir)
 	statusManager, err := NewStatusManager(logIncomingEventPath)
@@ -54,6 +55,7 @@ func NewUploader(logEventPath, fileMask string, uploadEveryMin int, destinationS
 		archiver:             NewArchiver(logIncomingEventPath, logArchiveEventPath),
 		statusManager:        statusManager,
 		destinationService:   destinationService,
+		concurrentUploads:    concurrentUploads,
 	}, nil
 }
 
@@ -72,189 +74,214 @@ func (u *PeriodicUploader) Start() {
 				continue
 			}
 			startTime := timestamp.Now()
-			postHandlesMap := make(map[string]map[string]bool) //multimap postHandleDestinationId:destinationIds
+			postHandlesMap := sync.Map{} //multimap postHandleDestinationId:destinationIds
 			files, err := filepath.Glob(u.fileMask)
 			if err != nil {
 				logging.SystemErrorf("Error finding files by %s mask: %v", u.fileMask, err)
 				return
 			}
-
+			var semaphore = make(chan int, u.concurrentUploads)
+			var wg sync.WaitGroup
 			for _, filePath := range files {
-				fileName := filepath.Base(filePath)
+				wg.Add(1)
+				semaphore <- 1
+				go func(filePath string) {
+					defer wg.Done()
+					defer func() { <-semaphore }()
 
-				regexResult := DateExtractRegexp.FindStringSubmatch(fileName)
-				if len(regexResult) != 2 {
-					logging.SystemErrorf("Error processing file %s. Malformed name", filePath)
-					continue
-				}
-				fileDate, err := time.Parse("2006-01-02T15-04-05", regexResult[1])
-				if err != nil {
-					logging.SystemErrorf("Error processing file %s. Cant parse file date: %s", filePath, fileDate)
-					continue
-				}
+					fileStartTime := timestamp.Now()
+					fileName := filepath.Base(filePath)
 
-				if timestamp.Now().Sub(fileDate) > time.Hour*24*30 {
-					logging.Infof("Skipping file %s. File is more than 30 days old: %s", filePath, fileDate)
-					continue
-				}
-
-				//get token from filename
-				regexResult = logging.TokenIDExtractRegexp.FindStringSubmatch(fileName)
-				if len(regexResult) != 2 {
-					logging.SystemErrorf("Error processing file %s. Malformed name", filePath)
-					continue
-				}
-
-				tokenID := regexResult[1]
-				storageProxies := u.destinationService.GetBatchStorages(tokenID)
-				if len(storageProxies) == 0 {
-					logging.Warnf("Destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
-					continue
-				}
-
-				fileBytes, err := ioutil.ReadFile(filePath)
-				if err != nil {
-					logging.SystemErrorf("Error reading file [%s] with events: %v", filePath, err)
-					continue
-				}
-				if len(fileBytes) == 0 {
-					os.Remove(filePath)
-					continue
-				}
-
-				needCopyEvent := len(storageProxies) > 1
-
-				objects, parsingErrors, err := parsers.ParseJSONFileWithFuncFallback(fileBytes, parsers.ParseJSON)
-				if err != nil {
-					logging.SystemErrorf("Error parsing JSON file [%s] with events: %v", filePath, err)
-					continue
-				}
-
-				if len(parsingErrors) > 0 {
-					if len(objects) == 0 {
-						logging.SystemErrorf("JSON file [%s] contains only records with errors: [%d]. (for instance event [%s]: %vs)", filePath, len(parsingErrors), string(parsingErrors[0].Original), parsingErrors[0].Error)
-						continue
+					regexResult := DateExtractRegexp.FindStringSubmatch(fileName)
+					if len(regexResult) != 2 {
+						logging.SystemErrorf("Error processing file %s. Malformed name", filePath)
+						return
 					}
-
-					logging.Warnf("JSON file %s contains %d malformed events. They are sent to failed log", filePath, len(parsingErrors))
-				}
-
-				//flag for archiving file if all storages don't have errors while storing this file
-				archiveFile := true
-				for _, storageProxy := range storageProxies {
-					storage, ok := storageProxy.Get()
-					if !ok {
-						archiveFile = false
-						continue
-					}
-
-					alreadyUploadedTables := map[string]bool{}
-					tableStatuses := u.statusManager.GetTablesStatuses(fileName, storage.ID())
-					for tableName, status := range tableStatuses {
-						if status.Uploaded {
-							alreadyUploadedTables[tableName] = true
-						}
-					}
-
-					resultPerTable, failedEvents, skippedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables, needCopyEvent)
-
-					if !skippedEvents.IsEmpty() {
-						metrics.SkipTokenEvents(tokenID, storage.Type(), storage.ID(), len(skippedEvents.Events))
-						counters.SkipPushDestinationEvents(storage.ID(), int64(len(skippedEvents.Events)))
-					}
-
+					fileDate, err := time.Parse("2006-01-02T15-04-05", regexResult[1])
 					if err != nil {
-						archiveFile = false
-						logging.Errorf("[%s] Error storing file %s in destination: %v", storage.ID(), filePath, err)
-
-						//extract src
-						eventsSrc := map[string]int{}
-						for _, obj := range objects {
-							eventsSrc[events.ExtractSrc(obj)]++
-						}
-
-						errRowsCount := len(objects)
-						metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), errRowsCount)
-						counters.ErrorPushDestinationEvents(storage.ID(), int64(errRowsCount))
-
-						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), eventsSrc)
-
-						continue
+						logging.SystemErrorf("Error processing file %s. Cant parse file date: %s", filePath, fileDate)
+						return
 					}
 
-					//** Fallback **
-					//events that are failed to be parsed
+					if timestamp.Now().Sub(fileDate) > time.Hour*24*30 {
+						logging.Infof("Skipping file %s. File is more than 30 days old: %s", filePath, fileDate)
+						return
+					}
+
+					//get token from filename
+					regexResult = logging.TokenIDExtractRegexp.FindStringSubmatch(fileName)
+					if len(regexResult) != 2 {
+						logging.SystemErrorf("Error processing file %s. Malformed name", filePath)
+						return
+					}
+
+					tokenID := regexResult[1]
+					storageProxies := u.destinationService.GetBatchStorages(tokenID)
+					if len(storageProxies) == 0 {
+						logging.Warnf("Destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
+						return
+					}
+
+					file, err := os.Open(filePath)
+					if err != nil {
+						logging.SystemErrorf("Error opening file [%s] with events: %v", filePath, err)
+						return
+					}
+					stat, err := file.Stat()
+					if err != nil {
+						_ = file.Close()
+						logging.SystemErrorf("Error checking size of file [%s] with events: %v", filePath, err)
+						return
+					}
+					if stat.Size() == 0 {
+						_ = file.Close()
+						os.Remove(filePath)
+						return
+					}
+
+					needCopyEvent := len(storageProxies) > 1
+
+					objects, parsingErrors, err := parsers.ParseJSONFileWithFuncFallback(file, parsers.ParseJSON)
+					_ = file.Close()
+					if err != nil {
+						logging.SystemErrorf("Error parsing JSON file [%s] with events: %v", filePath, err)
+						return
+					}
+					defer func() {
+						logging.Infof("File %s processed with %d events in %s", fileName, len(objects), time.Since(fileStartTime))
+					}()
+
 					if len(parsingErrors) > 0 {
-						var parsingFailedEvents []*events.FailedEvent
-						for _, pe := range parsingErrors {
-							parsingFailedEvents = append(parsingFailedEvents, &events.FailedEvent{
-								MalformedEvent: string(pe.Original),
-								Error:          pe.Error,
-							})
+						if len(objects) == 0 {
+							logging.SystemErrorf("JSON file [%s] contains only records with errors: [%d]. (for instance event [%s]: %vs)", filePath, len(parsingErrors), string(parsingErrors[0].Original), parsingErrors[0].Error)
+							return
 						}
-						storage.Fallback(parsingFailedEvents...)
-						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), map[string]int{parsingErrSrc: len(parsingErrors)})
-					}
-					//events that are failed to be processed
-					if !failedEvents.IsEmpty() {
-						storage.Fallback(failedEvents.Events...)
-						metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), len(failedEvents.Events))
-						counters.ErrorPushDestinationEvents(storage.ID(), int64(len(failedEvents.Events)))
-						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), failedEvents.Src)
+
+						logging.Warnf("JSON file %s contains %d malformed events. They are sent to failed log", filePath, len(parsingErrors))
 					}
 
-					for tableName, result := range resultPerTable {
-						if result.Err != nil {
+					//flag for archiving file if all storages don't have errors while storing this file
+					archiveFile := true
+					for _, storageProxy := range storageProxies {
+						storage, ok := storageProxy.Get()
+						if !ok {
 							archiveFile = false
-							logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.ID(), tableName, filePath, result.Err)
-							metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), result.RowsCount)
-							counters.ErrorPushDestinationEvents(storage.ID(), int64(result.RowsCount))
-
-							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
-						} else {
-							pHandles := storageProxy.GetPostHandleDestinations()
-							if pHandles != nil && result.RowsCount > 0 {
-								for _, pHandle := range pHandles {
-									mp, ok := postHandlesMap[pHandle]
-									if !ok {
-										mp = make(map[string]bool)
-										postHandlesMap[pHandle] = mp
-									}
-									mp[storage.ID()] = true
-								}
-							}
-							metrics.SuccessTokenEvents(tokenID, storage.Type(), storage.ID(), result.RowsCount)
-							counters.SuccessPushDestinationEvents(storage.ID(), int64(result.RowsCount))
-
-							telemetry.PushedEventsPerSrc(tokenID, storage.ID(), result.EventsSrc)
+							continue
 						}
 
-						u.statusManager.UpdateStatus(fileName, storage.ID(), tableName, result.Err)
-					}
-				}
+						alreadyUploadedTables := map[string]bool{}
+						tableStatuses := u.statusManager.GetTablesStatuses(fileName, storage.ID())
+						for tableName, status := range tableStatuses {
+							if status.Uploaded {
+								alreadyUploadedTables[tableName] = true
+							}
+						}
 
-				if archiveFile {
-					err := u.archiver.Archive(fileName)
-					if err != nil {
-						logging.SystemErrorf("Error archiving [%s] file: %v", filePath, err)
-					} else {
-						u.statusManager.CleanUp(fileName)
+						resultPerTable, failedEvents, skippedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables, needCopyEvent)
+
+						if !skippedEvents.IsEmpty() {
+							metrics.SkipTokenEvents(tokenID, storage.Type(), storage.ID(), len(skippedEvents.Events))
+							counters.SkipPushDestinationEvents(storage.ID(), int64(len(skippedEvents.Events)))
+						}
+
+						if err != nil {
+							archiveFile = false
+							logging.Errorf("[%s] Error storing file %s in destination: %v", storage.ID(), filePath, err)
+
+							//extract src
+							eventsSrc := map[string]int{}
+							for _, obj := range objects {
+								eventsSrc[events.ExtractSrc(obj)]++
+							}
+
+							errRowsCount := len(objects)
+							metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), errRowsCount)
+							counters.ErrorPushDestinationEvents(storage.ID(), int64(errRowsCount))
+
+							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), eventsSrc)
+
+							continue
+						}
+
+						//** Fallback **
+						//events that are failed to be parsed
+						if len(parsingErrors) > 0 {
+							var parsingFailedEvents []*events.FailedEvent
+							for _, pe := range parsingErrors {
+								parsingFailedEvents = append(parsingFailedEvents, &events.FailedEvent{
+									MalformedEvent: string(pe.Original),
+									Error:          pe.Error,
+								})
+							}
+							storage.Fallback(parsingFailedEvents...)
+							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), map[string]int{parsingErrSrc: len(parsingErrors)})
+						}
+						//events that are failed to be processed
+						if !failedEvents.IsEmpty() {
+							storage.Fallback(failedEvents.Events...)
+							metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), len(failedEvents.Events))
+							counters.ErrorPushDestinationEvents(storage.ID(), int64(len(failedEvents.Events)))
+							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), failedEvents.Src)
+						}
+
+						for tableName, result := range resultPerTable {
+							if result.Err != nil {
+								archiveFile = false
+								logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.ID(), tableName, filePath, result.Err)
+								metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), result.RowsCount)
+								counters.ErrorPushDestinationEvents(storage.ID(), int64(result.RowsCount))
+
+								telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
+							} else {
+								pHandles := storageProxy.GetPostHandleDestinations()
+								if pHandles != nil && result.RowsCount > 0 {
+									for _, pHandle := range pHandles {
+										mp, _ := postHandlesMap.LoadOrStore(pHandle, &sync.Map{})
+										dests := mp.(*sync.Map)
+										//if destination is already in map, then we don't need to add it again
+										dests.LoadOrStore(storage.ID(), true)
+									}
+								}
+								metrics.SuccessTokenEvents(tokenID, storage.Type(), storage.ID(), result.RowsCount)
+								counters.SuccessPushDestinationEvents(storage.ID(), int64(result.RowsCount))
+
+								telemetry.PushedEventsPerSrc(tokenID, storage.ID(), result.EventsSrc)
+							}
+
+							u.statusManager.UpdateStatus(fileName, storage.ID(), tableName, result.Err)
+						}
 					}
-				}
+
+					if archiveFile {
+						err := u.archiver.Archive(fileName)
+						if err != nil {
+							logging.SystemErrorf("Error archiving [%s] file: %v", filePath, err)
+						} else {
+							u.statusManager.CleanUp(fileName)
+						}
+					}
+				}(filePath)
 			}
-			u.postHandle(startTime, timestamp.Now(), postHandlesMap)
+			wg.Wait()
+			close(semaphore)
+
+			u.postHandle(startTime, timestamp.Now(), &postHandlesMap)
+			logging.Infof("Processing of %d files finished in %s", len(files), time.Since(startTime))
 			time.Sleep(u.uploadEvery - time.Since(startTime))
 
 		}
 	})
 }
 
-func (u *PeriodicUploader) postHandle(start, end time.Time, postHandlesMap map[string]map[string]bool) {
-	for phID, destsMap := range postHandlesMap {
-		dests := make([]string, 0, len(destsMap))
-		for k := range destsMap {
-			dests = append(dests, k)
-		}
+func (u *PeriodicUploader) postHandle(start, end time.Time, postHandlesMap *sync.Map) {
+	postHandlesMap.Range(func(ph, destsRaw interface{}) bool {
+		phID := ph.(string)
+		destsMap := destsRaw.(*sync.Map)
+		dests := make([]string, 0)
+		destsMap.Range(func(dest, _ interface{}) bool {
+			dests = append(dests, dest.(string))
+			return true
+		})
 		event := events.Event{
 			"event_type":  storages.DestinationBatchEventType,
 			"source":      dests,
@@ -267,6 +294,6 @@ func (u *PeriodicUploader) postHandle(start, end time.Time, postHandlesMap map[s
 			logging.Error(err)
 		}
 		logging.Infof("Successful run of %v triggered postHandle destination: %s", dests, phID)
-	}
-
+		return true
+	})
 }
