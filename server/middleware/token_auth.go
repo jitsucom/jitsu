@@ -2,9 +2,11 @@ package middleware
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jitsucom/jitsu/server/metrics"
 )
 
 const (
@@ -63,6 +65,7 @@ func TokenAuth(main gin.HandlerFunc, originalToken string) gin.HandlerFunc {
 		if token == originalToken {
 			main(c)
 		} else {
+			metrics.UnauthorizedTokenAccess()
 			c.JSON(http.StatusUnauthorized, ErrResponse("Wrong token", nil))
 		}
 	}
@@ -80,6 +83,7 @@ func TokenFuncAuth(main gin.HandlerFunc, isAllowedOriginsFunc func(string) ([]st
 		}
 		_, allowed := isAllowedOriginsFunc(token)
 		if !allowed {
+			metrics.UnauthorizedTokenAccess()
 			c.JSON(http.StatusUnauthorized, ErrResponse(errMsg, nil))
 			return
 		}
@@ -99,6 +103,7 @@ func TokenTwoFuncAuth(main gin.HandlerFunc, isAllowedOriginsFunc func(string) ([
 
 		_, allowed := isAllowedOriginsFunc(token)
 		if !allowed {
+			metrics.UnauthorizedTokenAccess()
 			_, exist := anotherTypeAllowedOriginsFunc(token)
 			if exist {
 				c.JSON(http.StatusUnauthorized, ErrResponse(errMsg, nil))

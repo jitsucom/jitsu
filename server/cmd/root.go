@@ -1,11 +1,16 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"time"
+
+	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/jitsucom/jitsu/server/uuid"
 	au "github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 const serviceName = "cli"
@@ -27,6 +32,23 @@ func Execute(tag string) {
 	logWelcomeBanner(version)
 	if os.Getenv("SERVER_TELEMETRY_DISABLED_USAGE") != "true" {
 		telemetry.Init(serviceName, "", version, "", "")
+	}
+
+	clusterID := uuid.New()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	metricsRelay := metrics.InitRelay(clusterID, nil)
+	if metricsRelay != nil {
+		metrics.InitReplay(true)
+		defer metrics.StopRunningCounter()
+		interval := metricsRelay.Timeout
+		trigger := metrics.TickerTrigger{
+			Ticker: time.NewTicker(interval),
+		}
+		metricsRelay.Run(ctx, trigger, metrics.Registry)
+		defer metricsRelay.Stop()
 	}
 
 	err := rootCmd.Execute()

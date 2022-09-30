@@ -111,6 +111,8 @@ func (te *TaskExecutor) startTaskController() {
 				continue
 			}
 
+			metrics.HeartBeatPoolSize(len(tasksHeartBeats))
+
 			for taskID, lastHeartBeat := range tasksHeartBeats {
 				lastHeartBeatTime, err := time.Parse(time.RFC3339Nano, lastHeartBeat)
 				if err != nil {
@@ -147,7 +149,6 @@ func (te *TaskExecutor) startTaskController() {
 				if err := te.MetaStorage.RemoveTaskFromHeartBeat(taskID); err != nil {
 					logging.SystemErrorf("error removing task [%s] from heartbeat: %v", taskID, err)
 				}
-
 			}
 
 			time.Sleep(te.ObserverStalledEvery)
@@ -341,6 +342,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 		}
 
 		taskCloser.CloseWithError(taskErr.Error(), false)
+		metrics.ErrorSynchronization()
 		return
 	}
 
@@ -352,6 +354,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 		return
 	}
 
+	metrics.SuccessSynchronization()
 	te.onSuccess(task, sourceUnit, taskLogger)
 }
 
@@ -471,6 +474,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 				if err != nil {
 					metrics.ErrorSourceEvents(task.SourceType, metrics.EmptySourceTap, task.Source, storage.Type(), storage.ID(), rowsCount)
 					metrics.ErrorObjects(task.SourceType, metrics.EmptySourceTap, task.Source, rowsCount)
+					metrics.ErrorDestinations(storage.Type(), rowsCount)
 					telemetry.Error(task.Source, storage.ID(), srcSource, driver.GetDriversInfo().SourceType, rowsCount)
 					counters.ErrorPullDestinationEvents(storage.ID(), int64(rowsCount))
 					counters.ErrorPullSourceEvents(task.Source, int64(rowsCount))
@@ -479,6 +483,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 
 				metrics.SuccessSourceEvents(task.SourceType, metrics.EmptySourceTap, task.Source, storage.Type(), storage.ID(), rowsCount)
 				metrics.SuccessObjects(task.SourceType, metrics.EmptySourceTap, task.Source, rowsCount)
+				metrics.SuccessDestinations(storage.Type(), rowsCount)
 				telemetry.Event(task.Source, storage.ID(), srcSource, driver.GetDriversInfo().SourceType, rowsCount)
 				counters.SuccessPullDestinationEvents(storage.ID(), int64(rowsCount))
 			}
@@ -491,6 +496,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 
 		err := driver.GetObjectsFor(intervalToSync, objectsLoader)
 		if err != nil {
+			metrics.ErrorSources(task.SourceType)
 			return fmt.Errorf("Error [%s] synchronization: %v", intervalToSync.String(), err)
 		}
 
@@ -499,6 +505,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 		}
 
 		taskLogger.INFO("Interval [%s] has been synchronized!", intervalToSync.String())
+		metrics.SuccessSources(task.SourceType)
 	}
 
 	return nil

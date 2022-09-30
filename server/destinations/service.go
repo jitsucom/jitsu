@@ -5,6 +5,11 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
@@ -12,15 +17,12 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/mailru/go-clickhouse"
 	"github.com/spf13/viper"
-	"io/ioutil"
-	"strings"
-	"sync"
-	"time"
 )
 
 const serviceName = "destinations"
@@ -31,13 +33,13 @@ destinations:
     ...
 `
 
-//LoggerUsage is used for counting when logger isn't used
+// LoggerUsage is used for counting when logger isn't used
 type LoggerUsage struct {
 	logger events.Consumer
 	usage  int
 }
 
-//Service is a reloadable service of events destinations per token
+// Service is a reloadable service of events destinations per token
 type Service struct {
 	mutex *sync.RWMutex
 
@@ -62,7 +64,7 @@ type Service struct {
 	strictAuth bool
 }
 
-//NewTestService returns test instance. It is used only for tests
+// NewTestService returns test instance. It is used only for tests
 func NewTestService(unitsByID map[string]*Unit, consumersByTokenID TokenizedConsumers, storagesByTokenID TokenizedStorages,
 	destinationsIDByTokenID TokenizedIDs, queueConsumerByDestinationID map[string]events.Consumer) *Service {
 	return &Service{
@@ -76,7 +78,7 @@ func NewTestService(unitsByID map[string]*Unit, consumersByTokenID TokenizedCons
 	}
 }
 
-//NewService returns loaded Service instance and call resources.Watcher() if destinations source is http url or file path
+// NewService returns loaded Service instance and call resources.Watcher() if destinations source is http url or file path
 func NewService(destinations *viper.Viper, destinationsSource string, storageFactory storages.Factory, loggerFactory *logevents.Factory, strictAuth bool) (*Service, error) {
 	//registering global clickhouse tls config
 	tlsConfig := viper.GetStringMapString("clickhouse.tls_config")
@@ -243,8 +245,8 @@ func (s *Service) updateDestinations(payload []byte) {
 	}
 }
 
-//1. close and remove all destinations which don't exist in new config
-//2. recreate/create changed/new destinations
+// 1. close and remove all destinations which don't exist in new config
+// 2. recreate/create changed/new destinations
 func (s *Service) init(dc map[string]config.DestinationConfig) {
 	StatusInstance.Reloading = true
 
@@ -287,6 +289,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 		hash, err := resources.GetHash(destinationConfig)
 		if err != nil {
 			logging.SystemErrorf("Error getting hash from [%s] destination: %v. Destination will be skipped!", id, err)
+			metrics.ErrorInitDestination()
 			continue
 		}
 
@@ -313,6 +316,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 		newStorageProxy, eventQueue, err := s.storageFactory.Create(id, destinationConfig)
 		if err != nil {
 			logging.Errorf("[%s] Error initializing destination of type %s: %v", id, destinationConfig.Type, err)
+			metrics.ErrorInitDestination()
 			continue
 		}
 		storageType, ok := storages.StorageTypes[destinationConfig.Type]
@@ -330,6 +334,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 			tokenIDs:   destinationConfig.OnlyTokens,
 			hash:       hash,
 		}
+		metrics.SuccessInitDestination()
 
 		//create:
 		//  1 logger per token id
@@ -386,8 +391,8 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 	StatusInstance.Reloading = false
 }
 
-//removeAndClose removes and closes destination from all collections and close it
-//method must be called with locks
+// removeAndClose removes and closes destination from all collections and close it
+// method must be called with locks
 func (s *Service) removeAndClose(destinationID string, unit *Unit) {
 	//remove from other collections: queue or logger(if needed) + storage
 	for _, tokenID := range unit.tokenIDs {
@@ -457,7 +462,7 @@ func (s *Service) GetFactory() storages.Factory {
 	return s.storageFactory
 }
 
-//Close closes destination storages
+// Close closes destination storages
 func (s *Service) Close() (multiErr error) {
 	for id, unit := range s.unitsByID {
 		if err := unit.CloseStorage(); err != nil {
