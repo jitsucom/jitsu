@@ -25,10 +25,22 @@ func Enabled() bool {
 	return Registry != nil
 }
 
+func NewCounter(opts prometheus.CounterOpts) *prometheus.Counter {
+	counter := prometheus.NewCounter(opts)
+	Registry.MustRegister(counter)
+	return &counter
+}
+
 func NewCounterVec(opts prometheus.CounterOpts, labels []string) *prometheus.CounterVec {
 	vec := prometheus.NewCounterVec(opts, labels)
 	Registry.MustRegister(vec)
 	return vec
+}
+
+func NewGauge(opts prometheus.GaugeOpts) *prometheus.Gauge {
+	gauge := prometheus.NewGauge(opts)
+	Registry.MustRegister(gauge)
+	return &gauge
 }
 
 func NewGaugeVec(opts prometheus.GaugeOpts, labels []string) *prometheus.GaugeVec {
@@ -45,24 +57,47 @@ func NewHistogramVec(opts prometheus.HistogramOpts, labels []string) *prometheus
 
 const Unknown = "unknown"
 
-func Init(exported bool) {
+func initRegistry(exported bool) {
 	Exported = exported
 	if Exported {
-		logging.Info("✅ Initializing Prometheus metrics..")
+		logging.Info("✅ Initializing Prometheus metrics.")
 	}
 
 	Registry = prometheus.DefaultRegisterer.(*prometheus.Registry)
+}
 
-	initEvents()
-	initSourcesPool()
-	initSourceObjects()
-	initMetaRedis()
+func InitMain(exported bool) {
+	initRegistry(exported)
+
+	initApplication()
+	initAuthorization()
 	initCoordinationRedis()
+	initDestinations()
 	initEventsRedis()
+	initMetaRedis()
+	initNotifications()
+	initSourceObjects()
+	initSources()
+	initSourcesPool()
+	initStreamEventsQueue()
 	initUsersRecognitionQueue()
 	initUsersRecognitionRedis()
-	initTransform()
-	initStreamEventsQueue()
+  initTransform()
+}
+
+func InitConfigurator(exported bool) {
+	initRegistry(exported)
+
+	initApplication()
+	initEmails()
+	initNotifications()
+}
+
+func InitReplay(exported bool) {
+	initRegistry(exported)
+
+	initApplication()
+	initFileSending()
 }
 
 func InitRelay(clusterID string, viper *viper.Viper) *Relay {

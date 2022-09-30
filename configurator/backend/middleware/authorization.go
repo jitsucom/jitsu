@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/openapi"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/pkg/errors"
 )
 
@@ -88,10 +89,12 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 	} else if clusterAdminScope {
 		logging.SystemErrorf("server request [%s] with [%s] token has been denied: token mismatch", ctx.Request.URL.String(), token)
 		invalidToken(ctx, errServerTokenMismatch)
+		metrics.UnauthorizedAdminAccess()
 		return
 	} else if auth, err := i.Authorizator.Authorize(ctx, token); err != nil {
 		logging.Errorf("failed to authenticate with token %s: %s", token, err)
 		invalidToken(ctx, err)
+		metrics.UnauthorizedTokenAccess()
 		return
 	} else {
 		authority = Authority{

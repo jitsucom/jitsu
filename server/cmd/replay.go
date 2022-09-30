@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/spf13/cobra"
@@ -131,8 +132,10 @@ func replay(inputFile string, inputMasks []string) error {
 		return errors.New("all files are marked as uploaded in state. Nothing to replay.")
 	}
 
-	var globalBar ProgressBar
 	capacity := int64(len(filesToUpload))
+	metrics.SetFileCount(capacity)
+
+	var globalBar ProgressBar
 	if disableProgressBars == "true" {
 		globalBar = &DummyProgressBar{}
 	} else {
@@ -151,11 +154,15 @@ func replay(inputFile string, inputMasks []string) error {
 
 		if err := uploadFile(globalBar, client, absFilePath, fileStat.Size()); err != nil {
 			errorKeeper = append(errorKeeper, filePathAndError{absFilePath, err})
+			metrics.ErrorFileSending()
 			if len(errorKeeper) > suppressErrors {
 				globalBar.SetErrorState()
 				break
 			}
+		} else {
+			metrics.SuccessFileSending()
 		}
+
 		processedFiles++
 		globalBar.SetCurrent(processedFiles)
 		stateManager.Success(absFilePath)

@@ -5,6 +5,11 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
@@ -12,15 +17,12 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logevents"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/mailru/go-clickhouse"
 	"github.com/spf13/viper"
-	"io/ioutil"
-	"strings"
-	"sync"
-	"time"
 )
 
 const serviceName = "destinations"
@@ -287,6 +289,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 		hash, err := resources.GetHash(destinationConfig)
 		if err != nil {
 			logging.SystemErrorf("Error getting hash from [%s] destination: %v. Destination will be skipped!", id, err)
+			metrics.ErrorInitDestination()
 			continue
 		}
 
@@ -304,6 +307,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 
 		if !s.strictAuth && len(destinationConfig.OnlyTokens) == 0 {
 			logging.Warnf("[%s] destination's authorization isn't ready. Will be created in next reloading cycle.", id)
+			metrics.ErrorInitDestination()
 			//authorization tokens weren't loaded => create this destination when authorization service will be reloaded
 			//and call force reload on this service
 			continue
@@ -313,6 +317,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 		newStorageProxy, eventQueue, err := s.storageFactory.Create(id, destinationConfig)
 		if err != nil {
 			logging.Errorf("[%s] Error initializing destination of type %s: %v", id, destinationConfig.Type, err)
+			metrics.ErrorInitDestination()
 			continue
 		}
 		storageType, ok := storages.StorageTypes[destinationConfig.Type]
@@ -330,6 +335,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 			tokenIDs:   destinationConfig.OnlyTokens,
 			hash:       hash,
 		}
+		metrics.SuccessInitDestination()
 
 		//create:
 		//  1 logger per token id
