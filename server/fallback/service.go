@@ -30,7 +30,7 @@ const (
 
 var destinationIDExtractRegexp = regexp.MustCompile("failed.dst=(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
 
-//Service stores and processes fallback files
+// Service stores and processes fallback files
 type Service struct {
 	fallbackDir        string
 	fileMask           string
@@ -42,12 +42,12 @@ type Service struct {
 	locks sync.Map
 }
 
-//NewTestService returns test instance - only for tests
+// NewTestService returns test instance - only for tests
 func NewTestService() *Service {
 	return &Service{}
 }
 
-//NewService returns configured Service
+// NewService returns configured Service
 func NewService(logEventsPath string, destinationService *destinations.Service, usersRecognition events.Recognition) (*Service, error) {
 	fallbackPath := path.Join(logEventsPath, logevents.FailedDir)
 	logArchiveEventPath := path.Join(logEventsPath, logevents.ArchiveDir)
@@ -65,7 +65,7 @@ func NewService(logEventsPath string, destinationService *destinations.Service, 
 	}, nil
 }
 
-//Replay processes fallback file (or plain file) and store it in the destination
+// Replay processes fallback file (or plain file) and store it in the destination
 func (s *Service) Replay(fileName, destinationID string, rawFile, skipMalformed bool) error {
 	if fileName == "" {
 		return errors.New("File name can't be empty")
@@ -147,7 +147,7 @@ func (s *Service) Replay(fileName, destinationID string, rawFile, skipMalformed 
 	return nil
 }
 
-//GetFileStatuses returns all fallback files with their statuses
+// GetFileStatuses returns all fallback files with their statuses
 func (s *Service) GetFileStatuses(destinationsFilter map[string]bool) []*FileStatus {
 	files, err := filepath.Glob(s.fileMask)
 	if err != nil {
@@ -197,8 +197,8 @@ func (s *Service) GetFileStatuses(destinationsFilter map[string]bool) []*FileSta
 	return fileStatuses
 }
 
-//readFileBytes reads file from the file system and returns byte payload or err if occurred
-//does unzip if file has been compressed
+// readFileBytes reads file from the file system and returns byte payload or err if occurred
+// does unzip if file has been compressed
 func (s *Service) readFileBytes(filePath string) ([]byte, error) {
 	b, err := ioutil.ReadFile(filePath)
 	if err != nil {
@@ -223,7 +223,7 @@ func (s *Service) readFileBytes(filePath string) ([]byte, error) {
 	return resB.Bytes(), nil
 }
 
-//ExtractEvents parses input bytes as plain jsons or fallback jsons or fallback jsons with skipping malformed objects
+// ExtractEvents parses input bytes as plain jsons or fallback jsons or fallback jsons with skipping malformed objects
 func ExtractEvents(b []byte, rawFile, skipMalformed bool) ([]map[string]interface{}, error) {
 	var objects []map[string]interface{}
 	var err error
@@ -234,7 +234,7 @@ func ExtractEvents(b []byte, rawFile, skipMalformed bool) ([]map[string]interfac
 	} else {
 		if skipMalformed {
 			//ignore parsing errors
-			objects, parseErrors, err = parsers.ParseJSONFileWithFuncFallback(b, events.ParseFallbackJSON)
+			objects, parseErrors, err = parsers.ParseJSONBytesWithFuncFallback(b, events.ParseFallbackJSON)
 		} else {
 			objects, err = parsers.ParseJSONFileWithFunc(b, events.ParseFallbackJSON)
 		}
