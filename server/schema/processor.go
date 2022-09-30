@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/metrics"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/appconfig"
@@ -89,7 +90,7 @@ func NewProcessor(destinationID string, destinationConfig *config.DestinationCon
 	}, nil
 }
 
-//ProcessEvent returns table representation, processed flatten object
+// ProcessEvent returns table representation, processed flatten object
 func (p *Processor) ProcessEvent(event map[string]interface{}, needCopyEvent bool) ([]Envelope, error) {
 	if !p.transformInitialized {
 		err := fmt.Errorf("Destination: %s Attempt to use processor without running InitJavaScriptTemplates first", p.identifier)
@@ -98,9 +99,9 @@ func (p *Processor) ProcessEvent(event map[string]interface{}, needCopyEvent boo
 	return p.processObject(event, map[string]bool{}, needCopyEvent)
 }
 
-//ProcessEvents processes events objects
-//returns array of processed objects per table like {"table1": []objects, "table2": []objects},
-//All failed events are moved to separate collection for sending to fallback
+// ProcessEvents processes events objects
+// returns array of processed objects per table like {"table1": []objects, "table2": []objects},
+// All failed events are moved to separate collection for sending to fallback
 func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (flatData map[string]*ProcessedFile, recognizedFlatData map[string]*ProcessedFile, failedEvents *events.FailedEvents, skippedEvents *events.SkippedEvents, err error) {
 	if !p.transformInitialized {
 		err := fmt.Errorf("Destination: %s Attempt to use processor without running InitJavaScriptTemplates first", p.identifier)
@@ -180,9 +181,9 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 	return flatData, recognizedFlatData, failedEvents, skippedEvents, nil
 }
 
-//ProcessPulledEvents processes events objects without applying mapping rules
-//returns array of processed objects under tablename
-//or error if at least 1 was occurred
+// ProcessPulledEvents processes events objects without applying mapping rules
+// returns array of processed objects under tablename
+// or error if at least 1 was occurred
 func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]interface{}) (map[string]*ProcessedFile, error) {
 	if !p.transformInitialized {
 		err := fmt.Errorf("Destination: %s Attempt to use processor without running InitJavaScriptTemplates first", p.identifier)
@@ -228,12 +229,12 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 	return map[string]*ProcessedFile{tableName: pf}, nil
 }
 
-//processObject checks if table name in skipTables => return empty Table for skipping or
-//skips object if tableNameExtractor returns empty string, 'null' or 'false'
-//returns table representation of object and flatten, mapped object
-//1. extract table name
-//2. execute enrichment.LookupEnrichmentStep and Mapping
-//or ErrSkipObject/another error
+// processObject checks if table name in skipTables => return empty Table for skipping or
+// skips object if tableNameExtractor returns empty string, 'null' or 'false'
+// returns table representation of object and flatten, mapped object
+// 1. extract table name
+// 2. execute enrichment.LookupEnrichmentStep and Mapping
+// or ErrSkipObject/another error
 func (p *Processor) processObject(object map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) ([]Envelope, error) {
 	var workingObject map[string]interface{}
 	if needCopyEvent {
@@ -241,13 +242,6 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		workingObject = maputils.CopyMap(object)
 	} else {
 		workingObject = object
-	}
-	tableName, err := p.tableNameExtractor.Extract(workingObject)
-	if err != nil {
-		return nil, err
-	}
-	if tableName == "" || tableName == "null" || tableName == "false" {
-		return nil, ErrSkipObject
 	}
 
 	p.lookupEnrichmentStep.Execute(workingObject)
@@ -263,6 +257,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	if p.transformer != nil {
 		transformed, err = p.transformer.ProcessEvent(mappedObject, nil)
 		if err != nil {
+			metrics.TransformErrors(p.identifier)
 			return nil, fmt.Errorf("failed to apply javascript transform: %v", err)
 		}
 	} else {
@@ -333,14 +328,20 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 				prObject[timestamp.Key] = timestamp.NowUTC()
 			}
 		}
-		newTableName, ok := prObject[templates.TableNameParameter].(string)
-		if !ok {
-			newTableName = tableName
+		tableName, tableNameFromTransform := prObject[templates.TableNameParameter].(string)
+		if !tableNameFromTransform {
+			tableName, err = p.tableNameExtractor.Extract(prObject)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if tableName == "" || tableName == "null" || tableName == "false" {
+			return nil, ErrSkipObject
 		}
 		delete(prObject, templates.TableNameParameter)
 		delete(prObject, events.HTTPContextField)
 		//object has been already processed (storage:table pair might be already processed)
-		_, ok = alreadyUploadedTables[newTableName]
+		_, ok := alreadyUploadedTables[tableName]
 		if ok {
 			continue
 		}
@@ -353,7 +354,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 			return nil, err
 		}
 		ClearTypeMetaFields(flatObject)
-		bh, obj, err := p.foldLongFields(&BatchHeader{TableName: newTableName, Fields: fields}, flatObject)
+		bh, obj, err := p.foldLongFields(&BatchHeader{TableName: tableName, Fields: fields}, flatObject)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process long fields: %v", err)
 		}
@@ -363,8 +364,8 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	return envelops, nil
 }
 
-//foldLongFields replace all column names with truncated values if they exceed the limit
-//uses cutName under the hood
+// foldLongFields replace all column names with truncated values if they exceed the limit
+// uses cutName under the hood
 func (p *Processor) foldLongFields(header *BatchHeader, object map[string]interface{}) (*BatchHeader, map[string]interface{}, error) {
 	if p.maxColumnNameLen <= 0 {
 		return header, object, nil
@@ -394,30 +395,30 @@ func (p *Processor) foldLongFields(header *BatchHeader, object map[string]interf
 	return header, object, nil
 }
 
-//AddJavaScript loads javascript to transformation template's vm
+// AddJavaScript loads javascript to transformation template's vm
 func (p *Processor) AddJavaScript(js string) {
 	p.javaScripts = append(p.javaScripts, js)
 }
 
-//AddJavaScriptVariables loads variable to globalThis object of transformation template's vm
+// AddJavaScriptVariables loads variable to globalThis object of transformation template's vm
 func (p *Processor) AddJavaScriptVariables(jsVar map[string]interface{}) {
 	for k, v := range jsVar {
 		p.jsVariables[k] = v
 	}
 }
 
-//SetDefaultUserTransform set default transformation code that will be used if no transform or mapping settings provided
+// SetDefaultUserTransform set default transformation code that will be used if no transform or mapping settings provided
 func (p *Processor) SetDefaultUserTransform(defaultUserTransform string) {
 	p.defaultUserTransform = defaultUserTransform
 }
 
-//SetBuiltinTransformer javascript executor for builtin js code (e.g. npm destination)
+// SetBuiltinTransformer javascript executor for builtin js code (e.g. npm destination)
 func (p *Processor) SetBuiltinTransformer(builtinTransformer templates.TemplateExecutor) {
 	p.builtinTransformer = builtinTransformer
 }
 
-//InitJavaScriptTemplates loads destination transform javascript, inits context variables.
-//and sets up template executor
+// InitJavaScriptTemplates loads destination transform javascript, inits context variables.
+// and sets up template executor
 func (p *Processor) InitJavaScriptTemplates() (err error) {
 	if p.transformInitialized {
 		return nil
@@ -511,8 +512,8 @@ func (p *Processor) Close() {
 	p.CloseJavaScriptTemplates()
 }
 
-//cutName converts input name that exceeds maxLen to lower length string by cutting parts between '_' to 2 symbols.
-//if name len is still greater then returns maxLen symbols from the end of the name
+// cutName converts input name that exceeds maxLen to lower length string by cutting parts between '_' to 2 symbols.
+// if name len is still greater then returns maxLen symbols from the end of the name
 func cutName(name string, maxLen int) string {
 	if len(name) <= maxLen {
 		return name

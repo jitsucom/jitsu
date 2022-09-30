@@ -1,5 +1,6 @@
 import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
 import { stringType } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg
@@ -22,7 +23,7 @@ const icon = (
   </svg>
 )
 
-const hubspotDestination = {
+const hubspotDestination: Destination = {
   description: (
     <>
       Jitsu can send events from JS SDK or Events API to{" "}
@@ -37,9 +38,6 @@ const hubspotDestination = {
   id: "hubspot",
   type: "other",
   displayName: "HubSpot",
-  defaultTransform: "",
-  hidden: false,
-  deprecated: false,
   ui: {
     icon,
     title: cfg => `Hub ID: ${cfg._formData.hubID}`,
@@ -48,24 +46,45 @@ const hubspotDestination = {
   parameters: [
     modeParameter("stream"),
     {
-      id: "_formData.apiKey",
-      displayName: "API Key",
-      required: true,
+      id: "_formData.accessToken",
+      displayName: "Private App Access Token",
+      required: false,
       type: stringType,
       documentation: (
         <>
-          Your HubSpot API Key (in UUID format, like: e91eb0d4-a72e-4688-9fe4-60cecf8376eb). Read{" "}
-          <a target="_blank" href="https://knowledge.hubspot.com/integrations/how-do-i-get-my-hubspot-api-key">
-            How to obtain API Key
+          HubSpot Private App Access Token. Read{" "}
+          <a
+            target="_blank"
+            href="https://developers.hubspot.com/docs/api/private-apps#make-api-calls-with-your-app-s-access-token"
+          >
+            How to obtain Access Token
           </a>
-          .
+          . You need to enable following scopes for you private app: <code>crm.objects.contacts.write</code>{" "}
+          <code>crm.schemas.contacts.read</code>
+        </>
+      ),
+    },
+    {
+      id: "_formData.apiKey",
+      displayName: "API Key (deprecated)",
+      required: false,
+      type: stringType,
+      documentation: (
+        <>
+          Your HubSpot API Key. Deprecated in favor of <b>Private App Access Token</b>. Read{" "}
+          <a
+            target="_blank"
+            href="https://developers.hubspot.com/docs/api/migrate-an-api-key-integration-to-a-private-app"
+          >
+            How to migrate to Private App Access Token
+          </a>
         </>
       ),
     },
     {
       id: "_formData.hubID",
       displayName: "Hub ID",
-      required: true,
+      required: false,
       type: stringType,
       documentation: (
         <>
@@ -73,11 +92,10 @@ const hubspotDestination = {
           <a target="_blank" href="http://help.hubspot.com/articles/KCS_Article/Account/Where-can-I-find-my-HUB-ID">
             How to obtain HubSpot Hub ID
           </a>
-          .
         </>
       ),
     },
   ],
-} as const
+}
 
 export default hubspotDestination

@@ -63,7 +63,7 @@ const DestinationEditorTransform = ({
               defaultValue: !destinationData._mappings?._mappings,
               required: false,
               omitFieldRule: cfg =>
-                destinationsReferenceMap[destinationData._type].defaultTransform.length > 0 &&
+                destinationsReferenceMap[destinationData._type].defaultTransform &&
                 !destinationData._mappings?._mappings,
               type: booleanType,
               validator: (rule, value) => {
@@ -80,12 +80,22 @@ const DestinationEditorTransform = ({
               id: "_transform",
               codeSuggestions: `${templateVarsSuggestions}declare const destinationId = "${destinationData._uid}";
 declare const destinationType = "${destinationData._type}";
+declare type KeyValue = {
+  get(key: string): Promise<any>
+  del(key: string): Promise<void>
+  set(key: string, value: any, opts?: {ttlMs?: number}|{ttlSec?: number}): Promise<void>
+}
+declare const $kv:KeyValue
+declare type Context = typeof $.__HTTP_CONTEXT__ & {
+  header(name: string): string
+}
+declare const $context:Context = $.__HTTP_CONTEXT__
 ${[destinationData._type, "segment"]
   .map(type => `declare function ${camelCase("to_" + type)}(event: object): object`)
   .join("\n")}`,
               displayName: "Javascript Transformation",
               defaultValue: !destinationData._mappings?._mappings
-                ? destinationsReferenceMap[destinationData._type].defaultTransform
+                ? destinationsReferenceMap[destinationData._type].defaultTransform ?? ""
                 : "",
               required: false,
               jsDebugger: "object",

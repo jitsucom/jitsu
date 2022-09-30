@@ -6,26 +6,32 @@ import (
 	"strings"
 )
 
-//ParsedUaKey is a json key for parsed user-agent data object
+// ParsedUaKey is a json key for parsed user-agent data object
 const ParsedUaKey = "parsed_ua"
 
-//Resolver performs user-agent string parsing into ResolvedUa struct
-//can be mocked
+var BotUAKeywords = []string{"bot", "spider", "headless", "crawler", "uptimia"}
+
+// Resolver performs user-agent string parsing into ResolvedUa struct
+// can be mocked
 type Resolver interface {
 	Resolve(ua string) *ResolvedUa
 }
 
-//UaResolver parses user-agent strings into ResolvedUa structures with "github.com/ua-parser/uap-go/uaparser"
+// UaResolver parses user-agent strings into ResolvedUa structures with "github.com/ua-parser/uap-go/uaparser"
 type UaResolver struct {
-	parser *uaparser.Parser
+	parser        *uaparser.Parser
+	botUAKeywords []string
 }
 
-//NewResolver returns new instance of UaResolver
-func NewResolver() Resolver {
-	return &UaResolver{parser: uaparser.NewFromSaved()}
+// NewResolver returns new instance of UaResolver
+func NewResolver(extraBotUaKeywords []string) Resolver {
+	botUAKeywords := make([]string, 0, len(BotUAKeywords)+len(extraBotUaKeywords))
+	botUAKeywords = append(botUAKeywords, BotUAKeywords...)
+	botUAKeywords = append(botUAKeywords, extraBotUaKeywords...)
+	return &UaResolver{parser: uaparser.NewFromSaved(), botUAKeywords: botUAKeywords}
 }
 
-//ResolvedUa model for keeping resolved user-agent data
+// ResolvedUa model for keeping resolved user-agent data
 type ResolvedUa struct {
 	UaFamily  string `mapstructure:"ua_family,omitempty" json:"ua_family,omitempty"`
 	UaVersion string `mapstructure:"ua_version,omitempty" json:"ua_version,omitempty"`
@@ -40,15 +46,15 @@ type ResolvedUa struct {
 	Bot bool `mapstructure:"bot,omitempty" json:"bot,omitempty"`
 }
 
-//IsEmpty returns true if all values in ResolvedUa is empty
+// IsEmpty returns true if all values in ResolvedUa is empty
 func (rua ResolvedUa) IsEmpty() bool {
 	return rua.UaFamily == "" && rua.UaVersion == "" &&
 		rua.OsFamily == "" && rua.OsVersion == "" &&
 		rua.DeviceFamily == "" && rua.DeviceBrand == "" && rua.DeviceModel == ""
 }
 
-//Resolve client user-agent with github.com/ua-parser/uap-go/uaparser lib
-//Return nil if parsed ua is empty
+// Resolve client user-agent with github.com/ua-parser/uap-go/uaparser lib
+// Return nil if parsed ua is empty
 func (r *UaResolver) Resolve(ua string) *ResolvedUa {
 	if ua == "" {
 		return nil
@@ -88,8 +94,17 @@ func (r *UaResolver) Resolve(ua string) *ResolvedUa {
 		return nil
 	}
 
-	resolved.Bot = strings.Contains(strings.ToLower(resolved.UaFamily), "bot") ||
-		strings.Contains(strings.ToLower(resolved.UaFamily), "crawler")
+	ual := strings.ToLower(ua)
+	if resolved.DeviceFamily == "Spider" || resolved.DeviceBrand == "Spider" {
+		resolved.Bot = true
+	} else {
+		for _, keyword := range r.botUAKeywords {
+			if strings.Contains(ual, keyword) {
+				resolved.Bot = true
+				break
+			}
+		}
+	}
 
 	return resolved
 }

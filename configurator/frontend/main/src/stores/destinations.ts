@@ -6,7 +6,7 @@ import ApplicationServices from "lib/services/ApplicationServices"
 import { EntitiesStore } from "./entitiesStore"
 import { apiKeysStore, ApiKeysStore } from "./apiKeys"
 // @Catalog
-import { destinationsReferenceMap, DestinationReference } from "@jitsu/catalog"
+import { destinationsReferenceMap, Destination } from "@jitsu/catalog"
 // @Utils
 import { randomId } from "utils/numbers"
 // @Types
@@ -26,7 +26,7 @@ export class DestinationsStore extends EntitiesStore<DestinationData> {
     })
   }
 
-  public getDestinationReferenceById(id: string): DestinationReference | null {
+  public getDestinationReferenceById(id: string): Destination | null {
     const destination: DestinationData | null = this.get(id)
     return destination ? destinationsReferenceMap[destination._type] : null
   }

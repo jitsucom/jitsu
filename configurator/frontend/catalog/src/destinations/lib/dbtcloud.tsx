@@ -1,4 +1,5 @@
 import { stringType, descriptionType, booleanType } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg fill="none" version="1.1" height={"100%"} width={"100%"} viewBox="0 0 90 90" xmlns="http://www.w3.org/2000/svg">
@@ -9,7 +10,7 @@ const icon = (
   </svg>
 )
 
-const dbtcloudDestination = {
+const dbtcloudDestination: Destination = {
   description: (
     <>
       Special destination. The purpose of this destination is to trigger <b>dbt Cloud</b> Job on successful run of
@@ -22,9 +23,7 @@ const dbtcloudDestination = {
   id: "dbtcloud",
   type: "other",
   displayName: "dbt Cloud",
-  defaultTransform: "",
   hidden: true,
-  deprecated: false,
   ui: {
     icon,
     title: cfg => `Account ID: ${cfg._formData.dbtAccountId} Job ID: ${cfg._formData.dbtJobId}`,
@@ -91,6 +90,6 @@ const dbtcloudDestination = {
       documentation: <>API Key</>,
     },
   ],
-} as const
+}
 
 export default dbtcloudDestination

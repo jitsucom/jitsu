@@ -11,6 +11,7 @@ export type Destination = {
   syncFromSourcesStatus: "supported" | "coming_soon" | "not_supported"
   hidden?: boolean
   deprecated?: boolean
+  community?: boolean
   deprecatedReplacement?: string
   defaultTransform?: string
 }

@@ -12,11 +12,7 @@ import styles from "./OnboardingTourAddDestination.module.less"
 import { EmptyListView } from "ui/components/EmptyList/EmptyListView"
 import { DropDownList } from "ui/components/DropDownList/DropDownList"
 import { DestinationEditor } from "ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor"
-import {
-  destinationsReferenceList,
-  destinationsReferenceMap,
-  DestinationReference,
-} from "@jitsu/catalog"
+import { destinationsReferenceList, destinationsReferenceMap, Destination } from "@jitsu/catalog"
 
 // @Hooks
 import { useServices } from "hooks/useServices"
@@ -33,11 +29,11 @@ type ExtractDatabaseOrWebhook<T> = T extends { readonly type: "database" }
 
 type FilterHidden<T> = T extends { readonly hidden: false } ? T : never
 
-const destinationsToOffer = destinationsReferenceList.filter(
-  (dest): dest is FilterHidden<ExtractDatabaseOrWebhook<DestinationReference>> => {
+const destinationsToOffer = destinationsReferenceList
+  .filter((dest): dest is FilterHidden<ExtractDatabaseOrWebhook<Destination>> => {
     return !dest.hidden && !dest.deprecated
-  }
-)
+  })
+  .map(d => d as Destination)
 
 type NamesOfDestinationsToOffer = typeof destinationsToOffer[number]["id"]
 

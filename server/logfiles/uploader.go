@@ -26,9 +26,9 @@ const parsingErrSrc = "parsing"
 
 var DateExtractRegexp = regexp.MustCompile("incoming.tok=.*-(\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2})")
 
-//PeriodicUploader read already rotated and closed log files
-//Pass them to storages according to tokens
-//Keep uploading log file with result statuses
+// PeriodicUploader read already rotated and closed log files
+// Pass them to storages according to tokens
+// Keep uploading log file with result statuses
 type PeriodicUploader struct {
 	logIncomingEventPath string
 	fileMask             string
@@ -39,7 +39,7 @@ type PeriodicUploader struct {
 	destinationService *destinations.Service
 }
 
-//NewUploader returns new configured PeriodicUploader instance
+// NewUploader returns new configured PeriodicUploader instance
 func NewUploader(logEventPath, fileMask string, uploadEveryMin int, destinationService *destinations.Service) (*PeriodicUploader, error) {
 	logIncomingEventPath := path.Join(logEventPath, logevents.IncomingDir)
 	logArchiveEventPath := path.Join(logEventPath, logevents.ArchiveDir)
@@ -57,9 +57,9 @@ func NewUploader(logEventPath, fileMask string, uploadEveryMin int, destinationS
 	}, nil
 }
 
-//Start reading event logger log directory and finding already rotated and closed files by mask
-//pass them to storages according to tokens
-//keep uploading log statuses file for every event log file
+// Start reading event logger log directory and finding already rotated and closed files by mask
+// pass them to storages according to tokens
+// keep uploading log statuses file for every event log file
 func (u *PeriodicUploader) Start() {
 	safego.RunWithRestart(func() {
 		for {
@@ -200,7 +200,8 @@ func (u *PeriodicUploader) Start() {
 					//events that are failed to be processed
 					if !failedEvents.IsEmpty() {
 						storage.Fallback(failedEvents.Events...)
-
+						metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), len(failedEvents.Events))
+						counters.ErrorPushDestinationEvents(storage.ID(), int64(len(failedEvents.Events)))
 						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), failedEvents.Src)
 					}
 

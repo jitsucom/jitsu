@@ -2,6 +2,7 @@ import { fileParameters, filteringExpressionDocumentation, s3Credentials, tableN
 import { booleanType, selectionType, stringType } from "../../sources/types"
 import * as React from "react"
 import { ReactNode } from "react"
+import { Destination } from "../types"
 
 let icon: ReactNode = (
   <svg
@@ -33,7 +34,7 @@ let icon: ReactNode = (
   </svg>
 )
 
-const destination = {
+const destination: Destination = {
   description: (
     <>
       S3 Object Storage is ideal for backups and to archive company data. It is a convenient, affordable and compliant
@@ -44,9 +45,6 @@ const destination = {
   id: "s3",
   type: "other",
   displayName: "Amazon S3",
-  defaultTransform: "",
-  hidden: false,
-  deprecated: false,
   ui: {
     icon,
     title: (cfg: object) => {
@@ -61,10 +59,11 @@ const destination = {
       "_formData.s3Bucket",
       "_formData.s3AccessKeyID",
       "_formData.s3SecretKey",
+      "_formData.s3Endpoint",
       _ => false
     ),
     ...fileParameters("_formData.s3Folder", "_formData.s3Format", "_formData.s3CompressionEnabled"),
   ],
-} as const
+}
 
 export default destination

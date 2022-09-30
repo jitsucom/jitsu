@@ -1,5 +1,6 @@
 import { modeParameter, tableName } from "./common"
 import { intType, stringType, passwordType, booleanType } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg viewBox="0 0 25.6 25.6" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
@@ -12,7 +13,7 @@ const icon = (
   </svg>
 )
 
-const mysqlDestination = {
+const mysqlDestination: Destination = {
   description: (
     <>
       MySQL is a one of the most popular databases. It can be easily deployed on your own infrastructure
@@ -25,9 +26,6 @@ const mysqlDestination = {
   id: "mysql",
   type: "database",
   displayName: "MySQL",
-  defaultTransform: "",
-  hidden: false,
-  deprecated: false,
   ui: {
     icon: icon,
     connectCmd: (cfg: object) => null,
@@ -100,6 +98,6 @@ const mysqlDestination = {
       type: booleanType,
     },
   ],
-} as const
+}
 
 export default mysqlDestination

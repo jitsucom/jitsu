@@ -13,7 +13,7 @@ const (
 	syncModeFullRefresh = "full_refresh"
 )
 
-//dbDockerImages db sources doesn't support increment sync mode yet
+// dbDockerImages db sources doesn't support increment sync mode yet
 var dbDockerImages = map[string]bool{
 	"source-postgres": true,
 	"source-mssql":    true,
@@ -21,8 +21,8 @@ var dbDockerImages = map[string]bool{
 	"source-mysql":    true,
 }
 
-//reformatCatalog reformat raw Airbyte catalog (Airbyte discovers and consumes on read command different catalogs formats)
-//returns reformatted catalog bytes, streams representation and err if occurred
+// reformatCatalog reformat raw Airbyte catalog (Airbyte discovers and consumes on read command different catalogs formats)
+// returns reformatted catalog bytes, streams representation and err if occurred
 func reformatCatalog(dockerImage string, rawCatalog *airbyte.CatalogRow) ([]byte, map[string]*base.StreamRepresentation, error) {
 	formattedCatalog := &airbyte.Catalog{}
 	streamsRepresentation := map[string]*base.StreamRepresentation{}
@@ -50,7 +50,7 @@ func reformatCatalog(dockerImage string, rawCatalog *airbyte.CatalogRow) ([]byte
 		var keyFields []string
 		for _, sourceDefinedPrimaryKeys := range stream.SourceDefinedPrimaryKey {
 			if len(sourceDefinedPrimaryKeys) > 0 {
-				keyFields = sourceDefinedPrimaryKeys
+				keyFields = append(keyFields, sourceDefinedPrimaryKeys...)
 			}
 		}
 
@@ -73,7 +73,7 @@ func reformatCatalog(dockerImage string, rawCatalog *airbyte.CatalogRow) ([]byte
 	return b, streamsRepresentation, nil
 }
 
-//parseFormattedCatalog parses formatted catalog from (UI/input)
+// parseFormattedCatalog parses formatted catalog from (UI/input)
 func parseFormattedCatalog(catalogIface interface{}) (map[string]*base.StreamRepresentation, error) {
 	b, _ := json.Marshal(catalogIface)
 	catalog := &airbyte.Catalog{}
@@ -86,7 +86,7 @@ func parseFormattedCatalog(catalogIface interface{}) (map[string]*base.StreamRep
 		var keyFields []string
 		for _, sourceDefinedPrimaryKeys := range stream.Stream.SourceDefinedPrimaryKey {
 			if len(sourceDefinedPrimaryKeys) > 0 {
-				keyFields = sourceDefinedPrimaryKeys
+				keyFields = append(keyFields, sourceDefinedPrimaryKeys...)
 			}
 		}
 
@@ -111,9 +111,9 @@ func parseFormattedCatalog(catalogIface interface{}) (map[string]*base.StreamRep
 	return streamsRepresentation, nil
 }
 
-//getSyncMode returns incremental if supported
-//otherwise returns first
-//for DB source returns not incremental
+// getSyncMode returns incremental if supported
+// otherwise returns first
+// for DB source returns not incremental
 func getSyncMode(dockerImage string, stream *airbyte.Stream) string {
 	if stream.SyncMode != "" {
 		return stream.SyncMode

@@ -49,6 +49,12 @@ func NewGaugeVec(opts prometheus.GaugeOpts, labels []string) *prometheus.GaugeVe
 	return vec
 }
 
+func NewHistogramVec(opts prometheus.HistogramOpts, labels []string) *prometheus.HistogramVec {
+	vec := prometheus.NewHistogramVec(opts, labels)
+	Registry.MustRegister(vec)
+	return vec
+}
+
 const Unknown = "unknown"
 
 func initRegistry(exported bool) {
@@ -76,6 +82,7 @@ func InitMain(exported bool) {
 	initStreamEventsQueue()
 	initUsersRecognitionQueue()
 	initUsersRecognitionRedis()
+  initTransform()
 }
 
 func InitConfigurator(exported bool) {

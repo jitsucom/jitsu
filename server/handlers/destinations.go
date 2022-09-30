@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/utils"
 	"net/http"
 	"net/url"
 	"os"
@@ -65,9 +66,9 @@ func (dh *DestinationsHandler) Handler(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-//testDestinationConnection creates default table with 2 fields (eventn_ctx key and timestamp)
-//depends on the destination type calls destination test connection func
-//returns err if has occurred
+// testDestinationConnection creates default table with 2 fields (eventn_ctx key and timestamp)
+// depends on the destination type calls destination test connection func
+// returns err if has occurred
 func testDestinationConnection(config *config.DestinationConfig, globalConfiguration *config.UsersRecognition) error {
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField.GetFlatFieldName()
 	if config.DataLayout != nil && config.DataLayout.UniqueIDField != "" {
@@ -208,7 +209,7 @@ func testDestinationConnection(config *config.DestinationConfig, globalConfigura
 			Package: config.Package,
 			ID:      identifier,
 			Type:    storages.NpmType,
-			Config:  config.Config,
+			Config:  utils.MapNestedKeysToString(config.Config),
 		}
 
 		executor, err := templates.NewScriptExecutor(plugin, nil)
@@ -223,8 +224,8 @@ func testDestinationConnection(config *config.DestinationConfig, globalConfigura
 	}
 }
 
-//testPostgres connects to Postgres, creates table, write 1 test record, deletes table
-//returns err if has occurred
+// testPostgres connects to Postgres, creates table, write 1 test record, deletes table
+// returns err if has occurred
 func testPostgres(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
 	dataSourceConfig := &adapters.DataSourceConfig{}
 	if err := config.GetDestConfig(config.DataSource, dataSourceConfig); err != nil {
@@ -285,8 +286,8 @@ func testPostgres(config *config.DestinationConfig, eventContext *adapters.Event
 	return nil
 }
 
-//testClickHouse connects to all provided ClickHouse dsns, creates table, write 1 test record, deletes table
-//returns err if has occurred
+// testClickHouse connects to all provided ClickHouse dsns, creates table, write 1 test record, deletes table
+// returns err if has occurred
 func testClickHouse(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
 	clickHouseConfig := &adapters.ClickHouseConfig{}
 	if err := config.GetDestConfig(config.ClickHouse, clickHouseConfig); err != nil {
@@ -377,10 +378,10 @@ func testClickHouse(config *config.DestinationConfig, eventContext *adapters.Eve
 	return nil
 }
 
-//testClickHouse depends on the destination mode:
+// testClickHouse depends on the destination mode:
 // stream: connects to Redshift, creates table, writes 1 test record, deletes table
 // batch: connects to Redshift, S3, creates table, writes 1 test file with 1 test record, copies it to Redshift, deletes table
-//returns err if has occurred
+// returns err if has occurred
 func testRedshift(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
 	dataSourceConfig := &adapters.DataSourceConfig{}
 	if err := config.GetDestConfig(config.DataSource, dataSourceConfig); err != nil {
@@ -470,10 +471,10 @@ func testRedshift(config *config.DestinationConfig, eventContext *adapters.Event
 	return nil
 }
 
-//testClickHouse depends on the destination mode:
+// testClickHouse depends on the destination mode:
 // stream: connects to BigQuery, creates table, writes 1 test record, deletes table
 // batch: connects to BigQuery, Google Cloud Storage, creates table, writes 1 test file with 1 test record, copies it to BigQuery, deletes table
-//returns err if has occurred
+// returns err if has occurred
 func testBigQuery(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
 	google := &adapters.GoogleConfig{}
 	if err := config.GetDestConfig(config.Google, google); err != nil {
@@ -542,10 +543,10 @@ func testBigQuery(config *config.DestinationConfig, eventContext *adapters.Event
 	return nil
 }
 
-//testClickHouse depends on the destination mode:
+// testClickHouse depends on the destination mode:
 // stream: connects to Snowflake, creates table, writes 1 test record, deletes table
 // batch: connects to Snowflake, S3 or Google Cloud Storage, creates table, writes 1 test file with 1 test record, copies it to Snowflake, deletes table
-//returns err if has occurred
+// returns err if has occurred
 func testSnowflake(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
 	snowflakeConfig := &adapters.SnowflakeConfig{}
 	if err := config.GetDestConfig(config.Snowflake, snowflakeConfig); err != nil {
@@ -640,8 +641,8 @@ func testSnowflake(config *config.DestinationConfig, eventContext *adapters.Even
 	return nil
 }
 
-//testMySQL connects to MySQL, creates table, write 1 test record, deletes table
-//returns err if has occurred
+// testMySQL connects to MySQL, creates table, write 1 test record, deletes table
+// returns err if has occurred
 func testMySQL(config *config.DestinationConfig, eventContext *adapters.EventContext) error {
 	dataSourceConfig := &adapters.DataSourceConfig{}
 	if err := config.GetDestConfig(config.DataSource, dataSourceConfig); err != nil {

@@ -1,6 +1,7 @@
 import { fileParameters, filteringExpressionDocumentation, gcsCredentials, tableName } from "./common"
 import * as React from "react"
 import { ReactNode } from "react"
+import { Destination } from "../types"
 
 let icon: ReactNode = (
   <svg
@@ -43,7 +44,7 @@ let icon: ReactNode = (
   </svg>
 )
 
-const destination = {
+const destination: Destination = {
   description: (
     <>
       Google Cloud Storage is ideal for backups and to archive company data. It is a convenient, affordable and
@@ -54,9 +55,6 @@ const destination = {
   id: "gcs",
   type: "other",
   displayName: "Google Cloud Storage",
-  defaultTransform: "",
-  hidden: false,
-  deprecated: false,
   ui: {
     icon,
     title: (cfg: object) => {
@@ -69,6 +67,6 @@ const destination = {
     ...gcsCredentials("_formData.gcsKey", "_formData.gcsBucket"),
     ...fileParameters("_formData.gcsFolder", "_formData.gcsFormat", "_formData.gcsCompressionEnabled"),
   ],
-} as const
+}
 
 export default destination

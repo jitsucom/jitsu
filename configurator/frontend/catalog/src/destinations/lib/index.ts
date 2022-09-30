@@ -15,6 +15,9 @@ import s3Destination from "./s3"
 import gcsDestination from "./googleCloudStorage"
 import mixpanelDestination from "./mixpanel"
 import mixpanel2Destination from "./mixpanel2"
+import bentoDestination from "./bento"
+import plausibleDestination from "./plausible"
+
 import npmDestination from "./npm"
 
 import { Destination } from "../types"
@@ -38,9 +41,11 @@ export {
   mixpanelDestination,
   mixpanel2Destination,
   tagDestination,
+  bentoDestination,
+  plausibleDestination,
 }
 
-export const destinationsReferenceMap = {
+export const destinationsReferenceMap: { [key: string]: Destination } = {
   postgres: postgresDestination,
   mysql: mysqlDestination,
   bigquery: bigQueryDestination,
@@ -58,8 +63,10 @@ export const destinationsReferenceMap = {
   mixpanel: mixpanelDestination,
   mixpanel2: mixpanel2Destination,
   tag: tagDestination,
-} as const
-
-export type DestinationReference = typeof destinationsReferenceMap[keyof typeof destinationsReferenceMap]
+  bento: bentoDestination,
+  plausible: plausibleDestination,
+}
 
 export const destinationsReferenceList = Object.values(destinationsReferenceMap)
+
+export type DestinationType = typeof destinationsReferenceList[number]["id"]

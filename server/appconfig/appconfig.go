@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/identifiers"
@@ -18,10 +19,10 @@ import (
 
 const (
 	emptyGIFOnexOne       = "R0lGODlhAQABAIAAAAAAAP8AACH5BAEAAAEALAAAAAABAAEAAAICTAEAOw=="
-	localAirbyteConfigDir = "./airbyte_config"
+	localAirbyteConfigDir = "airbyte_config"
 )
 
-//AppConfig is a main Application Global Configuration
+// AppConfig is a main Application Global Configuration
 type AppConfig struct {
 	ServerName string
 	Authority  string
@@ -257,8 +258,9 @@ func setDefaultParams(containerized bool) {
 		viper.SetDefault("singer-bridge.venv_dir", "./venv")
 		viper.SetDefault("singer-bridge.log.path", "./logs")
 		viper.SetDefault("airbyte-bridge.log.path", "./logs")
-		viper.SetDefault("airbyte-bridge.config_dir", localAirbyteConfigDir)
-		viper.SetDefault("server.volumes.workspace", localAirbyteConfigDir) //should be the same as airbyte-bridge.config_dir
+		workingDir, _ := os.Getwd()
+		viper.SetDefault("airbyte-bridge.config_dir", path.Join(workingDir, localAirbyteConfigDir))
+		viper.SetDefault("server.volumes.workspace", path.Join(workingDir, localAirbyteConfigDir)) //should be the same as airbyte-bridge.config_dir
 	}
 }
 
@@ -393,7 +395,8 @@ func Init(containerized bool, dockerHubID string) error {
 	}
 
 	appConfig.AuthorizationService = authService
-	appConfig.UaResolver = useragent.NewResolver()
+	extraBotKeywords := viper.GetStringSlice("server.ua.bot_keywords")
+	appConfig.UaResolver = useragent.NewResolver(extraBotKeywords)
 	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
 	appConfig.GlobalUniqueIDField = identifiers.NewUniqueID(uniqueIDField)
 
@@ -416,13 +419,13 @@ func (a *AppConfig) Close() {
 	}
 }
 
-//ScheduleEventsConsumerClosing adds events consumer closer into slice for closing
+// ScheduleEventsConsumerClosing adds events consumer closer into slice for closing
 func (a *AppConfig) ScheduleEventsConsumerClosing(c io.Closer) {
 	a.eventsConsumers = append(a.eventsConsumers, c)
 }
 
-//CloseEventsConsumers closes events queues(streaming) and loggers(batch) in the last call
-//for preventing losing events
+// CloseEventsConsumers closes events queues(streaming) and loggers(batch) in the last call
+// for preventing losing events
 func (a *AppConfig) CloseEventsConsumers() {
 	for _, ec := range a.eventsConsumers {
 		if err := ec.Close(); err != nil {
@@ -431,24 +434,24 @@ func (a *AppConfig) CloseEventsConsumers() {
 	}
 }
 
-//ScheduleWriteAheadLogClosing adds wal.Service closer
+// ScheduleWriteAheadLogClosing adds wal.Service closer
 func (a *AppConfig) ScheduleWriteAheadLogClosing(c io.Closer) {
 	a.writeAheadLog = c
 }
 
-//CloseWriteAheadLog closes write-ahead-log service in the last call
+// CloseWriteAheadLog closes write-ahead-log service in the last call
 func (a *AppConfig) CloseWriteAheadLog() {
 	if err := a.writeAheadLog.Close(); err != nil {
 		logging.Errorf("[WriteAheadLog] %v", err)
 	}
 }
 
-//ScheduleLastClosing adds meta.Storage, coordinationService closers
+// ScheduleLastClosing adds meta.Storage, coordinationService closers
 func (a *AppConfig) ScheduleLastClosing(c io.Closer) {
 	a.lastCloseMe = append(a.lastCloseMe, c)
 }
 
-//CloseLast closes meta.Storage, coordinationService closers in the last call
+// CloseLast closes meta.Storage, coordinationService closers in the last call
 func (a *AppConfig) CloseLast() {
 	for _, cl := range a.lastCloseMe {
 		if err := cl.Close(); err != nil {

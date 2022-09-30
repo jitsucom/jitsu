@@ -59,7 +59,7 @@ var templateTest = []templateTestData{
 
 func TestJtemplate(t *testing.T) {
 	node.DefaultExchangeTimeout = 5 * time.Second
-	factory, err := node.NewFactory(1, 100)
+	factory, err := node.NewFactory(1, 100, nil)
 	if !assert.NoError(t, err) {
 		t.FailNow()
 	}
@@ -77,7 +77,7 @@ func TestJtemplate(t *testing.T) {
 }
 
 func TestJavascriptTemplate(t *testing.T) {
-	factory, err := node.NewFactory(1, 10)
+	factory, err := node.NewFactory(1, 10, nil)
 	if !assert.NoError(t, err) {
 		t.FailNow()
 	}

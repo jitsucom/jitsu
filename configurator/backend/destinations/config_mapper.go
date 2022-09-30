@@ -686,8 +686,9 @@ func mapHubSpot(hDestination *entities.Destination) (*enconfig.DestinationConfig
 	}
 
 	cfg := &enadapters.HubSpotConfig{
-		APIKey: hFormData.APIKey,
-		HubID:  hFormData.HubID,
+		AccessToken: hFormData.AccessToken,
+		APIKey:      hFormData.APIKey,
+		HubID:       hFormData.HubID,
 	}
 	cfgMap := map[string]interface{}{}
 	err = mapstructure.Decode(cfg, &cfgMap)

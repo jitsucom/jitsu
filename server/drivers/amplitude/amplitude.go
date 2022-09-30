@@ -59,7 +59,7 @@ func NewAmplitude(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 		return nil, fmt.Errorf("Unknown collection for amplitude: %v", collection.Type)
 	}
 
-	adapter, err := NewAmplitudeAdapter(config.ApiKey, config.SecretKey, amplitudeHTTPConfiguration)
+	adapter, err := NewAmplitudeAdapter(config.ApiKey, config.SecretKey, config.Server, amplitudeHTTPConfiguration)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func TestAmplitude(sourceConfig *base.SourceConfig) error {
 		return err
 	}
 
-	adapter, err := NewAmplitudeAdapter(config.ApiKey, config.SecretKey, storages.DefaultHTTPConfiguration)
+	adapter, err := NewAmplitudeAdapter(config.ApiKey, config.SecretKey, config.Server, storages.DefaultHTTPConfiguration)
 	if err != nil {
 		return err
 	}

@@ -24,9 +24,9 @@ const (
 	connectionStatusFailed  = "FAILED"
 )
 
-//Runner is an Airbyte Docker runner
-//Can only be used once
-//Self-closed (see run() func)
+// Runner is an Airbyte Docker runner
+// Can only be used once
+// Self-closed (see run() func)
 type Runner struct {
 	sourceID string
 	//DockerImage without 'airbyte/' prefix
@@ -39,7 +39,7 @@ type Runner struct {
 	command *exec.Cmd
 }
 
-//NewRunner returns configured Airbyte Runner
+// NewRunner returns configured Airbyte Runner
 func NewRunner(sourceID, dockerImage, imageVersion, identifier string) *Runner {
 	if identifier == "" {
 		identifier = fmt.Sprintf("%s-%s-%s-%s", sourceID, dockerImage, imageVersion, uuid.New())
@@ -53,7 +53,7 @@ func NewRunner(sourceID, dockerImage, imageVersion, identifier string) *Runner {
 	}
 }
 
-//String returns exec command string
+// String returns exec command string
 func (r *Runner) String() string {
 	if r.command == nil {
 		return ""
@@ -62,7 +62,7 @@ func (r *Runner) String() string {
 	return r.command.String()
 }
 
-//Spec runs airbyte docker spec command and returns spec and err if occurred
+// Spec runs airbyte docker spec command and returns spec and err if occurred
 func (r *Runner) Spec() (interface{}, error) {
 	resultParser := &synchronousParser{desiredRowType: SpecType}
 	errWriter := logging.NewStringWriter()
@@ -117,7 +117,7 @@ func (r *Runner) Check(airbyteSourceConfig interface{}) error {
 	}
 }
 
-//Discover returns discovered raw catalog
+// Discover returns discovered raw catalog
 func (r *Runner) Discover(airbyteSourceConfig interface{}, timeout time.Duration) (*CatalogRow, error) {
 	resultParser := &synchronousParser{desiredRowType: CatalogType}
 	errStrWriter := logging.NewStringWriter()
@@ -238,12 +238,16 @@ func (r *Runner) terminated() bool {
 	}
 }
 
+func (r *Runner) IsReady() (bool, error) {
+	return Instance.IsImagePulled(Instance.AddAirbytePrefix(r.DockerImage), r.Version)
+}
+
 func (r *Runner) run(stdoutHandler, stderrHandler func(io.Reader) error, timeout time.Duration, args ...string) error {
 	if r.terminated() {
 		return runner.ErrAirbyteAlreadyTerminated
 	}
 
-	pulled, err := Instance.IsImagePulled(Instance.AddAirbytePrefix(r.DockerImage), r.Version)
+	pulled, err := r.IsReady()
 	if err != nil {
 		return err
 	}
@@ -325,8 +329,8 @@ func copyTo(writer io.Writer) func(r io.Reader) error {
 	}
 }
 
-//saveConfig saves config as file for mounting
-//returns absolute dir and related file path (generated dir + generated file) and err if occurred
+// saveConfig saves config as file for mounting
+// returns absolute dir and related file path (generated dir + generated file) and err if occurred
 func saveConfig(airbyteSourceConfig interface{}) (string, string, error) {
 	dirName := uuid.NewLettersNumbers()
 	fileName := uuid.NewLettersNumbers() + ".json"

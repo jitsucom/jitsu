@@ -18,7 +18,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-//EvaluateTemplateRequest is a request dto for testing text/template expressions
+// EvaluateTemplateRequest is a request dto for testing text/template expressions
 type EvaluateTemplateRequest struct {
 	Config            map[string]interface{} `json:"config,omitempty"`
 	Object            map[string]interface{} `json:"object,omitempty"`
@@ -30,7 +30,7 @@ type EvaluateTemplateRequest struct {
 	TemplateVariables map[string]interface{} `json:"template_variables,omitempty"`
 }
 
-//EvaluateTemplateResponse is a response dto for testing text/template expressions
+// EvaluateTemplateResponse is a response dto for testing text/template expressions
 type EvaluateTemplateResponse struct {
 	Result     string       `json:"result"`
 	Logs       EvaluateLogs `json:"logs,omitempty"`
@@ -40,7 +40,7 @@ type EvaluateTemplateResponse struct {
 	Format     string       `json:"format"`
 }
 
-//Validate returns err if invalid
+// Validate returns err if invalid
 func (etr *EvaluateTemplateRequest) Validate() error {
 	if etr.Object == nil {
 		return errors.New("'object' is required field")
@@ -49,14 +49,14 @@ func (etr *EvaluateTemplateRequest) Validate() error {
 	return nil
 }
 
-//TemplateFunctions fills temlate functions with destination data from request
+// TemplateFunctions fills template functions with destination data from request
 func (etr *EvaluateTemplateRequest) TemplateFunctions() template.FuncMap {
 	vars := map[string]interface{}{"destinationId": etr.Uid, "destinationType": etr.Type}
 	utils.MapPutAll(vars, etr.TemplateVariables)
 	return templates.EnrichedFuncMap(vars)
 }
 
-//EventTemplateHandler is a handler for testing text/template expression with income object
+// EventTemplateHandler is a handler for testing text/template expression with income object
 type EventTemplateHandler struct {
 	factory storages.Factory
 }
@@ -107,7 +107,7 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (response 
 	if req.Field == "_transform" {
 		cfg := config.DestinationConfig{}
 		_ = mapstructure.Decode(req.Config, &cfg)
-		createFunc, dConfig, err := h.factory.Configure(req.Type, cfg)
+		createFunc, dConfig, err := h.factory.Configure(req.Uid, cfg)
 		if err != nil {
 			response.Error = fmt.Errorf("cannot setup destination: %v", err).Error()
 			return

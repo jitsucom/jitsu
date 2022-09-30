@@ -1,5 +1,6 @@
 import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
 import { stringType } from "../../sources/types"
+import { Destination } from "../types"
 
 const icon = (
   <svg xmlns="http://www.w3.org/2000/svg" height="100%" width="100%" viewBox="0 0 64 64">
@@ -16,7 +17,7 @@ const icon = (
   </svg>
 )
 
-const googleAnalytics = {
+const googleAnalytics: Destination = {
   description: (
     <>
       Jitsu can send events from JS SDK or Events API to Google Analytics API. The common use-case is to send
@@ -30,8 +31,6 @@ const googleAnalytics = {
   defaultTransform: `// Code of Google Analytics transform:
 // https://github.com/jitsucom/jitsu/blob/master/server/storages/transform/google_analytics.js
 return toGoogleAnalytics($)`,
-  hidden: false,
-  deprecated: false,
   parameters: [
     modeParameter("stream"),
     tableName(filteringExpressionDocumentation),
@@ -47,6 +46,6 @@ return toGoogleAnalytics($)`,
     connectCmd: null,
     title: cfg => cfg["_formData"]["gaTrackingId"],
   },
-} as const
+}
 
 export default googleAnalytics

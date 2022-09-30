@@ -3,6 +3,7 @@ export const withQueryParams = (
   paramsDict?: { [key: string]: string },
   options?: { encode?: string[] }
 ): string => {
+  const firstSep = baseUrl.includes("?") ? "&" : "?"
   return !paramsDict
     ? baseUrl
     : Object.entries(paramsDict)
@@ -15,6 +16,6 @@ export const withQueryParams = (
             value = encodeURIComponent(value)
           }
           return `${accumulator}${key}=${value}&`
-        }, `${baseUrl}?`)
+        }, `${baseUrl}${firstSep}`)
         .slice(0, -1)
 }
