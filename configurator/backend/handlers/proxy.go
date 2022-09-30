@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"github.com/jitsucom/jitsu/configurator/entities"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -32,15 +33,15 @@ func (ph *ProxyHandler) Handler(ctx *gin.Context) {
 		mw.Unauthorized(ctx, err)
 	} else if projectID := mw.ExtractProjectID(ctx); projectID == "" {
 		mw.RequiredField(ctx, "project_id")
-	} else if !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else if req, err := ph.getJitsuRequest(ctx); err != nil {
-		mw.BadRequest(ctx, "Failed to create proxy request to Jitsu server", err)
-	} else if serverStatusCode, serverResponse, err := ph.jitsuService.ProxySend(req); err != nil {
-		mw.BadRequest(ctx, "Failed to proxy request to Jitsu server", err)
-	} else {
-		logging.Debugf("%s response in [%.2f] seconds", ctx.Request.URL.Path, time.Now().Sub(start).Seconds())
-		ctx.Data(serverStatusCode, jsonContentType, serverResponse)
+	} else if authority.CheckPermission(ctx, projectID, entities.ViewConfigPermission) {
+		if req, err := ph.getJitsuRequest(ctx); err != nil {
+			mw.BadRequest(ctx, "Failed to create proxy request to Jitsu server", err)
+		} else if serverStatusCode, serverResponse, err := ph.jitsuService.ProxySend(req); err != nil {
+			mw.BadRequest(ctx, "Failed to proxy request to Jitsu server", err)
+		} else {
+			logging.Debugf("%s response in [%.2f] seconds", ctx.Request.URL.Path, time.Now().Sub(start).Seconds())
+			ctx.Data(serverStatusCode, jsonContentType, serverResponse)
+		}
 	}
 }
 

@@ -197,8 +197,7 @@ func (oa *OpenAPI) EvaluateDestinationJSTransformationScript(ctx *gin.Context) {
 		}
 		//additionally check project id of destination we work with
 		projectID = strings.Split(uid.(string), ".")[0]
-		if !authority.Allow(projectID) {
-			mw.ForbiddenProject(ctx, projectID)
+		if !authority.CheckPermission(ctx, projectID, entities.ViewConfigPermission) {
 			return
 		}
 		if field, ok := req.Get("field"); ok && fmt.Sprint(field) == "_transform" {
