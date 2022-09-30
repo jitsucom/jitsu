@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/runtime"
-	"github.com/jitsucom/jitsu/server/safego"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/runtime"
+	"github.com/jitsucom/jitsu/server/safego"
 )
 
 const (
@@ -102,6 +103,8 @@ type Text struct {
 type SlackNotifier struct {
 	client              *http.Client
 	errorLoggingFunc    func(format string, v ...interface{})
+	successMetricFunc   func()
+	errorMetricFunc     func()
 	mutex               *sync.RWMutex
 	systemErrorsCounter map[string]int64
 
@@ -141,7 +144,10 @@ func (sn *SlackNotifier) startSending() {
 			case message := <-sn.messagesCh:
 				err := sn.Send(message)
 				if err != nil {
+					sn.errorMetricFunc()
 					sn.errorLoggingFunc("Error notify: %v", err)
+				} else {
+					sn.successMetricFunc()
 				}
 			}
 		}
@@ -183,7 +189,10 @@ func (sn *SlackNotifier) observe() {
 	instance.mutex.Unlock()
 }
 
-func Init(serviceName, version, url, serverName string, errorLoggingFunc func(format string, v ...interface{})) {
+func Init(serviceName, version, url, serverName string,
+	errorLoggingFunc func(format string, v ...interface{}),
+	successMetricFunc, errorMetricFunc func()) {
+
 	instance = &SlackNotifier{
 		client: &http.Client{
 			Timeout: 10 * time.Second,
@@ -195,6 +204,8 @@ func Init(serviceName, version, url, serverName string, errorLoggingFunc func(fo
 		errorLoggingFunc:    errorLoggingFunc,
 		mutex:               &sync.RWMutex{},
 		systemErrorsCounter: map[string]int64{},
+		successMetricFunc:   successMetricFunc,
+		errorMetricFunc:     errorMetricFunc,
 		serviceName:         serviceName,
 		webHookURL:          url,
 		version:             version,

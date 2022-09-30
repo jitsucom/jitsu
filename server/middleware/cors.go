@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/cors"
+	"github.com/jitsucom/jitsu/server/metrics"
 )
 
 //Cors handles OPTIONS requests and check if request /event or dynamic event endpoint or static endpoint (/t /s /p)
@@ -42,6 +43,7 @@ func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) ht
 				b, _ := json.Marshal(response)
 				w.WriteHeader(http.StatusUnauthorized)
 				w.Write(b)
+				metrics.UnauthorizedAccess()
 				return
 			}
 
