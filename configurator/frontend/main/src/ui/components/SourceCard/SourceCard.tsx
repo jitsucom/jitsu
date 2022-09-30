@@ -127,7 +127,7 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
           await connectionsHelper.unconnectDeletedSource(src.sourceId)
           actionNotification.success("Sources list successfully updated")
         } catch (error) {
-          handleError(error, "Unable to delete source at this moment, please try later.")
+          handleError(error, "Unable to delete source")
         }
       },
     })
