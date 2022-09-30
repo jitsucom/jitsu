@@ -395,7 +395,8 @@ func Init(containerized bool, dockerHubID string) error {
 	}
 
 	appConfig.AuthorizationService = authService
-	appConfig.UaResolver = useragent.NewResolver()
+	extraBotKeywords := viper.GetStringSlice("server.ua.bot_keywords")
+	appConfig.UaResolver = useragent.NewResolver(extraBotKeywords)
 	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
 	appConfig.GlobalUniqueIDField = identifiers.NewUniqueID(uniqueIDField)
 
