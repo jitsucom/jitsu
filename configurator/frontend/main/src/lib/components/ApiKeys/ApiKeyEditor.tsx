@@ -19,6 +19,7 @@ import { EntityNotFound } from "ui/components/EntityNotFound/EntityNotFound"
 import { apiKeysReferenceMap } from "@jitsu/catalog"
 import { PageHeader } from "../../../ui/components/PageHeader/PageHeader"
 import { currentPageHeaderStore } from "../../../stores/currentPageHeader"
+import { handleError } from "../components"
 
 const SecretKey: React.FC<{
   formFieldName: string
@@ -206,6 +207,8 @@ const ApiKeyEditorComponent: React.FC = props => {
                         try {
                           await flowResult(apiKeysStore.delete(id))
                           await history.push(projectRoute(apiKeysRoutes.listExact))
+                        } catch (e) {
+                          handleError(e, "Delete failed")
                         } finally {
                           setDeleting(false)
                         }
@@ -249,6 +252,8 @@ const ApiKeyEditorComponent: React.FC = props => {
                     }
                     await connectionsHelper.updateDestinationsConnectionsToApiKey(savedKey.uid, connectedDestinations)
                     history.push(projectRoute(apiKeysRoutes.listExact))
+                  } catch (e) {
+                    handleError(e, "Saving failed")
                   } finally {
                     setSaving(false)
                   }

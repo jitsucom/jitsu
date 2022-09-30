@@ -36,7 +36,7 @@ export function DestinationCard({ dst }: DestinationCardProps) {
           await flowResult(destinationsStore.delete(dst._uid))
           await connectionsHelper.unconnectDeletedDestination(dst._uid)
         } catch (errors) {
-          handleError(errors, "Unable to delete destination at this moment, please try later.")
+          handleError(errors, "Unable to delete destination")
         }
       },
     })

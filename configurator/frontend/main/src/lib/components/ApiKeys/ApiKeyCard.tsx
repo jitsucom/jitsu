@@ -38,7 +38,7 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
         try {
           await flowResult(apiKeysStore.delete(key.uid))
         } catch (error) {
-          handleError(error, "Unable to delete API key at this moment, please try later.")
+          handleError(error, "Unable to delete API key")
         } finally {
           setLoading(false)
         }
