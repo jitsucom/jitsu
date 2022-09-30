@@ -160,7 +160,6 @@ func (u *PeriodicUploader) Start() {
 
 					if !skippedEvents.IsEmpty() {
 						metrics.SkipTokenEvents(tokenID, storage.Type(), storage.ID(), len(skippedEvents.Events))
-						metrics.SkipDestinationEvents(storage.Type(), len(skippedEvents.Events))
 						counters.SkipPushDestinationEvents(storage.ID(), int64(len(skippedEvents.Events)))
 					}
 
@@ -176,7 +175,6 @@ func (u *PeriodicUploader) Start() {
 
 						errRowsCount := len(objects)
 						metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), errRowsCount)
-						metrics.ErrorDestinationEvents(storage.Type(), errRowsCount)
 						counters.ErrorPushDestinationEvents(storage.ID(), int64(errRowsCount))
 
 						telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), eventsSrc)

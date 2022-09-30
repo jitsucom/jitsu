@@ -64,25 +64,15 @@ func initDestinations() {
 		Subsystem: "destinations",
 		Name:      "events_error",
 	}, destinationsLabels)
-	skippedDestinationEvents = NewCounterVec(prometheus.CounterOpts{
-		Namespace: "eventnative",
-		Subsystem: "destinations",
-		Name:      "atempts_skipped",
-	}, destinationsLabels)
-	errorDestinationEvents = NewCounterVec(prometheus.CounterOpts{
-		Namespace: "eventnative",
-		Subsystem: "destinations",
-		Name:      "atempts_error",
-	}, destinationsLabels)
 	successDestinationPerTable = NewCounterVec(prometheus.CounterOpts{
 		Namespace: "eventnative",
 		Subsystem: "destinations",
-		Name:      "push_events_success",
+		Name:      "uploader_success",
 	}, destinationsPerTable)
 	errorDestinationPerTable = NewCounterVec(prometheus.CounterOpts{
 		Namespace: "eventnative",
 		Subsystem: "destinations",
-		Name:      "push_events_error",
+		Name:      "uploader_error",
 	}, destinationsPerTable)
 }
 
@@ -159,26 +149,16 @@ func ErrorDestinations(destinationType string, value int) {
 	}
 }
 
-func ErrorDestinationEvents(storageType string, value int) {
+func ErrorPushDestinationEvents(destinationName, destinationType string, tableName string, value int) {
 	if Enabled() {
-		errorDestinationEvents.WithLabelValues(storageType).Add(float64(value))
+		projectID, destinationID := extractLabels(destinationName)
+		errorDestinationPerTable.WithLabelValues(destinationName, destinationType, tableName).Add(float64(value))
 	}
 }
 
-func SkipDestinationEvents(storageType string, value int) {
+func SuccessPushDestinationEvents(destinationName, destinationType string, tableName string, value int) {
 	if Enabled() {
-		skippedDestinationEvents.WithLabelValues(storageType).Add(float64(value))
-	}
-}
-
-func ErrorPushDestinationEvents(storageType string, tableName string, value int) {
-	if Enabled() {
-		errorDestinationPerTable.WithLabelValues(storageType, tableName).Add(float64(value))
-	}
-}
-
-func SuccessPushDestinationEvents(storageType string, tableName string, value int) {
-	if Enabled() {
-		successDestinationPerTable.WithLabelValues(storageType, tableName).Add(float64(value))
+		projectID, destinationID := extractLabels(destinationName)
+		successDestinationPerTable.WithLabelValues(destinationName, destinationType, tableName).Add(float64(value))
 	}
 }
