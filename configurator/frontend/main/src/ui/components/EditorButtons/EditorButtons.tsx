@@ -8,6 +8,9 @@ import { PopoverErrorsContent } from "ui/components/Popover/PopoverErrorsContent
 import { ApiOutlined, AreaChartOutlined } from "@ant-design/icons"
 // @Types
 import { Tab } from "ui/components/Tabs/TabsConfigurator"
+import useProject from "../../../hooks/useProject"
+import { allPermissions } from "../../../lib/services/permissions"
+import { ProjectPermission } from "../../../generated/conf-openapi"
 
 interface ButtonProps {
   isPopoverVisible: boolean
@@ -26,9 +29,11 @@ export interface Props {
 }
 
 const EditorButtons = ({ test, save, handleCancel }: Props) => {
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
   return (
     <>
-      <Tooltip title={typeof save.disabled === "string" ? save.disabled : undefined}>
+      {!disableEdit && <Tooltip title={typeof save.disabled === "string" ? save.disabled : undefined}>
         <Popover
           content={<PopoverErrorsContent tabsList={save.tabsList} />}
           title={<PopoverTitle title={save.titleText} handleClose={save.handlePopoverClose} />}
@@ -47,9 +52,9 @@ const EditorButtons = ({ test, save, handleCancel }: Props) => {
             Save
           </Button>
         </Popover>
-      </Tooltip>
+      </Tooltip>}
 
-      <Tooltip title={typeof save.disabled === "string" ? test.disabled : undefined}>
+      {!disableEdit && <Tooltip title={typeof save.disabled === "string" ? test.disabled : undefined}>
         <Popover
           content={<PopoverErrorsContent tabsList={test.tabsList} />}
           title={<PopoverTitle title={test.titleText} handleClose={test.handlePopoverClose} />}
@@ -68,11 +73,11 @@ const EditorButtons = ({ test, save, handleCancel }: Props) => {
             Test connection
           </Button>
         </Popover>
-      </Tooltip>
+      </Tooltip>}
 
       {handleCancel && (
         <Button type="default" size="large" onClick={handleCancel} danger>
-          Cancel
+          {disableEdit ? 'Close' : 'Cancel'}
         </Button>
       )}
     </>

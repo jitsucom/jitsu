@@ -22,6 +22,7 @@ type FormFields = {
 
 type Props = {
   editorMode: "add" | "edit"
+  disabled?: boolean
   initialValues: Optional<Partial<SourceData>>
   patchConfig: PatchConfig
   setValidator: ReactSetState<(validator: ValidateGetErrorsCount) => void>
@@ -33,6 +34,7 @@ const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 
 const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
   editorMode,
+  disabled,
   initialValues,
   patchConfig,
   setValidator,
@@ -91,7 +93,7 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
   }, [])
 
   return (
-    <AntdForm name="source-config" form={form} autoComplete="off" onValuesChange={handleFormValuesChange}>
+    <AntdForm disabled={disabled} name="source-config" form={form} autoComplete="off" onValuesChange={handleFormValuesChange}>
       <Row key="sourceId">
         <Col span={24}>
           <AntdForm.Item

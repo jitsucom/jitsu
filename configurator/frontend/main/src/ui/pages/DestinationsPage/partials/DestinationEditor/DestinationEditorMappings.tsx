@@ -13,6 +13,9 @@ import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined"
 // @Styles
 import styles from "./DestinationEditor.module.less"
 import { DestinationEditorMappingsLibrary } from "./DestinationEditorMappingsLibrary"
+import useProject from "../../../../../hooks/useProject"
+import { allPermissions } from "../../../../../lib/services/permissions"
+import { ProjectPermission } from "../../../../../generated/conf-openapi"
 
 export interface Props {
   form: FormInstance
@@ -29,6 +32,8 @@ export const BooleanStatus = {
 const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField, handleDataUpdate }: Props) => {
   const [actions, setActions] = useState<MappingAction[]>([])
   const [documentationVisible, setDocumentationVisible] = useState(false)
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
 
   useEffect(() => {
     setActions(initialValues?._mappings?.map((row: DestinationMappingRow) => row._action) ?? [])
@@ -114,13 +119,13 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField, h
           </a>
           .
         </p>
-        <p>
+        {!disableEdit && <p>
           Use one of{" "}
           <a onClick={() => setDocumentationVisible(true)}>
             <b>Pre-build Mapping Templates</b>
           </a>{" "}
           to configure Jitsu to implement one of the popular use-cases.
-        </p>
+        </p>}
       </TabDescription>
       <Drawer
         title={<h2>Pre-build mapping templates</h2>}
@@ -132,7 +137,7 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField, h
       >
         <DestinationEditorMappingsLibrary handleDataUpdate={handleDataUpdate} />
       </Drawer>
-      <Form form={form} name="form-mapping" onChange={handleFieldsChange}>
+      <Form form={form} disabled={disableEdit} name="form-mapping" onChange={handleFieldsChange}>
         <Row>
           <Col span={12}>
             <Form.Item

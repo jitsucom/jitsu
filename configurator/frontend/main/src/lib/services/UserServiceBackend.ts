@@ -86,7 +86,7 @@ export class BackendUserService implements UserService {
       }
 
       this._apiAccess = new ApiAccess(accessToken, refreshToken, this.setTokens)
-      let userDTO = await this.storageService.getUserInfo()
+      const userDTO = await this.storageService.getUserInfo()
       this.user = userFromDTO(userDTO)
     } catch (error) {
       this.clearTokens()

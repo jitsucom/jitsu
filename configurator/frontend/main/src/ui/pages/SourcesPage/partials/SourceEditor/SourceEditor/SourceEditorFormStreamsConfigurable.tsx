@@ -48,6 +48,7 @@ export interface Props {
   sourceDataFromCatalog: SourceConnector
   setSourceEditorState: SetSourceEditorState
   handleBringSourceData: () => SourceData
+  disabled?: boolean
 }
 
 const SELECTED_STREAMS_SOURCE_DATA_PATH = "collections"
@@ -57,6 +58,7 @@ const SourceEditorFormStreamsConfigurable = ({
   sourceDataFromCatalog,
   setSourceEditorState,
   handleBringSourceData,
+  disabled,
 }: Props) => {
   const [selectedCollectionTypes, setSelectedCollectionTypes] = useState(sourceDataFromCatalog.collectionTypes)
   const [addStreamVisible, setAddStreamVisible] = useState(false)
@@ -284,6 +286,7 @@ const SourceEditorFormStreamsConfigurable = ({
 
   return (
     <Form
+      disabled={disabled}
       name="source-collections"
       form={form}
       initialValues={initialSourceData}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/configurator/entities"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,21 +13,21 @@ import (
 	jmiddleware "github.com/jitsucom/jitsu/server/middleware"
 )
 
-//DEPRECATED
-//ConfigurationHandler is a handler for get/save configurations (apikeys/destinations/etc by projectID)
+// DEPRECATED
+// ConfigurationHandler is a handler for get/save configurations (apikeys/destinations/etc by projectID)
 type ConfigurationHandler struct {
 	configurationsService *storages.ConfigurationsService
 }
 
-//DEPRECATED
-//NewConfigurationsHandler returns configured ConfigurationHandler
+// DEPRECATED
+// NewConfigurationsHandler returns configured ConfigurationHandler
 func NewConfigurationsHandler(configurationsService *storages.ConfigurationsService) *ConfigurationHandler {
 	return &ConfigurationHandler{configurationsService: configurationsService}
 }
 
-//DEPRECATED
-//GetConfig returns JSON with configuration entities by project ID and object type
-//id = projectID and collection = objectType
+// DEPRECATED
+// GetConfig returns JSON with configuration entities by project ID and object type
+// id = projectID and collection = objectType
 func (ch *ConfigurationHandler) GetConfig(ctx *gin.Context) {
 	if ctx.IsAborted() {
 		return
@@ -37,16 +38,16 @@ func (ch *ConfigurationHandler) GetConfig(ctx *gin.Context) {
 		mw.Unauthorized(ctx, err)
 	} else if projectID := ctx.Query("id"); projectID == "" {
 		mw.BadRequest(ctx, "Required query parameter [id] is empty", nil)
-	} else if !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else if config, err := ch.getConfig(collection, projectID); err != nil {
-		mw.BadRequest(ctx, "get config error", err)
-	} else {
-		ctx.Data(http.StatusOK, jsonContentType, config)
+	} else if authority.CheckPermission(ctx, projectID, entities.ViewConfigPermission) {
+		if config, err := ch.getConfig(collection, projectID); err != nil {
+			mw.BadRequest(ctx, "get config error", err)
+		} else {
+			ctx.Data(http.StatusOK, jsonContentType, config)
+		}
 	}
 }
 
-//DEPRECATED
+// DEPRECATED
 func (ch *ConfigurationHandler) StoreConfig(ctx *gin.Context) {
 	if ctx.IsAborted() {
 		return
@@ -57,9 +58,7 @@ func (ch *ConfigurationHandler) StoreConfig(ctx *gin.Context) {
 		mw.Unauthorized(ctx, err)
 	} else if projectID := ctx.Query("id"); projectID == "" {
 		mw.BadRequest(ctx, "Required query parameter [id] is empty", nil)
-	} else if !authority.Allow(projectID) {
-		mw.ForbiddenProject(ctx, projectID)
-	} else {
+	} else if authority.CheckPermission(ctx, projectID, entities.ModifyConfigPermission) {
 		ch.saveConfig(ctx, collection, projectID)
 	}
 }

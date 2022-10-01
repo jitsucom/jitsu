@@ -14,12 +14,18 @@ import { flowResult } from "mobx"
 import { DestinationsUtils } from "../../../utils/destinations.utils"
 import { projectRoute } from "../../../lib/components/ProjectLink/ProjectLink"
 import { connectionsHelper } from "stores/helpers"
+import useProject from "../../../hooks/useProject"
+import { allPermissions } from "../../../lib/services/permissions"
+import { ProjectPermission } from "../../../generated/conf-openapi"
 
 export type DestinationCardProps = {
   dst: DestinationData
 }
 
 export function DestinationCard({ dst }: DestinationCardProps) {
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+
   const reference = destinationsReferenceMap[dst._type]
   const rename = async (newName: string) => {
     await flowResult(destinationsStore.patch(dst._uid, { displayName: newName }))
@@ -36,7 +42,7 @@ export function DestinationCard({ dst }: DestinationCardProps) {
           await flowResult(destinationsStore.delete(dst._uid))
           await connectionsHelper.unconnectDeletedDestination(dst._uid)
         } catch (errors) {
-          handleError(errors, "Unable to delete destination at this moment, please try later.")
+          handleError(errors, "Unable to delete destination")
         }
       },
     })
@@ -45,6 +51,7 @@ export function DestinationCard({ dst }: DestinationCardProps) {
   const statLink = projectRoute(destinationPageRoutes.statisticsExact, { id: dst._id })
   return (
     <ConnectionCard
+      disabled={disableEdit}
       title={DestinationsUtils.getDisplayName(dst)}
       icon={reference?.ui.icon}
       deleteAction={deleteAction}
@@ -52,12 +59,12 @@ export function DestinationCard({ dst }: DestinationCardProps) {
       rename={rename}
       menuOverlay={
         <Menu>
-          <Menu.Item icon={<EditOutlined />}>
+          {!disableEdit && <Menu.Item icon={<EditOutlined />}>
             <NavLink to={editLink}>Edit</NavLink>
-          </Menu.Item>
-          <Menu.Item icon={<DeleteOutlined />} onClick={deleteAction}>
+          </Menu.Item>}
+          {!disableEdit && <Menu.Item icon={<DeleteOutlined />} onClick={deleteAction}>
             Delete
-          </Menu.Item>
+          </Menu.Item>}
           <Menu.Item icon={<CodeOutlined />}>
             <NavLink to={statLink}>Statistics</NavLink>
           </Menu.Item>

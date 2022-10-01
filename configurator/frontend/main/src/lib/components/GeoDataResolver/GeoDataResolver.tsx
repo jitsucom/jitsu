@@ -11,6 +11,9 @@ import { ApiOutlined, CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutli
 import { useLoaderAsObject } from "../../../hooks/useLoader"
 import { Edition, MaxMindConfig } from "./utils"
 import Marshal from "lib/commons/marshalling"
+import useProject from "../../../hooks/useProject"
+import { allPermissions } from "../../services/permissions"
+import { ProjectPermission } from "../../../generated/conf-openapi"
 
 const geoDataResolversCollection = "geo_data_resolvers"
 
@@ -25,6 +28,8 @@ function GeoDataResolver() {
   const [saving, setSaving] = useState(false)
   const [testingConnection, setTestingConnection] = useState(false)
   const [formDisabled, setFormDisabled] = useState(false)
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
 
   const [form] = useForm<GeoDataResolverFormValues>()
 
@@ -258,7 +263,7 @@ function GeoDataResolver() {
           <CodeInline>{"M10sDzWKmnDYUBM0?edition_id=GeoIP2-City,GeoIP2-ISP"}</CodeInline>.
         </p>
 
-        <Form form={form} onFinish={submit}>
+        <Form disabled={disableEdit} form={form} onFinish={submit}>
           <FormLayout>
             <FormField
               label="Enabled"

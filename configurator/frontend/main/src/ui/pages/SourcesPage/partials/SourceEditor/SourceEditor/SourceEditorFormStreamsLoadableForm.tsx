@@ -18,6 +18,7 @@ import { getStreamFieldPaths } from "ui/pages/SourcesPage/utils/airbyte"
 
 type Props = {
   allStreams: StreamData[]
+  disabled?: boolean
   initiallySelectedStreams: Array<StreamConfig> | null
   selectAllFieldsByDefault?: boolean
   hide?: boolean
@@ -31,6 +32,7 @@ const SourceEditorFormStreamsLoadableForm = ({
   initiallySelectedStreams,
   selectAllFieldsByDefault,
   hide,
+  disabled,
   setSourceEditorState,
 }: Props) => {
   const disableAllAnimations: boolean = allStreams.length > 30
@@ -104,6 +106,7 @@ const SourceEditorFormStreamsLoadableForm = ({
         >
           <label>{"Toggle all"}</label>
           <Switch
+            disabled={disabled}
             defaultChecked={true}
             className={`ml-2 ${disableToggelAllAnimations ? styles.disableAnimations : ""}`}
             onChange={handleToggleAllStreams}
@@ -113,6 +116,7 @@ const SourceEditorFormStreamsLoadableForm = ({
       <div className="flex-auto overflow-y-auto pb-2">
         {streamsToDisplay?.length ? (
           <StreamsCollapsibleList
+            disabled={!!disabled}
             streamsToDisplay={streamsToDisplay}
             initiallySelectedStreams={initiallySelectedStreams}
             isAllStreamsChecked={allChecked}
@@ -134,6 +138,7 @@ export { SourceEditorFormStreamsLoadableForm }
 
 type StreamsCollapsibleListProps = {
   streamsToDisplay: StreamData[]
+  disabled?: boolean
   initiallySelectedStreams: StreamConfig[]
   isAllStreamsChecked?: boolean
   setSourceEditorState: SetSourceEditorState
@@ -141,7 +146,14 @@ type StreamsCollapsibleListProps = {
 }
 
 const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo(
-  ({ streamsToDisplay, initiallySelectedStreams, isAllStreamsChecked, handleToggleStream, setSourceEditorState }) => {
+  ({
+    streamsToDisplay,
+    initiallySelectedStreams,
+    isAllStreamsChecked,
+    handleToggleStream,
+    setSourceEditorState,
+    disabled,
+  }) => {
     return (
       <Collapse
         expandIconPosition="left"
@@ -160,6 +172,7 @@ const StreamsCollapsibleList: React.FC<StreamsCollapsibleListProps> = React.memo
             const streamUid = sourceEditorUtils.getStreamUid(streamData)
             return (
               <StreamPanel
+                disabled={!!disabled}
                 key={streamUid}
                 streamData={streamData}
                 streamUid={streamUid}
