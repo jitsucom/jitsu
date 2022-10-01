@@ -1,6 +1,8 @@
 # Directories Structure
 
-**Jitsu** keeps all data in a configurable directory `./events`. Here's the layout of sub-directories. File naming convention. Files usually named as `${file_type}.${var1}=${val1}|${var2}=${val2}.${extention}`. The structure is very similar to the URL query string, but instead of \`?\` parameters are delimited by \`\|\` and \`.\` is used instead of \`?\` \(dots can't be a part of `${file_type}`\)
+**Jitsu** keeps all events data in a single directory.
+Directory is configurable via `log.path` in `eventnative.yaml`. Default value is: `./logs/events` or `/home/eventnative/data/logs/events` for docker images.
+Here's the layout of sub-directories. File naming convention. Files usually named as `${file_type}.${var1}=${val1}|${var2}=${val2}.${extention}`. The structure is very similar to the URL query string, but instead of \`?\` parameters are delimited by \`\|\` and \`.\` is used instead of \`?\` \(dots can't be a part of `${file_type}`\)
 
 <table>
   <thead>
