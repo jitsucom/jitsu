@@ -43,6 +43,7 @@ import { currentPageHeaderStore } from "stores/currentPageHeader"
 import { connectionsHelper } from "stores/helpers"
 import { EntityNotFound } from "ui/components/EntityNotFound/EntityNotFound"
 import { DestinationsUtils } from "../../../../../utils/destinations.utils"
+import { handleError } from "../../../../../lib/components/components"
 
 type DestinationTabKey = "config" | "transform" | "mappings" | "sources" | "settings" | "statistics"
 
@@ -380,7 +381,9 @@ const DestinationEditor = ({
           }
 
           onAfterSaveSucceded ? onAfterSaveSucceded() : history.push(projectRoute(destinationPageRoutes.root))
-        } catch (errors) {}
+        } catch (errors) {
+          handleError(errors, "Saving failed")
+        }
       })
       .catch(() => {
         switchSavePopover(true)

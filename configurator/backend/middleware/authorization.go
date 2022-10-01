@@ -1,14 +1,15 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
-
+	"encoding/json"
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/jitsu/configurator/common"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/openapi"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/pkg/errors"
+	"io/ioutil"
 )
 
 var (
@@ -24,16 +25,42 @@ type Authorization struct {
 	User    openapi.UserBasicInfo
 	IsAdmin bool
 }
+type ProjectIDBody struct {
+	ProjectID string `json:"project_id"`
+}
 
 type Authority struct {
-	Token      string
-	IsAdmin    bool
-	ProjectIDs common.StringSet
-	user       *openapi.UserBasicInfo
+	Token    string
+	IsAdmin  bool
+	Projects map[string]*entities.ProjectPermissions
+	user     *openapi.UserBasicInfo
 }
 
 func (a *Authority) Allow(projectID string) bool {
-	return a.IsAdmin || a.ProjectIDs[projectID]
+	if a.IsAdmin {
+		return true
+	}
+	_, ok := a.Projects[projectID]
+	return ok
+}
+
+// CheckPermission checks if user has provided permission to access project. Enrich response with corresponding error if don't.
+func (a *Authority) CheckPermission(ctx *gin.Context, projectID string, permission openapi.ProjectPermission) bool {
+	if a.IsAdmin {
+		return true
+	}
+	permissions, ok := a.Projects[projectID]
+	if !ok {
+		ForbiddenProject(ctx, projectID)
+		return false
+	}
+	for _, p := range *permissions.Permissions {
+		if p == permission {
+			return true
+		}
+	}
+	NoPermission(ctx, projectID, permission)
+	return false
 }
 
 func (a *Authority) User() (*openapi.UserBasicInfo, error) {
@@ -52,6 +79,7 @@ type Authorizator interface {
 type Configurations interface {
 	UpdateUserInfo(ctx context.Context, id string, patch interface{}) (*entities.UserInfo, error)
 	GetUserProjects(userID string) ([]string, error)
+	GetProjectPermissions(userId, projectId string) (*entities.ProjectPermissions, error)
 }
 
 type AuthorizationInterceptor struct {
@@ -109,19 +137,25 @@ func (i *AuthorizationInterceptor) Intercept(ctx *gin.Context) {
 		}
 	}
 
-	authority.ProjectIDs = make(common.StringSet)
+	authority.Projects = make(map[string]*entities.ProjectPermissions)
 
 	if managementScope {
 		if user := authority.user; user != nil {
 			if projectIDs, err := i.Configurations.GetUserProjects(user.Id); err != nil {
 				logging.Warnf("failed to get projects for user %s: %s", user.Id, err)
 			} else {
-				authority.ProjectIDs.AddAll(projectIDs...)
+				for _, projectID := range projectIDs {
+					if permissions, err := i.Configurations.GetProjectPermissions(user.Id, projectID); err != nil {
+						logging.Errorf("failed to get permissions for user %s and project %s: %s", user.Id, projectID, err)
+					} else {
+						authority.Projects[projectID] = permissions
+					}
+				}
 			}
 		}
 
 		if i.IsSelfHosted {
-			authority.ProjectIDs.Add(entities.TelemetryGlobalID)
+			authority.Projects[entities.TelemetryGlobalID] = &entities.DefaultProjectPermissions
 		}
 	}
 
@@ -148,4 +182,24 @@ func GetAuthority(ctx context.Context) (*Authority, error) {
 
 type UserInfoEmailUpdate struct {
 	Email string `json:"_email"`
+}
+
+func ExtractProjectID(c *gin.Context) string {
+	projectId := c.Query("project_id")
+	if projectId != "" {
+		return projectId
+	}
+
+	//read project_id from body
+	contents, _ := ioutil.ReadAll(c.Request.Body)
+	reqModel := &ProjectIDBody{}
+	err := json.Unmarshal(contents, reqModel)
+	if err != nil {
+		logging.Errorf("Error reading project_id from unmarshalled request body: %v", err)
+		return ""
+	}
+
+	c.Request.Body = ioutil.NopCloser(bytes.NewReader(contents))
+
+	return reqModel.ProjectID
 }

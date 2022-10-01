@@ -248,7 +248,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
         </div>
       ) : (
         <div>
-          <SourceEditorOauthButtons
+          {!disabled && <SourceEditorOauthButtons
             key="oauth"
             sourceDataFromCatalog={sourceDataFromCatalog}
             disabled={disabled}
@@ -256,9 +256,10 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
             onIsOauthSupportedCheckSuccess={handleOauthSupportedStatusChange}
             onFillAuthDataManuallyChange={handleFillAuthDataManuallyChange}
             setOauthSecretsToForms={setOauthSecretsToForms}
-          />
+          />}
           <div key={resetKey}>
             <SourceEditorFormConfigurationStaticFields
+              disabled={!!disabled}
               editorMode={editorMode}
               initialValues={initialSourceData}
               patchConfig={patchConfig}
@@ -267,6 +268,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
             />
             {sourceConfigurationSchema.configurableFields && (
               <SourceEditorFormConfigurationConfigurableFields
+                disabled={!!disabled}
                 initialValues={initialSourceData}
                 configParameters={sourceConfigurationSchema.configurableFields}
                 availableOauthBackendSecrets={availableBackendSecrets}
@@ -278,6 +280,7 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
             )}
             {sourceConfigurationSchema.loadableFields && (
               <SourceEditorFormConfigurationConfigurableLoadableFields
+                disabled={!!disabled}
                 initialValues={initialSourceData}
                 sourceDataFromCatalog={sourceDataFromCatalog}
                 availableOauthBackendSecrets={availableBackendSecrets}
