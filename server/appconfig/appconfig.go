@@ -107,6 +107,8 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("log.pool.size", 10)
 	viper.SetDefault("log.rotation_min", 5)
 
+	viper.SetDefault("batch_uploader.threads_count", 1)
+
 	viper.SetDefault("sql_debug_log.ddl.enabled", true)
 	viper.SetDefault("sql_debug_log.ddl.rotation_min", "1440")
 	viper.SetDefault("sql_debug_log.ddl.max_backups", "365") //1 year = 1440 min * 365
