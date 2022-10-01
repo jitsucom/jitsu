@@ -43,10 +43,12 @@ import { actionNotification } from "ui/components/ActionNotification/ActionNotif
 import { useClickOutsideRef } from "hooks/useClickOutsideRef"
 import { Breadcrumbs } from "./ui/components/Breadcrumbs/Breadcrumbs"
 import ProjectLink, { projectRoute, stripProjectFromRoute } from "./lib/components/ProjectLink/ProjectLink"
-import { User } from "./generated/conf-openapi"
+import { ProjectPermission, User } from "./generated/conf-openapi"
 import { showProjectSwitchModal } from "./lib/components/ProjectSwitch/ProjectSwitch"
 import { BillingPlanOptionsModal } from "lib/components/BillingPlanOptions/BillingPlanOptions"
 import EditOutlined from "@ant-design/icons/lib/icons/EditOutlined"
+import useProject from "./hooks/useProject"
+import { allPermissions } from "./lib/services/permissions"
 
 type MenuItem = {
   icon: React.ReactNode
@@ -66,20 +68,6 @@ const makeItem = (
   return { icon, title, link, color, enabled }
 }
 
-const menuItems = [
-  makeItem(<HomeFilled />, "Home", "/connections", "#77c593"),
-  makeItem(<ThunderboltFilled />, "Live Events", "/events-stream", "#fccd04"),
-  makeItem(<AreaChartOutlined />, "Statistics", "/dashboard", "#88bdbc"),
-  makeItem(<Icon component={KeyIcon} />, "API Keys", "/api-keys", "#d79922"),
-  makeItem(<ApiFilled />, "Sources", "/sources", "#d83f87"),
-  makeItem(<NotificationFilled />, "Destinations", "/destinations", "#4056a1"),
-  makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud", "#e76e52"),
-  makeItem(<SettingOutlined />, "Project settings", "/project-settings", "#0d6050"),
-  makeItem(<Icon component={GlobeIcon} />, "Geo data resolver", "/geo-data-resolver", "#41b3a3"),
-  makeItem(<CloudFilled />, "Custom Domains", "/domains", "#5ab9ea", f => f.enableCustomDomains),
-  makeItem(<Icon component={DownloadIcon} />, "Download Config", "/cfg-download", "#14a76c"),
-]
-
 function usePageLocation(): string {
   const location = stripProjectFromRoute(useLocation().pathname)
   const canonicalPath = location === "/" || location === "" ? "/connections" : location
@@ -88,7 +76,25 @@ function usePageLocation(): string {
 
 export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) => {
   const services = useServices()
+  const project = useProject()
+  const permissions: ProjectPermission[] = project.permissions || allPermissions;
   const key = usePageLocation()
+  const menuItems = [
+    makeItem(<HomeFilled />, "Home", "/connections", "#77c593"),
+    makeItem(<ThunderboltFilled />, "Live Events", "/events-stream", "#fccd04"),
+    makeItem(<AreaChartOutlined />, "Statistics", "/dashboard", "#88bdbc"),
+    makeItem(<Icon component={KeyIcon} />, "API Keys", "/api-keys", "#d79922"),
+    makeItem(<ApiFilled />, "Sources", "/sources", "#d83f87"),
+    makeItem(<NotificationFilled />, "Destinations", "/destinations", "#4056a1"),
+    makeItem(<Icon component={DbtCloudIcon} />, "dbt Cloud Integration", "/dbtcloud", "#e76e52"),
+    permissions.includes(ProjectPermission.MODIFY_CONFIG) &&
+      makeItem(<SettingOutlined />, "Project settings", "/project-settings", "#0d6050"),
+    makeItem(<Icon component={GlobeIcon} />, "Geo data resolver", "/geo-data-resolver", "#41b3a3"),
+    permissions.includes(ProjectPermission.MODIFY_CONFIG) &&
+      makeItem(<CloudFilled />, "Custom Domains", "/domains", "#5ab9ea", f => f.enableCustomDomains),
+    permissions.includes(ProjectPermission.MODIFY_CONFIG) &&
+      makeItem(<Icon component={DownloadIcon} />, "Download Config", "/cfg-download", "#14a76c"),
+  ]
   const Wrapper = React.useMemo<React.FC<{ title?: string | React.ReactNode }>>(
     () =>
       expanded
@@ -103,28 +109,30 @@ export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) =
 
   return (
     <div className={`max-h-full overflow-x-visible overflow-y-auto ${styles.sideBarContent_applicationMenu}`}>
-      {menuItems.map(item => {
-        const selected = item.link === "/" + key
-        const enabled = item.enabled(services.features)
-        return (
-          enabled && (
-            <ProjectLink to={item.link} key={item.link}>
-              <Wrapper title={item.title}>
-                <div
-                  key={item.link}
-                  className={`flex items-center ${
-                    selected ? styles.selectedMenuItem : styles.sideBarContent_item__withRightBorder
-                  } ${styles.menuItem} whitespace-nowrap text-textPale py-3 ml-2 pl-4 pr-6 rounded-l-xl`}
-                  style={{ fill: item.color }}
-                >
-                  <i className="block">{item.icon}</i>
-                  {expanded && <span className="pl-2 whitespace-nowrap">{item.title}</span>}
-                </div>
-              </Wrapper>
-            </ProjectLink>
+      {menuItems
+        .filter(iterm => !!iterm)
+        .map(item => {
+          const selected = item.link === "/" + key
+          const enabled = item.enabled(services.features)
+          return (
+            enabled && (
+              <ProjectLink to={item.link} key={item.link}>
+                <Wrapper title={item.title}>
+                  <div
+                    key={item.link}
+                    className={`flex items-center ${
+                      selected ? styles.selectedMenuItem : styles.sideBarContent_item__withRightBorder
+                    } ${styles.menuItem} whitespace-nowrap text-textPale py-3 ml-2 pl-4 pr-6 rounded-l-xl`}
+                    style={{ fill: item.color }}
+                  >
+                    <i className="block">{item.icon}</i>
+                    {expanded && <span className="pl-2 whitespace-nowrap">{item.title}</span>}
+                  </div>
+                </Wrapper>
+              </ProjectLink>
+            )
           )
-        )
-      })}
+        })}
     </div>
   )
 }

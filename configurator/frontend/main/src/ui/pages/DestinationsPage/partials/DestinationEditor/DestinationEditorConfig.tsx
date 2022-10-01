@@ -7,6 +7,9 @@ import { ConfigurableFieldsForm } from "ui/components/ConfigurableFieldsForm/Con
 // @Types
 import { Destination } from "@jitsu/catalog"
 import { FormInstance } from "antd/lib/form/hooks/useForm"
+import useProject from "../../../../../hooks/useProject"
+import { allPermissions } from "../../../../../lib/services/permissions"
+import { ProjectPermission } from "../../../../../generated/conf-openapi"
 
 export interface Props {
   destinationData: DestinationData
@@ -17,10 +20,11 @@ export interface Props {
 
 const DestinationEditorConfig = ({ destinationData, destinationReference, form, handleTouchAnyField }: Props) => {
   const handleChange = debounce(handleTouchAnyField, 500)
-
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
   return (
     <>
-      <Form name="destination-config" form={form} autoComplete="off" onChange={handleChange}>
+      <Form disabled={disableEdit} name="destination-config" form={form} autoComplete="off" onChange={handleChange}>
         <ConfigurableFieldsForm
           handleTouchAnyField={handleTouchAnyField}
           fieldsParamsList={destinationReference.parameters}

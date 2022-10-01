@@ -9,6 +9,7 @@ import { SetSourceEditorState } from "./SourceEditor"
 
 type Props = {
   editorMode: "add" | "edit"
+  disabled?: boolean
   initialSourceData: Optional<Partial<SourceData>>
   sourceDataFromCatalog: SourceConnector
   setSourceEditorState: SetSourceEditorState
@@ -17,6 +18,7 @@ type Props = {
 
 export const SourceEditorFormStreams: React.FC<Props> = ({
   editorMode,
+  disabled,
   initialSourceData,
   sourceDataFromCatalog,
   setSourceEditorState,
@@ -28,6 +30,7 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
     sourceDataFromCatalog.protoType == "native"
   return typedStreams ? (
     <SourceEditorFormStreamsConfigurable
+      disabled={!!disabled}
       initialSourceData={initialSourceData as NativeSourceData | SDKSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}
       setSourceEditorState={setSourceEditorState}
@@ -35,6 +38,7 @@ export const SourceEditorFormStreams: React.FC<Props> = ({
     />
   ) : (
     <SourceEditorFormStreamsLoadable
+      disabled={!!disabled}
       editorMode={editorMode}
       initialSourceData={initialSourceData as AirbyteSourceData | SingerSourceData}
       sourceDataFromCatalog={sourceDataFromCatalog}

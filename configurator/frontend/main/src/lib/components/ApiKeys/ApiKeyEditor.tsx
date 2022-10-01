@@ -20,14 +20,19 @@ import { apiKeysReferenceMap } from "@jitsu/catalog"
 import { PageHeader } from "../../../ui/components/PageHeader/PageHeader"
 import { currentPageHeaderStore } from "../../../stores/currentPageHeader"
 import { handleError } from "../components"
+import useProject from "../../../hooks/useProject"
+import { allPermissions } from "../../services/permissions"
+import { ProjectPermission } from "../../../generated/conf-openapi"
 
 const SecretKey: React.FC<{
+  disabled?: boolean
   formFieldName: string
   formFieldLabel: string
   children: ReactNode
   onGenerate: () => void
 }> = ({
   //children is tooltip
+  disabled,
   children,
   onGenerate,
   formFieldName,
@@ -38,6 +43,7 @@ const SecretKey: React.FC<{
       <div className="flex flex-nowrap space-x-1 items-center">
         <Form.Item name={formFieldName} className="w-full" rules={[{ required: true }]}>
           <Input
+            disabled={!!disabled}
             required={true}
             size="large"
             suffix={<Button type="text" icon={<ReloadOutlined />} onClick={onGenerate} />}
@@ -102,6 +108,8 @@ const ApiKeyEditorComponent: React.FC = props => {
   if (!initialApiKey) {
     return <EntityNotFound entityDisplayType="API Key" entityId={id} entitiesListRoute={apiKeysRoutes.listExact} />
   }
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
 
   const history = useHistory()
   const [deleting, setDeleting] = useState(false)
@@ -111,7 +119,7 @@ const ApiKeyEditorComponent: React.FC = props => {
   form.setFieldsValue(editorObject)
   return (
     <div className="flex justify-center w-full">
-      {form.isFieldsTouched() && !saving && !deleting && <Prompt message={unsavedMessage} />}
+      {!disableEdit && form.isFieldsTouched() && !saving && !deleting && <Prompt message={unsavedMessage} />}
       <div className="w-full pt-8 px-4" style={{ maxWidth: "1000px" }}>
         <Form form={form}>
           <FormLayout>
@@ -127,10 +135,11 @@ const ApiKeyEditorComponent: React.FC = props => {
             >
               <FormField label="Key Name" tooltip="Name of the key" key="comment">
                 <Form.Item name="comment">
-                  <Input size="large" name="comment" placeholder="Key Name" required={true} />
+                  <Input size="large" disabled={disableEdit} name="comment" placeholder="Key Name" required={true} />
                 </Form.Item>
               </FormField>
               <SecretKey
+                disabled={disableEdit}
                 onGenerate={() => {
                   setEditorObject({
                     ...editorObject,
@@ -144,6 +153,7 @@ const ApiKeyEditorComponent: React.FC = props => {
                 'public' since it is visible to any end-user
               </SecretKey>
               <SecretKey
+                disabled={disableEdit}
                 onGenerate={() => {
                   setEditorObject({
                     ...editorObject,
@@ -171,7 +181,7 @@ const ApiKeyEditorComponent: React.FC = props => {
                 key="js"
               >
                 <Form.Item name="originsText">
-                  <TextArea required={false} size="large" rows={10} name="originsText" />
+                  <TextArea disabled={disableEdit} required={false} size="large" rows={10} name="originsText" />
                 </Form.Item>
               </FormField>
               <FormField
@@ -185,6 +195,7 @@ const ApiKeyEditorComponent: React.FC = props => {
               >
                 <Form.Item name="connectedDestinations">
                   <DestinationPicker
+                    disabled={disableEdit}
                     allDestinations={destinationsStore.list}
                     isSelected={dst => dst._onlyKeys.includes(id)}
                   />
@@ -192,7 +203,7 @@ const ApiKeyEditorComponent: React.FC = props => {
               </FormField>
             </span>
             <FormActions>
-              {id && (
+              {(id && !disableEdit) && (
                 <Button
                   loading={deleting}
                   htmlType="submit"
@@ -224,7 +235,7 @@ const ApiKeyEditorComponent: React.FC = props => {
                 size="large"
                 type="default"
                 onClick={() => {
-                  if (form.isFieldsTouched()) {
+                  if (!disableEdit && form.isFieldsTouched()) {
                     if (confirm(unsavedMessage)) {
                       history.push(projectRoute(apiKeysRoutes.listExact))
                     }
@@ -233,9 +244,9 @@ const ApiKeyEditorComponent: React.FC = props => {
                   }
                 }}
               >
-                Cancel
+                {disableEdit ? 'Close' : 'Cancel'}
               </Button>
-              <Button
+              {!disableEdit && <Button
                 loading={saving}
                 htmlType="submit"
                 size="large"
@@ -260,7 +271,7 @@ const ApiKeyEditorComponent: React.FC = props => {
                 }}
               >
                 Save
-              </Button>
+              </Button>}
             </FormActions>
           </FormLayout>
         </Form>

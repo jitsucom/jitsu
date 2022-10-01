@@ -16,10 +16,15 @@ import { useServices } from "../../../../../hooks/useServices"
 import { DestinationCard } from "../../../../components/DestinationCard/DestinationCard"
 import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
 import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
+import useProject from "../../../../../hooks/useProject"
+import { allPermissions } from "../../../../../lib/services/permissions"
+import { ProjectPermission } from "../../../../../generated/conf-openapi"
 
 const DestinationsListComponent = () => {
   const history = useHistory()
   const subscription = useServices().currentSubscription
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
 
   const handleAddClick = useCallback(() => {
     history.push(projectRoute(destinationPageRoutes.add))
@@ -36,7 +41,7 @@ const DestinationsListComponent = () => {
   return (
     <>
       <div className="mb-5">
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddClick}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddClick} disabled={disableEdit}>
           Add destination
         </Button>
       </div>

@@ -1,6 +1,5 @@
 import { ApiAccess } from "./model"
 import { SignupRequest, User } from "../../generated/conf-openapi"
-import { PermissionType } from "./permissions"
 
 /**
  * User Service

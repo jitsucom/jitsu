@@ -3,7 +3,7 @@
  */
 import {
   LinkProjectRequest,
-  Project,
+  Project, ProjectPermission,
   ProjectUserPermissions,
   ProjectWithPermissions,
   UserBasicInfo,
@@ -15,7 +15,6 @@ import { withQueryParams } from "utils/queryParams"
 import { concatenateURLs } from "lib/commons/utils"
 import { getFullUiPath } from "lib/commons/pathHelper"
 import { errorIncludes } from "utils/errorIncludes"
-import { PermissionType } from "./permissions"
 
 export interface ProjectService {
   /**
@@ -37,7 +36,7 @@ export interface ProjectService {
   /**
    * Patches the project with provided data. Project ID field is required.
    */
-  updatePermissions(projectId: string, userId: string, permissions: PermissionType[]): Promise<void>
+  updatePermissions(projectId: string, userId: string, permissions: ProjectPermission[]): Promise<void>
 
   /**
    * Get user
@@ -65,8 +64,8 @@ export interface ProjectService {
 
 export function createProjectService(backend: BackendApiClient): ProjectService {
   return {
-    async updatePermissions(projectId: string, userId: string, permissions: PermissionType[]): Promise<void> {
-      await backend.post<unknown>(`/project/${projectId}/permissions/${userId}`, { permissions }, { version: 2 })
+    async updatePermissions(projectId: string, userId: string, permissions: ProjectPermission[]): Promise<void> {
+      await backend.post<unknown>(`/project/${projectId}/permissions/${userId}`, { permissions: permissions.map(p => ProjectPermission[p]) }, { version: 2 })
     },
 
     async getProjectUsers(projectId: string): Promise<ProjectUserPermissions[]> {

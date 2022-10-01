@@ -14,6 +14,9 @@ import { actionNotification } from "ui/components/ActionNotification/ActionNotif
 import { APIKeyUtil } from "../../../utils/apiKeys.utils"
 import { handleError } from "../components"
 import { apiKeysRoutes } from "./ApiKeysRouter"
+import useProject from "../../../hooks/useProject"
+import { allPermissions } from "../../services/permissions"
+import { ProjectPermission } from "../../../generated/conf-openapi"
 
 type ApiKeyCardProps = {
   apiKey: ApiKey
@@ -29,6 +32,8 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
     actionNotification.info("New key has been generated and saved")
     return newKey
   }
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   let deleteAction = async () => {
     confirmDelete({
@@ -52,23 +57,26 @@ export function ApiKeyCard({ apiKey: key, showDocumentation }: ApiKeyCardProps) 
   const statLink = generatePath(apiKeysRoutes.statisticsExact, { projectId: services.activeProject.id, id: key.uid })
   return (
     <ConnectionCard
+      disabled={disableEdit}
       loading={loading}
       title={APIKeyUtil.getDisplayName(key)}
       icon={apiKeysReferenceMap.js.icon}
       deleteAction={deleteAction}
       editAction={editLink}
       menuOverlay={
-        <Menu>
-          <Menu.Item icon={<EditOutlined />}>
-            <NavLink to={editLink}>Edit</NavLink>
-          </Menu.Item>
-          <Menu.Item icon={<DeleteOutlined />} onClick={deleteAction}>
-            Delete
-          </Menu.Item>
-          <Menu.Item icon={<CodeOutlined />}>
-            <NavLink to={statLink}>Statistics</NavLink>
-          </Menu.Item>
-        </Menu>
+        !disableEdit && (
+          <Menu>
+            <Menu.Item icon={<EditOutlined />}>
+              <NavLink to={editLink}>Edit</NavLink>
+            </Menu.Item>
+            <Menu.Item icon={<DeleteOutlined />} onClick={deleteAction}>
+              Delete
+            </Menu.Item>
+            <Menu.Item icon={<CodeOutlined />}>
+              <NavLink to={statLink}>Statistics</NavLink>
+            </Menu.Item>
+          </Menu>
+        )
       }
       rename={async newName => {
         await flowResult(apiKeysStore.patch(key.uid, { comment: newName }))
