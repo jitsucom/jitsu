@@ -3,18 +3,18 @@ import { loadProjectSettings, ProjectSettings, saveProjectSettings } from "../..
 import { CenteredError, CenteredSpin, handleError } from "../../../lib/components/components"
 import { actionNotification } from "../../components/ActionNotification/ActionNotification"
 import { FormActions, FormField, FormLayout } from "../../../lib/components/Form/Form"
-import { Button, Checkbox, Form, Input, Modal, Tooltip } from "antd"
+import { Button, Checkbox, Form, Input, Modal } from "antd"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
 import useForm from "antd/lib/form/hooks/useForm"
-import { flatten, reloadPage, sleep, unflatten } from "lib/commons/utils"
+import { flatten, reloadPage, unflatten } from "lib/commons/utils"
 import { useServices } from "../../../hooks/useServices"
 import useProject from "../../../hooks/useProject"
 import { ErrorCard } from "../../../lib/components/ErrorCard/ErrorCard"
 import { BilledButton } from "lib/components/BilledButton/BilledButton"
-import { ProjectUserPermissions } from "../../../generated/conf-openapi"
-import { allPermissions, PermissionType } from "../../../lib/services/permissions"
+import { ProjectPermission, ProjectUserPermissions } from "../../../generated/conf-openapi"
+import { allPermissions, withPermissionRequirement } from "../../../lib/services/permissions"
 
-export default function ProjectSettingsPage() {
+function ProjectSettingsPage() {
   return (
     <div>
       <SettingsPanel title={"Project Name"}>
@@ -41,6 +41,8 @@ export default function ProjectSettingsPage() {
     </div>
   )
 }
+
+export
 
 const ProjectName: React.FC<{}> = () => {
   let services = useServices()
@@ -123,11 +125,12 @@ const UserSettings: React.FC<{
 }> = ({ user, unlinkUser }) => {
   const services = useServices()
   const [showPermissions, setShowPermissions] = useState(false)
-
+  const project = useProject()
+  const disableEdit = (project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
   const canEditPermissions =
     services.userService.getUser().id === user.id
       ? "You can't edit your own permissions"
-      : !services.currentProjectPermissions.has("modify_config")
+      : disableEdit
       ? " You don't have enough permissions to edit other users"
       : null
   return (
@@ -159,11 +162,11 @@ const UserSettings: React.FC<{
 }
 
 const PermissionsEditor: React.FC<{
-  permissions: PermissionType[]
+  permissions: ProjectPermission[]
   user: { id: string; email: string }
   blockedReason: string | null
 }> = ({ permissions, user, blockedReason }) => {
-  const [grantedPermissions, setGrantedPermissions] = useState<Set<PermissionType>>(new Set(permissions))
+  const [grantedPermissions, setGrantedPermissions] = useState<Set<ProjectPermission>>(new Set(permissions))
   const [updating, setUpdating] = useState(false)
   const services = useServices()
   const activeProject = useProject()
@@ -403,3 +406,5 @@ function SlackSettings() {
     </>
   )
 }
+
+export default withPermissionRequirement(ProjectSettingsPage, ProjectPermission.MODIFY_CONFIG)

@@ -20,6 +20,9 @@ import { DESTINATIONS_CONNECTED_SOURCES } from "embeddedDocs/destinationsConnect
 import { APIKeyUtil } from "../../../../../utils/apiKeys.utils"
 import { SourcesUtils } from "../../../../../utils/sources.utils"
 import { apiKeysStore } from "stores/apiKeys"
+import useProject from "../../../../../hooks/useProject"
+import { allPermissions } from "../../../../../lib/services/permissions"
+import { ProjectPermission } from "../../../../../generated/conf-openapi"
 
 export interface Props {
   form: FormInstance
@@ -29,6 +32,9 @@ export interface Props {
 }
 
 const DestinationEditorConnectorsComponent = ({ form, initialValues, destination, handleTouchAnyField }: Props) => {
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+
   const sources = sourcesStore.list
   const sourcesError = sourcesStore.errorMessage
 
@@ -84,7 +90,7 @@ const DestinationEditorConnectorsComponent = ({ form, initialValues, destination
 
   return (
     <>
-      <Form form={form} name="connected-sources">
+      <Form form={form} disabled={disableEdit} name="connected-sources">
         <TabDescription>{DESTINATIONS_CONNECTED_SOURCES}</TabDescription>
 
         <Collapse ghost defaultActiveKey={activeKey}>

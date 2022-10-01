@@ -23,6 +23,9 @@ import { Link } from "react-router-dom"
 import ProjectLink, { projectRoute } from "../ProjectLink/ProjectLink"
 import { apiKeysRoutes } from "./ApiKeysRouter"
 import { currentPageHeaderStore } from "../../../stores/currentPageHeader"
+import useProject from "../../../hooks/useProject"
+import { allPermissions } from "../../services/permissions"
+import { ProjectPermission } from "../../../generated/conf-openapi"
 
 /**
  * What's displayed as loading?
@@ -39,6 +42,9 @@ const ApiKeysComponent: React.FC = () => {
 
   const [loading, setLoading] = useState<LoadingState>(null)
   const [documentationDrawerKey, setDocumentationDrawerKey] = useState<ApiKey>(null)
+
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
 
   useEffect(() => {
     let breadcrumbs = []
@@ -76,7 +82,7 @@ const ApiKeysComponent: React.FC = () => {
         </div>
         <div className="flex-shrink">
           <ProjectLink to={"/api-keys/new"}>
-            <Button type="primary" size="large" icon={<PlusOutlined />} loading={"NEW" === loading}>
+            <Button type="primary" size="large" icon={<PlusOutlined />} loading={"NEW" === loading} disabled={disableEdit}>
               Generate New Key
             </Button>
           </ProjectLink>

@@ -50,6 +50,7 @@ function ActionLink({
 export type ConnectionCardProps = {
   //icon of connection
   icon: ReactNode
+  disabled: boolean
 
   deleteAction: ConnectionCardAction
   editAction: ConnectionCardAction
@@ -77,7 +78,7 @@ export function ConnectionCard(props: ConnectionCardProps) {
           </div>
           <div className="pl-4 h-12 h-full flex flex-col justify-between ">
             <ActionLink action={props.editAction}>
-              <EditableName className="text-base font-bold" name={props.title} update={props.rename} />
+              <EditableName disabled={props.disabled} className="text-base font-bold" name={props.title} update={props.rename} />
             </ActionLink>
             <div className="text-secondaryText">{props.subtitle}</div>
           </div>
@@ -91,7 +92,7 @@ export function ConnectionCard(props: ConnectionCardProps) {
       <div className="pt-6 flex items-end">
         <div className="flex-grow">{props.status}</div>
         <div className="flex justify-end flex-grow items-end space-x-2 pr-2">
-          {props.editAction && (
+          {props.editAction && !props.disabled && (
             <ActionLink action={props.editAction}>
               <EditOutlined />
             </ActionLink>

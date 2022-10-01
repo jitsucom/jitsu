@@ -13,6 +13,9 @@ import styles from "./DestinationEditor.module.less"
 import { destinationsReferenceMap } from "@jitsu/catalog"
 import { CodeSnippet } from "../../../../../lib/components/components"
 import { camelCase } from "lodash"
+import useProject from "../../../../../hooks/useProject"
+import { allPermissions } from "../../../../../lib/services/permissions"
+import { ProjectPermission } from "../../../../../generated/conf-openapi"
 
 export interface Props {
   destinationData: DestinationData
@@ -31,6 +34,8 @@ const DestinationEditorTransform = ({
   mappingForm,
   handleTouchAnyField,
 }: Props) => {
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
   const handleChange = debounce(handleTouchAnyField, 500)
   const [documentationVisible, setDocumentationVisible] = useState(false)
   const templateVarsSuggestions = Object.entries(configForm.getFieldsValue())
@@ -53,7 +58,7 @@ const DestinationEditorTransform = ({
           <b>Transform</b> effectively replaces <b>Mappings</b> – both features cannot work together.
         </p>
       </TabDescription>
-      <Form name="destination-config" form={form} autoComplete="off" onChange={handleChange}>
+      <Form disabled={disableEdit} name="destination-config" form={form} autoComplete="off" onChange={handleChange}>
         <ConfigurableFieldsForm
           handleTouchAnyField={handleTouchAnyField}
           fieldsParamsList={[

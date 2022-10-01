@@ -15,6 +15,9 @@ import type {
 } from "./SourceEditor"
 import { SourceEditorViewSteps } from "./SourceEditorViewSteps"
 import { SourceEditorViewTabs } from "./SourceEditorViewTabs"
+import useProject from "../../../../../../hooks/useProject"
+import { allPermissions } from "../../../../../../lib/services/permissions"
+import { ProjectPermission } from "../../../../../../generated/conf-openapi"
 
 type SourceEditorViewProps = {
   state: SourceEditorState
@@ -49,6 +52,9 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
   handleValidateStreams,
   handleReloadStreams,
 }) => {
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+
   const forms = [
     {
       key: "configuration",
@@ -57,6 +63,7 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
       errorsCount: state.configuration.errorsCount,
       render: (
         <SourceEditorFormConfiguration
+          disabled={disableEdit}
           editorMode={editorMode}
           initialSourceData={initialSourceData}
           sourceDataFromCatalog={sourceDataFromCatalog}
@@ -73,6 +80,7 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
       errorsCount: state.streams.errorsCount,
       render: (
         <SourceEditorFormStreams
+          disabled={disableEdit}
           editorMode={editorMode}
           initialSourceData={initialSourceData}
           sourceDataFromCatalog={sourceDataFromCatalog}

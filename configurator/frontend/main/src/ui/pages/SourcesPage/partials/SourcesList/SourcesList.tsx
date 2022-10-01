@@ -15,9 +15,14 @@ import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { SourceCard } from "../../../../components/SourceCard/SourceCard"
 import { currentPageHeaderStore } from "../../../../../stores/currentPageHeader"
 import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
+import useProject from "../../../../../hooks/useProject"
+import { allPermissions } from "../../../../../lib/services/permissions"
+import { ProjectPermission } from "../../../../../generated/conf-openapi"
 
 const SourcesListComponent = () => {
   const history = useHistory()
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
 
   useEffect(() => {
     currentPageHeaderStore.setBreadcrumbs("Sources")
@@ -29,6 +34,8 @@ const SourcesListComponent = () => {
         <h3 className="text-2xl">Sources list is still empty</h3>
         <div>
           <Button
+            disabled={disableEdit}
+
             type="primary"
             size="large"
             icon={<PlusOutlined />}
@@ -45,6 +52,7 @@ const SourcesListComponent = () => {
     <>
       <div className="mb-5">
         <Button
+          disabled={disableEdit}
           type="primary"
           icon={<PlusOutlined />}
           onClick={() => history.push(projectRoute(sourcesPageRoutes.add))}

@@ -27,6 +27,9 @@ import { NoStreamsSelectedMessage } from "../NoStreamsSelectedMessage/NoStreamsS
 import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 import { connectionsHelper } from "stores/helpers"
 import { sourceEditorUtils } from "ui/pages/SourcesPage/partials/SourceEditor/SourceEditor/SourceEditor.utils"
+import useProject from "../../../hooks/useProject"
+import { allPermissions } from "../../../lib/services/permissions"
+import { ProjectPermission } from "../../../generated/conf-openapi"
 
 const allSourcesMap: { [key: string]: SourceConnector } = allSources.reduce(
   (accumulator, current) => ({
@@ -44,6 +47,9 @@ export type SourceCardProps = {
 }
 
 export function SourceCard({ src, short = false }: SourceCardProps) {
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+
   const reference: SourceConnector = allSourcesMap[src.sourceProtoType]
 
   if (!reference) {
@@ -162,11 +168,12 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
 
   return (
     <ConnectionCard
+      disabled={disableEdit}
       icon={reference.pic}
       deleteAction={() => deleteSrc(src)}
       editAction={editLink}
       menuOverlay={
-        <Menu>
+        !disableEdit && <Menu>
           <Menu.Item key={"edit"} icon={<EditOutlined />}>
             <NavLink to={editLink}>Edit</NavLink>
           </Menu.Item>
