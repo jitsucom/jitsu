@@ -1033,7 +1033,11 @@ func (oa *OpenAPI) GetProjects(ctx *gin.Context, params openapi.GetProjectsParam
 			mw.BadRequest(ctx, "Failed to get all projects", err)
 			return
 		} else {
-			ctx.JSON(http.StatusOK, projects)
+			projectsWithPerms := make([]openapi.ProjectWithPermissions, len(projects))
+			for i, project := range projects {
+				projectsWithPerms[i] = openapi.ProjectWithPermissions{Project: project, PermissionsInfo: openapi.PermissionsInfo(entities.DefaultProjectPermissions)}
+			}
+			ctx.JSON(http.StatusOK, projectsWithPerms)
 			return
 		}
 	}
