@@ -42,9 +42,7 @@ function ProjectSettingsPage() {
   )
 }
 
-export
-
-const ProjectName: React.FC<{}> = () => {
+export const ProjectName: React.FC<{}> = () => {
   let services = useServices()
   let [projectName, setProjectName] = useState(services.activeProject.name)
   let [pending, setPending] = useState<boolean>(false)
@@ -126,7 +124,7 @@ const UserSettings: React.FC<{
   const services = useServices()
   const [showPermissions, setShowPermissions] = useState(false)
   const project = useProject()
-  const disableEdit = (project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
   const canEditPermissions =
     services.userService.getUser().id === user.id
       ? "You can't edit your own permissions"
