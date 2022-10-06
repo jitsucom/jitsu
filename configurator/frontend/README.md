@@ -53,12 +53,12 @@ before building the app or running it with `pnpm dev`.
         <td>Specify a port to use</td>
     </tr>
     <tr>
-        <td><code>BILLING_API_BASE_URL</code> *</td>
+        <td><code>BILLING_API_BASE_URL</code></td>
         <td>-</td>
         <td>Billing server address (if billing is enabled)</td>
     </tr>
     <tr>
-        <td><code>OAUTH_BACKEND_API_BASE</code> *</td>
+        <td><code>OAUTH_BACKEND_API_BASE</code></td>
         <td>-</td>
         <td>OAuth server address (if oauth is enabled)</td>
     </tr>
