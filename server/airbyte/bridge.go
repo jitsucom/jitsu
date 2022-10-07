@@ -114,17 +114,30 @@ func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume
 
 // checkVolume checks if current image has a mounted volume with server.volumes.workspace value
 func (b *Bridge) checkVolume(ctx context.Context, instance *Bridge, cli *client.Client) error {
-	containerRaw, err := exec.Command("cat", "/proc/1/cpuset").Output()
+	containerID, err := os.Hostname()
+	var container types.ContainerJSON
 	if err != nil {
-		return fmt.Errorf("failed to get current docker container ID: %v", err)
+		err = fmt.Errorf("failed to get current docker container ID from hostname: %v", err)
+	} else {
+		container, err = cli.ContainerInspect(ctx, containerID)
+		if err != nil {
+			err = fmt.Errorf("failed to inspect current docker container by containerID [%s]: %v", containerID, err)
+		}
 	}
-	containerID := path.Base(strings.TrimSpace(string(containerRaw)))
-
-	container, err := cli.ContainerInspect(ctx, containerID)
-	if err != nil {
-		return fmt.Errorf("failed to inspect current docker container by containerID [%s]: %v", containerID, err)
+	if container.ContainerJSONBase == nil {
+		//alternative approach to detect container id from inside docker
+		containerRaw, err1 := exec.Command("cat", "/proc/1/cpuset").Output()
+		if err1 != nil {
+			//return original error
+			return err
+		}
+		containerID = path.Base(strings.TrimSpace(string(containerRaw)))
+		container, err1 = cli.ContainerInspect(ctx, containerID)
+		if err1 != nil {
+			//return original error
+			return err
+		}
 	}
-
 	for _, mount := range container.Mounts {
 		if mount.Name == b.WorkspaceVolume && mount.Type == MountVolumeType {
 			//workspace is a volume and has correct name
