@@ -45,7 +45,7 @@ func NewFactory(logEventPath string, logRotationMin int64, showInServer bool, dd
 	}
 }
 
-//NewFactoryWithDDLLogsWriter returns a new factory instance with overridden DDL debug logs writer
+// NewFactoryWithDDLLogsWriter returns a new factory instance with overridden DDL debug logs writer
 func (f *Factory) NewFactoryWithDDLLogsWriter(overriddenDDLLogsWriter io.Writer) *Factory {
 	return &Factory{
 		logEventPath:    f.logEventPath,
@@ -57,7 +57,7 @@ func (f *Factory) NewFactoryWithDDLLogsWriter(overriddenDDLLogsWriter io.Writer)
 	}
 }
 
-//NewFactoryWithQueryLogsWriter returns a new factory instance with overridden sql query debug logs writer
+// NewFactoryWithQueryLogsWriter returns a new factory instance with overridden sql query debug logs writer
 func (f *Factory) NewFactoryWithQueryLogsWriter(overriddenQueryLogsWriter io.Writer) *Factory {
 	return &Factory{
 		logEventPath:    f.logEventPath,
@@ -69,11 +69,15 @@ func (f *Factory) NewFactoryWithQueryLogsWriter(overriddenQueryLogsWriter io.Wri
 	}
 }
 
-func (f *Factory) CreateIncomingLogger(tokenID string) logging.ObjectLogger {
+func (f *Factory) CreateIncomingLogger(tokenID string, rotationMin int) logging.ObjectLogger {
+	tokenRotationMin := f.logRotationMin
+	if rotationMin > 0 {
+		tokenRotationMin = int64(rotationMin)
+	}
 	eventLogWriter := logging.NewRollingWriter(&logging.Config{
 		FileName:      "incoming.tok=" + tokenID,
 		FileDir:       path.Join(f.logEventPath, IncomingDir),
-		RotationMin:   f.logRotationMin,
+		RotationMin:   tokenRotationMin,
 		RotateOnClose: true,
 	})
 

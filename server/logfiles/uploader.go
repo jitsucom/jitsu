@@ -1,6 +1,7 @@
 package logfiles
 
 import (
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"os"
 	"path"
 	"path/filepath"
@@ -30,18 +31,19 @@ var DateExtractRegexp = regexp.MustCompile("incoming.tok=.*-(\\d{4}-\\d{2}-\\d{2
 // Pass them to storages according to tokens
 // Keep uploading log file with result statuses
 type PeriodicUploader struct {
-	logIncomingEventPath string
-	fileMask             string
-	uploadEvery          time.Duration
-	concurrentUploads    int
+	logIncomingEventPath  string
+	fileMask              string
+	defaultBatchPeriodMin int
+	concurrentUploads     int
 
 	archiver           *Archiver
 	statusManager      *StatusManager
 	destinationService *destinations.Service
+	tokenLastUpload    map[string]time.Time
 }
 
 // NewUploader returns new configured PeriodicUploader instance
-func NewUploader(logEventPath, fileMask string, uploadEveryMin int, concurrentUploads int, destinationService *destinations.Service) (*PeriodicUploader, error) {
+func NewUploader(logEventPath, fileMask string, defaultBatchPeriodMin int, concurrentUploads int, destinationService *destinations.Service) (*PeriodicUploader, error) {
 	logIncomingEventPath := path.Join(logEventPath, logevents.IncomingDir)
 	logArchiveEventPath := path.Join(logEventPath, logevents.ArchiveDir)
 	statusManager, err := NewStatusManager(logIncomingEventPath)
@@ -49,13 +51,14 @@ func NewUploader(logEventPath, fileMask string, uploadEveryMin int, concurrentUp
 		return nil, err
 	}
 	return &PeriodicUploader{
-		logIncomingEventPath: logIncomingEventPath,
-		fileMask:             path.Join(logIncomingEventPath, fileMask),
-		uploadEvery:          time.Duration(uploadEveryMin) * time.Minute,
-		archiver:             NewArchiver(logIncomingEventPath, logArchiveEventPath),
-		statusManager:        statusManager,
-		destinationService:   destinationService,
-		concurrentUploads:    concurrentUploads,
+		logIncomingEventPath:  logIncomingEventPath,
+		fileMask:              path.Join(logIncomingEventPath, fileMask),
+		defaultBatchPeriodMin: defaultBatchPeriodMin,
+		archiver:              NewArchiver(logIncomingEventPath, logArchiveEventPath),
+		statusManager:         statusManager,
+		destinationService:    destinationService,
+		concurrentUploads:     concurrentUploads,
+		tokenLastUpload:       map[string]time.Time{},
 	}, nil
 }
 
@@ -74,6 +77,7 @@ func (u *PeriodicUploader) Start() {
 				continue
 			}
 			startTime := timestamp.Now()
+			newTokenLastUpload := sync.Map{}
 			postHandlesMap := sync.Map{} //multimap postHandleDestinationId:destinationIds
 			files, err := filepath.Glob(u.fileMask)
 			if err != nil {
@@ -116,6 +120,18 @@ func (u *PeriodicUploader) Start() {
 					}
 
 					tokenID := regexResult[1]
+					token := appconfig.Instance.AuthorizationService.GetToken(tokenID)
+					batchPeriodMin := time.Duration(u.defaultBatchPeriodMin)
+					if token != nil && token.BatchPeriodMin > 0 {
+						batchPeriodMin = time.Duration(token.BatchPeriodMin)
+					}
+					lastUpload, ok := u.tokenLastUpload[tokenID]
+					if ok {
+						if startTime.Sub(lastUpload) < batchPeriodMin {
+							logging.Infof("Period not passed yet: %s. Started: %s Last upload was %s period: %s", filePath, startTime, lastUpload, batchPeriodMin)
+							return
+						}
+					}
 					storageProxies := u.destinationService.GetBatchStorages(tokenID)
 					if len(storageProxies) == 0 {
 						logging.Warnf("Destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
@@ -138,7 +154,7 @@ func (u *PeriodicUploader) Start() {
 						os.Remove(filePath)
 						return
 					}
-
+					newTokenLastUpload.LoadOrStore(tokenID, startTime)
 					needCopyEvent := len(storageProxies) > 1
 
 					objects, parsingErrors, err := parsers.ParseJSONFileWithFuncFallback(file, parsers.ParseJSON)
@@ -267,7 +283,11 @@ func (u *PeriodicUploader) Start() {
 
 			u.postHandle(startTime, timestamp.Now(), &postHandlesMap)
 			logging.Infof("Processing of %d files finished in %s", len(files), time.Since(startTime))
-			time.Sleep(u.uploadEvery - time.Since(startTime))
+			newTokenLastUpload.Range(func(key, value interface{}) bool {
+				u.tokenLastUpload[key.(string)] = value.(time.Time)
+				return true
+			})
+			time.Sleep(time.Minute - time.Since(startTime))
 
 		}
 	})

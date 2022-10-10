@@ -31,13 +31,13 @@ destinations:
     ...
 `
 
-//LoggerUsage is used for counting when logger isn't used
+// LoggerUsage is used for counting when logger isn't used
 type LoggerUsage struct {
 	logger events.Consumer
 	usage  int
 }
 
-//Service is a reloadable service of events destinations per token
+// Service is a reloadable service of events destinations per token
 type Service struct {
 	mutex *sync.RWMutex
 
@@ -62,7 +62,7 @@ type Service struct {
 	strictAuth bool
 }
 
-//NewTestService returns test instance. It is used only for tests
+// NewTestService returns test instance. It is used only for tests
 func NewTestService(unitsByID map[string]*Unit, consumersByTokenID TokenizedConsumers, storagesByTokenID TokenizedStorages,
 	destinationsIDByTokenID TokenizedIDs, queueConsumerByDestinationID map[string]events.Consumer) *Service {
 	return &Service{
@@ -76,7 +76,7 @@ func NewTestService(unitsByID map[string]*Unit, consumersByTokenID TokenizedCons
 	}
 }
 
-//NewService returns loaded Service instance and call resources.Watcher() if destinations source is http url or file path
+// NewService returns loaded Service instance and call resources.Watcher() if destinations source is http url or file path
 func NewService(destinations *viper.Viper, destinationsSource string, storageFactory storages.Factory, loggerFactory *logevents.Factory, strictAuth bool) (*Service, error) {
 	//registering global clickhouse tls config
 	tlsConfig := viper.GetStringMapString("clickhouse.tls_config")
@@ -243,8 +243,8 @@ func (s *Service) updateDestinations(payload []byte) {
 	}
 }
 
-//1. close and remove all destinations which don't exist in new config
-//2. recreate/create changed/new destinations
+// 1. close and remove all destinations which don't exist in new config
+// 2. recreate/create changed/new destinations
 func (s *Service) init(dc map[string]config.DestinationConfig) {
 	StatusInstance.Reloading = true
 
@@ -354,7 +354,12 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 				//get or create new logger
 				loggerUsage, ok := s.loggersUsageByTokenID[tokenID]
 				if !ok {
-					incomeLogger := s.loggerFactory.CreateIncomingLogger(tokenID)
+					token := appconfig.Instance.AuthorizationService.GetToken(tokenID)
+					batchPeriodMin := 0
+					if token != nil && token.BatchPeriodMin > 0 {
+						batchPeriodMin = token.BatchPeriodMin
+					}
+					incomeLogger := s.loggerFactory.CreateIncomingLogger(tokenID, batchPeriodMin)
 					appconfig.Instance.ScheduleEventsConsumerClosing(incomeLogger)
 					loggerUsage = &LoggerUsage{logger: incomeLogger, usage: 0}
 					s.loggersUsageByTokenID[tokenID] = loggerUsage
@@ -386,8 +391,8 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 	StatusInstance.Reloading = false
 }
 
-//removeAndClose removes and closes destination from all collections and close it
-//method must be called with locks
+// removeAndClose removes and closes destination from all collections and close it
+// method must be called with locks
 func (s *Service) removeAndClose(destinationID string, unit *Unit) {
 	//remove from other collections: queue or logger(if needed) + storage
 	for _, tokenID := range unit.tokenIDs {
@@ -457,7 +462,7 @@ func (s *Service) GetFactory() storages.Factory {
 	return s.storageFactory
 }
 
-//Close closes destination storages
+// Close closes destination storages
 func (s *Service) Close() (multiErr error) {
 	for id, unit := range s.unitsByID {
 		if err := unit.CloseStorage(); err != nil {

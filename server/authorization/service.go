@@ -106,7 +106,7 @@ func NewService(configuratorURL, configuratorToken string) (*Service, error) {
 	return service, nil
 }
 
-//GetClientOrigins return origins by client_secret
+// GetClientOrigins return origins by client_secret
 func (s *Service) GetClientOrigins(clientSecret string) ([]string, bool) {
 	s.RLock()
 	defer s.RUnlock()
@@ -119,7 +119,7 @@ func (s *Service) GetClientOrigins(clientSecret string) ([]string, bool) {
 	}
 }
 
-//GetServerOrigins return origins by server_secret
+// GetServerOrigins return origins by server_secret
 func (s *Service) GetServerOrigins(serverSecret string) ([]string, bool) {
 	s.RLock()
 	defer s.RUnlock()
@@ -128,7 +128,7 @@ func (s *Service) GetServerOrigins(serverSecret string) ([]string, bool) {
 	return origins, ok
 }
 
-//GetAllTokenIDs return all token ids
+// GetAllTokenIDs return all token ids
 func (s *Service) GetAllTokenIDs() []string {
 	s.RLock()
 	defer s.RUnlock()
@@ -141,7 +141,7 @@ func (s *Service) GetAllTokenIDs() []string {
 	return ids
 }
 
-//GetAllIDsByToken return token ids by token identity(client_secret/server_secret/token id)
+// GetAllIDsByToken return token ids by token identity(client_secret/server_secret/token id)
 func (s *Service) GetAllIDsByToken(tokenIDentity []string) (ids []string) {
 	s.RLock()
 	defer s.RUnlock()
@@ -165,8 +165,8 @@ func (s *Service) GetAllIDsByToken(tokenIDentity []string) (ids []string) {
 	return
 }
 
-//GetTokenID return token id by client_secret/server_secret/token id
-//return "" if token wasn't found
+// GetTokenID return token id by client_secret/server_secret/token id
+// return "" if token wasn't found
 func (s *Service) GetTokenID(tokenFilter string) string {
 	s.RLock()
 	defer s.RUnlock()
@@ -178,7 +178,19 @@ func (s *Service) GetTokenID(tokenFilter string) string {
 	return ""
 }
 
-//parse and set tokensHolder with lock
+// GetToken return token object by client_secret/server_secret/token id
+func (s *Service) GetToken(tokenFilter string) *Token {
+	s.RLock()
+	defer s.RUnlock()
+
+	token, ok := s.tokensHolder.all[tokenFilter]
+	if ok {
+		return &token
+	}
+	return nil
+}
+
+// parse and set tokensHolder with lock
 func (s *Service) updateTokens(payload []byte) {
 	tokens, err := parseFromBytes(payload)
 	if err != nil {

@@ -99,10 +99,11 @@ func (oa *OpenAPI) GetApiKeysConfiguration(ctx *gin.Context) {
 		tokens := make([]jauth.Token, len(keys))
 		for i, key := range keys {
 			tokens[i] = jauth.Token{
-				ID:           key.ID,
-				ClientSecret: key.ClientSecret,
-				ServerSecret: key.ServerSecret,
-				Origins:      key.Origins,
+				ID:             key.ID,
+				ClientSecret:   key.ClientSecret,
+				ServerSecret:   key.ServerSecret,
+				Origins:        key.Origins,
+				BatchPeriodMin: key.BatchPeriodMin,
 			}
 		}
 
