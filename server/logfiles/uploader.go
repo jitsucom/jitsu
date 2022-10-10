@@ -121,9 +121,9 @@ func (u *PeriodicUploader) Start() {
 
 					tokenID := regexResult[1]
 					token := appconfig.Instance.AuthorizationService.GetToken(tokenID)
-					batchPeriodMin := time.Duration(u.defaultBatchPeriodMin)
+					batchPeriodMin := time.Duration(u.defaultBatchPeriodMin) * time.Minute
 					if token != nil && token.BatchPeriodMin > 0 {
-						batchPeriodMin = time.Duration(token.BatchPeriodMin)
+						batchPeriodMin = time.Duration(token.BatchPeriodMin) * time.Minute
 					}
 					lastUpload, ok := u.tokenLastUpload[tokenID]
 					if ok {
