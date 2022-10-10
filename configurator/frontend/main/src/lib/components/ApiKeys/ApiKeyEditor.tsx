@@ -1,4 +1,4 @@
-import { Button, Form, Input } from "antd"
+import { Button, Form, Input, InputNumber } from "antd"
 import { observer } from "mobx-react-lite"
 import { apiKeysStore } from "../../../stores/apiKeys"
 import { Prompt, useHistory, useParams } from "react-router-dom"
@@ -23,6 +23,7 @@ import { handleError } from "../components"
 import useProject from "../../../hooks/useProject"
 import { allPermissions } from "../../services/permissions"
 import { ProjectPermission } from "../../../generated/conf-openapi"
+import { useServices } from "../../../hooks/useServices"
 
 const SecretKey: React.FC<{
   disabled?: boolean
@@ -74,10 +75,14 @@ function getKey({ originsText, connectedDestinations, ...rest }: EditorObject, i
 }
 
 const ApiKeyEditorComponent: React.FC = props => {
+  const services = useServices()
+
   let { id = undefined } = useParams<{ id?: string }>()
   if (id) {
     id = id.replace("-", ".")
   }
+  const isJitsuCloud: boolean = services.features.environment === "jitsu_cloud"
+
   const initialApiKey = id ? apiKeysStore.get(id) : apiKeysStore.generateApiKey()
   const [editorObject, setEditorObject] = useState<EditorObject>(initialApiKey ? getEditorObject(initialApiKey) : null)
 
@@ -108,8 +113,8 @@ const ApiKeyEditorComponent: React.FC = props => {
   if (!initialApiKey) {
     return <EntityNotFound entityDisplayType="API Key" entityId={id} entitiesListRoute={apiKeysRoutes.listExact} />
   }
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   const history = useHistory()
   const [deleting, setDeleting] = useState(false)
@@ -185,6 +190,25 @@ const ApiKeyEditorComponent: React.FC = props => {
                 </Form.Item>
               </FormField>
               <FormField
+                label="Batch Upload Period (minutes)"
+                tooltip={
+                  "Rotation period of collected incoming events log files and upload period of collected log files to destinations. When omitted default server value is used." +
+                  (isJitsuCloud ? " For Jitsu Cloud default values is 5min." : "")
+                }
+                key="batchPeriodMin"
+              >
+                <Form.Item name="batchPeriodMin">
+                  <InputNumber
+                    size="large"
+                    disabled={disableEdit}
+                    placeholder={isJitsuCloud ? "5" : undefined}
+                    autoComplete="off"
+                    inputMode="numeric"
+                    name="batchPeriodMin"
+                  />
+                </Form.Item>
+              </FormField>
+              <FormField
                 label="Connected Destinations"
                 tooltip={
                   <>
@@ -203,7 +227,7 @@ const ApiKeyEditorComponent: React.FC = props => {
               </FormField>
             </span>
             <FormActions>
-              {(id && !disableEdit) && (
+              {id && !disableEdit && (
                 <Button
                   loading={deleting}
                   htmlType="submit"
@@ -244,34 +268,36 @@ const ApiKeyEditorComponent: React.FC = props => {
                   }
                 }}
               >
-                {disableEdit ? 'Close' : 'Cancel'}
+                {disableEdit ? "Close" : "Cancel"}
               </Button>
-              {!disableEdit && <Button
-                loading={saving}
-                htmlType="submit"
-                size="large"
-                type="primary"
-                onClick={async () => {
-                  try {
-                    setSaving(true)
-                    const connectedDestinations: string[] = form.getFieldsValue().connectedDestinations || []
-                    let savedKey: ApiKey = getKey(form.getFieldsValue(), initialApiKey)
-                    if (id) {
-                      await flowResult(apiKeysStore.replace({ ...savedKey, uid: id }))
-                    } else {
-                      savedKey = await flowResult(apiKeysStore.add(savedKey))
+              {!disableEdit && (
+                <Button
+                  loading={saving}
+                  htmlType="submit"
+                  size="large"
+                  type="primary"
+                  onClick={async () => {
+                    try {
+                      setSaving(true)
+                      const connectedDestinations: string[] = form.getFieldsValue().connectedDestinations || []
+                      let savedKey: ApiKey = getKey(form.getFieldsValue(), initialApiKey)
+                      if (id) {
+                        await flowResult(apiKeysStore.replace({ ...savedKey, uid: id }))
+                      } else {
+                        savedKey = await flowResult(apiKeysStore.add(savedKey))
+                      }
+                      await connectionsHelper.updateDestinationsConnectionsToApiKey(savedKey.uid, connectedDestinations)
+                      history.push(projectRoute(apiKeysRoutes.listExact))
+                    } catch (e) {
+                      handleError(e, "Saving failed")
+                    } finally {
+                      setSaving(false)
                     }
-                    await connectionsHelper.updateDestinationsConnectionsToApiKey(savedKey.uid, connectedDestinations)
-                    history.push(projectRoute(apiKeysRoutes.listExact))
-                  } catch (e) {
-                    handleError(e, "Saving failed")
-                  } finally {
-                    setSaving(false)
-                  }
-                }}
-              >
-                Save
-              </Button>}
+                  }}
+                >
+                  Save
+                </Button>
+              )}
             </FormActions>
           </FormLayout>
         </Form>

@@ -8,10 +8,11 @@ import (
 )
 
 type Token struct {
-	ID           string   `mapstructure:"id" json:"id,omitempty"`
-	ClientSecret string   `mapstructure:"client_secret" json:"client_secret,omitempty"`
-	ServerSecret string   `mapstructure:"server_secret" json:"server_secret,omitempty"`
-	Origins      []string `mapstructure:"origins" json:"origins,omitempty"`
+	ID             string   `mapstructure:"id" json:"id,omitempty"`
+	ClientSecret   string   `mapstructure:"client_secret" json:"client_secret,omitempty"`
+	ServerSecret   string   `mapstructure:"server_secret" json:"server_secret,omitempty"`
+	Origins        []string `mapstructure:"origins" json:"origins,omitempty"`
+	BatchPeriodMin int      `mapstructure:"batch_period_min" json:"batch_period_min,omitempty"`
 }
 
 type TokensPayload struct {
@@ -34,7 +35,7 @@ func (th *TokensHolder) IsEmpty() bool {
 	return th == nil || len(th.ids) == 0
 }
 
-//parse tokens from json bytes
+// parse tokens from json bytes
 func parseFromBytes(b []byte) ([]Token, error) {
 	payload := &TokensPayload{}
 	err := json.Unmarshal(b, payload)
