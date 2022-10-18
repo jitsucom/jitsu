@@ -13,9 +13,9 @@ import (
 	"github.com/jitsucom/jitsu/server/typing"
 )
 
-//MySQL stores files to MySQL in two modes:
-//batch: (1 file = 1 statement)
-//stream: (1 object = 1 statement)
+// MySQL stores files to MySQL in two modes:
+// batch: (1 file = 1 statement)
+// stream: (1 object = 1 statement)
 type MySQL struct {
 	Abstract
 
@@ -27,7 +27,7 @@ func init() {
 	RegisterStorage(StorageType{typeName: MySQLType, createFunc: NewMySQL, isSQL: true})
 }
 
-//NewMySQL returns configured MySQL Destination
+// NewMySQL returns configured MySQL Destination
 func NewMySQL(config *Config) (storage Storage, err error) {
 	defer func() {
 		if err != nil && storage != nil {
@@ -73,12 +73,12 @@ func NewMySQL(config *Config) (storage Storage, err error) {
 	m.sqlAdapters = []adapters.SQLAdapter{adapter}
 
 	//streaming worker (queue reading)
-	m.streamingWorker = newStreamingWorker(config.eventQueue, m, tableHelper)
+	m.streamingWorkers = newStreamingWorkers(config.eventQueue, m, config.streamingThreadsCount, tableHelper)
 	return
 }
 
-//CreateMySQLAdapter creates mysql adapter with database
-//if database doesn't exist - mysql returns error. In this case connect without database and create it
+// CreateMySQLAdapter creates mysql adapter with database
+// if database doesn't exist - mysql returns error. In this case connect without database and create it
 func CreateMySQLAdapter(ctx context.Context, config adapters.DataSourceConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*adapters.MySQL, error) {
 	mySQLAdapter, err := adapters.NewMySQL(ctx, &config, queryLogger, sqlTypes)
 	if err != nil {
@@ -119,7 +119,7 @@ func (m *MySQL) DryRun(payload events.Event) ([][]adapters.TableField, error) {
 	return dryRun(payload, m.processor, tableHelper)
 }
 
-//SyncStore is used in storing chunk of pulled data to Postgres with processing
+// SyncStore is used in storing chunk of pulled data to Postgres with processing
 func (m *MySQL) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *base.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
 	return syncStoreImpl(m, overriddenDataSchema, objects, deleteConditions, cacheTable, needCopyEvent)
 }
@@ -128,32 +128,26 @@ func (m *MySQL) Clean(tableName string) error {
 	return cleanImpl(m, tableName)
 }
 
-//GetUsersRecognition returns users recognition configuration
+// GetUsersRecognition returns users recognition configuration
 func (m *MySQL) GetUsersRecognition() *UserRecognitionConfiguration {
 	return m.usersRecognitionConfiguration
 }
 
-//Type returns MySQL type
+// Type returns MySQL type
 func (m *MySQL) Type() string {
 	return MySQLType
 }
 
-//Close closes MySQL adapter, fallback logger and streaming worker
+// Close closes MySQL adapter, fallback logger and streaming worker
 func (m *MySQL) Close() (multiErr error) {
-	if m.streamingWorker != nil {
-		if err := m.streamingWorker.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", m.ID(), err))
-		}
+	if err := m.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
 
 	if m.adapter != nil {
 		if err := m.adapter.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing postgres datasource: %v", m.ID(), err))
 		}
-	}
-
-	if err := m.close(); err != nil {
-		multiErr = multierror.Append(multiErr, err)
 	}
 
 	return

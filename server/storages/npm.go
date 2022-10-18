@@ -78,7 +78,7 @@ func NewNpmDestination(config *Config) (storage Storage, err error) {
 	wh.adapter = wbAdapter
 
 	//streaming worker (queue reading)
-	wh.streamingWorker = newStreamingWorker(config.eventQueue, wh)
+	wh.streamingWorkers = newStreamingWorkers(config.eventQueue, wh, config.streamingThreadsCount)
 	return
 }
 

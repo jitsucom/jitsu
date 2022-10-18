@@ -181,7 +181,7 @@ func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig s
 	tempDir := os.TempDir()
 	loggerFactory := logevents.NewFactory(tempDir, 5, false, nil, nil, false, 1)
 	queueFactory := events.NewQueueFactory(nil, 0)
-	destinationsFactory := storages.NewFactory(context.Background(), tempDir, sb.geoService, monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, queueFactory, 0)
+	destinationsFactory := storages.NewFactory(context.Background(), tempDir, sb.geoService, monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, queueFactory, 0, 1)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
