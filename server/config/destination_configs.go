@@ -11,12 +11,13 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-//DestinationConfig is a destination configuration for serialization
+// DestinationConfig is a destination configuration for serialization
 type DestinationConfig struct {
 	OnlyTokens             []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
 	Type                   string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Package                string                   `mapstructure:"package" json:"package,omitempty" yaml:"package,omitempty"`
 	Mode                   string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
+	StreamingThreadsCount  int                      `mapstructure:"streaming_threads_count" json:"streaming_threads_count,omitempty" yaml:"streaming_threads_count,omitempty"`
 	DataLayout             *DataLayout              `mapstructure:"data_layout,omitempty" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
 	UsersRecognition       *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
 	Enrichment             []*enrichment.RuleConfig `mapstructure:"enrichment" json:"enrichment,omitempty" yaml:"enrichment,omitempty"`
@@ -86,7 +87,7 @@ func (config *DestinationConfig) GetConfig(value Validatable, compatibilityValue
 	return dest, nil
 }
 
-//DataLayout is used for configure mappings/table names and other data layout parameters
+// DataLayout is used for configure mappings/table names and other data layout parameters
 type DataLayout struct {
 	//Deprecated
 	MappingType FieldMappingType `mapstructure:"mapping_type" json:"mapping_type,omitempty" yaml:"mapping_type,omitempty"`
@@ -103,7 +104,7 @@ type DataLayout struct {
 	UniqueIDField     string   `mapstructure:"unique_id_field" json:"unique_id_field,omitempty" yaml:"unique_id_field,omitempty"`
 }
 
-//UsersRecognition is a model for Users recognition module configuration
+// UsersRecognition is a model for Users recognition module configuration
 type UsersRecognition struct {
 	Enabled             bool     `mapstructure:"enabled" json:"enabled,omitempty" yaml:"enabled,omitempty"`
 	AnonymousIDNode     string   `mapstructure:"anonymous_id_node" json:"anonymous_id_node,omitempty" yaml:"anonymous_id_node,omitempty"`
@@ -114,17 +115,17 @@ type UsersRecognition struct {
 	CacheTTLMin         int      `mapstructure:"cache_ttl_min" json:"cache_ttl_min,omitempty" yaml:"cache_ttl_min,omitempty"`
 }
 
-//CachingConfiguration is a configuration for disabling caching
+// CachingConfiguration is a configuration for disabling caching
 type CachingConfiguration struct {
 	Disabled bool `mapstructure:"disabled" json:"disabled" yaml:"disabled"`
 }
 
-//IsEnabled returns true if enabled
+// IsEnabled returns true if enabled
 func (ur *UsersRecognition) IsEnabled() bool {
 	return ur != nil && ur.Enabled
 }
 
-//Validate returns err if invalid
+// Validate returns err if invalid
 func (ur *UsersRecognition) Validate() error {
 	if ur.IsEnabled() {
 		if ur.AnonymousIDNode == "" {

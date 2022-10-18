@@ -5,7 +5,7 @@ import (
 	"github.com/jitsucom/jitsu/server/adapters"
 )
 
-//HubSpot is a destination that can send data into HubSpot
+// HubSpot is a destination that can send data into HubSpot
 type HubSpot struct {
 	HTTPStorage
 }
@@ -14,7 +14,7 @@ func init() {
 	RegisterStorage(StorageType{typeName: HubSpotType, createFunc: NewHubSpot, defaultTableName: "$.user?.email", isSQL: false})
 }
 
-//NewHubSpot returns configured HubSpot destination
+// NewHubSpot returns configured HubSpot destination
 func NewHubSpot(config *Config) (storage Storage, err error) {
 	defer func() {
 		if err != nil && storage != nil {
@@ -56,11 +56,11 @@ func NewHubSpot(config *Config) (storage Storage, err error) {
 	h.adapter = hAdapter
 
 	//streaming worker (queue reading)
-	h.streamingWorker = newStreamingWorker(config.eventQueue, h)
+	h.streamingWorkers = newStreamingWorkers(config.eventQueue, h, config.streamingThreadsCount)
 	return
 }
 
-//Type returns HubSpot type
+// Type returns HubSpot type
 func (h *HubSpot) Type() string {
 	return HubSpotType
 }

@@ -9,7 +9,7 @@ import (
 //go:embed transform/google_analytics.js
 var googleAnalyticsTransform string
 
-//GoogleAnalytics stores events to Google Analytics in stream mode
+// GoogleAnalytics stores events to Google Analytics in stream mode
 type GoogleAnalytics struct {
 	HTTPStorage
 }
@@ -18,8 +18,8 @@ func init() {
 	RegisterStorage(StorageType{typeName: GoogleAnalyticsType, createFunc: NewGoogleAnalytics, isSQL: false})
 }
 
-//NewGoogleAnalytics return GoogleAnalytics instance
-//start streaming worker goroutine
+// NewGoogleAnalytics return GoogleAnalytics instance
+// start streaming worker goroutine
 func NewGoogleAnalytics(config *Config) (storage Storage, err error) {
 	defer func() {
 		if err != nil && storage != nil {
@@ -60,11 +60,11 @@ func NewGoogleAnalytics(config *Config) (storage Storage, err error) {
 	ga.adapter = gaAdapter
 
 	//streaming worker (queue reading)
-	ga.streamingWorker = newStreamingWorker(config.eventQueue, ga)
+	ga.streamingWorkers = newStreamingWorkers(config.eventQueue, ga, config.streamingThreadsCount)
 	return
 }
 
-//Type returns Google Analytics type
+// Type returns Google Analytics type
 func (ga *GoogleAnalytics) Type() string {
 	return GoogleAnalyticsType
 }

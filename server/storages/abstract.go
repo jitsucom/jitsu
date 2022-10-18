@@ -24,9 +24,9 @@ import (
 	"github.com/jitsucom/jitsu/server/telemetry"
 )
 
-//Abstract is an Abstract destination storage
-//contains common destination funcs
-//aka abstract class
+// Abstract is an Abstract destination storage
+// contains common destination funcs
+// aka abstract class
 type Abstract struct {
 	implementation Storage
 	destinationID  string
@@ -42,12 +42,12 @@ type Abstract struct {
 	staged               bool
 	cachingConfiguration *config.CachingConfiguration
 
-	streamingWorker *StreamingWorker
+	streamingWorkers []*StreamingWorker
 
 	archiveLogger logging.ObjectLogger
 }
 
-//ID returns destination ID
+// ID returns destination ID
 func (a *Abstract) ID() string {
 	return a.destinationID
 }
@@ -61,12 +61,12 @@ func (a *Abstract) IsStaging() bool {
 	return a.staged
 }
 
-//GetUniqueIDField returns unique ID field configuration
+// GetUniqueIDField returns unique ID field configuration
 func (a *Abstract) GetUniqueIDField() *identifiers.UniqueID {
 	return a.uniqueIDField
 }
 
-//IsCachingDisabled returns true if caching is disabled in destination configuration
+// IsCachingDisabled returns true if caching is disabled in destination configuration
 func (a *Abstract) IsCachingDisabled() bool {
 	return a.cachingConfiguration != nil && a.cachingConfiguration.Disabled
 }
@@ -76,7 +76,7 @@ func (a *Abstract) DryRun(payload events.Event) ([][]adapters.TableField, error)
 	return dryRun(payload, a.processor, tableHelper)
 }
 
-//ErrorEvent writes error to metrics/counters/telemetry/events cache
+// ErrorEvent writes error to metrics/counters/telemetry/events cache
 func (a *Abstract) ErrorEvent(fallback bool, eventCtx *adapters.EventContext, err error) {
 	metrics.ErrorTokenEvent(eventCtx.TokenID, a.Processor().DestinationType(), a.destinationID)
 	counters.ErrorPushDestinationEvents(a.destinationID, 1)
@@ -94,7 +94,7 @@ func (a *Abstract) ErrorEvent(fallback bool, eventCtx *adapters.EventContext, er
 	}
 }
 
-//SuccessEvent writes success to metrics/counters/telemetry/events cache
+// SuccessEvent writes success to metrics/counters/telemetry/events cache
 func (a *Abstract) SuccessEvent(eventCtx *adapters.EventContext) {
 	counters.SuccessPushDestinationEvents(a.destinationID, 1)
 	telemetry.Event(eventCtx.TokenID, a.destinationID, eventCtx.Src, "", 1)
@@ -104,7 +104,7 @@ func (a *Abstract) SuccessEvent(eventCtx *adapters.EventContext) {
 	a.eventsCache.Succeed(eventCtx)
 }
 
-//SkipEvent writes skip to metrics/counters/telemetry and error to events cache
+// SkipEvent writes skip to metrics/counters/telemetry and error to events cache
 func (a *Abstract) SkipEvent(eventCtx *adapters.EventContext, err error) {
 	counters.SkipPushDestinationEvents(a.destinationID, 1)
 	metrics.SkipTokenEvent(eventCtx.TokenID, a.Processor().DestinationType(), a.destinationID)
@@ -113,14 +113,14 @@ func (a *Abstract) SkipEvent(eventCtx *adapters.EventContext, err error) {
 	a.eventsCache.Skip(eventCtx.CacheDisabled, a.destinationID, eventCtx.GetSerializedOriginalEvent(), err.Error())
 }
 
-//Fallback logs event with error to fallback logger
+// Fallback logs event with error to fallback logger
 func (a *Abstract) Fallback(failedEvents ...*events.FailedEvent) {
 	for _, failedEvent := range failedEvents {
 		a.fallbackLogger.ConsumeAny(failedEvent)
 	}
 }
 
-//Insert ensures table and sends input event to Destination (with 1 retry if error)
+// Insert ensures table and sends input event to Destination (with 1 retry if error)
 func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error) {
 	defer func() {
 		if !eventContext.RecognizedEvent {
@@ -155,8 +155,8 @@ func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error)
 	return nil
 }
 
-//Store process events and stores with StoreTable() func
-//returns store result per table, failed events (group of events which are failed to process) and err
+// Store process events and stores with StoreTable() func
+// returns store result per table, failed events (group of events which are failed to process) and err
 func (a *Abstract) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, needCopyEvent bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
 	flatData, recognizedFlatData, failedEvents, skippedEvents, err := a.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, needCopyEvent)
 	if err != nil {
@@ -204,8 +204,8 @@ func (a *Abstract) Store(fileName string, objects []map[string]interface{}, alre
 	return tableResults, nil, skippedEvents, nil
 }
 
-//check table schema
-//and store data into one table
+// check table schema
+// and store data into one table
 func (a *Abstract) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error) {
 	adapter, tableHelper := a.getAdapters()
 	table := tableHelper.MapTableSchema(fdata.BatchHeader)
@@ -233,7 +233,7 @@ func (a *Abstract) DropTable(tableName string) error {
 	return adapter.DropTable(&adapters.Table{Name: tableName})
 }
 
-//Update updates record
+// Update updates record
 func (a *Abstract) Update(eventContext *adapters.EventContext) error {
 	sqlAdapter, tableHelper := a.getAdapters()
 	processedObject := eventContext.ProcessedEvent
@@ -253,7 +253,7 @@ func (a *Abstract) Update(eventContext *adapters.EventContext) error {
 	return nil
 }
 
-//retryInsert does retry if ensuring table or insert is failed
+// retryInsert does retry if ensuring table or insert is failed
 func (a *Abstract) retryInsert(sqlAdapter adapters.SQLAdapter, tableHelper *TableHelper, eventContext *adapters.EventContext,
 	dbSchemaFromObject *adapters.Table) error {
 	dbTable, err := tableHelper.RefreshTableSchema(a.ID(), dbSchemaFromObject)
@@ -276,7 +276,7 @@ func (a *Abstract) retryInsert(sqlAdapter adapters.SQLAdapter, tableHelper *Tabl
 	return nil
 }
 
-//AccountResult checks input error and calls ErrorEvent or SuccessEvent
+// AccountResult checks input error and calls ErrorEvent or SuccessEvent
 func (a *Abstract) AccountResult(eventContext *adapters.EventContext, err error) {
 	if err != nil {
 		if IsConnectionError(err) {
@@ -289,15 +289,17 @@ func (a *Abstract) AccountResult(eventContext *adapters.EventContext, err error)
 	}
 }
 
-//Clean removes all records from storage
+// Clean removes all records from storage
 func (a *Abstract) Clean(tableName string) error {
 	return nil
 }
 
 func (a *Abstract) close() (multiErr error) {
-	if a.streamingWorker != nil {
-		if err := a.streamingWorker.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", a.ID(), err))
+	if len(a.streamingWorkers) > 0 {
+		for _, worker := range a.streamingWorkers {
+			if err := worker.Close(); err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", a.ID(), err))
+			}
 		}
 	}
 	if a.fallbackLogger != nil {
@@ -343,8 +345,10 @@ func (a *Abstract) Start(config *Config) error {
 	a.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	a.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
-	if a.streamingWorker != nil {
-		a.streamingWorker.start()
+	if len(a.streamingWorkers) > 0 {
+		for _, worker := range a.streamingWorkers {
+			worker.start()
+		}
 	}
 	return nil
 }
@@ -443,7 +447,7 @@ func (a *Abstract) setupProcessor(cfg *Config) (processor *schema.Processor, sql
 	return processor, sqlTypes, nil
 }
 
-//assume that adapters quantity == tableHelpers quantity
+// assume that adapters quantity == tableHelpers quantity
 func (a *Abstract) getAdapters() (adapters.SQLAdapter, *TableHelper) {
 	num := rand.Intn(len(a.sqlAdapters))
 	return a.sqlAdapters[num], a.tableHelpers[num]

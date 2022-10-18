@@ -369,9 +369,14 @@ func main() {
 	}
 
 	maxColumns := viper.GetInt("server.max_columns")
+	defaultStreamingThreadsCount := viper.GetInt("streaming.threads_count")
+	if defaultStreamingThreadsCount <= 0 {
+		logging.Warnf("streaming.threads_count cannot be less than 1. Got: %d. Changed to: 1", defaultStreamingThreadsCount)
+		defaultStreamingThreadsCount = 1
+	}
 	logging.Infof("📝 Limit server.max_columns is %d", maxColumns)
 	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory,
-		globalRecognitionConfiguration, metaStorage, eventsQueueFactory, maxColumns)
+		globalRecognitionConfiguration, metaStorage, eventsQueueFactory, maxColumns, defaultStreamingThreadsCount)
 
 	//DESTINATIONS
 	destinationsURL := viper.GetString(destinationsKey)

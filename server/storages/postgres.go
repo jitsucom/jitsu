@@ -11,9 +11,9 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
-//Postgres stores files to Postgres in two modes:
-//batch: (1 file = 1 statement)
-//stream: (1 object = 1 statement)
+// Postgres stores files to Postgres in two modes:
+// batch: (1 file = 1 statement)
+// stream: (1 object = 1 statement)
 type Postgres struct {
 	Abstract
 
@@ -25,7 +25,7 @@ func init() {
 	RegisterStorage(StorageType{typeName: PostgresType, createFunc: NewPostgres, isSQL: true})
 }
 
-//NewPostgres returns configured Postgres Destination
+// NewPostgres returns configured Postgres Destination
 func NewPostgres(config *Config) (storage Storage, err error) {
 	defer func() {
 		if err != nil && storage != nil {
@@ -85,11 +85,11 @@ func NewPostgres(config *Config) (storage Storage, err error) {
 	p.sqlAdapters = []adapters.SQLAdapter{adapter}
 
 	//streaming worker (queue reading)
-	p.streamingWorker = newStreamingWorker(config.eventQueue, p, tableHelper)
+	p.streamingWorkers = newStreamingWorkers(config.eventQueue, p, config.streamingThreadsCount, tableHelper)
 	return
 }
 
-//SyncStore is used in storing chunk of pulled data to Postgres with processing
+// SyncStore is used in storing chunk of pulled data to Postgres with processing
 func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, deleteConditions *base.DeleteConditions, cacheTable bool, needCopyEvent bool) error {
 	return syncStoreImpl(p, overriddenDataSchema, objects, deleteConditions, cacheTable, needCopyEvent)
 }
@@ -98,32 +98,26 @@ func (p *Postgres) Clean(tableName string) error {
 	return cleanImpl(p, tableName)
 }
 
-//GetUsersRecognition returns users recognition configuration
+// GetUsersRecognition returns users recognition configuration
 func (p *Postgres) GetUsersRecognition() *UserRecognitionConfiguration {
 	return p.usersRecognitionConfiguration
 }
 
-//Type returns Facebook type
+// Type returns Facebook type
 func (p *Postgres) Type() string {
 	return PostgresType
 }
 
-//Close closes Postgres adapter, fallback logger and streaming worker
+// Close closes Postgres adapter, fallback logger and streaming worker
 func (p *Postgres) Close() (multiErr error) {
-	if p.streamingWorker != nil {
-		if err := p.streamingWorker.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", p.ID(), err))
-		}
+	if err := p.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
 
 	if p.adapter != nil {
 		if err := p.adapter.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing postgres datasource: %v", p.ID(), err))
 		}
-	}
-
-	if err := p.close(); err != nil {
-		multiErr = multierror.Append(multiErr, err)
 	}
 
 	return
