@@ -221,6 +221,9 @@ func (f *FactoryImpl) Configure(destinationID string, destination config.Destina
 	if streamingThreadsCount <= 0 {
 		streamingThreadsCount = f.defaultStreamingThreadsCount
 	}
+	if destination.Mode == StreamMode {
+		logging.Infof("[%s] streaming threads count: %d", destinationID, streamingThreadsCount)
+	}
 
 	storageConfig := &Config{
 		ctx:                    f.ctx,
