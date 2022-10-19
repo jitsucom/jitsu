@@ -3,14 +3,13 @@ package storages
 import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/errorj"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
-	"math/rand"
-
-	"github.com/jitsucom/jitsu/server/config"
-	"github.com/jitsucom/jitsu/server/logging"
+	"go.uber.org/atomic"
 
 	"github.com/jitsucom/jitsu/server/identifiers"
 
@@ -45,6 +44,7 @@ type Abstract struct {
 	streamingWorkers []*StreamingWorker
 
 	archiveLogger logging.ObjectLogger
+	roundRobin    atomic.Uint64
 }
 
 // ID returns destination ID
@@ -449,8 +449,12 @@ func (a *Abstract) setupProcessor(cfg *Config) (processor *schema.Processor, sql
 
 // assume that adapters quantity == tableHelpers quantity
 func (a *Abstract) getAdapters() (adapters.SQLAdapter, *TableHelper) {
-	num := rand.Intn(len(a.sqlAdapters))
-	return a.sqlAdapters[num], a.tableHelpers[num]
+	if len(a.sqlAdapters) > 1 {
+		num := int(a.roundRobin.Inc()) % len(a.sqlAdapters)
+		return a.sqlAdapters[num], a.tableHelpers[num]
+	} else {
+		return a.sqlAdapters[0], a.tableHelpers[0]
+	}
 }
 
 func (a *Abstract) GetSyncWorker() *SyncWorker {
