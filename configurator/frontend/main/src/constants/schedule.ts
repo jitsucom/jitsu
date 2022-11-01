@@ -10,3 +10,14 @@ export const COLLECTIONS_SCHEDULES: CollectionSchedule[] = [
   { value: "*/5 * * * *", label: "5 minutes", id: "5m" },
   { value: "*/1 * * * *", label: "1 minute", id: "1m" },
 ]
+
+let dailyHours: CollectionSchedule[] = []
+for (let i = 0; i < 24; i++) {
+  dailyHours.push({
+    value: i.toString(),
+    label: i < 10 ? `0${i}:00` : `${i}:00`,
+    id: i.toString(),
+  })
+}
+
+export const DAILY_HOURS = dailyHours
