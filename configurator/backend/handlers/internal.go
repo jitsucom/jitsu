@@ -197,7 +197,7 @@ func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, pos
 
 	if source.Schedule == "@daily" {
 		if source.ScheduleTime != "" && source.ScheduleTime != "0" {
-			source.Schedule = fmt.Sprintf("* %s * * *", source.ScheduleTime)
+			source.Schedule = fmt.Sprintf("0 %s * * *", source.ScheduleTime)
 		}
 	}
 
