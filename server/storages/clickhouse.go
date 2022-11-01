@@ -60,9 +60,15 @@ func NewClickHouse(config *Config) (storage Storage, err error) {
 	//creating tableHelpers and Adapters
 	//1 helper+adapter per ClickHouse node
 	var sqlAdapters []adapters.SQLAdapter
-	adaptersCount := len(chConfig.Dsns)
+	dsnsCount := len(chConfig.Dsns)
+	adaptersCount := dsnsCount
 	if config.streamingThreadsCount > adaptersCount {
-		adaptersCount = config.streamingThreadsCount
+		gap := config.streamingThreadsCount % dsnsCount
+		if gap > 0 {
+			gap = dsnsCount - gap
+		}
+		//resulting adapters count must ve divisible by dsnsCount count
+		adaptersCount = config.streamingThreadsCount + gap
 	}
 	for i := 0; i < adaptersCount; i++ {
 		var adapter *adapters.ClickHouse
