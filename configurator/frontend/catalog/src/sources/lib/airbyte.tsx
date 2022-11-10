@@ -1064,6 +1064,138 @@ export const allAirbyteSources: AirbyteSource[] = [
   {
     pic: logos.tap_zoom,
     docker_image_name: "airbyte/source-zoom-singer",
+    displayName: "Zoom (Old version)",
+    deprecated: true,
+
+    stable: false,
+    documentation: {
+      overview: (
+        <>
+          The Zoom source syncs the following streams{": "}
+          <a target="_blank" href="https://marketplace.zoom.us/docs/api-reference/zoom-api/users/users">
+            Users
+          </a>
+          {", "}
+          <a target="_blank" href="https://marketplace.zoom.us/docs/api-reference/zoom-api/meetings/meetings">
+            Meetings
+          </a>
+          {", "}
+          <a target="_blank" href="https://marketplace.zoom.us/docs/api-reference/zoom-api/meetings/meetingregistrants">
+            Meeting Registrants
+          </a>
+          {", "}
+          <a target="_blank" href="https://marketplace.zoom.us/docs/api-reference/zoom-api/meetings/meetingpolls">
+            Meeting Polls
+          </a>
+          {", "}
+          <a
+            target="_blank"
+            href="https://marketplace.zoom.us/docs/api-reference/zoom-api/meetings/listpastmeetingpolls"
+          >
+            Meeting Poll Results
+          </a>
+          {", "}
+          <a
+            target="_blank"
+            href="https://marketplace.zoom.us/docs/api-reference/zoom-api/meetings/meetingregistrantsquestionsget"
+          >
+            Meeting Questions
+          </a>
+          {", "}
+          <a
+            target="_blank"
+            href="https://marketplace.zoom.us/docs/api-reference/zoom-api/deprecated-api-endpoints/listpastmeetingfiles"
+          >
+            Meeting Files
+          </a>
+          {", "}
+          <a target="_blank" href="https://marketplace.zoom.us/docs/api-reference/zoom-api/webinars/webinars">
+            Webinars
+          </a>
+          {", "}
+          <a target="_blank" href="https://marketplace.zoom.us/docs/api-reference/zoom-api/webinars/webinarpanelists">
+            Webinar Panelists
+          </a>
+          {", "}
+          <a target="_blank" href="https://marketplace.zoom.us/docs/api-reference/zoom-api/webinars/webinarregistrants">
+            Webinar Registrants
+          </a>
+          {", "}
+          <a target="_blank" href="https://marketplace.zoom.us/docs/api-reference/zoom-api/webinars/webinarabsentees">
+            Webinar Absentees
+          </a>
+          {", "}
+          <a target="_blank" href="https://marketplace.zoom.us/docs/api-reference/zoom-api/webinars/webinarpolls">
+            Webinar Polls
+          </a>
+          {", "}
+          <a
+            target="_blank"
+            href="https://marketplace.zoom.us/docs/api-reference/zoom-api/webinars/listpastwebinarpollresults"
+          >
+            Webinar Poll Results
+          </a>
+          {", "}
+          <a
+            target="_blank"
+            href="https://marketplace.zoom.us/docs/api-reference/zoom-api/webinars/webinarregistrantsquestionsget"
+          >
+            Webinar Questions
+          </a>
+          {", "}
+          <a target="_blank" href="https://marketplace.zoom.us/docs/api-reference/zoom-api/webinars/gettrackingsources">
+            Webinar Tracking Sources
+          </a>
+          {", "}
+          <a
+            target="_blank"
+            href="https://marketplace.zoom.us/docs/api-reference/zoom-api/deprecated-api-endpoints/listpastwebinarfiles"
+          >
+            Webinar Files
+          </a>
+          {", "}
+          <a
+            target="_blank"
+            href="https://marketplace.zoom.us/docs/api-reference/zoom-api/reports/reportmeetingdetails"
+          >
+            Report Meetings
+          </a>
+          {", "}
+          <a
+            target="_blank"
+            href="https://marketplace.zoom.us/docs/api-reference/zoom-api/reports/reportmeetingparticipants"
+          >
+            Report Meeting Participants
+          </a>
+          {", "}
+          <a
+            target="_blank"
+            href="https://marketplace.zoom.us/docs/api-reference/zoom-api/reports/reportwebinardetails"
+          >
+            Report Webinars
+          </a>
+          {", "}
+          <a
+            target="_blank"
+            href="https://marketplace.zoom.us/docs/api-reference/zoom-api/reports/reportwebinarparticipants"
+          >
+            Report Webinar Participants
+          </a>
+        </>
+      ),
+      connection: (
+        <>
+          Please read{" "}
+          <a target="_blank" href="https://marketplace.zoom.us/docs/guides/build/jwt-app">
+            How to generate your JWT Token
+          </a>
+        </>
+      ),
+    },
+  },
+  {
+    pic: logos.tap_zoom,
+    docker_image_name: "airbyte/source-zoom",
     displayName: "Zoom",
     stable: false,
     documentation: {
