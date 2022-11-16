@@ -30,6 +30,23 @@ In Configurator UI 'Mode' selector is available in destination setup form.
 | **log.rotation\_min**              | int  | Batch log files rotation period in minutes. And batch uploader run period          | `5`           |
 | **batch\_uploader.threads\_count** | int  | Number or parallel uploader threads to process incoming batch files. (Since v1.43) | `1`           |
 
+### Customize batch upload period
+
+By default, Jitsu runs batch uploader every 5 minutes. You can change this period by setting `log.rotation_min` parameter in the server's yaml configuration file.
+
+Also, since v1.43.1 you use customize batch upload period on `api_key` level using `batch_period_min` property:
+```yaml
+api_keys:
+  - id: quick_reaction_key
+    client_secret: my_client_secret
+    server_secret: my_server_secret
+    batch_period_min: 1
+  - id: cost_effective_key
+    client_secret: my_client_secret2
+    server_secret: my_server_secret2
+    batch_period_min: 120
+```
+
 ## Pipeline
 
 * First, an event is being written in `events/incoming` directory to the current log file
