@@ -6,7 +6,7 @@ type APIKey struct {
 	ClientSecret   string   `firestore:"jsAuth" json:"jsAuth" yaml:"client_secret,omitempty"`
 	ServerSecret   string   `firestore:"serverAuth" json:"serverAuth" yaml:"server_secret,omitempty"`
 	Origins        []string `firestore:"origins" json:"origins" yaml:"origins,omitempty"`
-	BatchPeriodMin int      `firestore:"batchPeriodMin" json:"batchPeriodMin" yaml:"batchPeriodMin,omitempty"`
+	BatchPeriodMin int      `firestore:"batchPeriodMin" json:"batchPeriodMin" yaml:"batch_period_min,omitempty"`
 }
 
 // APIKeys entity is stored in main storage (Firebase)
