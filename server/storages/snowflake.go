@@ -183,7 +183,7 @@ func (s *Snowflake) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, er
 		}
 
 		if err := s.stageAdapter.DeleteObject(fdata.FileName); err != nil {
-			logging.SystemErrorf("[%s] file %s wasn't deleted from stage: %v", s.ID(), fdata.FileName, err)
+			logging.Errorf("[%s] file %s wasn't deleted from stage: %v", s.ID(), fdata.FileName, err)
 		}
 
 		return dbTable, nil
