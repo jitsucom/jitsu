@@ -127,7 +127,7 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, er
 		}
 
 		if err := bq.gcsAdapter.DeleteObject(fileName); err != nil {
-			logging.SystemErrorf("[%s] file %s wasn't deleted from gcs: %v", bq.ID(), fileName, err)
+			logging.Errorf("[%s] file %s wasn't deleted from gcs: %v", bq.ID(), fileName, err)
 		}
 
 		return dbTable, nil
