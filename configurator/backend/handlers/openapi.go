@@ -68,11 +68,12 @@ type Config struct {
 }
 
 type SystemConfiguration struct {
-	SMTP        bool
-	SelfHosted  bool
-	DockerHUBID string
-	Tag         string
-	BuiltAt     string
+	SMTP            bool
+	SelfHosted      bool
+	ServerPublicURL string
+	DockerHUBID     string
+	Tag             string
+	BuiltAt         string
 }
 
 type OpenAPI struct {
@@ -445,6 +446,7 @@ func (oa *OpenAPI) GetSystemConfiguration(ctx *gin.Context) {
 			Users:                       hasUsers,
 			SMTP:                        oa.SystemConfig.SMTP,
 			SelfHosted:                  oa.SystemConfig.SelfHosted,
+			ServerPublicUrl:             oa.SystemConfig.ServerPublicURL,
 			SupportWidget:               !oa.SystemConfig.SelfHosted,
 			DefaultS3Bucket:             !oa.SystemConfig.SelfHosted,
 			SupportTrackingDomains:      !oa.SystemConfig.SelfHosted,

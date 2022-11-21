@@ -290,6 +290,7 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     environment: environment,
     onlyAdminCanChangeUserEmail: !!responseData.only_admin_can_change_user_email,
     pluginScript: responseData.plugin_script as string,
+    serverPublicUrl: responseData.server_public_url as string,
   }
 }
 
@@ -335,7 +336,7 @@ export type FeatureSettings = {
   /**
    * Jitsu Domain
    */
-  jitsuBaseUrl?: string
+  serverPublicUrl?: string
 
   /**
    * Slack - once user clicks on icon, it should be directed to slack

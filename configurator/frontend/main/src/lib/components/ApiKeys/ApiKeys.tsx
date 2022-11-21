@@ -43,8 +43,8 @@ const ApiKeysComponent: React.FC = () => {
   const [loading, setLoading] = useState<LoadingState>(null)
   const [documentationDrawerKey, setDocumentationDrawerKey] = useState<ApiKey>(null)
 
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   useEffect(() => {
     let breadcrumbs = []
@@ -82,7 +82,13 @@ const ApiKeysComponent: React.FC = () => {
         </div>
         <div className="flex-shrink">
           <ProjectLink to={"/api-keys/new"}>
-            <Button type="primary" size="large" icon={<PlusOutlined />} loading={"NEW" === loading} disabled={disableEdit}>
+            <Button
+              type="primary"
+              size="large"
+              icon={<PlusOutlined />}
+              loading={"NEW" === loading}
+              disabled={disableEdit}
+            >
               Generate New Key
             </Button>
           </ProjectLink>
@@ -128,9 +134,10 @@ export const KeyDocumentation: React.FC<KeyDocumentationProps> = function ({ tok
           `/configurations/custom_domains?id=${services.activeProject.id}`
         )
         const customDomains = result?.domains?.map(domain => "https://" + domain.name) || []
-        const newDomains = [...customDomains, "https://t.jitsu.com"]
-        setSelectedDomain(newDomains[0])
-        return newDomains
+        if (customDomains.length > 0) {
+          setSelectedDomain(customDomains[0])
+        }
+        return customDomains
       })
     : { error: null, data: staticDomains }
 
@@ -162,7 +169,7 @@ export const KeyDocumentation: React.FC<KeyDocumentationProps> = function ({ tok
     </div>
   )
 
-  const documentationDomain = selectedDomain || services.features.jitsuBaseUrl || "REPLACE_WITH_JITSU_DOMAIN"
+  const documentationDomain = selectedDomain || services.features.serverPublicUrl || "REPLACE_WITH_JITSU_DOMAIN"
   return (
     <Tabs
       className="api-keys-documentation-tabs pt-8"
@@ -174,7 +181,11 @@ export const KeyDocumentation: React.FC<KeyDocumentationProps> = function ({ tok
               <LabelWithTooltip documentation="Domain" render="Domain" />:{" "}
               <Select defaultValue={domains[0]} onChange={value => setSelectedDomain(value)}>
                 {domains.map(domain => {
-                  return <Select.Option key={domain} value={domain}>{domain.replace("https://", "")}</Select.Option>
+                  return (
+                    <Select.Option key={domain} value={domain}>
+                      {domain.replace("https://", "")}
+                    </Select.Option>
+                  )
                 })}
               </Select>
             </>
