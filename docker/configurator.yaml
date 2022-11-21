@@ -11,6 +11,7 @@ storage:
     tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
 
 jitsu:
+  server_public_url: '${env.JITSU_SERVER_PUBLIC_URL|}'
   base_url: '${env.JITSU_SERVER_URL|}'
   admin_token: '${env.CLUSTER_ADMIN_TOKEN|env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
 
