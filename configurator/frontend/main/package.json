@@ -90,7 +90,7 @@
   "packageManager": "pnpm",
   "engines": {
     "pnpm": ">=3",
-    "node": ">=14"
+    "node": ">=14 <18"
   },
   "browserslist": {
     "production": [
