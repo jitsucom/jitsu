@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/metrics"
+	"github.com/spf13/viper"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/appconfig"
@@ -195,7 +196,22 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 		if err != nil {
 			return nil, fmt.Errorf("Error mapping object: %v", err)
 		}
-		flatObject, err := p.flattener.FlattenObject(processedObject)
+		var transformed map[string]interface{}
+		if p.transformer != nil && viper.GetBool("experimental.source_transform_enabled") {
+			rawTransformed, err := p.transformer.ProcessEvent(processedObject, nil)
+			if err != nil {
+				metrics.TransformErrors(p.identifier)
+				return nil, fmt.Errorf("failed to apply javascript transform: %v", err)
+			}
+			ok := false
+			transformed, ok = rawTransformed.(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("failed to apply javascript transform: result type %T is not an object.", rawTransformed)
+			}
+		} else {
+			transformed = processedObject
+		}
+		flatObject, err := p.flattener.FlattenObject(transformed)
 		if err != nil {
 			return nil, err
 		}
