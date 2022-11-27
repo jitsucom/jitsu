@@ -31,6 +31,9 @@ import { SwitchWithLabel } from "./SwitchWithLabel"
 import set from "lodash/set"
 import { InputWithUpload } from "./InputWithUpload"
 import { useHistory, useLocation } from "react-router-dom"
+import useProject from "../../../hooks/useProject"
+import { allPermissions } from "../../../lib/services/permissions"
+import { ProjectPermission } from "../../../generated/conf-openapi"
 
 export const IMAGE_VERSION_FIELD_ID = "config.image_version"
 
@@ -86,6 +89,9 @@ const ConfigurableFieldsFormComponent = ({
     },
     [form]
   )
+
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
 
   const handleChangeTextInput = useCallback(
     (id: string) => (value: string) => {
@@ -177,6 +183,7 @@ const ConfigurableFieldsFormComponent = ({
     documentation?: React.ReactNode,
     validationRules?: FormItemProps["rules"]
   ) => {
+
     const defaultValueToDisplay =
       form.getFieldValue(id) ?? getInitialValue(id, defaultValue, constantValue, type?.typeName)
     form.setFieldsValue({ ...form.getFieldsValue(), [id]: defaultValueToDisplay })
@@ -256,6 +263,7 @@ const ConfigurableFieldsFormComponent = ({
         return (
           <FormItemWrapper key={id} {...formItemWrapperProps}>
             <CodeEditor
+              readonly={disableEdit}
               initialValue={defaultValueToDisplay}
               className={styles.codeEditor}
               extraSuggestions={codeSuggestions}
@@ -263,7 +271,7 @@ const ConfigurableFieldsFormComponent = ({
               handleChange={handleJsonChange(id)}
             />
             <span className="z-50">
-              {jsDebugger && (
+              {(jsDebugger && !disableEdit) && (
                 <>
                   {bigField ? (
                     <Button
@@ -340,7 +348,7 @@ const ConfigurableFieldsFormComponent = ({
             <InputWithDebug
               id={id}
               placeholder={placeholder}
-              jsDebugger={jsDebugger}
+              jsDebugger={disableEdit ? null : jsDebugger}
               onButtonClick={() => handleOpenDebugger(id)}
             />
           </FormItemWrapper>

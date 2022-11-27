@@ -28,7 +28,7 @@ import { useServices } from "./hooks/useServices"
 // @Utils
 import { createError, reloadPage, setDebugInfo } from "./lib/commons/utils"
 // @Types
-import { Project } from "./generated/conf-openapi"
+import { Project, ProjectWithPermissions } from "./generated/conf-openapi"
 // @Pages
 import LoginPage from "./ui/pages/GetStartedPage/LoginPage"
 import SignupPage from "./ui/pages/GetStartedPage/SignupPage"
@@ -104,7 +104,10 @@ const initializeBilling = async (services: ApplicationServices, projectId: strin
   services.currentSubscription = currenSubscription
 }
 
-const initializeProject = async (projectId: string, projects: Project[]): Promise<Project | null> => {
+const initializeProject = async (
+  projectId: string,
+  projects: ProjectWithPermissions[]
+): Promise<ProjectWithPermissions | null> => {
   const project = projects.find(project => project.id === projectId) ?? null
   if (project) {
     const services = ApplicationServices.get()
@@ -358,7 +361,9 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
     ;(async () => {
       let project = await initializeProject(projectId, projects)
       if (!project) {
-        if (!projects || projects.length === 0) services.userService.removeAuth(reloadPage)
+        if (!projects || projects.length === 0) {
+          services.userService.removeAuth(reloadPage)
+        }
         const lastUsedProject = services.userSettingsService.get(Settings.ActiveProject)?.id || projects[0]?.id
         setProjectIdRedirectedFrom(projectId)
         window.location.replace(window.location.href.replace(projectId, lastUsedProject))

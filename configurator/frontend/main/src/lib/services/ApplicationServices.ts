@@ -12,7 +12,7 @@ import { ApplicationConfiguration } from "./ApplicationConfiguration"
 import { CurrentSubscription } from "./billing"
 import { ISlackApiService, SlackApiService } from "./slack"
 import { IOauthService, OauthService } from "./oauth"
-import { Project } from "../../generated/conf-openapi"
+import { Project, ProjectPermission, ProjectWithPermissions } from "../../generated/conf-openapi"
 import { createProjectService, ProjectService } from "./ProjectService"
 import { FirebaseUserService } from "./UserServiceFirebase"
 import { UserSettingsService, UserSettingsLocalService, Settings } from "./UserSettingsService"
@@ -107,11 +107,15 @@ export default class ApplicationServices implements IApplicationServices {
     return this._userService
   }
 
-  get activeProject(): Project {
-    return this._userSettingsService.get(Settings.ActiveProject) as Project
+  get activeProject(): ProjectWithPermissions {
+    return this._userSettingsService.get(Settings.ActiveProject) as ProjectWithPermissions
   }
 
-  set activeProject(value: Project) {
+  get currentProjectPermissions(): Set<ProjectPermission> {
+    return new Set(this.activeProject.permissions || [])
+  }
+
+  set activeProject(value: ProjectWithPermissions) {
     this._userSettingsService.set({ [Settings.ActiveProject]: value })
   }
 
@@ -170,8 +174,7 @@ export default class ApplicationServices implements IApplicationServices {
   public async isAppVersionOutdated(): Promise<boolean> {
     const appVersion = await this.getAppVersion()
     const currentVersion = localStorage.getItem("app_version")
-    return appVersion !== null && appVersion != currentVersion;
-
+    return appVersion !== null && appVersion != currentVersion
   }
 
   private async getAppVersion(): Promise<string> {
@@ -186,11 +189,11 @@ export default class ApplicationServices implements IApplicationServices {
         console.warn(`Can't get application version: ${response.statusText}`)
         return "0"
       } else {
-        return response?.data;
+        return response?.data
       }
     } catch (e) {
-      console.warn(`Failed to get data from /app-version.json: ${e?.message || "unknown error"}`, e);
-      return "0";
+      console.warn(`Failed to get data from /app-version.json: ${e?.message || "unknown error"}`, e)
+      return "0"
     }
   }
 
@@ -287,6 +290,7 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     environment: environment,
     onlyAdminCanChangeUserEmail: !!responseData.only_admin_can_change_user_email,
     pluginScript: responseData.plugin_script as string,
+    serverPublicUrl: responseData.server_public_url as string,
   }
 }
 
@@ -332,7 +336,7 @@ export type FeatureSettings = {
   /**
    * Jitsu Domain
    */
-  jitsuBaseUrl?: string
+  serverPublicUrl?: string
 
   /**
    * Slack - once user clicks on icon, it should be directed to slack

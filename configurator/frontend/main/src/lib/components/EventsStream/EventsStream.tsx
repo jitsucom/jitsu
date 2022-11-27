@@ -11,7 +11,7 @@ const EventStreamComponent = () => {
   const location = useLocation()
   const history = useHistory()
   const params = new URLSearchParams(location.search)
-  const defaultActiveKey = params.get("type") ?? EventType.Token
+  const defaultActiveKey = params.get("type") ?? EventType.Destination
 
   return (
     <Tabs
@@ -21,11 +21,11 @@ const EventStreamComponent = () => {
       destroyInactiveTabPane={true}
       onChange={() => history.push({ search: null })}
     >
-      <Tabs.TabPane className={styles.eventsListTab} tab="Incoming events" key={EventType.Token}>
-        <EventsList type={EventType.Token} filterOptions={getAllApiKeysAsOptions()} />
-      </Tabs.TabPane>
       <Tabs.TabPane className={styles.eventsListTab} tab="Processed events" key={EventType.Destination}>
         <EventsList type={EventType.Destination} filterOptions={getAllDestinationsAsOptions()} />
+      </Tabs.TabPane>
+      <Tabs.TabPane className={styles.eventsListTab} tab="Incoming events" key={EventType.Token}>
+        <EventsList type={EventType.Token} filterOptions={getAllApiKeysAsOptions()} />
       </Tabs.TabPane>
     </Tabs>
   )

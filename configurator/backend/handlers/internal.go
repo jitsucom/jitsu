@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
@@ -19,18 +20,26 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (oa *OpenAPI) getProjectUsers(ctx context.Context, projectID string) ([]openapi.UserBasicInfo, error) {
+func (oa *OpenAPI) getProjectUsers(ctx context.Context, projectID string) ([]openapi.ProjectUserPermissions, error) {
 	if userIDs, err := oa.Configurations.GetProjectUsers(projectID); err != nil {
 		return nil, errors.Wrap(err, "get project users")
 	} else {
-		users := make([]openapi.UserBasicInfo, 0, len(userIDs))
+		users := make([]openapi.ProjectUserPermissions, 0, len(userIDs))
 		for _, userID := range userIDs {
 			if email, err := oa.Authorizator.GetUserEmail(ctx, userID); err != nil {
 				logging.Warnf("Failed to find user email for ID %s: %s", userID, err)
 			} else {
-				users = append(users, openapi.UserBasicInfo{
-					Id:    userID,
-					Email: email,
+				permissions, err := oa.Configurations.GetProjectPermissions(userID, projectID)
+				if err != nil {
+					return nil, fmt.Errorf("get project permissions for user [%s] and project [%s]: %w", userID, projectID, err)
+				}
+				p := openapi.PermissionsInfo(*permissions)
+				users = append(users, openapi.ProjectUserPermissions{
+					UserBasicInfo: openapi.UserBasicInfo{
+						Id:    userID,
+						Email: email,
+					},
+					PermissionsInfo: p,
 				})
 			}
 		}
@@ -176,13 +185,19 @@ func mapYamlSources(projectSources []*entities.Source, postHandleDestinationIDs 
 	return sourceConfigs, nil
 }
 
-//mapSourceConfig mapped configurator source into server format
-//puts table names if not set
+// mapSourceConfig mapped configurator source into server format
+// puts table names if not set
 func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, postHandleDestinations []string, projectSettings entities.Project) (jdriversbase.SourceConfig, error) {
 	var notificationConfig map[string]interface{}
 	if projectSettings.Notifications != nil {
 		notificationConfig = map[string]interface{}{
 			"slack": projectSettings.Notifications.Slack,
+		}
+	}
+
+	if source.Schedule == "@daily" {
+		if source.ScheduleTime != "" && source.ScheduleTime != "0" {
+			source.Schedule = fmt.Sprintf("0 %s * * *", source.ScheduleTime)
 		}
 	}
 
@@ -230,7 +245,7 @@ func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, pos
 	return enSource, nil
 }
 
-//enrichWithSingerTableNamesMapping enriches with table names = source (without project + singer stream)
+// enrichWithSingerTableNamesMapping enriches with table names = source (without project + singer stream)
 // - gets stream names from JSON
 // - puts it with sourceID prefix into mapping map
 func enrichWithSingerTableNamesMapping(enSource *jdriversbase.SourceConfig) error {
@@ -273,7 +288,7 @@ func enrichWithSingerTableNamesMapping(enSource *jdriversbase.SourceConfig) erro
 	return nil
 }
 
-//enrichWithAirbyteTableNamesMapping enriches with table names = source (without project + airbyte stream)
+// enrichWithAirbyteTableNamesMapping enriches with table names = source (without project + airbyte stream)
 // - gets stream names from JSON
 // - puts it with sourceID prefix into mapping map
 func enrichWithAirbyteTableNamesMapping(enSource *jdriversbase.SourceConfig) error {

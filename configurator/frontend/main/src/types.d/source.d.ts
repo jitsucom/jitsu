@@ -158,6 +158,8 @@ declare type CommonSourceData = {
   destinations: string[]
   /** Sync schedule */
   schedule?: string
+  /** Sync schedule time (For daily syncs only) */
+  scheduleTime?: string
 }
 declare interface NativeSourceData extends CommonSourceData {
   /** List of data streams.  */

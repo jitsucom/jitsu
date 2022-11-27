@@ -25,6 +25,9 @@ import { projectRoute } from "lib/components/ProjectLink/ProjectLink"
 import { destinationPageRoutes } from "../DestinationsPage/DestinationsPage.routes"
 // @Styles
 import styles from "./ConnectionsPage.module.less"
+import { allPermissions } from "../../../lib/services/permissions"
+import { ProjectPermission } from "../../../generated/conf-openapi"
+import useProject from "../../../hooks/useProject"
 
 const CONNECTION_LINE_SIZE = 3
 const CONNECTION_LINE_COLOR = "#415969"
@@ -34,7 +37,9 @@ const connectionLines: { [key: string]: LeaderLine } = {}
 
 const ConnectionsPageComponent = () => {
   const history = useHistory()
+  const project = useProject()
   const containerRef = useRef<HTMLDivElement>(null)
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   const updateLines = () => {
     destinationsStore.list.forEach(({ _uid, _onlyKeys = [], _sources = [] }) => {
@@ -104,8 +109,9 @@ const ConnectionsPageComponent = () => {
                 overlay={<AddSourceDropdownOverlay />}
                 className="flex-initial"
                 placement="bottomRight"
+                disabled={disableEdit}
               >
-                <Button type="ghost" size="large" icon={<PlusOutlined />}>
+                <Button type="ghost" size="large" icon={<PlusOutlined />} disabled={disableEdit}>
                   Add
                 </Button>
               </Dropdown>
@@ -163,7 +169,7 @@ const ConnectionsPageComponent = () => {
           header={
             <div className="flex w-full mb-3">
               <h3 className="block flex-auto text-3xl mb-0">{"Destinations"}</h3>
-              <Button type="ghost" size="large" icon={<PlusOutlined />} onClick={handleAddClick}>
+              <Button type="ghost" size="large" icon={<PlusOutlined />} onClick={handleAddClick} disabled={disableEdit}>
                 Add
               </Button>
             </div>

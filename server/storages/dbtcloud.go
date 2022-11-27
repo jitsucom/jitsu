@@ -12,9 +12,9 @@ const (
 	dbtCloudTableNameFilter = "return ($.event_type == '" + SourceSuccessEventType + "' || $.event_type == '" + DestinationBatchEventType + "') ? true : false"
 )
 
-//DbtCloud is a destination that can send API request to cloud.getdbt.com
-//It is not general purpose destination. It is designed for special kind of events like
-//successful run of Source
+// DbtCloud is a destination that can send API request to cloud.getdbt.com
+// It is not general purpose destination. It is designed for special kind of events like
+// successful run of Source
 type DbtCloud struct {
 	HTTPStorage
 	enabled bool
@@ -24,7 +24,7 @@ func init() {
 	RegisterStorage(StorageType{typeName: DbtCloudType, createFunc: NewDbtCloud, defaultTableName: dbtCloudTableNameFilter, isSQL: false})
 }
 
-//NewDbtCloud returns configured DbtCloud destination
+// NewDbtCloud returns configured DbtCloud destination
 func NewDbtCloud(config *Config) (storage Storage, err error) {
 	defer func() {
 		if err != nil && storage != nil {
@@ -66,16 +66,16 @@ func NewDbtCloud(config *Config) (storage Storage, err error) {
 	dbt.adapter = dbtAdapter
 
 	//streaming worker (queue reading)
-	dbt.streamingWorker = newStreamingWorker(config.eventQueue, dbt)
+	dbt.streamingWorkers = newStreamingWorkers(config.eventQueue, dbt, config.streamingThreadsCount)
 	return
 }
 
-//Enabled returns whether we should use this storage
+// Enabled returns whether we should use this storage
 func (dbt *DbtCloud) Enabled() bool {
 	return dbt.enabled
 }
 
-//Type returns WebHook type
+// Type returns WebHook type
 func (dbt *DbtCloud) Type() string {
 	return DbtCloudType
 }

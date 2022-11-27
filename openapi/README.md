@@ -12,7 +12,7 @@ If you would like to generate go code manually keep reading this section.
 ### Setup
 
 1. make sure that you have installed `go` locally;
-2. install [oapi-codegen](https://github.com/deepmap/oapi-codegen): `go get github.com/deepmap/oapi-codegen/cmd/oapi-codegen`
+2. install [oapi-codegen](https://github.com/deepmap/oapi-codegen) v1.10.1: `go get github.com/deepmap/oapi-codegen/cmd/oapi-codegen@v1.10.1`
 
 ### Generate GO code
 

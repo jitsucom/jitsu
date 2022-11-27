@@ -3,7 +3,7 @@ import { loadProjectSettings, ProjectSettings, saveProjectSettings } from "../..
 import { CenteredError, CenteredSpin, handleError } from "../../../lib/components/components"
 import { actionNotification } from "../../components/ActionNotification/ActionNotification"
 import { FormActions, FormField, FormLayout } from "../../../lib/components/Form/Form"
-import { Badge, Button, Form, Input, Modal, Tooltip } from "antd"
+import { Button, Checkbox, Form, Input, Modal } from "antd"
 import { useLoaderAsObject } from "../../../hooks/useLoader"
 import useForm from "antd/lib/form/hooks/useForm"
 import { flatten, reloadPage, unflatten } from "lib/commons/utils"
@@ -11,8 +11,10 @@ import { useServices } from "../../../hooks/useServices"
 import useProject from "../../../hooks/useProject"
 import { ErrorCard } from "../../../lib/components/ErrorCard/ErrorCard"
 import { BilledButton } from "lib/components/BilledButton/BilledButton"
+import { ProjectPermission, ProjectUserPermissions } from "../../../generated/conf-openapi"
+import { allPermissions, withPermissionRequirement } from "../../../lib/services/permissions"
 
-export default function ProjectSettingsPage() {
+function ProjectSettingsPage() {
   return (
     <div>
       <SettingsPanel title={"Project Name"}>
@@ -40,7 +42,7 @@ export default function ProjectSettingsPage() {
   )
 }
 
-const ProjectName: React.FC<{}> = () => {
+export const ProjectName: React.FC<{}> = () => {
   let services = useServices()
   let [projectName, setProjectName] = useState(services.activeProject.name)
   let [pending, setPending] = useState<boolean>(false)
@@ -115,6 +117,100 @@ const SettingsPanel: React.FC<{ title: ReactNode; documentation?: ReactNode }> =
   )
 }
 
+const UserSettings: React.FC<{
+  user: ProjectUserPermissions
+  unlinkUser: ({ id, email }: { id: string; email: string }) => void
+}> = ({ user, unlinkUser }) => {
+  const services = useServices()
+  const [showPermissions, setShowPermissions] = useState(false)
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
+  const canEditPermissions =
+    services.userService.getUser().id === user.id
+      ? "You can't edit your own permissions"
+      : disableEdit
+      ? " You don't have enough permissions to edit other users"
+      : null
+  return (
+    <div className="flex flex-col">
+      <div key={user.id} className="w-full flex justify-between items-center -ml-2 p-2 rounded-md hover:bg-bgComponent">
+        <div key="email" className="text-secondaryText text-lg font-bold">
+          {user.email}
+        </div>
+        <div>
+          <Button className="mr-3 w-36" type="default" onClick={() => setShowPermissions(!showPermissions)}>
+            {canEditPermissions ? "View Permissions" : "Edit Permissions"}
+          </Button>
+          <Button type="default" danger onClick={() => unlinkUser(user)}>
+            Unlink user
+          </Button>
+        </div>
+      </div>
+      {showPermissions && (
+        <div>
+          <PermissionsEditor
+            permissions={user.permissions || allPermissions}
+            user={user}
+            blockedReason={canEditPermissions}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+const PermissionsEditor: React.FC<{
+  permissions: ProjectPermission[]
+  user: { id: string; email: string }
+  blockedReason: string | null
+}> = ({ permissions, user, blockedReason }) => {
+  const [grantedPermissions, setGrantedPermissions] = useState<Set<ProjectPermission>>(new Set(permissions))
+  const [updating, setUpdating] = useState(false)
+  const services = useServices()
+  const activeProject = useProject()
+  return (
+    <div className="flex items-center">
+      {allPermissions.map(p => (
+        <Checkbox
+          key={p}
+          disabled={updating || !!blockedReason}
+          checked={grantedPermissions.has(p)}
+          onChange={async e => {
+            const copy = new Set(grantedPermissions)
+            if (e.target.checked) {
+              copy.add(p)
+            } else {
+              copy.delete(p)
+            }
+            try {
+              setUpdating(true)
+              await services.projectService.updatePermissions(activeProject.id, user.id, [...copy])
+              setGrantedPermissions(copy)
+              actionNotification.success(
+                <>
+                  Permissions of <b>{user.email}</b> has been updated
+                </>
+              )
+            } catch (e) {
+              actionNotification.error(
+                <>
+                  Error while updating permissions of <b>{user.email}</b>
+                  {e?.message ? `: ${e.message}` : ""}
+                </>
+              )
+            } finally {
+              setUpdating(false)
+            }
+          }}
+        >
+          {p}
+        </Checkbox>
+      ))}
+      {blockedReason && <span className={"ml-1 text-sm text-secondaryText"}> - {blockedReason}</span>}
+    </div>
+  )
+}
+
 const UsersSettings: React.FC<{}> = () => {
   const services = useServices()
   const activeProject = useProject()
@@ -152,7 +248,7 @@ const UsersSettings: React.FC<{}> = () => {
     await reloader()
   }
 
-  const unlinkUser = ({ id, email }) => {
+  const unlinkUser = ({ id, email }: { id: string; email: string }) => {
     if (id === services.userService.getUser().id) {
       alert("You can't unlink yourself from the project!")
       return
@@ -179,19 +275,7 @@ const UsersSettings: React.FC<{}> = () => {
   return (
     <div>
       {users.map(user => (
-        <div
-          key={user.id}
-          className="w-full flex justify-between items-center -ml-2 p-2 rounded-md hover:bg-bgComponent"
-        >
-          <div key="email" className="text-secondaryText text-lg font-bold">
-            {user.email}
-          </div>
-          <div>
-            <Button type="default" danger onClick={() => unlinkUser(user)}>
-              Unlink user
-            </Button>
-          </div>
-        </div>
+        <UserSettings key={user.id} user={user} unlinkUser={unlinkUser} />
       ))}
       <div className="pt-6">
         <InviteUserForm invite={linkUser} />
@@ -320,3 +404,5 @@ function SlackSettings() {
     </>
   )
 }
+
+export default withPermissionRequirement(ProjectSettingsPage, ProjectPermission.MODIFY_CONFIG)

@@ -15,9 +15,9 @@ import (
 
 var disabledRecognitionConfiguration = &UserRecognitionConfiguration{Enabled: false}
 
-//BigQuery stores files to google BigQuery in two modes:
-//batch: via google cloud storage in batch mode (1 file = 1 operation)
-//stream: via events queue in stream mode (1 object = 1 operation)
+// BigQuery stores files to google BigQuery in two modes:
+// batch: via google cloud storage in batch mode (1 file = 1 operation)
+// stream: via events queue in stream mode (1 object = 1 operation)
 type BigQuery struct {
 	Abstract
 
@@ -29,7 +29,7 @@ func init() {
 	RegisterStorage(StorageType{typeName: BigQueryType, createFunc: NewBigQuery, isSQL: true})
 }
 
-//NewBigQuery returns BigQuery configured instance
+// NewBigQuery returns BigQuery configured instance
 func NewBigQuery(config *Config) (storage Storage, err error) {
 	defer func() {
 		if err != nil && storage != nil {
@@ -93,12 +93,12 @@ func NewBigQuery(config *Config) (storage Storage, err error) {
 	bq.sqlAdapters = []adapters.SQLAdapter{bigQueryAdapter}
 
 	//streaming worker (queue reading)
-	bq.streamingWorker = newStreamingWorker(config.eventQueue, bq, tableHelper)
+	bq.streamingWorkers = newStreamingWorkers(config.eventQueue, bq, config.streamingThreadsCount, tableHelper)
 	return
 }
 
-//storeTable checks table schema
-//stores data into one table via google cloud storage (if batch BQ) or uses streaming if stream mode
+// storeTable checks table schema
+// stores data into one table via google cloud storage (if batch BQ) or uses streaming if stream mode
 func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error) {
 	_, tableHelper := bq.getAdapters()
 	table := tableHelper.MapTableSchema(fdata.BatchHeader)
@@ -127,7 +127,7 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, er
 		}
 
 		if err := bq.gcsAdapter.DeleteObject(fileName); err != nil {
-			logging.SystemErrorf("[%s] file %s wasn't deleted from gcs: %v", bq.ID(), fileName, err)
+			logging.Errorf("[%s] file %s wasn't deleted from gcs: %v", bq.ID(), fileName, err)
 		}
 
 		return dbTable, nil
@@ -137,7 +137,7 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, er
 	return dbTable, bq.bqAdapter.Insert(adapters.NewBatchInsertContext(table, fdata.GetPayload(), true, nil))
 }
 
-//Update isn't supported
+// Update isn't supported
 func (bq *BigQuery) Update(eventContext *adapters.EventContext) error {
 	return errors.New("BigQuery doesn't support updates")
 }
@@ -188,23 +188,22 @@ func (bq *BigQuery) Clean(tableName string) error {
 	return cleanImpl(bq, tableName)
 }
 
-//GetUsersRecognition returns disabled users recognition configuration
+// GetUsersRecognition returns disabled users recognition configuration
 func (bq *BigQuery) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
 }
 
-//Type returns BigQuery type
+// Type returns BigQuery type
 func (bq *BigQuery) Type() string {
 	return BigQueryType
 }
 
-//Close closes BigQuery adapter, fallback logger and streaming worker
+// Close closes BigQuery adapter, fallback logger and streaming worker
 func (bq *BigQuery) Close() (multiErr error) {
-	if bq.streamingWorker != nil {
-		if err := bq.streamingWorker.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", bq.ID(), err))
-		}
+	if err := bq.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
+
 	if bq.gcsAdapter != nil {
 		if err := bq.gcsAdapter.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing google cloud storage client: %v", bq.ID(), err))
@@ -216,10 +215,5 @@ func (bq *BigQuery) Close() (multiErr error) {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing BigQuery client: %v", bq.ID(), err))
 		}
 	}
-
-	if err := bq.close(); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	}
-
 	return
 }

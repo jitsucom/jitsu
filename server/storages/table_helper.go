@@ -17,9 +17,9 @@ import (
 
 const tableLockTimeout = time.Minute
 
-//TableHelper keeps tables schema state inmemory and update it according to incoming new data
-//consider that all tables are in one destination schema.
-//note: Assume that after any outer changes in db we need to increment table version in Service
+// TableHelper keeps tables schema state inmemory and update it according to incoming new data
+// consider that all tables are in one destination schema.
+// note: Assume that after any outer changes in db we need to increment table version in Service
 type TableHelper struct {
 	sync.RWMutex
 
@@ -36,8 +36,8 @@ type TableHelper struct {
 	maxColumns      int
 }
 
-//NewTableHelper returns configured TableHelper instance
-//Note: columnTypesMapping must be not empty (or fields will be ignored)
+// NewTableHelper returns configured TableHelper instance
+// Note: columnTypesMapping must be not empty (or fields will be ignored)
 func NewTableHelper(dbSchema string, sqlAdapter adapters.SQLAdapter, coordinationService *coordination.Service, pkFields map[string]bool,
 	columnTypesMapping map[typing.DataType]string, maxColumns int, destinationType string) *TableHelper {
 
@@ -55,8 +55,8 @@ func NewTableHelper(dbSchema string, sqlAdapter adapters.SQLAdapter, coordinatio
 	}
 }
 
-//MapTableSchema maps schema.BatchHeader (JSON structure with json data types) into adapters.Table (structure with SQL types)
-//applies column types mapping
+// MapTableSchema maps schema.BatchHeader (JSON structure with json data types) into adapters.Table (structure with SQL types)
+// applies column types mapping
 func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters.Table {
 	table := &adapters.Table{
 		Schema:    th.dbSchema,
@@ -90,23 +90,25 @@ func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters
 	return table
 }
 
-//EnsureTableWithCaching calls EnsureTable with cacheTable = true
-//it is used in stream destinations (because we don't have time to select table schema, but there is retry on error)
+// EnsureTableWithCaching calls EnsureTable with cacheTable = true
+// it is used in stream destinations (because we don't have time to select table schema, but there is retry on error)
 func (th *TableHelper) EnsureTableWithCaching(destinationID string, dataSchema *adapters.Table) (*adapters.Table, error) {
 	return th.EnsureTable(destinationID, dataSchema, true)
 }
 
-//EnsureTableWithoutCaching calls EnsureTable with cacheTable = true
-//it is used in batch destinations and syncStore (because we have time to select table schema)
+// EnsureTableWithoutCaching calls EnsureTable with cacheTable = true
+// it is used in batch destinations and syncStore (because we have time to select table schema)
 func (th *TableHelper) EnsureTableWithoutCaching(destinationID string, dataSchema *adapters.Table) (*adapters.Table, error) {
 	return th.EnsureTable(destinationID, dataSchema, false)
 }
 
-//EnsureTable returns DB table schema and err if occurred
-//if table doesn't exist - create a new one and increment version
-//if exists - calculate diff, patch existing one with diff and increment version
-//returns actual db table schema (with actual db types)
+// EnsureTable returns DB table schema and err if occurred
+// if table doesn't exist - create a new one and increment version
+// if exists - calculate diff, patch existing one with diff and increment version
+// returns actual db table schema (with actual db types)
 func (th *TableHelper) EnsureTable(destinationID string, dataSchema *adapters.Table, cacheTable bool) (*adapters.Table, error) {
+	th.Lock()
+	defer th.Unlock()
 	var dbSchema *adapters.Table
 	var err error
 
@@ -139,7 +141,7 @@ func (th *TableHelper) EnsureTable(destinationID string, dataSchema *adapters.Ta
 	return th.patchTableWithLock(destinationID, dataSchema)
 }
 
-//patchTable locks table, get from DWH and patch
+// patchTable locks table, get from DWH and patch
 func (th *TableHelper) patchTableWithLock(destinationID string, dataSchema *adapters.Table) (*adapters.Table, error) {
 	tableIdentifier := th.getTableIdentifier(destinationID, dataSchema.Name)
 	tableLock, err := th.lockTable(destinationID, dataSchema.Name, tableIdentifier)
@@ -178,17 +180,13 @@ func (th *TableHelper) patchTableWithLock(destinationID string, dataSchema *adap
 	}
 
 	// Save data schema to local cache
-	th.Lock()
 	th.tables[dbSchema.Name] = dbSchema
-	th.Unlock()
 
 	return dbSchema.Clone(), nil
 }
 
 func (th *TableHelper) getCachedTableSchema(destinationName string, dataSchema *adapters.Table) (*adapters.Table, error) {
-	th.RLock()
 	dbSchema, ok := th.tables[dataSchema.Name]
-	th.RUnlock()
 
 	if ok {
 		return dbSchema.Clone(), nil
@@ -201,29 +199,27 @@ func (th *TableHelper) getCachedTableSchema(destinationName string, dataSchema *
 	}
 
 	// Save data schema to local cache
-	th.Lock()
 	th.tables[dbSchema.Name] = dbSchema
-	th.Unlock()
 
 	return dbSchema.Clone(), nil
 }
 
-//RefreshTableSchema force get (or create) db table schema and update it in-memory
+// RefreshTableSchema force get (or create) db table schema and update it in-memory
 func (th *TableHelper) RefreshTableSchema(destinationName string, dataSchema *adapters.Table) (*adapters.Table, error) {
+	th.Lock()
+	defer th.Unlock()
 	dbTableSchema, err := th.getOrCreateWithLock(destinationName, dataSchema)
 	if err != nil {
 		return nil, err
 	}
 
 	//save
-	th.Lock()
 	th.tables[dbTableSchema.Name] = dbTableSchema
-	th.Unlock()
 
 	return dbTableSchema, nil
 }
 
-//lock table -> get existing schema -> create a new one if doesn't exist -> return schema with version
+// lock table -> get existing schema -> create a new one if doesn't exist -> return schema with version
 func (th *TableHelper) getOrCreateWithLock(destinationID string, dataSchema *adapters.Table) (*adapters.Table, error) {
 	tableIdentifier := th.getTableIdentifier(destinationID, dataSchema.Name)
 	tableLock, err := th.lockTable(destinationID, dataSchema.Name, tableIdentifier)

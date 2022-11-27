@@ -17,7 +17,7 @@ import (
 	"go.uber.org/atomic"
 )
 
-//StreamingStorage supports Insert operation
+// StreamingStorage supports Insert operation
 type StreamingStorage interface {
 	Storage
 	//Insert uses errCallback in async adapters (e.g. adapters.HTTPAdapter)
@@ -35,7 +35,7 @@ type StreamingStorage interface {
 	RetiredEvent(eventCtx *adapters.EventContext)
 }
 
-//StreamingWorker reads events from queue and using events.StreamingStorage writes them
+// StreamingWorker reads events from queue and using events.StreamingStorage writes them
 type StreamingWorker struct {
 	eventQueue       events.Queue
 	streamingStorage StreamingStorage
@@ -44,7 +44,7 @@ type StreamingWorker struct {
 	closed *atomic.Bool
 }
 
-//newStreamingWorker returns configured streaming worker
+// newStreamingWorker returns configured streaming worker
 func newStreamingWorker(eventQueue events.Queue, streamingStorage StreamingStorage, tableHelper ...*TableHelper) *StreamingWorker {
 	return &StreamingWorker{
 		eventQueue:       eventQueue,
@@ -54,9 +54,18 @@ func newStreamingWorker(eventQueue events.Queue, streamingStorage StreamingStora
 	}
 }
 
-//Run goroutine to:
-//1. read from queue
-//2. Insert in events.StreamingStorage
+// newStreamingWorkers returns configured streaming workers
+func newStreamingWorkers(eventQueue events.Queue, streamingStorage StreamingStorage, workersCount int, tableHelper ...*TableHelper) []*StreamingWorker {
+	workers := make([]*StreamingWorker, workersCount)
+	for i := 0; i < workersCount; i++ {
+		workers[i] = newStreamingWorker(eventQueue, streamingStorage, tableHelper...)
+	}
+	return workers
+}
+
+// Run goroutine to:
+// 1. read from queue
+// 2. Insert in events.StreamingStorage
 func (sw *StreamingWorker) start() {
 	safego.RunWithRestart(func() {
 		for {

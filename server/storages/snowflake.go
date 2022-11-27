@@ -14,9 +14,9 @@ import (
 	sf "github.com/snowflakedb/gosnowflake"
 )
 
-//Snowflake stores files to Snowflake in two modes:
-//batch: via aws s3 (or gcp) in batch mode (1 file = 1 transaction)
-//stream: via events queue in stream mode (1 object = 1 transaction)
+// Snowflake stores files to Snowflake in two modes:
+// batch: via aws s3 (or gcp) in batch mode (1 file = 1 transaction)
+// stream: via events queue in stream mode (1 object = 1 transaction)
 type Snowflake struct {
 	Abstract
 
@@ -29,7 +29,7 @@ func init() {
 	RegisterStorage(StorageType{typeName: SnowflakeType, createFunc: NewSnowflake, isSQL: true})
 }
 
-//NewSnowflake returns Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
+// NewSnowflake returns Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
 func NewSnowflake(config *Config) (storage Storage, err error) {
 	defer func() {
 		if err != nil && storage != nil {
@@ -116,12 +116,12 @@ func NewSnowflake(config *Config) (storage Storage, err error) {
 	snowflake.sqlAdapters = []adapters.SQLAdapter{snowflakeAdapter}
 
 	//streaming worker (queue reading)
-	snowflake.streamingWorker = newStreamingWorker(config.eventQueue, snowflake, tableHelper)
+	snowflake.streamingWorkers = newStreamingWorkers(config.eventQueue, snowflake, config.streamingThreadsCount, tableHelper)
 	return
 }
 
-//CreateSnowflakeAdapter creates snowflake adapter with schema
-//if schema doesn't exist - snowflake returns error. In this case connect without schema and create it
+// CreateSnowflakeAdapter creates snowflake adapter with schema
+// if schema doesn't exist - snowflake returns error. In this case connect without schema and create it
 func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, config adapters.SnowflakeConfig,
 	queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*adapters.Snowflake, error) {
 	snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypes)
@@ -157,8 +157,8 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 	return snowflakeAdapter, nil
 }
 
-//storeTable check table schema
-//and store data into one table via stage (google cloud storage or s3)
+// storeTable check table schema
+// and store data into one table via stage (google cloud storage or s3)
 func (s *Snowflake) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error) {
 	if fdata.RecognitionPayload {
 		return s.Abstract.storeTable(fdata)
@@ -183,14 +183,14 @@ func (s *Snowflake) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, er
 		}
 
 		if err := s.stageAdapter.DeleteObject(fdata.FileName); err != nil {
-			logging.SystemErrorf("[%s] file %s wasn't deleted from stage: %v", s.ID(), fdata.FileName, err)
+			logging.Errorf("[%s] file %s wasn't deleted from stage: %v", s.ID(), fdata.FileName, err)
 		}
 
 		return dbTable, nil
 	}
 }
 
-//GetUsersRecognition returns users recognition configuration
+// GetUsersRecognition returns users recognition configuration
 func (s *Snowflake) GetUsersRecognition() *UserRecognitionConfiguration {
 	return s.usersRecognitionConfiguration
 }
@@ -204,18 +204,17 @@ func (s *Snowflake) Clean(tableName string) error {
 	return cleanImpl(s, tableName)
 }
 
-//Type returns Snowflake type
+// Type returns Snowflake type
 func (s *Snowflake) Type() string {
 	return SnowflakeType
 }
 
-//Close closes Snowflake adapter, stage adapter, fallback logger and streaming worker
+// Close closes Snowflake adapter, stage adapter, fallback logger and streaming worker
 func (s *Snowflake) Close() (multiErr error) {
-	if s.streamingWorker != nil {
-		if err := s.streamingWorker.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", s.ID(), err))
-		}
+	if err := s.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
+
 	if s.snowflakeAdapter != nil {
 		if err := s.snowflakeAdapter.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake datasource: %v", s.ID(), err))
@@ -225,10 +224,6 @@ func (s *Snowflake) Close() (multiErr error) {
 		if err := s.stageAdapter.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake stage: %v", s.ID(), err))
 		}
-	}
-
-	if err := s.close(); err != nil {
-		multiErr = multierror.Append(multiErr, err)
 	}
 
 	return

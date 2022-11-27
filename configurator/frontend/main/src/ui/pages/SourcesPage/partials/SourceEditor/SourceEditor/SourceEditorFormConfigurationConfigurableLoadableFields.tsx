@@ -27,6 +27,7 @@ type Props = {
   initialValues: Partial<SourceData>
   sourceDataFromCatalog: SourceConnector
   availableOauthBackendSecrets?: string[]
+  disabled?: boolean
   hideFields?: string[]
   patchConfig: PatchConfig
   setValidator: React.Dispatch<React.SetStateAction<(validator: ValidateGetErrorsCount) => void>>
@@ -40,6 +41,7 @@ const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 
 export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<Props> = memo(
   ({
+    disabled,
     initialValues,
     sourceDataFromCatalog,
     availableOauthBackendSecrets,
@@ -227,7 +229,7 @@ export const SourceEditorFormConfigurationConfigurableLoadableFields: React.FC<P
         </Col>
       </Row>
     ) : (
-      <Form form={form} onValuesChange={handleFormValuesChangeForm}>
+      <Form disabled={disabled} form={form} onValuesChange={handleFormValuesChangeForm}>
         <ConfigurableFieldsForm
           fieldsParamsList={fieldsParameters || []}
           form={form}

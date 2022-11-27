@@ -11,6 +11,8 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -45,7 +47,7 @@ type Bridge struct {
 	pulledImages  map[string]bool
 }
 
-//Init initializes airbyte Bridge
+// Init initializes airbyte Bridge
 func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume string, batchSize int, logWriter io.Writer) error {
 	logging.Infof("Initializing Airbyte bridge. Batch size: %d", batchSize)
 
@@ -95,7 +97,7 @@ func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume
 	logging.Infof("[airbyte] Checking mounted volume: %s ...", workspaceVolume)
 	if containerizedRun {
 		if err = instance.checkVolume(ctx, instance, cli); err != nil {
-			InstanceError = fmt.Errorf("for non-docker Jitsu instances (started via binary file) 'airbyte-bridge.config_dir' parameter (current value: %s) should be equal to 'server.volumes.workspace' parameter (current value: %s) in config", instance.ConfigDir, workspaceVolume)
+			InstanceError = err
 			return InstanceError
 		}
 	} else {
@@ -110,18 +112,32 @@ func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume
 	return nil
 }
 
-//checkVolume checks if current image has a mounted volume with server.volumes.workspace value
+// checkVolume checks if current image has a mounted volume with server.volumes.workspace value
 func (b *Bridge) checkVolume(ctx context.Context, instance *Bridge, cli *client.Client) error {
 	containerID, err := os.Hostname()
+	var container types.ContainerJSON
 	if err != nil {
-		return fmt.Errorf("failed to get current docker container ID from hostname: %v", err)
+		err = fmt.Errorf("failed to get current docker container ID from hostname: %v", err)
+	} else {
+		container, err = cli.ContainerInspect(ctx, containerID)
+		if err != nil {
+			err = fmt.Errorf("failed to inspect current docker container by containerID [%s]: %v", containerID, err)
+		}
 	}
-
-	container, err := cli.ContainerInspect(ctx, containerID)
-	if err != nil {
-		return fmt.Errorf("failed to inspect current docker container by containerID [%s]: %v", containerID, err)
+	if container.ContainerJSONBase == nil {
+		//alternative approach to detect container id from inside docker
+		containerRaw, err1 := exec.Command("cat", "/proc/1/cpuset").Output()
+		if err1 != nil {
+			//return original error
+			return err
+		}
+		containerID = path.Base(strings.TrimSpace(string(containerRaw)))
+		container, err1 = cli.ContainerInspect(ctx, containerID)
+		if err1 != nil {
+			//return original error
+			return err
+		}
 	}
-
 	for _, mount := range container.Mounts {
 		if mount.Name == b.WorkspaceVolume && mount.Type == MountVolumeType {
 			//workspace is a volume and has correct name
@@ -132,7 +148,7 @@ func (b *Bridge) checkVolume(ctx context.Context, instance *Bridge, cli *client.
 	return fmt.Errorf("volume with name: %s hasn't been mounted to the current docker container. The volume is required for Airbyte integration. Please add -v %s:%s to your Jitsu container run", instance.WorkspaceVolume, instance.WorkspaceVolume, instance.ConfigDir)
 }
 
-//IsImagePulled returns true if the image is pulled or start pulling the image asynchronously and returns false
+// IsImagePulled returns true if the image is pulled or start pulling the image asynchronously and returns false
 func (b *Bridge) IsImagePulled(dockerRepoImage, version string) (bool, error) {
 	if b == nil {
 		return false, fmt.Errorf("Airbyte was not initialized: %v", InstanceError)
@@ -155,7 +171,7 @@ func (b *Bridge) IsImagePulled(dockerRepoImage, version string) (bool, error) {
 	return false, nil
 }
 
-//pullImage executes docker pull
+// pullImage executes docker pull
 func (b *Bridge) pullImage(dockerVersionedImage string) {
 	defer b.pullingImages.Delete(dockerVersionedImage)
 
@@ -175,7 +191,7 @@ func (b *Bridge) pullImage(dockerVersionedImage string) {
 	b.imageMutex.Unlock()
 }
 
-//BuildMsg returns formatted error
+// BuildMsg returns formatted error
 func (b *Bridge) BuildMsg(prefix string, outWriter, errWriter *logging.StringWriter, err error) string {
 	msg := prefix
 	var outStr, errStr string
@@ -200,7 +216,7 @@ func (b *Bridge) BuildMsg(prefix string, outWriter, errWriter *logging.StringWri
 	return fmt.Sprintf("%s\n\t%v", msg, err)
 }
 
-//AddAirbytePrefix adds airbyte/ prefix to dockerImage if doesn't exist
+// AddAirbytePrefix adds airbyte/ prefix to dockerImage if doesn't exist
 func (b *Bridge) AddAirbytePrefix(dockerImage string) string {
 	if !strings.HasPrefix(dockerImage, DockerImageRepositoryPrefix) {
 		return DockerImageRepositoryPrefix + dockerImage

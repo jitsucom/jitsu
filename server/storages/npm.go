@@ -2,6 +2,7 @@ package storages
 
 import (
 	"fmt"
+	"github.com/jitsucom/jitsu/server/utils"
 
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/templates"
@@ -20,7 +21,7 @@ func init() {
 	RegisterStorage(StorageType{typeName: NpmType, createFunc: NewNpmDestination, isSQL: false})
 }
 
-//NewNpmDestination returns configured NpmDestination
+// NewNpmDestination returns configured NpmDestination
 func NewNpmDestination(config *Config) (storage Storage, err error) {
 	defer func() {
 		if err != nil && storage != nil {
@@ -37,7 +38,7 @@ func NewNpmDestination(config *Config) (storage Storage, err error) {
 		Package: config.destination.Package,
 		ID:      config.destinationID,
 		Type:    NpmType,
-		Config:  config.destination.Config,
+		Config:  utils.MapNestedKeysToString(config.destination.Config),
 	}, nil)
 
 	if err != nil {
@@ -77,11 +78,11 @@ func NewNpmDestination(config *Config) (storage Storage, err error) {
 	wh.adapter = wbAdapter
 
 	//streaming worker (queue reading)
-	wh.streamingWorker = newStreamingWorker(config.eventQueue, wh)
+	wh.streamingWorkers = newStreamingWorkers(config.eventQueue, wh, config.streamingThreadsCount)
 	return
 }
 
-//Type returns NpmType type
+// Type returns NpmType type
 func (wh *NpmDestination) Type() string {
 	return NpmType
 }

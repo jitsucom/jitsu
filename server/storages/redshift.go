@@ -11,9 +11,9 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
-//AwsRedshift stores files to aws RedShift in two modes:
-//batch: via aws s3 in batch mode (1 file = 1 statement)
-//stream: via events queue in stream mode (1 object = 1 statement)
+// AwsRedshift stores files to aws RedShift in two modes:
+// batch: via aws s3 in batch mode (1 file = 1 statement)
+// stream: via events queue in stream mode (1 object = 1 statement)
 type AwsRedshift struct {
 	Abstract
 
@@ -26,7 +26,7 @@ func init() {
 	RegisterStorage(StorageType{typeName: RedshiftType, createFunc: NewAwsRedshift, isSQL: true})
 }
 
-//NewAwsRedshift returns AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
+// NewAwsRedshift returns AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(config *Config) (storage Storage, err error) {
 	defer func() {
 		if err != nil && storage != nil {
@@ -105,12 +105,12 @@ func NewAwsRedshift(config *Config) (storage Storage, err error) {
 	ar.sqlAdapters = []adapters.SQLAdapter{redshiftAdapter}
 
 	//streaming worker (queue reading)
-	ar.streamingWorker = newStreamingWorker(config.eventQueue, ar, tableHelper)
+	ar.streamingWorkers = newStreamingWorkers(config.eventQueue, ar, config.streamingThreadsCount, tableHelper)
 	return
 }
 
-//storeTable check table schema
-//and store data into one table via s3
+// storeTable check table schema
+// and store data into one table via s3
 func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, error) {
 	if fdata.RecognitionPayload {
 		return ar.Abstract.storeTable(fdata)
@@ -151,32 +151,26 @@ func (ar *AwsRedshift) Clean(tableName string) error {
 	return cleanImpl(ar, tableName)
 }
 
-//GetUsersRecognition returns users recognition configuration
+// GetUsersRecognition returns users recognition configuration
 func (ar *AwsRedshift) GetUsersRecognition() *UserRecognitionConfiguration {
 	return ar.usersRecognitionConfiguration
 }
 
-//Type returns Redshift type
+// Type returns Redshift type
 func (ar *AwsRedshift) Type() string {
 	return RedshiftType
 }
 
-//Close closes AwsRedshift adapter, fallback logger and streaming worker
+// Close closes AwsRedshift adapter, fallback logger and streaming worker
 func (ar *AwsRedshift) Close() (multiErr error) {
-	if ar.streamingWorker != nil {
-		if err := ar.streamingWorker.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", ar.ID(), err))
-		}
+	if err := ar.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
 
 	if ar.redshiftAdapter != nil {
 		if err := ar.redshiftAdapter.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.ID(), err))
 		}
-	}
-
-	if err := ar.close(); err != nil {
-		multiErr = multierror.Append(multiErr, err)
 	}
 
 	return

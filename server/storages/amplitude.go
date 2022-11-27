@@ -9,7 +9,7 @@ import (
 //go:embed transform/amplitude.js
 var amplitudeTransform string
 
-//Amplitude is a destination that can send data into Amplitude
+// Amplitude is a destination that can send data into Amplitude
 type Amplitude struct {
 	HTTPStorage
 }
@@ -18,7 +18,7 @@ func init() {
 	RegisterStorage(StorageType{typeName: AmplitudeType, createFunc: NewAmplitude, isSQL: false})
 }
 
-//NewAmplitude returns configured Amplitude destination
+// NewAmplitude returns configured Amplitude destination
 func NewAmplitude(config *Config) (storage Storage, err error) {
 	defer func() {
 		if err != nil && storage != nil {
@@ -59,11 +59,11 @@ func NewAmplitude(config *Config) (storage Storage, err error) {
 	a.adapter = aAdapter
 
 	//streaming worker (queue reading)
-	a.streamingWorker = newStreamingWorker(config.eventQueue, a)
+	a.streamingWorkers = newStreamingWorkers(config.eventQueue, a, config.streamingThreadsCount)
 	return
 }
 
-//Type returns Amplitude type
+// Type returns Amplitude type
 func (a *Amplitude) Type() string {
 	return AmplitudeType
 }
