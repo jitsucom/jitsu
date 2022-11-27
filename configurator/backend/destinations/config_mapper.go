@@ -69,6 +69,9 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		//transform is implicitly enabled. pass only expilicit disabled values
 		config.DataLayout.TransformEnabled = destination.TransformEnabled
 	}
+	if destination.StreamingThreadsCount > 0 {
+		config.StreamingThreadsCount = destination.StreamingThreadsCount
+	}
 	config.DataLayout.Transform = destination.Transform
 	setEnrichmentRules(destination, config)
 

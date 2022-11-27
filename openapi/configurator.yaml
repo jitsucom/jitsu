@@ -33,7 +33,8 @@ components:
         HTTP Bearer Auth.
         Use `Authorization: Bearer <access token>` header.<br />
 
-        You should use possible to use an admin token
+        As an <access token> it should be possible to use cluster admin key,
+        or key created in UI
       type: http
       scheme: bearer
     configurationManagementAuth:
@@ -71,6 +72,13 @@ components:
       in: path
       name: objectUid
       description: 'Unique ID of the object. The object id is sitting in /uid node of JSON object'
+      required: true
+      schema:
+        type: string
+    userId:
+      name: userId
+      description: Id of the user
+      in: path
       required: true
       schema:
         type: string
@@ -117,6 +125,19 @@ components:
       properties:
         notifications:
           $ref: "#/components/schemas/NotificationConfig"
+    ProjectPermission:
+      description: Enum of permissions types
+      type: string
+      enum:
+       - view_config
+       - modify_config
+    PermissionsInfo:
+      type: object
+      properties:
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectPermission"
     AnyObject:
       description: Any JSON Object
       type: object
@@ -170,6 +191,12 @@ components:
         name: { type: "string" }
         requiresSetup: { type: "boolean" }
       required: [ 'id', 'name' ]
+
+    ProjectWithPermissions:
+      allOf:
+        - $ref: '#/components/schemas/Project'
+        - $ref: '#/components/schemas/PermissionsInfo'
+
     CreateProjectRequest:
       type: object
       properties:
@@ -183,6 +210,12 @@ components:
         id: { type: "string" }
         email: { type: "string" }
       required: [ 'id', 'email' ]
+
+    ProjectUserPermissions:
+      allOf: # Combines the UserBasicInfo and the PermissionsInfo
+        - $ref: '#/components/schemas/UserBasicInfo'
+        - $ref: '#/components/schemas/PermissionsInfo'
+
 
     User:
       allOf: # Combines the BasicErrorModel and the inline model
@@ -278,7 +311,7 @@ components:
         callback:
           type: string
           description: >
-            Callback URL will be used for generating reset password links 
+            Callback URL will be used for generating reset password links
             when creating a new user (only on Redis-backed authorization).
     PatchProjectRequest:
       type: object
@@ -354,7 +387,7 @@ components:
               userStatus:
                 type: string
                 description: existing if user has been found, or created if user has been created
-            required: ['projectUsers', 'userStatus']
+            required: [ 'projectUsers', 'userStatus' ]
 paths:
   /api/v1/users/signin:
     post:
@@ -600,7 +633,7 @@ paths:
       operationId: 'Purge audit'
       description: Purges ALL audit records in the specified interval.
       security:
-        - clusterAdminAuth: []
+        - clusterAdminAuth: [ ]
       responses:
         '200':
           $ref: '#/components/responses/StatusResponse'
@@ -610,12 +643,7 @@ paths:
   /api/v2/project/{projectId}/users:
     get:
       parameters:
-        - name: projectId
-          description: Project id
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/projectId'
       tags:
         - configuration-management
       operationId: "Get users link to projects"
@@ -630,7 +658,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/UserBasicInfo'
+                  $ref: '#/components/schemas/ProjectUserPermissions'
 
         default:
           $ref: '#/components/responses/Error'
@@ -638,12 +666,7 @@ paths:
   /api/v2/project/{projectId}/link:
     post:
       parameters:
-        - name: projectId
-          description: Project id
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/projectId'
       tags:
         - user-provisioning
       operationId: "Link user to project"
@@ -667,12 +690,7 @@ paths:
   /api/v2/project/{projectId}/unlink:
     get:
       parameters:
-        - name: projectId
-          description: Project id
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/projectId'
         - name: userId
           description: User Id to link to the project. Alternatively, userEmail could be specified
           in: query
@@ -686,6 +704,29 @@ paths:
         Removes user from the project. Note: users can remove themselves from the project
       security:
         - configurationManagementAuth: [ ]
+      responses:
+        '200':
+          $ref: '#/components/responses/StatusResponse'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /api/v2/project/{projectId}/permissions/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+      - $ref: '#/components/parameters/userId'
+    post:
+      tags:
+        - configuration-management
+      operationId: 'Update project permission for user'
+      security:
+        - configurationManagementAuth: [ ]
+      description: >
+        Updates permissions for provided userId to access projectId (view_config, modify_config). Object will be replaced.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PermissionsInfo'
       responses:
         '200':
           $ref: '#/components/responses/StatusResponse'
@@ -736,6 +777,8 @@ paths:
         default:
           $ref: '#/components/responses/Error'
   /api/v2/users/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/userId'
     delete:
       tags:
         - user-provisioning
@@ -743,13 +786,6 @@ paths:
       description: Delete user by id. Available only for Redis-backed authorization
       security:
         - clusterAdminAuth: [ ]
-      parameters:
-        - name: userId
-          description: Id of the user
-          in: path
-          required: true
-          schema:
-            type: string
       responses:
         '200':
           $ref: '#/components/responses/StatusResponse'
@@ -762,13 +798,6 @@ paths:
       description: Update user. See documentation on request body. Available only for Redis-backed authorization
       security:
         - clusterAdminAuth: [ ]
-      parameters:
-        - name: userId
-          description: Id of the user
-          in: path
-          required: true
-          schema:
-            type: string
       requestBody:
         description: >
           Any combination of the fields should be present. Only fields present in request will be updated
@@ -812,7 +841,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Project'
+                  $ref: '#/components/schemas/ProjectWithPermissions'
         default:
           $ref: '#/components/responses/Error'
     post:

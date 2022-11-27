@@ -23,6 +23,7 @@ import { SourceEditorActionsTypes, useSourceEditorDispatcher } from "./SourceEdi
 
 type Props = {
   editorMode: "add" | "edit"
+  disabled?: boolean
   initialSourceData: Optional<Partial<AirbyteSourceData | SingerSourceData>>
   sourceDataFromCatalog: SourceConnector
   setSourceEditorState: SetSourceEditorState
@@ -31,6 +32,7 @@ type Props = {
 
 export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
   editorMode,
+  disabled,
   initialSourceData,
   sourceDataFromCatalog,
   setSourceEditorState,
@@ -126,6 +128,7 @@ export const SourceEditorFormStreamsLoadable: React.FC<Props> = ({
         <>
           {!!unavailableStreams.length && <StreamsUnavailableWarning unavailableStreams={unavailableStreams} />}
           <SourceEditorFormStreamsLoadableForm
+            disabled={disabled}
             allStreams={data}
             initiallySelectedStreams={initiallySelectedStreams}
             selectAllFieldsByDefault={selectAllFieldsByDefault}

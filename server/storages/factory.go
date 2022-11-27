@@ -46,7 +46,7 @@ var (
 	}
 )
 
-//Config is a model for passing to destinations creator funcs
+// Config is a model for passing to destinations creator funcs
 type Config struct {
 	ctx                    context.Context
 	destinationID          string
@@ -54,6 +54,7 @@ type Config struct {
 	usersRecognition       *UserRecognitionConfiguration
 	geoService             *geo.Service
 	streamMode             bool
+	streamingThreadsCount  int
 	maxColumns             int
 	coordinationService    *coordination.Service
 	eventQueue             events.Queue
@@ -66,12 +67,12 @@ type Config struct {
 	PostHandleDestinations []string
 }
 
-//RegisterStorage registers function to create new storage(destination) instance
+// RegisterStorage registers function to create new storage(destination) instance
 func RegisterStorage(storageType StorageType) {
 	StorageTypes[storageType.typeName] = storageType
 }
 
-//Factory is a destinations factory for creation
+// Factory is a destinations factory for creation
 type Factory interface {
 	Create(name string, destination config.DestinationConfig) (StorageProxy, events.Queue, error)
 	Configure(destinationID string, destination config.DestinationConfig) (func(config *Config) (Storage, error), *Config, error)
@@ -93,40 +94,42 @@ func (storageType StorageType) isSQLType(destCfg *config.DestinationConfig) bool
 	return storageType.isSQL
 }
 
-//FactoryImpl is a destination's factory implementation
+// FactoryImpl is a destination's factory implementation
 type FactoryImpl struct {
-	ctx                 context.Context
-	logEventPath        string
-	geoService          *geo.Service
-	coordinationService *coordination.Service
-	eventsCache         *caching.EventsCache
-	globalLoggerFactory *logevents.Factory
-	globalConfiguration *config.UsersRecognition
-	metaStorage         meta.Storage
-	eventsQueueFactory  *events.QueueFactory
-	maxColumns          int
+	ctx                          context.Context
+	logEventPath                 string
+	geoService                   *geo.Service
+	coordinationService          *coordination.Service
+	eventsCache                  *caching.EventsCache
+	globalLoggerFactory          *logevents.Factory
+	globalConfiguration          *config.UsersRecognition
+	metaStorage                  meta.Storage
+	eventsQueueFactory           *events.QueueFactory
+	maxColumns                   int
+	defaultStreamingThreadsCount int
 }
 
-//NewFactory returns configured Factory
+// NewFactory returns configured Factory
 func NewFactory(ctx context.Context, logEventPath string, geoService *geo.Service, coordinationService *coordination.Service,
 	eventsCache *caching.EventsCache, globalLoggerFactory *logevents.Factory, globalConfiguration *config.UsersRecognition,
-	metaStorage meta.Storage, eventsQueueFactory *events.QueueFactory, maxColumns int) Factory {
+	metaStorage meta.Storage, eventsQueueFactory *events.QueueFactory, maxColumns int, streamingThreadsCount int) Factory {
 	return &FactoryImpl{
-		ctx:                 ctx,
-		logEventPath:        logEventPath,
-		geoService:          geoService,
-		coordinationService: coordinationService,
-		eventsCache:         eventsCache,
-		globalLoggerFactory: globalLoggerFactory,
-		globalConfiguration: globalConfiguration,
-		metaStorage:         metaStorage,
-		eventsQueueFactory:  eventsQueueFactory,
-		maxColumns:          maxColumns,
+		ctx:                          ctx,
+		logEventPath:                 logEventPath,
+		geoService:                   geoService,
+		coordinationService:          coordinationService,
+		eventsCache:                  eventsCache,
+		globalLoggerFactory:          globalLoggerFactory,
+		globalConfiguration:          globalConfiguration,
+		metaStorage:                  metaStorage,
+		eventsQueueFactory:           eventsQueueFactory,
+		maxColumns:                   maxColumns,
+		defaultStreamingThreadsCount: streamingThreadsCount,
 	}
 }
 
-//Create builds event storage proxy and event consumer (logger or event-queue)
-//Enriches incoming configs with default values if needed
+// Create builds event storage proxy and event consumer (logger or event-queue)
+// Enriches incoming configs with default values if needed
 func (f *FactoryImpl) Create(destinationID string, destination config.DestinationConfig) (StorageProxy, events.Queue, error) {
 	createFunc, config, err := f.Configure(destinationID, destination)
 	if err != nil {
@@ -220,6 +223,13 @@ func (f *FactoryImpl) Configure(destinationID string, destination config.Destina
 	if destination.CachingConfiguration != nil && destination.CachingConfiguration.Disabled {
 		logging.Infof("[%s] events caching is disabled", destinationID)
 	}
+	streamingThreadsCount := destination.StreamingThreadsCount
+	if streamingThreadsCount <= 0 {
+		streamingThreadsCount = f.defaultStreamingThreadsCount
+	}
+	if destination.Mode == StreamMode {
+		logging.Infof("[%s] streaming threads count: %d", destinationID, streamingThreadsCount)
+	}
 
 	storageConfig := &Config{
 		ctx:                    f.ctx,
@@ -228,6 +238,7 @@ func (f *FactoryImpl) Configure(destinationID string, destination config.Destina
 		usersRecognition:       usersRecognition,
 		geoService:             f.geoService,
 		streamMode:             destination.Mode == StreamMode,
+		streamingThreadsCount:  streamingThreadsCount,
 		maxColumns:             maxColumns,
 		coordinationService:    f.coordinationService,
 		eventQueue:             eventQueue,
@@ -242,9 +253,9 @@ func (f *FactoryImpl) Configure(destinationID string, destination config.Destina
 	return storageType.createFunc, storageConfig, nil
 }
 
-//initializeRetroactiveUsersRecognition initializes recognition configuration (overrides global one with destination layer)
-//skip initialization if dummy meta storage
-//disable destination configuration if Postgres or Redshift without primary keys
+// initializeRetroactiveUsersRecognition initializes recognition configuration (overrides global one with destination layer)
+// skip initialization if dummy meta storage
+// disable destination configuration if Postgres or Redshift without primary keys
 func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string, destination *config.DestinationConfig, pkFields map[string]bool) (*UserRecognitionConfiguration, error) {
 	if f.metaStorage.Type() == meta.DummyType {
 		if destination.UsersRecognition != nil {
@@ -303,8 +314,8 @@ func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string
 	}, nil
 }
 
-//Add system fields as default mappings
-//write current mapping configuration to logs
+// Add system fields as default mappings
+// write current mapping configuration to logs
 func enrichAndLogMappings(destinationID string, isSQL bool, uniqueIDField *identifiers.UniqueID, mapping *config.Mapping) {
 	if mapping == nil || len(mapping.Fields) == 0 {
 		logging.Warnf("[%s] doesn't have mapping rules", destinationID)

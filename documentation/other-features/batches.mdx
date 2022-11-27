@@ -1,0 +1,73 @@
+# Batch mode
+
+Jitsu supports batching of incoming event for data warehouse and cloud files storage destinations.
+This feature allows to reduce the number of requests to the destination, improve performance, and for some data warehouses reduce processing costs.
+
+Jitsu collects incoming events in batches files for the period tied to log files rotation period.
+Then it runs uploader jobs that reads incoming files and loads events to the destination using the most effective way.
+Read more about batch file [Directories structure](/docs/configuration/directories-structure)
+
+## Configuration
+
+Batch mode can be configured for each destination separately in the `destinations` section of the server's yaml configuration file using `mode` parameter
+It is enabled by default for all supporting destinations.
+```yaml
+destinations:
+  mypostgres:
+    type: postgres
+    mode: batch
+    data_layout:
+      table_name_template: events
+    config:
+      db: ...  
+```
+In Configurator UI 'Mode' selector is available in destination setup form.
+
+### General parameters
+
+| Field                              | Type | Description                                                                        | Default value |
+|:-----------------------------------|:-----|:-----------------------------------------------------------------------------------|:--------------|
+| **log.rotation\_min**              | int  | Batch log files rotation period in minutes. And batch uploader run period          | `5`           |
+| **batch\_uploader.threads\_count** | int  | Number or parallel uploader threads to process incoming batch files. (Since v1.43) | `1`           |
+
+### Customize batch upload period
+
+By default, Jitsu runs batch uploader every 5 minutes. You can change this period by setting `log.rotation_min` parameter in the server's yaml configuration file.
+
+Also, since v1.43.1 you use customize batch upload period on `api_key` level using `batch_period_min` property:
+```yaml
+api_keys:
+  - id: quick_reaction_key
+    client_secret: my_client_secret
+    server_secret: my_server_secret
+    batch_period_min: 1
+  - id: cost_effective_key
+    client_secret: my_client_secret2
+    server_secret: my_server_secret2
+    batch_period_min: 120
+```
+
+## Pipeline
+
+* First, an event is being written in `events/incoming` directory to the current log file
+* Log files are being rotated once in N (=5 by default) minutes and processed in a separate thread
+* Log files processing. Get all unprocessed logs (all files in `events/incoming` that not in process)
+  * Multiplex records to destinations
+  * For each destination: evaluate `table_name_template` expression to get a destination table name. If the result is an empty string, skip this destination. If evaluation failed, the event is written to `events/failed`
+  * For each destination/table pair:
+    * Check status in the status file of the log. If a pair has been processed, ignore it
+    * Apply LookupEnrichment step
+    * Apply Transformation and MappingStep (get BatchHeader)
+    * Maintain up-to date BatchHeader in memory. If a new field appears add it with type to BatchHeader
+    * On type conflict: apply [Type Promotion](/docs/other-features/typecast#from-input-data)
+  * Once batch objects and BatchHeader are prepared, proceed to **table patching**. For each destination/table pair:
+    * Map BatchHeader into Table structure with SQL column types depends on the destination type and [primary keys](/docs/configuration/primary-keys-configuration) (if configured)
+    * Get Table structure from the destination
+    * Acquire destination lock ([using distributed lock service](/docs/other-features/scaling-eventnative#coordination))
+    * Compare two Table structures (from the destination and from data)
+    * Maintain [primary key](/docs/configuration/primary-keys-configuration) (if configured)
+    * If a column is missing run ALTER TABLE
+    * If a column is present in the table, but missing in BatchHeader - ignore
+    * Release destination lock
+  * Depend on a destination bulk insert objects to destination with explicit [typecast](/docs/other-features/typecast) (if it is configured in [JavaScript Transformation](/docs/other-features/javascript-transform)) or write them with json/csv serialization to cloud storage and execute destination load command
+  * On success update log status file and mark destination/table pair as OK (mark is as FAILED) otherwise. If all pairs are marked as OK, rotate the log file to `events/archive`

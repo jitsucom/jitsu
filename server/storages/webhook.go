@@ -10,7 +10,7 @@ import (
 
 const defaultWorkersPoolSize = 10
 
-//DefaultHTTPConfiguration contains default HTTP timeouts/retry/delays,etc for HTTPAdapters
+// DefaultHTTPConfiguration contains default HTTP timeouts/retry/delays,etc for HTTPAdapters
 var DefaultHTTPConfiguration = &adapters.HTTPConfiguration{
 	GlobalClientTimeout:       10 * time.Second,
 	RetryDelay:                10 * time.Second,
@@ -20,7 +20,7 @@ var DefaultHTTPConfiguration = &adapters.HTTPConfiguration{
 	QueueFullnessThreshold:    100_000, //assume that JSON event consumes 2KB => inmemory queue will max 200MB
 }
 
-//WebHook is a destination that can send configurable HTTP requests
+// WebHook is a destination that can send configurable HTTP requests
 type WebHook struct {
 	HTTPStorage
 }
@@ -29,7 +29,7 @@ func init() {
 	RegisterStorage(StorageType{typeName: WebHookType, createFunc: NewWebHook, isSQL: false})
 }
 
-//NewWebHook returns configured WebHook destination
+// NewWebHook returns configured WebHook destination
 func NewWebHook(config *Config) (storage Storage, err error) {
 	defer func() {
 		if err != nil && storage != nil {
@@ -80,12 +80,12 @@ func NewWebHook(config *Config) (storage Storage, err error) {
 	wh.adapter = wbAdapter
 
 	//streaming worker (queue reading)
-	wh.streamingWorker = newStreamingWorker(config.eventQueue, wh)
+	wh.streamingWorkers = newStreamingWorkers(config.eventQueue, wh, config.streamingThreadsCount)
 
 	return
 }
 
-//Type returns WebHook type
+// Type returns WebHook type
 func (wh *WebHook) Type() string {
 	return WebHookType
 }

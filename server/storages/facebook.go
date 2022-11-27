@@ -9,7 +9,7 @@ import (
 //go:embed transform/facebook.js
 var facebookTransform string
 
-//Facebook stores events to Facebook Conversion API in stream mode
+// Facebook stores events to Facebook Conversion API in stream mode
 type Facebook struct {
 	HTTPStorage
 }
@@ -18,7 +18,7 @@ func init() {
 	RegisterStorage(StorageType{typeName: FacebookType, createFunc: NewFacebook, isSQL: false})
 }
 
-//NewFacebook returns configured Facebook destination
+// NewFacebook returns configured Facebook destination
 func NewFacebook(config *Config) (storage Storage, err error) {
 	defer func() {
 		if err != nil && storage != nil {
@@ -59,11 +59,11 @@ func NewFacebook(config *Config) (storage Storage, err error) {
 	fb.adapter = fbAdapter
 
 	//streaming worker (queue reading)
-	fb.streamingWorker = newStreamingWorker(config.eventQueue, fb)
+	fb.streamingWorkers = newStreamingWorkers(config.eventQueue, fb, config.streamingThreadsCount)
 	return
 }
 
-//Type returns Facebook type
+// Type returns Facebook type
 func (fb *Facebook) Type() string {
 	return FacebookType
 }

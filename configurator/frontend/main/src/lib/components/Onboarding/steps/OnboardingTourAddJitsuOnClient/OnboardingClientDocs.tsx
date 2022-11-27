@@ -32,14 +32,12 @@ export const OnboardingClientDocs: React.FC<Props> = ({ token }) => {
   const [segmentEnabled, setSegmentEnabled] = useState<boolean>(false)
 
   const domain = useMemo<string>(() => {
-    const customDomain = services.features.enableCustomDomains ? "https://t.jitsu.com" : null
     return (
-      customDomain ||
       getDomainsSelectionByEnv(services.features.environment)[0] ||
-      services.features.jitsuBaseUrl ||
+      services.features.serverPublicUrl ||
       "REPLACE_WITH_JITSU_DOMAIN"
     )
-  }, [services.features.enableCustomDomains, services.features.jitsuBaseUrl])
+  }, [services.features.enableCustomDomains, services.features.serverPublicUrl])
 
   const exampleSwitches = (
     <div className="api-keys-doc-embed-switches">

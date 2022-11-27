@@ -70,9 +70,10 @@ export function s3Credentials(
   bucketField,
   s3AccessKey,
   s3SecretKey,
+  s3EndpointField,
   hide?: Function<any, boolean>
 ): Parameter[] {
-  return [
+  let params: Parameter[] = [
     {
       id: regionField,
       displayName: "S3 Region",
@@ -103,6 +104,17 @@ export function s3Credentials(
       constant: hiddenValue("", hide),
     },
   ]
+  if (s3EndpointField) {
+    params.push({
+      id: s3EndpointField,
+      displayName: "S3 Endpoint",
+      documentation: <>Custom S3 endpoint. To use default Amazon endpoint leave this field empty.</>,
+      type: stringType,
+      required: false,
+      constant: hiddenValue("", hide),
+    })
+  }
+  return params
 }
 
 export function gcsCredentials(

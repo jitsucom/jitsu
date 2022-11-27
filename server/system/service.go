@@ -12,8 +12,8 @@ const serviceName = "system"
 
 var reloadEvery = 5 * time.Second
 
-//Configuration is used for system endpoint in Configurator and for Server redirect when configured
-//provides current authorization configuration and amount of registered users
+// Configuration is used for system endpoint in Configurator and for Server redirect when configured
+// provides current authorization configuration and amount of registered users
 type Configuration struct {
 	Authorization               string `json:"authorization"`
 	SSOAuthLink                 string `json:"sso_auth_link"`
@@ -26,12 +26,13 @@ type Configuration struct {
 	TelemetryUsageDisabled      bool   `json:"telemetry_usage_disabled"`
 	DockerHubID                 string `json:"docker_hub_id"`
 	OnlyAdminCanChangeUserEmail bool   `json:"only_admin_can_change_user_email"`
+	ServerPublicUrl             string `json:"server_public_url"`
 	PluginScript                string `json:"plugin_script"`
 	Tag                         string `json:"tag"`
 	BuiltAt                     string `json:"built_at"`
 }
 
-//Service is a reloadable service for keeping system configuration
+// Service is a reloadable service for keeping system configuration
 type Service struct {
 	mutex         *sync.RWMutex
 	configuration *Configuration
@@ -39,7 +40,7 @@ type Service struct {
 	configured bool
 }
 
-//NewService returns configured Service and call resources.Watcher()
+// NewService returns configured Service and call resources.Watcher()
 func NewService(url string) *Service {
 	if url == "" {
 		return &Service{}
@@ -50,8 +51,8 @@ func NewService(url string) *Service {
 	return service
 }
 
-//reInit initializes system configuration
-//it is used for keeping actual configuration for configurator redirect
+// reInit initializes system configuration
+// it is used for keeping actual configuration for configurator redirect
 func (s *Service) reInit(payload []byte) {
 	c := &Configuration{}
 	err := json.Unmarshal(payload, c)

@@ -13,6 +13,9 @@ import { uniqueId } from "lodash"
 import { projectRoute } from "../../../../../../lib/components/ProjectLink/ProjectLink"
 import { sourcesPageRoutes } from "ui/pages/SourcesPage/SourcesPage.routes"
 import { useSourceEditorState } from "./SourceEditor.state"
+import useProject from "../../../../../../hooks/useProject"
+import { allPermissions } from "../../../../../../lib/services/permissions"
+import { ProjectPermission } from "../../../../../../generated/conf-openapi"
 
 type Tab = {
   key: string
@@ -46,6 +49,8 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
   setShowDocumentationDrawer,
 }) => {
   const sourceEditorViewState = useSourceEditorState()
+  const project = useProject();
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
 
   const [currentTab, setCurrentTab] = useState<string>("configuration")
   const [isSaving, setIsSaving] = useState<boolean>(false)
@@ -154,18 +159,18 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
 
       <div className="flex items-center flex-shrink flex-grow-0 border-t py-2">
         <SourceEditorViewControls
-          mainButton={{
+          mainButton={!disableEdit &&{
             title: "Save",
             loading: isSaving,
             handleClick: handleSave,
           }}
-          dashedButton={{
+          dashedButton={!disableEdit && {
             title: "Test Connection",
             loading: isTestingConnection,
             handleClick: handleTestConnection,
           }}
           dangerButton={{
-            title: "cancel",
+            title: disableEdit ? 'Cancel' : 'Close',
             handleClick: handleLeaveEditor,
           }}
         />

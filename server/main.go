@@ -56,7 +56,6 @@ import (
 	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/users"
-	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/jitsucom/jitsu/server/wal"
 	"github.com/spf13/viper"
 )
@@ -170,6 +169,8 @@ func main() {
 	if err != nil {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
+	telemetry.EnrichMetaStorage(metaStorage)
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// ** Coordination Service **
@@ -220,7 +221,7 @@ func main() {
 		notifications.SystemErrorf("Panic:\n%s\n%s", value, string(debug.Stack()))
 	}
 
-	clusterID := metaStorage.GetOrCreateClusterID(uuid.New())
+	clusterID := metaStorage.GetOrCreateClusterID()
 	systemInfo := runtime.GetInfo()
 	telemetry.EnrichSystemInfo(clusterID, systemInfo)
 
@@ -367,9 +368,14 @@ func main() {
 	}
 
 	maxColumns := viper.GetInt("server.max_columns")
+	defaultStreamingThreadsCount := viper.GetInt("streaming.threads_count")
+	if defaultStreamingThreadsCount <= 0 {
+		logging.Warnf("streaming.threads_count cannot be less than 1. Got: %d. Changed to: 1", defaultStreamingThreadsCount)
+		defaultStreamingThreadsCount = 1
+	}
 	logging.Infof("📝 Limit server.max_columns is %d", maxColumns)
 	destinationsFactory := storages.NewFactory(ctx, logEventPath, geoService, coordinationService, eventsCache, loggerFactory,
-		globalRecognitionConfiguration, metaStorage, eventsQueueFactory, maxColumns)
+		globalRecognitionConfiguration, metaStorage, eventsQueueFactory, maxColumns, defaultStreamingThreadsCount)
 
 	//DESTINATIONS
 	destinationsURL := viper.GetString(destinationsKey)
@@ -455,9 +461,16 @@ func main() {
 	}
 
 	//for now use the same interval as for log rotation
-	uploaderRunInterval := viper.GetInt("log.rotation_min")
+	uploaderRunInterval := viper.GetInt("batch_uploader.period_min")
+	if uploaderRunInterval <= 0 {
+		uploaderRunInterval = viper.GetInt("log.rotation_min")
+	}
 	//Uploader must read event logger directory
-	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderRunInterval, appconfig.Instance.ErrorRetryPeriod, destinationsService)
+	uploaderThreadsCount := viper.GetInt("batch_uploader.threads_count")
+	if uploaderThreadsCount < 1 {
+		uploaderThreadsCount = 1
+	}
+	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderRunInterval, uploaderThreadsCount, appconfig.Instance.ErrorRetryPeriod, destinationsService)
 	if err != nil {
 		logging.Fatal("Error while creating file uploader", err)
 	}

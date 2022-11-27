@@ -1,10 +1,10 @@
 // @Libs
-import React, { useEffect, useMemo } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { Form as AntdForm, Input, Row, Col, Select, FormProps } from "antd"
 // @Store
 import { sourcesStore } from "stores/sources"
 // @Constants
-import { COLLECTIONS_SCHEDULES } from "constants/schedule"
+import { COLLECTIONS_SCHEDULES, DAILY_HOURS } from "constants/schedule"
 // @Types
 import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceEditorFormConfiguration"
 import { Rule as AntdFormItemValidationRule } from "antd/lib/form"
@@ -14,6 +14,7 @@ import { observer } from "mobx-react-lite"
 // @Styles
 import editorStyles from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less"
 import { useSourceEditorState } from "./SourceEditor.state"
+import { SelectOutlined } from "@ant-design/icons"
 
 type FormFields = {
   sourceId: string
@@ -22,6 +23,7 @@ type FormFields = {
 
 type Props = {
   editorMode: "add" | "edit"
+  disabled?: boolean
   initialValues: Optional<Partial<SourceData>>
   patchConfig: PatchConfig
   setValidator: ReactSetState<(validator: ValidateGetErrorsCount) => void>
@@ -33,12 +35,14 @@ const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 
 const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
   editorMode,
+  disabled,
   initialValues,
   patchConfig,
   setValidator,
   setFormReference,
 }) => {
   const [form] = AntdForm.useForm<FormFields>()
+  const [dailyMode, setDailyMode] = useState(initialValues?.schedule === "@daily")
   const services = useServices()
   const sourceEditorState = useSourceEditorState()
   const subscription = services.currentSubscription?.currentPlan
@@ -91,7 +95,13 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
   }, [])
 
   return (
-    <AntdForm name="source-config" form={form} autoComplete="off" onValuesChange={handleFormValuesChange}>
+    <AntdForm
+      disabled={disabled}
+      name="source-config"
+      form={form}
+      autoComplete="off"
+      onValuesChange={handleFormValuesChange}
+    >
       <Row key="sourceId">
         <Col span={24}>
           <AntdForm.Item
@@ -119,13 +129,37 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
             wrapperCol={{ span: 20 }}
             rules={[{ required: true, message: "You have to choose schedule" }]}
           >
-            <Select>
+            <Select onChange={v => setDailyMode(v === "@daily")}>
               {COLLECTIONS_SCHEDULES.map(option => {
                 const available = subscription ? subscription.quota.allowedSchedules.includes(option.id) : true
                 return (
                   <Select.Option value={option.value} key={option.value} disabled={!available}>
                     {option.label}
                     {!available && " - n/a, upgrade plan"}
+                  </Select.Option>
+                )
+              })}
+            </Select>
+          </AntdForm.Item>
+        </Col>
+      </Row>
+
+      <Row key="scheduleTime">
+        <Col span={24}>
+          <AntdForm.Item
+            hidden={!dailyMode}
+            initialValue={initialValues?.scheduleTime}
+            name="scheduleTime"
+            className={`form-field_fixed-label ${editorStyles.field}`}
+            label={<span className="w-full">Schedule Time (UTC)</span>}
+            labelCol={{ span: 4 }}
+            wrapperCol={{ span: 20 }}
+          >
+            <Select defaultValue={"0"}>
+              {DAILY_HOURS.map(option => {
+                return (
+                  <Select.Option value={option.value} key={option.value}>
+                    {option.label}
                   </Select.Option>
                 )
               })}

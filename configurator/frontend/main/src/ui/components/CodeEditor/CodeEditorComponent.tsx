@@ -93,7 +93,6 @@ const CodeEditorComponent = ({
         run: onCmdCtrlU,
       })
   }, [])
-
   return (
     <MonacoEditor
       ref={ref}

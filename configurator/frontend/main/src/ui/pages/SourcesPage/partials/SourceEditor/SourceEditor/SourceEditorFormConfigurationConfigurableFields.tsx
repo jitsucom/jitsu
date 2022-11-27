@@ -10,6 +10,7 @@ import { PatchConfig, SetFormReference, ValidateGetErrorsCount } from "./SourceE
 type Props = {
   initialValues: Partial<SourceData>
   configParameters: Parameter[]
+  disabled?: boolean
   availableOauthBackendSecrets?: string[]
   hideFields?: string[]
   patchConfig: PatchConfig
@@ -22,6 +23,7 @@ const CONFIG_FORM_KEY = `${CONFIG_INTERNAL_STATE_KEY}Form`
 
 export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = memo(
   ({
+    disabled,
     initialValues,
     configParameters,
     availableOauthBackendSecrets,
@@ -68,6 +70,7 @@ export const SourceEditorFormConfigurationConfigurableFields: React.FC<Props> = 
       <Form
         id={"SourceEditorFormConfigurationConfigurableFields"}
         form={form}
+        disabled={disabled}
         onValuesChange={handleFormValuesChangeForm}
       >
         <ConfigurableFieldsForm

@@ -30,11 +30,11 @@ Jitsu's destination can operate in two modes:
 
 ### First Step
 
-Once an event is accepted by the HTTP end-point it undergoes the Context Enrichment step. The logic is different for different sources of events. The purpose of this event is to add additional information to the event which can be useful for further processing. After JSON is enriched it goes to [Batch](/docs/how-it-works/pipelines#batch-processing) or/and [Stream](/docs/how-it-works/pipelines#stream-processing) pipeline depending on destination type. Partially multiplexing happens here. If destinations config contains destinations of both types, the event will be sent to both routes.
+Once an event is accepted by the HTTP end-point it undergoes the Context Enrichment step. The logic is different for different sources of events. The purpose of this event is to add additional information to the event which can be useful for further processing. After JSON is enriched it goes to [Batch](/docs/other-features/batches) or/and [Stream](/docs/other-features/streaming) pipeline depending on destination type. Partially multiplexing happens here. If destinations config contains destinations of both types, the event will be sent to both routes.
 
 Also `only_keys` filtering is applied.
 
-[Batch](/docs/how-it-works/pipelines#batch-processing) and [Stream](/docs/how-it-works/pipelines#stream-processing) pipelines are different, however, they have the same logical steps.
+[Batch](/docs/other-features/batches) and [Stream](/docs/other-features/streaming) pipelines are different, however, they have the same logical steps.
 
 ### Context Enrichment Step
 
@@ -50,10 +50,8 @@ In this step, events are enriched with context data:
 
 During this step [Enrichment rules](/docs/configuration/enrichment-rules) are applied. Enrichment rule is a function F(src_node) → dst_node. It is configured in the [destination section](/docs/destinations-configuration) of the **Jitsu** configuration. Also, there are [two default enrichment rules](/docs/configuration/enrichment-rules#default-rules) that are applied to JavaScript events.
 
-### Mapping Step
+### Transformation and Mapping Step
 
-In this step, all configured mappings are applied to a JSON object and as a result, BatchHeader is generated. Read about [Schema and Mappings](/docs/configuration/schema-and-mappings) configuration. After all mappings are applied, JSON is flattened, and all special characters and spaces in field names are replaced with underscores. Also values types recognition happens here, read about [Typecast](/docs/other-features/typecast).
+In this step, all configured mappings are applied to a JSON object and as a result, BatchHeader is generated. Read about [JavaScript Transformation](/docs/other-features/javascript-transform) and [Schema and Mappings](/docs/configuration/schema-and-mappings) configuration. After all mappings are applied, JSON is flattened, and all special characters and spaces in field names are replaced with underscores. Also values types recognition happens here, read about [Typecast](/docs/other-features/typecast).
 
-<LargeLink title="Pipelines" href="/docs/how-it-works/pipelines" />
-
-<LargeLink title="Directories structure" href="/docs/how-it-works/directories-structure" />
+<LargeLink title="Directories structure" href="/docs/configuration/directories-structure" />

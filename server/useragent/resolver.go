@@ -9,6 +9,8 @@ import (
 // ParsedUaKey is a json key for parsed user-agent data object
 const ParsedUaKey = "parsed_ua"
 
+var BotUAKeywords = []string{"bot", "spider", "headless", "crawler", "uptimia"}
+
 // Resolver performs user-agent string parsing into ResolvedUa struct
 // can be mocked
 type Resolver interface {
@@ -17,12 +19,16 @@ type Resolver interface {
 
 // UaResolver parses user-agent strings into ResolvedUa structures with "github.com/ua-parser/uap-go/uaparser"
 type UaResolver struct {
-	parser *uaparser.Parser
+	parser        *uaparser.Parser
+	botUAKeywords []string
 }
 
 // NewResolver returns new instance of UaResolver
-func NewResolver() Resolver {
-	return &UaResolver{parser: uaparser.NewFromSaved()}
+func NewResolver(extraBotUaKeywords []string) Resolver {
+	botUAKeywords := make([]string, 0, len(BotUAKeywords)+len(extraBotUaKeywords))
+	botUAKeywords = append(botUAKeywords, BotUAKeywords...)
+	botUAKeywords = append(botUAKeywords, extraBotUaKeywords...)
+	return &UaResolver{parser: uaparser.NewFromSaved(), botUAKeywords: botUAKeywords}
 }
 
 // ResolvedUa model for keeping resolved user-agent data
@@ -89,10 +95,16 @@ func (r *UaResolver) Resolve(ua string) *ResolvedUa {
 	}
 
 	ual := strings.ToLower(ua)
-	resolved.Bot = resolved.DeviceFamily == "Spider" || resolved.DeviceBrand == "Spider" ||
-		strings.Contains(ual, "bot") ||
-		strings.Contains(ual, "spider") ||
-		strings.Contains(ual, "crawler")
+	if resolved.DeviceFamily == "Spider" || resolved.DeviceBrand == "Spider" {
+		resolved.Bot = true
+	} else {
+		for _, keyword := range r.botUAKeywords {
+			if strings.Contains(ual, keyword) {
+				resolved.Bot = true
+				break
+			}
+		}
+	}
 
 	return resolved
 }
