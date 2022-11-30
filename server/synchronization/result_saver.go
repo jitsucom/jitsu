@@ -88,6 +88,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		uniqueIDField := rs.destinations[0].GetUniqueIDField()
 		stream.BatchHeader.Fields[uniqueIDField.GetFlatFieldName()] = schema.NewField(typing.STRING)
 		stream.BatchHeader.Fields[events.SrcKey] = schema.NewField(typing.STRING)
+		stream.BatchHeader.Fields[events.SourceIDKey] = schema.NewField(typing.STRING)
 		stream.BatchHeader.Fields[timestamp.Key] = schema.NewField(typing.TIMESTAMP)
 
 		for _, object := range stream.Objects {
@@ -96,6 +97,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 			if _, ok := object[timestamp.Key]; !ok {
 				object[timestamp.Key] = timestamp.NowUTC()
 			}
+			events.EnrichWithSourceId(object, rs.task.Source)
 
 			//calculate eventID from key fields or whole object
 			var eventID string

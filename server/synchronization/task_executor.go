@@ -52,7 +52,7 @@ type TaskExecutor struct {
 	sourcesLogWriter io.Writer
 }
 
-//NewTaskExecutor returns TaskExecutor and starts 2 goroutines (monitoring and queue observer)
+// NewTaskExecutor returns TaskExecutor and starts 2 goroutines (monitoring and queue observer)
 func NewTaskExecutor(poolSize int, ctx *TaskExecutorContext, sourcesLogWriter io.Writer) (*TaskExecutor, error) {
 	executor := &TaskExecutor{
 		TaskExecutorContext: ctx,
@@ -75,8 +75,8 @@ func NewTaskExecutor(poolSize int, ctx *TaskExecutorContext, sourcesLogWriter io
 	return executor, nil
 }
 
-//initialHeartbeat gets all stalled tasks and does initial heartbeat
-//it helps to close tasks which were created in previous Jitsu versions
+// initialHeartbeat gets all stalled tasks and does initial heartbeat
+// it helps to close tasks which were created in previous Jitsu versions
 func (te *TaskExecutor) initialHeartbeat() {
 	taskIDs, err := te.MetaStorage.GetAllTasksForInitialHeartbeat(RUNNING.String(), SCHEDULED.String(), te.LastActivityThreshold)
 	if err != nil {
@@ -95,8 +95,8 @@ func (te *TaskExecutor) initialHeartbeat() {
 	}
 }
 
-//startTaskController runs goroutine for controlling task heartbeat. If a task doesn't send heartbeat 1 time per 10 sec
-//(last heart beat was > stalled_threshold ago) and status isn't SUCCESS or FAILED -> change its status to FAILED
+// startTaskController runs goroutine for controlling task heartbeat. If a task doesn't send heartbeat 1 time per 10 sec
+// (last heart beat was > stalled_threshold ago) and status isn't SUCCESS or FAILED -> change its status to FAILED
 func (te *TaskExecutor) startTaskController() {
 	safego.RunWithRestart(func() {
 		for {
@@ -155,7 +155,7 @@ func (te *TaskExecutor) startTaskController() {
 	})
 }
 
-//startMonitoring run goroutine for setting pool size metrics every 20 seconds
+// startMonitoring run goroutine for setting pool size metrics every 20 seconds
 func (te *TaskExecutor) startMonitoring() {
 	safego.RunWithRestart(func() {
 		for {
@@ -171,7 +171,7 @@ func (te *TaskExecutor) startMonitoring() {
 	})
 }
 
-//startObserver run goroutine for polling from the queue and put task to workers pool every 1 second
+// startObserver run goroutine for polling from the queue and put task to workers pool every 1 second
 func (te *TaskExecutor) startObserver() {
 	safego.RunWithRestart(func() {
 		for {
@@ -195,7 +195,7 @@ func (te *TaskExecutor) startObserver() {
 	})
 }
 
-//execute runs task validating and syncing (cli or plain)
+// execute runs task validating and syncing (cli or plain)
 func (te *TaskExecutor) execute(i interface{}) {
 	var taskCloser *TaskCloser
 	//panic handler
@@ -375,8 +375,8 @@ func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLog
 	}
 }
 
-//sync runs source synchronization. Return error if occurred
-//doesn't use task closer because there is no async tasks
+// sync runs source synchronization. Return error if occurred
+// doesn't use task closer because there is no async tasks
 func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver driversbase.Driver,
 	destinationStorages []storages.Storage, taskCloser *TaskCloser) error {
 	now := timestamp.Now().UTC()
@@ -453,6 +453,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 						b, _ := json.Marshal(object)
 						return fmt.Errorf("Error setting unique ID field into %s: %v", string(b), err)
 					}
+					events.EnrichWithSourceId(object, task.Source)
 					events.EnrichWithCollection(object, task.Collection)
 					events.EnrichWithTimeInterval(object, intervalToSync.String(), intervalToSync.LowerEndpoint(), intervalToSync.UpperEndpoint())
 				}
@@ -504,7 +505,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 	return nil
 }
 
-//syncCLI syncs singer/airbyte source
+// syncCLI syncs singer/airbyte source
 func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver,
 	destinationStorages []storages.Storage, taskCloser *TaskCloser) error {
 	state, err := te.MetaStorage.GetSignature(task.Source, cliDriver.GetCollectionMetaKey(), schema.ALL.String())
@@ -542,8 +543,8 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 	return nil
 }
 
-//Config file might be updated by cli program after run.
-//We need to write it to persistent storage so other cluster nodes will read actual config
+// Config file might be updated by cli program after run.
+// We need to write it to persistent storage so other cluster nodes will read actual config
 func (te *TaskExecutor) persistConfig(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver) error {
 	if cliDriver.GetConfigPath() != "" {
 		configBytes, err := ioutil.ReadFile(cliDriver.GetConfigPath())
