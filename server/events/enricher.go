@@ -13,14 +13,20 @@ const (
 	TimeIntervalStart = "_interval_start"
 	TimeIntervalEnd   = "_interval_end"
 	CollectionIDKey   = "_collection_id"
+	SourceIDKey       = "_source_id"
 )
 
-//EnrichWithCollection puts collection string to object
+// EnrichWithCollection puts collection string to object
 func EnrichWithCollection(object map[string]interface{}, collection string) {
 	object[CollectionIDKey] = collection
 }
 
-//EnrichWithTimeInterval puts interval representation to object
+// EnrichWithSourceId puts source id string to object
+func EnrichWithSourceId(object map[string]interface{}, sourceId string) {
+	object[SourceIDKey] = sourceId
+}
+
+// EnrichWithTimeInterval puts interval representation to object
 func EnrichWithTimeInterval(object map[string]interface{}, interval string, lower, upper time.Time) {
 	object[TimeChunkKey] = interval
 	object[TimeIntervalStart] = timestamp.ToISOFormat(lower)
