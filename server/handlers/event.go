@@ -134,23 +134,18 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 
 	extras, err := eh.multiplexingService.AcceptRequest(eh.processor, reqContext, token, eventsArray)
 	if err != nil {
-		code := http.StatusBadRequest
 		if err == multiplexing.ErrNoDestinations {
-			code = http.StatusUnprocessableEntity
-			err = fmt.Errorf(noDestinationsErrTemplate, token)
-			eh.CacheRawEvents(eventsArray, cachingDisabled, tokenID, err, nil)
-		} else {
-			eh.CacheRawEvents(eventsArray, cachingDisabled, tokenID, nil, err)
+			eh.CacheRawEvents(eventsArray, cachingDisabled, tokenID, fmt.Errorf(noDestinationsErrTemplate, token), nil)
+			c.JSON(http.StatusOK, EventResponse{Status: "ok", DeleteCookie: !reqContext.CookiesLawCompliant, SdkExtras: extras})
+			return
 		}
-
+		eh.CacheRawEvents(eventsArray, cachingDisabled, tokenID, nil, err)
 		reqBody, _ := json.Marshal(eventsArray)
 		logging.Warnf("%v. Event: %s", err, string(reqBody))
-		c.JSON(code, middleware.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
 		return
-	} else {
-		eh.CacheRawEvents(eventsArray, cachingDisabled, tokenID, nil, nil)
 	}
-
+	eh.CacheRawEvents(eventsArray, cachingDisabled, tokenID, nil, nil)
 	c.JSON(http.StatusOK, EventResponse{Status: "ok", DeleteCookie: !reqContext.CookiesLawCompliant, SdkExtras: extras})
 }
 
