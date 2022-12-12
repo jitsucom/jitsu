@@ -30,7 +30,7 @@ const (
 	anonymIDJSONPath  = "/user/anonymous_id||/eventn_ctx/user/anonymous_id"
 )
 
-//PixelHandler is a handler of pixel tracking requests
+// PixelHandler is a handler of pixel tracking requests
 type PixelHandler struct {
 	emptyGIF            []byte
 	anonymIDPath        jsonutils.JSONPath
@@ -40,7 +40,7 @@ type PixelHandler struct {
 	geoService          *geo.Service
 }
 
-//NewPixelHandler returns configured PixelHandler instance
+// NewPixelHandler returns configured PixelHandler instance
 func NewPixelHandler(multiplexingService *multiplexing.Service, processor events.Processor,
 	destinationService *destinations.Service, geoService *geo.Service) *PixelHandler {
 	return &PixelHandler{
@@ -53,9 +53,9 @@ func NewPixelHandler(multiplexingService *multiplexing.Service, processor events
 	}
 }
 
-//Handle sets anonymous id cookie if not exist
-//handles request it it another goroutine
-//returns empty gif 1x1
+// Handle sets anonymous id cookie if not exist
+// handles request it it another goroutine
+// returns empty gif 1x1
 func (ph *PixelHandler) Handle(c *gin.Context) {
 	event, err := ph.parseEvent(c)
 	if err != nil {
@@ -92,22 +92,20 @@ func (ph *PixelHandler) Handle(c *gin.Context) {
 
 	_, err = ph.multiplexingService.AcceptRequest(ph.processor, reqContext, strToken, []events.Event{event})
 	if err != nil {
-		code := http.StatusBadRequest
 		if err == multiplexing.ErrNoDestinations {
-			code = http.StatusUnprocessableEntity
-			err = fmt.Errorf(noDestinationsErrTemplate, strToken)
+			c.Data(http.StatusOK, "image/gif", ph.emptyGIF)
+			return
 		}
-
 		reqBody, _ := json.Marshal(event)
 		logging.Errorf("%v. Tracking pixel event: %s", err, string(reqBody))
-		c.JSON(code, middleware.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
 		return
 	}
 
 	c.Data(http.StatusOK, "image/gif", ph.emptyGIF)
 }
 
-//parseEvent parses event from query parameters (dataField and json paths)
+// parseEvent parses event from query parameters (dataField and json paths)
 func (ph *PixelHandler) parseEvent(c *gin.Context) (events.Event, error) {
 	parameters := c.Request.URL.Query()
 	event := events.Event{}
@@ -142,10 +140,10 @@ func (ph *PixelHandler) parseEvent(c *gin.Context) (events.Event, error) {
 	return event, nil
 }
 
-//extractOrSetAnonymIDCookie if no anoymous id found:
+// extractOrSetAnonymIDCookie if no anoymous id found:
 // 1. gets cookie value (anonym ID)
 // 2. generates and set it if doesn't exist
-//returns anonymous id
+// returns anonymous id
 func (ph *PixelHandler) extractOrSetAnonymIDCookie(c *gin.Context, event events.Event, reqContext *events.RequestContext) string {
 	if anonymID, ok := ph.anonymIDPath.Get(event); ok {
 		return fmt.Sprint(anonymID)
