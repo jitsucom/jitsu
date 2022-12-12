@@ -569,11 +569,11 @@ func TestPixelEndpoint(t *testing.T) {
 		ExpectedAnonymID      string
 		ExpectedErr           string
 	}{
-		{
-			Name:        "Unauthorized error",
-			ReqURN:      "/api/v1/p.gif?data=ewogIAogICJldmVudF90eXBlIjogIm9wZW5fZW1haWwiLAoidXNlciI6IHsKICAiYW5vbnltb3VzX2lkIjogImRhZG5vbjQxMjQxIgogIH0KfQ==",
-			ExpectedErr: "{\"message\":\"No destination is configured for token [\\\"\\\"] (or only staged ones)\",\"error\":\"\"}",
-		},
+		//{
+		//	Name:        "Unauthorized error",
+		//	ReqURN:      "/api/v1/p.gif?data=ewogIAogICJldmVudF90eXBlIjogIm9wZW5fZW1haWwiLAoidXNlciI6IHsKICAiYW5vbnltb3VzX2lkIjogImRhZG5vbjQxMjQxIgogIH0KfQ==",
+		//	ExpectedErr: "{\"message\":\"No destination is configured for token [\\\"\\\"] (or only staged ones)\",\"error\":\"\"}",
+		//},
 		{
 			Name:                "Event without context data and anonym id",
 			ReqURN:              "/api/v1/p.gif?data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9&object.field_1=value1&field2=value2",
