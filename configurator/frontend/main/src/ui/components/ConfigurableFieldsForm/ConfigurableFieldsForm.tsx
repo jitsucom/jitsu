@@ -90,8 +90,8 @@ const ConfigurableFieldsFormComponent = ({
     [form]
   )
 
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   const handleChangeTextInput = useCallback(
     (id: string) => (value: string) => {
@@ -183,7 +183,6 @@ const ConfigurableFieldsFormComponent = ({
     documentation?: React.ReactNode,
     validationRules?: FormItemProps["rules"]
   ) => {
-
     const defaultValueToDisplay =
       form.getFieldValue(id) ?? getInitialValue(id, defaultValue, constantValue, type?.typeName)
     form.setFieldsValue({ ...form.getFieldsValue(), [id]: defaultValueToDisplay })
@@ -271,7 +270,7 @@ const ConfigurableFieldsFormComponent = ({
               handleChange={handleJsonChange(id)}
             />
             <span className="z-50">
-              {(jsDebugger && !disableEdit) && (
+              {jsDebugger && !disableEdit && (
                 <>
                   {bigField ? (
                     <Button

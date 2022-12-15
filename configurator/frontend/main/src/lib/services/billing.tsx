@@ -127,6 +127,11 @@ export type CurrentSubscription = {
    * If UI shouldn't be blocked
    */
   doNotBlock: boolean
+
+  /**
+   * If subscription is managed by stripe
+   */
+  subscriptionIsManagedByStripe: boolean
 }
 
 /**
@@ -137,19 +142,6 @@ export type FirebaseSubscriptionEntry = {
    * Pricing plan
    */
   planId: PricingPlanId
-  /**
-   * The start of current billing period. The date of last payment. Can be either last month (if customer pays
-   * monthly), or any date if customer is billed annually
-   *
-   * ISO 8601 string. If absent, it's beginning of current month
-   */
-  subscriptionStart?: string
-  /**
-   * Expiration date of the subscription. Can be any date in future. If not set, it's subscriptionStart + 30 days.
-   *
-   * ISO 8601 string
-   */
-  subscriptionExpires?: string
   /**
    * Billing email
    */
@@ -163,13 +155,24 @@ export type FirebaseSubscriptionEntry = {
    * If UI shouldn't be blocked
    */
   doNotBlock?: boolean
+
+  /**
+   * Stripe subscription data
+   */
+  stripeSubscriptionObject?: {
+    current_period_end: number
+    current_period_start: number
+    cancel_at_period_end: boolean
+    cancel_at?: number
+    cancelled_at: number
+  }
 }
 
 /**
  * Returns the start of current quota period
  * @param subscriptionStart - can be undefined
  */
-function getQuotaPeriodStart(subscriptionStart?: string): Moment {
+function getQuotaPeriodStart(subscriptionStart?: Moment): Moment {
   let quotaPeriodStart
   if (!subscriptionStart) {
     quotaPeriodStart = moment().startOf("month") //first
@@ -178,23 +181,6 @@ function getQuotaPeriodStart(subscriptionStart?: string): Moment {
     //TODO: if subscription way in the past (annual billing - rewind forward to current month)
   }
   return quotaPeriodStart
-}
-
-function parseSubscription(fb: FirebaseSubscriptionEntry, usage: Usage): Readonly<CurrentSubscription> {
-  const quotaPeriodStart = getQuotaPeriodStart(fb.subscriptionStart)
-  const paymentPlan = paymentPlans[fb.planId]
-  if (!paymentPlan) {
-    throw new Error(`Unknown plan ${fb.planId}`)
-  }
-  return {
-    currentPlan: paymentPlan,
-    quotaPeriodStart,
-    stripeCustomerId: fb.stripeCustomerId,
-    usage,
-    autorenew: !!fb.stripeCustomerId,
-    expiration: fb.subscriptionExpires ? moment(fb.subscriptionExpires) : moment(quotaPeriodStart).add(1, "M"),
-    doNotBlock: !!fb.doNotBlock,
-  }
 }
 
 async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
@@ -247,9 +233,40 @@ export async function getCurrentSubscription(
 
   const subscription = await fetchCurrentSubscription()
 
+  let subscriptionEnd = subscription.stripeSubscriptionObject?.current_period_end
+    ? moment(subscription.stripeSubscriptionObject?.current_period_end * 1000)
+    : undefined
+  let subscriptionStart = subscription.stripeSubscriptionObject?.current_period_start
+    ? moment(subscription.stripeSubscriptionObject?.current_period_start * 1000)
+    : undefined
+  let subscriptionIsManagedByStripe = true
+
+  if (subscription.planId === "enterprise") {
+    //enterprise customers always bills from the beginning of the month,
+    //they are not subject if stripe billing period
+    subscriptionEnd = moment().endOf("month")
+    subscriptionStart = moment().startOf("month")
+    subscriptionIsManagedByStripe = false
+  }
+  if (!subscriptionStart && subscription.planId !== "free" && subscription.planId !== "opensource") {
+    //manually created subscription without stripe subscription object, set billing to calendar month
+    subscriptionEnd = moment().endOf("month")
+    subscriptionStart = moment().startOf("month")
+    subscriptionIsManagedByStripe = false
+  }
+
+  const subscriptionExpired = subscriptionEnd && subscriptionEnd.isBefore(moment())
+  let quotaPeriodStart = getQuotaPeriodStart(subscriptionExpired ? subscriptionStart : undefined)
+  console.log(`Raw subscription object`, subscription)
+
+  console.log("Current subscription", {
+    subscriptionStart: subscriptionStart?.toISOString(),
+    subscriptionEnd: subscriptionEnd?.toISOString(),
+    subscriptionExpired,
+    quotaPeriodStart: quotaPeriodStart?.toISOString(),
+  })
   let stat: DatePoint[]
   try {
-    const quotaPeriodStart = getQuotaPeriodStart(subscription.subscriptionStart)
     stat = await statService.get(
       quotaPeriodStart.toDate(),
       quotaPeriodStart.add(1, "M").toDate(),
@@ -263,16 +280,31 @@ export async function getCurrentSubscription(
     stat = []
   }
 
-  let events = stat.reduce((res, item) => {
+  const events = stat.reduce((res, item) => {
     res += item.events
     return res
   }, 0)
 
-  return parseSubscription(subscription, {
+  const usage = {
     events,
     sources: sourcesStore.list.length,
     destinations: destinationsStore.list.length,
-  })
+  }
+
+  const paymentPlan = subscriptionExpired ? paymentPlans.free : paymentPlans[subscription.planId]
+  if (!paymentPlan) {
+    throw new Error(`Unknown plan ${subscription.planId}`)
+  }
+  return {
+    currentPlan: paymentPlan,
+    quotaPeriodStart,
+    stripeCustomerId: subscription.stripeCustomerId,
+    usage,
+    subscriptionIsManagedByStripe,
+    autorenew: !subscription.stripeSubscriptionObject?.cancel_at_period_end,
+    expiration: subscriptionEnd,
+    doNotBlock: !!subscription.doNotBlock,
+  }
 }
 
 /**

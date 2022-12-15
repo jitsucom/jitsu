@@ -32,8 +32,8 @@ export interface Props {
 }
 
 const DestinationEditorConnectorsComponent = ({ form, initialValues, destination, handleTouchAnyField }: Props) => {
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   const sources = sourcesStore.list
   const sourcesError = sourcesStore.errorMessage

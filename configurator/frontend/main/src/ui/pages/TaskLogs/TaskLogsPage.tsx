@@ -103,7 +103,9 @@ const TaskLogsPageComponent: React.FC = () => {
             >
               <Select.Option value="ALL">ALL</Select.Option>
               {(source["collections"] ?? []).map(({ name }) => (
-                <Select.Option key={name} value={name}>{name}</Select.Option>
+                <Select.Option key={name} value={name}>
+                  {name}
+                </Select.Option>
               ))}
             </Select>
           </span>

@@ -1,7 +1,7 @@
 // @Libs
 import { Button, Modal } from "antd"
 // @Catalog
-import {destinationMappings} from "@jitsu/catalog"
+import { destinationMappings } from "@jitsu/catalog"
 // @Styles
 import styles from "./DestinationEditor.module.less"
 // @Types

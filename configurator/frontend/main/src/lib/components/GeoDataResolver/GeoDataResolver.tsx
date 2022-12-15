@@ -28,8 +28,8 @@ function GeoDataResolver() {
   const [saving, setSaving] = useState(false)
   const [testingConnection, setTestingConnection] = useState(false)
   const [formDisabled, setFormDisabled] = useState(false)
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   const [form] = useForm<GeoDataResolverFormValues>()
 

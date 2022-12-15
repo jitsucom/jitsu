@@ -248,15 +248,17 @@ const SourceEditorFormConfiguration: React.FC<SourceEditorFormConfigurationProps
         </div>
       ) : (
         <div>
-          {!disabled && <SourceEditorOauthButtons
-            key="oauth"
-            sourceDataFromCatalog={sourceDataFromCatalog}
-            disabled={disabled}
-            isSignedIn={isOauthFlowCompleted}
-            onIsOauthSupportedCheckSuccess={handleOauthSupportedStatusChange}
-            onFillAuthDataManuallyChange={handleFillAuthDataManuallyChange}
-            setOauthSecretsToForms={setOauthSecretsToForms}
-          />}
+          {!disabled && (
+            <SourceEditorOauthButtons
+              key="oauth"
+              sourceDataFromCatalog={sourceDataFromCatalog}
+              disabled={disabled}
+              isSignedIn={isOauthFlowCompleted}
+              onIsOauthSupportedCheckSuccess={handleOauthSupportedStatusChange}
+              onFillAuthDataManuallyChange={handleFillAuthDataManuallyChange}
+              setOauthSecretsToForms={setOauthSecretsToForms}
+            />
+          )}
           <div key={resetKey}>
             <SourceEditorFormConfigurationStaticFields
               disabled={!!disabled}

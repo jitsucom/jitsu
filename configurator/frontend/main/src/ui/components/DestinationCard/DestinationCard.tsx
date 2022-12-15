@@ -23,8 +23,8 @@ export type DestinationCardProps = {
 }
 
 export function DestinationCard({ dst }: DestinationCardProps) {
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   const reference = destinationsReferenceMap[dst._type]
   const rename = async (newName: string) => {
@@ -59,12 +59,16 @@ export function DestinationCard({ dst }: DestinationCardProps) {
       rename={rename}
       menuOverlay={
         <Menu>
-          {!disableEdit && <Menu.Item icon={<EditOutlined />}>
-            <NavLink to={editLink}>Edit</NavLink>
-          </Menu.Item>}
-          {!disableEdit && <Menu.Item icon={<DeleteOutlined />} onClick={deleteAction}>
-            Delete
-          </Menu.Item>}
+          {!disableEdit && (
+            <Menu.Item icon={<EditOutlined />}>
+              <NavLink to={editLink}>Edit</NavLink>
+            </Menu.Item>
+          )}
+          {!disableEdit && (
+            <Menu.Item icon={<DeleteOutlined />} onClick={deleteAction}>
+              Delete
+            </Menu.Item>
+          )}
           <Menu.Item icon={<CodeOutlined />}>
             <NavLink to={statLink}>Statistics</NavLink>
           </Menu.Item>

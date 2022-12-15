@@ -77,7 +77,7 @@ function usePageLocation(): string {
 export const ApplicationMenu: React.FC<{ expanded: boolean }> = ({ expanded }) => {
   const services = useServices()
   const project = useProject()
-  const permissions: ProjectPermission[] = project.permissions || allPermissions;
+  const permissions: ProjectPermission[] = project.permissions || allPermissions
   const key = usePageLocation()
   const menuItems = [
     makeItem(<HomeFilled />, "Home", "/connections", "#77c593"),

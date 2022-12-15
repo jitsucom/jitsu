@@ -14,7 +14,6 @@ test("unflatten", () => {
   expect(unflatten({ "x.y.z": 1, "a.b": 2 })).toStrictEqual({ x: { y: { z: 1 } }, a: { b: 2 } })
 })
 
-
 test("sanitize with allow list", () => {
   expect(sanitize({ a: 1, b: 2, c: 3 }, { allow: ["a", "b"] })).toStrictEqual({ a: 1, b: 2 })
 })

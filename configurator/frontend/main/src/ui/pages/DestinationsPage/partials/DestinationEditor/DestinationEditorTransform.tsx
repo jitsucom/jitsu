@@ -34,8 +34,8 @@ const DestinationEditorTransform = ({
   mappingForm,
   handleTouchAnyField,
 }: Props) => {
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
   const handleChange = debounce(handleTouchAnyField, 500)
   const [documentationVisible, setDocumentationVisible] = useState(false)
   const templateVarsSuggestions = Object.entries(configForm.getFieldsValue())

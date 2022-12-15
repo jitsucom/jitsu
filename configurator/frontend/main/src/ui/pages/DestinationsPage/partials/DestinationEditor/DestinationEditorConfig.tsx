@@ -20,8 +20,8 @@ export interface Props {
 
 const DestinationEditorConfig = ({ destinationData, destinationReference, form, handleTouchAnyField }: Props) => {
   const handleChange = debounce(handleTouchAnyField, 500)
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
   return (
     <>
       <Form disabled={disableEdit} name="destination-config" form={form} autoComplete="off" onChange={handleChange}>

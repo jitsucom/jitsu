@@ -78,7 +78,12 @@ export function ConnectionCard(props: ConnectionCardProps) {
           </div>
           <div className="pl-4 h-12 h-full flex flex-col justify-between ">
             <ActionLink action={props.editAction}>
-              <EditableName disabled={props.disabled} className="text-base font-bold" name={props.title} update={props.rename} />
+              <EditableName
+                disabled={props.disabled}
+                className="text-base font-bold"
+                name={props.title}
+                update={props.rename}
+              />
             </ActionLink>
             <div className="text-secondaryText">{props.subtitle}</div>
           </div>

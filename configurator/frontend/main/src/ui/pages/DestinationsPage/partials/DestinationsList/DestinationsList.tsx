@@ -23,8 +23,8 @@ import { ProjectPermission } from "../../../../../generated/conf-openapi"
 const DestinationsListComponent = () => {
   const history = useHistory()
   const subscription = useServices().currentSubscription
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   const handleAddClick = useCallback(() => {
     history.push(projectRoute(destinationPageRoutes.add))

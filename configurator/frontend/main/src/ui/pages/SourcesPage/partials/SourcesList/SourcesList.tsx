@@ -21,8 +21,8 @@ import { ProjectPermission } from "../../../../../generated/conf-openapi"
 
 const SourcesListComponent = () => {
   const history = useHistory()
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   useEffect(() => {
     currentPageHeaderStore.setBreadcrumbs("Sources")
@@ -35,7 +35,6 @@ const SourcesListComponent = () => {
         <div>
           <Button
             disabled={disableEdit}
-
             type="primary"
             size="large"
             icon={<PlusOutlined />}
