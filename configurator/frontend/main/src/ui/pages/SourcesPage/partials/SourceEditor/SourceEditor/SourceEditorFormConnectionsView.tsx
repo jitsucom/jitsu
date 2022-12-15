@@ -20,8 +20,8 @@ export interface ConnectedItem {
 
 export const SourceEditorFormConnectionsView: React.FC<Props> = ({ itemsList, initialValues, handleItemChange }) => {
   const [selectedItems, setSelectedItems] = useState<string[]>(initialValues ?? [])
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   const handleChange = useCallback(
     (id: string) => (checked: boolean) => {
@@ -47,7 +47,11 @@ export const SourceEditorFormConnectionsView: React.FC<Props> = ({ itemsList, in
           {itemsList.sort().map(({ id, title, description, disabled }: ConnectedItem) => (
             <div className="flex flex-row flex-nowrap h-16" key={id}>
               <div className="flex-shrink pr-4">
-                <Switch disabled={disableEdit || disabled} onChange={handleChange(id)} checked={selectedItems?.includes(id)} />
+                <Switch
+                  disabled={disableEdit || disabled}
+                  onChange={handleChange(id)}
+                  checked={selectedItems?.includes(id)}
+                />
               </div>
               <div className="flex flex-col justify-start">
                 <div key="title">{title}</div>

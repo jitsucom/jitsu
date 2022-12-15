@@ -3,7 +3,8 @@
  */
 import {
   LinkProjectRequest,
-  Project, ProjectPermission,
+  Project,
+  ProjectPermission,
   ProjectUserPermissions,
   ProjectWithPermissions,
   UserBasicInfo,
@@ -65,7 +66,11 @@ export interface ProjectService {
 export function createProjectService(backend: BackendApiClient): ProjectService {
   return {
     async updatePermissions(projectId: string, userId: string, permissions: ProjectPermission[]): Promise<void> {
-      await backend.post<unknown>(`/project/${projectId}/permissions/${userId}`, { permissions: permissions.map(p => ProjectPermission[p]) }, { version: 2 })
+      await backend.post<unknown>(
+        `/project/${projectId}/permissions/${userId}`,
+        { permissions: permissions.map(p => ProjectPermission[p]) },
+        { version: 2 }
+      )
     },
 
     async getProjectUsers(projectId: string): Promise<ProjectUserPermissions[]> {

@@ -10,7 +10,6 @@ Just run `pnpm i`. In case of any problems try `pnpm factory-reset && pnpm i`
 
 Run `pnpm dev` in the `frontend` folder to start the UI dev server; The script will open `localhost:9876` in a new tab of your default browser.
 
-
 ### Environment Variables
 
 The UI recognizes following environment variables. Those marked with '\*' **must** be provided
@@ -74,7 +73,7 @@ before building the app or running it with `pnpm dev`.
 - `pnpm dev` - dev application (with hot reload) will be started on [http://localhost:9876](http://localhost:9876)
 - `pnpm build` - run all checks (see `pnpm verify`) and build production configurator UI, see `main/build/` folder for results
 - (disabled)` pnpm test` - run tests in all subpackages
-- `pnpm code-style:check` / `pnpm code-style:fix` - check code style with prettier / fix it 
+- `pnpm code-style:check` / `pnpm code-style:fix` - check code style with prettier / fix it
 - `pnpm lint` - run linter
 - `canary:publish` - publish canary version of `@jitsu/catalog`. Is used in CI
 

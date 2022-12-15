@@ -47,8 +47,8 @@ export type SourceCardProps = {
 }
 
 export function SourceCard({ src, short = false }: SourceCardProps) {
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   const reference: SourceConnector = allSourcesMap[src.sourceProtoType]
 
@@ -173,33 +173,35 @@ export function SourceCard({ src, short = false }: SourceCardProps) {
       deleteAction={() => deleteSrc(src)}
       editAction={editLink}
       menuOverlay={
-        !disableEdit && <Menu>
-          <Menu.Item key={"edit"} icon={<EditOutlined />}>
-            <NavLink to={editLink}>Edit</NavLink>
-          </Menu.Item>
-          <Menu.Item key={"delete"} icon={<DeleteOutlined />} onClick={() => deleteSrc(src)}>
-            Delete
-          </Menu.Item>
-          <Menu.Item key={"logs"} icon={<CodeOutlined />} disabled={src.destinations?.length === 0}>
-            <NavLink to={viewLogsLink}>View Logs</NavLink>
-          </Menu.Item>
-          <Menu.Item
-            key={"clear_sync"}
-            icon={<ClearOutlined />}
-            disabled={src.destinations?.length === 0}
-            onClick={async () => await scheduleTasks(src, true)}
-          >
-            Clear Destinations and Sync
-          </Menu.Item>
-          <Menu.Item
-            key={"sync"}
-            icon={<SyncOutlined />}
-            disabled={src.destinations?.length === 0}
-            onClick={async () => await scheduleTasks(src, false)}
-          >
-            Sync Now
-          </Menu.Item>
-        </Menu>
+        !disableEdit && (
+          <Menu>
+            <Menu.Item key={"edit"} icon={<EditOutlined />}>
+              <NavLink to={editLink}>Edit</NavLink>
+            </Menu.Item>
+            <Menu.Item key={"delete"} icon={<DeleteOutlined />} onClick={() => deleteSrc(src)}>
+              Delete
+            </Menu.Item>
+            <Menu.Item key={"logs"} icon={<CodeOutlined />} disabled={src.destinations?.length === 0}>
+              <NavLink to={viewLogsLink}>View Logs</NavLink>
+            </Menu.Item>
+            <Menu.Item
+              key={"clear_sync"}
+              icon={<ClearOutlined />}
+              disabled={src.destinations?.length === 0}
+              onClick={async () => await scheduleTasks(src, true)}
+            >
+              Clear Destinations and Sync
+            </Menu.Item>
+            <Menu.Item
+              key={"sync"}
+              icon={<SyncOutlined />}
+              disabled={src.destinations?.length === 0}
+              onClick={async () => await scheduleTasks(src, false)}
+            >
+              Sync Now
+            </Menu.Item>
+          </Menu>
+        )
       }
       title={SourcesUtils.getDisplayName(src)}
       rename={(newName: string) => rename(src.sourceId, newName)}

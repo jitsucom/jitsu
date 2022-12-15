@@ -1,6 +1,6 @@
 // @Libs
 import { useState } from "react"
-import { Progress } from "antd"
+import { Progress, Tooltip } from "antd"
 import { observer } from "mobx-react-lite"
 import { useLocation } from "react-router-dom"
 // @Services
@@ -85,8 +85,20 @@ export const BillingCurrentPlanComponent: React.FC<CurrentPlanProps> = ({ planSt
             >
               <b>Upgrade</b>
             </a>
+          ) : planStatus.subscriptionIsManagedByStripe ? (
+            <a href={customerPortalLink}>Manage Subscription</a>
           ) : (
-            planStatus.stripeCustomerId && <a href={customerPortalLink}>Manage Subscription</a>
+            <Tooltip
+              className="cursor-pointer"
+              title={
+                <>
+                  Your subscription is managed by a custom contact. Email <code>support@jitsu.com</code> to maka any
+                  changes
+                </>
+              }
+            >
+              Manage Subscription
+            </Tooltip>
           )}
 
           <a href="https://jitsu.com/pricing">Pricing Info</a>

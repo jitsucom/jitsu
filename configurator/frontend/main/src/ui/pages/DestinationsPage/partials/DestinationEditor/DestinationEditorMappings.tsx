@@ -32,8 +32,8 @@ export const BooleanStatus = {
 const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField, handleDataUpdate }: Props) => {
   const [actions, setActions] = useState<MappingAction[]>([])
   const [documentationVisible, setDocumentationVisible] = useState(false)
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   useEffect(() => {
     setActions(initialValues?._mappings?.map((row: DestinationMappingRow) => row._action) ?? [])
@@ -119,13 +119,15 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField, h
           </a>
           .
         </p>
-        {!disableEdit && <p>
-          Use one of{" "}
-          <a onClick={() => setDocumentationVisible(true)}>
-            <b>Pre-build Mapping Templates</b>
-          </a>{" "}
-          to configure Jitsu to implement one of the popular use-cases.
-        </p>}
+        {!disableEdit && (
+          <p>
+            Use one of{" "}
+            <a onClick={() => setDocumentationVisible(true)}>
+              <b>Pre-build Mapping Templates</b>
+            </a>{" "}
+            to configure Jitsu to implement one of the popular use-cases.
+          </p>
+        )}
       </TabDescription>
       <Drawer
         title={<h2>Pre-build mapping templates</h2>}

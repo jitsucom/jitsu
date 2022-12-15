@@ -78,4 +78,3 @@ class DownloadConfig extends LoadableComponent<{}, State> {
 }
 
 export default withPermissionRequirement(DownloadConfig, ProjectPermission.MODIFY_CONFIG)
-

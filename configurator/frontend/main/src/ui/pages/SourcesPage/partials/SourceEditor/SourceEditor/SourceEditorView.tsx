@@ -52,8 +52,8 @@ export const SourceEditorView: React.FC<SourceEditorViewProps> = ({
   handleValidateStreams,
   handleReloadStreams,
 }) => {
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   const forms = [
     {

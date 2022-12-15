@@ -12,7 +12,7 @@ import { SizeType } from "antd/lib/config-provider/SizeContext"
 export interface Props {
   className?: string
   wrapClassName?: string
-  name: any,
+  name: any
   formName: string
   floatingLabelText: React.ReactNode
   rules?: Rule[]

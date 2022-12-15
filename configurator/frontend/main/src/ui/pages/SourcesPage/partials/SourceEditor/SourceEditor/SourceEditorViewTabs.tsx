@@ -49,8 +49,8 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
   setShowDocumentationDrawer,
 }) => {
   const sourceEditorViewState = useSourceEditorState()
-  const project = useProject();
-  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG);
+  const project = useProject()
+  const disableEdit = !(project.permissions || allPermissions).includes(ProjectPermission.MODIFY_CONFIG)
 
   const [currentTab, setCurrentTab] = useState<string>("configuration")
   const [isSaving, setIsSaving] = useState<boolean>(false)
@@ -159,18 +159,22 @@ export const SourceEditorViewTabs: React.FC<SourceEditorViewTabsProps> = ({
 
       <div className="flex items-center flex-shrink flex-grow-0 border-t py-2">
         <SourceEditorViewControls
-          mainButton={!disableEdit &&{
-            title: "Save",
-            loading: isSaving,
-            handleClick: handleSave,
-          }}
-          dashedButton={!disableEdit && {
-            title: "Test Connection",
-            loading: isTestingConnection,
-            handleClick: handleTestConnection,
-          }}
+          mainButton={
+            !disableEdit && {
+              title: "Save",
+              loading: isSaving,
+              handleClick: handleSave,
+            }
+          }
+          dashedButton={
+            !disableEdit && {
+              title: "Test Connection",
+              loading: isTestingConnection,
+              handleClick: handleTestConnection,
+            }
+          }
           dangerButton={{
-            title: disableEdit ? 'Cancel' : 'Close',
+            title: disableEdit ? "Cancel" : "Close",
             handleClick: handleLeaveEditor,
           }}
         />

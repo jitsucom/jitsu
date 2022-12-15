@@ -66,11 +66,12 @@ const DownloadConfig = React.lazy(
   () => import(/* webpackPrefetch: true */ "./lib/components/DownloadConfig/DownloadConfig")
 )
 
-export const initializeApplication = async (): Promise<ApplicationServices> => {
+export const initializeApplication = async (setDescription: (d: string) => void): Promise<ApplicationServices> => {
   const services = ApplicationServices.get()
   await services.init()
-  await services.userService.waitForUser()
   await services.loadPluginScript()
+  setDescription("Authenticating...")
+  await services.userService.waitForUser()
   if (services.userService.hasUser()) {
     setDebugInfo("user", services.userService.getUser())
     services.analyticsService.onUserKnown(services.userService.getUser())
@@ -79,16 +80,17 @@ export const initializeApplication = async (): Promise<ApplicationServices> => {
 }
 
 const initializeBilling = async (services: ApplicationServices, projectId: string) => {
-  let currenSubscription: CurrentSubscription
+  let currentSubscription: CurrentSubscription
   if (services.userService.hasUser() && services.features.billingEnabled && projectId) {
-    currenSubscription = await getCurrentSubscription(
+    currentSubscription = await getCurrentSubscription(
       projectId,
       services.backendApiClient,
       destinationsStore,
       sourcesStore
     )
   } else {
-    currenSubscription = {
+    currentSubscription = {
+      subscriptionIsManagedByStripe: false,
       autorenew: false,
       expiration: moment().add(1, "M"),
       usage: {
@@ -101,7 +103,7 @@ const initializeBilling = async (services: ApplicationServices, projectId: strin
       doNotBlock: true,
     }
   }
-  services.currentSubscription = currenSubscription
+  services.currentSubscription = currentSubscription
 }
 
 const initializeProject = async (
@@ -123,11 +125,14 @@ export const Application: React.FC = function () {
   const [error, setError] = useState<Error>()
   const { projectId } = useParams<{ projectId: string }>()
   const location = useLocation()
+  const [preloaderText, setPreloader] = useState("Loading application, please be patient...")
 
   useEffect(() => {
     ;(async () => {
       try {
-        const application = await initializeApplication()
+        const application = await initializeApplication(description => {
+          setPreloader(description)
+        })
         if (application.userService.hasUser()) {
           const projects = await application.projectService.getAvailableProjects()
           if (projects.length === 0) {

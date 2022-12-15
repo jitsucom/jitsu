@@ -5,26 +5,17 @@
       "dependsOn": ["^lint"]
     },
     "clean": {
-      "dependsOn": [
-        "^clean"
-      ]
+      "dependsOn": ["^clean"]
     },
     "test": {
-      "dependsOn": [
-        "build",
-        "^test"
-      ]
+      "dependsOn": ["build", "^test"]
     },
     "compile": {
-      "dependsOn": [
-        "^compile"
-      ]
+      "dependsOn": ["^compile"]
     },
     "dev": {
       "cache": false,
-      "dependsOn": [
-        "^dev"
-      ]
+      "dependsOn": ["^dev"]
     },
     "build": {
       "dependsOn": [

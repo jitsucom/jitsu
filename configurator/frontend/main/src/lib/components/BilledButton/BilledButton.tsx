@@ -51,4 +51,3 @@ export const BilledButton: React.FC<Props> = ({
     </Wrapper>
   )
 }
-
