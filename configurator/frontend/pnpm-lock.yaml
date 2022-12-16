@@ -34,6 +34,7 @@ importers:
       '@craco/craco': ^6.1.1
       '@firebase/auth': ^0.20.3
       '@jitsu/catalog': workspace:*
+      '@jitsu/jitsu-react': ^0.0.1-alpha.127
       '@jitsu/sdk-js': ^3.0.3
       '@sentry/react': ^6.19.6
       '@sentry/tracing': ^6.19.6
@@ -92,6 +93,7 @@ importers:
     dependencies:
       '@firebase/auth': 0.20.3
       '@jitsu/catalog': link:../catalog
+      '@jitsu/jitsu-react': 0.0.1-alpha.127_prkrmintvdj3nxtntxrialvha4
       '@jitsu/sdk-js': 3.1.3
       '@sentry/react': 6.19.7_react@17.0.2
       '@sentry/tracing': 6.19.7
@@ -159,6 +161,54 @@ packages:
     dependencies:
       '@jridgewell/gen-mapping': 0.1.1
       '@jridgewell/trace-mapping': 0.3.13
+
+  /@analytics/cookie-utils/0.2.10:
+    resolution: {integrity: sha512-k7oyW1PkMCnEdCYmHCLLXAsKavQh5ZRh5EeugBEUTlPJs8x8ajF+W1T0PYVDS26Impkea1sJR2etv/6l2pKtlg==}
+    dependencies:
+      '@analytics/global-storage-utils': 0.1.5
+    dev: false
+
+  /@analytics/core/0.11.1:
+    resolution: {integrity: sha512-vHuiMpeGV6jGRRoOuScUJ4CHpVd1Zu9M+fjEWgN+boMAxIwFCtRTkSbhhIP337JuEBLpMT8w37OxA4Yh3NZFZw==}
+    dependencies:
+      '@analytics/global-storage-utils': 0.1.5
+      '@analytics/type-utils': 0.6.0
+      analytics-utils: 1.0.10
+    transitivePeerDependencies:
+      - '@types/dlv'
+    dev: false
+
+  /@analytics/global-storage-utils/0.1.5:
+    resolution: {integrity: sha512-DzOCd0qK7PGnz/dgBYNzLmaFBkxcEHM6/CpWMY7hel1IBUldMsyet4sdRgI2Nk+Wc6B/YvqVqos68p5ntB59zA==}
+    dependencies:
+      '@analytics/type-utils': 0.6.0
+    dev: false
+
+  /@analytics/localstorage-utils/0.1.8:
+    resolution: {integrity: sha512-tU5rLEHdYRc4EmRXkWacMJSmu4SeJfQuxvthSHHRVx3hGBQ00MJRDGyDHMXcrLKQXrBpsJo6t/8YRavHLOxDPQ==}
+    dependencies:
+      '@analytics/global-storage-utils': 0.1.5
+    dev: false
+
+  /@analytics/session-storage-utils/0.0.5:
+    resolution: {integrity: sha512-BXRNQ73GSkkkny//a/SNCYRyrIhEJBwOTcdNkr2gq6ghXgekQGrTfVzwybZ/tAEHA0XYkkaOszelRsDPxa+UOQ==}
+    dependencies:
+      '@analytics/global-storage-utils': 0.1.5
+    dev: false
+
+  /@analytics/storage-utils/0.4.0:
+    resolution: {integrity: sha512-RY9nhoSQcuQxkmVUZBG3ULOwiFxi+H5N0WHn+FPUScnoM4b+tC48dWzyFxD9qKyWPah8/ndjCj6r+6wTGSl1zw==}
+    dependencies:
+      '@analytics/cookie-utils': 0.2.10
+      '@analytics/global-storage-utils': 0.1.5
+      '@analytics/localstorage-utils': 0.1.8
+      '@analytics/session-storage-utils': 0.0.5
+      '@analytics/type-utils': 0.6.0
+    dev: false
+
+  /@analytics/type-utils/0.6.0:
+    resolution: {integrity: sha512-1Yw7u/COtxx06BfwlI+kVhsa/upKYzmCNrT4c8QDeCY2KMYlnijkUjtHiPU08HxyTIVB5j6d75O0YWVIHwQS8g==}
+    dev: false
 
   /@ant-design/colors/6.0.0:
     resolution: {integrity: sha512-qAZRvPzfdWHtfameEGP2Qvuf838NhergR35o+EuVyB5XvSA98xod5r4utvi4TJ3ywmevm290g9nsCG5MryrdWQ==}
@@ -2405,6 +2455,40 @@ packages:
       chalk: 4.1.2
     dev: true
 
+  /@jitsu/jitsu-react/0.0.1-alpha.127_prkrmintvdj3nxtntxrialvha4:
+    resolution: {integrity: sha512-wwWfJALPOMR3ix2uCYsQ6RL1dVuecblfoEUHu/tB55LQ7zj/4QZ4hHFKaJeqB3rhcV2WTYbjFMgLUNeJAOA10Q==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      '@types/react': 15.x || 16.x || 17.x || 18.x
+      next: 12.x || 13.x
+      react: 15.x || 16.x || 17.x || 18.x
+      react-router-dom: 5.x || 6.x
+    peerDependenciesMeta:
+      next:
+        optional: true
+      react-router-dom:
+        optional: true
+    dependencies:
+      '@jitsu/js': 0.0.1-alpha.127
+      react: 17.0.2
+      react-router-dom: 5.3.3_react@17.0.2
+    transitivePeerDependencies:
+      - '@types/dlv'
+    dev: false
+
+  /@jitsu/js/0.0.1-alpha.127:
+    resolution: {integrity: sha512-ocMnR+WSWgu3cmU+QSHkrYVsPkAV5V8wxWkVsegYWgjk4Jx910RrwHiSQvm93IIy7CBSkTVQOYjO/y8rz9jvow==}
+    dependencies:
+      '@jitsu/protocols': 0.0.1-alpha.127
+      analytics: 0.8.1
+    transitivePeerDependencies:
+      - '@types/dlv'
+    dev: false
+
+  /@jitsu/protocols/0.0.1-alpha.127:
+    resolution: {integrity: sha512-pRgJNdjfNkY7nwAz6TVxiptpAlSSZxBCz7ko56CZvx17Nf2t6DeETvFq68zxB9WiOQca7USZg1uU9R47Y4owMA==}
+    dev: false
+
   /@jitsu/sdk-js/3.1.3:
     resolution: {integrity: sha512-hFFo0PQb/zm5Qvs8pPsiJpDdOG7A1s5jc1IENWS0cIncNfbjZzi6EcK8iPhUsAXFU4g6xPpi8MHgVQtCMdocsA==}
     dev: false
@@ -3660,6 +3744,24 @@ packages:
   /alphanum-sort/1.0.2:
     resolution: {integrity: sha512-0FcBfdcmaumGPQ0qPn7Q5qTgz/ooXgIyp1rf8ik5bGX8mpE2YHjC0P/eyQvxu1GURYQgq9ozf2mteQ5ZD9YiyQ==}
     dev: true
+
+  /analytics-utils/1.0.10:
+    resolution: {integrity: sha512-ZKYKhip7Sf09qE85l4vZMBPR3fz6ISUTlwzkWSwJHbzLLzP5qrWQtcQlBcP9Pah7BMNSq8pqho+PX4ZKB014Yg==}
+    peerDependencies:
+      '@types/dlv': ^1.0.0
+    dependencies:
+      '@analytics/type-utils': 0.6.0
+      dlv: 1.1.3
+    dev: false
+
+  /analytics/0.8.1:
+    resolution: {integrity: sha512-mXOe8zTGDfiYqw9MZsgul8HrOBmHsIwk/0xbrkGZr75yvWqAcyKfZA0WjOalwI9tzIKv8WNfHV5yhnrtQcXJpw==}
+    dependencies:
+      '@analytics/core': 0.11.1
+      '@analytics/storage-utils': 0.4.0
+    transitivePeerDependencies:
+      - '@types/dlv'
+    dev: false
 
   /ansi-colors/3.2.4:
     resolution: {integrity: sha512-hHUXGagefjN2iRrID63xckIvotOXOojhQKWIPUZ4mNUZ9nLZW+7FMNoE1lOkEhNWYsx/7ysGIuJYCiMAA9FnrA==}
@@ -5987,7 +6089,6 @@ packages:
 
   /dlv/1.1.3:
     resolution: {integrity: sha512-+HlytyjlPKnIG8XuRG8WvmBP8xs8P71y+SKKS6ZXWoEgLuePxtDoUEiH7WkdePWrQ5JBpE6aoVqfZfJUQkjXwA==}
-    dev: true
 
   /dns-equal/1.0.0:
     resolution: {integrity: sha512-z+paD6YUQsk+AbGCEM4PrOXSss5gd66QfcVBFTKR/HpFL9jCqikS94HYwKww6fQyO7IxrIIyUu+g0Ka9tUS2Cg==}
@@ -12266,6 +12367,12 @@ packages:
   /react-dev-utils/11.0.4_a7xmpkungfd35is2c4kqy55h3i:
     resolution: {integrity: sha512-dx0LvIGHcOPtKbeiSUM4jqpBl3TcY7CDjZdfOIcKeznE7BWr9dg0iPG90G5yfVQ+p/rGNMXdbfStvzQZEVEi4A==}
     engines: {node: '>=10'}
+    peerDependencies:
+      typescript: '>=2.7'
+      webpack: '>=4'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
     dependencies:
       '@babel/code-frame': 7.10.4
       address: 1.1.2
@@ -12291,12 +12398,11 @@ packages:
       shell-quote: 1.7.2
       strip-ansi: 6.0.0
       text-table: 0.2.0
+      webpack: 4.44.2
     transitivePeerDependencies:
       - eslint
       - supports-color
-      - typescript
       - vue-template-compiler
-      - webpack
     dev: true
 
   /react-dom/17.0.2_react@17.0.2:
