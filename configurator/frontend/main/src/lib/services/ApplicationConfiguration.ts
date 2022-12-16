@@ -89,6 +89,7 @@ export type RawConfigObject = {
     sentry?: string
     logrocket?: string
     intercom?: string
+    jitsu?: string
     eventnative?: string
   }
 }
