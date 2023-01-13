@@ -216,25 +216,25 @@ export const Application: React.FC = function () {
                 key="login"
                 path="/login-link/:emailEncoded?"
                 exact
-                render={pageOf(LoginLink, { pageTitle: "Jitsu : Sign In with magic link" })}
+                render={pageOf(LoginLink, { pageTitle: "Jitsu: Sign In with magic link" })}
               />
               <Route
                 key="signin"
                 path={["/", "/dashboard", "/login", "/signin"]}
                 exact
-                render={pageOf(LoginPage, { pageTitle: "Jitsu : Sign In" })}
+                render={pageOf(LoginPage, { pageTitle: "Jitsu: Sign In" })}
               />
               <Route
                 key="signup"
                 path={["/register", "/signup"]}
                 exact
-                render={pageOf(SignupPage, { pageTitle: "Jitsu : Sign Up" })}
+                render={pageOf(SignupPage, { pageTitle: "Jitsu: Sign Up" })}
               />
               <Route
                 key="reset"
                 path={["/reset_password/:resetId"]}
                 exact
-                render={pageOf(ChangePasswordOnResetForm, { pageTitle: "Jitsu : Reset Password" })}
+                render={pageOf(ChangePasswordOnResetForm, { pageTitle: "Jitsu: Reset Password" })}
               />
               <Redirect to="/" />
             </Switch>
@@ -356,7 +356,7 @@ const PageWrapper: React.FC<{ pageTitle: string; component: ComponentType; pageP
     services.analyticsService.onPageLoad({
       pagePath: pagePath,
     })
-    document["title"] = `Jitsu : ${pageTitle}`
+    document["title"] = `Jitsu: ${pageTitle}`
     currentPageHeaderStore.setBreadcrumbs(pageTitle)
   }, [])
   const Component = component as ExoticComponent
