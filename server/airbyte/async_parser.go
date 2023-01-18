@@ -17,17 +17,18 @@ const (
 	airbyteSystem = "Airbyte"
 )
 
-//asynchronousParser is an Airbyte read command result parser
+// asynchronousParser is an Airbyte read command result parser
 type asynchronousParser struct {
 	dataConsumer          base.CLIDataConsumer
 	streamsRepresentation map[string]*base.StreamRepresentation
 	logger                logging.TaskLogger
 }
 
-//Parse reads from stdout and:
-//  parses airbyte output
-//  applies input schemas
-//  passes data as batches to dataConsumer
+// Parse reads from stdout and:
+//
+//	parses airbyte output
+//	applies input schemas
+//	passes data as batches to dataConsumer
 func (ap *asynchronousParser) parse(stdout io.Reader) error {
 	startTime := timestamp.Now()
 	timeInDestinations := time.Duration(0)
@@ -91,6 +92,7 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 			}
 			s, _ := output.GetStream(row.Record.Stream)
 			s.Objects = append(s.Objects, row.Record.Data)
+			logging.Debugf("[%s] row#%d: %+v", totalCount+records, row.Record.Stream, row.Record.Data)
 		default:
 			ap.logger.LOG(string(lineBytes), airbyteSystem, logging.DEBUG)
 		}
