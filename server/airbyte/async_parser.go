@@ -92,7 +92,7 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 			}
 			s, _ := output.GetStream(row.Record.Stream)
 			s.Objects = append(s.Objects, row.Record.Data)
-			logging.Debugf("[%s] row#%d: %+v", totalCount+records, row.Record.Stream, row.Record.Data)
+			logging.Debugf("[%s] row#%d: %+v", row.Record.Stream, totalCount+records, row.Record.Data)
 		default:
 			ap.logger.LOG(string(lineBytes), airbyteSystem, logging.DEBUG)
 		}
