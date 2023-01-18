@@ -21,25 +21,25 @@ import (
 	"strings"
 )
 
-//ClearCacheRequest is a dto for ClearCache endpoint
+// ClearCacheRequest is a dto for ClearCache endpoint
 type ClearCacheRequest struct {
 	Source     string `json:"source"`
 	Collection string `json:"collection"`
 }
 
-//SourcesHandler is used for testing sources connection and clean sync cache
+// SourcesHandler is used for testing sources connection and clean sync cache
 type SourcesHandler struct {
 	sourcesService      *sources.Service
 	metaStorage         meta.Storage
 	destinationsService *destinations.Service
 }
 
-//NewSourcesHandler returns configured SourcesHandler instance
+// NewSourcesHandler returns configured SourcesHandler instance
 func NewSourcesHandler(sourcesService *sources.Service, metaStorage meta.Storage, destinations *destinations.Service) *SourcesHandler {
 	return &SourcesHandler{sourcesService: sourcesService, metaStorage: metaStorage, destinationsService: destinations}
 }
 
-//ClearCacheHandler deletes source state (signature) from meta.Storage
+// ClearCacheHandler deletes source state (signature) from meta.Storage
 func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 	shouldCleanWarehouse := c.DefaultQuery("delete_warehouse_data", "false") == "true"
 	req := &ClearCacheRequest{}
@@ -103,9 +103,10 @@ func (sh *SourcesHandler) cleanWarehouse(driver driversbase.Driver, destinationI
 				}
 
 				for _, destTableName := range tableNames {
+					logging.Infof("Cleaning warehouse data for source: [%s] collection: [%s] destination: [%s] table: [%s]", sourceID, collection, destId, destTableName)
 					if err := dest.Clean(destTableName); err != nil {
 						if strings.Contains(err.Error(), adapters.ErrTableNotExist.Error()) {
-							logging.Warnf("Table [%s] doesn't exist for: source: [%s], collection: [%s], destination: [%s]", destTableName, sourceID, collection, destId)
+							logging.Warnf("Cleaning warehouse: table [%s] doesn't exist for: source: [%s], collection: [%s], destination: [%s]", destTableName, sourceID, collection, destId)
 							continue
 						}
 
@@ -121,8 +122,8 @@ func (sh *SourcesHandler) cleanWarehouse(driver driversbase.Driver, destinationI
 	return multiErr
 }
 
-//getTableNames returns CLI tables if ready or just one table if not CLI
-//reformat table names
+// getTableNames returns CLI tables if ready or just one table if not CLI
+// reformat table names
 func (sh *SourcesHandler) getTableNames(driver driversbase.Driver) ([]string, error) {
 	if cliDriver, ok := driver.(driversbase.CLIDriver); ok {
 		ready, err := cliDriver.Ready()
@@ -141,12 +142,13 @@ func (sh *SourcesHandler) getTableNames(driver driversbase.Driver) ([]string, er
 	return []string{schema.Reformat(driver.GetCollectionTable())}, nil
 }
 
-//TestSourcesHandler tests source connection
-//returns:
-//  200 with status ok if a connection is ok
-//  200 with status pending if source isn't ready
-//  200 with status pending and error in body if source isn't ready and has previous error
-//  400 with error if a connection failed
+// TestSourcesHandler tests source connection
+// returns:
+//
+//	200 with status ok if a connection is ok
+//	200 with status pending if source isn't ready
+//	200 with status pending and error in body if source isn't ready and has previous error
+//	400 with error if a connection failed
 func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 	sourceConfig := &driversbase.SourceConfig{}
 	if err := c.BindJSON(sourceConfig); err != nil {
@@ -169,8 +171,8 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, middleware.OKResponse())
 }
 
-//OauthFields returns object with source config field that can be preconfigured on server side.
-//Along with info what env pr yaml path need to configure field and current status (provided on server side or not)
+// OauthFields returns object with source config field that can be preconfigured on server side.
+// Along with info what env pr yaml path need to configure field and current status (provided on server side or not)
 func (sh *SourcesHandler) OauthFields(c *gin.Context) {
 	res := make(map[string]interface{})
 	sourceType := c.Param("sourceType")
