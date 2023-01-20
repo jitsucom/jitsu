@@ -186,11 +186,9 @@ func (bq *BigQuery) CreateTable(table *Table) error {
 	if table.Partition.Field != "" && table.Partition.Granularity != schema.ALL {
 		var partitioningType bigquery.TimePartitioningType
 		switch table.Partition.Granularity {
-		case schema.DAY:
-		case schema.WEEK:
+		case schema.DAY, schema.WEEK:
 			partitioningType = bigquery.DayPartitioningType
-		case schema.MONTH:
-		case schema.QUARTER:
+		case schema.MONTH, schema.QUARTER:
 			partitioningType = bigquery.MonthPartitioningType
 		case schema.YEAR:
 			partitioningType = bigquery.YearPartitioningType
