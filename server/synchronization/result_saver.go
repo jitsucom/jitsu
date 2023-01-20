@@ -91,6 +91,12 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		stream.BatchHeader.Fields[events.SourceIDKey] = schema.NewField(typing.STRING)
 		stream.BatchHeader.Fields[timestamp.Key] = schema.NewField(typing.TIMESTAMP)
 
+		keyFields := stream.KeyFields
+		if len(keyFields) == 0 && rs.tap == "source-mongodb-v2" {
+			//workaround for mongodb airbyte source that don't return key fields
+			keyFields = []string{"_id"}
+			stream.KeepKeysUnhashed = true
+		}
 		for _, object := range stream.Objects {
 			//enrich with system fields values
 			object[events.SrcKey] = srcSource
@@ -101,11 +107,11 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 
 			//calculate eventID from key fields or whole object
 			var eventID string
-			if len(stream.KeyFields) > 0 {
+			if len(keyFields) > 0 {
 				if stream.KeepKeysUnhashed {
-					eventID = uuid.GetKeysUnhashed(object, stream.KeyFields)
+					eventID = uuid.GetKeysUnhashed(object, keyFields)
 				} else {
-					eventID = uuid.GetKeysHash(object, stream.KeyFields)
+					eventID = uuid.GetKeysHash(object, keyFields)
 				}
 			} else {
 				eventID = uuid.GetHash(object)
@@ -116,7 +122,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 				return fmt.Errorf("Error setting unique ID field into %s: %v", string(b), err)
 			}
 			if stream.RemoveSourceKeyFields {
-				for _, kf := range stream.KeyFields {
+				for _, kf := range keyFields {
 					delete(object, kf)
 				}
 			}
@@ -127,7 +133,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		//Sync stream
 		for _, storage := range rs.destinations {
 			batchStart := timestamp.Now()
-			rs.taskLogger.INFO("Stream [%s] Flushing batch - adding %d objects to [%s]. Key fields=[%s] Storage=[%s]", streamName, len(stream.Objects), tableName, strings.Join(stream.KeyFields, ","), storage.ID())
+			rs.taskLogger.INFO("Stream [%s] Flushing batch - adding %d objects to [%s]. Key fields=[%s] Storage=[%s]", streamName, len(stream.Objects), tableName, strings.Join(keyFields, ","), storage.ID())
 			err := storage.SyncStore(stream.BatchHeader, stream.Objects, stream.DeleteConditions, false, needCopyEvent)
 			batchLoadTime := timestamp.Now().Sub(batchStart)
 			var replaceTableTime time.Duration
