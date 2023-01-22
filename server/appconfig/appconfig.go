@@ -35,6 +35,9 @@ type AppConfig struct {
 
 	EmptyGIFPixelOnexOne []byte
 
+	StreamingRetryDelay int
+	ErrorRetryPeriod    int
+
 	UaResolver           useragent.Resolver
 	AuthorizationService *authorization.Service
 
@@ -93,6 +96,8 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.max_columns", 100)
 	viper.SetDefault("server.max_event_size", 51200)
 	viper.SetDefault("server.configurator_urn", "/configurator")
+	viper.SetDefault("server.streaming_retry_delay_minutes", 1)
+	viper.SetDefault("server.error_retry_period_hours", 24)
 	//unique IDs
 	viper.SetDefault("server.fields_configuration.unique_id_field", "/eventn_ctx/event_id||/eventn_ctx_event_id||/event_id")
 	viper.SetDefault("server.fields_configuration.user_agent_path", "/eventn_ctx/user_agent||/user_agent")
@@ -405,6 +410,18 @@ func Init(containerized bool, dockerHubID string) error {
 
 	enrichWithHTTPContext := viper.GetBool("server.event_enrichment.http_context")
 	appConfig.EnrichWithHTTPContext = enrichWithHTTPContext
+
+	appConfig.StreamingRetryDelay = viper.GetInt("server.streaming_retry_delay_minutes")
+	if appConfig.StreamingRetryDelay < 0 {
+		return fmt.Errorf("server.streaming_retry_delay_minutes expects to be positive value")
+	}
+	logging.Infof("server.streaming_retry_delay_minutes: %d", appConfig.StreamingRetryDelay)
+
+	appConfig.ErrorRetryPeriod = viper.GetInt("server.error_retry_period_hours")
+	if appConfig.ErrorRetryPeriod < 0 {
+		return fmt.Errorf("server.error_retry_period_hours expects to be positive value")
+	}
+	logging.Infof("server.error_retry_period_hours: %d", appConfig.ErrorRetryPeriod)
 
 	Instance = &appConfig
 	return nil

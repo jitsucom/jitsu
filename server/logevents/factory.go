@@ -1,15 +1,17 @@
 package logevents
 
 import (
-	"github.com/jitsucom/jitsu/server/logging"
 	"io"
 	"path"
+
+	"github.com/jitsucom/jitsu/server/logging"
 )
 
 const (
 	ArchiveDir  = "archive"
 	FailedDir   = "failed"
 	IncomingDir = "incoming"
+	RetiredDir  = "retired"
 )
 
 type Factory struct {
@@ -23,8 +25,8 @@ type Factory struct {
 	queryLogsWriter io.Writer
 }
 
-func NewFactory(logEventPath string, logRotationMin int64, showInServer bool, ddlLogsWriter io.Writer, queryLogsWriter io.Writer,
-	asyncLoggers bool, asyncLoggerPoolSize int) *Factory {
+func NewFactory(logEventPath string, logRotationMin int64, showInServer bool,
+	ddlLogsWriter io.Writer, queryLogsWriter io.Writer, asyncLoggers bool, asyncLoggerPoolSize int) *Factory {
 	if asyncLoggers {
 		var defaultValueMsg string
 		if asyncLoggerPoolSize == 0 {
@@ -69,65 +71,46 @@ func (f *Factory) NewFactoryWithQueryLogsWriter(overriddenQueryLogsWriter io.Wri
 	}
 }
 
+func (f *Factory) CreateSQLQueryLogger(destinationName string) *logging.QueryLogger {
+	return logging.NewQueryLogger(destinationName, f.ddlLogsWriter, f.queryLogsWriter)
+}
+
 func (f *Factory) CreateIncomingLogger(tokenID string, rotationMin int) logging.ObjectLogger {
+	return f.createLogger(IncomingDir, "incoming.tok="+tokenID, rotationMin, f.showInServer)
+}
+
+func (f *Factory) CreateFailedLogger(destinationName string) logging.ObjectLogger {
+	return f.createLogger(FailedDir, "failed.dst="+destinationName, 0, false)
+}
+
+func (f *Factory) CreateRetiredLogger(destinationName string) logging.ObjectLogger {
+	return f.createLogger(RetiredDir, "retired.dst="+destinationName, 0, false)
+}
+
+func (f *Factory) CreateStreamingArchiveLogger(destinationName string) logging.ObjectLogger {
+	return f.createLogger(ArchiveDir, "streaming-archive.dst="+destinationName, 0, false)
+}
+
+func (f *Factory) CreateWriteAheadLogger() logging.ObjectLogger {
+	return f.createLogger(IncomingDir, "write-ahead-log", 0, false)
+}
+
+func (f *Factory) createLogger(subDir, fileName string, rotationMin int, showInGlobalLogger bool) logging.ObjectLogger {
 	tokenRotationMin := f.logRotationMin
 	if rotationMin > 0 {
 		tokenRotationMin = int64(rotationMin)
 	}
-	eventLogWriter := logging.NewRollingWriter(&logging.Config{
-		FileName:      "incoming.tok=" + tokenID,
-		FileDir:       path.Join(f.logEventPath, IncomingDir),
+
+	logWriter := logging.NewRollingWriter(&logging.Config{
+		FileName:      fileName,
+		FileDir:       path.Join(f.logEventPath, subDir),
 		RotationMin:   tokenRotationMin,
 		RotateOnClose: true,
 	})
 
 	if f.asyncLoggers {
-		return NewAsyncLogger(eventLogWriter, f.showInServer, f.asyncLoggerPoolSize)
+		return NewAsyncLogger(logWriter, showInGlobalLogger, f.asyncLoggerPoolSize)
 	}
-	return NewSyncLogger(eventLogWriter, f.showInServer)
-}
 
-func (f *Factory) CreateFailedLogger(destinationName string) logging.ObjectLogger {
-	failedEventWriter := logging.NewRollingWriter(&logging.Config{
-		FileName:      "failed.dst=" + destinationName,
-		FileDir:       path.Join(f.logEventPath, FailedDir),
-		RotationMin:   f.logRotationMin,
-		RotateOnClose: true,
-	})
-
-	if f.asyncLoggers {
-		return NewAsyncLogger(failedEventWriter, false, f.asyncLoggerPoolSize)
-	}
-	return NewSyncLogger(failedEventWriter, false)
-}
-
-func (f *Factory) CreateSQLQueryLogger(destinationName string) *logging.QueryLogger {
-	return logging.NewQueryLogger(destinationName, f.ddlLogsWriter, f.queryLogsWriter)
-}
-
-func (f *Factory) CreateStreamingArchiveLogger(destinationName string) logging.ObjectLogger {
-	archiveWriter := logging.NewRollingWriter(&logging.Config{
-		FileName:      "streaming-archive.dst=" + destinationName,
-		FileDir:       path.Join(f.logEventPath, ArchiveDir),
-		RotationMin:   f.logRotationMin,
-		RotateOnClose: true,
-	})
-	if f.asyncLoggers {
-		return NewAsyncLogger(archiveWriter, false, f.asyncLoggerPoolSize)
-	}
-	return NewSyncLogger(archiveWriter, false)
-}
-
-func (f *Factory) CreateWriteAheadLogger() logging.ObjectLogger {
-	walWriter := logging.NewRollingWriter(&logging.Config{
-		FileName:      "write-ahead-log",
-		FileDir:       path.Join(f.logEventPath, IncomingDir),
-		RotationMin:   f.logRotationMin,
-		RotateOnClose: true,
-	})
-
-	if f.asyncLoggers {
-		return NewAsyncLogger(walWriter, false, f.asyncLoggerPoolSize)
-	}
-	return NewSyncLogger(walWriter, false)
+	return NewSyncLogger(logWriter, showInGlobalLogger)
 }

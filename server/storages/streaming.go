@@ -1,6 +1,10 @@
 package storages
 
 import (
+	"fmt"
+	"math/rand"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/errorj"
@@ -11,8 +15,6 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/utils"
 	"go.uber.org/atomic"
-	"math/rand"
-	"time"
 )
 
 // StreamingStorage supports Insert operation
@@ -22,12 +24,15 @@ type StreamingStorage interface {
 	Insert(eventContext *adapters.EventContext) (err error)
 
 	Update(eventContext *adapters.EventContext) (err error)
+
 	//SuccessEvent writes metrics/counters/events cache, etc
 	SuccessEvent(eventCtx *adapters.EventContext)
 	//ErrorEvent writes metrics/counters/events cache, etc
-	ErrorEvent(fallback bool, eventCtx *adapters.EventContext, err error)
+	ErrorEvent(eventCtx *adapters.EventContext, err error)
 	//SkipEvent writes metrics/counters/events cache, etc
 	SkipEvent(eventCtx *adapters.EventContext, err error)
+	//RetiredEvent writes metrics/counters/events cache, etc
+	RetiredEvent(eventCtx *adapters.EventContext)
 }
 
 // StreamingWorker reads events from queue and using events.StreamingStorage writes them
@@ -71,7 +76,7 @@ func (sw *StreamingWorker) start() {
 				break
 			}
 
-			fact, dequeuedTime, tokenID, err := sw.eventQueue.DequeueBlock()
+			fact, dequeuedTime, finishTime, tokenID, err := sw.eventQueue.DequeueBlock()
 			if err != nil {
 				if err == events.ErrQueueClosed && sw.closed.Load() {
 					continue
@@ -83,7 +88,7 @@ func (sw *StreamingWorker) start() {
 
 			//dequeued event was from retry call and retry timeout hasn't come
 			if timestamp.Now().Before(dequeuedTime) {
-				sw.eventQueue.ConsumeTimed(fact, dequeuedTime, tokenID)
+				sw.eventQueue.ConsumeTimed(fact, dequeuedTime, finishTime, tokenID)
 				continue
 			}
 			_, recognizedEvent := fact[schema.JitsuUserRecognizedEvent]
@@ -91,6 +96,9 @@ func (sw *StreamingWorker) start() {
 				//skip recognized event for storages with disabled/not supported UR
 				continue
 			}
+
+			// Configuration parameter expected in minues
+			seconds_delay := 60 * sw.eventQueue.GetDelay()
 
 			//is used in writing counters/metrics/events cache
 			preliminaryEventContext := &adapters.EventContext{
@@ -113,7 +121,7 @@ func (sw *StreamingWorker) start() {
 					sw.streamingStorage.SkipEvent(preliminaryEventContext, err)
 				} else {
 					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.ID(), fact.DebugString(), err)
-					sw.streamingStorage.ErrorEvent(true, preliminaryEventContext, err)
+					sw.streamingStorage.ErrorEvent(preliminaryEventContext, err)
 				}
 
 				continue
@@ -142,50 +150,41 @@ func (sw *StreamingWorker) start() {
 					Table:           table,
 					RecognizedEvent: recognizedEvent,
 				}
+
+				var actionName string
+				var processedError error
+				var failedMessage string
 				if recognizedEvent {
-					if updateErr := sw.streamingStorage.Update(eventContext); updateErr != nil {
-						err := errorj.Decorate(updateErr, "failed to update event").
-							WithProperty(errorj.DestinationID, sw.streamingStorage.ID()).
-							WithProperty(errorj.DestinationType, sw.streamingStorage.Type())
-
-						var retryInfoInLog string
-						retry := IsConnectionError(err)
-						if retry {
-							retryInfoInLog = "connection problem. event will be re-updated after 20 seconds\n"
-						}
-						if errorj.IsSystemError(err) {
-							logging.SystemErrorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
-						} else {
-							logging.Errorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
-						}
-
-						if retry {
-							//retry
-							sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(20*time.Second), tokenID)
-						}
-					}
+					actionName = "updated"
+					failedMessage = "failed to update event"
+					processedError = sw.streamingStorage.Update(eventContext)
 				} else {
-					if insertErr := sw.streamingStorage.Insert(eventContext); insertErr != nil {
-						err := errorj.Decorate(insertErr, "failed to insert event").
-							WithProperty(errorj.DestinationID, sw.streamingStorage.ID()).
-							WithProperty(errorj.DestinationType, sw.streamingStorage.Type())
+					actionName = "inserted"
+					failedMessage = "failed to insert event"
+					processedError = sw.streamingStorage.Insert(eventContext)
+				}
 
-						var retryInfoInLog string
-						retry := IsConnectionError(err)
-						if retry {
-							retryInfoInLog = "connection problem. event will be re-inserted after 20 seconds\n"
-						}
-						if errorj.IsSystemError(err) {
-							logging.SystemErrorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
-						} else {
-							logging.Errorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
-						}
+				if processedError == nil {
+					continue
+				}
 
-						if retry {
-							//retry
-							sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(20*time.Second), tokenID)
-						}
-					}
+				err := errorj.Decorate(processedError, failedMessage).
+					WithProperty(errorj.DestinationID, sw.streamingStorage.ID()).
+					WithProperty(errorj.DestinationType, sw.streamingStorage.Type())
+
+				retryInfoInLog := fmt.Sprintf("event will be re-%s after %d seconds\n", actionName, seconds_delay)
+				if errorj.IsSystemError(err) {
+					logging.SystemErrorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
+				} else {
+					logging.Errorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
+				}
+
+				// Retry event if it is not late
+				retryTime := timestamp.Now().Add(time.Duration(seconds_delay) * time.Second)
+				if retryTime.Before(finishTime) {
+					sw.eventQueue.ConsumeTimed(fact, retryTime, finishTime, tokenID)
+				} else {
+					sw.streamingStorage.RetiredEvent(eventContext)
 				}
 			}
 		}

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/script"
 	"math/rand"
 	"net/http"
 	"os"
@@ -18,9 +17,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/jitsucom/jitsu/server/script/node"
-	"github.com/jitsucom/jitsu/server/templates"
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/jitsu/server/airbyte"
@@ -49,12 +45,15 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/scheduling"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/script"
+	"github.com/jitsucom/jitsu/server/script/node"
 	"github.com/jitsucom/jitsu/server/singer"
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/synchronization"
 	"github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/users"
 	"github.com/jitsucom/jitsu/server/wal"
@@ -471,7 +470,7 @@ func main() {
 	if uploaderThreadsCount < 1 {
 		uploaderThreadsCount = 1
 	}
-	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderRunInterval, uploaderThreadsCount, destinationsService)
+	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderRunInterval, uploaderThreadsCount, appconfig.Instance.ErrorRetryPeriod, destinationsService)
 	if err != nil {
 		logging.Fatal("Error while creating file uploader", err)
 	}

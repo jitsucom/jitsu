@@ -4,6 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"math"
+	"net/http"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/queue"
@@ -11,10 +16,6 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/panjf2000/ants/v2"
 	"go.uber.org/atomic"
-	"io/ioutil"
-	"math"
-	"net/http"
-	"time"
 )
 
 //HTTPAdapterConfiguration is a dto for creating HTTPAdapter
@@ -26,7 +27,7 @@ type HTTPAdapterConfiguration struct {
 	QueueFactory   *events.QueueFactory
 	PoolWorkers    int
 	DebugLogger    *logging.QueryLogger
-	ErrorHandler   func(fallback bool, eventContext *EventContext, err error)
+	ErrorHandler   func(eventContext *EventContext, err error)
 	SuccessHandler func(eventContext *EventContext)
 }
 
@@ -51,7 +52,7 @@ type HTTPAdapter struct {
 	debugLogger    *logging.QueryLogger
 	httpReqFactory HTTPRequestFactory
 
-	errorHandler   func(fallback bool, eventContext *EventContext, err error)
+	errorHandler   func(eventContext *EventContext, err error)
 	successHandler func(eventContext *EventContext)
 
 	destinationID string
@@ -122,7 +123,7 @@ func (h *HTTPAdapter) startObserver() {
 				if timestamp.Now().UTC().Before(retryableRequest.DequeuedTime) {
 					if err := h.queue.AddRequest(retryableRequest); err != nil {
 						logging.SystemErrorf("[%s] Error enqueueing HTTP request after dequeuing: %v", h.destinationID, err)
-						h.errorHandler(true, retryableRequest.EventContext, err)
+						h.errorHandler(retryableRequest.EventContext, err)
 					}
 
 					continue
@@ -134,7 +135,7 @@ func (h *HTTPAdapter) startObserver() {
 
 					if err := h.queue.AddRequest(retryableRequest); err != nil {
 						logging.SystemErrorf("[%s] Error enqueueing HTTP request after invoking: %v", h.destinationID, err)
-						h.errorHandler(true, retryableRequest.EventContext, err)
+						h.errorHandler(retryableRequest.EventContext, err)
 					}
 				}
 			} else {
@@ -196,9 +197,7 @@ func (h *HTTPAdapter) doRetry(retryableRequest *RetryableRequest, sendErr error)
 			retryableRequest.DequeuedTime = timestamp.Now().UTC().Add(delay)
 			if err := h.queue.AddRequest(retryableRequest); err != nil {
 				logging.SystemErrorf("[%s] Error enqueueing HTTP request after sending: %v", h.destinationID, err)
-				h.errorHandler(true, retryableRequest.EventContext, sendErr)
-			} else {
-				h.errorHandler(false, retryableRequest.EventContext, sendErr)
+				h.errorHandler(retryableRequest.EventContext, sendErr)
 			}
 			return
 		}
@@ -207,7 +206,7 @@ func (h *HTTPAdapter) doRetry(retryableRequest *RetryableRequest, sendErr error)
 	headersJSON, _ := json.Marshal(retryableRequest.Request.Headers)
 	logging.Errorf("[%s] Error sending HTTP request URL: [%s] Method: [%s] Body: [%s] Headers: [%s]: %v", h.destinationID, retryableRequest.Request.URL, retryableRequest.Request.Method, string(retryableRequest.Request.Body), headersJSON, sendErr)
 
-	h.errorHandler(true, retryableRequest.EventContext, sendErr)
+	h.errorHandler(retryableRequest.EventContext, sendErr)
 }
 
 func (h *HTTPAdapter) doRequest(req *Request) error {

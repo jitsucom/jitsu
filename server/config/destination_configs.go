@@ -99,6 +99,7 @@ type DataLayout struct {
 	//Deprecated
 	Mappings          *Mapping `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
 	MaxColumns        int      `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
+	ErrorRetryPeriod  int      `mapstructure:"error_retry_period_hours" json:"error_retry_period_hours,omitempty" yaml:"error_retry_period_hours,omitempty"`
 	TableNameTemplate string   `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
 	PrimaryKeyFields  []string `mapstructure:"primary_key_fields" json:"primary_key_fields,omitempty" yaml:"primary_key_fields,omitempty"`
 	UniqueIDField     string   `mapstructure:"unique_id_field" json:"unique_id_field,omitempty" yaml:"unique_id_field,omitempty"`

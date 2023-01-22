@@ -54,7 +54,7 @@ func (mf *MockFactory) Create(id string, destination config.DestinationConfig) (
 	var eventQueue events.Queue
 	if destination.Mode == StreamMode {
 		qf := events.NewQueueFactory(nil, 0)
-		eventQueue, _ = qf.CreateEventsQueue(destination.Type, id)
+		eventQueue, _ = qf.CreateEventsQueue(destination.Type, id, appconfig.Instance.StreamingRetryDelay, appconfig.Instance.ErrorRetryPeriod)
 	}
 	return &testProxyMock{mode: destination.Mode}, eventQueue, nil
 }

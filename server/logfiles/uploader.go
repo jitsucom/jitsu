@@ -1,7 +1,7 @@
 package logfiles
 
 import (
-	"github.com/jitsucom/jitsu/server/appconfig"
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
@@ -35,17 +36,20 @@ type PeriodicUploader struct {
 	fileMask              string
 	defaultBatchPeriodMin int
 	concurrentUploads     int
+	errorRetryPeriod      int
 
 	archiver           *Archiver
+	retirer            *Archiver
 	statusManager      *StatusManager
 	destinationService *destinations.Service
 	tokenLastUpload    map[string]time.Time
 }
 
 // NewUploader returns new configured PeriodicUploader instance
-func NewUploader(logEventPath, fileMask string, defaultBatchPeriodMin int, concurrentUploads int, destinationService *destinations.Service) (*PeriodicUploader, error) {
-	logIncomingEventPath := path.Join(logEventPath, logevents.IncomingDir)
+func NewUploader(logEventPath, fileMask string, defaultBatchPeriodMin int, concurrentUploads int, errorRetryPeriod int, destinationService *destinations.Service) (*PeriodicUploader, error) {
 	logArchiveEventPath := path.Join(logEventPath, logevents.ArchiveDir)
+	logIncomingEventPath := path.Join(logEventPath, logevents.IncomingDir)
+	logRetiredEventPath := path.Join(logEventPath, logevents.RetiredDir)
 	statusManager, err := NewStatusManager(logIncomingEventPath)
 	if err != nil {
 		return nil, err
@@ -54,7 +58,9 @@ func NewUploader(logEventPath, fileMask string, defaultBatchPeriodMin int, concu
 		logIncomingEventPath:  logIncomingEventPath,
 		fileMask:              path.Join(logIncomingEventPath, fileMask),
 		defaultBatchPeriodMin: defaultBatchPeriodMin,
+		errorRetryPeriod:      errorRetryPeriod,
 		archiver:              NewArchiver(logIncomingEventPath, logArchiveEventPath),
+		retirer:               NewArchiver(logIncomingEventPath, logRetiredEventPath),
 		statusManager:         statusManager,
 		destinationService:    destinationService,
 		concurrentUploads:     concurrentUploads,
@@ -96,14 +102,9 @@ func (u *PeriodicUploader) Start() {
 					fileStartTime := timestamp.Now()
 					fileName := filepath.Base(filePath)
 
-					regexResult := DateExtractRegexp.FindStringSubmatch(fileName)
-					if len(regexResult) != 2 {
-						logging.SystemErrorf("Error processing file %s. Malformed name", filePath)
-						return
-					}
-					fileDate, err := time.Parse("2006-01-02T15-04-05", regexResult[1])
+					fileDate, err := parseFileTime(fileName)
 					if err != nil {
-						logging.SystemErrorf("Error processing file %s. Cant parse file date: %s", filePath, fileDate)
+						logging.SystemErrorf("Error processing file [%s]: %v", fileName, err)
 						return
 					}
 
@@ -113,13 +114,12 @@ func (u *PeriodicUploader) Start() {
 					}
 
 					//get token from filename
-					regexResult = logging.TokenIDExtractRegexp.FindStringSubmatch(fileName)
-					if len(regexResult) != 2 {
-						logging.SystemErrorf("Error processing file %s. Malformed name", filePath)
+					tokenID, err := parseFileToken(fileName)
+					if err != nil {
+						logging.SystemErrorf("Error processing file [%s]: %v", fileName, err)
 						return
 					}
 
-					tokenID := regexResult[1]
 					token := appconfig.Instance.AuthorizationService.GetToken(tokenID)
 					batchPeriodMin := time.Duration(u.defaultBatchPeriodMin) * time.Minute
 					if token != nil && token.BatchPeriodMin > 0 {
@@ -196,8 +196,7 @@ func (u *PeriodicUploader) Start() {
 						resultPerTable, failedEvents, skippedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables, needCopyEvent)
 
 						if !skippedEvents.IsEmpty() {
-							metrics.SkipTokenEvents(tokenID, storage.Type(), storage.ID(), len(skippedEvents.Events))
-							counters.SkipPushDestinationEvents(storage.ID(), int64(len(skippedEvents.Events)))
+							u.skipEvent(tokenID, storage.Type(), storage.ID(), len(skippedEvents.Events))
 						}
 
 						if err != nil {
@@ -210,12 +209,7 @@ func (u *PeriodicUploader) Start() {
 								eventsSrc[events.ExtractSrc(obj)]++
 							}
 
-							errRowsCount := len(objects)
-							metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), errRowsCount)
-							counters.ErrorPushDestinationEvents(storage.ID(), int64(errRowsCount))
-
-							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), eventsSrc)
-
+							u.errorEvent(tokenID, storage.Type(), storage.ID(), len(objects), eventsSrc)
 							continue
 						}
 
@@ -230,24 +224,19 @@ func (u *PeriodicUploader) Start() {
 								})
 							}
 							storage.Fallback(parsingFailedEvents...)
-							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), map[string]int{parsingErrSrc: len(parsingErrors)})
+							u.errorEvent(tokenID, storage.Type(), storage.ID(), len(parsingErrors), map[string]int{parsingErrSrc: len(parsingErrors)})
 						}
 						//events that are failed to be processed
 						if !failedEvents.IsEmpty() {
 							storage.Fallback(failedEvents.Events...)
-							metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), len(failedEvents.Events))
-							counters.ErrorPushDestinationEvents(storage.ID(), int64(len(failedEvents.Events)))
-							telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), failedEvents.Src)
+							u.errorEvent(tokenID, storage.Type(), storage.ID(), len(failedEvents.Events), failedEvents.Src)
 						}
 
 						for tableName, result := range resultPerTable {
 							if result.Err != nil {
 								archiveFile = false
 								logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.ID(), tableName, filePath, result.Err)
-								metrics.ErrorTokenEvents(tokenID, storage.Type(), storage.ID(), result.RowsCount)
-								counters.ErrorPushDestinationEvents(storage.ID(), int64(result.RowsCount))
-
-								telemetry.PushedErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
+								u.errorEvent(tokenID, storage.Type(), storage.ID(), result.RowsCount, result.EventsSrc)
 							} else {
 								pHandles := storageProxy.GetPostHandleDestinations()
 								if pHandles != nil && result.RowsCount > 0 {
@@ -258,10 +247,8 @@ func (u *PeriodicUploader) Start() {
 										dests.LoadOrStore(storage.ID(), true)
 									}
 								}
-								metrics.SuccessTokenEvents(tokenID, storage.Type(), storage.ID(), result.RowsCount)
-								counters.SuccessPushDestinationEvents(storage.ID(), int64(result.RowsCount))
 
-								telemetry.PushedEventsPerSrc(tokenID, storage.ID(), result.EventsSrc)
+								u.successEvent(tokenID, storage.Type(), storage.ID(), result.RowsCount, result.EventsSrc)
 							}
 
 							u.statusManager.UpdateStatus(fileName, storage.ID(), tableName, result.Err)
@@ -274,6 +261,17 @@ func (u *PeriodicUploader) Start() {
 							logging.SystemErrorf("Error archiving [%s] file: %v", filePath, err)
 						} else {
 							u.statusManager.CleanUp(fileName)
+						}
+					} else {
+						// If file exist more than errorRetryPeriod hours it should be retired
+						if timestamp.Now().Sub(fileDate) > time.Duration(u.errorRetryPeriod)*time.Hour {
+							logging.Infof("Retired file [%s]. File is more than %d hours old: %s", filePath, u.errorRetryPeriod, fileDate)
+							err := u.retirer.Archive(fileName)
+							if err != nil {
+								logging.SystemErrorf("Error retiring [%s] file: %v", filePath, err)
+							} else {
+								u.statusManager.CleanUp(fileName)
+							}
 						}
 					}
 				}(filePath)
@@ -291,6 +289,26 @@ func (u *PeriodicUploader) Start() {
 
 		}
 	})
+}
+
+// errorEvent writes metrics/counters/events
+func (u *PeriodicUploader) errorEvent(tokenID, storageType, storageID string, errorsCount int, result map[string]int) {
+	metrics.ErrorTokenEvents(tokenID, storageType, storageID, errorsCount)
+	counters.ErrorPushDestinationEvents(storageID, int64(errorsCount))
+	telemetry.PushedErrorsPerSrc(tokenID, storageID, result)
+}
+
+// skipEvent writes metrics/counters/events
+func (u *PeriodicUploader) skipEvent(tokenID, storageType, storageID string, skipCount int) {
+	metrics.SkipTokenEvents(tokenID, storageType, storageID, skipCount)
+	counters.SkipPushDestinationEvents(storageID, int64(skipCount))
+}
+
+// successEvent writes metrics/counters/events
+func (u *PeriodicUploader) successEvent(tokenID, storageType, storageID string, rowsCount int, result map[string]int) {
+	metrics.SuccessTokenEvents(tokenID, storageType, storageID, rowsCount)
+	counters.SuccessPushDestinationEvents(storageID, int64(rowsCount))
+	telemetry.PushedEventsPerSrc(tokenID, storageID, result)
 }
 
 func (u *PeriodicUploader) postHandle(start, end time.Time, postHandlesMap *sync.Map) {
@@ -316,4 +334,28 @@ func (u *PeriodicUploader) postHandle(start, end time.Time, postHandlesMap *sync
 		logging.Infof("Successful run of %v triggered postHandle destination: %s", dests, phID)
 		return true
 	})
+}
+
+func parseFileTime(fileName string) (time.Time, error) {
+	regexResult := DateExtractRegexp.FindStringSubmatch(fileName)
+	if len(regexResult) != 2 {
+		return time.Time{}, fmt.Errorf("Malformed name")
+	}
+
+	fileDate, err := time.Parse("2006-01-02T15-04-05", regexResult[1])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("Cannot parse file date: %s", regexResult[1])
+	}
+
+	return fileDate, nil
+}
+
+func parseFileToken(fileName string) (string, error) {
+	regexResult := logging.TokenIDExtractRegexp.FindStringSubmatch(fileName)
+	if len(regexResult) != 2 {
+		return "", fmt.Errorf("Malformed name")
+	}
+
+	token := regexResult[1]
+	return token, nil
 }

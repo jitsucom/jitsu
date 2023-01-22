@@ -161,6 +161,8 @@ func (f *FactoryImpl) Configure(destinationID string, destination config.Destina
 
 	pkFields := map[string]bool{}
 	maxColumns := f.maxColumns
+	streamingRetryDelay := appconfig.Instance.StreamingRetryDelay
+	errorRetryPeriod := appconfig.Instance.ErrorRetryPeriod
 	uniqueIDField := appconfig.Instance.GlobalUniqueIDField
 	if destination.DataLayout != nil {
 		for _, field := range destination.DataLayout.PrimaryKeyFields {
@@ -169,6 +171,10 @@ func (f *FactoryImpl) Configure(destinationID string, destination config.Destina
 		if destination.DataLayout.MaxColumns > 0 {
 			maxColumns = destination.DataLayout.MaxColumns
 			logging.Infof("[%s] uses max_columns setting: %d", destinationID, maxColumns)
+		}
+		if destination.DataLayout.ErrorRetryPeriod > 0 {
+			errorRetryPeriod = destination.DataLayout.ErrorRetryPeriod
+			logging.Infof("[%s] uses error_retry_period_hours setting: %d", destinationID, errorRetryPeriod)
 		}
 		if destination.DataLayout.UniqueIDField != "" {
 			uniqueIDField = identifiers.NewUniqueID(destination.DataLayout.UniqueIDField)
@@ -188,7 +194,7 @@ func (f *FactoryImpl) Configure(destinationID string, destination config.Destina
 
 	var eventQueue events.Queue
 	if destination.Mode != SynchronousMode {
-		eventQueue, err = f.eventsQueueFactory.CreateEventsQueue(destination.Type, destinationID)
+		eventQueue, err = f.eventsQueueFactory.CreateEventsQueue(destination.Type, destinationID, streamingRetryDelay, errorRetryPeriod)
 		if err != nil {
 			return nil, nil, err
 		}
