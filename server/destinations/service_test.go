@@ -99,7 +99,7 @@ func TestServiceInit(t *testing.T) {
 	payload := &payloadHolder{payload: []byte(initialDestinations)}
 	mockDestinationsServer := startTestServer(payload)
 
-	loggerFactory := logevents.NewFactory("/tmp", 5, false, nil, nil, false, 1)
+	loggerFactory := logevents.NewFactory("/tmp", 5, false, nil, nil, false, 1, false, false)
 	destinationsMockFactory := storages.NewMockFactory()
 	service, err := NewService(nil, mockDestinationsServer.URL, destinationsMockFactory, loggerFactory, false)
 	require.NoError(t, err)

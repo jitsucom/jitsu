@@ -12,7 +12,7 @@ import (
 	"math/rand"
 )
 
-//SyncStorage supports ProcessEvent synchronous operation
+// SyncStorage supports ProcessEvent synchronous operation
 type SyncStorage interface {
 	Storage
 	//ProcessEvent process event in sync fashion. Return resulting object immediately
@@ -25,7 +25,7 @@ type SyncStorage interface {
 	SkipEvent(eventCtx *adapters.EventContext, err error)
 }
 
-//SyncWorker process events synchronously. Allow returning result of processing in the body of http response
+// SyncWorker process events synchronously. Allow returning result of processing in the body of http response
 type SyncWorker struct {
 	syncStorage SyncStorage
 	tableHelper []*TableHelper
@@ -33,7 +33,7 @@ type SyncWorker struct {
 	closed *atomic.Bool
 }
 
-//newSyncWorker returns configured sync worker
+// newSyncWorker returns configured sync worker
 func newSyncWorker(syncStorage SyncStorage, tableHelper ...*TableHelper) *SyncWorker {
 	return &SyncWorker{
 		syncStorage: syncStorage,
@@ -76,7 +76,7 @@ func (sw *SyncWorker) ProcessEvent(fact events.Event, tokenID string) []map[stri
 
 			sw.syncStorage.SkipEvent(preliminaryEventContext, err)
 		} else {
-			logging.Errorf("[%s] Unable to process object %s: %v", sw.syncStorage.ID(), fact.DebugString(), err)
+			logging.Debugf("[%s] Unable to process object %s: %v", sw.syncStorage.ID(), fact.DebugString(), err)
 			sw.syncStorage.ErrorEvent(true, preliminaryEventContext, err)
 		}
 

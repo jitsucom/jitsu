@@ -112,7 +112,7 @@ func (sw *StreamingWorker) start() {
 
 					sw.streamingStorage.SkipEvent(preliminaryEventContext, err)
 				} else {
-					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.ID(), fact.DebugString(), err)
+					logging.Debugf("[%s] Unable to process object %s: %v", sw.streamingStorage.ID(), fact.DebugString(), err)
 					sw.streamingStorage.ErrorEvent(true, preliminaryEventContext, err)
 				}
 

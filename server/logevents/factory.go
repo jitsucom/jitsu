@@ -19,12 +19,14 @@ type Factory struct {
 	asyncLoggers        bool
 	asyncLoggerPoolSize int
 
+	compressFailed  bool
+	compressArchive bool
+
 	ddlLogsWriter   io.Writer
 	queryLogsWriter io.Writer
 }
 
-func NewFactory(logEventPath string, logRotationMin int64, showInServer bool, ddlLogsWriter io.Writer, queryLogsWriter io.Writer,
-	asyncLoggers bool, asyncLoggerPoolSize int) *Factory {
+func NewFactory(logEventPath string, logRotationMin int64, showInServer bool, ddlLogsWriter io.Writer, queryLogsWriter io.Writer, asyncLoggers bool, asyncLoggerPoolSize int, compressFailed bool, compressArchive bool) *Factory {
 	if asyncLoggers {
 		var defaultValueMsg string
 		if asyncLoggerPoolSize == 0 {
@@ -42,6 +44,8 @@ func NewFactory(logEventPath string, logRotationMin int64, showInServer bool, dd
 		asyncLoggerPoolSize: asyncLoggerPoolSize,
 		ddlLogsWriter:       ddlLogsWriter,
 		queryLogsWriter:     queryLogsWriter,
+		compressFailed:      compressFailed,
+		compressArchive:     compressArchive,
 	}
 }
 
@@ -93,6 +97,7 @@ func (f *Factory) CreateFailedLogger(destinationName string) logging.ObjectLogge
 		FileDir:       path.Join(f.logEventPath, FailedDir),
 		RotationMin:   f.logRotationMin,
 		RotateOnClose: true,
+		Compress:      f.compressFailed,
 	})
 
 	if f.asyncLoggers {
@@ -111,6 +116,7 @@ func (f *Factory) CreateStreamingArchiveLogger(destinationName string) logging.O
 		FileDir:       path.Join(f.logEventPath, ArchiveDir),
 		RotationMin:   f.logRotationMin,
 		RotateOnClose: true,
+		Compress:      f.compressArchive,
 	})
 	if f.asyncLoggers {
 		return NewAsyncLogger(archiveWriter, false, f.asyncLoggerPoolSize)
