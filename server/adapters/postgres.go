@@ -127,13 +127,13 @@ func (ep *ErrorPayload) String() string {
 		msgParts = append(msgParts, fmt.Sprintf("statement: %s", utils.ShortenStringWithEllipsis(ep.Statement, 1000)))
 	}
 	if len(ep.Values) > 0 {
-		msgParts = append(msgParts, fmt.Sprintf("values: %v", ep.Values))
+		msgParts = append(msgParts, fmt.Sprintf("values: %s", utils.ShortenStringWithEllipsis(fmt.Sprint(ep.Values), 1000)))
 	}
 	if ep.TotalObjects > 1 {
 		msgParts = append(msgParts, fmt.Sprintf("objects count: %d", ep.TotalObjects))
 	}
 	if ep.ValuesMapString != "" {
-		msgParts = append(msgParts, fmt.Sprintf("values of 1st object: %s", ep.ValuesMapString))
+		msgParts = append(msgParts, fmt.Sprintf("values of 1st object: %s", utils.ShortenStringWithEllipsis(ep.ValuesMapString, 1000)))
 	}
 	if len(msgParts) > 0 {
 		return "\n" + strings.Join(msgParts, "\n") + "\n"
