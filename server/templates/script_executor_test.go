@@ -18,7 +18,7 @@ type (
 func TestLoadSourcePlugins(t *testing.T) {
 	logging.LogLevel = logging.INFO
 
-	factory, err := node.NewFactory(1, 1000, nil)
+	factory, err := node.NewFactory(1, 1000, 200, nil)
 	if !assert.NoError(t, err) {
 		t.FailNow()
 	}
@@ -91,7 +91,7 @@ func (l *testingSourceListener) Timeout() time.Duration {
 }
 
 func TestExecuteTestingSource(t *testing.T) {
-	factory, err := node.NewFactory(1, 100, nil)
+	factory, err := node.NewFactory(1, 100, 200, nil)
 	if !assert.NoError(t, err) {
 		t.FailNow()
 	}

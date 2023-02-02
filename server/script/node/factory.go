@@ -48,6 +48,7 @@ var errNodeRequired = errors.New(`node and/or npm is not found in $PATH.
 
 type Factory struct {
 	maxSpace         int
+	sourcesMaxSpace  int
 	dir              string
 	nodePath         string
 	plugins          *sync.Map
@@ -56,7 +57,7 @@ type Factory struct {
 	transformStorage script.Storage
 }
 
-func NewFactory(poolSize, maxSpace int, transformStorage script.Storage, tmpDir ...string) (*Factory, error) {
+func NewFactory(poolSize, maxSpace, sourcesMaxSpace int, transformStorage script.Storage, tmpDir ...string) (*Factory, error) {
 	if _, err := exec.LookPath(node); err != nil {
 		return nil, errNodeRequired
 	}
@@ -120,6 +121,7 @@ func NewFactory(poolSize, maxSpace int, transformStorage script.Storage, tmpDir 
 
 	return &Factory{
 		maxSpace:         maxSpace,
+		sourcesMaxSpace:  sourcesMaxSpace,
 		dir:              dir,
 		nodePath:         nodePath,
 		plugins:          new(sync.Map),
@@ -214,14 +216,17 @@ module.exports = async (event) => {
 
 	var exer *exchanger
 	exchangerIdx := hash % uint64(len(f.exchangers))
+	maxSpace := f.maxSpace
 	if !standalone {
 		exer = f.exchangers[exchangerIdx]
+	} else {
+		maxSpace = f.sourcesMaxSpace
 	}
 	if exer == nil {
 		process := &ipc.StdIO{
 			Dir:              f.dir,
 			Path:             node,
-			Args:             []string{fmt.Sprintf("--max-old-space-size=%d", f.maxSpace), filepath.Join(f.dir, mainFile)},
+			Args:             []string{fmt.Sprintf("--max-old-space-size=%d", maxSpace), filepath.Join(f.dir, mainFile)},
 			Env:              []string{nodePathEnv + "=" + f.nodePath, "TZ=Etc/UTC"},
 			CommandProcessor: f.ProcessCustomCommand,
 		}
