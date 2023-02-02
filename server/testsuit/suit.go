@@ -179,7 +179,7 @@ func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
 func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig string) SuiteBuilder {
 	monitor := coordination.NewInMemoryService("")
 	tempDir := os.TempDir()
-	loggerFactory := logevents.NewFactory(tempDir, 5, false, nil, nil, false, 1)
+	loggerFactory := logevents.NewFactory(tempDir, 5, false, nil, nil, false, 1, false, false)
 	queueFactory := events.NewQueueFactory(nil, 0)
 	destinationsFactory := storages.NewFactory(context.Background(), tempDir, sb.geoService, monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, queueFactory, 0, 1)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)

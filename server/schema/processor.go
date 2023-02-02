@@ -135,7 +135,7 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 			} else {
 				originalEventBytes, _ := json.Marshal(event)
 
-				logging.Warnf("Unable to process object %s: %v. This line will be stored in fallback.", string(originalEventBytes), err)
+				logging.Debugf("Unable to process object %s: %v. This line will be stored in fallback.", string(originalEventBytes), err)
 
 				failedEvents.Events = append(failedEvents.Events, &events.FailedEvent{
 					Event:           originalEventBytes,

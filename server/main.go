@@ -290,9 +290,7 @@ func main() {
 	}
 	logRotationMin := viper.GetInt64("log.rotation_min")
 
-	loggerFactory := logevents.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
-		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter, viper.GetBool("log.async_writers"),
-		viper.GetInt("log.pool.size"))
+	loggerFactory := logevents.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"), appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter, viper.GetBool("log.async_writers"), viper.GetInt("log.pool.size"), viper.GetBool("log.compress_failed"), viper.GetBool("log.compress_archive"))
 
 	// ** Destinations **
 	//events queue
