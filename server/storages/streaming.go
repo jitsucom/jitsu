@@ -177,8 +177,8 @@ func (sw *StreamingWorker) start() {
 						}
 						if errorj.IsSystemError(err) {
 							logging.SystemErrorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
-						} else {
-							logging.Errorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
+						} else if logging.LogLevel == logging.DEBUG {
+							logging.Debugf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
 						}
 
 						if retry {
