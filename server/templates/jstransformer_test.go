@@ -57,7 +57,7 @@ var JSTemplateTest = []struct {
 }
 
 func TestTransform(t *testing.T) {
-	factory, err := node.NewFactory(1, 100, nil)
+	factory, err := node.NewFactory(1, 100, 200, nil)
 	if !assert.NoError(t, err) {
 		t.FailNow()
 	}

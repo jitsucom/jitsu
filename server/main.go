@@ -360,7 +360,7 @@ func main() {
 		logging.Fatalf("Error initializing transform key value storage: %v", err)
 	}
 
-	scriptFactory, err := node.NewFactory(viper.GetInt("node.pool_size"), viper.GetInt("node.max_space"), transformStorage)
+	scriptFactory, err := node.NewFactory(viper.GetInt("node.pool_size"), viper.GetInt("node.max_space"), viper.GetInt("node.sources_max_space"), transformStorage)
 	if err != nil {
 		logging.Warn(err)
 	} else {
