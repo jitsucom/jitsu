@@ -65,9 +65,10 @@ type Processor struct {
 	javaScripts             []string
 	jsVariables             map[string]interface{}
 	//indicate that we didn't forget to init JavaScript transform
-	transformInitialized   bool
-	MappingStyle           string
-	userRecognitionEnabled bool
+	transformInitialized    bool
+	transformSourcesAllowed bool
+	MappingStyle            string
+	userRecognitionEnabled  bool
 }
 
 func NewProcessor(destinationID string, destinationConfig *config.DestinationConfig, isSQLType bool, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule, flattener Flattener, typeResolver TypeResolver, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int, mappingStyle string, userRecognitionEnabled bool) (*Processor, error) {
@@ -197,7 +198,7 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 			return nil, fmt.Errorf("Error mapping object: %v", err)
 		}
 		var transformed map[string]interface{}
-		if p.transformer != nil && viper.GetBool("experimental.source_transform_enabled") {
+		if p.transformer != nil && (p.transformSourcesAllowed || viper.GetBool("experimental.source_transform_enabled")) {
 			rawTransformed, err := p.transformer.ProcessEvent(processedObject, nil)
 			if err != nil {
 				metrics.TransformErrors(p.identifier)
@@ -498,6 +499,9 @@ Mapping feature is deprecated. It is recommended to migrate to javascript data t
 		transformer, err := templates.NewScriptExecutor(templates.Expression(userTransform), p.jsVariables, p.javaScripts...)
 		if err != nil {
 			return fmt.Errorf("failed to init transform javascript: %v", err)
+		}
+		if strings.Contains(userTransform, "#JITSU_ENABLE_SOURCES") {
+			p.transformSourcesAllowed = true
 		}
 		p.transformer = transformer
 	}
