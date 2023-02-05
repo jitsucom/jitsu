@@ -212,7 +212,7 @@ export const Application: React.FC = function () {
     return (
       <React.Suspense fallback={<CenteredSpin />}>
         <JitsuProvider
-          options={{ host: jitsuHost, autoPageTracking: { reactRouter: useLocation }, before: identifyHook }}
+          options={{ host: jitsuHost, autoPageTracking: { reactRouter: useLocation() }, before: identifyHook }}
         >
           {services.showSelfHostedSignUp() && <SetupForm />}
           {!services.showSelfHostedSignUp() && (
@@ -252,7 +252,7 @@ export const Application: React.FC = function () {
   return (
     <>
       <JitsuProvider
-        options={{ host: jitsuHost, autoPageTracking: { reactRouter: useLocation }, before: identifyHook }}
+        options={{ host: jitsuHost, autoPageTracking: { reactRouter: useLocation() }, before: identifyHook }}
       >
         <Switch>
           <Route
