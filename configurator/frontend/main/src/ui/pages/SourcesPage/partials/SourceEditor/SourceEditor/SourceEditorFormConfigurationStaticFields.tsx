@@ -14,7 +14,7 @@ import { observer } from "mobx-react-lite"
 // @Styles
 import editorStyles from "ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less"
 import { useSourceEditorState } from "./SourceEditor.state"
-import { SelectOutlined } from "@ant-design/icons"
+import { LabelWithTooltip } from "../../../../../components/LabelWithTooltip/LabelWithTooltip"
 
 type FormFields = {
   sourceId: string
@@ -43,6 +43,8 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
 }) => {
   const [form] = AntdForm.useForm<FormFields>()
   const [dailyMode, setDailyMode] = useState(initialValues?.schedule === "@daily")
+  const [cronMode, setCronMode] = useState(initialValues?.schedule === "@cron")
+
   const services = useServices()
   const sourceEditorState = useSourceEditorState()
   const subscription = services.currentSubscription?.currentPlan
@@ -129,7 +131,12 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
             wrapperCol={{ span: 20 }}
             rules={[{ required: true, message: "You have to choose schedule" }]}
           >
-            <Select onChange={v => setDailyMode(v === "@daily")}>
+            <Select
+              onChange={v => {
+                setDailyMode(v === "@daily")
+                setCronMode(v === "@cron")
+              }}
+            >
               {COLLECTIONS_SCHEDULES.map(option => {
                 const available = subscription ? subscription.quota.allowedSchedules.includes(option.id) : true
                 return (
@@ -164,6 +171,42 @@ const SourceEditorFormConfigurationStaticFields: React.FC<Props> = ({
                 )
               })}
             </Select>
+          </AntdForm.Item>
+        </Col>
+      </Row>
+
+      <Row key="cronExpression">
+        <Col span={24}>
+          <AntdForm.Item
+            hidden={!cronMode}
+            initialValue={initialValues?.cronExpression}
+            name="cronExpression"
+            className={`form-field_fixed-label ${editorStyles.field}`}
+            label={
+              <LabelWithTooltip
+                documentation={
+                  <>
+                    Cron expression for schedule time.
+                    <br />
+                    Format: <b>minute hour day month day_of_week</b>.
+                    <br />
+                    <code>0 */3 * * *</code> – every 3 hours
+                    <br />
+                    <code>0 0 * * 1</code> – every Monday at 00:00
+                    <br />
+                    Read more:{" "}
+                    <a href="https://crontab.guru" target={"_blank"} rel="noopener noreferrer">
+                      https://crontab.guru
+                    </a>
+                  </>
+                }
+                render={"Cron Expression"}
+              />
+            }
+            labelCol={{ span: 4 }}
+            wrapperCol={{ span: 20 }}
+          >
+            <Input defaultValue={"*/30 * * * *"}></Input>
           </AntdForm.Item>
         </Col>
       </Row>
