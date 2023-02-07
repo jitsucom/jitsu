@@ -5,9 +5,10 @@ type Source struct {
 	SourceID   string `firestore:"sourceId" json:"sourceId"`
 	SourceType string `firestore:"sourceType" json:"sourceType"`
 
-	Destinations []string `firestore:"destinations" json:"destinations"`
-	Schedule     string   `firestore:"schedule" json:"schedule,omitempty"`
-	ScheduleTime string   `firestore:"scheduleTime" json:"scheduleTime,omitempty"`
+	Destinations   []string `firestore:"destinations" json:"destinations"`
+	Schedule       string   `firestore:"schedule" json:"schedule,omitempty"`
+	ScheduleTime   string   `firestore:"scheduleTime" json:"scheduleTime,omitempty"`
+	CronExpression string   `firestore:"cronExpression" json:"cronExpression,omitempty"`
 
 	Collections []interface{}          `firestore:"collections" json:"collections"`
 	Config      map[string]interface{} `firestore:"config" json:"config"`

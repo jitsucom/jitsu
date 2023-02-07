@@ -35,7 +35,7 @@ const opensource: PricingPlan = {
     destinations: 100,
     sources: 150,
     events: 10_000_000,
-    allowedSchedules: ["1d", "1h", "5m", "1m"],
+    allowedSchedules: ["1d", "1h", "5m", "1m", "cron"],
   },
 }
 const free: PricingPlan = {
@@ -67,7 +67,7 @@ const premium: PricingPlan = {
     destinations: 10,
     sources: 15,
     events: 10_000_000,
-    allowedSchedules: ["1d", "1h", "5m", "1m"],
+    allowedSchedules: ["1d", "1h", "5m", "1m", "cron"],
   },
   price: 299,
 }
@@ -78,7 +78,7 @@ const enterprise: PricingPlan = {
     destinations: 100,
     sources: 150,
     events: 10_000_000,
-    allowedSchedules: ["1d", "1h", "5m", "1m"],
+    allowedSchedules: ["1d", "1h", "5m", "1m", "cron"],
   },
 }
 export const paymentPlans: Record<PricingPlanId, PricingPlan> = {

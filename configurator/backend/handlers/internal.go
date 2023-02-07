@@ -199,6 +199,8 @@ func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, pos
 		if source.ScheduleTime != "" && source.ScheduleTime != "0" {
 			source.Schedule = fmt.Sprintf("0 %s * * *", source.ScheduleTime)
 		}
+	} else if source.Schedule == "@cron" {
+		source.Schedule = source.CronExpression
 	}
 
 	enSource := jdriversbase.SourceConfig{

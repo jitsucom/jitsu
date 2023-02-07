@@ -9,6 +9,7 @@ export const COLLECTIONS_SCHEDULES: CollectionSchedule[] = [
   { value: "@hourly", label: "Once an hour", id: "1h" },
   { value: "*/5 * * * *", label: "5 minutes", id: "5m" },
   { value: "*/1 * * * *", label: "1 minute", id: "1m" },
+  { value: "@cron", label: "Cron expression", id: "cron" },
 ]
 
 let dailyHours: CollectionSchedule[] = []
