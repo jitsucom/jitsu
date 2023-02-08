@@ -29,9 +29,7 @@ export class BackendUserService implements UserService {
     this.storageService = storageService
     this.smtpConfigured = smtpConfigured
     if (ssoAuthLink !== "") {
-      this.ssoAuthLink = `${ssoAuthLink}&state=${uuid.v4()}&redirect_uri=${encodeURI(
-        backendApiBase
-      )}/v1/sso-auth-callback`
+      this.ssoAuthLink = ssoAuthLink
     }
   }
 

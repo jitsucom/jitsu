@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"github.com/gin-gonic/gin"
 	"time"
 
 	"github.com/jitsucom/jitsu/configurator/openapi"
@@ -50,13 +51,14 @@ type LocalAuthorizator interface {
 	GetUserIDByEmail(ctx context.Context, userEmail string) (string, error)
 }
 
-type CloudAuthorizator interface {}
+type CloudAuthorizator interface{}
 
 type SSOProvider interface {
 	Name() string
 	AccessTokenTTL() time.Duration
-	GetSSOSession(ctx context.Context, code string) (*SSOSession, error)
-	AuthLink() string
+	GetSSOSession(ctx *gin.Context, code string) (*SSOSession, error)
+	LoginHandler(ctx *gin.Context)
+	LogoutHandler(ctx *gin.Context)
 	IsAutoProvisionEnabled() bool
 	IsAutoOnboardingEnabled() bool
 }

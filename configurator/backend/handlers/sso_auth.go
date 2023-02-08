@@ -33,7 +33,21 @@ type SSOAuthHandler struct {
 	Configurations *storages.ConfigurationsService
 }
 
-func (h *SSOAuthHandler) Handle(ctx *gin.Context) {
+func (h *SSOAuthHandler) LoginHandler(ctx *gin.Context) {
+	if ctx.IsAborted() {
+		return
+	}
+
+	if provider := h.Provider; provider == nil {
+		ctx.String(http.StatusOK, errorTmpl, "SSO is not configured", h.UIBaseURL)
+	} else if _, err := h.Authorizator.Local(); err != nil {
+		ctx.String(http.StatusOK, errorTmpl, EscapeError(err), h.UIBaseURL)
+	} else {
+		h.Provider.LoginHandler(ctx)
+	}
+}
+
+func (h *SSOAuthHandler) CallbackHandler(ctx *gin.Context) {
 	if ctx.IsAborted() {
 		return
 	}
