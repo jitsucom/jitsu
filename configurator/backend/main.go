@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"flag"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"io"
 	"math/rand"
 	"os"
@@ -293,17 +296,9 @@ func newSSOProvider(vp *viper.Viper) handlers.SSOProvider {
 			return nil
 		}
 	} else if vp := vp.Sub("sso"); vp != nil {
-		autoProvisionConfig := authorization.SSOConfigAutoProvision{
-			Enable:         vp.GetBool("auto_provision.enable"),
-			AutoOnboarding: vp.GetBool("auto_provision.auto_onboarding"),
-		}
-		config = authorization.SSOConfig{
-			Provider:              vp.GetString("provider"),
-			Tenant:                vp.GetString("tenant"),
-			Product:               vp.GetString("product"),
-			Host:                  vp.GetString("host"),
-			AccessTokenTTLSeconds: vp.GetInt("access_token_ttl_seconds"),
-			AutoProvision:         autoProvisionConfig,
+		if err := vp.Unmarshal(&config); err != nil {
+			logging.Errorf("Can't unmarshal 'sso' config: %v", err)
+			return nil
 		}
 	} else {
 		logging.Info("No SSO config provided, skipping initialize SSO Auth")
@@ -317,7 +312,14 @@ func newSSOProvider(vp *viper.Viper) handlers.SSOProvider {
 
 	switch config.Provider {
 	case authorization.BoxyHQName:
-		return &authorization.BoxyHQ{Config: &config}
+		return &authorization.BoxyHQ{SSOProviderBase: authorization.SSOProviderBase{SSOConfig: &config}}
+	case authorization.Auth0Name:
+		pr, err := authorization.NewAuth0(&config)
+		if err != nil {
+			logging.Errorf("Can't initialize Auth0 SSO provider: %v", err)
+			return nil
+		}
+		return pr
 	default:
 		logging.Errorf("SSO provider %s is not supported. Jitsu supports only: %s",
 			config.Provider, authorization.BoxyHQName)
@@ -365,13 +367,18 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 	emailService *emails.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
+
 	router.Use(gin.Recovery(), enmiddleware.GinLogErrorBody)
 	router.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
 		logging.SystemErrorf("Panic on request %s: %v\n%s", c.Request.URL.String(), recovered, string(debug.Stack()))
 		logging.Errorf("%v", *c.Request)
 		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse("System error", nil))
 	}))
-
+	// To store custom types in our cookies,
+	// we must first register them using gob.Register
+	gob.Register(map[string]interface{}{})
+	store := cookie.NewStore([]byte("secret"))
+	router.Use(sessions.Sessions("auth-session", store))
 	router.Use(static.Serve("/", static.LocalFile("./web", true)))
 	router.NoRoute(func(c *gin.Context) {
 		c.File("./web/index.html")
@@ -406,7 +413,8 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsService *storages.Co
 		Configurations: configurationsService,
 	}
 
-	router.GET("/api/v1/sso-auth-callback", ssoAuthHandler.Handle)
+	router.GET("/api/v1/sso-auth-callback", ssoAuthHandler.CallbackHandler)
+	router.GET("/api/v1/sso-login", ssoAuthHandler.LoginHandler)
 
 	proxyHandler := handlers.NewProxyHandler(jitsuService, map[string]jitsu.APIDecorator{
 		//write here custom decorators for a certain HTTP URN paths

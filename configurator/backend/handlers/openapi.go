@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/spf13/viper"
 	"net/http"
 	"strings"
 
@@ -458,7 +459,7 @@ func (oa *OpenAPI) GetSystemConfiguration(ctx *gin.Context) {
 		}
 
 		if oa.SSOProvider != nil {
-			result.SSOAuthLink = oa.SSOProvider.AuthLink()
+			result.SSOAuthLink = viper.GetString("backend.base_url") + "/api/v1/sso-login"
 		}
 
 		if data, err := oa.Configurations.GetSystemSetting("plugin_script"); err == nil {
@@ -690,7 +691,11 @@ func (oa *OpenAPI) UserSignOut(ctx *gin.Context) {
 	} else if err := authorizator.SignOut(ctx, token); err != nil {
 		mw.BadRequest(ctx, "Failed to sign out user", err)
 	} else {
-		mw.StatusOk(ctx)
+		if oa.SSOProvider != nil && ctx.Query("final") != "1" {
+			oa.SSOProvider.LogoutHandler(ctx)
+		} else {
+			mw.StatusOk(ctx)
+		}
 	}
 }
 

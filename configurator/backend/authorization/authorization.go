@@ -9,6 +9,7 @@ import (
 
 const (
 	BoxyHQName = "boxyhq"
+	Auth0Name  = "auth0"
 )
 
 var (
@@ -26,17 +27,28 @@ type MailSender interface {
 }
 
 type SSOConfig struct {
-	Provider              string                 `json:"provider" validate:"required"`
-	Tenant                string                 `json:"tenant" validate:"required"`
-	Product               string                 `json:"product" validate:"required"`
-	Host                  string                 `json:"host" validate:"required"`
-	AccessTokenTTLSeconds int                    `json:"access_token_ttl_seconds" validate:"required"`
-	AutoProvision         SSOConfigAutoProvision `json:"auto_provision"`
+	BoxyHQConfig          `mapstructure:",squash"`
+	Auth0Config           `mapstructure:",squash"`
+	Provider              string                 `json:"provider" mapstructure:"provider" validate:"required"`
+	AccessTokenTTLSeconds int                    `json:"access_token_ttl_seconds" mapstructure:"access_token_ttl_seconds" validate:"required"`
+	AutoProvision         SSOConfigAutoProvision `json:"auto_provision" mapstructure:"auto_provision"`
+}
+
+type BoxyHQConfig struct {
+	Tenant  string `json:"tenant" mapstructure:"tenant"  validate:"required_if=Provider boxyhq"`
+	Product string `json:"product" mapstructure:"product" validate:"required_if=Provider boxyhq"`
+	Host    string `json:"host" mapstructure:"host" validate:"required_if=Provider boxyhq"`
+}
+
+type Auth0Config struct {
+	Domain       string `json:"domain" mapstructure:"domain" validate:"required_if=Provider auth0"`
+	ClientId     string `json:"client_id" mapstructure:"client_id" validate:"required_if=Provider auth0"`
+	ClientSecret string `json:"client_secret" mapstructure:"client_secret" validate:"required_if=Provider auth0"`
 }
 
 type SSOConfigAutoProvision struct {
-	Enable         bool `json:"enable"`
-	AutoOnboarding bool `json:"auto_onboarding"`
+	Enable         bool `json:"enable" mapstructure:"enable"`
+	AutoOnboarding bool `json:"auto_onboarding" mapstructure:"auto_onboarding"`
 }
 
 func closeQuietly(closer io.Closer) {
