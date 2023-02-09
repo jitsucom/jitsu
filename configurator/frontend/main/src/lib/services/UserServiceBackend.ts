@@ -119,7 +119,7 @@ export class BackendUserService implements UserService {
 
     this.backendApi.post("/users/signout", {}).then(res => {
       if (res.sso_logout_url) {
-         return fetch(res.sso_logout_url, {mode: "no-cors"})
+         return fetch(res.sso_logout_url, {mode: "cors", credentials: "include"})
       }
     }).finally(cleaningCallback)
   }
