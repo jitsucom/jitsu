@@ -16,20 +16,22 @@ export class BackendUserService implements UserService {
   private readonly storageService: ServerStorage
   private readonly smtpConfigured: boolean
   private _apiAccess: ApiAccess
+  private readonly ssoProvider: string
   private readonly ssoAuthLink: string
 
   constructor(
     backendApi: BackendApiClient,
     storageService: ServerStorage,
     smtpConfigured: boolean,
-    ssoAuthLink: string,
+    ssoProvider: string,
     backendApiBase: string
   ) {
     this.backendApi = backendApi
     this.storageService = storageService
     this.smtpConfigured = smtpConfigured
-    if (ssoAuthLink !== "") {
-      this.ssoAuthLink = ssoAuthLink
+    if (ssoProvider !== "") {
+      this.ssoProvider = ssoProvider
+      this.ssoAuthLink = `${backendApiBase}/v1/sso-login?redirect_uri=${encodeURIComponent(`${backendApiBase}/v1/sso-auth-callback`)}`
     }
   }
 
@@ -115,7 +117,11 @@ export class BackendUserService implements UserService {
       callback()
     }
 
-    this.backendApi.post("/users/signout", {}).finally(cleaningCallback)
+    this.backendApi.post("/users/signout", {}).then(res => {
+      if (res.sso_logout_url) {
+         return fetch(res.sso_logout_url, {mode: "no-cors"})
+      }
+    }).finally(cleaningCallback)
   }
 
   getUser(): User {
@@ -181,6 +187,10 @@ export class BackendUserService implements UserService {
 
   getLoginFeatures(): LoginFeatures {
     return { oauth: false, password: true, signupEnabled: false }
+  }
+
+  getSSOProvider(): string {
+    return this.ssoProvider ?? ""
   }
 
   getSSOAuthLink(): string {

@@ -1,13 +1,16 @@
 package authorization
 
-import "time"
+import (
+	"github.com/jitsucom/jitsu/server/utils"
+	"time"
+)
 
 type SSOProviderBase struct {
 	SSOConfig *SSOConfig
 }
 
 func (sso *SSOProviderBase) AccessTokenTTL() time.Duration {
-	return time.Duration(sso.SSOConfig.AccessTokenTTLSeconds) * time.Second
+	return time.Duration(utils.NvlInt(sso.SSOConfig.AccessTokenTTLSeconds, 86400)) * time.Second
 }
 
 func (sso *SSOProviderBase) IsAutoProvisionEnabled() bool {

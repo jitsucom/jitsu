@@ -27,23 +27,27 @@ type MailSender interface {
 }
 
 type SSOConfig struct {
-	BoxyHQConfig          `mapstructure:",squash"`
-	Auth0Config           `mapstructure:",squash"`
+	//for compatibility with previous version where boxyhq config was in root
+	LegacyBoxyHQConfig BoxyHQConfig `mapstructure:",squash" validate:"-"`
+	BoxyHQConfig       `json:"boxyhq" mapstructure:"boxyhq" validate:"-"`
+	Auth0Config        `json:"auth0" mapstructure:"auth0" validate:"-"`
+
 	Provider              string                 `json:"provider" mapstructure:"provider" validate:"required"`
 	AccessTokenTTLSeconds int                    `json:"access_token_ttl_seconds" mapstructure:"access_token_ttl_seconds" validate:"required"`
 	AutoProvision         SSOConfigAutoProvision `json:"auto_provision" mapstructure:"auto_provision"`
 }
 
 type BoxyHQConfig struct {
-	Tenant  string `json:"tenant" mapstructure:"tenant"  validate:"required_if=Provider boxyhq"`
-	Product string `json:"product" mapstructure:"product" validate:"required_if=Provider boxyhq"`
-	Host    string `json:"host" mapstructure:"host" validate:"required_if=Provider boxyhq"`
+	Tenant  string `json:"tenant" mapstructure:"tenant"  validate:"required"`
+	Product string `json:"product" mapstructure:"product" validate:"required"`
+	Host    string `json:"host" mapstructure:"host" validate:"required"`
 }
 
 type Auth0Config struct {
-	Domain       string `json:"domain" mapstructure:"domain" validate:"required_if=Provider auth0"`
-	ClientId     string `json:"client_id" mapstructure:"client_id" validate:"required_if=Provider auth0"`
-	ClientSecret string `json:"client_secret" mapstructure:"client_secret" validate:"required_if=Provider auth0"`
+	Domain               string `json:"domain" mapstructure:"domain" validate:"required"`
+	ClientId             string `json:"client_id" mapstructure:"client_id" validate:"required"`
+	ClientSecret         string `json:"client_secret" mapstructure:"client_secret" validate:"required"`
+	AllowUnverifiedEmail bool   `json:"allow_unverified_email" mapstructure:"allow_unverified_email"`
 }
 
 type SSOConfigAutoProvision struct {

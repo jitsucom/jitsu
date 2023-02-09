@@ -207,6 +207,10 @@ export class FirebaseUserService implements UserService {
     return { oauth: true, password: true, signupEnabled: true }
   }
 
+  getSSOProvider(): string {
+    return ""
+  }
+
   getSSOAuthLink(): string {
     return ""
   }

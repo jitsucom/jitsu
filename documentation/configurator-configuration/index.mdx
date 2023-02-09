@@ -14,6 +14,7 @@ The file consists of the following sections:
 * `storage` — Main Storage. Configurator UI stores all users configuration such as configured destinations, api keys, sources into the storage.
 * `notifications` — notifier configuration. Configurator starts, system errors, and panics information will be sent to it. Currently, only Slack notifications are supported.
 * `smtp` – email sender configuration. If not specified, email sender will be disabled. The config may also be passed as JSON via `JITSU_SMTP_CONFIG` environment variable and follows the same layout as YAML configuration (`{"host": "...", "port": 456, ...}`).
+* `sso` – SSO authentication configuration. Supported providers: [Auth0](/docs/configurator-configuration/auth0-sso) and [BoxyHQ](/docs/configurator-configuration/boxy-hq-sso) The config may also be passed as JSON via `JITSU_SSO_CONFIG` environment variable and follows the same layout as YAML configuration (`{"provider": "...", "auto_provision": { ... }}`).
 
 **Example**:
 
@@ -28,6 +29,10 @@ server:
     - 'localhost'
   auth: 'demo___please_provide_value_in_production___'
 
+ui:
+  #Public URL of the Configurator UI
+  base_url: 'https://jitsu.example.com'
+  
 jitsu:
   base_url: 'http://your_jitsu_server_url'
   #token from Jitsu Server server.admin_token section of yaml configuration
@@ -60,6 +65,15 @@ smtp:
   from: support@jitsu.com # optional, used for From header
   signature: Your Jitsu - an open-source data collection platform team # optional
   reply_to: support@jitsu.com # optional, used for Reply-To header
+
+sso:
+  provider: 'auth0' # SSO provider. Supported: auth0, boxy
+  auto_provision:
+    enable: true # enable auto provisioning - automatically create user if not exists
+    auto_onboarding: true # skip onboarding for auto provisioned users
+  auth0:
+    ... # provider specific settings
+  access_token_ttl_seconds: 86400 # ttl of obtained access token in seconds. Default: 86400 (1 day)
 ```
 
 <Hint>

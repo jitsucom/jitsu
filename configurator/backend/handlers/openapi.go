@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/spf13/viper"
 	"net/http"
 	"strings"
 
@@ -459,7 +458,7 @@ func (oa *OpenAPI) GetSystemConfiguration(ctx *gin.Context) {
 		}
 
 		if oa.SSOProvider != nil {
-			result.SSOAuthLink = viper.GetString("backend.base_url") + "/api/v1/sso-login"
+			result.SSOProvider = oa.SSOProvider.Name()
 		}
 
 		if data, err := oa.Configurations.GetSystemSetting("plugin_script"); err == nil {

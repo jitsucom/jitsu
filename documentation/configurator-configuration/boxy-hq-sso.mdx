@@ -1,0 +1,45 @@
+# BoxyHQ SSO
+
+Read more about [BoxyHQ](https://boxyhq.com/)
+
+### Prerequisites
+
+<Hint>
+`ui.base_url` must be configured in `configurator.yaml`
+</Hint>
+
+### Configuration
+
+By default, SSO authentication is disabled. For enabling it put the following keys in **Jitsu Configurator** YAML configuration:
+
+* `provider` — SSO provider: `boxyhq`
+* `auto_provision.enable` — Enables user auto provision after SSO authorization if user does not exist in system
+* `auto_provision.auto_onboarding` — Enable this for skipping onboarding step for new users
+* `boxyhq.host` — SSO provider host
+* `boxyhq.tenant` — read more about this parameter and boxyhq auth flow [here](https://boxyhq.com/docs/jackson/saml-flow#3-oauth-20-flow)
+* `boxyhq.product` — read more about this parameter and boxyhq auth flow [here](https://boxyhq.com/docs/jackson/saml-flow#3-oauth-20-flow)
+* `access_token_ttl_seconds` — time to live for SSO auth session.
+
+```yaml
+ui:
+  base_url: 'https://jitsu.example.com'
+
+sso:
+  provider: 'boxyhq'
+  auto_provision:
+    enable: true
+    auto_onboarding: true
+  boxyhq:
+    host: '___boxyhq_host___'
+    tenant: '___your_tenant___'
+    product: '___your_product___'
+  access_token_ttl_seconds: 86400,
+```
+
+or you can configure it with env variable `JITSU_SSO_CONFIG`:
+
+```bash
+export JITSU_SSO_CONFIG='{"provider": "boxyhq", "boxyhq": {"host": "https://boxyhq.com", "tenant": "boxyhq.com", "product": "jitsu"}, "access_token_ttl_seconds": 86400, "auto_provision": {"enable": true, "auto_onboarding": true}}'
+```
+
+After you have configured the SSO auth, the "Continue with SSO" button will appear on the authorization page.

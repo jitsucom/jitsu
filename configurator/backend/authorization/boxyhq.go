@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"github.com/carlmjohnson/requests"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/jitsucom/jitsu/configurator/handlers"
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/server/uuid"
-	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 	"net/http"
@@ -16,6 +16,18 @@ import (
 
 type BoxyHQ struct {
 	SSOProviderBase
+}
+
+func NewBoxyHQ(ssoConfig *SSOConfig) (*BoxyHQ, error) {
+	if err := validator.New().Struct(&ssoConfig.BoxyHQConfig); err != nil {
+		if err2 := validator.New().Struct(&ssoConfig.LegacyBoxyHQConfig); err2 != nil {
+			return nil, fmt.Errorf("missed required SSO config params: %v", err)
+		}
+		ssoConfig.BoxyHQConfig = ssoConfig.LegacyBoxyHQConfig
+	}
+	return &BoxyHQ{
+		SSOProviderBase: SSOProviderBase{SSOConfig: ssoConfig},
+	}, nil
 }
 
 func (p *BoxyHQ) Name() string {
@@ -64,21 +76,21 @@ func (p *BoxyHQ) GetSSOSession(ctx *gin.Context, code string) (*handlers.SSOSess
 }
 
 func (p *BoxyHQ) LoginHandler(ctx *gin.Context) {
-	ctx.Redirect(http.StatusTemporaryRedirect, p.AuthLink())
+	ctx.Redirect(http.StatusTemporaryRedirect, p.AuthLink(ctx))
 }
 
 func (p *BoxyHQ) LogoutHandler(ctx *gin.Context) {
 	middleware.StatusOk(ctx)
 }
 
-func (p *BoxyHQ) AuthLink() string {
+func (p *BoxyHQ) AuthLink(ctx *gin.Context) string {
 	return fmt.Sprintf(
 		"%s?response_type=code&provider=saml&client_id=dummy&tenant=%s&product=%s&state=%s&redirect_uri=%s",
 		p.SSOConfig.Host+"/api/oauth/authorize",
 		p.SSOConfig.Tenant,
 		p.SSOConfig.Product,
 		uuid.New(),
-		url.QueryEscape(viper.GetString("backend.base_url")+"/api/v1/sso-auth-callback"),
+		ctx.Query("redirect_uri"),
 	)
 }
 

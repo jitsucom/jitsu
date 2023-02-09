@@ -16,6 +16,7 @@ import { Project, ProjectPermission, ProjectWithPermissions } from "../../genera
 import { createProjectService, ProjectService } from "./ProjectService"
 import { FirebaseUserService } from "./UserServiceFirebase"
 import { UserSettingsService, UserSettingsLocalService, Settings } from "./UserSettingsService"
+import laxy  from "laxy";
 
 export interface IApplicationServices {
   init(): Promise<void>
@@ -77,7 +78,7 @@ export default class ApplicationServices implements IApplicationServices {
         this._backendApiClient,
         this._storageService,
         configuration.smtp,
-        this._features.ssoAuthLink,
+        this._features.ssoProvider,
         this._applicationConfiguration.backendApiBase
       )
     } else if (configuration.authorization == "firebase") {
@@ -156,25 +157,13 @@ export default class ApplicationServices implements IApplicationServices {
   }
 
   static get(): ApplicationServices {
-    if (window["_en_instance"] === undefined) {
-      try {
-        window["_en_instance"] = new ApplicationServices()
-      } catch (e) {
-        console.error("Failed to initialize application services", e)
-        document.body.innerHTML = `<pre>Fatal error '${e.message}': \n${e.stack}</pre>`
-        if (window.stop) {
-          window.stop()
-        }
-        throw e
-      }
-    }
-    return window["_en_instance"]
+    return laxy.obj(_get)()
   }
 
   public async isAppVersionOutdated(): Promise<boolean> {
     const appVersion = await this.getAppVersion()
     const currentVersion = localStorage.getItem("app_version")
-    return appVersion !== null && appVersion != currentVersion
+    return appVersion !== "0" && appVersion !== null && appVersion != currentVersion
   }
 
   private async getAppVersion(): Promise<string> {
@@ -252,6 +241,22 @@ export default class ApplicationServices implements IApplicationServices {
   }
 }
 
+function _get(): ApplicationServices {
+  if (window["_en_instance"] === undefined) {
+    try {
+      window["_en_instance"] = new ApplicationServices()
+    } catch (e) {
+      console.error("Failed to initialize application services", e)
+      document.body.innerHTML = `<pre>Fatal error '${e.message}': \n${e.stack}</pre>`
+      if (window.stop) {
+        window.stop()
+      }
+      throw e
+    }
+  }
+  return window["_en_instance"]
+}
+
 export function mapBackendConfigResponseToAppFeatures(responseData: { [key: string]: unknown }): FeatureSettings {
   let environment: FeatureSettings["environment"] = responseData.selfhosted ? "custom" : "jitsu_cloud"
   if (responseData.docker_hub_id === "heroku") {
@@ -260,9 +265,9 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     environment = "docker" as const
   }
 
-  let ssoAuthLink = ""
-  if (typeof responseData.sso_auth_link === "string") {
-    ssoAuthLink = responseData.sso_auth_link
+  let ssoProvider = ""
+  if (typeof responseData.sso_provider === "string") {
+    ssoProvider = responseData.sso_provider
   }
 
   assert(
@@ -285,7 +290,7 @@ export function mapBackendConfigResponseToAppFeatures(responseData: { [key: stri
     chatSupportType: responseData.selfhosted ? "slack" : "chat",
     billingEnabled: responseData.authorization === "firebase" && !!process.env.BILLING_API_BASE_URL,
     authorization: responseData.authorization,
-    ssoAuthLink,
+    ssoProvider,
     smtp: responseData.smtp,
     environment: environment,
     onlyAdminCanChangeUserEmail: !!responseData.only_admin_can_change_user_email,
@@ -306,9 +311,9 @@ export type FeatureSettings = {
   authorization: "redis" | "sso" | "firebase"
 
   /**
-   * Link for SSO authorization
+   * SSO provider used
    */
-  ssoAuthLink: string
+  ssoProvider: string
 
   /**
    * If is there any users in backend DB (no users means we need to run a setup flow)

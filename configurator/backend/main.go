@@ -312,7 +312,12 @@ func newSSOProvider(vp *viper.Viper) handlers.SSOProvider {
 
 	switch config.Provider {
 	case authorization.BoxyHQName:
-		return &authorization.BoxyHQ{SSOProviderBase: authorization.SSOProviderBase{SSOConfig: &config}}
+		pr, err := authorization.NewBoxyHQ(&config)
+		if err != nil {
+			logging.Errorf("Can't initialize BoxyHQ SSO provider: %v", err)
+			return nil
+		}
+		return pr
 	case authorization.Auth0Name:
 		pr, err := authorization.NewAuth0(&config)
 		if err != nil {

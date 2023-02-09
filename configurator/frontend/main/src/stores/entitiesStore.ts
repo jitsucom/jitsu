@@ -22,7 +22,6 @@ type EntitySchema<T extends EntityData> = {
 // (!) TO DO: move type to this file
 const { IDLE, GLOBAL_LOADING, BACKGROUND_LOADING, GLOBAL_ERROR } = EntitiesStoreStatus
 
-const services = ApplicationServices.get()
 
 /**
  * Generic entities store class for manipulating objects.
@@ -58,11 +57,14 @@ export class EntitiesStore<T extends EntityData> {
   })
   protected readonly type: EntityType
   protected readonly schema: EntitySchema<T>
+  protected readonly services: ApplicationServices
+
   _entities: T[] = []
 
   constructor(type: EntityType, schema: EntitySchema<T>) {
     this.type = type
     this.schema = schema
+    this.services = ApplicationServices.get()
     this.get = this.get.bind(this)
     makeObservable(this, {
       _entities: observable,
@@ -133,7 +135,7 @@ export class EntitiesStore<T extends EntityData> {
     this.resetError()
     this.setStatus(showGlobalLoader ? GLOBAL_LOADING : BACKGROUND_LOADING)
     try {
-      const entities = yield services.storageService.table<T>(this.type).getAll()
+      const entities = yield this.services.storageService.table<T>(this.type).getAll()
       this._entities = entities ?? []
       this._initialized = true
     } catch (error) {
@@ -147,7 +149,7 @@ export class EntitiesStore<T extends EntityData> {
     this.resetError()
     this.setStatus(BACKGROUND_LOADING)
     try {
-      const addedEntity = yield services.storageService.table<T>(this.type).add(entityToAdd)
+      const addedEntity = yield this.services.storageService.table<T>(this.type).add(entityToAdd)
       if (!addedEntity) {
         throw new Error(`Error: '${this.type}' store failed to add an entity ${entityToAdd}`)
       }
@@ -162,7 +164,7 @@ export class EntitiesStore<T extends EntityData> {
     this.resetError()
     this.setStatus(BACKGROUND_LOADING)
     try {
-      yield services.storageService.table<T>(this.type).delete(id)
+      yield this.services.storageService.table<T>(this.type).delete(id)
       remove(this._entities, entity => this.getId(entity) === id)
     } finally {
       this.setStatus(IDLE)
@@ -175,7 +177,7 @@ export class EntitiesStore<T extends EntityData> {
     try {
       const index = this._entities.findIndex(item => this.getId(item) === this.getId(entity))
       if (index >= 0) {
-        yield services.storageService.table<T>(this.type).replace(this.getId(entity), entity)
+        yield this.services.storageService.table<T>(this.type).replace(this.getId(entity), entity)
         this._entities[index] = entity
       } else {
         throw new Error(`Error: ${this.type} store failed to replace entity in store. Entity: ${entity}`)
@@ -192,7 +194,7 @@ export class EntitiesStore<T extends EntityData> {
       if (getObjectDepth(patch) > 2) {
         throw new Error(`Entities recursive patch is not supported`)
       }
-      yield services.storageService.table<T>(this.type).patch(id, patch)
+      yield this.services.storageService.table<T>(this.type).patch(id, patch)
       Object.assign(this.get(id), patch)
     } finally {
       this.setStatus(IDLE)
