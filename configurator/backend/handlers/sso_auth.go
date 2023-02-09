@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/jitsucom/jitsu/configurator/entities"
@@ -33,34 +34,48 @@ type SSOAuthHandler struct {
 	Configurations *storages.ConfigurationsService
 }
 
-func (h *SSOAuthHandler) Handle(ctx *gin.Context) {
+func (h *SSOAuthHandler) LoginHandler(ctx *gin.Context) {
+	if ctx.IsAborted() {
+		return
+	}
+
+	if provider := h.Provider; provider == nil {
+		ctx.String(http.StatusOK, errorTmpl, "SSO is not configured", h.UIBaseURL)
+	} else if _, err := h.Authorizator.Local(); err != nil {
+		ctx.String(http.StatusOK, errorTmpl, EscapeError(err), h.UIBaseURL)
+	} else {
+		h.Provider.LoginHandler(ctx)
+	}
+}
+
+func (h *SSOAuthHandler) CallbackHandler(ctx *gin.Context) {
 	if ctx.IsAborted() {
 		return
 	}
 
 	ctx.Header("content-type", "text/html")
 	if provider := h.Provider; provider == nil {
-		ctx.String(http.StatusOK, errorTmpl, "SSO is not configured", h.UIBaseURL)
+		ctx.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/sso_callback?error=%s", h.UIBaseURL, url.QueryEscape("SSO is not configured")))
 	} else if authorizator, err := h.Authorizator.Local(); err != nil {
-		ctx.String(http.StatusOK, errorTmpl, EscapeError(err), h.UIBaseURL)
+		ctx.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/sso_callback?error=%s", h.UIBaseURL, url.QueryEscape(EscapeError(err))))
 	} else if code := ctx.Query("code"); code == "" {
-		ctx.String(http.StatusOK, errorTmpl, "Missed required query param: code", h.UIBaseURL)
+		ctx.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/sso_callback?error=%s", h.UIBaseURL, url.QueryEscape("Missed required query param: code")))
 	} else if session, err := provider.GetSSOSession(ctx, code); err != nil {
-		ctx.String(http.StatusOK, errorTmpl, EscapeError(err), h.UIBaseURL)
+		ctx.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/sso_callback?error=%s", h.UIBaseURL, url.QueryEscape(EscapeError(err))))
 	} else {
 		_, err := authorizator.GetUserIDByEmail(ctx, session.Email)
 		if err != nil && provider.IsAutoProvisionEnabled() {
 			err := h.AutoProvision(ctx, session, authorizator, provider.IsAutoOnboardingEnabled())
 			if err != nil {
-				ctx.String(http.StatusOK, errorTmpl, EscapeError(err), h.UIBaseURL)
+				ctx.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/sso_callback?error=%s", h.UIBaseURL, url.QueryEscape(EscapeError(err))))
 				return
 			}
 		}
 
 		if tokenPair, err := authorizator.SignInSSO(ctx, provider.Name(), session, provider.AccessTokenTTL()); err != nil {
-			ctx.String(http.StatusOK, errorTmpl, EscapeError(err), h.UIBaseURL)
+			ctx.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/sso_callback?error=%s", h.UIBaseURL, url.QueryEscape(EscapeError(err))))
 		} else {
-			ctx.String(http.StatusOK, successTmpl, tokenPair.AccessToken, tokenPair.RefreshToken, h.UIBaseURL)
+			ctx.Redirect(http.StatusTemporaryRedirect, fmt.Sprintf("%s/sso_callback?a=%s&r=%s", h.UIBaseURL, url.QueryEscape(tokenPair.AccessToken), url.QueryEscape(tokenPair.RefreshToken)))
 		}
 	}
 }

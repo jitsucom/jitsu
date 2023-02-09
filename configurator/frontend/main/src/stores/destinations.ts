@@ -12,15 +12,16 @@ import { randomId } from "utils/numbers"
 // @Types
 import type { PgDatabaseCredentials } from "lib/services/model"
 
-const services = ApplicationServices.get()
 export class DestinationsStore extends EntitiesStore<DestinationData> {
   private readonly apiKeysStore: ApiKeysStore = apiKeysStore
+  protected readonly services: ApplicationServices
 
   constructor() {
     super("destinations", {
       idField: "_uid",
       hideElements: dst => destinationsReferenceMap[dst._type]?.hidden,
     })
+    this.services = ApplicationServices.get()
     makeObservable(this, {
       createFreeDatabase: flow,
     })
@@ -32,8 +33,8 @@ export class DestinationsStore extends EntitiesStore<DestinationData> {
   }
 
   public *createFreeDatabase() {
-    const credentials: PgDatabaseCredentials = yield services.backendApiClient.post("/database", {
-      projectId: services.activeProject.id,
+    const credentials: PgDatabaseCredentials = yield this.services.backendApiClient.post("/database", {
+      projectId: this.services.activeProject.id,
     })
     const freeDatabaseDestination: DestinationData = {
       _type: "postgres",

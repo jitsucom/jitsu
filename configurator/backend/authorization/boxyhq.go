@@ -1,42 +1,50 @@
 package authorization
 
 import (
-	"context"
 	"fmt"
 	"github.com/carlmjohnson/requests"
+	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
+	"github.com/jitsucom/jitsu/configurator/handlers"
 	"github.com/jitsucom/jitsu/configurator/middleware"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 	"net/http"
 	"net/url"
-	"time"
-
-	"github.com/jitsucom/jitsu/configurator/handlers"
 )
 
 type BoxyHQ struct {
-	Config *SSOConfig
+	SSOProviderBase
+}
+
+func NewBoxyHQ(ssoConfig *SSOConfig) (*BoxyHQ, error) {
+	if err := validator.New().Struct(&ssoConfig.BoxyHQConfig); err != nil {
+		if err2 := validator.New().Struct(&ssoConfig.LegacyBoxyHQConfig); err2 != nil {
+			return nil, fmt.Errorf("missed required SSO config params: %v", err)
+		}
+		ssoConfig.BoxyHQConfig = ssoConfig.LegacyBoxyHQConfig
+	}
+	return &BoxyHQ{
+		SSOProviderBase: SSOProviderBase{SSOConfig: ssoConfig},
+	}, nil
 }
 
 func (p *BoxyHQ) Name() string {
 	return BoxyHQName
 }
 
-func (p *BoxyHQ) AccessTokenTTL() time.Duration {
-	return time.Duration(p.Config.AccessTokenTTLSeconds) * time.Second
-}
-
-func (p *BoxyHQ) GetSSOSession(ctx context.Context, code string) (*handlers.SSOSession, error) {
+func (p *BoxyHQ) GetSSOSession(ctx *gin.Context, code string) (*handlers.SSOSession, error) {
 	conf := &clientcredentials.Config{
 		ClientID:     "dummy",
 		ClientSecret: "dummy",
 		EndpointParams: url.Values{
-			"tenant":     {p.Config.Tenant},
-			"product":    {p.Config.Product},
+			"tenant":     {p.SSOConfig.Tenant},
+			"product":    {p.SSOConfig.Product},
 			"grant_type": {"authorization_code"},
 			"code":       {code},
 		},
-		TokenURL:  p.Config.Host + "/api/oauth/token",
+		TokenURL:  p.SSOConfig.Host + "/api/oauth/token",
 		AuthStyle: oauth2.AuthStyleInParams,
 	}
 
@@ -49,7 +57,7 @@ func (p *BoxyHQ) GetSSOSession(ctx context.Context, code string) (*handlers.SSOS
 	}
 
 	var info boxyHQUserInfo
-	if err := requests.URL(p.Config.Host+"/api/oauth/userinfo").
+	if err := requests.URL(p.SSOConfig.Host+"/api/oauth/userinfo").
 		Header("authorization", "Bearer "+token.AccessToken).
 		CheckStatus(http.StatusOK).
 		ToJSON(&info).
@@ -67,20 +75,22 @@ func (p *BoxyHQ) GetSSOSession(ctx context.Context, code string) (*handlers.SSOS
 	}, nil
 }
 
-func (p *BoxyHQ) IsAutoProvisionEnabled() bool {
-	return p.Config.AutoProvision.Enable
+func (p *BoxyHQ) LoginHandler(ctx *gin.Context) {
+	ctx.Redirect(http.StatusTemporaryRedirect, p.AuthLink(ctx))
 }
 
-func (p *BoxyHQ) IsAutoOnboardingEnabled() bool {
-	return p.Config.AutoProvision.AutoOnboarding
+func (p *BoxyHQ) LogoutHandler(ctx *gin.Context) {
+	middleware.StatusOk(ctx)
 }
 
-func (p *BoxyHQ) AuthLink() string {
+func (p *BoxyHQ) AuthLink(ctx *gin.Context) string {
 	return fmt.Sprintf(
-		"%s?response_type=code&provider=saml&client_id=dummy&tenant=%s&product=%s",
-		p.Config.Host+"/api/oauth/authorize",
-		p.Config.Tenant,
-		p.Config.Product,
+		"%s?response_type=code&provider=saml&client_id=dummy&tenant=%s&product=%s&state=%s&redirect_uri=%s",
+		p.SSOConfig.Host+"/api/oauth/authorize",
+		p.SSOConfig.Tenant,
+		p.SSOConfig.Product,
+		uuid.New(),
+		url.QueryEscape(ctx.Query("redirect_uri")),
 	)
 }
 

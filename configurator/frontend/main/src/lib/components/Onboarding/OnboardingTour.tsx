@@ -32,9 +32,10 @@ type OnboardingTourProps = { project: Project }
 
 const USER_EVENT_EXPIRATION_THRESHOLD = moment.duration(1, "months")
 
-const services = ApplicationServices.get()
 
 const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => {
+  const services = ApplicationServices.get()
+
   const [config, setConfig] = useState<OnboardingConfig | null>(null)
   const [userClosedTour, setUserClosedTour] = useState<boolean>(false)
 
@@ -140,7 +141,7 @@ const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => 
       const [user, destinations, eventsResponse] = await Promise.all([
         services.userService.getUser(),
         destinationsStore.list,
-        getEvents(),
+        getEvents(services),
       ])
 
       // user and company name
@@ -195,7 +196,7 @@ function calculateAmountOfSteps(config: OnboardingConfig): number {
   }, 0)
 }
 
-async function getEvents(): Promise<any> {
+async function getEvents(services: ApplicationServices): Promise<any> {
   try {
     await services.backendApiClient.get(`/events/cache?project_id=${services.activeProject.id}&limit=5`, {
       proxy: true,
