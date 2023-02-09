@@ -20,8 +20,10 @@ By default, SSO authentication is disabled. For enabling it put the following ke
 * `boxyhq.product` — read more about this parameter and boxyhq auth flow [here](https://boxyhq.com/docs/jackson/saml-flow#3-oauth-20-flow)
 * `access_token_ttl_seconds` — time to live for SSO auth session.
 
+configurator.yaml:
 ```yaml
 ui:
+  #Public URL of the Configurator UI
   base_url: 'https://jitsu.example.com'
 
 sso:

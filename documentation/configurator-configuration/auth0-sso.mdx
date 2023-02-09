@@ -17,7 +17,20 @@ In this case you need to enable **email** field for specific provider in **Authe
 `ui.base_url` must be configured in `configurator.yaml`
 </Hint>
 
-### Configuration
+### Configuring Auth0 Application
+
+Auth0 application must be of **Regular Web Application** type.
+
+It is necessary to set following settings in 'Application URIs' section of an Auth0 application Settings:
+
+* **Allowed Login URI** – `${configurator_base_url}`
+* **Allowed Callback URLs** — `${configurator_base_url}/api/v1/sso-auth-callback`
+* **Allowed Web Origins** — `${configurator_base_url}`
+
+where `${configurator_base_url}` is a public URL of Jitsu Configurator backend, e.g.: `https://jitsu.example.com`
+
+### Configuring Jitsu
+
 
 * `provider` — SSO provider: `auth0` 
 * `auto_provision.enable` — Enables user auto provision after SSO authorization if user does not exist in system
@@ -28,8 +41,10 @@ In this case you need to enable **email** field for specific provider in **Authe
 * `auth0.allow_unverified_email` — Allow login for users with unverified email. Default value is `false`
 * `access_token_ttl_seconds` — time to live for SSO auth session.
 
+configurator.yaml:
 ```yaml
 ui:
+  #Public URL of the Configurator UI
   base_url: 'https://jitsu.example.com'
     
 sso:
@@ -45,7 +60,6 @@ sso:
 ```
 
 or you can configure it with env variable `JITSU_SSO_CONFIG`:
-
 ```bash
 export JITSU_SSO_CONFIG='{"provider": "auth0", "auth0":{"domain": "dev-12345678.us.auth0.com", "client_id": "___auth0_app_client_id___", "client_secret": "___auth0_app_client_secret___"}, "access_token_ttl_seconds": 86400, "auto_provision": {"enable": true, "auto_onboarding": true}}'
 ```
