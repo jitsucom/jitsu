@@ -30,6 +30,15 @@ func Nvl(args ...interface{}) interface{} {
 	return nil
 }
 
+func NvlInt(args ...int) int {
+	for _, n := range args {
+		if n != 0 {
+			return n
+		}
+	}
+	return 0
+}
+
 // NvlMap returns first not empty map from varargs
 //
 // return nil if all passed maps are empty

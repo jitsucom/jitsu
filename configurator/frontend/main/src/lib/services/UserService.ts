@@ -36,6 +36,8 @@ export interface UserService {
 
   getLoginFeatures(): LoginFeatures
 
+  getSSOProvider(): string
+
   getSSOAuthLink(): string
 
   /**

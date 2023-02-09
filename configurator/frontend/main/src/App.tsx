@@ -34,6 +34,7 @@ import { Project, ProjectWithPermissions } from "./generated/conf-openapi"
 import LoginPage from "./ui/pages/GetStartedPage/LoginPage"
 import SignupPage from "./ui/pages/GetStartedPage/SignupPage"
 import { StatusPage } from "./lib/components/StatusPage/StatusPage"
+import { SSOCallback } from "./lib/components/SSOCallback/SSOCallback"
 import { UserSettings } from "./lib/components/UserSettings/UserSettings"
 import { Settings } from "./lib/services/UserSettingsService"
 
@@ -120,7 +121,7 @@ const initializeProject = async (
 }
 
 export const Application: React.FC = function () {
-  const [services, setServices] = useState<ApplicationServices>()
+  const [services, setServices] = useState<ApplicationServices>(null)
   const [projects, setProjects] = useState<Project[]>(null)
   const [initialized, setInitialized] = useState(false)
   const [error, setError] = useState<Error>()
@@ -129,60 +130,82 @@ export const Application: React.FC = function () {
   const [preloaderText, setPreloader] = useState("Loading application, please be patient...")
 
   useEffect(() => {
-    ;(async () => {
-      try {
-        const application = await initializeApplication(description => {
-          setPreloader(description)
-        })
-        if (application.userService.hasUser()) {
-          const projects = await application.projectService.getAvailableProjects()
-          if (projects.length === 0) {
-            const newProject = await application.projectService.createProject(
-              application.userService.getUser().suggestedCompanyName
-            )
-            setProjects([newProject])
-          } else {
-            setProjects(projects)
+    if (location.pathname !== "/sso_callback") {
+      ;(async () => {
+        try {
+          const application = await initializeApplication(description => {
+            setPreloader(description)
+          })
+          if (application.userService.hasUser()) {
+            const projects = await application.projectService.getAvailableProjects()
+            if (projects.length === 0) {
+              const newProject = await application.projectService.createProject(
+                  application.userService.getUser().suggestedCompanyName
+              )
+              setProjects([newProject])
+            } else {
+              setProjects(projects)
+            }
           }
+          setServices(application)
+          setInitialized(true)
+        } catch (e) {
+          const msg = `Can't initialize application with backend ${
+              process.env.BACKEND_API_BASE || " (BACKEND_API_BASE is not set)"
+          }: ${e?.message || "unknown error"}`
+          console.log(msg, e)
+          setError(createError(msg, e))
         }
-        setServices(application)
-        setInitialized(true)
-      } catch (e) {
-        const msg = `Can't initialize application with backend ${
-          process.env.BACKEND_API_BASE || " (BACKEND_API_BASE is not set)"
-        }: ${e?.message || "unknown error"}`
-        console.log(msg, e)
-        setError(createError(msg, e))
-      }
-    })()
+      })()
+    } else {
+      console.log("Skipping initialization because of sso_callback")
+    }
   }, [projectId])
 
   useEffect(() => {
-    ;(async () => {
-      const isAppOutdated = await services?.isAppVersionOutdated()
-      if (isAppOutdated) {
-        actionNotification.warn(
-          <>
-            New version of Jitsu available! Please reload the page to get the latest update.
-            <br />
-            <Button
-              className="mt-5 mb-2"
-              size="large"
-              type="primary"
-              icon={<ReloadOutlined />}
-              onClick={() => window.location.reload()}
-            >
-              Reload
-            </Button>{" "}
-          </>,
-          { duration: 0, className: "app-update-notice box-shadow-base" }
-        )
-      }
-    })()
+    if (location.pathname !== "/sso_callback") {
+      ;(async () => {
+        const isAppOutdated = await services?.isAppVersionOutdated()
+        if (isAppOutdated) {
+          actionNotification.warn(
+              <>
+                New version of Jitsu available! Please reload the page to get the latest update.
+                <br/>
+                <Button
+                    className="mt-5 mb-2"
+                    size="large"
+                    type="primary"
+                    icon={<ReloadOutlined/>}
+                    onClick={() => window.location.reload()}
+                >
+                  Reload
+                </Button>{" "}
+              </>,
+              {duration: 0, className: "app-update-notice box-shadow-base"}
+          )
+        }
+      })()
+    } else {
+      console.log("Skipping version check because of sso_callback")
+    }
   }, [location, services])
 
   if (!error && !initialized) {
-    return <Preloader />
+    return <Switch>
+      <Route
+          key="sso_callback"
+          path={["/sso_callback"]}
+          exact
+          component={SSOCallback}
+      />
+      <Route
+          key="preloader"
+          path={"*"}
+          exact
+          component={Preloader}
+      />
+      <Redirect to="/" />
+    </Switch>
   } else if (error) {
     console.error("Initialization error", error)
     if (services?.analyticsService) {
@@ -240,6 +263,12 @@ export const Application: React.FC = function () {
                 path={["/reset_password/:resetId"]}
                 exact
                 render={pageOf(ChangePasswordOnResetForm, { pageTitle: "Jitsu : Reset Password" })}
+              />
+              <Route
+                  key="sso_callback"
+                  path={["/sso_callback"]}
+                  exact
+                  component={SSOCallback}
               />
               <Redirect to="/" />
             </Switch>

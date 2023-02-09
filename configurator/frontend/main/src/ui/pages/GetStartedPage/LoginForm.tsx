@@ -13,7 +13,7 @@ import { useServices } from "../../../hooks/useServices"
 import ApplicationServices from "../../../lib/services/ApplicationServices"
 import UserOutlined from "@ant-design/icons/lib/icons/UserOutlined"
 
-const SSO_ERROR_LS_KEY = "sso_error"
+export const SSO_ERROR_LS_KEY = "sso_error"
 
 export function LoginForm({ supportOauth, ssoAuthLink }) {
   const services = useServices()

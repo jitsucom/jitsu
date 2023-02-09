@@ -5,14 +5,16 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"github.com/coreos/go-oidc"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/jitsucom/jitsu/configurator/handlers"
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/utils"
-	"github.com/spf13/viper"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"golang.org/x/oauth2"
 	"net/http"
 	"net/url"
@@ -26,6 +28,9 @@ type Auth0 struct {
 
 // NewAuth0 instantiates the *Authenticator.
 func NewAuth0(ssoConfig *SSOConfig) (*Auth0, error) {
+	if err := validator.New().Struct(&ssoConfig.Auth0Config); err != nil {
+		return nil, fmt.Errorf("missed required SSO config params: %v", err)
+	}
 	provider, err := oidc.NewProvider(
 		context.Background(),
 		"https://"+ssoConfig.Domain+"/",
@@ -38,9 +43,9 @@ func NewAuth0(ssoConfig *SSOConfig) (*Auth0, error) {
 	conf := oauth2.Config{
 		ClientID:     ssoConfig.ClientId,
 		ClientSecret: ssoConfig.ClientSecret,
-		RedirectURL:  viper.GetString("backend.base_url") + "/api/v1/sso-auth-callback",
-		Endpoint:     provider.Endpoint(),
-		Scopes:       []string{oidc.ScopeOpenID, "profile"},
+		//RedirectURL:  viper.GetString("backend.base_url") + "/api/v1/sso-auth-callback",
+		Endpoint: provider.Endpoint(),
+		Scopes:   []string{oidc.ScopeOpenID, "profile", "email"},
 	}
 
 	return &Auth0{
@@ -61,9 +66,15 @@ func (a *Auth0) GetSSOSession(ctx *gin.Context, code string) (*handlers.SSOSessi
 			Description: "Invalid state parameter.",
 		}
 	}
+	if a.Config.RedirectURL == "" {
+		rUrl := session.Get("redirect_uri")
+		if rUrl != nil {
+			a.Config.RedirectURL = rUrl.(string)
+		}
+	}
 
 	// Exchange an authorization code for a token.
-	token, err := a.Config.Exchange(ctx.Request.Context(), ctx.Query("code"))
+	token, err := a.Config.Exchange(ctx.Request.Context(), code)
 	if err != nil {
 		return nil, middleware.ReadableError{
 			Description: "Failed to exchange an authorization code for a token.",
@@ -94,9 +105,21 @@ func (a *Auth0) GetSSOSession(ctx *gin.Context, code string) (*handlers.SSOSessi
 		}
 	}
 	logging.Infof("Auth0 profile: %+v", profile)
+	email := utils.MapNVLKeys(profile, "", "email").(string)
+	if email == "" {
+		return nil, middleware.ReadableError{
+			Description: "Failed to get email from profile. Email is required.",
+		}
+	}
+	emailVerified := fmt.Sprint(utils.MapNVLKeys(profile, false, "email_verified"))
+	if emailVerified != "true" && !a.SSOConfig.AllowUnverifiedEmail {
+		return nil, middleware.ReadableError{
+			Description: "Email is not verified. Please verify your email.",
+		}
+	}
 	return &handlers.SSOSession{
-		UserID:      utils.MapNVLKeys(profile, "unknown", "user_id", "name").(string),
-		Email:       utils.MapNVLKeys(profile, "unknown@email", "email", "name").(string),
+		UserID:      utils.MapNVLKeys(profile, uuid.New(), "sub", "email").(string),
+		Email:       email,
 		AccessToken: token.AccessToken,
 	}, nil
 }
@@ -111,10 +134,13 @@ func (a *Auth0) LoginHandler(ctx *gin.Context) {
 	// Save the state inside the session.
 	session := sessions.Default(ctx)
 	session.Set("state", state)
+	a.Config.RedirectURL = ctx.Query("redirect_uri")
+	session.Set("redirect_uri", a.Config.RedirectURL)
 	if err := session.Save(); err != nil {
 		ctx.String(http.StatusInternalServerError, err.Error())
 		return
 	}
+
 	ctx.Redirect(http.StatusTemporaryRedirect, a.Config.AuthCodeURL(state))
 }
 
@@ -127,12 +153,12 @@ func (a *Auth0) LogoutHandler(ctx *gin.Context) {
 
 	//originalUrl := ctx.Request.URL
 
-	//parameters := url.Values{}
+	parameters := url.Values{}
 	//parameters.Add("returnTo", viper.GetString("backend.base_url")+originalUrl.Path+"?final=1")
-	//parameters.Add("client_id", a.SSOConfig.ClientId)
-	//logoutUrl.RawQuery = parameters.Encode()
+	parameters.Add("client_id", a.SSOConfig.ClientId)
+	logoutUrl.RawQuery = parameters.Encode()
 
-	ctx.Redirect(http.StatusTemporaryRedirect, logoutUrl.String())
+	ctx.JSON(http.StatusOK, gin.H{"sso_logout_url": logoutUrl.String()})
 }
 
 // VerifyIDToken verifies that an *oauth2.Token is a valid *oidc.IDToken.
