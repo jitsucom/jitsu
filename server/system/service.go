@@ -15,8 +15,9 @@ var reloadEvery = 5 * time.Second
 // Configuration is used for system endpoint in Configurator and for Server redirect when configured
 // provides current authorization configuration and amount of registered users
 type Configuration struct {
-	Authorization               string `json:"authorization"`
-	SSOAuthLink                 string `json:"sso_auth_link"`
+	Authorization string `json:"authorization"`
+	SSOProvider   string `json:"sso_provider"`
+	//SSOAuthLink                 string `json:"sso_auth_link"`
 	Users                       bool   `json:"users"`
 	SMTP                        bool   `json:"smtp"`
 	SelfHosted                  bool   `json:"selfhosted"`

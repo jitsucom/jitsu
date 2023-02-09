@@ -2,7 +2,7 @@ package utils
 
 import "fmt"
 
-func ExtractObject(object interface{}, path ... string) (interface{}, error) {
+func ExtractObject(object interface{}, path ...string) (interface{}, error) {
 	mp, ok := object.(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("Expected object of type map[string]interface{} got: %T", object)
@@ -18,10 +18,10 @@ func ExtractObject(object interface{}, path ... string) (interface{}, error) {
 	return ExtractObject(val, path[1:]...)
 }
 
-//Nvl returns first not null object or pointer from varargs
+// Nvl returns first not null object or pointer from varargs
 //
-//return nil if all passed arguments are nil
-func Nvl(args ... interface{}) interface{} {
+// return nil if all passed arguments are nil
+func Nvl(args ...interface{}) interface{} {
 	for _, str := range args {
 		if str != nil {
 			return str
@@ -30,14 +30,33 @@ func Nvl(args ... interface{}) interface{} {
 	return nil
 }
 
-//NvlMap returns first not empty map from varargs
+func NvlInt(args ...int) int {
+	for _, n := range args {
+		if n != 0 {
+			return n
+		}
+	}
+	return 0
+}
+
+// NvlMap returns first not empty map from varargs
 //
-//return nil if all passed maps are empty
-func NvlMap(args ... map[string]interface{}) map[string]interface{} {
+// return nil if all passed maps are empty
+func NvlMap(args ...map[string]interface{}) map[string]interface{} {
 	for _, str := range args {
 		if len(str) > 0 {
 			return str
 		}
 	}
 	return nil
+}
+
+// MapNVLKeys returns value by first key that exists or empty value of V type if no keys exist
+func MapNVLKeys(mp map[string]interface{}, defaultValue interface{}, keys ...string) interface{} {
+	for _, key := range keys {
+		if value, ok := mp[key]; ok {
+			return value
+		}
+	}
+	return defaultValue
 }
