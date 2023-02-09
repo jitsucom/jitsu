@@ -62,6 +62,7 @@ sso:
 or you can configure it with env variable `JITSU_SSO_CONFIG`:
 ```bash
 export JITSU_SSO_CONFIG='{"provider": "auth0", "auth0":{"domain": "dev-12345678.us.auth0.com", "client_id": "___auth0_app_client_id___", "client_secret": "___auth0_app_client_secret___"}, "access_token_ttl_seconds": 86400, "auto_provision": {"enable": true, "auto_onboarding": true}}'
+export UI_BASE_URL='https://jitsu.example.com'
 ```
 
 After you have configured the SSO auth, the "Continue with SSO" button will appear on the authorization page.

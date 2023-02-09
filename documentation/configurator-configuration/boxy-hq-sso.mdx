@@ -42,6 +42,7 @@ or you can configure it with env variable `JITSU_SSO_CONFIG`:
 
 ```bash
 export JITSU_SSO_CONFIG='{"provider": "boxyhq", "boxyhq": {"host": "https://boxyhq.com", "tenant": "boxyhq.com", "product": "jitsu"}, "access_token_ttl_seconds": 86400, "auto_provision": {"enable": true, "auto_onboarding": true}}'
+export UI_BASE_URL='https://jitsu.example.com'
 ```
 
 After you have configured the SSO auth, the "Continue with SSO" button will appear on the authorization page.
