@@ -90,7 +90,7 @@ func (p *BoxyHQ) AuthLink(ctx *gin.Context) string {
 		p.SSOConfig.Tenant,
 		p.SSOConfig.Product,
 		uuid.New(),
-		ctx.Query("redirect_uri"),
+		url.QueryEscape(ctx.Query("redirect_uri")),
 	)
 }
 
