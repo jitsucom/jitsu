@@ -6,7 +6,7 @@
     "@firebase/auth": "^0.20.3",
     "@jitsu/catalog": "workspace:*",
     "@jitsu/sdk-js": "^3.0.3",
-    "@jitsu/jitsu-react": "^0.0.1-alpha.174",
+    "@jitsu/jitsu-react": "^0.0.1-alpha.183",
     "@sentry/react": "^6.19.6",
     "@sentry/tracing": "^6.19.6",
     "@svgr/webpack": "^5.5.0",
