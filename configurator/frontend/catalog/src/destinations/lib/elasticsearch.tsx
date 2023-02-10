@@ -1,7 +1,7 @@
 import { filteringExpressionDocumentation, modeParameter, tableName } from "./common"
 import {
     booleanType,
-    descriptionType,
+    descriptionType, passwordType,
     stringType,
 } from "../../sources/types"
 import * as logos from "../../sources/lib/logos"
@@ -27,7 +27,7 @@ const elasticsearchDestination: Destination = {
         },
         {
             id: "_package",
-            constant: "@tangible/jitsu-elasticsearch-destination@^0.0.1",
+            constant: "@tangible/jitsu-elasticsearch-destination@^0.0.2",
         },
         {
             id: "_formData.meta_package",
@@ -39,7 +39,7 @@ const elasticsearchDestination: Destination = {
                     <a target={"_blank"} href={"https://www.npmjs.com/package/@tangible/jitsu-elasticsearch-destination"}>
                         @tangible/jitsu-elasticsearch-destination
                     </a>{" "}
-                    (version: ^0.0.1)
+                    (version: ^0.0.2)
                     <br />
                     Developed by{" "}
                     <a target={"_blank"} href={"https://teamtangible.com"}>
@@ -71,6 +71,12 @@ const elasticsearchDestination: Destination = {
             displayName: "Elasticsearch server port",
             required: true,
             type: stringType,
+        },
+        {
+            id: "_formData.elasticsearch_apikey",
+            displayName: "Elasticsearch Api Key",
+            required: true,
+            type: passwordType,
         },
         {
             id: "_formData.elasticsearch_target",
