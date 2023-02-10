@@ -17,6 +17,7 @@ import mixpanelDestination from "./mixpanel"
 import mixpanel2Destination from "./mixpanel2"
 import bentoDestination from "./bento"
 import plausibleDestination from "./plausible"
+import elasticsearchDestination from "./elasticsearch"
 
 import npmDestination from "./npm"
 
@@ -43,6 +44,7 @@ export {
   tagDestination,
   bentoDestination,
   plausibleDestination,
+    elasticsearchDestination
 }
 
 export const destinationsReferenceMap: { [key: string]: Destination } = {
@@ -65,6 +67,7 @@ export const destinationsReferenceMap: { [key: string]: Destination } = {
   tag: tagDestination,
   bento: bentoDestination,
   plausible: plausibleDestination,
+  elasticsearch: elasticsearchDestination,
 }
 
 export const destinationsReferenceList = Object.values(destinationsReferenceMap)
